@@ -165,6 +165,8 @@ RENDER_DEFECTS = {
     "read-only out": (lambda c: c["out"].setflags(write=False), "out must be writeable"),
     "rows past the picture": (lambda c: c.update(r1=c["height"] + 1), "rows 0"),
     "no samples": (lambda c: c.update(s=0), "s must be at least 1"),
+    "samples past the planes": (lambda c: c.update(s=1 << 40), "overflows its sample planes"),
+    "an outline past 2^30": (lambda c: c.update(ow=1 << 30), "past 2"),
     "look short": (lambda c: c.update(look=c["look"][:-1].copy()), "look has 11"),
     "background of two": (lambda c: c.update(bg=np.ones(2)), "bg has 2"),
     "bg inside out": (_bg_in_out, "shares memory"),

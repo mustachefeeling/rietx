@@ -10,16 +10,19 @@
 //! the oracle, and they call no library function: `sqrt` is an IEEE
 //! operation, the specular power is repeated squaring, and the box filter adds
 //! the samples in one order.  So every expression here mirrors its numpy line
-//! operation for operation, and `tests/test_rietx_kernels.py` holds both
+//! operation for operation, and `tests/test_raster_kernels.py` holds both
 //! kernels to the oracle bit for bit on every wheel platform.  Two habits keep
 //! a comparison in the numpy line's polarity: a test that skips a sample is
-//! written as numpy's `hit &= ~(...)`, so a NaN goes the way it goes there.
+//! written as numpy's `hit &= ~(...)`, so a NaN goes the way it goes there;
+//! and a minimum, maximum or clamp goes through `npmin`/`npmax`, which pass a
+//! NaN on as `np.minimum`/`np.maximum` do, where `f64::min`/`max` drop it.
 //!
-//! **Threads.**  `raster.draw` hands bands of output rows to the compiled
-//! tier's pool, each a `render_rows` call on the same `out` with a disjoint
-//! `[r0, r1)`.  So `out` is written through a raw pointer, for the reason
-//! `lib.rs`'s header gives, and the band's sample planes are the call's own.
-//! `id_plane` is one call a frame and takes ordinary checked borrows.
+//! **Threads.**  The kernel is written for bands of output rows drawn
+//! concurrently, each a `render_rows` call on the same `out` with a disjoint
+//! `[r0, r1)`.  `raster.draw` does not call it yet; it still draws every band
+//! with the numpy oracle.  So `out` is written through a raw pointer, for the
+//! reason `lib.rs`'s header gives, and the band's sample planes are the call's
+//! own.  `id_plane` is one call a frame and takes ordinary checked borrows.
 //!
 //! **Every argument is checked before the GIL is released**, as in `lib.rs`:
 //! shapes against the leading count of each primitive's group, C order, the
@@ -36,24 +39,12 @@ use numpy::{
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{disjoint, err, span, Span};
+use crate::{disjoint, err, span, Span, P};
 
 /// The shader's constants, `raster._pack`'s `look`: light (3), ambient,
 /// diffuse, specular, shininess, face diffuse, ring width, ring threshold,
 /// ring lighten, ring darken.
 const LOOK_LEN: usize = 12;
-
-/// A raw `uint8` output pointer that may cross into `Python::detach`.
-#[derive(Clone, Copy)]
-struct Pu8(*mut u8);
-unsafe impl Send for Pu8 {}
-unsafe impl Sync for Pu8 {}
-impl Pu8 {
-    /// a method, so a closure captures the Send wrapper and not its field
-    fn get(self) -> *mut u8 {
-        self.0
-    }
-}
 
 /// A read-only array as a slice, checked C-contiguous and of shape
 /// `(n, *tail)`; returns the slice and `n`.
@@ -108,15 +99,26 @@ fn ipow(x: f64, mut n: i64) -> f64 {
 /// The GUI's `shade`: `base·(ambient + diffuse·d) + specular·s^k`.
 fn shade(b: &[f64], n0: f64, n1: f64, n2: f64, look: &[f64]) -> [f64; 3] {
     let ndl = n0 * look[0] + n1 * look[1] + n2 * look[2];
-    let d = ndl.max(0.0);
+    let d = npmax(ndl, 0.0);
     let rz = -look[2] + 2.0 * ndl * n2;
-    let spec = ipow(rz.max(0.0), look[6] as i64);
+    let spec = ipow(npmax(rz, 0.0), look[6] as i64);
     let k = look[3] + look[4] * d;
     [b[0] * k + look[5] * spec, b[1] * k + look[5] * spec, b[2] * k + look[5] * spec]
 }
 
+/// `np.maximum`: a NaN on either side is the answer, where `f64::max` drops it.
+fn npmax(a: f64, b: f64) -> f64 {
+    if a.is_nan() || a >= b { a } else { b }
+}
+
+/// `np.minimum`, NaN passed on as in [`npmax`].
+fn npmin(a: f64, b: f64) -> f64 {
+    if a.is_nan() || a <= b { a } else { b }
+}
+
+/// `np.minimum(np.maximum(v, 0.0), 1.0)`, a NaN kept.
 fn clamp01(v: f64) -> f64 {
-    v.max(0.0).min(1.0)
+    npmin(npmax(v, 0.0), 1.0)
 }
 
 // --- the primitives ----------------------------------------------------
@@ -354,7 +356,7 @@ fn draw_atoms(g: &mut Planes, v: View<'_>, at: Atoms<'_>) {
                 let n2 = e0 * u0 + e1 * u1 + e2 * u2;
                 let nn = (n0 * n0 + n1 * n1 + n2 * n2).sqrt();
                 let mut col = shade(base, n0 / nn, n1 / nn, n2 / nn, look);
-                if ring[i] && u0.abs().min(u1.abs().min(u2.abs())) < look[8] {
+                if ring[i] && npmin(u0.abs(), npmin(u1.abs(), u2.abs())) < look[8] {
                     if lum[i] < look[9] {
                         for ch in &mut col {
                             *ch = *ch + look[10] * (1.0 - *ch);
@@ -600,7 +602,7 @@ unsafe fn resolve(g: &Planes, out: *mut u8, r0: usize, rows: usize, width: usize
                 Some(bg) => [p0 + (1.0 - pa) * bg[0], p1 + (1.0 - pa) * bg[1],
                              p2 + (1.0 - pa) * bg[2], 1.0],
                 None if pa > 0.0 => [p0 / pa, p1 / pa, p2 / pa, pa],
-                None => [0.0; 4],
+                None => [0.0, 0.0, 0.0, pa],
             };
             let o = unsafe { out.add(((r0 + oy) * width + ox) * 4) };
             for (ch, v) in rgba.iter().enumerate() {
@@ -624,7 +626,7 @@ unsafe fn band(out: *mut u8, r0: usize, r1: usize, s: usize, height: usize, widt
                at: Atoms<'_>, hv: Halves<'_>, line: Segs<'_>, tri: Tris<'_>, text: Segs<'_>) {
     let (hs, ws, sr0, total) = ((r1 - r0) * s, width * s, r0 * s, height * s);
     let ext0 = sr0.saturating_sub(ow);
-    let ext1 = (sr0 + hs + ow).min(total);
+    let ext1 = (sr0 + hs).saturating_add(ow).min(total);
     let he = ext1 - ext0;
     let mut g = Planes {
         ext0, he, ws,
@@ -683,6 +685,18 @@ pub(crate) fn render_rows<'py>(
     if r0 > r1 || r1 > height {
         return err(format!("rows {r0}..{r1} outside 0..{height}"));
     }
+    // the band's planes are at most the whole picture's samples, three f64
+    // channels deep; refused here, a wrapped product would size them in release
+    let planes = height.checked_mul(s).zip(width.checked_mul(s))
+        .and_then(|(h, w)| h.checked_mul(w)?.checked_mul(3 * size_of::<f64>()));
+    if planes.is_none_or(|b| b > isize::MAX as usize) {
+        return err(format!("a {height} × {width} picture at {s} samples a side overflows \
+                            its sample planes"));
+    }
+    // the outline's disc test squares offsets up to ow in an i64
+    if ow >= 1 << 30 {
+        return err(format!("ow {ow} is past 2^30 samples"));
+    }
     if !out.is_c_contiguous() {
         return err("out must be C-contiguous");
     }
@@ -721,7 +735,7 @@ pub(crate) fn render_rows<'py>(
     let tx = segs("text", &text, &mut ins)?;
     let o = out.data();
     disjoint(&[(o as usize, o as usize + out.len())], &ins)?;
-    let o = Pu8(o);
+    let o = P(o);
     let v = View { x0, y0, pxs, look };
     py.detach(|| unsafe {
         band(o.get(), r0, r1, s, height, width, v, alpha, bg, ow, otau, ocol, at, hv, ln, tr, tx)

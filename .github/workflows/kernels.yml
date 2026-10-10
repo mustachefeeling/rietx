@@ -34,11 +34,14 @@ name: Kernels
 # it did.  Its reference is the numpy path, the arithmetic RIETX_COMPILED=0
 # runs.  numba was the reference until WP-1940 removed it from rietx.  Four
 # checks: the refusals, tests/test_compiled_kernels.py, the agreement pass, and
-# tests/test_raster_kernels.py, which holds the figure's kernels to
-# src/rietx/viz/figure3d/raster.py on the bit inside real renders.  That test file runs once: each of its comparisons sets both paths
-# itself, so a second run under RIETX_COMPILED=0 would repeat it.  That pass compares every kernel
+# tests/test_raster_kernels.py.  test_compiled_kernels.py runs once: each of
+# its comparisons sets both paths itself, so a second run under
+# RIETX_COMPILED=0 would repeat it.  The agreement pass compares every kernel
 # call inside two real fits and fails on a call past its bar (`--gate`; the
-# bars are in the bench's docstring).  The numpy path itself lives in
+# bars are in the bench's docstring).  test_raster_kernels.py holds the
+# figure's kernels to src/rietx/viz/figure3d/raster.py on the bit inside real
+# renders; it skips under a wheel without them, so the import step below
+# asserts this run's wheel has them.  The numpy path itself lives in
 # src/rietx/model/forward.py.  ci.yml's fast suite tests a change there
 # against the published wheel, so it is not a trigger here.
 
@@ -146,6 +149,8 @@ jobs:
           print(k.__version__, k.KERNEL_ABI, url)
           assert url.startswith("file:") and url.endswith(".whl"), \
               f"rietx-kernels was installed from {url}, not from dist/"
+          assert hasattr(k, "render_rows") and hasattr(k, "id_plane"), \
+              "this run's wheel has no rasteriser, so test_raster_kernels.py would skip"
           PY
       - name: The refusals
         run: '"$PY" -m pytest tests/test_rietx_kernels.py'
