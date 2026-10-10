@@ -56,12 +56,16 @@ report about speed.
 
 ### Inherited
 
-- **2026-10-10, from WP-1939.** If the numba tier is replaced by kernels
-  compiled into a wheel (1939's verdict names Rust, and the decision is the
-  user's), nothing is built at run time. A failed build becomes a failed
-  import, which `available()` already answers. This WP's model-tier half would
-  then be moot; the indexing tier's half stands until its kernels move too.
-  Read 1939 § Verdict before starting here.
+- **2026-10-10, from WP-1939 (amended the same day by its review, now
+  WP-1940).** The numba model tier is being replaced by a Rust wheel
+  (1940 § Decisions). Nothing is then built at run time, so "a build failed
+  after import succeeded" cannot happen in the model tier. The question does
+  **not** go away: it moves to "the wheel is absent, or its `KERNEL_ABI`
+  mismatches, and the fit ran the numpy path in silence", which is the same
+  failure one import earlier. 1940's task 5 makes that decline warn once and
+  reach `capabilities()`. The indexing tier's half stands until its kernels
+  move. Read 1940 § Context before starting here, and fold this WP into 1940
+  if 1940 lands first.
 
 ## Non-goals
 
