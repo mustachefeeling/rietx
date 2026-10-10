@@ -326,7 +326,7 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       the relaxed rule (§ Decisions item 7).
 - [ ] x86-64-v3 multiversioning, measured on the Linux x86_64 runner against
       1939's 0.85–0.97×.
-- [ ] Release machinery: `kernels.yml` (five wheels, each tested on its own
+- [x] Release machinery: `kernels.yml` (five wheels, each tested on its own
       platform with the refusals and the `--gate` agreement pass, published
       on a `kernels-v*` tag) and `RELEASING.md` § The kernel wheel.
 - [ ] 1.0.0 on PyPI (the maintainer's pending publisher, tag and approval),
