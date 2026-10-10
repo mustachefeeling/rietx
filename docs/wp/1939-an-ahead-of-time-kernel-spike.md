@@ -1,6 +1,6 @@
 # WP-1939 — an ahead-of-time kernel spike: Rust, C or Cython against numba
 
-Milestone: unscheduled · Status: 🔄 2026-10-10 — spike done, verdict Rust; whether to replace numba waits on the user's packaging decision
+Milestone: unscheduled · Status: ✅ 2026-10-10 — spike done, verdict Rust, decision taken the same day; WP-1940 carries the build, the review's findings and the two platforms still owed
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: —
 
@@ -134,6 +134,11 @@ and median):
 The ranges overlap. All three compile the same loops through LLVM or clang at
 `-O3`, and the fit outside the kernels is unchanged.
 
+*Corrected after the fact (WP-1940, 2026-10-10):* no call in either fit
+reached the 512-row pool threshold (largest 494 rows), so these are serial
+kernel times on every arm, and kernel time is 43 % of trigger and 7 % of
+cpd-1a. The cpd-1a ratios measure nothing about the kernels.
+
 **Startup and install weight are where the difference is.**
 
 | | numba | Rust | Cython |
@@ -205,8 +210,8 @@ end. Three things do, and Rust wins each one.
 2. *abi3 is mature.* One wheel per platform covers 3.11–3.14. polars ships
    exactly this shape, rust-numpy included. Cython's Limited API also built
    and agreed here. Its documentation still calls it close to
-   feature-complete, and it does not cover abi3t yet. Its per-call cost was
-   the highest of the four, though measured only under load.
+   feature-complete, and it does not cover abi3t yet. (Its per-call figure
+   was measured under load and carries no weight here; 1940's review.)
 3. *The precedent matches rietx's shape.* A hatchling front package can pin a
    separately built Rust distribution, as polars pins polars-runtime-32.
    PyO3 is already in every rietx install through pydantic-core.
@@ -304,6 +309,35 @@ off, on every platform it runs on.
 - maturin distribution and project-layout docs, www.maturin.rs.
 
 ## Handover log
+
+### 2026-10-10 (2nd session) — reviewed, decided, closed into 1940
+
+The go/no-go is answered: numba goes, Rust replaces it, for the install
+rather than the speed, and WP-1940 is the build. The review found the
+verdict sound on language and thin on packaging shape, and a measurement of
+the two benchmark fits found that the thread pool never engaged in either,
+so the largest gain available is a Python constant and not a language.
+
+*Done.*
+
+- A critical review of the spike, at code, measurement and precedent level.
+  Its findings are restated in 1940 § Context (the mailbox rule: a
+  successor cannot read this file). Two corrections made here: the end-to-end
+  table's threading note, and the Limited-API per-call figure withdrawn from
+  the verdict, since the handover below had already disowned its seconds.
+- The maintainer's three decisions (Rust; bit identity relaxed for the
+  exponential only; optimise during the migration) recorded in 1940
+  § Decisions.
+
+*Measured.* In 1940: kernel share of wall (43 % trigger, 7 % cpd-1a), the
+pool threshold never met (largest call 494 rows against 512), FCJ time by
+call size, the pool's 30 µs dispatch, and the exponential at 2 ns of the
+2.6 ns per element.
+
+*Still owed, carried by 1940:* the agreement pass on Windows and macOS
+x86_64; branch counters in the pass; the three code points on `lib.rs`.
+
+*Next.* 1940, task 1.
 
 ### 2026-10-10 — filed, spiked, and the verdict is Rust
 
