@@ -330,19 +330,33 @@ def venv_flag(root: Path) -> Optional[str]:
 class Commit(NamedTuple):
     sha: str
     date: str  # YYYY-MM-DD, author date
-    wp: str  # four-digit WP number from the ``WP-NNNN:`` subject prefix
+    wp: str  # four-digit WP number from the ``WP-NNNN:`` subject prefix, else ""
     is_merge: bool
     files: tuple[str, ...]
 
 
-def wp_commits(root: Path, limit: int = 50) -> list[Commit]:
-    """The recent ``WP-NNNN:``-prefixed commits, newest first, with their files.
+# The handover scan reads the commits of the WINDOW_DAYS before HEAD's own
+# commit date.  It read the last 50 commits until 2026-10-10, when main took 88
+# commits in one day.  Two WPs whose logs were a day behind then sat 99 and 101
+# commits back, and the scan was quiet.  A window in days keeps its reach as
+# the commit rate grows.  It ends at HEAD rather than today so that a dormant
+# branch is scanned over its own last fortnight, and so are the test fixtures.
+WINDOW_DAYS = 14
 
-    One ``git log`` pass: a per-commit ``git show`` would be a subprocess per
-    commit, and this runs before every session.
+
+def window_commits(root: Path, days: int = WINDOW_DAYS) -> list[Commit]:
+    """Every commit of the ``days`` before HEAD's commit, newest first, with files.
+
+    One ``git log`` pass, because this runs before every session.  A merge
+    lists no files.
     """
+    head = _git(root, "log", "-1", "--format=%cs")
+    if head is None:
+        return []
+    since = dt.date.fromisoformat(head) - dt.timedelta(days=days)
     out = _git(
-        root, "log", f"-{limit}", "--name-only", "--format=%x00%H\t%as\t%P\t%s"
+        root, "log", f"--since={since.isoformat()}", "--name-only",
+        "--format=%x00%H\t%as\t%P\t%s",
     )
     commits: list[Commit] = []
     for chunk in (out or "").split("\x00")[1:]:
@@ -352,11 +366,16 @@ def wp_commits(root: Path, limit: int = 50) -> list[Commit]:
             continue
         sha, date, parents, subject = parts
         m = _WP_COMMIT_RE.match(subject)
-        if not m:
-            continue
         files = tuple(f for f in body.split("\n") if f.strip())
-        commits.append(Commit(sha, date, m.group(1), len(parents.split()) > 1, files))
+        commits.append(
+            Commit(sha, date, m.group(1) if m else "", len(parents.split()) > 1, files)
+        )
     return commits
+
+
+def wp_commits(root: Path, days: int = WINDOW_DAYS) -> list[Commit]:
+    """The window's ``WP-NNNN:``-prefixed commits, newest first."""
+    return [c for c in window_commits(root, days) if c.wp]
 
 
 def _is_ritual(commit: Commit) -> bool:
@@ -393,22 +412,29 @@ def wp_file_state(root: Path, wp: str) -> tuple[Optional[Path], Optional[str], O
     return matches[0], glyph, max(dates) if dates else None
 
 
-def handover_findings(root: Path, limit: int = 50) -> list[Finding]:
+def handover_findings(root: Path, days: int = WINDOW_DAYS) -> list[Finding]:
     """Every WP whose handover log is behind its commits, by either rule."""
-    commits = wp_commits(root, limit)
+    window = window_commits(root, days)
     newest_commit: dict[str, Commit] = {}
     newest_work: dict[str, Commit] = {}
-    for c in commits:  # newest first
+    for c in window:  # newest first
+        if not c.wp:
+            continue
         newest_commit.setdefault(c.wp, c)
         if not _is_ritual(c):
             newest_work.setdefault(c.wp, c)
-    # Position of each sha in the log, so "the WP file was touched at or after
-    # this commit" is a comparison rather than an ancestry walk.  A sha outside
-    # the window ranks as older than everything in it, which is the honest
-    # reading: the file has not been touched in the last ``limit`` commits.
-    log = (_git(root, "log", f"-{limit}", "--format=%H") or "").splitlines()
-    rank = {sha: i for i, sha in enumerate(log)}
-    OLDEST = len(log) + 1
+    # Position of each sha in the window, so "the WP file was touched at or
+    # after this commit" is a comparison rather than an ancestry walk.  A sha
+    # outside the window ranks as older than everything in it, which is the
+    # honest reading: the file has not been touched within the window.  The
+    # newest touch of each file comes off the same pass, because a
+    # ``git log -1 -- <file>`` per WP grows with the window.
+    rank = {c.sha: i for i, c in enumerate(window)}
+    OLDEST = len(window) + 1
+    last_touch: dict[str, str] = {}
+    for c in window:
+        for f in c.files:
+            last_touch.setdefault(f, c.sha)
 
     findings = []
     for wp, commit in sorted(newest_commit.items()):
@@ -420,7 +446,7 @@ def handover_findings(root: Path, limit: int = 50) -> list[Finding]:
         work = newest_work.get(wp)
         if work is not None:
             rel = path.relative_to(root).as_posix()
-            touched = _git(root, "log", "-1", "--format=%H", "--", rel) or ""
+            touched = last_touch.get(rel, "")
             if rank.get(touched, OLDEST) > rank.get(work.sha, OLDEST):
                 basis, commit = "order", work
         if basis is None:
