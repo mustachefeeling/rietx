@@ -1,0 +1,23 @@
+# The major version is the kernel interface number, KERNEL_ABI: rietx pins
+# `rietx-kernels>=N,<N+1` and re-checks the integer at import (WP-1940).
+# Bump it with any change to a kernel's name, arguments or output planes.
+[package]
+name = "rietx-kernels"
+version = "1.0.0"
+edition = "2024"
+license = "MIT"
+description = "The compiled model kernels of rietx"
+repository = "https://github.com/yue-here/rietx"
+publish = false
+
+[dependencies]
+numpy = "0.29.0"
+pyo3 = { version = "0.29.3", features = ["extension-module", "abi3-py311"] }
+
+[lib]
+name = "rietx_kernels"
+crate-type = ["cdylib"]
+
+[profile.release]
+codegen-units = 1
+lto = "fat"

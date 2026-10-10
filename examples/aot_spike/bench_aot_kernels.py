@@ -4,8 +4,9 @@ Run: ``.venv/bin/python examples/aot_spike/bench_aot_kernels.py [--repeats N]``
 
 Builds first (each needs its own toolchain; the WP file has the commands):
 
-- ``rietx_kernels_rs`` — ``rust/``, PyO3 + rust-numpy, ``maturin build --release``
-  then ``uv pip install`` the abi3 wheel;
+- ``rietx_kernels`` — the crate in ``kernels/`` (WP-1940, from this spike's
+  ``rust/``), PyO3 + rust-numpy,
+  ``maturin develop --release --uv -m kernels/Cargo.toml`` with the venv active;
 - ``rietx_kernels_cy`` and ``rietx_kernels_cy_default`` — ``cython/``, built
   in place twice by its ``setup.py``, with ``-ffp-contract=off`` and with the
   compiler's default; ``rietx_kernels_cy_abi3`` a third time, against the
@@ -69,9 +70,9 @@ OUTPUTS = {
     "bases_fcj": (0, 1, 2, 3, 4, 5),
 }
 
-CANDIDATES = ("rietx_kernels_rs", "rietx_kernels_cy", "rietx_kernels_cy_abi3",
+CANDIDATES = ("rietx_kernels", "rietx_kernels_cy", "rietx_kernels_cy_abi3",
               "rietx_kernels_cy_default", "rietx_kernels_cy_default_abi3")
-LABEL = {"numba": "numba", "rietx_kernels_rs": "rust",
+LABEL = {"numba": "numba", "rietx_kernels": "rust",
          "rietx_kernels_cy": "cython (contract off)",
          "rietx_kernels_cy_abi3": "cython abi3 (contract off)",
          "rietx_kernels_cy_default": "cython (clang default)",

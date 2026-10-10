@@ -58,7 +58,8 @@ tasks and are not reopened here.
 - Speed does not separate the languages: 1.01–1.08× numba end to end.
 - One abi3 wheel per platform, 142–245 KB, 36–79 s of CI each on five
   platforms. numba is 143 MB on disk and 0.1–0.6 s of warm-up per process.
-- Two Rust traps, both in `examples/aot_spike/rust/src/lib.rs`'s docstring:
+- Two Rust traps, both in `kernels/src/lib.rs`'s docstring (the spike's crate,
+  moved there by task 4):
   rust-numpy refuses two live writable borrows of one array, so outputs go
   through raw pointers; a loop written as a closure over captured slices ran
   at 0.59× numba, as a free function at 1.52×.
@@ -266,7 +267,7 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       `compiled.py` and kernel docstrings, `test_compiled_kernels.py`'s bars
       per kernel, the fit-level guard; `tests/CLAUDE.md` § Quoting numbers'
       "which path produced it" sentence re-read against it.
-- [ ] The `rietx-kernels` crate from `examples/aot_spike/rust/` into its
+- [x] The `rietx-kernels` crate from `examples/aot_spike/rust/` into its
       decided home, with the three code fixes (distinct-buffer check, per-plane
       shape check against `phi`, checked index conversion), `KERNEL_ABI`,
       `module-name`, abi3-py311, `codegen-units = 1`, `lto = "fat"`.
