@@ -221,7 +221,8 @@ class _Shadow:
         return call
 
 
-def agreement(case: str, numba: dict, cands: dict[str, dict]) -> None:
+def agreement(case: str, numba: dict, cands: dict[str, dict]) -> int:
+    """Print the table; return how many (kernel, candidate) calls differed."""
     print(f"\n## 1. Agreement and serial kernel time inside one {case} fit "
           "(threads = 1)\n")
     shadow = _Shadow(numba, cands)
@@ -261,6 +262,7 @@ def agreement(case: str, numba: dict, cands: dict[str, dict]) -> None:
     print(f"| **all** | | | {tot['numba']:.3f} | "
           + " | ".join(f"{tot[n]:.3f} · {tot['numba'] / tot[n]:.2f}×" for n in names)
           + " |")
+    return sum(shadow.bad.values())
 
 
 def pool_engagement(setup) -> None:
@@ -381,6 +383,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repeats", type=int, default=5)
     ap.add_argument("--cases", default="trigger,cpd-1a")
     ap.add_argument("--skip", default="", help="comma list of 1,2,3")
+    ap.add_argument("--gate", action="store_true",
+                    help="exit 1 unless rietx_kernels imports and no call "
+                         "differs from numba (CI, WP-1940)")
     args = ap.parse_args(argv)
     skip = set(filter(None, args.skip.split(",")))
     import numba
@@ -392,6 +397,10 @@ def main(argv: list[str] | None = None) -> int:
     compiled.warm(block=True)
     numba_k = compiled._KERNELS
     cands = _candidates()
+    if args.gate and "rietx_kernels" not in cands:
+        print("GATE: rietx_kernels did not import")
+        return 1
+    differing = 0
     for case in args.cases.split(","):
         if "1" not in skip:
             # serial: ``_spread`` runs a kernel inline when the pool it reads
@@ -399,13 +408,17 @@ def main(argv: list[str] | None = None) -> int:
             pool = compiled._pool()
             compiled._POOL_WORKERS = 1
             try:
-                agreement(case, numba_k, cands)
+                differing += agreement(case, numba_k, cands)
             finally:
                 compiled._POOL_WORKERS = pool._max_workers
         if "2" not in skip:
             end_to_end(case, numba_k, cands, args.repeats)
     if "3" not in skip:
         startup()
+    if args.gate and ("1" in skip or differing):
+        print(f"GATE: {differing} calls differ"
+              if "1" not in skip else "GATE: the agreement pass was skipped")
+        return 1
     return 0
 
 
