@@ -98,6 +98,32 @@ hyperthreaded workers had each run at about half speed. So `-n logical` is
 not a fix. One side effect matters here: per-test seconds in junit halved on
 10-07, so compare junit across that date only after the division above.
 
+**The re-measure after #857 (2026-10-10).** "Fast suite" step minutes on
+main's six successful push runs since #857 merged:
+
+| Run | Merge | py3.11 | py3.12 | py3.13 | py3.14 | jax | Python median |
+|---|---|---|---|---|---|---|---|
+| 38036573431 | #861 | 28.5 | 26.2 | 16.0 | 15.9 | 30.4 | 21.1 |
+| 38038633449 | #860 | 28.4 | 16.6 | 24.1 | 19.9 | 31.2 | 22.0 |
+| 38043823874 | #858 | 26.8 | 27.9 | 20.3 | 16.7 | 23.8 | 23.5 |
+| 38072781107 | #862 | 27.8 | 26.0 | 15.5 | 25.9 | 23.6 | 25.9 |
+| 38079936613 | #863 | 18.4 | 17.5 | 24.3 | 23.8 | 20.1 | 21.1 |
+| 38088718957 | #864 | 28.5 | 26.2 | 21.9 | 25.9 | 20.6 | 26.1 |
+
+The four runs before #857 had Python medians of 23.8-31.1. The cut took about
+7 minutes off, and every run is still over 20. The median of the six medians
+is 22.8. A run waits for its slowest leg, which took 24.3-31.2 min. Leg times
+are bimodal by runner. In the junit of the last three runs, a Python leg's
+summed test time was 1814-2147 s on three legs and 2798-3352 s on eight, with
+one at 2579. With five legs, most runs draw at least one slow runner. py3.11
+was the slowest Python leg in 9 of the 12 runs with all four. It alone
+resolves numpy 2.4.6 and scipy 1.17.1, since numpy 2.5 dropped 3.11. But it
+took 18.4 min in 38079936613, so most of its gap is runner draws.
+Sharding halves every leg. Trimming the matrix alone would not help, because
+py3.11 and jax stay and set the wall. #857's py3.11 failure was the #243
+fixture (fixed by #859), and #859's red was spglib 2.8 (fixed by #861). No
+other run went red.
+
 **Sharding constraints (from WP-1506).** Sharding must keep each
 `xdist_group` whole. GitHub Free allows 20 concurrent jobs, so five legs
 times N shards meets the limit when two PRs are readied together. Sharding
@@ -127,18 +153,6 @@ edits, and a missed one drops that platform's answer silently. A YAML anchor
 or one script every leg calls would fix it. It is low stakes, and in scope
 only if the last task moves Python versions into the nightly.
 
-### Inherited
-
-- **2026-10-10, from WP-1936's session: #857's merge turned main's py3.11 leg
-  red.** `test_fit_usable.py::test_issue_243_reproduction_reads_unusable_while_converged`
-  read `max_iter` where it pins `converged` (run 38002319163, every other leg
-  green). The fixture was chaotic, not wrong: unseeded, its later stages
-  wander, and a 1e-12 change to the FD step moved the final Rwp from 1.56 to
-  2243. The fix on branch `wp1547-issue243-flake` runs the reproduction's
-  first three stages, which reach the same answer at every nudge. Read it
-  when the ten-run re-measure counts flaky legs. This one was rounding, not
-  a slow test, and what moved py3.11's rounding at #857 is not established.
-
 ## Non-goals
 
 - Why `isotropy.analyse` is slow: WP-1418.
@@ -165,10 +179,17 @@ only if the last task moves Python versions into the nightly.
       and let `/wp-handover` read the PR's CI `junit-py3.13` artifact when
       one exists, falling back to the local file. tests/CLAUDE.md § Budgets
       in tests gains one clause: local seconds understate CI by 3-4×.
-- [ ] Re-measure ten main runs after the above. If the median Python leg is
+- [x] Re-measure main runs after the above. If the median Python leg is
       still over about 20 min, shard by recorded junit time with groups kept
       whole, and trim the PR matrix to the oldest and newest Python, with
-      the middle two in the nightly.
+      the middle two in the nightly. (Six runs, not ten: every one was over.)
+- [ ] Shard each fast leg in two by recorded junit time, every `xdist_group`
+      and every file whole (`tests/shards.py`, `tests/shard_times.json`).
+- [ ] `ci.yml` runs py3.11, py3.14 and jax, two shards each. py3.12 runs in
+      the nightly, where `full` already covers 3.13. The nightly's three
+      copies of the environment line become one module every leg calls.
+- [ ] `added_test_times.py` reads a directory of shard files, and
+      `/wp-handover` step 7 downloads both py3.14 shards.
 - [x] `ci.yml`'s header: one line saying `-n auto` is 2 workers on this
       runner, and that `-n logical` was measured to buy nothing (this WP).
 - [x] Skill: none. This changes how the repo is tested, not how rietx is
