@@ -138,6 +138,21 @@ handover log has the tables).
   gradient. If that probe closes the LaB₆ + cBN split, it replaces this WP's
   seed. Read 1929's 2026-10-09 handover entry and
   https://claude.ai/artifact/CYGoz3cF63QUJ345z4zKMY before landing the seed.
+- **2026-10-11, from the issue triage (#865, in PR #870): the two-site test
+  this WP re-baselined fails by CPU, and its class 2 reading was backwards.**
+  The 2026-10-10 nightly went red at `32a2b473` on
+  `test_the_two_site_set_reaches_one_minimum_and_pairs_nothing`. The reporter
+  ran it twelve times on `ubuntu-latest`: 7 of 7 AMD EPYC 7763 runners fail
+  and 5 of 5 Intel Xeon runners pass, at one sha. Only class 2 moves. Intel
+  and macOS stop at m ≈ 0, where |F_m|² ∝ m² gives the column no gradient; AMD
+  walks past it from two of three starts to χ² lower by 41, with
+  ρ(Mn1, Mn2) = −0.99997. So class 2's m ≈ 0 is itself a stopping point, the
+  same kind as the pairs this WP removed, and the docstring's "collapses to
+  m ≈ 0" names the worse minimum. PR #870 asserts the winner only (8 of 8
+  runners pass). Whether a moment trial should be seeded off m = 0, as this
+  WP seeds a width off its floor, is the open question it leaves. Checked
+  against the tree at 7d9be3cb: `tests/test_pair_diagnostic_class.py:42-73`
+  still asserts no `MOMENT_PAIR_DEGENERATE` from any class.
 
 ## Non-goals
 
