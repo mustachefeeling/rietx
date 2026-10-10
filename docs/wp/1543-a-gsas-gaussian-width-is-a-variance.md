@@ -1,9 +1,8 @@
 # WP-1543 — a GSAS Gaussian width is a variance
 
-Milestone: unscheduled · Status: 🔄 2026-10-10 — claimed by @yue-here; the one-constant, GSAS-II-oracle and `PRCF` tasks remain
+Milestone: unscheduled · Status: ✅ 2026-10-10 — confirmed against GSAS-II's drawn peaks; one constant; `profile_set=`
 Track: Coming from another code
 Depends on: —
-Priority: P1 2026-10-04 — if confirmed, every GSAS-I `.prm` and GSAS-II `.instprm`/`.gpx` instrument reads its Gaussian widths 2.35× too narrow, frozen, and a sample fit puts the rest into size and strain silently
 
 ## Goal
 
@@ -114,6 +113,66 @@ Plus a figure: one GSAS-II-computed line drawn over rietx's from the same
 - [1327](1327-magnetic-structure.md), whose LaMnO₃ lane found it.
 
 ## Handover log
+
+- **2026-10-10** — Closed. The question this WP opened on now has an answer
+  from GSAS-II's own output, not its manual or its formula. GSAS-II's
+  refined LaB₆ widths, written as an `.instprm` and read by rietx, draw every
+  isolated line at GSAS-II's own width to 0.21 %. The old reading drew them
+  2.35 times too narrow. So the 1.7.0 fix was right, and a test now holds it
+  to GSAS-II rather than to rietx's round trip. A GSAS-I file offering
+  several profile functions can now be read by naming one. GSAS-II's
+  tutorial calibration `BT1_Cu311.inst` still stops at its zero-point field,
+  which another WP owns.
+  - *Done.* Task 1 and 4: `test_gsas2_instprm.py::test_gsas2s_own_lab6_peaks_have_the_width_the_read_instprm_draws`
+    reads the PowderLine LaB₆ refined `U V W` through `read_gsas2_instprm`,
+    draws each line with rietx's TCH pseudo-Voigt and GSAS-II's own
+    Lorentzian (`gamma`), and measures both FWHMs with one half-maximum
+    finder on GSAS-II's grid. Made to fail once with the reader's 8 ln 2
+    patched to 1. Task 3: `caglioti.GAUSSIAN_VARIANCE_TO_FWHM_SQUARED` is the
+    one definition; `gsas.py`, `gsas2.py` and `instrument_profile.py` import
+    it, and `recipe.GAUSS_CENTIDEG2_TO_DEG2` derives from it bit-identically
+    (asserted equal to the old expression). The orphaned `#:` block in
+    `gsas.py` moved into `gaussian_fwhm_squared_degrees`' docstring. Task 6:
+    `read_gsas_prm(..., profile_set=N)`, default set 1 as GSAS-II's
+    `SetPowderInstParms` reads it, `GSAS_PRM_PROFILE_SET_DEFAULTED` when a
+    bank offers more than one, a refused set 1 naming a type-3 set, a file
+    with no set 1 refused naming the sets it has. Manual `files.md`, skill
+    row in `diagnostics-gsas.md`, 1.8.0 notes and the v1.8 record carry it.
+    Task 7: the HB-2A cross now asserts its FWHM ratio equals the two files'
+    stated σ ratio to 1e-12, which pins both readers to one conversion.
+    Task 5 had shipped in the 1.7.0 notes. Inherited folded on arrival: #708
+    and #739 had discharged every item it carried.
+  - *Measured.* 24 isolated LaB₆ reflections, 2.3-14.9° 2θ at 0.1665 Å,
+    sep ≥ 4 FWHM: rietx/GSAS-II drawn FWHM 0.9979-1.0003; the ÷1e4 reading
+    0.4239-0.5275, and 0.4240-0.4245 above 11°, where GSAS-II floors the
+    Lorentzian, against 1/√(8 ln 2) = 0.4247. Figure inspected,
+    `tests/output/wp1543_lab6_gsas2_overlay.png` (two lines, 100 and 521).
+    Fast suite `[dev]`, macOS arm64, alone on the machine: 8982 passed, 172
+    skipped, 1 xfailed, 3:37. Seven tests added (7 passes, 0 skips), 0.02 s
+    together by `tests.added_test_times`; no `main` baseline was run here,
+    so the +7 check is CI's. Full suite not run: the fold is bit-identical
+    and `profile_set` changes no file that read before.
+  - *Review* (`/code-review high --fix`). Fixed: the default chose
+    `min(sets)` rather than set 1, so a file with only `PRCF2` read
+    silently; each `PRCF` header was read twice, doubling an overflow
+    report; a docstring's "that second one" pointed at the new bullet;
+    `isdigit` → `isdecimal`. Declined: the defaulted warning also fires when
+    no other set is type 3 (the manual and skill row document it firing for
+    any multi-set bank); a `bool` `profile_set` (no such caller); the
+    indexing `_LN2_8` and `voigt.GAUSS_FWHM_TO_SIGMA` spellings (not GSAS
+    readers or writers, and folding them can move an ulp outside this
+    diff); unbounded walks in the test's half-maximum finder (a fixed
+    fixture).
+  - *Gotchas.* `api.md` sat 7 B over its 39 800 B ceiling after the new
+    keyword; the hand-written `read_gsas_prm` sentence in
+    `make_api_index.py` was trimmed to fit (39 789 B), forwarded to WP-1920.
+    `BT1_Cu311.inst` set 3 is refused at `ICONS ZERO = 0.04`, forwarded to
+    WP-1911 with GSAS-II's ÷100 reading. An overflowed type field on a set
+    the caller did not choose now refuses the file, since every header is
+    read once up front.
+  - *Next.* Nothing here. WP-1911 settling the GSAS-I `ZERO` unit is what
+    lets `BT1_Cu311.inst` read, and WP-1327's LaMnO₃ acceptance could then
+    seed from `read_gsas_prm(..., profile_set=3)` instead of by hand.
 
 - **2026-10-06 (2nd session)** — PR #739 (#735) merged as `226aafb5`.
   `read_gsas_prm` and `write_gsas_prm` convert `GU`, `GV` and `GW` as

@@ -28,7 +28,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 2026-10-03 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | 2026-10-08 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1543](1543-a-gsas-gaussian-width-is-a-variance.md) | A GSAS Gaussian width is a variance | 2026-10-10 | P1 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 2026-10-07 | — | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1547](1547-the-fast-tiers-tail.md) | The fast tier's tail is cut back, and its report reads CI's seconds | 2026-10-09 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1804](1804-the-derived-block.md) | The derived block: a nonlinear map applied after the affine one | 2026-10-07 | P2 | [rigid-bodies](#rigid-bodies) |
@@ -434,7 +433,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1455](1455-a-topas-tchz-profile-reads-in.md) | A TOPAS TCHZ profile reads in | ⬜ | P3 | — ([1433](1433-the-inp-grammar-still-refused.md) soft) |
 | [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | ✅ 2026-10-04 | — | — |
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 🔄 2026-10-03 | P2 | — ([1433](1433-the-inp-grammar-still-refused.md) soft) |
-| [1543](1543-a-gsas-gaussian-width-is-a-variance.md) | A GSAS Gaussian width is a variance | 🔄 2026-10-10 | P1 | — |
+| [1543](1543-a-gsas-gaussian-width-is-a-variance.md) | A GSAS Gaussian width is a variance | ✅ 2026-10-10 | — | — |
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 🔄 2026-10-08 | P3 | — (#713 soft) |
 | [1918](1918-a-magcif-read-in-its-own-cell-and-validated.md) | A magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out | ⬜ | P2 | — ([1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) soft) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 🔄 2026-10-09 | P2 | [1319](1319-structure-interchange.md) |

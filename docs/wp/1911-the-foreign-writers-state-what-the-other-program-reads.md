@@ -312,6 +312,17 @@ a `tests/data/README.md` row.
   Whether `p1_expand=` earns the `API_INDEX_MAX_BYTES` raise the PR makes
   is the PR review's question, not this WP's.
 
+- **2026-10-10, from WP-1543: a real file now reaches the GSAS-I `ZERO`
+  refusal, and GSAS-II's importer reads that field as centidegrees.**
+  `read_gsas_prm(..., profile_set=3)` reads GSAS-II's tutorial
+  `tests/data/gsas2_bt1_cu311.inst` as far as `ICONS`, whose `ZERO` is
+  0.04, and refuses there. GSAS-II's `GSASIIfiles.SetPowderInstParms`
+  divides that field by 100. That is a second reader's convention rather
+  than the format's own reference output, so it corroborates and does not
+  settle the unit. Settling it makes this file the first real `.prm` to read
+  past `ZERO`. WP-1327's LaMnO₃ acceptance still seeds its widths by hand
+  for this reason.
+
 ## Non-goals
 
 - Magnetic writers for FullProf, GSAS and GSAS-II: none of those programs
