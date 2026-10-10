@@ -17,10 +17,10 @@ properties carry it and each has its own group here:
 * **refuses rather than lies.**  A list that is not a group, a plain symbol
   that does not generate the list, and a bracketed label with no list are
   refusals with the reason in them.
-* **the 29 unnamable isotropy subgroups.**  Every (group, k) case the all-group
-  k-sweep could not name reaches ``candidates`` and comes back with a
-  candidate carrying its operator list, and the child of the one real case —
-  Ba₂FeSbSe₅'s S3(a,b) in 2a,b,a+c — is *built* rather than refused.
+* **the 29 formerly unnamable isotropy subgroups.**  Every (group, k) case the
+  all-group k-sweep could not name on spglib 2.7.0 is named on 2.8.0, and the
+  child of the one real case — Ba₂FeSbSe₅'s S3(a,b) in 2a,b,a+c — is *built*
+  rather than refused.
 * **every consumer reads the list** — the CIF exporter included (review of
   #433, finding 3).
 
@@ -79,15 +79,15 @@ SWEEP_SITES = {"origin": (Fraction(0), Fraction(0), Fraction(0)),
 
 #: The **29** rows the all-group k-sweep (2744 rows over all 230 settings ×
 #: k ∈ {0,½}³ × those two sites, 61 384 s, finished 2026-09-09) reported as
-#: "unidentified candidate": spglib matches the isotropy subgroup's operator
-#: list to none of the 1651 magnetic space groups.  Every one is a c- or
-#: n-glide group doubled along the glide's own translation, which is the same
-#: quarter-translation mechanism this module is about, one rung up (magnetic
-#: rather than nuclear).  Transcribed row for row from the sweep's own summary
-#: table, sites included, so the count here **is** 29 — 14 (setting, k) pairs
-#: at both sites plus P6mm at the general site only, which is the one row the
-#: sweep hit at one site and not the other.
-SWEEP_UNNAMED = tuple(
+#: "unidentified candidate" on spglib 2.7.0: spglib matched an isotropy
+#: subgroup's operator list to none of the 1651 magnetic space groups.  In
+#: every row that subgroup has 8 operations.  spglib 2.8.0, which corrected
+#: the time-reversal flags of UNI 282-284, names all of them, so the sweep's
+#: reading of these rows as a quarter-translation setting effect was wrong.
+#: Transcribed row for row from the sweep's own summary table, sites
+#: included, so the count here **is** 29 — 14 (setting, k) pairs at both sites
+#: plus P6mm at the general site only.
+SWEEP_FORMERLY_UNNAMED = tuple(
     (setting, k, site)
     for setting, k in (
         ("P c c 2", ("1/2", "1/2", "0")),
@@ -377,7 +377,7 @@ def test_identification_names_a_database_group_and_agrees_with_identify():
 
 
 def test_identification_returns_a_result_where_identify_still_raises():
-    """UNI 283 is the database entry spglib cannot match to itself.
+    """A list that is not closed is one spglib cannot name.
 
     ``identify`` keeps raising there — it is the strict form, and the two tests
     that pin its message are unchanged — while ``identification`` answers with
@@ -385,9 +385,9 @@ def test_identification_returns_a_result_where_identify_still_raises():
     reason.  That is what lets ``candidates`` and ``magnetic_supercell``
     proceed instead of dropping the case.
     """
-    from rietx.crystallography.magnetic.operators import magnetic_group
+    from tests.test_magnetic_operators import not_a_group
 
-    group = magnetic_group(283)
+    group = not_a_group()
     with pytest.raises(ValueError, match="did not match"):
         identify(group)
     result = identification(group)
@@ -404,35 +404,27 @@ def test_identification_returns_a_result_where_identify_still_raises():
 # ---------------------------------------------------------------------------
 def test_the_sweep_case_list_is_the_sweeps_own_count():
     """29 rows, because the sweep reported 29. Guards the transcription."""
-    assert len(SWEEP_UNNAMED) == 29
-    assert len({(s, k) for s, k, _site in SWEEP_UNNAMED}) == 15
+    assert len(SWEEP_FORMERLY_UNNAMED) == 29
+    assert len({(s, k) for s, k, _site in SWEEP_FORMERLY_UNNAMED}) == 15
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("setting,k,site", SWEEP_UNNAMED,
+@pytest.mark.parametrize("setting,k,site", SWEEP_FORMERLY_UNNAMED,
                          ids=lambda v: str(v).replace(" ", ""))
-def test_the_sweeps_unnamable_isotropy_subgroups_still_produce_candidates(
+def test_the_sweeps_formerly_unnamed_isotropy_subgroups_are_named(
         setting, k, site):
-    """Each case comes back with candidates, and the unnamed ones say so.
+    """Every candidate in these 29 rows now carries a name.
 
-    The sweep's ``RuntimeError: unidentified candidate`` is raised by the
-    *sweep script*, not by ``candidates`` — which already tolerates
-    ``identify`` refusing and stores ``identification=None``.  What was missing
-    is what an unnamed candidate can then be *used* for, so this asserts both
-    halves: the call returns, and every candidate carries the operator list its
-    label cannot supply.
+    On spglib 2.7.0 each row held at least one candidate ``identify`` could
+    not name.  Under the 2.8 floor each is named, so a row going unnamed
+    again means spglib's matching moved.  The unnamed path itself is pinned
+    by the ``not_a_group`` tests, which do not depend on a spglib defect.
     """
     kk = tuple(Fraction(c) for c in k)
     found = candidates(setting, SWEEP_SITES[site], kk)
     assert len(found) > 0
-    unnamed = [c for c in found if c.identification is None]
-    assert unnamed, f"{setting} at {k} ({site}) was expected an unnamed candidate"
-    for candidate in unnamed:
-        assert candidate.bns_number == "unidentified"
-        result = identification(candidate.group)
-        assert result.named is False
-        assert result.operations
-        assert result.reason
+    unnamed = [c.label for c in found if c.identification is None]
+    assert unnamed == []
 
 
 @pytest.mark.slow

@@ -97,19 +97,6 @@ from ..wyckoff import _nullspace_int, adp_basis
 #: Number of magnetic space groups (Litvin 2013; UNI numbering 1-1651).
 N_MAGNETIC_SPACE_GROUPS = 1651
 
-#: UNI numbers whose spglib database entry does not round-trip through
-#: :func:`identify` on spglib 2.7.0.  Measured, not inherited: feeding each
-#: entry's own operators back to ``get_magnetic_spacegroup_type_from_symmetry``
-#: returns 275, nothing, and 277 for 282, 283 and 284 respectively.  282 and
-#: 284 are labelled BNS 37.184/37.186 — the Ccc2 family — while their unprimed
-#: subgroup identifies as Cmc2_1 (No. 36), which for a **type IV** group is a
-#: contradiction: the unprimed subgroup of a type IV group *is* its family
-#: space group.  Of the 977 type I/II/IV entries those two are the only ones
-#: where the family disagrees, so this is a database defect and not a
-#: convention this module should absorb.  Kept as data so the test asserting it
-#: fails in both directions when spglib fixes it.
-UNI_NOT_IDENTIFIABLE: tuple[int, ...] = (282, 283, 284)
-
 _AXES = ("x", "y", "z")
 _ABC = ("a", "b", "c")
 
@@ -1075,11 +1062,12 @@ class MagneticIdentification:
     that list and never from a symbol.  Being unnamed costs a *label* and
     nothing else.  Before this class the only channel was
     :func:`identify`'s ``ValueError``, so a caller had two options: drop the
-    case, or store ``None`` and lose the reason with it.  Measured on the
-    all-group k-sweep (2744 rows, all 230 settings, k ∈ {0,½}³): 29 cases
-    reach an isotropy subgroup spglib will not name, every one a c- or n-glide
-    group doubled along the glide's own translation, and every one a group the
-    sweep could otherwise have used.
+    case, or store ``None`` and lose the reason with it.  On spglib 2.7.0 the
+    all-group k-sweep (2744 rows, all 230 settings, k ∈ {0,½}³) reached 29
+    such cases.  spglib 2.8.0 names every one of them.  Its only magnetic
+    change is the corrected time-reversal flags of UNI 282-284, though some
+    of the 29 now resolve outside that family (UNI 133 and 275 among them).
+    The channel stays for any list spglib cannot match.
 
     ``named`` is the one thing a caller must branch on.  ``group_id`` is
     :class:`MagneticSpaceGroupId` when named and ``None`` when not;
@@ -1166,11 +1154,9 @@ def identification(group, lattice=None, *, symprec: float = 1e-5
             reason=(
                 f"spglib did not match this list of {len(ops)} operations to "
                 f"any of the {N_MAGNETIC_SPACE_GROUPS} magnetic space groups. "
-                f"Either the list is not a magnetic space group in a "
-                f"crystallographic *setting* — which is what a child cell "
-                f"whose glide translation became a quarter is — or it is one "
-                f"of the database entries spglib cannot match to itself (UNI "
-                f"{', '.join(map(str, UNI_NOT_IDENTIFIABLE))} on 2.7.0)"))
+                f"Either the list is not a group (check that it is closed "
+                f"under composition), or it is a magnetic space group in a "
+                f"setting spglib does not recognise"))
     return MagneticIdentification(
         named=True,
         group_id=MagneticSpaceGroupId(
@@ -1192,9 +1178,9 @@ def identify(group, lattice=None, *, symprec: float = 1e-5
     Uses ``spglib.get_magnetic_spacegroup_type_from_symmetry``
     (Shinohara, Togo & Tanaka, 2023, *Acta Cryst.* A**79**, 390), so it needs no
     atomic configuration — the operators alone decide.  Raises ``ValueError``
-    naming the group order when spglib does not match: on spglib 2.7.0 that
-    happens for the database's own entries :data:`UNI_NOT_IDENTIFIABLE`, so a
-    refusal here is not necessarily the caller's fault.
+    naming the group order when spglib does not match.  Every one of the 1651
+    database entries matches itself from spglib 2.8.0, which corrected the
+    time-reversal flags of UNI 282-284.
 
     **The strict form, and it stays strict.**  This is the function to call
     when a name is what is wanted and its absence is an error — a magCIF that
