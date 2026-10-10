@@ -2,11 +2,13 @@
 
 A tether row is √w·max(0, d − d_max)/σ and an anti-bump row
 √w·min(0, d − d_min)/σ (TOPAS's ``Distance_Restrain_Keep_Within`` /
-``_Keep_Out``, Technical Reference p. 159).  Each is checked where it can
-fail: zero on its flat side, slope 1/σ on the other, the analytic row Jacobian
-against a finite difference of the residual on both sides of the kink, the
-data statistics untouched by the rows, and a pair list that is complete,
-excludes a body's own pairs and states no minimum nobody gave.
+``_Keep_Out``, Coelho, *TOPAS-Academic V6 Technical Reference*, 2016,
+p. 159).  Each is checked where it can fail: zero on its flat side, slope
+1/σ on the other, the analytic row Jacobian against a finite difference of the
+residual on both sides of the kink, the data statistics untouched by the rows,
+both rows kept through a staged fit whichever side they end on, and a pair
+list that is complete, excludes a body's own pairs and states no minimum
+nobody gave.
 """
 
 from __future__ import annotations
@@ -176,3 +178,74 @@ def test_the_pair_list_does_not_depend_on_the_stored_cell():
         img = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, -1]]) @ o + [0, 0.5, 0] + r.translation
         d = (img - li) * [5.0, 6.0, 7.0]
         assert float(np.linalg.norm(d)) == pytest.approx(2.0, abs=1e-9), shift
+
+
+# ------------------------------------------------------------ inside a staged fit
+def _three_atoms(d_lio: float) -> Structure:
+    """Li, O and a heavy Br in a P1 cubic 6 Å cell, Li–O ``d_lio`` Å apart
+    along a; an anti-bump at 2.0 Å and a tether at 3.0 Å on that pair."""
+    P = Parameter
+    return Structure(phases=[Phase(
+        name="p", space_group="P1", cell=Cell.cubic(6.0),
+        atoms=[Atom(label="Li1", species="Li", x=P(value=0.20), y=P(value=0.30),
+                    z=P(value=0.40)),
+               Atom(label="O1", species="O", x=P(value=0.20 + d_lio / 6.0),
+                    y=P(value=0.30), z=P(value=0.40)),
+               Atom(label="Br1", species="Br", x=P(value=0.70), y=P(value=0.75),
+                    z=P(value=0.85))],
+        scale=P(value=1e-3, min=0.0, transform="softplus"),
+        restraints=[AntiBumpRestraint(atom_i=0, atom_j=1, min_distance=2.0,
+                                      sigma=0.05, op_index=0),
+                    TetherRestraint(atom_i=0, atom_j=1, max_distance=3.0,
+                                    sigma=0.05, op_index=0)])])
+
+
+def test_the_rows_stay_in_a_staged_fit_whichever_side_they_end_on():
+    """The rows are explicit, so a plan carries both for every stage: here the
+    anti-bump starts active (Li–O 1.7 Å) and the fit moves the pair to the
+    truth (2.3 Å), where both rows are flat; the report still lists both, at
+    zero, and the data statistics are those of the data rows alone."""
+    from rietx import Refinement
+    from rietx.strategy.staged import RefinementPlan, Stage
+
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 8e-3
+    truth = _three_atoms(2.3)
+    tt = np.arange(10.0, 90.0, 0.01)
+    blank = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(truth, ins, blank, mode="rietveld")
+    table = ParameterTable(truth, ins)
+    y = model.evaluate(table.decode(table.x0())) + 30.0
+    y = np.random.default_rng(3).poisson(np.maximum(y, 1.0)).astype(float)
+    pattern = PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+
+    start = _three_atoms(1.7)
+    t0 = ParameterTable(start, ins)
+    rows0 = summarise_restraints(_rows(start, t0).restraints, t0.decode(t0.x0())).rows
+    assert rows0[0].deviation < 0            # the anti-bump is active at the start
+    ref = Refinement(start, ins, history=False)
+    result = ref.fit(pattern, plan=RefinementPlan(stages=[
+        Stage("scale", ["phases.*.scale", "instrument.background.*"], max_iter=50),
+        Stage("xyz", ["phases.*.scale", "instrument.background.*",
+                      "phases.*.atoms.1.dof.0"], max_iter=100)]))
+    rep = result.restraints
+    assert rep is not None and rep.n_restraints == 2
+    assert [r.kind for r in rep.rows] == ["anti_bump", "tether"]
+    assert all(r.deviation == 0.0 for r in rep.rows), rep.rows
+    assert rep.rows[0].computed == pytest.approx(2.3, abs=0.02)
+    _save_fit_png(result, "one_sided_restraints_li_o")
+
+
+OUT = __import__("pathlib").Path(__file__).parent / "output"
+
+
+def _save_fit_png(result, name: str) -> None:
+    """obs/calc/diff to ``tests/output/`` (tests/CLAUDE.md § Running)."""
+    import matplotlib.pyplot as plt
+
+    from rietx.viz.plots import plot_result
+
+    OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(OUT / f"{name}.png"))
+    plt.close("all")
+    assert (OUT / f"{name}.png").stat().st_size > 0
