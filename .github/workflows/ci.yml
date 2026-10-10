@@ -212,8 +212,9 @@ jobs:
         python: ["3.11", "3.14"]
         shard: [1, 2]
         # the newest leg executes the tutorials, in whichever shard holds
-        # them.  Dropping its version from the list above makes this a leg of
-        # its own, so they never go unrun.
+        # them.  Dropping its version from the list above makes this a job of
+        # its own with no shard, and `--shard /2` then fails it: move the
+        # entry to the new newest version instead.
         include:
           - python: "3.14"
             tutorials: run

@@ -43,7 +43,7 @@ from pathlib import Path
 RECORD = Path(__file__).with_name("shard_times.json")
 _SPEC = re.compile(r"\s*(\d+)\s*/\s*(\d+)\s*")
 #: ``junit-py3.11`` is leg ``py3.11``, and so is its shard ``junit-py3.11-2``.
-_JOB = re.compile(r"junit-(.+?)(?:-\d+)?")
+_JOB = re.compile(r"junit-(.+?)(?:-(\d+))?")
 
 
 def parse(spec: str) -> tuple[int, int]:
@@ -130,16 +130,26 @@ def leg_seconds(directory: Path) -> dict[str, dict[str, float]]:
     """Each leg's seconds per file, a leg's shards summed.
 
     A file whose every case skipped is kept at zero, which is what it cost.  A
-    module skipped at import has no classname and no items, and is left out."""
+    module skipped at import has no classname and no items, and is left out.
+    A leg missing a shard that another leg has is refused: a shard that timed
+    out uploads no file, and its files would read as costing nothing."""
     legs: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    shards_of: dict[str, set[int]] = defaultdict(set)
     for junit in sorted(directory.glob("junit-*/junit.xml")):
         m = _JOB.fullmatch(junit.parent.name)
+        if m is None:
+            continue
+        if m[2] is not None:
+            shards_of[m[1]].add(int(m[2]))
         leg = legs[m[1]]
         for case in ET.parse(junit).iter("testcase"):
             file = _file_of(case.get("classname", ""))
             if file is None:
                 continue
             leg[file] += 0.0 if case.find("skipped") is not None else float(case.get("time", "0"))
+    want = set(range(1, max(map(max, shards_of.values()), default=0) + 1))
+    if short := {name: sorted(want - got) for name, got in shards_of.items() if got != want}:
+        raise SystemExit(f"shards missing under {directory}: {short}")
     return {name: dict(files) for name, files in legs.items()}
 
 

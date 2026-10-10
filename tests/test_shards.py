@@ -123,6 +123,17 @@ def test_the_record_reads_shares_of_python_legs_and_the_jax_leg_whole(tmp_path):
                    "jax": {"tests/sub/test_c.py": 7.0, "tests/test_a.py": 0.0}}
 
 
+def test_a_leg_missing_a_shard_another_leg_has_is_refused(tmp_path):
+    """A timed-out shard uploads nothing, and its files would weigh zero."""
+    for job in ("junit-py3.11-1", "junit-py3.11-2", "junit-py3.14-1"):
+        (tmp_path / job).mkdir()
+        (tmp_path / job / "junit.xml").write_text(
+            '<testsuites><testsuite><testcase classname="tests.test_a" name="t" time="1"/>'
+            "</testsuite></testsuites>", encoding="utf-8")
+    with pytest.raises(SystemExit, match=r"py3\.14.*\[2\]"):
+        shards.record(tmp_path, "run 1")
+
+
 def test_the_committed_record_covers_most_of_the_suite_in_both_profiles():
     """A file the record lacks costs balance and never a test, so nothing goes
     red when the record goes stale.  An empty or garbled profile would be the

@@ -181,13 +181,16 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         except ValueError:
             file = item.path.as_posix()
         files.append(file)
-        # xdist joins every xdist_group mark an item carries; each joins here
+        # xdist names an item with several marks after all of them joined
+        # ("g_h"); merging each name's files here is the safe superset
         names = [m.args[0] if m.args else m.kwargs.get("name", "default")
                  for m in item.iter_markers("xdist_group")]
         pairs += [(file, str(name)) for name in names] or [(file, None)]
     mine, _ = shards.assign(shards.units(pairs), shards.recorded_seconds(), n)[k - 1]
-    selected = [item for item, file in zip(items, files, strict=True) if file in mine]
-    deselected = [item for item, file in zip(items, files, strict=True) if file not in mine]
+    selected: list[pytest.Item] = []
+    deselected: list[pytest.Item] = []
+    for item, file in zip(items, files, strict=True):
+        (selected if file in mine else deselected).append(item)
     if deselected:
         config.hook.pytest_deselected(items=deselected)
     items[:] = selected
