@@ -6,10 +6,11 @@ name: Kernels
 #
 # Three triggers, one pipeline:
 #
-#   * A pull request touching the crate, its harness or this file builds every
-#     platform's wheel and checks each on its own platform, so a kernel change
-#     is tested where it ships before it merges.  A draft waits, as ci.yml's
-#     matrix does.
+#   * A pull request touching the crate, its harness, the numba kernels it
+#     must agree with, their caller or this file builds every platform's
+#     wheel and checks each on its own platform, so a kernel change is tested
+#     where it ships before it merges.  A draft waits, as ci.yml's matrix
+#     does.
 #   * A `kernels-v*` tag does the same and then publishes.  A tag push, never a
 #     GitHub release: release.yml publishes rietx on every published release.
 #   * workflow_dispatch does the same as a pull request, plus `verify-trust`.
@@ -43,7 +44,12 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'kernels/**'
+      # the agreement pass's reference and the calls it shadows: a change to
+      # either can break agreement without touching the crate
+      - 'src/rietx/model/_kernels_numba.py'
+      - 'src/rietx/model/compiled.py'
       - 'examples/aot_spike/bench_aot_kernels.py'
+      - 'examples/bench_refinement.py'
       - 'tests/test_rietx_kernels.py'
       - '.github/workflows/kernels.yml'
   workflow_dispatch:
