@@ -271,9 +271,9 @@ def _warn_unavailable() -> None:
     pin = f"rietx-kernels>={KERNEL_FLOOR},<{KERNEL_ABI + 1}"
     warnings.warn(
         f"rietx's compiled kernels did not load, because {_UNAVAILABLE}. Fits"
-        f" run the numpy path, which is slower. Install the kernels with"
-        f' pip install "{pin}", or set {COMPILED_ENV}=0 to choose the numpy'
-        f" path and silence this warning.",
+        f" and structure figures run the numpy path, which is slower. Install"
+        f' the kernels with pip install "{pin}", or set {COMPILED_ENV}=0 to'
+        f" choose the numpy path and silence this warning.",
         RuntimeWarning, stacklevel=3)
 
 

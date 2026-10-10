@@ -160,15 +160,15 @@ RIETX_COMPILED=0 python my_refinement.py
 ```
 
 An install without the wheel also runs the numpy path (see Troubleshooting).
-It warns once per process, at the first refinement or the first
+It warns once per process, at the first refinement, structure figure or
 `capabilities()` call:
 
 ```text
 RuntimeWarning: rietx's compiled kernels did not load, because importing
 rietx_kernels raised ModuleNotFoundError (No module named 'rietx_kernels').
-Fits run the numpy path, which is slower. Install the kernels with pip install
-"rietx-kernels>=1.1,<2", or set RIETX_COMPILED=0 to choose the numpy path and
-silence this warning.
+Fits and structure figures run the numpy path, which is slower. Install the
+kernels with pip install "rietx-kernels>=1.1,<2", or set RIETX_COMPILED=0 to
+choose the numpy path and silence this warning.
 ```
 
 The same warning names a wheel of another major version, whose kernel
