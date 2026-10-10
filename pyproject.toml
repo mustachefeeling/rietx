@@ -197,7 +197,9 @@ exclude = ["**/CLAUDE.md"]
 # imported until capabilities() touched gui.textdoc (caught by the fresh-venv
 # smoke test, 2026-08-16).  /gui/index.html still needs naming beside /gui:
 # its own `!` negation (vite's entry module) outranks the directory exclude.
-exclude = ["/tests", "/gui", "/gui/index.html"]
+# kernels/ is a distribution of its own, rietx-kernels, built from its own tag
+# (WP-1940).
+exclude = ["/tests", "/gui", "/gui/index.html", "/kernels"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

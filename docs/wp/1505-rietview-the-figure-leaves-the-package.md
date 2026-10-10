@@ -124,6 +124,14 @@ the list is rietx's by nature.
   uses `model.compiled`, which is already on the boundary list. So the split
   would carry them without a new import from rietx. `test_figure_boundary.py`
   is where to confirm that as each lands.
+- **2026-10-10, from WP-1940 (3rd session).** numba leaves rietx at the
+  kernel migration (1940 § Decisions item 8). The rasteriser then runs its
+  numpy twin until 1940 ports it into the `rietx-kernels` wheel. Measured on
+  one small structure, this Mac: 0.35 s at 1000 px against 0.05-0.08 s
+  compiled, 1.17 s at 2000 px against 0.14-0.18 s. So Context's "a small
+  numba shim" for rietview's compiled tier needs another answer: depend on
+  `rietx-kernels`, or keep the numpy path. Whichever of 1505 and that port
+  lands first decides which package the port belongs to.
 
 ## Non-goals
 

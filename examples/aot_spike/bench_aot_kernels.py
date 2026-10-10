@@ -4,8 +4,9 @@ Run: ``.venv/bin/python examples/aot_spike/bench_aot_kernels.py [--repeats N]``
 
 Builds first (each needs its own toolchain; the WP file has the commands):
 
-- ``rietx_kernels_rs`` — ``rust/``, PyO3 + rust-numpy, ``maturin build --release``
-  then ``uv pip install`` the abi3 wheel;
+- ``rietx_kernels`` — the crate in ``kernels/`` (WP-1940, from this spike's
+  ``rust/``), PyO3 + rust-numpy,
+  ``maturin develop --release --uv -m kernels/Cargo.toml`` with the venv active;
 - ``rietx_kernels_cy`` and ``rietx_kernels_cy_default`` — ``cython/``, built
   in place twice by its ``setup.py``, with ``-ffp-contract=off`` and with the
   compiler's default; ``rietx_kernels_cy_abi3`` a third time, against the
@@ -24,7 +25,10 @@ rest of the package cannot tell.  Three measurements:
 2. **End to end.**  ``_KERNELS`` swapped wholesale, the whole fit timed, arms
    interleaved (bench_refinement rule 2), on the default thread count.  The
    final parameter vector is compared to numba's: identical, or the largest
-   difference in esd units.
+   difference in esd units.  A ``numba, inline`` arm runs with the pool's
+   worker count forced to 1, so what the pool buys is a row of the same table;
+   before it, one counted fit reports each kernel's calls and seconds, inline
+   against pooled, as ``compiled._splits`` decided them (WP-1940).
 3. **Startup**: import, and numba's cached and cold compile, each in a fresh
    process.
 
@@ -66,9 +70,19 @@ OUTPUTS = {
     "bases_fcj": (0, 1, 2, 3, 4, 5),
 }
 
-CANDIDATES = ("rietx_kernels_rs", "rietx_kernels_cy", "rietx_kernels_cy_abi3",
+#: the argument that picks each kernel's arm (WP-1940): the scatter's term
+#: count, Ω's spelling (0 forward, 1 basis), the FCJ bases' axial planes.
+#: ``bases_sym`` has one arm.
+ARM = {
+    "accum": (11, "n_terms"),
+    "omega_sym": (7, "spell"),
+    "omega_fcj": (8, "spell"),
+    "bases_fcj": (19, "has_ax"),
+}
+
+CANDIDATES = ("rietx_kernels", "rietx_kernels_cy", "rietx_kernels_cy_abi3",
               "rietx_kernels_cy_default", "rietx_kernels_cy_default_abi3")
-LABEL = {"numba": "numba", "rietx_kernels_rs": "rust",
+LABEL = {"numba": "numba", "rietx_kernels": "rust",
          "rietx_kernels_cy": "cython (contract off)",
          "rietx_kernels_cy_abi3": "cython abi3 (contract off)",
          "rietx_kernels_cy_default": "cython (clang default)",
@@ -151,7 +165,9 @@ def _theta_gap(ref: dict, got: dict) -> str:
 
 
 class _Shadow:
-    """Per-kernel call counts, mismatches, max |Δ| in ulps, serial seconds."""
+    """Per-kernel call counts, mismatches, max |Δ| in ulps, serial seconds,
+    and per-arm call and mismatch counts, so a zero says which arms it covers.
+    """
 
     def __init__(self, numba: dict, cands: dict[str, dict]):
         self.numba, self.cands = numba, cands
@@ -160,6 +176,8 @@ class _Shadow:
         self.secs: dict[tuple[str, str], float] = {}
         self.bad: dict[tuple[str, str], int] = {}
         self.ulps: dict[tuple[str, str], float] = {}
+        self.arms: dict[str, dict] = {}
+        self.arm_bad: dict[tuple[str, str], set] = {}
         self.rot = 0
 
     def wrap(self, kname: str):
@@ -167,6 +185,11 @@ class _Shadow:
 
         def call(*args):
             self.calls[kname] = self.calls.get(kname, 0) + 1
+            arm = args[ARM[kname][0]] if kname in ARM else None
+            if arm is not None:
+                arm = int(arm)
+                seen = self.arms.setdefault(kname, {})
+                seen[arm] = seen.get(arm, 0) + 1
             before = [args[i].copy() for i in outs]
             order = self.names[self.rot:] + self.names[:self.rot]
             self.rot = (self.rot + 1) % len(self.names)
@@ -191,13 +214,21 @@ class _Shadow:
                             self.ulps.get((kname, name), 0), _max_ulps(a, b))
                 if differs:
                     self.bad[(kname, name)] = self.bad.get((kname, name), 0) + 1
+                    self.arm_bad.setdefault((kname, name), set()).add(arm)
             for i, a in zip(outs, ref):
                 args[i][...] = a
 
         return call
 
 
-def agreement(case: str, numba: dict, cands: dict[str, dict]) -> None:
+def agreement(case: str, numba: dict, cands: dict[str, dict]
+              ) -> tuple[int, set[str]]:
+    """Print the table; return how many calls ``rietx_kernels`` differed on,
+    and which kernels the fit called.
+
+    Only the wheel's mismatches count: the spike's Cython builds with the
+    compiler's default contract FMAs and differ by design.
+    """
     print(f"\n## 1. Agreement and serial kernel time inside one {case} fit "
           "(threads = 1)\n")
     shadow = _Shadow(numba, cands)
@@ -210,8 +241,8 @@ def agreement(case: str, numba: dict, cands: dict[str, dict]) -> None:
     names = list(cands)
     head = " | ".join(f"{LABEL[n]}: s · ×numba · calls differing (max ulp)"
                       for n in names)
-    print(f"| kernel | calls | numba s | {head} |")
-    print("|---|---|---|" + "---|" * len(names))
+    print(f"| kernel | calls | arms ran (calls) | numba s | {head} |")
+    print("|---|---|---|---|" + "---|" * len(names))
     tot = {n: 0.0 for n in ["numba", *names]}
     for k in OUTPUTS:
         if k not in shadow.calls:
@@ -223,19 +254,65 @@ def agreement(case: str, numba: dict, cands: dict[str, dict]) -> None:
             s = shadow.secs[(k, n)]
             tot[n] += s
             bad = shadow.bad.get((k, n), 0)
-            ulp = f" ({shadow.ulps[(k, n)]:.0f})" if bad else ""
+            ulp = ""
+            if bad:
+                where = sorted(shadow.arm_bad.get((k, n), {None}), key=str)
+                ulp = (f" ({shadow.ulps[(k, n)]:.0f} ulp; "
+                       f"arms {', '.join(map(str, where))})")
             cells.append(f"{s:.3f} · {nb / s:.2f}× · {bad}{ulp}")
-        print(f"| {k} | {shadow.calls[k]} | {nb:.3f} | " + " | ".join(cells) + " |")
-    print(f"| **all** | | {tot['numba']:.3f} | "
+        arms = shadow.arms.get(k)
+        ran = ("—" if arms is None else f"{ARM[k][1]} " + ", ".join(
+            f"{a}: {c}" for a, c in sorted(arms.items())))
+        print(f"| {k} | {shadow.calls[k]} | {ran} | {nb:.3f} | "
+              + " | ".join(cells) + " |")
+    print(f"| **all** | | | {tot['numba']:.3f} | "
           + " | ".join(f"{tot[n]:.3f} · {tot['numba'] / tot[n]:.2f}×" for n in names)
           + " |")
+    return (sum(c for (_k, n), c in shadow.bad.items() if n == "rietx_kernels"),
+            set(shadow.calls))
+
+
+def pool_engagement(setup) -> None:
+    """One numba fit, each pooled-kernel call counted and timed by the way
+    ``compiled._splits`` sent it.  The entry points evaluate ``_splits`` as
+    ``_spread``'s last argument, so the decision lands just before the call."""
+    calls: dict[tuple[str, bool], list[float]] = {}
+    splits, spread = compiled._splits, compiled._spread
+    last: list = [None]
+
+    def counted_splits(kernel, *a):
+        s = splits(kernel, *a)
+        # a one-worker pool runs a split call inline, so it is not "pooled"
+        last[0] = (kernel, s and compiled._POOL_WORKERS > 1)
+        return s
+
+    def timed_spread(fn, n_rows, split):
+        t0 = time.perf_counter()
+        spread(fn, n_rows, split)
+        calls.setdefault(last[0], []).append(time.perf_counter() - t0)
+
+    compiled._splits, compiled._spread = counted_splits, timed_spread
+    try:
+        _fit(setup)
+    finally:
+        compiled._splits, compiled._spread = splits, spread
+    print("| kernel | inline calls | inline s | pooled calls | pooled s |")
+    print("|---|---|---|---|---|")
+    for k in OUTPUTS:
+        inl, pooled = calls.get((k, False), []), calls.get((k, True), [])
+        if inl or pooled:
+            print(f"| {k} | {len(inl)} | {sum(inl):.3f} | {len(pooled)} | "
+                  f"{sum(pooled):.3f} |")
+    print()
 
 
 def end_to_end(case: str, numba: dict, cands: dict[str, dict], repeats: int) -> None:
+    workers = compiled._pool()._max_workers
     print(f"\n## 2. End to end, {case}, {repeats} interleaved repeats "
-          f"(threads = {compiled.n_threads()})\n")
+          f"(threads = {workers})\n")
     setup = _cases()[case]()
-    arms = {"numpy": None, "numba": numba, **cands}
+    pool_engagement(setup)
+    arms = {"numpy": None, "numba": numba, "numba, inline": numba, **cands}
     walls: dict[str, list[float]] = {a: [] for a in arms}
     finals: dict[str, list[dict[str, tuple[float, float | None]]]] = {
         a: [] for a in arms}
@@ -249,11 +326,14 @@ def end_to_end(case: str, numba: dict, cands: dict[str, dict], repeats: int) -> 
             else:
                 compiled._KERNELS = arms[arm]
                 was = compiled.set_enabled(True)
+            if arm == "numba, inline":
+                compiled._POOL_WORKERS = 1
             try:
                 wall, res = _fit(setup)
             finally:
                 compiled.set_enabled(was)
                 compiled._KERNELS = numba
+                compiled._POOL_WORKERS = workers
             walls[arm].append(wall)
             finals[arm].append({p.path: (p.value, p.stderr) for p in res.parameters})
             rwp[arm] = res.statistics.rwp
@@ -310,6 +390,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repeats", type=int, default=5)
     ap.add_argument("--cases", default="trigger,cpd-1a")
     ap.add_argument("--skip", default="", help="comma list of 1,2,3")
+    ap.add_argument("--gate", action="store_true",
+                    help="exit 1 unless rietx_kernels imports and no call "
+                         "differs from numba (CI, WP-1940)")
     args = ap.parse_args(argv)
     skip = set(filter(None, args.skip.split(",")))
     import numba
@@ -321,6 +404,10 @@ def main(argv: list[str] | None = None) -> int:
     compiled.warm(block=True)
     numba_k = compiled._KERNELS
     cands = _candidates()
+    if args.gate and "rietx_kernels" not in cands:
+        print("GATE: rietx_kernels did not import")
+        return 1
+    differing, called = 0, set()
     for case in args.cases.split(","):
         if "1" not in skip:
             # serial: ``_spread`` runs a kernel inline when the pool it reads
@@ -328,13 +415,25 @@ def main(argv: list[str] | None = None) -> int:
             pool = compiled._pool()
             compiled._POOL_WORKERS = 1
             try:
-                agreement(case, numba_k, cands)
+                bad, ran = agreement(case, numba_k, cands)
             finally:
                 compiled._POOL_WORKERS = pool._max_workers
+            differing += bad
+            called |= ran
         if "2" not in skip:
             end_to_end(case, numba_k, cands, args.repeats)
     if "3" not in skip:
         startup()
+    if args.gate:
+        # a kernel no case called agrees vacuously, so it fails the gate too
+        never = sorted(set(OUTPUTS) - called)
+        if "1" in skip:
+            print("GATE: the agreement pass was skipped")
+            return 1
+        if differing or never:
+            print(f"GATE: {differing} calls differ; never called: "
+                  f"{', '.join(never) or 'none'}")
+            return 1
     return 0
 
 

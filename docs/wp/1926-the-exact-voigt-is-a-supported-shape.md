@@ -76,6 +76,15 @@ a PV peak type is a pseudo-Voigt approximation too (Technical Reference
 **Licensing.** TOPAS is closed: its Technical Reference and black-box runs
 only. Weideman (1994) and Olivero & Longbothum (1977) are papers.
 
+### Inherited
+
+- **2026-10-10, from WP-1940 (3rd session).** The compiled tier is moving
+  from numba to the `rietx-kernels` Rust wheel (1940 § Decisions). A Voigt
+  kernel written after that migration goes into `kernels/src/lib.rs`, ships
+  as a minor kernel release, and raises rietx's pin floor to that release
+  (`docs/RELEASING.md` § The kernel wheel). The 1e-13 bar here is then the
+  relaxed rule's transcendental bound, which 1940 writes.
+
 ## Non-goals
 
 - Fundamental parameters, and the transparency *shape* (Cheary & Coelho

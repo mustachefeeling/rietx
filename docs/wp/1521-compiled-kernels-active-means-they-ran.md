@@ -66,6 +66,11 @@ report about speed.
   reach `capabilities()`. The indexing tier's half stands until its kernels
   move. Read 1940 § Context before starting here, and fold this WP into 1940
   if 1940 lands first.
+- **2026-10-10, from WP-1940 (3rd session).** numba now leaves all three
+  tiers at the migration (1940 § Decisions item 8), so the indexing tier's
+  half goes too: the traversal runs its numpy loop, and nothing is built at
+  run time anywhere. Once 1940's `compiled.py` PR lands, nothing here is
+  left that 1940 does not do. Fold or close this WP then.
 
 ## Non-goals
 
