@@ -44,6 +44,14 @@ Twelve fits × five starts nudged by (1 + k·1e-14):
 | NAC, FAP, Si 640c, BT-1 ×2, capillary, absent phase | one minimum | the same minimum, 37–135 iterations against 32–156 |
 | LaB₆ + cBN | 9.661408 | 9.687–9.688 (both genuine minima; WP-1936) |
 
+The LaB₆ + cBN row is the old FD step's basin. Since WP-1936 (2026-10-09) the
+Caglioti `u`, `v` and any identity width bounded at 0 take a step sized by
+their unit (`least_squares.fd_step`, `_fd_typicals`), and LaB₆ + cBN with
+`u v w x y` free reaches χ²_red 9.840220 under physical + TRF at FD_STEP 1e-6,
+1e-7 and 1e-8 (spread 2.4e-10), and 9.793673 under softplus + TRF. Compare
+drivers against that basin. Brucite and corundum under physical + TRF still
+stop on `max_iter`.
+
 The adversarial review counted 97 BVLS solves on LaB₆ and 242 on brucite:
 96 of 195 returned status 3 (unconstrained solution feasible), the rest status
 1 (KKT), none max-iter. 17 of 242 were rank-deficient after the eigenvalue
@@ -58,9 +66,10 @@ fixtures) and the joint cell fit agree with TRF to 1e-9.
   quarantines and escalates on that word.
 - Budgets differ. `max_iter` caps LM's *outer* iterations; TRF gets
   `max_iter · NFEV_PER_ITERATION` (4) evaluations. brucite `zero_disp` hits
-  LM's cap of 100 where TRF converges in 136 evaluations at the same χ². And
-  `n_iterations` is reported as nfev on one driver and outer iterations on the
-  other.
+  LM's cap of 100 where TRF converges in 136 evaluations at the same χ².
+  *Superseded in part 2026-10-10:* `n_iterations` was already `nfev` on both
+  drivers (`run_least_squares` reads `res.nfev` for either); only the manual
+  called it iterations.
 - The step's cost is O(n³). Negligible for the table block; a Pawley block
   appends one intensity per reflection, which can be thousands of columns.
   BCCG exists for that case (Coelho 2005's Pawley timings). Measure it, and
@@ -81,17 +90,6 @@ under LM reaches 8.0006 against TRF's 7.636 because TRF's point violates the
 cone (`STEPHENS_STRAIN_NOT_POSITIVE`): a difference in what is enforced. WP-1467
 names `solver="lm"` in its suggestion; if this WP makes LM the default, that
 task changes shape.
-
-### Inherited
-
-- **From WP-1936 (2026-10-09): the step is fixed, and the LaB₆ basin moved
-  with it.** The Caglioti `u`, `v` and any identity width bounded at 0 now
-  take a forward-difference step sized by their unit (`least_squares.fd_step`,
-  `_fd_typicals`). LaB₆ + cBN with `u v w x y` free then reaches χ²_red
-  9.840220 under physical + TRF at FD_STEP 1e-6, 1e-7 and 1e-8 (spread
-  2.4e-10), and 9.793673 under softplus + TRF. The table's TRF row above
-  (9.661408) is the old step's basin, so compare drivers against the new one.
-  Brucite and corundum under physical + TRF still stop on `max_iter`.
 
 ## Non-goals
 
