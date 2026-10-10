@@ -23,9 +23,10 @@ GUI draws on an opaque canvas.
 vectorised over each primitive's box.  It calls no library function: ``sqrt``
 is an IEEE operation, the specular power is repeated squaring, and the box
 filter adds the samples in one order.  So a compiled port is held to it on the
-bit.  A numba kernel was that port until numba left rietx (WP-1940).  The
-rasteriser's port into the ``rietx-kernels`` crate (``kernels/``) is measured
-against this function and :func:`_ids_numpy`.
+bit.  A numba kernel was that port until numba left rietx (WP-1940).  Its
+successor is ``kernels/src/raster.rs``, in ``rietx-kernels`` from 1.1.0, and
+``tests/test_raster_kernels.py`` holds it to this function and
+:func:`_ids_numpy` inside real renders.
 
 **An id pass** (:func:`id_plane`, WP-1503) runs the same two tests over a small
 frame and writes which atom or bond half is in front at each pixel, for the

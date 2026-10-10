@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "rietx-kernels"
 dynamic = ["version"]
-description = "The compiled model kernels of rietx"
+description = "The compiled kernels of rietx: its model and its structure figure"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

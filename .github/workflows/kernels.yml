@@ -1,13 +1,13 @@
 name: Kernels
 
-# Builds, checks and publishes rietx-kernels, the compiled model kernels in
-# kernels/ (WP-1940).  The procedure around this file is docs/RELEASING.md
+# Builds, checks and publishes rietx-kernels, the compiled kernels in
+# kernels/ (WP-1940): the model's five and, from 1.1.0, the figure's two.  The procedure around this file is docs/RELEASING.md
 # § The kernel wheel; what follows is why the file is shaped as it is.
 #
 # Three triggers, one pipeline:
 #
-#   * A pull request touching the crate, its tests, its harness, its caller or
-#     this file builds every platform's wheel and checks each on its own
+#   * A pull request touching the crate, its tests, its harness, its callers,
+#     the rasteriser it is held to, or this file builds every platform's wheel and checks each on its own
 #     platform, so a kernel change is tested where it ships before it merges.
 #     A draft waits, as ci.yml's matrix does.
 #   * A `kernels-v*` tag does the same and then publishes.  A tag push, never a
@@ -32,12 +32,16 @@ name: Kernels
 #
 # The `test` job installs this run's wheel, never the index's, and checks that
 # it did.  Its reference is the numpy path, the arithmetic RIETX_COMPILED=0
-# runs.  numba was the reference until WP-1940 removed it from rietx.  Three
-# checks: the refusals, tests/test_compiled_kernels.py, and the agreement
-# pass.  That test file runs once: each of its comparisons sets both paths
-# itself, so a second run under RIETX_COMPILED=0 would repeat it.  That pass compares every kernel
+# runs.  numba was the reference until WP-1940 removed it from rietx.  Four
+# checks: the refusals, tests/test_compiled_kernels.py, the agreement pass, and
+# tests/test_raster_kernels.py.  test_compiled_kernels.py runs once: each of
+# its comparisons sets both paths itself, so a second run under
+# RIETX_COMPILED=0 would repeat it.  The agreement pass compares every kernel
 # call inside two real fits and fails on a call past its bar (`--gate`; the
-# bars are in the bench's docstring).  The numpy path itself lives in
+# bars are in the bench's docstring).  test_raster_kernels.py holds the
+# figure's kernels to src/rietx/viz/figure3d/raster.py on the bit inside real
+# renders; it skips under a wheel without them, so the import step below
+# asserts this run's wheel has them.  The numpy path itself lives in
 # src/rietx/model/forward.py.  ci.yml's fast suite tests a change there
 # against the published wheel, so it is not a trigger here.
 
@@ -56,6 +60,9 @@ on:
       - 'examples/bench_refinement.py'
       - 'tests/test_rietx_kernels.py'
       - 'tests/test_compiled_kernels.py'
+      # the figure's kernels, and the numpy rasteriser they are held to
+      - 'tests/test_raster_kernels.py'
+      - 'src/rietx/viz/figure3d/raster.py'
       - '.github/workflows/kernels.yml'
   workflow_dispatch:
 
@@ -142,6 +149,8 @@ jobs:
           print(k.__version__, k.KERNEL_ABI, url)
           assert url.startswith("file:") and url.endswith(".whl"), \
               f"rietx-kernels was installed from {url}, not from dist/"
+          assert hasattr(k, "render_rows") and hasattr(k, "id_plane"), \
+              "this run's wheel has no rasteriser, so test_raster_kernels.py would skip"
           PY
       - name: The refusals
         run: '"$PY" -m pytest tests/test_rietx_kernels.py'
@@ -149,6 +158,8 @@ jobs:
         run: '"$PY" -m pytest tests/test_compiled_kernels.py'
       - name: Agreement with the numpy path inside two real fits
         run: '"$PY" examples/aot_spike/bench_aot_kernels.py --cases cpd-1a,trigger --skip 2,3 --gate'
+      - name: The figure's kernels against the numpy rasteriser, to the bit
+        run: '"$PY" -m pytest tests/test_raster_kernels.py'
 
   verify-trust:
     name: Verify the PyPI trust relationship (uploads nothing)
