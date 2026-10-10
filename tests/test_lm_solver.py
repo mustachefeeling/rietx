@@ -146,6 +146,20 @@ def test_a_start_at_the_minimum_is_converged():
     assert out.termination in {"exhausted_fp64", "no_descent"}
 
 
+def test_a_non_finite_start_is_refused_not_converged():
+    """With first-iteration "diverged" gone, a nan cost would reject every
+    trial and read as convergence; the start is refused instead, as TRF does."""
+    def residual(t):
+        return np.array([t[0] - 1.0, np.nan])
+
+    def jacobian(t):
+        return np.array([[1.0], [0.0]])
+
+    with pytest.raises(ValueError, match="not finite"):
+        lm.minimize(residual, jacobian, np.zeros(1),
+                    lo=np.full(1, -np.inf), hi=np.full(1, np.inf))
+
+
 def test_the_budget_is_in_residual_evaluations():
     """``max_nfev`` caps what scipy's ``max_nfev`` caps: residual evaluations,
     the initial one included."""

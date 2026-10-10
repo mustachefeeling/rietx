@@ -327,6 +327,11 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
 
     r = residual(x)
     require_fp64(r, "least-squares residual")
+    if not np.all(np.isfinite(r)):
+        # scipy's TRF refuses the same start in the same words.  Run on, every
+        # trial compares against S = nan and is rejected, which now reads as
+        # convergence rather than the first-iteration "diverged" it was.
+        raise ValueError("Residuals are not finite in the initial point.")
     s = float(r @ r)
     n_fev, n_jev = 1, 0
     lam = 0.0
