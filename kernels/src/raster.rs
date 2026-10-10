@@ -17,12 +17,11 @@
 //! and a minimum, maximum or clamp goes through `npmin`/`npmax`, which pass a
 //! NaN on as `np.minimum`/`np.maximum` do, where `f64::min`/`max` drop it.
 //!
-//! **Threads.**  The kernel is written for bands of output rows drawn
-//! concurrently, each a `render_rows` call on the same `out` with a disjoint
-//! `[r0, r1)`.  `raster.draw` does not call it yet; it still draws every band
-//! with the numpy oracle.  So `out` is written through a raw pointer, for the
-//! reason `lib.rs`'s header gives, and the band's sample planes are the call's
-//! own.  `id_plane` is one call a frame and takes ordinary checked borrows.
+//! **Threads.**  `raster.draw` hands bands of output rows to the compiled
+//! tier's pool, each a `render_rows` call on the same `out` with a disjoint
+//! `[r0, r1)`.  So `out` is written through a raw pointer, for the reason
+//! `lib.rs`'s header gives, and the band's sample planes are the call's own.
+//! `id_plane` is one call a frame and takes ordinary checked borrows.
 //!
 //! **Every argument is checked before the GIL is released**, as in `lib.rs`:
 //! shapes against the leading count of each primitive's group, C order, the
