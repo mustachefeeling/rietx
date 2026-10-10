@@ -1,6 +1,6 @@
 # WP-1940 — the kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential
 
-Milestone: unscheduled · Status: 🔄 2026-10-10 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-10 — numba gone and rietx-kernels 1.0.0 loaded (PR #864); next the rasteriser port as kernels 1.1.0
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: 1939
 Priority: P2 2026-10-10 — the decision is taken (Rust, § Decisions) and every agent install pays numba's 143 MB and warm-up until this lands; the first task is a bit-neutral 1.4× that ships on its own
@@ -398,6 +398,154 @@ with the guard green is a pass.
 - `docs/RELEASING.md` (build from the tag, never by hand).
 
 ## Handover log
+
+### 2026-10-10 (4th session) — rietx loads the wheel, and numba leaves
+
+rietx now runs its model kernels from `rietx-kernels`, the Rust package that
+reached PyPI today, and no longer installs numba. A fresh install is 139 MB
+smaller and compiles nothing on its first fit. numpy has no ceiling from rietx,
+and an Intel Mac can install it again. Fits give the same numbers. An install
+whose kernels do not load now warns once and says why, where before it ran
+slower in silence. The indexing search and the structure figure lost their
+numba paths and run on numpy. The figure's automatic view is 14-40× slower
+until the rasteriser joins the kernel package, which the maintainer made that
+package's next release. All of it is PR #864, unmerged.
+
+*Done.*
+- **1.0.0 on PyPI**, checked at the session's start: five wheels, and the
+  `kernels-v1.0.0` tag run (38072977961) green. Task ticked with the pin.
+- **The indexing and figure tiers on numpy** (task 9's first half, a lane).
+  `indexing/_kernels_numba.py` and `viz/figure3d/_kernels_numba.py` deleted,
+  with the traversal builder, `_traverse_compiled`, the raster loader and the
+  `compiled_path` arguments. `test_indexing_kernels.py` keeps its numpy half
+  (26 → 5 cases); `test_render_structure.py` lost the two compiled-path
+  tests. `indexing/CLAUDE.md`'s rule now says the numpy loop is the oracle
+  for a port into the crate. The manual's and the skill's figure timings
+  were re-measured. No schema field records which indexing path ran.
+- **`compiled.py` loads the wheel** (tasks 5 and 8, a lane). `KERNEL_ABI = 1`
+  and `KERNEL_NAMES` are public. `_load` declines with a one-clause reason
+  when the import raises, the interface number differs, or a kernel is
+  missing; `unavailable()` returns it. `enabled()` warns once, as a
+  `RuntimeWarning`, when the switch is on and the load failed; neither
+  `RIETX_COMPILED=0` nor `set_enabled` warns. `warm()`, the cache redirect and
+  `model/_kernels_numba.py` are gone. `Capabilities.compiled_kernels_unavailable`
+  carries the reason. `pyproject` pins `rietx-kernels>=1,<2` and drops numba,
+  and a test holds the pin equal to `KERNEL_ABI`. `lib.rs`'s header now holds
+  the transcription contract that `_kernels_numba.py`'s docstring held. The
+  root CLAUDE.md's compiled-tier clause, `install.md` and `compatibility.md`
+  were rewritten for the wheel.
+- **The agreement pass's reference is the numpy path** (task 11's last
+  sentence, a lane). The bench holds each wheel call against a numpy twin
+  with the kernel's signature, built from the package's own functions. The
+  fit then runs on the twins' outputs and must match a `RIETX_COMPILED=0` fit
+  bit for bit, so every run checks the twins as well. `kernels.yml` drops
+  numba, checks through `direct_url.json` that it installed this run's wheel
+  rather than PyPI's identical 1.0.0, and runs `test_compiled_kernels.py` on
+  each platform. The Cython candidates left the bench; `cython/` stays.
+- **§ Decisions item 9**, the maintainer's answer to the figure's slowdown:
+  the rasteriser port is kernel release 1.1.0, and the exponential moves to
+  1.2.0. Item 7 and two tasks amended to match.
+- **Skill** (task 12): the `compiled_kernels` paragraph names the wheel and
+  `compiled_kernels_unavailable`. `install.md` has no agent admonition, so
+  there was none to rewrite. No body change.
+- The 1.8.0 notes and the v1.8 record stage the change: the dependency swap,
+  the platforms pip now refuses (musllinux, free-threaded 3.13t/3.14t), the
+  figure's slowdown, the new field and the warning.
+- Forward references: 1505, 1520, 1521, 1538, 1917, 1924. 1521 is re-rated
+  moot: this PR does its whole Goal, so it closes as 🛑 when #864 merges.
+- `/code-review high --fix` reported ten findings. It fixed five: one
+  kernel-test run in `kernels.yml` (the second, under `RIETX_COMPILED=0`,
+  repeated the first, since every comparison sets its own path), the
+  release note's figure factor by image size (5-26×), where the warning
+  fires (`capabilities()` fires it too), an esd-only θ gap named in the
+  bench, and a spacing typo. I fixed a sixth: `compiled_kernels_active` read
+  True after `set_enabled(True)` over a wheel that did not load. It now needs
+  `available()` too, which is 1521's last clause. Two findings were answered
+  by measurement: the monoclinic recovery test takes 70 s on numpy against
+  its 900 s budget (the review's ~200 s was the synthetic box-bound list),
+  and the indexing acceptance suite passes. Two were declined:
+  `kernels.yml` does not trigger on `forward.py`, which changes often, and
+  `ci.yml`'s fast suite runs `test_compiled_kernels.py` against the
+  published wheel on every PR; `_grid_pass`'s `test` callback stays as the
+  seam for a Rust traversal.
+- No `### Inherited` to prune.
+
+*Measured.* `[dev]` venv with `rietx-kernels` 1.0.0 from PyPI and numba
+uninstalled, darwin/arm64, python 3.12.10, numpy 2.5.3. No other suite ran
+during any timing.
+
+| kernel, agreement against numpy | trigger: calls / bit-identical / max rel | cpd-1a |
+|---|---|---|
+| `accum` | 11 004 / 11 004 / 0 | 6 377 / 6 377 / 0 |
+| `omega_sym` | 1 128 / 1 128 / 0 | 909 / 909 / 0 |
+| `bases_sym` | 688 / 688 / 0 | 597 / 597 / 0 |
+| `omega_fcj` | 6 189 / 0 / 8.0e-16 | not called |
+| `bases_fcj` | 3 580 / 0 / 5.0e-15 | not called |
+
+- The bars are `test_compiled_kernels.py`'s: the scatter to the bit, the
+  symmetric kernels to the bit on darwin/arm64 and under 1e-15 elsewhere,
+  the FCJ kernels under 1e-13. The gate was made to fail twice, once on a
+  wheel off by an ulp and once on a twin moved by 1e-12.
+- End to end, 5 interleaved repeats, 8 workers: trigger 10.96-10.99 s on
+  numpy, 4.08-4.22 s on the wheel, 5.37-5.42 s on the wheel inline; final θ
+  2.2e-1 esd from numpy's, as the 2nd session measured. cpd-1a 2.87-2.95 s,
+  1.46-1.56 s and 1.47 s; θ bit-identical. Trigger is already under the
+  acceptance's 4.5 s before the exponential.
+- Startup: `import rietx_kernels` adds nothing measurable over numpy
+  (0.048-0.050 s against 0.048-0.066 s); `import rietx` 0.70-0.83 s.
+- Install, fresh python 3.12 venvs: site-packages 182 MB for this tree, 321 MB
+  for `rietx==1.7.0`. Both resolve numpy 2.5.3, the newest there is. A fresh
+  install imports `rietx_kernels`, finds no numba, and reports
+  `compiled_kernels` and `compiled_kernels_active` true with no reason.
+- The figure on numpy, NAC cell at 400 px: plain 0.100-0.102 s, `view="auto"`
+  1.30-1.36 s (92 ms on numba). The lane measured 3143 atoms: plain
+  1.02-1.06 s, auto 22.6 s (565 ms).
+- `test_dichotomy_recovers_a_monoclinic_cell` alone: 70.2 s on numpy, against
+  `BUDGET_SECONDS` 900 and its docstring's ~80 s.
+- `tests/test_acceptance_indexing.py`, `-n auto`: 44 passed in 14:14.
+- Fast suite on the merged tree (main at bdaa7b62): 9013 passed, 177 skipped, 1 xfailed, 4:41, the merge bringing WP-1937's tests. Before the merge,
+  on the branch alone: 8996 passed, 177 skipped, 1 xfailed, 3:19. Against
+  main, per file in the fast tier: `test_compiled_kernels.py` 17 → 20,
+  `test_indexing_kernels.py` 26 → 5, `test_render_structure.py` 112 → 110,
+  every other touched file unchanged (237 items both sides).
+  `test_rietx_kernels.py`'s 27 cases now run where CI counted one
+  module-level skip, so against CI's main passed+skipped moves by −20 + 26.
+- The 7 added tests cost 1.57 s in the branch run, 1.55 s of it
+  `test_a_band_boundary_moves_no_bit`'s 2 cases (`tests.added_test_times`).
+- The full suite was not run. The model kernels are bit-identical to numba,
+  and the indexing and figure numpy paths were each one's bit-exact oracle,
+  so no measured number can move. The indexing acceptance ran instead,
+  because an engine's timing changed under its budgets.
+- Lanes:
+
+| lane | est | requests | main at dispatch | re-read | left in main | lane $ | saved $ |
+|---|---|---|---|---|---|---|---|
+| numba-out-of-indexing-and-figure | 25 | 97 | 162K | 0K of 15K | 36K | 5.01 | +2.31 |
+| compiled-loads-the-wheel | 35 | 87 | 198K | 16K of 28K | 9K | 4.32 | +3.66 |
+| bench-numpy-reference | 25 | 56 | 247K | 25K of 55K | 11K | 3.13 | +2.41 |
+
+  Main 90 requests at a 278K peak, $6.93; lanes $12.46. Actual over
+  estimated requests 2.49. The selective policy's replay row
+  (main > 150K and item >= 20 requests): 109 items laned, -17 %.
+
+*Gotchas.*
+- An existing venv keeps numba after `uv pip install -e ".[dev]"`. Uninstall
+  numba and llvmlite before trusting a numba-free run.
+- To count main's tests without a second worktree: `git archive origin/main
+  src tests pyproject.toml | tar -x` into the scratchpad, then
+  `PYTHONPATH=src pytest --collect-only -q` there with this venv.
+- The worktree guard refuses a command that computes a `sed` range or `cd`s
+  outside a subshell. A short script in the scratchpad gets through.
+
+*Next.*
+1. The maintainer: review and merge #864. Then close WP-1521 as 🛑,
+   superseded by this WP.
+2. The rasteriser port as `rietx-kernels` 1.1.0 (§ Decisions item 9):
+   `render_rows` and `id_plane` into `lib.rs`, held on the bit to
+   `raster.py`'s `_band_numpy` and `_ids_numpy`. The rietx PR that calls them
+   raises the pin to `>=1.1,<2`.
+3. The vectorised exponential with the relaxed rule as 1.2.0 (tasks 3 and 6),
+   its guard sized on the 2.2e-1 esd. Then multiversioning.
 
 ### 2026-10-10 (3rd session) — the crate, both owed platforms, and the release workflow
 
