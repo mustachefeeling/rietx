@@ -1,9 +1,8 @@
 # WP-1920 — the API index splits by shape: another program's files go to `api-io.md`
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-11 — `api-io.md` split out (PR #906); one 39 000 B ceiling for every index
 Track: The repo's own process
 Depends on: —
-Priority: P2 2026-10-08 — the decision other WPs wait on: `api.md` is 3 B under its ceiling, and PR #815, #801's follow-ups and TOF T-1 each hold back names to fit
 
 ## Goal
 
@@ -129,6 +128,78 @@ the indexes.
   inherited note from WP-1510; WP-1812 (`api-bodies.md`).
 
 ## Handover log
+
+- **2026-10-11** — closed. The skill's API index can grow again. It had
+  11 bytes of room, and pull requests were shortening docstrings to fit. It
+  now has 5.7 kB. The readers and writers for other programs' files moved to
+  their own generated index, which an agent opens only with such a file in
+  hand. The maintainer settled #808's three questions and chose to land the
+  reporter's commit here. Where the held-back time-of-flight and rigid-body
+  names go is decided too, so those branches no longer wait on this file.
+
+  *Done.* Four commits on top of the claim and the findings re-check.
+  - The decision (task 1), recorded in Tasks with the maintainer's four
+    answers. Every recommended option was taken.
+  - mustachefeeling's 80bac374, cherry-picked as 2732f967 with its author
+    kept. It had two conflicts. The moved `read_gsas_prm` sentence takes
+    WP-1543's wording, and `skill_caps.py` kept WP-1930's 39 800 beside the
+    split's history.
+  - 3040c07b applies answer 2. `API_INDEX_MAX_BYTES` is 39 000 for every
+    `api*.md`, and the per-index table (`API_INDEX_CEILINGS`,
+    `API_TECHNIQUE_INDEX_MAX_BYTES`, `api_index_ceiling`) and its test are
+    gone. The generator's docstring records answer 3. The `TECHNIQUE_FIELDS`
+    comment says the first PR documenting rigid bodies creates
+    `api-bodies.md`.
+  - a6def80b, the code review's fixes (below).
+  - Inherited pruned on arrival. WP-1543's note (`api.md` 39 789 of 39 800 B)
+    was still true and folded into Context's 2026-10-11 re-check.
+
+  *Measured* (`[dev]` venv, darwin arm64, Python 3.12).
+  - `api.md` 39 789 → 33 292 B, `api-io.md` 7 447 B, `SKILL.md` body
+    16 950 → 16 947 B. `python -m tests.skill_caps` exits 0. All 118 names in
+    `main`'s `api.md` have exactly one entry row across the four indexes.
+  - The acceptance selection (five files): 257 passed.
+  - Fast suite: 9109 passed, 178 skipped, 1 xfailed and 1 failed, in 6:23,
+    with no other suite running at its start. The failure was
+    `test_the_wp_index_is_the_generators_output`, run before this entry
+    regenerated the index. It passes after.
+  - `tests/test_skill.py` collects 167 cases against `main`'s 158, so +9.
+    Five reference-file parametrisations gain an `api-io.md` case. The
+    dotted-name check runs over four indexes instead of one (+3), and the
+    duplicate-row check is new (+1). No new skip. `tests.added_test_times`
+    puts the two added tests at 0.04 s together, one run on this machine.
+  - No full suite. The change touches the skill's prose, its generator and
+    its tests, and can move no measured number.
+
+  *Code review* (`/code-review high --fix`, seven findings). Fixed four. The
+  duplicate-row gate read `rx.X` and `rietx.X` as two names. The new
+  dotted-name test copied the old one, and is now one test over every index
+  (`test_every_dotted_name_in_the_api_indexes_resolves`). This file had
+  `api-io.md` at 7 465 B for 7 447. A docstring sentence is split. Declined
+  three:
+  - `SKILL.md`'s routing row names reading and five extensions, while
+    `api-io.md` also holds the writers, the `.instprm` pair and the recipe.
+    Widening the row grows a body that is over its token budget. Every
+    session loads `api.md` first, and its In and Out prose point at
+    `api-io.md`.
+  - `api-io.md` renders none of the readers' return types (`ProjectModel`,
+    `Recipe`, the per-format models). `api.md` did not render them before the
+    split either, so the gap predates this WP.
+  - `api.md` points at `api-io.md` from In and again from Out. Out is where a
+    reader looking for a writer goes.
+
+  *Not done.* `api-series.md` waits, by decision. The reply to #808 is
+  drafted and waits for the maintainer to post it.
+
+  *Forward references.* WP-1927 learns where T-1's names go, and its priority
+  is re-dated. WP-1812 and WP-1809 learn that `api-bodies.md` need not wait
+  for WP-1812. WP-1532 learns the split landed, which supersedes WP-1510's
+  note there.
+
+  Next, outside this WP. T-1 (WP-1927) rebases onto `main` once #906 merges,
+  and creates `api-tof.md`. The first rigid-body PR that documents its
+  classes, possibly #888, creates `api-bodies.md`. The next split is series,
+  history and projects (3.3 kB), due when `api.md` nears 39 000 B again.
 
 - **2026-10-08** — created, from the 2026-10-08 issue triage (issue #808).
   Checked against the tree at 5d1f5f67: `api.md` 39 697 of 39 700 B, its
