@@ -12,9 +12,17 @@ block reaches.
 Independent implementation from the papers; TOPAS is closed source and none of
 it was consulted.
 
-Why a second driver at all, given scipy TRF is the reference and stays the
-default: **constraint vocabulary**.  ``scipy.optimize.least_squares`` speaks
-only boxes on individual parameters.  This driver adds
+It is the default driver since WP-1938, which made every parameter refine in
+its own units.  There a width or scale whose minimum sits on its floor is a
+box bound, and the exact bounded step lands it there, where TRF's strictly
+feasible iterates crawl towards it (:data:`.least_squares.DEFAULT_SOLVER`
+carries the grid that decided it).  scipy's TRF stays selectable as
+``solver="trf"``, and every acceptance number before WP-1938 was measured
+with it.
+
+Why a driver of our own beside scipy's: **constraint vocabulary**.
+``scipy.optimize.least_squares`` speaks only boxes on individual parameters.
+This driver adds
 
 * boxes enforced *inside* the linear solve rather than after it, and
 * **linear inequalities on functionals of θ** — rows ``T·θ ≥ 0`` — which is

@@ -1003,10 +1003,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "them. Seed an all-zero block onto the isotropic ray with "
             "`Stage.strain_seed`: at S = 0 the square root in the width has "
             "unbounded slope. Positivity of σ²(M) is a cone coupling all "
-            "fifteen coefficients, so under the default solver it is reported "
-            "by `STEPHENS_STRAIN_NOT_POSITIVE` rather than bounded. Read that "
-            "flag as 'these coefficients are not quotable', not as evidence of "
-            "anisotropy."
+            "fifteen coefficients, so it cannot be a box bound. The default "
+            "LM solver holds it as a linear inequality. Under `solver=\"trf\"`, "
+            "and in a joint fit, it is reported by "
+            "`STEPHENS_STRAIN_NOT_POSITIVE` instead. Read that flag as 'these "
+            "coefficients are not quotable', not as evidence of anisotropy."
         ),
         unit=None, default=None,
         typical="the isotropic seed is ε²·[M²] for a strain ε of 1e-4 to 1e-3",

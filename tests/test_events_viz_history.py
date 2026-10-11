@@ -59,10 +59,14 @@ def test_eval_events_carry_the_trajectory_fields(synthetic_pattern):
     while every later one does; and ``values`` aligns element for element
     with ``stage_start.free_paths``, which is what makes the physical
     trajectory readable off the stream alone.
+
+    This is TRF's stream.  The LM driver's has its own vocabulary (λ on every
+    trial, no event for the start) and its own test,
+    ``test_solver_seam.py::test_lm_eval_stream_carries_every_measured_trial``.
     """
     structure, ins = perturbed_models()
     seen: list[dict] = []
-    ref = rx.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False, solver="trf")
     ref.fit(synthetic_pattern, events=seen.append)
 
     free_paths: dict[str, list[str]] = {}

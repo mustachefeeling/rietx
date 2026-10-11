@@ -160,14 +160,16 @@ def _plan(*, texture: bool, stephens: bool) -> rx.RefinementPlan:
     return plan
 
 
-def _fit(name: str, phase: rx.Phase, plan: rx.RefinementPlan, tag: str):
+def _fit(name: str, phase: rx.Phase, plan: rx.RefinementPlan, tag: str,
+         *, solver: str | None = None):
     if not DATA.exists():
         pytest.skip("IUCr QPA round-robin dataset not present")
     data = rx.read_pattern(DATA / f"{name}.prn")
     structure = rx.Structure(phases=[phase])
     ins = qarr_instrument()
     seed_scales(structure, ins, data)
-    ref = rx.Refinement(structure, ins)
+    ref = (rx.Refinement(structure, ins) if solver is None
+           else rx.Refinement(structure, ins, solver=solver))
     result = ref.fit(data, plan=plan)
     OUT.mkdir(exist_ok=True)
     result.plot(path=str(OUT / f"stephens_{tag}.png"))
@@ -236,10 +238,11 @@ def _with_block(phase: rx.Phase) -> rx.Phase:
 
 
 #: Three fits, each of which this module used to run twice.  ``brucite_aniso_trf``
-#: is the one worth naming: the default driver *is* TRF, so the anisotropic
-#: brucite fit and the "unconstrained control" for the LM test below were the
-#: same computation under two names (they differed only in ``history=``, which
-#: records and changes nothing).  The LM fit stays unshared — it is the one
+#: is the one worth naming: the anisotropic brucite fit and the "unconstrained
+#: control" for the LM test below are the same computation under two names.
+#: Its fixture names ``solver="trf"``, because both tests assert the point
+#: where the unconstrained driver leaves the cone.  The default driver is LM
+#: since WP-1938, and it holds the cone.  The LM fit stays unshared, as the one
 #: genuinely different run in the file.
 @pytest.fixture(scope="module")
 def brucite_iso():
@@ -250,7 +253,8 @@ def brucite_iso():
 @pytest.fixture(scope="module")
 def brucite_aniso_trf():
     return _fit("brucite", _with_block(brucite_phase(textured=True)),
-                _plan(texture=True, stephens=True), "brucite_aniso")
+                _plan(texture=True, stephens=True), "brucite_aniso",
+                solver="trf")
 
 
 @pytest.fixture(scope="module")

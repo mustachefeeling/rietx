@@ -2029,6 +2029,13 @@ def test_the_peak_absorption_statistic_separates_the_three_cases():
         design case (real intruder)  0.0004
         parasitic (on a reflection)  0.2099
 
+    The healthy peak sits at 46.0°, between LaB₆ (200) at 43.51° and (210) at
+    48.96°.  It sat at 43.5° until WP-1938, on (200).  There the area's
+    softplus column had died at an area near 0 and hid the overlap.  Refined
+    in its own units the area column lives at 0, and the R² there is the
+    overlap at whatever width the solver left: 0.0094 at TRF's 0.5°, 0.0358
+    at the LM driver's 0.10°.  At 46.0° both drivers give 0.0000.
+
     The separation is real — three orders of magnitude — and it is still **not
     enough to ship a threshold on**: three arms of one synthetic fixture, one
     phase, one component.  The background guard's 0.25 was measured across real
@@ -2050,7 +2057,7 @@ def test_the_peak_absorption_statistic_separates_the_three_cases():
             "instrument.extra_components.0.fwhm", "phases.*.atoms.*.biso"]
 
     healthy = worst(_fit_with_peak(structure, ins, data,
-                                   make_peak(center=43.5, span=0.5, area=200.0),
+                                   make_peak(center=46.0, span=0.5, area=200.0),
                                    free))
     s2, i2, d2, _ = _clean_lab6(seed=1, boost_at=strong)
     parasitic = worst(_fit_with_peak(s2, i2, d2,

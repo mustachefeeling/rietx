@@ -1347,8 +1347,8 @@ def _read_plan(payload: dict, structure: Structure, instrument: Instrument,
             message=(
                 f"refinement_controls.refinement_algorithm = {algorithm!r} is "
                 f"not read; this fit runs the package's own solver "
-                f"(scipy TRF by default, `solver=\"lm\"` for the bounded "
-                f"Levenberg-Marquardt)"),
+                f"(the bounded Levenberg-Marquardt by default, "
+                f"`solver=\"trf\"` for scipy's Trust Region Reflective)"),
             where=["payload.refinement_controls.refinement_algorithm"]))
 
     flagged = _flagged_paths(structure, instrument)

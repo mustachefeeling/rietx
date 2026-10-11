@@ -425,8 +425,9 @@ class MagneticOnset(Base):
     #:   ordering transition there is.
     #: * A modulus **climbing out of the floor terminates at once.**  Same
     #:   data, moment seeded *at* the floor against a pattern carrying a real
-    #:   4.5 μ_B: ``max_iter=1`` already reaches a supported modulus above
-    #:   1 μ_B (``test_the_ascent_out_of_the_floor_terminates_at_once``).  So a
+    #:   4.5 μ_B: ``max_iter=3`` already reaches a supported modulus above
+    #:   1 μ_B under the default LM driver, and ``max_iter=1`` under TRF
+    #:   (``test_the_ascent_out_of_the_floor_terminates_at_once``).  So a
     #:   truncated fit cannot
     #:   manufacture "unsupported" the way it can manufacture "supported".
     #: * And the failure this catches is real: with ``max_iter=1`` on every

@@ -1232,10 +1232,11 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
     unphysical set of coefficients — the width law's √ has nothing to take and
     the model quietly reports zero broadening for that direction.  The
     constraint is a *cone* coupling all fifteen coefficients (like ADP positive
-    definiteness), which is why it cannot be a box bound and has to be a guard
-    under the default TRF driver.  ``solver="lm"`` can carry it as a linear
-    inequality instead (``optimize/lm.py``), and then this guard falls silent
-    because there is nothing left to report — which is the point.
+    definiteness), which is why it cannot be a box bound.  The default LM
+    driver carries it as a linear inequality (``optimize/lm.py``), and then
+    this guard falls silent because there is nothing left to report.  It is
+    the only check under ``solver="trf"``, and in a joint fit under either
+    driver, since ``run_multi_least_squares`` builds no cone.
 
     Zero is *inside* the physical set, and the test is one-sided for that
     reason: an all-zero block is the exact no-broadening identity, and a

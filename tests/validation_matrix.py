@@ -1144,7 +1144,7 @@ CLAIMS: tuple[Claim, ...] = (
         "test_acceptance_stephens",
         "test_unconstrained_solver_leaves_the_cone_on_the_same_data", "qarr",
         ("characterisation",),
-        "the control for the row above: the default TRF driver, same data, "
+        "the control for the row above: the TRF driver its fixture names, same data, "
         "leaves the cone",
         reference="the same cone test, opposite direction — at least 5 of "
                   "43 reflections violating, plus the guard diagnostic",

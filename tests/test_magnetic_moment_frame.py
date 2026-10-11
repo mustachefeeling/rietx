@@ -150,12 +150,17 @@ def test_the_written_back_moment_is_the_fitted_one_after_the_angle_moved(cw, bet
 def test_the_start_at_truth_control_is_unchanged(cw):
     """Nothing moves before the moment stage, so main was right here already.
 
-    Pinned to main's numbers (13520aae): components (2.49970, −0.09520, 2.49298),
+    Pinned to main's numbers (13520aae): components (2.49970, ±0.09520, 2.49298),
     |m| 3.17716 at the fitted β, written-back and forward-model alike.
+
+    The sign of the b component is not a measurement.  Flipping it changes
+    the pattern by 4.5e-17 of its maximum, so TRF's −0.09520 and the LM
+    driver's +0.09520 are one minimum, their χ² equal to 4e-13 (WP-1938).
     """
     ref, result = _fit(cw, 101.0, PLAN_3)
     m_back, cell = _written_back(ref)
-    np.testing.assert_allclose(m_back, [2.49970, -0.09520, 2.49298], atol=2e-5)
+    np.testing.assert_allclose(m_back * [1.0, np.sign(m_back[1]), 1.0],
+                               [2.49970, 0.09520, 2.49298], atol=2e-5)
     assert moment_magnitude(m_back, cell) == pytest.approx(3.17716, abs=2e-5)
     # 1e-5 rather than roundoff, so this arm stays the one that passed before
     # the fix: main's 1.2e-6 here was the in-stage symptom below at the 1e-4°

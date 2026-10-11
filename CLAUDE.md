@@ -775,9 +775,9 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   freed *in* the sample-broadening stage, not after. The isotropic limit S = ε²·[M²] is both the
   seed and the only legal start: at S ≡ 0 the √ has unbounded slope, so `Stage.strain_seed`, not
   `Stage.seed`, which reaches softplus
-  entries only. σ²(M) ≥ 0 is a *cone* coupling all fifteen, so it cannot be a box bound: under the
-  default TRF driver it is a guard (`STEPHENS_STRAIN_NOT_POSITIVE`); under `solver="lm"` (WP-0601)
-  it is a linear inequality and the guard falls silent. Read a firing as "these coefficients are
+  entries only. σ²(M) ≥ 0 is a *cone* coupling all fifteen, so it cannot be a box bound. The default
+  LM driver holds it as a linear inequality. Under `solver="trf"`, and in a joint fit (no cone), it
+  is a guard (`STEPHENS_STRAIN_NOT_POSITIVE`). Read a firing as "these coefficients are
   not quotable", never as evidence *of* anisotropy. **Zero is on the cone, not outside it** — the
   guard's test is one-sided; v0.6's record has the ≤ 0 form's withdrawn claim and the re-measured
   brucite and corundum cone counts.

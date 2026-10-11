@@ -369,8 +369,9 @@ refinement across patterns {cite}`stinton2007` is out of scope.
 
 ## Solvers
 
-The default driver is scipy's Trust Region Reflective. The bounded
-Levenberg-Marquardt alternative implements Coelho's adaptive Marquardt
+The default driver is a bounded Levenberg-Marquardt. scipy's Trust Region
+Reflective, the previous default, stays available as `solver="trf"`. The
+Levenberg-Marquardt driver implements Coelho's adaptive Marquardt
 constant {cite}`coelho2018`, with the system diagonally pre-conditioned to
 $A_{ii} = 1$. That pre-conditioning makes λ dimensionless and lets the published
 constants transfer. Each damped step is solved exactly inside the parameter
@@ -381,7 +382,11 @@ bound-constrained conjugate gradient of {cite}`coelho2005` (conjugate gradients
 per {cite}`hestenes1952,polak1971`). Conventions: $A = J^\top J$,
 $b = -J^\top r$, and the paper's objective $S = r^\top r$ is $\chi^2$.
 
-The driver earns its place on constraint vocabulary rather than speed. Box
+It is the default because it settles where TRF crawls. Every parameter refines
+in its own units, with its declared limits as box bounds, and TRF's strictly
+feasible iterates approach a bound slowly. On 14 acceptance fits each started
+five ways, one fit's χ² spread by more than 1e-9 under this driver and four
+under TRF. It also carries constraints TRF cannot. Box
 bounds are enforced inside the linear solve, and linear inequalities on
 functionals of θ are available as rows $T\theta \ge 0$, the shape of the
 Stephens positivity cone ({ref}`ch-microstructure`), which no per-parameter box

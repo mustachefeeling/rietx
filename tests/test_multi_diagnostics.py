@@ -305,12 +305,18 @@ def test_two_histograms_of_one_radiation_answer_for_themselves():
 
 # ----------------------------------------------- the other rows it wired ---
 def test_the_specimen_and_the_fit_are_told_once():
-    """SPECIMEN and FIT rows land at top level, once, never per histogram."""
+    """SPECIMEN and FIT rows land at top level, once, never per histogram.
+
+    The stage must stop on its budget.  A scale alone is linear, and the LM
+    driver solves it in two evaluations, so the stage also frees a width,
+    which a flat pattern keeps widening past one iteration (WP-1938)."""
     phase = corundum()
     phase.space_group = "R -3 c"  # bare: gemmi picks a setting and says so
+    starved = RefinementPlan(stages=[Stage(
+        "scale", ["phases.*.scale", "phases.*.gauss_strain"], max_iter=1)])
     joint = rx.refine_multi([_flat(20.0, 80.0), _flat(20.0, 80.0)],
                             rx.Structure(phases=[phase]), [_xray(), _neutron()],
-                            plan=_short_plan())
+                            plan=starved)
     top = [d.code for d in joint.diagnostics]
     assert top.count("SPACE_GROUP_SETTING_ASSUMED") == 1
     assert top.count("STAGE_MAX_ITER") == 1

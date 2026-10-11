@@ -5880,7 +5880,8 @@ def _constraint_diagnostics(stage_name: str, outcome) -> list[Diagnostic]:
         suggestion="the constrained coefficients are admissible, not measured: "
                    "vary the starting seed and quote them only if they survive "
                    "(the STEPHENS_STRAIN_NOT_POSITIVE protocol row applies even "
-                   "though that guard is silent under solver='lm')",
+                   "though that guard is silent while the default LM driver "
+                   "holds the cone)",
     )]
 
 

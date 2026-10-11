@@ -800,7 +800,7 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 `characterisation` · dataset `qarr` · survives 4 starts
 
-**Claims:** the control for the row above: the default TRF driver, same data, leaves the cone
+**Claims:** the control for the row above: the TRF driver its fixture names, same data, leaves the cone
 
 **Referenced to:** the same cone test, opposite direction — at least 5 of 43 reflections violating, plus the guard diagnostic
 

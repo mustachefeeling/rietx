@@ -100,16 +100,27 @@ def test_the_150k_pattern_has_nothing_to_solve(solved_150k):
     # each MOMENT_PAIR_DEGENERATE names its class, and that class's rows carry
     # the pair (#742): the pair's ``where`` is two paths every class shares
     # (moved here from test_pair_diagnostic_class in WP-1930)
+    # A class index is unique only within one k.  The pairs span every k
+    # tried and ``s.trials`` holds the chosen k's classes, so a pair is keyed
+    # by its whole label and looked up only when it is the chosen k's (under
+    # the LM driver a second k reaches a pair, WP-1938).
     pairs = [d for d in s.diagnostics if d.code == "MOMENT_PAIR_DEGENERATE"]
     assert pairs, [d.message for d in s.diagnostics]
-    classes = set()
+    chosen = ("" if s.k is None or all(c == "0" for c in s.k)
+              else " (k = (" + ", ".join(s.k) + "))")
+    labels, classes = set(), set()
     for d in pairs:
         assert d.message.startswith("class "), d.message
-        index = int(d.message.split(":")[0].split()[1])
+        label = d.message.split(":")[0]
+        labels.add(label)
+        index = int(label.split()[1])
+        if label != f"class {index}{chosen}":
+            continue
         trial = next(t for t in s.trials if t.class_index == index)
         assert any(r.paired_with for r in trial.moments), (index, d.message)
         classes.add(index)
-    assert len(classes) == len(pairs)
+    assert classes, "no pair names a class of the chosen k"
+    assert len(labels) == len(pairs)
     unpaired = {t.class_index for t in s.trials
                 if not any(r.paired_with for r in t.moments)}
     assert not classes & unpaired

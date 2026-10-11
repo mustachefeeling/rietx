@@ -147,7 +147,12 @@ def test_the_cap_is_never_applied_to_a_stored_diagnostics_list():
 
 
 def _lab6_pattern():
-    """LaB6 over a range wide enough for the axial pair to be measurable."""
+    """LaB6 over a range wide enough for the axial pair to be measurable.
+
+    The pattern carries S/L = H/L = 0.02, so the pair's minimum is inside its
+    box.  Simulated at the default 0, the LM driver puts H/L exactly on its
+    floor, where S/L's column is zero, and the last stage no longer measures
+    the pair (WP-1938)."""
     import numpy as np
 
     from rietx.model.forward import compile_model
@@ -158,6 +163,7 @@ def _lab6_pattern():
 
     structure = make_lab6()
     ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.geometry.axial_sl.value = ins.geometry.axial_hl.value = 0.02
     tt = np.arange(15.0, 110.0, 0.02)
     empty = PatternData(two_theta=tt.tolist(),
                         intensity=np.zeros_like(tt).tolist())

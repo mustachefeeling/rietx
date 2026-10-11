@@ -96,8 +96,11 @@ _ZERO = Stage("zero", [ZERO])
 _CELL = Stage("cell", ["phases.*.cell.*"])
 
 
-def _fit(data, *stages):
-    return rx.Refinement(_seeded(), _instrument(), history=False).fit(
+def _fit(data, *stages, solver=None):
+    from rietx.optimize.least_squares import DEFAULT_SOLVER
+
+    return rx.Refinement(_seeded(), _instrument(), history=False,
+                         solver=solver or DEFAULT_SOLVER).fit(
         data, plan=RefinementPlan(stages=list(stages)))
 
 
@@ -183,7 +186,7 @@ FTOLS = [1e-9, 1e-6, 1e-4, 1e-3]
 FTOL_STOPS_EARLY = 1e-2
 
 
-def _fit_at(data, ftol, *stages):
+def _fit_at(data, ftol, *stages, solver=None):
     """``stages`` with the **last** one stopped at ``ftol``.
 
     ``RefinementPlan.stage_ftols`` is the one authority applying the schedule
@@ -193,10 +196,10 @@ def _fit_at(data, ftol, *stages):
     """
     stages = [dataclasses.replace(s) for s in stages]
     stages[-1].ftol = ftol
-    return _fit(data, *stages)
+    return _fit(data, *stages, solver=solver)
 
 
-def _answering_stage(data, ftol, *stages):
+def _answering_stage(data, ftol, *stages, solver=None):
     """``(table, outcome)`` of the stage whose θ becomes the result.
 
     ``check_guards`` is the one place both are in hand, and it is where the
@@ -213,7 +216,7 @@ def _answering_stage(data, ftol, *stages):
 
     refine_mod.check_guards = spy
     try:
-        _fit_at(data, ftol, *stages)
+        _fit_at(data, ftol, *stages, solver=solver)
     finally:
         refine_mod.check_guards = real
     return captured[-1]
@@ -258,8 +261,12 @@ def test_a_stage_that_stopped_early_is_not_a_bound_hit(data):
     budget and must not be dressed as a bound the answer sits on, so it is the
     *distance* half that declines it.  Asserted with the angle, because a row
     that passed for the wrong reason would look identical.
+
+    TRF runs it, because stopping early is TRF's behaviour here.  The LM
+    driver's step lands the shift exactly on its limit, where it is a bound
+    hit, and its ``ftol`` needs three small decreases in a row (WP-1938).
     """
-    result = _fit_at(data, FTOL_STOPS_EARLY, _SCALE_BKG, _ZERO)
+    result = _fit_at(data, FTOL_STOPS_EARLY, _SCALE_BKG, _ZERO, solver="trf")
     zero = {p.path: p for p in result.parameters}[ZERO]
 
     # nowhere near the limit …
@@ -267,7 +274,7 @@ def test_a_stage_that_stopped_early_is_not_a_bound_hit(data):
     # … while the residual keeps a large angle with that column, i.e. the
     # gradient half alone would have fired
     table, outcome = _answering_stage(data, FTOL_STOPS_EARLY,
-                                      _SCALE_BKG, _ZERO)
+                                      _SCALE_BKG, _ZERO, solver="trf")
     cos = float(outcome.residual_cosine[list(table.free_paths).index(ZERO)])
     assert cos < -BOUND_HIT_COS_MIN
 

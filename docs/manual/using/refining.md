@@ -49,10 +49,11 @@ ref = rx.Refinement(structure, instrument, backend="numpy", solver="trf")
 ```
 
 `backend` selects how the arrays are computed and `solver` selects the
-least-squares driver. `numpy` and `trf` are the defaults and the answer for
-almost every caller; [](install.md) covers what the optional backends buy and
-what they cost, and `Capabilities.backends` and `Capabilities.solvers` report
-what the build in front of you actually has.
+least-squares driver. `numpy` and `lm` are the defaults and the answer for
+almost every caller. `solver="trf"`, as above, selects scipy's Trust Region
+Reflective, the previous default. [](install.md) covers what the optional backends buy and what they
+cost, and `Capabilities.backends` and `Capabilities.solvers` report what the
+build in front of you actually has.
 
 `Refinement.result_` holds the most recent result, so a caller that fitted in
 one place can read it in another without threading the return value through:
@@ -1146,9 +1147,10 @@ fit that is working.
 A cost that rises from `StageResult.cost_initial` to `StageResult.cost_final`
 is a diverged stage, and `StageResult.status` says so.
 
-`StageResult.n_constraint_truncations` is `0` under the default `trf` solver,
-which has no linear-inequality vocabulary at all. It counts only under
-`solver="lm"`, and today the only such constraint is the Stephens strain cone.
+`StageResult.n_constraint_truncations` counts the steps the default `lm` solver
+shortened against a linear inequality. Today the only such constraint is the
+Stephens strain cone. It is `0` under `solver="trf"`, which has no
+linear-inequality vocabulary at all, and in a joint fit, which builds no cone.
 
 `StageResult.n_degenerate_cell_probes` counts trials, never the answer: `Cell`
 declares no bounds of its own, so an underdetermined cell stage can reach a

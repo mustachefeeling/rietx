@@ -296,8 +296,9 @@ class StephensStrain(_InheritsDeclaredDefaults):
     (S = Σₖ θₖ·Bₖ), so the lattice symmetry is enforced exactly and a set of
     coefficients outside the allowed subspace is an error, not something to
     silently symmetrise.  ``min``/``max`` on a component are inert: σ²(M) ≥ 0
-    couples all fifteen, so positivity is a diagnostic
-    (``STEPHENS_STRAIN_NOT_POSITIVE``), not a box.
+    couples all fifteen, so positivity is not a box.  The default LM driver
+    holds it as a linear inequality.  Under ``solver="trf"``, and in a joint
+    fit, it is a diagnostic (``STEPHENS_STRAIN_NOT_POSITIVE``).
 
     Build one with :meth:`isotropic` — all-zero coefficients are the exact
     no-broadening identity, but they sit at the √ cusp of the width law where

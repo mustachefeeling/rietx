@@ -854,9 +854,11 @@ VARIANTS: tuple[Variant, ...] = (
             _with_preferred_orientation),
     Variant("stephens", "+ Stephens anisotropic strain",
             "hkl-dependent Lorentzian widths, seeded on the isotropic ray. "
-            "Judge with ΔBIC, not Hamilton's R-ratio (useless at 7000 channels) "
-            "— and check STEPHENS_STRAIN_NOT_POSITIVE, which rejects the "
-            "coefficients whatever the statistics say.",
+            "Judge with ΔBIC, not Hamilton's R-ratio (useless at 7000 channels). "
+            "The default LM driver holds the strain cone, and CONSTRAINT_ACTIVE "
+            "says when the cone bound: the coefficients are then admissible, "
+            "not measured. Under solver='trf' check STEPHENS_STRAIN_NOT_POSITIVE, "
+            "which rejects the coefficients whatever the statistics say.",
             _with_stephens),
     Variant("absorption", "+ capillary absorption (µR = 0.5)",
             "Rouse cylinder transmission. It is an exact reparameterisation of "

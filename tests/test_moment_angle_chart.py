@@ -394,12 +394,16 @@ def test_a_fit_that_winds_its_azimuth_reports_it_in_the_chart_with_the_same_esds
     other value is bit-identical, every esd agrees, and the angle differs by
     whole turns.  Rwp is evaluated at the moved angle, whose cos and sin round
     differently, so it agrees to rounding and not to the bit (1 ulp on Linux
-    x86-64, bit-identical on darwin/arm64, measured)."""
+    x86-64, bit-identical on darwin/arm64, measured).
+
+    Both fits run TRF, the driver the issue's fit wound under.  The LM driver
+    ends this pattern at φ = 3.065 rad, inside the chart, so nothing would be
+    moved and the test would not reach the code it is about (WP-1938)."""
     data, scale = _pattern(_along_minus_a(3.5), 700)
-    fitted = rx.Refinement(_start(scale), INS).fit(data, plan=_plan())
+    fitted = rx.Refinement(_start(scale), INS, solver="trf").fit(data, plan=_plan())
     monkeypatch.setattr(ParameterTable, "_canonicalise_moment_dofs",
                         lambda self: None)
-    unmoved = rx.Refinement(_start(scale), INS).fit(data, plan=_plan())
+    unmoved = rx.Refinement(_start(scale), INS, solver="trf").fit(data, plan=_plan())
     a = {p.path: p for p in fitted.parameters}
     b = {p.path: p for p in unmoved.parameters}
     assert a.keys() == b.keys()
