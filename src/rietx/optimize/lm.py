@@ -26,8 +26,9 @@ This driver adds
 
 * boxes enforced *inside* the linear solve rather than after it, and
 * **linear inequalities on functionals of θ** — rows ``T·θ ≥ 0`` — which is
-  the shape the Stephens anisotropic-strain positivity cone has, and which no
-  box can express (see :class:`LinearInequality`).
+  the shape the Stephens anisotropic-strain positivity cone has, and the floor
+  Γ_G² ≥ ε on the Gaussian width at every reflection (WP-1938 D7), and which
+  no box can express (see :class:`LinearInequality`).
 
 It is not a speed play.  The normal-equation solve is a minority of this
 package's runtime — ``derivative_bases`` costs ~2× the forward evaluation, and
@@ -86,7 +87,7 @@ cond(JᵀJ) = cond(J)² makes reduced precision unrecoverable.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 import numpy as np
@@ -164,11 +165,14 @@ class LinearInequality:
 
     ``T`` is (n_rows, n_free) and frozen for the whole least-squares run — the
     same frozen-per-stage discipline the hkl list and window ranges follow.
+    Two builders make them, both in :mod:`.least_squares`:
+    ``strain_cone_inequalities`` and ``gaussian_width_inequalities``.
     """
 
     T: np.ndarray
     c: np.ndarray
-    #: what the rows mean, for diagnostics ("phases.0.microstrain" …)
+    #: what the rows mean, for diagnostics: ``"phases.0.microstrain"`` for the
+    #: cone, ``"instrument.profile (phases.0)"`` for the Γ_G² floor
     label: str = ""
 
     def violated(self, theta: np.ndarray) -> np.ndarray:
@@ -253,6 +257,10 @@ class LMOutcome:
     lambda_final: float = 0.0
     n_bound_hits: int = 0
     n_truncated: int = 0       # steps shortened by a linear-inequality row
+    #: ``n_truncated`` by the :attr:`LinearInequality.label` of the block that
+    #: bound each shortened step (WP-1938 D7: two kinds of block exist, the
+    #: Stephens cone and the Γ_G² floor, and a diagnostic names which pressed)
+    truncated_by: dict[str, int] = field(default_factory=dict)
     #: inner iterations burned on a point where the linearised model promised
     #: descent the true objective did not deliver (a corner, not a minimum)
     n_stalled: int = 0
@@ -349,6 +357,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     signs: list[int] = []
     small_runs = 0
     n_truncated = 0
+    truncated_by: dict[str, int] = {}
     n_stalled = 0
     status = 0
     n_outer = 0
@@ -376,10 +385,13 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
             solved = step
             for iq in ineqs:
                 step = iq.project_step(x, step)
-            tau = min((iq.max_feasible_fraction(x, step) for iq in ineqs), default=1.0)
+            taus = [iq.max_feasible_fraction(x, step) for iq in ineqs]
+            tau = min(taus, default=1.0)
             if tau < 1.0:
                 step = tau * step
                 n_truncated += 1
+                label = ineqs[taus.index(tau)].label
+                truncated_by[label] = truncated_by.get(label, 0) + 1
             floor = -_PREDICTED_FLOOR * max(abs(s), 1.0)
             x_try = _clip_to_bounds(x + step, lo, hi)
             if step is solved:
@@ -468,6 +480,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     return LMOutcome(x=x, fun=r, jac=J, cost=0.5 * s, nfev=n_fev, njev=n_jev,
                      n_outer=n_outer, status=status, lambda_final=lam,
                      n_bound_hits=n_bound_hits, n_truncated=n_truncated,
+                     truncated_by=truncated_by,
                      n_stalled=n_stalled, termination=termination,
                      active_mask=active)
 

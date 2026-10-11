@@ -4006,7 +4006,11 @@ class Refinement:
                 second, cost_initial=outcome.cost_initial,
                 n_iterations=outcome.n_iterations + second.n_iterations,
                 n_constraint_truncations=(outcome.n_constraint_truncations
-                                          + second.n_constraint_truncations))
+                                          + second.n_constraint_truncations),
+                truncated_by={k: (outcome.truncated_by.get(k, 0)
+                                  + second.truncated_by.get(k, 0))
+                              for k in {**outcome.truncated_by,
+                                        **second.truncated_by}})
             # the significance the result will quote.  A phase the support
             # hold still holds keeps the reading its hold was decided on, so
             # the hold and PHASE_UNCONSTRAINED cannot disagree; every other
@@ -5871,17 +5875,31 @@ def _constraint_diagnostics(stage_name: str, outcome) -> list[Diagnostic]:
     n = getattr(outcome, "n_constraint_truncations", 0)
     if not n:
         return []
+    # which block bound each step, by its label (WP-1938 D7): the Stephens
+    # cone's end in ``.microstrain``, the Γ_G² floor's start with
+    # ``instrument.profile``
+    by = getattr(outcome, "truncated_by", None) or {}
+    which = "; ".join(f"{label}: {k}" for label, k in sorted(by.items()))
+    suggestion = ("the constrained values are admissible, not measured: vary "
+                  "the starting seed and quote them only if they survive")
+    if any(label.endswith(".microstrain") for label in by):
+        suggestion += ("; for the Stephens strain cone the "
+                       "STEPHENS_STRAIN_NOT_POSITIVE protocol row applies even "
+                       "though that guard is silent while the default LM "
+                       "driver holds the cone")
+    if any(label.startswith("instrument.profile") for label in by):
+        suggestion += ("; for the Γ_G² floor (1e-8 deg², Γ_G = 1e-4°) the data "
+                       "asked for no Gaussian width at some reflection, so U, V, "
+                       "W and the phase's Gaussian size and strain describe that "
+                       "floor rather than a measured resolution")
     return [Diagnostic(
         level="info", code="CONSTRAINT_ACTIVE",
         message=(f"the bounded-LM driver shortened {n} step(s) against a linear "
-                 f"inequality constraint (the Stephens strain positivity cone) "
-                 f"in stage {stage_name!r} — the optimum sits on or near a "
+                 f"inequality constraint"
+                 + (f" ({which})" if which else "")
+                 + f" in stage {stage_name!r} — the optimum sits on or near a "
                  "constraint face"),
-        suggestion="the constrained coefficients are admissible, not measured: "
-                   "vary the starting seed and quote them only if they survive "
-                   "(the STEPHENS_STRAIN_NOT_POSITIVE protocol row applies even "
-                   "though that guard is silent while the default LM driver "
-                   "holds the cone)",
+        suggestion=suggestion,
     )]
 
 

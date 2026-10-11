@@ -804,7 +804,8 @@ class StageResult(Base):
     #: same way.
     ftol: float | None = None
     #: steps the bounded-LM driver shortened against a linear-inequality
-    #: constraint (the Stephens strain cone) during this stage.  Always 0 under
+    #: constraint (the Stephens strain cone, or the Γ_G² floor of WP-1938 D7)
+    #: during this stage.  Always 0 under
     #: TRF, which has no such vocabulary.  Nonzero in the *final* stage means
     #: the answer sits on or near a constraint face and additionally raises a
     #: ``CONSTRAINT_ACTIVE`` diagnostic — the only signal that a declared

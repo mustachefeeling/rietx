@@ -61,6 +61,28 @@ parameters are not quotable", the same reading
 `STEPHENS_STRAIN_NOT_POSITIVE` has and for the same reason: a variance left its
 physical set, and the widths built on it are not measurements.
 
+The default Levenberg-Marquardt driver also keeps a single-histogram fit off
+the clamp. Under the clamp every Gaussian width column is exactly zero. A
+bounded step that lands $W$ on its floor of 0 while $U$ and $V$ are near 0
+would put every point there, and the stage would stop. So each reflection on
+the data adds one row to the driver's linear inequalities ({ref}`ch-estimation`,
+§ Solvers):
+
+```{math}
+:label: prof-caglioti-floor
+
+\Gamma_G^2(\theta_{hkl}) \;\ge\; \varepsilon
+\qquad \text{for every reflection } hkl \text{ on the data}
+```
+
+{source}`rietx.optimize.least_squares.gaussian_width_inequalities`
+
+Here $\varepsilon$ = {{ MIN_GAMMA_G2 }} deg² is the clamp itself, and the angles
+are those of the cell at the start of the stage. GSAS-II clamps the same way,
+but its solver takes no bounds, so no step lands on a floor there. TRF, a
+joint fit and a stage that starts under the floor build no rows, and the guard
+above stays their check.
+
 ```{math}
 :label: prof-caglioti-l
 

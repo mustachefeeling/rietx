@@ -390,10 +390,11 @@ under TRF. It also carries constraints TRF cannot. Box
 bounds are enforced inside the linear solve, and linear inequalities on
 functionals of θ are available as rows $T\theta \ge 0$, the shape of the
 Stephens positivity cone ({ref}`ch-microstructure`), which no per-parameter box
-can express. An answer that pressed the cone says so. Per-stage truncation
-counts are recorded, and a `CONSTRAINT_ACTIVE` diagnostic fires for the
-answer-producing stage, which is the one signal that a declared constraint was
-active. Speed was measured at 0.74–1.04× against TRF, as expected: the
+can express. The floor on the Gaussian width at every reflection,
+{eq}`prof-caglioti-floor`, has the same shape. An answer that pressed either
+says so. Per-stage truncation counts are recorded, and a `CONSTRAINT_ACTIVE`
+diagnostic names the block that bound in the answer-producing stage, which is
+the one signal that a declared constraint was active. Speed was measured at 0.74–1.04× against TRF, as expected: the
 normal-equation solve is a minority of the runtime, so solver work is
 Amdahl-bounded at ≈1.25× here. {ref}`ch-method` works through two places where
 the Coelho papers disagree with their own text, and how measurement settled
