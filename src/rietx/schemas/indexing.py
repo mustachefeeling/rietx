@@ -202,7 +202,10 @@ PEAK_DETECT_SEPARATION_FWHM_FRAC = 0.25
 #: group is fitted independently, with its own full doublet — comes back as a
 #: real line with real intensity.  Measured on a synthetic Cu Kα pattern: one
 #: spurious line per resolved doublet.  Stripping is not the alternative (see
-#: :mod:`rietx.indexing.peakfit`); recognising the alias is.
+#: :mod:`rietx.indexing.peakfit`); recognising the alias is.  The screen adds
+#: one sampling step on top (``indexing.peaks._alias_tolerance``): both positions
+#: it compares are channel maxima, and on an undersampled profile the step, not
+#: the FWHM, bounds their disagreement.
 PEAK_ALIAS_TOL_FWHM_FRAC = 0.3
 #: Observed height ratio, as multiples of the emission line's own ``weight``,
 #: inside which an alias is accepted as such.  Wide on purpose: the ratio equals
