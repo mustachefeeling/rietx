@@ -7,7 +7,9 @@ oracle is :mod:`rietx.viz.figure3d.raster`'s ``_band_numpy`` and
 every platform.
 
 Each comparison runs inside a real render.  The oracle draws a band or an id
-frame, and the wheel draws the same one from the same arrays beside it.  The
+frame, and the wheel draws the same one from the same arrays beside it.  So
+every render here runs with the compiled tier switched off, which makes the
+oracle the path that draws.  The
 renders are chosen so that every arm of ``render_rows`` runs, and the test
 asserts that each one did: atoms with and without rings, bond halves, the
 outline, cell and polyhedron lines, faces, letters, and both an opaque and a
@@ -28,6 +30,7 @@ import numpy as np
 import pytest
 
 from rietx.crystallography.cif import structure_from_cif
+from rietx.model import compiled
 from rietx.viz import render_structure
 from rietx.viz.figure3d import raster
 
@@ -42,6 +45,15 @@ DATA = Path(__file__).parent / "data"
 @pytest.fixture(scope="module")
 def nac():
     return structure_from_cif(str(DATA / "cod_1000236.cif"), aniso=True)
+
+
+@pytest.fixture(autouse=True)
+def oracle_path():
+    """The numpy path for every render, so ``_band_numpy`` and ``_ids_numpy``
+    run and the wheel is called beside them."""
+    was = compiled.set_enabled(False)
+    yield
+    compiled.set_enabled(was)
 
 
 def _wheel_band(r0, r1, s, frame, pk, alpha, bg, outline, out):

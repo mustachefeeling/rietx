@@ -11,15 +11,19 @@ Two things are checked here and they are different in kind.
   bit pattern;
 * the **profile kernels** agree to rounding — 1e-13 relative, WP-1112's bar —
   and on symmetric rows they are bit-identical *where that was measured*.
-  Which is a property of the platform rather than of the code: the kernels
-  call the C library's ``exp``, numpy its own vectorised routine, and the two
-  agree bit for bit on darwin/arm64 against numpy 2.5.2 and miss by ~3e-17 on
-  Linux.  The bit is therefore asserted only there, for the same reason
-  ``test_backend_shim`` pins its goldens to one platform.  The pad tail is
-  excluded from the bit assertion either way: numpy reaches it by multiplying
-  the computed value by ``mask``, so a negative value lands on ``-0.0`` there
-  while the kernel never writes it at all, and nothing downstream can see the
-  difference because the scatter drops the pad.
+  Which is a property of the platform rather than of the code: the symmetric
+  kernels call the C library's ``exp``, numpy its own vectorised routine, and
+  the two agree bit for bit on darwin/arm64 against numpy 2.5.2 and miss by
+  ~3e-17 on Linux.  The bit is therefore asserted only there, for the same
+  reason ``test_backend_shim`` pins its goldens to one platform.  The pad tail
+  is excluded from the bit assertion either way: numpy reaches it by
+  multiplying the computed value by ``mask``, so a negative value lands on
+  ``-0.0`` there while the kernel never writes it at all, and nothing
+  downstream can see the difference because the scatter drops the pad.  From
+  ``rietx-kernels`` 1.2.0 the FCJ kernels on x86-64 call SLEEF's ``exp``,
+  held to its documented 1.0 ulp (WP-1940 § The relaxed rule);
+* and a **whole fit** on the kernels lands where the numpy path's does, its
+  parameters in esd units and its curve in σ, both under runaway bars.
 
 **The contract**, which is the half a green arithmetic test would not notice: a
 build without the wheel, with a wheel of another interface, or with the tier
@@ -36,6 +40,7 @@ a suite that runs under ``-n auto`` measures the machine, not the change.
 
 from __future__ import annotations
 
+import importlib.util
 import platform
 import sys
 import tomllib
@@ -176,7 +181,7 @@ def test_symmetric_rows_land_on_the_numpy_doubles():
     move it is ``exp``, and whether that moves it is a **property of the
     platform, not of the code**.
 
-    The kernels call the C library's ``exp``; numpy calls its own vectorised
+    The symmetric kernels call the C library's ``exp``; numpy calls its own vectorised
     routine.  Measured: they agree bit for bit on darwin/arm64 against numpy
     2.5.2, and miss by ~3e-17 relative on Linux — which cost a CI round, and is
     why the bar this test enforces everywhere is the rounding one.  The bit is
@@ -260,6 +265,97 @@ def test_fcj_rows_agree_to_rounding_on_every_plane():
             assert _rel(a, b) < 1e-13, f"{name} past the rounding bar"
 
 
+#: The bound on the FCJ kernels' ``exp``, in ulps of the true value: SLEEF's
+#: documented 1.0 for the ``xexp`` they call on x86-64 from ``rietx-kernels``
+#: 1.2.0 (``kernels/src/sleef.rs``).  The worst of the points below is 0.927,
+#: at ``exp(425.2…)``.  On arm64 they call the C library's, measured at 0.509
+#: on darwin/arm64, and the same bar holds it.
+EXP_BOUND_ULPS = 1.0
+
+
+def _wheel_exp():
+    import rietx_kernels
+
+    if not hasattr(rietx_kernels, "exp"):
+        pytest.skip(f"rietx-kernels {rietx_kernels.__version__} predates "
+                    "exposing the FCJ kernels' exponential (1.2.0)")
+    return rietx_kernels.exp
+
+
+def test_the_fcj_exponential_holds_its_stated_bound():
+    """The relaxed rule's first clause (WP-1940): a transcendental is held to a
+    stated bound, here 1.0 ulp against the true value, on each wheel's own
+    platform: SLEEF's on x86-64, the C library's on arm64.  The reference is :mod:`decimal` at 60 digits, so it is the
+    exact value and not another library's rounding of it.
+
+    The points cover every regime the Gaussian exponent reaches, which is
+    never positive: subnormal results, the wide windows' far tails, the core,
+    tiny arguments, and the edges of the range reduction, ``(k + ½)·ln 2``.
+    """
+    from decimal import Decimal, localcontext
+
+    exp = _wheel_exp()
+    rng = np.random.default_rng(1940)
+    x = np.concatenate([
+        rng.uniform(-745.2, -708.4, 500),
+        rng.uniform(-708.4, -40.0, 1000),
+        rng.uniform(-40.0, 0.0, 1500),
+        -np.exp(rng.uniform(np.log(1e-300), np.log(0.1), 300)),
+        rng.uniform(0.0, 709.7, 200),
+        (np.arange(-1074, 1024, 7) + 0.5) * np.log(2.0),
+    ])
+    got = np.empty_like(x)
+    exp(got, x)
+    worst, at = 0.0, None
+    with localcontext() as ctx:
+        ctx.prec = 60
+        for a, b in zip(x.tolist(), got.tolist()):
+            true = Decimal(a).exp()
+            err = float(abs(Decimal(b) - true) / Decimal(np.spacing(float(true))))
+            if err > worst:
+                worst, at = err, a
+    assert worst <= EXP_BOUND_ULPS, f"{worst:.3f} ulp at exp({at!r})"
+
+    # SLEEF decides these by selection, not by its polynomial
+    edges = np.array([0.0, -0.0, -np.inf, np.inf, np.nan, -1000.0001, 709.79])
+    got = np.empty_like(edges)
+    exp(got, edges)
+    assert _bits_equal(got[:4], [1.0, 1.0, 0.0, np.inf])
+    assert np.isnan(got[4]) and got[5] == 0.0 and got[6] == np.inf
+
+
+def test_the_avx2_and_baseline_builds_give_the_same_bits():
+    """``kernels/src/fcj.rs`` builds the x86-64 FCJ loops twice and says the
+    two agree, because no fused operation enters either.  Every CI runner has
+    AVX2, so the baseline build would otherwise never run; the wheel's
+    ``force_baseline`` hook runs it, and every plane must match to the bit."""
+    import rietx_kernels
+
+    if not hasattr(rietx_kernels, "force_baseline"):
+        pytest.skip(f"rietx-kernels {rietx_kernels.__version__} has one build")
+    if platform.machine().lower() not in ("x86_64", "amd64"):
+        pytest.skip("the FCJ loops have one build off x86-64")
+    model, values = _model(axial=True)
+    compiled.set_enabled(True)
+
+    def planes(baseline: bool):
+        was = rietx_kernels.force_baseline(baseline)
+        try:
+            b = model.derivative_bases(values)
+            out = [model._phase_component_batched(0, values)]
+            for p in b.planes:
+                inwin = p.layout.mask > 0
+                out += [getattr(p, name)[inwin] for name in
+                        ("omega", "d_pos", "d_gamma", "d_eta", "d_sl", "d_hl")
+                        if getattr(p, name) is not None]
+            return out
+        finally:
+            rietx_kernels.force_baseline(was)
+
+    for a, b in zip(planes(False), planes(True), strict=True):
+        assert _bits_equal(a, b), "the AVX2 and baseline builds disagree"
+
+
 def test_the_forward_agrees_with_the_scalar_loop_on_fcj_data():
     """The oracle chain, end to end: the compiled path against the
     per-reflection loop that neither batching nor compiling may drift from."""
@@ -269,6 +365,74 @@ def test_the_forward_agrees_with_the_scalar_loop_on_fcj_data():
         got = model._phase_component_batched(ip, values)
         want = model._phase_component_scalar(ip, values)
         assert _rel(got, want) < 1e-13
+
+
+# -- a whole fit --------------------------------------------------------------
+#: The fit-level guard's two bars (WP-1940 § The relaxed rule, item 3), each a
+#: runaway guard and never a tolerance.  The trigger fit lands 0.42 esd from
+#: the numpy path's on Linux x86-64 with 1.2.0's SLEEF ``exp`` (0.34 on 1.1.0),
+#: and 0.22 on darwin/arm64, whose 1.2.0 build is 1.1.0's.  A SLEEF build for
+#: arm64, which does not ship, measured 0.53.  All of it lies along one ridge:
+#: the instrument's Lorentzian ``x`` against the phases' ``lor_size``, which
+#: broaden alike.  The curve stays within 9.8e-5 σ there.  cpd-1a has no FCJ
+#: rows and lands on the numpy path's bits on darwin/arm64, yet its curve
+#: moved 1.68e-2 σ on the macOS x86-64 runner (i7-8700B, numpy 2.4.6) and
+#: under 1e-2 σ when the same job reran: there a fit's stopping point is not
+#: even repeatable (the bench's docstring).  That is the widest gap measured,
+#: and the curve bar sits 15× above it.
+FIT_THETA_ESD = 5.0
+FIT_CURVE_SIGMA = 0.25
+
+
+@pytest.fixture(scope="module")
+def bench():
+    """``examples/bench_refinement.py`` imported once for both cases, as
+    ``test_bench_refinement.py``'s fixture of the same name imports it."""
+    path = Path(__file__).resolve().parent.parent / "examples" / "bench_refinement.py"
+    spec = importlib.util.spec_from_file_location("bench_refinement", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["bench_refinement"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("case", ["trigger", "cpd-1a"])
+def test_a_fit_on_the_kernels_lands_where_the_numpy_path_does(bench, case):
+    """The relaxed rule's third clause: the two spike fits, once on each path.
+
+    A last-bit difference in the kernels is amplified by the solver into where
+    it stops, so the parameters are compared in esd units against a bar
+    several times the measured gap, and the fitted curves in units of σ, which
+    do not move along a flat direction.  The kernel bars above are the sharp
+    test.  This one says a fit on the kernels is still the numpy path's fit.
+    """
+    try:
+        setup = {"trigger": bench._trigger, "cpd-1a": bench._cpd_1a}[case]()
+    except FileNotFoundError as exc:
+        pytest.skip(str(exc))
+
+    def fit(on: bool):
+        compiled.set_enabled(on)
+        ref = rx.Refinement(setup.structure.model_copy(deep=True),
+                            setup.instrument.model_copy(deep=True), history=False)
+        return ref.fit(setup.data, plan=setup.plan, mode=setup.mode,
+                       two_theta_limits=setup.limits)
+
+    want, got = fit(False), fit(True)
+    w = {p.path: p for p in want.parameters}
+    g = {p.path: p for p in got.parameters}
+    # a phase held on one path only (WP-1301) is a fit that went elsewhere
+    assert w.keys() == g.keys(), (
+        f"refined on one path only: numpy {sorted(w.keys() - g.keys())}, "
+        f"kernels {sorted(g.keys() - w.keys())}")
+    shift = {k: abs(g[k].value - p.value) / p.stderr for k, p in w.items()
+             if p.stderr is not None and np.isfinite(p.stderr) and p.stderr > 0}
+    assert shift, "no refined parameter carries an esd to compare in"
+    worst = max(shift, key=shift.get)
+    assert shift[worst] < FIT_THETA_ESD, f"{worst} moved {shift[worst]:.3f} esd"
+    dy = np.abs(np.asarray(got.y_calc) - np.asarray(want.y_calc)) / want.sig()
+    assert dy.max() < FIT_CURVE_SIGMA, f"the curve moved {dy.max():.2e} σ"
 
 
 # -- the pool -----------------------------------------------------------------
@@ -443,7 +607,7 @@ def test_a_decline_warns_once_and_never_when_the_numpy_path_was_chosen(
     assert len(runtime) == 1, [str(w.message) for w in runtime]
     text = str(runtime[0].message)
     assert compiled.unavailable() in text
-    pin = f"rietx-kernels>={compiled.KERNEL_ABI},<{compiled.KERNEL_ABI + 1}"
+    pin = f"rietx-kernels>={compiled.KERNEL_FLOOR},<{compiled.KERNEL_ABI + 1}"
     assert f'pip install "{pin}"' in text
     assert f"{COMPILED_ENV}=0" in text
 
@@ -475,14 +639,16 @@ def test_capabilities_says_why_the_kernels_did_not_load(monkeypatch):
 
 
 def test_the_pin_is_the_kernel_interface_and_numba_is_gone():
-    """``pyproject``'s range and :data:`compiled.KERNEL_ABI` are one number
-    written twice, so a bump of either alone fails here."""
+    """``pyproject``'s range is :data:`compiled.KERNEL_FLOOR` and
+    :data:`compiled.KERNEL_ABI` written a second time, so a bump of either
+    alone fails here.  The floor is a minor of the interface's major."""
     path = Path(__file__).resolve().parents[1] / "pyproject.toml"
     project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
     deps = project["dependencies"]
-    abi = compiled.KERNEL_ABI
+    abi, floor = compiled.KERNEL_ABI, compiled.KERNEL_FLOOR
+    assert floor.split(".")[0] == str(abi)
     assert [d for d in deps if d.startswith("rietx-kernels")] == [
-        f"rietx-kernels>={abi},<{abi + 1}"]
+        f"rietx-kernels>={floor},<{abi + 1}"]
     every = deps + [d for extra in project["optional-dependencies"].values()
                     for d in extra]
     assert not [d for d in every if d.lower().startswith(("numba", "llvmlite"))]

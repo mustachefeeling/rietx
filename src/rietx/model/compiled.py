@@ -8,6 +8,13 @@ The kernels are Rust, shipped as the ``rietx-kernels`` wheel and built from
 ``kernels/`` in this repository; numba compiled them until WP-1940.  Nothing
 above this module may branch on whether they ran.
 
+The wheel carries two more, the structure figure's rasteriser
+(``render_rows`` and ``id_plane``, from 1.1.0).  They load, decline and switch
+off with the model's five, so a process takes one path for both, and
+``viz/figure3d/raster.py`` calls them through :func:`_kernels` and
+:func:`_pool`.  They call no library function, so their bar against the numpy
+oracle is the bit on every platform (``tests/test_raster_kernels.py``).
+
 Why a compiled tier at all
 --------------------------
 WP-1112 and WP-1120 removed the two costs a numpy-level loop is usually blamed
@@ -47,14 +54,22 @@ The three rules this module is held to
    is **bit-identical** — multiplies and adds in the order ``np.bincount``
    performs them, with no library function in it, so the bar is the bit and
    ``tests/test_compiled_kernels.py`` asserts it.  The profile kernels call
-   ``exp``, and **whose ``exp`` decides the last bit**: Rust's ``f64::exp``
-   calls the platform C library's, as numba did, and numpy uses its own
-   vectorised routine.  Measured, they agree bit for bit on darwin/arm64
-   against numpy 2.5.2 and miss by ~3e-17 relative on Linux — so the contract
-   is the rounding bar (≤ 1e-15, WP-1112's bar for FCJ rows) and the bit is
-   asserted only where it was measured.  The wheel matched numba bit for bit
-   on all five platforms it ships for (WP-1940), so these bars are the ones
-   numba was held to.  The numpy builder stays the oracle for bit-identity
+   ``exp``, and **whose ``exp`` decides the last bit**.  The symmetric kernels
+   call the platform C library's through Rust's ``f64::exp``, as numba did,
+   and numpy uses its own vectorised routine.  Measured, they agree bit for
+   bit on darwin/arm64 against numpy 2.5.2 and miss by ~3e-17 relative on
+   Linux, so the contract is the rounding bar (≤ 1e-15) and the bit is
+   asserted only where it was measured.  The FCJ kernels sum their nodes in a
+   loop where numpy runs a matmul, so their bar was 1e-13 relative from the
+   start (WP-1112's).  From ``rietx-kernels`` 1.2.0, on x86-64, they call
+   SLEEF's ``exp`` (``kernels/src/sleef.rs``) under WP-1940's relaxed rule:
+   **transcendentals to a stated bound, associations as written**.  The bound
+   is SLEEF's documented 1.0 ulp, asserted on every wheel, and every sum keeps
+   the numpy line's association.  On arm64 they keep the C library's, which
+   is faster there (``kernels/src/fcj.rs`` has the measurements).  A whole fit on the kernels is held to the
+   numpy path's by two runaway bars, θ in esd and the curve in σ.  Up to 1.1.0
+   the wheel matched numba bit for bit on all five platforms it ships for.
+   The numpy builder stays the oracle for bit-identity
    against the per-reflection loop (``tests/test_batched_forward.py``), which
    is why it has to remain a live, exercised path and not merely dead fallback
    code — and why every test in that file declares the numpy path rather than
@@ -67,9 +82,11 @@ import succeeded.  numba needed two answers there, whether the compiler
 imports and whether the kernels then built (WP-1521), and a background compile
 to hide its warm-up.  Both are gone.  The wheel reports its interface number,
 and a load checks it against :data:`KERNEL_ABI`.  The ``pyproject`` pin
-``rietx-kernels>=N,<N+1`` with N = :data:`KERNEL_ABI` makes pip refuse a
-mismatch first, so the check here catches an install that bypassed the
-resolver.  A wheel lacking one of :data:`KERNEL_NAMES` declines the same way.
+``rietx-kernels>=F,<N+1`` makes pip refuse a mismatch first.  N is
+:data:`KERNEL_ABI`, and F is :data:`KERNEL_FLOOR`, the release that added the
+newest kernel this rietx calls.  So the check here catches an install that
+bypassed the resolver.  A wheel lacking one of :data:`KERNEL_NAMES` declines
+the same way, and that is how a wheel older than the floor is caught.
 A decline warns once a process, from the first :func:`enabled`, unless
 :data:`~rietx._about.COMPILED_ENV` chose the numpy path.
 
@@ -110,15 +127,22 @@ import numpy as np
 from .._about import COMPILED_ENV, COMPILED_THREADS_ENV
 
 #: The kernel interface this rietx calls.  It is the ``rietx-kernels`` wheel's
-#: major version and the N of ``pyproject``'s ``rietx-kernels>=N,<N+1`` pin, so
+#: major version and the N of ``pyproject``'s ``rietx-kernels>=F,<N+1`` pin, so
 #: a new kernel is a minor release of the wheel and a changed signature a major
 #: one (``docs/RELEASING.md`` § The kernel wheel).  A wheel reporting another
 #: number is declined.
 KERNEL_ABI = 1
 
+#: The oldest wheel this rietx calls: the F of ``pyproject``'s
+#: ``rietx-kernels>=F,<N+1`` pin.  It is the minor that added the newest name in
+#: :data:`KERNEL_NAMES`, 1.1 for the rasteriser.
+KERNEL_FLOOR = "1.1"
+
 #: The kernels the wheel must export, under the names ``_KERNELS`` keys them
-#: by.  A wheel lacking one is declined like a wrong :data:`KERNEL_ABI`.
-KERNEL_NAMES = ("accum", "omega_sym", "omega_fcj", "bases_sym", "bases_fcj")
+#: by.  A wheel lacking one is declined like a wrong :data:`KERNEL_ABI`.  The
+#: first five are the model's and the last two the structure figure's.
+KERNEL_NAMES = ("accum", "omega_sym", "omega_fcj", "bases_sym", "bases_fcj",
+                "render_rows", "id_plane")
 
 #: Ω spelled as :func:`~rietx.model.profiles.pseudovoigt.pseudo_voigt` — the
 #: forward model's own arithmetic.
@@ -252,12 +276,12 @@ def _warn_unavailable() -> None:
         if _WARNED:
             return
         _WARNED = True
-    pin = f"rietx-kernels>={KERNEL_ABI},<{KERNEL_ABI + 1}"
+    pin = f"rietx-kernels>={KERNEL_FLOOR},<{KERNEL_ABI + 1}"
     warnings.warn(
         f"rietx's compiled kernels did not load, because {_UNAVAILABLE}. Fits"
-        f" run the numpy path, which is slower. Install the kernels with"
-        f' pip install "{pin}", or set {COMPILED_ENV}=0 to choose the numpy'
-        f" path and silence this warning.",
+        f" and structure figures run the numpy path, which is slower. Install"
+        f' the kernels with pip install "{pin}", or set {COMPILED_ENV}=0 to'
+        f" choose the numpy path and silence this warning.",
         RuntimeWarning, stacklevel=3)
 
 

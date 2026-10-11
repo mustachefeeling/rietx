@@ -711,9 +711,9 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   goldens and `test_compiled_kernels.py` run the numpy side through. (2) A **new kernel is a serial
   loop over a row range that releases the GIL**, on the shared pool and split on estimated work; it
   ships as a minor wheel release that raises rietx's floor (`compiled.KERNEL_ABI` is the major).
-  (3) Its **equivalence bar is per kernel, stated and asserted**: no library call in it means the
-  bit, an `exp` in it means 1e-13 relative, and the numpy builder stays the bit-identity oracle
-  against `_phase_component_scalar`. (4) **One path per process**, never decided per call.
+  (3) **Its bar is stated and asserted: transcendentals to a bound, associations as written** (`compiled.py` rule 3).
+  No library call means the bit, an `exp` 1e-13 relative, its own `exp` a ulp bound on every wheel; the numpy
+  builder stays the bit-identity oracle against `_phase_component_scalar`. (4) **One path per process**, never per call.
 - **Traced code runs inside `backend.traced.active(xp)`** — it makes `xp` the globally-bound
   backend *and* opens the backend's `full_precision()` scope. jax's fp64 is scoped, so a constant
   (or a θ vector) materialised outside it is silently float32 (it once cost the Pawley aux columns

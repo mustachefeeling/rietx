@@ -138,10 +138,20 @@ handover log has the tables).
   gradient. If that probe closes the LaB₆ + cBN split, it replaces this WP's
   seed. Read 1929's 2026-10-09 handover entry and
   https://claude.ai/artifact/CYGoz3cF63QUJ345z4zKMY before landing the seed.
+- **2026-10-10, from WP-1547: the nightly after #849 is red on this WP's
+  two-site test.** Nightly 38048650490 ran on 32a2b473.
+  `test_pair_diagnostic_class.py::test_the_two_site_set_reaches_one_minimum_and_pairs_nothing`
+  found a pair: "class 2: phases.0.atoms.0.moment.dof0 and
+  phases.0.atoms.1.moment.dof0 are a powder-degenerate moment pair". The
+  job ended 1 failed, 9349 passed, 131 skipped. The nightly before,
+  37928572815 on 9219e886, was green. Eleven merges sit between, among them
+  #849 (this WP), #855 (WP-1936's FD step) and #861 (spglib 2.8). Which one
+  moved it was not checked.
 - **2026-10-11, from the issue triage (#865, in PR #870): the two-site test
   this WP re-baselined fails by CPU, and its class 2 reading was backwards.**
   The 2026-10-10 nightly went red at `32a2b473` on
-  `test_the_two_site_set_reaches_one_minimum_and_pairs_nothing`. The reporter
+  `test_the_two_site_set_reaches_one_minimum_and_pairs_nothing` (the entry
+  above). No merge moved it: the runner's CPU did. The reporter
   ran it twelve times on `ubuntu-latest`: 7 of 7 AMD EPYC 7763 runners fail
   and 5 of 5 Intel Xeon runners pass, at one sha. Only class 2 moves. Intel
   and macOS stop at m ≈ 0, where |F_m|² ∝ m² gives the column no gradient; AMD

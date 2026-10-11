@@ -29,7 +29,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | 2026-10-08 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 2026-10-07 | — | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
-| [1547](1547-the-fast-tiers-tail.md) | The fast tier's tail is cut back, and its report reads CI's seconds | 2026-10-09 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1547](1547-the-fast-tiers-tail.md) | The fast tier's tail is cut back, and its report reads CI's seconds | 2026-10-11 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1804](1804-the-derived-block.md) | The derived block: a nonlinear map applied after the affine one | 2026-10-07 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1805](1805-the-rigid-body.md) | `RigidBody`: schema, collector, anchored rotation, the body's own rows | 2026-10-08 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 2026-10-08 | P3 | [rigid-bodies](#rigid-bodies) |
@@ -42,7 +42,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) | An esd follows where the solver stopped beside a flat column | 2026-10-09 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | 2026-10-09 | P1 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
-| [1940](1940-the-kernel-tier-in-a-wheel.md) | The kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential | 2026-10-10 | P2 | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
+| [1940](1940-the-kernel-tier-in-a-wheel.md) | The kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential | 2026-10-11 | P2 | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
 
 ## Next, by priority
 
@@ -605,7 +605,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1540](1540-a-milestone-is-named-a-release-is-numbered.md) | A milestone is named, a release is numbered | ✅ 2026-10-03 | — | — |
 | [1541](1541-cut-1-6-0.md) | Cut 1.6.0 from what main holds | ✅ 2026-10-03 | — | [1540](1540-a-milestone-is-named-a-release-is-numbered.md) |
 | [1546](1546-cut-1-7-0.md) | Cut 1.7.0 from what main holds | ✅ 2026-10-09 | — | [1541](1541-cut-1-6-0.md) |
-| [1547](1547-the-fast-tiers-tail.md) | The fast tier's tail is cut back, and its report reads CI's seconds | 🔄 2026-10-09 | P2 | — |
+| [1547](1547-the-fast-tiers-tail.md) | The fast tier's tail is cut back, and its report reads CI's seconds | 🔄 2026-10-11 | P2 | — |
 | [1903](1903-the-lane-trial-decides.md) | The lane trial decides whether a WP session sends long items to subagents | ✅ 2026-10-08 | — | — |
 | [1904](1904-the-skill-evaluation-strategy.md) | The skill evaluation strategy: how the agent skill is measured, rewritten and kept in sync, decided on a pilot | ✅ 2026-10-04 | — | — |
 | [1905](1905-the-skill-eval-suite.md) | The skill eval suite: `claude plugin eval` over the skill tree, cases from real failures, judge-free first | ✅ 2026-10-06 | — | [1904](1904-the-skill-evaluation-strategy.md) |
@@ -623,4 +623,4 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1925](1925-anomalous-scattering-above-70-kev.md) | Anomalous scattering above 70 keV | ⬜ | P3 | — ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) |
 | [1926](1926-the-exact-voigt-is-a-supported-shape.md) | The exact Voigt is a supported shape: its cost, its width, its exports and its bound | ⬜ | P3 | — (#815 soft) |
 | [1939](1939-an-ahead-of-time-kernel-spike.md) | An ahead-of-time kernel spike: Rust, C or Cython against numba | ✅ 2026-10-10 | — | — |
-| [1940](1940-the-kernel-tier-in-a-wheel.md) | The kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential | 🔄 2026-10-10 | P2 | [1939](1939-an-ahead-of-time-kernel-spike.md) |
+| [1940](1940-the-kernel-tier-in-a-wheel.md) | The kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential | 🔄 2026-10-11 | P2 | [1939](1939-an-ahead-of-time-kernel-spike.md) |

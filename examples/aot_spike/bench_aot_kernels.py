@@ -49,6 +49,9 @@ Three measurements:
    - ``omega_fcj`` and ``bases_fcj``: under 1e-13 relative on every platform
      (``test_fcj_rows_agree_to_rounding_on_every_plane``).  The kernel sums
      the nodes in a loop and numpy in a matmul, so the bit is not claimed.
+     From 1.2.0, on x86-64, they call SLEEF's ``exp`` (``kernels/src/sleef.rs``),
+     whose own bound ``test_the_fcj_exponential_holds_its_stated_bound``
+     asserts, and the ulp column then counts its last bits too.
 
    ``--gate`` exits 1 unless the wheel loaded, this section ran, every kernel
    was called, every call met its bar, and each case's twins reproduced the
@@ -381,7 +384,8 @@ def agreement(case: str, wheel: dict) -> tuple[int, set[str], bool]:
           "(threads = 1)\n")
     shadow = _Shadow(wheel)
     setup = _cases()[case]()
-    compiled._KERNELS = {k: shadow.wrap(k) for k in OUTPUTS}
+    # only the model's kernels are shadowed; the figure's pass through
+    compiled._KERNELS = {**wheel, **{k: shadow.wrap(k) for k in OUTPUTS}}
     try:
         _w, on_twins = _fit(setup)
     finally:
@@ -522,8 +526,10 @@ def end_to_end(case: str, wheel: dict, repeats: int) -> None:
     # to run (the numpy path's own repeats included) cannot pass on its last
     # repeat alone
     ref = finals["numpy"][0]
+    # "theta", not the letter: a Windows console's cp1252 has no θ, and the
+    # print raised there (WP-1940)
     print("| arm | wall min–max s | median | ×numpy (median) | Rwp | "
-          "final θ vs numpy |")
+          "final theta vs numpy |")
     print("|---|---|---|---|---|---|")
     med_np = statistics.median(walls["numpy"])
     for arm, ws in walls.items():
