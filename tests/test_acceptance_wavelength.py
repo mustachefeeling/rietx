@@ -419,7 +419,7 @@ def test_a_width_on_its_floor_leaves_one_esd_at_every_start(solo_neutron):
     rows = [{p.path: p for p in fit.parameters} for fit in fits]
     x = [r["instrument.profile.x"].stderr for r in rows]
     assert x == [pytest.approx(0.0098437, rel=1e-4)] * len(x)
-    assert max(x) / min(x) - 1.0 < 1e-5
+    assert max(x) / min(x) - 1.0 < 1e-6
     for r in rows:
         y = r["instrument.profile.y"]
         assert (y.value, y.at_bound) == (0.0, True)

@@ -1250,6 +1250,16 @@ A parameter that is exactly degenerate in one histogram and measurable in severa
 
 **Measured:** +257.6 ppm holding the X-ray against -256.7 ppm holding the neutron -- 0.9 ppm apart on an effect of 257 (0.34 %); both Rwp identical to 5 decimals, x(O) to 1.2e-6
 
+#### `test_a_width_on_its_floor_leaves_one_esd_at_every_start`
+
+`prediction` `identity` · dataset `ndruo_joint`
+
+**Claims:** issue #831's platform split, reproduced on one machine: with the neutron fit's Lorentzian y on 0, x's esd is one number however the start is nudged at the size of two platforms' arithmetic
+
+**Referenced to:** the esd the width column gives when taken in physical units and chained by dp/du, computed by WP-1929 at three softplus stopping points before WP-1938 refined in those units (0.0098437, 1e-4 relative), and the spread across four nudged starts under 1e-6 relative
+
+**Measured:** 0.0098437 at nudges 0, +-1e-14, 2e-14 (eight nudges spread 4e-8 relative, macOS arm64); y = 0 +- 0.018101, at_bound. The pre-1938 tree gives 0.00322, Linux's figure
+
 #### `test_the_fits_render`
 
 `ceiling` · dataset `ndruo_joint`

@@ -2035,6 +2035,22 @@ CLAIMS: tuple[Claim, ...] = (
                  "Rwp identical to 5 decimals, x(O) to 1.2e-6",
     ),
     Claim(
+        "test_acceptance_wavelength",
+        "test_a_width_on_its_floor_leaves_one_esd_at_every_start",
+        "ndruo_joint", ("prediction", "identity"),
+        "issue #831's platform split, reproduced on one machine: with the "
+        "neutron fit's Lorentzian y on 0, x's esd is one number however the "
+        "start is nudged at the size of two platforms' arithmetic",
+        reference="the esd the width column gives when taken in physical "
+                  "units and chained by dp/du, computed by WP-1929 at three "
+                  "softplus stopping points before WP-1938 refined in those "
+                  "units (0.0098437, 1e-4 relative), and the spread across "
+                  "four nudged starts under 1e-6 relative",
+        measured="0.0098437 at nudges 0, +-1e-14, 2e-14 (eight nudges spread "
+                 "4e-8 relative, macOS arm64); y = 0 +- 0.018101, at_bound. "
+                 "The pre-1938 tree gives 0.00322, Linux's figure",
+    ),
+    Claim(
         "test_acceptance_wavelength", "test_the_fits_render",
         "ndruo_joint", ("ceiling",),
         "the per-histogram obs/calc/diff renderings exist, so the fit can be "
