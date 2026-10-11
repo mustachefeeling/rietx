@@ -474,9 +474,11 @@ cannot tell a reversed moment, which a powder pattern cannot see, from a
 different one, and WP-1329 owns teaching it. The validation table was
 re-measured: 17 of its 129 quoted results moved by more than 1 %, each traced
 to its cause. Not closing: the review of the whole branch left two findings
-that need a decision or a measurement first.
+that need a decision or a measurement first. A second review, run after the
+handover, found four more real defects and fixed them. The worst was a solver
+step that could crash a fit outright on a rare iteration cap.
 
-*Done* (5 commits on top of `dd1cac2e`):
+*Done* (5 commits on top of `dd1cac2e`, then 5 from the second review):
 - `ff49f084`: D12 and D13. `solve_magnetic`'s default plan is moduli, moment,
   all (`SOLVE_STAGE_NAMES`), and the nuclear reference drops a stage that
   repeats its predecessor, so the reference fit is unchanged. The two-site test
@@ -495,6 +497,22 @@ that need a decision or a measurement first.
 - `bdeb9f24`: three fixes from `/code-review high` on #883.
 - Ticked: the 16 failures, the re-measure, tests and PNGs, the driver flip.
   Added: the two review tasks above Acceptance.
+- Second review, `/code-review high --fix 883` after the handover. Each fix has
+  a test that fails without it (checked):
+  - `fed5b3be`: the polish's optimality check in `_solve_constrained_step` is
+    an `nnls` call with no catch, so its iteration cap raised out of the fit.
+    Capped, the least-distance point is now the step.
+  - `076e0335`: `bdeb9f24`'s "a seed above the box is not written" let a joint
+    fit write a shared column's seed in one histogram and decline it in
+    another, when a caller shares an instrument row across mounts with
+    different `max`. `MultiParameterTable.seed_floored` asks every histogram
+    first.
+  - `fa4befe6`: `FLOOR_SEEDS` and `_units` comments named `suggest` as a
+    reader after this branch removed its seed.
+  - `93251ad7`: Γ_G² rows also come from a magnetic component's wider window
+    (`cp.win_mag`), which shares the nuclear Γ_G².
+  - `61379ecb`: `io/recipe._split`'s `LG_eta` hold keeps its behaviour and
+    states a measured reason (below), replacing the dead-gradient one.
 
 *Measured* (macOS 26.6.2 arm64, Python 3.12.10, rietx-kernels 1.2.0,
 `[dev,jax]`):
@@ -528,6 +546,17 @@ that need a decision or a measurement first.
 - Full suite on the final tree, which equals `main` merged in (behind 0),
   alone: 0 failed, 9511 passed, 118 skipped, 2 xfailed, 22:04. Slowest
   setups: indexing acceptance 764 s, the 150 K Cr₂WO₆ fixture 506 s.
+- After the second review, alone: fast suite 0 failed, 9211 passed, 111
+  skipped, 2 xfailed, 5:53, the three added tests exactly. They cost under a
+  second together. The four magnetic acceptance files, 14 passed in 2:50. On
+  both Cr₂WO₆ patterns all 43 reflections' nuclear windows hold data, so the
+  magnetic-window rows add no row to a measured fit. The full suite did not
+  re-run: no other change can move a measured number, and main has not moved.
+- `LG_eta` released, on a snapshot: DRX_33's four held halves freed, Rwp
+  0.073280 → 0.073077, cells +40 and +28 ppm (0.07 and 0.10 esd). Three
+  halves stayed at 0. Phase 0's strain split 0.27 Lorentzian, 0.46 Gaussian,
+  esds 1.2 and 1.3. The PowderLine acceptance passed; only the two unit tests
+  asserting the hold failed.
 - Lanes: one, opus.
 
   | lane | est | requests | main at dispatch | saved $ |
@@ -545,6 +574,13 @@ that need a decision or a measurement first.
   per crossing step (cost only), and W's floor restated in three readers (folded
   into the `.rxt` task). `BOUND_HIT`'s floor advice still ends "Fix it at 0"
   for W at 1e-8 deg², which is zero in practice, and the tutorials quote it.
+- Second review of #883 (high): eight findings. Four fixed and one restated
+  (above). Two were already tasks: the dense constrained step past
+  `BVLS_MAX_COLUMNS`, and the old `.rxt` W row. Declined: `seed_floored`
+  lifts only a row exactly on its floor, so a TRF fit that left Suortti b a
+  hair above 0 is not re-seeded. The test stays exact for issue #499, and b's
+  column at 0 is live (2.7e6 against the scale's 1.9e6), so the start is not
+  stuck.
 - D13 asked for a new WP. It went to WP-1329's Inherited by the fold-first
   rule, since 1329 owns the moment's path-dependence flag.
 - The two-site test no longer asserts `n_minima`, the winner's esds, or that it
@@ -567,8 +603,10 @@ that need a decision or a measurement first.
 1. The `.rxt` floor task. Decide where "a stored bound the schema raises is no
    edit" lives, once, and let `textdoc` and the two readers ask it.
 2. Measure LM's constrained-step costs on NAC Pawley and the grid, then decide.
-3. Then the full suite on merged `main`, and `gh pr ready`. The maintainer may
+3. Then the full suite on merged `main`. The PR is ready, so the maintainer may
    instead merge now and take 1 and 2 as a follow-up.
+4. Whether to free a recipe's zero `LG_eta` half is the maintainer's call;
+   the numbers above say the split goes unresolved on DRX_33.
 
 ### 2026-10-11 (third session) — the docs, the seeds and the grid settled; three magnetic slow tests left
 
