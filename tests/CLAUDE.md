@@ -232,8 +232,8 @@ CI leg by 3-4×**, so it reads CI's `junit-*` file when the branch has one (WP-1
   `compiled.set_enabled(False)` (or `True`) rather than inheriting. The
   signature of getting this wrong is a test that **passes on darwin/arm64 and
   fails on Linux**, whose C library `exp` the symmetric kernels call and numpy does
-  not. The FCJ kernels call their own `exp`, so their last bit moves on every
-  platform (WP-1940).
+  not. On x86-64 the FCJ kernels call SLEEF's `exp`, so their last bit moves
+  there on every OS (WP-1940).
   `conftest.py` also asks for one kernel thread per xdist worker, so a
   wall-clock budget is not a function of the worker count.
 - **A worktree needs its own venv, and quote which one you used.** The main

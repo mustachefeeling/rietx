@@ -14,16 +14,16 @@ Two things are checked here and they are different in kind.
   Which is a property of the platform rather than of the code: the symmetric
   kernels call the C library's ``exp``, numpy its own vectorised routine, and
   the two agree bit for bit on darwin/arm64 against numpy 2.5.2 and miss by
-  ~3e-17 on Linux.  From ``rietx-kernels`` 1.2.0 the FCJ kernels call their
-  own, SLEEF's, which is held to its documented 1.0 ulp and gives the same
-  bits on every platform (WP-1940 § The relaxed rule);
+  ~3e-17 on Linux.  The bit is therefore asserted only there, for the same
+  reason ``test_backend_shim`` pins its goldens to one platform.  The pad tail
+  is excluded from the bit assertion either way: numpy reaches it by
+  multiplying the computed value by ``mask``, so a negative value lands on
+  ``-0.0`` there while the kernel never writes it at all, and nothing
+  downstream can see the difference because the scatter drops the pad.  From
+  ``rietx-kernels`` 1.2.0 the FCJ kernels on x86-64 call SLEEF's ``exp``,
+  held to its documented 1.0 ulp (WP-1940 § The relaxed rule);
 * and a **whole fit** on the kernels lands where the numpy path's does, its
-  parameters in esd units and its curve in σ, both under runaway bars.  The bit is therefore asserted only there, for the same reason
-  ``test_backend_shim`` pins its goldens to one platform.  The pad tail is
-  excluded from the bit assertion either way: numpy reaches it by multiplying
-  the computed value by ``mask``, so a negative value lands on ``-0.0`` there
-  while the kernel never writes it at all, and nothing downstream can see the
-  difference because the scatter drops the pad.
+  parameters in esd units and its curve in σ, both under runaway bars.
 
 **The contract**, which is the half a green arithmetic test would not notice: a
 build without the wheel, with a wheel of another interface, or with the tier
@@ -265,9 +265,11 @@ def test_fcj_rows_agree_to_rounding_on_every_plane():
             assert _rel(a, b) < 1e-13, f"{name} past the rounding bar"
 
 
-#: SLEEF's documented bound for the ``xexp`` the FCJ kernels call from
-#: ``rietx-kernels`` 1.2.0 (``kernels/src/sleef.rs``), in ulps of the true
-#: value.  The worst of the points below is 0.927, at ``exp(425.2…)``.
+#: The bound on the FCJ kernels' ``exp``, in ulps of the true value: SLEEF's
+#: documented 1.0 for the ``xexp`` they call on x86-64 from ``rietx-kernels``
+#: 1.2.0 (``kernels/src/sleef.rs``).  The worst of the points below is 0.927,
+#: at ``exp(425.2…)``.  On arm64 they call the C library's, measured at 0.509
+#: on darwin/arm64, and the same bar holds it.
 EXP_BOUND_ULPS = 1.0
 
 
@@ -275,15 +277,15 @@ def _wheel_exp():
     import rietx_kernels
 
     if not hasattr(rietx_kernels, "exp"):
-        pytest.skip(f"rietx-kernels {rietx_kernels.__version__} predates the "
-                    "FCJ kernels' own exponential (1.2.0)")
+        pytest.skip(f"rietx-kernels {rietx_kernels.__version__} predates "
+                    "exposing the FCJ kernels' exponential (1.2.0)")
     return rietx_kernels.exp
 
 
 def test_the_fcj_exponential_holds_its_stated_bound():
     """The relaxed rule's first clause (WP-1940): a transcendental is held to a
-    stated bound, here SLEEF's 1.0 ulp against the true value, on each wheel's
-    own platform.  The reference is :mod:`decimal` at 60 digits, so it is the
+    stated bound, here 1.0 ulp against the true value, on each wheel's own
+    platform: SLEEF's on x86-64, the C library's on arm64.  The reference is :mod:`decimal` at 60 digits, so it is the
     exact value and not another library's rounding of it.
 
     The points cover every regime the Gaussian exponent reaches, which is
@@ -314,7 +316,7 @@ def test_the_fcj_exponential_holds_its_stated_bound():
                 worst, at = err, a
     assert worst <= EXP_BOUND_ULPS, f"{worst:.3f} ulp at exp({at!r})"
 
-    # SLEEF decides these by selection, not by the polynomial
+    # SLEEF decides these by selection, not by its polynomial
     edges = np.array([0.0, -0.0, -np.inf, np.inf, np.nan, -1000.0001, 709.79])
     got = np.empty_like(edges)
     exp(got, edges)
@@ -335,11 +337,12 @@ def test_the_forward_agrees_with_the_scalar_loop_on_fcj_data():
 
 # -- a whole fit --------------------------------------------------------------
 #: The fit-level guard's two bars (WP-1940 § The relaxed rule, item 3), each a
-#: runaway guard and never a tolerance.  Measured on darwin/arm64 with
-#: ``rietx-kernels`` 1.2.0, the trigger fit lands 0.53 esd from the numpy
-#: path's (1.1.0, whose ``exp`` was the C library's: 0.22), all of it along
-#: one ridge: the instrument's Lorentzian ``x`` against the phases'
-#: ``lor_size``, which broaden alike.  Its curve stays within 9.8e-5 σ.  cpd-1a
+#: runaway guard and never a tolerance.  Measured on darwin/arm64, the
+#: trigger fit lands 0.22 esd from the numpy path's on the C library's ``exp``
+#: (1.1.0, and 1.2.0's arm64 build), and 0.53 on SLEEF's built for arm64 (a
+#: build that does not ship), all of it along one ridge: the instrument's
+#: Lorentzian ``x`` against the phases' ``lor_size``, which broaden alike.
+#: Under SLEEF's its curve stays within 9.8e-5 σ.  cpd-1a
 #: has no FCJ rows and lands on the numpy path's bits.
 FIT_THETA_ESD = 5.0
 FIT_CURVE_SIGMA = 1e-2

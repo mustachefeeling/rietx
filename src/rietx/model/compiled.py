@@ -61,11 +61,12 @@ The three rules this module is held to
    Linux, so the contract is the rounding bar (≤ 1e-15) and the bit is
    asserted only where it was measured.  The FCJ kernels sum their nodes in a
    loop where numpy runs a matmul, so their bar was 1e-13 relative from the
-   start (WP-1112's).  From ``rietx-kernels`` 1.2.0 they also call their own
-   ``exp``, SLEEF's (``kernels/src/sleef.rs``), under WP-1940's relaxed rule:
+   start (WP-1112's).  From ``rietx-kernels`` 1.2.0, on x86-64, they call
+   SLEEF's ``exp`` (``kernels/src/sleef.rs``) under WP-1940's relaxed rule:
    **transcendentals to a stated bound, associations as written**.  The bound
    is SLEEF's documented 1.0 ulp, asserted on every wheel, and every sum keeps
-   the numpy line's association.  A whole fit on the kernels is held to the
+   the numpy line's association.  On arm64 they keep the C library's, which
+   is faster there (``kernels/src/fcj.rs`` has the measurements).  A whole fit on the kernels is held to the
    numpy path's by two runaway bars, θ in esd and the curve in σ.  Up to 1.1.0
    the wheel matched numba bit for bit on all five platforms it ships for.
    The numpy builder stays the oracle for bit-identity

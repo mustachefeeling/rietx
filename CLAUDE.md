@@ -714,8 +714,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   (3) Its **equivalence bar is per kernel, stated and asserted**: no library call in it means the
   bit, an `exp` in it means 1e-13 relative, and the numpy builder stays the bit-identity oracle
   against `_phase_component_scalar`. **Transcendentals to a stated bound, associations as
-  written** (WP-1940): a kernel may call its own `exp` (the FCJ kernels, SLEEF's to 1.0 ulp in
-  `kernels/src/sleef.rs`) only with that bound asserted on every wheel, never reassociating a sum,
+  written** (WP-1940): a kernel may call its own `exp` (the FCJ kernels on x86-64, SLEEF's to 1.0
+  ulp in `kernels/src/sleef.rs`) only with that bound asserted on every wheel, never reassociating a sum,
   and a whole fit on it is held to the numpy path's by runaway bars on θ in esd and on the curve in
   σ. (4) **One path per process**, never decided per call.
 - **Traced code runs inside `backend.traced.active(xp)`** — it makes `xp` the globally-bound

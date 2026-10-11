@@ -24,16 +24,13 @@
 //! multiply and an add into one fused operation, so the source order is the
 //! rounding order.
 //!
-//! **One exception since 1.2.0: the FCJ kernels' `exp`** (WP-1940 § The
-//! relaxed rule, "transcendentals to a stated bound, associations as
-//! written").  `omega_fcj` and `bases_fcj` call SLEEF's (`sleef.rs`), held to
-//! its documented 1.0 ulp, where numpy and the symmetric kernels call the
-//! platform's.  It vectorises, and it gives the same bits on every platform.
-//! Everything else in them is still a transcription, so their sums keep the
-//! numpy line's order.  Their node loop runs outside the window loop, so the
-//! inner loop runs across window points and vectorises.  Each point still sums
-//! its nodes in order from 0.0, which is why the interchange moved no bit
-//! (measured against 1.1.0 on every plane of the trigger fit).
+//! **One exception since 1.2.0: the FCJ kernels' `exp` on x86-64** (WP-1940
+//! § The relaxed rule, "transcendentals to a stated bound, associations as
+//! written").  There `omega_fcj` and `bases_fcj` call SLEEF's (`sleef.rs`),
+//! held to its documented 1.0 ulp, where numpy and the symmetric kernels call
+//! the platform's.  Everything else in them is still a transcription, so their
+//! sums keep the numpy line's order.  `fcj.rs` holds their two shapes and why
+//! arm64 keeps 1.1.0's.
 //!
 //! Two shapes are load-bearing, and both were measured (WP-1939's file):
 //!
@@ -82,10 +79,14 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::f64::consts::{LN_2, PI};
 
+mod fcj;
 mod raster;
+#[cfg(target_arch = "x86_64")]
 mod sleef;
 
-const K4LN2: f64 = 4.0 * LN_2;
+use fcj::{bases_fcj_loop, exp as fcj_exp, omega_fcj_loop};
+
+pub(crate) const K4LN2: f64 = 4.0 * LN_2;
 
 /// The kernel interface number: the crate's major version, so rietx's
 /// `rietx-kernels>=N,<N+1` pin and this integer cannot disagree.
@@ -313,55 +314,6 @@ unsafe fn omega_sym_loop(out: *mut f64, ow: usize, x: &[f64], xw: usize, rows: &
     }
 }
 
-/// The FCJ kernels' exponential, SLEEF's to 1.0 ulp (`sleef.rs`).
-#[inline(always)]
-fn fcj_exp(x: f64) -> f64 {
-    sleef::exp(x)
-}
-
-/// One node's term added to each window point's sum: the loop the compiler
-/// vectorises.  `BASIS` is `spell == 1`.
-#[inline(always)]
-fn omega_node<const BASIS: bool>(acc: &mut [f64], xs: &[f64], ph: f64, wt: f64, g: f64, e: f64,
-                                 srp: f64) {
-    for (a, &xv) in acc.iter_mut().zip(xs) {
-        let u = (xv - ph) / g;
-        let uu = u * u;
-        let ex = if BASIS { (-K4LN2 * u) * u } else { -K4LN2 * uu };
-        let lor = (2.0 / (PI * g)) / (1.0 + 4.0 * uu);
-        let gau = (2.0 / g) * srp * fcj_exp(ex);
-        *a += wt * (e * lor + (1.0 - e) * gau);
-    }
-}
-
-/// The node loop outside the window loop, so the inner loop runs across
-/// window points.  Each point still sums its nodes in order from 0.0, so the
-/// interchange moves no bit.
-#[allow(clippy::too_many_arguments)]
-unsafe fn omega_fcj_loop(out: *mut f64, ow: usize, x: &[f64], xw: usize, rows: &[i64],
-                         w1: &[f64], w2: &[f64], width: &[i64], phi: &[f64], om: &[f64],
-                         nn: usize, spell: i64, lo: usize, hi: usize) {
-    let srp = (LN_2 / PI).sqrt();
-    let mut buf = vec![0.0; xw];
-    for r in lo..hi {
-        let j = rows[r] as usize;
-        let (g, e) = (w1[j], w2[j]);
-        let n = width[j] as usize;
-        let xs = &x[j * xw..j * xw + n];
-        let (ph, wt) = (&phi[r * nn..r * nn + nn], &om[r * nn..r * nn + nn]);
-        let acc = &mut buf[..n];
-        acc.fill(0.0);
-        for m in 0..nn {
-            if spell == 0 {
-                omega_node::<false>(acc, xs, ph[m], wt[m], g, e, srp);
-            } else {
-                omega_node::<true>(acc, xs, ph[m], wt[m], g, e, srp);
-            }
-        }
-        unsafe { std::ptr::copy_nonoverlapping(acc.as_ptr(), out.add(j * ow), n) };
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 unsafe fn bases_sym_loop(o_om: *mut f64, o_dp: *mut f64, o_dg: *mut f64, o_de: *mut f64,
                          ow: usize, x: &[f64], xw: usize, rows: &[i64], pos: &[f64],
@@ -387,128 +339,6 @@ unsafe fn bases_sym_loop(o_om: *mut f64, o_dp: *mut f64, o_dg: *mut f64, o_de: *
                 *o_dp.add(k + c) = -(e * dl_dx + (1.0 - e) * dg_dx);
                 *o_dg.add(k + c) = e * dl_dg + (1.0 - e) * dg_dg;
                 *o_de.add(k + c) = lor - gau;
-            }
-        }
-    }
-}
-
-/// One node's weights for `bases_node`: the node's weight `w`, its position
-/// weight `dw`, and `w` times its position's derivative, then the same pair
-/// for each axial parameter.  `w * dph` is the product the per-point loop
-/// formed, formed once.
-#[derive(Clone, Copy)]
-struct Node {
-    ph: f64,
-    w: f64,
-    dw: f64,
-    wdph: f64,
-    dw_sl: f64,
-    wdph_sl: f64,
-    dw_hl: f64,
-    wdph_hl: f64,
-}
-
-/// A row's running sums, one slice per sum, each the window's width.
-struct Sums<'a> {
-    om: &'a mut [f64],
-    dg: &'a mut [f64],
-    de: &'a mut [f64],
-    a_pos: &'a mut [f64],
-    b_pos: &'a mut [f64],
-    a_sl: &'a mut [f64],
-    b_sl: &'a mut [f64],
-    a_hl: &'a mut [f64],
-    b_hl: &'a mut [f64],
-}
-
-/// One node's terms added to each window point's sums, as `omega_node`.
-#[inline(always)]
-fn bases_node<const AX: bool>(s: &mut Sums<'_>, xs: &[f64], nd: Node, g: f64, e: f64, srp: f64) {
-    let n = xs.len();
-    let (om, dg, de) = (&mut s.om[..n], &mut s.dg[..n], &mut s.de[..n]);
-    let (a_pos, b_pos) = (&mut s.a_pos[..n], &mut s.b_pos[..n]);
-    let (a_sl, b_sl) = (&mut s.a_sl[..n], &mut s.b_sl[..n]);
-    let (a_hl, b_hl) = (&mut s.a_hl[..n], &mut s.b_hl[..n]);
-    for c in 0..n {
-        let u = (xs[c] - nd.ph) / g;
-        let den = 1.0 + 4.0 * u * u;
-        let lor = (2.0 / (PI * g)) / den;
-        let gau = (2.0 / g) * srp * fcj_exp((-K4LN2 * u) * u);
-        let pv = e * lor + (1.0 - e) * gau;
-        let dl_dx = -lor * (8.0 * u / g) / den;
-        let dg_dx = -gau * (2.0 * K4LN2 * u / g);
-        let ddx = e * dl_dx + (1.0 - e) * dg_dx;
-        let dl_dg = (lor / g) * (8.0 * u * u / den - 1.0);
-        let dg_dg = (gau / g) * (2.0 * K4LN2 * u * u - 1.0);
-        om[c] += nd.w * pv;
-        dg[c] += nd.w * (e * dl_dg + (1.0 - e) * dg_dg);
-        de[c] += nd.w * (lor - gau);
-        a_pos[c] += nd.dw * pv;
-        b_pos[c] += nd.wdph * ddx;
-        if AX {
-            a_sl[c] += nd.dw_sl * pv;
-            b_sl[c] += nd.wdph_sl * ddx;
-            a_hl[c] += nd.dw_hl * pv;
-            b_hl[c] += nd.wdph_hl * ddx;
-        }
-    }
-}
-
-/// `omega_fcj_loop`'s interchange, nine sums a point.
-#[allow(clippy::too_many_arguments)]
-unsafe fn bases_fcj_loop(o: [*mut f64; 6], ow: usize, x: &[f64], xw: usize, rows: &[i64],
-                         w1: &[f64], w2: &[f64], width: &[i64], phi: &[f64], om: &[f64],
-                         dphi: &[f64], dom: &[f64], dphi_sl: &[f64], dom_sl: &[f64],
-                         dphi_hl: &[f64], dom_hl: &[f64], nn: usize, has_ax: bool,
-                         lo: usize, hi: usize) {
-    let [o_om, o_dp, o_dg, o_de, o_sl, o_hl] = o;
-    let srp = (LN_2 / PI).sqrt();
-    let mut buf = vec![0.0; 9 * xw];
-    for r in lo..hi {
-        let j = rows[r] as usize;
-        let (g, e) = (w1[j], w2[j]);
-        let n = width[j] as usize;
-        let xs = &x[j * xw..j * xw + n];
-        let b = r * nn;
-        let (ph, wt, dph, dw) = (&phi[b..b + nn], &om[b..b + nn], &dphi[b..b + nn],
-                                 &dom[b..b + nn]);
-        let mut parts = buf.chunks_exact_mut(xw).map(|p| &mut p[..n]);
-        let mut next = || parts.next().unwrap();
-        let mut s = Sums { om: next(), dg: next(), de: next(), a_pos: next(), b_pos: next(),
-                           a_sl: next(), b_sl: next(), a_hl: next(), b_hl: next() };
-        for p in [&mut s.om, &mut s.dg, &mut s.de, &mut s.a_pos, &mut s.b_pos] {
-            p.fill(0.0);
-        }
-        if has_ax {
-            for p in [&mut s.a_sl, &mut s.b_sl, &mut s.a_hl, &mut s.b_hl] {
-                p.fill(0.0);
-            }
-        }
-        for m in 0..nn {
-            let w = wt[m];
-            let mut nd = Node { ph: ph[m], w, dw: dw[m], wdph: w * dph[m], dw_sl: 0.0,
-                                wdph_sl: 0.0, dw_hl: 0.0, wdph_hl: 0.0 };
-            if has_ax {
-                nd.dw_sl = dom_sl[b + m];
-                nd.wdph_sl = w * dphi_sl[b + m];
-                nd.dw_hl = dom_hl[b + m];
-                nd.wdph_hl = w * dphi_hl[b + m];
-                bases_node::<true>(&mut s, xs, nd, g, e, srp);
-            } else {
-                bases_node::<false>(&mut s, xs, nd, g, e, srp);
-            }
-        }
-        let k = j * ow;
-        for c in 0..n {
-            unsafe {
-                *o_om.add(k + c) = s.om[c];
-                *o_dg.add(k + c) = s.dg[c];
-                *o_de.add(k + c) = s.de[c];
-                *o_dp.add(k + c) = s.a_pos[c] - s.b_pos[c];
-                if has_ax {
-                    *o_sl.add(k + c) = s.a_sl[c] - s.b_sl[c];
-                    *o_hl.add(k + c) = s.a_hl[c] - s.b_hl[c];
-                }
             }
         }
     }

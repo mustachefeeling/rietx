@@ -4,8 +4,8 @@
 //    (See accompanying file sleef.LICENSE or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
 
-//! The exponential the FCJ kernels call (WP-1940 § The relaxed rule), from
-//! 1.2.0.  It is SLEEF 3.5.1's `xexp` in its non-FMA form, ported from
+//! The exponential the FCJ kernels call on x86-64 (WP-1940 § The relaxed
+//! rule), from 1.2.0; `fcj.rs` says why only there.  It is SLEEF 3.5.1's `xexp` in its non-FMA form, ported from
 //! `src/libm/sleefsimddp.c`, `src/libm/estrin.h` and `src/common/misc.h`
 //! (Boost Software License 1.0, `sleef.LICENSE` beside this file and
 //! `ATTRIBUTION.md`).  SLEEF documents it at 1.0 ulp; that is the bound
@@ -14,7 +14,7 @@
 //! **Why this one.**  It has no table, so a loop over it vectorises without
 //! gathers, and its non-FMA branch was written for unfused multiply-adds.
 //! rustc never fuses one, so the same source gives the same bits on every
-//! platform and at every vector width, where the C library's `exp` differs
+//! x86-64 OS and at every vector width, where the C library's `exp` differs
 //! between Windows, glibc and macOS.  ARM's optimized-routines vector `exp`
 //! was the other candidate: 2.4 ulp, a 128-entry table, a bound that assumes
 //! a fused multiply-add, and a scalar fallback below -708, where these
