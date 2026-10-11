@@ -281,6 +281,28 @@ driver alone).
     1.05828 against 1.05145 unseeded. The warm refit now takes no `seed`, and
     keeps the plan's `strain_seed`.
   - The roughness stage's 0.3 stays (D3: it chooses where the solve starts).
+- *D12, a moment's angles turn after its size climbs* (the maintainer's
+  choice, 2026-10-11, fourth session). A moment angle's column scales with
+  the modulus and vanishes at a direction the symmetry fixes. There the angle
+  is set only by the curvature term Gauss-Newton drops. LM scales each column
+  to unit norm, so such an angle takes the largest step and λ grows until
+  everything crawls. On the two-site Pnma set the released starts stopped at
+  χ² 454 660 with λ 5e7-7e9 and reported `converged`. TRF reached 2555.8, and
+  a modulus-only first stage under LM reached 2556.06. So
+  `solve_magnetic`'s default plan gains that stage
+  (`SOLVE_STAGE_NAMES`). A test whose trial still crawls is re-pinned to the
+  verdict, which excludes a trial stopped short. The driver side (a crawl
+  that reports `converged`, for any magnetic plan a user builds) goes to
+  WP-1929 task 4, which owns moment angles at a stationary direction.
+- *D13, a series' moment may come back reversed* (the maintainer's choice,
+  2026-10-11, fourth session). Reversing every moment gives the same powder
+  pattern. The moment-angle series' two chains now end on reversed (TRF) or
+  reversed-and-mirrored (LM) branches at equal χ², and the series fences read
+  that as 92σ of path dependence. `origin/main` passed by which branch it
+  landed on. The test keeps its #604 claim and checks that the finding it gets
+  is such a branch. Teaching the fences which moment directions a powder
+  cannot tell apart went to WP-1329's Inherited rather than a new WP, since
+  1329 owns the moment's path-dependence flag (the template's fold-first rule).
 
 ## Non-goals
 
@@ -371,7 +393,10 @@ driver alone).
       inside the step's quadratic programme, or show the stall moves no
       quoted number. Under LM brucite + Stephens reaches χ²_red 8.00056
       against TRF's 7.636, a point outside the cone.
-- [ ] The 16 suite failures above, each fixed or given its reason.
+- [x] The 16 suite failures above, each fixed or given its reason.
+      (The last three, fourth session: the two-site pair test and the 150 K
+      solve by D12, `solve_magnetic` freeing the moduli first; the
+      moment-angle series by D13, a powder twin the fences cannot see.)
 - [x] Issue #900's script as a test of the default driver: about 5 s, no
       download, and it must reach χ² 7111 (Context, Issue #900).
       (`tests/test_issue_900_restated_bound.py`, 0.6 s. With dispersion

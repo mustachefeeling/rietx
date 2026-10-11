@@ -418,13 +418,28 @@ def test_a_fit_that_winds_its_azimuth_reports_it_in_the_chart_with_the_same_esds
     assert fitted.statistics.rwp == pytest.approx(unmoved.statistics.rwp, rel=1e-12)
 
 
+#: The moment directions this pattern cannot tell from φ: reversing every
+#: moment (φ + π), the b mirror of P m m m (π − φ), and both together (−φ).
+_POWDER_TWINS = (lambda p: p, lambda p: p + np.pi, lambda p: np.pi - p,
+                 lambda p: -p)
+
+
 @pytest.mark.slow
-def test_a_series_on_the_cut_gives_no_finding_and_every_angle_in_the_chart(
+def test_a_series_on_the_cut_gives_no_finding_from_the_cut_and_every_angle_in_the_chart(
         compiled_path):
     """The issue's reproduction end to end, both directions: the moment along
-    −a only shrinks, and nothing about it may read as a jump, a path
-    dependence or a persistent finding.  Before #604: "dof1 steps by 50.2",
-    "1167.3σ"."""
+    −a only shrinks, and nothing about it may read as a jump or a persistent
+    finding.  Before #604: "dof1 steps by 50.2", "1167.3σ".
+
+    A path dependence on the azimuth is allowed, as long as the two chains'
+    directions are powder twins (WP-1938 D13).  The moment sits on **a**, where
+    the azimuth is stationary, and in the middle patterns its esd runs to 10²
+    to 10⁴.  A chain crossing them comes out on whichever twin its last step
+    reached.  The backward chain ends p000 at φ = 0.077 under LM and −0.077
+    under TRF, against the forward chain's 3.065, at equal χ² (macOS arm64).  The
+    fences cannot tell a twin from a different moment, so they report up to
+    97σ.  Under the softplus coordinates both chains stayed on one branch,
+    which was luck: at p004 they already stood at ±3.104, a mirror pair."""
     temps = [10, 20, 30, 40, 50, 60, 70]
     patterns, scale = [], None
     for i, m in enumerate(np.linspace(3.5, 2.5, len(temps))):
@@ -436,7 +451,15 @@ def test_a_series_on_the_cut_gives_no_finding_and_every_angle_in_the_chart(
     moment = [d for d in series.diagnostics
               if d.code.startswith("SEQUENTIAL_") and any(".moment." in w
                                                            for w in d.where)]
-    assert moment == []
+    assert all(d.code == "SEQUENTIAL_PATH_DEPENDENT" and d.where == [AZIMUTH_2D]
+               for d in moment), [d.message for d in moment]
+    back = {e.label: e for e in series.backward.entries}
+    for entry in series.entries:
+        f = next(p for p in entry.parameters if p.path == AZIMUTH_2D)
+        b = next(p for p in back[entry.label].parameters if p.path == AZIMUTH_2D)
+        gap = min(abs(float(_angle_difference(f.value - twin(b.value))))
+                  for twin in _POWDER_TWINS)
+        assert gap <= 3.0 * np.hypot(f.stderr, b.stderr), (entry.label, f, b)
     for chain in (series, series.backward):
         for entry in chain.entries:
             by = {p.path: p.value for p in entry.parameters}

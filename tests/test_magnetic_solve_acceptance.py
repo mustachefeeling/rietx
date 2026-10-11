@@ -70,21 +70,21 @@ def test_the_4k_pattern_takes_the_k_zero_route_and_ranks_58_395_first(solved_4k)
 def test_the_150k_pattern_has_nothing_to_solve(solved_150k):
     """No class wins, none improves on the nuclear model, and none is supported.
 
-    One class's powder-degenerate pair of child sites comes back with a
-    quadrature sum of 0.59 μ_B and an esd of 0.26 μ_B (2.3σ), so the pair does
-    not clear the null test the gate reads (``MomentRow.pair_supported``); its
-    ΔBIC is −37.3, and the other class's −45.2 with its own pair's sum at
-    zero.  Every fit here converges,
-    the nuclear reference included, but only after the default stages' budget
-    is continued (``SOLVE_MAX_CONTINUATIONS``): 3, 5 and 7 continuations.
+    The few unexplained peaks match k = (0, ½, ½) at about chance, and two
+    classes refine there.  Class 1's moments go to zero, where its child sites
+    fold into a powder-degenerate pair whose quadrature sum is zero.  Class 3's
+    moments stay near 0.14 and 0.58 μ_B with esds of 2.3 and 0.5 μ_B, which the
+    data cannot measure, and its fit wanders that flat valley through every
+    continuation of the stages' budget (``SOLVE_MAX_CONTINUATIONS``).  It stops
+    short under TRF and LM alike (macOS arm64, WP-1938 D12).  The solution
+    lists such a trial with a caveat and does not rank it, so the verdict does
+    not rest on where it stopped.  Under the softplus coordinates it reported
+    ``converged`` after 3-7 continuations, because a modulus near zero lost its
+    column there.
 
-    The pair esd once read 0.089 μ_B (6.7σ, "cleared").  That was never a
-    measurement: it multiplied the final stage's σ's by the moment stage's ρ
-    (−0.99821 against the final stage's −0.98591), read off the run's
-    cross-stage HIGH_CORRELATION finding, at a fit that had stopped on its
-    budget (review of #592).  Taken from the final stage's own covariance, the
-    same stopping point gives 0.247.  Re-converged, both the pre-#527 tree and
-    this one give 0.27 and 0.26.
+    Which pair the fold finds, and its size, follows where each fit stopped.
+    The rule behind the pair esd (one covariance for ρ and both σ's) is pinned
+    on its own in ``test_magnetic_solve.py``.
     """
     s = solved_150k
     assert s.n_on_forbidden_lattice_points == 0
@@ -92,7 +92,12 @@ def test_the_150k_pattern_has_nothing_to_solve(solved_150k):
     assert s.best is None and s.margin is None
     refined = [t for t in s.trials if t.status == "refined"]
     assert refined and all(t.delta_bic <= 0.0 for t in refined)
-    assert all(t.fit_status == "converged" for t in refined)
+    # a trial stopped short is listed with its caveat and left out of the ranking
+    for t in refined:
+        if t.fit_status != "converged":
+            assert any(c.startswith(f"class {t.class_index}: the trial fit stopped")
+                       and "not ranked" in c for c in s.caveats), (t.class_index,
+                                                                    s.caveats)
     assert not any(t.supported for t in refined)
     paired = [m for t in refined for m in t.moments if m.paired_with]
     assert paired, "the degenerate pair was not folded"
@@ -124,7 +129,3 @@ def test_the_150k_pattern_has_nothing_to_solve(solved_150k):
     unpaired = {t.class_index for t in s.trials
                 if not any(r.paired_with for r in t.moments)}
     assert not classes & unpaired
-    # both classes fold a pair; the other one's sum sits at zero
-    lead = max(paired, key=lambda m: m.paired_magnitude)
-    assert 0.5 < lead.paired_magnitude < 0.7
-    assert 0.2 < lead.paired_magnitude_esd < 0.35

@@ -670,6 +670,13 @@ and then released, with the best converged minimum reported.
 are that sweep made visible, and a multimodal class says so in
 `MagneticSolution.caveats`.
 
+Every start frees the moment sizes before their directions
+(`rietx.strategy.magnetic.SOLVE_STAGE_NAMES`). A small moment's direction
+barely moves the pattern, and neither does one the symmetry fixes. Freed
+together with the sizes, such a direction took the default driver's largest
+steps, and a released start stopped far from the minimum while reporting
+`converged` (WP-1938).
+
 A stage entry that frees nothing is reported. `Stage` accepts a free-list
 glob matching no parameter silently, and a term this histogram's forward model
 does not read returns the same Rwp to ten digits and the same parameter count

@@ -200,9 +200,19 @@ SOLVE_SEED_MU_B = 2.0
 SOLVE_SEED_TILT = _moments.SEED_TILT
 
 #: The stage list a trial refines under on a **constant-wavelength** histogram,
-#: unless a caller supplies a plan.  Moment + scale + background first — the
-#: block that has to climb out of the noise before anything else is allowed to
-#: move — then the fuller stage.
+#: unless a caller supplies a plan, named by :data:`SOLVE_STAGE_NAMES`.  Moment
+#: + scale + background first — the block that has to climb out of the noise
+#: before anything else is allowed to move — then the fuller stage.
+#:
+#: **The moduli climb before the angles turn** (WP-1938 D12).  A moment's angle
+#: columns scale with its modulus, and vanish at a direction the symmetry fixes,
+#: where only the curvature Gauss-Newton drops determines the angle.  LM scales
+#: each column to unit norm, so such an angle takes the largest step, and λ
+#: grows until every parameter crawls.  Measured on the two-site Pnma set of
+#: ``tests/test_pair_diagnostic_class.py`` (macOS arm64): a site released at
+#: 0.1 μ_B stopped at χ² 454 660 under λ ≈ 1e8, reporting ``converged``, where
+#: TRF reached 2555.8.  Freed modulus-only first, the same start reached
+#: 2556.06 under LM.
 #:
 #: **Coordinates are deliberately absent.**  Freeing them lets each candidate's
 #: *nuclear* model absorb a different amount of the magnetic intensity, which
@@ -211,6 +221,8 @@ SOLVE_SEED_TILT = _moments.SEED_TILT
 #: coordinates are the parameters the magnetic-supercell rung (WP-1327)
 #: measured as the unstable ones.
 SOLVE_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
+    ("phases.*.atoms.*.moment.dof0", "phases.*.scale",
+     "instrument.background.c*"),
     ("phases.*.atoms.*.moment.dof*", "phases.*.scale",
      "instrument.background.c*"),
     ("phases.*.atoms.*.moment.dof*", "phases.*.scale",
@@ -218,6 +230,9 @@ SOLVE_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
      "phases.*.atoms.*.biso", "phases.*.gauss_strain", "phases.*.lor_size",
      "instrument.profile.u", "instrument.profile.x"),
 )
+
+#: The names of :data:`SOLVE_STAGE_PATHS`' stages, in order.
+SOLVE_STAGE_NAMES: tuple[str, ...] = ("moduli", "moment", "all")
 
 #: Fraction of a site's own seed that an *absent* moment is restored at when a
 #: one-site start releases the rest.  Small enough that the released amplitudes
@@ -2188,13 +2203,19 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     skipped: list[str] = []
 
     # --- the candidates, per site, merged into classes -----------------------
-    default = SOLVE_STAGE_PATHS
     plan = plan or RefinementPlan(stages=[
-        Stage("moment", list(default[0])),
-        Stage("all", list(default[1]))])
-    nuclear_plan = RefinementPlan(stages=[
-        Stage(stage.name, [p for p in stage.turn_on if _MOMENT_GLOB not in p])
-        for stage in plan.stages])
+        Stage(name, list(paths))
+        for name, paths in zip(SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS, strict=True)])
+    # A stage that differed from its predecessor only by moment paths repeats
+    # it here, and is dropped: the default's moduli and moment stages would
+    # otherwise refit the reference twice under one free set, and move it.
+    nuclear_stages: list[Stage] = []
+    for stage in plan.stages:
+        turn_on = [p for p in stage.turn_on if _MOMENT_GLOB not in p]
+        if nuclear_stages and turn_on == nuclear_stages[-1].turn_on:
+            continue
+        nuclear_stages.append(Stage(stage.name, turn_on))
+    nuclear_plan = RefinementPlan(stages=nuclear_stages)
 
     def enumerate_for(k_try):
         """Candidate classes for one k, or a sentence saying why there are none."""
