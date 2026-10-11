@@ -424,7 +424,13 @@ from .._nearmiss import did_you_mean
 #: 0.49 → 0.50 (WP-1809): ``TetherRestraint`` and ``AntiBumpRestraint`` join
 #: the ``Restraint`` union, and ``RestraintRow.kind`` gains ``"tether"`` and
 #: ``"anti_bump"``.  Additive: no existing document carries either.
-SCHEMA_VERSION = "0.50"
+#: 0.50 → 0.51 (WP-1317): ``SeriesResult.relative_paths`` and
+#: ``.angle_paths``, the paths a run's models make steps and angles, so a
+#: judgement across patterns made outside the run (``moved_paths``) skips and
+#: wraps what the fences do.  Additive and defaulted to ``None``, "not
+#: recorded", the 0.25 → 0.26 rule; ``SequentialRefinement.fit`` writes both
+#: on every result, the backward chain's included.
+SCHEMA_VERSION = "0.51"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

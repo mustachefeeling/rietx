@@ -990,6 +990,16 @@ class SequentialRefinement:
         self.trees_: list[RefinementTree | None] = []
         self.result_: SeriesResult | None = None
         self.backward_: SeriesResult | None = None
+        #: the forward chain's ``SeriesResult`` under ``direction="both"``,
+        #: published once that chain is complete and **before** the backward
+        #: walk starts (issue #218, WP-1317), so a caller watching the run — an
+        #: ``events=`` callback, a GUI poll — can judge the trajectory at the
+        #: halfway point.  Its ``direction`` is ``"forward"``, its ``backward``
+        #: ``None``, and it carries every diagnostic of the forward chain and
+        #: none of the comparison's, which cannot exist yet; it is not rewritten
+        #: when the run finishes.  ``None`` on a one-direction run, which has no
+        #: halfway point — the peer of :attr:`backward_`.
+        self.forward_: SeriesResult | None = None
         self._structures: list[Structure] = []
         self._instruments: list[Instrument] = []
         #: every pattern on which every rung raised, populated whether
@@ -1275,6 +1285,7 @@ class SequentialRefinement:
         # fit's answer beside its own partial ``results_``
         self.result_ = None
         self.backward_ = None
+        self.forward_ = None
         entries, results, trees, models, failures, _, floored = self._chain(
             order, patterns, names, xs, mode, base_plan, ladder,
             two_theta_limits, reseed, reseed_factor, prepare, constrain,
@@ -1311,6 +1322,10 @@ class SequentialRefinement:
                                   report_thresholds_version=THRESHOLDS_VERSION))
         relative = _relative_paths(self.structure, self.instrument)
         angles = _angle_paths(self.structure, self.instrument)
+        # recorded, so a judgement across patterns made outside this run
+        # (``SeriesResult.moved_paths``) skips and wraps what the fences do
+        series.relative_paths = sorted(relative)
+        series.angle_paths = sorted(angles)
         steps = _discontinuity_steps(series, relative, angles)
         diagnostics += [s.diagnostic for s in steps]
         series.discontinuities = [s.record for s in steps]
@@ -1341,6 +1356,11 @@ class SequentialRefinement:
                 f"{len(patterns)} patterns, so the backward chain was never "
                 "started"))
         elif direction == "both":
+            # The halfway point (#218), on WP-1333's early-publication point:
+            # the forward chain is final, and everything the backward walk
+            # adds goes onto ``series``, never onto this copy.
+            self.forward_ = series.model_copy(update={
+                "direction": "forward", "diagnostics": list(diagnostics)})
             try:
                 (back_entries, _, _, _, back_failures, back_stop,
                  back_floored) = self._chain(
@@ -1367,7 +1387,9 @@ class SequentialRefinement:
                 raise
             back = SeriesResult(mode=mode, entries=back_entries, x_label=x_label,
                                 direction="backward", failures=back_failures,
-                                n_failed=len(back_failures))
+                                n_failed=len(back_failures),
+                                relative_paths=sorted(relative),
+                                angle_paths=sorted(angles))
             diagnostics += [_series_pattern_failed_diagnostic(f, pass_name="backward")
                             for f in back_failures]
             back.diagnostics = _moment_diagnostics(back, back_floored)

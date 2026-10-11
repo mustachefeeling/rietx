@@ -12,6 +12,7 @@ ranking.
 """
 
 import math
+from pathlib import Path
 
 import pytest
 
@@ -19,6 +20,7 @@ from rietx.schemas.results import RefinedParameter
 from rietx.schemas.sequential import SeriesEntry, SeriesResult
 from rietx.sequential import SequentialRefinement
 from rietx.strategy import staged
+from rietx.viz.plots import plot_result, plot_trajectory
 from tests.test_sequential import A0, RAMP, _simulate, _start_models
 
 #: one stage, a handful of evaluations: these tests are about *when* the
@@ -50,6 +52,8 @@ def test_the_forward_result_is_readable_while_the_backward_pass_runs(ramp):
                 and "forward" not in seen):
             seen["forward"] = runner.forward_
             seen["result"] = runner.result_
+            # the issue's one line, at the halfway point
+            seen["moved"] = runner.forward_.moved_paths(6, min_sigma=0.0)
 
     series = runner.fit(ramp, plan=_CHEAP, labels=["a", "b", "c"],
                         direction="both", events=watch)
@@ -78,6 +82,16 @@ def test_the_forward_result_is_readable_while_the_backward_pass_runs(ramp):
     # every forward-chain diagnostic it held is still on the answer
     final = [d.model_dump() for d in series.diagnostics]
     assert all(d.model_dump() in final for d in mid.diagnostics)
+    assert "phases.0.cell.a" in seen["moved"]
+
+    # obs/calc/diff PNGs to tests/output/ (gitignored), and the forward
+    # trajectory as it stood at the halfway point
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    plot_trajectory(mid, seen["moved"],
+                    path=str(out / "series_forward_pass_trajectory.png"))
+    for k, result in enumerate(runner.results_):
+        plot_result(result, path=str(out / f"series_forward_pass_p{k}.png"))
 
 
 def test_a_one_direction_run_publishes_no_forward_pass(ramp):
@@ -111,33 +125,34 @@ def test_a_series_records_which_paths_are_steps_and_which_are_angles(ramp):
 
     A coordinate DOF is a step from where its fit began and a moment angle
     wraps, and nothing in an entry says which a path is; the run knows from its
-    models, so it records both lists on the result it returns and on the
-    backward chain.
+    models, so it records both lists on the result it returns, on the backward
+    chain and on the forward pass.  LaB6's boron sits on 6f with one free
+    direction, so the step list is not empty; nothing here is magnetic, so the
+    angle list is.
     """
+    from rietx.sequential import _relative_paths
+
     structure, ins = _start_models()
+    expected = sorted(_relative_paths(structure, ins))
+    assert expected, "the fixture has no displacement DOF to record"
     runner = SequentialRefinement(structure, ins)
     series = runner.fit(ramp[:2], plan=_CHEAP, direction="both")
 
     for result in (series, series.backward, runner.forward_):
-        assert result.relative_paths == []
+        assert result.relative_paths == expected
         assert result.angle_paths == []
     again = SeriesResult.model_validate_json(series.model_dump_json())
-    assert again.relative_paths == [] and again.angle_paths == []
+    assert again.relative_paths == expected and again.angle_paths == []
     # a document written before the fields reads "not recorded"
     assert SeriesResult().relative_paths is None
 
 
-def test_a_refined_coordinate_is_recorded_as_a_step():
-    """The positive arm of the record: a model with a free site DOF names it."""
-    from rietx.sequential import _relative_paths
-    from tests.test_sequential import _with_an_8g_atom
-
-    structure, ins = _with_an_8g_atom(0.1, 0.1, 0.1)
-    expected = sorted(_relative_paths(structure, ins))
-    assert expected, "the fixture has no displacement DOF to record"
-    patterns = [_simulate(A0 * (1 + RAMP * i), seed=950 + i) for i in range(2)]
-    series = SequentialRefinement(structure, ins).fit(patterns, plan=_CHEAP)
-    assert series.relative_paths == expected
+def test_a_tied_path_repeating_another_is_one_curve():
+    """A cubic ``cell.b``/``cell.c`` follow ``cell.a`` exactly: one curve."""
+    a = [(4.150, 1e-4), (4.152, 1e-4)]
+    s = _series({"phases.0.cell.a": a, "phases.0.cell.b": a,
+                 "phases.0.cell.c": a})
+    assert s.moved_paths() == ["phases.0.cell.a"]
 
 
 # --------------------------------------------------------- moved_paths ---
@@ -164,7 +179,7 @@ def test_moved_paths_ranks_movement_against_each_paths_own_esd():
     """
     s = _series({
         "phases.0.cell.a": [(4.150, 1e-4), (4.151, 1e-4), (4.152, 1e-4)],
-        "phases.0.scale": [(5.00e-4, 1e-6), (5.01e-4, 1e-6), (4.99e-4, 2e-6)],
+        "phases.0.scale": [(5.00e-4, 1e-6), (5.05e-4, 1e-6), (4.95e-4, 2e-6)],
         "instrument.profile.w": [(2.5e-3, 2e-4), (3.0e-3, 2e-4), (2.7e-3, 2e-4)],
         "instrument.zero_shift": [(0.008, 1e-4)] * 3,
     })
@@ -189,7 +204,7 @@ def test_the_movement_is_measured_on_points_that_are_measurements():
     nothing; a point whose own esd is missing moves nothing either."""
     s = _series({
         "phases.0.cell.a": [(4.150, 1e-4), (9.000, 1e-4), (4.150, 1e-4)],
-        "phases.0.cell.c": [(4.150, 1e-4), (9.000, None), (4.150, 1e-4)],
+        "phases.0.cell.c": [(4.160, 1e-4), (9.000, None), (4.160, 1e-4)],
     }, status=["converged", "diverged", "converged"])
     assert s.moved_paths(min_sigma=0.0) == ["phases.0.cell.a",
                                             "phases.0.cell.c"]
