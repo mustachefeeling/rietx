@@ -27,6 +27,7 @@ import rietx as rx
 from rietx.gui import GuiSession
 from rietx.gui import textdoc as td
 from rietx.schemas.plan import StageSpec
+from rietx.schemas.structure import PreferredOrientation
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -144,6 +145,42 @@ def test_a_document_written_with_transform_words_still_reads(project):
         assert row.annotations["min"] == 0.0 and "softplus" not in row.annotations
         delta, errors = td.changes(parsed, project)
         assert (errors, delta.is_empty()) == ([], True)
+
+
+def test_a_document_written_before_a_floor_applies_nothing(tmp_path, pattern_file):
+    """An ``.rxt`` rendered before W's floor says ``min 0`` on W, and a W under
+    it (WP-1938).  Opening that project today raises both to 1e-8, so the
+    document's numbers compare equal through the schema and apply nothing.
+    March r's floor is the same case.  A bound no validator raises is still an
+    edit, refused as before."""
+    structure, ins = perturbed_models()
+    structure.phases[0].preferred_orientation = PreferredOrientation(axis=(0, 0, 1))
+    project = rx.Project.create(tmp_path / "floors.rex", pattern=pattern_file,
+                                structure=structure, instrument=ins,
+                                plan="mccusker_default")
+    project.refinement.set_values({"instrument.profile.w": 1e-8})
+    text = td.render(project)
+    rows = {row.path: row for row in td.parse(text).rows}
+    assert rows["instrument.profile.w"].annotations["min"] == 1e-8
+    assert rows["phases.0.preferred_orientation.r"].annotations["min"] == 0.15
+
+    def written_before(doc, local, lo, value=None):
+        line = next(ln for ln in doc.splitlines() if ln.split()[:1] == [local])
+        old = re.sub(r"min \S+", f"min {lo}", line)
+        if value is not None:
+            old = re.sub(rf"^(\s*{re.escape(local)}\s+(?:@\s*)?)\S+",
+                         rf"\g<1>{value}", old)
+        assert old != line
+        return doc.replace(line, old, 1)
+
+    old = written_before(text, "profile.w", 0, value="1e-12")
+    old = written_before(old, "preferred_orientation.r", 0)
+    delta, errors = _changes(old, project)
+    assert (errors, delta.is_empty()) == ([], True)
+
+    _, errors = _changes(written_before(text, "scale", -1), project)
+    assert [e.where for e in errors] == ["phases.0.scale"]
+    assert "cannot be edited here" in errors[0].message
 
 
 def test_a_hold_renders_as_an_annotation_and_refuses_the_at_marker(

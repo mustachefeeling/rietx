@@ -417,7 +417,7 @@ driver alone).
       (A sentence, no diagnostic: `estimation.md` § Solvers, `refining.md`
       and the `SOLVERS` comment, with #900's dispersion-on numbers, χ² 4.5e5
       and Pb Biso 133 under TRF.)
-- [ ] **An old `.rxt` row under a raised floor** (review of #883,
+- [x] **An old `.rxt` row under a raised floor** (review of #883,
       2026-10-11). `gui/textdoc._check_annotations` refuses any annotation
       that differs from the live row. A document saved before W's floor
       carries `w … min 0`, and applying it fails: "min on
@@ -427,6 +427,13 @@ driver alone).
       no edit. Decide where that rule lives once. `ProfileTCHZ._w_floor_is_reachable`
       owns W's, and `io/instrument_profile.py` (two sites) and `io/recipe.py`
       restate it, which the review also flagged.
+      (Fifth session. The rule stays in the schema's validators.
+      `textdoc._schema_keeps` re-validates the model holding the row's
+      Parameter with the typed numbers, as `recipe.py` already does, and a
+      number the schema raises to the live one is no edit. The value needed
+      it too: an old W of 1e-12 opens as 1e-8. The two `.prm`/`.instprm`
+      sites keep their line, because a negative W there is the reader's to
+      refuse, and the validator would raise it silently.)
 - [ ] **LM's two constrained-step costs** (review of #883). When `nnls` runs
       out of iterations (`lm._NoConstrainedStep`), the fallback shortens the
       box step to the first row it reaches. From a point already on a face that
