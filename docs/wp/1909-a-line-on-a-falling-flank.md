@@ -89,6 +89,20 @@ runs before close, since the peak list feeds every engine.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage: issue #878 is in PR #880 (theirs),
+  and it moves this WP's census baseline.** A sibling false line by another
+  mechanism. `_drop_kalpha2_aliases` compares two channel maxima against
+  0.3 FWHM, and where a FWHM spans under ~3.3 channels the sampling error
+  exceeds the tolerance, so a resolved Kα2 maximum survives as a line. PR
+  #880 (fork, head `fix/878-alias-step`) adds one sampling step in both
+  alias checks and moves two pins: IUCr CPD corundum 2 → 1 `no_intensity`
+  phantoms, and cpd-4 77 → 76 usable lines (146.13°, the Kα2 of corundum's
+  145.21°). SRM 660c is unchanged per the PR. The census task here takes
+  its "before" from whichever tree it runs on, so say whether #880 had
+  merged. Read against `f11e22d3`: the PR does not bump
+  `INDEXING_THRESHOLDS_VERSION`, though 1.7 was bumped for a `usable()`
+  change of the same size (cpd-4 78 → 77). That is `/pr-review`'s to raise.
+
 - **2026-10-07, from WP-1545: a reproducible synthetic fixture.**
   `examples/tutorials/03_peaks_indexing_lebail.py` synthesises aragonite
   (Cu Kα, 10-80°, seed 0) and calls `pick_peaks` with a default instrument.

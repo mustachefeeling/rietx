@@ -325,9 +325,10 @@ the right-handed sense from the first axis atom to the second (TOPAS's
 
 with $R_{\hat{\mathbf u}}(\varphi)$ Rodrigues' rotation. The moved set is
 declared, not derived from bonds, so the derivative with respect to
-$\varphi$ is exact by construction. A dihedral angle that ends on a moved
-atom changes by $\varphi$. Like the body's own rotation, a torsion refines
-as an anchored increment, $\varphi = \varphi_0 + \delta\varphi$, and every
+$\varphi$ is exact by construction. Written with its middle pair in the
+axis's order, $i$–$a$–$b$–$j$, a dihedral changes by $\varphi$ when $j$ is
+a moved atom and by $-\varphi$ when $i$ is. Like the body's own rotation,
+a torsion refines as an anchored increment, $\varphi = \varphi_0 + \delta\varphi$, and every
 commit sets $\varphi_0 \leftarrow \varphi_0 + \delta\varphi$ and
 $\delta\varphi \leftarrow 0$. About one axis that composition is addition,
 so the chart moves by a translation and the esd of $\delta\varphi$ is the
