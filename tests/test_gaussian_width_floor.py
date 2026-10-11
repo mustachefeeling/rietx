@@ -263,6 +263,29 @@ def test_a_row_is_the_clamped_quantity_at_a_reflection(pattern):
     np.testing.assert_allclose(np.sort(got), np.sort(expected), rtol=1e-12)
 
 
+def test_a_reflection_only_its_magnetic_window_reaches_still_gets_a_row(pattern):
+    """A magnetic component is drawn over its own, wider window (``win_mag``),
+    and its Γ_G² is the nuclear one.  So a reflection whose nuclear window
+    holds no data, beside an excluded region or the range's edge, can still
+    put a magnetic peak on the data, and its row is built."""
+    model, table = _stage_table(
+        pattern, ["instrument.profile.u", "instrument.profile.v",
+                  "instrument.profile.w"], u=1e-4, v=-3e-5, w=4e-5)
+    cp = model.phases[0]
+
+    def n_rows():
+        (block,) = ls.gaussian_width_inequalities(model, table, table.x0())
+        return len(block.c)
+
+    every = n_rows()
+    cp.win_mag = cp.win.copy()
+    cp.win = cp.win.copy()
+    cp.win[0][3, 1] = cp.win[0][3, 0]          # reflection 3's nuclear window, emptied
+    assert n_rows() == every
+    cp.win_mag = None
+    assert n_rows() == every - 1
+
+
 def test_no_row_without_a_free_width_and_none_the_start_violates(pattern):
     model, table = _stage_table(pattern, ["instrument.profile.x"])
     assert ls.gaussian_width_inequalities(model, table, table.x0()) == []

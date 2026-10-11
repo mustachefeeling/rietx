@@ -1328,7 +1328,8 @@ def gaussian_width_inequalities(model: CompiledModel, table: ParameterTable,
     (``lm.LinearInequality``).
 
     A row per (emission line, reflection) whose evaluation window holds data,
-    at the frozen hkl list's Bragg angles for the starting cell and λ:
+    the nuclear one or a magnetic component's wider one, at the frozen hkl
+    list's Bragg angles for the starting cell and λ:
 
         Γ_G² = (u + gauss_strain)·tan²θ + v·tanθ + w + gauss_size/cos²θ
 
@@ -1380,7 +1381,10 @@ def gaussian_width_inequalities(model: CompiledModel, table: ParameterTable,
         for il, tt in enumerate(tt_lines):
             tt = np.asarray(tt, dtype=np.float64)
             win = cp.win[il]
-            used = (win[:, 1] > win[:, 0]) & np.isfinite(tt)
+            used = win[:, 1] > win[:, 0]
+            if cp.win_mag is not None:          # a magnetic peak's, drawn wider
+                used |= cp.win_mag[il][:, 1] > cp.win_mag[il][:, 0]
+            used &= np.isfinite(tt)
             theta.append(np.radians(0.5 * tt[used]))
         th = np.concatenate(theta) if theta else np.empty(0)
         if not th.size:
