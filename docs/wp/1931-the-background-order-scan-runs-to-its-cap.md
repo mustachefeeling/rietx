@@ -145,6 +145,12 @@ claim the proposal makes and has not measured.
       and after, with obs/calc/diff PNGs to `tests/output/`.
 - [ ] Skill: the new code's `references/judging.md` row; a SKILL.md line only
       if the default changes.
+- [ ] Score the order scan's BIC at the effective sample size of the masked
+      residual, as `report.body_misfit` does for its ΔBIC, and measure where
+      FAP.XRA and Si 640c then stop.
+- [ ] `select_arpls_lambda` says when it falls back to the flexible end of its
+      grid (no smoothing strength reached `dw_floor`), the cap code's sibling,
+      unless PR #871 carries it.
 
 ## Acceptance
 
@@ -178,3 +184,15 @@ emits `BACKGROUND_ORDER_AT_CAP`.
   32 selected at caps 16 and 32, never stopped by DW). No open WP owns the
   order or λ choice: 1454 and 1055 are closed, 1460 is about a declared air
   term beside the P-spline, 1542 owns the seed half (item 3, folded there).
+
+- **2026-10-11** — PR #871 (task 1, `mustachefeeling`) reviewed and held for
+  three items: a `SCHEMA_VERSION` bump for `BackgroundSelection.diagnostics`, a
+  skill line for the worked default, and the stopping rule stated in the
+  manual's "Choosing the flexibility" section. The worked default's FAP.XRA
+  reaches the cap: 16 of 16, d = 0.721. The review keeps § 10 as it is and
+  asks for a line in the abstention row. Measured on FAP.XRA in review (3179
+  masked channels, ln m = 8.1): every term but the 7th earns 15 to 3166 against
+  that penalty while d stays at 0.20-0.72. Scaled by m_eff/m, with d read as a
+  lag-1 correlation, the 10th, 14th and 16th terms earn 7.3, 10.0 and 3.3.
+  That is the case for the effective-sample-size task added above. The
+  `select_arpls_lambda` task is the sibling the review found.

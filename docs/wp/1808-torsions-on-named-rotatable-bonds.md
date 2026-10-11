@@ -1,6 +1,6 @@
 # WP-1808 — torsions on named rotatable bonds
 
-Milestone: rigid-bodies · Status: ⬜
+Milestone: rigid-bodies · Status: 🔄 2026-10-11 — every task landed from outside (PR #823, merged as `c6163587`); the close is the maintainer's
 Depends on: 1802, 1805
 Priority: P3 2026-10-06 — a flexible molecule needs it; a rigid one does not
 
@@ -59,11 +59,11 @@ and refines with an esd. This is chunk R7 of issue #561, sized M.
 
 ## Tasks
 
-- [ ] `BodyTorsion` schema (SCHEMA bump) and the collector
-- [ ] Forward map, declared reach, refusals
-- [ ] Manual equation; cross-backend torsion column
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/`
-- [ ] Skill: a reference row if a new code lands
+- [x] `BodyTorsion` schema (SCHEMA bump) and the collector
+- [x] Forward map, declared reach, refusals
+- [x] Manual equation; cross-backend torsion column
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`
+- [x] Skill: a reference row if a new code lands
 
 ## Acceptance
 
@@ -81,3 +81,39 @@ and refines with an esd. This is chunk R7 of issue #561, sized M.
 ## Handover log
 
 - **2026-10-06** — created by WP-1803's re-cut, from #596's proposal.
+
+- **2026-10-11** — every task landed from outside: PR #823 (`mustachefeeling`),
+  head `47b0d793`, merged as `c6163587` after three review rounds.
+  - **What it adds.** `RigidBody.torsions`, a list of `BodyTorsion`
+    (`SCHEMA_VERSION` 0.45): a named turn of a declared atom set about the line
+    through two body atoms, applied before the pose (TOPAS's
+    `Rotate_about_points`). It refines as an anchored increment,
+    `phases.*.rigid_bodies.*.torsions.*.twist`, composed into the `angle`
+    record at every commit as the body rotation is. Part 2 has the equation
+    (`par-torsion`), `help.py` the twist entry, and `test_cross_backend.py`'s
+    `bodies` config a torsion column.
+  - **Acceptance.** `tests/test_body_torsions.py` covers all four lines: the
+    planted 30° twist, the block Jacobian against a central difference, the
+    Z-matrix dihedral against the bond rotation, and a torsion that moves
+    nothing refused. No diagnostic code landed, so the skill task adds nothing.
+  - **Found in review and fixed before merge.** A zero-length axis made every
+    body atom NaN without an error; it is now refused by the torsion's name,
+    the chained case included. The hold refusal names the twist glob. Three
+    citations gained their journals. The commit's docstring, `RigidBody`'s map
+    and the `help.py` sign now say what the code does.
+  - **Gate.** Stacked with #870, #822 and #853 on `main` `b7df6a10` as
+    `a3495a34`, macOS arm64, `[dev,jax]`, nothing else running: fast 9173
+    passed, 115 skipped, 1 xfailed and 1 failed (#843's Hypothesis case); slow
+    305 passed, 12 skipped. `main` after the
+    last merge (`8c5c6879`) differs from it only by three docs-and-CI merges
+    (#879, #881, #874) that landed between #823 and #822. The fast suite on
+    `f7ab7096` with #853 gave the same counts, and nothing the slow suite
+    runs changed.
+  - **This entry's PR** fixes the manual's dihedral sentence, which round 1
+    fixed in `help.py` only. Written with its middle pair in the axis's order,
+    a dihedral changes by +φ when its last atom moves and by −φ when its first
+    does.
+  - **Left open, by agreement:** a tied twist in `test_cross_backend.py`'s
+    `bodies` config; one helper for the three numpy walks of the torsion chain
+    and the two index-triple builders; `compare_freed` reading
+    `anchored_dof_paths` and not the rotation set (inherited from #801).

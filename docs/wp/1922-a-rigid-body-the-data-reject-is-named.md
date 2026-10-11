@@ -1,6 +1,6 @@
 # WP-1922 — a rigid body the data reject is named
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-11 — every task landed from outside (PR #822, merged as `f7ab7096`); the close is the maintainer's
 Track: What fires, and what stays silent
 Depends on: WP-1805 (the `RigidBody` schema)
 Priority: P3 2026-10-08 — down from P2: a wrong body converges with a worse GOF and nothing names it, but nothing can start until 1805 lands
@@ -73,16 +73,17 @@ yet, since 1805 has not landed. The GOF pair was not re-measured.
 
 ## Tasks
 
-- [ ] The released-fit pair and its two statistics, as a function returning
+- [x] The released-fit pair and its two statistics, as a function returning
       per-body rows (χ² both ways, Δk, F, p, ΔBIC, ranked deviations), with
       `RIGID_BODY_MISFIT` (warning, `where` the body's atom paths, `value`
       ΔBIC). The module and verb name are decided at the start.
-- [ ] Known-answer tests: a body with one bond 0.3 Å long fires and names that
+- [x] Known-answer tests: a body with one bond 0.3 Å long fires and names that
       bond among the worst three; the right body does not fire; a phase with
       no body returns nothing; the statistics are pinned against direct calls.
-- [ ] `help.py` row for the code; obs/calc/diff PNGs of both arms to
-      `tests/output/`.
-- [ ] Skill: a reference row for `RIGID_BODY_MISFIT`
+- [x] `help.py` row for the code; obs/calc/diff PNGs of both arms to
+      `tests/output/`. The PNGs landed; `help.py` has no arm for an engine
+      code, so the row has no home (2026-10-11 entry).
+- [x] Skill: a reference row for `RIGID_BODY_MISFIT`
       (`test_every_engine_diagnostic_code_has_a_protocol_row`), saying to run
       the check before quoting a body's geometry or calling a solve solved.
 
@@ -111,3 +112,37 @@ among the worst three, and the right body does not fire.
   WP-1803 closed with "#775's body-misfit diagnostic is not in the record and
   is not cut here", and 1804-1813 carry no data-side check. *Next:* wait for
   1805, then task 1.
+
+- **2026-10-11** — every task landed from outside: PR #822 (`mustachefeeling`),
+  merged as `f7ab7096` after three review rounds. It closes #775.
+  - **What it adds.** `Refinement.check_rigid_bodies`
+    (`report/body_misfit.py`). From the fitted state it refits each body twice,
+    as the body and as free atoms restrained to the body's placed bonds and
+    angles. It compares the two on the data χ² by Hamilton's ratio test and by
+    ΔBIC, both at the residual's effective sample size, and warns
+    `RIGID_BODY_MISFIT` only when both reject the body. The message names the
+    template's largest deviations; `where` is the body's atom paths and
+    `value` the ΔBIC. Each arm is a history-free `_trial(record=False)` that
+    carries the caller's ties, holds and variables. A declaration that cannot
+    follow into the released arm is listed in `BodyMisfitRow.dropped`.
+  - **Tasks.** 1, 2 and 4 as written; both tests write both arms' PNGs. Task
+    3's `help.py` row has no home: `help.py` describes no engine diagnostic
+    code, only the peak finder's (`PEAK_DIAGNOSTIC_HELP`). The `abstention.md`
+    row is the code's documentation.
+  - **It composes with #823.** The body arm frees `torsions.*.twist`, and the
+    restraints read the placed atoms, so a twisted body is restrained to its
+    twisted geometry. Both PRs added a paragraph at one place in
+    `docs/manual/parameterisation.md`. I merged `main` into #822 keeping both
+    (`aad542fd`), the resolution the gate ran.
+  - **Gate.** Stacked with #870, #823 and #853 on `main` `b7df6a10` as `a3495a34`, macOS
+    arm64, `[dev,jax]`, nothing else running: fast 9173 passed, 115 skipped,
+    1 xfailed and 1 failed (#843's Hypothesis case); slow 305 passed, 12
+    skipped. `main` after the
+    last merge (`8c5c6879`) differs from it only by three docs-and-CI merges
+    (#879, #881, #874) that landed between #823 and #822. The fast suite on
+    `f7ab7096` with #853 gave the same counts, and nothing the slow suite
+    runs changed.
+  - **Left open:** the module docstring's "frees nothing until WP-1808's
+    torsions (#823) land" is stale now that #823 is in; F and p are computed
+    beside `hamilton_justified`; `compile_phase_sites` recompiles for every
+    body.
