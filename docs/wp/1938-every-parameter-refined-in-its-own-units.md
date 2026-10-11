@@ -210,6 +210,19 @@ driver alone).
   under TRF. Measure it on NAC, the 150 K fixture and the grid before relying
   on it, since it inherits the cone's truncation stall. If the stall bites,
   the fallback is W's floor at 1e-8, with the reason recorded.
+  *Measured the same day:* the inequality (`7a849e7d`) fixed NAC (0.13375)
+  and the 150 K fixture (0.09924) but stalled on 3 of the 14 grid fits
+  (lab6_uvwxy1 χ²_red 12.993 against 9.661; lab6_uvwxy `no_descent`;
+  bt1_xray 2.4262 against 2.3838), each wanting Γ_G² under the clamp at most
+  reflections. W's floor alone (`cf31d595`) fixes NAC and leaves only the
+  cone stall on the grid, but the 150 K fixture stays trapped at 0.25458:
+  U −0.0767 and V −0.179 put Γ_G² under the clamp at 31 of 31 reflections.
+- *D8, the step holds the inequalities* (the maintainer's choice,
+  2026-10-11). LM's step solves its quadratic programme with the linear
+  inequalities inside it, rather than truncating a box-only step against
+  them. That is the cone-stall task, and it lets D7's inequality return on top
+  of W's floor. The LaB₆ free-Gaussian answers move, since their optimum now
+  lives in the clamp region.
 
 ## Non-goals
 
