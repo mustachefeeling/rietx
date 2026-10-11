@@ -381,12 +381,26 @@ class MultiParameterTable:
 
     def seed_floored(self, scoped_paths: list[str], value: float) -> list[str]:
         """Lift free rows bounded below at 0 up to ``value`` (per histogram);
-        see the single-histogram :meth:`ParameterTable.seed_floored`."""
-        seeded: list[str] = []
-        for h, table in enumerate(self.tables):
+        see the single-histogram :meth:`ParameterTable.seed_floored`.
+
+        A shared column is seeded in every histogram or in none.  Each
+        histogram's box is its own (WP-1131), so a seed can fit under one
+        histogram's upper bound and not another's; written in some, the
+        histograms would disagree about one column and the last write would
+        win ``x0``.
+        """
+        wants = []
+        for h in range(len(self.tables)):
             want = [self._unscope(h, p) for p in scoped_paths
                     if self._owner(p) in (None, h)]
-            for p in table.seed_floored([w for w in want if w is not None], value):
+            wants.append([w for w in want if w is not None])
+        declined = {p for h, table in enumerate(self.tables) for p in wants[h]
+                    if self.sharing.is_shared(p)
+                    and table._floor_seed_target(p, value) is None}
+        seeded: list[str] = []
+        for h, table in enumerate(self.tables):
+            want = [p for p in wants[h] if p not in declined]
+            for p in table.seed_floored(want, value):
                 # once per shared column, as :meth:`set_vary` returns it
                 if self._canonical(h, p) not in seeded:
                     seeded.append(self._canonical(h, p))

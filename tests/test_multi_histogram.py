@@ -696,6 +696,31 @@ def test_a_seed_lands_on_one_number_in_the_shared_column():
     assert sizes[0] == pytest.approx(sizes[1], rel=1e-9)
 
 
+def test_a_seed_one_histogram_cannot_hold_is_written_in_none():
+    """A shared column is seeded in every histogram or in none.
+
+    A caller may share an instrument row across mounts (``SharingMap.shared``),
+    and each instrument declares its own box.  Here the seed fits under the
+    first instrument's ``max`` and not the second's.  Written in the first
+    alone, the two tables disagreed about one column and ``x0`` took the last
+    write, 0, while the seed was reported as made.
+    """
+    instruments = [Instrument.debye_scherrer(wavelength=lam)
+                   for lam in (0.41390, 0.71070)]
+    instruments[0].profile.y.max = 1.5e-3
+    instruments[1].profile.y.max = 5e-4
+    mt = MultiParameterTable(make_lab6(), instruments,
+                             sharing=SharingMap(shared=["instrument.profile.y"]))
+    mt.set_vary(["instrument.profile.y"], True)
+
+    assert mt.seed_floored(["instrument.profile.y"], 1e-3) == []
+    values = mt.decode(mt.x0())
+    assert [values[h]["instrument.profile.y"] for h in (0, 1)] == [0.0, 0.0]
+    assert mt.seed_floored(["instrument.profile.y"], 4e-4) == ["instrument.profile.y"]
+    values = mt.decode(mt.x0())
+    assert [values[h]["instrument.profile.y"] for h in (0, 1)] == [4e-4, 4e-4]
+
+
 def test_a_scaled_column_is_the_jacobian_the_residual_actually_has():
     """The claim behind ``apply_value_scale``, checked where it is used.
 

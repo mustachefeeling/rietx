@@ -2923,17 +2923,24 @@ class ParameterTable:
         """
         seeded = []
         for path in paths:
-            i = self._paths.get(path)
-            if i is None:
-                continue
-            e = self.entries[i]
-            target = value * self._value_scale.get(path, 1.0)
-            if e.vary and 0.0 <= e.lo and e.value <= e.lo < target <= e.hi:
-                e.value = target
+            target = self._floor_seed_target(path, value)
+            if target is not None:
+                self.entries[self._paths[path]].value = target
                 seeded.append(path)
         if seeded:
             self._rebuild()
         return seeded
+
+    def _floor_seed_target(self, path: str, value: float) -> float | None:
+        """What :meth:`seed_floored` would write at ``path``, or None."""
+        i = self._paths.get(path)
+        if i is None:
+            return None
+        e = self.entries[i]
+        target = value * self._value_scale.get(path, 1.0)
+        if e.vary and 0.0 <= e.lo and e.value <= e.lo < target <= e.hi:
+            return target
+        return None
 
     def seed_stephens(self, paths: list[str], microstrain: float) -> list[str]:
         """Put a freed but still all-zero Stephens block on the isotropic ray.
