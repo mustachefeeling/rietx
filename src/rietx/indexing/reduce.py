@@ -208,9 +208,10 @@ def reduce_cell(cell: tuple[float, ...], centring: str = "P", *,
     where any entry's sign disagrees with M·G·Mᵀ, the cell is built from
     M·G·Mᵀ; elsewhere gemmi's cell is kept as it was, to the bit.  The image
     differs from gemmi's vector by under ε, which is all the reduction promised.
-    Over ``tests/test_acceptance_indexing.py``, 316 of 7102 reductions had a
-    sign to correct, 142 of the 145 distinct cells by under 1e-14 of the
-    metric's scale (a right angle's rounding) and none at #797's ε scale.
+    Over 27 300 reductions of ``tests/test_acceptance_indexing.py``'s searches,
+    792 had a sign to correct: 440 of the 447 distinct cells by under 1e-14
+    of the metric's scale (a right angle's rounding), seven by up to 1e-10,
+    and none near #797's 1.7e-7.
     """
     import gemmi
 
