@@ -118,6 +118,7 @@ from .strategy.staged import (
     GuardFinding,
     GuardReport,
     RefinementPlan,
+    _exact_active_bounds,
     bound_findings,
     check_adp_positive_definite,
     check_biso_negative,
@@ -1230,10 +1231,11 @@ class MultiHistogramRefinement:
             y_background=np.concatenate(per_ybkg))
 
         # one bound test, two consumers: the rows' at_bound flag and the
-        # BOUND_HIT diagnostics (WP-1076)
+        # BOUND_HIT/FLOOR_HIT diagnostics (WP-1076, WP-1929)
         at_bounds = bound_findings(
             mt.bounds(), mt.free_paths, outcome.theta,
-            cos=outcome.residual_cosine, esd=outcome.stderr_internal)
+            cos=outcome.residual_cosine, esd=outcome.stderr_internal,
+            active=_exact_active_bounds(outcome))
         # Histogram 0's physical esds, built once in the loop above and read by
         # two consumers (WP-1131): the shared rows of ``_parameters``, and the
         # microstructure block, which reads histogram 0 because its value scale

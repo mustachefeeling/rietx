@@ -59,7 +59,6 @@ from .model.forward import (
 from .model.geometry import cell_volumes, geometry_table
 from .model.microstructure import microstructure_table
 from .model.profiles.caglioti import (
-    _MIN_GAMMA_G2,
     SCHERRER_K,
     apparent_size_from_size_coefficient,
     gaussian_fwhm,
@@ -4499,7 +4498,8 @@ class Refinement:
         describe *that stage's* guard run, not the fit's final summary.
 
         ``BOUND_HIT`` is held back for a different reason (WP-1310, issue
-        #231): it is not deduplicated but **discarded and re-taken**, because
+        #231), and so is ``FLOOR_HIT``, its twin on a floor (WP-1929): it is
+        not deduplicated but **discarded and re-taken**, because
         a bound hit is a statement about a *vector* rather than about a run.
         A staged plan exists to let an early stage absorb an error a later one
         corrects, so a parameter pressed onto its limit in stage 1 and back in
@@ -5369,6 +5369,11 @@ class Refinement:
 #: finding on the final result is a claim about a fit that no longer holds.
 #: Every stage's own copy stays on its ``StageReport`` and its history node.
 #:
+#: ``FLOOR_HIT`` is ``BOUND_HIT`` on a floor (WP-1929), the same claim about
+#: the same vector, so it is re-taken the same way.  Left out, a scale pressed
+#: onto 0 in stage 1 and back in the interior at convergence keeps its stage-1
+#: warning on the final result, which is WP-1310's defect come back.
+#:
 #: ``RESOLUTION_UNCONSTRAINED`` belongs here on a second fact and not only on
 #: that one: it also reads *which* terms the stage freed, and staging is
 #: **cumulative** (``Refinement`` § stages), so a plan that frees U, V, W once
@@ -5382,35 +5387,25 @@ class Refinement:
 #: intermediate stage's cut is a different matrix (cumulative staging adds
 #: columns), and unkeyed it was appended once per stage, so one persistent
 #: combination printed as many copies as the plan has stages.
-_REVISABLE_CODES = ("BOUND_HIT", "RESOLUTION_NOT_POSITIVE",
+_REVISABLE_CODES = ("BOUND_HIT", "FLOOR_HIT", "RESOLUTION_NOT_POSITIVE",
                     "RESOLUTION_UNCONSTRAINED",
                     "BISO_UNUSUALLY_LARGE", "BISO_NEGATIVE",
                     "COVARIANCE_DIRECTION_DISCARDED")
 
 
-#: ``BOUND_HIT``'s advice when the limit that carried load is a lower bound of
-#: exactly 0 (WP-1938).  A scale or a width cannot go negative, so "widen the
-#: bound" is wrong there.  A caller's ``min=0`` on a displacement parameter
-#: reaches this too: the 11-BM NAC acceptance fit declares one, and its Biso
-#: stops there.  So the reasons name what a negative B stands in for
-#: (``BISO_NEGATIVE``'s list) beside the scale's and the width's.
+#: ``FLOOR_HIT``'s advice: the limit that carried load is a lower bound of
+#: exactly 0, or W's Γ_G² clamp (``staged._at_zero_floor``, WP-1938).  A scale
+#: or a width cannot go negative, so ``BOUND_HIT``'s "widen the bound" is wrong
+#: there, and WP-1929 gave the floor its own code to carry this instead.  A
+#: caller's ``min=0`` on a displacement parameter reaches it too: the 11-BM NAC
+#: acceptance fit declares one, and its Biso stops there.  So the reasons name
+#: what a negative B stands in for (``BISO_NEGATIVE``'s list) beside the
+#: scale's and the width's.
 _ZERO_FLOOR_SUGGESTION = (
     "the data push this parameter below zero, where it cannot go. The usual "
     "reasons are a phase or term the data do not support, a width the "
     "instrument already supplies, or, for a displacement parameter, "
     "absorption or a wrong species or occupancy. Fix it at 0")
-
-
-def _at_zero_floor(limit: tuple[str, float] | None) -> bool:
-    """Whether a ``BOUND_HIT`` limit is a floor no wider bound can lower.
-
-    A lower limit of exactly 0, and Caglioti W's floor at the Γ_G² clamp
-    (``caglioti._MIN_GAMMA_G2``, WP-1938 D7): ``ProfileTCHZ`` raises any W
-    bound under the clamp back to it, so "widen the bound" cannot be acted on
-    there either.
-    """
-    return (limit is not None and limit[0] == "lower"
-            and 0.0 <= limit[1] <= _MIN_GAMMA_G2)
 
 
 def _guard_diagnostics(guard) -> list[Diagnostic]:
@@ -5433,15 +5428,22 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
         ))
     for finding in guard.at_bounds:
         path = str(finding)
+        # the finding carries its code (``GuardFinding.at_bound``): a lower
+        # limit of 0, or W's clamp, is a scale or width that cannot go
+        # negative, which no wider bound can help (WP-1938, WP-1929)
+        if finding.code == "FLOOR_HIT":
+            out.append(Diagnostic(
+                level="warning", code="FLOOR_HIT", where=list(finding.paths),
+                value=finding.value,
+                message=f"{path} refined to its floor{finding.detail}",
+                suggestion=_ZERO_FLOOR_SUGGESTION,
+            ))
+            continue
         out.append(Diagnostic(
             level="warning", code="BOUND_HIT", where=list(finding.paths),
             value=finding.value,
             message=f"{path} refined to its bound{finding.detail}",
-            # a lower limit of 0, or W's clamp, is a scale or width, which no
-            # wider bound can help (WP-1938); WP-1929 owns a floor's own code
-            suggestion=(_ZERO_FLOOR_SUGGESTION
-                        if _at_zero_floor(finding.limit)
-                        else "widen the bound or fix the parameter"),
+            suggestion="widen the bound or fix the parameter",
         ))
     for finding in guard.nonpositive_adps:
         msg = str(finding)
@@ -6569,11 +6571,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
 
     stderr_phys = (table.stderr_physical(theta, stderr_internal, correlation)
                    if stderr_internal is not None else {})
-    # at_bound is the BOUND_HIT findings projected onto the rows, never a
-    # second bound test (WP-1076).  Only the free set was tested, so a tied
-    # row — in `parameters`, absent from the free vector — reports None, and
-    # so does every row when no guard ran at all (`replay`).  A free row on
-    # a floor of 0 is tested like any other bound (WP-1938).
+    # at_bound is the BOUND_HIT and FLOOR_HIT findings projected onto the
+    # rows, never a second bound test (WP-1076).  Only the free set was
+    # tested, so a tied row — in `parameters`, absent from the free vector —
+    # reports None, and so does every row when no guard ran at all
+    # (`replay`).  A free row on a floor of 0 is tested like any other bound
+    # (WP-1938), and reads True under either code (WP-1929).
     tested = set(table.free_paths) if guard is not None else set()
     on_bound = {p for f in guard.at_bounds for p in f.paths} if guard is not None else set()
     # A CELL_RUNAWAY finding's own message says the named cell's value is
@@ -6586,7 +6589,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # that stage's finding; ``None`` reads it off ``diagnostics``, which is
     # right for every caller whose list is one stage's (``run_stage``, a stage
     # report, ``replay``).  The flag stays the finding's own ``where``, as
-    # ``at_bound`` is a projection of ``BOUND_HIT``, and a tie inherits it.
+    # ``at_bound`` is a projection of ``BOUND_HIT`` and ``FLOOR_HIT``, and a
+    # tie inherits it.
     withheld = _cell_runaway_withheld(table, (
         p for d in (diagnostics if cell_runaway is None else cell_runaway)
         if d.code == "CELL_RUNAWAY" for p in d.where))
@@ -7806,9 +7810,11 @@ def _extra_peak_diagnostics(model: CompiledModel, values: dict,
     item 13, one rank down, and the position it reports is a walk rather than a
     measurement.  Said in the vocabulary the peak list already chose for this
     fact (``no_intensity`` in ``PEAK_UNUSABLE_FLAGS``) rather than in a second
-    one, and tested with ``BOUND_HIT_RTOL``, the distance half of the
-    refinement's own bound test (``staged.bound_findings``, a conjunction
-    since WP-1434) rather than a second constant.
+    one, and tested with ``BOUND_HIT_RTOL``, the distance of the
+    refinement's own bound test where no solve stands behind it
+    (``staged.bound_findings``, which reads the driver's exact active set or
+    a conjunction where it has a solve, WP-1434 and WP-1929) rather than a
+    second constant.
 
     This is the honest evidence for "the peak was not needed", and it is not an
     Rwp comparison — which the package forbids as a correction's evidence for
@@ -7848,11 +7854,11 @@ def _extra_peak_diagnostics(model: CompiledModel, values: dict,
         entry = (table.entries[table._paths[area_path]]
                  if area_path in table._paths else None)
         lo = entry.lo if entry is not None else 0.0
-        # ``BOUND_HIT_RTOL`` is scipy's own test, imported rather than
-        # restated so this and ``BOUND_HIT`` cannot drift apart on what
-        # counts as *at* a limit.  The ``<= 0`` clause beside it covers an
-        # area whose stated lower bound is below zero, which is off at its
-        # identity without being "at" that bound.
+        # ``BOUND_HIT_RTOL`` is scipy's own test and ``bound_findings``'
+        # fallback, imported rather than restated so the two cannot drift
+        # apart on what counts as *at* a limit.  The ``<= 0`` clause beside
+        # it covers an area whose stated lower bound is below zero, which is
+        # off at its identity without being "at" that bound.
         at_zero = (area <= 0.0
                    or (np.isfinite(lo)
                        and abs(area - lo) <= BOUND_HIT_RTOL * max(1.0, abs(lo))))

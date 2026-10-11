@@ -34,19 +34,23 @@ class RefinedParameter(Base):
     asserted "not at a bound" about a parameter no code had looked at.
 
     **``True`` says the limit carried load, not that the value is near one**
-    (WP-1434).  The row must sit within a hundredth of its own esd of the
-    limit *and* the residual must still push it out of the allowed range, so a
-    value resting on a limit the fit is not pressing reads ``False`` and there
-    is nothing there to widen.  ``BOUND_HIT``'s ``Diagnostic.value`` carries
-    the evidence, signed; this flag is the bit.
+    (WP-1434).  Under the default ``lm`` driver the row is in the driver's
+    exact active set: it sits on the limit and the gradient there points out
+    of the allowed range (WP-1929).  Under ``trf``, or a system too large for
+    an exact step, it must sit within a hundredth of its own esd of the limit
+    *and* the residual must still push it outward.  Either way a value resting
+    on a limit the fit is not pressing reads ``False`` and there is nothing
+    there to widen.  The diagnostic's ``Diagnostic.value`` carries the
+    evidence, signed; this flag is the bit.
 
     **The source is the guard, never a local recomputation.**  The one place
     the bound test happens is :func:`rietx.strategy.staged.bound_findings`,
-    whose findings become the ``BOUND_HIT`` diagnostics; this flag is a
-    projection of that same list onto the rows, so the two can never
-    disagree.  ``BOUND_HIT`` stays the reported channel — the flag exists so
-    that an agent iterating ``parameters`` does not have to cross-reference
-    ``diagnostics`` by path.
+    whose findings become the ``BOUND_HIT`` and ``FLOOR_HIT`` diagnostics
+    (``FLOOR_HIT`` on a floor no wider bound can lower, WP-1929); this flag is
+    a projection of that same list onto the rows, so it is ``True`` under
+    either code and the two can never disagree.  The diagnostics stay the
+    reported channel — the flag exists so that an agent iterating
+    ``parameters`` does not have to cross-reference ``diagnostics`` by path.
     """
 
     path: str

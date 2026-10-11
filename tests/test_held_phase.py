@@ -744,12 +744,13 @@ def test_the_ramp_reproduction_no_longer_runs_away():
     assert held[0].where == ["phases.1.cell.a"]
     assert "13 of 13" in held[0].message
     # The one other persistent finding is the absent phase's scale on its
-    # floor of 0.  Since WP-1938 a floor is an ordinary bound, so BOUND_HIT
-    # answers it, where a softplus row was set aside as untested (11 of 13
-    # patterns, macOS arm64, `[dev,jax]`).
+    # floor of 0.  Since WP-1938 a floor is an ordinary bound, so the bound
+    # test answers it, where a softplus row was set aside as untested (11 of
+    # 13 patterns, macOS arm64, `[dev,jax]`), and since WP-1929 a floor's code
+    # is FLOOR_HIT.
     others = [d for d in persistent if d not in held]
     assert all(d.where == ["phases.1.scale"]
-               and d.message.startswith("BOUND_HIT") for d in others), others
+               and d.message.startswith("FLOOR_HIT") for d in others), others
 
 
 @pytest.mark.slow

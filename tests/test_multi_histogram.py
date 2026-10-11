@@ -238,7 +238,10 @@ def test_every_row_carries_a_bound_answer_or_says_it_has_none(two_patterns):
     ref = MultiHistogramRefinement(structure, instruments)
     result = ref.fit(two_patterns, plan="mccusker_default")
 
-    named = {p for d in result.diagnostics if d.code == "BOUND_HIT" for p in d.where}
+    # both codes: a row on a floor of 0 is ``FLOOR_HIT`` (WP-1929); here both
+    # histograms' profile.y, held exactly on 0 by the LM driver's active set
+    named = {p for d in result.diagnostics if d.code in ("BOUND_HIT", "FLOOR_HIT")
+             for p in d.where}
     assert {p.path for p in result.parameters if p.at_bound is True} == named
 
     measured = {p.path for p in result.parameters if p.at_bound is not None}

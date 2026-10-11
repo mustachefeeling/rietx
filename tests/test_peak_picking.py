@@ -826,8 +826,9 @@ def test_a_component_at_its_zero_intensity_bound_locates_nothing():
     A peak reaches its window only through ``intensity × profile``, so a
     component that refined onto its zero intensity bound has no gradient on its
     own position — the fitted 2θ is whatever the seed was.  The threshold is not
-    a new one: it is the same ``at its bound`` test the refinement's
-    ``BOUND_HIT`` uses, imported rather than restated.
+    a new one: it is the ``at its bound`` distance the refinement's bound test
+    falls back on without a solve (``bound_findings``), imported rather than
+    restated.
 
     Unusable rather than merely reported, unlike the flags below it: those are
     lines a consumer might still judge real, and there is nothing left to judge

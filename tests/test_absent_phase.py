@@ -655,13 +655,13 @@ def test_a_scale_only_plan_leaves_phase_unconstrained_nothing_to_say(fit_absent_
 
     ``PHASE_UNCONSTRAINED`` is about a phase's *other* free parameters, and a
     plan freeing only the scale gives it none.  What names the phase there is
-    the floor its scale stopped on.
+    the floor its scale stopped on, ``FLOOR_HIT`` since WP-1929.
     """
     result = fit_absent_at(0.0, plan=_scale_only_plan())
     codes = {d.code for d in result.diagnostics}
     assert "PHASE_UNCONSTRAINED" not in codes
     assert [d.where for d in result.diagnostics
-            if d.code == "BOUND_HIT" and "phases.1.scale" in d.where] \
+            if d.code == "FLOOR_HIT" and "phases.1.scale" in d.where] \
         == [["phases.1.scale"]]
 
 
@@ -671,19 +671,21 @@ def test_a_scale_on_its_floor_is_at_its_bound_and_is_not_told_to_widen_it(
     """A floor of 0 is an ordinary bound (WP-1938), so the row says ``True``.
 
     The residual cosine is +0.030 there and pushes the scale outward, so the
-    limit carried load.  ``BOUND_HIT`` names it, with advice for a quantity
-    that cannot go negative instead of "widen the bound".  The message keeps
-    the text every other bound's has.  The phase that is there sits far from
-    its floor, and stays a tested ``False``.
+    limit carried load.  ``FLOOR_HIT`` names it (WP-1929), with advice for a
+    quantity that cannot go negative instead of ``BOUND_HIT``'s "widen the
+    bound".  The phase that is there sits far from its floor, and stays a
+    tested ``False``.
     """
     from rietx.refine import _ZERO_FLOOR_SUGGESTION
 
     result = fit_absent_at(s)
     assert _row(result, "phases.1.scale").at_bound is True
     assert _row(result, "phases.0.scale").at_bound is False
+    assert not [d for d in result.diagnostics
+                if d.code == "BOUND_HIT" and "phases.1.scale" in d.where]
     (hit,) = [d for d in result.diagnostics
-              if d.code == "BOUND_HIT" and "phases.1.scale" in d.where]
-    assert hit.message.startswith("phases.1.scale refined to its bound (ρ=+")
+              if d.code == "FLOOR_HIT" and "phases.1.scale" in d.where]
+    assert hit.message.startswith("phases.1.scale refined to its floor (ρ=+")
     assert hit.value > 0.0
     assert hit.suggestion == _ZERO_FLOOR_SUGGESTION
     assert "widen" not in hit.suggestion
@@ -736,7 +738,8 @@ def test_a_joint_fit_tests_a_scale_on_its_floor_like_the_single_fit():
     """The joint runner's bound test has no floor exemption either (WP-1938).
 
     Histogram 0's absent scale stops on 0.0 and reads ``at_bound=True`` with
-    its marginal esd, and ``BOUND_HIT`` names it by its joint row path.
+    its marginal esd, and ``FLOOR_HIT`` names it by its joint row path
+    (WP-1929).
     Histogram 1's noise holds its own copy 0.8σ off the floor, so only the
     fractions are asserted there.
     """
@@ -754,7 +757,7 @@ def test_a_joint_fit_tests_a_scale_on_its_floor_like_the_single_fit():
     assert row.value == 0.0 and row.at_bound is True
     assert row.stderr is not None and row.stderr > 0.0
     hits = [d for d in result.diagnostics
-            if d.code == "BOUND_HIT" and "hist.0.phases.1.scale" in d.where]
+            if d.code == "FLOOR_HIT" and "hist.0.phases.1.scale" in d.where]
     assert [d.suggestion for d in hits] == [_ZERO_FLOOR_SUGGESTION]
     for hist in result.histograms:
         assert all(q.weight_fraction_stderr is not None for q in hist.qpa.phases)

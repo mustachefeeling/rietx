@@ -776,6 +776,20 @@ PLAN_INFO: dict[str, PlanInfo] = {
 }
 
 
+def _at_zero_floor(limit: tuple[str, float] | None) -> bool:
+    """Whether a bound finding's limit is a floor no wider bound can lower.
+
+    A lower limit of exactly 0, and Caglioti W's floor at the Γ_G² clamp
+    (``caglioti._MIN_GAMMA_G2``, WP-1938 D7): ``ProfileTCHZ`` raises any W
+    bound under the clamp back to it, so "widen the bound" cannot be acted on
+    there either.  Such a finding is ``FLOOR_HIT`` (WP-1929).
+    """
+    from ..model.profiles.caglioti import _MIN_GAMMA_G2
+
+    return (limit is not None and limit[0] == "lower"
+            and 0.0 <= limit[1] <= _MIN_GAMMA_G2)
+
+
 @dataclass(frozen=True)
 class GuardFinding:
     """One guard hit, as data: which parameters, which number, which code.
@@ -810,18 +824,19 @@ class GuardFinding:
     #: rendered form, identical to the pre-v1.0 list entry
     message: str
     #: a clause a *diagnostic* appends to its own sentence, already rendered.
-    #: Written only by :meth:`at_bound` and read only where ``BOUND_HIT``
-    #: builds its ``Diagnostic`` (WP-1434 gives that finding evidence to
-    #: carry; WP-1076 wants both ends of a new field named).  It is
-    #: deliberately not part of :meth:`__str__`, which is the pre-v1.0 text
+    #: Written only by :meth:`at_bound` and read only where ``BOUND_HIT`` and
+    #: ``FLOOR_HIT`` build their ``Diagnostic`` (WP-1434 gives that finding
+    #: evidence to carry; WP-1076 wants both ends of a new field named).  It
+    #: is deliberately not part of :meth:`__str__`, which is the pre-v1.0 text
     #: byte for byte and is what the other diagnostics are built from.
     detail: str = ""
     #: the limit that carried load, as ``("lower", 0.0)`` or ``("upper", hi)``
     #: in the solver's coordinates.  Written only by :meth:`at_bound`, from
-    #: the nearer limit :func:`bound_findings` chose, and read only where
-    #: ``BOUND_HIT`` picks its suggestion: a lower limit of exactly 0 is a
-    #: scale or width that cannot go negative, and is no bound to widen
-    #: (WP-1938).  ``None`` on every other finding, which has no limit.
+    #: the limit :func:`bound_findings` found the row on, and read there to
+    #: pick the code: a floor (:func:`_at_zero_floor`) is ``FLOOR_HIT``,
+    #: because a scale or width that cannot go negative is no bound to widen
+    #: (WP-1938, WP-1929).  ``None`` on every other finding, which has no
+    #: limit.
     limit: tuple[str, float] | None = None
 
     def __str__(self) -> str:
@@ -840,14 +855,19 @@ class GuardFinding:
         """``cos`` is the evidence that the limit carried load, not that the
         value sits near one — see :func:`bound_findings`.  Both are ``None``
         on the fallback path, where no solve stood behind the test, and the
-        finding then renders exactly as it did before WP-1434.  ``limit`` is
-        which limit that was; it changes no rendered text.
+        finding then renders exactly as it did before WP-1434.
+        ``gap_over_esd`` is ``None`` on the active-set path too, where the
+        row sits on the limit.  ``limit`` is which limit that was.  It picks
+        the code and changes no rendered text: a floor is ``FLOOR_HIT``,
+        every other limit ``BOUND_HIT`` (WP-1929).  The finding carries the
+        code the diagnostic will, so the two stay one vocabulary.
         """
+        code = "FLOOR_HIT" if _at_zero_floor(limit) else "BOUND_HIT"
         if cos is None:
-            return cls("BOUND_HIT", (path,), None, path, limit=limit)
+            return cls(code, (path,), None, path, limit=limit)
         gap = ("" if gap_over_esd is None
                else f", {gap_over_esd:.1e} esd from the limit")
-        return cls("BOUND_HIT", (path,), float(cos), path,
+        return cls(code, (path,), float(cos), path,
                    detail=f" (ρ={cos:+.3f}{gap})", limit=limit)
 
     @classmethod
@@ -1623,8 +1643,32 @@ BOUND_HIT_ESD_FRAC = 1e-2
 BOUND_HIT_COS_MIN = 1e-4
 
 
+def _exact_active_bounds(outcome):
+    """The driver's active set where it is exact, else ``None`` (WP-1929).
+
+    :attr:`~rietx.optimize.least_squares.LSQOutcome.active_bounds` is exact
+    under the ``lm`` driver while its step is solved by BVLS, which is while
+    the columns it solves, the table's plus a Pawley block's
+    (:attr:`~rietx.optimize.least_squares.LSQOutcome.n_aux`), number at most
+    :data:`~rietx.optimize.lm.BVLS_MAX_COLUMNS`.  A row in it sits exactly on
+    its bound with the gradient there pointing outward (WP-1937).  Above the
+    cut the step is BCCG's, which can stop a row just off its bound, and
+    TRF's set is scipy's mask, set within ``XTOL`` whatever the gradient.
+    Neither is the multiplier test, so both return ``None`` and
+    :func:`bound_findings` takes its conjunction instead.
+    """
+    from ..optimize.lm import BVLS_MAX_COLUMNS
+
+    active = getattr(outcome, "active_bounds", None)
+    if active is None or getattr(outcome, "solver", None) != "lm":
+        return None
+    if len(outcome.theta) + getattr(outcome, "n_aux", 0) > BVLS_MAX_COLUMNS:
+        return None
+    return active
+
+
 def bound_findings(bounds, free: list[str], theta, *,
-                   cos=None, esd=None) -> list[GuardFinding]:
+                   cos=None, esd=None, active=None) -> list[GuardFinding]:
     """Free paths whose bound **carried load** — the one place this happens.
 
     ``bounds`` is the ``(lo, hi)`` pair from a
@@ -1633,7 +1677,7 @@ def bound_findings(bounds, free: list[str], theta, *,
     in column order, ``theta`` the solved internal vector.
 
     Two consumers, and they must not be able to disagree: the ``BOUND_HIT``
-    diagnostics built from these findings, and
+    and ``FLOOR_HIT`` diagnostics built from these findings, and
     :attr:`~rietx.schemas.results.RefinedParameter.at_bound`, which is the same
     list projected onto the result rows (WP-1076).  Before that WP the loop was
     written out twice — here and in ``multi.py`` — which is a duplicate a joint
@@ -1644,25 +1688,44 @@ def bound_findings(bounds, free: list[str], theta, *,
     not-at-a-bound; that is what the flag's third state is for.
 
     **The question is "did the limit change the answer", never "is the value
-    near the limit"** (WP-1434, issue #273).  TRF keeps its iterates strictly
-    feasible, so how close a boundary solution lands is a function of the
-    stage's ``ftol``: on the issue's own fixtures nine of 32 genuinely-binding
-    cases ended 1e-10 to 1.6e-6 inside their limit, ``converged``, with
-    ordinary esds and no flag.  No tolerance fixes that, because the distance
-    it would have to admit is four orders wide across one set of fixtures.
+    near the limit"** (WP-1434, issue #273).  An active set is identified by
+    the multiplier, never by proximity (Nocedal & Wright, *Numerical
+    Optimization* 2nd ed. ch. 12, 16).  Two paths ask it, and which one runs
+    depends on what the driver can say.
 
-    So the test is a **conjunction**, and each half covers what the other
-    cannot.  *Near the limit*, measured in the parameter's own esd
-    (:data:`BOUND_HIT_ESD_FRAC`) — this is what keeps a stage that stopped
-    early while still travelling towards a bound from being reported as
-    having reached one.  *And still pushed into it*: the residual is not
-    orthogonal to that column (:data:`BOUND_HIT_COS_MIN`) and the sign says
-    the solver would leave the feasible set if it could.  At an unconstrained
-    stationary point the normal equations force orthogonality on every free
-    column, so a column that keeps an angle is being held by something, and at
-    a limit that something is the limit (Nocedal & Wright, *Numerical
-    Optimization* 2nd ed. ch. 12, 16 — an active set is identified by the
-    multiplier, never by proximity).
+    **Where the driver's active set is exact, it is the answer** (``active``,
+    WP-1929).  The LM driver lands a row exactly on its bound, and its set
+    holds a row only while the gradient there points outward (WP-1937), so
+    the set is the multiplier test itself.  :func:`_exact_active_bounds` is
+    the one place that decides where it is exact, and it passes ``None``
+    elsewhere.  A row is at its bound iff ``active[k]`` is nonzero, and the
+    sign names the limit: −1 the lower, +1 the upper.  No distance or angle
+    threshold is read on this path.  The finding still carries ``cos[k]`` as
+    its evidence, and no esd gap, since the row sits on the limit.
+
+    **Elsewhere the test is a conjunction**: under TRF, and under LM above
+    ``lm.BVLS_MAX_COLUMNS``.  TRF keeps its iterates strictly feasible, so
+    how close a boundary solution lands is a function of the stage's
+    ``ftol``: on the issue's own fixtures nine of 32 genuinely-binding cases
+    ended 1e-10 to 1.6e-6 inside their limit, ``converged``, with ordinary
+    esds and no flag.  No tolerance fixes that, because the distance it would
+    have to admit is four orders wide across one set of fixtures.  So each
+    half covers what the other cannot.  *Near the limit*, measured in the
+    parameter's own esd (:data:`BOUND_HIT_ESD_FRAC`) — this is what keeps a
+    stage that stopped early while still travelling towards a bound from
+    being reported as having reached one.  *And still pushed into it*: the
+    residual is not orthogonal to that column (:data:`BOUND_HIT_COS_MIN`) and
+    the sign says the solver would leave the feasible set if it could.  At an
+    unconstrained stationary point the normal equations force orthogonality
+    on every free column, so a column that keeps an angle is being held by
+    something, and at a limit that something is the limit.
+
+    **The esd window is why the exact set wins where it exists.**  It is the
+    loose half, and a parameter the data barely measure carries a window wide
+    enough to reach a limit it is nowhere near: brucite's
+    ``instrument.profile.u`` refined to −0.0016 ± 2359 and was flagged at its
+    bound of −0.05.  An exact set cannot make that claim, so the window is
+    kept only where no driver gives one.
 
     ``cos`` is
     :attr:`~rietx.optimize.least_squares.LSQOutcome.residual_cosine` and
@@ -1675,21 +1738,37 @@ def bound_findings(bounds, free: list[str], theta, *,
     measure has (``ParameterTable.unmeasured_rows``); its cosine is ~0, so the
     conjunction declines it either way.
 
-    Either path keeps the clause making a bound active only when it is the
-    **nearer** of the two: on a narrow interval both thresholds can cover the
-    whole span, and without it which bound gets reported is decided by the
-    order the branches are written in rather than by where the value sits.
+    Both distance paths keep the clause making a bound active only when it is
+    the **nearer** of the two: on a narrow interval both thresholds can cover
+    the whole span, and without it which bound gets reported is decided by
+    the order the branches are written in rather than by where the value
+    sits.
 
     **A floor is an ordinary bound** (WP-1938).  Every entry is refined in
     its own units, so a scale or width declared ``min=0`` has a finite lower
     limit of 0 and is tested like any other.  Each finding carries the limit
-    it was found against (:attr:`GuardFinding.limit`), so the diagnostic can
-    tell a quantity that cannot go negative from a bound a caller could widen.
+    it was found against (:attr:`GuardFinding.limit`), and a floor's finding
+    is ``FLOOR_HIT`` (WP-1929), so the diagnostic can tell a quantity that
+    cannot go negative from a bound a caller could widen.
     """
     import numpy as np
 
     lo, hi = bounds
     out: list[GuardFinding] = []
+    if active is not None:
+        for k, path in enumerate(free):
+            if active[k] == 0:
+                continue
+            side, limit = ("lower", lo[k]) if active[k] < 0 else ("upper", hi[k])
+            # a set read in another chart (``rechart_outcome`` carries it
+            # unchanged) could name a side the table leaves unbounded
+            if not np.isfinite(limit):
+                continue
+            c = None if cos is None else float(cos[k])
+            out.append(GuardFinding.at_bound(path, c,
+                                             limit=(side, float(limit))))
+        return out
+
     for k, path in enumerate(free):
         t = theta[k]
         below, above = t - lo[k], hi[k] - t
@@ -1846,5 +1925,6 @@ def check_guards(table, outcome, threshold: float,
     report.at_bounds = bound_findings(
         table.bounds(), free, outcome.theta,
         cos=getattr(outcome, "residual_cosine", None),
-        esd=getattr(outcome, "stderr_internal", None))
+        esd=getattr(outcome, "stderr_internal", None),
+        active=_exact_active_bounds(outcome))
     return report
