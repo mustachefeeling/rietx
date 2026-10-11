@@ -300,7 +300,7 @@ continuations of 400 evaluations.
       `ftol_runs` stop at large λ beside a stationary angle, and
       `_LM_FALSE_CONVERGENCE`'s xfail) moves to WP-1953 (maintainer,
       2026-10-12): same seam in `lm.py`, same grid to re-measure.
-- [ ] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
+- [x] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
       says so); WP-1915's indexing propagation reads the same covariance.
 - [ ] The analytic azimuth column at φ = π: check it against an exact oracle
       and add the config to `tests/test_cross_backend.py` if no row covers a
