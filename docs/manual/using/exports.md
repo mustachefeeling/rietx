@@ -211,7 +211,7 @@ message.
 legend beside the figure.
 
 On an Apple M4 in October 2026, a render of this NAC cell took
-271-290 ms at 1000 px and 1.74-1.82 s at 3000 px.
+35-41 ms at 1000 px and 89-117 ms at 3000 px.
 
 There is no SVG or PDF output.
 A ray-caster has no shapes to write.
@@ -481,9 +481,9 @@ redrawn from the recipe with a long side of 1000 px, same view: True
 ```
 
 On an Apple M4 in October 2026, at `size=400`, the report's id pass added
-12 ms to a render of this cell, and `view="auto"` took 1.29-1.42 s against a
-render of 97-113 ms.
-At 3143 atoms the search took 22.6 s against a render of 1.02-1.06 s.
+0.65-0.76 ms to a render of this cell, and `view="auto"` took 90-107 ms
+against a render of 27-34 ms.
+At 3143 atoms the search took 530-548 ms against a render of 175-209 ms.
 
 ## The reflection list
 

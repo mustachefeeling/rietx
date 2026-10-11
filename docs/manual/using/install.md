@@ -146,37 +146,39 @@ is the whole start-up cost. Releases before the kernels became a wheel compiled
 them with `numba` on first use and cached the result in `~/.rietx/numba-cache`.
 That directory is no longer read, and you can delete it.
 
-The dichotomy indexing engine and the structure figure run on numpy alone, so
-these kernels and the switch below do not reach them.
+The structure figure draws with two more kernels from the same wheel, and the
+switch below reaches them too. The dichotomy indexing engine runs on numpy
+alone.
 
 Turn the kernels off with `RIETX_COMPILED=0`, which needs no reinstall. Every
 kernel has the numpy expression it replaces standing behind it, so refinements
-run correctly, only slower. Use it for a run that has to reproduce another one
-exactly.
+and figures run correctly, only slower. Use it for a run that has to reproduce
+another one exactly.
 
 ```sh
 RIETX_COMPILED=0 python my_refinement.py
 ```
 
 An install without the wheel also runs the numpy path (see Troubleshooting).
-It warns once per process, at the first refinement or the first
+It warns once per process, at the first refinement, structure figure or
 `capabilities()` call:
 
 ```text
 RuntimeWarning: rietx's compiled kernels did not load, because importing
 rietx_kernels raised ModuleNotFoundError (No module named 'rietx_kernels').
-Fits run the numpy path, which is slower. Install the kernels with pip install
-"rietx-kernels>=1,<2", or set RIETX_COMPILED=0 to choose the numpy path and
-silence this warning.
+Fits and structure figures run the numpy path, which is slower. Install the
+kernels with pip install "rietx-kernels>=1.1,<2", or set RIETX_COMPILED=0 to
+choose the numpy path and silence this warning.
 ```
 
 The same warning names a wheel of another major version, whose kernel
-interface this rietx does not call.
+interface this rietx does not call. It also names a wheel older than 1.1, which
+lacks the structure figure's kernels.
 
 `capabilities()` answers the three questions separately, because they can
 disagree. `features["compiled_kernels"]` is whether the wheel loaded here.
-`features["compiled_kernels_active"]` is whether the next refinement will use
-it. `Capabilities.compiled_kernels_unavailable` is the reason the wheel did not
+`features["compiled_kernels_active"]` is whether the next refinement or figure
+will use it. `Capabilities.compiled_kernels_unavailable` is the reason the wheel did not
 load, or `None` when it did.
 
 ```python
@@ -195,7 +197,8 @@ it. The peak shapes call `exp`, whose last bit belongs to whichever library
 provides it, so they land on the same doubles on some platforms and one part in
 3e-17 away on others; peaks carrying the axial-divergence correction differ by
 about 1e-16 on all of them, a different summation order for the same quadrature.
-None of this is visible in a refined parameter or its esd.
+None of this is visible in a refined parameter or its esd. The structure figure
+calls no library function, so both paths draw the same picture to the bit.
 
 ## Checking an install
 

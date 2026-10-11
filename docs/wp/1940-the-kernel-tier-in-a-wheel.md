@@ -1,6 +1,6 @@
 # WP-1940 — the kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential
 
-Milestone: unscheduled · Status: 🔄 2026-10-10 — the rasteriser is in rietx-kernels 1.1.0 (#867); rietx calls it in #868 once 1.1.0 is on PyPI
+Milestone: unscheduled · Status: 🔄 2026-10-11 — rietx-kernels 1.1.0 on PyPI and the figure draws on it (#868); next the vectorised exponential as 1.2.0
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: 1939
 Priority: P2 2026-10-10 — the decision is taken (Rust, § Decisions) and every agent install pays numba's 143 MB and warm-up until this lands; the first task is a bit-neutral 1.4× that ships on its own
@@ -352,7 +352,7 @@ measurement. FPA and the peaks buffer stay fenced (1122).
 - [x] Port the rasteriser into the crate against its bit-exact numpy twin
       (`raster.py`'s docstring) and the figure tests, as 1.1.0, the next
       kernel release (§ Decisions item 9): `kernels/src/raster.rs`, PR #867.
-- [ ] 1.1.0 on PyPI (the maintainer's tag and approval), then rietx calls the
+- [x] 1.1.0 on PyPI (the maintainer's tag and approval), then rietx calls the
       rasteriser and pins `rietx-kernels>=1.1,<2`: PR #868, stacked on #867
       and readied once the wheel is on the index.
 - [ ] Tests: the guard, the bars, the branch counters, `test_capabilities`'s
@@ -400,6 +400,44 @@ with the guard green is a pass.
 - `docs/RELEASING.md` (build from the tag, never by hand).
 
 ## Handover log
+
+### 2026-10-11 — 1.1.0 is on PyPI, and the figure draws on it
+
+The kernel package's 1.1.0 is published, with the structure figure's
+rasteriser in it, and #868 makes rietx require it and draw with it. Once #868
+merges, every figure and automatic view search runs on the compiled kernels
+again, at the speed numba gave, and the pictures are the numpy code's to the
+bit. This entry continues the 5th session past its handover, after the
+maintainer merged #867.
+
+*Done.*
+- `kernels-v1.1.0` tagged on 7d9be3cb, #867's merge commit, and pushed.
+  Run 38095183707 built and tested all five wheels and published after the
+  maintainer's approval. A fresh python 3.12 venv installs
+  `rietx-kernels==1.1.0` from the index, `KERNEL_ABI` 1, with `render_rows`
+  and `id_plane`. The index's cache served "no such version" for the first
+  minute after the upload, while PyPI's JSON already listed it.
+- #868 merged `main` and took its own `/code-review high --fix`. It found no
+  crash or wrong output, and five smaller problems, all fixed. The per-call
+  `compiled_path` arguments are gone, since the tier's rule is one path a
+  process and `set_enabled` already switches it. `draw` sizes its bands on
+  the pool's own worker count and runs inline with one worker. The band test
+  runs its numpy half without the wheel. The non-positive tensor is drawn on
+  both paths and held equal, which exercises the NaN handling of
+  `npmin`/`npmax`. The decline warning and `install.md` name figures too.
+  Not taken: `lib.rs`'s `KERNEL_ABI` comment still quotes a `>=N,<N+1` pin.
+  It is half right, and editing it moves the crate's source away from the tag
+  for a comment.
+
+*Gotchas.*
+- Under `-n auto` the suite runs one kernel thread a worker (`conftest.py`),
+  so the figure takes the inline path there. The pooled, concurrent bands run
+  only in a serial test run; the bits do not depend on banding.
+
+*Next.*
+1. The maintainer: review and merge #868.
+2. The vectorised exponential with the relaxed rule as 1.2.0 (tasks 3 and 6),
+   its guard sized on the 2.2e-1 esd. Then multiversioning.
 
 ### 2026-10-10 (5th session) — the rasteriser joins the kernel package
 
