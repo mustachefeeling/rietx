@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: —
-Priority: P2 2026-10-08 — a fence decision with a named user and a branch ready to rebase; the forward-model cuts wait on it
+Priority: P2 2026-10-11 — a fence decision with a named user and a branch ready to rebase, no longer held by the index cap (WP-1920); the forward-model cuts wait on it
 
 ## Goal
 
@@ -44,6 +44,17 @@ the files) sits beside the fence and is not part of T-1.
 
 ### Inherited
 
+- **2026-10-11, from WP-1920 (closed, PR #906): the API index has room, and
+  where T-1's names go is decided.** `api.md` is 33 292 B under one 39 000 B
+  ceiling for every `api*.md`. The maintainer placed T-1's names by shape.
+  `read_gsas_tof_iparm` leaves `SKILL_EXCLUDED_VERBS` for a row in
+  `api-io.md`, beside the other readers of another program's file.
+  `TOFSource`, `ProfileTOF` and `IncidentSpectrum` go to a new `api-tof.md`,
+  one `TECHNIQUES` entry in `docs/skill/make_api_index.py`, which this WP's PR
+  creates. `PatternData.tof` goes through `TECHNIQUE_FIELDS`, as
+  `Phase.rigid_bodies` does. `Instrument.source` accepting a `TOFSource`
+  renders in `api.md` as before. This differs from the reporter's default on
+  #808, which kept the classes in `api.md`.
 
 - **2026-10-11, from the issue triage (#193): the `read_gsas2_instprm` ruling
   of 2026-09-18 is recorded only in WP-1419.** WP-1419's Inherited (about line

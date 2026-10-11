@@ -136,7 +136,21 @@ REFERENCE_BUDGET_BYTES = REFERENCE_MAX_BYTES - REFERENCE_GAP_BYTES
 #: `StageResult.seeded` and `.floor_unseeded` add 85 B to a file at 39 699 B,
 #: and the split is queued as WP-1920 rather than this WP's to make.  200 B
 #: now stand between the ceiling and the truncation.
-API_INDEX_MAX_BYTES = 39_800
+#:
+#: **The split happened** (WP-1920, 2026-10-11), and the ceiling went back
+#: down: 39 800 → 39 000, one number for every generated index.  The readers
+#: and writers for another program's file went to `api-io.md`, a shape the
+#: body's routing table already named, taking `api.md` from 39 789 to
+#: 33 292 B (issue #808's prototype, rebased).  The criterion is the shape, as
+#: for `diagnostics.md`'s splits above, never a byte count
+#: (`make_api_index.py`'s docstring has the options declined).  The 1 kB margin
+#: is the one `api.md` started from, so the next cap hit forces a split 1 kB
+#: before the truncation, never 200 B.  One number, so a pull request that
+#: creates an `api-<shape>.md` edits no list.  `api.md` grew 2 719 B in the
+#: 16 days to 2026-10-07, all but 151 B of it in the everyday types that
+#: stayed, so the 5 708 B of room is about a month.  The next seam is a shape
+#: too: series, history and projects, 3.3 kB, routed by §9 and §9b.
+API_INDEX_MAX_BYTES = 39_000
 
 
 @dataclass(frozen=True)
