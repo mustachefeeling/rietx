@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
 Depends on: — (1923 soft: the same `reduce.py` seam and the #797 cell; 1915 soft: the covariance the distance's esd reads)
-Priority: P3 2026-10-08 — a proposal whose harm on the tree is unmeasured: one lattice near a Niggli boundary could be kept as two candidates; P2 if the first task finds a dedup or `same_lattice` call that splits one
+Priority: P2 2026-10-11 — the first task's count (#834, the reporter's, on 9219e886) finds dedup splitting one lattice 4 784 times on the bethanechol benchmark and 8 times on the acceptance file, changing groups in 157 of 429 bethanechol calls; no truth rank moved at the merge, so the cost is duplicate candidates and finder counts, not a wrong answer
 
 ## Goal
 
@@ -60,7 +60,35 @@ equal to `equal_reduced_many` on every pair.
 
 ### Inherited
 
-(empty)
+- **2026-10-11, from the issue triage (#834): the first task's count is in,
+  and it finds splits.** The reporter measured it on `9219e886` (comment of
+  2026-10-09). They wrapped `equal_reduced`, `equal_reduced_many` and
+  `same_lattice` in the harness and logged every comparison on the indexing
+  acceptance file and the full bethanechol benchmark. An oracle that never
+  reduces searched integer matrices (det ±1, |m_ij| ≤ 3) and judged with
+  the unpatched `equal_reduced`. Results:
+  - Acceptance: 1 092 479 dedup comparisons, 8 splits, all LaB₆ (a
+    three-way tie among tetragonal candidates of the cubic cell).
+  - Bethanechol: 28 911 281 comparisons, 4 784 splits. By boundary: a sign
+    at g4/g5/g6 = 0, 1 670; a reduction step, 1 311; g2 = g3, 973;
+    g1 = g2, 830. rietx's χ² on the splits runs 18 to 81 000 against the
+    oracle's ≤ 16.8.
+  - `same_lattice` from `ambiguity` and `priors`: 0 splits in 6 270 calls.
+  - Replayed with "rietx's verdict, or the oracle maps them": groups change
+    in 157 of 429 bethanechol calls (574 fewer groups), 3 lattices gain a
+    second finder and cross `MIN_AGREEMENT` (none in a reported top 12),
+    and no truth rank or `found_by` moves at the merge. In acceptance,
+    LaB₆'s rank-3 tetragonal cell absorbs its rank-6 duplicate.
+  - The exposure is the search system. With all six A..F free (a triclinic
+    search), hexagonal and monoclinic lattices split in 41-50 % of
+    synthetic pairs at every relative esd from 2e-5 to 1e-2. With each
+    system's symmetry kept, nothing splits.
+
+  By this WP's own rule that re-rates it P2. Not reproduced here, since the
+  benchmark runs about an hour alone. Checked against the tree at 7d9be3cb:
+  `git log 9219e886..` touches none of `reduce.py`, `engines.py`,
+  `ambiguity.py` or `priors.py`, so the count stands for this tree. The
+  task's box stays open for the session that builds on it.
 
 ## Non-goals
 

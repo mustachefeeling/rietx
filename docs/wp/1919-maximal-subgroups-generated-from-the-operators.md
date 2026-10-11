@@ -85,7 +85,14 @@ identification call.
 
 ### Inherited
 
-Empty at filing.
+- **2026-10-11, from the issue triage (#806): the placement question has a
+  partial answer.** PR #842 (WP-1419 C0a, merged 2026-10-08) created
+  `crystallography/representation/` with `irreps.py` and `modes.py`, and
+  WP-1419's handover says C0b and this WP's generator land beside them. So
+  the "symmetry package WP-1419 creates" is `representation`. Checked against
+  the tree at 7d9be3cb: no subgroup code there; the only maximal-subgroup code
+  is `strategy/magnetic.py:1106` `_maximal_subgroups`, maximal among the
+  classes at the winner's k.
 
 ## Non-goals
 

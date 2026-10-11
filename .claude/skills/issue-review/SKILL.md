@@ -57,7 +57,12 @@ which lost 16 of 21 bodies on 2026-09-15. Columns:
   planning record counted, 65 of 86 issues carried a reference on 2026-09-21;
   without it, 19.
 
-The summary names the untriaged and the landed lists. The rank to work in:
+The summary names the untriaged and the landed lists. Its last line names
+every open issue and PR whose author is neither the maintainer nor the
+recurring contributor (`KNOWN_AUTHORS` in `backlog.py`). Tell the user about
+those before the queue starts, and list them again as the first item of the
+batch, whether or not the batch acts on them (the maintainer asked for this
+on 2026-10-11). The rank to work in:
 
 1. **A landed reference** on an untriaged or open-WP issue. Cheapest, and
    most often a close.
@@ -177,7 +182,8 @@ files carry the work across.
 
 **The batch**: one numbered message; per item the issue, the act in one
 sentence, the file holding a comment's text, and the recommendation. Group:
-closes, then comments, then labels as one item, then scheduling.
+the summary's issues and PRs by other authors first, then closes, then
+comments, then labels as one item, then scheduling.
 `AskUserQuestion` only for ≤ 4 genuine multi-way choices. Then apply in one
 pass, `gh issue comment N --body-file`, `gh issue close N --comment`,
 `gh issue edit N --add-label`, record each decision in its WP file, and

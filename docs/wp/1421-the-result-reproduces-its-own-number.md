@@ -168,6 +168,18 @@ comparing them can say they agree.
   for when. This WP measures `lab6_cbn` already (5.5e-4 χ² staleness), which
   is why the question is parked here rather than in a WP of its own.
 
+- **2026-10-11, from the issue triage (#774): PR #776 merged on 2026-10-08,
+  and the zero case is what is left.** The 2026-10-08 entry's "PR #776 (open)"
+  is stale. Sizing by value is on the tree: `model/forward.py:3475-3480`
+  applies `AXIAL_SIZING_FLOOR` whenever both axial values are positive and
+  reads the plan only when refining from zero; the magnetic width follows at
+  `:3675-3683`, with tests in `test_lab_instrument.py:386`,
+  `test_magnetic_width.py:259` and `test_recipe.py:256`. Still open: free
+  against fixed at exactly zero differs by 1.66e-4 (measured 2026-10-08), the
+  window half-width still reads the floor, and no ruling on (a)/(b)/(c) for
+  that case is recorded. Checked against the tree at 7d9be3cb: the lines
+  above; the zero case not re-run.
+
 ## Non-goals
 
 - Window sizing (`WINDOW_AREA_TOL`, `WINDOW_MIN_DEG`) and the frozen-per-stage

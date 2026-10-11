@@ -31,6 +31,28 @@ and refines with an esd. This is chunk R7 of issue #561, sized M.
   `ParameterTable.commit` loops over blocks. The moment sign flip (#604) can join it.
   Ceres's `Manifold` on a parameter block is the same pattern.
 
+- **2026-10-11, from the issue triage (#561, in PR #823): this WP is open as
+  a PR.** PR #823 (the reporter's) builds R7: a torsion is an anchored rotation
+  composed at commit (φ₀ ← φ₀ + δφ), `rechart_outcome` is unchanged because
+  composing about one axis is addition, and the twist rides WP-1805's seams
+  (the commit guard and rollback, `restore_body_anchors`,
+  `displace_anchored_dofs(…, torsions=)`, `anchored_rotation_paths`,
+  `body_dofs`). It is a third increment kind for the tie rule and targets
+  schema 0.44 → 0.45. WP-1805's handover says it needs a rebase onto #801 and
+  #825. Checked against the tree at 7d9be3cb: no `BodyTorsion` in
+  `schemas/structure.py`; this file named only the branch commit `3401fdd7`.
+
+- **2026-10-11, from the issue triage (#759 § 1): a Z-matrix dihedral is not
+  this WP's torsion.** Rotating the downstream subtree is wrong for a Z-matrix
+  parameter, since a later line's dihedral may reference an atom that moves:
+  on the reporter's 8-atom fragment line 3's angle moved 0.065 Å a degree.
+  This WP stays the rigid rotation of a declared set about a line. Where a
+  body declares both on one bond, compile compares the two reaches and refuses
+  on a difference, naming the atoms. Refinable Z-matrix internals stay a
+  separate chunk. Checked against the tree at 7d9be3cb: `from_zmatrix`
+  (`crystallography/fragments.py:252`) takes constant values, and this file
+  lists internals only as a non-goal.
+
 ## Non-goals
 
 - Refinable Z-matrix internals on free atoms (issue #759).

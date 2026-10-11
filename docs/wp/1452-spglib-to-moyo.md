@@ -145,6 +145,31 @@ spglib convention, as PRs against the migration branch once it exists.
   wait on the magnetic PRs, so whichever goes second rebases onto the
   first. WP-1419's Inherited carries #418.
 
+- **2026-10-11, from the issue triage (#426): the reporter's 2026-09-29
+  measurements, moyopy 0.21.0 against spglib 2.7.0, are not carried here.**
+  - Call sites: on this tree 14 `spglib.get_*` calls in 7 files, against this
+    file's "ten in three". `superspace/generation.py:916` and
+    `superspace/operators.py:962` (PR #682) are new.
+  - Trap: a rotation with determinant other than ±1 makes moyo raise
+    `pyo3_runtime.PanicException`, a `BaseException`, which `except ValueError`
+    and `supercell.py`'s `except Exception` both miss. The guard belongs in the
+    nuclear-identification step. `time_reversals` must be `bool`, and
+    mismatched list lengths pass silently.
+  - Hall numbering agrees for all 530 settings, and the 1651 magnetic types
+    agree.
+  - Doubled cells: of 4953 lists, 4910 agree, 35 are named by moyo where
+    spglib refuses, and 8 are named differently (UNI 1561-1568 doubled along
+    b, not adjudicated).
+  - moyo is stricter on 14 of 400 noisy cells at symprec 1e-3.
+  - 295 tests call spglib; 31 diverge when their calls are replayed through
+    moyo. `test_wyckoff.py`'s `Fd-3m (0,0,0) 8a` becomes `b`.
+  - Suggested order: primitive-reduction helper, nuclear identification,
+    Wyckoff and reduction, magnetic identification, settings, the dependency.
+
+  Checked against the tree at 7d9be3cb: the call count above. spglib 2.8.0 is
+  the floor since PR #861, so the 282-284 failure this file's "Why moyo"
+  cites is gone, as the 2026-10-10 entry notes.
+
 ## Non-goals
 
 - The spglib error-mode move (moot; see Context).

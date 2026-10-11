@@ -124,6 +124,16 @@ screenshots come from `docs/manual/make_screenshots.py`.
   pattern view on those two figures. The previous bullet's mode-2 remark is
   superseded.
 
+- **2026-10-11, from the issue triage (#218): an esd caveat and a PR offer
+  are carried by no file.** `moved_paths(n, min_sigma)` ranks by peak-to-peak
+  movement over the median esd. Agreement-index trajectories carry no esd
+  (`stderr` is `None` throughout, as `plot_trajectory`'s docstring says), so
+  they are left out of that ranking or ranked by a separate stated rule, never
+  mixed in silently. The reporter offers a PR for the `forward_` attribute
+  alone or with `moved_paths`, and asks which, and whether to prefer the
+  callback. Checked against the tree at 7d9be3cb: no `forward_`,
+  `moved_paths` or `on_pass_complete` under `src/`.
+
 ## Non-goals
 
 - **Not the batch computation** — `refine_sequential` already computes the

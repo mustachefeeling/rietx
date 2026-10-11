@@ -85,6 +85,14 @@ only. Weideman (1994) and Olivero & Longbothum (1977) are papers.
   (`docs/RELEASING.md` § The kernel wheel). The 1e-13 bar here is then the
   relaxed rule's transcendental bound, which 1940 writes.
 
+- **2026-10-11, from the issue triage (#790): the last task is met in code
+  and pinned by no test.** `io/projects/topas_input.py:257-262` refuses any
+  `profile.shape` other than `tchz_pv` by name (PR #815), as this file's own
+  Context says. No test in `test_topas_whole_input.py` or
+  `test_projects_topas.py` passes `shape="voigt"` to `write_topas_inp`, so the
+  task reduces to that test. Checked against the tree at 7d9be3cb: the lines
+  above and a grep of `tests/`.
+
 ## Non-goals
 
 - Fundamental parameters, and the transparency *shape* (Cheary & Coelho
