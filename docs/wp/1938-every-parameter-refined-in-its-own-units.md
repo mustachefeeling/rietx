@@ -1,10 +1,8 @@
 # WP-1938 — every parameter refined in its own units
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — every task but one landed; a 343-column Pawley fit stops a stage
-on its cap under the default driver, and what to do is the maintainer's call
+Milestone: unscheduled · Status: ✅ 2026-10-11 — shipped in #883; the large Pawley stage moved to WP-1953
 Track: What fires, and what stays silent
 Depends on: 1936 (the FD step, landed 2026-10-09), 1937 (a driver that handles widths on zero, landed 2026-10-10), 1940 soft (merge after it, so the re-pinned numbers and the grid are the shipping kernels'; the work can start before)
-Priority: P1 2026-10-10 — was P2: WP-1937 landed, nothing blocks it, and it now carries the default-driver flip WP-1929's P1 rests on
 
 ## Goal
 
@@ -485,6 +483,27 @@ asserts, on every start.
   transformed parameter's error is meaningless near its limit).
 
 ## Handover log
+
+### 2026-10-11 (sixth session) — closed: #883 merged, the large Pawley stage moved to WP-1953
+
+The work shipped. The maintainer merged #883 with the large Pawley stage
+unfixed, so that task moved to its own WP, and the skill now warns an agent
+about it. This handover closes the WP.
+
+*Done* (branch `wp1938-close`, from `ab8d949a`):
+- `b59715ae`: WP-1953 filed with the measurement, the last task here
+  ticked as moved, and the dependants re-rated. WP-1929 goes to P1, its
+  last blocker landed; WP-1945, 1946 and 1948 name the landing, and 1948
+  stays down a rung for 1947. The fifth entry's sentence on BCCG is
+  corrected in place: six of seven sampled λ > 0, not every one.
+- `e1a41beb`: `surprises.md` §8.31, in budget (+1 B) by shortening §8.14's
+  story and a sentence of §8.6, both this WP's own rows.
+
+*Measured*: none new. The prose-only branch skipped `/code-review`.
+
+*Next*: none here. WP-1953 owns the large Pawley stage. A release is owed
+at once (`docs/RELEASING.md` § When): this WP was P1 and closes #900, a
+silent wrong basin under TRF.
 
 ### 2026-10-11 (fifth session) — both review tasks closed; a large Pawley fit needs a decision
 

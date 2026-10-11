@@ -43,7 +43,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) | An esd follows where the solver stopped beside a flat column | 2026-10-09 | P1 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | 2026-10-09 | P1 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
-| [1938](1938-every-parameter-refined-in-its-own-units.md) | Every parameter refined in its own units | 2026-10-11 | P1 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## Next, by priority
 
@@ -511,7 +510,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | ⬜ | P2 | — ([1923](1923-a-candidate-in-its-conventional-setting.md), [1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) |
 | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md) | A forward-difference step sized by its parameter | ✅ 2026-10-09 | — | — |
 | [1937](1937-a-bounded-step-solved-exactly.md) | A bounded step solved exactly | ✅ 2026-10-10 | — | — ([1936](1936-a-forward-difference-step-sized-by-its-parameter.md) soft) |
-| [1938](1938-every-parameter-refined-in-its-own-units.md) | Every parameter refined in its own units | 🔄 2026-10-11 | P1 | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md), [1937](1937-a-bounded-step-solved-exactly.md) ([1940](1940-the-kernel-tier-in-a-wheel.md) soft) |
+| [1938](1938-every-parameter-refined-in-its-own-units.md) | Every parameter refined in its own units | ✅ 2026-10-11 | — | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md), [1937](1937-a-bounded-step-solved-exactly.md) ([1940](1940-the-kernel-tier-in-a-wheel.md) soft) |
 | [1944](1944-the-structural-plan-frees-extinction-only-where-declared.md) | The structural plan frees extinction only where it says it does | ⬜ | P3 | — |
 | [1946](1946-a-strain-block-that-cannot-leave-its-cone.md) | A strain block that cannot leave its cone | ⬜ | P3 | [1938](1938-every-parameter-refined-in-its-own-units.md) ([1467](1467-a-stephens-block-on-a-frozen-floor.md) soft) |
 | [1951](1951-a-glob-that-names-a-site-and-frees-nothing.md) | A glob that names a site and frees nothing | ⬜ | P3 | — |
