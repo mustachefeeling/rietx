@@ -1,6 +1,6 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — decided: physical coordinates (1936-1938), then marginal esds with a bound flag here
+Milestone: unscheduled · Status: 🔄 2026-10-11 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: 1938 (physical coordinates, which remove the point-dependence this WP reports on)
 Priority: P2 2026-10-09 — was P1: the cause moved into 1936-1938, which carry the P1; what remains here (the reporting rule and the floor diagnostic) waits on 1938
