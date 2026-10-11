@@ -1,6 +1,7 @@
 # WP-1938 — every parameter refined in its own units
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — docs, seeds, the valley (D10) and the traced backends landed; three magnetic slow failures and VALIDATION.md's rows open
+Milestone: unscheduled · Status: 🔄 2026-10-11 — every original task landed; the review of #883 left two (an old
+.rxt row under a raised floor, LM's constrained-step costs)
 Track: What fires, and what stays silent
 Depends on: 1936 (the FD step, landed 2026-10-09), 1937 (a driver that handles widths on zero, landed 2026-10-10), 1940 soft (merge after it, so the re-pinned numbers and the grid are the shipping kernels'; the work can start before)
 Priority: P1 2026-10-10 — was P2: WP-1937 landed, nothing blocks it, and it now carries the default-driver flip WP-1929's P1 rests on
@@ -416,6 +417,26 @@ driver alone).
       (A sentence, no diagnostic: `estimation.md` § Solvers, `refining.md`
       and the `SOLVERS` comment, with #900's dispersion-on numbers, χ² 4.5e5
       and Pb Biso 133 under TRF.)
+- [ ] **An old `.rxt` row under a raised floor** (review of #883,
+      2026-10-11). `gui/textdoc._check_annotations` refuses any annotation
+      that differs from the live row. A document saved before W's floor
+      carries `w … min 0`, and applying it fails: "min on
+      instrument.profile.w is 1e-08, and cannot be edited here". March `r`'s
+      floor (`MARCH_R_MIN`) is the same case one WP earlier. Old files must
+      open (D6), so a stored bound the schema would raise to the live one is
+      no edit. Decide where that rule lives once. `ProfileTCHZ._w_floor_is_reachable`
+      owns W's, and `io/instrument_profile.py` (two sites) and `io/recipe.py`
+      restate it, which the review also flagged.
+- [ ] **LM's two constrained-step costs** (review of #883). When `nnls` runs
+      out of iterations (`lm._NoConstrainedStep`), the fallback shortens the
+      box step to the first row it reaches. From a point already on a face that
+      is τ = 0, so the stage ends `exhausted_fp64` and reads as converged, and
+      λ is never raised. And `_solve_constrained_step` does a dense
+      eigendecomposition plus `nnls` whatever `BVLS_MAX_COLUMNS` says. The
+      review measured 0.63 s a crossing at 1013 columns on a synthetic
+      Pawley-shaped system, against BCCG's ≤ 22 ms, and Γ_G² rows are now built
+      in every mode. Measure both on the NAC Pawley protocol and the grid
+      before changing either, since both move converged fits.
 
 ## Acceptance
 
@@ -439,6 +460,109 @@ asserts, on every start.
   transformed parameter's error is meaningless near its limit).
 
 ## Handover log
+
+### 2026-10-11 (fourth session) — the last three failures had causes; VALIDATION.md re-measured; the review left two tasks
+
+The last three tests that failed under the new default now pass, and each
+failure had a real cause. Two came from a magnetic moment whose direction
+barely changes the pattern. The fitting routine stepped too far along it,
+slowed to a crawl, and once called a fit finished at a χ² 180 times its
+answer's. The magnetic workflow now fits each moment's size before its
+direction, which removes that failure there. A plan someone writes by hand can
+still meet it, and WP-1929 now owns that. The third was a series check that
+cannot tell a reversed moment, which a powder pattern cannot see, from a
+different one, and WP-1329 owns teaching it. The validation table was
+re-measured: 17 of its 129 quoted results moved by more than 1 %, each traced
+to its cause. Not closing: the review of the whole branch left two findings
+that need a decision or a measurement first.
+
+*Done* (5 commits on top of `dd1cac2e`):
+- `ff49f084`: D12 and D13. `solve_magnetic`'s default plan is moduli, moment,
+  all (`SOLVE_STAGE_NAMES`), and the nuclear reference drops a stage that
+  repeats its predecessor, so the reference fit is unchanged. The two-site test
+  asserts the answer and the named pair's quadrature sum. The 150 K test
+  accepts a trial stopped short with its caveat. The series test allows a path
+  dependence between powder twins, and fails without the twins (checked). The
+  manual's `refining.md`, the 1.8.0 notes, and WP-1929's and WP-1329's
+  Inherited carry it.
+- `057974f1`: `lm.minimize`'s docstring says a crawl can end on `ftol_runs`.
+- `5aa667ff`: the lane's re-measure of all 129 VALIDATION.md rows, the 1.8.0
+  notes' list, the landing page's SRM 660c cell (source only, since `site/` is
+  ignored build output), `compare.py`'s registry text, and the Stephens,
+  sequential and SRM 660c docstrings with both trees' values.
+- `49776abb`: the skill's `magnetic.md` says a hand-built plan frees
+  `moment.dof0` first, with copies re-synced.
+- `bdeb9f24`: three fixes from `/code-review high` on #883.
+- Ticked: the 16 failures, the re-measure, tests and PNGs, the driver flip.
+  Added: the two review tasks above Acceptance.
+
+*Measured* (macOS 26.6.2 arm64, Python 3.12.10, rietx-kernels 1.2.0,
+`[dev,jax]`):
+- Two-site Pnma, class 0. The flat start lands on the swapped point (0.70,
+  3.50) at χ² 2556.51 under both drivers. TRF's released starts reach 2555.85
+  and 2555.95. Before D12, LM's stopped at 454 660 and 448 315 on `ftol_runs`,
+  λ 5.4e7 and 7.3e9. After it, LM's reach 2555.850 (3.498, 0.700) and 2555.985
+  (swapped). LM's winner has esds 0.031 and 0.159 μ_B and is paired, where TRF's
+  were 0.002 and 0.001.
+- 150 K Cr₂WO₆, class 3 at k = (0, ½, ½): `max_iter` after ten continuations
+  under LM (102 s) and TRF (130 s), moments 0.14 and 0.58 μ_B with esds 2.3 and
+  0.5. Moduli-first does not help it. The verdict is "nothing to solve" either
+  way.
+- Moment-angle series: forward p000 φ = 3.06481, backward 0.07678 (LM) or
+  −0.07678 (TRF), χ²_red 0.992763 in both. The same on `fb2f62d8^`, so the
+  seeds did not cause it. On `origin/main` both chains stayed near π and p004
+  read ±3.104, 0.8σ. LM's backward chain also stops worse at p002, χ²_red
+  1.048235 against 1.044684, at the stationary azimuth.
+- Magnetic files after D12: the two re-pinned files 5 passed in 2:52, the ten
+  files calling `solve_magnetic` 306 passed in 25 s.
+- VALIDATION.md (the lane): the 17 acceptance files 156 passed, 3 skipped, in
+  30:02 beside its own probes. 17 of 129 rows moved over 1 %, each checked on
+  this tree, under forced TRF and on `origin/main`, and listed in the notes.
+  SRM 660c a = 4.156895 → 4.156882 Å (+28 → +25 ppm), from the Γ_G²
+  inequality. No moved fit's PNG is locally worse. SRM 660c's 148.7° top sits
+  at 85 % of its height, 83 % on `main`.
+- Fast and full suites: FILLED BELOW.
+- Lanes: one, opus.
+
+  | lane | est | requests | main at dispatch | saved $ |
+  |---|---|---|---|---|
+  | validation-remeasure | 60 | 119 | 332K | +3.49 |
+
+  Trial row in `docs/milestones/process.md`: +$3.49 (+12 %), requests 1.98× the
+  estimate. The selective policy's replay row reads 125 items laned, −20 %.
+
+*Declined or deferred*:
+- Review of #883 (high): nine findings. Three fixed in `bdeb9f24`. Two became
+  tasks: the `.rxt` floor, and LM's constrained-step costs. Not changed: the GUI
+  colouring `softplus`/`logit` as paths in an old document
+  (`gui/src/lib/rxt.ts` `FLAGS`; a fix needs a dist rebuild), a second `eigh`
+  per crossing step (cost only), and W's floor restated in three readers (folded
+  into the `.rxt` task). `BOUND_HIT`'s floor advice still ends "Fix it at 0"
+  for W at 1e-8 deg², which is zero in practice, and the tutorials quote it.
+- D13 asked for a new WP. It went to WP-1329's Inherited by the fold-first
+  rule, since 1329 owns the moment's path-dependence flag.
+- The two-site test no longer asserts `n_minima`, the winner's esds, or that it
+  pairs nothing. WP-1929's Inherited asks for the last two back.
+- `test_acceptance_wavelength.py`'s table and rows moved under 1 %, unchanged.
+  The landing rows for QPA (1.39 wt %) and indexing were stale before this WP,
+  and VALIDATION row 86's "8-14 absences" measures 6-15 on all three trees.
+  None changed.
+
+*Gotchas*:
+- `from rietx import refine` gives the function. A probe imports the module
+  with `importlib.import_module("rietx.refine")`.
+- Setting `least_squares.DEFAULT_SOLVER` reaches no signature default, and a
+  `Refinement.__init__` wrapper misses `refine_sequential`, which passes
+  `solver=` itself. Pass `solver=` to the call.
+- `/code-review` with a dirty tree reviews the uncommitted diff against the
+  branch's upstream. Name the PR to review the branch.
+
+*Next*, in order:
+1. The `.rxt` floor task. Decide where "a stored bound the schema raises is no
+   edit" lives, once, and let `textdoc` and the two readers ask it.
+2. Measure LM's constrained-step costs on NAC Pawley and the grid, then decide.
+3. Then the full suite on merged `main`, and `gh pr ready`. The maintainer may
+   instead merge now and take 1 and 2 as a follow-up.
 
 ### 2026-10-11 (third session) — the docs, the seeds and the grid settled; three magnetic slow tests left
 
