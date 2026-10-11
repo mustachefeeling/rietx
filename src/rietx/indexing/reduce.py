@@ -464,6 +464,21 @@ def af_map(change: Sequence[Sequence[int]]) -> np.ndarray:
 #: than this is not a metric any engine returns.
 _SETTING_STEPS = 200
 
+#: Relative size below which a·c, or a² − c², is rounding rather than a
+#: choice: a right angle or an a = c tie re-set on its last bit flips a and b
+#: (or swaps a and c) and records a change of basis nothing asked for, and
+#: the re-set is then not idempotent.
+_SETTING_TIE = 1e-12
+
+
+def _gauss_step(ratio: float) -> int:
+    """The nearest integer to ``ratio``, and 0 on a ±½ tie within
+    :data:`_SETTING_TIE`: both sides of a tie are reduced, and rounding must
+    not be what picks one."""
+    if abs(ratio) <= 0.5 + _SETTING_TIE:
+        return 0
+    return int(np.rint(ratio))
+
 
 def conventional_setting(af: np.ndarray, system: str, centring: str = "P"
                          ) -> tuple[tuple[int, int, int], ...] | None:
@@ -487,11 +502,20 @@ def conventional_setting(af: np.ndarray, system: str, centring: str = "P"
     right-handed.  Both rules reproduce spglib's ``std_lattice``
     (:func:`conventional_cell`) on the cells ``tests/test_indexing_reduce.py``
     draws.  Returns M with (new basis rows) = M · (old basis rows).
+    ``None`` too where ``af`` is not a lattice's metric (non-finite or not
+    positive definite): there is no setting to choose, and a caller reporting
+    a candidate must not be stopped by one.
     """
     if system != "monoclinic" or centring not in ("P", "C"):
         return None
     from .qspace import gstar_from_af
-    g = np.linalg.inv(gstar_from_af(np.asarray(af, dtype=np.float64)))
+    af = np.asarray(af, dtype=np.float64)
+    if not np.all(np.isfinite(af)):
+        return None
+    gstar = gstar_from_af(af)
+    if np.linalg.eigvalsh(gstar)[0] <= 0.0:
+        return None                                  # not a lattice
+    g = np.linalg.inv(gstar)
     scale = float(np.max(np.abs(np.diag(g))))
     if abs(g[0, 1]) > 1e-9 * scale or abs(g[1, 2]) > 1e-9 * scale:
         return None                                  # not b-unique: leave it
@@ -504,15 +528,15 @@ def conventional_setting(af: np.ndarray, system: str, centring: str = "P"
         plane = step @ plane @ step.T
 
     for _ in range(_SETTING_STEPS):
-        k = int(np.rint(plane[0, 1] / plane[0, 0]))
+        k = _gauss_step(plane[0, 1] / plane[0, 0])
         if k:
             apply(np.array([[1, 0], [-k, 1]]))       # c ← c − k·a
         if centring == "P":
-            if plane[1, 1] < plane[0, 0]:
+            if plane[1, 1] < plane[0, 0] * (1.0 - _SETTING_TIE):
                 apply(np.array([[0, 1], [1, 0]]))    # swap a and c
                 continue
         else:
-            m = int(np.rint(plane[0, 1] / (2.0 * plane[1, 1])))
+            m = _gauss_step(plane[0, 1] / (2.0 * plane[1, 1]))
             if m:
                 apply(np.array([[1, -2 * m], [0, 1]]))   # a ← a − 2m·c
                 continue
@@ -521,7 +545,7 @@ def conventional_setting(af: np.ndarray, system: str, centring: str = "P"
     else:
         raise RuntimeError(f"no monoclinic setting reached for af = "
                            f"{np.asarray(af).tolist()} in {_SETTING_STEPS} steps")
-    if plane[0, 1] > 0.0:                            # β acute
+    if plane[0, 1] > _SETTING_TIE * np.sqrt(plane[0, 0] * plane[1, 1]):  # β acute
         apply(np.array([[-1, 0], [0, 1]]))
     sb = int(round(np.linalg.det(n)))
     rows = ((int(n[0, 0]), 0, int(n[0, 1])), (0, sb, 0),

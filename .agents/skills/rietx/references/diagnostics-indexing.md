@@ -227,8 +227,8 @@ Six things about that sequence are load-bearing:
    follows — they predict the same reflections at the same positions. What
    separates them is what you know about the compound, or which one a structure
    solution works in.
-6. **`cell` is the conventional setting** (monoclinic: b unique, β obtuse),
-   the search's own `engine_cell`. One lattice? `same_lattice` on `af`.
+6. **`cell` is the conventional setting** (monoclinic: b unique, β obtuse);
+   the search's own is `engine_cell`. One lattice? `same_lattice` on `af`.
 
 The reverse direction closes too. When a refinement's Layer 2 emits
 `reindex_or_recheck_cell` — peak offsets beyond the linearisation radius in most

@@ -431,6 +431,32 @@ def test_a_monoclinic_cell_is_re_set_to_the_conventional_setting(
     assert got == pytest.approx(std, rel=1e-7, abs=1e-6)
 
 
+@pytest.mark.parametrize("centring", ["P", "C"])
+@pytest.mark.parametrize("cell", [
+    (4.541, 4.884, 10.198, 90.0, 90.0, 90.0),       # a right angle's rounding
+    (10.8253, 22.1482, 10.8253, 90.0, 90.0, 90.0),  # and an a = c tie
+])
+def test_rounding_is_not_a_setting_to_re_set(centring, cell):
+    """A right angle or a tie reached through a change of basis is re-set to
+    the identity on the second pass, never flipped on its last bit."""
+    from rietx.indexing.reduce import af_map, conventional_setting
+
+    rows = [(0, 0, 1), (0, -1, 0), (1, 0, 4)] if centring == "P" \
+        else [(1, 0, -6), (0, -1, 0), (0, 0, 1)]
+    engine_af = af_map(rows) @ af_from_cell(cell)
+    change = conventional_setting(engine_af, "monoclinic", centring)
+    af = engine_af if change is None else af_map(change) @ engine_af
+    assert conventional_setting(af, "monoclinic", centring) is None
+
+
+def test_a_metric_that_is_no_lattice_has_no_setting():
+    from rietx.indexing.reduce import conventional_setting
+
+    assert conventional_setting(np.full(6, np.nan), "monoclinic") is None
+    assert conventional_setting(np.array([0.05, 0.04, -0.01, 0.0, 0.001, 0.0]),
+                                "monoclinic") is None
+
+
 def test_a_re_set_carries_the_covariance_with_the_metric():
     """The fit's esds come from the re-set covariance, not the engine's: a
     sign flip of a and b leaves every esd alone, a c ← c + a step does not."""
