@@ -59,6 +59,7 @@ from .model.forward import (
 from .model.geometry import cell_volumes, geometry_table
 from .model.microstructure import microstructure_table
 from .model.profiles.caglioti import (
+    _MIN_GAMMA_G2,
     SCHERRER_K,
     apparent_size_from_size_coefficient,
     gaussian_fwhm,
@@ -5400,6 +5401,18 @@ _ZERO_FLOOR_SUGGESTION = (
     "absorption or a wrong species or occupancy. Fix it at 0")
 
 
+def _at_zero_floor(limit: tuple[str, float] | None) -> bool:
+    """Whether a ``BOUND_HIT`` limit is a floor no wider bound can lower.
+
+    A lower limit of exactly 0, and Caglioti W's floor at the Γ_G² clamp
+    (``caglioti._MIN_GAMMA_G2``, WP-1938 D7): ``ProfileTCHZ`` raises any W
+    bound under the clamp back to it, so "widen the bound" cannot be acted on
+    there either.
+    """
+    return (limit is not None and limit[0] == "lower"
+            and 0.0 <= limit[1] <= _MIN_GAMMA_G2)
+
+
 def _guard_diagnostics(guard) -> list[Diagnostic]:
     """Guard findings as diagnostics — one prose message per :class:`GuardFinding`.
 
@@ -5424,10 +5437,10 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
             level="warning", code="BOUND_HIT", where=list(finding.paths),
             value=finding.value,
             message=f"{path} refined to its bound{finding.detail}",
-            # a lower limit of exactly 0 is a scale or width, which no wider
-            # bound can help (WP-1938); WP-1929 owns a floor's own code
+            # a lower limit of 0, or W's clamp, is a scale or width, which no
+            # wider bound can help (WP-1938); WP-1929 owns a floor's own code
             suggestion=(_ZERO_FLOOR_SUGGESTION
-                        if finding.limit == ("lower", 0.0)
+                        if _at_zero_floor(finding.limit)
                         else "widen the bound or fix the parameter"),
         ))
     for finding in guard.nonpositive_adps:

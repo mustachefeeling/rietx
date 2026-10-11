@@ -2904,7 +2904,9 @@ class ParameterTable:
         starts b at 0.3, near the band where the data can see it
         (``strategy.staged._ROUGHNESS_STAGE``).  A row that can go negative
         (an offset, a Stephens DOF, a background coefficient) is left alone,
-        since its zero is not a floor.  Returns the paths seeded.
+        since its zero is not a floor.  So is a row whose upper bound lies
+        under the seed: written there, the value would leave its own box, and
+        the model write-back refuses it.  Returns the paths seeded.
 
         Until WP-1938 this selected softplus rows, whose column at the floor
         was twelve orders below its neighbours in the internal coordinate.
@@ -2926,7 +2928,7 @@ class ParameterTable:
                 continue
             e = self.entries[i]
             target = value * self._value_scale.get(path, 1.0)
-            if e.vary and 0.0 <= e.lo and e.value <= e.lo < target:
+            if e.vary and 0.0 <= e.lo and e.value <= e.lo < target <= e.hi:
                 e.value = target
                 seeded.append(path)
         if seeded:
