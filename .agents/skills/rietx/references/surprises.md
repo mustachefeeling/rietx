@@ -58,8 +58,7 @@ start.** Every parameter refines in its own units, so a width, scale or
 extinction coefficient freed at 0 has its physical column there and can leave
 the floor unseeded. A Stephens block has Λ ∝ √Σ with *unbounded* slope at
 Σ = 0, so it needs `Stage.strain_seed` to start on the isotropic ray.
-`Stage.seed` is a plan's choice of where a solve starts. The plans already
-carry both.
+`Stage.seed` is a plan's choice of where a solve starts.
 
 **8.7 A default is a decision, in either direction.** Anisotropic ADPs,
 Stephens strain, surface roughness and preferred orientation are opt-in per
@@ -184,15 +183,12 @@ treat elapsed time as a diagnostic. If a stage runs long, do not wait for it —
 look at what you freed.**
 
 **8.14 A floor of zero under a parameter the model divides by is a pole the
-fit can reach.** The driver lands a parameter exactly on its bound when the
-data push that way, so a `min=0.0` value can end at **exactly 0**. When
-`PreferredOrientation.r` had that floor it reached 0, and the March-Dollase
-factor evaluated `(1 − c)/r` to inf/NaN. Nothing raises: the residual becomes
-garbage and the solver grinds through its whole budget on it (a 3-second stage
-that had not returned after ten minutes). Bounding `r` to 0.15–6 fixed the
-stall *and* the fit, Rwp 30.8 % → 13.2 %. **Corollary: for any parameter whose
-model divides by it, set a real floor above zero, and read `RuntimeWarning:
-divide by zero` as a fit-stopping error, not noise.**
+fit can reach.** The driver lands a parameter exactly on its bound, so a
+`min=0.0` value can end at exactly 0. March-Dollase `r` once did: `(1 − c)/r`
+became inf/NaN, nothing raised, and the solver spent its whole budget. A real
+floor fixed the stall *and* the fit, Rwp 30.8 % → 13.2 %. **Give any parameter
+the model divides by a floor above zero, and read `RuntimeWarning: divide by
+zero` as a fit-stopping error.**
 
 **8.15 A coverage score cannot tell a mixture from a low-symmetry single phase,
 and this project already published that mistake and withdrew it.** Measured on
@@ -516,3 +512,9 @@ plus each histogram's `BACKGROUND_ABSORPTION`, on both lists: count it once.
 `DATA_SUPPORT_LOW` never fires on a joint fit. Histogram h's radiation is
 `MultiHistogramRefinement.fitted_instruments[h].source.kind`.
 (Measured: WP-1312, WP-1344.)
+
+**8.31 A Pawley fit past 128 free columns can stop a stage on budget.**
+LM's inexact step there can stall at `max_iter`.
+Refit with `solver="trf"` and compare: on FAP.XRA's 343 columns LM stopped
+at Rwp 0.0804, TRF converged at 0.0784.
+(Measured: WP-1938; WP-1953 owns the fix.)

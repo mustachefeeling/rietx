@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
 Depends on: 1938 (LM the default driver, and the measurement below); 1467 soft (the clamp's messages)
-Priority: P3 2026-10-11 — no quoted number rests on the scatter it removes, since brucite's S_HKL are declared unquotable
+Priority: P3 2026-10-11 — no quoted number rests on the scatter it removes, since brucite's S_HKL are declared unquotable; 1938 landed (#883), so nothing hard blocks it
 
 ## Goal
 
