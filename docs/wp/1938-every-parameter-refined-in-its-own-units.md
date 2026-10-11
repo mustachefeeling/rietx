@@ -97,6 +97,20 @@ and stages end on `ftol_runs` after moving Biso by 4e-9, so softplus + LM must
 never ship as the default. The full table is in WP-1937's 2026-10-10 handover
 entry.
 
+**Issue #900: a restated `min=0.0` meets TRF** (folded 2026-10-11 from the
+issue triage, PR #901). Before this WP, `schemas.common.declared_fills`
+inherited a declared transform only when the caller omitted every bound it
+enforced. So `Phase.scale=Parameter(value=1.0, min=0.0)` came back identity
+with a hard bound at zero, which is the coordinate system this WP now applies
+to every field. The issue's script (synthetic PbSO₄, one stage freeing
+everything, scale started 2400× high; `08176f6f`, macOS arm64, `[dev]`):
+softplus + TRF, identity + LM and softplus + LM all reach χ² 7111 (Pb Biso
+1.48). Identity + TRF converges at χ² 2.657e5 with Pb Biso 61.1, in 153
+iterations, and `x_scale="jac"` lands in the same basin in 92. So the LM
+default closes #900, and `solver="trf"` keeps the failing row. The triage
+declined an interim fix to `declared_fills`, and told the reporter that
+`solver="lm"` or omitting the `min` works until this WP lands.
+
 **The 16 suite failures under physical + LM**, out of 455 tests in the
 files 1937's item named, slow included; TRF passes all 455. Two are
 expected: `test_acceptance_stephens`'s
@@ -306,6 +320,12 @@ driver alone).
       quoted number. Under LM brucite + Stephens reaches χ²_red 8.00056
       against TRF's 7.636, a point outside the cone.
 - [ ] The 16 suite failures above, each fixed or given its reason.
+- [ ] Issue #900's script as a test of the default driver: about 5 s, no
+      download, and it must reach χ² 7111 (Context, Issue #900).
+- [ ] `solver="trf"` says what it costs now: under physical coordinates a
+      positive field can land in the wrong basin (#900's 2.657e5 against
+      7111), and `x_scale="jac"` does not rescue it. A docstring, or a
+      diagnostic when TRF is selected; the choice is the maintainer's.
 
 ## Acceptance
 
