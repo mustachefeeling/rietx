@@ -125,6 +125,25 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-09, from WP-1547.** The 230-group sweeps in
+  `test_magnetic_isotropy.py` (the Γ sweep, the real-amplitude count) and
+  `test_magnetic_irreps.py` (Burnside, Frobenius-Schur, the spgrep tables)
+  take a `SWEEPS` parameter. The fast tier runs a trap-chosen sample of 23
+  groups (`tests/space_group_sample.py`), and the `all-230` cases are `slow`.
+  A new sweep over the groups takes the same parameter. A timing of
+  `isotropy.analyse` read from the fast tier's junit now measures the sample;
+  read the nightly's `[all-230]` rows for the whole sweep.
+- **2026-10-09, from WP-1930 (PR #849).** `SOLVE_STAGE_PATHS`'
+  "all" stage (`strategy/magnetic.py:213`) frees `phases.*.gauss_strain` beside
+  `instrument.profile.u` and `phases.*.lor_size` beside `instrument.profile.x`,
+  which are exactly degenerate on one histogram. The floor seed now starts the
+  two phase widths off their floor, and on the two-site Pnma set they come back
+  at ρ = ±1.000 with `x` and `u`, a degeneracy the floor had hidden. Their
+  correlation with the moments is ≤ 0.007, so no moment moved. The same seed
+  let class 0's moment stage converge where it hit `max_iter`, so its pair
+  report vanished (#820): `test_pair_diagnostic_class`'s naming check moved to
+  the 150 K Cr₂WO₆ solution.
+
 - **2026-10-08, from the second issue triage (issue #835): an analytic
   threshold for M-8's chance score, in place of the per-pattern shuffles.**
   The #795 entry below sets M-8's reporting threshold as the 99th percentile
@@ -257,7 +276,17 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   parent site (`tie_equal`, a `SOLVE_B_TIED_PER_PARENT_SITE` info row), and a
   synthetic Pnma test. Open, the maintainer's: hold the cell or use 1419's
   metric subspace, and whether the reference fit takes the same ties (ΔBIC
-  needs equal free sets).
+  needs equal free sets). *Decided 2026-10-06, through draft PR #746:*
+  `solve_magnetic(..., tie_to_parent=True)` is wanted as an option, default
+  off. It holds the child cell, ties child Biso per parent atom, and gives
+  the nuclear reference the same ties. That is the screening form. The end
+  state follows mode-amplitude practice (ISODISTORT with TOPAS; Campbell,
+  Evans, Perselli and Stokes 2007): the parent's own cell parameters refine,
+  the child cell is derived from them, and a strain mode is freed only where
+  the data show one. It is built once, in WP-1419, never here.
+  *Recovered 2026-10-10: committed after PR #796 merged, so it reached main
+  only now.* The 2026-10-08 entry's open question on the default was written
+  without this decision.
 
 - **2026-10-05, from the issue triage (issue #679): a displacive
   candidate's group is a parent-lattice group at every k ≠ 0.** The rule is

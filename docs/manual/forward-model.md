@@ -66,7 +66,10 @@ I_k \;\leftarrow\;
 
 {source}`rietx.model.forward.CompiledModel.lebail_update`
 
-The update is a fixed point when $y_{\mathrm{obs}} = y_{\mathrm{calc}}$. The
+Here $y_{\mathrm{bragg},i}$ is the Bragg part of {eq}`fm-ycalc` at point $i$.
+It sums over every phase and leaves out the background. The bracket is then
+reflection $k$'s share of the calculated Bragg intensity at that point, and the
+shares sum to 1 at each point. The update is a fixed point when $y_{\mathrm{obs}} = y_{\mathrm{calc}}$. The
 extracted intensities live outside the parameter vector and are path-dependent,
 so a history node serializes them beside the parameters it stores.
 

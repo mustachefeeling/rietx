@@ -19,6 +19,15 @@ from rietx.schemas.structure import Structure
 
 DATA = Path(__file__).parent / "data"
 
+
+@pytest.fixture(autouse=True)
+def _one_creation_date(monkeypatch):
+    """Two files written a moment apart compare byte for byte only while they
+    carry one ``_audit_creation_date``, and a run crossing midnight would not."""
+    from rietx.io.cif import blocks
+
+    monkeypatch.setattr(blocks, "_today", lambda: "2026-10-09")
+
 #: A perchlorate disordered over two orientations, as SHELXL writes PART 1 and
 #: PART 2 at 0.6 and 0.4, beside an ordered K.  The file's own numbers are
 #: built here: Cl–O 1.43 Å, the second orientation the first turned 77° about

@@ -19,12 +19,17 @@ transparent background carries no fringe of any background colour.  With a
 background the same sums are composited over it, which is the same picture the
 GUI draws on an opaque canvas.
 
-**Two paths, one picture.**  ``_kernels_numba.render_rows`` draws a band of
-rows and bands spread over the compiled tier's shared pool; :func:`_band_numpy`
-is the same arithmetic vectorised over each primitive's box, and the oracle the
-kernel is measured against.  Neither calls a library function, so the bar is
-the bit.  Which one runs is ``model.compiled.enabled()`` — one path a process,
-``RIETX_COMPILED=0`` the switch — and a build without numba runs numpy.
+**Two paths, one picture.**  The wheel's ``render_rows``
+(``kernels/src/raster.rs``, ``rietx-kernels`` from 1.1.0) draws a band of rows,
+and the bands spread over the compiled tier's shared pool.  :func:`_band_numpy`
+is the same arithmetic vectorised over each primitive's box.  It is the oracle
+the kernel is held to, and the path wherever the wheel did not load.  Neither
+calls a library function: ``sqrt`` is an IEEE operation, the specular power is
+repeated squaring, and the box filter adds the samples in one order.  So the
+bar is the bit, and ``tests/test_raster_kernels.py`` asserts it inside real
+renders, for this function and :func:`_ids_numpy` alike.  Which path runs is
+``model.compiled.enabled()``, one path a process, and ``RIETX_COMPILED=0`` is
+the switch.  A numba kernel held this place until WP-1940.
 
 **An id pass** (:func:`id_plane`, WP-1503) runs the same two tests over a small
 frame and writes which atom or bond half is in front at each pixel, for the
@@ -36,7 +41,6 @@ pass and a view search runs the pass a hundred times.
 from __future__ import annotations
 
 import math
-import threading
 from dataclasses import dataclass
 
 import numpy as np
@@ -48,42 +52,16 @@ from .scene import LOOK, POLY_ALPHA
 #: holds its 12000 px sample plane (D5); about 40 MB of band buffers a thread.
 BAND_SAMPLES = 1 << 20
 
-_LOCK = threading.Lock()
-_KERNEL = None
-_ID_KERNEL = None
-_UNAVAILABLE = False
 
+def _kernel(name: str):
+    """The wheel's kernel ``name``, or ``None`` for the numpy path.
 
-def _load() -> None:
-    """Build the compiled kernels once; a failed import leaves both ``None``.
-
-    A caller that finds the build in progress waits for it, as the model's
-    kernels do, so which path a render took never depends on machine speed.
+    The path is the process's, :func:`~rietx.model.compiled.enabled`, and a
+    test switches it with :func:`~rietx.model.compiled.set_enabled`.  Forced on
+    where the wheel did not load, it runs numpy, as the model's entry points do.
     """
-    global _KERNEL, _ID_KERNEL, _UNAVAILABLE
-    if _KERNEL is not None or _UNAVAILABLE:
-        return
-    with _LOCK:
-        if _KERNEL is None and not _UNAVAILABLE:
-            compiled._redirect_cache()
-            try:
-                from ._kernels_numba import id_plane, render_rows
-            except Exception:  # pragma: no cover - depends on the install
-                _UNAVAILABLE = True
-                return
-            _KERNEL, _ID_KERNEL = render_rows, id_plane
-
-
-def _kernel():
-    """The compiled ``render_rows``, built once; ``None`` without numba."""
-    _load()
-    return _KERNEL
-
-
-def _id_kernel():
-    """The compiled ``id_plane``, built with :func:`_kernel`'s."""
-    _load()
-    return _ID_KERNEL
+    kernels = compiled._kernels() if compiled.enabled() else None
+    return None if kernels is None else kernels[name]
 
 
 @dataclass
@@ -354,7 +332,8 @@ def _outline_numpy(ext0, sr0, hs, ws, total, ow, otau, ocol, zb, pm):
 
 
 def _band_numpy(r0, r1, s, frame, pk, alpha, bg, outline, out):
-    """``render_rows`` in numpy: the same expressions, over each box at once."""
+    """Rows ``r0`` to ``r1`` of ``out``: each primitive's per-sample
+    expressions, evaluated over its whole box at once."""
     hs, ws, sr0 = (r1 - r0) * s, frame.width * s, r0 * s
     total = frame.height * s
     ow, otau, ocol = outline
@@ -490,14 +469,13 @@ def _band_numpy(r0, r1, s, frame, pk, alpha, bg, outline, out):
 
 def draw(scene: dict, rotation, frame: Frame, *, supersample: int = 2,
          background=(1.0, 1.0, 1.0), text: list | None = None,
-         outline: tuple | None = None, compiled_path: bool | None = None) -> np.ndarray:
+         outline: tuple | None = None) -> np.ndarray:
     """The picture, ``frame.height × frame.width × 4`` ``uint8``, straight alpha.
 
     ``background`` is three channels in 0..1, or ``None`` for transparent.
     ``text`` is strokes drawn over everything: ``((u0, v0, u1, v1), half-width,
     colour)`` in image pixels.  ``outline`` is ``(radius in image pixels,
-    depth step in Å, colour)``, or ``None``.  ``compiled_path`` forces a path
-    for a test; ``None`` takes the process's.
+    depth step in Å, colour)``, or ``None``.
     """
     s = int(supersample)
     pk = _pack(scene, rotation, frame, s, text)
@@ -508,23 +486,27 @@ def draw(scene: dict, rotation, frame: Frame, *, supersample: int = 2,
         ow = max(1, round(outline[0] * s))
         otau, ocol = float(outline[1]), np.asarray(outline[2], dtype=np.float64)
     rows = max(1, BAND_SAMPLES // (frame.width * s * s))
-    use = compiled.enabled() if compiled_path is None else compiled_path
-    kernel = _kernel() if use else None
-    if kernel is not None:
-        # at least one band a worker, or a 1000 px render is four bands and
-        # leaves the rest of the pool idle; the bits do not depend on banding
-        rows = min(rows, max(1, -(-frame.height // compiled.n_threads())))
-    bands = [(r, min(frame.height, r + rows)) for r in range(0, frame.height, rows)]
+    kernel = _kernel("render_rows")
     if kernel is None:
-        for r0, r1 in bands:
-            _band_numpy(r0, r1, s, frame, pk, POLY_ALPHA, background, (ow, otau, ocol), out)
+        for r0 in range(0, frame.height, rows):
+            _band_numpy(r0, min(frame.height, r0 + rows), s, frame, pk, POLY_ALPHA,
+                        background, (ow, otau, ocol), out)
         return out
-    bg = np.zeros(3) if background is None else np.asarray(background, dtype=np.float64)
+    bg = None if background is None else np.asarray(background, dtype=np.float64)
     args = (s, frame.height, frame.x0, frame.y0, frame.ppa * s, frame.width, pk["look"],
-            POLY_ALPHA, bg, background is not None, ow, otau, ocol,
-            *pk["atom"], *pk["half"], *pk["line"], *pk["tri"], *pk["text"], out)
+            POLY_ALPHA, bg, ow, otau, ocol, pk["atom"], pk["half"], pk["line"], pk["tri"],
+            pk["text"], out)
     pool = compiled._pool()
-    for f in [pool.submit(kernel, r0, r1, *args) for r0, r1 in bands]:
+    workers = compiled._POOL_WORKERS     # the pool's own count, as ``_spread`` reads it
+    if workers <= 1:
+        for r0 in range(0, frame.height, rows):
+            kernel(r0, min(frame.height, r0 + rows), *args)
+        return out
+    # at least one band a worker, or a 1000 px render is four bands and leaves
+    # the rest of the pool idle; the bits do not depend on banding
+    rows = min(rows, max(1, -(-frame.height // workers)))
+    for f in [pool.submit(kernel, r0, min(frame.height, r0 + rows), *args)
+              for r0 in range(0, frame.height, rows)]:
         f.result()
     return out
 
@@ -669,24 +651,25 @@ def _ids_numpy(pk: dict, frame: Frame, atom_box, half_box, ids, seen) -> None:
         ids[rows, cols] = np.where(hit, na + i, ids[rows, cols])
 
 
-def id_plane(pk: dict, frame: Frame, compiled_path: bool | None = None) -> IdPlane:
+def id_plane(pk: dict, frame: Frame) -> IdPlane:
     """Which atom or bond half is in front at each pixel of ``frame``, for the
     arrays :func:`pack_ids` built (WP-1503).
 
     One sample a pixel, atoms and bond halves only: a cell-frame line is a
     pixel wide and a polyhedron face writes no depth, so neither hides an atom.
-    The depth test and the ray arithmetic are :func:`draw`'s.
+    The depth test and the ray arithmetic are :func:`draw`'s, and so is the
+    choice of path.
     """
     atom_box, half_box = _boxes(pk["atom_reach"], frame), _boxes(pk["half_reach"], frame)
     ids = np.full((frame.height, frame.width), -1, dtype=np.int32)
     seen = np.zeros(len(atom_box), dtype=np.int64)
-    use = compiled.enabled() if compiled_path is None else compiled_path
-    kernel = _id_kernel() if use else None
+    kernel = _kernel("id_plane")
     if kernel is None:
         _ids_numpy(pk, frame, atom_box, half_box, ids, seen)
     else:
-        kernel(frame.y0, frame.x0, frame.ppa, frame.height, frame.width, pk["atom_c"],
-               pk["atom_m"], pk["atom_a"], atom_box, pk["half_a"], pk["half_w"],
-               pk["half_len"], pk["half_e"], pk["half_ea"], pk["half_r"], half_box, ids, seen)
+        kernel(frame.y0, frame.x0, frame.ppa,
+               (pk["atom_c"], pk["atom_m"], pk["atom_a"], atom_box),
+               (pk["half_a"], pk["half_w"], pk["half_len"], pk["half_e"], pk["half_ea"],
+                pk["half_r"], half_box), ids, seen)
     front = np.bincount(ids[ids >= 0], minlength=len(atom_box) + len(half_box))[:len(atom_box)]
     return IdPlane(ids=ids, seen=seen, front=front, index=pk["index"])

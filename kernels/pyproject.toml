@@ -1,0 +1,20 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "rietx-kernels"
+dynamic = ["version"]
+description = "The compiled kernels of rietx: its model and its structure figure"
+readme = "README.md"
+license = "MIT AND BSL-1.0"
+license-files = ["LICENSE", "src/sleef.LICENSE"]
+authors = [{ name = "Yue Wu" }]
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26"]
+
+[project.urls]
+Homepage = "https://github.com/yue-here/rietx"
+
+[tool.maturin]
+module-name = "rietx_kernels"

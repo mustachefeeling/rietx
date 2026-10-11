@@ -46,7 +46,11 @@ and the McMaster total cross sections {cite}`mcmaster1969`:
 
 {source}`rietx.crystallography.attenuation.linear_attenuation`
 
-(1 barn = 10⁻²⁴ cm² and 1 Å³ = 10⁻²⁴ cm³, so the exponents cancel).
+The sum runs over the asymmetric-unit sites. A site has occupancy
+$\mathrm{occ}$ and the multiplicity $m$ of {eq}`par-multiplicity`, so
+$\mathrm{occ}\cdot m$ counts its atoms per cell. $\sigma_{\mathrm{tot}}$ is the
+species' total cross section at the working wavelength, and $V$ is the cell
+volume. One barn is 10⁻²⁴ cm² and one Å³ is 10⁻²⁴ cm³, so the exponents cancel.
 Attenuation means beam removal, so the total cross section is the one used,
 coherent and incoherent scattering included. That is the NIST convention
 {cite}`hubbell1995`. The tabulation is a ~2 %-spaced logarithmic grid that

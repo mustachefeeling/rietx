@@ -378,7 +378,8 @@ def test_cif_carries_the_tags_and_the_esd_method():
 
     # gap 8: the method, not just the factor.  The base estimator has to be
     # named — an inflation factor alone does not say what it multiplied.
-    details = block.find_value("_pd_proc_ls_special_details")
+    # a text field's line breaks are layout (80 columns), never content
+    details = " ".join(block.find_value("_pd_proc_ls_special_details").split())
     assert "(J^T J)^-1" in details
     assert "chi^2_red" in details
     assert "Berar-Lelann" in details
@@ -391,6 +392,8 @@ def test_cif_carries_the_tags_and_the_esd_method():
         p.stderr = None
     bare_block = refinement_cif_doc(bare, ref.fitted_structure,
                                     ref.fitted_instrument).sole_block()
-    assert bare_block.find_value("_pd_proc_ls_special_details") is None
+    # (the item also holds sentences about other things, WP-1933)
+    assert "Standard uncertainties" not in (
+        bare_block.find_value("_pd_proc_ls_special_details") or "")
     # the profile R factors are unconditional and must still be there
     assert bare_block.find_value("_pd_proc_ls_prof_wR_factor") is not None

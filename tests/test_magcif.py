@@ -53,6 +53,15 @@ from rietx.io.projects.topas import (
 )
 from rietx.io.projects.topas import to_structure as topas_to_structure
 
+
+@pytest.fixture(autouse=True)
+def _one_creation_date(monkeypatch):
+    """Two files written a moment apart compare byte for byte only while they
+    carry one ``_audit_creation_date``, and a run crossing midnight would not."""
+    from rietx.io.cif import blocks
+
+    monkeypatch.setattr(blocks, "_today", lambda: "2026-10-09")
+
 # ===========================================================================
 # fixtures — typed, cited, not vendored
 # ===========================================================================
@@ -2583,6 +2592,10 @@ def test_no_shipped_fixture_carries_a_magnetic_construct_without_a_stance():
     for path in sorted(root.rglob("*")):
         if path.is_dir() or path.suffix in (".xye", ".fxye", ".xy", ".dat",
                                             ".raw", ".png"):
+            continue
+        # the vendored COMCIFS dictionaries define every magnetic tag and
+        # state no magnetic structure, so they are not fixtures a reader meets
+        if "cif_dictionaries" in path.relative_to(root).parts:
             continue
         try:
             text = path.read_text(encoding="utf-8", errors="strict")

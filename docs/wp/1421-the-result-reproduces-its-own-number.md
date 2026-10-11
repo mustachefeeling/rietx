@@ -120,6 +120,22 @@ checks the thread and `gh pr list` first.
   before, exact after; the magnetic 1.09e-3 is the PR's own measurement) and
   on leaving the zero case to the maintainer.
 
+- **From WP-1930 (2026-10-09): the message's "not biased" clause fails on a
+  fit whose peaks outgrow their windows.** The clause rests on this WP's two
+  good fits, where the minimum moved ≤ 0.0014 esd. The counterexample is
+  `test_cell_runaway_safety.py::test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error`,
+  a wrong P 1 cell on synthetic silicon, `lab_bragg_brentano` after
+  `profile_only`. With WP-1930's seed, a 1e-14 nudge to `profile.w` sends
+  some runs to U, V, W and X at their upper bounds. Every stage then ends at
+  χ² ≈ 3.29e5 on its frozen compile, because each peak is cut at a window
+  sized when it was narrow. The fresh compile at the same values gives
+  2.56e8, 3.1e4 % apart, and Rwp 6.55 under `status="converged"`; Linux CI
+  reached Rwp 1.1e9 with no nudge. The finding still reads "The fit is not
+  biased by it" at level `info`. The fit is wrong by construction, so no
+  answer is lost here. The message's claim is what fails. Its wording, and
+  perhaps its level, should follow the size of the gap. Reproduce with
+  `ins.profile.w.value *= 1 - 3e-14` before the first fit on macOS arm64.
+
 **From WP-1342 (2026-09-19).** `StageResult` gained `held_reach`, a
 `dict[str, list[str]]` written on every stage beside `held`. It is state a
 replay has to reproduce, and it is the first *mapping* on that record rather

@@ -175,6 +175,13 @@ Debye-Waller factor is not floored, so there is no hinge to lean on.
 
 ### Inherited
 
+- **2026-10-10, from WP-1937: the flip to `solver="lm"` moved to WP-1938.**
+  This WP's suggestion that names `solver="lm"` changes shape only when 1938
+  makes it the default. Measured there, in physical coordinates: brucite +
+  Stephens under LM stalls against the cone (χ²_red spread 1.6e-6 over five
+  starts nudged by 1e-14, 8 truncated steps in `sample_broadening`).
+  WP-1938 owns that stall as a task.
+
 - **2026-09-28, from [1338](1338-the-skills-own-gates.md): `references/diagnostics.md` is closed to growth.**
   Every skill file now has a ceiling and a budget below it
   (`tests/skill_caps.py`), and the budget fails a change that grows a file
@@ -183,6 +190,15 @@ Debye-Waller factor is not floored, so there is no hinge to lean on.
   comes with an equal cut in the same change, or goes to the file a reader
   meets the code in (the criterion in the `REFERENCE_MAX_BYTES` comment).
   CI's lint job reports each changed file's headroom on the draft PR.
+- **2026-10-09, from WP-1929 (2nd session): `solver="lm"` may become the
+  default.** WP-1937 replaces the LM driver's BCCG step with an exact
+  bounded solve (BVLS) and, once its statuses and budgets match TRF's, makes
+  it the default. The Stephens cone stays a linear inequality around that
+  step. If 1937 lands first, the suggestion task here ("names `solver="lm"`
+  first") becomes a statement that the default already enforces the cone,
+  and the measured TRF-versus-LM table should be re-run under the new step.
+  On brucite aniso (WP-1929's grid, physical coordinates) LM reached χ²_red
+  8.0006 against TRF's 7.636, which carries `STEPHENS_STRAIN_NOT_POSITIVE`.
 
 ## Non-goals
 

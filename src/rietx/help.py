@@ -1387,8 +1387,8 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
     "max_iter": HelpEntry(
         title="Iteration budget",
         description=(
-            "Approximate solver iterations for this stage. The trust-region "
-            "solver caps function evaluations rather than iterations, so the "
+            "Approximate solver iterations for this stage. Both solvers "
+            "cap function evaluations rather than iterations, so the "
             "number is scaled by a measured worst-case rejection rate before "
             "it reaches the solver."
         ),

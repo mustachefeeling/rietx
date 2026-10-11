@@ -196,6 +196,18 @@ Pawley mode, where the dummy atom the mode requires is not a structure to
 measure, and it is computed at the close of the fit rather than on demand: the
 covariance it needs is read off the final Jacobian, which is never stored.
 
+### The cell volume
+
+`RefinementResult.cell_volumes` holds one `CellVolume` per phase, in every mode,
+since a Le Bail cell is refined as surely as a Rietveld one.
+`CellVolume.phase_index` names the phase and `CellVolume.volume` is in Å³.
+`CellVolume.stderr` goes through the covariance of the six cell entries, so a
+tie such as b = a and a correlation between a and c both reach it. On a cubic
+cell it is exactly 3a²σ(a). `CellVolume.stderr_diagonal` is the diagonal-only
+number, as for a distance, and the four absences above apply unchanged. The
+refinement CIF writes the volume with this esd. `RefinementResult.cell_volumes`
+is `None` on a result that did not come from a fit.
+
 ## The size and the strain, in physical units
 
 A refined profile width is a number of degrees, and a number of degrees is not

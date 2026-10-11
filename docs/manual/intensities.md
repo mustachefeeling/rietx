@@ -138,7 +138,12 @@ e^{2\pi i\, \mathbf{h}\cdot(R_m \mathbf{x}_j + \mathbf{t}_m)},
 
 {source}`rietx.crystallography.structure_factor.structure_factors_squared`
 
-where the inner sum runs over a per-atom subset of symmetry operations, chosen
+where $j$ runs over the asymmetric-unit sites. Site $j$ has occupancy
+$\mathrm{occ}_j$, fractional coordinates $\mathbf{x}_j$ and species factor
+$f_j$ of {eq}`int-species`. Symmetry operation $m$ has rotation $R_m$ and
+translation $\mathbf{t}_m$, and $T_{jm}$ is the Debye-Waller factor of the
+image it makes. $\mathbf{h} = (h, k, l)$ holds the Miller indices, as in
+{eq}`pos-dspacing`. The inner sum runs over a per-atom subset of symmetry operations, chosen
 once per stage so that special-position images are not double counted. The
 subset is frozen and discrete, while the positions it produces stay smooth
 functions of the refined coordinates. Intensities use $|F|^2$ with the
@@ -258,7 +263,8 @@ B(\mathbf{h}) &= \sum_j \mathrm{occ}_j\, f''_j
 \end{aligned}
 ```
 
-gives $F = A + iB$, and since $T$ is real, $F(-\mathbf{h}) =
+with $\mathbf{x}_{jm} = R_m\mathbf{x}_j + \mathbf{t}_m$ the image position of
+{eq}`int-F`, gives $F = A + iB$, and since $T$ is real, $F(-\mathbf{h}) =
 \overline{A - iB}$, so
 
 ```{math}

@@ -7,6 +7,9 @@ __pycache__/
 uv.lock
 dist/
 build/
+# the kernel crate's cargo output (WP-1940), and WP-1939's in-place Cython builds
+kernels/target/
+examples/aot_spike/cython/*.so
 .pytest_cache/
 .hypothesis/
 .coverage

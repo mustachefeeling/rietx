@@ -19,7 +19,6 @@ from ..schemas.structure import (
     Structure,
 )
 from . import magcif
-from .adp import U_NAMES, u_equivalent
 from .magnetic.scattering import check_group_is_structure_symmetry
 from .symmetry import (
     OperatorGroup,
@@ -754,6 +753,9 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
     disorder = (_disorder_columns(path, small.name)
                 if re.search(r"(?i)_atom_site_disorder", text) else {})
     site_statements = _site_statements(path, small.name)
+    # the writer chooses its U against this very arithmetic (io/cif/blocks)
+    from ..io.cif.blocks import b_from_u
+
     for site in small.sites:
         has_aniso = site.aniso.nonzero()
         u_iso = site.u_iso
@@ -766,7 +768,7 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
             # fallback, where the tensor is being discarded anyway
             u_eq = (site.aniso.u11 + site.aniso.u22 + site.aniso.u33) / 3.0
             u_iso = u_eq if u_eq > 0 else 0.5 / (8.0 * math.pi ** 2)
-        b_iso = u_iso * 8.0 * math.pi ** 2
+        b_iso = b_from_u(u_iso)
         raw = site.type_symbol or site.element.name
         species, note = normalize_cif_species(raw)
         if note is not None:
@@ -1164,98 +1166,28 @@ def _disorder_columns(path: str, name: str) -> dict[str, tuple[str | None, str |
     return out
 
 
-def _fmt(p: Parameter, decimals: int) -> str:
-    """A CIF number from a :class:`Parameter`, su included when known."""
-    return format_su(p.value, p.stderr, decimals=decimals)
-
-
 def write_structure_block(block, phase: Phase, *,
                           moment_magnitude_esds: dict[str, float] | None = None,
                           ) -> None:
-    """Write one phase's cell, sites and ADP loops into a gemmi CIF ``block``.
+    """Write one phase's structure block into a gemmi CIF ``block``.
 
-    A phase carrying its own operation list also gets a
-    ``_space_group_symop_operation_xyz`` loop in its own order, which
-    :func:`structure_from_cif` reads back under the bracketed label.
-
-    Anisotropic sites get an ``_atom_site_aniso_*`` loop in the CIF U^ij
-    convention — the same numbers :class:`~rietx.schemas.structure.AnisoU`
-    stores — and their ``_atom_site_B_iso_or_equiv`` carries the equivalent
-    B_eq = 8π²·U_eq computed from the tensor and cell, so a reader that
-    ignores the aniso loop still sees the right isotropic magnitude rather
-    than a stale starting estimate.  Standard uncertainties are written for
-    any parameter whose ``stderr`` is set (see
-    ``ParameterTable.apply_to_models``).  Shared with the refinement exporter
-    (``io/exporters.py``), which appends refinement + pattern loops to the
-    same block.
+    A thin caller of :func:`rietx.io.cif.blocks.write_structure_block`, the one
+    writer of the structure block (WP-1319 C-c), whose module docstring says
+    what it writes: the resolved setting with the operation loop, U rather than
+    B, the cell contents and the ``_audit`` items.
     """
-    c = phase.cell
-    cell6 = c.lengths_angles()
-    for name in ("a", "b", "c"):
-        block.set_pair(f"_cell_length_{name}", _fmt(getattr(c, name), 6))
-    for name in ("alpha", "beta", "gamma"):
-        block.set_pair(f"_cell_angle_{name}", _fmt(getattr(c, name), 4))
-    block.set_pair("_symmetry_space_group_name_H-M", gemmi.cif.quote(phase.space_group))
-    if phase.symmetry_operations is not None:
-        # the list is the group, in the order a symmetry code indexes; a
-        # bracketed label alone names nothing a reader can expand.  The
-        # refinement exporter's geometry loop rewrites the same loop from the
-        # same list (``resolve_group``), so the two cannot disagree.
-        ops = block.init_loop("_space_group_symop_", ["id", "operation_xyz"])
-        for idx, triplet in enumerate(phase.symmetry_operations):
-            ops.add_row([str(idx + 1), gemmi.cif.quote(triplet)])
-    # the two disorder columns only when a site declares one, so a file of an
-    # ordered structure is byte-identical to what this writer wrote before
-    disorder = [k for k in ("disorder_assembly", "disorder_group")
-                if any(getattr(a, k) is not None for a in phase.atoms)]
-    loop = block.init_loop("_atom_site_", [
-        "label", "type_symbol", "fract_x", "fract_y", "fract_z",
-        "occupancy", "B_iso_or_equiv", "adp_type", *disorder,
-    ])
-    for a in phase.atoms:
-        if a.aniso is None:
-            b_eq, kind = _fmt(a.biso, 4), "Biso"
-        else:
-            b_eq = f"{8.0 * math.pi ** 2 * u_equivalent(a.aniso.values(), cell6):.4f}"
-            kind = "Uani"
-        loop.add_row([
-            a.label, a.species,
-            _fmt(a.x, 6), _fmt(a.y, 6), _fmt(a.z, 6),
-            _fmt(a.occ, 4), b_eq, kind,
-            *("." if getattr(a, k) is None else gemmi.cif.quote(getattr(a, k))
-              for k in disorder),
-        ])
-    aniso = [a for a in phase.atoms if a.aniso is not None]
-    if aniso:
-        uloop = block.init_loop("_atom_site_aniso_", [
-            "label", "U_11", "U_22", "U_33", "U_12", "U_13", "U_23",
-        ])
-        for a in aniso:
-            uloop.add_row([a.label] + [_fmt(getattr(a.aniso, n), 5)
-                                       for n in U_NAMES])
-    # The magnetic half, when the phase carries one: the operator and centring
-    # loops, the BNS/OG metadata and the moments with their esds
-    # (``crystallography.magcif``).  Not the parent k: a supercell phase is
-    # written as a k = 0 structure in its own cell, and
-    # ``MagneticSymmetry.propagation_vector_parent`` does not survive the file
-    # (``test_a_magnetic_supercell_phase_round_trips_in_its_own_cell``).  Nothing at all is written for a phase with
-    # no ``magnetic_symmetry``, so every file this writer produced before this
-    # rung is byte-identical — the one property a writer change inside a
-    # function shared by ``structure_to_cif`` and the refinement exporter has
-    # to have.
-    magcif.write_magnetic_block(block, phase,
-                                magnitude_esds=moment_magnitude_esds)
+    from ..io.cif.blocks import write_structure_block as write
+
+    write(block, phase, moment_magnitude_esds=moment_magnitude_esds)
 
 
 def structure_to_cif(structure: Structure, path: str | os.PathLike[str]) -> None:
-    """Write phases to a minimal CIF (cell, positions, occupancies, ADPs).
+    """Write phases to a structure CIF, one data block per phase.
 
-    One data block per phase.  See :func:`write_structure_block` for the ADP
-    and standard-uncertainty conventions.
+    The blocks are :func:`rietx.io.cif.blocks.write_structure_block`'s, named
+    uniquely (:func:`rietx.io.cif.blocks.block_name`), behind the CIF 1.1
+    magic line.
     """
-    doc = gemmi.cif.Document()
-    for phase in structure.phases:
-        block = doc.add_new_block(re.sub(r"\W+", "_", phase.name))
-        write_structure_block(block, phase)
-    # gemmi's writer takes a str only, as its readers do (structure_from_cif).
-    doc.write_file(os.fspath(path))
+    from ..io.cif.blocks import structure_document, write_document
+
+    write_document(structure_document(structure), path)

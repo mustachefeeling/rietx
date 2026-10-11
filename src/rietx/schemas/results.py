@@ -618,6 +618,24 @@ class GeometryAngle(Base):
     symmetry_3: str | None = "."
 
 
+class CellVolume(Base):
+    """One phase's unit-cell volume in Å³, with its esd (WP-1933).
+
+    The esd goes through the whole covariance of the six cell entries
+    (:func:`~rietx.model.geometry.cell_volumes`), so a crystal-system tie and
+    the correlation between, say, a and c in a hexagonal cell both reach it.
+    esd conventions are :class:`GeometryDistance`'s exactly: ``None`` where
+    nothing the volume depends on was refined, or where a source measured
+    nothing, and ``stderr_diagonal`` the number with the refined parameters'
+    correlations dropped.
+    """
+
+    phase_index: int
+    volume: float                     # Å³
+    stderr: float | None = None
+    stderr_diagonal: float | None = None
+
+
 class GeometryTable(Base):
     """Bonding geometry of the converged model, with propagated esds (WP-1072).
 
@@ -770,6 +788,9 @@ class StageResult(Base):
 
     name: str
     status: Literal["converged", "max_iter", "diverged"]
+    #: residual evaluations the solve made, the start included: scipy's
+    #: ``nfev`` on both drivers, and the unit ``Stage.max_iter`` × 4 caps
+    #: (``NFEV_PER_ITERATION``, WP-1937)
     n_iterations: int
     cost_initial: float
     cost_final: float
@@ -925,6 +946,23 @@ class StageResult(Base):
     #: only on a result stored before the field, for :attr:`unknown_paths`'
     #: reason.  It feeds ``STAGE_FREED_NOTHING``.
     unreached_histograms: dict[int, list[str]] | None = None
+    #: each row this stage lifted before solving, and the value it started at
+    #: in column units (WP-1930).  Two writers put a row here: the stage's own
+    #: :attr:`~rietx.strategy.staged.Stage.seed`, and the floor seed, which
+    #: starts a freed softplus row sitting on its floor at its unit's
+    #: :data:`~rietx.params.vector.FLOOR_SEEDS` value.  The floor seed exists
+    #: because a fit's minimum otherwise depended on rounding: on LaB₆ + cBN
+    #: one platform reached χ²_red 9.69 and the other 12.48, with
+    #: ``instrument.profile.y`` left on its floor (issue #832).  ``None`` means
+    #: a result stored before the field; every runner writes a mapping, and an
+    #: empty one is a stage that lifted nothing.
+    seeded: dict[str, float] | None = None
+    #: freed softplus rows this stage left on their floor, because their unit
+    #: has no seed size (a hump's height is in counts).  Their columns are
+    #: twelve orders below their neighbours, so whether the solver moves them
+    #: is decided by rounding.  It feeds ``SOFTPLUS_FREED_AT_FLOOR``.  ``None``
+    #: on a result stored before the field, for :attr:`seeded`'s reason.
+    floor_unseeded: list[str] | None = None
 
 
 class HistogramResult(Base):
@@ -994,7 +1032,7 @@ def _stage_lines(stages: list[StageResult], max_shift_over_esd: float | None) ->
     lines = []
     for i, s in enumerate(stages):
         ftol = f"{s.ftol:.0e}" if s.ftol is not None else "solver default"
-        line = f"  stage {s.name}: {s.status} ({s.n_iterations} it, ftol={ftol})"
+        line = f"  stage {s.name}: {s.status} ({s.n_iterations} evals, ftol={ftol})"
         if i == len(stages) - 1 and max_shift_over_esd is not None:
             line += f", max|Δθ|/esd={max_shift_over_esd:.3f}"
         lines.append(line)
@@ -1224,6 +1262,11 @@ class RefinementResult(Base):
     # (WP-1072) — see :class:`GeometryTable`.  Rietveld-only, and None when the
     # result did not come from a fit that had a compiled model to search.
     geometry: GeometryTable | None = None
+
+    # Each phase's cell volume with its esd through the cell covariance
+    # (WP-1933), in every mode, since a Le Bail cell is a measurement too —
+    # see :class:`CellVolume`.  None when the result did not come from a fit.
+    cell_volumes: list[CellVolume] | None = None
 
     # Coherent domain size and microstrain as physical numbers (WP-1131) — see
     # :class:`PhaseMicrostructure`.  A carrier for the same reason ``geometry``

@@ -646,7 +646,8 @@ is not a comparison.
 **Where the suite runs, and what that can and cannot prove** (WP-1002; resized
 by WP-1060; un-shaped at WP-1003's visibility flip). Per push and per PR
 (`ci.yml`, the branch-protection required checks): ruff plus the fast suite
-across 3.11–3.14 and a `[dev,jax]` fast job, Linux, no path filter — a
+on 3.11 and 3.14 (3.12 and 3.13 nightly since WP-1547) and a `[dev,jax]`
+fast job, Linux, no path filter — a
 filtered job is a required check that never reports on a docs-only PR. A
 **draft** PR runs ruff alone (the draft guard, `ci.yml`'s header): the claim
 ritual opens a draft PR on a WP branch's first commit, so before it the whole

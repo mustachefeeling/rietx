@@ -312,35 +312,51 @@ def _general_ellipsoid() -> dict:
         aniso=AnisoU.from_values([0.03, 0.012, 0.02, 0.004, -0.003, 0.006])))
 
 
-@pytest.mark.skipif(not compiled.available(), reason="numba does not import here")
 @pytest.mark.parametrize("kw", [
     {"mode": "ball", "polyhedra": True, "atom_labels": True},
     {"mode": "ellipsoid", "background": None, "outline": True},
 ])
 def test_the_two_paths_draw_the_same_bits_in_any_banding(nac, kw, monkeypatch):
-    """The kernel and its numpy oracle call no library function, so the bar
-    between them is the bit (D1), and a band boundary moves nothing: the
-    outline reads across one through its halo."""
-    was = compiled.set_enabled(True)
+    """The wheel's kernel and its numpy oracle call no library function, so
+    the bar between them is the bit (D1).  A band boundary moves nothing on
+    either path: the outline reads across one through its halo.  The numpy
+    half runs without the wheel too."""
+    images = {}
+    was = compiled.set_enabled(False)
     try:
-        whole = render_structure(nac, size=240, **kw).image
-        monkeypatch.setattr(raster, "BAND_SAMPLES", 2000)      # dozens of bands
-        banded = render_structure(nac, size=240, **kw).image
-        compiled.set_enabled(False)
-        oracle = render_structure(nac, size=240, **kw).image
+        for bands in (raster.BAND_SAMPLES, 2000):              # whole, then dozens
+            monkeypatch.setattr(raster, "BAND_SAMPLES", bands)
+            for on in (False, True) if compiled.available() else (False,):
+                compiled.set_enabled(on)
+                images[on, bands] = render_structure(nac, size=240, **kw).image
     finally:
         compiled.set_enabled(was)
-    assert np.array_equal(whole, banded)
-    assert np.array_equal(whole, oracle)
-    assert (whole[..., 3] > 0).sum() > 5000
+    oracle = next(iter(images.values()))
+    assert all(np.array_equal(image, oracle) for image in images.values()), list(images)
+    assert (oracle[..., 3] > 0).sum() > 5000
 
 
-def test_the_numpy_path_is_what_runs_with_the_tier_switched_off(nac):
+def test_the_numpy_path_is_what_runs_with_the_tier_switched_off(nac, monkeypatch):
+    """The fallback is only real if something runs it, and the tier switched
+    on leaves it unrun wherever the wheel loaded."""
+    calls = []
+    band = raster._band_numpy
+
+    def counted(*a):
+        calls.append(a[:2])
+        band(*a)
+
+    monkeypatch.setattr(raster, "_band_numpy", counted)
     was = compiled.set_enabled(False)
     try:
         fig = render_structure(nac, size=160)
+        off = len(calls)
+        compiled.set_enabled(True)
+        render_structure(nac, size=160)
     finally:
         compiled.set_enabled(was)
+    assert off > 0
+    assert len(calls) == (off if compiled.available() else 2 * off)
     assert (fig.image[..., 3] > 0).sum() > 1000
 
 
@@ -418,9 +434,13 @@ def test_a_non_positive_tensor_draws_no_nan():
     try:
         with np.errstate(invalid="raise", divide="raise"):
             fig = render_structure(geo, mode="ellipsoid", size=200, background=None)
+        # the wheel cannot raise on a NaN, so it is held to the oracle instead
+        compiled.set_enabled(True)
+        wheel = render_structure(geo, mode="ellipsoid", size=200, background=None)
     finally:
         compiled.set_enabled(was)
     assert (fig.image[..., 3] > 0).sum() > 200
+    assert np.array_equal(wheel.image, fig.image)
 
 
 def test_the_png_carries_its_chunks_and_the_array(tmp_path, nac):
@@ -638,19 +658,23 @@ def _stack(z_near: float = 0.75, z_far: float = 0.25, **atom_kw) -> dict:
                                             cell=cell, atoms=atoms)]))
 
 
+@pytest.mark.skipif(not compiled.available(), reason="the rietx_kernels wheel did not load")
 def test_the_id_pass_is_the_same_on_both_paths(nac):
-    """One integer plane, so the bar between the compiled kernel and numpy is
+    """One integer plane, so the bar between the wheel's kernel and numpy is
     equality."""
-    if raster._id_kernel() is None:
-        pytest.skip("no compiled tier in this build")
     for geometry in (s3.build(nac), _general_ellipsoid()):
         scene = sc.build_scene(geometry, "ball")
         arrays = raster.scene_arrays(scene)
         for view in ("opening", "c", [1, 1, 0]):
             pk = raster.pack_ids(arrays, views.resolve(geometry, view))
             frame = raster.Frame(width=200, height=160, x0=-9.0, y0=8.0, ppa=11.0, px_scale=1.0)
-            a = raster.id_plane(pk, frame, compiled_path=True)
-            b = raster.id_plane(pk, frame, compiled_path=False)
+            was = compiled.set_enabled(True)
+            try:
+                a = raster.id_plane(pk, frame)
+                compiled.set_enabled(False)
+                b = raster.id_plane(pk, frame)
+            finally:
+                compiled.set_enabled(was)
             assert (a.ids >= 0).any()
             assert np.array_equal(a.ids, b.ids)
             assert np.array_equal(a.seen, b.seen) and np.array_equal(a.front, b.front)

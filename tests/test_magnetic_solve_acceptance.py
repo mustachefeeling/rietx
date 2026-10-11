@@ -97,6 +97,22 @@ def test_the_150k_pattern_has_nothing_to_solve(solved_150k):
     paired = [m for t in refined for m in t.moments if m.paired_with]
     assert paired, "the degenerate pair was not folded"
     assert not any(m.pair_supported for m in paired)
+    # each MOMENT_PAIR_DEGENERATE names its class, and that class's rows carry
+    # the pair (#742): the pair's ``where`` is two paths every class shares
+    # (moved here from test_pair_diagnostic_class in WP-1930)
+    pairs = [d for d in s.diagnostics if d.code == "MOMENT_PAIR_DEGENERATE"]
+    assert pairs, [d.message for d in s.diagnostics]
+    classes = set()
+    for d in pairs:
+        assert d.message.startswith("class "), d.message
+        index = int(d.message.split(":")[0].split()[1])
+        trial = next(t for t in s.trials if t.class_index == index)
+        assert any(r.paired_with for r in trial.moments), (index, d.message)
+        classes.add(index)
+    assert len(classes) == len(pairs)
+    unpaired = {t.class_index for t in s.trials
+                if not any(r.paired_with for r in t.moments)}
+    assert not classes & unpaired
     # both classes fold a pair; the other one's sum sits at zero
     lead = max(paired, key=lambda m: m.paired_magnitude)
     assert 0.5 < lead.paired_magnitude < 0.7

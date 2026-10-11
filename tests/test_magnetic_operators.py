@@ -43,6 +43,7 @@ return the group it started from.
 
 from __future__ import annotations
 
+import dataclasses
 import random
 import subprocess
 import sys
@@ -56,7 +57,6 @@ from rietx.crystallography.magnetic.operators import (
     IDENTITY,
     N_MAGNETIC_SPACE_GROUPS,
     TIME_REVERSAL,
-    UNI_NOT_IDENTIFIABLE,
     MagneticGroup,
     MagneticOperator,
     allowed_displacement_basis,
@@ -436,18 +436,12 @@ def test_string_round_trip_is_byte_stable_over_the_whole_database(all_groups):
     assert total == 38307, "the database's operation count moved"
 
 
-def test_identification_round_trips_except_three_broken_database_entries(
-        all_groups):
-    """operators → UNI number, for every group, with the exceptions named.
+def test_identification_round_trips_for_every_database_entry(all_groups):
+    """operators → UNI number, for every one of the 1651 groups.
 
-    Three of spglib 2.7.0's own database entries cannot be matched back to
-    themselves.  Asserting the exact set fails in **both** directions: a fourth
-    failure is a regression, and the set emptying means spglib fixed the
-    database and this test should be simplified.  See
-    ``UNI_NOT_IDENTIFIABLE`` for the evidence that these are database defects
-    (282 and 284 are labelled BNS 37.x, the Ccc2 family, while their unprimed
-    subgroups identify as Cmc2_1) and not a convention this module should
-    absorb.
+    spglib 2.7.0 failed three: UNI 282, 283 and 284 came back as 275, nothing
+    and 277.  2.8.0 corrected those entries' time-reversal flags, and
+    ``pyproject.toml`` requires it, so the round trip has no exceptions.
     """
     failures = []
     for uni, group in enumerate(all_groups, 1):
@@ -456,15 +450,16 @@ def test_identification_round_trips_except_three_broken_database_entries(
                 failures.append(uni)
         except ValueError:
             failures.append(uni)
-    assert tuple(failures) == UNI_NOT_IDENTIFIABLE
+    assert failures == []
 
 
-def test_the_broken_entries_are_broken_in_the_way_recorded():
-    """Why :data:`UNI_NOT_IDENTIFIABLE` is spglib's problem and not ours.
+def test_every_type_iv_groups_unprimed_part_is_its_family():
+    """The database check that showed 282-284 were spglib's defect.
 
     For a **type IV** group the unprimed subgroup *is* the family space group,
     so its number must be the first part of the BNS number.  Over the 977 type
-    I/II/IV entries that holds everywhere except UNI 282 and 284.
+    I/II/IV entries spglib 2.7.0 broke this at UNI 282 and 284, whose unprimed
+    parts identified as Cmc2_1 (No. 36) under a Ccc2 (No. 37) label.
     """
     mismatched = []
     for uni in range(1, N_MAGNETIC_SPACE_GROUPS + 1):
@@ -478,7 +473,20 @@ def test_the_broken_entries_are_broken_in_the_way_recorded():
             lattice=np.diag([5.0, 7.0, 11.0]))
         if st is None or int(st.number) != int(t.number):
             mismatched.append(uni)
-    assert mismatched == [282, 284]
+    assert mismatched == []
+
+
+def not_a_group() -> MagneticGroup:
+    """UNI 283 with one time-reversal flag flipped, so not closed.
+
+    The list spglib cannot name on every supported version: no database entry
+    fails to match itself from 2.8.0.  Index 1 (``-x,y,z+1/2``) is chosen with
+    care.  Flipping index 3 instead segfaults spglib, on 2.7.0 and 2.8.0 alike.
+    """
+    group = magnetic_group(283)
+    ops = list(group.operations)
+    ops[1] = dataclasses.replace(ops[1], time_reversal=-ops[1].time_reversal)
+    return MagneticGroup(operations=tuple(ops), centerings=group.centerings)
 
 
 # ---------------------------------------------------------------------------
@@ -1085,11 +1093,9 @@ def test_identify_accepts_a_bare_operator_list():
 def test_identify_refuses_by_name_rather_than_returning_a_wrong_group():
     """When spglib cannot match, the caller is told, and told what it means.
 
-    UNI 283 is the entry spglib cannot match even to itself, so it is the one
-    list in reach that exercises the refusal.  The message names the count and
-    the known-broken set, because a refusal here is not necessarily the
-    caller's fault.
+    The message names the count and what to check, because a refusal here is
+    not necessarily the caller's fault.
     """
-    group = magnetic_group(283)
-    with pytest.raises(ValueError, match="did not match.*282, 283, 284"):
+    group = not_a_group()
+    with pytest.raises(ValueError, match="did not match this list of 16 .*closed"):
         group.identify()

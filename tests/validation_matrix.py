@@ -326,10 +326,10 @@ CLAIMS: tuple[Claim, ...] = (
         reference="Rexp depends only on the data, its esds and the free "
                   "parameter count, so agreement is a protocol check and not "
                   "a model one; TOPAS records 0.0529264 over start_X 5.1",
-        measured="Rexp 0.0529317 against TOPAS's 0.0529264, 1.0e-4 relative "
-                 "(P = 29 free here; the fit answers are bit-stable, only "
-                 "Rexp moved with main's parameter count); 44895 of the "
-                 "file's 49496 channels fitted",
+        measured="Rexp 0.0529335 against TOPAS's 0.0529264, 1.3e-4 relative "
+                 "(P = 26 free here, the Gaussian triple held since WP-1930; "
+                 "Rexp moves with the parameter count and nothing else); "
+                 "44895 of the file's 49496 channels fitted",
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_file_esds_are_used_rather_than_poisson",
@@ -353,7 +353,7 @@ CLAIMS: tuple[Claim, ...] = (
                   "apart; the 50 ppm band is cross-code consistency with "
                   "headroom, the same status as the FAP suite's 300 ppm, and "
                   "is NOT a truth claim about cBN's lattice parameter",
-        measured="a = 3.616514 A, +14 ppm from TOPAS",
+        measured="a = 3.616521(17) A, +16 ppm from TOPAS",
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_one_free_coordinate_agrees",
@@ -374,10 +374,10 @@ CLAIMS: tuple[Claim, ...] = (
                   "rietx offers TCHZ and a true Voigt. The band is one-sided "
                   "and loose on purpose: it catches a regression, it does not "
                   "certify the profile",
-        measured="Rwp 0.1648 against TOPAS's 0.0810; 84.5 % of chi2 sits in "
-                 "the 9 % of channels that are more than half Bragg, mean "
-                 "delta/sigma +0.49 -- a shape deficit at the peak tops, not "
-                 "a background or scale one",
+        measured="Rwp 0.1687 against TOPAS's 0.0810; 88 % of chi2 sits in "
+                 "the 11 % of channels where the calculated Bragg part is "
+                 "more than half the total, mean delta/sigma +1.10 -- a shape "
+                 "deficit at the peak tops, not a background or scale one",
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_qpa_agrees_with_topas_within_its_own_esd",
@@ -388,8 +388,8 @@ CLAIMS: tuple[Claim, ...] = (
                   "17.907 and 17.950 wt %, so the reference is an interval "
                   "0.043 wt % wide, not a number; no weighed composition "
                   "exists and none is claimed",
-        measured="LaB6 17.841 +- 0.314 wt %, 0.066 outside the interval, "
-                 "i.e. 0.21 of its own esd",
+        measured="LaB6 17.791 +- 0.319 wt %, 0.116 outside the interval, "
+                 "i.e. 0.36 of its own esd",
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_lowest_rwp_is_the_worst_answer",
@@ -401,9 +401,9 @@ CLAIMS: tuple[Claim, ...] = (
                   "expected signature is |rho| -> 1 and an Rwp that improves "
                   "while the partition degrades",
         measured="rho = -1.000 (phases.0.lor_strain ~ instrument.profile.y) "
-                 "and +1.000 between the two phases' strains; Rwp 0.1297 "
-                 "degenerate vs 0.1648 identifiable, QPA 16.574 vs 17.841 "
-                 "wt % -- the better Rwp is 6.7 sigma outside TOPAS's interval",
+                 "and +1.000 between the two phases' strains; Rwp 0.1289 "
+                 "degenerate vs 0.1687 identifiable, QPA 16.850 vs 17.791 "
+                 "wt % -- the better Rwp is 5.5 sigma outside TOPAS's interval",
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_correlation_diagnostic_separates_the_two",
@@ -412,8 +412,30 @@ CLAIMS: tuple[Claim, ...] = (
         "degenerate one, without being told which is which",
         reference="the diagnostic channel must separate an identifiable "
                   "parameterisation from a flat one on its own evidence",
-        measured="0 findings on the shared-broadening plan, 6 on the "
+        measured="0 findings on the shared-broadening plan, 15 on the "
                  "degenerate plan",
+    ),
+    Claim(
+        "test_acceptance_lab6_cbn", "test_the_shared_fit_reaches_one_minimum_on_every_platform",
+        "lab6_cbn", ("characterisation", "ceiling"),
+        "the shared-broadening fit reaches one minimum whatever the "
+        "platform's rounding, and its profile stage records the floor seed "
+        "that made it single",
+        reference="issue #832: the same tree reached Rwp 0.18696 on Linux and "
+                  "0.16478 on macOS. The 2 % band about the two-platform "
+                  "measurement is the reporter's, and it fails at either old "
+                  "minimum",
+        measured="Rwp 0.168656, chi2_red 10.15182 on macOS arm64 and Linux "
+                 "x86-64, agreeing to 1e-12 relative; eight rounding-level "
+                 "changes to w's start on one machine give the same digits",
+    ),
+    Claim(
+        "test_acceptance_lab6_cbn", "test_the_fits_render",
+        "lab6_cbn", ("ceiling",),
+        "both fits draw obs/calc/diff panels for looking at",
+        reference="existence, not a number -- a ceiling row",
+        measured="four PNGs written to tests/output/, lab6_cbn_shared.png, "
+                 "lab6_cbn_degenerate.png and a 5.1-12 deg zoom of each",
     ),
     # ---- SRM 660c: the absolute lab anchor -----------------------------
     Claim(
@@ -1080,11 +1102,14 @@ CLAIMS: tuple[Claim, ...] = (
         "qarr", ("characterisation", "ceiling"),
         "the control: an isotropic specimen must be reported isotropic, and "
         "must never leave the cone",
-        reference="the Layer-1 strain diagnostic's own thresholds "
-                  "(not detected, R^2 < 0.5, anisotropy < 2.0) plus the "
-                  "derived pattern count for R-3c",
-        measured="anisotropy 2.02x, 4 patterns, 64 reflections; never "
-                 "leaves the cone at any seed",
+        reference="the Layer-1 strain diagnostic's own verdict (not "
+                  "detected, R^2 < 0.5) plus the derived pattern count for "
+                  "R-3c; the anisotropy ratio of an insignificant fit is a "
+                  "runaway guard at 6, not a threshold",
+        measured="R^2 = 0, anisotropy 4.51x, 4 patterns, 64 reflections; "
+                 "2.02x with WP-1930's floor seed off, at the same chi2_red "
+                 "2.65601, so the ratio rides the Lorentzian split's flat "
+                 "direction; never leaves the cone at any seed",
     ),
     Claim(
         "test_acceptance_stephens",

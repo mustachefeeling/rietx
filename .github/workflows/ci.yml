@@ -16,12 +16,11 @@ name: CI
 #                                 planning set, else code; a push is code
 #   docs                          scope docs: the tests that read the planning
 #                                 set (the job says how that list was measured)
-#   fast py3.11 .. py3.14         scope code: the "not slow" suite across the
-#                                 support window (3.14 is claimed in the
-#                                 classifiers, so it gates like the rest)
-#   fast jax                      scope code: the same selection with
-#                                 [dev,jax], jit-compile bound, so the slowest
-#                                 job here (20-21 min, 2026-09-25)
+#   fast py3.11, py3.14  K/2      scope code: the "not slow" suite at both
+#                                 ends of the support window, each leg in
+#                                 two shards (below)
+#   fast jax  K/2                 scope code: the same selection with
+#                                 [dev,jax], in two shards
 #   ci-ok                         whether the chosen suite passed; with lint,
 #                                 the one check branch protection requires
 #
@@ -63,6 +62,19 @@ name: CI
 #
 # The full suite (slow real-data acceptance included), macOS, Windows and
 # torch run in nightly.yml.
+#
+# `-n auto` is 2 workers here.  The 4-vCPU runner has 2 physical cores, and
+# xdist counts physical cores once psutil imports.  `-n logical` was measured
+# to buy nothing: four workers each ran at about half speed (WP-1547).
+#
+# Each leg runs as two shards.  `--shard K/2` (tests/shards.py) deals whole
+# files and whole xdist groups by the seconds in tests/shard_times.json.  On
+# main's six runs after WP-1547's tail cut, a leg's fast suite took 15.5-31.2
+# min and a run waited 24-31 min for the slowest of its five legs.  The middle
+# Pythons left the per-push matrix: the nightly runs 3.12, and its full suite
+# runs on 3.13.  So a break on a middle version alone shows the next morning.
+# Six fast jobs a run leave room for three runs at once under the free plan's
+# 20 concurrent jobs.
 
 on:
   push:
@@ -187,7 +199,7 @@ jobs:
           tests/test_no_stale_name.py tests/test_portability.py
 
   fast:
-    name: fast py${{ matrix.python }}
+    name: fast py${{ matrix.python }} ${{ matrix.shard }}/2
     needs: changes
     if: needs.changes.outputs.scope == 'code'
     runs-on: ubuntu-latest
@@ -195,7 +207,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12", "3.13", "3.14"]
+        # the oldest and newest Python of the support window.  The nightly
+        # runs 3.12, and its full suite runs on 3.13.
+        python: ["3.11", "3.14"]
+        shard: [1, 2]
+        # the newest leg executes the tutorials, in whichever shard holds
+        # them.  Dropping its version from the list above makes this a job of
+        # its own with no shard, and `--shard /2` then fails it: move the
+        # entry to the new newest version instead.
+        include:
+          - python: "3.14"
+            tutorials: run
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -205,32 +227,42 @@ jobs:
       - run: uv venv --python ${{ matrix.python }}
       - run: uv pip install -e ".[dev]"
       - name: Record the environment
-        run: .venv/bin/python -c "import sys, numpy, scipy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
+        run: .venv/bin/python -m tests.record_environment
       - name: Fast suite
         # --dist loadgroup is not optional: it honours the xdist_group marks
         # that pin a shared expensive fixture to one worker.  Plain --dist load
-        # still passes, but silently refits.  The junit file carries each
-        # test's setup, call and teardown time, uploaded below: the numbers the
-        # next cut to this job's time is chosen from (tests/CLAUDE.md § Budgets
-        # in tests).
+        # still passes, but silently refits.  --shard deals whole files and
+        # whole xdist groups by tests/shard_times.json.  The junit file carries
+        # each test's setup, call and teardown time, uploaded below: the
+        # numbers the next cut to this job's time is chosen from, and the
+        # record's refresh (tests/CLAUDE.md § Budgets in tests).  The tutorial
+        # notebooks execute on the newest Python alone (tests/test_tutorials.py
+        # says what that trades).
+        env:
+          RIETX_TUTORIALS: ${{ matrix.tutorials || 'skip' }}
         run: >-
           .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+          --shard ${{ matrix.shard }}/2
           --junitxml=junit.xml -o junit_duration_report=total
       - name: Upload per-test timings
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: junit-py${{ matrix.python }}
+          name: junit-py${{ matrix.python }}-${{ matrix.shard }}
           path: junit.xml
           if-no-files-found: warn
           retention-days: 30
 
   fast-jax:
-    name: fast jax
+    name: fast jax ${{ matrix.shard }}/2
     needs: changes
     if: needs.changes.outputs.scope == 'code'
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -239,18 +271,23 @@ jobs:
           cache-dependency-glob: pyproject.toml
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[dev,jax]"
+      - name: Record the environment
+        run: .venv/bin/python -m tests.record_environment
       - name: Fast suite with jax installed
         # jit-compile bound; an actions/cache of tests/.jax_cache was measured
         # not to help (8:18 warm against 8:12 cold — weekly.yml's note, kept
         # with the job it explains), so there is no cache step.
+        env:
+          RIETX_TUTORIALS: skip
         run: >-
           .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+          --shard ${{ matrix.shard }}/2
           --junitxml=junit.xml -o junit_duration_report=total
       - name: Upload per-test timings
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: junit-jax
+          name: junit-jax-${{ matrix.shard }}
           path: junit.xml
           if-no-files-found: warn
           retention-days: 30
