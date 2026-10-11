@@ -195,6 +195,21 @@ driver alone).
   `Instrument._migrate_v1_2_background_peaks` does for a vanished field, so
   every read point and old python code both open unchanged in meaning.
   `SCHEMA_VERSION` takes a bump.
+- *D7, the Γ_G² clamp is kept out of reach* (the maintainer's choice,
+  2026-10-11). LM's exact step puts W exactly on 0. With U and V near 0,
+  Γ_G² then falls under `caglioti._MIN_GAMMA_G2` (1e-8 deg²) at every point,
+  so the U, V and W columns are exactly zero and the stage stops in place.
+  Measured on the manual's minimal NAC call (macOS arm64, `[dev]`): Rwp
+  0.18028 under LM against 0.13375 under TRF; with W's floor raised to 1e-8,
+  LM lands on TRF's minimum to four digits. The 150 K Cr₂WO₆ fixture ends at
+  0.2546 against 0.0994, with U and V negative. GSAS-II clamps the same way
+  (`sig = max(0.001, sig)` centideg², `GSASIIstrMath.GetReflSigGamCW`) but its
+  Marquardt takes no bounds, so nothing lands on a floor there. The rule:
+  Γ_G² ≥ `_MIN_GAMMA_G2` at every reflection is an LM `LinearInequality`,
+  beside the Stephens cone, and `RESOLUTION_NOT_POSITIVE` stays the guard
+  under TRF. Measure it on NAC, the 150 K fixture and the grid before relying
+  on it, since it inherits the cone's truncation stall. If the stall bites,
+  the fallback is W's floor at 1e-8, with the reason recorded.
 
 ## Non-goals
 
