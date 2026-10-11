@@ -289,7 +289,7 @@ continuations of 400 evaluations.
       through a public call, or remove it if `profile_interval` covers the
       need. Settle χ²_red's degrees of freedom and `discarded_directions`
       under it.
-- [ ] `profile_interval(path)`, the one-sided interval for a row on its
+- [x] `profile_interval(path)`, the one-sided interval for a row on its
       bound (Venzon & Moolgavkar 1988). `strategy/fraction_profile.py` has the
       pinned-refit and Δχ² machinery.
 - [ ] Moment angles at a stationary direction: leave the normal matrix (or

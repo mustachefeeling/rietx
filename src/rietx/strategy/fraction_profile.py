@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from contextlib import contextmanager
 
 import numpy as np
 
@@ -101,6 +102,24 @@ def default_fwhm_grid(span_deg: float) -> list[float]:
 def data_chi2(statistics) -> float:
     """Σ w·Δ² over the data rows — ``Statistics.chi2`` is reduced."""
     return statistics.chi2 * max(statistics.n_points - statistics.n_free_parameters, 1)
+
+
+@contextmanager
+def head_restored(refinement):
+    """Put the history's HEAD back where the caller stood, however the block ends.
+
+    A branch shares the caller's tree, and every node it commits advances the
+    tree's HEAD, which a project reopens at as its working state.  Every
+    pinned-refit probe runs inside this (``profile_fraction``, and
+    ``parameter_interval.profile_interval``, WP-1929).
+    """
+    tree = refinement.history
+    head = tree.head if tree is not None else None
+    try:
+        yield
+    finally:
+        if tree is not None and head is not None and tree.head != head:
+            tree.set_head(head)
 
 
 def _phase_index(structure, phase: int | str) -> int:
@@ -185,13 +204,8 @@ def profile_fraction(refinement, data, phase: int | str, *,
     cut = FRACTION_PROFILE_DCHI2 * stats.chi2 * inflation ** 2
     chi2_fit = data_chi2(stats)
 
-    # a branch shares the caller's tree, and every node it commits advances the
-    # tree's HEAD — which a project reopens at as its working state — so the
-    # head the caller stood on is put back however the scan ends
-    tree = refinement.history
-    head = tree.head if tree is not None else None
     points: list[FractionProfilePoint] = []
-    try:
+    with head_restored(refinement):
         for axis in axes:
             term = axis.rsplit(".", 1)[1]
             trial = refinement._trial()
@@ -214,9 +228,6 @@ def profile_fraction(refinement, data, phase: int | str, *,
                     "refit left the scales unable to form fractions",
                     status=r.stages[-1].status if r.stages else r.status,
                     node_id=r.node_id))
-    finally:
-        if tree is not None and head is not None and tree.head != head:
-            tree.set_head(head)
 
     measured = [p for p in points if p.chi2 is not None and p.weight_fraction is not None]
     if not measured:

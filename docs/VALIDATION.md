@@ -1260,6 +1260,16 @@ A parameter that is exactly degenerate in one histogram and measurable in severa
 
 **Measured:** 0.0098437 at nudges 0, +-1e-14, 2e-14 (eight nudges spread 4e-8 relative, macOS arm64); y = 0 +- 0.018101, at_bound. The pre-1938 tree gives 0.00322, Linux's figure
 
+#### `test_a_width_on_its_floor_has_a_one_sided_profile_interval`
+
+`characterisation` · dataset `ndruo_joint`
+
+**Claims:** the neutron fit's Lorentzian y on its floor of 0 gets a one-sided profile interval: the bound is one end, and the other lies where the data's chi2 has risen by chi2_1(0.90) x chi2_red x f^2, inside the sqrt(2.706) esd a stationary floor would give, because the data press y against the floor
+
+**Referenced to:** the threshold itself for where the end lies (1 % of it), and the stationary-floor end sqrt(2.706) x 0.018101 = 0.0298 as a ceiling that LM's active set (the gradient at 0 points out of the range) says the end must sit under; the value is pinned at ten times its own solve tolerance, 1e-3 esd
+
+**Measured:** upper end 0.0166098 (0.558 of 0.0298), Delta chi2 there 0.0044 under a cut of 21.343, 19 refits, 3 s; the same to 5e-10 relative at six starts nudged by 1e-14 (macOS arm64)
+
 #### `test_the_fits_render`
 
 `ceiling` · dataset `ndruo_joint`

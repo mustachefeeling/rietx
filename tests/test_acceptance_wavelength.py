@@ -70,13 +70,16 @@ Honest notes on what this does **not** reproduce:
   is out of scope for this WP.
 """
 
+import math
 from pathlib import Path
 
 import pytest
+from scipy.stats import chi2
 
 import rietx as rx
 from rietx.schemas.common import Parameter as P
 from rietx.schemas.instrument import BackgroundChebyshev, Dispersion
+from rietx.schemas.interval import PARAMETER_INTERVAL_CHI2_TOL, PARAMETER_INTERVAL_XTOL
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from rietx.strategy.staged import PLAN_PRESETS, Stage
 
@@ -201,10 +204,10 @@ def _joint(free_histogram: int | None):
         two_theta_limits=[XRAY_LIMITS, NEUTRON_LIMITS])
 
 
-def _solo(which: int, nudge: int = 0):
-    """One histogram alone.  ``nudge`` multiplies every refinable nonzero
-    start value by (1 + nudge·1e-14), the size of the difference two
-    platforms' arithmetic makes (WP-1929)."""
+def _solo_refinement(which: int, nudge: int = 0) -> rx.Refinement:
+    """One histogram alone, fitted; the result is its ``result_``.  ``nudge``
+    multiplies every refinable nonzero start value by (1 + nudge·1e-14), the
+    size of the difference two platforms' arithmetic makes (WP-1929)."""
     data = _patterns()[which]
     ins = _xray_instrument() if which == 0 else _neutron_instrument()
     lim = XRAY_LIMITS if which == 0 else NEUTRON_LIMITS
@@ -213,7 +216,12 @@ def _solo(which: int, nudge: int = 0):
         ref.set_values({row.path: row.value * (1.0 + nudge * 1e-14)
                         for row in ref.parameters()
                         if row.refinable and row.value != 0.0})
-    return ref.fit(data, plan="mccusker_structural", two_theta_limits=lim)
+    ref.fit(data, plan="mccusker_structural", two_theta_limits=lim)
+    return ref
+
+
+def _solo(which: int, nudge: int = 0):
+    return _solo_refinement(which, nudge).result_
 
 
 @pytest.fixture(scope="module")
@@ -222,8 +230,14 @@ def solo_xray():
 
 
 @pytest.fixture(scope="module")
-def solo_neutron():
-    return _solo(1)
+def solo_neutron_refinement():
+    """The neutron fit's ``Refinement``, for the probes a result cannot run."""
+    return _solo_refinement(1)
+
+
+@pytest.fixture(scope="module")
+def solo_neutron(solo_neutron_refinement):
+    return solo_neutron_refinement.result_
 
 
 @pytest.fixture(scope="module")
@@ -424,6 +438,39 @@ def test_a_width_on_its_floor_leaves_one_esd_at_every_start(solo_neutron):
         y = r["instrument.profile.y"]
         assert (y.value, y.at_bound) == (0.0, True)
         assert y.stderr == pytest.approx(0.018101, rel=1e-4)
+
+
+def test_a_width_on_its_floor_has_a_one_sided_profile_interval(
+        solo_neutron_refinement, solo_neutron):
+    """WP-1929: ``y`` = 0 ± 0.018101 is no interval, so the profile gives one.
+
+    The bound is the lower end.  The upper end is where the data's χ² has
+    risen by χ²₁(0.90) × χ²_red × f² (Self & Liang's mixture), solved by
+    pinned refits.  Measured on macOS arm64: 0.0166098, the same to 5e-10
+    relative at six starts nudged by 1e-14, at Δχ² 0.0044 under a cut of
+    21.343, in 19 refits and 3 s.
+
+    The end is 0.558 of √2.706 × esd = 0.0298, the end a floor that is a
+    stationary point would give.  This one is not.  ``at_bound`` reads LM's
+    active set, which says the gradient at 0 points out of the range, so χ²
+    rises from the floor with a slope as well as a curvature and reaches the
+    cut sooner.  Pinned at one esd, Δχ² is 23.5, three times the 7.89 a
+    stationary floor would give.  The band is ten times the end's own solve
+    tolerance, a thousandth of an esd.
+    """
+    data = _patterns()[1]
+    interval = solo_neutron_refinement.profile_interval(data, "instrument.profile.y")
+    assert solo_neutron_refinement.result_ is solo_neutron
+    assert interval.one_sided and interval.at_bound is True
+    assert (interval.lower, interval.lower_stop) == (0.0, "bound")
+    assert interval.upper_stop == "threshold"
+    assert interval.quantile == pytest.approx(chi2.ppf(0.90, 1), rel=1e-12)
+    [end] = [p for p in interval.points if p.value == interval.upper]
+    assert abs(end.delta_chi2 - interval.delta_chi2_cut) <= (
+        PARAMETER_INTERVAL_CHI2_TOL * interval.delta_chi2_cut)
+    assert interval.upper < math.sqrt(interval.quantile) * interval.stderr
+    assert interval.upper == pytest.approx(
+        0.0166098, abs=10 * PARAMETER_INTERVAL_XTOL * interval.stderr)
 
 
 def test_the_fits_render(joint_neutron_free):

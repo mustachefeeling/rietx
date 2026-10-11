@@ -23,6 +23,7 @@ import numpy as np
 if TYPE_CHECKING:
     from .io.exporters import ReflectionRow
     from .schemas.fraction import FractionProfile
+    from .schemas.interval import ParameterInterval
     from .schemas.results import QuantitativePhaseAnalysis
     from .schemas.suggest import SuggestionResult
 
@@ -117,6 +118,7 @@ from .report.schemas import (
 from .schemas.common import Diagnostic, Parameter, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
 from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
+from .schemas.interval import PARAMETER_INTERVAL_LEVEL, PARAMETER_INTERVAL_MAX_REFITS
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.pattern import PatternData
 from .schemas.results import (
@@ -3414,6 +3416,49 @@ class Refinement:
         from .strategy.fraction_profile import profile_fraction
 
         return profile_fraction(self, data, phase, axes=axes, fwhm=fwhm)
+
+    def profile_interval(self, data: PatternData, path: str, *,
+                         level: float = PARAMETER_INTERVAL_LEVEL,
+                         max_refits: int = PARAMETER_INTERVAL_MAX_REFITS
+                         ) -> "ParameterInterval":
+        """The profile-likelihood interval for one parameter of the last fit.
+
+        An esd read as an interval is symmetric, and on a bound it is not an
+        interval at all: an estimate there has no symmetric sampling
+        distribution (Self & Liang, 1987).  A row the fit left on its bound
+        keeps its value and its marginal esd and reads
+        ``RefinedParameter.at_bound`` (``FLOOR_HIT`` on a floor of 0), and
+        this is the number to quote for it.  It pins ``path`` at a value,
+        refits everything the last fit freed, and reads the data's χ² there;
+        the ends are where that χ² has risen by a threshold (Venzon &
+        Moolgavkar, 1988).
+
+        A row on its bound gets a **one-sided** interval: the bound is one
+        end, and the other is at Δχ² = 2.71 × χ²_red × f² at 95 %.  Any other
+        row gets a two-sided one at Δχ² = 3.84 × χ²_red × f², f the fit's
+        ``esd_inflation``, so on a quadratic profile its ends are the value ±
+        1.96 esd.  ``level`` sets both quantiles.  Each side steps outward by
+        1, 2, 4, … esd to bracket its end and solves it to a thousandth of an
+        esd, refitting each pinned value until its χ² stops falling; a side
+        that reaches the parameter's own limit first reports the limit as its
+        end.  ``max_refits`` caps each side, and a side that runs
+        out says so rather than guessing.  The answer
+        (:class:`~rietx.schemas.interval.ParameterInterval`) carries every
+        refit, and ``fit_is_minimum`` is ``False`` when one found χ² below the
+        fit's.
+
+        Opt-in and read-only: 6-30 refits a side as measured, all on a branch
+        with ``telemetry=False``, so the working
+        state and ``result_`` are untouched and the history's HEAD is put back
+        where it stood.  A fit must have run, and ``path`` must have been free
+        in it; a tied, locked or fixed path is refused with the reason.  Why
+        the bound changes the threshold is
+        :mod:`rietx.strategy.parameter_interval`'s docstring (WP-1929).
+        """
+        from .strategy.parameter_interval import profile_interval
+
+        return profile_interval(self, data, path, level=level,
+                                max_refits=max_refits)
 
     @classmethod
     def from_node(cls, tree: RefinementTree, node_id: str, *,

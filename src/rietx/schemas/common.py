@@ -404,7 +404,13 @@ from .._nearmiss import did_you_mean
 #: meaning, since the table already built each declared transform as that box.
 #: A document written here carries neither key, and an older build reads it as
 #: all-identity with the same bounds.
-SCHEMA_VERSION = "0.46"
+#: 0.46 → 0.47 (WP-1929): ``ParameterInterval`` and ``ParameterIntervalPoint``
+#: (``schemas/interval.py``), the answer ``Refinement.profile_interval``
+#: returns — the profile-likelihood interval for one refined parameter,
+#: one-sided for a row on its bound.  Additive, the 0.32 → 0.33 shape: no
+#: existing model gains or loses a field, but a new answer type is a new shape
+#: a consumer parses.
+SCHEMA_VERSION = "0.47"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

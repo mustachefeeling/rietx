@@ -261,6 +261,49 @@ is held rather than bounded), so the scan would stop short of the basin it is
 looking for. At a pinned width the rest of the problem is close to linear in
 the scale, and each refit has one answer.
 
+## An interval for a parameter on its bound
+
+A parameter the fit leaves on a bound keeps its value and its esd from
+{eq}`est-cov`, and is flagged. That esd is no interval. An estimate on the
+boundary of the parameter space has no symmetric sampling distribution. When
+the true value lies on the boundary, the likelihood-ratio statistic follows the
+mixture $\tfrac12\chi^2_0 + \tfrac12\chi^2_1$ {cite}`self1987`. Half the time the
+unconstrained optimum falls outside the range, and the constrained fit then
+sits on the bound with a statistic of zero.
+
+The profile interval {cite}`venzon1988` pins the parameter $p$ at a value,
+refits every other free parameter, and keeps each value for which
+
+```{math}
+:label: est-interval
+
+\chi^2(p) - \chi^2(\hat p) \;\le\; c \cdot \chi^2_{\mathrm{red}} \cdot S''/S,
+\qquad
+c = \begin{cases}
+  F_1^{-1}(\gamma) & \hat p \text{ interior,} \\
+  F_1^{-1}(2\gamma - 1) & \hat p \text{ on its bound,}
+\end{cases}
+```
+
+{source}`rietx.strategy.parameter_interval.interval_quantile`
+
+with $F_1$ the $\chi^2_1$ distribution function, $\gamma$ the confidence level,
+$\hat p$ the fitted value, and $\chi^2_{\mathrm{red}}$ and $S''/S$ those of the
+fit. Each pinned refit is Hamilton's constrained hypothesis with one constraint
+{cite}`hamilton1965`, as in {eq}`est-profile`. In the interior the statistic is
+asymptotically $\chi^2_1$, and $c$ = 3.84 at 95 %. On the bound the mixture
+gives $P(T > c) = \tfrac12 P(\chi^2_1 > c)$, so $c$ = 2.71 at 95 %, and the
+interval is one-sided with the bound as one end. The two scaling factors put a
+two-sided interval on a quadratic profile at the value ± 1.96 esd. Each end is
+bracketed by steps of 1, 2, 4, … esd and solved by Brent's method on the
+refitted $\chi^2$.
+
+A bound the data press against is not a stationary point of $\chi^2$. There
+$\chi^2$ rises from the bound with a slope as well as a curvature, and the
+one-sided end lies inside $\sqrt{c}$ esd. On the BT-1 neutron fit in the test
+suite the Lorentzian $Y$ refines to 0 ± 0.0181. Its 95 % end lies at 0.0166,
+0.56 of the $\sqrt{2.71}$ esd a stationary bound would give.
+
 ## A scale and a B the range cannot separate
 
 A uniform displacement parameter $B$ multiplies every reflection of a phase by
