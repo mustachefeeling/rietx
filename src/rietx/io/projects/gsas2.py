@@ -86,6 +86,7 @@ from typing import Any
 
 import numpy as np
 
+from ...model.profiles.caglioti import GAUSSIAN_VARIANCE_TO_FWHM_SQUARED
 from ...schemas.common import Diagnostic
 from .coverage import Stance
 
@@ -367,14 +368,6 @@ def centidegree_factor(name: str) -> float | None:
     return None if power is None else 100.0 ** power
 
 
-#: GSAS-II's ``U``, ``V`` and ``W`` are the coefficients of a Gaussian
-#: *variance* σ² in centidegrees², and rietx's ``profile.u/v/w`` those of the
-#: Gaussian FWHM² Γ_G² in degrees² (``ProfileTCHZ``): Γ² = 8 ln 2 · σ².  Measured
-#: against GSAS-II's own peak list in ``io/recipe.py`` (``GAUSS_CENTIDEG2_TO_DEG2``,
-#: ``tests/data/README.md`` § The convention table).
-GAUSSIAN_VARIANCE_TO_FWHM_SQUARED = 8.0 * math.log(2.0)
-
-
 def instprm_factor(name: str) -> float | None:
     """What a rietx profile coefficient is multiplied by to give GSAS-II's.
 
@@ -382,7 +375,12 @@ def instprm_factor(name: str) -> float | None:
     and writer (multiplies): :func:`centidegree_factor`'s unit change, and for
     the Gaussian terms ``U``, ``V`` and ``W`` also the variance → FWHM² step,
     which is a factor 8 ln 2 smaller than the centidegrees² alone (the writer's
-    ``U`` = ``u`` × 1e4 / 8 ln 2).  ``None``
+    ``U`` = ``u`` × 1e4 / 8 ln 2).  GSAS-II's ``U V W`` are the coefficients of
+    a Gaussian *variance* σ² in centidegrees², and rietx's ``profile.u/v/w``
+    those of the Gaussian FWHM² in degrees²; the factor is
+    :data:`~rietx.model.profiles.caglioti.GAUSSIAN_VARIANCE_TO_FWHM_SQUARED`,
+    measured against GSAS-II's drawn LaB6 peaks
+    (``tests/test_gsas2_instprm.py``).  ``None``
     for a name that is not a width.  :attr:`Gsas2Term.degrees` keeps the
     quantity GSAS-II states (a variance, for ``U V W``), so a ``.gpx`` read is
     unchanged.

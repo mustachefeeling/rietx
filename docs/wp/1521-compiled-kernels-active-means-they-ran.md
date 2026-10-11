@@ -1,9 +1,8 @@
 # WP-1521 — `compiled_kernels_active` says the kernels ran, per tier, or says it does not know
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🛑 2026-10-10 — superseded by WP-1940, whose PR #864 did its Goal
 Track: What fires, and what stays silent
 Depends on: — (1508 declined it at review, for a signal both tiers report)
-Priority: P4 2026-09-28 — a capability flag that reads "active" after a failed build, only on an install where numba imports and compiling fails; no fit number changes
 
 ## Goal
 
@@ -92,6 +91,18 @@ declined review finding); WP-1007 (`capabilities()`); WP-1076 (a field's empty
 state).
 
 ## Handover log
+
+### 2026-10-10 — closed, superseded by WP-1940
+
+PR #864 merged and did this WP's whole Goal, so nothing here is left to do.
+numba left all three tiers. The indexing traversal lost its compiled path, so
+the model tier is the only compiled one. Its build is the import of
+`rietx-kernels`, so `compiled_kernels` and a build cannot disagree.
+`compiled_kernels_active` now needs `available()` as well as the switch, and a
+decline warns once a process and says why in
+`Capabilities.compiled_kernels_unavailable`. The three inherited entries all
+said to close or fold this WP once that PR landed, and are consumed. No task
+here was started.
 
 - **2026-09-28** — filed from WP-1508's review, where it was declined for a
   signal both tiers report.

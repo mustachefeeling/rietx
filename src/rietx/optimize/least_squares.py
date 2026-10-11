@@ -43,6 +43,7 @@ from ..model.forward import accumulate_planes as _accumulate
 from ..model.restraints import restraint_partials
 from ..params.transforms import dphys_dinternal
 from ..params.vector import (
+    FLOOR_SEEDS,
     ParameterTable,
     is_variable_path,
     size_cap,
@@ -255,6 +256,19 @@ class LSQOutcome:
     #: Optimization* 2nd ed. ch. 12 and 16: an active set is identified by the
     #: multiplier, never by proximity.
     residual_cosine: np.ndarray | None = None
+    #: the driver's own active set, **table columns only** (indexes like
+    #: :attr:`theta`): −1 held at the lower bound, +1 at the upper, 0 neither,
+    #: scipy's ``active_mask`` convention (WP-1937).  The two drivers differ in
+    #: how much it can know.  ``lm`` is exact: the variable sits *on* its
+    #: bound and the gradient there pushes outward, so its multiplier is
+    #: positive (:attr:`.lm.LMOutcome.active_mask`).  That holds up to
+    #: ``lm.BVLS_MAX_COLUMNS``; a larger system (a Pawley block) takes BCCG's
+    #: step, which can stop just off a bound.  ``trf`` reports scipy's
+    #: mask, set within ``XTOL`` of a bound whatever the gradient, because its
+    #: iterates stay strictly inside; a width TRF parks 7.6e-6 above its floor
+    #: (WP-1929, brucite) is not in it.  ``None`` only at the zero-parameter
+    #: early return.  WP-1929's at-bound flag is the reader it was built for.
+    active_bounds: np.ndarray | None = None
     #: ``repr`` of the ``LinAlgError`` the esd computation raised *after* the
     #: solve returned, or ``None`` when it did not (WP-1333, issue #225).  A
     #: failed eigensolve is not a failed fit: :attr:`theta` is the solver's
@@ -419,6 +433,27 @@ def _residual_cosine(jac, fun) -> np.ndarray | None:
     return np.divide(j.T @ f, denom, out=np.zeros(j.shape[1]), where=denom > 0)
 
 
+def _feasible_start(x0: np.ndarray, lo: np.ndarray, hi: np.ndarray,
+                    solver: str) -> np.ndarray:
+    """The start each driver is handed.  TRF requires it strictly inside the
+    bounds, so it is nudged 1e-12 off any it sits on.  The LM driver is handed
+    it on the bound: nudged, a stage restarting from a held value takes a first
+    step under the fp64 floor, stops there, and returns the value 1e-12 off
+    its bound and out of :attr:`LSQOutcome.active_bounds` (WP-1937)."""
+    if not len(x0):
+        return x0
+    if solver == "lm":
+        return np.clip(x0, lo, hi)
+    return np.clip(x0, lo + 1e-12, hi - 1e-12)
+
+
+def _active_bounds(res, n: int) -> np.ndarray:
+    """The driver's active set over its first ``n`` columns — see
+    :attr:`LSQOutcome.active_bounds`.  Both result shapes carry it as
+    ``active_mask``."""
+    return np.asarray(res.active_mask, dtype=np.int8)[:n].copy()
+
+
 def _lebail_snapshot(model: CompiledModel) -> list[np.ndarray] | None:
     """Le Bail intensities frozen for one solve (taken at closure build).
 
@@ -565,11 +600,93 @@ def _gather_per_line(lay, arrays) -> np.ndarray:
     return lay.gather([(a,) for a in arrays], 0)
 
 
+#: The relative forward-difference step every FD column of
+#: :func:`_make_jacobian` is taken with, through :func:`fd_step`.
+FD_STEP = 1e-6
+
+
+def fd_step(theta_c: float, typical: float = 1.0) -> float:
+    """The forward-difference step for one column of θ.
+
+    ``FD_STEP · max(typical, |θ_c|)``: relative to the coordinate's size, and
+    absolute at ``typical`` near zero (Dennis & Schnabel 1996, *Numerical
+    Methods for Unconstrained Optimization and Nonlinear Equations*, SIAM,
+    § 5.4).  Both FD sites call it, so one rule sizes every column, and
+    :func:`_fd_typicals` says what ``typical`` is.
+    """
+    return FD_STEP * max(typical, abs(theta_c))
+
+
+def _fd_typicals(table: ParameterTable,
+                 identities: list[tuple[str, list[str], bool]] | None = None
+                 ) -> np.ndarray:
+    """Each free column's typical size, the ``typical`` of :func:`fd_step`.
+
+    An identity row that is a **width** takes
+    :data:`~rietx.params.vector.FLOOR_SEEDS`' size for its unit (WP-1936).
+    Every other row takes 1, the step it always had.  A softplus row's θ is
+    close to the logarithm of its value, so a step of 1e-6 there is already
+    relative in the value.
+
+    **Why a width needs its own size.**  The peak chain differences the
+    reflection widths, and a width is curved on the scale of the peak's own
+    variance, not on a scale of 1.  At 1 the step on a Caglioti term is
+    absolute: on LaB₆ + cBN (11-BM, Γ² ≈ 1e-4 deg²) it put 1.4e-3 into ``v``'s
+    column and 1.5e-2 into ``w``'s once ``w`` was an identity row on its
+    floor, against the jax Jacobian.  At ``FLOOR_SEEDS``' sizes every width
+    column on that fit and on lab brucite is within 5e-7 of jax at
+    ``FD_STEP`` = 1e-6.  At 1e-7 and 1e-8 the worst is 2e-5, and it grows as
+    the step shrinks, which is rounding.
+
+    **Which rows are widths.**  A unit cannot say, because a zero shift and a
+    peak position are in degrees too.  They are offsets on a 2θ of tens of
+    degrees, and position is linear in them, so a small step removes no
+    truncation and adds rounding: at 1e-3° the zero-shift column moved from
+    2e-9 to 3e-6 against jax on every golden state.  An offset can be
+    negative and a width cannot, so a row is sized as a width when its lower
+    bound is at least 0.  A deg² row is a Caglioti term of a variance and is
+    sized whatever its bound, since ``u`` and ``v`` may go negative.  The test
+    also admits a position or an angle a caller bounded above 0.  Its step
+    is unchanged while |θ| exceeds the size, which holds for every such row
+    the package builds.
+
+    The size is in **column units**, which is what the floor seed is in
+    already (:meth:`~rietx.params.vector.ParameterTable.seed_floor`'s
+    write), so a value-scaled joint column needs no factor.
+
+    **A named variable with no unit of its own is sized by what it drives.**
+    Its name says nothing, so the row read is the one
+    :func:`_column_identities` names for the column, and the size is divided
+    by that row's coefficient in C.  Read off the name, a ``vars.U`` driving
+    ``u`` kept the step of 1, and on the ``sharp_widths`` state of
+    ``tests/test_cross_backend.py`` its column kept the old 1.8e-3 error.
+    """
+    if identities is None:
+        identities = _column_identities(table, _column_extras(table))
+    coef = table.constraint_block()[0].tocsc()
+    out = np.ones(len(table.free_paths), dtype=np.float64)
+    for c, path in enumerate(table.free_paths):
+        if table.entries[table._paths[path]].transform != "identity":
+            continue
+        row, unit, k = path, table._units.get(path), 1.0
+        if unit is None and is_variable_path(path) and identities[c][0] != path:
+            row = identities[c][0]
+            unit = table._units.get(row)
+            k = abs(float(coef[table._paths[row], c]))
+        size = FLOOR_SEEDS.get(unit)
+        if (size is not None and k > 0.0
+                and (table.entries[table._paths[row]].lo >= 0.0
+                     or unit == "deg^2")):
+            out[c] = size / k
+    return out
+
+
 def _peak_chain_column(model: CompiledModel, table: ParameterTable,
                        bases: DerivativeBases, theta: np.ndarray,
                        values: dict[str, float], c: int, path: str,
                        intensities: list[np.ndarray] | None = None,
-                       affected: "list[int] | range | None" = None) -> np.ndarray:
+                       affected: "list[int] | range | None" = None,
+                       typical: float = 1.0) -> np.ndarray:
     """∂y/∂θ_c via the analytic bases + per-reflection scalar FD.
 
     Only the phases the column touches are re-derived (``phases.2.…`` leaves
@@ -589,7 +706,7 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
     term whose coefficients are nonzero under a ``profile_derivs=False``
     build still raises through :func:`_require_basis`, naming the path.
     """
-    h = 1e-6 * max(1.0, abs(theta[c]))
+    h = fd_step(theta[c], typical)
     tp = theta.copy()
     tp[c] += h
     values_p = table.decode(tp)
@@ -963,6 +1080,8 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                if all(q in bkg_cols for q in (path, *extra)) else None
                for c, (path, extra, _) in enumerate(identities)]
 
+    typicals = _fd_typicals(table, identities)
+
     def dpdu_of(c: int, theta: np.ndarray) -> float:
         e = table.entries[table._paths[free[c]]]
         return dphys_dinternal(float(theta[c]), e.transform)
@@ -1041,7 +1160,8 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                     and p not in axial_paths for p in extra):
                 J[:n_data, c] = -sqrt_w * _peak_chain_column(
                     model, table, get_bases(), theta_t, values, c, path, intens,
-                    affected=_affected_phases(model, path, extra))
+                    affected=_affected_phases(model, path, extra),
+                    typical=typicals[c])
             else:
                 fd_cols.append(c)
 
@@ -1058,7 +1178,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
             # which is why analytic columns for them are not worth writing.
             r0 = sqrt_w * (model.y_obs - model.evaluate(values, intens))
             for c in fd_cols:
-                h = 1e-6 * max(1.0, abs(theta_t[c]))
+                h = fd_step(theta_t[c], typicals[c])
                 tp = theta_t.copy()
                 tp[c] += h
                 rp = sqrt_w * (model.y_obs - model.evaluate(table.decode(tp), intens))
@@ -1199,7 +1319,7 @@ def _free_values(table: ParameterTable, theta: np.ndarray) -> list[float]:
     return [float(values[p]) for p in table.free_paths]
 
 
-def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_iter, ftol,
+def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_nfev, ftol,
                 inequalities, events, stage: str, track=None, table=None):
     """Run the bounded-LM driver, adapted to the scipy result shape.
 
@@ -1233,7 +1353,7 @@ def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_iter, ftol,
         events.emit("eval", **data)
 
     return lm_mod.minimize(residual, jacobian, x0, lo=lo, hi=hi,
-                           max_iter=max_iter, ftol=ftol,
+                           max_nfev=max_nfev, ftol=ftol,
                            inequalities=inequalities,
                            callback=accept_cb if track is not None else None,
                            on_trial=trial_cb if events is not None else None)
@@ -1578,8 +1698,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         lo = np.concatenate([lo, plo])
         hi = np.concatenate([hi, phi])
     n_aux = len(x0) - n_table
-    # TRF requires x0 strictly inside the bounds
-    x0 = np.clip(x0, lo + 1e-12, hi - 1e-12) if len(x0) else x0
+    x0 = _feasible_start(x0, lo, hi, solver)
 
     r0 = residual(x0)
     # invariant 2: whatever built the columns, the residual is fp64 on host —
@@ -1593,18 +1712,19 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           n_degenerate_cell_probes=cell_guard.n_degenerate)
 
     n_truncated = 0
+    # one budget, in residual evaluations, for both drivers (WP-1937)
+    max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
         # the strain cone is built against the *starting* point, because
         # feasibility is maintained rather than restored (see the builder)
         cone = strain_cone_inequalities(model, table, x0[:n_table])
-        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
+        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
                           ftol=ftol, inequalities=cone, events=events, stage=stage,
                           track=tracker, table=table)
         n_truncated = res.n_truncated
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL,
-                            max_nfev=max_iter * NFEV_PER_ITERATION)
+                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
@@ -1634,6 +1754,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     return LSQOutcome(res.x[:n_table], cost0, float(res.cost), int(res.nfev), status,
                       jac_table, stderr, corr, n_aux=n_aux, solver=solver,
                       residual_cosine=cos_table,
+                      active_bounds=_active_bounds(res, n_table),
                       n_constraint_truncations=n_truncated,
                       max_shift_over_esd=_final_shift_over_esd(
                           table, tracker.step(), stderr_full, corr, n_table),
@@ -1768,7 +1889,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     _freeze_cell_windows_multi(models, mtable)
     x0 = mtable.x0()
     lo, hi = mtable.bounds()
-    x0 = np.clip(x0, lo + 1e-12, hi - 1e-12) if len(x0) else x0
+    x0 = _feasible_start(x0, lo, hi, solver)
     r0 = residual(x0)
     require_fp64(r0, "least-squares residual")
     cost0 = 0.5 * float(r0 @ r0)
@@ -1777,13 +1898,13 @@ def run_multi_least_squares(models: list[CompiledModel],
                           solver=solver,
                           n_degenerate_cell_probes=cell_guard.n_degenerate)
 
+    max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
-        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
+        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
                           ftol=ftol, inequalities=[], events=None, stage="")
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL,
-                            max_nfev=max_iter * NFEV_PER_ITERATION)
+                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
@@ -1798,6 +1919,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     return LSQOutcome(res.x, cost0, float(res.cost), int(res.nfev), status,
                       jac_data, stderr, corr, solver=solver,
                       residual_cosine=_residual_cosine(res.jac, res.fun),
+                      active_bounds=_active_bounds(res, len(res.x)),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
                       covariance_error=covariance_error)

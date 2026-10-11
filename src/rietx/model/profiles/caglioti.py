@@ -268,6 +268,15 @@ def strain_coefficient_for_microstrain(microstrain: float) -> float:
     return math.degrees(2.0 * microstrain)
 
 
+#: Γ² = 8 ln 2 · σ²: what turns a coefficient of a Gaussian *variance* into
+#: one of the Gaussian FWHM² :func:`gaussian_fwhm` takes.  GSAS-I's ``GU GV
+#: GW`` and GSAS-II's ``U V W`` are variances (Larson & Von Dreele 2004, CW
+#: profile function 3), so every reader and writer of either crosses this one
+#: factor; ``tests/test_gsas2_instprm.py`` pins it against GSAS-II's drawn
+#: LaB6 peaks (WP-1543).
+GAUSSIAN_VARIANCE_TO_FWHM_SQUARED = 8.0 * math.log(2.0)
+
+
 def gaussian_fwhm(theta_deg: np.ndarray, u: float, v: float, w: float,
                   gauss_size: float = 0.0, gauss_strain: float = 0.0) -> np.ndarray:
     """Γ_G(θ) from the Caglioti law + sample Gaussian size/strain variances;

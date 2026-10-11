@@ -56,6 +56,15 @@ stay in `api.md`, because nearly every fit needs one. The cut buys about 40
 days at the measured 100-250 B a day. The issue names the next seam:
 series, history and projects (3.3 kB), routed by `SKILL.md` §9 and §9b.
 
+### Inherited
+
+- **2026-10-10, from WP-1543: `api.md` is 39 789 B against a ceiling of
+  39 800.** `read_gsas_prm` gained `profile_set=`, which put the generated
+  index 7 B over. WP-1543 paid for it by trimming the hand-written
+  `read_gsas_prm` sentence in `make_api_index.py`'s In prose, and did not
+  split the index. That sentence is one of the 16 names the prototype moves
+  to `api-io.md`.
+
 ## Non-goals
 
 - Raising `API_INDEX_MAX_BYTES` again. It is 300 B under the 40 kB

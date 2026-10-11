@@ -2084,9 +2084,9 @@ def candidates(space_group, site_xyz, k, *, kind: str = "magnetic", cell=None,
                 space, direction, inverse, sign_array, parent_index)
             # ``identification`` is the *non-raising* authority (Q-17): an
             # isotropy subgroup spglib will not name is still a group, still
-            # the refinable object, and still buildable — 29 (group, k) cases
-            # of the all-group sweep reach one, every one a c- or n-glide group
-            # doubled along the glide's own translation.  The reduced-cell
+            # the refinable object, and still buildable.  29 (group, k) cases
+            # of the all-group sweep reached one on spglib 2.7.0, and none
+            # does on 2.8.0 (``MagneticIdentification``).  The reduced-cell
             # retry stays: it is a *setting* remedy and often turns an unnamed
             # answer into a named one.
             found = None

@@ -1034,7 +1034,7 @@ for stage in result.stages:
 |---|---|
 | `StageResult.name` | the stage's name, as the plan gave it |
 | `StageResult.status` | `converged`, `max_iter` or `diverged` |
-| `StageResult.n_iterations` | least-squares iterations taken |
+| `StageResult.n_iterations` | residual evaluations the solve made, the start included, on either driver |
 | `StageResult.cost_initial` | the cost the stage started from |
 | `StageResult.cost_final` | the cost it reached |
 | `StageResult.freed` | the paths this stage actually freed, after globbing |

@@ -339,8 +339,16 @@ def test_corundum_block_is_inert_and_hamilton_blesses_it_only_at_raw_n(
     statement about the tests, not about corundum.
     """
     plain_ref, plain = corundum_plain
-    block_ref, block = _fit("corundum", _with_block(corundum_phase()),
-                            _plan(texture=False, stephens=True), "corundum_aniso")
+    # The block's last stage stopped on its 100-iteration budget, and the
+    # raw-N verdict below then read wherever it stopped: 0.018 % of χ² above
+    # Hamilton's line on darwin/arm64, below it on Linux x86-64 once the FCJ
+    # kernels' exp moved a last bit there (WP-1940).  Converged, the margin is
+    # 0.052 % on darwin/arm64 and 0.057 % on x86-64, 0.005 % apart.
+    plan = _plan(texture=False, stephens=True)
+    plan.stages[-1].max_iter = 1000
+    block_ref, block = _fit("corundum", _with_block(corundum_phase()), plan,
+                            "corundum_aniso")
+    assert block.status == "converged", "a verdict read off a truncated fit"
 
     def c_over_a(r):
         cell = r.fitted_structure.phases[0].cell

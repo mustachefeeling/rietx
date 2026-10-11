@@ -230,10 +230,10 @@ CI leg by 3-4×**, so it reads CI's `junit-*` file when the branch has one (WP-1
   WP-1115 added a second default that changes arithmetic. The compiled kernel
   tier is on unless switched off, so a golden or a bit-identity assertion says
   `compiled.set_enabled(False)` (or `True`) rather than inheriting. The
-  signature of getting this wrong is a test that **fails under `-n auto` and
-  passes alone**: the background compile finishes at a different point in each.
-  `conftest.py` also asks for one kernel thread per xdist worker, so a
-  wall-clock budget is not a function of the worker count.
+  signature of getting this wrong is a test that **passes on darwin/arm64 and
+  fails on Linux**, whose C library `exp` the symmetric kernels call (x86-64's FCJ
+  kernels call SLEEF's, WP-1940) and numpy does not. `conftest.py` also asks for one
+  kernel thread per xdist worker, so a wall-clock budget is not a function of the worker count.
 - **A worktree needs its own venv, and quote which one you used.** The main
   checkout's `.venv` resolves `rietx` to the *main checkout's* `src`, so a
   worktree session running it measures the wrong tree — green, and about code
@@ -273,19 +273,19 @@ CI leg by 3-4×**, so it reads CI's `junit-*` file when the branch has one (WP-1
 ## CI
 
 CI runs the same commands (`.github/`). Per push and per ready PR (`ci.yml`):
-ruff + the fast suite across 3.11–3.14 plus a `[dev,jax]` fast job, Linux.
-**A PR changing only the planning set runs the tests that read it instead**
-(the `docs` job, WP-1506), so a new test reading `docs/wp/`, the milestones,
-releases, ROADMAP, DESIGN or listed `.claude/` files joins its list, or a
+ruff + the fast suite on 3.11 and 3.14 plus a `[dev,jax]` fast job, Linux, in
+two shards each that keep every file and `xdist_group` whole (`shards.py`). A
+stale `shard_times.json` costs balance, never a test. **A PR changing only the
+planning set runs the tests that read it instead** (the `docs` job, WP-1506),
+so a new test reading that set (`PLANNING` in `ci.yml`) joins its list, or a
 docs-only PR skips it until the nightly. Branch protection requires `lint` and
 `ci-ok`, the job that says whether the suite `changes` chose passed. **A draft
 PR runs ruff alone**, the matrix waiting for `gh pr ready` (`ci.yml`'s header).
-Nightly (`nightly.yml`): the full suite `[dev,jax]` on Linux, the Windows fast
-suite (the OS classifier's backing and the release pre-upload gate), macOS fast
-plus the informational goldens step (the guard in `test_backend_shim.py` is the
-local half of that trade), and `[torch]`. **Read spend from the Actions usage
-page or `gh run list`, never from comments or this file**: a written
-cross-workflow total rots — one sat at 303 against a measured ≈495.
+Nightly (`nightly.yml`): the full suite `[dev,jax]` on Linux (the one 3.13
+run), 3.12's fast suite, the Windows fast suite (the OS classifier's backing
+and the release pre-upload gate), macOS fast plus the informational goldens
+step, and `[torch]`. **Read spend from the Actions usage page or `gh run
+list`, never from comments or this file**: a written total rots (303 vs ≈495).
 
 Two consequences for local work:
 

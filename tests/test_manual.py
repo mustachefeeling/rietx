@@ -417,7 +417,9 @@ BIB_FIELD = re.compile(r"^\s*(\w+)\s*=\s*\{(.*?)\}\s*,?\s*$", re.MULTILINE | re.
 
 #: The one article with no DOI, and why (references.bib § rule 2).  A list
 #: rather than a count, so adding an entry without one has to say which.
-NO_DOI = {"scherrer1918": "Göttinger Nachrichten 1918 predates the DOI register"}
+NO_DOI = {"scherrer1918": "Göttinger Nachrichten 1918 predates the DOI register",
+          "stark1995": "Computational Statistics 10 (1995) has no Crossref record "
+                       "(queried 2026-10-10)"}
 
 
 def _bib_entries() -> list[tuple[str, str, dict[str, str]]]:

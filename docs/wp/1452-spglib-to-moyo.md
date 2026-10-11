@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1327, 1418, 1419 (the v1.6 magnetic PRs carry most of the call sites)
-Priority: P3 2026-09-23 — spglib misidentifies three of 1651 magnetic groups in silence, on a path few fits run (P2); down a rung, since it waits on the magnetic PRs
+Priority: P3 2026-10-10 — the round-trip failure that motivated it is fixed upstream (spglib 2.8.0, now the floor); what remains is Context's item 1, which library matches the BNS tables
 
 ## Goal
 
@@ -87,6 +87,24 @@ spglib convention, as PRs against the migration branch once it exists.
 
 ### Inherited
 
+- **2026-10-10, from the fix for main's red CI: spglib 2.8.0 fixed the
+  round trip, and rietx now requires it.** 2.8.0 (PyPI 2026-10-10) corrects
+  the time-reversal flags of UNI 282-284. All 1651 groups now round-trip, and
+  every type IV group's unprimed part is its family. Main's fast tier went red
+  on every leg the day it shipped, because five tests pinned the defect. The
+  fix raised the floor to `spglib>=2.8` and deleted `UNI_NOT_IDENTIFIABLE`. The
+  unnamed path is now tested on `not_a_group()` in
+  `tests/test_magnetic_operators.py`. **The 29-row sweep was the same
+  defect**, and not the quarter-translation setting effect its comments
+  claimed. On 2.7.0 an 8-operation subgroup in every row went unnamed. On
+  2.8.0 all are named, some outside the 282-284 family (UNI 133, 275).
+  `_identify_in_a_reduced_cell` may now be dead weight; that is not measured.
+  **A crash for this WP's error handling:** spglib segfaults (exit 139, 2.7.0
+  and 2.8.0 alike) on UNI 283's operators with the time-reversal flag of
+  index 3 flipped. `identification` passes any list through, so a malformed
+  list from a magCIF can kill the process. The "Why moyo" paragraph's first
+  reason is now gone.
+
 - **2026-10-02, from the issue triage (issue #426): the reporter holds no ITA
   Vol. A either, and one letter-rule data point.** Their reply of 2026-09-30
   (after the maintainer's) says the check of the printed Fd-3m tables has to
@@ -168,6 +186,14 @@ spglib convention, as PRs against the migration branch once it exists.
 - Issue #426 and the maintainer's reply of 2026-09-23.
 
 ## Handover log
+
+- **2026-10-10** (reconstructed post hoc) — A session fixing main's red CI
+  landed `b0d5c521` under this WP's prefix (PR #861, merged as `f52167e9`).
+  It raised the floor to `spglib>=2.8`, deleted `UNI_NOT_IDENTIFIABLE` and
+  repinned five fast tests that had asserted the 2.7.0 defect. It also
+  rewrote the Priority line. The details are under `### Inherited`
+  (2026-10-10). No task is ticked, because the commit did none of the
+  migration. *Next:* task 1, unchanged.
 
 - **2026-09-23** — created, from the 2026-09-23 issue triage (issue #426).
   Checked against the tree at `644dff84`: ten `spglib.` calls in three files,

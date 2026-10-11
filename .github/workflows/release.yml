@@ -41,7 +41,8 @@ name: Release
 # green on this commit) is asserted by a person, since no workflow can wait
 # 2 h for a nightly.  The tag-on-main check below is the other half of it —
 # main is branch-protected, so a commit that is on main has already passed
-# lint and the fast suite across 3.11-3.14 plus jax.
+# lint and the fast suite on 3.11 and 3.14 plus jax (3.12 and 3.13 run
+# nightly since WP-1547; docs/RELEASING.md step 4).
 #
 # PEP 740 attestations come free with trusted publishing and are on by default
 # in the publish action, so the files on PyPI carry a verifiable statement of

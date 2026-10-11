@@ -210,10 +210,8 @@ message.
 `StructureFigure.palette` gives each site label drawn and its colour, for a
 legend beside the figure.
 
-On an Apple M4 in September 2026, a warm render of this NAC cell took
-33-40 ms at 1000 px and 71-94 ms at 3000 px.
-The first render in a process compiled the kernel in about 1.5 s; after that
-numba loads it from its cache.
+On an Apple M4 in October 2026, a render of this NAC cell took
+35-41 ms at 1000 px and 89-117 ms at 3000 px.
 
 There is no SVG or PDF output.
 A ray-caster has no shapes to write.
@@ -482,9 +480,10 @@ auto view: 7% hidden, chose [0, 1, 2], then [[1, 2, 0], [2, 0, 1]]
 redrawn from the recipe with a long side of 1000 px, same view: True
 ```
 
-On an Apple M4 in September 2026, the report added about 2 ms to a render of
-this cell, and `view="auto"` took 92 ms against a render of 19-21 ms.
-At 3143 atoms the search took 565 ms against a render of 213-221 ms.
+On an Apple M4 in October 2026, at `size=400`, the report's id pass added
+0.65-0.76 ms to a render of this cell, and `view="auto"` took 90-107 ms
+against a render of 27-34 ms.
+At 3143 atoms the search took 530-548 ms against a render of 175-209 ms.
 
 ## The reflection list
 
