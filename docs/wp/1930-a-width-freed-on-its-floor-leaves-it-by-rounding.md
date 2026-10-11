@@ -154,6 +154,25 @@ handover log has the tables).
   against the tree at 7d9be3cb: `tests/test_pair_diagnostic_class.py:42-73`
   still asserts no `MOMENT_PAIR_DEGENERATE` from any class.
 
+- **2026-10-11, from the issue triage (#832): the band's Linux run has
+  happened, and the reporter's sweep left three splits in no WP.** The
+  2026-10-10 nightly (run 38048650490, `32a2b473`, containing #849) ran the
+  Linux full suite at 9349 passed, 1 failed, and the failure was the two-site
+  test (#865, above), so `test_the_shared_fit_reaches_one_minimum_on_every_platform`
+  passed on Linux. The reporter's sweep of 2026-10-08 11:55 (19 acceptance
+  files, 222 fits, Linux and macOS) found lab6_cbn's shared plan the only
+  split that started at #700. Three others it found are in no WP: (a) the
+  degenerate LaB₆ plan, χ²_red 5.470 on Linux against 6.001 on macOS, with the
+  quoted "Rwp 0.1294, QPA 16.542" reproduced by neither; (b) Stephens brucite,
+  where TRF stops at `max_iter` on Linux (Rwp 0.18030) and converges on macOS
+  (0.17844), so `docs/VALIDATION.md:765`'s 17.84 % is the macOS value; (c)
+  five indexing Le Bail fits split after #741, the short-wavelength P
+  candidate leaving `profile.y` on its floor on Linux (χ²_red 32.27 against
+  29.38). The Next list's "still stale" Cr₂WO₆ number is done
+  (`docs/VALIDATION.md:1471` reads 0.2035). Checked against the tree at
+  7d9be3cb: the nightly's failure list read from its log, `seed_floor` at
+  `params/vector.py:2901`; (a)-(c) not re-measured.
+
 ## Non-goals
 
 - Which esds a floor row's neighbours report: WP-1929.

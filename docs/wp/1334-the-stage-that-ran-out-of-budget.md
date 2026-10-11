@@ -45,6 +45,29 @@ computed.
   `test_every_negative_field_claim_is_still_true` fails once it does.
   Rewrite that sentence in the same change.
 
+- **2026-10-11, from the issue triage (#222): the reporter's two comments of
+  2026-09-02 withdraw or sharpen three claims this Context still carries.**
+  (1) "A phase going to zero makes fits faster" is withdrawn. On a third
+  tranche, a 182-pattern variable-temperature synchrotron series, fits ran
+  13.8× slower when `PHASE_UNCONSTRAINED` fired (5.4× more evaluations, 2.2×
+  more cost each), and on that tranche's other system the test was flat
+  (0.94×). The effect is a threshold whose sign depends on whether the
+  unsupported phase leaves a flat direction, so condition on the diagnostic
+  firing and never correlate against the fraction. (2) `s/iter = 4.4 µs ×
+  n_points + 2.9 ms` belongs to the first tranche: 3.35× low on the six-phase
+  lab series and 0.34-0.49× on the variable-T one, so it is not quotable. Cost
+  tracking the evaluation count survives (stratified r = +0.859, +0.988,
+  +0.983). (3) `max_nfev` alone is not the waste signal. Over three tranches
+  it was 3.9 %, 4.4 % and 2.98 % of stages, 46.6 %, 42.9 % and 23.5 % of stage
+  time, and 72×, 53.6× and 18.0× the median `ftol` stage, in a different stage
+  name each time. In the six-phase tranche 15 `max_nfev` `warm_refit` stages
+  still cut cost by a median 2.76 %, while four `max_nfev` `strain` stages
+  spent 129.3 s for 0.19 %. So the stop rule is the pair "budget exhausted and
+  a near-zero relative cost reduction", blind to stage names. Checked against
+  the tree at 7d9be3cb: this file's Context states claims (1) and (2) and
+  keys its rule to `max_nfev` plus ε; `StageResult` has no `rwp` or
+  termination field.
+
 ## Context
 
 From issue #222, measured over a 638-pattern laboratory-XRD chemical-looping

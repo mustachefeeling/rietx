@@ -99,6 +99,21 @@ The row needs that check before it is written.
   the 40 kB truncation it guards. So any row this WP adds to `api.md` meets the
   split decision first, and that decision is due now.
 
+- **2026-10-11, from the issue triage (#661): PR #660 merged on 2026-10-02,
+  so this file's "if PR #660 merges" clauses are due.** It carried the
+  width-box sentence on `ProfileTCHZ` (`schemas/instrument.py:954`) and the
+  `TOPAS_BLOCK_SKIPPED` suggestion (`io/projects/topas.py:3580`);
+  `diagnostics-projects.md` (line 54) does not yet quote that suggestion. Two
+  rows change. The `reflection_table()` row has a cheaper route:
+  `Refinement.predict` needs no fit (`refine.py:4950`), while
+  `reflection_table()` still raises "call fit() first" (`:5301`). The
+  `coverage.partial == False` row is stale after #651: undefined `name(`
+  calls now go to `Coverage.unread_calls`, and only a bare misspelt keyword
+  stays silent. WP-1905 turned the mapping-table rows into the
+  `fap-gsas-reproduce` eval case (PR #699). Checked against the tree at
+  7d9be3cb: no file under `docs/skill/rietx/` mentions `background_terms`,
+  `max_iter=0`, `Zero_Error`/`Specimen_Displacement` or the isotope spellings.
+
 ## Non-goals
 
 - The docstrings and diagnostic texts: PR #660.

@@ -624,6 +624,50 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   propagation vector `k` and add no qualifier.** Root CLAUDE.md § Conventions
   carries the rule that keeps it free. The same note is in 1326, 1327, 1328 and 1329.
 
+- **2026-10-11, from the issue triage (#565, in PR #853): part 4 of 5 is
+  open.** PR #853 (the reporter's, created 2026-10-09) carries the
+  span-containment certificate, containment transfers (item 5) and the
+  sign-free fit transfer (item 6): `Containment` and `Transfer` records,
+  `Witness.interior` and `margin`, and `span`, `containment` and `transfer` in
+  `RELATION_CERTIFICATES`. Part 5 (the consistency rule, `merged_classes`) has
+  not started. Checked against the tree at 7d9be3cb: `RELATION_CERTIFICATES`
+  (`isotropy.py:1442`) has five members and `merged_classes` is absent. Parts
+  1-3 merged as #582, #772 and #809. #455's cubic residue rides parts 4-5, so
+  #455 can close with #565.
+
+- **2026-10-11, from the issue triage (#390): half of the accepted acceptance
+  wording is not on the tree.** The descent audit's ΔBIC note meets the first
+  half. The second half, "the report says the secondary order parameter is
+  unsupported rather than absent", appears nowhere. Checked against the tree at
+  7d9be3cb: `margin` (`strategy/magnetic.py:556`), `_descend` (`:1131`),
+  `_tie_lattice_lines` (`:1225`) and `SEED_TILT` (`moments.py:186`) are on
+  `main`; "secondary order" and "unsupported rather" match nothing in
+  `strategy/magnetic.py` or `docs/manual/using`, and the audit is in neither
+  the skill nor the manual. `_maximal_subgroups` is maximal only among the
+  classes enumerated at the winner's k; WP-1919 generates the full set. Two
+  more gaps in § Tasks: no box for #384 part 1 (`magnetic_candidates` on the
+  FitReport) or for #458's recipe (the `nuclear_reference=` seam, alternation
+  with a stopping rule, the plan, the scale diagnostic), though Inherited
+  entries decide both.
+
+- **2026-10-11, from the issue triage (#820): the reporter's comment of
+  2026-10-08 08:09 asks a gate question.** (1) The pair-class test failed on
+  Linux from the day #743 added it, with no regression window over 13 runs:
+  class 0's ρ(Mn1, Mn2) is −0.498 on Linux and −0.962 on macOS, either side of
+  `MOMENT_PAIR_RHO_MIN` = 0.95. #829 dropped the count and #849 moved the
+  naming check onto the 150 K solution. (2) In the 150 K test the lead pair's
+  sum/esd is 2.9994σ on Linux and 2.9917σ on macOS against a 3σ gate, and the
+  docstring's 0.59 ± 0.26 (2.3σ) and ΔBIC −37.3 are stale. The verdict does
+  not depend on the gate (both eligible classes at ΔBIC −42 and −45). Only
+  the two asserts on `supported` and `pair_supported` sit on the edge. The
+  reporter's option (a): keep the gate, assert the verdict, ΔBIC ≤ 0,
+  convergence and bands on the pair (sum 0.5-0.7, esd 0.2-0.35 μ_B), and drop
+  or soften those two lines. Open for the maintainer: does a pair at 3.0σ
+  count as support? Checked against the tree at 7d9be3cb: the docstring
+  numbers are still at `tests/test_magnetic_solve_acceptance.py:73-77` and the
+  asserts at `:96` and `:99`. Not re-run (about 400 s). The 2026-10-10 Linux
+  nightly (`32a2b473`) passed it; its one failure was #865.
+
 ## Non-goals
 
 - Modulated and incommensurate structures (superspace): issue #258 holds the
