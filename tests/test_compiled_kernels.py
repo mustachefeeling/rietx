@@ -394,9 +394,9 @@ FIT_CURVE_SIGMA = 0.25
 #: gauss_size near 0 on numpy, w 5.3e-8 with each gauss_size near 0.0045 on
 #: the kernels (darwin/arm64, ``[dev,jax]``).  χ²_red agrees to 2.7e-9
 #: relative and the curve to 1.6e-4 σ, while the numpy end's esds, taken at
-#: a corner of the set, put the gap at 54 esd.  Every other parameter moved
-#: 0.11 esd at most (``profile.x``), and the curve bar still covers the
-#: Gaussian widths.
+#: a corner of the set, put the gap at 54 esd.  On that run every other
+#: parameter moved 0.11 esd at most (``profile.x``, now left out below).
+#: The curve bar still covers every width in both blocks.
 #:
 #: The Lorentzian block is the same set.  Γ_L = (x + lor_size)/cosθ +
 #: (y + lor_strain)·tanθ (``forward.py``'s phase loop), and the plan frees x,

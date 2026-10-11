@@ -980,8 +980,7 @@ def _schema_keeps(models: dict, row: Row) -> dict[str, float]:
         kept = getattr(type(holder).model_validate(data), name)
     except ValidationError:
         return {}
-    return {"value": float(_fmt(kept.value)), "min": float(_fmt(kept.min)),
-            "max": float(_fmt(kept.max))}
+    return {"value": kept.value, "min": kept.min, "max": kept.max}
 
 
 def _row_changes(parsed: ParsedDocument, rows: dict, models: dict, delta: Delta,
@@ -996,8 +995,24 @@ def _row_changes(parsed: ParsedDocument, rows: dict, models: dict, delta: Delta,
         if live is None:
             fail(row.line, f"unknown parameter {row.path!r}", row.path, row.text)
             continue
-        if (row.value is not None and float(_fmt(live.value)) != row.value
-                and _schema_keeps(models, row).get("value") != float(_fmt(live.value))):
+        memo: list[dict[str, float]] = []
+
+        def kept(row=row, memo=memo) -> dict[str, float]:
+            """:func:`_schema_keeps` for this row, asked at most once."""
+            if not memo:
+                memo.append(_schema_keeps(models, row))
+            return memo[0]
+
+        # An edit sets the number the schema stores.  A value it raises to the
+        # live one is no edit, and one it raises past the live one sets the
+        # raised number, which ``set_values`` then accepts.
+        value = row.value
+        differs = value is not None and float(_fmt(live.value)) != value
+        if differs:
+            value = kept().get("value", value)
+            differs = (value == row.value
+                       or float(_fmt(value)) != float(_fmt(live.value)))
+        if differs:
             # A locked or tied row would be refused by ``set_values`` at apply
             # time, and that refusal would arrive with a line number attached —
             # but ``validate_only`` never applies, and an editor that only
@@ -1011,14 +1026,14 @@ def _row_changes(parsed: ParsedDocument, rows: dict, models: dict, delta: Delta,
                                f"{live.held_because}{sources}",
                      row.path, row.text)
             else:
-                delta.values[row.path] = row.value
+                delta.values[row.path] = value
         if row.vary != live.vary:
             if row.vary and not live.refinable:
                 fail(row.line, f"{row.path} cannot be freed: {live.held_because}",
                      row.path, row.text)
             else:
                 delta.vary[row.path] = row.vary
-        _check_annotations(row, live, fail, models)
+        _check_annotations(row, live, fail, kept)
 
 
 def _glob_row(row: Row, rows: dict, delta: Delta, fail) -> None:
@@ -1124,7 +1139,7 @@ _ANNOTATION_REASONS = {
 }
 
 
-def _check_annotations(row: Row, live, fail, models: dict) -> None:
+def _check_annotations(row: Row, live, fail, kept) -> None:
     """Annotations are read-only, and only a *differing* one is an error.
 
     Compared against :func:`annotations_of` — the same dict the renderer printed
@@ -1132,7 +1147,7 @@ def _check_annotations(row: Row, live, fail, models: dict) -> None:
     *deletes* ``min 0`` is not asking for an unbounded parameter (no verb would
     do that), so omission means "no opinion" while a mismatch means "you edited
     something no API call can change".  A bound the schema raises to the live
-    one does not differ (:func:`_schema_keeps`).
+    one does not differ: ``kept`` returns the row's :func:`_schema_keeps`.
     """
     current = annotations_of(live)
     for key, typed in row.annotations.items():
@@ -1141,8 +1156,8 @@ def _check_annotations(row: Row, live, fail, models: dict) -> None:
                            f"{_ANNOTATION_REASONS.get(key, 'this is read-only')}",
                  row.path, row.text)
         elif current[key] != typed and not (
-                key in ("min", "max")
-                and _schema_keeps(models, row).get(key) == current[key]):
+                key in ("min", "max") and key in kept()
+                and float(_fmt(kept()[key])) == current[key]):
             shown = current[key] if current[key] is not True else key
             fail(row.line, f"{key} on {row.path} is {shown}, and cannot be "
                            f"edited here: {_ANNOTATION_REASONS[key]}",

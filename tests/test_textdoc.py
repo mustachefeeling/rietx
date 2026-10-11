@@ -182,6 +182,15 @@ def test_a_document_written_before_a_floor_applies_nothing(tmp_path, pattern_fil
     assert [e.where for e in errors] == ["phases.0.scale"]
     assert "cannot be edited here" in errors[0].message
 
+    # a W the schema raises past the live one sets the raised number, which
+    # apply accepts, rather than the typed one, which it would refuse
+    project.refinement.set_values({"instrument.profile.w": 0.003})
+    delta, errors = _changes(written_before(td.render(project), "profile.w", 0,
+                                            value="0"), project)
+    assert (errors, delta.values) == ([], {"instrument.profile.w": 1e-8})
+    td.apply(project, delta)
+    assert project.refinement.instrument.profile.w.value == 1e-8
+
 
 def test_a_hold_renders_as_an_annotation_and_refuses_the_at_marker(
         tmp_path, pattern_file):
