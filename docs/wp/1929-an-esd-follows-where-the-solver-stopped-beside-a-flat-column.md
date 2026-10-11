@@ -281,11 +281,11 @@ continuations of 400 evaluations.
       physical floor gets its own code and `Diagnostic.suggestion`, replacing
       `refine._ZERO_FLOOR_SUGGESTION`, so a width refined to zero is not told
       to widen its bound. Audit every reader of `BOUND_HIT` for the split.
-- [ ] `statistics.normal_covariance`'s docstring and root CLAUDE.md's
+- [x] `statistics.normal_covariance`'s docstring and root CLAUDE.md's
       equilibration clause state the marginal rule. Find every consumer of
       `live` and `unmeasured_rows`, and say which still apply once no column
       is a softplus floor.
-- [ ] The held-fixed esd as a tool: expose `normal_factors(condition=)`
+- [x] The held-fixed esd as a tool: expose `normal_factors(condition=)`
       through a public call, or remove it if `profile_interval` covers the
       need. Settle χ²_red's degrees of freedom and `discarded_directions`
       under it.
@@ -295,10 +295,11 @@ continuations of 400 evaluations.
 - [ ] Moment angles at a stationary direction: leave the normal matrix (or
       extend `MOMENT_DIRECTION_SUPPORT`'s hold to them, whichever keeps one
       authority), and rewrite that constant's comment. Physical coordinates do
-      not touch this half: the azimuth is already identity. The driver side
-      too: LM's `ftol_runs` stop at large λ beside a stationary angle (Context,
-      2026-10-11). Then restore the two-site test's no-pair and esd
-      assertions and flip `_LM_FALSE_CONVERGENCE`'s xfail.
+      not touch this half: the azimuth is already identity. Then restore the
+      two-site test's no-pair and esd assertions. The driver side (LM's
+      `ftol_runs` stop at large λ beside a stationary angle, and
+      `_LM_FALSE_CONVERGENCE`'s xfail) moves to WP-1953 (maintainer,
+      2026-10-12): same seam in `lm.py`, same grid to re-measure.
 - [ ] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
       says so); WP-1915's indexing propagation reads the same covariance.
 - [ ] The analytic azimuth column at φ = π: check it against an exact oracle
