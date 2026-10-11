@@ -670,3 +670,18 @@ def test_a_stage_with_max_iter_0_is_refused_on_either_driver(solver):
     ref = rx.Refinement(structure, instrument, history=False, solver=solver)
     with pytest.raises(ValueError, match="max_nfev"):
         ref.fit(synthesize(), plan=plan)
+
+
+@pytest.mark.parametrize("solver", ["lm", "trf"])
+def test_a_joint_stage_with_max_iter_0_is_refused_on_either_driver(solver):
+    """The joint fit reaches ``lm.minimize`` through its own call site, so the
+    refusal is checked there too rather than inferred from the single fit."""
+    import rietx as rx
+    from tests.test_joint_xray_neutron import _flat, _neutron, _xray, corundum
+
+    plan = rx.RefinementPlan(stages=[rx.Stage("scale", ["phases.*.scale"],
+                                              max_iter=0)])
+    with pytest.raises(ValueError, match="max_nfev"):
+        rx.refine_multi([_flat(20.0, 80.0), _flat(20.0, 80.0)],
+                        rx.Structure(phases=[corundum()]), [_xray(), _neutron()],
+                        plan=plan, solver=solver)

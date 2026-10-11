@@ -352,8 +352,9 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     and b at an accepted point; the inner one raises λ until a step lowers S.
     ``max_nfev`` caps residual evaluations, the initial one included, which is
     what scipy's ``max_nfev`` caps, so one budget means one thing on both
-    drivers (WP-1937).  The inner loop is also bounded on its own, so a point
-    with nothing downhill cannot spin.
+    drivers (WP-1937).  A budget under one evaluation raises ``ValueError``,
+    as it does under scipy.  The inner loop is also bounded on its own, so a
+    point with nothing downhill cannot spin.
 
     Termination: relative decrease in S below ``ftol`` for three consecutive
     outer iterations (Coelho's own criterion — a single small step is not
