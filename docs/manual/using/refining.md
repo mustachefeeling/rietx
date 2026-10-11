@@ -1040,7 +1040,7 @@ for stage in result.stages:
 | `StageResult.cost_final` | the cost it reached |
 | `StageResult.freed` | the paths this stage actually freed, after globbing |
 | `StageResult.ftol` | the tolerance it was solved at; `None` = the solver default |
-| `StageResult.n_constraint_truncations` | steps the bounded-LM driver shortened to stay inside a linear-inequality constraint |
+| `StageResult.n_constraint_truncations` | steps the bounded-LM driver held on a linear-inequality constraint |
 | `StageResult.n_degenerate_cell_probes` | trial cells this stage's residual refused as degenerate (zero or negative volume) rather than warning about and returning NaN |
 | `StageResult.held` | paths the plan freed that this stage held anyway, because the data could not see their phase |
 | `StageResult.held_reach` | per held path, the tied parameters it also stopped |
@@ -1148,9 +1148,11 @@ A cost that rises from `StageResult.cost_initial` to `StageResult.cost_final`
 is a diverged stage, and `StageResult.status` says so.
 
 `StageResult.n_constraint_truncations` counts the steps the default `lm` solver
-shortened against a linear inequality. Today the only such constraint is the
-Stephens strain cone. It is `0` under `solver="trf"`, which has no
-linear-inequality vocabulary at all, and in a joint fit, which builds no cone.
+held on a linear inequality. Each such step crossed a row when solved for the
+bounds alone, and was solved again over the bounds and the rows together. Two
+constraints are rows: the Stephens strain cone, and the floor on the Gaussian
+width at every reflection. It is `0` under `solver="trf"`, which has no
+linear-inequality vocabulary at all, and in a joint fit, which builds no rows.
 
 `StageResult.n_degenerate_cell_probes` counts trials, never the answer: `Cell`
 declares no bounds of its own, so an underdetermined cell stage can reach a

@@ -418,8 +418,14 @@ def test_constrained_solver_keeps_brucite_inside_the_cone():
                                    _plan(texture=True, stephens=True),
                                    "brucite_cone_lm", solver="lm")
 
+    from rietx.strategy.staged import STEPHENS_CONE_TOL
+
     sigma2 = _sigma2_of(ref)
-    assert (sigma2 > 0.0).all(), f"{int((sigma2 <= 0).sum())} reflections left the cone"
+    # on the cone means within the guard's tolerance: since WP-1938 D8 the
+    # step lands on the face exactly, so a reflection there reads a rounding
+    # either side of zero (measured -6.5e-16 of the largest σ²)
+    out = sigma2 < -STEPHENS_CONE_TOL * np.max(np.abs(sigma2))
+    assert not out.any(), f"{int(out.sum())} reflections left the cone"
     assert not [d for d in result.diagnostics
                 if d.code == "STEPHENS_STRAIN_NOT_POSITIVE"]
     assert result.status == "converged"
@@ -429,7 +435,9 @@ def test_constrained_solver_keeps_brucite_inside_the_cone():
     # *on* the face (< 1e-4 of max); at the area-criterion windows the same
     # fit stops slightly interior (measured 1.3e-3 of max, with the
     # unconstrained cone count down 10+ → 7 in the same direction), so the
-    # bar states the separation without demanding an exact active constraint
+    # bar states the separation without demanding an exact active constraint.
+    # Since WP-1938 D8 the step holds the cone exactly and the fit ends on the
+    # face again
     assert sigma2.min() < 5e-3 * sigma2.max()
     # …and it costs Rwp, which is the point of not judging this by Rwp
     assert 0.17 < result.statistics.rwp < 0.20

@@ -25,9 +25,20 @@ Why a driver of our own beside scipy's: **constraint vocabulary**.
 This driver adds
 
 * boxes enforced *inside* the linear solve rather than after it, and
-* **linear inequalities on functionals of θ** — rows ``T·θ ≥ 0`` — which is
-  the shape the Stephens anisotropic-strain positivity cone has, and which no
-  box can express (see :class:`LinearInequality`).
+* **linear inequalities on functionals of θ** — rows ``T·θ + c ≥ 0`` — which
+  is the shape of the Stephens anisotropic-strain positivity cone and of the
+  floor Γ_G² ≥ ε on the Gaussian width at every reflection (WP-1938 D7), and
+  which no box can express (see :class:`LinearInequality`).
+
+The inequalities are held inside the step too (WP-1938 D8).  A step that
+satisfies every row is the box-only step, untouched.  A step that crosses a
+row is replaced by the exact minimiser of the same damped model over the box
+and the rows together (:func:`_solve_constrained_step`, Lawson & Hanson
+1974, ch. 23).  Until D8 the box-only step was projected and truncated
+against the rows instead, and where the optimum sits on a row's face that
+stalled.  Brucite + Stephens stopped ``exhausted_fp64`` with its S_HKL spread
+7e-5 relative over five starts.  Under D7's Γ_G² rows, two LaB₆ fits and
+BT-1's X-ray fit stopped short of the rows' face.
 
 It is not a speed play.  The normal-equation solve is a minority of this
 package's runtime — ``derivative_bases`` costs ~2× the forward evaluation, and
@@ -86,11 +97,11 @@ cond(JᵀJ) = cond(J)² makes reduced precision unrecoverable.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 import numpy as np
-from scipy.optimize import lsq_linear
+from scipy.optimize import lsq_linear, nnls
 
 from ..backend.linalg64 import require_fp64, to_host_fp64
 from . import bccg
@@ -119,14 +130,39 @@ _CONVERGED_RUNS = 3
 #: ramping to 3.6e27 while every trial step underflowed the cost difference.
 _PREDICTED_FLOOR = 1e-12
 
-#: fraction-to-the-boundary factor for linear-inequality rows: a step is
-#: truncated to 99.5 % of the distance to the constraint surface, so iterates
-#: stay strictly feasible and can still move tangentially next iteration.
-#: A step truncated to *exactly* the boundary would stall there.
-_FEASIBLE_FRACTION = 0.995
-#: relative slack below which a linear-inequality row counts as *active* and is
-#: treated as an equality for the step (see ``LinearInequality.project_step``).
-_ACTIVE_TOL = 1e-9
+#: a row whose slack is under 0 by less than this fraction of its block's
+#: largest |slack| is on its face, not violated (:meth:`LinearInequality.violated`):
+#: the guards' own tolerance (``strategy.staged.STEPHENS_CONE_TOL``,
+#: ``RESOLUTION_CONE_TOL``), read the same way, against the largest value.
+_ON_FACE = 1e-9
+#: relative amount by which the box-only step may cross a linear-inequality row
+#: and still be taken, measured against the row's own scale
+#: ``|T|·|θ| + |c|``.  A crossing that small is the rounding of the row's
+#: evaluation, as when a row coincides with a box face the step lands on
+#: (W's floor and the Γ_G² row at U = V = 0).  Anything larger takes the exact
+#: constrained step.  Seven decades under the guards' own tolerance
+#: (``strategy.staged.STEPHENS_CONE_TOL``, ``RESOLUTION_CONE_TOL``, 1e-9).
+_ROW_ROUNDING = 1e-12
+#: curvature, as a fraction of the largest eigenvalue, given to the directions
+#: the eigenvalue cut discards when the step must also hold inequality rows.
+#: The model is flat there, so any curvature is a tie-break, and the box-only
+#: step's is minimum norm.  The least-distance problem divides by the square
+#: root of each curvature, so a curvature at the cut itself loses most of its
+#: digits.  On the 1000 random problems below, a curvature at the cut left
+#: three rank-deficient steps on the unpolished least-distance point and one
+#: with no step at all, and √ε left none.
+_NULL_CURVATURE = float(np.sqrt(np.finfo(np.float64).eps))
+#: the polished constrained step (:func:`_equality_step`) is kept when it holds
+#: every row to this fraction of the row's scale and its gradient is a
+#: non-negative combination of the active rows to ``_POLISH_STATIONARY`` of
+#: the gradient's scale.  Otherwise the least-distance point stands.  Measured
+#: on 1000 random problems (2-11 parameters, column scales 1e-3 to 1e3, up to
+#: 29 rows, a fifth rank-deficient, λ of 0, 1e-3 and 1), 898 of which crossed
+#: a row: the polish passed on all 898.  On the full-rank ones its worst row
+#: sat at -7e-13 of its scale and its worst stationarity residual at 4e-10,
+#: and the unpolished least-distance point's worst row sat at -1.4e-7.
+_POLISH_FEASIBLE = 1e-10
+_POLISH_STATIONARY = 1e-8
 #: eigenvalues of the equilibrated normal matrix below this × (number of
 #: residual rows) × λmax are discarded from the step: the scale of the
 #: rounding error in one entry of JᵀJ (see :func:`_solve_step`).
@@ -150,17 +186,21 @@ class LinearInequality:
     This is the piece published BCCG explicitly cannot do: its §4 states that a
     constraint which is a function of several parameters "cannot be handled in
     the loop — a restraint which modifies the A matrix is necessary".  Rather
-    than turn the constraint into a soft restraint (which would let it be
-    violated whenever the data pull hard enough — the present behaviour, and
-    the reason no Stephens S_HKL is quotable today), the step is truncated
-    short of the constraint surface, which keeps *every* iterate feasible.
+    than turn the constraint into a soft restraint, which would let it be
+    violated whenever the data pull hard enough, the step holds the rows
+    exactly, so *every* iterate is feasible.
 
-    A box is the special case ``T = ±I``; it is not routed through here,
-    because the step solves boxes exactly (:func:`_solve_step`) where
-    truncation stops short of them.  Coelho (2005) measured the same gap for
-    bounds inside the solve against bounds applied after it (Pawley, Rwp 3.901
-    in 16 iterations against 4.351 in 84).  Truncation is the fallback for rows
-    a box cannot express.
+    A box is the special case ``T = ±I``, and the step solves boxes and rows
+    in one problem when a row binds (:func:`_solve_constrained_step`).  Bounds
+    inside the solve rather than applied after it is the gap Coelho (2005)
+    measured (Pawley, Rwp 3.901 in 16 iterations against 4.351 in 84), and
+    WP-1938 D8 closed it for the rows a box cannot express.
+
+    Two builders make them, both in :mod:`.least_squares`:
+    ``strain_cone_inequalities`` and ``gaussian_width_inequalities``.  A row
+    the starting point violates is left out by both, since the step keeps
+    feasibility and cannot restore it: at an iterate a row's slack is never
+    asked to grow, only not to fall below ``min(slack, 0)``.
 
     ``T`` is (n_rows, n_free) and frozen for the whole least-squares run — the
     same frozen-per-stage discipline the hkl list and window ranges follow.
@@ -168,67 +208,50 @@ class LinearInequality:
 
     T: np.ndarray
     c: np.ndarray
-    #: what the rows mean, for diagnostics ("phases.0.microstrain" …)
+    #: what the rows mean, for diagnostics: ``"phases.0.microstrain"`` for the
+    #: cone, ``"instrument.profile (phases.0)"`` for the Γ_G² floor
     label: str = ""
 
     def violated(self, theta: np.ndarray) -> np.ndarray:
-        return (self.T @ theta + self.c) < 0.0
+        """Rows below their face by more than :data:`_ON_FACE` of the
+        block's largest |slack|, the guards' own reading of "on the face".
+
+        A row an exact step left on its face reads a rounding either side of
+        it, and a strict test would call half of those violated.  The
+        builders drop a block or row the start violates, so a stage that
+        ended on the cone handed the next stage no cone at all: brucite +
+        Stephens left it at −1.5e-11 against a largest σ²(M) of 6.3e6, and
+        the stages after it took 19 of 43 reflections out of the cone.
+        """
+        slack = self.slack(theta)
+        return slack < -_ON_FACE * float(np.max(np.abs(slack), initial=0.0))
 
     def slack(self, theta: np.ndarray) -> np.ndarray:
         return self.T @ theta + self.c
 
-    def project_step(self, theta: np.ndarray, step: np.ndarray) -> np.ndarray:
-        """Remove the components of ``step`` that press into *active* rows.
-
-        Truncation alone is not enough, and this is the failure it fixes: once
-        an iterate reaches the constraint surface, a step with any inward
-        component gets scaled by τ ≈ 0 — which also kills the part of the step
-        running *along* the surface, so the solve stalls on the boundary and
-        reports failure at the first outer iteration.  Measured on brucite,
-        whose strain refinement drives straight onto the cone: without this the
-        constrained fit terminates as "diverged" at Rwp 0.191 against the
-        unconstrained 0.179.
-
-        So rows already at the surface *and* being closed further are treated
-        as equalities for this step: the step is projected onto their null
-        space (least squares, since the active rows are generally dependent —
-        the Stephens cone has 43 rows over 4 free DOFs).  What survives is
-        motion tangent to the active surface, which is what a constrained
-        optimiser is supposed to keep.  Rows not yet active are handled by
-        :meth:`max_feasible_fraction` afterwards.
-        """
-        g0 = self.slack(theta)
-        scale = max(float(np.max(np.abs(g0))), 1.0)
-        active = g0 <= _ACTIVE_TOL * scale
-        if not np.any(active):
-            return step
-        rows = self.T[active]
-        inward = (rows @ step) < 0.0
-        if not np.any(inward):
-            return step
-        Tb = rows[inward]
-        # minimum-norm correction: step ← step − Tbᵀ (Tb Tbᵀ)⁺ Tb step
-        lam, *_ = np.linalg.lstsq(Tb @ Tb.T, Tb @ step, rcond=None)
-        return step - Tb.T @ lam
+    def crossed(self, theta: np.ndarray, step: np.ndarray) -> bool:
+        """Whether ``step`` from ``theta`` takes a row below ``min(slack, 0)``
+        by more than the rounding of its evaluation (:data:`_ROW_ROUNDING`)."""
+        end = theta + step
+        floor = np.minimum(self.slack(theta), 0.0)
+        scale = np.abs(self.T) @ np.abs(end) + np.abs(self.c)
+        return bool(np.any(self.slack(end) < floor - _ROW_ROUNDING * scale))
 
     def max_feasible_fraction(self, theta: np.ndarray, step: np.ndarray) -> float:
-        """Largest τ ∈ (0, 1] with ``T·(θ + τ·step) + c ≥ 0``, times 0.995.
+        """Largest τ ∈ [0, 1] with ``T·(θ + τ·step) + c ≥ min(slack, 0)``.
 
-        Rows the step moves *away* from the surface (or parallel to it) never
-        bind, so only negative ``T·step`` entries can truncate.
+        Only :func:`minimize`'s fallback reads it, when the constrained solve
+        fails.  Rows the step moves *away* from the surface, or along it,
+        never bind, so only negative ``T·step`` entries can shorten it.
         """
-        g0 = self.T @ theta + self.c
+        g0 = self.slack(theta)
         dg = self.T @ step
         closing = dg < 0.0
         if not np.any(closing):
             return 1.0
-        # τ_i is where row i reaches zero; a row already at/below zero (numerical
-        # slack from a previous truncation) gives τ_i ≤ 0 and would stall the
-        # solve, so it is floored at 0 and reported by ``violated``.
         with np.errstate(divide="ignore", invalid="ignore"):
-            tau = np.where(closing, -g0 / dg, np.inf)
-        tau_min = float(np.min(np.maximum(tau, 0.0)))
-        return min(1.0, _FEASIBLE_FRACTION * tau_min)
+            tau = np.where(closing, -np.maximum(g0, 0.0) / dg, np.inf)
+        return min(1.0, float(np.min(tau)))
 
 
 @dataclass
@@ -252,7 +275,15 @@ class LMOutcome:
     status: int
     lambda_final: float = 0.0
     n_bound_hits: int = 0
-    n_truncated: int = 0       # steps shortened by a linear-inequality row
+    #: trial steps a linear-inequality row shaped: the box-only step crossed a
+    #: row, and the constrained step replaced it (WP-1938 D8).  The name is
+    #: from before D8, when such a step was truncated instead.
+    n_truncated: int = 0
+    #: ``n_truncated`` by the :attr:`LinearInequality.label` of each block the
+    #: box-only step crossed, so a step crossing two blocks counts once in each
+    #: (WP-1938 D7: the Stephens cone and the Γ_G² floor, and a diagnostic
+    #: names which pressed)
+    truncated_by: dict[str, int] = field(default_factory=dict)
     #: inner iterations burned on a point where the linearised model promised
     #: descent the true objective did not deliver (a corner, not a minimum)
     n_stalled: int = 0
@@ -325,13 +356,18 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     first outer iteration: a stage that starts at its minimum has nothing
     downhill to find.
 
+    Each step solves the damped model over the box (:func:`_solve_step`).
+    When that step crosses a row of ``inequalities``, the step is solved again
+    over the box and every row together (:func:`_solve_constrained_step`), so
+    a step that crosses nothing is the box-only step bit for bit (WP-1938 D8).
+
     ``callback(x, cost)`` fires on each *accepted* point; ``on_trial(x_try,
     cost, accepted, lam, step_norm)`` fires once per trial the residual
     actually measured (WP-1113), with ``cost = ½·rᵀr`` at the trial, the λ
-    that produced the step, and the norm of the *taken* step — after
-    projection, inequality truncation and the box clamp.  A trial the linear
-    model discards unevaluated (no descent promised, or a promise under the
-    fp64 floor) never reaches the residual and never fires it.
+    that produced the step, and the norm of the *taken* step, after the box
+    clamp.  A trial the linear model discards unevaluated (no descent
+    promised, or a promise under the fp64 floor) never reaches the residual
+    and never fires it.
     """
     x = _clip_to_bounds(np.asarray(x0, dtype=np.float64).copy(), lo, hi)
     ineqs = list(inequalities or [])
@@ -349,6 +385,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     signs: list[int] = []
     small_runs = 0
     n_truncated = 0
+    truncated_by: dict[str, int] = {}
     n_stalled = 0
     status = 0
     n_outer = 0
@@ -369,34 +406,43 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
         spent = False
         for _inner in range(_INNER_MAX):
             step, side = _solve_step(A, b, lam, x, lo, hi, n_rows=len(r))
+            crossed = [iq.label for iq in ineqs if iq.crossed(x, step)]
+            if crossed:
+                # the box-only step leaves the feasible set: solve the same
+                # model over the box and the rows together (WP-1938 D8)
+                n_truncated += 1
+                for label in crossed:
+                    truncated_by[label] = truncated_by.get(label, 0) + 1
+                try:
+                    step, side = _solve_constrained_step(A, b, lam, x, lo, hi, ineqs,
+                                                         n_rows=len(r))
+                except _NoConstrainedStep:
+                    # nnls ran out of iterations: shorten the box-only step to
+                    # the first row it reaches, the pre-D8 rule without the
+                    # projection
+                    tau = min(iq.max_feasible_fraction(x, step) for iq in ineqs)
+                    step, side = tau * step, np.zeros_like(side)
             if not np.any(step):
-                # the model's minimum over the box is where we stand
+                # the model's minimum over the box and the rows is where we
+                # stand
                 exhausted = True
                 break
-            solved = step
-            for iq in ineqs:
-                step = iq.project_step(x, step)
-            tau = min((iq.max_feasible_fraction(x, step) for iq in ineqs), default=1.0)
-            if tau < 1.0:
-                step = tau * step
-                n_truncated += 1
             floor = -_PREDICTED_FLOOR * max(abs(s), 1.0)
             x_try = _clip_to_bounds(x + step, lo, hi)
-            if step is solved:
-                # a variable the solve put on a bound lands on it exactly:
-                # (lo − x)·d/d need not round back to lo − x, and the active
-                # set is read as x == bound
-                x_try = np.where(side < 0, lo, np.where(side > 0, hi, x_try))
+            # a variable the solve put on a bound lands on it exactly:
+            # (lo − x)·d/d need not round back to lo − x, and the active set is
+            # read as x == bound
+            x_try = np.where(side < 0, lo, np.where(side > 0, hi, x_try))
             step = x_try - x            # the *taken* step, after every clamp
             promise = -float(step @ b)
             if promise >= 0.0:
                 # Not a descent direction *for the model* — which is a
-                # statement about the model, not the objective.  The exact
-                # bounded solve cannot return one, since Δ = 0 is feasible and
-                # its model value is zero.  The inequality projection can, and
-                # so could BCCG's truncated CG before WP-1937 (measured on
-                # brucite: ‖Δ‖ ≈ 2e10 promising +1.7e5).  Either is what λ
-                # exists for: damp and retry.
+                # statement about the model, not the objective.  Neither exact
+                # solve can return one, since Δ = 0 is feasible and its model
+                # value is zero, short of rounding.  BCCG's truncated CG
+                # could before WP-1937 (measured on brucite: ‖Δ‖ ≈ 2e10
+                # promising +1.7e5).  Either is what λ exists for: damp and
+                # retry.
                 lam = _next_lambda(lam, None, 0.0)
                 continue
             if promise > floor:
@@ -468,6 +514,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     return LMOutcome(x=x, fun=r, jac=J, cost=0.5 * s, nfev=n_fev, njev=n_jev,
                      n_outer=n_outer, status=status, lambda_final=lam,
                      n_bound_hits=n_bound_hits, n_truncated=n_truncated,
+                     truncated_by=truncated_by,
                      n_stalled=n_stalled, termination=termination,
                      active_mask=active)
 
@@ -534,3 +581,156 @@ def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
     side[out.active_mask < 0] = -1
     side[out.active_mask > 0] = 1
     return out.x * inv_d, side
+
+
+class _NoConstrainedStep(RuntimeError):
+    """The least-distance solve did not return a step (nnls hit its iteration
+    cap, or reported the rows inconsistent where Δ = 0 satisfies them)."""
+
+
+def _solve_constrained_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
+                            lo: np.ndarray, hi: np.ndarray,
+                            inequalities: list[LinearInequality], *, n_rows: int
+                            ) -> tuple[np.ndarray, np.ndarray]:
+    """The damped step over the box *and* the linear-inequality rows (WP-1938 D8).
+
+    Minimises :func:`_solve_step`'s model ``½ΔᵀA_λΔ − bᵀΔ`` subject to
+    ``lo − x ≤ Δ ≤ hi − x`` and ``T·(x + Δ) + c ≥ min(T·x + c, 0)`` for every
+    row of every block.  Δ = 0 satisfies all of them, so the problem always
+    has a solution.  It is a least-squares problem with linear inequality
+    constraints (LSI), solved exactly by the route of Lawson, C. L. & Hanson,
+    R. J. (1974). *Solving Least Squares Problems*, ch. 23. Englewood Cliffs:
+    Prentice-Hall:
+
+    1. **LSI.**  In the equilibrated variable s = d·Δ the model is
+       ``½sᵀHs − gᵀs`` with ``H = VΛVᵀ``, which is ``½‖Es − f‖²`` up to a
+       constant for ``E = Λ^½Vᵀ`` and ``f = Λ^-½Vᵀg``.  The box limits join
+       the rows as ``±s_i ≥ …``, giving ``Gs ≥ h``.
+    2. **LSI → LDP.**  E is a scaled rotation, so ``z = Es − f`` inverts as
+       ``s = s₀ + E⁻¹z``, with ``s₀ = H⁻¹g`` the unconstrained minimiser.  The
+       model is then ``½‖z‖²``, and the step is the least-distance problem
+       ``min ‖z‖`` subject to ``(GE⁻¹)z ≥ h − Gs₀``.
+    3. **LDP → NNLS.**  :func:`_least_distance`, by ``scipy.optimize.nnls``,
+       Lawson & Hanson's own algorithm.
+
+    Two numerical steps sit on top of the textbook route.  The directions the
+    eigenvalue cut discards get curvature :data:`_NULL_CURVATURE`·λmax, the
+    tie-break that keeps E invertible.  And ``s = s₀ + E⁻¹z`` cancels when the
+    unconstrained minimiser lies far outside the rows, so the rows active at
+    z, those with ``u > 0``, are then solved as equalities
+    (:func:`_equality_step`), which never forms s₀.  That polished point is
+    kept when it satisfies the problem's optimality conditions
+    (:data:`_POLISH_FEASIBLE`), and the least-distance point otherwise.
+
+    Returns the step and which bound each variable was solved onto, as
+    :func:`_solve_step` does: −1 for an active lower box row, +1 for an
+    active upper one.  The caller lands those variables exactly on the bound.
+    """
+    n = len(b)
+    eps = float(np.finfo(np.float64).eps)
+    d = np.sqrt(np.maximum(np.diag(A), 0.0))
+    d = np.where(d > 0.0, d, 1.0)
+    inv_d = 1.0 / d
+    H = A * np.outer(inv_d, inv_d)
+    H[np.diag_indices(n)] += lam
+    g = b * inv_d
+    w, V = np.linalg.eigh(H)
+    w_max = float(w[-1]) if n else 0.0
+    side = np.zeros(n, dtype=np.int8)
+    if w_max <= 0.0:
+        return np.zeros(n), side
+    keep = w > _EIGEN_CUT_PER_ROW * max(n_rows, n) * w_max
+    w = np.where(keep, w, _NULL_CURVATURE * w_max)
+    root = np.sqrt(w)
+    f = np.where(keep, (V.T @ g) / root, 0.0)
+    E_inv = V / root
+    s0 = E_inv @ f
+    H = (V * w) @ V.T                       # the model the rows are solved over
+
+    lb, ub = (lo - x) * d, (hi - x) * d
+    has_lo, has_hi = np.isfinite(lb), np.isfinite(ub)
+    eye = np.eye(n)
+    T = np.vstack([iq.T for iq in inequalities]) * inv_d
+    slack = np.concatenate([iq.slack(x) for iq in inequalities])
+    G = np.vstack([eye[has_lo], -eye[has_hi], T])
+    h = np.concatenate([lb[has_lo], -ub[has_hi], -np.maximum(slack, 0.0)])
+    # which variable and bound each box row is, for ``side``
+    var = np.concatenate([np.flatnonzero(has_lo), np.flatnonzero(has_hi),
+                          np.full(len(T), -1)])
+    sign = np.concatenate([np.full(int(has_lo.sum()), -1), np.full(int(has_hi.sum()), 1),
+                           np.zeros(len(T), dtype=int)])
+
+    G_z = G @ E_inv
+    h_z = h - G @ s0
+    norm = np.linalg.norm(G_z, axis=1)
+    live = norm > 0.0
+    G, h, var, sign = G[live], h[live], var[live], sign[live]
+    G_z, h_z = G_z[live] / norm[live, None], h_z[live] / norm[live]
+    if not np.any(h_z > 0.0):
+        return s0 * inv_d, side            # the unconstrained minimiser is feasible
+    z, u = _least_distance(G_z, h_z)
+    s = s0 + E_inv @ z
+    active = u > 0.0
+    polished = _equality_step(H, g, G[active], h[active], eps)
+    row_scale = np.linalg.norm(G, axis=1) * np.linalg.norm(polished) + np.abs(h)
+    if np.all(G @ polished - h >= -_POLISH_FEASIBLE * row_scale):
+        _, stationary = nnls(G[active].T, H @ polished - g)
+        if stationary <= _POLISH_STATIONARY * max(np.linalg.norm(g),
+                                                  np.linalg.norm(H @ polished)):
+            s = polished
+    on_box = active & (var >= 0)
+    side[var[on_box]] = sign[on_box]
+    return s * inv_d, side
+
+
+def _least_distance(G: np.ndarray, h: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Lawson & Hanson (1974, ch. 23)'s problem LDP: the shortest z with Gz ≥ h.
+
+    It is solved through non-negative least squares,
+    ``min ‖Eu − f‖`` over ``u ≥ 0`` with ``E = [Gᵀ; hᵀ]`` and
+    ``f = (0, …, 0, 1)``.  With ``ρ = Eu − f``, a zero ρ means the rows are
+    inconsistent, and otherwise ``z = −ρ[:n]/ρ[n]``.  A row with ``u > 0`` is
+    active at z, and u is its multiplier up to a common positive factor.
+
+    The rows arrive at unit norm, and h is divided by its largest entry κ > 0
+    before the solve and z multiplied by it after, which moves neither the
+    solution nor the active set.  ρ shrinks as 1/‖z‖ while its rounding does
+    not, so z is resolved best near unit length, and ‖z‖ ≥ max h.
+    """
+    n = G.shape[1]
+    kappa = float(np.max(h))
+    E = np.vstack([G.T, h / kappa])
+    f = np.zeros(n + 1)
+    f[-1] = 1.0
+    try:
+        u, _ = nnls(E, f, maxiter=10 * E.shape[1])
+    except RuntimeError as exc:             # the iteration cap
+        raise _NoConstrainedStep(str(exc)) from exc
+    rho = E @ u - f
+    if not rho[n] < 0.0:
+        raise _NoConstrainedStep("nnls reports the rows inconsistent")
+    return kappa * (-rho[:n] / rho[n]), u
+
+
+def _equality_step(H: np.ndarray, g: np.ndarray, G: np.ndarray, h: np.ndarray,
+                   eps: float) -> np.ndarray:
+    """``min ½sᵀHs − gᵀs`` subject to ``Gs = h``, for H positive definite.
+
+    The null-space method: the minimum-norm solution of ``Gs = h`` from the
+    SVD of G, plus the minimiser along G's null space, where the reduced
+    matrix ZᵀHZ is positive definite because H is.  The active rows of a
+    degenerate vertex are dependent, and the SVD's rank absorbs them.  A
+    rank-deficient G with slightly inconsistent h is met in the
+    least-squares sense, and :func:`_solve_constrained_step` then checks the
+    result against every row.
+    """
+    n = H.shape[0]
+    if not len(G):
+        return np.linalg.solve(H, g)
+    U, sv, Wt = np.linalg.svd(G)
+    rank = int(np.count_nonzero(sv > max(G.shape) * eps * sv[0]))
+    s = Wt[:rank].T @ ((U[:, :rank].T @ h) / sv[:rank])
+    Z = Wt[rank:].T
+    if rank < n:
+        s = s + Z @ np.linalg.solve(Z.T @ H @ Z, Z.T @ (g - H @ s))
+    return s

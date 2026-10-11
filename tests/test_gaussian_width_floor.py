@@ -1,28 +1,34 @@
-"""The Caglioti W's floor is the Γ_G² clamp, not 0 (WP-1938 D7).
+"""The Γ_G² clamp, kept out of LM's reach two ways (WP-1938 D7, D8).
 
 ``gaussian_fwhm`` clamps Γ_G² at ``caglioti._MIN_GAMMA_G2`` = 1e-8 deg², and
 under the clamp every Gaussian width column is exactly zero.  LM's bounded
 step lands W exactly on its floor, so with the floor at 0 and U = V = 0 a
 stage freeing W put Γ_G² under the clamp at every point and stopped there.  A
 synthetic LaB₆ pattern with NAC's widths reproduces it in a fraction of a
-second.  With W's floor at the clamp, LM lands on TRF's minimum.
+second.  Two things now keep the clamp out of reach, and each is tested here
+alone.  W's floor is the clamp itself.  And Γ_G² ≥ ε at every reflection is
+a row of LM's linear inequalities
+(``least_squares.gaussian_width_inequalities``), held inside the step since
+D8, which also covers a negative U or V.
 
-obs/calc/diff PNGs of both LM fits go to ``tests/output/``.
+obs/calc/diff PNGs of the LM fits go to ``tests/output/``.
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 import rietx as rx
+import rietx.optimize.least_squares as ls
 from rietx import Instrument, PatternData, Refinement
 from rietx.io.instrument_profile import read_gsas2_instprm, read_gsas_prm
 from rietx.model.forward import compile_model
-from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
+from rietx.model.profiles.caglioti import _MIN_GAMMA_G2, gaussian_fwhm
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import (
@@ -106,19 +112,43 @@ def trf(pattern):
     return _fit(pattern, "trf")
 
 
-def test_with_w_bounded_at_zero_lm_stops_under_the_clamp(pattern, trf):
-    """The trap the floor exists for: it must still be reachable, or the
-    test below proves nothing."""
+def test_with_w_bounded_at_zero_and_no_rows_lm_stops_under_the_clamp(
+        pattern, trf, monkeypatch):
+    """The trap both remedies exist for: it must still be reachable, or the
+    tests below prove nothing."""
+    monkeypatch.setattr(ls, "gaussian_width_inequalities", lambda m, t, x: [])
     ref, result = _fit(pattern, "lm", w_min=0.0)
     _draw(result, "gaussian_width_floor_off_lm")
     assert ref.instrument.profile.w.min == 0.0
     assert np.all(_g2_at_reflections(ref, result) < _MIN_GAMMA_G2)
+    assert all(s.n_constraint_truncations == 0 for s in result.stages)
     assert result.statistics.chi2 > 10.0 * trf[1].statistics.chi2
 
 
-def test_on_the_floor_lm_reaches_trfs_minimum(pattern, trf):
+def test_with_w_bounded_at_zero_the_rows_hold_and_lm_reaches_trfs_minimum(pattern, trf):
+    """The rows alone, W's floor put back at 0: the ``profile_w`` stage
+    presses Γ_G² onto ε at every reflection, and the step holds it there
+    rather than truncating short of it (WP-1938 D8)."""
+    ref, result = _fit(pattern, "lm", w_min=0.0)
+    _draw(result, "gaussian_width_rows_lm")
+    assert np.all(_g2_at_reflections(ref, result) >= _MIN_GAMMA_G2 * (1.0 - 1e-9))
+    profile_w = next(s for s in result.stages if s.name == "profile_w")
+    assert profile_w.n_constraint_truncations >= 1
+    ref_trf, result_trf = trf
+    assert result.statistics.chi2 == pytest.approx(result_trf.statistics.chi2, rel=1e-8)
+    for name in "uvwx":
+        assert getattr(ref.instrument.profile, name).value == pytest.approx(
+            getattr(ref_trf.instrument.profile, name).value, rel=1e-4), name
+    # the answer is interior, so the final stage pressed nothing
+    assert not any(d.code == "CONSTRAINT_ACTIVE" for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("rows", [False, True], ids=["floor_alone", "default"])
+def test_on_the_floor_lm_reaches_trfs_minimum(pattern, trf, monkeypatch, rows):
+    if not rows:
+        monkeypatch.setattr(ls, "gaussian_width_inequalities", lambda m, t, x: [])
     ref, result = _fit(pattern, "lm")
-    _draw(result, "gaussian_width_floor_lm")
+    _draw(result, "gaussian_width_floor_lm" if rows else "gaussian_width_floor_alone_lm")
     assert ref.instrument.profile.w.min == _MIN_GAMMA_G2
     assert np.all(_g2_at_reflections(ref, result) >= _MIN_GAMMA_G2)
     ref_trf, result_trf = trf
@@ -179,3 +209,93 @@ def test_a_files_w_of_zero_reads_onto_the_floor(tmp_path):
     assert (w.value, w.min) == (_MIN_GAMMA_G2, _MIN_GAMMA_G2)
     with pytest.raises(ValueError, match="wneg.prm"):
         read_gsas_prm(tmp_path / "wneg.prm")
+
+
+# ----------------------------------------------------------------------
+# the rows (WP-1938 D7, held inside the step since D8)
+# ----------------------------------------------------------------------
+def test_a_pawley_fit_pads_the_rows_past_its_intensity_block(pattern):
+    """The rows read the table, and a Pawley solve's vector also carries one
+    intensity per reflection.  Unpadded, ``T·θ`` raised a shape error on
+    every Pawley stage freeing a width."""
+    structure, ins = _models(true=False)
+    ins.profile.w.min = 0.0               # so the rows, not the floor, bind
+    ref = Refinement(structure, ins, solver="lm", history=False)
+    result = ref.fit(pattern, plan=PLAN, mode="pawley")
+    _draw(result, "gaussian_width_rows_pawley_lm")
+    assert result.status == "converged"
+    assert np.all(_g2_at_reflections(ref, result) >= _MIN_GAMMA_G2 * (1.0 - 1e-9))
+
+
+def _stage_table(pattern, free: list[str], **widths):
+    structure, ins = _models(true=False)
+    for name, value in widths.items():
+        getattr(ins.profile, name).value = value
+    structure.phases[0].gauss_size.value = 2e-5
+    structure.phases[0].gauss_strain.value = 3e-5
+    model = compile_model(structure, ins, pattern, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    table.set_vary(free, True)
+    return model, table
+
+
+def test_a_row_is_the_clamped_quantity_at_a_reflection(pattern):
+    """T·θ + c is Γ_G² − ε, the quantity ``gaussian_fwhm`` clamps, with the
+    phase's Gaussian size and strain in it."""
+    model, table = _stage_table(
+        pattern, ["instrument.profile.u", "instrument.profile.v",
+                  "instrument.profile.w", "phases.0.gauss_size",
+                  "phases.0.gauss_strain"], u=1e-4, v=-3e-5, w=4e-5)
+    x0 = table.x0()
+    (block,) = ls.gaussian_width_inequalities(model, table, x0)
+    assert block.label == "instrument.profile (phases.0)"
+    v = table.decode(x0)
+    tt = np.asarray(model._cell_block(
+        model.phases[0], tuple(v[f"phases.0.cell.{k}"] for k in
+                               ("a", "b", "c", "alpha", "beta", "gamma")),
+        model.line_lambdas(v))[1][0])
+    on_data = model.phases[0].win[0][:, 1] > model.phases[0].win[0][:, 0]
+    g = gaussian_fwhm(0.5 * tt[on_data], v["instrument.profile.u"],
+                      v["instrument.profile.v"], v["instrument.profile.w"],
+                      v["phases.0.gauss_size"], v["phases.0.gauss_strain"])
+    expected = np.unique(np.round(np.asarray(g) ** 2 - _MIN_GAMMA_G2, 18))
+    got = np.unique(np.round(block.slack(x0), 18))
+    np.testing.assert_allclose(np.sort(got), np.sort(expected), rtol=1e-12)
+
+
+def test_no_row_without_a_free_width_and_none_the_start_violates(pattern):
+    model, table = _stage_table(pattern, ["instrument.profile.x"])
+    assert ls.gaussian_width_inequalities(model, table, table.x0()) == []
+
+    def rows_at(v: float):
+        structure, ins = _models(true=False)
+        ins.profile.w.value = _MIN_GAMMA_G2
+        ins.profile.v.value = v
+        model = compile_model(structure, ins, pattern, mode="rietveld")
+        table = ParameterTable(structure, ins)
+        table.set_vary(["instrument.profile.w"], True)
+        return ls.gaussian_width_inequalities(model, table, table.x0()), table.x0()
+
+    # U = V = 0 with W on its floor sits exactly on every row, and is held
+    (block,), x0 = rows_at(0.0)
+    assert np.all(block.slack(x0) == 0.0)
+    # a negative V and no sample term: Γ_G² < ε at every reflection, so every
+    # row is violated at the start and none is built (feasibility is kept,
+    # never restored)
+    assert rows_at(-1e-4)[0] == []
+
+
+def test_constraint_active_names_the_block_that_bound():
+    from rietx.refine import _constraint_diagnostics
+
+    (d,) = _constraint_diagnostics("profile", SimpleNamespace(
+        n_constraint_truncations=2,
+        truncated_by={"instrument.profile (phases.0)": 2}))
+    assert "instrument.profile (phases.0): 2" in d.message
+    assert "Γ_G² floor" in d.suggestion
+    assert "STEPHENS" not in d.suggestion
+    (d,) = _constraint_diagnostics("strain", SimpleNamespace(
+        n_constraint_truncations=1, truncated_by={"phases.0.microstrain": 1}))
+    assert "phases.0.microstrain: 1" in d.message
+    assert "STEPHENS_STRAIN_NOT_POSITIVE" in d.suggestion
+    assert "Γ_G² floor" not in d.suggestion

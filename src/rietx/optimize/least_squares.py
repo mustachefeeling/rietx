@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -58,7 +58,8 @@ if TYPE_CHECKING:
 #: Available minimisers.  ``"lm"`` is the bounded Levenberg-Marquardt of
 #: :mod:`.lm` (WP-0601): bounds enforced inside the linear solve, an exact
 #: step inside them (WP-1937), and linear inequalities on *functionals* of θ
-#: (the Stephens strain positivity cone) that a box cannot express.
+#: (the Stephens strain positivity cone, the Γ_G² floor) that a box cannot
+#: express, held inside the same step when one binds (WP-1938 D8).
 #: ``"trf"`` is scipy's Trust Region Reflective, the default until WP-1938
 #: and the driver every acceptance number before it was measured with.
 SOLVERS = ("trf", "lm")
@@ -193,10 +194,14 @@ class LSQOutcome:
     n_aux: int = 0
     #: which driver produced this — "trf" (scipy, the reference) or "lm"
     solver: str = DEFAULT_SOLVER
-    #: steps the bounded-LM driver shortened to stay inside a linear-inequality
-    #: constraint (the Stephens strain cone).  0 under TRF, which has no such
-    #: vocabulary — see ``optimize/lm.py``.
+    #: steps the bounded-LM driver held on a linear-inequality constraint (the
+    #: Stephens strain cone, the Γ_G² floor), each solved over the box and the
+    #: rows together (WP-1938 D8).  0 under TRF, which has no such vocabulary —
+    #: see ``optimize/lm.py``.
     n_constraint_truncations: int = 0
+    #: the same count by the label of each block the box-only step crossed
+    #: (:attr:`.lm.LMOutcome.truncated_by`); empty under TRF and in a joint fit
+    truncated_by: dict[str, int] = field(default_factory=dict)
     #: McCusker et al. (1999) §7's convergence quantity, measured over the
     #: final accepted step with both sides in external parameter units — see
     #: :func:`_final_shift_over_esd`.  ``None`` when it cannot be measured (no
@@ -1277,9 +1282,9 @@ def strain_cone_inequalities(model: CompiledModel, table: ParameterTable,
 
     * **no strain DOF free in this stage** — T is then identically zero, so the
       rows are a constant that the solver could never satisfy if it were
-      already negative, and would silently freeze the step at τ = 0;
+      already negative, and would silently freeze the step;
     * **an infeasible starting point** — feasibility is *maintained*, not
-      restored, by a fraction-to-the-boundary rule.  The staged plans start
+      restored, by the step (``lm._solve_constrained_step``).  The staged plans start
       from the isotropic limit S = ε²·[M²], which is strictly inside the cone,
       so this is the pathological case and not the normal one; when it does
       happen the existing ``STEPHENS_STRAIN_NOT_POSITIVE`` guard still fires on
@@ -1312,14 +1317,114 @@ def strain_cone_inequalities(model: CompiledModel, table: ParameterTable,
     return out
 
 
+def gaussian_width_inequalities(model: CompiledModel, table: ParameterTable,
+                                x0: np.ndarray) -> list["lm_mod.LinearInequality"]:
+    """Γ_G² ≥ ``caglioti._MIN_GAMMA_G2`` at every reflection, one block per phase.
+
+    ``gaussian_fwhm`` takes Γ_G = √max(Γ_G², ε) with ε = 1e-8 deg².  Under it
+    every Gaussian width column is exactly zero, so a stage that steps there
+    stops in place.  LM's bounded step reaches it (WP-1938 D7).  With W's
+    floor at 0 it landed W exactly there, and with U and V near 0 that put
+    Γ_G² under ε at every point: on the manual's minimal NAC call (macOS
+    arm64, ``[dev]``) the fit ended at Rwp 0.18028 against TRF's 0.13375.  W's
+    floor is ε since, which settles that case on its own.  A negative U or V
+    still reaches the clamp: the 150 K Cr₂WO₆ fixture ended at Rwp 0.25458
+    against TRF's 0.09924, with U −0.0767 and V −0.179 putting Γ_G² under ε
+    at 31 of 31 reflections.  These rows hold that.  GSAS-II clamps the same
+    way (``GSASIIstrMath.GetReflSigGamCW``, σ ≥ 0.001 centideg²), but its
+    Marquardt takes no bounds, so no step lands on a floor there.
+
+    The rows are held inside the step (WP-1938 D8).  Truncating a box-only
+    step against them stalled wherever the optimum wanted Γ_G² under ε at
+    most reflections: three of WP-1937's fourteen grid fits stopped short
+    (``lm.LinearInequality``).
+
+    A row per (emission line, reflection) whose evaluation window holds data,
+    at the frozen hkl list's Bragg angles for the starting cell and λ:
+
+        Γ_G² = (u + gauss_strain)·tan²θ + v·tanθ + w + gauss_size/cos²θ
+
+    The five values are table rows, every row is refined in its own units, and
+    p = C·θ + d, so each row is exactly affine in θ.  A cell or λ the stage
+    frees moves the angles a little, and the rows stay where the stage
+    started, as the Stephens cone's d-spacings do.  Exact duplicate rows go,
+    and so do rows no free column reaches.
+
+    A row the start already violates is dropped, for
+    :func:`strain_cone_inequalities`' reason: the step keeps feasibility and
+    cannot restore it.  So a stage starting with Γ_G² under ε at a reflection
+    is not held there.  U = V = 0 with W on its floor sits exactly on every
+    row, and is held.
+
+    A phase whose width rows are derived (``ParameterTable.derived_paths``) is
+    skipped, since a derived row is written after C and is not affine in θ.
+
+    Single-histogram only, like the cone: :func:`run_multi_least_squares`
+    builds no inequality.  TRF never sees these rows, and
+    ``RESOLUTION_NOT_POSITIVE`` stays its guard
+    (:func:`~rietx.strategy.staged.check_resolution_positive`).
+    """
+    from ..model.profiles.caglioti import _MIN_GAMMA_G2
+    from . import lm as lm_mod
+
+    if not table.free_paths:
+        return []
+    C, d = table.constraint_block()
+    C = C.toarray()
+    derived = table.derived_paths()
+    values = table.decode(x0)
+    lams = model.line_lambdas(values)
+    out: list[lm_mod.LinearInequality] = []
+    for ip, cp in enumerate(model.phases):
+        names = ("instrument.profile.u", "instrument.profile.v",
+                 "instrument.profile.w", f"phases.{ip}.gauss_strain",
+                 f"phases.{ip}.gauss_size")
+        if any(n in derived for n in names):
+            continue
+        try:
+            rows = [table._paths[n] for n in names]
+        except KeyError:                        # defensive: every phase has both
+            continue
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        _d, tt_lines = model._cell_block(cp, cell, lams)
+        theta = []
+        for il, tt in enumerate(tt_lines):
+            tt = np.asarray(tt, dtype=np.float64)
+            win = cp.win[il]
+            used = (win[:, 1] > win[:, 0]) & np.isfinite(tt)
+            theta.append(np.radians(0.5 * tt[used]))
+        th = np.concatenate(theta) if theta else np.empty(0)
+        if not th.size:
+            continue
+        t = np.tan(th)
+        # coefficients of u, v, w, gauss_strain, gauss_size in Γ_G²
+        basis = np.column_stack([t * t, t, np.ones_like(t), t * t,
+                                 1.0 / (np.cos(th) ** 2)])
+        T = basis @ C[rows, :]
+        c = basis @ d[rows] - _MIN_GAMMA_G2
+        Tc = np.unique(np.column_stack([T, c]), axis=0)
+        T, c = Tc[:, :-1], Tc[:, -1]
+        # violated beyond rounding, so a row a previous stage left on its
+        # face is kept (``lm.LinearInequality.violated``)
+        keep = (np.any(T != 0.0, axis=1)
+                & ~lm_mod.LinearInequality(T=T, c=c).violated(x0))
+        if not keep.any():
+            continue
+        out.append(lm_mod.LinearInequality(
+            T=np.ascontiguousarray(T[keep]), c=c[keep],
+            label=f"instrument.profile (phases.{ip})"))
+    return out
+
+
 def _pad_inequalities(blocks: list["lm_mod.LinearInequality"], n_aux: int
                       ) -> list["lm_mod.LinearInequality"]:
     """Each block's T widened by ``n_aux`` zero columns for the Pawley tail.
 
-    :func:`strain_cone_inequalities` reads the table, whose columns are the
-    leading part of the solver's vector.  A Pawley intensity does not enter
-    σ²(M), so its columns are zero.  Unpadded, ``T·θ`` raised a shape
-    ``ValueError`` on every Pawley stage freeing a Stephens block under LM.
+    The builders read the table, whose columns are the leading part of the
+    solver's vector.  A Pawley intensity enters neither Γ_G² nor σ²(M), so its
+    columns are zero.  Unpadded, ``T·θ`` raised a shape ``ValueError`` on
+    every Pawley stage freeing a Stephens block under LM.
     """
     if not n_aux:
         return blocks
@@ -1733,18 +1838,20 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           solver=solver,
                           n_degenerate_cell_probes=cell_guard.n_degenerate)
 
-    n_truncated = 0
+    n_truncated, truncated_by = 0, {}
     # one budget, in residual evaluations, for both drivers (WP-1937)
     max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
-        # the strain cone is built against the *starting* point, because
-        # feasibility is maintained rather than restored (see the builder)
-        cone = _pad_inequalities(
-            strain_cone_inequalities(model, table, x0[:n_table]), n_aux)
+        # the strain cone and the Γ_G² floor (WP-1938 D7) are built against
+        # the *starting* point, because feasibility is maintained rather than
+        # restored (see the builders)
+        ineqs = _pad_inequalities(
+            strain_cone_inequalities(model, table, x0[:n_table])
+            + gaussian_width_inequalities(model, table, x0[:n_table]), n_aux)
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
-                          ftol=ftol, inequalities=cone, events=events, stage=stage,
+                          ftol=ftol, inequalities=ineqs, events=events, stage=stage,
                           track=tracker, table=table)
-        n_truncated = res.n_truncated
+        n_truncated, truncated_by = res.n_truncated, res.truncated_by
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
                             ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
@@ -1779,6 +1886,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       residual_cosine=cos_table,
                       active_bounds=_active_bounds(res, n_table),
                       n_constraint_truncations=n_truncated,
+                      truncated_by=truncated_by,
                       max_shift_over_esd=_final_shift_over_esd(
                           table, tracker.step(), stderr_full, corr, n_table),
                       termination=termination,

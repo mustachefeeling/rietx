@@ -170,7 +170,7 @@ myst_substitutions = {
     "CYLINDER_MU_R_MAX": CYLINDER_MU_R_MAX,
     "EFFECTIVE_OBS_ALPHA": EFFECTIVE_OBS_ALPHA,
     "MAX_SHIFT_CONVERGED": MAX_SHIFT_CONVERGED,
-    # the Γ_G² clamp, which is also the Caglioti W's floor
+    # the Γ_G² clamp, which is also the Caglioti W's floor and the LM rows' bound
     "MIN_GAMMA_G2": f"{_MIN_GAMMA_G2:.0e}",
     "OBS_PER_PARAMETER_MIN": OBS_PER_PARAMETER_MIN,
     "OBS_PER_PARAMETER_PREFERRED": OBS_PER_PARAMETER_PREFERRED,
