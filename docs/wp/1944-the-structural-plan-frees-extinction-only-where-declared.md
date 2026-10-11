@@ -43,6 +43,11 @@ test_mccusker_structural_frees_extinction_after_displacement` pins the glob
 and the seed. Which golden numbers move if extinction becomes opt-in is not
 measured. Task 1 measures it.
 
+**Decided 2026-10-11** (the maintainer, at the issue triage; posted on
+#877): measure first. Neither fix is chosen until task 1's count exists. A
+plan where extinction is rarely significant favours the opt-in, and one
+where it often is favours correcting the texts.
+
 **The sibling class, not generalised here.** A freed parameter the data do
 not determine, reported with no diagnostic. WP-1523 settled it for a phase
 scale (significance under 3σ, `refine._answer_significance`). WP-1914 owns
