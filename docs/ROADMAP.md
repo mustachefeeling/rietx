@@ -420,8 +420,8 @@ full, with the issues it closes. Most of the 13xx rows come from the
 
 What 1118 read and wrote (§ v1.5), continued. 1119 is the named variable such
 a file's equations refer to; issue **#212**'s cross-phase linear restraint is
-its first concrete ask, **has no WP and needs one cut** — seam written out in
-[1325](wp/1325-parametric-series.md)'s `### Inherited`.
+its first concrete ask, and [1942](wp/1942-a-soft-restraint-on-a-sum-across-phases.md)
+carries it.
 
 The WPs are in [the index](wp/README.md#unscheduled-coming-from-another-code).
 
@@ -573,8 +573,8 @@ scope creep. Each item names what fenced it.
   issue #349, filed as v2+ by its author): a `rietx.navigate` subpackage on
   `indexing`'s pattern, the GPL reference implementation a test oracle only.
   Its three small asks — `PhaseQuantity.element_counts` exported, a
-  weight-fraction covariance, `FitReport.unidentified_phase` — sit in 1325
-  § Inherited beside #212, which wants the same field.
+  weight-fraction covariance, `FitReport.unidentified_phase` — sit in 1942
+  beside #212, which wants the same field.
 - **I/O.** Rietica and XND readers (#196); an RMCProfile export and PDF /
   total-scattering analysis, X-ray and neutron (#192); VESTA import/export
   (#195).
