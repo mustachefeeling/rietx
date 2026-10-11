@@ -1,9 +1,9 @@
 # The command line
 
-`rietx` is a small command with six subcommands. The package is API-first, so
+`rietx` is a small command with seven subcommands. The package is API-first, so
 the terminal gets only the jobs that are genuinely terminal-shaped: asking what
-the cell of a pattern is, watching a running refinement, rendering a saved
-result, launching the two browser tools, and putting the agent skill where a
+the cell of a pattern is, watching a running refinement, summarising an event
+log after the fact, rendering a saved result, launching the two browser tools, and putting the agent skill where a
 harness will find it.
 
 ```console
@@ -15,6 +15,8 @@ commands:
                                     the refinement GUI (localhost)
   watch [dir] [--port N] [--open] [--read-only]
                                     list and watch the runs under a directory
+  events <events.jsonl | run dir> [--json]
+                                    summarise an event log, run by run
   html <result.json> <out.html>     render a saved RefinementResult to HTML
   index <pattern> --wavelength A [...]
                                     determine the unit cell of an unknown
@@ -382,6 +384,66 @@ The contrast worth knowing is `Project.open`, which writes an annotation into a
 project before you have clicked anything. That is why the button opens a copy.
 Looking at a project without changing it is `rietx gui --scratch`. Looking at a
 run needs nothing.
+
+## `rietx events`: an event log, run by run
+
+`rietx watch` is for a run while it is going. This is for afterwards, in a
+terminal or a CI job, from the log alone. It takes an `events.jsonl`, or a run
+directory holding one, and prints for each run in the file: fits started and
+ended, stages started and ended, residual evaluations, the first and last Rwp,
+wall clock per stage name, how often each `termination` criterion ended a
+solve, and the paths the data could not see (`held`), most often held first.
+
+```console
+$ rietx events run/events.jsonl
+run/events.jsonl: 2 runs
+run 1  61a9c98fcd5f  opened 2026-10-11 17:23:44   wall 0.21 s
+  fits 1 (1 ended, 0.20 s fit_start→fit_end)   stages 5 ended (5 started)   evals 70
+  Rwp first 0.9517   last 0.0414
+  stage            n    seconds   evals
+  scale_bkg        1       0.02      13
+  zero             1       0.02      18
+  cell             1       0.02      20
+  profile_w        1       0.02       9
+  profile          1       0.04      10
+  termination: ftol 5
+  most held: phases.1.cell.a (3)
+run 2  1376ba1cb926  opened 2026-10-11 17:23:44   wall 0.20 s
+  ...
+```
+
+That log is two runs of one synthetic two-phase fit, the second phase absent
+from the data, given the same `events=` path twice. Each run is its own block.
+`phases.1.cell.a` was held in three stages because the data cannot see that
+phase.
+
+`--json` prints the same summary as JSON. It is
+`rietx.history.aggregate.summarize_events`, serialised, so a script can call the
+function and get the same numbers.
+
+The runs are the point. An event log is opened for appending, because a series
+writes every pattern's events into one stream and `rietx watch` tails the file
+while it grows. So running a fit again with the same `events=` path adds a
+second run to the same file. Since version 3 of the event schema each stream
+writes one header line when it opens its file, and this command splits on it.
+No duration crosses from one run into the next. Before the header, a merged
+log once reported a 10.3 s fit as 459.0 s.
+
+A log written before the header has none. It is read as one run, and the
+summary says so rather than assuming it. If such a log holds re-runs, its
+durations mix them.
+
+Two readings to keep straight. A stage's seconds run from the first
+`stage_start` of that name to its `stage_end`, so a stage that releases a held
+phase and solves again is one span. A fit's cost is `fit_start` to `fit_end`.
+A sum of stage spans is not a fit's cost: whatever runs between stages, a stage
+report or a recompile, is outside every span.
+
+The log is read the way the watcher reads it. A line that is not JSON is counted
+and skipped, and the half line a running writer has not finished is left
+alone, so a job can be summarised while it runs.
+
+A log that is not there exits 2.
 
 ## `rietx html`: a saved result as a page
 

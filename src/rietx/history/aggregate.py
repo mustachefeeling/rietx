@@ -149,7 +149,7 @@ class EventsSummary(Base):
 
 def _read_lines(path: Path) -> tuple[list[dict], int]:
     """Every whole line of the log as a dict, through the watcher's tail."""
-    from ..runs import tail_events      # runs imports this package
+    from ..runs import tail_events  # runs imports this package
 
     records: list[dict] = []
     bad = 0

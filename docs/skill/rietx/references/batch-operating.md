@@ -151,15 +151,16 @@ on every unit of the batch — it is the only check that caught any of this.
 *(Measured: archive screening campaign R3, the (La,Sr)FeO₃ chemical-looping
 series and its segmented-recovery audit.)*
 
-**9c.13 Rotate or re-path the event log before every run.** `EventStream`
-opens its file in **append mode unconditionally** and writes no run marker, so
-re-running a batch silently interleaves two runs into one file and every
-derived duration is a mixture. It corrupted timings on two independent
-batches, once reporting a **10.276 s calibration as 458.995 s — 44.67×**.
-Truncate or re-path before every write, and note concurrent load on the
-machine as a confound to state rather than to absorb. *(Measured: archive
-screening campaign R3, the (La,Sr)FeO₃ series among two affected batches;
-`history/events.py` opens with mode `"a"` on current main.)*
+**9c.13 Read a re-used event log per run: `rietx events <log>`.** `EventStream`
+opens its file in **append mode**, so re-running a batch into the same path adds
+a second run to the file. Since event schema 3 each opened stream writes a run
+header first and `rietx events` (or `rietx.history.aggregate.summarize_events`)
+reports every run apart. A log written before that has no header: it reads as
+one run, and any duration derived from it mixes the runs. That once reported a
+**10.276 s calibration as 458.995 s — 44.67×**. For such a log, or a reader of
+your own, re-path per run, and note concurrent load on the machine as a
+confound to state rather than to absorb. *(Measured: archive screening campaign
+R3, the (La,Sr)FeO₃ series among two affected batches.)*
 
 **9c.14 Pilot the model on a dozen patterns before multiplying it by N.** The
 dominant failure at scale is not a bad fit but a *good* fit to a wrong model,
