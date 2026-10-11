@@ -51,6 +51,12 @@ from .layer2 import (
     suggest_actions,
     texture_actions,
 )
+from .localisation import (
+    cumulative_chi2,
+    cumulative_delta_chi2,
+    split_localisation,
+    weighted_residual,
+)
 from .magnetic import analyse_moments
 from .satellites import analyse_satellites
 from .schemas import (
@@ -60,6 +66,8 @@ from .schemas import (
     TRAJECTORY_MAX_ACTIONS,
     BackgroundEvidence,
     BasisCoefficient,
+    DeltaChi2Profile,
+    DeltaChi2Quantile,
     ExchangeFinding,
     FitReport,
     FreedComparison,
@@ -73,6 +81,8 @@ from .schemas import (
     RivalFit,
     SatelliteCandidate,
     SatelliteEvidence,
+    SplitFamily,
+    SplitLocalisation,
     StageReport,
     StrainAnalysis,
     SuggestedAction,
@@ -92,6 +102,8 @@ __all__ = [
     "TRAJECTORY_MAX_ACTIONS",
     "BackgroundEvidence",
     "BasisCoefficient",
+    "DeltaChi2Profile",
+    "DeltaChi2Quantile",
     "ExchangeFinding",
     "FitReport",
     "FreedComparison",
@@ -106,6 +118,8 @@ __all__ = [
     "RivalFit",
     "SatelliteCandidate",
     "SatelliteEvidence",
+    "SplitFamily",
+    "SplitLocalisation",
     "StageReport",
     "StrainAnalysis",
     "SuggestedAction",
@@ -132,6 +146,8 @@ __all__ = [
     "compare_freed",
     "compare_rivals",
     "contents_signature",
+    "cumulative_chi2",
+    "cumulative_delta_chi2",
     "delta_bic",
     "describe_action",
     "estimate_delta_chi2",
@@ -147,11 +163,13 @@ __all__ = [
     "reindex_action",
     "residual_peak_indices",
     "resolution_limited_action",
+    "split_localisation",
     "stage_for",
     "suggest_actions",
     "texture_actions",
     "too_flexible",
     "too_stiff",
+    "weighted_residual",
 ]
 
 

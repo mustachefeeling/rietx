@@ -76,10 +76,15 @@ class SeriesEntry(Base):
     #: :func:`~rietx.optimize.statistics.structure_r_factors` holds the
     #: definitions and the warning.
     #:
-    #: The measurement that does answer that question is ``PHASE_UNCONSTRAINED``
-    #: — the phase scale's significance, its value over its esd against
-    #: counting noise (WP-1523), reaching an entry through :attr:`diagnostics`
-    #: and aggregating over the chain as ``SEQUENTIAL_PERSISTENT_FINDING``.
+    #: The nearer measurement is ``PHASE_UNCONSTRAINED`` — the phase scale's
+    #: significance, its value over its esd against counting noise (WP-1523),
+    #: reaching an entry through :attr:`diagnostics` and aggregating over the
+    #: chain as ``SEQUENTIAL_PERSISTENT_FINDING``.  It answers "is this phase
+    #: real" only while no other phase in the model can produce the same
+    #: intensity: with a parent and its subgroup both refined on a one-phase
+    #: synthetic Cu pattern, it read low on whichever of the two the start
+    #: left weaker, the real parent in two seeds of three, at one Rwp
+    #: (issue #219, re-measured after WP-1523).
     #: R_B belongs beside it and
     #: beside the weight with its esd, never in front of either.
     #:

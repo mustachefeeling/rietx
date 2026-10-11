@@ -259,7 +259,15 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   (effective_sample_size, suggest, compare_freed) and the
 #   profile_fraction cut Δχ²·f², as do all reported esds.  A consumer
 #   comparing f against a number sees the change, on 1.8 → 1.9's precedent.
-THRESHOLDS_VERSION = "1.11"
+# 1.11 → 1.12 (WP-1339, issue #219): ``cumulative_delta_chi2`` /
+#   ``DeltaChi2Profile`` (Σ(δ²_b − δ²_a) against 2θ for two results on one
+#   pattern, with its equal-count quantiles) and ``split_localisation`` /
+#   ``SplitLocalisation`` (the share of a symmetry-lowering's Δχ² on the
+#   reflections it splits, against their share of the points, family by
+#   family).  New types a consumer enumerates, on 1.7 → 1.8's precedent.
+#   Report-only: no threshold, no gate, no verdict field, and no field added
+#   to ``FitReport``.
+THRESHOLDS_VERSION = "1.12"
 
 #: WP-1343.  How far the moment must move when a magnetic width is released
 #: before the release is called a *measurement of the correlation*, in units
@@ -1213,6 +1221,97 @@ class FreedComparison(Base):
     n_effective: float
     delta_bic: float
     delta_bic_raw_n: float
+
+
+class DeltaChi2Quantile(Base):
+    """One equal-count run of channels in a :class:`DeltaChi2Profile`."""
+
+    two_theta_min: float
+    two_theta_max: float
+    n_points: int
+    #: Σ(δ²_b − δ²_a) over the run; negative where ``b`` fits better
+    delta_chi2: float
+    #: ``delta_chi2`` over the profile's ``total``; ``None`` when the total is 0
+    share: float | None = None
+
+
+class DeltaChi2Profile(Base):
+    """Where one fit gains or loses against another, channel by channel (WP-1339).
+
+    Built by :func:`~rietx.report.cumulative_delta_chi2` from two results on
+    one pattern.  ``cumulative`` is Σ_{2θ′ ≤ 2θ}(δ²_b − δ²_a) at every fitted
+    channel, the curve ``rietx compare`` draws with ``a`` its reference: a
+    falling stretch is ``b`` fitting better there.  ``total`` is its last
+    value, the raw χ² difference.  No verdict field, on
+    :class:`FreedComparison`'s precedent.
+    """
+
+    two_theta: list[float]
+    cumulative: list[float]
+    total: float
+    n_points: int
+    quantiles: list[DeltaChi2Quantile]
+
+
+class SplitFamily(Base):
+    """One reflection of the higher-symmetry fit, and whether the lower one splits it."""
+
+    #: the higher-symmetry fit's index for it (``tick_hkl``)
+    hkl: list[int]
+    #: its tick in the higher-symmetry fit, deg 2θ, one row per emission line
+    two_theta: float
+    #: how many of the lower fit's ticks were assigned to it
+    n_assigned: int
+    #: highest minus lowest assigned tick, deg 2θ
+    spread: float
+    splits: bool
+    #: the 2θ interval its Δχ² is summed over
+    window: tuple[float, float]
+    n_points: int
+    #: Σ(δ²_lower − δ²_higher) over the window
+    delta_chi2: float
+    share: float | None = None
+
+
+class SplitLocalisation(Base):
+    """Share of a symmetry-lowering's Δχ² on the reflections it splits (WP-1339).
+
+    Built by :func:`~rietx.report.split_localisation` from a higher-symmetry
+    fit and a lower-symmetry fit of one pattern.  Every Δχ² is
+    Σ(δ²_lower − δ²_higher), negative where the lower symmetry fits better,
+    and every share is a class's Δχ² over ``total``, so the three shares sum to
+    one and a share keeps its meaning whichever way the total points.
+
+    Read ``split_share`` against ``split_point_share``.  A distortion the data
+    holds puts its advantage where it splits reflections, so its share there
+    runs well above the share of points.  Issue #219's cubic/rhombohedral pair
+    won by ΔBIC −1029 and carried −28 % of its Δχ² on 6.2 % of the points,
+    the six largest split families: the improvement lived elsewhere.
+
+    **Report-only, no threshold** (decided 2026-09-03): how far above the
+    point share is far enough depends on the profile, the range and the
+    counting statistics, so the package reports the share with the
+    reflections behind it (``families``) and the reader judges.
+    ``split_share`` is ``None`` when the lower fit splits nothing in range,
+    for instance a refined distortion of exactly zero.
+    """
+
+    higher_phase: str
+    lower_phase: str
+    n_points: int
+    total: float
+    n_split_families: int
+    split_delta_chi2: float
+    split_share: float | None = None
+    split_point_share: float
+    unsplit_share: float | None = None
+    unsplit_point_share: float
+    elsewhere_share: float | None = None
+    elsewhere_point_share: float
+    #: the lower fit's ticks with no higher-fit reflection within two local
+    #: widths (superstructure reflections): counted, never windowed
+    n_unmatched: int = 0
+    families: list[SplitFamily] = Field(default_factory=list)
 
 
 class VerificationOutcome(Base):
