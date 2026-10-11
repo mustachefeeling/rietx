@@ -521,7 +521,13 @@ that need a decision or a measurement first.
   SRM 660c a = 4.156895 → 4.156882 Å (+28 → +25 ppm), from the Γ_G²
   inequality. No moved fit's PNG is locally worse. SRM 660c's 148.7° top sits
   at 85 % of its height, 83 % on `main`.
-- Fast and full suites: FILLED BELOW.
+- Fast suite on the final tree, alone: 0 failed, 9208 passed, 111 skipped,
+  2 xfailed, 3:44, the third session's count exactly, since this session added
+  no fast test. The branch's added tests cost about 13 s, led by
+  `test_absent_phase.py`; none joins the tail.
+- Full suite on the final tree, which equals `main` merged in (behind 0),
+  alone: 0 failed, 9511 passed, 118 skipped, 2 xfailed, 22:04. Slowest
+  setups: indexing acceptance 764 s, the 150 K Cr₂WO₆ fixture 506 s.
 - Lanes: one, opus.
 
   | lane | est | requests | main at dispatch | saved $ |
