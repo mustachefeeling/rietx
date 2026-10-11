@@ -58,12 +58,18 @@ which is the backlog this rule exists to prevent.
    and the workflow refuses a tag that is not on `main` for exactly that
    reason.
 4. Check that three nightly jobs are green on that commit
-   (`gh run list --workflow nightly.yml`): Windows, `py312` and `full`, the
-   one run on Python 3.13. This is the pre-upload gate WP-1003 established for
-   Windows: the classifiers claim it, and the claim ships only verified. The
-   middle two Pythons joined it when they left the per-push matrix (WP-1547).
-   No workflow can wait the ~2 h this takes, so it is asserted by a person at
-   step 6.
+   (`gh run list --workflow nightly.yml`): `fast suite (Windows)`, and the
+   fast suite on Linux under Python 3.12 and 3.13. This is the pre-upload gate
+   WP-1003 established for Windows: the classifiers claim it, and the claim
+   ships only verified. The middle two Pythons joined it when they left the
+   per-push matrix (WP-1547). No workflow can wait the ~2 h this takes, so it
+   is asserted by a person at step 6.
+
+   The `full` job is read here and does not gate. It runs the slow acceptance
+   suites, and it was red on 27 of the 60 nightlies to 2026-10-10. Each red
+   stretch was one acceptance test failing whatever the Python version, for up
+   to 15 days, and v1.2.0 and v1.3.0 shipped during one. A release that
+   should wait for an acceptance test is the maintainer's call at step 6.
 5. Tag `vX.Y.Z` and publish the GitHub release from the notes file. This reads
    as one command and is three, because `--verify-tag` requires the tag to
    already be on the remote:

@@ -281,9 +281,9 @@ so a new test reading that set (`PLANNING` in `ci.yml`) joins its list, or a
 docs-only PR skips it until the nightly. Branch protection requires `lint` and
 `ci-ok`, the job that says whether the suite `changes` chose passed. **A draft
 PR runs ruff alone**, the matrix waiting for `gh pr ready` (`ci.yml`'s header).
-Nightly (`nightly.yml`): the full suite `[dev,jax]` on Linux (the one 3.13
-run), 3.12's fast suite, the Windows fast suite (the OS classifier's backing
-and the release pre-upload gate), macOS fast plus the informational goldens
+Nightly (`nightly.yml`): the full suite `[dev,jax]` on Linux (3.13, not a
+gate), the fast suite on 3.12 and 3.13 and on Windows (the release pre-upload
+gate, `docs/RELEASING.md` step 4), macOS fast plus the informational goldens
 step, and `[torch]`. **Read spend from the Actions usage page or `gh run
 list`, never from comments or this file**: a written total rots (303 vs ≈495).
 
