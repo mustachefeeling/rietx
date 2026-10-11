@@ -201,11 +201,18 @@ def _joint(free_histogram: int | None):
         two_theta_limits=[XRAY_LIMITS, NEUTRON_LIMITS])
 
 
-def _solo(which: int):
+def _solo(which: int, nudge: int = 0):
+    """One histogram alone.  ``nudge`` multiplies every refinable nonzero
+    start value by (1 + nudge·1e-14), the size of the difference two
+    platforms' arithmetic makes (WP-1929)."""
     data = _patterns()[which]
     ins = _xray_instrument() if which == 0 else _neutron_instrument()
     lim = XRAY_LIMITS if which == 0 else NEUTRON_LIMITS
     ref = rx.Refinement(_structure(), ins, history=False)
+    if nudge:
+        ref.set_values({row.path: row.value * (1.0 + nudge * 1e-14)
+                        for row in ref.parameters()
+                        if row.refinable and row.value != 0.0})
     return ref.fit(data, plan="mccusker_structural", two_theta_limits=lim)
 
 
@@ -397,6 +404,26 @@ def test_swapping_which_wavelength_is_held_measures_the_same_ratio(
     x_free_x = next(p.value for p in joint_xray_free.parameters
                     if p.path.endswith("atoms.2.x"))
     assert x_free_n == pytest.approx(x_free_x, abs=1e-5)
+
+
+def test_a_width_on_its_floor_leaves_one_esd_at_every_start(solo_neutron):
+    """Issue #831: the neutron fit's Lorentzian ``y`` refines to 0, and while
+    widths refined in softplus coordinates its column was differenced below
+    rounding.  The noise then set ``x``'s esd: 0.00322 on Linux against
+    0.00664 on macOS, and 0.0032 to 0.0089 on one Mac with every start nudged
+    by 1e-14.  The column taken in physical space gives 0.0098437 at every
+    stopping point, and that is what refining in physical units reports
+    (WP-1938).  Measured on macOS arm64, eight nudges spread 4e-8 relative.
+    """
+    fits = [solo_neutron, *(_solo(1, k) for k in (1, -1, 2))]
+    rows = [{p.path: p for p in fit.parameters} for fit in fits]
+    x = [r["instrument.profile.x"].stderr for r in rows]
+    assert x == [pytest.approx(0.0098437, rel=1e-4)] * len(x)
+    assert max(x) / min(x) - 1.0 < 1e-5
+    for r in rows:
+        y = r["instrument.profile.y"]
+        assert (y.value, y.at_bound) == (0.0, True)
+        assert y.stderr == pytest.approx(0.018101, rel=1e-4)
 
 
 def test_the_fits_render(joint_neutron_free):

@@ -271,7 +271,7 @@ continuations of 400 evaluations.
       scale), and record the before and after here.
 - [x] Probe the options and take the decision (2026-10-09: physical
       coordinates in WP-1936-1938; marginal esds with a flag here).
-- [ ] A fixture that reproduces the platform split on one machine, nudging
+- [x] A fixture that reproduces the platform split on one machine, nudging
       BT-1's start by 1e-14 as the grid did, with one `profile.x` esd at
       every nudge. WP-1938 has landed, so it pins the fix rather than
       failing first.
