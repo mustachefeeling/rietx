@@ -39,7 +39,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from .._about import PROFILE_FORMAT_KEY
-from ..model.profiles.caglioti import GAUSSIAN_VARIANCE_TO_FWHM_SQUARED
+from ..model.profiles.caglioti import _MIN_GAMMA_G2, GAUSSIAN_VARIANCE_TO_FWHM_SQUARED
 from ..schemas.common import SCHEMA_VERSION, Diagnostic
 from ..schemas.instrument import (
     BackgroundChebyshev,
@@ -756,7 +756,11 @@ def _build_instrument(icons: GsasIcons,
         prof = instrument.profile
         prof.u.value = gu * _PRM_GAUSS_TO_DEG2
         prof.v.value = gv * _PRM_GAUSS_TO_DEG2
-        prof.w.value = gw * _PRM_GAUSS_TO_DEG2
+        # W's floor is the Γ_G² clamp (ProfileTCHZ): a W in [0, floor) is
+        # raised to it, as the schema raises a stored one; a negative W is
+        # still refused below
+        w = gw * _PRM_GAUSS_TO_DEG2
+        prof.w.value = _MIN_GAMMA_G2 if 0.0 <= w < _MIN_GAMMA_G2 else w
         prof.x.value = lx / 1e2
         prof.y.value = ly / 1e2
         instrument.geometry.axial_sl.value = sl
@@ -1373,6 +1377,10 @@ def _instprm_width(profile, letter: str, attr: str, value: float,
             f"saved from a converged fit can carry one; reading it would "
             f"silently give ~0 rather than the value the file states.  Refine "
             f"{attr} from this package's own zero instead")
+    if attr == "w":
+        # W's floor is the Γ_G² clamp (ProfileTCHZ): a W in [0, floor) is
+        # raised to it, as the schema raises a stored one
+        degrees = max(degrees, _MIN_GAMMA_G2)
     if degrees < param.min:
         # Only u and v reach this: a softplus width's lower bound is the
         # transform's own domain rather than a seeded guess, and a negative one

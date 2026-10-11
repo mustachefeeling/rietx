@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from pydantic import Field, field_validator, model_validator
 
+from ..model.profiles.caglioti import _MIN_GAMMA_G2
 from .common import Base, Parameter, _InheritsDeclaredDefaults
 
 if TYPE_CHECKING:  # the blank a measured background is built from
@@ -954,12 +955,25 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
     built.**  The X-ray presets take :data:`TCHZ_BOUNDS` (U ≥ −0.05,
     V ∈ [−0.5, 0.5]); :meth:`Instrument.constant_wavelength_neutron` takes
     :data:`TCHZ_BOUNDS_COARSE` through :meth:`coarse` (U ≥ −0.5, V ∈ [−4, 4]);
-    an explicit ``Parameter(value, min, max)`` carries the caller's own.  W, X
-    and Y are softplus-transformed with a floor of zero in both boxes, because
-    Γ_G² and Γ_L are a variance and a width.  Some programs hold these
-    coefficients unbounded, so a solution read from another program can sit
-    outside the box: one with W < 0 lies outside both boxes, so a comparison
-    against it starts from W = 0 rather than from its value.
+    an explicit ``Parameter(value, min, max)`` carries the caller's own.  X
+    and Y have a floor of zero in both boxes, because Γ_L is a width.  Some
+    programs hold these coefficients unbounded, so a solution read from
+    another program can sit outside the box: one with W < 0 lies outside both
+    boxes, so a comparison against it starts from W's floor rather than from
+    its value.
+
+    **W's floor is the Γ_G² clamp, not zero** (WP-1938 D7).
+    :func:`~rietx.model.profiles.caglioti.gaussian_fwhm` takes
+    Γ_G = √max(Γ_G², ε) with ε = ``_MIN_GAMMA_G2`` = 1e-8 deg², and under the
+    clamp every Gaussian width column is exactly zero.  The LM driver puts a
+    parameter exactly on its bound, so with W bounded at 0 a stage freeing W
+    while U and V sat near 0 put Γ_G² under the clamp at every point and
+    stopped there: on the manual's minimal NAC call, Rwp 0.18028 under LM
+    against TRF's 0.13375 (macOS arm64, ``[dev]``).  A bound at ε keeps W's
+    own column live on its floor.  It does not hold the sum, which a negative
+    U or V can still take under the clamp; ``RESOLUTION_NOT_POSITIVE`` stays
+    the check for that.  A stored or passed ``min`` under ε is raised to it
+    (:meth:`_w_floor_is_reachable`).
     """
 
     #: WP-1312's escape for a coarser instrument, which a ``Parameter`` leaving
@@ -1012,6 +1026,28 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
                 f"explicit Parameter(value, min, max) with its own bounds")
         return data
 
+    @model_validator(mode="after")
+    def _w_floor_is_reachable(self) -> "ProfileTCHZ":
+        """Raise a W bound under the Γ_G² clamp to the clamp, and the value with it.
+
+        The ``PreferredOrientation._r_bound_is_reachable`` pattern, and for its
+        reason: the broken bound **outlives the default**.  A project or a
+        history node written before the floor carries ``min: 0.0`` and
+        deserializes straight back into the trap, and no ``default_factory``
+        runs on that path.  So does a caller's own ``Parameter`` stating
+        ``min=0.0``, or a negative one.  A value under the floor is raised with
+        it.  Silent, like the precedent: a schema has no diagnostics channel.
+        Lifting a stored W of 0 widens a line by at most √ε = 1e-4° of FWHM.
+        """
+        w = self.w
+        if w.min < _MIN_GAMMA_G2:
+            # max, then value, then min: ``Base`` validates on assignment, so
+            # each write must leave a legal Parameter behind it
+            w.max = max(w.max, _MIN_GAMMA_G2)
+            w.value = max(w.value, _MIN_GAMMA_G2)
+            w.min = _MIN_GAMMA_G2
+        return self
+
     @classmethod
     def coarse(cls, *, shape: Literal["tchz_pv", "voigt"] = "tchz_pv",
                **widths: float) -> "ProfileTCHZ":
@@ -1038,10 +1074,11 @@ TCHZ_DEFAULTS: dict[str, float] = {"u": 0.0, "v": 0.0, "w": 1e-3, "x": 1e-3,
 
 #: The default refinement box per width coefficient, sized for a lab or
 #: synchrotron X-ray line.  Every X-ray preset builds these, so they are the
-#: numbers every X-ray fit's search box has always been.
+#: numbers every X-ray fit's search box has always been, but for W's floor:
+#: the Γ_G² clamp since WP-1938 (:class:`ProfileTCHZ`), 0 before it.
 TCHZ_BOUNDS: dict[str, tuple[float, float]] = {
-    "u": (-0.05, 1.0), "v": (-0.5, 0.5), "w": (0.0, 1.0), "x": (0.0, 1.0),
-    "y": (0.0, 1.0)}
+    "u": (-0.05, 1.0), "v": (-0.5, 0.5), "w": (_MIN_GAMMA_G2, 1.0),
+    "x": (0.0, 1.0), "y": (0.0, 1.0)}
 
 #: The coarse-instrument box: what a constant-wavelength neutron line needs.
 #: Measured on the public APDW Co3O4 set (ILL D1B, λ = 2.52 Å; issue #276):
@@ -1049,8 +1086,8 @@ TCHZ_BOUNDS: dict[str, tuple[float, float]] = {
 #: default box on two coefficients, and with these bounds it converges to
 #: U = 1.654 ± 0.051, within 5 % of that model.
 TCHZ_BOUNDS_COARSE: dict[str, tuple[float, float]] = {
-    "u": (-0.5, 8.0), "v": (-4.0, 4.0), "w": (0.0, 8.0), "x": (0.0, 8.0),
-    "y": (0.0, 8.0)}
+    "u": (-0.5, 8.0), "v": (-4.0, 4.0), "w": (_MIN_GAMMA_G2, 8.0),
+    "x": (0.0, 8.0), "y": (0.0, 8.0)}
 
 _TCHZ_UNITS = {"u": "deg^2", "v": "deg^2", "w": "deg^2", "x": "deg", "y": "deg"}
 _TCHZ_TRANSFORMS = {"u": "identity", "v": "identity", "w": "softplus",

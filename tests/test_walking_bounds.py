@@ -37,7 +37,7 @@ from rietx.strategy.staged import (
 from tests.test_schemas import make_lab6
 
 #: the configuration from PR #115's review — every value schema-legal
-#: (u ∈ [-0.05, 1], v ∈ [-0.5, 0.5], w ∈ [0, 1]) and the quadratic negative
+#: (u ∈ [-0.05, 1], v ∈ [-0.5, 0.5], w ∈ [1e-8, 1]) and the quadratic negative
 #: across an ordinary scan.
 COLLAPSED = {"u": 0.05, "v": -0.5, "w": 0.001}
 
@@ -111,13 +111,14 @@ def test_a_negative_v_on_a_healthy_instrument_is_silent():
 
 
 def test_zero_is_inside_the_physical_set():
-    """U = V = W = 0 is an instrument with no Gaussian broadening.
+    """U = V = 0 with W on its floor is an instrument with almost no Gaussian
+    broadening.
 
-    Every profile starts there before a resolution stage frees anything, so a
-    two-sided test would fire on every fit's early stages — the
+    W's floor is the clamp itself (WP-1938 D7), so Γ_G² sits exactly on it,
+    and a fit can stop there.  A two-sided test would fire on it — the
     ``STEPHENS_CONE_TOL`` lesson (WP-0601) one seam over.
     """
-    table, model = _state(u=0.0, v=0.0, w=0.0)
+    table, model = _state(u=0.0, v=0.0, w=_MIN_GAMMA_G2)
     assert check_resolution_positive(table, model) == []
 
 
@@ -128,7 +129,7 @@ def test_the_tolerance_is_relative_and_one_sided():
     orders, so the bar has to sit above their disagreement and below anything
     physical.
     """
-    table, model = _state(u=0.0, v=0.0, w=0.0)
+    table, model = _state(u=0.0, v=0.0, w=_MIN_GAMMA_G2)
     tiny = -0.5 * RESOLUTION_CONE_TOL
     table.entries[table._paths["instrument.profile.w"]].value = tiny
     assert check_resolution_positive(table, model) == []

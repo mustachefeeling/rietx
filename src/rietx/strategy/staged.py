@@ -1157,13 +1157,6 @@ def check_hump_width(table, model) -> list[GuardFinding]:
     floored *and* no Lorentzian X/Y left to carry a physical width), the peak is
     skipped rather than passed.  The instrument model being unphysical at that
     angle is a separate, more fundamental defect and not this guard's to name.
-
-    Under the LM driver a single-histogram fit holds Γ_G² ≥ ``_MIN_GAMMA_G2``
-    at every reflection, so Γ_G ≥ 1e-4° there (WP-1938 D7,
-    ``optimize.least_squares.gaussian_width_inequalities``).  This guard's
-    floor of 10·√ε, 1e-3°, sits a decade above that, and the inequality also
-    counts the phase's Gaussian terms, which this instrument-only width does
-    not.  So the abstention can still happen under LM.
     """
     from ..model.profiles.caglioti import _MIN_GAMMA_G2
 
@@ -1515,9 +1508,9 @@ def check_biso_negative(table, model) -> list[GuardFinding]:
 
 #: relative tolerance below which a Γ_G² counts as *on* zero rather than below
 #: it (WP-1311) — the :data:`STEPHENS_CONE_TOL` situation one seam over, and
-#: resolved the same way.  Zero is inside the physical set: U = V = W = 0 is an
-#: instrument with no Gaussian broadening at all, which is the state every
-#: profile starts from before a resolution stage frees anything.  Relative to
+#: resolved the same way.  Zero is inside the physical set: U = V = 0 with W
+#: on its floor, the clamp itself (WP-1938), is an instrument with almost no
+#: Gaussian broadening, and a fit can stop there.  Relative to
 #: the largest |Γ_G²| over the same fitted range, because the quadratic is
 #: evaluated here and inside ``gaussian_fwhm`` in different association orders
 #: and the two disagree in the last bits.
@@ -1560,16 +1553,6 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
     happens to ask about.  A sample term large enough to lift the total back
     over zero does not make U, V, W quotable.  Read a firing as "this
     resolution function is not quotable", never as a verdict on the sample.
-
-    This is TRF's guard, and a joint fit's.  The LM driver on a single
-    histogram also holds the **total** Γ_G², each phase's Gaussian size and
-    strain included, at or above ``caglioti._MIN_GAMMA_G2`` at every
-    reflection, as a linear inequality (WP-1938 D7,
-    ``optimize.least_squares.gaussian_width_inequalities``).  That keeps the
-    width columns alive, and it does not make this guard redundant.  A phase
-    term can carry the total while the instrument quadratic is negative, the
-    points between reflections are not held, and a stage that starts under
-    the floor builds no rows there.  So the guard can still fire under LM.
     """
     import numpy as np
 

@@ -459,9 +459,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         title="Caglioti W",
         description=(
             "The constant term of the Gaussian variance, so it sets the width "
-            "the pattern would have at zero angle. It is bounded positive: a "
-            "negative W is a negative variance. Freeing W together with a "
-            "free `gauss_size` fits the same constant twice at low angle."
+            "the pattern would have at zero angle. Its lower bound is the "
+            "small variance the Gaussian width is clamped at, not 0. Under that "
+            "clamp the width stops responding to U, V and W, and a fit there "
+            "stops. Freeing W together with a free `gauss_size` fits the same "
+            "constant twice at low angle."
         ),
         unit="deg² 2θ", default="0.001",
         typical="0.001-0.02 on a laboratory diffractometer",

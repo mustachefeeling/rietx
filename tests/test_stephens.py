@@ -549,6 +549,27 @@ def test_injected_anisotropy_is_recovered():
     plot_result(result, path=str(OUT / "stephens_injection_fit.png"))
 
 
+def test_a_pawley_fit_holds_the_cone_under_lm():
+    """The cone's rows read the table, and a Pawley solve's vector also
+    carries one intensity per reflection.  Unpadded, ``T·θ`` raised a shape
+    ``ValueError`` on every Pawley stage freeing a Stephens block under LM
+    (``least_squares._pad_inequalities``)."""
+    truth, inst = _injection_state(_brucite_coef(600.0))
+    data = _synthetic(truth, inst)
+    start, start_inst = _injection_state(_brucite_coef(600.0))
+    result = Refinement(start, start_inst, solver="lm", history=False).fit(
+        data, mode="pawley", plan=RefinementPlan(stages=[
+            Stage("bkg", ["instrument.background.*"]),
+            Stage("microstrain", ["instrument.background.*",
+                                  "phases.*.microstrain.dof.*"]),
+        ]))
+    assert result.status == "converged"
+    # the cone was present and pressed, so the padded rows were exercised
+    assert result.stages[-1].n_constraint_truncations >= 1
+    OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(OUT / "stephens_pawley_lm_fit.png"))
+
+
 def _fit_isotropic_only(data, *, seed_ppm: float) -> Refinement:
     """Refine the *isotropic* strain only — no microstrain block at all.  This
     is the state the Layer-1 diagnostic has to speak into: a user who has not

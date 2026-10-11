@@ -634,6 +634,10 @@ def _read_instrument(payload: dict, pattern: PatternData,
         _widen(param, f"instrument.profile.{attr}")
 
     _refuse_constant_lorentzian(iparm, broadening, diags)
+    # validated again for W's floor (ProfileTCHZ._w_floor_is_reachable): a W
+    # or a declared min under the Γ_G² clamp is raised to it, as the schema
+    # raises a stored one, and the writes above do not re-run that validator
+    profile = ProfileTCHZ.model_validate(profile.model_dump())
 
     geometry = Geometry(kind="debye_scherrer")
     shl = _iparm(iparm, "SH/L")
