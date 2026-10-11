@@ -7,8 +7,8 @@ name = "rietx-kernels"
 dynamic = ["version"]
 description = "The compiled kernels of rietx: its model and its structure figure"
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "MIT AND BSL-1.0"
+license-files = ["LICENSE", "src/sleef.LICENSE"]
 authors = [{ name = "Yue Wu" }]
 requires-python = ">=3.11"
 dependencies = ["numpy>=1.26"]

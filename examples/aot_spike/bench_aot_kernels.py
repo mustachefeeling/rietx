@@ -49,6 +49,9 @@ Three measurements:
    - ``omega_fcj`` and ``bases_fcj``: under 1e-13 relative on every platform
      (``test_fcj_rows_agree_to_rounding_on_every_plane``).  The kernel sums
      the nodes in a loop and numpy in a matmul, so the bit is not claimed.
+     From 1.2.0 they also call SLEEF's ``exp`` (``kernels/src/sleef.rs``),
+     whose own bound ``test_the_fcj_exponential_holds_its_stated_bound``
+     asserts, and the ulp column then counts its last bits too.
 
    ``--gate`` exits 1 unless the wheel loaded, this section ran, every kernel
    was called, every call met its bar, and each case's twins reproduced the

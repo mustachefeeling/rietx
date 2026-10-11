@@ -11,10 +11,14 @@ Two things are checked here and they are different in kind.
   bit pattern;
 * the **profile kernels** agree to rounding — 1e-13 relative, WP-1112's bar —
   and on symmetric rows they are bit-identical *where that was measured*.
-  Which is a property of the platform rather than of the code: the kernels
-  call the C library's ``exp``, numpy its own vectorised routine, and the two
-  agree bit for bit on darwin/arm64 against numpy 2.5.2 and miss by ~3e-17 on
-  Linux.  The bit is therefore asserted only there, for the same reason
+  Which is a property of the platform rather than of the code: the symmetric
+  kernels call the C library's ``exp``, numpy its own vectorised routine, and
+  the two agree bit for bit on darwin/arm64 against numpy 2.5.2 and miss by
+  ~3e-17 on Linux.  From ``rietx-kernels`` 1.2.0 the FCJ kernels call their
+  own, SLEEF's, which is held to its documented 1.0 ulp and gives the same
+  bits on every platform (WP-1940 § The relaxed rule);
+* and a **whole fit** on the kernels lands where the numpy path's does, its
+  parameters in esd units and its curve in σ, both under runaway bars.  The bit is therefore asserted only there, for the same reason
   ``test_backend_shim`` pins its goldens to one platform.  The pad tail is
   excluded from the bit assertion either way: numpy reaches it by multiplying
   the computed value by ``mask``, so a negative value lands on ``-0.0`` there
@@ -36,6 +40,7 @@ a suite that runs under ``-n auto`` measures the machine, not the change.
 
 from __future__ import annotations
 
+import importlib.util
 import platform
 import sys
 import tomllib
@@ -176,7 +181,7 @@ def test_symmetric_rows_land_on_the_numpy_doubles():
     move it is ``exp``, and whether that moves it is a **property of the
     platform, not of the code**.
 
-    The kernels call the C library's ``exp``; numpy calls its own vectorised
+    The symmetric kernels call the C library's ``exp``; numpy calls its own vectorised
     routine.  Measured: they agree bit for bit on darwin/arm64 against numpy
     2.5.2, and miss by ~3e-17 relative on Linux — which cost a CI round, and is
     why the bar this test enforces everywhere is the rounding one.  The bit is
@@ -260,6 +265,63 @@ def test_fcj_rows_agree_to_rounding_on_every_plane():
             assert _rel(a, b) < 1e-13, f"{name} past the rounding bar"
 
 
+#: SLEEF's documented bound for the ``xexp`` the FCJ kernels call from
+#: ``rietx-kernels`` 1.2.0 (``kernels/src/sleef.rs``), in ulps of the true
+#: value.  The worst of the points below is 0.927, at ``exp(425.2…)``.
+EXP_BOUND_ULPS = 1.0
+
+
+def _wheel_exp():
+    import rietx_kernels
+
+    if not hasattr(rietx_kernels, "exp"):
+        pytest.skip(f"rietx-kernels {rietx_kernels.__version__} predates the "
+                    "FCJ kernels' own exponential (1.2.0)")
+    return rietx_kernels.exp
+
+
+def test_the_fcj_exponential_holds_its_stated_bound():
+    """The relaxed rule's first clause (WP-1940): a transcendental is held to a
+    stated bound, here SLEEF's 1.0 ulp against the true value, on each wheel's
+    own platform.  The reference is :mod:`decimal` at 60 digits, so it is the
+    exact value and not another library's rounding of it.
+
+    The points cover every regime the Gaussian exponent reaches, which is
+    never positive: subnormal results, the wide windows' far tails, the core,
+    tiny arguments, and the edges of the range reduction, ``(k + ½)·ln 2``.
+    """
+    from decimal import Decimal, localcontext
+
+    exp = _wheel_exp()
+    rng = np.random.default_rng(1940)
+    x = np.concatenate([
+        rng.uniform(-745.2, -708.4, 500),
+        rng.uniform(-708.4, -40.0, 1000),
+        rng.uniform(-40.0, 0.0, 1500),
+        -np.exp(rng.uniform(np.log(1e-300), np.log(0.1), 300)),
+        rng.uniform(0.0, 709.7, 200),
+        (np.arange(-1074, 1024, 7) + 0.5) * np.log(2.0),
+    ])
+    got = np.empty_like(x)
+    exp(got, x)
+    worst, at = 0.0, None
+    with localcontext() as ctx:
+        ctx.prec = 60
+        for a, b in zip(x.tolist(), got.tolist()):
+            true = Decimal(a).exp()
+            err = float(abs(Decimal(b) - true) / Decimal(np.spacing(float(true))))
+            if err > worst:
+                worst, at = err, a
+    assert worst <= EXP_BOUND_ULPS, f"{worst:.3f} ulp at exp({at!r})"
+
+    # SLEEF decides these by selection, not by the polynomial
+    edges = np.array([0.0, -0.0, -np.inf, np.inf, np.nan, -1000.0001, 709.79])
+    got = np.empty_like(edges)
+    exp(got, edges)
+    assert _bits_equal(got[:4], [1.0, 1.0, 0.0, np.inf])
+    assert np.isnan(got[4]) and got[5] == 0.0 and got[6] == np.inf
+
+
 def test_the_forward_agrees_with_the_scalar_loop_on_fcj_data():
     """The oracle chain, end to end: the compiled path against the
     per-reflection loop that neither batching nor compiling may drift from."""
@@ -269,6 +331,63 @@ def test_the_forward_agrees_with_the_scalar_loop_on_fcj_data():
         got = model._phase_component_batched(ip, values)
         want = model._phase_component_scalar(ip, values)
         assert _rel(got, want) < 1e-13
+
+
+# -- a whole fit --------------------------------------------------------------
+#: The fit-level guard's two bars (WP-1940 § The relaxed rule, item 3), each a
+#: runaway guard and never a tolerance.  Measured on darwin/arm64 with
+#: ``rietx-kernels`` 1.2.0, the trigger fit lands 0.53 esd from the numpy
+#: path's (1.1.0, whose ``exp`` was the C library's: 0.22), all of it along
+#: one ridge: the instrument's Lorentzian ``x`` against the phases'
+#: ``lor_size``, which broaden alike.  Its curve stays within 9.8e-5 σ.  cpd-1a
+#: has no FCJ rows and lands on the numpy path's bits.
+FIT_THETA_ESD = 5.0
+FIT_CURVE_SIGMA = 1e-2
+
+
+def _bench():
+    path = Path(__file__).resolve().parent.parent / "examples" / "bench_refinement.py"
+    spec = importlib.util.spec_from_file_location("bench_refinement", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["bench_refinement"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("case", ["trigger", "cpd-1a"])
+def test_a_fit_on_the_kernels_lands_where_the_numpy_path_does(case):
+    """The relaxed rule's third clause: the two spike fits, once on each path.
+
+    A last-bit difference in the kernels is amplified by the solver into where
+    it stops, so the parameters are compared in esd units against a bar
+    several times the measured gap, and the fitted curves in units of σ, which
+    do not move along a flat direction.  The kernel bars above are the sharp
+    test.  This one says a fit on the kernels is still the numpy path's fit.
+    """
+    bench = _bench()
+    try:
+        setup = {"trigger": bench._trigger, "cpd-1a": bench._cpd_1a}[case]()
+    except FileNotFoundError as exc:
+        pytest.skip(str(exc))
+
+    def fit(on: bool):
+        compiled.set_enabled(on)
+        ref = rx.Refinement(setup.structure.model_copy(deep=True),
+                            setup.instrument.model_copy(deep=True), history=False)
+        return ref.fit(setup.data, plan=setup.plan, mode=setup.mode,
+                       two_theta_limits=setup.limits)
+
+    want, got = fit(False), fit(True)
+    w = {p.path: p for p in want.parameters}
+    g = {p.path: p for p in got.parameters}
+    assert w.keys() == g.keys(), "the two paths refined different parameters"
+    shift = {k: abs(g[k].value - p.value) / p.stderr for k, p in w.items()
+             if p.stderr is not None and np.isfinite(p.stderr) and p.stderr > 0}
+    worst = max(shift, key=shift.get)
+    assert shift[worst] < FIT_THETA_ESD, f"{worst} moved {shift[worst]:.3f} esd"
+    dy = np.abs(np.asarray(got.y_calc) - np.asarray(want.y_calc)) / want.sig()
+    assert dy.max() < FIT_CURVE_SIGMA, f"the curve moved {dy.max():.2e} σ"
 
 
 # -- the pool -----------------------------------------------------------------

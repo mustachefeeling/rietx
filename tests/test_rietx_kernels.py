@@ -158,3 +158,23 @@ def test_the_scatter_refuses_a_window_it_cannot_hold(defect):
 
 def test_the_kernel_interface_is_the_major_version():
     assert rk.KERNEL_ABI == int(rk.__version__.split(".")[0])
+
+
+def test_the_exponential_refuses_what_it_cannot_write():
+    """``exp`` (1.2.0) exists so its bound can be measured; it writes its
+    output through a checked borrow, as the scatter does."""
+    if not hasattr(rk, "exp"):
+        pytest.skip(f"rietx-kernels {rk.__version__} has no exp (1.2.0)")
+    x, out = np.linspace(-5.0, 0.0, 8), np.empty(8)
+    rk.exp(out, x)
+    assert np.allclose(out, np.exp(x), rtol=1e-15, atol=0)
+    with pytest.raises(ValueError, match="out has 7"):
+        rk.exp(np.empty(7), x)
+    with pytest.raises(ValueError, match="out"):
+        rk.exp(x, x)
+    with pytest.raises(ValueError):
+        rk.exp(out, np.linspace(-5.0, 0.0, 16)[::2])
+    frozen = np.empty(8)
+    frozen.flags.writeable = False
+    with pytest.raises(ValueError, match="out"):
+        rk.exp(frozen, x)
