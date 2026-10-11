@@ -196,7 +196,7 @@ candidate survives, because the shift's *shape* needs reference positions,
 which a candidate cell supplies — a cell never shift-refined is biased by
 roughly the shift (+1400 ppm).
 
-## Fifteen more rules, each learned the hard way
+## Sixteen more rules, each learned the hard way
 
 - **A component that refines onto its zero intensity bound is not a line, and
   nothing before WP-1110 could see one.** A peak reaches its window only through
@@ -284,6 +284,14 @@ roughly the shift (+1400 ppm).
   And **a χ² takes its difference and its covariance in one frame**: an engine's
   `cov_af` is in the setting it refined in, so it meets a reduced A..F only through
   `reduce.reduction`'s map. Unmapped, it moved groups in all 99 bethanechol dedups (1518).
+  That map is exact only because **a reduced cell is the exact image of its input**:
+  a sign gemmi gives an entry inside ε is replaced by M·G·Mᵀ's, since one flipped
+  sign is not a change of basis (#797, WP-1923).
+- **A candidate is reported in its conventional setting, and `to_cell_candidate` is
+  where** (WP-1923): `engines.conventional_fit` carries af, `cov_af`, cell and esds
+  through one exact map and records `engine_cell`/`change_of_basis`. A new surface
+  that shows an engine's cell goes through it too (`provisional_payload` does), or
+  one search speaks in two settings.
 - **An assumed precision may never refuse to index** (`from_positions` lists get no
   `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is above).
 - **This package is not slow at indexing, it is silent** — DICVOL04 reaches 3770 s

@@ -427,12 +427,105 @@ def _af_map(change_of_basis: str) -> np.ndarray | None:
     """
     if change_of_basis == "x,y,z":
         return None
+    return _af_map_of_inverse(np.rint(np.linalg.inv(
+        _basis_change(change_of_basis))).T)
+
+
+def _af_map_of_inverse(m: np.ndarray) -> np.ndarray:
+    """T from M⁻ᵀ: column p is M⁻ᵀ·G*(e_p)·M⁻¹ read back as A..F."""
     from .qspace import af_from_gstar, gstar_from_af
-    m = np.rint(np.linalg.inv(_basis_change(change_of_basis))).T
     t = np.column_stack([af_from_gstar(m @ gstar_from_af(e) @ m.T)
                          for e in np.eye(6)])
     t.setflags(write=False)
     return t
+
+
+@lru_cache(maxsize=256)
+def _af_map_of_rows(rows: tuple[tuple[int, int, int], ...]) -> np.ndarray:
+    return _af_map_of_inverse(np.rint(np.linalg.inv(
+        np.asarray(rows, dtype=np.float64))).T)
+
+
+def af_map(change: Sequence[Sequence[int]]) -> np.ndarray:
+    """The linear map on A..F of an integer change of basis.
+
+    ``change`` is M with (new basis rows) = M · (old basis rows), unimodular,
+    the convention of :func:`_basis_change` and of
+    :attr:`~rietx.schemas.indexing.CellCandidate.change_of_basis`.  The new
+    A..F is T·af, and a covariance goes to T·cov·Tᵀ, exactly as for
+    :func:`reduction`'s map.
+    """
+    return _af_map_of_rows(tuple(tuple(int(v) for v in row) for row in change))
+
+
+#: Gauss steps a monoclinic re-set may take before it is declared stuck.  One
+#: step at least halves |a·c| or shortens a vector, so a cell needing more
+#: than this is not a metric any engine returns.
+_SETTING_STEPS = 200
+
+
+def conventional_setting(af: np.ndarray, system: str, centring: str = "P"
+                         ) -> tuple[tuple[int, int, int], ...] | None:
+    """The change of basis to the conventional setting, or ``None`` if none is
+    needed (WP-1923).
+
+    Only a **monoclinic** lattice has a setting to choose here: every other
+    system's metric subspace fixes its axes up to labels, and a triclinic
+    cell is reported as found (the reduced form is :func:`reduce_cell`'s).
+    An engine's monoclinic metric is always b-unique (``qspace.metric_basis``),
+    so the choice is a basis (a, c) of the net perpendicular to b, and the
+    IUCr one (*ITA* A § 9.3; Mighell & Santoro 1975 for why it is needed) is
+    taken: the two shortest translations, β non-acute.
+
+    * **P**: a Lagrange-Gauss reduction of (a, c), then a ≤ c.
+    * **C**: the centring (a + b)/2 must survive, so a' = p·a + q·c needs q
+      even, and a and c cannot be swapped.  The same alternation runs inside
+      that group: c reduced against a, a against 2c.
+
+    Then β is made obtuse by a → −a, and b → ±b keeps the basis
+    right-handed.  Both rules reproduce spglib's ``std_lattice``
+    (:func:`conventional_cell`) on the cells ``tests/test_indexing_reduce.py``
+    draws.  Returns M with (new basis rows) = M · (old basis rows).
+    """
+    if system != "monoclinic" or centring not in ("P", "C"):
+        return None
+    from .qspace import gstar_from_af
+    g = np.linalg.inv(gstar_from_af(np.asarray(af, dtype=np.float64)))
+    scale = float(np.max(np.abs(np.diag(g))))
+    if abs(g[0, 1]) > 1e-9 * scale or abs(g[1, 2]) > 1e-9 * scale:
+        return None                                  # not b-unique: leave it
+    plane = np.array([[g[0, 0], g[0, 2]], [g[0, 2], g[2, 2]]])
+    n = np.eye(2, dtype=np.int64)
+
+    def apply(step: np.ndarray) -> None:
+        nonlocal n, plane
+        n = step @ n
+        plane = step @ plane @ step.T
+
+    for _ in range(_SETTING_STEPS):
+        k = int(np.rint(plane[0, 1] / plane[0, 0]))
+        if k:
+            apply(np.array([[1, 0], [-k, 1]]))       # c ← c − k·a
+        if centring == "P":
+            if plane[1, 1] < plane[0, 0]:
+                apply(np.array([[0, 1], [1, 0]]))    # swap a and c
+                continue
+        else:
+            m = int(np.rint(plane[0, 1] / (2.0 * plane[1, 1])))
+            if m:
+                apply(np.array([[1, -2 * m], [0, 1]]))   # a ← a − 2m·c
+                continue
+        if not k:
+            break
+    else:
+        raise RuntimeError(f"no monoclinic setting reached for af = "
+                           f"{np.asarray(af).tolist()} in {_SETTING_STEPS} steps")
+    if plane[0, 1] > 0.0:                            # β acute
+        apply(np.array([[-1, 0], [0, 1]]))
+    sb = int(round(np.linalg.det(n)))
+    rows = ((int(n[0, 0]), 0, int(n[0, 1])), (0, sb, 0),
+            (int(n[1, 0]), 0, int(n[1, 1])))
+    return None if rows == ((1, 0, 0), (0, 1, 0), (0, 0, 1)) else rows
 
 
 def reduced_covariance(cov: np.ndarray | None, t: np.ndarray | None
@@ -555,7 +648,7 @@ def same_lattice(af_a: np.ndarray, af_b: np.ndarray, *,
 
 __all__ = ["BRAVAIS_OBLIQUITIES", "BRAVAIS_SYMPREC_SIGMAS",
            "CELL_EQUALITY_CHI2", "CELL_EQUALITY_RELATIVE", "SYSTEM_RANK",
-           "BravaisScreen", "ReducedCell", "bravais_screen", "cell_from_vectors",
-           "conventional_cell", "equal_reduced", "lattice_vectors",
+           "BravaisScreen", "ReducedCell", "af_map", "bravais_screen",
+           "cell_from_vectors", "conventional_cell", "conventional_setting", "equal_reduced", "lattice_vectors",
            "reduce_cell", "reduced_af", "reduced_covariance", "reduction",
            "same_lattice"]

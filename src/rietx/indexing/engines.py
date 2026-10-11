@@ -34,7 +34,7 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -682,7 +682,8 @@ def provisional_payload(cands: Sequence[EngineCandidate]) -> list[dict]:
     the WP-1043 evidence shape.
     """
     top = sorted(cands, key=lambda c: (-c.n_indexed, c.volume))
-    return [{"cell": [round(float(v), 6) for v in c.cell],
+    return [{"cell": [round(float(v), 6) for v in
+                      conventional_fit(c.fit, c.system, c.centring)[0].cell],
              "system": c.system, "centring": c.centring,
              "n_indexed": int(c.n_indexed),
              "volume": round(float(c.volume), 2), "provisional": True}
@@ -1286,7 +1287,8 @@ def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
     engine's internal answer becomes a comparable one, so it is also where the
     reflection ceiling is checked one last time: ``fom_panel`` enumerates.
     """
-    fit = cand.fit
+    engine_fit = cand.fit
+    fit, change = conventional_fit(engine_fit, cand.system, cand.centring)
     tt_esd = peaks.two_theta_esd()
     q_esd = peaks.q_esd()
     q, tt = scored_positions(peaks, fit)
@@ -1306,6 +1308,8 @@ def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
         lattice_group=lattice_group(cand.system, cand.centring),
         volume=float(fit.volume), volume_esd=vol_esd,
         af=tuple(float(v) for v in fit.af),
+        engine_cell=tuple(float(v) for v in engine_fit.cell),
+        change_of_basis=change or IDENTITY_CHANGE,
         n_indexed=cand.n_indexed, n_lines=cand.n_lines,
         chi2_red=float(fit.chi2_red),
         shift_template=fit.shift_template,
@@ -1313,6 +1317,30 @@ def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
         shift_esd=float(fit.shift_esd),
         fom=panel, found_by=list(cand.found_by) or [cand.engine],
         diagnostics=list(diagnostics))
+
+
+#: :attr:`CellCandidate.change_of_basis` where nothing was re-set
+IDENTITY_CHANGE = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
+
+
+def conventional_fit(fit: CandidateFit, system: str, centring: str
+                     ) -> tuple[CandidateFit, tuple[tuple[int, int, int], ...] | None]:
+    """The fit re-set to its conventional setting, and the change of basis.
+
+    A..F and its covariance go through one exact map (``reduce.af_map``), and
+    the cell and its esds are read off them as the engine's own were, so an
+    esd is honest even where the re-set mixes a and c (WP-1923).  Everything
+    else is setting-invariant and kept: the residuals, the shift, χ²."""
+    from .qspace import cell_esds, cell_from_af
+    from .reduce import af_map, conventional_setting
+    change = conventional_setting(fit.af, system, centring)
+    if change is None:
+        return fit, None
+    t = af_map(change)
+    af = t @ np.asarray(fit.af, dtype=np.float64)
+    cov = t @ np.asarray(fit.cov_af, dtype=np.float64) @ t.T
+    return replace(fit, af=af, cov_af=cov, cell=cell_from_af(af),
+                   cell_esd=cell_esds(af, cov)), change
 
 
 def _volume_esd(fit: CandidateFit) -> float:

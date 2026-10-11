@@ -376,6 +376,92 @@ def test_the_reduced_cell_is_the_exact_image_of_its_input(centring, a, b, c,
     assert np.max(np.abs(got - theirs)) <= eps
 
 
+_SETTING_STEPS = st.sampled_from([(1, 0, 0, 1), (1, 0, 1, 1), (1, 0, -2, 1),
+                                   (1, 2, 0, 1), (1, -2, 1, -1), (-1, 0, 0, 1),
+                                   (1, 0, 3, 1), (3, -4, 2, -3)])
+
+
+@pytest.mark.parametrize("centring", ["P", "C"])
+@settings(max_examples=40, deadline=None,
+          suppress_health_check=[HealthCheck.filter_too_much])
+@given(lengths, lengths, lengths, st.floats(min_value=90.5, max_value=125.0),
+       _SETTING_STEPS, st.booleans())
+@example(4.541, 4.884, 10.198, 98.22, (-1, 0, 0, 1), False)      # issue #779
+def test_a_monoclinic_cell_is_re_set_to_the_conventional_setting(
+        centring, a, b, c, beta, step, swap):
+    """WP-1923: whatever (a, c) basis an engine arrived at, the re-set lands
+    on b unique, β obtuse, a and c the shortest translations normal to b,
+    and on the cell spglib's ``std_lattice`` standardises the lattice to."""
+    from rietx.indexing.qspace import cell_from_af
+    from rietx.indexing.reduce import af_map, conventional_setting
+
+    truth = (a, b, c, 90.0, beta, 90.0)
+    assume(_valid(truth))
+    p, q, r, s_ = step
+    if centring == "C" and q % 2:
+        q += 1
+    assume(p * s_ - q * r in (1, -1))
+    rows = [(p, 0, q), (0, p * s_ - q * r, 0), (r, 0, s_)]
+    if swap and centring == "P":
+        rows = [rows[2], (0, -rows[1][1], 0), rows[0]]
+    engine_af = af_map(rows) @ af_from_cell(truth)
+    engine_cell = cell_from_af(engine_af)
+    assume(min(engine_cell[:3]) > 1.0 and max(engine_cell[:3]) < 200.0)
+
+    change = conventional_setting(engine_af, "monoclinic", centring)
+    got = engine_cell if change is None else cell_from_af(
+        af_map(change) @ engine_af)
+    if change is not None:
+        m = np.asarray(change)
+        assert round(np.linalg.det(m)) == 1
+        if centring == "C":
+            assert m[0, 2] % 2 == 0 and m[0, 0] % 2 == 1   # (a+b)/2 survives
+    assert got[3] == pytest.approx(90.0, abs=1e-9)
+    assert got[5] == pytest.approx(90.0, abs=1e-9)
+    assert got[4] >= 90.0 - 1e-9
+    if centring == "P":
+        assert got[0] <= got[2] + 1e-9
+        assert got[4] <= 120.0 + 1e-9               # a Gauss-reduced pair
+
+    lat = lattice_vectors(truth)
+    if centring == "C":                              # spglib reads a P basis
+        lat = np.array([(lat[0] - lat[1]) / 2, (lat[0] + lat[1]) / 2, lat[2]])
+    std, _, symbol = conventional_cell(cell_from_vectors(lat), symprec=1e-5)
+    assume(symbol in ("P2/m", "C2/m"))               # not a higher lattice
+    assert got == pytest.approx(std, rel=1e-7, abs=1e-6)
+
+
+def test_a_re_set_carries_the_covariance_with_the_metric():
+    """The fit's esds come from the re-set covariance, not the engine's: a
+    sign flip of a and b leaves every esd alone, a c ← c + a step does not."""
+    from rietx.indexing.engines import conventional_fit
+    from rietx.indexing.qspace import CandidateFit, cell_esds, cell_from_af
+
+    def fit_of(cell):
+        af = af_from_cell(cell)
+        cov = np.diag((1e-5 * np.abs(af) + 1e-9) ** 2)
+        cov[0, 4] = cov[4, 0] = 0.3 * np.sqrt(cov[0, 0] * cov[4, 4])
+        return CandidateFit(af=af, cov_af=cov, cell=cell_from_af(af),
+                            cell_esd=cell_esds(af, cov), system="monoclinic",
+                            n_lines=20, chi2_red=1.0, residual_q=np.zeros(20))
+
+    acute = fit_of((4.541, 4.884, 10.198, 90.0, 81.78, 90.0))
+    new, change = conventional_fit(acute, "monoclinic", "P")
+    assert change == ((-1, 0, 0), (0, -1, 0), (0, 0, 1))
+    assert new.cell[4] == pytest.approx(98.22)
+    assert np.allclose(new.cell_esd, acute.cell_esd, rtol=1e-9)
+    assert np.allclose(new.af, af_from_cell(new.cell), rtol=1e-12)
+
+    long_c = fit_of((4.541, 4.884, 11.0, 90.0, 120.0, 90.0))
+    new, change = conventional_fit(long_c, "monoclinic", "P")
+    assert change == ((1, 0, 0), (0, 1, 0), (1, 0, 1))
+    assert not np.allclose(new.cell_esd, long_c.cell_esd, rtol=1e-3)
+    assert np.allclose(new.cell_esd, cell_esds(new.af, new.cov_af), rtol=0.0)
+
+    tetragonal = fit_of((4.0, 4.0, 9.0, 90.0, 90.0, 90.0))
+    assert conventional_fit(tetragonal, "tetragonal", "P") == (tetragonal, None)
+
+
 def _own_frame_covariance(af: np.ndarray, rel: float, slots) -> np.ndarray:
     """A diagonal covariance in the setting an engine refined in."""
     return np.diag([(rel * af[s]) ** 2 if s in slots else 0.0
