@@ -99,9 +99,10 @@ a poor basin). VALIDATION.md's rows and the landing page are re-measured.
   `solver="trf"` stays selectable, and after the coordinates land every
   positive field under TRF is the failing row. `x_scale="jac"` does not
   rescue it. So the TRF docstring or a diagnostic must say so. An interim
-  change to `declared_fills` before this WP lands is a question for the
-  maintainer. The triage recommends against it, because this WP removes the
-  distinction that function draws.
+  change to `declared_fills` before this WP lands was considered.
+  Decided 2026-10-11: no interim fix, because this WP is in flight and
+  removes the distinction that function draws. The reporter was told
+  `solver="lm"` or omitting the `min` works until then.
 
 - **2026-10-11, from WP-1940 (closed).** The soft dependency is met:
   rietx-kernels 1.2.0 is on PyPI, and rietx's floor stays at `>=1.1`. On
