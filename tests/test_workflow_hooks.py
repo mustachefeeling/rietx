@@ -399,6 +399,39 @@ def test_venv_pointer_resolution(repo: Path, tmp_path: Path) -> None:
     assert hook.venv_flag(repo) is None
 
 
+def _fake_python(venv: Path, cpu: int | None) -> None:
+    """A stand-in interpreter: a 64-bit Mach-O header naming *cpu*, or a fat one."""
+    (venv / "bin").mkdir(parents=True, exist_ok=True)
+    head = (b"\xca\xfe\xba\xbe\x00\x00\x00\x02" if cpu is None
+            else b"\xcf\xfa\xed\xfe" + cpu.to_bytes(4, "little"))
+    (venv / "bin" / "python").write_bytes(head + bytes(24))
+
+
+def test_a_translated_venv_is_flagged_with_a_native_fix(tmp_path: Path) -> None:
+    """A Rosetta venv imports the right tree and passes every test, only slower
+    and down another evaluation path (WP-1940's probe interpreter, 2026-10-11),
+    so the pointer check cannot see it and the header check must."""
+    venv = tmp_path / ".venv"
+    _fake_python(venv, 0x01000007)  # CPU_TYPE_X86_64
+    assert hook.macho_arch(venv / "bin" / "python") == "x86_64"
+    flag = hook.arch_flag(venv, "arm64")
+    assert "x86_64" in flag and "uv venv --clear --python" in flag
+    assert hook.arch_flag(venv, "x86_64") is None  # native on an Intel Mac
+    _fake_python(venv, 0x0100000C)  # CPU_TYPE_ARM64
+    assert hook.arch_flag(venv, "arm64") is None
+    _fake_python(venv, None)  # universal: runs natively on either machine
+    assert hook.macho_arch(venv / "bin" / "python") is None
+    assert hook.arch_flag(venv, "arm64") is None
+    assert hook.arch_flag(tmp_path / "absent", "arm64") is None
+
+
+def test_the_venv_request_names_the_architecture_only_where_it_must() -> None:
+    expected = "cpython-3.12-macos-aarch64-none" if sys.platform == "darwin" else "3.12"
+    assert hook.python_request("arm64") == expected
+    assert hook.python_request("x86_64") == "3.12"
+    assert hook.python_request(hook.HOST_ARCH) in hook.VENV_FIX
+
+
 # --------------------------------------------------------------------------- #
 # The parser against the REAL corpus.
 #
