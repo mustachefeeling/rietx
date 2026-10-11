@@ -22,6 +22,28 @@ to a generated `api-<shape>.md`, never `api.md`". `api-figure.md` and
 plus § Out to `api-io.md`) and parked it as "not the chain's to carry". WP-1532
 (⬜) records that "the split decision is due now". No WP owns the split itself.
 
+**Re-checked 2026-10-11 at 6075319c (superseding the block below in
+part):**
+
+- `api.md` is 39 789 B against `API_INDEX_MAX_BYTES` = 39 800. WP-1930
+  raised the ceiling from 39 700 for `StageResult.seeded` and
+  `.floor_unseeded` (85 B), leaving 200 B to the 40 kB truncation. WP-1543
+  then took 7 B of over-run back by trimming the `read_gsas_prm` sentence in
+  the In prose, one of the 16 names the prototype moves.
+- PR #815 merged on 2026-10-08. `write_topas_inp(instrument=, pattern=)` is
+  in the index, and its docstring's first line is now "Write."
+- #801 merged. `RigidBody`, `BodyOrigin` and `BodyTorsion` are exported and
+  have no entry row in any index: `TECHNIQUE_FIELDS` defers
+  `Phase.rigid_bodies` and `ParameterRow.body`, and
+  `tests/api_surface_deferred.txt` defers the classes' fields. TOF T-1 has
+  not landed. `read_gsas_tof_iparm`, `TOFSource`, `ProfileTOF` and
+  `IncidentSpectrum` are not on `main`.
+- The prototype cherry-picks onto `main` with conflicts in
+  `make_api_index.py` (the In prose WP-1543 trimmed) and `skill_caps.py`
+  (WP-1930's raise). Resolved to the prototype's side and regenerated,
+  `api.md` is 33 292 B and `api-io.md` 7 465 B. Of the sections left in
+  `api.md`, Series, history, projects is 3 306 B.
+
 **Checked against the tree at 5d1f5f67:**
 
 - `api.md` is 39 697 B against `API_INDEX_MAX_BYTES` = 39 700
@@ -55,15 +77,6 @@ two-level index costs a typical fit four or five reads. The pattern readers
 stay in `api.md`, because nearly every fit needs one. The cut buys about 40
 days at the measured 100-250 B a day. The issue names the next seam:
 series, history and projects (3.3 kB), routed by `SKILL.md` §9 and §9b.
-
-### Inherited
-
-- **2026-10-10, from WP-1543: `api.md` is 39 789 B against a ceiling of
-  39 800.** `read_gsas_prm` gained `profile_set=`, which put the generated
-  index 7 B over. WP-1543 paid for it by trimming the hand-written
-  `read_gsas_prm` sentence in `make_api_index.py`'s In prose, and did not
-  split the index. That sentence is one of the 16 names the prototype moves
-  to `api-io.md`.
 
 ## Non-goals
 
