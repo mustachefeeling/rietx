@@ -75,6 +75,16 @@ a poor basin). VALIDATION.md's rows and the landing page are re-measured.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (#890): `max_iter=0` changes meaning
+  with the driver.** Checked at `d80ca5f4`: under TRF a stage that frees
+  anything with `max_iter=0` raises scipy's `` `max_nfev` must be None or
+  positive integer. `` (`optimize/least_squares.py:1716`). Under
+  `solver="lm"` it is accepted as one evaluation with status `max_iter`,
+  and the values do not move. Making LM the default therefore turns a
+  refusal into a quiet result. WP-1947 owns the fix (a rietx refusal naming
+  `max_iter` and the evaluation spelling), so nothing here changes unless
+  this WP lands first. In that case keep the refusal on LM too.
+
 - **2026-10-11, from the issue triage (issue #900): a restated `min=0.0`
   is physical + TRF today, and it fails.** `schemas.common.declared_fills`
   inherits a declared transform only when the caller omitted every bound it
