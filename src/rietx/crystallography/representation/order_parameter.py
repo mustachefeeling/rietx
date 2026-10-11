@@ -128,7 +128,8 @@ def order_parameter_space(basis: IrrepBasis, *, kind: str = "magnetic"
     the coset (the anti-translation of a k ≠ 0 star carries −1 on the order
     parameter, whatever the order parameter is) and for a moment it also
     absorbs the time-reversal sign.  What ``kind`` changes is which group
-    :func:`~rietx.crystallography.magnetic.isotropy.candidates` builds from the stabiliser: a displacive element
+    :func:`~rietx.crystallography.magnetic.isotropy.candidates`
+    builds from the stabiliser: a displacive element
     {R | v + Δ} stabilises the field when ε(Δ) = η, with either time-reversal
     sign, since a displacement ignores 1' (Howard & Stokes 1998, *Acta Cryst.*
     B54, 782).  D_ν is taken in the gauge
@@ -138,7 +139,8 @@ def order_parameter_space(basis: IrrepBasis, *, kind: str = "magnetic"
 
     The construction is Stokes & Hatch (1988): an isotropy subgroup is the
     stabiliser of a point of this space, and turning it into a magnetic space
-    group is what :func:`~rietx.crystallography.magnetic.isotropy.candidates` then does.
+    group is what
+    :func:`~rietx.crystallography.magnetic.isotropy.candidates` then does.
     """
     if kind not in ORDER_PARAMETER_KINDS:
         raise ValueError(f"kind must be one of {ORDER_PARAMETER_KINDS}, got {kind!r}")
@@ -257,7 +259,8 @@ class OrderParameterDirection:
     as grey-little-group *elements*.  ``conjugates`` is how many distinct
     stabilisers are conjugate to this one in the grey little group — the
     orientation domains within one arm of the star — which is not the domain
-    count (issue #608): see :meth:`~rietx.crystallography.magnetic.isotropy.CandidateSet.domain_counts`.
+    count (issue #608): see
+    :meth:`~rietx.crystallography.magnetic.isotropy.CandidateSet.domain_counts`.
     """
 
     label: str
@@ -357,7 +360,9 @@ def isotropy_directions(space: OrderParameterSpace, *, limit: int = 512,
     [G_k1′ : H] (issue #608): 1′ normalises every H and is in no magnetic one,
     so the time-reversed (180°) domain shares its direction's stabiliser and is
     never counted here — the count is at most half the domains, and 1 for a
-    general direction.  :meth:`~rietx.crystallography.magnetic.isotropy.CandidateSet.domain_counts` gives the domains.  Setting it False gives
+    general direction.
+    :meth:`~rietx.crystallography.magnetic.isotropy.CandidateSet.domain_counts`
+    gives the domains.  Setting it False gives
     every distinct stabiliser, which is what a domain census wants.
 
     For a one-dimensional irrep there is exactly one direction, whatever the
