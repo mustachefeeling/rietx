@@ -103,7 +103,8 @@ Run the session-start ritual. The SessionStart hook's report
    2026-08-26). Commit to your branch instead.
 4. **Venv.** If the hook flagged a mismatch or a missing venv (the create hook
    reports when its build failed), build this worktree's own
-   (`uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"`) and say which extras
+   (the fix the flag prints, `session_start.VENV_FIX`, which names the
+   architecture on an arm64 Mac) and say which extras
    were installed — every test count quoted later depends on that statement
    (`tests/CLAUDE.md`).
 4b. **Claim the WP where other people can see it** — a draft pull request, as
