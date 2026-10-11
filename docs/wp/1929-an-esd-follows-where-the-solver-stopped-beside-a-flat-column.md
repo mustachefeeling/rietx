@@ -275,7 +275,7 @@ continuations of 400 evaluations.
       BT-1's start by 1e-14 as the grid did, with one `profile.x` esd at
       every nudge. WP-1938 has landed, so it pins the fix rather than
       failing first.
-- [ ] The flag: `RefinedParameter.at_bound` and `BOUND_HIT` read the driver's
+- [x] The flag: `RefinedParameter.at_bound` and `BOUND_HIT` read the driver's
       active set where it is exact (LM up to `BVLS_MAX_COLUMNS`), with
       `bound_findings`' esd window kept only where a driver gives none. A
       physical floor gets its own code and `Diagnostic.suggestion`, replacing
@@ -307,7 +307,7 @@ continuations of 400 evaluations.
       moment at a stationary direction.
 - [ ] Tests, and the acceptance suites' esds before and after, every row that
       moves by more than 1 % listed in the handover.
-- [ ] Skill: a `references/judging.md` row for the new diagnostic, keyed by
+- [x] Skill: a `references/judging.md` row for the new diagnostic, keyed by
       its code.
 
 ## Acceptance

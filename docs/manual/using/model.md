@@ -543,7 +543,7 @@ That is what `at_bound` is for, and it has three states rather than two:
 
 | Value | Meaning |
 |---|---|
-| `True` | the fit stopped against a bound; the same rows the `BOUND_HIT` diagnostic names |
+| `True` | the fit stopped against a bound; the same rows the `BOUND_HIT` and `FLOOR_HIT` diagnostics name |
 | `False` | tested, and interior |
 | `None` | not tested, so no answer either way |
 
@@ -554,18 +554,22 @@ behind it has nothing to report: [`replay`](history.md) recomputes a recorded
 node's curves without running the guard, so every one of its rows is `None`.
 A free scale or width on its floor of 0 is tested like any other bound. An
 absent phase's scale is the usual case, and it reads `True` when the data push
-it onto that floor.
+it onto that floor. It keeps its value and its esd, and so does every other
+row: no esd is computed as if the floored row were fixed. A floor reports as
+`FLOOR_HIT` (a lower bound of 0, or W's floor) and any other bound as
+`BOUND_HIT`, because only the second can be widened.
 
-What counts as being on a bound is the solver's own test rather than a second
-one. A value is on a bound when it sits within 1e-10 of that bound's own
-magnitude, floored at 1, which is the rule `scipy.optimize.least_squares` uses
-to fill its `active_mask`. The test is relative to the bound it is near and
-never to the gap between the two, so writing `min=1e-14, max=1e14` to mean
-"leave this alone" does not make every value in between read as pinned.
+What counts as being on a bound depends on the solver. Under the default
+`solver="lm"` a row is on its bound when the step landed it exactly there and
+the data still push it outward. Under `solver="trf"` the value only ever comes
+close, so a row is on its bound when it sits within a hundredth of its own esd
+of the limit and the residual still pushes it outward. LM takes the second
+test too when a stage frees more than 128 columns. Neither test reads distance alone, so writing `min=1e-14, max=1e14` to
+mean "leave this alone" does not make a value in between read as pinned.
 
 Both channels carry the same fact, and by construction rather than by agreement.
-The flag is the `BOUND_HIT` findings projected onto the rows, from one bound
-test. Read whichever suits the shape of your code: the diagnostic when you want
+The flag is the `BOUND_HIT` and `FLOOR_HIT` findings projected onto the rows,
+from one bound test. Read whichever suits the shape of your code: the diagnostic when you want
 the list, the flag when you are already iterating rows.
 
 The two views differ in size, and the difference is the point. A single-phase
