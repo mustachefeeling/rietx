@@ -2,7 +2,7 @@
 
 Milestone: rigid-bodies · Status: 🔄 2026-10-08 — the refusal by name landed from outside (PR #841); the stabiliser bases are open
 Depends on: 1805
-Priority: P3 2026-10-06 — a body on a centre or a mirror is refused until this lands
+Priority: P2 2026-10-11 — was P3: #876, the origin refusal advises a move that builds a doubled composition with nothing firing
 
 ## Goal
 
@@ -18,6 +18,36 @@ is chunk R6 of issue #561, sized S.
 - A disordered body is stored at occupancy 1/|G_s| with `Atom.disorder_group`.
 
 ### Inherited
+
+- **2026-10-11, from the issue triage (issue #876): the origin branch's remedy
+  is wrong, and following it doubles the composition in silence.** Both
+  reproduced at `f11e22d3` on PbSO₄ from `tests/data/gsas2_pbso4.gpx`, with
+  the whole SO₄ (S2, O3, O4, O5 and O5's mirror image) as one body
+  (`scratchpad/t876/probe.py` in that session, restated here).
+  (1) With the body's centroid on the Pnma mirror, `ParameterTable._collect_body`
+  (`params/vector.py`, the origin check before the member loop) refuses with
+  "move the origin to a general position". For a body that straddles a
+  mirror that changes the chemistry. The member-atom branch #841 added gives
+  the right advice ("refine that atom outside the body, or state the
+  structure in a subgroup where its site is general"), and the origin branch
+  should say the same. A sibling in the same message: the origin tuple prints
+  `np.float64(0.0656...)` reprs, where the member branch converts with
+  `float(v)`.
+  (2) Following the advice, the body moved 0.03 off the mirror in y builds
+  and predicts with no diagnostic. `phase_zmv(...).element_counts` reads
+  Pb 4, S 8, O 32 per cell against the published Pb 4, S 4, O 16. The issue
+  proposes comparing against the phase's declared composition or Z, and
+  neither is stored. `structure_from_cif` sees `_chemical_formula_sum` and
+  `_cell_formula_units_Z`, and `Phase` has no field for them. A signal that
+  needs no declaration: a body atom within a bond length of a symmetry image
+  of an atom of the same body means the body has landed across a symmetry
+  element. The session working this chooses. Neither is built by this WP's
+  bases alone, since a body started at a general position never reaches
+  the special-position path.
+  The route that worked for the filer: the t2 subgroup with the body
+  general. P2₁2₁2₁ (origin z + ¼) reproduces the Pnma pattern to 2e-15
+  relative, and Pn2₁a holding the floating y origin on Pb solved blind in 10
+  of 180 random starts (filer's numbers, `bdaa7b62`, not reproduced here).
 
 - **2026-10-08, from WP-1805 (answer c to #801): two free turn directions are
   refused.** A body's free turn directions must number 0, 1 or 3, since two turns
