@@ -93,7 +93,10 @@ def test_srm_trio_reads_truth_off_the_baseline(srm_trio):
     c1 = srm_trio["C1"]["truth"]
     r2 = srm_trio["R2"]["truth"]
     assert n1["planted"]["truth"] == c1["planted"]["truth"]
-    assert c1["planted"]["truth"] == pytest.approx(-0.0801, abs=5e-4)
+    # -0.0801 until WP-1938.  The SRM 660c baseline now holds Γ_G² ≥ 1e-8 deg²
+    # at every reflection, where the TRF answer's Caglioti quadratic went
+    # negative above 2θ ≈ 134°, and the displacement moved to -0.0791.
+    assert c1["planted"]["truth"] == pytest.approx(-0.0791, abs=5e-4)
     assert n1["planted"]["tol"] is None
     assert c1["planted"]["tol"] == {"abs": bf.C1_DISP_TOL}
     assert r2["planted"]["start"] == pytest.approx(
