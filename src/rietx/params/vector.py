@@ -1003,12 +1003,11 @@ def _magnetic_component_drawn(phase, instrument) -> bool:
 
 
 #: A typical size for a width-like row, keyed by the unit its
-#: :class:`Parameter` declares.  Two readers.  The forward-difference step of a
+#: :class:`Parameter` declares.  One reader: the forward-difference step of a
 #: row bounded below at 0 is sized by it (``optimize.least_squares._fd_typicals``,
 #: WP-1936), so a column at exactly 0 is measured over a step the physics
-#: notices rather than an absolute one.  And ``Refinement.suggest``'s probe
-#: reads its keys as the units of a width, the rows its 1e-3 seed reaches
-#: (WP-1938).
+#: notices rather than an absolute one.  ``Refinement.suggest`` no longer
+#: seeds a width from it (WP-1938, ``strategy.suggest`` has the measurement).
 #:
 #: **The sizes.**  A width in deg 2θ is 1e-3°, the extinction stage's own
 #: seed.  A Gaussian variance in deg² is its square, so it adds the same 1e-3°
@@ -1081,8 +1080,7 @@ class ParameterTable:
         self._value_scale: dict[str, float] = {}
         #: path → the unit its :class:`Parameter` declared, for every entry
         #: :meth:`_add` built.  Read by ``optimize.least_squares._fd_typicals``,
-        #: which sizes a column's step by unit (WP-1936), and by
-        #: ``Refinement.suggest``, which seeds a width by it (WP-1938); kept
+        #: which sizes a column's step by unit (WP-1936); kept
         #: beside :class:`Entry` rather than in it, because ``Entry`` mirrors
         #: ``ParameterRow`` field for field.
         self._units: dict[str, str | None] = {}
