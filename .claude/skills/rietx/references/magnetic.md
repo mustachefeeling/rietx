@@ -44,6 +44,8 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 
 **A held moment direction is not a code.** It is in `StageResult.held` (`…moment.dof1`/`dof2`) and in `MomentEvidence.unmeasured_directions`. Do not quote a held angle as measured: it has no esd because the powder cannot see it (Shirane, *Acta Cryst.* **12**, 282, 1959). On a site whose flat rotation is a combination of the two angles (a uniaxial powder on axes whose frame pole is not the unique axis, e.g. R-3m:R about [111]), the fit first turns the moment about that axis and then holds the azimuth. `StageResult.moment_flat_axes` names the axis and `.moment_turned` records the turn. The reported `crystalaxis` direction is then one of a cone of equally good ones; quote the angle to the axis (the polar esd is its esd), not the direction.
 
+**In a plan you write, free `moment.dof0` a stage before `moment.dof*`.** A small moment's angles, and an angle the symmetry fixes, barely move the pattern, and the default LM driver gives them its largest steps. It then crawls, and three tiny steps in a row read as `converged`. Do not trust `converged` on a stage that freed a small moment's angles from the start. `solve_magnetic` stages its trials this way already (`SOLVE_STAGE_NAMES`). (Measured: a two-site Pnma start with one site at 0.1 μ_B stopped at χ² 454 660 with all DOFs freed together, and reached 2556 with the moduli first; WP-1938.)
+
 ## Magnetic-width codes
 
 On `result.diagnostics`, from a fit (WP-1343). The terms are `Phase.magnetic_lor_size`/`_strain`, the magnetic component's own Lorentzian width; the turn-on order is `plan="magnetic_width"` (moment with widths at zero → widths beside the converged moment, which keeps refining → both).
