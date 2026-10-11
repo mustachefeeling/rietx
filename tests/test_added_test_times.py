@@ -50,6 +50,18 @@ def test_cases_sum_by_function_and_a_class_member_matches_its_module(tmp_path):
         ("tests.sub.test_b", "test_method"): [0.25, 0.5]}
 
 
+def test_a_directory_reads_every_shard_of_a_leg(tmp_path):
+    """A CI leg runs as two shards, so an added test is in one file of two."""
+    for shard, case in (("1", '<testcase classname="tests.test_a" name="test_new" time="3"/>'),
+                        ("2", '<testcase classname="tests.sub.test_b" name="test_method" time="4"/>')):
+        (tmp_path / f"junit-py3.14-{shard}").mkdir()
+        (tmp_path / f"junit-py3.14-{shard}" / "junit.xml").write_text(
+            f"<testsuites><testsuite>{case}</testsuite></testsuites>", encoding="utf-8")
+    assert times(str(tmp_path), added_tests(DIFF)) == {
+        ("tests.test_a", "test_new"): [3.0],
+        ("tests.sub.test_b", "test_method"): [4.0]}
+
+
 def test_a_file_totals_its_added_tests_so_many_short_ones_show_as_one_long():
     """Twelve one-minute tests in one file were never read as twelve minutes."""
     rows = {("tests.test_a", "test_one"): [1.5, 2.0],

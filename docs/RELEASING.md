@@ -52,15 +52,18 @@ which is the backlog this rule exists to prevent.
    so it is written for a reader upgrading, not for a maintainer. The
    precedents are [1.0.0](releases/1.0.0.md), a milestone, and
    [1.0.1](releases/1.0.1.md), a patch that changed no source file.
-3. Land both on `main` and let CI go green. Branch protection requires six
-   checks (`lint`, `fast py3.11`–`py3.14`, `fast jax`), so a commit on `main`
-   has already passed them, and the workflow refuses a tag that is not on
-   `main` for exactly that reason.
-4. Check that the nightly's Windows job is green on that commit
-   (`gh run list --workflow nightly.yml`). This is the pre-upload gate WP-1003
-   established: the OS classifiers claim Windows, and the claim ships only
-   verified. No workflow can wait the ~2 h this takes, so it is asserted by a
-   person at step 6.
+3. Land both on `main` and let CI go green. Branch protection requires `lint`
+   and `ci-ok`, which passes only when the fast suite passed on py3.11, py3.14
+   and jax (WP-1506, WP-1547). So a commit on `main` has already passed them,
+   and the workflow refuses a tag that is not on `main` for exactly that
+   reason.
+4. Check that three nightly jobs are green on that commit
+   (`gh run list --workflow nightly.yml`): Windows, `py312` and `full`, the
+   one run on Python 3.13. This is the pre-upload gate WP-1003 established for
+   Windows: the classifiers claim it, and the claim ships only verified. The
+   middle two Pythons joined it when they left the per-push matrix (WP-1547).
+   No workflow can wait the ~2 h this takes, so it is asserted by a person at
+   step 6.
 5. Tag `vX.Y.Z` and publish the GitHub release from the notes file. This reads
    as one command and is three, because `--verify-tag` requires the tag to
    already be on the remote:

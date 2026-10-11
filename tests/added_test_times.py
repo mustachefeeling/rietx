@@ -8,8 +8,9 @@ of its worker-seconds (WP-1506).  A wall-clock assertion would be a load sensor
     python -m tests.added_test_times JUNIT [BASE]
 
 JUNIT comes from a run with ``--junitxml=JUNIT -o junit_duration_report=total``:
-a CI leg's ``junit-*`` artifact when the branch has one, else the handover's own
-fast run, whose seconds understate a CI leg's by 3-4× (WP-1547).  BASE defaults
+a CI leg's ``junit-*`` artifacts when the branch has them, else the handover's
+own fast run, whose seconds understate a CI leg's by 3-4× (WP-1547).  A leg
+runs as two shards, so JUNIT may be the directory holding both.  BASE defaults
 to ``origin/main``.  A test counts as added when the working tree adds its
 ``def`` line since the fork from BASE and removes none of that name in that
 module, so a renamed test is listed and one whose signature changed is not.  An
@@ -50,12 +51,17 @@ def added_tests(diff: str) -> set[tuple[str, str]]:
 
 
 def times(junit: str, added: set[tuple[str, str]]) -> dict[tuple[str, str], list[float]]:
-    """Each added test's per-case seconds in a junit file, keyed as ``added`` is."""
+    """Each added test's per-case seconds in a junit file, keyed as ``added`` is.
+
+    ``junit`` may be a directory, and then every ``.xml`` under it is read.  A
+    CI leg runs as two shards, each with its own file (WP-1547)."""
     modules_of: dict[str, list[str]] = defaultdict(list)
     for module, test in added:
         modules_of[test].append(module)
+    path = Path(junit)
+    files = sorted(path.rglob("*.xml")) if path.is_dir() else [path]
     rows: dict[tuple[str, str], list[float]] = defaultdict(list)
-    for case in ET.parse(junit).iter("testcase"):
+    for case in (c for f in files for c in ET.parse(f).iter("testcase")):
         if case.find("skipped") is not None:
             continue        # a skip's seconds say nothing of what the test costs
         name = _CASE_SUFFIX.split(case.get("name", ""), maxsplit=1)[0]
