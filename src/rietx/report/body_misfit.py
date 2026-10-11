@@ -22,8 +22,8 @@ the caller's declarations (2θ limits, user ties, named variables, holds,
 backend, solver).  A tie, variable-bearing tie or hold on a path of the released
 body — or of a later body of its phase, whose index the removal shifts — cannot
 mean the same thing in the released arm and is dropped there; the row's
-``dropped`` lists each.  The body arm torsion glob ``torsions.*.twist`` frees
-nothing until WP-1808's torsions (#823) land.
+``dropped`` lists each.  The body arm's glob ``torsions.*.twist`` frees the
+body's torsions (WP-1808, #823).
 
 The two are compared on the **data** χ² (restraint rows excluded, as every
 ``Statistics`` field is) with the package's two model-comparison tests, both at
