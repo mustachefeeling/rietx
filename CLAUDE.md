@@ -368,13 +368,13 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   no esd rather than a small one** (WP-1110 item 14; `statistics.normal_covariance`'s docstring).
   `pinv` cuts every eigenvalue under `rcond × |λ|max`, so the *largest* column sets the cutoff for
   all of them and a flat direction returns at **zero** variance — the confident wrong singleton
-  wearing an esd. Jacobi-scale first (van der Sluis 1969); the test needs no dataset, since an esd
-  must not depend on another parameter's units. A gradient-free column is then infinite variance,
-  true and unpropagatable, so `_cov_free` drops it and `ParameterTable.unmeasured_rows` names what
-  it reached — and **consumers mark, never clamp**: a tie inherits its source's blindness, a
-  geometry row only if its own partials touch one, QPA the *whole* block since W normalises by a
-  sum. **A column is squared only via `statistics.column_rescale`** (WP-1463): one at the edge
-  of the double range underflows and reads as dead.
+  wearing an esd. Jacobi-scale first (van der Sluis 1969): an esd must not depend on another
+  parameter's units. A gradient-free column is then infinite variance, so `_cov_free` drops it and
+  `ParameterTable.unmeasured_rows` names what it reached — and **consumers mark, never clamp**: a
+  tie inherits its source's blindness, a geometry row only if its partials touch one, QPA the
+  *whole* block since W normalises by a sum. **A row on its bound stays in the matrix** (WP-1929):
+  its esd and its neighbours' are marginal, `at_bound` says where it sits, and a refit holding it is
+  the conditional reading. **A column is squared only via `statistics.column_rescale`** (WP-1463).
 - **A declared name is a claim, and an absent writer fails no test** (WP-1076, the rule above one
   rank up). Two shapes: a field whose empty state reads as an *answer*
   (`RefinedParameter.at_bound` was `bool = False`, so every result said "not at a bound" about
