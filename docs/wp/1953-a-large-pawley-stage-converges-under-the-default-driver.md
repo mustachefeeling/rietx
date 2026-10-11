@@ -1,0 +1,129 @@
+# WP-1953 — a large Pawley stage converges under the default driver
+
+Milestone: unscheduled · Status: ⬜
+Track: What fires, and what stays silent
+Depends on: —
+Priority: P2 2026-10-11 — a Pawley fit above 128 columns stops a stage on its budget under the default and lands worse than TRF; few fits run that path, and `solver="trf"` is the workaround
+
+## Goal
+
+A Pawley fit with more than `lm.BVLS_MAX_COLUMNS` (128) columns converges
+every stage under the default LM driver, rather than crawling to its
+evaluation cap. Whether LM and TRF then reach the same answer on such fits is
+measured and written down.
+
+## Context
+
+**What landed before this.** WP-1937 built the LM driver (`optimize/lm.py`).
+Its box step is exact up to 128 columns (BVLS on the eigendecomposed normal
+matrix, `_solve_step`) and BCCG's above (`optimize/bccg.py`), because scipy's
+BVLS refactors the free set at each active-set change. WP-1938 made LM the
+default (#883, merged 2026-10-11). A Pawley fit appends one column per
+reflection, so it is the fit that crosses 128.
+
+**The seam.** `lm._solve_step`'s `n > BVLS_MAX_COLUMNS` branch calls
+`bccg.solve(A + lam·diag(d²), b, …)`. The inner loop in `lm.minimize` reads
+the taken step's promise, `−stepᵀb`. A promise ≥ 0 raises λ and retries
+without evaluating (the `promise >= 0.0` branch). A promise under the fp64
+floor ends the stage `exhausted_fp64`.
+
+**The measurement that filed this** (WP-1938's fifth session, macOS 26.6.2
+arm64, `[dev,jax]`, one run each under load). FAP.XRA from
+`tests/test_acceptance_fap.build_fap_inputs()`, `mode="pawley"`, default
+plan, 343 columns at the `profile` stage:
+
+| arm | `profile` stage | Rwp | wall |
+|---|---|---|---|
+| `main` `6075319c` (TRF, before the flip) | converged | 0.07825358 | 20.2 s |
+| TRF, after the flip | converged | 0.07838295 | 11.0 s |
+| LM as shipped (BCCG above 128) | 400-evaluation cap, 635 box solves | 0.08035928 | 16.7 s |
+| LM, exact step at every size | converged | 0.08028663 | 6.3 s |
+| LM started from TRF's answer | converged | 0.07825264 | |
+
+Two findings sit in that table.
+
+1. **BCCG's steps often promised no descent.** The crawling stage made 635
+   box solves for 400 evaluations. Only the no-descent branch retries
+   without evaluating, so about 235 steps were rejected there and λ raised.
+   On eight systems sampled from the stage, BCCG's step left its own damped
+   model ½sᵀ(A + λD)s − bᵀs above zero, worse than not moving, at six of
+   the seven with λ > 0 (+0.05 down to +7e-6). The exact solve's value was
+   below zero at all eight. WP-1937 had measured BCCG 5-22 % short of the
+   exact model minimum on synthetic systems, never on the wrong side of
+   zero.
+2. **LM settles in a worse place than TRF from the default start.** The
+   exact-step LM converges at 0.08029, TRF at 0.07838, and LM started at
+   TRF's answer keeps it. The refined profile parameters of the two answers
+   differ by at most 1.5 esd, so the gap is mostly in the intensities. NAC
+   Pawley (142 columns) went the other way under WP-1937: LM 0.13478453
+   against TRF 0.13628068, on either step. So it is not yet known whether
+   this is a driver property or one fixture's landscape.
+
+**What the exact step costs** (WP-1937, synthetic Pawley-shaped systems, per
+solve, exact against BCCG): 2-34 ms against under 1 ms at 128 columns,
+0.13-0.8 s at 400, 1.5-11 s at 1000, 10-177 s at 2000 against at most 22 ms.
+On FAP the exact-step fit was the faster one, because it converged.
+
+**The constrained step is not the cost here.** WP-1938's lane found no
+Pawley fit crossing a linear-inequality row, and `nnls` never ran out of
+iterations on any of 16 fits. Forced onto FAP's systems the constrained step
+took 42-70 ms at 343 columns.
+
+**The standard remedy to weigh.** A trust-region step need only achieve a
+fraction of the Cauchy point's model decrease to keep the global convergence
+argument (Nocedal & Wright 2006, *Numerical Optimization*, §4.1-4.2). The
+projected-gradient step along −b is cheap at any size, so a step that
+promises less could fall back to it. That is a candidate, not a decision.
+
+## Non-goals
+
+- When a stage that is improving little should stop and say so: WP-1334.
+- Esds at a stopping point beside a flat column: WP-1929.
+- The constrained step's cost and its `nnls` fallback: measured and closed in
+  WP-1938.
+
+## Tasks
+
+- [ ] Measure before deciding: every Pawley fixture above 128 columns the
+      suite or the examples can build (FAP.XRA at least, and a wider range of
+      NAC or a round-robin pattern if one crosses 128), under TRF, LM as
+      shipped and LM with `lm.BVLS_MAX_COLUMNS = 10**6`. Record per stage the
+      termination, the count of BCCG steps promising no descent, and the
+      seconds per step.
+- [ ] Decide the step above 128 columns when BCCG promises no descent (the
+      exact step, a Cauchy-point fallback, a tighter BCCG, or a higher cap),
+      and record it here as `Decided YYYY-MM-DD:`.
+- [ ] Implement it, with a test on a system where BCCG's step promises no
+      descent.
+- [ ] The basin: five starts 1e-14 apart per fixture under both drivers.
+      Write down whether LM's and TRF's answers differ by start or by driver.
+- [ ] Tests + obs/calc/diff PNGs to `tests/output/` for each Pawley fit whose
+      answer moves.
+- [ ] Skill: `references/surprises.md` §8.31 says a large Pawley stage can
+      stop on its budget under LM. Remove it, or restate it, once this lands.
+
+## Acceptance
+
+Every stage of FAP.XRA's Pawley fit converges under the default driver, and
+its Rwp sits within the five-start spread of TRF's or the difference is
+written down as a property of the fixture.
+
+```sh
+.venv/bin/python -m pytest tests/test_pawley.py tests/test_lm_solver.py
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+- WP-1937 (the driver and the 128-column split), WP-1938 (the default flip,
+  and the fifth session's handover entry with the measurement).
+- Nocedal, J. & Wright, S. J. (2006). *Numerical Optimization*, 2nd ed.,
+  §4.1-4.2. New York: Springer.
+
+## Handover log
+
+- **2026-10-11** — Filed from WP-1938's last open task when #883 merged
+  without a fix. No open WP owns the step above `BVLS_MAX_COLUMNS`. WP-1334
+  owns stopping a stage that improves little, which would shorten this
+  crawl but not end it, and WP-1929 owns esds. Next: the first task, since
+  the decision needs more than one fixture.

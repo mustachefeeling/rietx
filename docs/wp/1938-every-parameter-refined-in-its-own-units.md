@@ -459,25 +459,9 @@ driver alone).
       refusal into a quiet result. `lm.minimize` now refuses a budget under
       one evaluation in scipy's words, which covers the joint fit too.
       WP-1947 still owns a refusal that names `max_iter`.
-- [ ] **A large Pawley under the default driver** (fifth session, found by
-      the lane above). FAP.XRA in `pawley` mode, default plan, 343 columns at
-      the `profile` stage. `main` (`6075319c`, TRF): every stage converged,
-      Rwp 0.07825358. This branch's LM: the `profile` stage stops on its
-      400-evaluation cap, Rwp 0.08035928. At every λ > 0 BCCG's step
-      promised a cost *increase* (model +0.05 down to +7e-6) where the exact
-      box solve promised a decrease, so LM raised λ and crawled. LM with the
-      exact step at every size converges at 0.08029 in 6.3 s against 16.7 s.
-      This branch's TRF reaches 0.07838, and LM restarted from TRF's answer
-      keeps it and reaches 0.07825. The refined profile parameters differ by
-      at most 1.5 esd, so the gap is mostly in the intensities. NAC Pawley
-      went the other way under 1937 (LM 0.13478, TRF 0.13628). Two
-      decisions, the maintainer's: what the step above
-      `BVLS_MAX_COLUMNS` does when BCCG promises no descent (the exact solve
-      costs 1.5-11 s a step at 1000 columns, per 1937), and whether a Pawley
-      fit's start is this WP's to fix or only to report. To reproduce:
-      `tests/test_acceptance_fap.build_fap_inputs()`, then
-      `Refinement(structure, instrument, solver=…).fit(data, mode="pawley")`,
-      and `lm.BVLS_MAX_COLUMNS = 10**6` for the exact step.
+- [x] **A large Pawley under the default driver** (fifth session). Moved
+      2026-10-11 to WP-1953, with the measurement, when #883 merged
+      without a fix.
 
 ## Acceptance
 
@@ -576,8 +560,12 @@ declined below.
   | this branch, LM, exact step at every size | converged | 0.08028663 | 6.3 s |
   | this branch, LM from TRF's answer | converged | 0.07825264 | |
 
-  At every λ > 0 the BCCG step promised a cost increase (model +0.05 to
-  +7e-6) where the exact solve promised a decrease. The refined profile
+  The stage made 635 box solves for 400 evaluations, so about 235 BCCG
+  steps were rejected unevaluated as promising no descent. On eight
+  sampled systems BCCG's step left its own damped model above zero at six
+  of the seven with λ > 0 (+0.05 to +7e-6), and the exact solve's was
+  below zero at all eight. (Corrected 2026-10-11: this said "at every
+  λ > 0" and called the model value a promise.) The refined profile
   parameters of the TRF and exact-LM answers differ by at most 1.5 esd.
   Walls are one loaded run each.
 - The trigger fit on the kernels from starts 1e-14 apart in `profile.x`:
