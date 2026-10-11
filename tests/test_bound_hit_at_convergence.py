@@ -358,25 +358,37 @@ def test_the_rows_render(data):
                     two_theta_range=(20.0, 35.0))
 
 
-def test_a_width_on_its_floor_is_not_read_against_its_far_limit():
-    """The esd window cannot be asked of a row sitting on its transform's floor.
+def test_a_width_on_its_floor_is_read_against_its_floor():
+    """A floor of 0 is the nearer limit and the only candidate (WP-1938).
 
-    There the internal esd is the physical one over σ(u).  Here that is 1e64
-    for a physical 0.07, so the window of a hundredth of an esd admits an upper
-    limit 150 internal units away, and a cosine pushing up fired ``BOUND_HIT``
-    on a width at zero.  CI's py3.11 Linux leg met exactly this on
-    ``instrument.profile.y`` in a joint fit (WP-1463), where the row said
-    ``None`` and the diagnostic said it was at its bound.
+    Under softplus a width at zero had an internal esd of 1e64 for a physical
+    0.07, so the esd window admitted a far limit and ``BOUND_HIT`` fired on
+    ``instrument.profile.y`` pressing on its upper bound (WP-1463).  In its own
+    units the esd is the physical one, and the finding names which limit held
+    it.  That is what ``BOUND_HIT``'s advice reads, and the rendered text is
+    unchanged by it.
     """
-    from rietx.strategy.staged import bound_findings, bound_untested
+    from rietx.refine import _ZERO_FLOOR_SUGGESTION, _guard_diagnostics
+    from rietx.strategy.staged import GuardReport, bound_findings
 
-    bounds = (np.array([-np.inf]), np.array([0.0]))
-    free, theta = ["instrument.profile.y"], np.array([-150.0])
-    esd, cos = np.array([1e64]), np.array([-0.03])
+    free, esd = ["instrument.profile.y"], np.array([0.07])
+    floor = (np.array([0.0]), np.array([1.0]))
+    (found,) = bound_findings(floor, free, np.array([0.0]),
+                              cos=np.array([+0.03]), esd=esd)
+    assert found.limit == ("lower", 0.0)
+    assert str(found) == "instrument.profile.y"
+    # pulled back inside, the floor carried no load
+    assert bound_findings(floor, free, np.array([0.0]),
+                          cos=np.array([-0.03]), esd=esd) == []
 
-    unskipped = bound_findings(bounds, free, theta, cos=cos, esd=esd)
-    assert {p for f in unskipped for p in f.paths} == set(free)
-    untested = bound_untested(bounds, free, theta, ["softplus"], esd=esd)
-    assert untested == free
-    assert bound_findings(bounds, free, theta, cos=cos, esd=esd,
-                          untested=untested) == []
+    # a lower limit that is not 0, and an upper one, keep "widen the bound"
+    (shifted,) = bound_findings((np.array([1e-6]), np.array([1.0])), free,
+                                np.array([1e-6]), cos=np.array([+0.03]), esd=esd)
+    (upper,) = bound_findings(floor, free, np.array([1.0]),
+                              cos=np.array([-0.03]), esd=esd)
+    assert shifted.limit == ("lower", 1e-6) and upper.limit == ("upper", 1.0)
+    advice = [d.suggestion for d in _guard_diagnostics(
+        GuardReport(at_bounds=[found, shifted, upper]))]
+    assert advice == [_ZERO_FLOOR_SUGGESTION,
+                      "widen the bound or fix the parameter",
+                      "widen the bound or fix the parameter"]

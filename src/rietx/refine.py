@@ -5400,6 +5400,19 @@ _REVISABLE_CODES = ("BOUND_HIT", "RESOLUTION_NOT_POSITIVE",
                     "COVARIANCE_DIRECTION_DISCARDED")
 
 
+#: ``BOUND_HIT``'s advice when the limit that carried load is a lower bound of
+#: exactly 0 (WP-1938).  A scale or a width cannot go negative, so "widen the
+#: bound" is wrong there.  A caller's ``min=0`` on a displacement parameter
+#: reaches this too: the 11-BM NAC acceptance fit declares one, and its Biso
+#: stops there.  So the reasons name what a negative B stands in for
+#: (``BISO_NEGATIVE``'s list) beside the scale's and the width's.
+_ZERO_FLOOR_SUGGESTION = (
+    "the data push this parameter below zero, where it cannot go. The usual "
+    "reasons are a phase or term the data do not support, a width the "
+    "instrument already supplies, or, for a displacement parameter, "
+    "absorption or a wrong species or occupancy. Fix it at 0")
+
+
 def _guard_diagnostics(guard) -> list[Diagnostic]:
     """Guard findings as diagnostics — one prose message per :class:`GuardFinding`.
 
@@ -5424,7 +5437,11 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
             level="warning", code="BOUND_HIT", where=list(finding.paths),
             value=finding.value,
             message=f"{path} refined to its bound{finding.detail}",
-            suggestion="widen the bound or fix the parameter",
+            # a lower limit of exactly 0 is a scale or width, which no wider
+            # bound can help (WP-1938); WP-1929 owns a floor's own code
+            suggestion=(_ZERO_FLOOR_SUGGESTION
+                        if finding.limit == ("lower", 0.0)
+                        else "widen the bound or fix the parameter"),
         ))
     for finding in guard.nonpositive_adps:
         msg = str(finding)
@@ -6540,10 +6557,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # at_bound is the BOUND_HIT findings projected onto the rows, never a
     # second bound test (WP-1076).  Only the free set was tested, so a tied
     # row — in `parameters`, absent from the free vector — reports None, and
-    # so does every row when no guard ran at all (`replay`), and a free row
-    # sitting on its transform's asymptote (`bound_untested`, WP-1463).
-    tested = (set(table.free_paths) - set(guard.bound_untested)
-              if guard is not None else set())
+    # so does every row when no guard ran at all (`replay`).  A free row on
+    # a floor of 0 is tested like any other bound (WP-1938).
+    tested = set(table.free_paths) if guard is not None else set()
     on_bound = {p for f in guard.at_bounds for p in f.paths} if guard is not None else set()
     # A CELL_RUNAWAY finding's own message says the named cell's value is
     # "not a measurement", so its esd is withheld while the row stays (it is
@@ -8273,10 +8289,11 @@ def _quantify_phases(table: ParameterTable, theta: np.ndarray,
     parameters, and a plan freeing only the scale gives it nothing to say
     (WP-1463 measured it silent at S = 0.0).
 
-    Since WP-1463 a scale is blind only where its column is exactly zero.  A
-    tiny scale (the absent phase at 1e-170) now has the esd it had at 1e-135.
-    The zero column that remains is a softplus scale at S = 0.0, whose slope
-    dS/du has underflowed, or a phase with no gradient at any scale.
+    Since WP-1463 a scale is blind only where its column is exactly zero.
+    Since WP-1938 a scale is refined in its own units, so its column is the
+    phase's pattern at any value, and an absent phase's scale at 0.0 keeps
+    its esd.  The zero column that remains is a phase with no gradient at any
+    scale, such as one whose sites are all empty.
     """
     scale_paths = [f"phases.{ip}.scale" for ip in range(len(structure.phases))]
     scale_cov = None

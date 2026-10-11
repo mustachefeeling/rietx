@@ -22,17 +22,16 @@ class RefinedParameter(Base):
 
     **``at_bound`` has three states, and one of them is "nobody looked"**
     (WP-1076).  ``True``/``False`` are answers about a *measured* row;
-    ``None`` says the question was not asked of this row, which happens three
+    ``None`` says the question was not asked of this row, which happens two
     ways: the result was assembled without a guard report (``refine.replay``,
     which is evaluate-only, and any hand-built result), and a **tied** row,
     which is not in the free vector and so is never tested — its value
     follows its sources, and it can sit on its own declared bound while every
-    source is interior.  The third is a free row sitting on its transform's
-    asymptote (WP-1463): a softplus scale at 0.0 has no finite internal limit
-    to test against, so ``staged.bound_untested`` names it and the row reads
-    ``None``.  An absent phase's scale is the usual case.  Before WP-1076 the field was ``bool = False`` and
-    nothing wrote it, so every row of every result asserted "not at a bound"
-    about a parameter no code had looked at.
+    source is interior.  A free scale or width on its floor of 0 is tested
+    like any other bound (WP-1938), so an absent phase's scale reads ``True``
+    when the data push it onto that floor.  Before WP-1076 the field was
+    ``bool = False`` and nothing wrote it, so every row of every result
+    asserted "not at a bound" about a parameter no code had looked at.
 
     **``True`` says the limit carried load, not that the value is near one**
     (WP-1434).  The row must sit within a hundredth of its own esd of the

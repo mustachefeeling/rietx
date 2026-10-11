@@ -229,9 +229,9 @@ def test_a_term_past_the_cap_is_bounded_at_the_table():
     table.freeze_strain_cap(cap)
     _, hi = table.bounds()
     k = table.free_paths.index("phases.0.lor_strain")
-    # internal space is softplus, so compare after mapping back
-    from rietx.params.transforms import to_physical
-    assert to_physical(float(hi[k]), "softplus") == pytest.approx(cap, rel=1e-9)
+    # the column is the coefficient itself since WP-1938, so the cap is the
+    # bound as written
+    assert hi[k] == pytest.approx(cap, rel=1e-9)
 
 
 def test_no_claim_frozen_caps_nothing():
@@ -462,8 +462,7 @@ def test_a_size_term_on_the_floor_is_bounded_at_the_table():
     table.freeze_size_cap(cap)
     _, hi = table.bounds()
     k = table.free_paths.index("phases.0.lor_size")
-    from rietx.params.transforms import to_physical
-    assert to_physical(float(hi[k]), "softplus") == pytest.approx(cap, rel=1e-9)
+    assert hi[k] == pytest.approx(cap, rel=1e-9)
 
 
 # ----------------------------------------------------------------------

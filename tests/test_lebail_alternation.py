@@ -2,8 +2,9 @@
 
 The pattern is 11-BM LaB6 + cBN, Le Bail scaffolds, ``profile_only``.  It is the
 in-tree stand-in for issue #210's multi-phase lab pattern.  It shows three
-shapes depending on where the cells start.  At +0.3 % pass 2 comes back *worse*
-than pass 1.  At +0.4 % the passes converge.  At +2 % they never settle.
+shapes depending on where the cells start.  At +0.48 % pass 2 comes back
+*worse* than pass 1 (``WORSE_START``).  At -0.15 % the passes converge.  At +2 %
+they never settle.
 
 The fast tests fit 5.1-25° (``LIMITS``), under half the range the hand loop
 used, and a fit costs a quarter to a fifth of one at 5.1-50° (WP-1547).  The
@@ -13,7 +14,15 @@ worse-pass start.  -0.15 % converges with or without that step on macOS, and
 without it on Linux.  How many passes it takes depends on the platform, so its
 test asserts the shape and not the count.  A start of +0.6 % or more diverges at
 5.1-25° whatever the
-loop does.  Every Rwp the fast tests pin was measured at 5.1-25°.  The one
+loop does.  Every Rwp the fast tests pin was measured at 5.1-25°.
+
+The worse-pass start was +0.3 % until WP-1938, which refines every width in
+its own units.  Under softplus + TRF +0.3 % read 13.845 % then 13.865 %, the
+fixed point every converging start reaches here.  In physical units pass 1
+from +0.3 % already lands on that fixed point under either driver.  From
++0.45 % to +0.52 % pass 1 reads 13.847 % and pass 2 13.865 %, under LM and
+TRF alike (macOS arm64, ``[dev]``), so ``WORSE_START`` is the middle of that
+range.  The one
 ``slow`` test keeps 5.1-50° (``WIDE_LIMITS``), where its pins were measured.
 
 At 5.1-50° the per-pass numbers were re-measured in WP-1930.  Its floor seed
@@ -55,6 +64,10 @@ CODE = "LEBAIL_ALTERNATION_STOPPED"
 #: by order only, since +0.3 %'s pass 2 at 5.1-50° spread 1.5e-4 across
 #: platforms.
 RWP_PLATFORM_SPREAD = 1e-4
+#: the cell start whose pass 2 comes back worse than pass 1 (module docstring)
+WORSE_START = 1.0048
+#: the Rwp of that start's kept pass 1 (0.138453 from +0.3 % under softplus)
+WORSE_KEPT_RWP = 0.138471
 
 
 @pytest.fixture(scope="module")
@@ -110,8 +123,8 @@ def exact(pattern):
 
 @pytest.fixture(scope="module")
 def worse(pattern):
-    """+0.3 % cells with a history: pass 1 kept, pass 2 discarded."""
-    ref = _refinement(1.003, history=True)
+    """``WORSE_START`` cells with a history: pass 1 kept, pass 2 discarded."""
+    ref = _refinement(WORSE_START, history=True)
     return ref, _fit(ref, pattern, 8)
 
 
@@ -151,13 +164,13 @@ def test_one_pass_is_the_plain_fit_and_says_nothing(pattern):
 
 @pytest.mark.xdist_group("lebail-worse")
 def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(worse):
-    """+0.3 % cells: 13.845 then a worse pass 2, and the loop sits at pass 1."""
+    """``WORSE_START`` cells: 13.847 then a worse pass 2, and the loop sits at pass 1."""
     ref, result = worse
     stop = _stop(result)
     assert stop.level == "warning"
     assert "did not lower Rwp" in stop.message
     assert "pass 1 of 2 was kept" in stop.message
-    assert result.statistics.rwp == pytest.approx(0.138453, abs=RWP_PLATFORM_SPREAD)
+    assert result.statistics.rwp == pytest.approx(WORSE_KEPT_RWP, abs=RWP_PLATFORM_SPREAD)
     assert stop.value == result.statistics.rwp
     # the per-pass table the message prints, read as numbers.  Pass 1 is the
     # kept answer and is pinned to RWP_PLATFORM_SPREAD, in per cent.  Pass 2
@@ -166,7 +179,7 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(worse)
     table = [float(v) for v in re.search(
         r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(",")]
     assert len(table) == 2
-    assert table[0] == pytest.approx(13.845, abs=100 * RWP_PLATFORM_SPREAD)
+    assert table[0] == pytest.approx(100 * WORSE_KEPT_RWP, abs=100 * RWP_PLATFORM_SPREAD)
     assert table[1] > table[0]
     assert CODE in str(result)              # the termination view carries it
     # the GUI's run record carries the verdict, since no panel shows a
@@ -277,9 +290,9 @@ def test_an_alternation_is_one_run_directory_not_one_per_pass(converging):
 
 
 def test_a_cancel_in_a_later_pass_leaves_the_best_pass_standing(pattern):
-    """Pass 1 is the best at +0.3 %; a cancel during pass 2 restores it."""
+    """Pass 1 is the best at ``WORSE_START``; a cancel during pass 2 restores it."""
     from rietx.optimize.cancel import CancelToken, RefinementCancelled
-    ref = _refinement(1.003)
+    ref = _refinement(WORSE_START)
     token = CancelToken()
     seen = []
 
@@ -293,7 +306,8 @@ def test_a_cancel_in_a_later_pass_leaves_the_best_pass_standing(pattern):
         ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
                 telemetry=False, events=on_event, cancel=token)
     assert ref.result_ is not None
-    assert ref.result_.statistics.rwp == pytest.approx(0.138453, abs=RWP_PLATFORM_SPREAD)
+    assert ref.result_.statistics.rwp == pytest.approx(WORSE_KEPT_RWP,
+                                                       abs=RWP_PLATFORM_SPREAD)
 
 
 @pytest.mark.xdist_group("lebail-exact")
@@ -317,7 +331,7 @@ def test_a_cancel_part_way_through_a_later_pass_restores_the_best_pass(pattern):
     """The in-flight pass's completed stages stand after a cancel, so the state
     is neither pass 1's nor its own end unless the loop puts it back."""
     from rietx.optimize.cancel import CancelToken, RefinementCancelled
-    ref = _refinement(1.003)
+    ref = _refinement(WORSE_START)
     token = CancelToken()
     fits, ends = [], []
 
@@ -332,6 +346,6 @@ def test_a_cancel_part_way_through_a_later_pass_restores_the_best_pass(pattern):
         ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
                 telemetry=False, events=on_event, cancel=token)
     kept = ref.result_
-    assert kept.statistics.rwp == pytest.approx(0.138453, abs=RWP_PLATFORM_SPREAD)
+    assert kept.statistics.rwp == pytest.approx(WORSE_KEPT_RWP, abs=RWP_PLATFORM_SPREAD)
     cell = {p.path: p.value for p in kept.parameters}["phases.0.cell.a"]
     assert ref.structure.phases[0].cell.a.value == pytest.approx(cell, abs=1e-9)

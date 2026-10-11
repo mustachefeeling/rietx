@@ -907,44 +907,93 @@ def test_the_joint_runner_does_not_crash_on_the_trigger_construction(
     assert result.status in ("converged", "max_iter")
 
 
-def test_the_joint_runner_reports_and_clamps_the_runaway(degenerate_pair_multi_fit):
+def test_the_joint_trigger_construction_no_longer_walks_in_physical_units(
+        degenerate_pair_multi_fit):
+    """The joint walk needed softplus scales too (WP-1938).
+
+    Measured on this fixture (macOS arm64, ``[dev]``): with softplus scales
+    ``CELL_RUNAWAY`` fired under TRF and LM alike.  In their own units the
+    decoy's scale stops on 0.0 under LM, where its cell column is exactly
+    zero and the cell does not move, and its cell moves 1.4 % under TRF.  The
+    two tests below reach the firing path by an injected escape.
+    """
+    from rietx.params.vector import CELL_SAFETY_FRACTION
+
     ref, result, _ = degenerate_pair_multi_fit
+    assert not any(d.code == "CELL_RUNAWAY" for d in result.diagnostics)
+    for phase in ref.fitted_structures[0].phases:
+        a = phase.cell.a.value
+        assert abs(a / TRUE_A - 1.0) < CELL_SAFETY_FRACTION, f"{phase.name}: a = {a}"
+
+
+#: scale and cell freed together, then a stage forcing the next compile: the
+#: shape of the degenerate-pair plan, for the injected escapes below
+_JOINT_BOTH = Stage("both", ["phases.*.scale", "phases.*.cell.*"], max_iter=20)
+_JOINT_ZERO = Stage("zero", ["instrument.zero_shift"], max_iter=20)
+
+
+def test_the_joint_runner_reports_and_clamps_the_runaway(monkeypatch):
+    from tests.test_cell_runaway_safety import ESCAPED
+
+    ref, result, _ = _joint_cubic_pair_fit(
+        monkeypatch, [_JOINT_BOTH, _JOINT_ZERO], {0: "escape"}, full=True)
     fired = [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
-    assert len(fired) >= 1, [d.code for d in result.diagnostics]
+    assert [d.where for d in fired] == [[ESCAPED]], [d.code for d in result.diagnostics]
     for phase in ref.fitted_structures[0].phases:
         a = phase.cell.a.value
         assert 1.0 < a < 100.0, f"{phase.name}: a = {a:.6g} Å ran away"
     # every histogram's own structure copy carries the same clamped cell
-    assert ref.fitted_structures[1].phases[0].cell.a.value == pytest.approx(
-        ref.fitted_structures[0].phases[0].cell.a.value, rel=1e-9)
+    assert ref.fitted_structures[1].phases[1].cell.a.value == pytest.approx(
+        ref.fitted_structures[0].phases[1].cell.a.value, rel=1e-9)
 
 
 def test_the_joint_runners_reported_parameters_agree_with_its_statistics(
-        degenerate_pair_multi_fit):
+        monkeypatch):
     """The finding-1 regression, replayed at the joint level: a firing clamp
     must leave ``result.parameter(...)``/``fitted_structures`` and
     ``result.histograms[h].y_calc``/``statistics`` agreeing about the *same*
     cell -- never the reported parameter at the clamped value while the
-    curve and Rwp were built from the pre-clamp (escaped) one."""
-    ref, result, data = degenerate_pair_multi_fit
-    assert any(d.code == "CELL_RUNAWAY" for d in result.diagnostics)
-    a = result.parameter("phases.0.cell.a").value
-    assert a == pytest.approx(ref.fitted_structures[0].phases[0].cell.a.value)
+    curve and Rwp were built from the pre-clamp (escaped) one.
+
+    The escape is injected into the stage that produces the answer, so no
+    later solve re-derives θ and masks the bug.  The clamp moves the cell 16 %
+    inside that stage, past every reflection window the stage froze, so the
+    curve cannot tell the escaped cell from the clamped one.  So the test is
+    the single runner's: the θ ``_build_result`` receives must decode to what
+    each histogram's table holds.  Made to fail on purpose once: without the
+    joint runner's ``dataclasses.replace(outcome, theta=self.mtable.x0())``
+    after its clamp, θ decodes to the escaped 5.468 Å."""
+    from tests.test_cell_runaway_safety import ESCAPED
+
+    captured = {}
+    real_build_result = MultiHistogramRefinement._build_result
+
+    def spy(self, models, outcome, *args, **kwargs):
+        captured["decoded"] = [t.decode(th) for t, th in
+                               zip(self.mtable.tables, self.mtable.split(outcome.theta))]
+        captured["entries"] = [{e.path: e.value for e in t.entries}
+                               for t in self.mtable.tables]
+        return real_build_result(self, models, outcome, *args, **kwargs)
+
+    monkeypatch.setattr(MultiHistogramRefinement, "_build_result", spy)
+    ref, result, _ = _joint_cubic_pair_fit(
+        monkeypatch, [_JOINT_BOTH], {0: "escape"}, full=True)
+    assert [d.where for d in result.diagnostics
+            if d.code == "CELL_RUNAWAY"] == [[ESCAPED]]
+    a = result.parameter(ESCAPED).value
+    assert a == pytest.approx(ref.fitted_structures[0].phases[1].cell.a.value)
     for h in range(len(result.histograms)):
-        structure_h = ref.fitted_structures[h]
-        assert structure_h.phases[0].cell.a.value == pytest.approx(a, rel=1e-9)
-        model = compile_model(structure_h, ref.fitted_instruments[h], data[h],
-                              mode="rietveld")
-        table = ParameterTable(structure_h, ref.fitted_instruments[h])
-        y_calc = model.evaluate(table.decode(table.x0()))
-        assert np.asarray(result.histograms[h].y_calc) == pytest.approx(
-            y_calc, abs=1.0), (
-            f"histogram {h}: reported y_calc disagrees with a recompute at "
-            "the reported parameters -- the joint runner's theta was not "
-            "re-derived after the clamp fired")
+        assert ref.fitted_structures[h].phases[1].cell.a.value == pytest.approx(
+            a, rel=1e-9)
+        decoded, entries = captured["decoded"][h], captured["entries"][h]
+        for path, value in entries.items():
+            assert decoded[path] == pytest.approx(value, abs=1e-9), (
+                f"histogram {h}: {path} decodes to {decoded[path]!r} against "
+                f"the table's {value!r} -- the joint runner's theta was not "
+                "re-derived after the clamp fired")
 
 
-def _joint_cubic_pair_fit(monkeypatch, stages, script):
+def _joint_cubic_pair_fit(monkeypatch, stages, script, *, full=False):
     """``MultiHistogramRefinement`` on the single-histogram file's
     ``_cubic_pair`` at two wavelengths, the joint solve's answer for the
     shared ``phases.1.cell.a`` replaced on the solves ``script`` names (by
@@ -1002,10 +1051,14 @@ def _joint_cubic_pair_fit(monkeypatch, stages, script):
         instruments.append(ins)
     data = [_cubic_pair_pattern(lam, seed) for lam, seed in ((0.41390, 11),
                                                              (0.71070, 12))]
-    result = MultiHistogramRefinement(_cubic_pair(), instruments).fit(
-        data, plan=RefinementPlan(stages=stages))
+    ref = MultiHistogramRefinement(_cubic_pair(), instruments)
+    result = ref.fit(data, plan=RefinementPlan(stages=stages))
     assert len(calls) == len(stages), calls   # one solve a stage: nothing held
-    return result
+    OUT.mkdir(exist_ok=True)
+    name = "_".join(s.name for s in stages)
+    for h in range(len(data)):
+        result.for_histogram(h).plot(OUT / f"joint_injected_escape_{name}_h{h}.png")
+    return (ref, result, data) if full else result
 
 
 def test_the_joint_runner_withholds_an_esd_by_the_single_histogram_rule(

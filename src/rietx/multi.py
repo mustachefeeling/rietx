@@ -119,7 +119,6 @@ from .strategy.staged import (
     GuardReport,
     RefinementPlan,
     bound_findings,
-    bound_untested,
     check_adp_positive_definite,
     check_biso_negative,
     check_biso_plausible,
@@ -1232,19 +1231,9 @@ class MultiHistogramRefinement:
 
         # one bound test, two consumers: the rows' at_bound flag and the
         # BOUND_HIT diagnostics (WP-1076)
-        bounds = mt.bounds()
-        # a row on its transform's asymptote reads None, as in the single fit,
-        # and the bound test skips it (WP-1463)
-        transforms = ["identity"] * len(mt.free_paths)
-        for h, sub in enumerate(mt.tables):
-            for j, c in enumerate(mt.col_map(h)):
-                transforms[c] = sub.entries[sub._free_idx[j]].transform
-        untested = bound_untested(bounds, mt.free_paths, outcome.theta,
-                                  transforms, esd=outcome.stderr_internal)
         at_bounds = bound_findings(
-            bounds, mt.free_paths, outcome.theta,
-            cos=outcome.residual_cosine, esd=outcome.stderr_internal,
-            untested=untested)
+            mt.bounds(), mt.free_paths, outcome.theta,
+            cos=outcome.residual_cosine, esd=outcome.stderr_internal)
         # Histogram 0's physical esds, built once in the loop above and read by
         # two consumers (WP-1131): the shared rows of ``_parameters``, and the
         # microstructure block, which reads histogram 0 because its value scale
@@ -1252,7 +1241,7 @@ class MultiHistogramRefinement:
         # a second build here would double the cost for the same dict.
         esd_hist0 = per_esds[0] if per_esds else {}
         parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_hist0,
-                                      answer_runaway, untested)
+                                      answer_runaway)
         diagnostics = list(specimen_diags) + self._top_diagnostics(
             outcome, correlation_guard, top_bg, at_bounds, models)
         if stage_results:
@@ -1345,7 +1334,7 @@ class MultiHistogramRefinement:
             histograms=histograms)
 
     def _parameters(self, thetas, stderr, corr, at_bounds, esd0,
-                    answer_runaway=(), untested=()) -> list[RefinedParameter]:
+                    answer_runaway=()) -> list[RefinedParameter]:
         mt = self.mtable
         params: list[RefinedParameter] = []
         # The single-histogram rule (``refine._build_result``): a cell the
@@ -1365,7 +1354,7 @@ class MultiHistogramRefinement:
         # per-histogram rows `hist.h.…` — which is exactly how
         # `MultiParameterTable.free_paths` spells them, so the projection keys
         # on the row path and needs no second naming convention (WP-1076).
-        tested = set(mt.free_paths) - set(untested)
+        tested = set(mt.free_paths)
         on_bound = {p for f in at_bounds for p in f.paths}
         # shared parameters reported once, from histogram 0's covariance (its
         # diagonal esd is the true combined marginal — cross-terms with the

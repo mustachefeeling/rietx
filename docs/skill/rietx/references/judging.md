@@ -347,16 +347,15 @@ can hold separate basins, each with ordinary curvature and a tight esd, and the
 fit reports whichever it reached.
 
 `QPA_ESD_UNAVAILABLE` (warning) is a different `None`: every
-`weight_fraction_stderr` is absent because the scale `where` names refined to
-exactly 0.0 and could not be measured there. Do not propagate the scale esds by
-hand. Every fraction divides by Σ S·ZMV, so a propagation without that term
-quotes each fraction as if the phase were known, which an agent did on 16 of 48
-patterns of a real series. The fractions themselves are the fit's. A scale at 0
-usually means the phase is absent: remove it and refit for esds, or run
-`ref.profile_fraction(data, phase)` for a range. `PHASE_UNCONSTRAINED` is silent
-when the scale is the phase's only free parameter, so this code is what names
-it. That scale's row reads `at_bound=None`, since a softplus floor is not a
-limit the solver can test.
+`weight_fraction_stderr` is absent because the scale `where` names has no
+gradient at any value, so the data cannot measure it. Do not propagate the
+scale esds by hand. Every fraction divides by Σ S·ZMV, so a propagation without
+that term quotes each fraction as if the phase were known, which an agent did on
+16 of 48 patterns of a real series. The fractions themselves are the fit's.
+Remove the phase and refit for esds, or run `ref.profile_fraction(data, phase)`
+for a range. A scale that refined to 0.0 keeps its esd, reads `at_bound=True`
+and fires `BOUND_HIT`, even when `PHASE_UNCONSTRAINED` is silent because the
+scale is the phase's only free parameter. It usually means the phase is absent.
 
 A lab Cu Kα in-situ pattern gave one phase at 1.41 ± 0.65 wt% with no
 diagnostic. Pinning its `lor_strain` on a grid and refitting everything else

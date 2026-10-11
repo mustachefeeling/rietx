@@ -2922,9 +2922,18 @@ def test_two_text_writers_race_and_the_second_is_refused_whole(
         assert replacement in out, f"no line starts with {path!r}"
         return "\n".join(out) + "\n"
 
+    def scale_row(text: str) -> str:
+        # the row as rendered with only its value replaced: its annotations
+        # are the stored parameter's, and a copy typed here asserted the
+        # softplus word the table stopped carrying (WP-1938)
+        tokens = next(line for line in text.splitlines()
+                      if line.strip().startswith("scale")).split()
+        annotations = tokens[3:] if tokens[1] == "@" else tokens[2:]
+        return " ".join(["  scale         @ 0.00123", *annotations])
+
     # both writers rendered the same document and both are editing a different row
     first = edit(doc["text"], "cell.a", "  cell.a        @ 4.15678")
-    second = edit(doc["text"], "scale", "  scale         @ 0.00123  min 0  softplus")
+    second = edit(doc["text"], "scale", scale_row(doc["text"]))
 
     status, applied = client.put("/api/textdoc",
                                  {"text": first, "base_revision": revision})
@@ -2952,7 +2961,7 @@ def test_two_text_writers_race_and_the_second_is_refused_whole(
     # be re-asserting the values the winner just replaced
     fresh = client.get("/api/textdoc")[1]
     assert fresh["revision"] == applied["revision"]
-    again = edit(fresh["text"], "scale", "  scale         @ 0.00123  min 0  softplus")
+    again = edit(fresh["text"], "scale", scale_row(fresh["text"]))
     status, out = client.put("/api/textdoc",
                              {"text": again, "base_revision": fresh["revision"]})
     assert status == 200, out

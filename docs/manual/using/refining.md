@@ -1182,7 +1182,9 @@ print(finding.message)
 `GuardFinding.code`, `GuardFinding.paths`, `GuardFinding.value` and
 `GuardFinding.message` are the four fields. A client reads `paths` to offer a
 link and `value` to sort; nothing has to take a string apart. `str(finding)` is
-`GuardFinding.message`.
+`GuardFinding.message`. A finding from `GuardFinding.at_bound` also carries
+`GuardFinding.limit`, the limit that held the parameter, such as
+`("lower", 0.0)`. Every other kind leaves it `None`.
 
 There is one constructor per kind of finding, so each format string is written
 once:

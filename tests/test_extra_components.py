@@ -1925,9 +1925,12 @@ def test_a_declared_peak_the_data_cannot_see_says_so():
 
     A peak reaches the pattern only through `area × profile`, so at zero area
     nothing constrains its centre either — WP-1110 item 13's zero-scale phase,
-    one rank down.  The area's own esd is *absent*, which is the equilibrated
+    one rank down.  The centre's esd is *absent*, which is the equilibrated
     covariance telling the truth; the diagnostic is what makes that legible
-    without a reader knowing to look for a missing number.
+    without a reader knowing to look for a missing number.  The area itself
+    is refined in its own units (WP-1938), so its column is the profile at
+    any area: on its floor of 0 it keeps its marginal esd and reads
+    ``at_bound=True``, where under softplus its slope had underflowed.
     """
     structure, ins, data, _strong = _clean_lab6()
     peak = make_peak(center=43.5, span=0.5, area=0.0)
@@ -1943,8 +1946,11 @@ def test_a_declared_peak_the_data_cannot_see_says_so():
     assert any(p.endswith(".center") for p in fired.where)
     assert any(p.endswith(".area") for p in fired.where)
 
-    area = next(p for p in result.parameters if p.path.endswith(".area"))
-    assert area.stderr is None                    # unmeasured, not precise
+    rows = {p.path.rsplit(".", 1)[1]: p for p in result.parameters
+            if p.path.startswith("instrument.extra_components.0.")}
+    assert rows["area"].value == 0.0 and rows["area"].at_bound is True
+    assert rows["area"].stderr is not None and rows["area"].stderr > 0.0
+    assert rows["center"].stderr is None          # unmeasured, not precise
 
 
 def test_a_declared_peak_on_a_predicted_line_is_named_as_a_degeneracy():

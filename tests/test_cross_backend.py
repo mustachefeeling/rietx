@@ -1145,13 +1145,17 @@ def test_multi_histogram_stacked_layout():
 # stage boundaries: the frozen state, regenerated
 # ----------------------------------------------------------------------
 #: recompile gap at a stage boundary — whole-matrix Frobenius and worst single
-#: column, both relative.  Measured at the WP-1112 area-criterion windows:
-#: srm660c's cell stage 4.4e-4 / 2.6e-3, the toy Le Bail and Pawley cells
-#: 1.3e-4 and 3.6e-4 (at the pre-1112 ±30·FWHM margins the same gaps read
+#: column, both relative, the Frobenius taken over columns each scaled to unit
+#: norm so that no parameter's units weight it (WP-1938: unscaled, the scale's
+#: physical column took srm660c's from 4.4e-4 to 2.6e-3 with no column's gap
+#: moving).  Scaled, it is srm660c's cell stage 9.4e-4 / 2.6e-3 and the toy
+#: Le Bail and Pawley cells 6.0e-5 and 1.8e-4, the last two 1.3e-4 and 3.6e-4
+#: unscaled.  Measured at the WP-1112 area-criterion windows
+#: (at the pre-1112 ±30·FWHM margins the unscaled gaps read
 #: 5.9e-6 / 6.9e-5 — window edges then sat in deep tail, so re-freezing them
 #: after a stage's parameter move shifted almost no weight; an edge now
 #: carries its share of the stated ≤2 % discarded area, and the recompile
-#: gap is honestly larger).  The bars sit ~4×/3× above the worst measured
+#: gap is honestly larger).  The bars sit ~2×/3× above the worst measured
 #: gap and ~5×/1.3× below the gross-discreteness scale (a dropped
 #: reflection or a stale window at a moved cell changes columns by 1e-2 and
 #: up) — narrower headroom than the fat-window era's 15×, which is the
@@ -1232,9 +1236,16 @@ def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld",
             per_column = [float(np.linalg.norm(A[:, k] - B[:, k])
                                 / np.linalg.norm(A[:, k]))
                           for k in range(len(idx))]
+            # each column against its own norm before the whole-matrix one:
+            # unscaled, the norm weights columns by their units, and in
+            # physical units (WP-1938) a scale's column outweighs the rest
+            # 1500-fold, so the matrix gap became that one column's
+            norms = np.linalg.norm(A, axis=0)
+            live = norms > 0.0
             records.append({
                 "stage": stage.name,
-                "frobenius": float(np.linalg.norm(A - B) / np.linalg.norm(A)),
+                "frobenius": float(np.linalg.norm((A - B)[:, live] / norms[live])
+                                   / np.sqrt(np.count_nonzero(live))),
                 "worst_column": max(per_column),
                 "worst_path": prev_free[int(np.argmax(per_column))],
                 # did the recompile actually produce a different frozen state?
