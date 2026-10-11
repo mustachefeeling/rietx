@@ -780,7 +780,9 @@ def test_reads_a_directory_a_real_live_session_wrote(tmp_path):
     assert runs.liveness_of(found).state == "unknown"
 
     tail = runs.tail_events(live / runs.EVENTS_FILE)
-    kinds = [e["kind"] for e in tail.events]
+    # the run header first (WP-1322), a record with no kind; then the events
+    assert tail.events[0]["record"] == "run"
+    kinds = [e["kind"] for e in tail.events[1:]]
     assert kinds[0] == "fit_start" and kinds[-1] == "fit_end"
     assert tail.bad_lines == 0
     assert tail.offset == (live / runs.EVENTS_FILE).stat().st_size

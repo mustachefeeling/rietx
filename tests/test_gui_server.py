@@ -2541,7 +2541,9 @@ def test_the_watcher_finds_a_gui_project_run_and_tails_it(fitted):
     assert runs.liveness_of(found).state == "done"
 
     tail = runs.tail_events(found.path / runs.EVENTS_FILE)
-    kinds = [e["kind"] for e in tail.events]
+    # the run header first (WP-1322), a record with no kind; then the events
+    assert tail.events[0]["record"] == "run"
+    kinds = [e["kind"] for e in tail.events[1:]]
     assert kinds[0] == "fit_start" and kinds[-1] == "fit_end"
     assert "eval" in kinds and tail.bad_lines == 0
     assert tail.offset == (found.path / runs.EVENTS_FILE).stat().st_size

@@ -297,8 +297,9 @@ def test_progress_is_one_flat_ladder_on_the_existing_kinds(cubic_peaks):
     per-engine pair *replaced* (trap 2: two ladders on one kind is what made a
     progress bar jump), and — asserted, per the WP — no
     ``EVENT_SCHEMA_VERSION`` bump: the ladder adds fields and revises
-    ``n_stages``, neither of which is a new kind."""
-    assert EVENT_SCHEMA_VERSION == "2"
+    ``n_stages``, neither of which is a new kind.  The constant is "3" since
+    WP-1322's run header, a record and not a kind; the ladder never moved it."""
+    assert EVENT_SCHEMA_VERSION == "3"
 
     peaks, _cell = cubic_peaks
     events = []

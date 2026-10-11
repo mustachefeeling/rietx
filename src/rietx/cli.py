@@ -2,7 +2,7 @@
 
 Deliberately tiny: the package is API-first, and the CLI exists for the few
 things that are genuinely terminal-shaped — watching a running refinement,
-rendering a result file, launching the settings-comparison UI, and asking "what
+summarising an event log after the fact, rendering a result file, launching the settings-comparison UI, and asking "what
 is the cell of this pattern I just collected?".
 
 ``rietx index`` prints the **candidate list**, never one cell, and carries the
@@ -56,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
               "                                    the refinement GUI (localhost)\n"
               "  watch [dir] [--port N] [--open] [--read-only]\n"
               "                                    list and watch the runs under a directory\n"
+              "  events <events.jsonl | run dir> [--json]\n"
+              "                                    summarise an event log, run by run\n"
               "  html <result.json> <out.html>     render a saved RefinementResult to HTML\n"
               "  index <pattern> --wavelength A [...]\n"
               "                                    determine the unit cell of an unknown\n"
@@ -87,6 +89,8 @@ def main(argv: list[str] | None = None) -> int:
         from .compare_app import main as compare_main
 
         return compare_main(rest)
+    if command == "events":
+        return _events(rest)
     if command == "html":
         if len(rest) != 2:
             print("usage: rietx html <result.json> <out.html>", file=sys.stderr)
@@ -102,6 +106,40 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"rietx: unknown command {command!r} (try --help)", file=sys.stderr)
     return 2
+
+
+def _events(argv: list[str]) -> int:
+    """``rietx events`` — an event log after the fact, one run at a time.
+
+    Terminal-shaped for the reason ``html`` is: the run happened somewhere
+    else, and the question is asked of the file it left.  Thin over
+    :func:`rietx.history.aggregate.summarize_events`, so a CI job can call
+    either; ``--json`` is that function's answer, serialised.
+    """
+    import argparse
+
+    p = argparse.ArgumentParser(
+        prog="rietx events",
+        description="Summarise an events.jsonl run by run: fits and stages "
+                    "counted, wall clock per stage, the termination "
+                    "histogram, the most-held paths, first and last Rwp.")
+    p.add_argument("log", help="an events.jsonl, or a run directory holding one")
+    p.add_argument("--json", action="store_true",
+                   help="print the summary as JSON instead of text")
+    try:
+        args = p.parse_args(argv)
+    except SystemExit as exc:
+        return int(exc.code or 0)
+
+    from .history.aggregate import summarize_events
+
+    try:
+        summary = summarize_events(args.log)
+    except FileNotFoundError as exc:
+        print(f"rietx events: {exc}", file=sys.stderr)
+        return 2
+    print(summary.model_dump_json(indent=1) if args.json else summary)
+    return 0
 
 
 def _skill(argv: list[str]) -> int:

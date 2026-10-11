@@ -76,6 +76,26 @@ Event kinds (closed set, versioned with the schema):
 Every line carries ``t`` (Unix seconds) so a tail of the file doubles as a
 progress bar; ``rietx watch`` renders it as the console pane.
 
+**Where one run ends** (WP-1322, #223).  A stream that opens a file writes one
+``record: "run"`` line first — :class:`RunHeader`, carrying a fresh ``run`` id
+and the open time — and nothing else in the file is one.  The file is still
+opened for append, because two things depend on it: a series forwards every
+pattern's events through one stream, and ``rietx watch`` tails the file.  What
+append cost was a run boundary: a re-run into the same path merged into the
+previous log, and a duration derived across the seam was a mixture (10.3 s
+reported as 459.0 s, on a timing study).  The header is what a reader
+partitions on (:func:`rietx.history.aggregate.summarize_events`); a log
+written before it has none and reads as one run.
+
+It is a **record**, not a kind, for three reasons.  ``EventKind`` is closed and
+a run's state is deliberately not an event (``runs.py``), and an opened file is
+a fact about the file rather than about the fit.  It is **never emitted**: it
+goes to the file and to no callback, so ``progress=``, the run recorder, a
+series' stamp and the GUI receive exactly what they did before.  And the tag is
+the history log's own convention, whose first line is a header record beside
+its node records (``history/store.py``).  :func:`read_events` returns events
+only, as it always did.
+
 **Adding a field to an existing kind does not bump**
 :data:`EVENT_SCHEMA_VERSION`.  ``data`` is an open dict on both sides: readers
 render whatever keys arrive (``watch.mjs`` iterates ``Object.entries``) and
@@ -97,12 +117,19 @@ untested guess about a loop that did not exist; now the loop exists
 (``index_pattern``) and emits them.  The per-engine progress inside the run
 deliberately reuses ``stage_start``/``stage_end`` with extra ``data`` keys, which
 is additive and would not have bumped anything on its own.
+
+**Version 3** (WP-1322): the run header.  Not a kind, but a reader that
+validates every line as an :class:`EventRecord` — this module's own
+``read_events`` before 1322 — refuses the line, so it is a change a consumer
+can observe and the constant moves for it.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Literal
 
@@ -115,7 +142,12 @@ from ..schemas.common import Base
 #: ``data`` is an open dict by declaration (module docstring), so a new key in
 #: it is not an observable change of the contract; a new kind is.
 #: "2" since WP-1024 added the ``index_start``/``index_end`` kinds.
-EVENT_SCHEMA_VERSION = "2"
+#: "3" since WP-1322 added the run header, a ``record: "run"`` line an
+#: ``EventRecord``-validating reader of version 2 refuses.
+EVENT_SCHEMA_VERSION = "3"
+
+#: The ``record`` tag of the one line a stream writes when it opens a file.
+RUN_RECORD = "run"
 
 EventKind = Literal["fit_start", "stage_start", "eval", "stage_end", "fit_end",
                     "index_start", "index_end"]
@@ -131,10 +163,41 @@ class EventRecord(Base):
     data: dict[str, Any] = Field(default_factory=dict)
 
 
+class RunHeader(Base):
+    """The line a stream writes when it opens a file: where a run begins.
+
+    ``run`` is fresh per opened stream, so two runs appended to one path are
+    two headers with two ids.  ``data`` is open, as an event's is.
+    """
+
+    record: Literal["run"] = RUN_RECORD
+    v: str = EVENT_SCHEMA_VERSION
+    t: float
+    run: str
+    data: dict[str, Any] = Field(default_factory=dict)
+
+
+def run_header(run_id: str) -> dict:
+    """The header line as a plain dict, for a writer that opens its own file.
+
+    Plain, like :meth:`EventStream.emit`'s events: no pydantic on the writing
+    side.  ``pid`` tells apart two processes appending to one path.
+    """
+    return {"record": RUN_RECORD, "v": EVENT_SCHEMA_VERSION, "t": time.time(),
+            "run": run_id, "data": {"pid": os.getpid()}}
+
+
+def new_run_id() -> str:
+    """A run id: twelve hex digits, unique enough to tell appended runs apart."""
+    return uuid.uuid4().hex[:12]
+
+
 class EventStream:
     """Append-only JSONL sink (and/or a callback) for refinement events.
 
-    ``path`` — file to append to (created; parent must exist).
+    ``path`` — file to append to (created; parent must exist).  Opening one
+    writes a :class:`RunHeader` line first, so a reader can tell this run
+    from any run appended before it; a callback never receives it.
     ``callback`` — called with each event dict after it is written; exceptions
     in the callback are the caller's problem (they propagate — a monitoring
     hook that crashes the refinement is a bug you want to see, not swallow).
@@ -148,6 +211,19 @@ class EventStream:
         self._fh = (open(self.path, "a", encoding="utf-8", newline="\n")
                     if self.path else None)
         self.n_written = 0
+        #: This stream's run, the id its header carries.
+        self.run_id = new_run_id()
+        if self._fh is not None:
+            self._write_header()
+
+    def _write_header(self) -> None:
+        """Mark where this run begins in the file (WP-1322).
+
+        Written straight to the file, never through :meth:`emit`: it is not an
+        event, ``n_written`` does not count it, and no callback sees it.
+        """
+        self._fh.write(json.dumps(run_header(self.run_id)) + "\n")
+        self._fh.flush()
 
     def emit(self, kind: str, **data: Any) -> None:
         event = {"record": "event", "v": EVENT_SCHEMA_VERSION,
@@ -181,13 +257,24 @@ def as_event_stream(events) -> EventStream | None:
 
 
 def read_events(path: str | Path) -> list[EventRecord]:
-    """Read an event log back, validating each line."""
+    """Read an event log back, validating each line.
+
+    Events only, of every run in the file, in file order: a run header
+    (:class:`RunHeader`) is skipped, so this returns what it returned before
+    there were headers.  To read a log per run, use
+    :func:`rietx.history.aggregate.summarize_events`.
+    """
     out: list[EventRecord] = []
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
-            if line:
-                out.append(EventRecord.model_validate_json(line))
+            if not line:
+                continue
+            record = json.loads(line)
+            if record.get("record") == RUN_RECORD:
+                RunHeader.model_validate(record)
+                continue
+            out.append(EventRecord.model_validate(record))
     return out
 
 
