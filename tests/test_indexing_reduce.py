@@ -19,7 +19,7 @@ import sys
 
 import numpy as np
 import pytest
-from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import HealthCheck, assume, example, given, settings
 from hypothesis import strategies as st
 
 from rietx.crystallography.lattice import cell_volume
@@ -297,6 +297,9 @@ def test_cell_equality_respects_the_measured_precision():
 @settings(max_examples=60, deadline=None,
           suppress_health_check=[HealthCheck.filter_too_much])
 @given(lengths, lengths, lengths, angles, angles, angles)
+# issue #797 (and #843, the same cell): gemmi's reduction gave η the sign of
+# the ε-sized value it treats as zero, so the reduced cell sat 1.2e-5 off T·af
+@example(3.0, 11.0, 14.197202585325392, 65.0, 65.0, 65.0)
 def test_the_reduction_map_takes_a_to_f_where_the_reduction_does(a, b, c, al,
                                                                   be, ga):
     """WP-1518: T·af is the reduced A..F, so T·cov·Tᵀ is its covariance.
