@@ -348,7 +348,10 @@ FIT_THETA_ESD = 5.0
 FIT_CURVE_SIGMA = 1e-2
 
 
-def _bench():
+@pytest.fixture(scope="module")
+def bench():
+    """``examples/bench_refinement.py`` imported once for both cases, as
+    ``test_bench_refinement.py``'s fixture of the same name imports it."""
     path = Path(__file__).resolve().parent.parent / "examples" / "bench_refinement.py"
     spec = importlib.util.spec_from_file_location("bench_refinement", path)
     module = importlib.util.module_from_spec(spec)
@@ -359,7 +362,7 @@ def _bench():
 
 @pytest.mark.slow
 @pytest.mark.parametrize("case", ["trigger", "cpd-1a"])
-def test_a_fit_on_the_kernels_lands_where_the_numpy_path_does(case):
+def test_a_fit_on_the_kernels_lands_where_the_numpy_path_does(bench, case):
     """The relaxed rule's third clause: the two spike fits, once on each path.
 
     A last-bit difference in the kernels is amplified by the solver into where
@@ -368,7 +371,6 @@ def test_a_fit_on_the_kernels_lands_where_the_numpy_path_does(case):
     do not move along a flat direction.  The kernel bars above are the sharp
     test.  This one says a fit on the kernels is still the numpy path's fit.
     """
-    bench = _bench()
     try:
         setup = {"trigger": bench._trigger, "cpd-1a": bench._cpd_1a}[case]()
     except FileNotFoundError as exc:

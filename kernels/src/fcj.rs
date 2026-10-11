@@ -149,6 +149,11 @@ mod shape {
                              dphi: &[f64], dom: &[f64], dphi_sl: &[f64], dom_sl: &[f64],
                              dphi_hl: &[f64], dom_hl: &[f64], nn: usize, has_ax: bool,
                              lo: usize, hi: usize) {
+        // every window is empty, so there is nothing to write, and
+        // `chunks_exact_mut(0)` below would panic
+        if xw == 0 {
+            return;
+        }
         let [o_om, o_dp, o_dg, o_de, o_sl, o_hl] = o;
         let srp = (LN_2 / PI).sqrt();
         let mut buf = vec![0.0; 9 * xw];
