@@ -333,6 +333,8 @@ $\delta\varphi \leftarrow 0$. About one axis that composition is addition,
 so the chart moves by a translation and the esd of $\delta\varphi$ is the
 esd of $\varphi$.
 
+A body's *shape* is a hypothesis the data can reject. `Refinement.check_rigid_bodies` releases each body's atoms as free coordinates held near the template by soft restraints and compares the two fits on the data χ² alone, by Hamilton's R-factor ratio test {cite}`hamilton1965` and by ΔBIC {cite}`schwarz1978`, both at the effective sample size of the serially correlated residual. It warns (`RIGID_BODY_MISFIT`) only when both reject the body, and names the template bonds the released fit moved.
+
 ## Soft restraints
 
 A bond-length, angle or value restraint contributes one row to the residual
