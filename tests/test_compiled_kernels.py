@@ -383,8 +383,8 @@ def test_the_forward_agrees_with_the_scalar_loop_on_fcj_data():
 FIT_THETA_ESD = 5.0
 FIT_CURVE_SIGMA = 0.25
 
-#: The paths compared in esd units leave out the Gaussian block, which the
-#: trigger plan frees in a set the data cannot split.  Γ_G² =
+#: The paths compared in esd units leave out the width blocks, which the
+#: trigger plan frees in sets the data cannot split.  Γ_G² =
 #: (u + gauss_strain)·tan²θ + v·tanθ + w + gauss_size·(1 + tan²θ)
 #: (``caglioti.gaussian_fwhm``), so each phase's peaks see only
 #: w + gauss_size and u + gauss_strain + gauss_size.  With u, w and every
@@ -397,8 +397,18 @@ FIT_CURVE_SIGMA = 0.25
 #: a corner of the set, put the gap at 54 esd.  Every other parameter moved
 #: 0.11 esd at most (``profile.x``), and the curve bar still covers the
 #: Gaussian widths.
-GAUSSIAN_NULL_SET = ("instrument.profile.u", "instrument.profile.w")
-GAUSSIAN_NULL_SUFFIXES = (".gauss_size", ".gauss_strain")
+#:
+#: The Lorentzian block is the same set.  Γ_L = (x + lor_size)/cosθ +
+#: (y + lor_strain)·tanθ (``forward.py``'s phase loop), and the plan frees x,
+#: y and every phase's two terms in one stage, so x trades against the
+#: lor_sizes and y against the lor_strains at no cost.  Linux x86-64's Kernels
+#: job put ``profile.x`` 181 esd apart once and passed on the same source
+#: twice before it.  A start 1e-14 away does it on darwin/arm64: x at 0 and
+#: every lor_size 0.0448 higher, while every other parameter agrees to 0.01
+#: esd and the curve to 1.2e-4 σ.
+WIDTH_NULL_SET = ("instrument.profile.u", "instrument.profile.w",
+                  "instrument.profile.x", "instrument.profile.y")
+WIDTH_NULL_SUFFIXES = (".gauss_size", ".gauss_strain", ".lor_size", ".lor_strain")
 
 
 @pytest.fixture(scope="module")
@@ -445,8 +455,8 @@ def test_a_fit_on_the_kernels_lands_where_the_numpy_path_does(bench, case):
         f"kernels {sorted(g.keys() - w.keys())}")
     shift = {k: abs(g[k].value - p.value) / p.stderr for k, p in w.items()
              if p.stderr is not None and np.isfinite(p.stderr) and p.stderr > 0
-             and k not in GAUSSIAN_NULL_SET
-             and not k.endswith(GAUSSIAN_NULL_SUFFIXES)}
+             and k not in WIDTH_NULL_SET
+             and not k.endswith(WIDTH_NULL_SUFFIXES)}
     assert shift, "no refined parameter carries an esd to compare in"
     worst = max(shift, key=shift.get)
     assert shift[worst] < FIT_THETA_ESD, f"{worst} moved {shift[worst]:.3f} esd"
