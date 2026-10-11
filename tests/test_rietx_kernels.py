@@ -124,6 +124,18 @@ def test_the_axial_planes_are_checked_only_when_they_are_read(fcj):
                      e, *nodes[1:], True, 0, len(ROWS))
 
 
+def test_a_zero_width_basis_call_writes_nothing_and_returns(fcj):
+    """Every window empty: 1.1.0 looped zero times, and 1.2.0's x86-64 build
+    panicked in ``chunks_exact_mut(0)`` until a review caught it."""
+    e = np.zeros((0, 0))
+    outs = [np.zeros((N, 0)) for _ in range(4)]
+    rows = len(ROWS)
+    rk.bases_fcj(*outs, e, e, np.zeros((N, 0)), ROWS, fcj["w1"], fcj["w2"],
+                 np.zeros(N, dtype=np.int64), np.zeros((rows, NN)),
+                 np.zeros((rows, NN)), np.zeros((rows, NN)), np.zeros((rows, NN)),
+                 e, e, e, e, False, 0, rows)
+
+
 def _scatter(y, i0, i1, coefs, n_terms):
     rng = np.random.default_rng(1)
     planes = rng.uniform(0, 1, (4, 3, 8))

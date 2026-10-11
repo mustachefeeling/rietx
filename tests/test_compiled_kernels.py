@@ -324,6 +324,38 @@ def test_the_fcj_exponential_holds_its_stated_bound():
     assert np.isnan(got[4]) and got[5] == 0.0 and got[6] == np.inf
 
 
+def test_the_avx2_and_baseline_builds_give_the_same_bits():
+    """``kernels/src/fcj.rs`` builds the x86-64 FCJ loops twice and says the
+    two agree, because no fused operation enters either.  Every CI runner has
+    AVX2, so the baseline build would otherwise never run; the wheel's
+    ``force_baseline`` hook runs it, and every plane must match to the bit."""
+    import rietx_kernels
+
+    if not hasattr(rietx_kernels, "force_baseline"):
+        pytest.skip(f"rietx-kernels {rietx_kernels.__version__} has one build")
+    if platform.machine().lower() not in ("x86_64", "amd64"):
+        pytest.skip("the FCJ loops have one build off x86-64")
+    model, values = _model(axial=True)
+    compiled.set_enabled(True)
+
+    def planes(baseline: bool):
+        was = rietx_kernels.force_baseline(baseline)
+        try:
+            b = model.derivative_bases(values)
+            out = [model._phase_component_batched(0, values)]
+            for p in b.planes:
+                inwin = p.layout.mask > 0
+                out += [getattr(p, name)[inwin] for name in
+                        ("omega", "d_pos", "d_gamma", "d_eta", "d_sl", "d_hl")
+                        if getattr(p, name) is not None]
+            return out
+        finally:
+            rietx_kernels.force_baseline(was)
+
+    for a, b in zip(planes(False), planes(True), strict=True):
+        assert _bits_equal(a, b), "the AVX2 and baseline builds disagree"
+
+
 def test_the_forward_agrees_with_the_scalar_loop_on_fcj_data():
     """The oracle chain, end to end: the compiled path against the
     per-reflection loop that neither batching nor compiling may drift from."""
@@ -337,12 +369,12 @@ def test_the_forward_agrees_with_the_scalar_loop_on_fcj_data():
 
 # -- a whole fit --------------------------------------------------------------
 #: The fit-level guard's two bars (WP-1940 § The relaxed rule, item 3), each a
-#: runaway guard and never a tolerance.  Measured on darwin/arm64, the
-#: trigger fit lands 0.22 esd from the numpy path's on the C library's ``exp``
-#: (1.1.0, and 1.2.0's arm64 build), and 0.53 on SLEEF's built for arm64 (a
-#: build that does not ship), all of it along one ridge: the instrument's
-#: Lorentzian ``x`` against the phases' ``lor_size``, which broaden alike.
-#: Under SLEEF's its curve stays within 9.8e-5 σ.  cpd-1a
+#: runaway guard and never a tolerance.  The trigger fit lands 0.42 esd from
+#: the numpy path's on Linux x86-64 with 1.2.0's SLEEF ``exp`` (0.34 on 1.1.0),
+#: and 0.22 on darwin/arm64, whose 1.2.0 build is 1.1.0's.  A SLEEF build for
+#: arm64, which does not ship, measured 0.53.  All of it lies along one ridge:
+#: the instrument's Lorentzian ``x`` against the phases' ``lor_size``, which
+#: broaden alike.  The curve stays within 9.8e-5 σ.  cpd-1a
 #: has no FCJ rows and lands on the numpy path's bits.
 FIT_THETA_ESD = 5.0
 FIT_CURVE_SIGMA = 1e-2
@@ -386,9 +418,13 @@ def test_a_fit_on_the_kernels_lands_where_the_numpy_path_does(bench, case):
     want, got = fit(False), fit(True)
     w = {p.path: p for p in want.parameters}
     g = {p.path: p for p in got.parameters}
-    assert w.keys() == g.keys(), "the two paths refined different parameters"
+    # a phase held on one path only (WP-1301) is a fit that went elsewhere
+    assert w.keys() == g.keys(), (
+        f"refined on one path only: numpy {sorted(w.keys() - g.keys())}, "
+        f"kernels {sorted(g.keys() - w.keys())}")
     shift = {k: abs(g[k].value - p.value) / p.stderr for k, p in w.items()
              if p.stderr is not None and np.isfinite(p.stderr) and p.stderr > 0}
+    assert shift, "no refined parameter carries an esd to compare in"
     worst = max(shift, key=shift.get)
     assert shift[worst] < FIT_THETA_ESD, f"{worst} moved {shift[worst]:.3f} esd"
     dy = np.abs(np.asarray(got.y_calc) - np.asarray(want.y_calc)) / want.sig()

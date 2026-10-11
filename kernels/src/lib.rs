@@ -576,6 +576,13 @@ fn exp(py: Python<'_>, out: &Bound<'_, PyArray1<f64>>, x: PyReadonlyArray1<'_, f
     Ok(())
 }
 
+/// Force the x86-64 FCJ loops onto their baseline build, so a test can hold
+/// it to the AVX2 build's bits; returns the previous setting (`fcj.rs`).
+#[pyfunction]
+fn force_baseline(on: bool) -> bool {
+    fcj::BASELINE.swap(on, std::sync::atomic::Ordering::Relaxed)
+}
+
 #[pymodule]
 fn rietx_kernels(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
@@ -586,6 +593,7 @@ fn rietx_kernels(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bases_sym, m)?)?;
     m.add_function(wrap_pyfunction!(bases_fcj, m)?)?;
     m.add_function(wrap_pyfunction!(exp, m)?)?;
+    m.add_function(wrap_pyfunction!(force_baseline, m)?)?;
     m.add_function(wrap_pyfunction!(raster::render_rows, m)?)?;
     m.add_function(wrap_pyfunction!(raster::id_plane, m)?)?;
     Ok(())

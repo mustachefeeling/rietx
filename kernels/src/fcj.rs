@@ -23,6 +23,13 @@
 
 use crate::K4LN2;
 use std::f64::consts::{LN_2, PI};
+use std::sync::atomic::AtomicBool;
+
+/// Set through `rietx_kernels.force_baseline`: the x86-64 loops take their
+/// baseline build even where the CPU has AVX2, so a test can hold the two
+/// builds to the same bits on hardware that would never run the baseline.
+/// Elsewhere there is one build, and the flag changes nothing.
+pub(crate) static BASELINE: AtomicBool = AtomicBool::new(false);
 
 #[cfg(target_arch = "x86_64")]
 mod shape {
@@ -208,6 +215,12 @@ mod shape {
     }
 
 
+    /// The AVX2 build, unless the CPU lacks it or a test forced the baseline.
+    fn avx2() -> bool {
+        !super::BASELINE.load(std::sync::atomic::Ordering::Relaxed)
+            && std::arch::is_x86_feature_detected!("avx2")
+    }
+
     /// `omega_any`, built twice: for AVX2 where the CPU has it, else for the
     /// baseline.  Both builds perform the same operations, so they give the
     /// same bits.
@@ -216,7 +229,7 @@ mod shape {
                                     rows: &[i64], w1: &[f64], w2: &[f64], width: &[i64],
                                     phi: &[f64], om: &[f64], nn: usize, spell: i64, lo: usize,
                                     hi: usize) {
-        if std::arch::is_x86_feature_detected!("avx2") {
+        if avx2() {
             unsafe { omega_avx2(out, ow, x, xw, rows, w1, w2, width, phi, om, nn, spell, lo, hi) }
         } else {
             unsafe { omega_any(out, ow, x, xw, rows, w1, w2, width, phi, om, nn, spell, lo, hi) }
@@ -240,7 +253,7 @@ mod shape {
                                     dphi_sl: &[f64], dom_sl: &[f64], dphi_hl: &[f64],
                                     dom_hl: &[f64], nn: usize, has_ax: bool, lo: usize,
                                     hi: usize) {
-        if std::arch::is_x86_feature_detected!("avx2") {
+        if avx2() {
             unsafe { bases_avx2(o, ow, x, xw, rows, w1, w2, width, phi, om, dphi, dom, dphi_sl, dom_sl,
                        dphi_hl, dom_hl, nn, has_ax, lo, hi) }
         } else {
