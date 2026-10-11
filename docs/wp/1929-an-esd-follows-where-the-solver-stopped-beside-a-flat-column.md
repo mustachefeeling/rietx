@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: 🔄 2026-10-11 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: 1938 (physical coordinates, which remove the point-dependence this WP reports on)
-Priority: P2 2026-10-09 — was P1: the cause moved into 1936-1938, which carry the P1; what remains here (the reporting rule and the floor diagnostic) waits on 1938
+Priority: P1 2026-10-11 — was P2: 1938 landed (#883), its last blocker, so the reporting rule and the floor diagnostic can start on physical coordinates under the LM default
 
 ## Goal
 
@@ -217,61 +217,44 @@ silently stop acting (WP-1938).
   `BOUND_HIT`'s "widen the bound or fix the parameter" would fire on every
   width that refines to zero.
 
-### Inherited
+**Superseded in part, 2026-10-11: the base has landed.** WP-1936, 1937 and
+1938 are on `main` (1938 as #883, tree `0f30d584`). Every entry refines in
+its own units, so a floor is an ordinary bound of 0, and `staged.bound_untested`
+and its `None` third state are gone. A scale or width on 0 is answered by
+`staged.bound_findings`, reads `at_bound=True` and keeps a finite marginal esd.
+An absent phase's scale is 0 ± σ, and its QPA esd is computable.
+`GuardFinding.limit` names the limit that bound (`("lower", 0.0)`). `BOUND_HIT`
+on a lower limit of 0, or on W's Γ_G² clamp, carries the interim
+`refine._ZERO_FLOOR_SUGGESTION`. The NAC acceptance fit's Biso at a caller's
+`min=0` reaches it too, so a zero floor is not always a scale or width. The
+default driver is LM (`DEFAULT_SOLVER`). `LSQOutcome.active_bounds` carries
+each driver's set (−1 lower, +1 upper, 0 neither), and nothing reads it past
+the outcome yet. LM's is exact up to `lm.BVLS_MAX_COLUMNS` (128): the value
+sits on the bound and the gradient there points outward. Above that, BCCG can
+stop a row just off its bound, so the set can miss one. TRF's is scipy's mask,
+set within `XTOL` of a bound whatever the gradient. `params.vector.FLOOR_SEEDS`
+now sizes the FD step only (WP-1936), and only the roughness stage still seeds.
+The line numbers above moved: `live = d > 0.0` is at `optimize/statistics.py:153`
+and `:217`, `inv_d > 0.0` at `:329`, `MOMENT_DIRECTION_SUPPORT` at
+`refine.py:737`.
 
-- **2026-10-11, from WP-1938 D12 (fourth session): the stationary azimuth
-  also stalls the default driver.** A moment angle's column scales with its
-  modulus and vanishes at a direction the symmetry fixes. LM scales every
-  column to unit norm, so that angle takes the largest step, and λ grows
-  until every parameter crawls. LM's `ftol_runs` then fires on three tiny
-  decreases in a row and reports `converged`. Measured on the two-site Pnma
-  set (`tests/test_pair_diagnostic_class.py`, macOS arm64, `[dev,jax]`): a
-  released start stopped at χ² 454 660 with λ 5e7-7e9, against 2555.8 under
-  TRF. `solve_magnetic` now frees the moduli first (`SOLVE_STAGE_NAMES`),
-  which reaches 2556.06. A magnetic plan a user builds gets no such stage,
-  so the task here owns the driver side as well as the esd side. Two
-  remedies were named and not measured: count a decrease toward `ftol_runs`
-  only while λ is small, and damp an angle column at least by its
-  finite-rotation response (the curvature `MOMENT_PROBE_ANGLE_RAD` reads).
-  The two-site test no longer asserts that the winner pairs nothing or its
-  esds: under LM they are 0.031 and 0.159 μ_B and the pair is named. Restore
-  both assertions when this WP lands. The 150 K Cr₂WO₆ class at k = (0, ½, ½)
-  with unsupported moments crawls under TRF too, ten continuations of 400
-  evaluations, and is listed as stopped short.
-- **2026-10-11, from WP-1938 (in flight, branch `wp1938-physical-units`,
-  PR #883): a floor is now an ordinary bound, and LM is the default.** Every
-  entry is refined in physical units, so `staged.bound_untested` and its
-  `None` third state are gone: a scale or width on 0 is answered by
-  `bound_findings`, reads `at_bound=True` and keeps a finite marginal esd (an
-  absent phase's scale is 0 ± σ, and its QPA esd is computable).
-  `GuardFinding.limit` (`("lower", 0.0)` / `("upper", hi)`, written only in
-  `bound_findings`) carries which limit bound, and `BOUND_HIT` on a lower limit
-  of exactly 0 gives an interim suggestion (`refine._ZERO_FLOOR_SUGGESTION`)
-  rather than "widen the bound". The NAC acceptance fit's Biso at a caller's
-  `min=0` reaches that branch too, so a zero floor is not always a scale or
-  width. This WP's own code and suggestion for a floor replace that interim
-  text. The default driver is LM (`DEFAULT_SOLVER`), so the flag task can read
-  LM's exact active set by default once 1938 merges.
-
-- **2026-10-10, from WP-1937: the active set exists.**
-  `LSQOutcome.active_bounds` carries each driver's set over the table
-  columns (−1 lower, +1 upper, 0 neither). The LM driver's is exact: the
-  value sits on the bound and the gradient there points outward. TRF's is
-  scipy's `active_mask`, set within `XTOL` of a bound whatever the gradient,
-  so it misses brucite's `gauss_strain` parked 7.6e-6 above its floor. Nothing
-  copies it past the outcome yet; the flag task reads it there. The
-  default-driver flip moved from 1937 to WP-1938, so until 1938 lands the
-  default's set is TRF's.
-
-- **2026-10-09, from WP-1930 (PR #849).** The floor seed this WP soft-depended
-  on has landed: a stage now starts a freed softplus row sitting on its floor
-  at 1e-3 of its unit (`params.vector.FLOOR_SEEDS`), and records it in
-  `StageResult.seeded`. It moves the minimum, never the esds, so this WP's
-  question stands. Three cases it surfaced, all at one χ² with the parameter
-  values apart: brucite's `instrument.profile.y` lands between 0.08 and 0.14
-  under rounding-level start changes (χ²_red 8.313117 throughout); corundum's
-  `lor_strain` reads 1e-4 seeded against 1.4e-3 unseeded (χ²_red 2.65601 both);
-  BT-1's `y` goes back to its floor from every seed, at values from 0 to 3e-10.
+**The stationary azimuth also stalls the default driver** (WP-1938 D12, macOS
+arm64, `[dev,jax]`). A moment angle's column scales with its modulus and
+vanishes at a direction the symmetry fixes. LM scales every column to unit
+norm, so that angle takes the largest step, and λ grows until every parameter
+crawls. `ftol_runs` then fires on three tiny decreases in a row and reports
+`converged`. On the two-site Pnma set a released start stopped at χ² 454 660
+with λ 5e7-7e9, against 2555.8 under TRF. `solve_magnetic` now frees the
+moduli first (`magnetic.SOLVE_STAGE_NAMES`) and reaches 2556.06, but a plan a
+user builds gets no such stage. `tests/test_magnetic.py`'s
+`_LM_FALSE_CONVERGENCE` row is the same stop on one site (λ ≈ 1e11, χ²_red
+11.03, a strict xfail). Two remedies were named and not measured: count a
+decrease toward `ftol_runs` only while λ is small, and damp an angle column at
+least by its finite-rotation response. The two-site test
+(`test_pair_diagnostic_class.py`) no longer asserts that the winner pairs
+nothing or its esds, which under LM are 0.031 and 0.159 μ_B with the pair
+named. The 150 K Cr₂WO₆ class at k = (0, ½, ½) crawls under TRF too, ten
+continuations of 400 evaluations.
 
 ## Non-goals
 
@@ -289,13 +272,15 @@ silently stop acting (WP-1938).
 - [x] Probe the options and take the decision (2026-10-09: physical
       coordinates in WP-1936-1938; marginal esds with a flag here).
 - [ ] A fixture that reproduces the platform split on one machine, nudging
-      BT-1's start by 1e-14 as the grid did. It fails on today's softplus and
-      passes after WP-1938, with one `profile.x` esd.
+      BT-1's start by 1e-14 as the grid did, with one `profile.x` esd at
+      every nudge. WP-1938 has landed, so it pins the fix rather than
+      failing first.
 - [ ] The flag: `RefinedParameter.at_bound` and `BOUND_HIT` read the driver's
-      active set (WP-1937), with `bound_findings`' esd window kept only where
-      a driver gives none. A physical floor gets its own code and
-      `Diagnostic.suggestion`, so a width refined to zero is not told to
-      widen its bound.
+      active set where it is exact (LM up to `BVLS_MAX_COLUMNS`), with
+      `bound_findings`' esd window kept only where a driver gives none. A
+      physical floor gets its own code and `Diagnostic.suggestion`, replacing
+      `refine._ZERO_FLOOR_SUGGESTION`, so a width refined to zero is not told
+      to widen its bound. Audit every reader of `BOUND_HIT` for the split.
 - [ ] `statistics.normal_covariance`'s docstring and root CLAUDE.md's
       equilibration clause state the marginal rule. Find every consumer of
       `live` and `unmeasured_rows`, and say which still apply once no column
@@ -310,7 +295,10 @@ silently stop acting (WP-1938).
 - [ ] Moment angles at a stationary direction: leave the normal matrix (or
       extend `MOMENT_DIRECTION_SUPPORT`'s hold to them, whichever keeps one
       authority), and rewrite that constant's comment. Physical coordinates do
-      not touch this half: the azimuth is already identity.
+      not touch this half: the azimuth is already identity. The driver side
+      too: LM's `ftol_runs` stop at large λ beside a stationary angle (Context,
+      2026-10-11). Then restore the two-site test's no-pair and esd
+      assertions and flip `_LM_FALSE_CONVERGENCE`'s xfail.
 - [ ] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
       says so); WP-1915's indexing propagation reads the same covariance.
 - [ ] The analytic azimuth column at φ = π: check it against an exact oracle
