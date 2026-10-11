@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: 1938 soft (it rewrites `decode` and the FD step that tasks 3-5 batch; task 1 needs nothing)
-Priority: P3 2026-10-11 — cost only, no user at the wall: 1.27× on trigger and 1.33× on cpd-1a with every column bit-identical, and task 1 is a bit-neutral 3 % on its own
+Priority: P3 2026-10-11 — cost only, no user at the wall: 1.27× on trigger and 1.33× on cpd-1a with every column bit-identical, and task 1 is a bit-neutral 3 % on its own; 1938 landed (#883), so tasks 3-5 can start
 
 ## Goal
 
