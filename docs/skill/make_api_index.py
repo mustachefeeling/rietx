@@ -43,7 +43,7 @@ shape, never by size.**  `api-io.md` holds the readers and writers for another
 program's file (TOPAS, FullProf, GSAS, GSAS-II, a PowderLine recipe): a session
 reaches them only with such a file in front of it, and the body's routing table
 named that situation before the file existed.  It took `api.md` from 39 789 to
-33 292 B (WP-1920, issue #808), the cap history in `tests/skill_caps.py` having
+33 292 B (WP-1920, issue #808).  The cap history in `tests/skill_caps.py` had
 run out of raises.  An alphabetical or per-module split was measured and declined: no
 session knows which half or module holds a name it has not met, so it loads
 them all.  **Where a name lands** is decided once, by whoever adds it to

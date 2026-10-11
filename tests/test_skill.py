@@ -132,24 +132,13 @@ def test_no_name_has_an_entry_row_in_two_api_indexes():
     for path in API_INDEXES:
         for name in re.findall(r"^- `((?:rx|rietx)\.[A-Za-z0-9_.]+)",
                                path.read_text(encoding="utf-8"), re.M):
+            # One object, two spellings: `rietx.X` is `rx.X`.
+            name = "rx." + name.split(".", 1)[1]
             if name in seen:
                 twice.append(f"{name}: {seen[name]} and {path.name}")
             seen[name] = path.name
     assert len(seen) > 100, f"only {len(seen)} entry rows found — the regex broke"
     assert not twice, twice
-
-
-@pytest.mark.parametrize("path", [p for p in API_INDEXES if p != API_INDEX],
-                         ids=lambda p: p.name)
-def test_every_dotted_name_in_a_technique_index_resolves(path: Path):
-    """`api.md`'s check below, over every `api-<technique>.md`: a name moved
-    out of `api.md` by a split keeps its guard."""
-    text = path.read_text(encoding="utf-8")
-    names = {m.rstrip(".") for m in DOTTED.findall(text)}
-    assert names, f"{path.name}: no dotted name found — the regex broke"
-    for name in sorted(names):
-        dotted = name if name.startswith("rietx.") else "rietx." + name[len("rx."):]
-        resolve_dotted(dotted, path.name)
 
 
 # --- the budgets (#247) -----------------------------------------------------
@@ -418,7 +407,7 @@ def test_every_row_of_an_evidence_tagged_reference_carries_its_tag(path: Path):
 # them either grows with every new phrasing or starts refusing honest tags.
 # Requiring instead that every `Measured` tag opens with `WP-` **or** with the
 # declared corpus gives up on validating repo tags -- which the WP files and
-# `test_every_dotted_name_in_the_api_index_resolves` already cover from the
+# `test_every_dotted_name_in_the_api_indexes_resolves` already cover from the
 # other side -- and spends the whole budget on the private case, which has no
 # other guard.  A per-row marker would make the classification trivial and #239
 # ruled it out, on the ground that declaring once costs no row an edit; that is
@@ -649,14 +638,17 @@ def test_the_tag_gate_fails_each_broken_shape():
         "1403": {"1500"}}
 
 
-def test_every_dotted_name_in_the_api_index_resolves():
-    """The API index cannot name something the package does not have."""
-    text = API_INDEX.read_text(encoding="utf-8")
+@pytest.mark.parametrize("path", API_INDEXES, ids=lambda p: p.name)
+def test_every_dotted_name_in_the_api_indexes_resolves(path: Path):
+    """No API index can name something the package does not have, so a name
+    a split moves out of `api.md` keeps its guard."""
+    text = path.read_text(encoding="utf-8")
     names = {m.rstrip(".") for m in DOTTED.findall(text)}
-    assert len(names) > 60, f"only {len(names)} names found — the regex broke"
+    floor = 60 if path == API_INDEX else 0
+    assert len(names) > floor, f"{path.name}: only {len(names)} names found — the regex broke"
     for name in sorted(names):
         dotted = name if name.startswith("rietx.") else "rietx." + name[len("rx."):]
-        resolve_dotted(dotted, API_INDEX.name)
+        resolve_dotted(dotted, path.name)
 
 
 def _generator():

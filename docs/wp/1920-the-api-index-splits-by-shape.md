@@ -41,7 +41,7 @@ part):**
 - The prototype cherry-picks onto `main` with conflicts in
   `make_api_index.py` (the In prose WP-1543 trimmed) and `skill_caps.py`
   (WP-1930's raise). Resolved to the prototype's side and regenerated,
-  `api.md` is 33 292 B and `api-io.md` 7 465 B. Of the sections left in
+  `api.md` is 33 292 B and `api-io.md` 7 447 B. Of the sections left in
   `api.md`, Series, history, projects is 3 306 B.
 
 **Checked against the tree at 5d1f5f67:**
