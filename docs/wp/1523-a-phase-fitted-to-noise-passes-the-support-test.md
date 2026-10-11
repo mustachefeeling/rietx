@@ -141,6 +141,23 @@ not measure it there.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (#219): on a collinear pair the 3σ test
+  holds whichever phase the start left weaker, and that can be the real
+  one.** The handover's forward reference ("the #219 ridge, unmeasured under
+  the marginal") is now measured, by the reporter at 08176f6f. Specimen: one
+  cubic Cu phase. Model: the parent plus an absent `I 4/m m m` subgroup. Rwp
+  is 0.0399 in every arm. From the degenerate seed the subgroup is held at
+  0.81σ. From seeds split by δ = 5e-4 to 4e-3 the **parent** is held, at
+  0.20σ and 0.53σ, with its cell and strain, while the phantom carries the
+  pattern at 31-82σ. A real 40 % subgroup gets its parent flagged at 2.2σ and
+  2.3σ from the two nearest seeds. `HIGH_CORRELATION` on the two scales fires
+  everywhere. The full table and the PR (#904) are in WP-1339's Inherited.
+  Not re-run here: the script is not in the thread, and the batch asks for
+  it. For this WP's close: a hold that removes a phase's structural columns
+  is a claim that phase is absent. Two scales at ρ −0.99 make that claim
+  unmeasurable for either phase. Decide whether the hold stands down there,
+  and record the choice.
+
 - **From WP-1534, 2026-10-04: a phase with no reflection in range keeps a
   free scale that walks a flat direction.** WP-1534's four-phase fixture
   (`tests/test_scale_b_ridge.py`) fitted over 25–33° Cu Kα leaves bcc Fe no
