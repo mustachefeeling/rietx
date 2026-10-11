@@ -306,7 +306,11 @@ driver alone).
       (D11. The extinction, magnetic-width and probe width seeds are gone.
       No warm start seeds, whether the collapsed refit, `refit="stages"` or
       the `warm_staged` rung (`sequential._unseeded`). Roughness keeps 0.3.)
-- [ ] The traced backends (`backend/traced.py`) and the cross-backend matrix.
+- [x] The traced backends (`backend/traced.py`) and the cross-backend matrix.
+      (`[dev,jax]`, macOS arm64: three srm660c rows failed on extinction at its
+      0 floor, rel-L2 0.779, because `_laue_and_deriv` selected the constant
+      arm at x = 0. The series arm is exact there; then 182 passed, 103
+      skipped, goldens bit-identical. Torch is the nightly's.)
 - [ ] Re-measure every acceptance suite and VALIDATION.md's rows; list every
       number that moves by more than 1 % with its reason.
 - [x] Root CLAUDE.md and DESIGN.md clauses rewritten in the same change.
