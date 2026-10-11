@@ -192,7 +192,8 @@ driver alone).
   is the plan's start, not a dead column: the lane measured Suortti b's
   column at b = 0 as 2.7e6 against the scale's 1.9e6 (synthetic LaB₆, Bragg
   Brentano). Whether the extinction and magnetic-width seeds still change an
-  answer is the Seeds task's measurement.
+  answer is the Seeds task's measurement. (Superseded in part 2026-10-11,
+  third session: D11 deletes the probe's width seed and both of those.)
 - *D4, the floor seed goes.* WP-1930's `seed_floor`, its `FLOOR_SEEDS` use
   there and `SOFTPLUS_FREED_AT_FLOOR` existed only for the trap, and WP-1937's
   grid measured physical + LM without them. `FLOOR_SEEDS` survives as
@@ -262,6 +263,24 @@ driver alone).
   last stage once on a fresh compile collapses the spreads to 1.1e-10 and
   3.3e-12. It was declined, since it moves every fit's final χ² (by −1.7e-5
   and −6e-5 here) and costs 6-8 evaluations a fit.
+- *D11, the seeds* (measured 2026-10-11, third session, macOS arm64,
+  `[dev]`). Four go and one stays.
+  - The extinction stage's 1e-3 fired on both BT-1 fits alone, and moved χ²
+    by at most 1.8e-13 and any value by at most 3.4e-8 esd.
+  - The magnetic-width step's 0.05° moved nothing on four planted MnF₂ cases
+    (χ² 1e-14, values 2.3e-6 esd).
+  - `suggest()`'s 1e-3 width seed now invents suggestions. Seeded, BT-1
+    X-ray's leaders were the four phase widths (gain up to 18 910) and Si
+    640c's `profile.x` and `profile.y`. Freed and refitted, each stays on its
+    floor at Δχ² 0.000. Unseeded, the leaders are `atoms.2.occ` (predicted
+    946.6, real Δχ² −945.5) and extinction (predicted 758, real −2479).
+  - A series' warm refit took the plan's largest seed, 0.3 wherever the
+    roughness stage is in the plan, and lifted every freed row on its floor.
+    On the LaB₆ ramp of `test_sequential.py` it lifted a converged
+    `profile.y` and extinction from 0 to 0.3, and pattern 1 ended at χ²_red
+    1.05828 against 1.05145 unseeded. The warm refit now takes no `seed`, and
+    keeps the plan's `strain_seed`.
+  - The roughness stage's 0.3 stays (D3: it chooses where the solve starts).
 
 ## Non-goals
 
