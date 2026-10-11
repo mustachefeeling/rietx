@@ -324,8 +324,12 @@ driver alone).
       quoted number. Under LM brucite + Stephens reaches χ²_red 8.00056
       against TRF's 7.636, a point outside the cone.
 - [ ] The 16 suite failures above, each fixed or given its reason.
-- [ ] Issue #900's script as a test of the default driver: about 5 s, no
+- [x] Issue #900's script as a test of the default driver: about 5 s, no
       download, and it must reach χ² 7111 (Context, Issue #900).
+      (`tests/test_issue_900_restated_bound.py`, 0.6 s. With dispersion
+      declared off it reaches χ² 7304, both spellings. The true parameters
+      score 5777, but the one stage freezes its windows at the start's
+      narrower Lorentzian widths, so the bar is twice the truth's χ².)
 - [ ] `solver="trf"` says what it costs now: under physical coordinates a
       positive field can land in the wrong basin (#900's 2.657e5 against
       7111), and `x_scale="jac"` does not rescue it. A docstring, or a
