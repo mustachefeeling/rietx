@@ -1,7 +1,7 @@
 # WP-1938 — every parameter refined in its own units
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — every original task landed; the review of #883 left two (an old
-.rxt row under a raised floor, LM's constrained-step costs)
+Milestone: unscheduled · Status: 🔄 2026-10-11 — every task but one landed; a 343-column Pawley fit stops a stage
+on its cap under the default driver, and what to do is the maintainer's call
 Track: What fires, and what stays silent
 Depends on: 1936 (the FD step, landed 2026-10-09), 1937 (a driver that handles widths on zero, landed 2026-10-10), 1940 soft (merge after it, so the re-pinned numbers and the grid are the shipping kernels'; the work can start before)
 Priority: P1 2026-10-10 — was P2: WP-1937 landed, nothing blocks it, and it now carries the default-driver flip WP-1929's P1 rests on
@@ -501,6 +501,147 @@ asserts, on every start.
   transformed parameter's error is meaningless near its limit).
 
 ## Handover log
+
+### 2026-10-11 (fifth session) — both review tasks closed; a large Pawley fit needs a decision
+
+An old text document of a project applies cleanly again. W's new floor had
+made it fail on a number nobody edited, and the check now asks the schema
+what an old number becomes today. The two solver costs the review worried
+about never occur on any fit measured, so neither was changed. Two tests
+that failed only on Linux asserted something one platform happened to do,
+and each now asserts what holds on every platform. Measuring the solver
+found a real cost of the default flip, though. A Pawley fit with 343
+columns stops one stage on its evaluation cap and ends 2.7 % worse in Rwp
+than on `main`, and what to do about it is the maintainer's call. A stage
+given no iterations is refused again under the new default, as it was
+under the old one.
+
+*Done* (on top of `d4fc4a25`):
+- `8eb60025`: `test_the_step_reaches_a_face_where_truncation_stalls` failed
+  on every Linux leg since the PR went ready (`c0b3e79b` and `d4fc4a25`,
+  unnoticed until this session). Its counterfactual has two ways to fail
+  and a 1e-15 change in the start picks one: `exhausted_fp64` after 7
+  evaluations, 2.08 from θ* with S 69 % above, or a crawl to the
+  400-evaluation cap, 0.83 from θ* with S 11 % above. Linux takes the
+  second from (3, 3). Three starts now take both here, and the bars are
+  what both share (distance > 0.5, S > 1.05·S*).
+- `e735f51f`: task 1, the old `.rxt` row. `textdoc._schema_keeps`
+  re-validates the model holding the row's Parameter with the typed value
+  and bounds, as `recipe.py` already did. The value needed it too: an old
+  W of 1e-12 opens as 1e-8.
+- `92a602c9`: the Kernels job's `test_a_fit_on_the_kernels_lands_where_the_numpy_path_does[trigger]`
+  failed once on Linux x86-64, `profile.x` 181 esd apart, on source it had
+  passed twice. The trigger plan frees x, y and every phase's `lor_size` and
+  `lor_strain` in one stage, and a phase's Lorentzian width reads only
+  x + `lor_size` and y + `lor_strain` (`forward.py:1105`). So the Lorentzian
+  block is the same null set as the Gaussian one the test already left out,
+  and now both are left out.
+- `4c61f617`: task 2 measured and closed with neither cost changed; the
+  large Pawley task filed.
+- `541de409`: the review's three fixes (below).
+- `a670222d`: `main` merged. It had added #890's note to this WP's
+  Inherited, which conflicted with the branch's pruned section.
+- `f7082e00`: that note, folded and done. `lm.minimize` refuses a budget
+  under one evaluation in scipy's words.
+- `d4923ebc`: the second review's two fixes (below).
+
+*Reviews*: `/code-review high --fix d4fc4a25..HEAD` found six. It fixed
+four in `541de409`. A value the schema raises past the live one went into
+the change set as typed, so a check passed and the apply failed. The
+schema's numbers were compared after 12-digit rounding, which dropped a
+typed edit past the 12th digit. The re-validation ran up to three times a
+row. The kernels comment cited a figure for a set it no longer compared.
+Two are declined below. `/code-review high --fix a670222d..f7082e00`
+found six in the refusal. It fixed two in `d4923ebc`: the joint fit's own
+test, and `minimize`'s docstring. Two went to WP-1947's Inherited
+(`cherry_pick`'s `or 100`, and `Stage.max_iter` without `ge=1`). Two are
+declined below.
+
+*Measured* (macOS 26.6.2 arm64, Python 3.12.10, rietx-kernels 1.2.0,
+`[dev,jax]`):
+- The lane (`lane: constrained-step costs ~25`), start 0 of the 14 grid
+  fits plus NAC Pawley (142 columns) and FAP Pawley (343): no `nnls`
+  fallback anywhere. Constrained steps ran only at 29 columns or fewer, and
+  the wrapper's count equals `n_truncated` in every fit. Forced onto the
+  Pawley systems, the constrained step took 2.7-5.7 ms at 142 columns and
+  42-70 ms at 343, against BCCG's 0.4-1.9 ms. One run each at load average
+  67-103, beside another session's suite.
+- FAP.XRA Pawley, default plan:
+
+  | arm | `profile` stage | Rwp | wall |
+  |---|---|---|---|
+  | `main` `6075319c`, TRF | converged | 0.07825358 | 20.2 s |
+  | this branch, TRF | converged | 0.07838295 | 11.0 s |
+  | this branch, LM (BCCG above 128 columns) | 400-evaluation cap | 0.08035928 | 16.7 s |
+  | this branch, LM, exact step at every size | converged | 0.08028663 | 6.3 s |
+  | this branch, LM from TRF's answer | converged | 0.07825264 | |
+
+  At every λ > 0 the BCCG step promised a cost increase (model +0.05 to
+  +7e-6) where the exact solve promised a decrease. The refined profile
+  parameters of the TRF and exact-LM answers differ by at most 1.5 esd.
+  Walls are one loaded run each.
+- The trigger fit on the kernels from starts 1e-14 apart in `profile.x`:
+  two land at numpy's x 0.04483, three at x 0 with every `lor_size` 0.0448
+  higher, 181.0 esd. Every other parameter agrees to 0.01 esd, and the curve
+  to 1.2e-4 σ against the 0.25 σ bar.
+- CI on `8eb60025`: every CI job green, the counterfactual included. Its
+  Kernels run failed on the trigger case (above). `e735f51f` ran no
+  workflow, because `main` had moved and the PR was conflicting.
+- Fast suite: 9217 passed, 111 skipped, 2 xfailed, in 13:10 beside a
+  `/pr-review` suite in `pr-bench` at load average ~100. That is +6 passed
+  against the fourth session's 9211, exactly the six cases added, and no new
+  skip. Added tests, this junit: the counterfactual 0.98 s (three starts,
+  two crawling to the cap), each `max_iter=0` pair 0.19 s, the `.rxt` test
+  0.16 s, the bare budget test 0.01 s. `test_lm_solver.py`'s nine added
+  tests take 1.52 s in all. The full suite was not run: nothing here moves
+  a fit's number.
+- Lanes (`session_usage.py lanes`; the session id spans the fourth and
+  fifth sessions):
+
+  | lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | lane $ | main $ | in-session $ | saved $ |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | validation-remeasure (4th) | 60 | 119 | 332K | 72K | 8K of 790K | 3 | 6K | 1 | 0 | 13.09 | 0.28 | 30.96 | +17.31 |
+  | constrained-step costs | 25 | 37 | 217K | 72K | 0K of 12K | 44 | 64K | 8 | 0 | 1.73 | 3.37 | 2.87 | -2.31 |
+
+  Selective policy (lane when main > 150K and the item is ≥ 20 requests):
+  129 sessions, +2 %. The constrained-step lane cost $1.73 against $2.87 in
+  session and so lost $2.31: the item was short and the main context
+  217K. The trial row in `process.md` now carries both lanes.
+
+*Declined*:
+- From the first review: the `.rxt` reader raises an old number to a
+  floor without saying so, though root CLAUDE.md asks a reader to report a
+  repair. `TextError` has no warning level, so reporting it is a design
+  change. And the counterfactual's bars sit 1.7× from the crawl branch's
+  numbers, where `tests/CLAUDE.md` wants ~10×. A wider bar needs the
+  spread measured on another platform.
+- From the second review: the message says `max_nfev` "must be None or
+  positive integer", and `lm.minimize` takes no None. The words are scipy's
+  on purpose, so the two drivers refuse alike. And the end-to-end tests sit
+  in `test_lm_solver.py` rather than `test_solver_seam.py`; moving them is
+  churn.
+- The two `.prm`/`.instprm` readers keep their one line raising W to the
+  floor. A negative W there is the reader's to refuse, and the validator
+  would raise it silently.
+
+*Gotchas*:
+- A PR that conflicts with `main` runs no `pull_request` workflow. `gh pr
+  view --json mergeable` says `CONFLICTING`, and `gh run list` shows nothing
+  for the pushed sha.
+- `/code-review high --fix A..B` reviews a commit range, which scopes it to
+  one session's work on a long branch.
+- The lane's probe scripts are in the session scratchpad and do not
+  survive it. The Pawley task in *Tasks* carries the recipe.
+
+*Next*, in order:
+1. The large Pawley task: what the step above `BVLS_MAX_COLUMNS` should do
+   when BCCG promises no descent, and whether that blocks the merge. It is
+   the maintainer's call. The exact step costs 1.5-11 s a step at 1000
+   columns (WP-1937), and on FAP it was the faster fit. If the PR merges
+   without a fix, the skill's Pawley rows need one saying a large Pawley
+   stage can stop on its cap under LM and that `solver="trf"` converged.
+2. Merging the PR, with or without 1.
+3. Whether to free a recipe's zero `LG_eta` half (fourth session).
 
 ### 2026-10-11 (fourth session) — the last three failures had causes; VALIDATION.md re-measured; the review left two tasks
 

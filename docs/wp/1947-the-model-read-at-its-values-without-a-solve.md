@@ -90,6 +90,19 @@ differ.
 is in question. A verb that reports must not write: no history node and no
 run directory unless asked, because an evaluation is not a fit.
 
+### Inherited
+
+- **2026-10-11, from WP-1938 (PR #883): LM refuses `max_iter=0` now, in
+  scipy's words.** `lm.minimize` raises "`max_nfev` must be None or positive
+  integer." for a budget under one evaluation, on the single and the joint
+  fit (`tests/test_lm_solver.py`, both drivers). So the refusal this WP
+  rewords is the same on either driver. Two findings from that change's
+  review are this WP's. `Refinement.cherry_pick` rebuilds a stage with
+  `max_iter=node.action.max_iter or 100` (`refine.py`, the `Stage(...)` call),
+  so a node recorded with `max_iter=0` replays as 100 iterations, silently;
+  `lebail_cycles or 3` has the same shape. And `Stage.max_iter` has no
+  `ge=1`, so a plan with 0 is stored and fails only mid-fit, after compile.
+
 ## Non-goals
 
 - A public objective and gradient for an outside optimiser (issue #899):
