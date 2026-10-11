@@ -123,41 +123,28 @@ p{margin:0}
 .icon-btn{appearance:none;border:0;background:none;width:30px;height:30px;padding:0;border-radius:6px;
   display:inline-grid;place-items:center;color:var(--muted);cursor:pointer}
 .icon-btn:hover{color:var(--accent-ink);background:var(--surface-3)}
-.copy svg,.qs .chev{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.copy svg,.qs-toggle .chev{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .copy .i-done,.copy.copied .i-copy{display:none}
 .copy.copied .i-done{display:block}
 .copy.copied{color:var(--ok)}
 
-/* The agent quickstart: a <details> drawn as a button on its own line, which grows into the
-   prompt when opened.  The bordered box is the control, open or closed, so the prompt inside
-   it takes no box of its own.  Its label and chevron stay where they were, so the button
-   reads as the same thing grown rather than replaced. */
-.qs{width:fit-content;max-width:100%;margin-top:12px;border:1px solid var(--rule-strong);border-radius:8px;
-  background:var(--surface);scroll-margin-top:76px}
-.qs[open]{width:680px}
-.qs > summary{display:flex;align-items:center;gap:8px;height:38px;padding:0 15px;list-style:none;cursor:pointer;
-  border-radius:7px;font-weight:500;font-size:.95rem;color:var(--ink);user-select:none}
-.qs > summary::-webkit-details-marker{display:none}
-.qs > summary:focus-visible{outline-offset:1px;border-radius:8px}
-@media (hover:hover){
-  .qs:not([open]):hover{border-color:var(--accent)}
-  .qs > summary:hover{color:var(--accent-ink)}
-}
-.qs .chev{margin-right:-4px;transition:transform .2s}
-.qs[open] .chev{transform:rotate(180deg)}
-/* the growing is progressive: where the browser cannot interpolate to a keyword size or
-   reach the details' content box, it opens at once */
-.qs{interpolate-size:allow-keywords;transition:width .2s ease}
-.qs::details-content{block-size:0;overflow:hidden;transition:block-size .2s ease,content-visibility .2s allow-discrete}
-.qs[open]::details-content{block-size:auto}
-@media (prefers-reduced-motion:reduce){.qs,.qs .chev{transition:none}}
-@media (prefers-reduced-motion:reduce){.qs::details-content{transition:none}}
-/* `fit-content` is re-measured on every frame, and the prompt is in the box from the moment
-   it opens, so its long lines set the start of the growth: it began near the full row and
-   shrank to 680 px (751 px mid-growth, measured).  Contained, the body adds nothing to the
-   box's own width, which then grows from the button's. */
-.qs-body{padding:2px 16px 16px;contain:inline-size}
-/* Three layers, two type sizes.  What the person does is the box's body text.  The choice
+/* The two quickstarts, agent and Jupyter: a row of two toggle buttons over one panel at a
+   time.  The buttons never move or hide, so switching is one click and closing is a click on
+   the pressed one.  The panel takes no box of its own, since every bordered box in the hero is
+   a button or a link; the pressed button carries the state instead. */
+.qs-row{margin-top:12px;scroll-margin-top:76px}
+.qs-tabs{display:flex;flex-wrap:wrap;gap:12px}
+.qs-toggle .chev{margin-right:-4px;transition:transform .2s}
+.qs-toggle[aria-expanded="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.qs-toggle[aria-expanded="true"] .chev{transform:rotate(180deg)}
+/* No `display` here: a rule setting one would outrank `[hidden]`.  A closed panel is
+   `hidden="until-found"`, which keeps an empty box where the browser supports it, so only an
+   open one takes the margin.  The fade is progressive; a browser without @starting-style
+   shows the panel at once. */
+.qs-panel{max-width:680px;transition:opacity .2s ease}
+.qs-panel:not([hidden]){margin-top:16px}
+@starting-style{.qs-panel{opacity:0}}
+/* Three layers, two type sizes.  What the person does is the panel's body text.  The choice
    that changes the prompt is a small label row.  The prompt is set apart on the tinted ground
    the install command uses, headed like the page's other code panes, with its copy button
    in its own corner. */
@@ -184,9 +171,16 @@ p{margin:0}
 .qs-prompt code{font-size:.88em;white-space:nowrap}
 .qs-prompt .v-git code{white-space:normal;overflow-wrap:anywhere}
 /* one install line shows; without :has() the release one does, and the radios do nothing */
-.qs .v-git{display:none}
-.qs:has(input[value="git"]:checked) .v-git{display:inline}
-.qs:has(input[value="git"]:checked) .v-pip{display:none}
+.qs-panel .v-git{display:none}
+.qs-panel:has(input[value="git"]:checked) .v-git{display:inline}
+.qs-panel:has(input[value="git"]:checked) .v-pip{display:none}
+/* The Jupyter quickstart: one ruled row a notebook, its title and then its three links,
+   which drop under the title where the row has no room for both. */
+.nb-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
+.nb-list li{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 16px;
+  padding:8px 0;border-bottom:1px solid var(--rule);font-size:.92rem;line-height:1.45}
+.nb-title{color:var(--ink)}
+.nb-links{display:flex;gap:14px;font-size:.84rem;white-space:nowrap}
 
 /* sections */
 .block{padding:56px 0;border-top:1px solid var(--rule)}

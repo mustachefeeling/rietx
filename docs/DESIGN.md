@@ -322,6 +322,10 @@ coordinates while its geometry in Å stays fixed, which is what a rigid molecule
 breathing cell does; and a hold is honoured on the body's own DOFs (origin, rotation),
 never on a body atom's coordinate row, which the body owns as symmetry owns a special
 position.
+A hold or tie on the rotation must leave 0, 1 or all of a body's turn
+directions free: two turns compose into the third, so two free directions are not
+closed under composition and no re-chart maps them exactly (WP-1805, answered
+2026-10-08, measured there).
 
 *An anchored rotation composes.* R₀ ← Exp(δω)·R₀ and δω ← 0 at every commit; the record
 is the absolute unit quaternion with w ≥ 0 (WP‑1801). The subtraction rule of
@@ -642,7 +646,8 @@ is not a comparison.
 **Where the suite runs, and what that can and cannot prove** (WP-1002; resized
 by WP-1060; un-shaped at WP-1003's visibility flip). Per push and per PR
 (`ci.yml`, the branch-protection required checks): ruff plus the fast suite
-across 3.11–3.14 and a `[dev,jax]` fast job, Linux, no path filter — a
+on 3.11 and 3.14 (3.12 and 3.13 nightly since WP-1547) and a `[dev,jax]`
+fast job, Linux, no path filter — a
 filtered job is a required check that never reports on a docs-only PR. A
 **draft** PR runs ruff alone (the draft guard, `ci.yml`'s header): the claim
 ritual opens a draft PR on a WP branch's first commit, so before it the whole

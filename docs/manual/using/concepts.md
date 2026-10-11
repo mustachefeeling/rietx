@@ -38,7 +38,8 @@ when you read a plan. A coordinate is free along the directions its site
 symmetry allows rather than in x, y and z. `ParameterTable` wires one
 `phases.*.atoms.*.dof.*` entry per allowed direction and ties x, y and z to
 them. A fully fixed special position contributes no entries at all, so the glob
-is always safe to use, and setting `vary=True` on such a coordinate raises.
+is always safe to use, and setting `vary=True` on such a coordinate raises
+(`ref.fix_special_positions()` clears the flag on every such coordinate, and says which).
 
 Anisotropic displacement parameters work the same way, through
 `phases.*.atoms.*.adp.*`, and so do the fifteen Stephens strain coefficients
@@ -129,7 +130,8 @@ Use one where the data cannot separate two quantities and chemistry says they
 need not be separated. Two of the cases the guidelines {cite}`mccusker1999`
 recommend are available here: equal displacement parameters across atoms in the
 same environment, and occupancies that must sum to a known total. The third,
-rigid bodies, is not.
+rigid bodies, arrived in 1.7.0 as a provisional first piece
+(`RigidBody`; [](compatibility.md)).
 
 <!-- api-doc: no-exec — it needs the reader's own structure and instrument -->
 ```python
@@ -192,10 +194,10 @@ the second time with the three phosphate oxygens' `biso` tied together:
 |---|---|---|
 | free parameters | 20 | 18 |
 | points per parameter | 287.5 | 319.4 |
-| Rwp | 0.096957 | 0.097002 |
-| B(O5) / Å² | 0.2834(1421) | 0.4263(704) |
-| B(O6) / Å² | 0.5288(1497) | 0.4263(704) |
-| B(O7) / Å² | 0.4361(1008) | 0.4263(704) |
+| Rwp | 0.092498 | 0.092546 |
+| B(O5) / Å² | 0.3647(1513) | 0.5150(754) |
+| B(O6) / Å² | 0.6016(1590) | 0.5150(754) |
+| B(O7) / Å² | 0.5377(1078) | 0.5150(754) |
 
 The return is precision. The constrained esd is smaller than the best of the
 three free ones. Rwp is not the evidence and cannot be. It moved by 0.05 % of
@@ -206,7 +208,7 @@ observations are the reflections, far fewer (McCusker et al. 1999, §9).
 
 The check to run first is in the free column. Compare each pair of free values
 with their combined esd, the square root of the sum of the two squared esds. The
-three pairs differ by 1.19, 0.88 and 0.51 of it, all under about two, so the free
+three pairs differ by 1.08, 0.93 and 0.33 of it, all under about two, so the free
 refinement does not contradict the claim that these are one parameter. Where a
 pair differs by more, the atoms are telling you they are not in the same
 environment, and tying them replaces a measurement with an assumption.
@@ -324,6 +326,18 @@ and the listing still reports `b` as tied and `alpha` as locked, because those
 are the reasons `unhold` cannot lift. The parameter listing reads a held row
 through `ParameterRow.held`, and [](model.md) has the field beside the other
 four held-reasons.
+
+In a polar space group (P 6₃ m c, P 4 m m, Pna2₁, C c, P 1) the origin along the polar
+axis is one more thing a hold is for: every atom has a free coordinate along it,
+the whole structure can slide along it without changing any intensity, and a plan
+that frees them all walks the pair and quotes an esd for what the data does not
+fix. `Refinement.hold_floating_origin` holds, for each such direction, the first
+atom's displacement DOF that runs along it, and returns an
+`ORIGIN_FIXED_ON_POLAR_AXIS` diagnostic naming it (`ORIGIN_NOT_FIXED` when no
+atom's DOF runs exactly along a direction). Nothing is held unless you call it, a
+non-polar group returns an empty list, and `unhold` takes the hold back. The
+directions themselves come from
+`rietx.crystallography.wyckoff.floating_origin_basis(space_group)`.
 
 The stage that wanted the parameter says so. `StageResult.blocked_by_hold`
 names what its glob matched and could not free, and the fit raises

@@ -1,9 +1,8 @@
 # WP-1916 — the tutorials in the manual, and the quickstart is a notebook
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-10-08 — the manual's Quickstart is the five notebooks; PR #826
 Track: Render what the fit already knows
 Depends on: 1545 (the notebooks)
-Priority: P3 2026-10-07 — the notebooks are readable on GitHub today, so a workaround covers it; nothing waits on it but WP-1917
 
 ## Goal
 
@@ -82,8 +81,6 @@ in this WP.
 own first session, and the landing page links it from the GUI section. The
 landing's "Agent quickstart" is WP-1917's neighbour and untouched here.
 
-### Inherited
-
 ## Non-goals
 
 - The landing page and Colab links (WP-1917, gated on rietx 1.7 on PyPI).
@@ -93,16 +90,16 @@ landing's "Agent quickstart" is WP-1917's neighbour and untouched here.
 
 ## Tasks
 
-- [ ] `docs` extra gains `myst-nb`; `conf.py` swaps the extension, sets
+- [x] `docs` extra gains `myst-nb`; `conf.py` swaps the extension, sets
   `nb_execution_mode = "off"`, and copies the notebooks into a gitignored
   `using/tutorials/` at build.
-- [ ] `using/quickstart.md` → `using/first-refinement.md`, every link repointed,
+- [x] `using/quickstart.md` → `using/first-refinement.md`, every link repointed,
   and a new `using/quickstart.md` index over the five notebooks with download
   links; `manual.md` toctree and Part 1 intro updated.
-- [ ] Tests: the manual builds with the five notebook pages present; a test
+- [x] Tests: the manual builds with the five notebook pages present; a test
   holds the copied set equal to `examples/tutorials/` by glob; the rendered
   index links all five. Look at one rendered page in light and dark.
-- [ ] Skill: none. The notebooks teach a person to check an agent, and WP-1545
+- [x] Skill: none. The notebooks teach a person to check an agent, and WP-1545
   already decided the skill gains no pointer.
 
 ## Acceptance
@@ -122,6 +119,61 @@ The manual builds under `-W` with all five tutorials rendered, and
 - Procida, D. (2017). Diátaxis: the tutorial type.
 
 ## Handover log
+
+- **2026-10-08** — closed. The manual now opens with the five tutorial
+  notebooks. `using/quickstart.html` shows each one with the outputs the tests
+  ran, and offers each as a download. The 11-BM walkthrough that held the URL is
+  now "A first refinement", third in Part 1, and every link that meant it
+  follows it. The landing page's "Get started here" now lands on the notebooks
+  with no edit. Building the manual needs one more package, `myst-nb`, which
+  the `docs` extra installs.
+
+  *Done.* `docs` extra gains `myst-nb>=1.1`. `myst-parser>=3` stays a direct
+  pin, because myst-nb asks only for `>=1` and `conf.py`'s `myst_*` settings
+  are myst-parser's. `conf.py` loads `myst_nb`, sets
+  `nb_execution_mode = "off"`, and copies the notebooks into the gitignored
+  `using/tutorials/` on every build (`_copy_tutorials`). It finds them through
+  `build.sources()`, deletes a stale copy and refuses a script with no
+  notebook. The copy count is the `N_TUTORIALS` substitution. Links moved:
+  `cli`, `data`, `exports`, `files`, `history`, `report` to
+  `first-refinement.md`; `install.md` now points at the new quickstart. The
+  quickstart page has a guard note saying `test_manual_api.py` never reads a
+  notebook's markdown. Two tests in `tests/test_manual.py`. The first holds
+  the copies byte-equal to the committed notebooks. The second holds each
+  page's rendered output count equal to its notebook's, and requires a link
+  and a download per notebook in the quickstart's article body. Staged in
+  `docs/releases/1.7.0.md`. WP-1917's `### Inherited` names the table as the
+  place for Colab links.
+
+  *Measured* (macOS arm64, worktree venv `[dev]` plus myst-nb 1.4.0). The
+  `-W --keep-going` build has zero warnings and takes 21 s cold. All nine
+  figures render. The output counts match on all five pages (7, 13, 7, 5, 10).
+  Fast selection: 8825 passed, 171 skipped, 1 xfailed, in 3:22 and 3:31 on two
+  runs, with another session's pytest running. That includes the 2 added tests,
+  0.01 s together (`tests.added_test_times`), because both read the shared
+  build fixture. No local baseline was taken. The full selection did not run,
+  because docs and tests cannot move a measured number. Light and dark were
+  checked by eye in chromium: the HTML reprs follow furo's theme, and the
+  figures stay light panels in dark mode, as the WP accepted.
+
+  *Review* (`/code-review high --fix`). Seven findings, no correctness bug.
+  Fixed: the hand-typed "Five" became `N_TUTORIALS`; three `make_figures.py`
+  comments and a `test_examples.py` docstring that still called the NAC
+  walkthrough "the quickstart"; a long line in Part 1's intro. Declined: the
+  "`rietx` is imported as `rx`" sentence stays on `first-refinement.md`,
+  because every notebook imports `rx` itself in its first cell. The loader is
+  copied in `conf.py`, `test_manual.py` and `test_tutorials.py`, and a
+  `build.notebooks()` helper would reach outside the WP. The notebook table is
+  written twice, here and in `examples/tutorials/README.md`. Each copy is
+  guarded and they serve different readers.
+
+  *Gotchas.* A link test over a whole furo page passes with the table row
+  deleted, because the sidebar links every toctree entry. The test reads
+  `<article role="main">` only, and it was made to fail on purpose to prove
+  that. `ruff` flags an unsorted import at `docs/manual/conf.py:12`. It
+  predates this branch, and `docs/` is outside the lint command.
+
+  Next: nothing here. WP-1917 is the follow-up, gated on 1.7 being on PyPI.
 
 - **2026-10-07** — created. No open WP owns this: WP-1545 fences rendering the
   notebooks in the manual out as a follow-up, and WP-1331, 1409 and 1411 are

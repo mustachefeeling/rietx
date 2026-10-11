@@ -1,6 +1,6 @@
 # WP-1542 — a Le Bail background left at its seed
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-08 — #725's opt-in `auto_background(seed=True)` landed from outside (PR #744); every task remains
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-03 — a background too low reads as a good Le Bail fit and feeds every structure fit after it; a path few fits run
@@ -42,6 +42,56 @@ this failure lowers Rwp. WP-1323 shipped in 1.6.0 and closed with this filed
 here (2026-10-03, at the maintainer's request).
 
 ### Inherited
+
+- **2026-10-08, from the second issue triage (issue #833): a second voice
+  for #725's default.** #833's third item asks for `auto_background(seed=True)`
+  as the default, beside a REML-chosen P-spline λ and a
+  `BACKGROUND_ORDER_AT_CAP` finding, which are WP-1931's. No new evidence
+  for the seed itself; the 2026-10-05 entry's "whether a default changes is
+  the maintainer's" still stands, now asked by two issues.
+  Decided 2026-10-08: the default stays `seed=False` until task 4 has
+  measured the seed beside the SNIP-held protocol; the choice is made then,
+  from those numbers.
+
+- **2026-10-08, from the issue triage (issue #740): a second case of this
+  WP's failure, with a sharper reading of its mechanism.** The reporter's
+  synthetic LaMnO3-like Pnma pattern (CW neutron, 2.4 Å, background
+  300 + 2·2θ) at the true cell and profile, background free and seeded at the
+  10th percentile of y (SKILL.md §2 rule 5), gives Rwp 1.62 % under one Le Bail
+  stage at 100 or 400 `lebail_cycles`, against 1.09 % for the Rietveld fit
+  of the true structure and 1.06 % for Pawley. The deficit is at 90-150°, where
+  the weak dense reflections sit. The reporter's open question was whether the
+  EM partition or its weights cause it. A probe points away from
+  both: the Le Bail intensities are partitioned at stage start against the
+  *seed* background (the same point as the 2026-10-05 entry above), and
+  re-partitioning on the fitted background closes the gap. The mechanism
+  (intensities absorbing the seed's deficit where reflections are dense) is
+  the reading the numbers fit, not something the probe isolated.
+  Measured: after the one stage the fitted background sits at 0.88 of the
+  true one at 100° and 0.95 at 140° (0.99 at 20° and 60°), and the residual rms
+  by 20° band, starting at 10°, is 0.94 0.89 0.97 1.07 1.85 2.34 1.74. Two
+  stages in a row (100 cycles each, so the second partitions on the background
+  the first fitted) end at 1.18 %, three at 1.10 % with bands 0.94 0.87 0.94
+  1.04 1.01 1.16 1.05. One stage seeded at the Rietveld fit's own background
+  ends at 1.09 %. The seed here is 346 counts against a true background of
+  580 at 140°. This differs from the case 1542 was filed on
+  in one respect: there the free intensities absorbed a hump and Rwp *fell*;
+  here a low pedestal seed leaves Rwp *above* the structure's, so the finding
+  1542 task 3 designs should fire on the background having moved a long way
+  from its seed across stages, not only on a width growing. It also sharpens
+  task 4: the comparison of protocols should include "partition again after
+  the background solve", since a second stage does it for free.
+  Not tested: the reporter's second observation, that a `profile_only` run on
+  the pattern's own passes rises 1.72, 1.81, 1.82, 1.82 %. It is the same
+  seed in the first pass, but the rise across passes was not reproduced.
+  Checked against the tree at 5d1f5f67: reproduced to the digit. Rietveld
+  0.0109; Le Bail 0.0456 / 0.0163 / 0.0162 at 3 / 100 / 400 cycles; Pawley
+  0.0106 (the reporter's script, 5 s on this machine). `lebail_update` runs at
+  stage start (`refine.py:3565`, on `table.x0()`) and after the solve
+  (`refine.py:3864`); the reported Rwp equals the one recomputed from the
+  returned `y_calc` (0.0163 both). No other open WP owns
+  it: 1323 (the stop rule) is shipped, 1511 chooses between cells and 1545 is
+  the notebook that reproduces the 03 case.
 
 - **2026-10-05, from the issue triage (issue #725): a second user asks for
   §2 rule 5 as `auto_background`'s default, and the proposed default is the
@@ -109,7 +159,33 @@ within their no-hump values.
 
 ## Handover log
 
+- **2026-10-06** — Maintainer decision on #725, through draft PR #744:
+  `auto_background(..., seed=True)` is wanted as an option, and the default
+  stays `seed=False` (all-zero coefficients). Whether the default ever
+  changes still waits on task 4's measurement of the seed beside the
+  SNIP-held protocol, on the hump fixture and a high-pedestal one. #744's
+  synthetic (a pedestal under peaks 22 times higher, Le Bail
+  `profile_only`) is that high-pedestal fixture: Rwp 0.0605 unseeded against
+  0.0437 seeded, and the Lorentzian X 0.0565 against 0.0 (true 0.001).
+  *Recovered 2026-10-10: committed after PR #796 merged, so it reached main
+  only now.*
+
 - **2026-10-03** — filed from WP-1323's Inherited entry when 1323 closed. No
   open WP owns a too-stiff background: the open rows of the index carry no
   Le Bail or background protocol, and 1530's held background is a TOPAS
   reader's. *Next:* task 1.
+- **2026-10-08** — #725's proposal landed from outside as an opt-in: PR #744
+  (head `ecea30f4`), merged as `ba732997` by `/pr-review` after three rounds.
+  `auto_background(data, seed=True)` starts the Chebyshev constant term, or every
+  P-spline coefficient, at a low percentile of y_obs over the fitted range.
+  `seed=False` is the default and keeps today's zeros. SKILL.md §2 rule 5 and
+  `references/judging.md` now name the call in place of the hand recipe. The
+  default is unchanged, and #725 stays open on whether it moves. *What it does
+  not do:* none of this WP's tasks. A seeded background can still stay at its
+  seed while a width grows, so tasks 1-3 measure what they did before. Task 4
+  now compares this seed with the SNIP-held protocol rather than with a hand
+  seed. *Gate:* stacked with #776, #746 and #801 on `5d1f5f67`; the results are
+  in WP-1805's 2026-10-08 entry. The only slow failures are #820's, which also
+  fail on `main`. *Gotcha:* `test_skill_claims.py` classifies every number in
+  the skill body, so a rule-5 edit that drops a number must drop its row too.
+  Round 2 caught that. *Next:* task 1.

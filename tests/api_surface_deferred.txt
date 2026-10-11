@@ -10,20 +10,25 @@
 # excluded with a reason, or deliberately deferred by regenerating this file —
 # which shows up as a diff in review.  WP-1067 closes when this file has no
 # names left.
-BodyOrigin
 BodyOrigin.values
 BodyOrigin.x
 BodyOrigin.y
 BodyOrigin.z
+BodyTorsion
+BodyTorsion.angle
+BodyTorsion.axis
+BodyTorsion.moves
+BodyTorsion.name
+BodyTorsion.vary
 MomentEvidence.paired_magnitude
 MomentEvidence.paired_magnitude_esd
 MomentEvidence.paired_with
 ParameterRow.body
 Phase.rigid_bodies
-RigidBody
 RigidBody.atoms
 RigidBody.name
 RigidBody.orientation
 RigidBody.origin
 RigidBody.rotation_vary
 RigidBody.template
+RigidBody.torsions

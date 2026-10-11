@@ -17,7 +17,7 @@ name = "rietx"
 # shipped.  The value itself is stamped into every RefinementResult's Provenance
 # and every history node, so a stale one mislabels the provenance of real
 # results, and the release workflow refuses a tag that disagrees with it.
-version = "1.7.0.dev0"
+version = "1.8.0.dev0"
 description = "Python-API-first analysis and Rietveld refinement of powder diffraction data"
 readme = "README.md"
 license = "MIT"
@@ -51,39 +51,45 @@ dependencies = [
     "scipy>=1.11",
     "pydantic>=2.6",
     "gemmi>=0.6.5",
-    "spglib>=2.4",
-    # The compiled kernel tier (WP-1115): ~2x on a four-phase Cu Kα refinement
-    # and ~1.35x on a synchrotron one, measured on the WP-1111 harness.  It is
-    # *required* rather than an extra because the default install is what a
-    # user is judged by, and the two costs — +157 MB (llvmlite is 137 MB of it,
-    # on a ~124 MB runtime baseline) and the `numpy<2.6` ceiling numba carries
-    # — were both accepted deliberately, on the reading that this runs in
-    # per-project virtual environments.
+    # 2.8 corrects the time-reversal flags of UNI 282-284, the three magnetic
+    # groups 2.7.0 could not identify from their own operators (WP-1452).
+    "spglib>=2.8",
+    # The compiled kernel tier (WP-1115, in Rust since WP-1940): ~2x on a
+    # four-phase Cu Kα refinement and ~1.35x on a synchrotron one.  It is one
+    # abi3 wheel per platform, built from kernels/ in this repository.  It is
+    # required with no platform markers, and the crate publishes no sdist, so
+    # pip fails loudly where no wheel exists rather than installing a rietx
+    # that is silently slower.
     #
-    # **An extra could not have expressed the opposite choice.**  Extras only
-    # ever add dependencies; there is no `rietx[slow]` that installs fewer, so
-    # "fast by default, numba-free still possible" cannot be a packaging shape
-    # at all.  It is a *code* shape instead, and `model/compiled.py` is where
-    # it lives: the import is soft and every entry point declines rather than
-    # raising, so `--no-deps`, a constraint file or a distro package that omits
-    # numba still yields a working install running the numpy expressions, and
-    # `RIETX_COMPILED=0` (`_about.COMPILED_ENV`) switches the tier off at
-    # runtime with no reinstall.
+    # The import stays soft: `--no-deps` or a distro package without it still
+    # yields a working install running the numpy expressions, and that install
+    # warns once and says why in `capabilities()`.  `RIETX_COMPILED=0`
+    # (`_about.COMPILED_ENV`) switches the tier off at runtime.
     #
-    # The floor is where numba's wheels first cover *every* interpreter the
-    # `requires-python` above admits: cp314 wheels start at 0.63, cp313 at
-    # 0.61.  A lower floor would resolve fine in practice — pip takes the
-    # newest anyway — and strand a 3.14 user who pinned.  Measured on 0.67.0.
-    "numba>=0.63",
+    # The ceiling is `model.compiled.KERNEL_ABI` + 1, the kernel interface
+    # number.  A major release of the wheel is a breaking interface change.
+    # The floor is `model.compiled.KERNEL_FLOOR`.  A new kernel is a minor
+    # release, and raises it: 1.1 added the structure figure's rasteriser.
+    # docs/RELEASING.md § The kernel wheel has the procedure.
+    "rietx-kernels>=1.1,<2",
     # Required since WP-1545, an extra (`viz`) before it.  A figure is how most
     # people read a fit, and every tutorial and the landing page draw one, so a
     # base install that could not was the install people were judged by.  The
     # cost is ~58 MB with its dependencies (pillow, fonttools, contourpy,
-    # kiwisolver, pyparsing, cycler) against ~265 MB for the rest.  The floor
-    # is where matplotlib's wheels first cover cp314 (3.10.5), the numba rule
-    # above.  `viz.plots._pyplot` still imports it lazily, so `import rietx`
-    # pays nothing for it.
-    "matplotlib>=3.10.5",
+    # kiwisolver, pyparsing, cycler) against ~124 MB for the rest.
+    # `viz.plots._pyplot` still imports it lazily, so `import rietx` pays
+    # nothing for it.
+    #
+    # The floor is two floors.  On cp314 it is where matplotlib's wheels first
+    # cover the interpreter (3.10.5), so a 3.14 user who pins the floor still
+    # gets a wheel.  Below 3.14 it is 3.10.0, because that is what Google
+    # Colab preinstalls (googlecolab/backend-info, 2026-10-09) and Colab
+    # imports matplotlib at startup: a floor above it makes `%pip install
+    # rietx` upgrade an imported module and ask for a runtime restart before
+    # the tutorial's next cell.  Every plotting, tutorial and example test
+    # passed on 3.10.0.
+    "matplotlib>=3.10; python_version<'3.14'",
+    "matplotlib>=3.10.5; python_version>='3.14'",
 ]
 
 [project.optional-dependencies]
@@ -105,7 +111,11 @@ jax = ["jax>=0.4.30"]
 torch = ["torch>=2.2"]
 docs = [
     "sphinx>=7.4",
+    # Stays a direct pin: myst-nb asks only for myst-parser>=1, and conf.py's
+    # `myst_*` settings are myst-parser's.
     "myst-parser>=3",
+    # The tutorial notebooks as manual pages (WP-1916), with execution off.
+    "myst-nb>=1.1",
     "sphinxcontrib-bibtex>=2.6",
     # Part 1's diagrams.  >=2.1 because that is where the extension's own
     # theme detection reads `body[data-theme]` and re-renders on a
@@ -135,7 +145,7 @@ dev = [
     "pytest-xdist>=3.6",
     "hypothesis>=6",
     "ruff",
-    # TEST ORACLE ONLY, for crystallography/magnetic/irreps.py: an independent
+    # TEST ORACLE ONLY, for crystallography/representation/irreps.py: an independent
     # implementation of the small irreps of a little group (Neto's subgroup
     # chain, where ours splits the twisted regular representation).  It is
     # deliberately not a runtime dependency and is never imported outside
@@ -183,7 +193,9 @@ exclude = ["**/CLAUDE.md"]
 # imported until capabilities() touched gui.textdoc (caught by the fresh-venv
 # smoke test, 2026-08-16).  /gui/index.html still needs naming beside /gui:
 # its own `!` negation (vite's entry module) outranks the directory exclude.
-exclude = ["/tests", "/gui", "/gui/index.html"]
+# kernels/ is a distribution of its own, rietx-kernels, built from its own tag
+# (WP-1940).
+exclude = ["/tests", "/gui", "/gui/index.html", "/kernels"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

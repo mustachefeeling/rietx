@@ -32,6 +32,7 @@ from rietx.crystallography.symmetry import (
 from rietx.refine import _symmetry_silence_diagnostics
 from rietx.schemas.common import Parameter as P
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
+from tests.space_group_sample import TRAP_SAMPLE
 
 #: An 18h-type site of ``R -3 m:H``: y = 2x, |G| = 36, so 18 or 36 and nothing
 #: else.  The z is arbitrary and free.
@@ -104,19 +105,27 @@ def test_orbit_does_not_depend_on_operation_order() -> None:
         assert site_orbit(sg, image).multiplicity == orbit.multiplicity
 
 
-def test_the_invariant_holds_across_every_setting_gemmi_knows() -> None:
+@pytest.mark.parametrize("sample", [
+    pytest.param(True, id="sample"),
+    pytest.param(False, id="all-564", marks=pytest.mark.slow)])
+def test_the_invariant_holds_across_every_setting_gemmi_knows(sample) -> None:
     """|G| / |stabiliser| over all 564 settings, at and across the tolerance.
 
     Positions chosen to sit on, near and off the special positions that broke
     the greedy version: the cubic ¼¼¼ and ⅛⅛⅛ sites, where a jitter admits
-    some members of the site symmetry and misses others.
+    some members of the site symmetry and misses others.  The fast tier takes
+    every setting of the trap-chosen groups, 74 of the 564; the nightly takes
+    all of them (``tests/space_group_sample.py``, WP-1547).
     """
     rng = np.random.default_rng(0)
     bases = [np.array(p) for p in ((0.1234, 0.5678, 0.9137), (0.0, 0.0, 0.0),
                                    (0.25, 0.25, 0.25), (0.5, 0.0, 0.25),
                                    (1 / 3, 2 / 3, 0.1), (0.125, 0.125, 0.125))]
+    settings = [sg for sg in gemmi.spacegroup_table()
+                if not sample or sg.number in TRAP_SAMPLE]
+    assert len(settings) == (74 if sample else 564)
     checked = 0
-    for sg in gemmi.spacegroup_table():
+    for sg in settings:
         order = len(sg.operations())
         for base in bases:
             for scale in (0.0, 3e-5, 9.9e-5, 1.01e-4, 5e-4):
@@ -125,7 +134,19 @@ def test_the_invariant_holds_across_every_setting_gemmi_knows() -> None:
                 assert orbit.multiplicity * len(orbit.stabilizer) == order
                 assert orbit.shift <= SITE_TOL * (1 + 1e-9)
                 checked += 1
-    assert checked == 16_920
+    assert checked == 30 * len(settings)
+
+
+def test_the_trap_sample_holds_every_lattice_class_the_groups_hold() -> None:
+    """The sample's docstring claims all sixteen (crystal system, centring)
+    pairs of the 230 groups; a member dropped later must not lose one."""
+    def lattice_class(number):
+        sg = gemmi.find_spacegroup_by_number(number)
+        return sg.crystal_system_str(), sg.hm[0]
+
+    every = {lattice_class(n) for n in range(1, 231)}
+    assert len(every) == 16
+    assert {lattice_class(n) for n in TRAP_SAMPLE} == every
 
 
 def test_the_guard_message_names_the_invariant() -> None:

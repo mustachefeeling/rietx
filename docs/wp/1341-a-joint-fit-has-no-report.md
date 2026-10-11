@@ -88,6 +88,32 @@ Some constraints that shape (1) and (3):
 
 ### Inherited
 
+- **2026-10-08, from the issue triage (issue #803): `STAGE_PATH_NOT_FREE` is
+  not reported for a joint fit.** PR #789 added the finding for a single
+  histogram (`refine._fixed_literal_diagnostics`, fed one `ParameterTable`).
+  `multi.DIAGNOSTIC_SCOPES` declares it `ABSENT`, so a joint plan naming
+  `phases.0.atoms.2.x` on a special position, or `phases.0.cell.b` on a
+  tetragonal phase, frees nothing and says nothing. Wiring it needs: the
+  helper to read a `MultiParameterTable` (one table per histogram, a phase
+  path scoped to one histogram or shared); a finding that names which
+  histogram's table holds the path fixed; and agreement with
+  `_unreached_histogram_diagnostics` about what a literal path matches, so one
+  literal does not give two disagreeing findings. The row moves to `FIT` and
+  its reason changes. Done when a locked or tied literal reports once per
+  path naming its stages, and the four silence cases #789 tests (a free dof
+  glob, a pattern, a user tie, a tied path beside its own source) stay silent
+  in a joint fit. It sits here because the joint report is where a
+  per-histogram finding gets rendered; it is a diagnostic wiring and not
+  reporting, so it can land before the report does.
+  Checked against the tree at 5d1f5f67: reproduced. Two rutile histograms
+  through `refine_multi`, one stage naming `phases.0.cell.b` (a tetragonal
+  tie) and then `phases.0.atoms.0.x` (Ti on 2a): `Refinement.fit` returns
+  `STAGE_PATH_NOT_FREE` for each, `refine_multi` returns none, and the path is
+  absent from `stages[0].freed` in both. `DIAGNOSTIC_SCOPES` carries
+  `_fixed_literal_diagnostics: (ABSENT,)` with the reason the issue quotes
+  (`multi.py:252`). The effect is a stage that does nothing for the path, not
+  a wrong number.
+
 - **From WP-1523, 2026-10-04: the joint fit judges support on the screen
   alone.** A single fit calls a phase seen when its scale is 3σ from zero by a
   marginal esd against counting noise (`refine._answer_significance`). A joint

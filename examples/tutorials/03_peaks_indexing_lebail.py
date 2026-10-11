@@ -15,8 +15,6 @@
 # The displacement parameters are the isotropic equivalents of that entry's anisotropic ones.
 #
 # **Runtime** is under a minute on a laptop, most of it the indexing search.
-#
-# Until rietx 1.7 is on PyPI, install it from GitHub instead: `%pip install git+https://github.com/yue-here/rietx`.
 
 # %%
 # %pip install rietx

@@ -85,6 +85,24 @@ the list is rietx's by nature.
 
 ### Inherited
 
+- **2026-10-10, from WP-1940 (5th session, PRs #867 and #868).** The
+  rasteriser is now in `rietx-kernels` 1.1.0 (`kernels/src/raster.rs`, #867),
+  held to the numpy rasteriser on the bit by `tests/test_raster_kernels.py`.
+  #868 makes rietx call it, so `model.compiled` is back in the figure's import
+  boundary (`tests/test_figure_boundary.py`): its switch, its pool and the
+  loaded kernels. A figure moved into rietview therefore needs
+  `rietx-kernels>=1.1` and its own route to the tier's switch and pool, or it
+  draws on numpy at 14-40× the time. With the wheel, `view="auto"` takes
+  90-107 ms on the NAC cell at 400 px.
+
+- **2026-10-10, from WP-1940 (4th session, PR #864).** The figure's numba path is
+  deleted in that PR, so the rasteriser runs its numpy twin. `view="auto"`
+  takes 1.30-1.36 s on the NAC cell at 400 px (92 ms on numba) and 22.6 s at
+  3143 atoms (565 ms). The maintainer made the rasteriser port the next
+  kernel release, `rietx-kernels` 1.1.0 (1940 § Decisions item 9). If this
+  WP moves the figure first, the port goes with it. `model.compiled` is no
+  longer imported by the figure (`tests/test_figure_boundary.py`).
+
 - **2026-10-04, from WP-1504 round E: the trigger's second clause fired.**
   Rounds C and E ran the same pinned `fixed` surface (amendment 1.3), and E's
   56 runs found no new defect in it: 40 of 42 fixed runs done, the one miss
@@ -124,6 +142,14 @@ the list is rietx's by nature.
   uses `model.compiled`, which is already on the boundary list. So the split
   would carry them without a new import from rietx. `test_figure_boundary.py`
   is where to confirm that as each lands.
+- **2026-10-10, from WP-1940 (3rd session).** numba leaves rietx at the
+  kernel migration (1940 § Decisions item 8). The rasteriser then runs its
+  numpy twin until 1940 ports it into the `rietx-kernels` wheel. Measured on
+  one small structure, this Mac: 0.35 s at 1000 px against 0.05-0.08 s
+  compiled, 1.17 s at 2000 px against 0.14-0.18 s. So Context's "a small
+  numba shim" for rietview's compiled tier needs another answer: depend on
+  `rietx-kernels`, or keep the numpy path. Whichever of 1505 and that port
+  lands first decides which package the port belongs to.
 
 ## Non-goals
 

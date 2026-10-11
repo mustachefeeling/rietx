@@ -16,8 +16,6 @@
 # Its provenance and licence are in the repository's `tests/data/README.md`.
 #
 # **Runtime** is under a minute on a laptop.
-#
-# Until rietx 1.7 is on PyPI, install it from GitHub instead: `%pip install git+https://github.com/yue-here/rietx`.
 
 # %%
 # %pip install rietx

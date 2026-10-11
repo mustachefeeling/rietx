@@ -200,8 +200,8 @@ On the two-phase cathode the two references differ by 2665 ppm on the cubic
 cell, because the recipe co-refines size and strain on a pattern where GSAS-II
 itself reports two SVD singularities and a 100 % correlation. It returns a
 negative crystallite size for one phase, and TOPAS returns none at all. This
-package lands 11–93 ppm from TOPAS on all five free cell parameters, at Rwp
-7.333 % against TOPAS's 7.326 %, while sitting the same 1004–2575 ppm from
+package lands 10–98 ppm from TOPAS on all five free cell parameters, at Rwp
+7.328 % against TOPAS's 7.326 %, while sitting the same 365–2570 ppm from
 GSAS-II that TOPAS does.
 
 Read that as the calibration for any cross-code claim made through this format.

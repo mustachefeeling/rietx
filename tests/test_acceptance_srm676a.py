@@ -290,9 +290,10 @@ def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
     assert a_h == pytest.approx(cell_h.a.value, rel=1e-5)
     assert c_h == pytest.approx(cell_h.c.value, rel=1e-5)
     # Rwp is deliberately not an equality.  The two settings reach *different*
-    # Le Bail fixed points — 7.44e-5 apart at stationarity, not shrinking with
+    # Le Bail fixed points — 4.8e-6 apart at stationarity on the 1.7.0 tree
+    # (7.44e-5 on 2026-08-17), not shrinking with
     # more rounds, the rhombohedral arm the better of the two — which is a
-    # finding about the extraction, not slack to be absorbed.  abs=1e-3 is ~13x
+    # finding about the extraction, not slack to be absorbed.  abs=1e-3 is ~200x
     # above it and still catches what this line is now for: an arm that fails
     # to descend, which the old one-round stopping point would show as 8e-3.
     assert res_r.statistics.rwp == pytest.approx(res_h.statistics.rwp, abs=1e-3)
@@ -306,7 +307,7 @@ def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
 
     # 5. and it is the right lattice: the same uniform d-scale systematic of
     #    this uncalibrated instrument the Rietveld arm above measures
-    #    (−313/−283 ppm), here −312/−424 ppm, with c/a within 1.2e-4
+    #    (−312/−282 ppm), here −328/−336 ppm, with c/a within 1e-5
     assert abs(a_h / A_CERT - 1.0) < 1e-3 and abs(c_h / C_CERT - 1.0) < 1e-3
     assert (c_h / a_h) / (C_CERT / A_CERT) - 1.0 == pytest.approx(0.0, abs=5e-4)
 

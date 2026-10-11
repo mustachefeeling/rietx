@@ -1,7 +1,7 @@
 # WP-1813 — fragment I/O: XYZ, Z-matrix write, SMILES behind an extra
 
 Milestone: rigid-bodies · Status: ⬜
-Depends on: 1802, 1319
+Depends on: 1802
 Priority: P4 2026-10-06 — a fragment can already be built by hand or from a Z-matrix
 
 ## Goal
@@ -16,6 +16,21 @@ optional extra is installed. This is chunk R12 of issue #561, sized M.
   needs its bonds from somewhere else.
 - **Licensing:** RDKit (BSD-3) only, never OpenBabel (GPL-2).
 - It touches no v1.6 file.
+
+### Inherited
+
+- **2026-10-09, from [1319](1319-structure-interchange.md): the XYZ read is this
+  WP's alone.** 1319 narrowed to #756's CIF writer chunks and gave up its XYZ half,
+  so "XYZ lands with WP-1319" above no longer holds and 1319 left this file's
+  `Depends on:` line. The landing type 1319 was to decide is 1802's `Fragment`.
+  Three facts came with it. Bare XYZ carries element symbols and Cartesian
+  coordinates and nothing else (no cell, no bond order, no aromaticity), so a
+  coordinate-only file is untrusted for an aromatic or multiple-bond body. It
+  carries no symmetry either, so any space group at placement is the caller's
+  claim. And the `solution case 1` run (1510 has the source, 2026-09-28) built its
+  ideal aromatic ring and its hydrogens by hand, which is this WP's use case. No
+  XYZ structure reader exists, and molecular XYZ does not collide with the
+  `xy`/`.xye` pattern reader.
 
 ## Non-goals
 

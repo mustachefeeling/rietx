@@ -1,6 +1,6 @@
 # WP-1419 — a child structure refined on its mode amplitudes
 
-Milestone: magnetic · Status: ⬜
+Milestone: magnetic · Status: 🔄 2026-10-08 — the move #418 decided (C0a, PR #842) landed from outside; C0b and the entry point are open
 Depends on: 1418 (the mode vectors: irreps, projection, isotropy subgroups);
 1327 soft (the operator-list phase both would share)
 Priority: P3 2026-09-23 — waits on 1418's mode vectors; P2 when they land
@@ -160,6 +160,35 @@ the span* of the derived subspace, never that the dimension is right, since
 the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
+
+- **2026-10-08, from WP-1546 (the 1.7.0 cut): the modules C0a and C0b move
+  have shipped.** PR #842 moved `irreps.py` and `modes.py` without shims on
+  the premise that neither had been released. The 1.6.0 wheel on PyPI ships
+  both, and `isotropy.py` too. So each move is a break for code importing the
+  old path, and the release notes must record it the day it lands. The 1.7.0
+  notes record C0a under Code to check. C0b's move of `isotropy.py` belongs in
+  the 1.8.0 staging file.
+- **2026-10-08, from the issue triage (issue #286, the reporter's comment of
+  2026-10-06): the mode vectors carry no physical length today.** Decision 2
+  above chooses the amplitude's unit. The reporter measured why it cannot
+  be left to the basis. `basis_vectors` Gram–Schmidts the projected vectors
+  in `crystal_metric(space_group)`, the Reynolds average of a generic metric
+  whose scale is whatever `wyckoff._compatible_lattice` returns. The
+  subspaces do not depend on that metric. The lengths do: on one structure,
+  Σ|e|² over the child cell for a unit-amplitude mode varied by about 3×
+  across the k points tried. Nothing refines an amplitude yet, so no number
+  on `main` is wrong. The reporter proposes AMPLIMODES' convention as the
+  answer to decision 2: Σ mult·|ε|² = 1 over a primitive cell of the
+  **child** lattice, displacements in Å, orthogonal in the same sum
+  (Perez-Mato, Orobengoa & Aroyo 2010, *Acta Cryst.* A66, 558, eqs. 3-4).
+  Normalising over the parent's primitive cell differs by √(index). They
+  also propose a helper such as `normalise_in_cell(basis, lattice)` and a
+  known-answer test: a perovskite tilt amplitude in Å against a published
+  decomposition, with AMPLIMODES/ISODISTORT used only as black boxes.
+  Checked against the tree at `5d1f5f67`: `basis_vectors`
+  (`crystallography/magnetic/modes.py:973`) and `crystal_metric` (`:338`)
+  exist as named. The factor of 3 was not re-measured. The choice between
+  this and the furthest-atom-moves-1-Å rule above stays this WP's decision.
 
 - **2026-10-05, from the issue triage (issue #679, recorded in
   [1418](1418-the-magnetic-structure-is-determined.md)):** PR #680 makes a
@@ -476,6 +505,42 @@ every shipped fixture are bit-identical.
   `operator-list-basis`, as a reference implementation only.
 
 ## Handover log
+
+- **2026-10-08** — the first step of #418's decision landed from outside. PR #842
+  (head `823f39d8`) merged as `5981c23b`.
+  *Done.* `crystallography/magnetic/irreps.py` and `modes.py` moved to
+  `crystallography/representation/` by `git mv`, byte-identical. There are no
+  shims, as decided on 2026-09-23, so the old module paths raise
+  `ModuleNotFoundError`. Every import and dotted reference in `src/`, `tests/`,
+  the manual's `{source}` links, `ATTRIBUTION.md` and the `pyproject.toml`
+  comment moved with them. The new package's `__init__.py` is a docstring only.
+  The contributor asked whether `representation` is the right name, and the
+  maintainer kept it. C0b and WP-1919's subgroup generator land beside these
+  files under it.
+  *Not done.* The kind-neutral half of `magnetic/isotropy.py` is C0b, a second
+  PR held until #565's part 4 stops editing that file. Here `isotropy.py` changes
+  only in its import block. No Task is ticked, because the move is a sequencing
+  step and not one of them. WP-1452's spglib-to-moyo work rebases over it.
+  *Checked here.* On the merged tree no `magnetic.irreps`, `magnetic.modes`,
+  `magnetic/irreps` or `magnetic/modes` survives outside dated notes in this WP
+  and in 1418. `tests/api_surface.py`'s `PROVISIONAL_MODULES` keys
+  `rietx.strategy.magnetic`, so no name changed tier.
+  *Gate:* merged onto `main` `3b9aad52` as `aa8687f1`, macOS arm64,
+  `[dev,jax]`: fast 8944 passed, 109 skipped, 1 xfailed, 1 failed (the
+  `test_indexing_reduce` reduction-map row, failing on `main` alone); `-m slow`
+  290 passed, 14 skipped, two of them WP-1449's budget-stopped indexing rows.
+  `main` after the merge equals that tree.
+
+### 2026-10-06 — the maintainer reports an ISODISTORT equivalent in progress
+
+The maintainer reports that a collaborator is building an ISODISTORT
+equivalent, which is this WP's ground. Ask the maintainer before starting
+here, so the work is not done twice. The WP-1418 decision on #724 points
+here too. Its end state for a supercell child's cell refines the parent's
+cell parameters and derives the child's, with strain modes freed only where
+the data show one, and this WP's mode vectors are where it gets built.
+*Recovered 2026-10-10: committed after PR #796 merged, so it reached main
+only now.*
 
 ### 2026-09-18 — the four rulings, and the fence that was built through (reconstructed post hoc)
 

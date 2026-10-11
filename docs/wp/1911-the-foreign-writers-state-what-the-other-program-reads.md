@@ -1,6 +1,6 @@
 # WP-1911 — the foreign writers state what the other program reads: the setting, the scale, the free set
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — PRs #720, #731, #710, #733, #713, #771, #782, #770 (Part B's TOPAS writer) and #755 (C1's `Zero`) merged from outside; #721's decision is due
+Milestone: unscheduled · Status: 🔄 2026-10-08 — PRs #720, #731, #710, #733, #713, #771, #782, #770 (Part B's TOPAS writer), #755 (C1's `Zero`) and #815 (#732's whole TOPAS input) and #839 (its X-ray extinction) merged from outside; #721's decision is due
 Track: Coming from another code
 Depends on: — (#713 soft: the P1 restatement Part D builds on)
 Priority: P3 2026-10-06 — was P2 for #716, which PR #733 fixed; the remaining issues cost a user hand edits
@@ -212,6 +212,79 @@ a `tests/data/README.md` row.
 
 ### Inherited
 
+- **2026-10-09, from [1319](1319-structure-interchange.md): #756's C-f is this
+  WP's.** The maintainer split issue #756's CIF writer module across three WPs:
+  1319 takes the registry, the number rule and the structure block (C-a to C-c),
+  [1933](1933-the-cif-module-beyond-the-structure-block.md) takes the pattern
+  block, the multi-block layout and the validation hook, and C-f comes here
+  because Part D already writes `_parent_space_group.name_H-M_alt`. C-f, as #756
+  § 2.3 and the reporter's comment of 2026-10-06 state it: write
+  `_parent_space_group.name_H-M_alt`, `_parent_space_group.child_transform_Pp_abc`
+  and `_parent_propagation_vector.kxkykz` whenever
+  `MagneticSymmetry.propagation_vector_parent` is set; always write the nuclear
+  group's `_space_group_symop` loop; keep the nuclear `_space_group_name_H-M_alt`
+  beside the magnetic loops; add `cif_mag.dic` to 1319's registry test (1319
+  vendors it into `tests/data/`). Acceptance: `test_magcif.py:997`'s assertion that
+  the parent k is lost is inverted, and the `write_magcifs` docstring
+  (`strategy/magnetic.py:673-676`), which says the parent is kept, becomes true.
+  It depends on 1319's C-a and C-c, and on #757's I-b fixing the parent record's
+  field names. The structure block it extends drops the deprecated
+  `_symmetry_space_group_name_H-M` (1319's decision 3), which the GSAS-II phase
+  CIF's profile keeps until 1933's C-g declares it.
+
+- **2026-10-08, from the issue triage (issue #732): a whole TOPAS input, the
+  Chebyshev domain, and the GSAS-I `ZERO` unit.** The issue lists the eleven
+  edits an agent made by hand to every exported `.inp` in a 20-case benchmark.
+  It proposes four steps in order: `write_topas_inp(instrument=, pattern=)`
+  writing a file TOPAS runs as it stands; the Chebyshev fit domain stored on
+  the background model; `read_topas_inp(...).to_instrument()`; and the GSAS-I
+  `ZERO` unit once a GSAS-I run can measure it. This WP owns the writer half,
+  because a whole input is Part B's writer carried from the `str` to the file.
+  *Checked against the tree at 5d1f5f67*:
+  - `write_topas_inp` takes `instrument=` already (PR #770), and on `main`
+    it uses it only to pick the scale convention for `scale="topas"`. No
+    `pattern=` exists. No data file, `lam`, `LP_Factor`, `th2_offset`,
+    `bkg`, peak type, `exclude` or extinction line is written
+    (`topas.py:4689-4707`).
+  - `BackgroundChebyshev` stores coefficients only. The domain is the
+    compiled grid's own `tt.min()`/`tt.max()`
+    (`background/models.py:88`), so a coefficient list read alone cannot be
+    evaluated on the range it was fitted on.
+  - `write_gsas_prm` still refuses a non-zero `zero_shift`
+    (`instrument_profile.py:1043`). WP-1118 closed with that unit open, and
+    no open WP measures it.
+  - `to_structure` builds no `Instrument` (its docstring says so). WP-1455
+    (⬜) owns that reader half, for `TCHZ_Peak_Type`; the same issue is noted
+    there.
+
+  **PR #815 (fork, open, head f1ef0462) implements step 1** and claims WP-1911.
+  It writes `pattern=` as a `<stem>.xye` from the first to the last fitted
+  point, `lam`, `neutron_data`, `LP_Factor`, a `th2_offset` equation for
+  zero and displacement, `bkg` for a Chebyshev, the P-spline as `fit_obj`
+  basis functions with `penalty` rows, `peak_type pv` with rietx's width laws
+  as `pv_fwhm`/`pv_lor`, `Finger_et_al`, Sabine extinction as `scale_pks`,
+  and interior `exclude` ranges. That covers the issue's items 1-6, 10 and
+  11; #770 already covered item 8. Two items stay out: a March-Dollase
+  preferred orientation (named, not written) and the hkl-table output (item
+  7, not mentioned in the PR). The PR's design differs from the issue in two
+  places, and both agree with what the issue wanted. It writes the P-spline
+  exactly where the issue proposed refusing it or refitting a Chebyshev, on a
+  measurement (refitted, TOPAS reached Rwp 4.30 % against rietx's 4.73 %).
+  And it writes no `TCHZ_Peak_Type`, so no letters need swapping. It refuses
+  `shape="voigt"`, a Stephens block, absorption, capillary offsets,
+  transparency, a λ/n harmonic and extra components by name. Its fixtures are
+  TOPAS 6 zero-cycle `Y_calc` for synthetic NaCl inputs (2.2e-3 to 2.6e-3 of
+  the peak). Its Ba₂FeSbSe₅ end-to-end run is cited (Maier et al. 2021,
+  *Phys. Rev. B* 103, 054115) and no file of it is committed. It lands
+  `api.md` at exactly `API_INDEX_MAX_BYTES` (39 700) by shortening a
+  docstring, so #808's split decision is in its path.
+
+  What this leaves here: steps 2 and 4 as tasks, with no PR yet. Step 2 is
+  smaller after #815, whose `.xye` puts the series on its own range. It
+  still matters for a coefficient list written or read without its pattern.
+  Step 4 waits for a GSAS-I run, with the precedent of #755's FullProf `Zero`
+  (measured as a black box, and its output still uncommitted).
+
 - **2026-10-05, from the issue triage (issues #706, #707, #714, #709): four
   more TOPAS-writer defects, each in an open PR from the reporter's fork.**
   None has a fix on `main`. All four are in this WP's family: the writer's
@@ -238,6 +311,17 @@ a `tests/data/README.md` row.
 
   Whether `p1_expand=` earns the `API_INDEX_MAX_BYTES` raise the PR makes
   is the PR review's question, not this WP's.
+
+- **2026-10-10, from WP-1543: a real file now reaches the GSAS-I `ZERO`
+  refusal, and GSAS-II's importer reads that field as centidegrees.**
+  `read_gsas_prm(..., profile_set=3)` reads GSAS-II's tutorial
+  `tests/data/gsas2_bt1_cu311.inst` as far as `ICONS`, whose `ZERO` is
+  0.04, and refuses there. GSAS-II's `GSASIIfiles.SetPowderInstParms`
+  divides that field by 100. That is a second reader's convention rather
+  than the format's own reference output, so it corroborates and does not
+  settle the unit. Settling it makes this file the first real `.prm` to read
+  past `ZERO`. WP-1327's LaMnO₃ acceptance still seeds its widths by hand
+  for this reason.
 
 ## Non-goals
 
@@ -354,6 +438,56 @@ land alone before the transform exists.
   keywords (specification only, per ATTRIBUTION.md).
 
 ## Handover log
+
+- **2026-10-08 (2nd session)** — the whole TOPAS input now writes an X-ray
+  extinction. PR #839 (head `fb34a211`) merged as `3b9aad52`.
+  *Done.* The refusal #815 shipped is gone, because a TOPAS 6 run measured the unit
+  it was waiting for. On `case_nacl_xray` at extinction 20, TOPAS's
+  `A01^2 + B01^2 + A11^2 + B11^2` is rietx's |F|² in electrons² (1.0008 per
+  reflection on average), so the X-ray `scale_pks` term carries factor 1. The
+  neutron term keeps its 100. `tests/data/topas_export_nacl_xray_ext20_ycalc.txt`
+  is the new oracle (README row checked: size, sha256, CRLF). Re-measured here on
+  the merged tree, `predict()` misses it by 2.6e-3 of rietx's peak, against 0.243
+  at extinction 0 and 3.75 with the neutron factor. The PR also moves every TOPAS
+  citation to the printed v6 Technical Reference by section and page (§ 9 for the
+  magnetic keywords, which earlier text called § 13). Nothing now cites a macro body,
+  and `ATTRIBUTION.md` names the web page only for what v6 lacks.
+  *Gotchas.* The term uses the first emission line's λ for every line, while
+  rietx's forward model passes each line its own. Kα₂'s x is 0.5 % larger, inside
+  the 2.6e-3 match, and the docstring says so. Part B's "state what the other
+  program reads" may want it recorded rather than only documented. The
+  `_extinction_items` docstring's "misses by 0.79" is the same factor-100 miss over
+  TOPAS's peak, where the test's 3.7 is over rietx's. Both were raised as
+  follow-ups on the PR.
+  *Gate:* stacked with #841 on `main` `63af9e1b` as `5c82b0c2`, macOS arm64,
+  `[dev,jax]`: fast 8944 passed, 109 skipped, 1 xfailed, 1 failed (the
+  `test_indexing_reduce` reduction-map row, failing on `main` alone); `-m slow`
+  290 passed, 14 skipped.
+
+- **2026-10-08** — `write_topas_inp` can now write a whole input TOPAS runs as it
+  stands, from #732's `### Inherited` item. PR #815 (head `49225d22`) merged as
+  `4f64a0e6` after two rounds.
+  *Done.* `instrument=` and `pattern=` write the data beside the file as
+  `<stem>.xye`, the wavelength, `neutron_data`, `LP_Factor`, zero and
+  displacement, the background (a P-spline as `fit_obj` pieces), the TCHZ widths
+  as `pv_fwhm`/`pv_lor`, FCJ as `Finger_et_al` and Sabine extinction as
+  `scale_pks`. Three TOPAS 6 Y_calc files back it. Round 1 asked for five things,
+  all done: journals on the physics, an X-ray extinction refused by name (its unit
+  is unmeasured; the ×100 is the neutron conversion measured on
+  `case_nacl_neutron`), the `TOPAS_FIELD_NOT_WRITTEN` row split into its two
+  cases, `Dispersion()` declared on `case_nacl_xray` (on 2.4e-3 against off
+  4.4e-2), and a refused `xdd` name holding a quote or line break.
+  *Gate:* stacked with the run's other merges (#829, #825, #809, #754, #749, #815)
+  on `main` `a3f9140a` as `166d362e`, macOS 26.6.2 arm64, `[dev,jax]`. The full
+  suite, fast and slow together, gave 9231 passed, 116 skipped, 1 xfailed and 2
+  failed. Both failures also fail on `main` alone on that machine: `toy_anomalous`
+  (#760, which open PR #828 fixes) and a hypothesis counterexample in
+  `test_indexing_reduce.py`. `main` after the merges is content-identical to that
+  tree.
+  *Gotchas.* `api.md` sat at its cap on `main`, so the PR cut `write_topas_inp`'s
+  summary line to "Write.". The next PR adding a verb meets the same cap. #732's
+  reader half is WP-1455's.
+  *Next:* #721's decision, as before.
 
 - **2026-10-07 (2nd session)** — Two more of this WP's PRs merged from the
   reporter's fork. They were gated together on a four-PR stack replayed onto

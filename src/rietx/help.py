@@ -881,6 +881,20 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         typical="under 0.5 rad from a sensible start",
         anchor="parameterisation.html#rigid-bodies",
     ),
+    "phases.*.rigid_bodies.*.torsions.*.twist": HelpEntry(
+        title="Rigid-body torsion increment",
+        description=(
+            "The turn, in degrees, of a body's declared moving atoms about the "
+            "line through its two axis atoms, from the torsion's stored angle. "
+            "A dihedral a–axis[0]–axis[1]–d whose d end is a moved atom changes by "
+            "the same amount, and one whose a end is moved by minus it. "
+            "Zero at the start of every fit, and added into the torsion's "
+            "stored angle (wrapped into (−180, 180]) at every stage's commit."
+        ),
+        unit=None, default=None,
+        typical="a few degrees to a few tens of degrees from a sensible start",
+        anchor="parameterisation.html#rigid-bodies",
+    ),
     "phases.*.atoms.*.occ": HelpEntry(
         title="Site occupancy",
         description=(
@@ -1387,8 +1401,8 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
     "max_iter": HelpEntry(
         title="Iteration budget",
         description=(
-            "Approximate solver iterations for this stage. The trust-region "
-            "solver caps function evaluations rather than iterations, so the "
+            "Approximate solver iterations for this stage. Both solvers "
+            "cap function evaluations rather than iterations, so the "
             "number is scaled by a measured worst-case rejection rate before "
             "it reaches the solver."
         ),

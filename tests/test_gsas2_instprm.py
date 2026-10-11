@@ -16,10 +16,12 @@ corroborated instead by ``gsas2_pbso4.gpx``, whose two histograms carry
 
 from __future__ import annotations
 
+import csv
 import math
 import re
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 import rietx as rx
@@ -33,6 +35,7 @@ from rietx.io.projects.gsas2 import (
     INSTPRM_CW_SINGLE,
     read_instprm,
 )
+from rietx.model.profiles.pseudovoigt import pseudo_voigt, tch_gamma_eta
 
 DATA = Path(__file__).parent / "data"
 BNL = DATA / "gsas2_bnl.instprm"
@@ -530,6 +533,83 @@ def test_the_reader_takes_gsas2s_variance_to_rietxs_fwhm_squared(tmp_path):
     inst = read_gsas2_instprm(path)
     fwhm = math.sqrt(inst.profile.u.value)       # tan(45°) = 1, V = W = 0
     assert fwhm == pytest.approx(math.sqrt(EIGHT_LN2 * 100.0) / 100.0, rel=1e-12)
+
+
+def _half_max_width(x: np.ndarray, y: np.ndarray, x0: float) -> float:
+    """The FWHM of the peak nearest ``x0`` as drawn on the grid ``x``: a
+    parabola through the top three points for the height, linear
+    interpolation for each half-maximum crossing."""
+    i0 = int(np.searchsorted(x, x0))
+    lo, hi = max(i0 - 40, 0), min(i0 + 40, len(x) - 1)
+    k = lo + int(np.argmax(y[lo:hi]))
+    a, b, c = np.polyfit(x[k - 1:k + 2], y[k - 1:k + 2], 2)
+    half = (c - b * b / (4.0 * a)) / 2.0
+    j = k
+    while y[j] > half:
+        j -= 1
+    left = x[j] + (half - y[j]) * (x[j + 1] - x[j]) / (y[j + 1] - y[j])
+    j = k
+    while y[j] > half:
+        j += 1
+    right = x[j - 1] + (half - y[j - 1]) * (x[j] - x[j - 1]) / (y[j] - y[j - 1])
+    return right - left
+
+
+def test_gsas2s_own_lab6_peaks_have_the_width_the_read_instprm_draws(tmp_path):
+    """GSAS-II's computed pattern is the oracle, not its formula.
+
+    The PowderLine LaB6 output (``tests/data/powderline/example_LaB6``) is a
+    GSAS-II refinement: its ``refined_parameters.csv`` states the refined
+    ``U V W`` and its ``fit_profile.txt`` the pattern GSAS-II drew from them.
+    Those ``U V W`` written as an ``.instprm`` and read here give rietx's
+    Gaussian FWHM.  Combined with GSAS-II's own Lorentzian (the peak list's
+    ``gamma``) into rietx's pseudo-Voigt and drawn on GSAS-II's grid, each
+    isolated line's FWHM lands within 0.21 % of GSAS-II's drawn
+    ``y_calc − y_bkg`` (24 reflections, 2.3-14.9° 2θ at 0.1665 Å).  Read as
+    a FWHM² (÷ 1e4 alone, the reading before #705) the same lines are drawn
+    0.42-0.53 times as wide, and 1/√(8 ln 2) = 0.425 exactly where GSAS-II
+    floors the Lorentzian.  The same half-maximum finder measures both
+    curves, so the grid's interpolation error cancels.
+    """
+    lab6 = DATA / "powderline" / "example_LaB6"
+    refined = {r["descriptive_name"]: float(r["value"]) for r in csv.DictReader(
+        (lab6 / "output/refined_parameters.csv").read_text(
+            encoding="utf-8").splitlines())}
+    U, V, W = (refined[f"instrument_broadening_{k}"] for k in "UVW")
+    path = tmp_path / "lab6.instprm"
+    path.write_text(
+        "#GSAS-II instrument parameter file; do not add/delete items!\n"
+        f"Type:PXC\nLam:0.1665\nZero:0.0\nPolariz.:0.99\nAzimuth:0.0\n"
+        f"U:{U!r}\nV:{V!r}\nW:{W!r}\nX:0.0\nY:0.0\nZ:0.0\nSH/L:0.0005\n",
+        encoding="utf-8")
+    pr = read_gsas2_instprm(path).profile
+
+    profile = np.loadtxt(lab6 / "output/fit_profile.txt", skiprows=1)
+    two_theta, net = profile[:, 0], profile[:, 3] - profile[:, 5]
+    peaks = list(csv.DictReader((lab6 / "output/LaB6_peak_list_report.csv")
+                                .read_text(encoding="utf-8").splitlines()))
+    positions = np.array([float(r["2theta"]) for r in peaks])
+
+    checked = 0
+    for i, row in enumerate(peaks):
+        t2 = positions[i]
+        drawn = _half_max_width(two_theta, net, t2)
+        if np.min(np.abs(np.delete(positions, i) - t2)) < 4.0 * drawn:
+            continue                                 # an overlapped line
+        t = math.tan(math.radians(t2 / 2.0))
+        gamma_l = float(row["gamma"]) / 100.0        # GSAS-II's, centideg
+        gamma_g = math.sqrt(pr.u.value * t * t + pr.v.value * t + pr.w.value)
+        gamma, eta = tch_gamma_eta(np.array([gamma_g]), np.array([gamma_l]))
+        ours = _half_max_width(
+            two_theta, pseudo_voigt(two_theta - t2, gamma[0], eta[0]), t2)
+        assert ours == pytest.approx(drawn, rel=5e-3), t2
+
+        fwhm_squared_reading = math.sqrt((U * t * t + V * t + W) / 1e4)
+        old, _ = tch_gamma_eta(np.array([fwhm_squared_reading]),
+                               np.array([gamma_l]))
+        assert old[0] / drawn < 0.55, t2
+        checked += 1
+    assert checked >= 20
 
 
 def test_the_lorentzian_terms_keep_their_centidegree_factor(tmp_path):

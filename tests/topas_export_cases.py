@@ -16,7 +16,7 @@ import numpy as np
 
 import rietx as rx
 from rietx.schemas.common import Parameter as P
-from rietx.schemas.instrument import BackgroundChebyshev
+from rietx.schemas.instrument import BackgroundChebyshev, BackgroundPSpline, Dispersion
 from rietx.schemas.structure import Atom, Cell, Phase
 
 
@@ -64,4 +64,59 @@ def case_nacl_neutron():
     return ref, _pattern(ref, np.arange(10.0, 150.0, 0.05))
 
 
-CASES = {"nacl_neutron": case_nacl_neutron}
+def case_nacl_xray():
+    """NaCl, a Cu Kα₁/Kα₂ laboratory pattern (K = 0.5) and a specimen
+    displacement: ``LP_Factor``, the X-ray scale constant K and the
+    displacement's sign and unit."""
+    inst = _tchz(rx.Instrument.bragg_brentano(radiation="CuKa"),
+                 u=0.004, v=-0.002, w=0.003, x=0.01, y=0.005)
+    geom = inst.geometry.model_copy(update={
+        "sample_displacement": inst.geometry.sample_displacement.model_copy(
+            update={"value": 0.05})})
+    # declared, not inherited: TOPAS 6's Y_calc carries the anomalous term, and
+    # rietx matches it with dispersion on (2.4e-3), not off (4.4e-2)
+    source = inst.source.model_copy(update={"dispersion": Dispersion()})
+    inst = inst.model_copy(update={
+        "source": source,
+        "geometry": geom,
+        "background": BackgroundChebyshev(coefficients=[
+            P(value=v) for v in (50.0, -10.0, 4.0)])})
+    structure = rx.Structure(phases=[nacl(scale=1.0e-4)])
+    ref = rx.Refinement(structure, inst, history=False)
+    return ref, _pattern(ref, np.arange(20.0, 120.0, 0.01))
+
+
+def case_nacl_pspline():
+    """NaCl, constant-wavelength neutrons, a smoothed P-spline background and FCJ
+    axial divergence, the background and B free: rietx's own background model
+    and asymmetry, as TOPAS ``fit_obj`` pieces, ``penalty`` terms and
+    ``Finger_et_al``."""
+    inst = _tchz(rx.Instrument.constant_wavelength_neutron(2.4),
+                 u=0.3, v=-0.2, w=0.1, x=0.05, y=0.02)
+    tt = np.arange(10.0, 130.0, 0.1)
+    geom = inst.geometry.model_copy(update={
+        "axial_sl": inst.geometry.axial_sl.model_copy(update={"value": 0.01}),
+        "axial_hl": inst.geometry.axial_hl.model_copy(update={"value": 0.02})})
+    inst = inst.model_copy(update={
+        "geometry": geom,
+        "background": BackgroundPSpline(
+            breakpoints=list(np.linspace(tt[0], tt[-1], 12)),
+            coefficients=[P(value=200.0 + 30.0 * np.cos(k / 3.0)) for k in range(14)],
+            lambda_smooth=1.0)})
+    ref = rx.Refinement(rx.Structure(phases=[nacl(scale=2.0e-3)]), inst, history=False)
+    ref.set_vary(["instrument.background.*", "phases.0.atoms.*.biso", "phases.0.scale",
+                  "instrument.geometry.axial_hl"], True)
+    return ref, _pattern(ref, tt)
+
+
+CASES = {"nacl_neutron": case_nacl_neutron, "nacl_xray": case_nacl_xray,
+         "nacl_pspline": case_nacl_pspline}
+
+
+def write_case(name, path):
+    """The case's ``.inp`` as the tests and the oracle kit both write it."""
+    ref, pattern = CASES[name]()
+    rx.write_topas_inp(ref.fitted_structure, path, free=ref,
+                       instrument=ref.fitted_instrument, pattern=pattern,
+                       scale="topas")
+    return ref, pattern

@@ -2,7 +2,7 @@
 
 `examples/` is the **one authority** for a worked walkthrough: the manual
 `{literalinclude}`s these scripts rather than retyping them, so what a reader
-of `using/quickstart.md` sees is this file, and this test is what makes it a
+of `using/first-refinement.md` sees is this file, and this test is what makes it a
 script that runs.  Before WP-1067 nothing in `tests/` executed either script —
 ruff linted them and that was all, while README carried a second, unguarded
 copy of the same walkthrough.
@@ -88,7 +88,7 @@ def srm660c_run():
 
 @pytest.mark.xdist_group("example-nac")
 def test_nac_11bm_example_runs(nac_run):
-    """The quickstart walkthrough: read, Le Bail, add the impurity the report
+    """The first-refinement walkthrough: read, Le Bail, add the impurity the report
     flagged, Rietveld, report, history."""
     out, _ = nac_run
     for marker in ("Le Bail:", "Rietveld:", "FitReport:", "best node by Rwp:"):

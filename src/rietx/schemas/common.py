@@ -383,7 +383,17 @@ from .._nearmiss import did_you_mean
 #: (template, origin, orientation quaternion) over the phase's own atoms.
 #: Additive and defaulted to empty, which builds exactly the table every
 #: earlier document built; an older build refuses a document carrying a body.
-SCHEMA_VERSION = "0.43"
+#: 0.43 → 0.44 (WP-1930): ``StageResult.seeded``, each row a stage lifted
+#: before solving and the value it started at, and ``.floor_unseeded``, the
+#: freed rows left on their softplus floor for want of a seed size.  Additive,
+#: and defaulted to ``None``, the 0.25 → 0.26 rule: a stored result from
+#: before this may have freed a row on its floor (issue #832's did), so an
+#: empty default would say "looked, nothing seeded" of a fit nobody looked at.
+#: All three runners write both on every stage.
+#: 0.44 → 0.45 (WP-1808): ``RigidBody.torsions``, named-bond torsions inside
+#: a body (axis, declared moved set, the angle record).  Additive and defaulted to
+#: empty, a body without one building exactly the 0.44 table.
+SCHEMA_VERSION = "0.45"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

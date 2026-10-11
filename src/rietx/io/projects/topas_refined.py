@@ -37,12 +37,13 @@ in barn, rietx's in fm², so a TOPAS intensity at the same scale is 0.01 × riet
 (measured against TOPAS 6 output as a black box, no TOPAS code read:
 ``I_no_scale_pks`` = 0.01 × rietx M·|F|² for fifteen species and isotopes, to
 2e-16, and ``tests/data/topas_export_nacl_neutron_ycalc.txt`` holds the constant
-in a test). For X-rays ``LP_Factor(c)`` is, **by the Technical Reference's
-definition and not yet held by an output in this tree**, rietx's
-Lp = (K + (1 − K) cos² 2θ)/(sin² θ cos θ) divided by K, with cos² c = (1 − K)/K.
+in a test). For X-rays ``LP_Factor(c)`` is, **measured** against TOPAS 6's
+zero-cycle Y_calc (the Technical Reference, § 12.2.8, p. 157, gives
+``LP_Factor``'s signature and no formula), rietx's
+Lp = (K + (1 − K) cos² 2θ)/(sin² θ cos θ) divided by K, with cos² c = (1 − K)/K:
+``tests/data/topas_export_nacl_xray_ycalc.txt`` holds it at K = 0.5.
 So TOPAS's scale is rietx's × 100 for neutrons and × K for X-rays
-(:func:`topas_scale_factor`); the X-ray constant needs an oracle file like the
-neutron one before it can be called measured.
+(:func:`topas_scale_factor`).
 """
 
 from __future__ import annotations
@@ -61,8 +62,9 @@ def topas_scale_factor(instrument) -> float:
     """TOPAS's ``scale`` over rietx's ``Phase.scale`` for ``instrument``'s source.
 
     Neutron (constant wavelength): 100. X-ray: the polarisation constant K,
-    because TOPAS's ``LP_Factor`` is rietx's Lp divided by K (the Technical
-    Reference's definition; no output in this tree holds it). Refused for a
+    because TOPAS's ``LP_Factor`` is rietx's Lp divided by K (measured at
+    K = 0.5 against TOPAS 6's Y_calc,
+    ``tests/data/topas_export_nacl_xray_ycalc.txt``). Refused for a
     source this convention has not been measured for (time of flight).
     """
     source = instrument.source
@@ -230,6 +232,9 @@ class RefinedSet:
         self._names: dict[str, str] = {}
         self._taken: set[str] = set()
         self._seen: dict[str, float] = {}
+        #: paths always written under their name, held (``prm !name``) or free:
+        #: the phase terms a reader can find only by name (``topas_ties``)
+        self.named: set[str] = set()
         #: TOPAS value / rietx value of each named source, set by :func:`render_slots`
         self.source_factor: dict[str, float] = {}
         #: ``{TOPAS name: (source path, a, b)}``: the named TOPAS value is
@@ -250,6 +255,9 @@ class RefinedSet:
 
     def affine(self, path: str, value: float, _depth: int = 0) -> Affine:
         """The written quantity at ``path`` (now ``value``) over the free sources."""
+        if path in self.named and not self.is_free(path):
+            self._seen[path] = float(value)
+            return Affine({path: 1.0}, 0.0)
         if self.rows is None:
             if self.free_paths is not None and path in self.free_paths:
                 self._seen[path] = float(value)
@@ -513,8 +521,10 @@ def render_slots(items: Iterable[Any], refined: RefinedSet) -> list[str]:
         if path in carried:
             continue
         value = refined.source_value(path)
+        held = not refined.is_free(path)
         refined.carriers[refined.name(path)] = (path, source_factor[path], 0.0)
         declarations.append(
-            f"prm {refined.name(path)} {number(value * source_factor[path])}"
-            f"{bounds(path, source_factor[path])}")
+            f"prm {'!' if held else ''}{refined.name(path)} "
+            f"{number(value * source_factor[path])}"
+            f"{'' if held else bounds(path, source_factor[path])}")
     return declarations

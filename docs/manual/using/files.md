@@ -363,10 +363,11 @@ refuses a phase that states moments under a symbol until you pass
 `mlx mly mlz` are components in the fractional basis,
 m = mlx·a + mly·b + mlz·c with the edges in Å. The stored
 crystal-axis moment is therefore (mlx·|a|, mly·|b|, mlz·|c|). This is a
-per-axis scale, never a rotation. It is the TOPAS Technical Reference's own
-reading, § 13: Fmagc = L·Fmag, and its `MM_CrystalAxis_Display` macro gives
-mxc = mlx·a. A file's `MM_CrystalAxis_Display` line is the number to compare
-with. On the Durham LaMnO₃ tutorial it agrees to the printed digits. It is
+per-axis scale, never a rotation. It is the TOPAS 6 Technical Reference's own
+reading, § 9, p. 65: Fmagc = L·Fmag, with m = {mlx, mly, mlz} and L the
+Cartesian lattice matrix. The values TOPAS reports on a file's
+`MM_CrystalAxis_Display` line are the numbers to compare with. On the Durham
+LaMnO₃ tutorial they agree to the printed digits. It is
 also measured against TOPAS's own calculated intensities. On a monoclinic
 cell with β = 115° and a moment on all three axes, TOPAS 6's magnetic
 intensity ratios between reflections of equal d match this reading on every
@@ -376,7 +377,7 @@ one by about 80 %. With the moment along b alone, where the three readings
 coincide, all three match, which shows the comparison can tell them apart.
 
 `mg` is the site's Landé g, which enters only the ⟨j₂⟩ weight of the
-magnetic form factor. TOPAS can refine it (Technical Reference § 13), but
+magnetic form factor. TOPAS can refine it (Technical Reference § 9, p. 66), but
 `Moment.g` is a fixed number. So an `mg` the file refines (`mg @ 1.9`, or a
 named parameter) is read as held at the file's value, and
 `TOPAS_MOMENT_G_HELD` names each such site.
@@ -542,7 +543,12 @@ refusal says which reason applies to which. A time-of-flight file puts something
 onto the axis that `ProfileTCHZ`'s constant-wavelength Caglioti/TCH law cannot
 express. A profile function other than 3 is refused under `PXCR` and `PNCR`
 alike, naming the type the file carries, because each function has its own
-coefficient layout and no verified one exists here for the others. A GSAS `.LST` refinement output has no reader and is transcribed
+coefficient layout and no verified one exists here for the others. A bank may
+offer several profile functions side by side as profile sets `PRCF1`,
+`PRCF2`…, and `profile_set=` names the one to read. Without it the reader reads
+set 1, as GSAS-II's importer does, and reports `GSAS_PRM_PROFILE_SET_DEFAULTED`
+when the file offers more than one. A refused set 1 names any type-3 set the
+file also states. A GSAS `.LST` refinement output has no reader and is transcribed
 by hand. A GSAS `.EXP`, a TOPAS `.inp` and a FullProf `.pcr` are whole
 refinements rather than instrument files, and have their own readers in the
 next section.
@@ -830,6 +836,57 @@ the magCIF. All four writers refuse a phase carrying a propagation vector
 its k. No CIF this package writes carries a nuclear phase's k either, so
 the `Structure`'s own JSON (`Structure.model_dump_json`) is the export for one.
 
+#### A whole TOPAS input: the instrument and the data
+
+With `pattern=` as well, `write_topas_inp` writes a file TOPAS runs as it
+stands: the data beside it as `<stem>.xye` (2θ, intensity and the σ rietx fits
+with, from the first to the last fitted point), and the `xdd` block that
+describes them. Every term is the one rietx fits, written from TOPAS's
+documented keywords and checked against TOPAS 6 at zero cycles
+(`tests/test_topas_whole_input.py`):
+
+| rietx | written as |
+|---|---|
+| σ | `weighting = 1 / SigmaYobs^2;` |
+| emission lines | `lam` with one `la lo lh` per line |
+| neutron source / polarisation K | `neutron_data`, `LP_Factor(90)`; X-ray `LP_Factor(c)` with cos² c = (1 − K)/K |
+| `zero_shift` | `th2_offset` |
+| `sample_displacement` | `th2_offset = -2*Rad*(sd)*Cos(Th)/Rs;` |
+| Chebyshev background | `bkg`, the same series on the same range |
+| P-spline background | one `fit_obj` per B-spline basis function, and its smoothing penalty as `penalty` terms with `pen_weight = 1;` |
+| TCHZ profile, sample broadening | `peak_type pv` with rietx's width laws as `pv_fwhm`/`pv_lor` equations |
+| FCJ axial divergence (S/L, H/L) | `Finger_et_al(2·S/L·Rs, 2·H/L·Rs)` |
+| Sabine extinction | a `scale_pks` equation over TOPAS's own \|F\|²: ×100 for neutrons (barn to fm²), ×1 for X-rays (electrons² in both programs), each measured against TOPAS |
+| excluded regions inside the range | `exclude` |
+
+Three of these are not what a TOPAS user would write by hand, for measured
+reasons. A Chebyshev series refitted to the P-spline is a different,
+unpenalised background, and a TOPAS refinement from it lands on another
+minimum, with the background taking up structure: on the published 300 K
+Ba₂FeSbSe₅ neutron pattern (Maier *et al.*, *Phys. Rev. B* 103, 054115
+(2021)) it reached Rwp 4.30 % against rietx's 4.73 %, the scale 7 % low and
+every B at zero. TOPAS weighs a penalty by an adaptive factor unless
+`pen_weight` fixes it (Technical Reference eq. 4-7), and with it fixed TOPAS's
+penalty sum at zero cycles equals rietx's to seven figures. The profile is
+written as equations rather than `TCHZ_Peak_Type`, so the cubic η term is
+TCH's 0.11116, the value rietx uses. And `convolution_step` is set to give 16
+calculation points across the narrowest FWHM: on a 0.1° neutron grid with FCJ
+asymmetry the default left TOPAS 6 % of the peak away from rietx.
+
+At zero cycles TOPAS and rietx then agree to a few 10⁻³ of the largest peak,
+and a refinement in TOPAS from the written file lands on rietx's answer: on
+the same paper's 300 K and 1.5 K patterns, Rwp within 0.006 % and every
+refined parameter within 0.42 combined esd. What remains is TOPAS's: it integrates
+whole Lorentzian tails where rietx's windows hold 98 % of the area, and it
+averages Y_calc over the data step. A term with no TOPAS statement here is
+refused by name rather than dropped: an absorption correction, a capillary
+offset, transparency, a λ/n harmonic, a Stephens block, an extra component.
+
+`write_topas_inp` also writes a moment-bearing site's species as its ion on a
+neutron pattern (`occ Fe+3` for species `Fe` with moment ion `Fe3+`), because
+TOPAS takes the magnetic form factor from the `occ` species and a neutron's
+nuclear scattering length is the element's whatever the charge.
+
 A `.EXP` is the one target read by column rather than by token, and two
 things follow from that. A number is worth as many characters as its field
 has, so a value whose shortest exact decimal fits ten columns crosses
@@ -856,14 +913,16 @@ strain widths and its Stephens anisotropic-strain block, as
 `lor_fwhm`/`gauss_fwhm` equations over `H`, `K`, `L`, `D_spacing` and `Th`
 (TOPAS convolves them into whatever peak type the input carries; TOPAS's
 Y_calc agrees with rietx to 2e-3 of the peak, where the isotropic block misses
-by 3e-2).
+by 3e-2). A whole input states them once, folded into its profile's
+`pv_fwhm`/`pv_lor`, and writes no `lor_fwhm`/`gauss_fwhm` line beside them.
 
 Some things do not travel, because no `to_structure` builds them from its
 file. Common to all three: the emission profile and instrument geometry
 (`Instrument` is not part of what any of these readers returns), and cell and
 site bound windows. A TOPAS `str` leaves out a phase's magnetic-only widths,
 extinction and preferred orientation, and `write_topas_inp(..., diagnostics=[])`
-names each, `TOPAS_FIELD_NOT_WRITTEN`. FullProf-specific: the fitted 2θ range, the background and
+names each, `TOPAS_FIELD_NOT_WRITTEN`; a whole input writes the extinction and
+refuses a magnetic-only width, so it names the preferred orientation alone. FullProf-specific: the fitted 2θ range, the background and
 every control/output switch on a `.pcr` are protocol `to_structure` never
 reads into a `Structure`. `write_fullprof_pcr` fills them with safe, inert
 placeholders purely to keep the file complete, since a `.pcr` is positional
@@ -902,8 +961,9 @@ rx.write_gsas2_phase_cif(structure, "exported.cif")
 back = rx.Structure.from_cif("exported.cif")
 ```
 
-Its atom tags are the ones GSAS-II's own importer reads, so the file is the
-package's ordinary structure block with the symmetry stated three times. That
+Its atom tags are the ones GSAS-II's own importer reads, so the file keeps B
+(`_atom_site_B_iso_or_equiv`) where every other CIF here writes U, and states
+the symmetry three times. That
 is not belt and braces. GSAS-II resolves a bare two-origin symbol such as
 `F d -3 m` to origin choice 2, and calls choice 1 a setting not compatible with
 it; gemmi, and so this package, resolves the same string to choice 1. No single
@@ -1577,7 +1637,7 @@ that is in neither the file nor the model: a node cannot say what was excluded
 when it ran. `Project.fitted_mask` is the one authority for which channels the
 next run fits. An inverted or empty interval is refused rather than reordered.
 
-The two settings compose. On the 11-BM pattern of [](quickstart.md), limits of
+The two settings compose. On the 11-BM pattern of [](first-refinement.md), limits of
 2–24° leave 22 003 of 59 498 channels in the residual, and excluding 7.4–7.6°
 as well leaves 21 803.
 
@@ -1723,6 +1783,27 @@ own library generated would name a different atom. The loops list each bond
 once, unlike `GeometryTable`, whose audience is a chemist counting neighbours
 rather than a parser. Take `structure` from `Refinement.fitted_structure`, which
 is where the refined values and their esds are.
+
+Every CIF this package writes, `Structure.to_cif` included, opens each phase
+with the same structure block. It names the setting in three ways. The
+resolved Hermann-Mauguin symbol goes under `_space_group_name_H-M_alt`, beside
+the Hall symbol, the IT number and the crystal system. The full
+`_space_group_symop_` loop follows, which is the loop the geometry codes index.
+An H-M symbol cannot fix the origin, and the Hall symbol or the operations can,
+so a bare `F d -3 m` never reaches the file. The deprecated
+`_symmetry_space_group_name_H-M` is not written. Displacements are U
+(`_atom_site_U_iso_or_equiv`), with each site's multiplicity beside it. The
+block also states the formula, Z, Mr, the calculated density and the cell
+volume, an `_atom_type` loop, and the dictionaries it conforms to
+(`cif_core.dic` 3.3.0, plus `cif_pd.dic` 2.5.0 in a refinement CIF). A value
+with an esd is written in su notation. A value without one is written as the
+shortest text that reads back as the same number, so a β of 90.00004 survives a
+round trip. Two phases whose names collapse to one block name (`ph 1` and
+`ph-1`) get distinct blocks. A label with a space and a non-finite number are
+refused by name before the file is written. Run through IUCr checkCIF, a
+structure-only file reports the same volume, symmetry, formula, Mr, density and
+Z that checkCIF computes. Its remaining alerts ask for single-crystal and
+instrument items a powder structure does not have.
 
 `viz.html.write_html` writes the interactive page, and `RefinementResult.plot`
 writes the static figure. Both work on a base install.

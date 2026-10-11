@@ -30,7 +30,7 @@ import pytest
 from pydantic import ValidationError
 
 import rietx as rx
-from rietx.crystallography.magnetic.irreps import star
+from rietx.crystallography.representation.irreps import star
 from rietx.crystallography.satellites import (
     KCandidate,
     check_candidate_denominators,
@@ -692,7 +692,7 @@ def test_the_count_falls_with_the_point_group_and_not_with_centring():
     meant to be read.  Recorded as a test because it is a correction to the
     WP's own text.
     """
-    from rietx.crystallography.magnetic.irreps import equivalent_kvectors
+    from rietx.crystallography.representation.irreps import equivalent_kvectors
 
     raw = [(Fraction(h, 2), Fraction(k, 2), Fraction(ll, 2))
            for h in (0, 1) for k in (0, 1) for ll in (0, 1)

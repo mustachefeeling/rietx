@@ -56,7 +56,7 @@ from .model.forward import (
     Mode,
     compile_model,
 )
-from .model.geometry import geometry_table
+from .model.geometry import cell_volumes, geometry_table
 from .model.microstructure import microstructure_table
 from .model.profiles.caglioti import (
     SCHERRER_K,
@@ -363,6 +363,12 @@ class _StageHold:
     #: for ``blocked_by_hold``'s reason: decided before the solve, unchanged
     #: by it, and delivered to the two ``StageResult`` call sites this way
     unknown_paths: list[str] = dataclasses.field(default_factory=list)
+    #: ``StageResult.seeded`` and ``.floor_unseeded`` (WP-1930), riding here
+    #: for the same reason: decided before the solve, and unrecoverable after
+    #: it, when the seeded row has moved and the unseeded one may have left
+    #: its floor.
+    seeded: dict[str, float] = dataclasses.field(default_factory=dict)
+    floor_unseeded: list[str] = dataclasses.field(default_factory=list)
     #: ``(path, escaped_value, clamped_value)`` for every free cell parameter
     #: ``clamp_cell_runaway`` pulled back this stage — empty on every stage
     #: that never leaves the safety window, which is every stage measured so
@@ -1913,6 +1919,9 @@ class Refinement:
         self._last_plan: RefinementPlan | None = None
         self._sigma_from_file: bool | None = None
         self._excluded_regions: list[tuple[float, float]] = []
+        #: the pattern the last fit or stage was given, every measured point
+        #: included, for :meth:`write_cif`'s pattern block (WP-1933)
+        self._fit_pattern: PatternData | None = None
 
     # ------------------------------------------------------------------
     # history plumbing
@@ -2207,6 +2216,41 @@ class Refinement:
         self._head_id = node.id
         return node.id
 
+    def fix_special_positions(self) -> list[str]:
+        """Set ``vary=False`` on every coordinate of a fully fixed special position.
+
+        A ``vary=True`` coordinate on an atom whose site symmetry allows no
+        positional freedom (``F d -3 m`` 8a, ``P n m a`` inversion centres, …) is
+        refused when the parameter table is first built, at the first
+        :meth:`parameters` or :meth:`fit`, and the refusal names only the first
+        such atom.  After a step that frees "every coordinate" of a structure
+        holding special and general sites together, this is the one call that
+        makes it fittable: it clears the flag on exactly those coordinates,
+        records one ``edit_model`` node, and returns their paths, sorted.  Atoms
+        with any free direction are untouched, and a structure with nothing to
+        fix returns ``[]`` and records nothing.  Opt-in: construction and
+        ``fit()`` still refuse, as before.
+        """
+        from .crystallography.symmetry import resolve_group
+        from .crystallography.wyckoff import coordinate_basis, stabilizer_rotations
+
+        structure = self.structure.model_copy(deep=True)
+        cleared: list[str] = []
+        for ip, phase in enumerate(structure.phases):
+            sg = resolve_group(phase.space_group, phase.symmetry_operations)
+            for ia, atom in enumerate(phase.atoms):
+                xyz = [atom.x.value, atom.y.value, atom.z.value]
+                if len(coordinate_basis(stabilizer_rotations(sg, xyz))) > 0:
+                    continue
+                for axis in ("x", "y", "z"):
+                    param = getattr(atom, axis)
+                    if param.vary:
+                        param.vary = False
+                        cleared.append(f"phases.{ip}.atoms.{ia}.{axis}")
+        if cleared:
+            self.edit(structure=structure, label="fix_special_positions")
+        return sorted(cleared)
+
     # ------------------------------------------------------------------
     # the parameter table as data, and the two verbs that edit it
     # ------------------------------------------------------------------
@@ -2438,7 +2482,8 @@ class Refinement:
         """
         for name, prm in self._variables.items():
             table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
-                                lo=prm.min, hi=prm.max, transform=prm.transform)
+                                lo=prm.min, hi=prm.max, transform=prm.transform,
+                                unit=prm.unit)
 
     def _write_back(self, table: ParameterTable) -> None:
         """``apply_to_models``, plus the one thing it structurally cannot do.
@@ -2669,7 +2714,7 @@ class Refinement:
         # happens before the register is touched
         self._working_table().add_parameter(
             path, prm.value, vary=prm.vary, lo=prm.min, hi=prm.max,
-            transform=prm.transform)
+            transform=prm.transform, unit=prm.unit)
         self._variables[name] = prm
         if prm.vary and (self._free_paths or self._free_set_declared):
             # ``_free_paths`` is the *declared* free set, and once a stage has
@@ -2928,8 +2973,10 @@ class Refinement:
                 f"cannot hold {blocked[0]!r}"
                 + (f" and {len(blocked) - 1} more" if len(blocked) > 1 else "")
                 + f": placed by rigid body {names[0]!r}; hold the body's own "
-                "origin and rotation instead (phases.*.rigid_bodies.*.origin.dof.*, "
-                "phases.*.rigid_bodies.*.rotation.*)")
+                "origin, rotation and torsions instead "
+                "(phases.*.rigid_bodies.*.origin.dof.*, "
+                "phases.*.rigid_bodies.*.rotation.*, "
+                "phases.*.rigid_bodies.*.torsions.*.twist)")
         new = [p for p in hits if p not in self._user_holds]
         if not new:
             return []
@@ -2937,6 +2984,84 @@ class Refinement:
         table.set_held(new, True)
         self._commit_hold_edit(table, held=new, unheld=[])
         return new
+
+    def hold_floating_origin(self) -> list[Diagnostic]:
+        """Hold one coordinate along every direction the origin floats in.
+
+        In a polar group (P 6₃ m c, P 4 m m, Pna2₁, Cc, P 1, …) every atom has
+        a free coordinate along the polar axis, and shifting the whole structure
+        along it changes no intensity, so a fit that frees them all has a flat
+        direction it walks and quotes an esd along (``FLAT_DIRECTION``, ρ = −1).
+        :func:`~rietx.crystallography.wyckoff.floating_origin_basis` gives those
+        directions; for each, this holds the first atom's displacement DOF whose
+        direction is that axis, with :meth:`hold`, so a plan that frees
+        ``phases.*.atoms.*.dof.*`` leaves it where it is and the other atoms'
+        coordinates are quoted relative to it.  Opt-in: nothing is held unless
+        this is called, and :meth:`unhold` takes the hold back.  The
+        alternative is a least-squares restraint on the mean coordinate along
+        the axis, which keeps an esd on every atom (Flack & Schwarzenbach, 1988,
+        Acta Cryst. A44, 499); it is not implemented here.
+
+        Returns one ``ORIGIN_FIXED_ON_POLAR_AXIS`` (info) per phase that needed
+        a hold, naming the held parameters in ``where``, and an
+        ``ORIGIN_NOT_FIXED`` (warning) where a direction has no atom whose free
+        DOF runs along it (every atom then sits off that axis, or the basis
+        direction is a combination such as ``[1, 1, 0]``), so the flat
+        direction is still there.  A non-polar group returns ``[]``.
+        """
+        from .crystallography.symmetry import resolve_group
+        from .crystallography.wyckoff import (
+            coordinate_basis,
+            floating_origin_basis,
+            stabilizer_rotations,
+        )
+
+        out: list[Diagnostic] = []
+        for ip, phase in enumerate(self.structure.phases):
+            sg = resolve_group(phase.space_group, phase.symmetry_operations)
+            floating = floating_origin_basis(sg)
+            if len(floating) == 0:
+                continue
+            held: list[str] = []
+            unmatched: list[str] = []
+            for f in floating:
+                f = [int(v) for v in f]
+                path = None
+                for ia, atom in enumerate(phase.atoms):
+                    xyz = [atom.x.value, atom.y.value, atom.z.value]
+                    basis = coordinate_basis(stabilizer_rotations(sg, xyz))
+                    for k, row in enumerate(basis):
+                        row = [int(v) for v in row]
+                        if row == f or row == [-v for v in f]:
+                            path = f"phases.{ip}.atoms.{ia}.dof.{k}"
+                            break
+                    if path:
+                        break
+                if path is None:
+                    unmatched.append(str(f))
+                else:
+                    held.append(path)
+            if held:
+                self.hold(held)
+                out.append(Diagnostic(
+                    level="info", code="ORIGIN_FIXED_ON_POLAR_AXIS",
+                    message=(f"phase {ip} ({phase.space_group}) has a floating "
+                             f"origin: the whole structure can shift along "
+                             f"{[list(map(int, f)) for f in floating]} without "
+                             f"changing any intensity, so {', '.join(held)} "
+                             f"is held; the other coordinates along it are "
+                             f"relative to that atom"),
+                    where=held))
+            if unmatched:
+                out.append(Diagnostic(
+                    level="warning", code="ORIGIN_NOT_FIXED",
+                    message=(f"phase {ip} ({phase.space_group}) floats along "
+                             f"{', '.join(unmatched)} and no atom has a free "
+                             f"coordinate running exactly along it, so nothing "
+                             f"was held there and the fit keeps a flat "
+                             f"direction"),
+                    where=[f"phases.{ip}"]))
+        return out
 
     def unhold(self, path_globs: list[str] | str) -> list[str]:
         """Take back a hold.  Returns the paths released, sorted.
@@ -3534,10 +3659,17 @@ class Refinement:
                 if mode_fixed_column(reach.get(path, [path]), mode):
                     table.set_vary([path], False)
                     freed.remove(path)
+        seeded: dict[str, float] = {}
         if stage.seed:
             # lift softplus coefficients (e.g. extinction) off the zero floor
             # so TRF has a live gradient this stage
-            table.seed_softplus(freed, stage.seed)
+            seeded = dict.fromkeys(table.seed_softplus(freed, stage.seed),
+                                   stage.seed)
+        # and any freed row still on its floor, at its unit's size (WP-1930):
+        # there the row's column is 1e-12 of its neighbours and whether the
+        # solver lifts it is decided by rounding
+        floor_seeded, floor_unseeded = table.seed_floor(freed)
+        seeded.update(floor_seeded)
         if stage.strain_seed:
             # the Stephens DOFs are identity-transform, so the softplus seed
             # above never sees them; put an all-zero block on the isotropic ray
@@ -3926,6 +4058,7 @@ class Refinement:
             reach={c: list(v) for c, v in held_reach.items()},
             scale_b_held=dict(scale_b_held),
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
+            seeded=seeded, floor_unseeded=floor_unseeded,
             cell_runaway=list(cell_runaway),
             cell_runaway_unresolved=[(d, list(e)) for d, e in cell_runaway_unresolved],
             # Le Bail and Pawley read the screen alone, which the result
@@ -4294,6 +4427,7 @@ class Refinement:
             diagnostics.extend(_hold_diagnostics(stage_results))
             diagnostics.extend(_unknown_path_diagnostics(
                 stage_results, [e.path for e in table.entries]))
+            diagnostics.extend(_floor_unseeded_diagnostics(stage_results))
 
             self.result_ = _build_result(
                 model, table, outcome.theta, mode=mode, status=outcome.status,
@@ -4306,6 +4440,9 @@ class Refinement:
                 declared_wavelengths=declared_wavelengths,
                 cell_runaway=answer_runaway,
                 significance=answer_significance)
+            # beside result_, never at entry: a call that is cancelled or fails
+            # leaves the previous result and the pattern it was fitted to
+            self._fit_pattern = data
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
@@ -4485,6 +4622,7 @@ class Refinement:
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths,
+                seeded=hold.seeded, floor_unseeded=hold.floor_unseeded,
                 # checked, trivially: one histogram has no elsewhere
                 unreached_histograms={},
             ))
@@ -4736,13 +4874,15 @@ class Refinement:
                 moment_flat_axes=hold.moment_flat_axes,
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
-                unknown_paths=hold.unknown_paths, unreached_histograms={})
+                unknown_paths=hold.unknown_paths, unreached_histograms={},
+                seeded=hold.seeded, floor_unseeded=hold.floor_unseeded)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
             diagnostics.extend(_hold_diagnostics([stage_result]))
             diagnostics.extend(_unknown_path_diagnostics(
                 [stage_result], [e.path for e in table.entries]))
+            diagnostics.extend(_floor_unseeded_diagnostics([stage_result]))
 
             # before the node is recorded, which is where `_run_plan` writes it
             # too; the two call sites must not disagree about when a stage's
@@ -4780,6 +4920,9 @@ class Refinement:
                 guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
                 declared_wavelengths=declared_wavelengths,
                 significance=hold.significance)
+            # beside result_, never at entry: a call that is cancelled or fails
+            # leaves the previous result and the pattern it was fitted to
+            self._fit_pattern = data
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
@@ -5195,12 +5338,19 @@ class Refinement:
 
     def write_cif(self, path) -> None:
         """Write a refinement CIF: structure with esds, R-factors, wavelength,
-        profile/background description, and the observed/calculated pattern."""
-        from .io.exporters import write_refinement_cif
+        profile/background description, and the observed/calculated pattern.
+
+        The pattern loop carries every point of the pattern the last fit was
+        given, with weight 0 on the ones it did not fit, and the reflection loop
+        each reflection's phase, d and |F|²."""
+        from .io.cif.blocks import write_document
+        from .io.exporters import refinement_cif_doc
 
         if self.result_ is None:
             raise RuntimeError("call fit() first")
-        write_refinement_cif(self.result_, self.structure, self.instrument, path)
+        write_document(refinement_cif_doc(self.result_, self.structure,
+                                          self.instrument, pattern=self._fit_pattern,
+                                          reflections=self.reflection_table()), path)
 
     def write_qpa_table(self, path, **kw) -> None:
         """Write the QPA weight-fraction table (crystalline-only caveat included)."""
@@ -5855,6 +6005,12 @@ def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
 _COORDINATE_PATH = re.compile(r"^(phases\.\d+\.atoms\.\d+)\.[xyz]$")
 
 
+def _stage_list(names: list[str]) -> str:
+    """``stage 'a'`` or ``stages 'a', 'b'``, for a per-path diagnostic."""
+    return (f"stage {names[0]!r}" if len(names) == 1 else
+            f"stages {', '.join(repr(s) for s in names)}")
+
+
 def _fixed_literal_diagnostics(stages, table: ParameterTable,
                                user_ties) -> list[Diagnostic]:
     """``STAGE_PATH_NOT_FREE`` — a literal phase path the model will not free.
@@ -5902,8 +6058,7 @@ def _fixed_literal_diagnostics(stages, table: ParameterTable,
                 names.append(stage.name)
     out = []
     for path, names in asked.items():
-        which = (f"stage {names[0]!r}" if len(names) == 1 else
-                 f"stages {', '.join(repr(s) for s in names)}")
+        which = _stage_list(names)
         entry = by_path[path]
         sources = ([] if entry.tie is None else
                    [src for src, _ in entry.tie.terms])
@@ -5981,8 +6136,7 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
             by_path.setdefault(path, []).append(sr.name)
     out = []
     for path, stages in by_path.items():
-        which = (f"stage {stages[0]!r}" if len(stages) == 1 else
-                 f"stages {', '.join(repr(s) for s in stages)}")
+        which = _stage_list(stages)
         current = retired_spelling(path)
         if current is not None:
             out.append(Diagnostic(
@@ -6007,6 +6161,37 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
                         f"it ({listing} lists every path this model "
                         "has), or write a glob if the stage is meant to reach "
                         "a component some models do not declare"),
+        ))
+    return out
+
+
+def _floor_unseeded_diagnostics(stage_results: list[StageResult]
+                                ) -> list[Diagnostic]:
+    """``SOFTPLUS_FREED_AT_FLOOR`` — a stage freed a row it could not seed.
+
+    The floor seed (``ParameterTable.seed_floor``, WP-1930) lifts a freed
+    softplus row off its floor by its unit, and a unit with no size is left
+    where it is.  There the row's column is twelve orders below its
+    neighbours, so whether the solver moves it is decided by rounding, and two
+    platforms can reach two minima (issue #832).  One diagnostic per path,
+    naming the stages, for :func:`_unknown_path_diagnostics`' reason.
+    """
+    by_path: dict[str, list[str]] = {}
+    for sr in stage_results:
+        for path in sr.floor_unseeded or ():
+            by_path.setdefault(path, []).append(sr.name)
+    out = []
+    for path, stages in by_path.items():
+        which = _stage_list(stages)
+        out.append(Diagnostic(
+            level="warning", code="SOFTPLUS_FREED_AT_FLOOR",
+            message=(f"{which} freed {path} on its softplus floor, where its "
+                     "gradient is 1e-12 of its neighbours', so whether it "
+                     "moved off zero is decided by rounding"),
+            where=[path],
+            suggestion=("start it inside its floor: give the parameter a "
+                        "positive value before the fit, or give the stage a "
+                        "seed (Stage(..., seed=...)) of a size it can reach"),
         ))
     return out
 
@@ -6541,6 +6726,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     geometry = geometry_table(model, table, theta, structure,
                               stderr_internal=stderr_internal,
                               correlation=correlation)
+    volumes = cell_volumes(table, theta, structure,
+                           stderr_internal=stderr_internal, correlation=correlation)
 
     # The widths read as a coherent domain size and a Δd/d (WP-1131), built
     # here for geometry's reason — the esds come off the same final Jacobian —
@@ -6711,6 +6898,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         sigma=model.sigma.tolist(),
         ticks=ticks, tick_hkl=tick_hkl,
         qpa=qpa, restraints=restraints_report, geometry=geometry,
+        cell_volumes=volumes,
         microstructure=microstructure,
         phase_agreement=_phase_agreement(model, values, structure),
         data_support=support,
@@ -9016,7 +9204,8 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
         # unknown parameter".  Declared *before* the ties, exactly as
         # ``_prepare_table`` does it.
         table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
-                            lo=prm.min, hi=prm.max, transform=prm.transform)
+                            lo=prm.min, hi=prm.max, transform=prm.transform,
+                            unit=prm.unit)
     table.set_vary(["*"], False)
     applied_ties: dict = {}
     dropped: list[str] = []

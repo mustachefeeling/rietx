@@ -494,3 +494,55 @@ def test_an_esd_whose_variance_has_no_double_is_absent_not_infinite():
         esd = table.stderr_physical(theta, stderr, corr)
         assert not {"phases.0.cell.a", "phases.0.cell.b"} & set(esd)
         assert np.isfinite(esd["phases.0.scale"])
+
+
+# ----------------------------------------------------------------------
+# a held column (WP-1929): conditioned on, never unmeasured
+# ----------------------------------------------------------------------
+def test_a_held_column_is_a_constant_to_everything_else():
+    """``condition`` gives the others the covariance of the fit without it.
+
+    Self & Liang (1987, JASA 82, 605, eq. 2.2): once a parameter sits on its
+    bound, the others are Gaussian conditional on it, so their covariance is
+    the inverse of the normal matrix without its column.  The held column's
+    own row comes back exactly zero, never infinite.  An infinite variance
+    is the unmeasured reading, and every consumer marks a quantity built
+    from one absent.
+    """
+    from rietx.optimize.statistics import covariance_from_factors, normal_factors
+
+    jac, resid = _problem()
+    held = np.array([False, False, True, False])
+    k, inv_d, _ = normal_factors(jac, resid, 4, condition=held)
+    cov = covariance_from_factors(k, inv_d)
+    keep = np.flatnonzero(~held)
+    k_sub, d_sub, _ = normal_factors(jac[:, keep], resid, 4)
+    assert np.allclose(cov[np.ix_(keep, keep)],
+                       covariance_from_factors(k_sub, d_sub), rtol=1e-12, atol=0.0)
+    assert not cov[2].any() and not cov[:, 2].any()
+
+    # a held column with no gradient at all is still a constant
+    dead = jac.copy()
+    dead[:, 2] = 0.0
+    k, inv_d, _ = normal_factors(dead, resid, 4, condition=held)
+    assert np.isfinite(covariance_from_factors(k, inv_d)).all()
+
+    # and so is one so small that its 1/d squares past the double range
+    # (a softplus scale at its floor, WP-1463): 0 × inf must not be a NaN
+    tiny = jac.copy()
+    tiny[:, 2] *= 1e-170
+    k, inv_d, _ = normal_factors(tiny, resid, 4, condition=held)
+    cov = covariance_from_factors(k, inv_d)
+    assert np.isfinite(cov).all() and not cov[2].any()
+
+    with pytest.raises(ValueError, match="boolean mask of 4"):
+        normal_factors(jac, resid, 4, condition=np.array([2]))
+
+
+def test_nothing_held_is_the_unconditioned_arithmetic_bit_for_bit():
+    from rietx.optimize.statistics import normal_factors
+
+    jac, resid = _problem()
+    plain = normal_factors(jac, resid, 4)
+    none_held = normal_factors(jac, resid, 4, condition=np.zeros(4, dtype=bool))
+    assert all(np.array_equal(a, b) for a, b in zip(plain[:2], none_held[:2]))

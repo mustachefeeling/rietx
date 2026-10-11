@@ -26,7 +26,8 @@ from math import lcm
 import numpy as np
 import pytest
 
-from rietx.crystallography.magnetic import irreps, isotropy, modes
+from rietx.crystallography.magnetic import isotropy
+from rietx.crystallography.representation import irreps, modes
 
 H, T, Q = Fraction(1, 2), Fraction(1, 3), Fraction(1, 4)
 GENERAL = (0.1234, 0.2345, 0.3456)

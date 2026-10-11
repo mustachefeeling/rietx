@@ -79,9 +79,9 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "and a plan together, and a unit it could not carry says so as a "
         "`RECIPE_*` diagnostic. "
         "`rx.read_gsas_prm` reads a GSAS-I `.prm` instrument-parameter file "
-        "(the dominant one-bank, constant-wavelength case; a neutron "
-        "time-of-flight file and every other GSAS profile function are "
-        "refused by name). A Kα1/Kα2 doublet there comes back as two "
+        "(one constant-wavelength bank, profile type 3, `profile_set=` "
+        "choosing among several; time-of-flight is refused by name). A "
+        "Kα1/Kα2 doublet there comes back as two "
         "emission lines, the second weighted by the file's own `KRATIO`, so "
         "do not add a Kα2 line yourself after reading one "
         "(Measured: WP-1118). `rx.write_gsas_prm` is its inverse, and the one "
@@ -327,8 +327,8 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "`render_structure(g, **fig.recipe)`. Save the geometry "
                 "yourself with `json.dump`, since 5000 atoms is megabytes. The "
                 "search runs about a hundred id passes "
-                "(Measured: WP-1503, NAC cell 92 ms and 3143 atoms 565 ms, "
-                "against renders of 19-21 ms and 213-221 ms).",
+                "(Measured: WP-1940, NAC cell 90-107 ms and 3143 atoms "
+                "530-548 ms, against renders of 27-34 ms and 175-209 ms).",
                 ("rietx.viz.figure3d.FigureReport",),
             ),
             (

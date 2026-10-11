@@ -7,6 +7,9 @@ __pycache__/
 uv.lock
 dist/
 build/
+# the kernel crate's cargo output (WP-1940), and WP-1939's in-place Cython builds
+kernels/target/
+examples/aot_spike/cython/*.so
 .pytest_cache/
 .hypothesis/
 .coverage
@@ -97,6 +100,8 @@ docs/manual/_build/
 
 # Generated at Sphinx build time from rietx.help (docs/manual/conf.py).
 docs/manual/_generated/
+# Copied at Sphinx build time from examples/tutorials/ (docs/manual/conf.py).
+docs/manual/using/tutorials/
 
 # The landing page (docs/landing/, WP-1331).  Three rules, and they are here
 # rather than beside the rules they answer because ORDER decides: the last

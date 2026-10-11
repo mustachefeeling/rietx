@@ -50,7 +50,7 @@ positions.
   `no_intensity` (and usually `position_at_bound`), and it is out of `usable()`.
   Do not read its `two_theta`: a component at zero intensity has no gradient on
   its own position, so the fitter leaves it wherever the solve ended, and the
-  esd says so in the only way it can — 3e+15° on the bundled fluorapatite
+  esd says so in the only way it can — 7e+17° on the bundled fluorapatite
   pattern. Count the flag, quote nothing (WP-1101).
 * **`unnamed_neighbour` means your list is incomplete, and the bias is real.**
   It fires when the window holds a component you did not name, decided by the
@@ -281,11 +281,10 @@ Three things about the screen that change how you use its answer:
    it is the *correct* answer: I-centring already extinguishes the very
    reflections the 2₁ screws would, so those screws are invisible in principle.
    It is a *wrong* answer when the shared profile fit is bad, and
-   `ExtinctionScreen.profile_rwp` is the field that tells the two apart: on
-   certified corundum the screen returns the certified `R - c -` at Rwp 0.149 and
-   the absence-free `R - - -` at 0.270, from the same cell and the same pattern.
-   Give it a range and a width law its profile fit can match before reading a
-   refutation.
+   `ExtinctionScreen.profile_rwp` reports how good that fit was: on certified
+   corundum 0.259 over 20–90° (`R - c -`) and 0.262 over 5–150° with declared
+   widths (`R - - -` wins). It bounds trust and does not choose. Give it a range
+   and a width law its profile fit can match before reading a refutation.
 
 **`where` names the paths on every guard code, `HIGH_CORRELATION` included**
 (WP-1007). Read `d.where`; never split a message like `"a ~ b (ρ=+0.994)"`.
@@ -308,14 +307,14 @@ indexer instead of leaving you to try one.
 
 Two of those flags are about **speed rather than capability**, and they are the
 ones to read before reporting that a refinement is slow.
-`features["compiled_kernels"]` says whether the compiled peak kernels can be
-built here (`numba` is a required dependency, but an install may legitimately
-omit it), and `features["compiled_kernels_active"]` says whether the next
-refinement or dichotomy search will use them — `RIETX_COMPILED=0` switches them
-off without a reinstall. Both false on a slow fit is an explanation; both true
-is not, and the answer is somewhere in the stage plan. Nothing else changes:
-numbers agree to the last place or two, and the accumulation and the dichotomy
-search are bit-for-bit identical.
+`features["compiled_kernels"]` says whether the compiled peak kernels loaded
+here (the `rietx-kernels` wheel is required, but a `--no-deps` install may
+lack it), and `compiled_kernels_unavailable` says why not.
+`features["compiled_kernels_active"]` says whether the next refinement will use
+them — `RIETX_COMPILED=0` switches them off without a reinstall. Both false on
+a slow fit is an explanation; both true is not, and the answer is somewhere in
+the stage plan. Nothing else changes: numbers agree to
+the last place or two, and the accumulation is bit-for-bit identical.
 
 ---
 

@@ -25,7 +25,7 @@ G_{\mathbf{k}} \;=\; \{\, g = (R, \mathbf{v}) \in G \;:\;
 R^\top \mathbf{k} \equiv \mathbf{k} \pmod{L^*} \,\},
 ```
 
-{source}`rietx.crystallography.magnetic.irreps.little_group`
+{source}`rietx.crystallography.representation.irreps.little_group`
 
 with $L^*$ the true reciprocal lattice of the cell, which is a proper
 sublattice of the integer $hkl$ grid whenever the cell is centred. A moment
@@ -49,7 +49,7 @@ D(g_i)\,D(g_j) \;=\; \omega(g_i, g_j)\, D(g_i g_j),
 \omega(g_i, g_j) \;=\; \exp(-2\pi i\, \mathbf{k}\cdot\mathbf{a}_{ij}),
 ```
 
-{source}`rietx.crystallography.magnetic.irreps.factor_system`
+{source}`rietx.crystallography.representation.irreps.factor_system`
 
 a projective representation with factor system $\omega$ rather than an
 ordinary one. $\omega \equiv 1$ away from the zone boundary, where every
@@ -89,7 +89,7 @@ action on the moment each atom carries,
 \Gamma_{\mathrm{mag}} \;=\; \Gamma_{\mathrm{perm}} \otimes \Gamma_{\mathrm{axial}},
 ```
 
-{source}`rietx.crystallography.magnetic.modes.magnetic_representation`
+{source}`rietx.crystallography.representation.modes.magnetic_representation`
 
 a $3N$-dimensional representation of $G_{\mathbf{k}}$. Replacing
 $\Gamma_{\mathrm{axial}}$ (moment, $\det(R)R$) with $\Gamma_{\mathrm{polar}}$
@@ -105,7 +105,7 @@ W^{\nu}_{lm} \;=\; \frac{d_\nu}{|P_{\mathbf{k}}|}
 \sum_{g} \overline{D_\nu(g)_{lm}}\;\Gamma_{\mathrm{mag}}(g)
 ```
 
-{source}`rietx.crystallography.magnetic.modes.basis_vectors`
+{source}`rietx.crystallography.representation.modes.basis_vectors`
 
 The construction is {cite}`izyumov1991`'s (his eqn (2.12), p. 19, and its
 $G_{\mathbf{k}}$ form (9.1), p. 67). The $d_\nu/|P_{\mathbf{k}}|$ prefactor is
@@ -176,7 +176,7 @@ permutation matrix entry carries that vector as a phase,
 \Gamma_{\mathrm{perm}}(g)_{\pi(j)\,j} \;=\; \exp(-2\pi i\, \mathbf{k}\cdot\mathbf{a}_g),
 ```
 
-{source}`rietx.crystallography.magnetic.modes.permutation_representation`
+{source}`rietx.crystallography.representation.modes.permutation_representation`
 
 with every other entry of column $j$ zero. This is why an atom's own phase
 enters rather than one global phase for the operation: two atoms of the same
@@ -310,9 +310,23 @@ below), so a family's patterns all lie in one linear subspace, and when one
 family's subspace is not inside the other's, all but a measure-zero set of its
 patterns fall outside the other's reach. "Proved" here means proved on the
 intensity matrices as floating point builds them, to the module's
-tolerances, for almost every model of the first family. The certificates in
-this release prove no two families equal, except two that have no pattern at
-all to this $d$ limit. Every other "equivalent", and every
+tolerances, for almost every model of the first family. Two families are
+proved *equal* in two cases: when neither has any pattern at all to this
+$d$ limit, and when their shell matrices are related by one orthogonal
+change of amplitude basis, $\mathbf{Q}^{\mathsf T}\mathbf{G}^B_s\mathbf{Q} =
+\mathbf{G}^A_s$ on every shell, so that every pattern of one is a pattern of
+the other with the amplitudes rotated (an *isometry*; the two rank-1
+directions of one irrep are the measured case). Because $\mathbf{Q}$ is
+orthogonal the condition is linear in it and is found by one singular value
+decomposition, but the proof is the residual of the congruence and of
+$\mathbf{Q}^{\mathsf T}\mathbf{Q} = \mathbf{I}$, both checked and both
+printed with the verdict, because an equality certificate is the direction
+in which a false answer silently drops a distinguishable model. Two families
+proved isometric then share every proved verdict: a separation proved
+against one of them, or from one of them, is carried to the other exactly
+(`propagated`, naming its source), and is not drawn again. Only proofs are
+carried; a sampled verdict stays where it was drawn. Every other
+"equivalent", and every
 "distinguishable" no certificate gives, is tested on random amplitude draws
 (by default 12 per direction between two irreps and 3 inside one), each
 fitted from a few random starts, and is statistical.
@@ -342,7 +356,18 @@ projected out first, so that a family with an undeterminable amplitude can
 still be certified, and the certificate is checked in exact rational
 arithmetic before it counts. The check is a proof on the projected stack,
 with that kernel taken as structural; the record's `kernel_residual` says how
-far the floating-point stack departs from it. It also measures the separation: $1/\|\mathbf{y}\|$
+far the floating-point stack departs from it. What that departure leaves
+proved on the full stack is stated too. The kernel block of
+$\sum_s y_s \mathbf{G}_s$ is not sign-definite, so no bound on the residual
+makes the whole matrix positive semi-definite; what does follow is a bound on
+the kernel's share of $\mathbf{y}\cdot\mathbf{I}$ under a bound on the
+amplitude along the kernel, and the record's `kernel_amplitude_ratio` is that
+bound: no amplitude vector whose component along the kernel is at most that
+many times its component along the live directions reproduces the draw, on
+the full floating-point stack. A certificate is issued only when the ratio is
+at least one, which ties the kernel residual the certificate tolerates to the
+margin it is quoted at; on the exact stack the residual is zero and the claim
+covers every amplitude vector. It also measures the separation: $1/\|\mathbf{y}\|$
 is a lower bound on the relative L2 distance from the draw to the other
 family's patterns, and the best fit residual an upper one, and the pair
 record carries that bracket as `d` with the certificate itself (`witness`)

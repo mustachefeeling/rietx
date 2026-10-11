@@ -394,6 +394,39 @@ class MultiParameterTable:
             self._rebuild_columns()
         return seeded
 
+    def seed_floor(self, scoped_paths: list[str]) -> tuple[dict[str, float], list[str]]:
+        """Lift freed softplus rows off their floor (per histogram); see the
+        single-histogram :meth:`ParameterTable.seed_floor`."""
+        wants = []
+        for h in range(len(self.tables)):
+            want = [self._unscope(h, p) for p in scoped_paths
+                    if self._owner(p) in (None, h)]
+            wants.append([w for w in want if w is not None])
+        # a shared column takes the smallest seed any histogram's box allows,
+        # so every histogram writes one column value (:meth:`seed_softplus`'s
+        # rule): a box is physical, and each histogram divides it by its own
+        # value scale
+        smallest: dict[str, float] = {}
+        for h, table in enumerate(self.tables):
+            for p, value in table.seed_floor(wants[h], write=False)[0].items():
+                c = self._canonical(h, p)
+                smallest[c] = min(value, smallest.get(c, value))
+        seeded: dict[str, float] = {}
+        unseeded: list[str] = []
+        for h, table in enumerate(self.tables):
+            lifted, left = table.seed_floor(
+                wants[h], cap={p: smallest[self._canonical(h, p)]
+                               for p in wants[h] if self._canonical(h, p) in smallest})
+            # once per shared column, as :meth:`set_vary` returns it
+            for p, value in lifted.items():
+                seeded.setdefault(self._canonical(h, p), value)
+            for p in left:
+                if self._canonical(h, p) not in unseeded:
+                    unseeded.append(self._canonical(h, p))
+        if seeded:
+            self._rebuild_columns()
+        return seeded, unseeded
+
     # -- combined column layout ----------------------------------------
     def _rebuild_columns(self) -> None:
         """Recompute the shared/per-histogram combined column layout.
@@ -538,10 +571,20 @@ class MultiParameterTable:
         column is committed from one value by every table that holds it, and
         the chart is a function of the value, so the tables agree on it.  The
         combined form is the widest any table returned: a vector of signs, or
-        the square matrix once one table's is."""
+        the square matrix once one table's is.
+
+        One commit, not one per histogram: a table that refuses (a rigid body
+        failing the commit-time guard, #801) puts back every table, so the
+        histograms never disagree on a shared column, and the error goes on."""
         thetas = self.split(theta)
-        parts = [(h, chart) for h, table in enumerate(self.tables)
-                 if (chart := table.commit(thetas[h])) is not None]
+        before = [table._commit_state() for table in self.tables]
+        try:
+            parts = [(h, chart) for h, table in enumerate(self.tables)
+                     if (chart := table.commit(thetas[h])) is not None]
+        except ValueError:
+            for table, state in zip(self.tables, before, strict=True):
+                table._restore_commit_state(state)
+            raise
         if not parts:
             return None
         if all(np.ndim(chart) == 1 for _, chart in parts):

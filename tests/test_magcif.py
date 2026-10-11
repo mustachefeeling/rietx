@@ -53,6 +53,15 @@ from rietx.io.projects.topas import (
 )
 from rietx.io.projects.topas import to_structure as topas_to_structure
 
+
+@pytest.fixture(autouse=True)
+def _one_creation_date(monkeypatch):
+    """Two files written a moment apart compare byte for byte only while they
+    carry one ``_audit_creation_date``, and a run crossing midnight would not."""
+    from rietx.io.cif import blocks
+
+    monkeypatch.setattr(blocks, "_today", lambda: "2026-10-09")
+
 # ===========================================================================
 # fixtures — typed, cited, not vendored
 # ===========================================================================
@@ -2190,7 +2199,7 @@ def test_a_topas_magnetic_phase_reads_with_the_moments_in_place(tmp_path):
     ("mg 1.9", False),
 ])
 def test_a_refined_lande_g_is_reported_held(tmp_path, mg, refined):
-    """#603: `mg` is refinable in TOPAS (Technical Reference § 13, "The Lande
+    """#603: `mg` is refinable in TOPAS (Technical Reference § 9, p. 66, "The Lande
     splitting factor can be refined using the site-dependent parameter mg")
     and `Moment.g` is a plain float, so a refined g arrives held at the
     file's value. The read said nothing; it now says so, naming the site."""
@@ -2339,8 +2348,8 @@ def test_a_topas_moment_in_the_tutorials_syntax_is_fractional(tmp_path):
     ``mag_space_group``-only ``str`` are fractional-basis components, so the
     stored crystal-axis moment is each times its edge.
 
-    The Technical Reference § 13 states it twice (Fmagc = L·Fmag with
-    m = {mlx, mly, mlz}; ``MM_CrystalAxis_Display`` as mxc = mlx·a), and the
+    The TOPAS 6 Technical Reference § 9, p. 65 states it (Fmagc = L·Fmag with
+    m = {mlx, mly, mlz}), a TOPAS 6 run measured it (2026-09-25), and the
     oblique-cell test below pins the conversion against TOPAS's L·m. This one
     pins the tutorial's *syntax*: the ``prm`` route, the ``;:`` values, and a
     ``str`` with no ``space_group``. The old crystal-axis reading stored
@@ -2583,6 +2592,10 @@ def test_no_shipped_fixture_carries_a_magnetic_construct_without_a_stance():
     for path in sorted(root.rglob("*")):
         if path.is_dir() or path.suffix in (".xye", ".fxye", ".xy", ".dat",
                                             ".raw", ".png"):
+            continue
+        # the vendored COMCIFS dictionaries define every magnetic tag and
+        # state no magnetic structure, so they are not fixtures a reader meets
+        if "cif_dictionaries" in path.relative_to(root).parts:
             continue
         try:
             text = path.read_text(encoding="utf-8", errors="strict")

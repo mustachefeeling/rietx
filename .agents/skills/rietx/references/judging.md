@@ -101,9 +101,9 @@ correlation between the two fits, so it is lenient when that is positive.
 
 Fluorapatite's three phosphate oxygens, tied as one displacement parameter: 20 →
 18 free parameters, 287.5 → 319.4 points per parameter (5 750 channels, not independent
-observations; McCusker §9), and B(O) 0.2834(1421) / 0.5288(1497) / 0.4361(1008) Å²
-free against 0.4263(704) Å² tied. The free values differ pairwise by 1.19, 0.88
-and 0.51 combined esds, and the tied esd is tighter than the best of the three. Rwp moved by 0.05 % of itself, so it cannot say whether the constraint helped or hurt.
+observations; McCusker §9), and B(O) 0.3647(1513) / 0.6016(1590) / 0.5377(1078) Å²
+free against 0.5150(754) Å² tied. The free values differ pairwise by 1.08, 0.93
+and 0.33 combined esds, and the tied esd is tighter than the best of the three. Rwp moved by 0.05 % of itself, so it cannot say whether the constraint helped or hurt.
 
 Every tie is recorded as a `set_tie` history node and restored by a checkout, so
 a constrained protocol replays as one. Symmetry outranks a user tie: a
@@ -168,7 +168,7 @@ it. The swap runs each rival **alone**; the ridge runs them **together**.
 Rwp is a relative number. Eighteen refinements of one PbSO₄ dataset returned Rwp 8.2–20.0 % (Hill 1992). It is dominated by the strongest peaks and the background level, so it ranks fits of the same data over the same channels and nothing else.
 
 A sharp LaB₆ fit and one under 0.6° of broadening both report Rwp **0.0137**,
-and background-subtracted they read 0.0490 and 0.0766. Raw Rwp is flattered by
+and background-subtracted they read 0.0490 and 0.0768. Raw Rwp is flattered by
 whatever the background carries (89 % of the observed intensity in both), so
 the number that separates two fits is the subtracted one. The literature says
 the same twice: Toby (2006, Fig. 1) shows identical model discrepancies reading
@@ -181,8 +181,8 @@ included.
 ## Step 17 — a trace phase's R_B
 
 Neither index is weighted, so a reflection the fit barely constrains weighs as much as one that dominates it. The weighted R_WI of Cox & Papoular (1996, *Mater. Sci. Forum* **228–231**, 233) answers this and is not computed here. A minor phase's windows also sit under the major phase's peaks and get the counts the major phase failed to describe. Measured
-on 11-BM NAC with 1.35 wt % CaF₂: 0.052 for the major phase against 0.385 for
-the impurity, all of the latter in four reflections at I(obs)/I(calc) ≈ 2.2,
+on 11-BM NAC with 1.34 wt % CaF₂: 0.048 for the major phase against 0.377 for
+the impurity, all of the latter in four reflections at I(obs)/I(calc) of 2.2 to 2.3,
 each under a strong NAC peak. Read it beside `qpa.phases[].weight_fraction`, and
 treat a trace phase's value as a question rather than a measurement.
 
@@ -260,8 +260,8 @@ in Rietveld mode. Le Bail and Pawley extraction takes each intensity from
 `max(y_obs − y_bkg, 0)`, so a reflection with nothing under it is assigned
 nothing and most of the residual the detector looks for goes with it. What
 survives is a noise excursion near a tick. Measured on a synthetic LaB₆ pattern
-(WP-1024): 17 of the certified cell's own 28 reflections
-and 94 of a doubled cell's 153, 61 % either way, so it does not separate them. The count that does is `LeBailValidation.predicted_but_absent`, which
+(WP-1024): 19 of the certified cell's own 28 reflections
+and 84 of a doubled cell's 153, 68 % against 55 %, so it does not separate them. The count that does is `LeBailValidation.predicted_but_absent`, which
 integrates net intensity above the fitted background over each predicted
 position. The blind direction is the one de Wolff's M₂₀ has, and it is why
 Oishi-Tomiyasu (2013, *J. Appl. Cryst.* **46**, 1277) reversed the figure.
@@ -287,13 +287,14 @@ phase ID: a large ratio means the intensity model is wrong, and wrong
 intensities **are** wrong fractions.
 
 LaB₆, broad peaks, same data both times. Fitted with a 1°-knot unpenalized
-spline the refinement reports Rwp **0.08852** and GoF 1.022, against **0.08969**
-and 1.025 with a correct Chebyshev-6. The wrong background wins on every agreement index, and its displacement parameters come back 0.958 and 0.000 Å²
-against a truth of 0.5, one of them on its bound, where the correct background
-gives 0.691 and 0.327. `worst_absorption` reads 0.46 against 0.08, either side
+spline the refinement reports Rwp **0.08831** and GoF 1.019, against **0.08942**
+and 1.022 with a correct Chebyshev-6. The wrong background wins on every agreement index, and its displacement parameters come back 0.935 and −0.184 Å²
+against a truth of 0.5, one of them negative, where the correct background
+gives 0.687 and 0.621. `worst_absorption` reads 0.46 against 0.08, either side
 of the 0.25 at which `BACKGROUND_ABSORPTION` fires. No agreement index and no plot distinguishes the two fits (the over-flexible
 residual is white noise inside ±3σ). `BACKGROUND_ABSORPTION` does, and so does
-`BOUND_HIT` on the zero parameter. Numbers measured 2026-08-12.
+the negative B. No default bound stops B at zero since 1.7, so `BOUND_HIT` is
+silent.
 
 The **too-stiff** side has no guard of its own. On round-robin sample 2, a
 1°-knot P-spline with its penalty ten thousand times too stiff moved corundum's
@@ -402,7 +403,7 @@ A width profile cannot see the ZMV family. A wrong multiplicity or setting (`SIT
 ## §4b — the worked example that stops at GoF 2.97
 
 LaB₆ pore proxy: a guest scatterer at the 1b site in the data only, host model
-refined to convergence. Rietveld Rwp 0.0405, GoF 2.97 — a "bad fit" by GoF. The report suggests no action. Intensity carries 83 % of the misfit, in per-region errors of 9–18 % with **alternating sign**: (100) low, (110) high, (111) low. That is structure-factor interference, which scale, ADP and texture cannot produce; the summary names it un-modelled scattering contents. `lebail_gap.rwp_lebail` reads 0.0170 against 0.0405, a ratio of ×2.4.
+refined to convergence. Rietveld Rwp 0.0405, GoF 2.97 — a "bad fit" by GoF. The report suggests no action. Intensity carries 81 % of the misfit, in per-region errors of 9–18 % with **alternating sign**: (100) low, (110) high, (111) low. That is structure-factor interference, which scale, ADP and texture cannot produce; the summary names it un-modelled scattering contents. `lebail_gap.rwp_lebail` reads 0.0140 against 0.0405, a ratio of ×2.9.
 
 Read by deliverable: phase ID is **done** — stop, at GoF 2.97. A structure
 determination is **not**, and its next move is chemistry (what occupies the pores). Finer profile corrections cannot help.

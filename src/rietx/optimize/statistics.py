@@ -113,6 +113,7 @@ def _column_in_range(col: np.ndarray) -> np.ndarray:
 
 def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
                    chi2_floor: bool = False,
+                   condition: np.ndarray | None = None,
                    what: str = "residual entering the covariance solve",
                    ) -> tuple[np.ndarray, np.ndarray, float]:
     """The equilibrated inverse ``K`` and the column scales ``1/d``.
@@ -124,6 +125,17 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     caller wanting the esd forms ``(1/d)·√K`` and never the variance.
     ``1/d`` is 0 on a gradient-free column, and ``chi2_red`` is the raw
     Σr²/(N−P).  See :func:`normal_covariance` for everything else.
+
+    ``condition`` is a boolean mask of columns held fixed (WP-1929): every
+    other column's covariance is the inverse of the normal matrix without
+    them, and their own rows and columns of ``K`` are exactly zero (Self &
+    Liang, 1987, *J. Am. Stat. Assoc.* **82**, 605, eq. 2.2: once a
+    parameter sits on its bound, the others are Gaussian conditional on
+    it).  A
+    conditioned column is therefore a *constant* to anything propagated
+    through the result, never an unmeasured one, so its ``1/d`` is kept
+    nonzero even where its gradient is.  Nothing conditioned, or ``None``,
+    is the unconditioned arithmetic bit for bit.
     """
     require_fp64(resid, what)
     jac = to_host_fp64(jac)
@@ -140,10 +152,32 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     d = np.sqrt(np.diag(JTJ))
     live = d > 0.0
     inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
-    k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), rcond=PINV_RCOND,
-                       hermitian=True) * scale
+    held = (np.zeros(len(d), dtype=bool) if condition is None
+            else np.asarray(condition, dtype=bool))
+    if held.shape != d.shape:
+        raise ValueError(f"condition must be a boolean mask of {len(d)} "
+                         f"columns, got shape {held.shape}")
+    if not held.any():
+        k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), rcond=PINV_RCOND,
+                           hermitian=True) * scale
+    else:
+        # the submatrix, not the full one with zeroed rows: the same numbers
+        # on the kept block whatever the held columns contained
+        keep = np.flatnonzero(~held)
+        sub = np.ix_(keep, keep)
+        k = np.zeros_like(JTJ)
+        if len(keep):
+            k[sub] = np.linalg.pinv(JTJ[sub] * np.outer(inv_d[keep], inv_d[keep]),
+                                    rcond=PINV_RCOND, hermitian=True) * scale
     if s is not None:
         inv_d = inv_d * s
+    if held.any():
+        # a held column is a constant, so it must not read as gradient-free
+        # (``covariance_from_factors`` turns 1/d = 0 into infinite variance).
+        # Its K row is zero, so 1/d multiplies nothing, and it is set to 1
+        # after the rescale: a tiny column's 1/d·s squares past the double
+        # range, and 0 × inf would put a NaN on its diagonal
+        inv_d = np.where(held, 1.0, inv_d)
     return k, inv_d, chi2_red
 
 
@@ -878,8 +912,9 @@ def structure_r_factors(i_obs: np.ndarray, i_calc: np.ndarray,
     weighted fit barely constrains counts as much as one that dominates it, and
     a minor phase's windows sit under the major phase's peaks, so the counts the
     major phase failed to describe are handed out too.  Measured on 11-BM NAC
-    with its 1.35 wt % CaF₂ (WP-1069's handover): 0.052 against 0.385, the whole
-    of the impurity's misfit in four reflections at I(obs)/I(calc) ≈ 2.2, every
+    with its 1.34 wt % CaF₂ (WP-1069, re-measured on the 1.7.0 tree): 0.048
+    against 0.377, the whole of the impurity's misfit in four reflections at
+    I(obs)/I(calc) of 2.2 to 2.3, every
     one of them under a strong NAC peak.  The weighted variant that answers this
     (Cox & Papoular, 1996, *Mater. Sci. Forum* **228-231**, 233) is not computed
     here.

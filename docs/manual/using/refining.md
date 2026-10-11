@@ -438,7 +438,7 @@ it. Neither is a measurement. So
 `MomentEvidence.supported` is false when the modulus is below its floor or
 below three of its own esds, and the note quotes which. A modulus with no
 esd has no ratio to take, and `supported` is then `None`, not an answer. At 4 K the same model
-gives 2.125 ± 0.048, a ratio of 44, and the answer flips. That is the
+gives 2.124 ± 0.048, a ratio of 44, and the answer flips. That is the
 deliverable; a small moment with a small esd would not be.
 
 A peak on a forbidden lattice point is forbidden under the group the fit
@@ -560,8 +560,8 @@ back with no esd at all. That message names a cause only where it checked one:
 a magnetic component with no intensity (a zero moment), or the term on its
 softplus floor. On the Cr₂WO₆ tutorial pattern at 4 K
 (k = 0, with magnetic-only intensity on the parent's absences) the size term
-comes back 0.034 ± 0.028°, one esd and so unmeasured, the strain term on its
-floor (0.000 ± 0.065, also unmeasured), and the moment moves 2.125 ± 0.048 → 2.171 ± 0.043 μ_B. On
+comes back 0.034 ± 0.013°, 2.6 esds and so unmeasured, the strain term on its
+floor with no esd (also unmeasured), and the moment moves 2.124 ± 0.048 → 2.171 ± 0.043 μ_B. On
 the 150 K pattern, which has no order, both terms come back with esds tens to thousands
 of times their values.
 
@@ -1034,7 +1034,7 @@ for stage in result.stages:
 |---|---|
 | `StageResult.name` | the stage's name, as the plan gave it |
 | `StageResult.status` | `converged`, `max_iter` or `diverged` |
-| `StageResult.n_iterations` | least-squares iterations taken |
+| `StageResult.n_iterations` | residual evaluations the solve made, the start included, on either driver |
 | `StageResult.cost_initial` | the cost the stage started from |
 | `StageResult.cost_final` | the cost it reached |
 | `StageResult.freed` | the paths this stage actually freed, after globbing |
@@ -1047,6 +1047,8 @@ for stage in result.stages:
 | `StageResult.scale_b_held` | per phase whose displacement parameters this stage held because the fitted range cannot separate them from the phase's scale, the measured separation of the two columns; `{}` when it looked and held nothing, `None` on a joint fit or a result stored before the check existed |
 | `StageResult.unknown_paths` | the literal `turn_on` paths that name no parameter of this model; `None` on a result stored before the check existed |
 | `StageResult.unreached_histograms` | joint fits: per histogram, the globs that freed rows of another histogram and matched none of this one; `{}` on a single histogram, `None` on a result stored before the check existed |
+| `StageResult.seeded` | each row this stage lifted before solving, with the value it started from; `None` on a result stored before the field existed |
+| `StageResult.floor_unseeded` | the freed rows it left on their softplus floor, because their unit has no seed size; `None` on a result stored before the field existed |
 
 `StageResult.freed` is the field to read when a stage did nothing. A glob that
 matches no path is not an error, because that is how the shipped plans reach a
@@ -1064,6 +1066,21 @@ the row the table actually has. It is a diagnostic, not an exception,
 because one plan runs every pattern of a series ([](series.md)). A misspelt
 family inside a glob looks exactly like a glob that correctly matched nothing,
 so no rule can report it, and `freed` is the place to look.
+
+A stage starts a freed width a short way inside its floor. Most width terms
+are softplus parameters, and at zero a softplus slope is 1e-12. There the
+solver cannot tell whether moving it helps, so two machines can stop at
+different answers. Caglioti `U` and `V` are not softplus, since they may go
+negative, so they are never seeded.
+When a stage frees one that sits on its floor, it first starts it at a small
+value for its unit. A width in degrees starts at 1e-3°, a Gaussian variance in
+deg² at its square, and an extinction coefficient at 1e-3 µm².
+`StageResult.seeded` lists every row a stage lifted and the value it started
+from, including those a `Stage.seed` lifted. A parameter whose unit has no
+such size, such as a hump's height in counts, stays on its floor.
+`StageResult.floor_unseeded` names it, and the fit reports
+`SOFTPLUS_FREED_AT_FLOOR` at `warning`. Give it a positive starting value to
+clear the warning.
 
 A literal phase path can also name a row the model will not free. An atom's
 coordinates are refined along the directions its site symmetry allows, as

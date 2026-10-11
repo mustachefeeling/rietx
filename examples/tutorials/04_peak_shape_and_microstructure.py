@@ -12,8 +12,6 @@
 # Notebook 02 introduces plans and the parameter table.
 #
 # **Runtime** is under a minute on a laptop.
-#
-# Until rietx 1.7 is on PyPI, install it from GitHub instead: `%pip install git+https://github.com/yue-here/rietx`.
 
 # %%
 # %pip install rietx
@@ -197,9 +195,9 @@ print(f"true: size {TRUE_SIZE:.0f} Å, strain {TRUE_STRAIN}")
 # The Lorentzian size and strain match the truth to within two esds.
 #
 # Read the Gaussian rows with their esds.
-# The fit drove `gauss_size` to essentially zero, which reads as an enormous size with a far larger esd.
+# The fit drove `gauss_strain` to essentially zero, with an esd far larger than the value.
 # A reading whose esd dwarfs its value is not a measurement.
-# The Gaussian strain had nothing to measure at all, and says so.
+# The Gaussian size had nothing to measure at all, and says so.
 #
 # Quote a size as an order of magnitude, with the Scherrer constant it was read with (0.9 here).
 # The constant depends on crystallite shape, so the size is a coherent domain size and not a particle size.

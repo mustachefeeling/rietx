@@ -75,7 +75,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from rietx import Instrument
+from rietx import Instrument, Parameter, PatternData
 from rietx.backend.linalg64 import (
     COLUMN_COSINE_MIN,
     COLUMN_REL_L2_MAX,
@@ -84,15 +84,18 @@ from rietx.backend.linalg64 import (
 )
 from rietx.model.forward import compile_model
 from rietx.optimize.least_squares import (
+    _fd_typicals,
     _jacobian_for,
     _make_jacobian,
     _make_residual,
     _multi_closures,
+    fd_step,
     run_least_squares,
 )
 from rietx.params.vector import VAR_PREFIX, AffineTie, ParameterTable
 from rietx.strategy.staged import Stage
 from tests.test_backend_shim import STATES
+from tests.test_schemas import make_lab6
 from tests.test_v02_core import ANALYTIC_FAMILIES, _lab_state
 
 #: fp64 agreement bars — declared here (the v0.2 harness's numbers).  The fp32
@@ -111,7 +114,9 @@ KINK_PATHS = frozenset({"instrument.geometry.axial_sl",
 #: column's — below it the value is transform-floor noise, not a derivative
 DEAD_COL_FRAC = 1e-6
 
-#: FD step, the same rule as the v0.2 harness (applied ±h, centrally)
+#: the multi-histogram reference's FD step, the v0.2 harness's rule (applied
+#: ±h, centrally); the single-histogram reference takes the package's own
+#: ``fd_step`` (WP-1936)
 FD_STEP = 1e-6
 
 
@@ -147,6 +152,41 @@ def _state_families():
 
 def _state_families_voigt():
     return _families_state(shape="voigt")
+
+
+def _state_sharp_widths():
+    """11-BM's resolution with ``w`` an identity row on its floor (WP-1936).
+
+    The peak chain differences each reflection's width, and a width is curved
+    on the scale of its own variance, here Γ² ≈ 1e-6-1e-5 deg².  The step that
+    held for every lab state, 1e-6 absolute below 1, is then a tenth of that
+    scale: against jax it put 9.3e-2 into ``w``'s column, 9.5e-3 into ``v``'s
+    and 1.8e-3 into ``u``'s.  :func:`~rietx.optimize.least_squares.fd_step`
+    sizes a width's step by its unit, and every column lands within 1.1e-7.
+    ``w`` is declared identity rather than left softplus because a softplus
+    row on its floor has a dead column and the matrix skips it.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 2e-4
+    ins = Instrument.debye_scherrer(wavelength=0.41368)
+    ins.source.dispersion = None
+    profile = ins.profile
+    profile.u.value, profile.v.value = 1e-5, 1e-5
+    profile.w = Parameter(value=0.0, min=0.0, max=1.0, unit="deg^2",
+                          transform="identity")
+    profile.x.value, profile.y.value = 2e-3, 1e-3
+    tt = np.arange(5.0, 30.0, 0.001)
+    rng = np.random.default_rng(3)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=(50.0 + 10.0 * rng.random(len(tt))).tolist())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for path in ("phases.0.cell.a", "phases.0.atoms.0.biso",
+                 "instrument.zero_shift", "instrument.profile.*"):
+        assert table.set_vary([path], True), path
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return model, table, {}
 
 
 def _state_families_tied():
@@ -619,11 +659,21 @@ def _state_bodies():
     cell partials and the rotation's left Jacobian are both away from their
     trivial points; a bond restraint from a body atom to a free Li puts a
     restraint row across the block (the analytic block's local Jacobian).
+    Two torsions (WP-1808), the second's axis riding on the first's moved
+    atom, so the chained tangent is checked; unphysical in a ring, which no
+    derivative minds.  Anchors and twists both off zero, like the rotation.
     """
     from rietx.crystallography.bodies import add_body
     from rietx.schemas.common import Parameter
     from rietx.schemas.pattern import PatternData
-    from rietx.schemas.structure import Atom, BondRestraint, Cell, Phase, Structure
+    from rietx.schemas.structure import (
+        Atom,
+        BodyTorsion,
+        BondRestraint,
+        Cell,
+        Phase,
+        Structure,
+    )
     from tests.test_rigid_body import c6br
 
     P = Parameter
@@ -634,7 +684,11 @@ def _state_bodies():
              z=P(value=0.63))], scale=P(value=1e-2, min=0.0, transform="softplus"))
     phase = add_body(phase, "c6br", [f"C{i}" for i in range(6)] + ["Br"],
                      ["C"] * 6 + ["Br"], c6br(), (0.31, 0.42, 0.27),
-                     orientation=(0.9, 0.1, 0.2, 0.3), biso=2.0)
+                     orientation=(0.9, 0.1, 0.2, 0.3), biso=2.0,
+                     torsions=[BodyTorsion(name="t0", axis=("C0", "C1"),
+                                           moves=["C5", "Br"], angle=12.0),
+                               BodyTorsion(name="t1", axis=("C0", "C5"),
+                                           moves=["Br"], angle=-7.0)])
     phase = phase.model_copy(update={"restraints": [
         BondRestraint(atom_i=7, atom_j=0, target=3.0, sigma=0.05, op_index=0)]})
     structure = Structure(phases=[Phase.model_validate(phase.model_dump())])
@@ -650,17 +704,22 @@ def _state_bodies():
     table.set_vary(["*"], False)
     for glob in ("phases.0.rigid_bodies.0.origin.dof.*",
                  "phases.0.rigid_bodies.0.rotation.*", "phases.0.cell.*",
-                 "phases.0.atoms.0.dof.*", "phases.0.scale"):
+                 "phases.0.atoms.0.dof.*", "phases.0.scale",
+                 "phases.0.rigid_bodies.0.torsions.*.twist"):
         assert table.set_vary([glob], True), glob
     theta = table.x0()
     for k, v in enumerate((0.07, -0.04, 0.05)):
         theta[table.free_paths.index(f"phases.0.rigid_bodies.0.rotation.{k}")] = v
+    for t, v in enumerate((9.0, -6.0)):
+        theta[table.free_paths.index(f"phases.0.rigid_bodies.0.torsions.{t}.twist")] = v
     # the commit composes the rotation into R₀ and zeroes it (WP-1805), so the
     # anchor is off the identity and the increment is set off zero again by
     # value, where the left Jacobian is away from its trivial point too
     table.commit(theta)
     for k, v in enumerate((0.03, 0.02, -0.06)):
         table.entries[table._paths[f"phases.0.rigid_bodies.0.rotation.{k}"]].value = v
+    for t, v in enumerate((4.0, -3.0)):
+        table.entries[table._paths[f"phases.0.rigid_bodies.0.torsions.{t}.twist"]].value = v
     table.refresh_ties()
     model = compile_model(structure, ins, pattern, mode="rietveld",
                           moving_paths=set(table.moving_paths))
@@ -670,6 +729,7 @@ def _state_bodies():
 CONFIGS = {"families": _state_families,
            "bodies": _state_bodies,
            "families_voigt": _state_families_voigt,
+           "sharp_widths": _state_sharp_widths,
            "families_tied": _state_families_tied,
            "families_variable": _state_families_variable,
            "toy_body": _state_toy_body,
@@ -700,6 +760,7 @@ def _config(name: str, *marks):
 CONFIG_PARAMS = [
     _config("families"),
     _config("families_voigt"),
+    _config("sharp_widths"),
     _config("families_tied"),
     _config("families_variable"),
     _config("toy_body"),
@@ -783,11 +844,15 @@ def _central_fd_jacobian(config, model, table):
     """Central differences of the (augmented) numpy residual — the reference
     independent of both the analytic chain and autodiff."""
     residual = _make_residual(model, table)
+    # the package's own typical sizes (WP-1936): at 1 a width on its floor
+    # would be differenced across zero, where the Gaussian clamps
+    typicals = np.ones(len(_theta(model, table)))
+    typicals[:len(table.free_paths)] = _fd_typicals(table)
 
     def jacobian(theta: np.ndarray) -> np.ndarray:
         cols = []
         for c in range(len(theta)):
-            h = FD_STEP * max(1.0, abs(theta[c]))
+            h = fd_step(theta[c], typicals[c])
             tp, tm = theta.copy(), theta.copy()
             tp[c] += h
             tm[c] -= h

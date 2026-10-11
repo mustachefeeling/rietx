@@ -503,7 +503,7 @@ def test_the_fit_renders(full, symmetric, held):
 #: The manual's table, to 6 dp.  Bands below are ±0.002 in Rwp — wide enough to
 #: survive a solver tolerance change, narrow enough that the *comparison*
 #: (a peak beats three more polynomial terms, by a lot) cannot silently invert.
-MANUAL_RWP = {"cheb3": 0.119977, "cheb3_peak": 0.082503, "cheb6": 0.088597,
+MANUAL_RWP = {"cheb3": 0.119977, "cheb3_peak": 0.082503, "cheb6": 0.088596,
               "cheb6_peak": 0.077152}
 
 

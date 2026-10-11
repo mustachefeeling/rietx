@@ -1,0 +1,239 @@
+name: Kernels
+
+# Builds, checks and publishes rietx-kernels, the compiled kernels in
+# kernels/ (WP-1940): the model's five and, from 1.1.0, the figure's two.  The procedure around this file is docs/RELEASING.md
+# § The kernel wheel; what follows is why the file is shaped as it is.
+#
+# Three triggers, one pipeline:
+#
+#   * A pull request touching the crate, its tests, its harness, its callers,
+#     the rasteriser it is held to, or this file builds every platform's wheel and checks each on its own
+#     platform, so a kernel change is tested where it ships before it merges.
+#     A draft waits, as ci.yml's matrix does.
+#   * A `kernels-v*` tag does the same and then publishes.  A tag push, never a
+#     GitHub release: release.yml publishes rietx on every published release.
+#   * workflow_dispatch does the same as a pull request, plus `verify-trust`.
+#
+# WHAT MUST BE CONFIGURED ON PYPI BEFORE A TAG PUBLISHES (once, by the
+# maintainer).  Before the first upload the project does not exist, so this is
+# a *pending* publisher, at pypi.org -> Account settings -> Publishing:
+#
+#   PyPI project    rietx-kernels
+#   Owner           yue-here
+#   Repository      rietx
+#   Workflow name   kernels.yml        <- this file's name, matched literally
+#   Environment     pypi               <- the `environment:` below
+#
+# The `pypi` environment is release.yml's, with its required reviewer, so a
+# kernel upload pauses for the same human approval a rietx upload does.
+#
+# No sdist is built (WP-1940 § Decisions item 4): pip fails loudly on a
+# platform with no wheel, where an sdist would need a Rust toolchain.
+#
+# The `test` job installs this run's wheel, never the index's, and checks that
+# it did.  Its reference is the numpy path, the arithmetic RIETX_COMPILED=0
+# runs.  numba was the reference until WP-1940 removed it from rietx.  Four
+# checks: the refusals, tests/test_compiled_kernels.py, the agreement pass, and
+# tests/test_raster_kernels.py.  test_compiled_kernels.py runs once: each of
+# its comparisons sets both paths itself, so a second run under
+# RIETX_COMPILED=0 would repeat it.  The agreement pass compares every kernel
+# call inside two real fits and fails on a call past its bar (`--gate`; the
+# bars are in the bench's docstring).  test_raster_kernels.py holds the
+# figure's kernels to src/rietx/viz/figure3d/raster.py on the bit inside real
+# renders; it skips under a wheel without them, so the import step below
+# asserts this run's wheel has them.  It asserts `exp` too (1.2.0), whose
+# bound test_compiled_kernels.py measures and skips without.  The numpy path itself lives in
+# src/rietx/model/forward.py.  ci.yml's fast suite tests a change there
+# against the published wheel, so it is not a trigger here.
+
+on:
+  push:
+    tags: ['kernels-v*']
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'kernels/**'
+      # the calls the agreement pass shadows, its harness and the `test` job's
+      # test files: a change to any can break agreement without touching the
+      # crate
+      - 'src/rietx/model/compiled.py'
+      - 'examples/aot_spike/bench_aot_kernels.py'
+      - 'examples/bench_refinement.py'
+      - 'tests/test_rietx_kernels.py'
+      - 'tests/test_compiled_kernels.py'
+      # the figure's kernels, and the numpy rasteriser they are held to
+      - 'tests/test_raster_kernels.py'
+      - 'src/rietx/viz/figure3d/raster.py'
+      - '.github/workflows/kernels.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: kernels-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: wheel ${{ matrix.platform }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, target: x86_64, platform: linux-x86_64}
+          - {os: ubuntu-24.04-arm, target: aarch64, platform: linux-aarch64}
+          - {os: macos-latest, target: aarch64, platform: macos-arm64}
+          # cross-built on Apple silicon, as WP-1939 measured; `test` runs it
+          # on an Intel runner
+          - {os: macos-latest, target: x86_64, platform: macos-x86_64}
+          - {os: windows-latest, target: x64, platform: windows-x64}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: auto
+          args: --release --out dist -m kernels/Cargo.toml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheel-${{ matrix.platform }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  test:
+    name: test ${{ matrix.platform }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, platform: linux-x86_64}
+          - {os: ubuntu-24.04-arm, platform: linux-aarch64}
+          - {os: macos-latest, platform: macos-arm64}
+          - {os: macos-15-intel, platform: macos-x86_64}
+          - {os: windows-latest, platform: windows-x64}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      # the oldest interpreter the abi3 wheel claims
+      - run: uv venv --python 3.11
+      - name: Interpreter path
+        run: |
+          if [ -f .venv/Scripts/python.exe ]; then PY=.venv/Scripts/python.exe; else PY=.venv/bin/python; fi
+          echo "PY=$PY" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v7
+        with:
+          name: wheel-${{ matrix.platform }}
+          path: dist/
+      - name: Install rietx and this run's wheel
+        # A path on the command line is a direct requirement, so uv takes the
+        # file even where the index holds the same version for rietx's pin.
+        run: uv pip install --python "$PY" -e ".[dev]" dist/*.whl
+      - name: The wheel imports, and is this run's
+        # before the tests, which skip at module level without it; a wheel
+        # from the index has no file URL in its direct_url.json
+        run: |
+          "$PY" - <<'PY'
+          import importlib.metadata as md
+          import json
+
+          import rietx_kernels as k
+
+          url = json.loads(md.distribution("rietx-kernels").read_text(
+              "direct_url.json") or "{}").get("url", "the package index")
+          print(k.__version__, k.KERNEL_ABI, url)
+          assert url.startswith("file:") and url.endswith(".whl"), \
+              f"rietx-kernels was installed from {url}, not from dist/"
+          assert hasattr(k, "render_rows") and hasattr(k, "id_plane"), \
+              "this run's wheel has no rasteriser, so test_raster_kernels.py would skip"
+          assert hasattr(k, "exp"), \
+              "this run's wheel has no exp, so the bound test would skip"
+          PY
+      - name: The refusals
+        run: '"$PY" -m pytest tests/test_rietx_kernels.py'
+      - name: The kernel tests, the wheel against the numpy path
+        run: '"$PY" -m pytest tests/test_compiled_kernels.py'
+      - name: Agreement with the numpy path inside two real fits
+        run: '"$PY" examples/aot_spike/bench_aot_kernels.py --cases cpd-1a,trigger --skip 2,3 --gate'
+      - name: The figure's kernels against the numpy rasteriser, to the bit
+        run: '"$PY" -m pytest tests/test_raster_kernels.py'
+
+  verify-trust:
+    name: Verify the PyPI trust relationship (uploads nothing)
+    # Dispatch only, as in release.yml: a real release proves it by publishing.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Ask PyPI whether it recognises this workflow
+        # release.yml's probe, unchanged: only the status code reaches the log.
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.error, urllib.request
+
+          url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=pypi"
+          token = os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
+          req = urllib.request.Request(url, headers={"Authorization": f"bearer {token}"})
+          jwt = json.load(urllib.request.urlopen(req))["value"]
+
+          mint = urllib.request.Request(
+              "https://pypi.org/_/oidc/mint-token",
+              data=json.dumps({"token": jwt}).encode(),
+              headers={"Content-Type": "application/json"})
+          try:
+              with urllib.request.urlopen(mint) as response:
+                  code = response.status
+          except urllib.error.HTTPError as exc:
+              code = exc.code
+
+          print(f"pypi.org/_/oidc/mint-token -> {code}")
+          if code != 200:
+              print("::error::PyPI does not recognise kernels.yml. Check the "
+                    "rietx-kernels publisher on pypi.org.")
+          raise SystemExit(0 if code == 200 else 1)
+          PY
+
+  publish:
+    name: Publish to PyPI
+    needs: [build, test]
+    if: startsWith(github.ref, 'refs/tags/kernels-v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # mints the OIDC token; nothing else needs it
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # the tag-on-main check needs the graph
+      - name: The tag is on main
+        # A tag cut from anywhere else has not been through branch protection.
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$GITHUB_SHA is not on main"; exit 1; }
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: wheel-*
+          path: dist/
+          merge-multiple: true
+      - name: The wheels are the tag's version, one per platform
+        # PyPI refuses a second upload of a version, so a mismatch has no undo.
+        run: |
+          tag="${GITHUB_REF_NAME#kernels-v}"
+          built=$(python3 -c "import tomllib; print(tomllib.load(open('kernels/Cargo.toml','rb'))['package']['version'])")
+          echo "tag $tag, Cargo.toml $built"
+          ls dist
+          test "$tag" = "$built" \
+            || { echo "::error::tag $tag does not match kernels/Cargo.toml $built"; exit 1; }
+          n=$(ls dist/rietx_kernels-"$built"-*.whl | wc -l)
+          test "$n" -eq 5 -a "$(ls dist | wc -l)" -eq 5 \
+            || { echo "::error::expected 5 wheels of $built in dist/, found $n"; exit 1; }
+      - uses: pypa/gh-action-pypi-publish@release/v1

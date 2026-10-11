@@ -1,6 +1,6 @@
 """The translation-phase convention of the basis vectors, pinned on the FIELD side.
 
-:mod:`rietx.crystallography.magnetic.modes` returns basis vectors ψ that transform by
+:mod:`rietx.crystallography.representation.modes` returns basis vectors ψ that transform by
 the small irrep matrices D under the little group, with the Bradley & Cracknell
 translation convention D({E|a}) = exp(−2πi k·a).  That fixes which Bloch wave the ψ
 are the coefficients of: a moment field built as
@@ -30,8 +30,8 @@ import numpy as np
 import pytest
 import spglib
 
-from rietx.crystallography.magnetic import irreps as I
-from rietx.crystallography.magnetic import modes as M
+from rietx.crystallography.representation import irreps as I
+from rietx.crystallography.representation import modes as M
 
 THIRD = Fraction(1, 3)
 HALF = Fraction(1, 2)

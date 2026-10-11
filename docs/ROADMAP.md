@@ -101,16 +101,15 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The next release is 1.7** (`pyproject.version` `1.7.0.dev0`), cut from what
-`main` holds ([record](milestones/v1.7.md), notes staged in
-[releases/1.7.0.md](releases/1.7.0.md)). 1.6.0 shipped 2026-10-03, the first
-release numbered at its cut ([notes](releases/1.6.0.md)).
+**The next release is 1.8** (`pyproject.version` `1.8.0.dev0`), cut from what
+`main` holds ([record](milestones/v1.8.md), notes staged in [releases/1.8.0.md](releases/1.8.0.md)).
+1.7.0 shipped 2026-10-08, the first weekly cut ([notes](releases/1.7.0.md)).
 
 **One milestone is open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
 opened 2026-09-18 as v1.6; rietview, rigid-bodies and structure-solution were
 queued as v1.7, v1.8 and v1.9. Threads #286, #426, #561 and #562 quote those
 numbers, so each row in § Milestones says which it was. **Neutron TOF stays at
-[§ v2+](#v2--fenced)** behind issue #193.
+[§ v2+](#v2--fenced)** behind issue #193, but for its T-1 cut ([1927](wp/1927-tof-t1-the-axis-and-its-readers.md), 2026-10-08).
 
 **Ten silent-answer fixes have landed since 1.5.0** (1434, 1435, 1432,
 1342, 1415, 1442, 1414, 1454, 1456, 1465), staged in the notes and narrated
@@ -148,7 +147,8 @@ covers (1119 § Gotchas).
 | v1.4 | Free-standing peaks: fit_peaks + the extra-components seam | ✅ **shipped 2026-09-13** ([record](milestones/v1.4.md), [notes](releases/1.4.0.md)) | seventeen rows, **every one written before the work rather than at the ship** — 1101's five at the open, 1102's and 1103's sharpened by the sessions that had read them — and all seventeen met on the release tree (record § Appendix). The measured half: `fit_peaks` answers a named position that fits nothing and flags the unnamed neighbour beside one; the union's second member costs no new field and its landing is read from data, not from a class name; and the operando case is reported against its own alternative rather than flattered — declaring two injected holder lines recovers the SRM 660c cell to −1.0 ppm where ignoring them costs +7.6 ppm and inflates the cell esd 7.5×, while **excluding** the regions recovers it too, to +0.6 ppm, for 4.8 % of the channels |
 | v1.5 | A window into a run: the live watcher, foreign model files, a measured background | ✅ **shipped 2026-09-18** ([record](milestones/v1.5.md), [notes](releases/1.5.0.md)) | nine rows, **none of them written at the open**, because the milestone was opened 496 commits behind its own work — the record says plainly that this is weaker evidence than v1.3's at-ship rows and reads as an inventory. The measured half: the live view at 180-329 kB a stage against the replaced page's 4.51-6.03 MB; a default-on recorder costing 1.03-1.28×, which **fails** its own 1.05× gate on two cases of three and was kept anyway with the reason recorded; a console that froze the main thread for 997 ms on a 60 000-event run, capped at the route; four foreign formats read and written; and `help.py`'s Lp corrected from 0.508× of the one the code computes |
 | v1.6 | The first release numbered at its cut: what `main` held on 2026-10-03, completing no milestone | ✅ **shipped 2026-10-03** ([record](milestones/v1.6.md), [notes](releases/1.6.0.md)) | 217 pull requests since v1.5.0, every user-facing change named in the notes or dispositioned in WP-1541's handover; the magnetic rungs ship unfinished and say what is missing; the Windows pre-upload gate, red every night since 2026-09-28, green on the release commit; VALIDATION.md's measured column re-run on the release tree; suite counts in the record's ship appendix |
-| v1.7 | The next release: what `main` carries when it is cut, and the milestones complete by then | 🔄 **accumulating since 2026-10-03** ([record](milestones/v1.7.md)) | written at the cut |
+| v1.7 | The first weekly cut: what `main` held on 2026-10-08, completing no milestone | ✅ **shipped 2026-10-08** ([record](milestones/v1.7.md), [notes](releases/1.7.0.md)) | 89 pull requests since v1.6.0, every user-facing change named in the notes or dispositioned in WP-1546's handover; rigid bodies ship as a provisional first piece; the Windows pre-upload gate, red since 2026-10-05, green on the release commit; VALIDATION.md's measured column, Part 1 and the skill re-run on the release tree; suite counts in the record's ship appendix |
+| v1.8 | The next release: what `main` carries when it is cut, and the milestones complete by then | 🔄 **accumulating since 2026-10-08** ([record](milestones/v1.8.md)) | written at the cut |
 | magnetic | The magnetic structure (was v1.6): the satellite, the moment, the determination, the mode amplitude — [§ magnetic](#magnetic--the-magnetic-structure) | 🔄 **opened 2026-09-18** ([record](milestones/magnetic.md)) | eleven rows written at the open, the record's § Acceptance; the measured half is still to come |
 | rietview | rietview (was v1.7): the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ rietview](#rietview--the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
 | rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1813, the seam decided by 1803 and the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
@@ -532,10 +532,10 @@ scope creep. Each item names what fenced it.
   ([1122](wp/1122-compiled-peaks-buffer.md) measured shape reuse below break-even
   without one); neutron **TOF** (CW landed in 1134; issue #193; the energy-dependent
   resonant absorption at S(Q), #113) — **built through rather than deferred**: the
-  fork's branch is visible (`tof-cleanroom-20260923`), and **decided 2026-09-24:
-  held until magnetic (then v1.6) closes**, then taken on that branch in its own cuts (T-1, T-2/T-3,
-  T-5), with #442 (a bank's force-fixed CW width rows under 1414's "matched, not
-  freed") going with T-1, and #618 (Mantid's instrument values: with provenance,
+  fork's branch is visible (`tof-cleanroom-20260923`); **decided 2026-09-24: held until magnetic
+  closes**, then cut T-1, T-2/T-3, T-5; **amended 2026-10-08: T-1 (axis, readers) taken now as
+  [1927](wp/1927-tof-t1-the-axis-and-its-readers.md)**, the rest still waiting, with #442 (a bank's CW
+  width rows) decided inside T-1, and #618 (Mantid's instrument values: with provenance,
   never the files) — and issue #362 lists the constant-wavelength reads
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py` and
   23 more sites) a second compiled-model class meets, so the accessor seam it
@@ -544,8 +544,8 @@ scope creep. Each item names what fenced it.
   (McCusker §6; the partition input exists in `lebail_update`, the consumer is
   structure completion; #197); internal-standard and amorphous QPA; **modulated
   structures** (superspace — 1314 reads Jana's files without them; #258 the shared
-  design, #678 its cut, whose N-W1 landed as PR #682). **Magnetic structures left
-  this fence 2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
+  design, #678 its cut, N-W1 landed as PR #682; **decided 2026-10-08:** N-W2's group half and
+  N-W3 open after T-1 merges, one WP per chunk). **Magnetic structures left this fence 2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
   case, polarised neutrons and magnetic X-rays stay fenced (1327's non-goals).
   **Rigid bodies (#195), direct-space solution and stacking faults left it
   2026-09-28** for scoping in § Unscheduled (1514–1516; DESIGN.md has why).

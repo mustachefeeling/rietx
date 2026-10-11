@@ -1,9 +1,8 @@
 # WP-1506 — a planning-doc PR runs the tests that read it, and CI gates on one check
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — live on main since PR #504 merged and branch protection moved to `lint` and `ci-ok`; the cut chosen from two weeks of junit timings remains, from about 2026-10-11
+Milestone: unscheduled · Status: ✅ 2026-10-09 — the docs-only skip and `ci-ok` live since 2026-09-27; the CI-time cut (task 7) moved to 1547
 Track: The repo's own process
 Depends on: — (the branch-protection change is the maintainer's, by hand)
-Priority: P3 2026-09-27 — was P2: the skip is live; what remains is a cost-only cut that waits two weeks for data
 
 ## Goal
 
@@ -102,34 +101,6 @@ the tail today, in local serial seconds:
   fork's PR can run code on it, and contributors work from forks.
 - Workflow-level path filters. WP-1003 removed them for the reason above.
 
-### Inherited
-
-- **From WP-1519 (2026-09-29): one probe line is pasted into three nightly
-  legs.** Each "Record the environment" step (`full`, `windows`, `macos`)
-  prints `row_local_product` and `stacked_pinv_exact`, the two indexing
-  probes that pick an exact slower path on a platform whose BLAS or LAPACK
-  fails them. The suite runs at `-q` without `-rs`, so these lines are the
-  only way the nightly shows which path each OS took. `/code-review` flagged
-  the copies: a third probe, or a rename, needs three identical edits, and
-  missing one drops that platform's answer without anything going red.
-  WP-1519 declined the fold as a CI restructure (a YAML anchor, or one
-  script every leg calls). Low stakes, and yours if the nightly is ever
-  reshaped.
-- **From WP-1449 (2026-09-29): the Windows nightly fails on a command line
-  too long.** On 2026-09-28 (run 36420472550) the Windows fast suite's one
-  failure was `test_docs_consistency::test_no_planning_doc_links_something_gitignored`,
-  `FileNotFoundError: [WinError 206] The filename or extension is too long`.
-  That test hands every linked file to `git check-ignore` as argv, and the
-  WP files' links have outgrown Windows' 32 767-character limit. The helper
-  just above it already passes its paths on `--stdin -z`, and doing the same
-  here keeps `--no-index`. Linux and macOS were green. It failed again on
-  2026-09-29 (run 36563538187), the Windows leg's only failure.
-- **From WP-1541 (2026-10-03): the WinError 206 item above is fixed.** It was
-  the release's pre-upload gate, so the cut took it. The test passes its paths
-  on `--stdin -z`, and the index half lists the index (`git ls-files -z`)
-  rather than naming the paths, for the same argv reason. Both halves were
-  made to fail on purpose. Nothing is left here for this item.
-
 ## Non-goals
 
 - The GUI dist and its write path to main: WP-1313. Its branch-protection
@@ -167,11 +138,13 @@ the tail today, in local serial seconds:
       `-o junit_duration_report=total`). `/wp-handover` reads the rows for
       the tests the branch added. The rule goes in tests/CLAUDE.md § Budgets
       in tests.
-- [ ] From two weeks of those timings, choose the next cut and record its
+- [x] ~~From two weeks of those timings, choose the next cut and record its
       numbers. The options are sampling the named sweeps, sharding, or fewer
       Pythons on a PR. Sharding must keep each `xdist_group` whole. Five legs
       times N shards meets the 20-job limit when two PRs are readied
-      together, so sharding probably comes with a smaller PR matrix.
+      together, so sharding probably comes with a smaller PR matrix.~~ Moved to
+      [1547](1547-the-fast-tiers-tail.md) on 2026-10-09, with the timings
+      measured there.
 - [x] tests/CLAUDE.md § CI and `ci.yml`'s header say what gates now.
 - [x] Skill: none. This changes how the repo is tested, not how rietx is
       driven.
@@ -225,6 +198,24 @@ gh run list --workflow ci.yml --limit 10 --json headBranch,conclusion,createdAt,
   reports).
 
 ## Handover log
+
+### 2026-10-09 — closed: the CI-time cut moved to 1547
+
+This WP did what its title says. A PR changing only planning documents has
+gone green in about two minutes since 2026-09-27, and branch protection
+gates on `lint` and `ci-ok`. The cut to CI time it was waiting two weeks of
+timings for is now WP-1547. Those timings showed a bigger problem than a
+trim: the median fast leg rose from 21.7 to 31.1 min in the week to
+2026-10-09, mostly from three files.
+
+*Done.* Task 7 struck through and pointed at 1547. The Inherited section
+was consumed. The WP-1519 note about the probe line pasted into three
+nightly legs is still open, so it moved to 1547's Context, since 1547's last
+task may reshape the nightly. The WinError 206 note was already fixed by
+WP-1541. The 1547 note was the move itself. No WP's Priority moved: 1507
+depends on this one softly, through the docs job, and that job is live.
+
+*Next.* Nothing here. The CI-time work is 1547's.
 
 ### 2026-10-06 — the planning set takes the session machinery
 

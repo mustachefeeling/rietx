@@ -1,7 +1,8 @@
 # Releasing rietx
 
 How a version reaches PyPI. This file is the authority; WP-1003's checklist
-describes the by-hand 1.0.0 upload and is history, not instructions.
+describes the by-hand 1.0.0 upload and is history, not instructions. The
+kernel wheel, a second distribution, has its own section below.
 
 **Never run `twine upload` by hand.** Publishing goes through
 [`.github/workflows/release.yml`](../.github/workflows/release.yml), which
@@ -51,15 +52,18 @@ which is the backlog this rule exists to prevent.
    so it is written for a reader upgrading, not for a maintainer. The
    precedents are [1.0.0](releases/1.0.0.md), a milestone, and
    [1.0.1](releases/1.0.1.md), a patch that changed no source file.
-3. Land both on `main` and let CI go green. Branch protection requires six
-   checks (`lint`, `fast py3.11`–`py3.14`, `fast jax`), so a commit on `main`
-   has already passed them, and the workflow refuses a tag that is not on
-   `main` for exactly that reason.
-4. Check that the nightly's Windows job is green on that commit
-   (`gh run list --workflow nightly.yml`). This is the pre-upload gate WP-1003
-   established: the OS classifiers claim Windows, and the claim ships only
-   verified. No workflow can wait the ~2 h this takes, so it is asserted by a
-   person at step 6.
+3. Land both on `main` and let CI go green. Branch protection requires `lint`
+   and `ci-ok`, which passes only when the fast suite passed on py3.11, py3.14
+   and jax (WP-1506, WP-1547). So a commit on `main` has already passed them,
+   and the workflow refuses a tag that is not on `main` for exactly that
+   reason.
+4. Check that three nightly jobs are green on that commit
+   (`gh run list --workflow nightly.yml`): Windows, `py312` and `full`, the
+   one run on Python 3.13. This is the pre-upload gate WP-1003 established for
+   Windows: the classifiers claim it, and the claim ships only verified. The
+   middle two Pythons joined it when they left the per-push matrix (WP-1547).
+   No workflow can wait the ~2 h this takes, so it is asserted by a person at
+   step 6.
 5. Tag `vX.Y.Z` and publish the GitHub release from the notes file. This reads
    as one command and is three, because `--verify-tag` requires the tag to
    already be on the remote:
@@ -120,6 +124,50 @@ name. Last confirmed working 2026-08-17.
 
 The `pypi` environment carries `yue-here` as a required reviewer, which is what
 makes step 6 a real gate rather than a formality.
+
+## The kernel wheel
+
+rietx's compiled kernels are a second distribution, `rietx-kernels`,
+built from `kernels/` (WP-1940). It has its own version and its own workflow,
+[`.github/workflows/kernels.yml`](../.github/workflows/kernels.yml). It releases
+only when the kernels change. The weekly rietx cut does not touch it.
+
+Its major version is the kernel interface number, `rietx_kernels.KERNEL_ABI`,
+and rietx pins that major version. Bump the major for any change to an
+existing kernel's name, arguments or output planes, and move rietx's pin in
+the same pull request. Bump the minor for anything else: a new kernel, or a
+change of arithmetic. When rietx starts calling a new kernel, raise the pin's
+floor to the minor that added it, because an older wheel of the same major
+lacks it.
+
+1. Set `version` in `kernels/Cargo.toml`. A build updates `kernels/Cargo.lock`
+   to match. Commit both.
+2. Land it on `main` through a pull request. `kernels.yml` builds the five
+   platform wheels and tests each on its own platform, so the pull request
+   shows them green before anything is tagged.
+3. Tag the `main` commit and push the tag. Create no GitHub release:
+   `release.yml` publishes rietx on every published release.
+
+   ```sh
+   git tag kernels-vX.Y.Z         # on the `main` commit from step 2
+   git push origin kernels-vX.Y.Z
+   ```
+
+4. Approve the `pypi` deployment when the run pauses. The job refuses a tag
+   that is not on `main`, or one that disagrees with `kernels/Cargo.toml`.
+5. Verify from the index, in a fresh venv:
+
+   ```sh
+   uv venv --python 3.12 /tmp/kernels-smoke
+   VIRTUAL_ENV=/tmp/kernels-smoke uv pip install --refresh "rietx-kernels==X.Y.Z"
+   /tmp/kernels-smoke/bin/python -c "import rietx_kernels as k; print(k.__version__, k.KERNEL_ABI)"
+   ```
+
+The trusted publisher matches the same four claims as rietx's, with
+`kernels.yml` as the workflow name. Before the first upload the project does
+not exist on PyPI, so it is a *pending* publisher, added at pypi.org →
+Account settings → Publishing. `gh workflow run kernels.yml --ref main`
+checks it the way the dispatch run checks rietx's.
 
 ## What lives where
 

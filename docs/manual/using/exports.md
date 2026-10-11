@@ -83,7 +83,7 @@ by at most 8e-6 of the peak height, all of them in peak tails at a window edge.
 (plotting-the-fit)=
 ## Plotting the fit
 
-`RefinementResult.plot` draws the standard panel [](quickstart.md) opens with:
+`RefinementResult.plot` draws the standard panel [](first-refinement.md) opens with:
 observed points, the calculated line, the `obs − calc` difference on the same
 axis at the same scale, and one row of reflection ticks per phase. It draws
 with matplotlib and returns the figure, so passing `path=` is optional.
@@ -210,10 +210,8 @@ message.
 `StructureFigure.palette` gives each site label drawn and its colour, for a
 legend beside the figure.
 
-On an Apple M4 in September 2026, a warm render of this NAC cell took
-33-40 ms at 1000 px and 71-94 ms at 3000 px.
-The first render in a process compiled the kernel in about 1.5 s; after that
-numba loads it from its cache.
+On an Apple M4 in October 2026, a render of this NAC cell took
+35-41 ms at 1000 px and 89-117 ms at 3000 px.
 
 There is no SVG or PDF output.
 A ray-caster has no shapes to write.
@@ -482,9 +480,10 @@ auto view: 7% hidden, chose [0, 1, 2], then [[1, 2, 0], [2, 0, 1]]
 redrawn from the recipe with a long side of 1000 px, same view: True
 ```
 
-On an Apple M4 in September 2026, the report added about 2 ms to a render of
-this cell, and `view="auto"` took 92 ms against a render of 19-21 ms.
-At 3143 atoms the search took 565 ms against a render of 213-221 ms.
+On an Apple M4 in October 2026, at `size=400`, the report's id pass added
+0.65-0.76 ms to a render of this cell, and `view="auto"` took 90-107 ms
+against a render of 27-34 ms.
+At 3143 atoms the search took 530-548 ms against a render of 175-209 ms.
 
 ## The reflection list
 
@@ -508,6 +507,7 @@ the structure, for a caller that holds those instead of a `Refinement`.
 | `ReflectionRow.intensity` | the modelled integrated intensity of this row |
 | `ReflectionRow.satellite_order` | the m of Q = H + m·k, 0 on every nuclear reflection |
 | `ReflectionRow.component` | `"total"`, or `"nuclear"`/`"magnetic"` where a magnetic width is active |
+| `ReflectionRow.phase_index` | the phase's index in the structure, which holds where two phases share a name |
 
 Four of those need care.
 
@@ -562,8 +562,7 @@ file contains, and why the CIF carries a symmetry-operation loop of its own, and
 for a phase carrying a moment, the magCIF block the same writer adds:
 the operator and centring loops, the BNS metadata, and the refined moments with
 the modulus esd in `_atom_site_moment.magnitude_su`. A phase with no
-`Phase.magnetic_symmetry` gets none of it, so a nuclear export is byte for byte
-what it always was. A phase that `magnetic_supercell` built is written by
+`Phase.magnetic_symmetry` gets none of it. A phase that `magnetic_supercell` built is written by
 `Structure.to_cif` in its own child cell, with no
 `_space_group_magn.transform_BNS_Pp_abc`: its `MagneticSymmetry.setting` is
 `None`, because the builder derives no transform to the BNS setting, and the
@@ -596,7 +595,10 @@ assert format_su(12345.0, 250.0) == "12340(250)"
 
 `4.59370(25)`, not `4.593700(250)`. An esd of 2.5 × 10⁻⁴ says the sixth decimal
 is not knowledge, so the esd sets the number of decimals and the `decimals`
-argument governs only the case where there is none.
+argument governs only the case where there is none. The CIF writers do not use
+that argument. A value with no esd goes into a CIF as the shortest text that
+reads back as the same number, because a fixed number of decimals loses what it
+does not print.
 
 Three cases the function handles that a format string does not. An esd like
 0.0999 rounds up to two figures as 100, which is renormalised to 0.10 and one

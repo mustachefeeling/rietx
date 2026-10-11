@@ -1005,6 +1005,49 @@ def _magnetic_component_drawn(phase, instrument) -> bool:
         return False
 
 
+#: A softplus entry at or below this value is on its floor (WP-1930).  The
+#: transform clamps a stored 0 to 1e-12 (``transforms._SOFTPLUS_MIN``), and a
+#: fit that ends on the floor leaves the value near there: 1e-12 on one
+#: platform and 3e-11 on the other in issue #832's sweep.  This bar is 30× above
+#: the larger.  At 1e-9 the softplus slope is 1e-9, so a row that far down
+#: carries no gradient a solver can act on, and no width or coefficient that
+#: small is a measurement.
+SOFTPLUS_FLOOR_VALUE = 1e-9
+
+#: The value a stage starts a freed softplus row at when the row sits on its
+#: floor, keyed by the unit its :class:`Parameter` declares (WP-1930, #836).
+#:
+#: **Why a seed at all.**  At the floor the softplus slope is 1e-12, so the row's
+#: Jacobian column is twelve orders below its neighbours.  A Gauss-Newton step
+#: there predicts a change in cost below the cost's own rounding, so whether the
+#: trust region ever lifts the row is decided by the last bits.  On LaB₆ + cBN a
+#: 3e-14 relative change to one start value moved χ²_red from 9.69 to 12.48,
+#: with ``instrument.profile.y`` left on its floor.  MINUIT's manual warns of
+#: the same thing for any transformed parameter at its limit.
+#:
+#: **The sizes.**  A width in deg 2θ starts at 1e-3°, the extinction stage's
+#: own seed.  A Gaussian variance in deg² starts at its square, so it adds the
+#: same 1e-3° to the FWHM.  An extinction coefficient in µm² starts at 1e-3 too.
+#: At 1e-3 the softplus slope is 1e-3, nine orders above the floor's, and a
+#: seed that small is cheap to walk back where the data put the width at zero.
+#: Measured on 11-BM LaB₆ + cBN, BT-1 neutron and lab Cu Kα brucite: every seed
+#: from 1e-3° to 0.05° reached one χ² per fit, under rounding-level changes to
+#: the start as well.  The larger seed saved a few iterations on the sharp
+#: instrument (36-40 against 41-45).  It cost more elsewhere: at 0.05° nine
+#: synthetic suites whose true width is zero ran out of iterations or moved,
+#: and LaB₆ + cBN with its Gaussian free stopped at χ²_red 9.84 rather than
+#: 9.66.  WP-1930's log has the tables.
+#:
+#: A row with any other unit has no natural size: a background hump's height
+#: is in counts, and its scale is the data's.  It is left where it is and
+#: reported (``SOFTPLUS_FREED_AT_FLOOR``).
+#:
+#: **A second reader.**  The finite-difference step of an identity width row
+#: is sized by the same table (``optimize.least_squares._fd_typicals``,
+#: WP-1936), so a new width unit belongs here for both reasons.
+FLOOR_SEEDS: dict[str, float] = {"deg": 1e-3, "deg^2": 1e-3 ** 2, "um^2": 1e-3}
+
+
 class ParameterTable:
     """The tree-to-flat-θ machinery behind a fit — internal, not the agent surface.
 
@@ -1061,6 +1104,11 @@ class ParameterTable:
         #: table's arithmetic is untouched: the rebuild writes the literal 1.0
         #: it always wrote, and ``x0``/``bounds`` skip the lookup's branch.
         self._value_scale: dict[str, float] = {}
+        #: path → the unit its :class:`Parameter` declared, for every entry
+        #: :meth:`_add` built.  Read by :meth:`seed_floor` alone, which sizes a
+        #: floor seed by unit; kept beside :class:`Entry` rather than in it,
+        #: because ``Entry`` mirrors ``ParameterRow`` field for field.
+        self._units: dict[str, str | None] = {}
         #: atom base path (``phases.0.atoms.2``) → the orthonormal frame of
         #: that site's allowed moment subspace, in crystal-axis rows.  Built
         #: here from the declared cell, rebuilt at every stage start by
@@ -1087,6 +1135,10 @@ class ParameterTable:
         #: whose subtraction rule is wrong for a rotation by O(δω²)
         #: (WP-1803's record), so nothing rebases one.
         self._anchored_rotations: dict[str, tuple[str, ...]] = {}
+        #: body base path → its torsions' twist increments (WP-1808): the
+        #: same anchored-rotation kind about one named axis each, composed
+        #: into the torsion's ``angle`` and zeroed at every :meth:`commit`
+        self._anchored_torsions: dict[str, tuple[str, ...]] = {}
         #: a body origin's displacement DOFs (they are in ``_anchored_dofs``
         #: too, being an atom-like site): with the rotations, the increments
         #: that restart at every build while the record moves, which is what
@@ -1096,6 +1148,8 @@ class ParameterTable:
         #: so a stage that restores a collapsed phase to where it began can
         #: put the anchor back too (:meth:`restore_body_anchors`)
         self._precommit_anchor: dict[str, tuple] = {}
+        #: body base path → φ₀ as the last :meth:`commit` found it (WP-1808)
+        self._precommit_torsions: dict[str, np.ndarray] = {}
         self._collect(structure, instrument)
         self._rebuild()
         if self._bodies:
@@ -1115,6 +1169,7 @@ class ParameterTable:
             lo=p.min, hi=p.max, transform=p.transform, tie=tie,
             locked=force_fixed,
         ))
+        self._units[path] = p.unit
 
     def _collect(self, structure: Structure, instrument: Instrument) -> None:
         for ip, phase in enumerate(structure.phases):
@@ -1279,7 +1334,9 @@ class ParameterTable:
         if len(basis) == 0 and want_vary:
             raise ValueError(
                 f"{base} sits on a fully fixed special position; its site "
-                "symmetry allows no positional freedom — set vary=False")
+                "symmetry allows no positional freedom — set vary=False "
+                "(Refinement.fix_special_positions() does it for every such "
+                "site)")
         dof_paths = [f"{base}.dof.{k}" for k in range(len(basis))]
         for c_idx, c in enumerate(("x", "y", "z")):
             p: Parameter = getattr(atom, c)
@@ -1319,9 +1376,9 @@ class ParameterTable:
 
         The origin is collected exactly as an atom's coordinates are
         (:meth:`_collect_atom_coords`): anchored displacement DOFs on its
-        site-symmetry basis.  A body whose origin sits on a special position is
-        refused for now (``RIGID_BODY_NOT_INVARIANT``; WP-1807 takes the
-        stabiliser's axial subspace for the rotation).  The rotation is an
+        site-symmetry basis.  A body whose origin, or any of whose atoms, sits
+        on a special position is refused for now (``RIGID_BODY_NOT_INVARIANT``;
+        WP-1807 takes the stabiliser's axial subspace for the rotation).  The rotation is an
         **anchored increment** δω = E·θ about the record's R₀, zero at every
         build and every commit, bounded per component by
         ``RIGID_BODY_ROTATION_BOUND``; it has as many DOFs as the template's
@@ -1342,12 +1399,37 @@ class ParameterTable:
                 "supported yet (WP-1807) — move the origin to a general "
                 "position")
         index = {a.label: j for j, a in enumerate(phase.atoms)}
+        # the origin is not the only point a site can fix: a member atom on a
+        # special position keeps its coset split for the stage while the body
+        # turns it off the site, and the next compile counts |G_x| times as
+        # many images (S, O1, O2 of PbSO4 on the Pnma mirror: 8 S and 24 O in
+        # a cell of 4 and 16).  Keyed on the stabiliser the forward model's
+        # multiplicity is read from (``wyckoff.stabilizer_rotations``)
+        for label in body.atoms:
+            atom = phase.atoms[index[label]]
+            at = np.array([atom.x.value, atom.y.value, atom.z.value])
+            order = len(stabilizer_rotations(sg, at))
+            if order > 1:
+                raise ValueError(
+                    f"RIGID_BODY_NOT_INVARIANT: rigid body {body.name!r} has its "
+                    f"atom {label!r} at {tuple(float(v) for v in at)} on a "
+                    f"special position of {phase.space_group!r} (site symmetry "
+                    f"of order {order}); a turn of the body moves it off the "
+                    f"site and the next stage counts {order}× its images, and a "
+                    "body on a special position is not supported yet (WP-1807) "
+                    "— refine that atom outside the body, or state the "
+                    "structure in a subgroup where its site is general")
+        member = {label: i for i, label in enumerate(body.atoms)}
         try:
             block = RigidBodyBlock(
                 phase_base=base, body_base=bbase,
                 atom_bases=[f"{base}.atoms.{index[label]}" for label in body.atoms],
                 template=np.array(body.template, dtype=np.float64),
-                q0=np.array(body.orientation, dtype=np.float64))
+                q0=np.array(body.orientation, dtype=np.float64),
+                torsions=[(member[t.axis[0]], member[t.axis[1]],
+                           [member[m] for m in t.moves]) for t in body.torsions],
+                angles=[t.angle for t in body.torsions],
+                names=[t.name for t in body.torsions])
         except ValueError as exc:
             raise ValueError(f"rigid body {body.name!r}: {exc}") from None
         before = set(self._anchored_dofs)
@@ -1364,6 +1446,14 @@ class ParameterTable:
                 lo=-RIGID_BODY_ROTATION_BOUND, hi=RIGID_BODY_ROTATION_BOUND,
                 transform="identity"))
         self._anchored_rotations[bbase] = paths
+        # named-bond torsions (WP-1808): the same kind about one axis each, in
+        # degrees and unboxed — a turn about a fixed axis has no singular
+        # chart to keep away from, and the commit wraps the record
+        twists = block.twist_paths(bbase)
+        for path, torsion in zip(twists, body.torsions, strict=True):
+            self.entries.append(Entry(path=path, value=0.0, vary=torsion.vary,
+                                      lo=-np.inf, hi=np.inf, transform="identity"))
+        self._anchored_torsions[bbase] = twists
         self._bodies.append((bbase, body.name, block))
 
     def _check_body_drift(self) -> None:
@@ -1406,12 +1496,13 @@ class ParameterTable:
     def body_dofs(self) -> dict[str, str]:
         """Every rigid body's own DOF → that body's name (WP-1805).
 
-        Its origin's displacement DOFs and its rotation DOFs, read off the data
-        :meth:`_collect_body` built.
+        Its origin's displacement DOFs, its rotation DOFs and its torsions'
+        twists, read off the data :meth:`_collect_body` built.
         """
         out: dict[str, str] = {}
         for bbase, name, _ in self._bodies:
             out.update(dict.fromkeys(self._anchored_rotations[bbase], name))
+            out.update(dict.fromkeys(self._anchored_torsions[bbase], name))
             out.update(dict.fromkeys(self._body_origin_dofs[bbase], name))
         return out
 
@@ -2206,16 +2297,20 @@ class ParameterTable:
     # -- table surgery (used by Wyckoff constraint wiring) -------------
     def add_parameter(self, path: str, value: float, *, vary: bool = False,
                       lo: float = -np.inf, hi: float = np.inf,
-                      transform: str = "identity") -> None:
+                      transform: str = "identity",
+                      unit: str | None = None) -> None:
         """Append a synthetic parameter (e.g. a Wyckoff displacement DOF).
 
         Synthetic paths must not collide with existing entries; pick names
-        outside the model tree, e.g. ``phases.0.atoms.2.dof.0``.
+        outside the model tree, e.g. ``phases.0.atoms.2.dof.0``.  ``unit`` is
+        recorded as :meth:`_add` records a model parameter's, so a named
+        variable sized like the width it replaces gets that width's floor seed.
         """
         if path in self._paths:
             raise ValueError(f"parameter {path!r} already exists")
         self.entries.append(Entry(path=path, value=value, vary=vary,
                                   lo=lo, hi=hi, transform=transform))
+        self._units[path] = unit
         self._rebuild()
 
     def tie_source_refusal(self, tie: AffineTie) -> tuple[str, str] | None:
@@ -2265,13 +2360,15 @@ class ParameterTable:
         self._rebuild()
 
     def _body_increment_kind(self, path: str) -> str | None:
-        """``"rotation"``/``"origin"`` for a body increment entry, else ``None``.
+        """``"rotation"``/``"torsion"``/``"origin"`` for a body increment, else ``None``.
 
         Read off :attr:`_anchored_rotations` and :attr:`_body_origin_dofs`,
         the data built where each increment is anchored, never off the name.
         """
         if any(path in paths for paths in self._anchored_rotations.values()):
             return "rotation"
+        if any(path in paths for paths in self._anchored_torsions.values()):
+            return "torsion"
         if any(path in dofs for dofs in self._body_origin_dofs.values()):
             return "origin"
         return None
@@ -2291,10 +2388,10 @@ class ParameterTable:
             kind = self._body_increment_kind(src)
             if kind == target:
                 continue
-            if kind is not None or target == "rotation":
+            if kind is not None or target in ("rotation", "torsion"):
                 raise ValueError(
-                    f"cannot tie {path!r} to {src!r}: a rigid body's rotation "
-                    "and origin increments restart at zero at every build "
+                    f"cannot tie {path!r} to {src!r}: a rigid body's rotation, "
+                    "torsion and origin increments restart at zero at every build "
                     "while its record moves, so only an increment of the same "
                     "kind can follow one (or be followed by one)")
 
@@ -2438,10 +2535,12 @@ class ParameterTable:
         body's stored orientation, so the value a fit reports is the step its
         last stage took and never an orientation; a reader comparing it across
         fits compares nothing.  The quaternion record and the body atoms' rows
-        are what carry the answer.  Read off :attr:`_anchored_rotations`.
+        are what carry the answer.  A torsion's twist is the same kind about
+        one axis (WP-1808), its record the torsion's ``angle``.  Read off
+        :attr:`_anchored_rotations` and :attr:`_anchored_torsions`.
         """
-        return frozenset(p for paths in self._anchored_rotations.values()
-                         for p in paths)
+        return frozenset(p for kind in (self._anchored_rotations, self._anchored_torsions)
+                         for paths in kind.values() for p in paths)
 
     @property
     def angle_dof_paths(self) -> frozenset[str]:
@@ -2464,7 +2563,8 @@ class ParameterTable:
 
     def displace_anchored_dofs(self, coordinates: Mapping[str, float],
                                named: Callable[[str], bool],
-                               orientations: Mapping[str, Iterable[float]] | None = None
+                               orientations: Mapping[str, Iterable[float]] | None = None,
+                               torsions: Mapping[str, Iterable[float]] | None = None
                                ) -> list[str]:
         """Set displacement DOFs so their coordinates reach ``coordinates``.
 
@@ -2502,7 +2602,11 @@ class ParameterTable:
         smallest turn carrying its axis R₀·u onto R_target·u, which lies in
         their plane exactly (a spin about the axis moves no atom).  The body
         moves when ``named`` admits one of its rotation DOFs or one of its
-        atoms' rows; a rotation DOF the caller tied is left alone.
+        atoms' rows; a rotation DOF the caller tied is left alone.  A body's
+        torsions (WP-1808) follow the same rule from their record:
+        ``torsions`` gives the target angles per body base path, and each
+        twist is set to the target less its anchor, taken into (−180, 180] —
+        exact, since turns about one axis add.
         """
         groups: list[tuple[list[str], set[str]]] = []
         for dof, rows in self._anchored_dofs.items():
@@ -2552,6 +2656,7 @@ class ParameterTable:
                 if e.tie is not None:
                     e.value = self._implied(e.tie, p)
         moved += self._displace_body_rotations(orientations or {}, named)
+        moved += self._displace_body_torsions(torsions or {}, named)
         if moved:
             self._rebuild()
         return moved
@@ -2598,6 +2703,26 @@ class ParameterTable:
                 e = self.entries[self._paths[path]]
                 if e.tie is None:
                     e.value = float(value)
+                    moved.append(path)
+        return moved
+
+    def _displace_body_torsions(self, torsions: Mapping[str, Iterable[float]],
+                                named: Callable[[str], bool]) -> list[str]:
+        """The torsion half of :meth:`displace_anchored_dofs` (its docstring)."""
+        from .bodies import wrap_degrees
+
+        moved: list[str] = []
+        for bbase, _, block in self._bodies:
+            target = torsions.get(bbase)
+            paths = self._anchored_torsions[bbase]
+            if target is None or not paths or not (
+                    any(named(p) for p in paths)
+                    or any(named(q) for q in block.outputs)):
+                continue
+            for path, want, phi0 in zip(paths, tuple(target), block.phi0, strict=True):
+                e = self.entries[self._paths[path]]
+                if e.tie is None:
+                    e.value = wrap_degrees(float(want) - float(phi0))
                     moved.append(path)
         return moved
 
@@ -2822,6 +2947,55 @@ class ParameterTable:
         if seeded:
             self._rebuild()
         return seeded
+
+    def seed_floor(self, paths: list[str], cap: dict[str, float] | None = None,
+                   *, write: bool = True) -> tuple[dict[str, float], list[str]]:
+        """Start each freed softplus row sitting on its floor a short way inside.
+
+        A row is on its floor at or below :data:`SOFTPLUS_FLOOR_VALUE` (in
+        column units, as :meth:`seed_softplus` reads a seed).  It is lifted to
+        :data:`FLOOR_SEEDS`' value for its unit, times its value scale, or
+        to half its upper bound where that is lower.  Only
+        rows on the floor are touched, so a start a caller chose is never
+        overwritten: issue #499 was a seed that lifted every row below it,
+        the moment and the scale included.
+
+        ``cap`` maps a path to a ceiling on its seed in column units.  A joint
+        table passes it so a shared column takes one seed in every histogram,
+        since each histogram's box divides by its own value scale.
+        ``write=False`` returns what would be seeded and changes nothing.
+
+        Returns ``(seeded, unseeded)``: the paths lifted with the column value
+        each now starts at, and the floor rows whose unit has no seed, a
+        ``.scale`` excepted.
+        """
+        seeded: dict[str, float] = {}
+        unseeded: list[str] = []
+        for path in paths:
+            i = self._paths.get(path)
+            if i is None:
+                continue
+            e = self.entries[i]
+            scale = self._value_scale.get(path, 1.0)
+            if e.transform != "softplus" or e.value > SOFTPLUS_FLOOR_VALUE * scale:
+                continue
+            seed = FLOOR_SEEDS.get(self._units.get(path))
+            if seed is None:
+                # a scale on its floor is a phase or curve the data cannot see,
+                # which PHASE_UNCONSTRAINED reports (WP-1301); starting it
+                # positive is the advice that report exists to withhold
+                if not path.endswith(".scale"):
+                    unseeded.append(path)
+                continue
+            # a box narrower than the seed takes half its own width instead
+            seed = min(seed, 0.5 * e.hi / scale,
+                       (cap or {}).get(path, float("inf")))
+            if write:
+                e.value = seed * scale
+            seeded[path] = seed
+        if seeded and write:
+            self._rebuild()
+        return seeded, unseeded
 
     def seed_stephens(self, paths: list[str], microstrain: float) -> list[str]:
         """Put a freed but still all-zero Stephens block on the isotropic ray.
@@ -3166,14 +3340,17 @@ class ParameterTable:
         (:meth:`_canonicalise_moment_dofs`, #604), so the committed values can
         differ from ``decode(theta)`` there — the same moment, never a
         different one.  A rigid body's rotation composes (WP-1805): R₀ ←
-        Exp(δω)·R₀ and δω ← 0, the same pose in a new chart.
+        Exp(δω)·R₀ and δω ← 0, the same pose in a new chart; a torsion's twist
+        composes by addition, φ₀ ← φ₀ + δφ and δφ ← 0 (WP-1808).
 
         The return says how the chart moved, for a caller still holding the
         solver's outcome to pass to
         :func:`~rietx.optimize.least_squares.rechart_outcome` with ``x0()``
         so its ``theta``, Jacobian and correlations describe these values:
         ``None`` when nothing moved; the ±1 per free column when only a
-        moment flipped; the square matrix ∂θ_old/∂θ_new over the free columns
+        moment flipped; all ones when only a torsion twist moved (composing
+        about one axis is addition, so the chart moves by a translation); the
+        square matrix ∂θ_old/∂θ_new over the free columns
         (:meth:`_chart_matrix`) when a body turned.
 
         A body that fails the commit-time guard (:meth:`_check_committed_bodies`)
@@ -3183,9 +3360,7 @@ class ParameterTable:
         """
         values = self.decode(theta)
         if self._bodies:
-            before = ([e.value for e in self.entries],
-                      [(b.q0, b.r0, b.axes) for _, _, b in self._bodies],
-                      dict(self._precommit_anchor))
+            before = self._commit_state()
         for e in self.entries:
             e.value = values[e.path]
         signs = self._canonicalise_moment_dofs()
@@ -3193,6 +3368,7 @@ class ParameterTable:
         # so the constraint block cannot carry them and they are derived here
         self._refresh_moment_components()
         charts = self._compose_bodies(values) if self._bodies else {}
+        twisted = self._compose_torsions(values) if self._bodies else False
         # held-source contributions to d follow the new values, and the
         # derived rows the composed anchors
         self._rebuild()
@@ -3200,20 +3376,51 @@ class ParameterTable:
             try:
                 self._check_committed_bodies(values)
             except ValueError:
-                old_values, anchors, self._precommit_anchor = before
-                for e, v in zip(self.entries, old_values, strict=True):
-                    e.value = v
-                for (_, _, block), anchor in zip(self._bodies, anchors, strict=True):
-                    block.restore_anchor(*anchor)
-                self._rebuild()
+                self._restore_commit_state(before)
                 raise
         if not charts:
+            if twisted and signs is None:
+                # a twist composes by a translation of its chart: the outcome
+                # keeps every number and takes the committed θ (WP-1808)
+                return np.ones(len(self._free_idx))
             return signs
         for bbase, _, block in self._bodies:
             if bbase in charts:
                 block.settle_anchor()
         self._refresh_derived()
         return self._chart_matrix(signs, charts)
+
+    def _commit_state(self) -> tuple:
+        """What :meth:`commit` changes, for :meth:`_restore_commit_state`.
+
+        The entries' values, each body's anchor and torsion anchors (WP-1808),
+        and the anchors a later :meth:`restore_body_anchors` steps back to.  An
+        anchor is rebound at a commit, never written in place, so holding the
+        arrays is enough.
+        """
+        return ([e.value for e in self.entries],
+                [(b.q0, b.r0, b.axes) for _, _, b in self._bodies],
+                dict(self._precommit_anchor),
+                [b.phi0 for _, _, b in self._bodies],
+                dict(self._precommit_torsions))
+
+    def _restore_commit_state(self, state: tuple) -> None:
+        """Put the table back as :meth:`_commit_state` found it.
+
+        Undoes a commit this table refused (#801), or one it made inside a
+        joint commit that another histogram's table refused
+        (:meth:`MultiParameterTable.commit`).
+        """
+        old_values, anchors, precommit, phi0s, precommit_torsions = state
+        self._precommit_anchor = dict(precommit)
+        self._precommit_torsions = dict(precommit_torsions)
+        for e, v in zip(self.entries, old_values, strict=True):
+            e.value = v
+        for (_, _, block), anchor, phi0 in zip(self._bodies, anchors, phi0s,
+                                               strict=True):
+            block.restore_anchor(*anchor)
+            block.restore_torsions(phi0)
+        self._rebuild()
 
     def _compose_bodies(self, values: Mapping[str, float]) -> dict[str, np.ndarray]:
         """R₀ ← Exp(δω)·R₀ and δω ← 0 for every body, at a commit (WP-1805).
@@ -3237,6 +3444,28 @@ class ParameterTable:
             for q in paths:
                 self.entries[self._paths[q]].value = 0.0
         return charts
+
+    def _compose_torsions(self, values: Mapping[str, float]) -> bool:
+        """φ₀ ← φ₀ + δφ and δφ ← 0 for every torsion, at a commit (WP-1808).
+
+        The body's rotation rule about one axis
+        (:meth:`RigidBodyBlock.commit_torsions`), where composing is addition,
+        so no chart matrix: ∂θ_old/∂θ_new is the identity on the twist
+        columns.  Returns whether any torsion turned; the previous anchors are
+        kept for :meth:`restore_body_anchors`.
+        """
+        self._precommit_torsions = {}
+        turned = False
+        for bbase, _, block in self._bodies:
+            paths = self._anchored_torsions[bbase]
+            before = block.phi0.copy()
+            if not block.commit_torsions([values[q] for q in paths]):
+                continue
+            self._precommit_torsions[bbase] = before
+            turned = True
+            for q in paths:
+                self.entries[self._paths[q]].value = 0.0
+        return turned
 
     def _check_committed_bodies(self, answer: Mapping[str, float]) -> None:
         """The commit-time guard: each body rigid, and where the solve put it.
@@ -3313,9 +3542,22 @@ class ParameterTable:
         wanted = set(paths)
         done = []
         for bbase, _, block in self._bodies:
+            restored = False
             if (bbase in self._precommit_anchor
                     and wanted & set(self._anchored_rotations[bbase])):
                 block.restore_anchor(*self._precommit_anchor.pop(bbase))
+                restored = True
+            # a torsion's twist is the same kind (WP-1808): each one restored
+            # gets its own anchor back, the others keep what the commit made
+            if bbase in self._precommit_torsions:
+                phi0 = block.phi0.copy()
+                old = self._precommit_torsions[bbase]
+                for t, q in enumerate(self._anchored_torsions[bbase]):
+                    if q in wanted:
+                        phi0[t] = old[t]
+                        restored = True
+                block.restore_torsions(phi0)
+            if restored:
                 done.append(bbase)
         if done:
             self._refresh_derived()
@@ -3610,3 +3852,9 @@ class ParameterTable:
             q = block.orientation([values[p] for p in self._anchored_rotations[bbase]])
             structure.phases[ip].rigid_bodies[b].orientation = tuple(
                 float(v) for v in np.asarray(q))
+            # its torsions' records the same way (WP-1808): φ₀ + δφ, which is
+            # φ₀ wherever a commit left δφ = 0
+            angles = block.angles([values[p] for p in self._anchored_torsions[bbase]])
+            for torsion, angle in zip(structure.phases[ip].rigid_bodies[b].torsions,
+                                      angles, strict=True):
+                torsion.angle = float(angle)

@@ -78,7 +78,24 @@ satisfy $R\,\delta = \delta$, so the coordinate basis spans
 
 {source}`rietx.crystallography.wyckoff.coordinate_basis`
 
-({cite}`itc-a` sect. 8.3.2). The $U^{ij}$ tensor transforms as $U \to R\,U
+({cite}`itc-a` sect. 8.3.2). The same intersection taken over every rotation
+of the group, not one site's, gives the origin shifts that change no structure
+factor,
+
+```{math}
+:label: par-origin
+
+\bigcap_{R\in G} \ker(R - I)
+```
+
+{source}`rietx.crystallography.wyckoff.floating_origin_basis`
+
+({cite}`itc-a` Part 15): the polar axis of a polar group, nothing for a
+non-polar one. A fit freeing a coordinate of every atom along it has a flat
+direction; fixing it by holding one atom's coordinate, as
+`Refinement.hold_floating_origin` does, leaves the others' esds measured
+relative to that atom, where a restraint on the mean coordinate would spread
+them {cite}`flack1988`. The $U^{ij}$ tensor transforms as $U \to R\,U
 R^\top$ under a rotation acting on fractional coordinates, so the allowed
 ADP pattern spans the invariant subspace of that action on symmetric 3×3
 matrices {cite}`peterse1966` (cross-checked against the cctbx tables
@@ -290,6 +307,31 @@ freedom. Each body atom's esd comes through the map's exact Jacobian at the
 refined parameters, chained through the covariance of the origin, rotation and
 cell. A distance between two atoms of one body has no esd, because the template
 fixes it.
+
+A named-bond torsion turns a declared set of the body's atoms by an angle
+$\varphi$ about the line through two other body atoms, before the pose, in
+the right-handed sense from the first axis atom to the second (TOPAS's
+`Rotate_about_points` {cite}`coelho2018topas`):
+
+```{math}
+:label: par-torsion
+
+\mathbf{T}_i \;\leftarrow\; \mathbf{T}_a + R_{\hat{\mathbf{u}}}(\varphi)\,
+(\mathbf{T}_i - \mathbf{T}_a),
+\qquad \hat{\mathbf{u}} = \frac{\mathbf{T}_b - \mathbf{T}_a}{|\mathbf{T}_b - \mathbf{T}_a|},
+```
+
+{source}`rietx.params.bodies.apply_torsions`
+
+with $R_{\hat{\mathbf u}}(\varphi)$ Rodrigues' rotation. The moved set is
+declared, not derived from bonds, so the derivative with respect to
+$\varphi$ is exact by construction. A dihedral angle that ends on a moved
+atom changes by $\varphi$. Like the body's own rotation, a torsion refines
+as an anchored increment, $\varphi = \varphi_0 + \delta\varphi$, and every
+commit sets $\varphi_0 \leftarrow \varphi_0 + \delta\varphi$ and
+$\delta\varphi \leftarrow 0$. About one axis that composition is addition,
+so the chart moves by a translation and the esd of $\delta\varphi$ is the
+esd of $\varphi$.
 
 A body's *shape* is a hypothesis the data can reject. `Refinement.check_rigid_bodies` releases each body's atoms as free coordinates held near the template by soft restraints and compares the two fits on the data χ² alone, by Hamilton's R-factor ratio test {cite}`hamilton1965` and by ΔBIC {cite}`schwarz1978`, both at the effective sample size of the serially correlated residual. It warns (`RIGID_BODY_MISFIT`) only when both reject the body, and names the template bonds the released fit moved.
 

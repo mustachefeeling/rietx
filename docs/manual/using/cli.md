@@ -30,7 +30,7 @@ commands:
 
 An unknown command exits 2. Nothing here refines a structure. A refinement is a
 sequence of decisions about a model, and a command line is the wrong shape for
-it. Use the API ([](quickstart.md)) or the GUI.
+it. Use the API ([](first-refinement.md)) or the GUI.
 
 :::{admonition} For agents
 :class: agent

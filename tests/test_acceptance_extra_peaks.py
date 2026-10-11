@@ -44,7 +44,7 @@ esd inflated 7.5x, 8.7x on the 1.6.0 tree, and Rwp 3.7x) — that part holds. Bu
 recovers it*, to +0.6 ppm, for 256 channels (4.8 %). On this fixture the case
 for declaring is **not** cell accuracy over exclusion. It is that the channels
 stay in the fit, and that the intruder is measured rather than discarded:
-areas 123.4(43) and 124.5(24) against a truth of 120, centres within 0.005°.
+areas 123.4(36) and 124.5(20) against a truth of 120, centres within 0.005°.
 
 Where exclusion would cost more is where LaB6 costs least — a pattern with few
 reflections, or a series whose trajectory needs every one of them. That is the

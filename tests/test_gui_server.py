@@ -2159,8 +2159,14 @@ def test_each_stage_carries_the_rwp_of_the_node_that_ran_it(fitted):
     nodes = [n for n in tree.lineage(project.refinement._head_id)
              if n.action.kind == "stage"]
     assert got == [n.metrics.statistics.rwp for n in nodes[:len(got)]]
-    # the run's own last number is the last rung's
-    assert got[-1] == project.refinement.result_.statistics.rwp
+    # the run's own last number is the last rung's, to the as-optimised
+    # staleness root CLAUDE.md describes: a node's metrics are measured on the
+    # model frozen where its stage started.  Bit-equal while `profile.y` sat
+    # on its floor all stage; since WP-1930 seeds it, it moves and the windows
+    # with it (8e-6 relative, measured)
+    result = project.refinement.result_
+    assert any(st.seeded for st in result.stages)
+    assert got[-1] == pytest.approx(result.statistics.rwp, rel=1e-4)
 
 
 def test_freeing_a_parameter_does_not_wipe_the_stage_rwp(blank, tmp_path,

@@ -67,8 +67,8 @@ class SeriesEntry(Base):
     #: I(calc) — so a phase whose reflections sit under a stronger phase's peaks
     #: receives the intensity it predicted and scores well for having predicted
     #: it.  The bias is in the definition, not in the fit, and in-repo the
-    #: arithmetic runs the *other* way to intuition: 11-BM NAC's 1.35 wt% CaF₂
-    #: impurity scores R_B 0.385 against the major phase's 0.052, the whole
+    #: arithmetic runs the *other* way to intuition: 11-BM NAC's 1.34 wt% CaF₂
+    #: impurity scores R_B 0.377 against the major phase's 0.048, the whole
     #: misfit sitting in four reflections under strong NAC peaks (WP-1069).  A
     #: *low* R_B on a trace phase is therefore as consistent with a fully
     #: overlapped, self-fulfilling partition as with a real phase, and nothing
@@ -114,7 +114,7 @@ class SeriesEntry(Base):
     magnetic: list[MomentEvidence] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
-    #: Total least-squares iterations over **every attempt** on this pattern,
+    #: Total residual evaluations over **every attempt** on this pattern,
     #: every rung of the escalation ladder included.  The headline warm-start
     #: number: it is what a warm start actually buys, and it is measured rather
     #: than assumed (see WP-0505's acceptance).
@@ -716,7 +716,7 @@ class SeriesResult(Base):
 
     @property
     def n_iterations(self) -> int:
-        """Least-squares iterations over the chain this result *reports*.
+        """Residual evaluations over the chain this result *reports*.
 
         That is :attr:`entries`, so under ``direction="both"`` it is the
         forward chain only and **not what the run cost** — the reverse chain is

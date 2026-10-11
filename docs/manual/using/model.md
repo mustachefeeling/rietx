@@ -578,7 +578,7 @@ a fit and the table to decide what to do next.
 That split is the one `at_bound` reports against. In this fit all 14 free rows
 come back `False` and all 18 tied rows come back `None`: `cell.b`, `cell.c` and
 the sixteen symmetry-tied coordinates. Capping `cell.a` at 10.2500, against a
-free optimum of 10.2513, turns exactly one row `True` and takes Rwp from 0.1403
+free optimum of 10.2512, turns exactly one row `True` and takes Rwp from 0.1404
 to 0.2068. The fit spends its other parameters covering for a cell it is not
 allowed to reach, and that is why a bound-sitting value is not a measurement.
 
@@ -587,7 +587,7 @@ esds onto `ParameterRow.esd`, so one listing carries both the value and its
 uncertainty. A tied row gets one too: the free parameters' covariance is
 propagated through `C` as σ² = diag(C·Cov·Cᵀ), so an identity tie reports
 exactly its source's number. In that NAC fit `phases.0.cell.b` and `.c` both
-come back at 5.68e-05, which is `a`'s esd. The tied coordinate rows carry none,
+come back at 5.67e-05, which is `a`'s esd. The tied coordinate rows carry none,
 because a row is given an esd only when at least one of its sources was free,
 and that plan did not free the coordinate degrees of freedom. `None` means the
 uncertainty is unavailable rather than zero.

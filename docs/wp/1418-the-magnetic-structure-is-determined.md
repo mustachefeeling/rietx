@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-07 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-08 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -125,6 +125,139 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-09, from WP-1547.** The 230-group sweeps in
+  `test_magnetic_isotropy.py` (the Γ sweep, the real-amplitude count) and
+  `test_magnetic_irreps.py` (Burnside, Frobenius-Schur, the spgrep tables)
+  take a `SWEEPS` parameter. The fast tier runs a trap-chosen sample of 23
+  groups (`tests/space_group_sample.py`), and the `all-230` cases are `slow`.
+  A new sweep over the groups takes the same parameter. A timing of
+  `isotropy.analyse` read from the fast tier's junit now measures the sample;
+  read the nightly's `[all-230]` rows for the whole sweep.
+- **2026-10-09, from WP-1930 (PR #849).** `SOLVE_STAGE_PATHS`'
+  "all" stage (`strategy/magnetic.py:213`) frees `phases.*.gauss_strain` beside
+  `instrument.profile.u` and `phases.*.lor_size` beside `instrument.profile.x`,
+  which are exactly degenerate on one histogram. The floor seed now starts the
+  two phase widths off their floor, and on the two-site Pnma set they come back
+  at ρ = ±1.000 with `x` and `u`, a degeneracy the floor had hidden. Their
+  correlation with the moments is ≤ 0.007, so no moment moved. The same seed
+  let class 0's moment stage converge where it hit `max_iter`, so its pair
+  report vanished (#820): `test_pair_diagnostic_class`'s naming check moved to
+  the 150 K Cr₂WO₆ solution.
+
+- **2026-10-08, from the second issue triage (issue #835): an analytic
+  threshold for M-8's chance score, in place of the per-pattern shuffles.**
+  The #795 entry below sets M-8's reporting threshold as the 99th percentile
+  of 100 shuffled searches (4.77 decades at N = 6, 5.26 at N = 10, on a
+  132 650-point grid). #835 proposes the Poisson-binomial tail at α / N_eff,
+  N_eff being the stratum's grid points over the points per resolution
+  element, after the periodogram literature: Baluev (2008, *MNRAS* 385,
+  1279-1285) for the extreme-value bound and VanderPlas (2018, *ApJS* 236,
+  16, § 7) for oversampling about 5× per element. One 20-shuffle arm stays as
+  the calibration control. Acceptance as proposed: the analytic 99 %
+  threshold within 0.3 decade of 4.77 and 5.26, else the oversampling factor
+  is tuned once. Cost: one search instead of 100. Nothing to check against
+  the tree, since M-8 is unbuilt (Tasks, unchecked). The peak floor and the
+  two diagnostics #795 proposes are unchanged. A session building M-8
+  measures both nulls on the same grid before choosing.
+
+- **2026-10-08, from the second issue triage (issue #831): why #820's pair
+  count is machine-dependent.** Class 0 reaches one minimum on both
+  machines; its moduli esds and ρ follow where the solver stopped beside
+  the azimuth φ = π, a stationary direction both moments sit on. That
+  near-dead column, Jacobi-equilibrated to full weight, gives ρ −0.96 on
+  macOS and −0.50 on Linux, which is why macOS pairs class 0 and Linux does
+  not. With the azimuth columns left out of JᵀJ, both machines give ρ −0.20,
+  so class 0 has no degenerate pair. PR #829 (count ≥ 1 rather than ≥ 2) is
+  consistent with this. The general fix is WP-1929's; this WP's part is
+  that `MOMENT_DIRECTION_SUPPORT`'s hold does not catch a second-order-only
+  direction (the 0.1 rad probe correctly sees it as determined), and 1929's
+  decision may move what that hold covers.
+
+- **2026-10-08, from the issue triage (issue #820): two slow `solve_magnetic`
+  tests fail on main, and the first has a regression window.**
+  `tests/test_pair_diagnostic_class.py::test_every_pair_on_a_solution_names_a_class_whose_rows_carry_it`
+  expects two `MOMENT_PAIR_DEGENERATE` diagnostics on the two-site Pnma
+  solution and gets one. `tests/test_magnetic_solve_acceptance.py::test_the_150k_pattern_has_nothing_to_solve`
+  fails `assert not any(t.supported for t in refined)`.
+  Window for the first: the nightly's Linux full job was green at `7e9489ad`
+  (2026-10-06, run 37462593887) and red at `565e8f1d` (2026-10-07, run
+  37619420371), with the one failure being this test. Between them landed
+  #763 (`magnetic_reflections` keeps an orbit some member of which the
+  magnetic lattice lets scatter, so the reflection set `solve_magnetic` fits
+  changes), #743 (the message names its class), #772 (isotropy certificates)
+  and twenty-odd docs and skill merges. Nobody has bisected. A probe of the
+  test's own setup on this tree shows the classes: 0 and 3 refine
+  `converged`, `supported`, ΔBIC +18460 and +2832, with no pair folded; class 1
+  stops on `max_iter` at ΔBIC +504, supported; class 2 converges at ΔBIC
+  -31, unsupported, and is the one pair (sum 0.141 ± 5.402). The test's
+  docstring says two classes pair their moduli. So either #763 made two
+  classes' moduli separable (the test's expectation is stale) or the fit now
+  reaches a different minimum in them. That is the question a session on this
+  WP answers first, by running the probe at `7e9489ad` and at `87ca4934`
+  (#743's merge) before touching the assertion. Class 1 ending on `max_iter`
+  is worth a look in either case: a stage that ran out of budget is a
+  `fit_status` the test does not check.
+  The second test has no window: only its macOS arm64 failure is recorded
+  (the issue; the nightly Linux job passes it). It failed here too (pair value
+  and `supported` per the issue's 0.606; not re-read), so it is platform
+  dependent on a 2.3σ-against-3σ pair test (the docstring's 0.59 ± 0.26),
+  which any change to the fit's last digits can cross.
+  Checked against the tree at 5d1f5f67 (this worktree's `.venv`, macOS
+  arm64, `-n 0`): both fail as the issue says. First test 311 s, second 404 s.
+  No open PR or issue cites #820.
+
+- **2026-10-08, from the issue triage (issue #795): M-8 proposed as a
+  scored search.** The reporter proposes one search for a magnetic k and a
+  nuclear modulation vector, both the position hypothesis Q = H + m·k on a
+  known parent. On synthetic position lists (Pnma, CW neutrons, 0.12° match
+  radius) a bare count saturates: under a null of ten random peaks the best
+  k on a 0.02 grid matches 10 of 10. A local chance rate (Poisson-binomial
+  over the share of a ±5° band each candidate's windows cover) ranks a
+  planted line k first in 40 of 40, with the threshold taken from a
+  per-pattern shuffle null. A 0.02 grid lost every general k; a 0.01 grid
+  found them. The floor is about 2 + 2 per free component, plus 2 with
+  contaminating peaks. A pseudo-tetragonal metric yields an x ↔ z partner the
+  positions cannot separate. Proposed rules: the result carries no `.k`;
+  equivalents include the metric's pseudo-symmetric images; residue
+  iteration reports several transitions as several rows; `K_SEARCH_AT_CHANCE`
+  and `K_SEARCH_FEW_PEAKS` warn. Chunks K0 (peak picking on a residual), K1
+  (the search), K2 (1326's arm reads it), K3 (real k, LS refinement, rational
+  partners), K4 (powder class over Fourier components), K5 (refinable k as
+  `Modulation.q`), K6 (unknown parent), K7 (a second k). The reporter is
+  holding it until more of their open PRs land.
+  Checked against the tree at `5d1f5f67`: `as_propagation_vector`
+  (`crystallography/satellites.py:135`) refuses a component past
+  `K_MAX_DENOMINATOR`; `SatelliteCandidate` (`report/schemas.py:591`) carries
+  `matched_fraction` and no chance baseline; `_k_from_the_report`
+  (`strategy/magnetic.py:939`) and `indexing.ambiguity.lattice_point_group`
+  (`:474`) exist as named; `ModulationVector` and `SuperspaceGroup` exist
+  (`crystallography/superspace/`, PR #682) and no `Modulation.q` does. Two
+  things the issue does not say: `indexing/pick.py:49` already defines
+  `pick_peaks(data, instrument)`, so K0 extends it or takes another name; and
+  `minus_k_is_k`'s docstring (`satellites.py:185`) does cite "Physica B 192,
+  55, § Propagation vectors", while this WP's References and 1326's put that
+  section in the FullProf manual. The paper was not re-read here. No count
+  was re-measured.
+  Fences: K5 is a refinable incommensurate vector, and modulated structures
+  are v2+ (this WP's non-goals, ROADMAP § v2+). K6 indexes the strongest
+  lines and searches the residue, which sits beside the fenced "multi-phase
+  indexing of the residual" (ROADMAP § v2+, Indexing). An incommensurate k
+  reported as a *position* hypothesis is in M-8's text and outside the fence.
+  Decisions the session needs, the maintainer's:
+  1. Placement: `indexing/kvector.py` under `src/rietx/indexing/CLAUDE.md`
+     (no singleton, budgets, chance-normalised), with `report/satellites.py`
+     as its consumer, or a second generator inside the report arm.
+  2. First form: the rational grid (denominator ≤ 64) as K1 now, or K1 with K3
+     after N-W3's real-k positions. The issue offers to split N-W3's
+     position half out of #678 for this.
+  3. Schema: new fields on `SatelliteCandidate` with a schema and
+     `REPORT_THRESHOLDS` bump, or a `KSearchResult` beside
+     `SatelliteEvidence`. 1326's Inherited entry from WP-1541 already
+     proposes moving both satellite types into `rietx.report.satellites` as
+     provisional.
+  4. Which of K3, K4, K6 and K7 this WP takes, and which wait behind the
+     fence or another WP. K4's complex S_k is M-11a's object.
+
 - **2026-10-05, from the issue triage (issue #724): `solve_magnetic`'s ranked
   stage frees more nuclear parameters on a supercell child than the parent
   has.** `SOLVE_STAGE_PATHS[1]` frees `phases.*.cell.*` and every
@@ -143,7 +276,17 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   parent site (`tie_equal`, a `SOLVE_B_TIED_PER_PARENT_SITE` info row), and a
   synthetic Pnma test. Open, the maintainer's: hold the cell or use 1419's
   metric subspace, and whether the reference fit takes the same ties (ΔBIC
-  needs equal free sets).
+  needs equal free sets). *Decided 2026-10-06, through draft PR #746:*
+  `solve_magnetic(..., tie_to_parent=True)` is wanted as an option, default
+  off. It holds the child cell, ties child Biso per parent atom, and gives
+  the nuclear reference the same ties. That is the screening form. The end
+  state follows mode-amplitude practice (ISODISTORT with TOPAS; Campbell,
+  Evans, Perselli and Stokes 2007): the parent's own cell parameters refine,
+  the child cell is derived from them, and a strain mode is freed only where
+  the data show one. It is built once, in WP-1419, never here.
+  *Recovered 2026-10-10: committed after PR #796 merged, so it reached main
+  only now.* The 2026-10-08 entry's open question on the default was written
+  without this decision.
 
 - **2026-10-05, from the issue triage (issue #679): a displacive
   candidate's group is a parent-lattice group at every k ≠ 0.** The rule is
@@ -908,3 +1051,67 @@ cuts the contributor deferred to later parts. `Witness.exact` can only be
 True and nothing reads it yet.
 
 *Next:* #565 part 3 (isometry, span, propagation).
+
+### 2026-10-08 — #724's `tie_to_parent` opt-in
+
+A k ≠ 0 trial can now take its nuclear freedom from the parent. The Inherited
+entry for issue #724 landed from outside as an opt-in: PR #746 (head
+`190f9f7e`), merged as `05a4fbe2` by `/pr-review` after four rounds.
+`solve_magnetic(tie_to_parent=True)` holds the child cell at the parent-derived
+cell through `Refinement.hold("phases.*.cell.*")`, on every fit of a tied trial.
+It also ties the child Biso of each parent site to one another, and the nuclear
+reference takes the same holds and ties, so ΔBIC compares equal free sets.
+`SOLVE_B_TIED_PER_PARENT_SITE` (info) says it was applied. The default is
+`False`, and the result is then what it was before.
+
+*Done:* round 2 found a plan spelling the cell another way (`phases.0.cell.*`)
+could free the child cell. The hold fixes that, pinned by
+`test_a_plan_spelling_the_cell_another_way_cannot_free_it`. `_without_cell` is
+`dataclasses.replace`, so the plan keeps its own fields. The trial fits pass
+`telemetry=False`. *Gate:* stacked with #744, #776 and #801 on `5d1f5f67`; the
+results are in WP-1805's 2026-10-08 entry. The two slow failures are #820's,
+and both are in this WP's area: `test_pair_diagnostic_class.py` (red on the
+Linux nightly since #743) and the Cr₂WO₆ 150 K "nothing to solve" test (red on
+macOS arm64 only). Both also fail on `main` without this PR.
+
+*Open, the maintainer's:* whether `tie_to_parent` becomes the default, which the
+issue proposes. The ΔBIC comparison of free against tied child B on planted
+values is the test that would show the option earns that. The contributor was
+told that mode amplitudes are WP-1419's, and to check with the maintainer
+before opening its first PR.
+
+*Next:* #820, then #565 part 3 (PR #809, waiting on a rebase).
+
+### 2026-10-08 (2nd session) — #565's certificates part 3, and #820's first test
+
+Two more of this WP's PRs merged from outside. Two candidate models whose
+shell-intensity matrices differ by one orthogonal change of amplitude basis are
+now proved powder-equivalent without a draw, and every verdict proved for one is
+carried to the other. Separately, the slow pair-diagnostic test no longer fails on
+Linux.
+
+*Done.* PR #809 (#565 part 3 of 5, head `af235c21`) merged as `209f0a8f` after two
+rounds. Round 1 found two defects, each fixed with a test that fails on the old
+source: the `(j, i)` isometry verdict carried Q where it needs Qᵀ, and a carried
+proof replaced a drawn direction and reset its `draws` to 0. PR #829 (head
+`f87d46f6`) merged as `119c0b19`. It answers the first half of the #820 item under
+`### Inherited`: the test never passed on Linux, from the commit that added it, so
+the stale part was the expectation. Class 0's ρ(Mn1, Mn2) is −0.498 on Linux and
+−0.962 on one Mac venv, either side of `MOMENT_PAIR_RHO_MIN` = 0.95, so the test
+now asserts at least one pair.
+
+*Gate:* stacked with the run's other merges (#829, #825, #809, #754, #749, #815)
+on `main` `a3f9140a` as `166d362e`, macOS 26.6.2 arm64, `[dev,jax]`. The full
+suite, fast and slow together, gave 9231 passed, 116 skipped, 1 xfailed and 2
+failed. Both failures also fail on `main` alone on that machine: `toy_anomalous`
+(#760, which open PR #828 fixes) and a hypothesis counterexample in
+`test_indexing_reduce.py`. `main` after the merges is content-identical to that
+tree.
+
+*Gotchas.* The Mac's class 0 covariance is 3-10× wider at the same χ², and one of
+its class 0 stages ends on `STAGE_MAX_ITER`. That is still open on #820, with the
+150 K test. Round 1's non-blocking list for #809 (Part 2 equations for the
+congruence and the guard, a Weyl citation, `_svd_rows` returning `None`, the
+repeated `_certify`, chain-only isometries) was left by agreement.
+
+*Next:* #820's second half, then #565 parts 4 and 5.

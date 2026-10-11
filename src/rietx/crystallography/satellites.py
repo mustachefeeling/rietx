@@ -15,7 +15,7 @@ naive generator gets wrong, and both are enforced here by construction:
    and that test respects centring.**  On a C lattice (½, 0, 0) and (−½, 0, 0)
    are distinct, because (1, 0, 0) violates h + k = 2n; (0, 0, ½) is single
    because (0, 0, 1) is a reciprocal-lattice point.  The test is
-   :func:`~rietx.crystallography.magnetic.irreps.equivalent_kvectors`, which
+   :func:`~rietx.crystallography.representation.irreps.equivalent_kvectors`, which
    reduces modulo the **true** reciprocal lattice through the primitive basis
    rather than componentwise modulo 1 — that is where the centring enters.
 2. **H runs over the reciprocal lattice, not over the allowed reflections.**
@@ -56,7 +56,7 @@ k-label (Aroyo, M. I., Orobengoa, D., de la Flor, G., Tasci, E. S.,
 Perez-Mato, J. M. & Wondratschek, H. (2014). *Acta Cryst.* A**70**, 126) is
 what MAGNDATA, ISODISTORT and k-SUBGROUPSMAG speak, and it needs the
 per-Bravais-lattice k-label tables — a data source of its own, deferred here
-exactly as ``magnetic/irreps.py`` deferred the irrep labels rather than
+exactly as ``representation/irreps.py`` deferred the irrep labels rather than
 inventing a scheme that would look like CDML and disagree with it.
 :func:`cdml_label` is the hook, and it returns ``None`` until those tables
 land.
@@ -78,7 +78,7 @@ import gemmi
 import numpy as np
 
 from .lattice import d_spacings
-from .magnetic.irreps import (
+from .representation.irreps import (
     K_MAX_DENOMINATOR,
     KVector,
     as_kvector,
@@ -136,7 +136,7 @@ def as_propagation_vector(k) -> KVector:
     """Three exact rationals from any accepted spelling of k.
 
     Thin wrapper over
-    :func:`~rietx.crystallography.magnetic.irreps.as_kvector`, kept as its own
+    :func:`~rietx.crystallography.representation.irreps.as_kvector`, kept as its own
     name because *this* is the door a phase's declared vector comes through
     and the refusal it raises is the WP's non-goal: a component that is not a
     rational of denominator ≤ ``K_MAX_DENOMINATOR`` is an incommensurate k,
@@ -618,7 +618,7 @@ def cdml_label(space_group, k) -> str | None:
     carried them would let a user cross-check directly.  They need the
     per-Bravais-lattice k-label tables, which are a data source of their own
     and are **not** derivable from the operations alone — the same reason
-    :mod:`rietx.crystallography.magnetic.irreps` labels its irreps
+    :mod:`rietx.crystallography.representation.irreps` labels its irreps
     positionally.  Returning ``None`` rather than inventing a scheme is the
     deliberate choice: a made-up label would look like CDML and disagree
     with it.

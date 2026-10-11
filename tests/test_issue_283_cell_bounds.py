@@ -451,7 +451,8 @@ def test_run_multi_least_squares_guards_both_closures_and_reports_the_count(
         assert np.array_equal(jac(np.asarray(x0)), J)         # last good one
         return SimpleNamespace(x=np.asarray(x0), cost=0.5 * float(r @ r),
                                nfev=3, status=1, jac=J, fun=r,
-                               termination="ftol")
+                               termination="ftol",
+                               active_mask=np.zeros(len(x0), dtype=int))
 
     monkeypatch.setattr(lsq, "least_squares", driver)
     outcome = run_multi_least_squares(models, mtable, max_iter=3,

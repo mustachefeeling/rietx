@@ -2046,7 +2046,7 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     # none to key on.  That reasoning does not hold for this engine: M-6
     # (WP-1418) builds every small irrep from the little group's
     # own operators, projectively, with no tabulated-number lookup anywhere
-    # in ``crystallography.magnetic.irreps``/``isotropy`` — measured by
+    # in ``crystallography.representation.irreps``/``crystallography.magnetic.isotropy`` — measured by
     # inspection (grep) and by the tests below, not merely asserted.  What is
     # actually needed is an object exposing the group's operations, which
     # ``resolve_group`` already builds for exactly this case (the same
