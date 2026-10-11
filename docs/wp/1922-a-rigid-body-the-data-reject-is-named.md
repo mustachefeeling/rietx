@@ -106,13 +106,6 @@ among the worst three, and the right body does not fire.
 
 ## Handover log
 
-- **2026-10-08** — created, from the 2026-10-08 issue triage (issue #775).
-  Checked against the tree at `5d1f5f67`: the three statistics functions
-  exist as named and no rigid-body code has landed; no open WP owns it:
-  WP-1803 closed with "#775's body-misfit diagnostic is not in the record and
-  is not cut here", and 1804-1813 carry no data-side check. *Next:* wait for
-  1805, then task 1.
-
 - **2026-10-11** — every task landed from outside: PR #822 (`mustachefeeling`),
   merged as `f7ab7096` after three review rounds. It closes #775.
   - **What it adds.** `Refinement.check_rigid_bodies`
@@ -146,3 +139,10 @@ among the worst three, and the right body does not fire.
     torsions (#823) land" is stale now that #823 is in; F and p are computed
     beside `hamilton_justified`; `compile_phase_sites` recompiles for every
     body.
+
+- **2026-10-08** — created, from the 2026-10-08 issue triage (issue #775).
+  Checked against the tree at `5d1f5f67`: the three statistics functions
+  exist as named and no rigid-body code has landed; no open WP owns it:
+  WP-1803 closed with "#775's body-misfit diagnostic is not in the record and
+  is not cut here", and 1804-1813 carry no data-side check. *Next:* wait for
+  1805, then task 1.

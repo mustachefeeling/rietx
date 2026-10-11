@@ -179,12 +179,6 @@ emits `BACKGROUND_ORDER_AT_CAP`.
 
 ## Handover log
 
-- **2026-10-08** — created, from the 2026-10-08 issue triage (issue #833).
-  Checked against the tree at `a3f9140a`: the Si640c rows reproduce (16 and
-  32 selected at caps 16 and 32, never stopped by DW). No open WP owns the
-  order or λ choice: 1454 and 1055 are closed, 1460 is about a declared air
-  term beside the P-spline, 1542 owns the seed half (item 3, folded there).
-
 - **2026-10-11** — PR #871 (task 1, `mustachefeeling`) reviewed and held for
   three items: a `SCHEMA_VERSION` bump for `BackgroundSelection.diagnostics`, a
   skill line for the worked default, and the stopping rule stated in the
@@ -196,3 +190,9 @@ emits `BACKGROUND_ORDER_AT_CAP`.
   lag-1 correlation, the 10th, 14th and 16th terms earn 7.3, 10.0 and 3.3.
   That is the case for the effective-sample-size task added above. The
   `select_arpls_lambda` task is the sibling the review found.
+
+- **2026-10-08** — created, from the 2026-10-08 issue triage (issue #833).
+  Checked against the tree at `a3f9140a`: the Si640c rows reproduce (16 and
+  32 selected at caps 16 and 32, never stopped by DW). No open WP owns the
+  order or λ choice: 1454 and 1055 are closed, 1460 is about a declared air
+  term beside the P-spline, 1542 owns the seed half (item 3, folded there).
