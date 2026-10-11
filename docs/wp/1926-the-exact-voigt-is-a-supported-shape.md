@@ -78,6 +78,14 @@ only. Weideman (1994) and Olivero & Longbothum (1977) are papers.
 
 ### Inherited
 
+- **2026-10-11, from WP-1940 (closed).** The relaxed rule is written, in
+  `compiled.py`'s rule 3 and root CLAUDE.md's compiled-tier rule (3). A kernel
+  calling the C library's transcendental is held to 1e-13 relative. A kernel
+  carrying its own states a ulp bound and asserts it on every wheel, as
+  1.2.0's FCJ `exp` does through a test-only binding
+  (`test_the_fcj_exponential_holds_its_stated_bound`), and a slow whole-fit
+  guard compares the two paths. The crate now holds its kernels in modules
+  (`fcj.rs`, `raster.rs`), so a Voigt kernel takes one of its own.
 - **2026-10-10, from WP-1940 (3rd session).** The compiled tier is moving
   from numba to the `rietx-kernels` Rust wheel (1940 § Decisions). A Voigt
   kernel written after that migration goes into `kernels/src/lib.rs`, ships

@@ -75,6 +75,14 @@ a poor basin). VALIDATION.md's rows and the landing page are re-measured.
 
 ### Inherited
 
+- **2026-10-11, from WP-1940 (closed).** The soft dependency is met:
+  rietx-kernels 1.2.0 is on PyPI, and rietx's floor stays at `>=1.1`. On
+  arm64, 1.2.0 gives 1.1.0's bits, so a grid or re-pinned number measured on
+  a Mac does not depend on which wheel is installed. On x86-64 the FCJ kernels
+  call SLEEF's exponential in 1.2.0 (within 1 ulp). A compiled-path number
+  from an x86-64 machine or CI runner therefore quotes
+  `rietx_kernels.__version__`. The bit goldens are the numpy path's and do not
+  move.
 - **2026-10-10, from WP-1937 (maintainer decision): the default-driver flip
   lands here, with the coordinates, in one PR.** Each half alone is worse
   than today. Grid of `examples/probe_driver_grid.py` (14 acceptance fits,
