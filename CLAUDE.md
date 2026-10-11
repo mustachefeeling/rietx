@@ -14,7 +14,7 @@ record the clause names.
 ## Commands
 
 ```sh
-uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"   # setup (once); a WORKTREE needs its own venv, and --python stops an inherited VIRTUAL_ENV retargeting main's (tests/CLAUDE.md)
+uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"   # setup (once); a WORKTREE needs its own venv, and --python stops an inherited VIRTUAL_ENV retargeting main's; an arm64 Mac names the arch, cpython-3.12-macos-aarch64-none, or a probe's x86_64 interpreter makes it a Rosetta venv (session_start.python_request)
 uv pip install --python .venv/bin/python -e ".[dev,jax,torch]"   # + optional jax/torch backends
 .venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~15-30 min, incl. real-data acceptance (counts: § Numbers)
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance, ~1-3 min

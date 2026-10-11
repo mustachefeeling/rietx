@@ -55,7 +55,7 @@ if _HOOKS not in sys.path:  # loose script here must not shadow a stdlib module
 import session_start  # noqa: E402  (sibling hooks, not a package)
 import wp_claim  # noqa: E402
 
-VENV = 'uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"'
+VENV = session_start.VENV_FIX  # names the architecture on an arm64 Mac (python_request)
 
 
 def sh(*args: str, cwd: Path, check: bool = True) -> subprocess.CompletedProcess:

@@ -65,6 +65,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import platform
 import re
 import select
 import subprocess
@@ -77,7 +78,42 @@ if _HOOKS not in sys.path:  # loose script here must not shadow a stdlib module
     sys.path.append(_HOOKS)
 import wp_claim  # noqa: E402  (sibling hook, not a package)
 
-VENV_FIX = 'uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"'
+
+def host_arch() -> str:
+    """The hardware's architecture, which a translated process misreports.
+
+    ``platform.machine()`` answers for the running process, so a hook started
+    under Rosetta would call an arm64 Mac x86_64; the kernel's
+    ``hw.optional.arm64`` answers for the machine.
+    """
+    if sys.platform == "darwin":
+        try:
+            out = subprocess.run(["sysctl", "-n", "hw.optional.arm64"],
+                                 capture_output=True, text=True, timeout=5).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            out = ""
+        if out.strip() == "1":
+            return "arm64"
+    return platform.machine()
+
+
+def python_request(host: str) -> str:
+    """The ``uv venv --python`` request that builds a native venv on *host*.
+
+    A bare ``3.12`` takes the newest *managed* 3.12 whatever its architecture.
+    One x86_64 interpreter installed for a wheel probe (WP-1940, 2026-10-11)
+    therefore made every later worktree venv on that arm64 Mac run under
+    Rosetta, where the bench cases ran 1.6-2.0x slower and took a different
+    evaluation path.  Naming the architecture on an arm64 Mac closes that.
+    """
+    if sys.platform == "darwin" and host == "arm64":
+        return "cpython-3.12-macos-aarch64-none"
+    return "3.12"
+
+
+HOST_ARCH = host_arch()
+VENV_FIX = (f'uv venv --python {python_request(HOST_ARCH)} '
+            '&& uv pip install --python .venv/bin/python -e ".[dev]"')
 REPAIR_HINT = "repair first (/wp-handover, repair mode)"
 SHARED_HINT = "one session per tree: EnterWorktree before editing (/wp-start step 3)"
 CLAIM_HINT = "pick another WP, or /wp-start step 2 to see the whole table"
@@ -321,10 +357,44 @@ def venv_flag(root: Path) -> Optional[str]:
     for target in targets:
         try:
             if Path(target).resolve().is_relative_to(resolved_root):
-                return None
+                return arch_flag(venv, HOST_ARCH)
         except OSError:
             continue
     return f"venv resolves rietx to {targets[0]}, not this tree — fix: {VENV_FIX}"
+
+
+_MACHO_CPU = {0x01000007: "x86_64", 0x0100000C: "arm64"}
+
+
+def macho_arch(path: Path) -> Optional[str]:
+    """The CPU a thin 64-bit Mach-O binary is built for.
+
+    ``None`` for anything else, a universal binary included, since that one
+    runs natively on either machine.  Eight bytes of header answer it without
+    starting the interpreter, which a translated one makes slow.
+    """
+    try:
+        with path.open("rb") as fh:
+            head = fh.read(8)
+    except OSError:
+        return None
+    if len(head) < 8 or head[:4] != b"\xcf\xfa\xed\xfe":  # MH_MAGIC_64, little-endian
+        return None
+    return _MACHO_CPU.get(int.from_bytes(head[4:8], "little"))
+
+
+def arch_flag(venv: Path, host: str) -> Optional[str]:
+    """Flag a venv whose interpreter runs translated on *host*.
+
+    The pointer check above cannot see this: a Rosetta venv imports the right
+    tree and passes every test, only slower and down a different evaluation
+    path, so every timing taken in it is wrong (``python_request``).
+    """
+    built = macho_arch((venv / "bin" / "python").resolve())
+    if built is None or built == host:
+        return None
+    return (f"venv runs {built} Python on this {host} machine, translated — fix: "
+            f"{VENV_FIX.replace('uv venv ', 'uv venv --clear ', 1)}")
 
 
 class Commit(NamedTuple):

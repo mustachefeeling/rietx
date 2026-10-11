@@ -266,7 +266,8 @@ line if the checkpoint ended it. Close with
    so nothing else ever tests it; a conflict here *is* the finding — report,
    ask for a rebase, stop. A conflict on the index alone is the exception,
    synced below. Venv:
-   `uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev,jax]"`,
+   `uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev,jax]"`
+   (on an arm64 Mac `--python cpython-3.12-macos-aarch64-none`; `session_start.python_request`),
    reinstalled only when the PR touches `pyproject.toml`; `[dev,jax]` matches
    `nightly.yml`'s full job so counts compare and cross-backend rows pass
    rather than skip.
