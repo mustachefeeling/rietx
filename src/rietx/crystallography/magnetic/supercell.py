@@ -713,8 +713,9 @@ def _sign_consistent_operations(cand, m_matrix, ops, *, tol: float = 1e-6
     ``cand`` is one of :mod:`.isotropy`'s ``MagneticCandidate`` objects
     (``kind="displacive"`` or ``"magnetic"`` — the test is the same shape for
     either; the axial-vs-polar distinction is already baked into
-    ``cand.configurations`` by :func:`~.isotropy.order_parameter_space`, so
-    this function never itself decides which action a component takes).
+    ``cand.configurations`` by
+    :func:`~rietx.crystallography.representation.order_parameter.order_parameter_space`,
+    so this function never itself decides which action a component takes).
     ``m_matrix`` carries ``cand.positions``/``cand.configurations`` from the
     candidate's own cell into the cell ``ops`` is expressed in; one matrix
     carries both, because a mode vector is contravariant.

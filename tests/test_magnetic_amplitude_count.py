@@ -27,7 +27,7 @@ import numpy as np
 import pytest
 
 from rietx.crystallography.magnetic import isotropy
-from rietx.crystallography.representation import irreps, modes
+from rietx.crystallography.representation import irreps, modes, order_parameter
 
 H, T, Q = Fraction(1, 2), Fraction(1, 3), Fraction(1, 4)
 GENERAL = (0.1234, 0.2345, 0.3456)
@@ -128,7 +128,7 @@ def test_candidate_amplitudes_are_independent_on_a_pseudoreal_irrep(group, k):
 def test_pseudoreal_order_parameter_space_keeps_half_the_copies():
     rep = modes.magnetic_representation("P 21 21 21", GENERAL, (H, H, H))
     (irrep,) = irreps.small_irreps("P 21 21 21", (H, H, H))
-    space = isotropy.order_parameter_space(modes.basis_vectors(rep, irrep))
+    space = order_parameter.order_parameter_space(modes.basis_vectors(rep, irrep))
     assert (space.dimension, space.copies) == (4, 3)      # 2d, n/2
     assert space.copies * space.dimension == 12
 
@@ -158,4 +158,4 @@ def test_the_count_does_not_follow_the_gauge(monkeypatch):
         assert not basis.real
         assert basis.free_real_amplitudes == 12 == _rank(_fields([basis], (0, 0, H)))
         with pytest.raises(RuntimeError, match="came without a real gauge"):
-            isotropy.order_parameter_space(basis)
+            order_parameter.order_parameter_space(basis)
