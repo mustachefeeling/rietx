@@ -83,7 +83,34 @@ claim the proposal makes and has not measured.
 
 ### Inherited
 
-(empty)
+- **2026-10-11, from the issue triage (#833): task 1 is in PR #871, and the
+  reporter measured task 2, which undercuts the selector and this WP's
+  acceptance.** PR #871 (open, 2026-10-10) adds `BACKGROUND_ORDER_AT_CAP`
+  with its manual and skill rows. The reporter's comment of 2026-10-10 is a
+  spike on `33fe516e`, no code proposed. They ran exact Gaussian REML (Wood
+  2011 § 2 eq. 4) on the Le Bail stage's linear problem, checked against a
+  dense evaluation on a 300-point synthetic. λ is `lambda_smooth` (default 1).
+  - **Standards: interior, and reading misfit as background.** Si 640c and
+    LaB₆ 660a at auto and 1° knots: REML λ 1.8e-5 to 1.3e-3, tr(H) at the
+    coefficient count, φ̂ 1.3 and 3.1-3.3. Misfit-free replicates of the same
+    problem give φ̂ 1.0 and λ 1.9e-3 to 2.1e-2: 6-350× above REML on the
+    real data, and still 50-540× below the default.
+  - **WP-1055's fixture: the right answer is the edge.** Its true background
+    is flat, which is in the penalty's null space. At the generating profile
+    REML runs to λ ≥ 2.6e12 and Biso lands at 0.688(194) and 0.685(964)
+    against 0.5. With the profile fitted beside a 1° spline the Le Bail stage
+    degenerates first (Rwp 0.21, five `BOUND_HIT`), and REML follows it to
+    1.9e-4, where Biso B goes to −0.185 with `BACKGROUND_ABSORPTION`.
+  - **This WP's acceptance cannot tell the arms apart.** "Interior" fails on
+    the fixture exactly where REML is right. "Biso within 2 esd of 0.5" is met
+    by λ = 0 too, since B's esd is 1.15. `worst_absorption` separates them,
+    0.46 against 0.08.
+  - Not measured: a Le Bail-stage λ carried through the Rietveld stages.
+
+  Whether tasks 3-4 go ahead, and on which criterion, is the maintainer's
+  call. Not reproduced here. Checked against the tree at 7d9be3cb:
+  `select_pspline_lambda` does not exist under `src/`, and
+  `BACKGROUND_ORDER_AT_CAP` exists only on PR #871's branch.
 
 ## Non-goals
 
