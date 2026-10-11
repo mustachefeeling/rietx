@@ -75,6 +75,30 @@ argument (Nocedal & Wright 2006, *Numerical Optimization*, §4.1-4.2). The
 projected-gradient step along −b is cheap at any size, so a step that
 promises less could fall back to it. That is a candidate, not a decision.
 
+### Inherited
+
+- **2026-10-12, from WP-1929 (maintainer's call that day): LM also stops
+  early beside a vanishing column.** A second crawl in the same seam, moved
+  here because it is the same `lm.py` step and stop and the same grid to
+  re-measure. A moment angle's column scales with its modulus and vanishes at
+  a direction the symmetry fixes. `_solve_step` scales every column to unit
+  norm, so that angle takes the largest step, and λ grows until every
+  parameter crawls. `ftol_runs` then fires on three tiny decreases in a row
+  and reports `converged`. Measured in WP-1938 D12 (macOS arm64, `[dev,jax]`):
+  the two-site Pnma set (`tests/test_pair_diagnostic_class.py`) released
+  stopped at χ² 454 660 with λ 5e7-7e9, against 2555.8 under TRF.
+  `solve_magnetic` frees the moduli first (`magnetic.SOLVE_STAGE_NAMES`) and
+  reaches 2556.06, but a plan a user builds gets no such stage.
+  `tests/test_magnetic.py`'s `_LM_FALSE_CONVERGENCE` row is the same stop on
+  one site (λ ≈ 1e11, χ²_red 11.03; a fresh LM solve from there reaches
+  χ² 4e-16 in 17 evaluations) and stays a strict xfail until this lands. Two
+  remedies were named and not measured: count a decrease toward `ftol_runs`
+  only while λ is small, and give an angle column a scale floor from its
+  finite-rotation response. MINPACK's `mode=1` scaling (each column's
+  largest norm so far) is the documented form of the second. Either moves
+  every default fit's iterates, so the goldens and the acceptance grid are
+  re-measured. WP-1929 keeps the esd half of the stationary angle.
+
 ## Non-goals
 
 - When a stage that is improving little should stop and say so: WP-1334.
