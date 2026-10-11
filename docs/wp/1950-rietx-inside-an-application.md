@@ -70,6 +70,12 @@ in a PyInstaller desktop app ("Crystal Builder").
 - Nothing in `src`, the manual, `pyproject.toml` or the README mentions
   PyInstaller.
 
+**Decided 2026-10-11** (the maintainer, at the issue triage; posted on
+#893): the default stays. A fit with no `telemetry=` and no project still
+records under the working directory's `.rietx/runs`, as WP-1403 chose.
+#893 brought no evidence WP-1403 had not weighed, and the three switches
+cover an embedder. This WP adds a process-wide root and changes no default.
+
 **Prior art.** PyInstaller's documented way for a library to ship its own
 hook is the `pyinstaller40` entry point: `hook-dirs =
 "rietx.__pyinstaller:get_hook_dirs"`, returning absolute paths. A hook uses
@@ -79,11 +85,9 @@ hook is the `pyinstaller40` entry point: `hook-dirs =
 
 ## Non-goals
 
-- Changing the telemetry default. That reverses WP-1403's measured decision
-  and is the maintainer's call (the 2026-10-11 triage's batch). Record it
-  here as `Decided` if it is taken.
+- Changing the telemetry default (Decided 2026-10-11, above).
 - The kernel thread count (WP-1464, issue #898 (b)).
-- `platformdirs` as a dependency, unless the default moves.
+- `platformdirs` as a dependency.
 
 ## Tasks
 
@@ -130,5 +134,5 @@ root's precedence against `telemetry=` and the working directory.
   nothing moves it process-wide. numba left with WP-1940, and the tables load
   as package resources. No open WP owns it: WP-1403, 1404 and 1406 (the
   recorder) and 1940 (the wheel) are closed, and WP-1464 takes only the
-  thread count. *Next:* task 1, unless the maintainer's call on the default
-  changes it.
+  thread count. The maintainer kept the default the same day (§ Context).
+  *Next:* task 1.
