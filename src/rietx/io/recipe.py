@@ -1163,20 +1163,20 @@ def _split(key: str, spec: dict | None, block_key: str, magnitude_key: str,
            diags) -> None:
     """One GSAS-II (magnitude, ``LG_eta``) pair → this package's two halves.
 
-    The dead-column question, and why the answer is not a seed.  Both halves
-    are bounded with ``min=0``, and before WP-1938 a coefficient at exactly
-    zero had a gradient of 1e-12 that TRF could not move — a free parameter
-    nothing can change, which is the shape WP-1076 exists to keep out of a
-    result.  ``Stage.seed`` would lift it, but only to a number this reader
-    would have to invent, and the two reference engines disagree about η by
-    more than any seed would decide (one returns η = 0.078, the other 1.5e4,
-    outside [0, 1] entirely).
-
-    So a half that starts at its off state is left **fixed and said**, not
-    freed: the recipe's own η stands, the magnitude refines, and the fit runs
-    one parameter short of the reference with a ``warning`` naming it.  A
-    caller who wants the split explored sets the coefficient themselves — it is
-    an ordinary parameter on the phase.
+    A half that starts at its off state is left **fixed and said**, not freed:
+    the recipe's own η stands, the magnitude refines, and the fit runs one
+    parameter short of the reference with a ``warning`` naming it.  The split
+    is the reason.  The two reference engines disagree about η by more than
+    any fit here would settle (one returns η = 0.078, the other 1.5e4, outside
+    [0, 1] entirely), and on the one bundled recipe with such a half the data
+    did not resolve it either.  Freed on DRX_33 (WP-1938, macOS arm64), three
+    of the four zero halves stayed at 0, and phase 0's strain divided into
+    0.27 Lorentzian and 0.46 Gaussian with esds of 1.2 and 1.3.  Rwp moved
+    0.073280 → 0.073077, and the two cells 0.07 and 0.10 esd.
+    Until WP-1938 the reason was a dead column: in softplus coordinates the
+    half's gradient at 0 was 1e-12.  A caller who wants the split explored
+    frees the coefficient themselves, since it is an ordinary parameter on the
+    phase.
     """
     if spec is None:
         return
