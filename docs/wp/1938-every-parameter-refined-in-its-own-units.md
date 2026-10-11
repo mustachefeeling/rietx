@@ -451,6 +451,14 @@ driver alone).
       Pawley systems, the constrained step took 2.7-5.7 ms at 142 columns
       and 42-70 ms at 343, against BCCG's 0.4-1.9 ms. The τ = 0 path stays
       unmeasured, since no fixture reaches it.)
+- [x] **`max_iter=0` keeps its refusal under LM** (folded 2026-10-11 from
+      the triage of #890, which reached this WP through `main`). Under TRF a
+      stage that frees anything with `max_iter=0` raises scipy's "`max_nfev`
+      must be None or positive integer." LM ran it as one evaluation that
+      moved nothing, reported as `max_iter`, so the default flip turned a
+      refusal into a quiet result. `lm.minimize` now refuses a budget under
+      one evaluation in scipy's words, which covers the joint fit too.
+      WP-1947 still owns a refusal that names `max_iter`.
 - [ ] **A large Pawley under the default driver** (fifth session, found by
       the lane above). FAP.XRA in `pawley` mode, default plan, 343 columns at
       the `profile` stage. `main` (`6075319c`, TRF): every stage converged,

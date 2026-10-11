@@ -642,3 +642,31 @@ def test_a_block_above_the_bvls_cut_takes_the_bccg_step(monkeypatch):
     small, _ = lm._solve_step(A[:-1, :-1], b[:-1], 0.0, np.zeros(n - 1),
                               lo[:-1], hi[:-1], n_rows=3 * n)
     assert not calls and np.all(small >= 0.0)
+
+
+def test_a_budget_under_one_evaluation_is_refused_as_trf_refuses_it():
+    """``max_iter=0`` reached scipy as ``max_nfev=0`` and was refused, while
+    LM ran it as one evaluation that moved nothing (#890's triage).  The
+    default flip would have turned the refusal into a quiet ``max_iter``."""
+    residual, jacobian, _, _ = _collinear_pair()
+    inf = np.full(2, np.inf)
+    for budget in (0, -4):
+        with pytest.raises(ValueError, match="max_nfev"):
+            scipy_lsq(residual, np.zeros(2), jac=jacobian, method="trf",
+                      max_nfev=budget)
+        with pytest.raises(ValueError, match="max_nfev"):
+            lm.minimize(residual, jacobian, np.zeros(2), lo=-inf, hi=inf,
+                        max_nfev=budget)
+
+
+@pytest.mark.parametrize("solver", ["lm", "trf"])
+def test_a_stage_with_max_iter_0_is_refused_on_either_driver(solver):
+    import rietx as rx
+    from tests.test_refine_synthetic import perturbed_models, synthesize
+
+    structure, instrument = perturbed_models()
+    plan = rx.RefinementPlan(stages=[rx.Stage("scale", ["phases.*.scale"],
+                                              max_iter=0)])
+    ref = rx.Refinement(structure, instrument, history=False, solver=solver)
+    with pytest.raises(ValueError, match="max_nfev"):
+        ref.fit(synthesize(), plan=plan)

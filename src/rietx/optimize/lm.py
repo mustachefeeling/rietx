@@ -383,6 +383,11 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     promised, or a promise under the fp64 floor) never reaches the residual
     and never fires it.
     """
+    if max_nfev < 1:
+        # scipy's TRF refuses the same budget in the same words.  Run on, it
+        # was one evaluation that moved nothing, reported as ``max_iter``
+        # (#890's triage).  WP-1947 owns a refusal that names ``max_iter``.
+        raise ValueError("`max_nfev` must be None or positive integer.")
     x = _clip_to_bounds(np.asarray(x0, dtype=np.float64).copy(), lo, hi)
     ineqs = list(inequalities or [])
 
