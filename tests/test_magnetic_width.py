@@ -76,7 +76,8 @@ def numpy_path():
 
     A bit-identity claim is the numpy path's (root ``CLAUDE.md``, compiled
     tier rule 3); under the kernels an ``exp`` bounds it at 1e-13 relative,
-    and which side a process runs is set by the machine's C library, so a test
+    and which ``exp`` a kernel calls, the machine's C library or the FCJ
+    kernels' own, moves the last bit, so a test
     that inherits it passes on one CI row and fails on the next
     (``tests/CLAUDE.md`` § Quoting numbers).
     """
@@ -417,6 +418,7 @@ def test_the_scalar_and_batched_draws_agree_on_the_split_path(kernels):
     in the kernel sets (root ``CLAUDE.md``, compiled tier rule 3).  Inherited,
     this was bit-identity under the kernels and failed on the CI rows whose
     C library rounds one ``exp`` differently (1.24e-16 relative, Linux x86_64).
+    From ``rietx-kernels`` 1.2.0 the FCJ kernels' own ``exp`` does so everywhere.
     """
     if kernels and not compiled.available():
         pytest.skip("the rietx-kernels wheel did not load here: "
