@@ -160,6 +160,10 @@ lacks it.
    /tmp/kernels-smoke/bin/python -c "import rietx_kernels as k; print(k.__version__, k.KERNEL_ABI)"
    ```
 
+   The index can lag the upload by a minute or two. On 1.2.0 the install
+   first found no such version, and PyPI's JSON listed one wheel of five.
+   Retry before reading anything into it.
+
 The trusted publisher matches the same four claims as rietx's, with
 `kernels.yml` as the workflow name. Before the first upload the project does
 not exist on PyPI, so it is a *pending* publisher, added at pypi.org →
