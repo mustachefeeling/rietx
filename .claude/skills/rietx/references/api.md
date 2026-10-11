@@ -56,7 +56,7 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addressed by a dot-path such as `phases.0.cell.a` or `instrument.profile.w`; `rx.help_for(path)` says what any of them is. Each class below is its own constructor — the fields are the keyword arguments, a field with no default is required.
 
 - `rx.Parameter` — A single refinable scalar.
-  Fields: `value: float`, `vary: bool = False`, `min: float = -inf`, `max: float = inf`, `expr: str | None = None`, `transform: Literal['identity', 'softplus', 'exp', 'logit'] = 'identity'`, `unit: str | None = None`, `stderr: float | None = None`
+  Fields: `value: float`, `vary: bool = False`, `min: float = -inf`, `max: float = inf`, `expr: str | None = None`, `unit: str | None = None`, `stderr: float | None = None`
 - `rx.Structure` — The phases refined against the same pattern(s) — possibly none.
   Fields: `phases: list[Phase]`
 - `rx.Phase` — A crystalline phase: symmetry, cell, atoms, scale, sample broadening.
@@ -109,7 +109,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Refinement.tie(path: str, source: str | dict[str, float] | Sequence[tuple[str, float]], *, scale: float = 1.0, offset: float = 0.0) -> str` — Constrain `path` to `scale·source + offset`, recording a node.
 - `rx.Refinement.tie_equal(paths: list[str] | str, *, source: str | None = None) -> list[str]` — Make every parameter matching `paths` one parameter.
 - `rx.Refinement.untie(paths: list[str] | str) -> list[str]` — Release user ties, recording a `set_tie` node.
-- `rx.Refinement.add_variable(name: str, value: float, *, vary: bool = False, min: float = -inf, max: float = inf, transform: str = 'identity', unit: str | None = None) -> str` — Declare a named variable other parameters can follow.
+- `rx.Refinement.add_variable(name: str, value: float, *, vary: bool = False, min: float = -inf, max: float = inf, unit: str | None = None) -> str` — Declare a named variable other parameters can follow.
 - `rx.Refinement.remove_variable(name: str) -> str` — Delete a named variable, refusing while anything follows it.
 - `rx.Refinement.hold(path_globs: list[str] | str) -> list[str]` — Declare that these parameters do not move, whatever a plan asks.
 - `rx.Refinement.unhold(path_globs: list[str] | str) -> list[str]` — Take back a hold.
@@ -121,7 +121,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
   Fields: `name: str`, `turn_on: list[str]`, `max_iter: int = 100`, `ftol: float | None = None`, `lebail_cycles: int = 3`, `seed: float = 0.0`, `strain_seed: float = 0.0`, `restraint_weight_scale: float = 1.0`, `window_slack_deg: float | None = None`
 - `rx.PLAN_INFO` — keys: `mccusker_default`, `mccusker_structural`, `lab_bragg_brentano`, `lab_calibrate`, `lab_sample_refine`, `profile_only`, `pawley_default`, `magnetic_width`
 - `rx.ParameterRow` — One row of the parameter table — the mirror of `params.vector.Entry`.
-  Fields: `path: str`, `value: float`, `vary: bool = False`, `lo: float = -inf`, `hi: float = inf`, `transform: Literal['identity', 'softplus', 'exp', 'logit'] = 'identity'`, `tie: TieSpec | None = None`, `locked: bool = False`, `held: bool = False`, `esd: float | None = None`, `mode_fixed: bool = False`, `needs_held_cell: bool = False`, `help_key: str | None = None`
+  Fields: `path: str`, `value: float`, `vary: bool = False`, `lo: float = -inf`, `hi: float = inf`, `tie: TieSpec | None = None`, `locked: bool = False`, `held: bool = False`, `esd: float | None = None`, `mode_fixed: bool = False`, `needs_held_cell: bool = False`, `help_key: str | None = None`
 
 ## The four answers are four different types
 

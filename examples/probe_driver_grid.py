@@ -85,18 +85,8 @@ def _install_solver(solver: str, calls: list[dict]) -> None:
 
 
 def _install_physical() -> None:
-    from rietx.params import vector
-
-    orig = vector.ParameterTable.__init__
-
-    def init(self, *a, **kw):
-        orig(self, *a, **kw)
-        for e in self.entries:
-            if e.transform == "softplus":
-                e.transform = "identity"
-                e.lo = max(e.lo, 0.0)
-
-    vector.ParameterTable.__init__ = init
+    """Nothing to patch: WP-1938 builds every entry in physical units, and
+    ``Entry`` no longer has a transform, so the two arms are the same tree."""
 
 
 def _nudge(obj, factor: float, seen: set[int] | None = None) -> None:

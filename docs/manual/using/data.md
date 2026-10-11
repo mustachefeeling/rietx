@@ -27,7 +27,6 @@ built rather than when the fit starts.
 | `Parameter.max` | float | `inf` | inclusive upper bound |
 | `Parameter.unit` | str or None | `None` | a label, not a conversion: nothing rescales by it |
 | `Parameter.stderr` | float or None | `None` | the esd, written by the fit |
-| `Parameter.transform` | `"identity"`, `"softplus"`, `"exp"`, `"logit"` | `"identity"` | internal reparameterisation, {eq}`par-softplus` |
 | `Parameter.expr` | None | `None` | reserved, not implemented, and must stay `None` |
 
 `value` must lie within the bounds and `min` must not exceed `max`, both checked
@@ -39,7 +38,7 @@ from rietx import Parameter
 
 a = Parameter(value=4.15689, min=4.0, max=4.3, vary=True, unit="A")
 width = Parameter.positive(1e-3, vary=True, unit="deg^2")
-assert width.transform == "softplus" and width.min == 0.0
+assert width.min == 0.0
 ```
 
 `Parameter.positive` is the constructor for a quantity with no physical meaning

@@ -79,8 +79,7 @@ class Statistics(Base):
 
     ``max_shift_over_esd`` is McCusker et al. (1999) §7's convergence
     quantity: the largest |Δθᵢ|/esd(θᵢ) over the final accepted step of the
-    answer-producing solve, both sides in external parameter units (the
-    transform chain makes internal-space ratios meaningless at finite step).
+    answer-producing solve, both sides in external parameter units.
     The paper's band — converged when ≤ 0.1
     (``optimize.statistics.MAX_SHIFT_CONVERGED``) — is quoted, never tuned,
     and gates nothing; a TRF solve at ftol 1e-9 satisfies it a fortiori, so

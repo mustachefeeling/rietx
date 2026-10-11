@@ -92,7 +92,6 @@ listing is the cheapest way to see what is there.
 | `ParameterRow.value` | float | the current physical value |
 | `ParameterRow.vary` | bool | whether it is free in the next fit |
 | `ParameterRow.lo`, `ParameterRow.hi` | float | inclusive physical bounds as stored, ±inf when unbounded. A cell the data cannot see also gets a per-stage default the row does not show (§ "A cell the data cannot see gets a bound you did not set") |
-| `ParameterRow.transform` | str | the reparameterisation, {eq}`par-softplus` |
 | `ParameterRow.tie` | `TieSpec` or None | what this value follows, if anything |
 | `ParameterRow.locked` | bool | structurally fixed, `set_vary` can never free it |
 | `ParameterRow.held` | bool | you declared it does not move, with `Refinement.hold` |

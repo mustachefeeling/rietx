@@ -2323,7 +2323,6 @@ class Refinement:
         for e in table.entries:
             rows.append(ParameterRow(
                 path=e.path, value=e.value, vary=e.vary, lo=e.lo, hi=e.hi,
-                transform=e.transform,
                 tie=(TieSpec._from_tie(e.tie, user=e.path in self._applied_ties)
                      if e.tie is not None else None),
                 locked=e.locked,
@@ -2476,14 +2475,13 @@ class Refinement:
         from :attr:`_variables`, which is why that dict is the one authority for
         what a variable *is* and why ``snapshot`` has to carry it.
 
-        Bounds and transform come straight off the caller's ``Parameter``, which
-        is what makes a variable and the model parameter it replaces produce the
+        Bounds come straight off the caller's ``Parameter``, which is what
+        makes a variable and the model parameter it replaces produce the
         identical :class:`~rietx.params.vector.Entry`.
         """
         for name, prm in self._variables.items():
             table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
-                                lo=prm.min, hi=prm.max, transform=prm.transform,
-                                unit=prm.unit)
+                                lo=prm.min, hi=prm.max, unit=prm.unit)
 
     def _write_back(self, table: ParameterTable) -> None:
         """``apply_to_models``, plus the one thing it structurally cannot do.
@@ -2665,7 +2663,6 @@ class Refinement:
 
     def add_variable(self, name: str, value: float, *, vary: bool = False,
                      min: float = -math.inf, max: float = math.inf,
-                     transform: str = "identity",
                      unit: str | None = None) -> str:
         """Declare a named variable other parameters can follow.  Returns its path.
 
@@ -2684,14 +2681,13 @@ class Refinement:
         there on: :meth:`parameters` lists it, :meth:`set_vary` globs it,
         :meth:`set_values` moves it, and a fit refines it and gives it an esd.
 
-        ``min``/``max``/``transform`` are the declaration that matters.  A
-        variable is a :class:`~rietx.schemas.common.Parameter`, and the table
-        reads an entry's bounds and transform straight off one — so a variable
-        declared like the model parameter it replaces is **indistinguishable**
-        to the fit, which is the property that makes this a renaming rather
-        than a new degree of freedom.  Declared unlike it, it is a different
-        problem: a softplus parameter given the default identity transform is
-        no longer kept off its own floor.
+        ``min``/``max`` are the declaration that matters.  A variable is a
+        :class:`~rietx.schemas.common.Parameter`, and the table reads an
+        entry's bounds straight off one — so a variable declared like the model
+        parameter it replaces is **indistinguishable** to the fit, which is the
+        property that makes this a renaming rather than a new degree of
+        freedom.  Declared unlike it, it is a different problem: a width
+        whose variable leaves out ``min=0.0`` may refine below zero.
 
         Refuses a name that is not a single identifier, one that would collide
         with an existing entry, and a redeclaration — :meth:`remove_variable`
@@ -2706,15 +2702,14 @@ class Refinement:
             raise ValueError(
                 f"variable {name!r} already exists; remove_variable({name!r}) "
                 "first, so the history records that the old one ended")
-        prm = Parameter(value=value, vary=vary, min=min, max=max,
-                        transform=transform, unit=unit)
+        prm = Parameter(value=value, vary=vary, min=min, max=max, unit=unit)
         path = f"{VAR_PREFIX}{name}"
         # the table is the authority on collisions: add_parameter raises on a
         # path that already exists, and probing one here means the refusal
         # happens before the register is touched
         self._working_table().add_parameter(
             path, prm.value, vary=prm.vary, lo=prm.min, hi=prm.max,
-            transform=prm.transform, unit=prm.unit)
+            unit=prm.unit)
         self._variables[name] = prm
         if prm.vary and (self._free_paths or self._free_set_declared):
             # ``_free_paths`` is the *declared* free set, and once a stage has
@@ -3265,7 +3260,6 @@ class Refinement:
         ``action_kind`` (an instrument width, an atom DOF) is an expected
         disagreement, not an inconsistency.
         """
-        from .params.transforms import dphys_dinternal
         from .strategy.suggest import (
             SUGGEST_SEED_ROUGHNESS,
             SUGGEST_SEED_SOFTPLUS,
@@ -3304,7 +3298,7 @@ class Refinement:
         blocks = [()]
 
         def probe():
-            """Compile the table's state on model copies; return (jac, resid, x0)."""
+            """Compile the table's state on model copies; return (jac, resid)."""
             structure = self.structure.model_copy(deep=True)
             instrument = self.instrument.model_copy(deep=True)
             table.apply_to_models(structure, instrument)
@@ -3335,11 +3329,11 @@ class Refinement:
             n_data[0] = len(model.tt)
             blocks[0] = row_layout(model)
             return (_jacobian_for(model, table, self._backend)(x0),
-                    _make_residual(model, table)(x0), x0)
+                    _make_residual(model, table)(x0))
 
         # build 1 — the honest current state: residual, free block, and every
         # candidate column whose physical derivative is quotable there
-        jac, resid, x0 = probe()
+        jac, resid = probe()
         blocks_now = blocks[0]
         fp = table.free_paths
 
@@ -3368,19 +3362,17 @@ class Refinement:
         for p in table.seed_stephens(strain, SUGGEST_SEED_STEPHENS):
             seeded[p] = entries[p].value
         if seeded:
-            jac2, _, x2 = probe()
+            jac2, _ = probe()
             for i, p in enumerate(fp):
                 if p in seeded:
                     _copy_seeded_column(jac, jac2, i, blocks_now, blocks[0], p)
-                    x0[i] = x2[i]  # dp/du is the seeded point's too
         free_idx = [i for i, p in enumerate(fp) if p in free_before]
         # in Pawley mode the intensity block co-refines with anything, so it
         # belongs to the free block, not to the candidates
         free_idx += list(range(len(fp), jac.shape[1]))
         candidates = [
-            Candidate(path=p, index=i,
-                      dp_du=dphys_dinternal(float(x0[i]), entries[p].transform),
-                      seeded=p in seeded, seed_value=seeded.get(p))
+            Candidate(path=p, index=i, seeded=p in seeded,
+                      seed_value=seeded.get(p))
             for i, p in enumerate(fp) if p not in free_before]
         chi2_red = float(resid @ resid) / max(len(resid) - len(free_idx), 1)
         actions = () if report is None else getattr(
@@ -3579,7 +3571,7 @@ class Refinement:
 
         A stage writes to ``self.structure``/``self.instrument`` *before*
         solving — the between-stage recompile needs the freed values in the
-        models, and a seeding stage (extinction's softplus lift, the Stephens
+        models, and a seeding stage (extinction's floor lift, the Stephens
         isotropic ray) changes them.  Without restoring, a cancelled stage would
         leave that seed behind: half a stage, and exactly the kind of state
         nobody would think to look for.  The parameter table and the history
@@ -3817,10 +3809,9 @@ class Refinement:
             # stage's own lebail/guard/event uses, and ``_build_result`` at
             # the end of ``fit()``) would silently see the pre-clamp cell
             # while ``RefinedParameter.value`` (read off these same entries)
-            # reports the clamped one.  ``table.x0()`` is the encoder inverse
-            # of ``decode`` over the free columns (round-trips through the
-            # same ``to_internal``/``to_physical`` pair `decode` uses), so
-            # re-deriving it here is a re-encoding of the committed table,
+            # reports the clamped one.  ``table.x0()`` reads the free columns
+            # off the committed entries, the inverse of ``decode`` over them,
+            # so re-deriving it here is a re-encoding of the committed table,
             # not a second source of truth.
             outcome = dataclasses.replace(outcome, theta=table.x0())
 
@@ -7853,11 +7844,9 @@ def _extra_peak_diagnostics(model: CompiledModel, values: dict,
         lo = entry.lo if entry is not None else 0.0
         # ``BOUND_HIT_RTOL`` is scipy's own test, imported rather than
         # restated so this and ``BOUND_HIT`` cannot drift apart on what
-        # counts as *at* a limit.  The ``<= 0`` clause beside it
-        # is not a second test of the same thing: softplus underflows to
-        # *exactly* zero well before the internal coordinate reaches any
-        # bound, so an area can be off at its identity without ever being
-        # "at" a bound in scipy's sense.
+        # counts as *at* a limit.  The ``<= 0`` clause beside it covers an
+        # area whose stated lower bound is below zero, which is off at its
+        # identity without being "at" that bound.
         at_zero = (area <= 0.0
                    or (np.isfinite(lo)
                        and abs(area - lo) <= BOUND_HIT_RTOL * max(1.0, abs(lo))))
@@ -8277,7 +8266,7 @@ def _air_scatter_undeclared_diagnostics(model: CompiledModel,
             "humped or line-dense pattern"),
         suggestion=(
             "declare the term and refit: instrument.background.air_scatter = "
-            "Parameter(value=1e-3, min=0.0, transform=\"softplus\"); if the "
+            "Parameter(value=1e-3, min=0.0); if the "
             "rise is not air scatter, raise the pattern's lower limit instead"),
         value=fraction,
     )]
@@ -9210,8 +9199,7 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
         # unknown parameter".  Declared *before* the ties, exactly as
         # ``_prepare_table`` does it.
         table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
-                            lo=prm.min, hi=prm.max, transform=prm.transform,
-                            unit=prm.unit)
+                            lo=prm.min, hi=prm.max, unit=prm.unit)
     table.set_vary(["*"], False)
     applied_ties: dict = {}
     dropped: list[str] = []

@@ -1615,7 +1615,7 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
                                  vary=site["vary_occupancy"]),
                 biso=rx.Parameter(value=site["biso"], vary=site["vary_biso"]))
                 for site in sites],
-            scale=rx.Parameter(value=1e-3, min=0.0, transform="softplus"))])
+            scale=rx.Parameter(value=1e-3, min=0.0))])
     except ValueError as exc:
         raise GsasExpError(
             f"{model.path or '<model>'}: phase {chosen.number} "

@@ -168,12 +168,11 @@ def test_a_real_x_ray_calibration_is_refused_for_its_negative_x():
     """``gsas2_bnl.instprm``: a converged GSAS-II fit with ``X`` = −0.0978.
 
     GSAS-II bounds none of U V W X Y Z and this package's Lorentzian terms are
-    softplus-bounded at zero, where ``to_internal`` clamps a non-positive value
-    to 1e-12 — so reading it would answer from a model the file does not
-    describe.  Two of the corpus's four constant-wavelength files carry one,
-    so this is the ordinary case rather than a corner.
+    bounded below at zero, so reading it would answer from a model the file
+    does not describe.  Two of the corpus's four constant-wavelength files
+    carry one, so this is the ordinary case rather than a corner.
     """
-    with pytest.raises(ValueError, match="softplus-bounded at zero"):
+    with pytest.raises(ValueError, match="bounded below at zero"):
         read_gsas2_instprm(BNL)
 
 

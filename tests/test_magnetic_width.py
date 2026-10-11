@@ -125,7 +125,7 @@ def test_both_terms_default_to_exactly_off():
     assert ph.magnetic_lor_size.value == 0.0
     assert ph.magnetic_lor_strain.value == 0.0
     for p in (ph.magnetic_lor_size, ph.magnetic_lor_strain):
-        assert p.min == 0.0 and p.transform == "softplus"
+        assert p.min == 0.0
         assert p.unit == "deg" and not p.vary
 
 

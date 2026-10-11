@@ -10,7 +10,7 @@ scale (incident flux × illuminated volume) differ.
 
 :class:`MultiParameterTable` owns one ordinary :class:`ParameterTable` per
 histogram — so each keeps its crystal-system cell ties, Wyckoff DOFs and
-transforms unchanged — and threads a single combined free vector θ through them
+bounds unchanged — and threads a single combined free vector θ through them
 with a column map that folds *shared* columns onto one shared combined column
 (fed to every histogram's model) while giving *per-histogram* columns their own.
 The stacked residual/Jacobian in

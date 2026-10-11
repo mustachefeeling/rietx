@@ -415,9 +415,9 @@ def _sign_split(r: np.ndarray, tt: np.ndarray, rows, pos, fwhm,
     return c_sum, t_sum, c_n, t_n, used
 
 
-#: A magnetic width at or below this (deg 2θ) is on its softplus floor: the
-#: slope there is ≈ the value itself, so a column dropped as gradient-free
-#: with the value this small is the floor's doing and nothing else's.
+#: A magnetic width at or below this (deg 2θ) is on its zero floor, so a
+#: column dropped as gradient-free with the value this small is put down to
+#: the floor.  Before WP-1938 the slope there was ≈ the value itself.
 _MAGNETIC_WIDTH_FLOOR_DEG = 1e-12
 
 
@@ -491,7 +491,7 @@ def _width_support_findings(model, values, esds, free,
                 # need different advice, so each is **checked** before it is
                 # named (WP-1118): the component the term broadens carrying no
                 # intensity (a zero moment zeroes the column at any width),
-                # and the softplus sitting on its floor.  Neither checked
+                # and the width sitting on its floor.  Neither checked
                 # true, the message names no cause rather than guess one
                 if _magnetic_intensity(model, ip, values) <= 0.0:
                     cause = ("the magnetic component carries no intensity "
@@ -501,8 +501,7 @@ def _width_support_findings(model, values, esds, free,
                               f"a nonzero moment to broaden, so refine the "
                               f"moment first (plan=\"magnetic_width\")")
                 elif val <= _MAGNETIC_WIDTH_FLOOR_DEG:
-                    cause = ("this softplus term sits on its zero floor, "
-                             "where its slope underflows")
+                    cause = "this term sits on its zero floor"
                     advice = (f"report {path} as not measured; hold it at "
                               f"zero if the partner term carries the "
                               f"broadening")
@@ -680,7 +679,7 @@ def magnetic_width_findings(model, values, *, esds=None, free=(),
             suggestion=(
                 f"fit(data, plan=\"magnetic_width\") — the three-step order "
                 f"(moment, then phases.{ip}.magnetic_lor_size seeded off its "
-                f"softplus floor beside the converged moment, then both to the "
+                f"zero floor beside the converged moment, then both to the "
                 f"final tolerance). A "
                 f"single stage freeing the width beside the moment is "
                 f"reported as STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"),

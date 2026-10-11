@@ -284,7 +284,7 @@ def _state_families_variable():
                                  0.0, np.inf),
                                 ("D", 0.1993, -1.0, 1.0)):
         table.add_parameter(f"{VAR_PREFIX}{name}", value, vary=True,
-                            lo=lo, hi=hi, transform="identity")
+                            lo=lo, hi=hi)
     table.set_tie("phases.0.atoms.0.biso", AffineTie.identity(f"{VAR_PREFIX}B"))
     table.set_tie("phases.0.atoms.1.biso",
                   AffineTie(terms=((f"{VAR_PREFIX}B", 2.0),), const=0.1))

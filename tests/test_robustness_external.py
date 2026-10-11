@@ -672,23 +672,8 @@ def test_a_fit_on_the_data_reports_neither_robustness_diagnostic(tmp_path):
 
 
 # ----------------------------------------------------------------------
-# (e) March-Dollase r cannot underflow to zero and divide the residual
+# (e) March-Dollase r cannot reach zero and divide the residual
 # ----------------------------------------------------------------------
-
-
-def test_a_zero_lower_bound_lets_softplus_underflow_to_exactly_zero():
-    # the mechanism, asserted where it lives: min=0.0 maps to an internal
-    # bound of −∞, and log(1+e^u) is exactly 0.0 below u ≈ −745
-    from rietx.params.transforms import internal_bounds, to_physical
-    from rietx.schemas.structure import MARCH_R_MIN
-
-    assert internal_bounds(0.0, np.inf, "softplus")[0] == -np.inf
-    assert to_physical(-800.0, "softplus") == 0.0
-
-    # a positive bound makes it finite, and the floor is then unreachable
-    lo, _ = internal_bounds(MARCH_R_MIN, 6.0, "softplus")
-    assert np.isfinite(lo)
-    assert to_physical(lo, "softplus") == pytest.approx(MARCH_R_MIN)
 
 
 def test_the_march_factor_is_what_a_zero_r_destroys():

@@ -1605,8 +1605,8 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
 #: about the same column, and the value is calibrated to how far
 #: ``make_strictly_feasible`` pushes an iterate off a bound it is sitting on.
 #:
-#: Relative it must be, because the free vector is *internal*: a softplus width
-#: and an identity-transform cell edge share no scale.  Relative to the **span**
+#: Relative it must be, because the free vector mixes units: a width in deg²
+#: and a cell edge in Å share no scale.  Relative to the **span**
 #: — what this was until WP-1110 — is the version that misfires, and widely: a
 #: caller's ``Parameter(min=1e-14, max=1e14)`` scale gives a span of 1e14, hence
 #: a tolerance of 1e6, so a scale of 1.0 sitting fourteen orders of magnitude

@@ -141,9 +141,9 @@ def _qarr_phase(name, sg, cell, atoms, **kw) -> Phase:
         atoms=[Atom(label=lab, species=sp, x=_p(x), y=_p(y), z=_p(z),
                     biso=_p(biso, min=0.0, max=25.0))
                for lab, sp, x, y, z, biso in atoms],
-        scale=_p(1e-3, min=0.0, transform="softplus"),
-        lor_size=_p(0.02, min=0.0, transform="softplus"),
-        lor_strain=_p(0.0, min=0.0, transform="softplus"),
+        scale=_p(1e-3, min=0.0),
+        lor_size=_p(0.02, min=0.0),
+        lor_strain=_p(0.0, min=0.0),
         **kw)
 
 
@@ -262,7 +262,7 @@ def _build_srm660c(data_dir: Path) -> StandardInputs:
             Atom(label="B", species="B", x=_p(0.198), y=_p(0.5), z=_p(0.5),
                  biso=_p(0.276, min=0.0, max=25.0)),
         ],
-        scale=_p(1e-4, min=0.0, transform="softplus"),
+        scale=_p(1e-4, min=0.0),
     )])
     ins = Instrument.bragg_brentano(monochromator_two_theta=26.6)
     ins.source.dispersion = None   # declined, not inherited (see _qarr_instrument)
@@ -342,9 +342,9 @@ def _build_fap(data_dir: Path) -> StandardInputs:
     for atom in phase.atoms:
         for name in ("x", "y", "z", "occ", "biso"):
             getattr(atom, name).vary = False
-    phase.scale = _p(1e-3, min=0.0, transform="softplus")
-    phase.lor_size = _p(terms["LX"].degrees, min=0.0, transform="softplus")
-    phase.lor_strain = _p(terms["LY"].degrees, min=0.0, transform="softplus")
+    phase.scale = _p(1e-3, min=0.0)
+    phase.lor_size = _p(terms["LX"].degrees, min=0.0)
+    phase.lor_strain = _p(terms["LY"].degrees, min=0.0)
 
     lam1, lam2 = hist.wavelengths
     ins = Instrument.bragg_brentano()
@@ -416,7 +416,7 @@ def _build_nac(data_dir: Path) -> StandardInputs:
             Atom(label="F", species="F1-", x=_p(0.25), y=_p(0.25), z=_p(0.25),
                  biso=_p(0.9, min=0.0, max=25.0)),
         ],
-        scale=_p(1e-7, min=0.0, transform="softplus"),
+        scale=_p(1e-7, min=0.0),
     ))
     ins = Instrument.debye_scherrer(wavelength=0.4139090)
     ins.source.dispersion = None   # declined, not inherited (see _qarr_instrument)
@@ -446,7 +446,7 @@ def _build_lab6_capillary(data_dir: Path) -> StandardInputs:
 
     data = read_pattern(data_dir / "11BM_LaB6_660a.fxye")
     structure = Structure.from_cif(str(data_dir / "cod_1000055.cif"))
-    structure.phases[0].scale = _p(1e-4, min=0.0, transform="softplus")
+    structure.phases[0].scale = _p(1e-4, min=0.0)
     for atom in structure.phases[0].atoms:
         atom.biso = _p(0.3, min=0.0, max=5.0)
     ins = Instrument.debye_scherrer(wavelength=0.4131280)
@@ -620,7 +620,7 @@ def _with_fixed_curve_scale(inputs: StandardInputs) -> None:
         fixed_two_theta=tt.tolist(),
         fixed_intensity=baseline.tolist(),
         fixed_source="arPLS λ=1e7 baseline of this pattern (rietx compare)",
-        scale=Parameter(value=1.0, vary=True, min=0.0, transform="softplus"),
+        scale=Parameter(value=1.0, vary=True, min=0.0),
         chebyshev=BackgroundChebyshev.with_terms(3, vary=True),
     )
 
@@ -651,9 +651,8 @@ def _with_hump(inputs: StandardInputs) -> None:
         label="comparison hump",
         position=Parameter(value=lo + (hi - lo) / 3.0, unit="deg"),
         height=Parameter(value=0.05 * float(np.median(y)), min=0.0,
-                         unit="counts", transform="softplus"),
-        fwhm=Parameter(value=6.0, min=HUMP_FWHM_MIN, unit="deg",
-                       transform="softplus"))]
+                         unit="counts"),
+        fwhm=Parameter(value=6.0, min=HUMP_FWHM_MIN, unit="deg"))]
     inputs.plan.stages.append(
         Stage("extra_components", ["instrument.extra_components.*"]))
 

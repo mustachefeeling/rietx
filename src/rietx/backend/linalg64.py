@@ -201,9 +201,9 @@ def column_agreement(J_ref: Any, J_test: Any) -> tuple[float, float]:
     """(worst relative-L2 distance, worst cosine similarity) over live columns.
 
     The metric behind :data:`COLUMN_REL_L2_MAX` / :data:`COLUMN_COSINE_MIN`.
-    Columns whose fp64 norm is below 1e-12 of the largest are skipped: they are
-    transform-floor noise (a softplus parameter parked at its zero floor), not
-    derivatives, and their direction is meaningless to compare.
+    Columns whose fp64 norm is below 1e-12 of the largest are skipped: at that
+    size a column is rounding in the others' units (a direction the data does
+    not move), and its direction is meaningless to compare.
     """
     a64, b64 = to_host_fp64(J_ref), to_host_fp64(J_test)
     if a64.shape != b64.shape:

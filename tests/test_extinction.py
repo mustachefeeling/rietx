@@ -78,18 +78,17 @@ def test_phase_extinction_defaults_off_and_round_trips():
     from tests.test_schemas import make_lab6
 
     phase = make_lab6().phases[0]
-    # off by default: value 0, not varying, softplus-bounded positive
+    # off by default: value 0, not varying, bounded at zero
     assert phase.extinction.value == 0.0
     assert phase.extinction.vary is False
     assert phase.extinction.min == 0.0
-    assert phase.extinction.transform == "softplus"
 
     phase.extinction.value = 0.004
     phase.extinction.vary = True
     back = Phase.model_validate_json(phase.model_dump_json())
     assert back.extinction.value == pytest.approx(0.004)
     assert back.extinction.vary is True
-    assert back.extinction.transform == "softplus"
+    assert back.extinction.min == 0.0
 
 
 def test_extinction_param_wiring_and_routing():
@@ -489,14 +488,14 @@ def test_a_negligible_structure_factor_is_not_what_triggers_the_warning():
 
 
 def test_extinction_collapsing_to_its_off_state_is_warning_free():
-    """The real trigger: ``ext`` walking down to the softplus floor.
+    """The real trigger: ``ext`` walking down to its floor of zero.
 
-    ``Phase.extinction`` is softplus with ``min=0.0``, so ``internal_bounds``
-    maps its lower bound to −∞ and log(1+eᵘ) underflows to exactly 0.0 only
-    below u ≈ −745.  The window u ∈ (−745, −370) is a *legitimate* place for a
-    trial step to land — the extinction stage is cumulative, so ext stays free
-    alongside the phase scale and the emission-line weights, and those three
-    scale intensity together — and every ext in it warned before the clamp.
+    Measured before WP-1938, when ``Phase.extinction``'s solver coordinate was
+    unbounded below and reached exactly 0.0 only past a window of denormal
+    values.  That window is a *legitimate* place for a trial step to land —
+    the extinction stage is cumulative, so ext stays free alongside the phase
+    scale and the emission-line weights, and those three scale intensity
+    together — and every ext in it warned before the clamp.
     """
     f2 = np.array([9.0e4, 4.2e4, 2.1e4, 8.0e3, 3.0e3, 1.1e3, 4.0e2, 1.2e2])
     for ext in (1.0e-3, 1.0e-40, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-300,

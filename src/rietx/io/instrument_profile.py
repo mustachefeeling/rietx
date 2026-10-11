@@ -42,6 +42,7 @@ from .._about import PROFILE_FORMAT_KEY
 from ..model.profiles.caglioti import _MIN_GAMMA_G2, GAUSSIAN_VARIANCE_TO_FWHM_SQUARED
 from ..schemas.common import SCHEMA_VERSION, Diagnostic
 from ..schemas.instrument import (
+    TCHZ_BOUNDS,
     BackgroundChebyshev,
     EmissionLine,
     Geometry,
@@ -1349,10 +1350,10 @@ def _instprm_width(profile, letter: str, attr: str, value: float,
     """One profile coefficient, converted out of centidegrees and bounded.
 
     Two rules, both :mod:`~rietx.io.recipe`'s and both earned there rather than
-    here (``_refuse_negative_width``, ``_widen``).  A **negative** softplus
-    width is refused by name: ``to_internal`` clamps a non-positive value to
-    1e-12 before the inverse softplus, so reading one would answer from a model
-    the file does not describe.  It is the ordinary case rather than a corner —
+    here (``_refuse_negative_width``, ``_widen``).  A **negative** width (a
+    term :data:`TCHZ_BOUNDS` bounds at or above zero) is refused by name, so a
+    fit never answers from a model the file does not describe.  It is the
+    ordinary case rather than a corner —
     GSAS-II bounds none of U V W X Y Z, and **two of the four**
     constant-wavelength files in its own tutorial corpus converged to a
     negative ``X``.  And a value outside this package's default box **widens**
@@ -1367,24 +1368,22 @@ def _instprm_width(profile, letter: str, attr: str, value: float,
     factor = instprm_factor(letter)
     assert factor is not None  # every letter here is in CW_CENTIDEGREE_POWER
     degrees = value / factor
-    if param.transform == "softplus" and degrees < 0.0:
+    if TCHZ_BOUNDS[attr][0] >= 0.0 and degrees < 0.0:
         raise ValueError(
             f"{p.name}: {letter} = {value:g} converts to "
             f"instrument.profile.{attr} = {degrees:g}, and this package's "
             f"{'Gaussian FWHM²' if attr == 'w' else 'Lorentzian FWHM'} term "
-            f"is softplus-bounded at zero — a width that is negative is not a "
+            f"is bounded below at zero — a width that is negative is not a "
             f"shape.  GSAS-II bounds none of U V W X Y Z, so a calibration "
-            f"saved from a converged fit can carry one; reading it would "
-            f"silently give ~0 rather than the value the file states.  Refine "
-            f"{attr} from this package's own zero instead")
+            f"saved from a converged fit can carry one.  Refine {attr} from "
+            f"this package's own zero instead")
     if attr == "w":
         # W's floor is the Γ_G² clamp (ProfileTCHZ): a W in [0, floor) is
         # raised to it, as the schema raises a stored one
         degrees = max(degrees, _MIN_GAMMA_G2)
     if degrees < param.min:
-        # Only u and v reach this: a softplus width's lower bound is the
-        # transform's own domain rather than a seeded guess, and a negative one
-        # was refused above.
+        # Only u and v reach this: a width's lower bound is its own domain
+        # rather than a seeded guess, and a negative one was refused above.
         param.min = degrees - abs(degrees) - 1.0
     if degrees > param.max:
         param.max = degrees + abs(degrees) + 1.0
@@ -1645,7 +1644,7 @@ def read_gsas2_instprm(path: str | Path, *, bank: int | None = None,
     ``Gonio. radius``.  Refused by name: a time-of-flight or energy-dispersive
     ``Type``; a non-zero ``Z``, which ``ProfileTCHZ`` has no term for; a
     non-zero ``Azimuth``, which changes what ``Polariz.`` means; a negative
-    softplus width; and a multi-bank file with no ``bank=`` to select one.
+    width; and a multi-bank file with no ``bank=`` to select one.
 
     ``bank`` names the bank of a multi-bank file, as ``#Bank n:`` states it.
     ``diagnostics`` collects what the read assumed or could not carry.

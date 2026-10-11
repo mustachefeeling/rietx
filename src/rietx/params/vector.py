@@ -10,8 +10,9 @@ Compiles a (Structure, Instrument) pair into:
   matmul stays exact under the future autodiff backends).  Crystal-system
   cell ties are the identity-row special case; Wyckoff site constraints
   (``crystallography.wyckoff``) supply general rows;
-* the mapping between the free internal vector θ (what the optimiser sees)
-  and the full physical value dict consumed by the forward model;
+* the mapping between the free vector θ (what the optimiser sees, each
+  column in its parameter's own units since WP-1938) and the full physical
+  value dict consumed by the forward model;
 * zero or more **derived blocks** (``params.derived``, WP-1804) applied after
   the affine matmul: closed-form nonlinear maps onto locked rows, a rigid
   body's atoms being the case they exist for.  "Constant during a run" is a
@@ -61,7 +62,6 @@ from ..schemas.instrument import (
 )
 from ..schemas.structure import MOMENT_COMPONENTS, Structure
 from .derived import DerivedBlock
-from .transforms import dphys_dinternal, internal_bounds, physical_bounds, to_internal, to_physical
 
 #: Dot-path suffix of a source line's wavelength row.  One authority for the
 #: spelling, since three places test for it: the collector, the freedom check
@@ -272,7 +272,6 @@ class Entry:
     vary: bool
     lo: float
     hi: float
-    transform: str
     tie: AffineTie | None = None  # affine dependence on other entries
     locked: bool = False  # structurally fixed: set_vary may never free it
     #: the caller declared this parameter does not move (WP-1435).  Written by
@@ -846,9 +845,7 @@ def _size_parameter_name(path: str) -> str | None:
 #: authority is there, and the inline is one expression); the two spellings are
 #: held together by an equality pin rather than by this comment —
 #: ``tests/test_strain_cap.py::test_the_size_caps_scherrer_k_is_the_one_in_caglioti``,
-#: which fails if either number moves.  Same idiom as
-#: ``schemas.structure._SOFTPLUS_FLOOR`` against
-#: ``params.transforms._SOFTPLUS_MIN``.
+#: which fails if either number moves.
 _SIZE_CAP_SCHERRER_K = 0.9
 
 
@@ -1144,12 +1141,10 @@ class ParameterTable:
     # -- collection ----------------------------------------------------
     def _add(self, path: str, p: Parameter, *, force_fixed: bool = False,
              tie: AffineTie | None = None) -> None:
-        # every entry is refined in its own units (WP-1938): a declared
-        # transform becomes the bounds it enforced
-        lo, hi = physical_bounds(p.min, p.max, p.transform)
+        # every entry is refined in its own units (WP-1938)
         self.entries.append(Entry(
             path=path, value=p.value, vary=p.vary and not force_fixed and tie is None,
-            lo=lo, hi=hi, transform="identity", tie=tie,
+            lo=p.min, hi=p.max, tie=tie,
             locked=force_fixed,
         ))
         self._units[path] = p.unit
@@ -1245,10 +1240,9 @@ class ParameterTable:
         An all-zero block is the exact no-broadening identity, so it is allowed
         to *exist*; refining from there is not.  Λ ∝ √Σ has unbounded slope at
         the origin, so the first Jacobian column would be enormous and TRF's
-        first step garbage — the failure inverts the softplus-at-zero trap
-        (dead gradient) into an exploding one, and neither is something to
-        discover from a bad fit.  ``Stage(seed=…)`` cannot help: it lifts
-        softplus entries only, and these are identity-transform.
+        first step garbage, and that is not something to discover from a bad
+        fit.  ``Stage(seed=…)`` cannot help: it lifts a row on a floor at or
+        above zero, and these DOFs are unbounded.
         """
         block = phase.microstrain
         if block is None:
@@ -1288,10 +1282,10 @@ class ParameterTable:
                 # to enforce exactly
                 self.entries.append(Entry(
                     path=f"{base}.microstrain.{name}", value=0.0, vary=False,
-                    lo=p.min, hi=p.max, transform=p.transform, locked=True))
+                    lo=p.min, hi=p.max, locked=True))
         for k, path in enumerate(dof_paths):
             self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+                                      lo=-np.inf, hi=np.inf))
         # S scales as microstrain², so one unit-ppm projection serves any seed
         unit, *_ = np.linalg.lstsq(
             basis.T.astype(np.float64),
@@ -1331,7 +1325,7 @@ class ParameterTable:
                 self._add(f"{base}.{c}", p, force_fixed=True)
         for k, path in enumerate(dof_paths):
             self.entries.append(Entry(path=path, value=0.0, vary=want_vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+                                      lo=-np.inf, hi=np.inf))
             self._anchored_dofs[path] = tuple(
                 (f"{base}.{c}", float(basis[k][c_idx]))
                 for c_idx, c in enumerate(("x", "y", "z")) if basis[k][c_idx] != 0)
@@ -1426,8 +1420,7 @@ class ParameterTable:
         for path in paths:
             self.entries.append(Entry(
                 path=path, value=0.0, vary=body.rotation_vary,
-                lo=-RIGID_BODY_ROTATION_BOUND, hi=RIGID_BODY_ROTATION_BOUND,
-                transform="identity"))
+                lo=-RIGID_BODY_ROTATION_BOUND, hi=RIGID_BODY_ROTATION_BOUND))
         self._anchored_rotations[bbase] = paths
         # named-bond torsions (WP-1808): the same kind about one axis each, in
         # degrees and unboxed — a turn about a fixed axis has no singular
@@ -1435,7 +1428,7 @@ class ParameterTable:
         twists = block.twist_paths(bbase)
         for path, torsion in zip(twists, body.torsions, strict=True):
             self.entries.append(Entry(path=path, value=0.0, vary=torsion.vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+                                      lo=-np.inf, hi=np.inf))
         self._anchored_torsions[bbase] = twists
         self._bodies.append((bbase, body.name, block))
 
@@ -1560,7 +1553,7 @@ class ParameterTable:
                 self._add(f"{base}.{name}", p, force_fixed=True)
         for k, path in enumerate(dof_paths):
             self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+                                      lo=-np.inf, hi=np.inf))
         self._add(f"{base}.biso", atom.biso, force_fixed=True)
 
     def _collect_atom_moment(self, base: str, phase, atom) -> None:
@@ -1600,7 +1593,7 @@ class ParameterTable:
         for name in MOMENT_COMPONENTS:
             self._add(f"{base}.moment.{name}", getattr(moment, name),
                       force_fixed=True)
-        # Unbounded and identity-transform, like every other DOF here: the
+        # Unbounded, like every other DOF here: the
         # modulus is *signed* on a one-dimensional subspace (the only way two
         # independent sites can be stated antiparallel along one axis), and on
         # a larger one the antipode is an angle away.  |μ| is the magnitude,
@@ -1608,7 +1601,7 @@ class ParameterTable:
         for k, value in enumerate(seed):
             self.entries.append(Entry(
                 path=f"{base}.moment.dof{k}", value=float(value),
-                vary=want_vary, lo=-np.inf, hi=np.inf, transform="identity"))
+                vary=want_vary, lo=-np.inf, hi=np.inf))
 
     def _refresh_moment_components(self) -> None:
         """Write every moment block's components back from its DOFs.
@@ -1958,7 +1951,7 @@ class ParameterTable:
         **The derived rows follow, here** (WP-1805, the #773 follow-up).  Every
         writer that moves a value outside a solve ends in a rebuild — the
         seeds, the anchored-DOF rebase, re-anchor and displacement, the tie
-        refresh — and any of them can move a block input (a softplus cell
+        refresh — and any of them can move a block input (a seeded cell
         length, a body origin), so the refresh is made where they all pass
         rather than remembered by each.
         """
@@ -2114,9 +2107,7 @@ class ParameterTable:
         """
         if not self.derived:
             return self._C
-        p_free = np.array([to_physical(float(t), self.entries[i].transform)
-                           for t, i in zip(theta, self._free_idx, strict=True)],
-                          dtype=np.float64)
+        p_free = np.asarray(theta, dtype=np.float64)
         p = self._C @ p_free + self._d if len(p_free) else self._d.copy()
         jac = self._C.toarray()
         for block, (ins, outs) in zip(self.derived, self._derived_idx, strict=True):
@@ -2280,7 +2271,6 @@ class ParameterTable:
     # -- table surgery (used by Wyckoff constraint wiring) -------------
     def add_parameter(self, path: str, value: float, *, vary: bool = False,
                       lo: float = -np.inf, hi: float = np.inf,
-                      transform: str = "identity",
                       unit: str | None = None) -> None:
         """Append a synthetic parameter (e.g. a Wyckoff displacement DOF).
 
@@ -2291,9 +2281,8 @@ class ParameterTable:
         """
         if path in self._paths:
             raise ValueError(f"parameter {path!r} already exists")
-        lo, hi = physical_bounds(lo, hi, transform)
         self.entries.append(Entry(path=path, value=value, vary=vary,
-                                  lo=lo, hi=hi, transform="identity"))
+                                  lo=lo, hi=hi))
         self._units[path] = unit
         self._rebuild()
 
@@ -3089,9 +3078,8 @@ class ParameterTable:
                 for i, e in enumerate(self.entries)}
 
     def x0(self) -> np.ndarray:
-        return np.array([to_internal(self._unscaled(self.entries[i]),
-                                     self.entries[i].transform)
-                         for i in self._free_idx], dtype=np.float64)
+        return np.array([self._unscaled(self.entries[i]) for i in self._free_idx],
+                        dtype=np.float64)
 
     def _unscaled(self, e: Entry) -> float:
         """``e.value`` in the units the free column carries (see
@@ -3264,16 +3252,13 @@ class ParameterTable:
                 # is that limit divided.  Applied here rather than in each
                 # branch, so a new bound kind inherits it.
                 e_lo, e_hi = e_lo / scale, e_hi / scale
-            low, high = internal_bounds(e_lo, e_hi, e.transform)
-            lo.append(low)
-            hi.append(high)
+            lo.append(e_lo)
+            hi.append(e_hi)
         return np.asarray(lo), np.asarray(hi)
 
     def decode(self, theta: np.ndarray) -> dict[str, float]:
-        """Internal free vector → full physical value dict, via C·p_free + d."""
-        p_free = np.array([to_physical(float(t), self.entries[i].transform)
-                           for t, i in zip(theta, self._free_idx, strict=True)],
-                          dtype=np.float64)
+        """Free vector → full physical value dict, via C·θ + d."""
+        p_free = np.asarray(theta, dtype=np.float64)
         p = self._C @ p_free + self._d if len(p_free) else self._d
         if self.derived:
             p = np.array(p, dtype=np.float64)   # never write into ``_d``
@@ -3454,15 +3439,14 @@ class ParameterTable:
         """∂θ_old/∂θ_new over the free columns, for ``rechart_outcome``.
 
         The moment signs on the diagonal and each composed body's block on
-        its rotation columns (disjoint sets).  A rotation entry is an identity
-        transform, so its free column is its value or an affine image of
-        another's; the block is carried through C's rows as
-        pinv(A)·chart·A, A the rows of the body's rotation entries over the
-        columns that reach them.  That is exact when each rotation entry is its
-        own free column; a body with some rotation DOFs held or tied gets the
-        projection, because composing then changes which orientations the
-        held components leave reachable, and no matrix maps one family onto
-        the other.
+        its rotation columns (disjoint sets).  A rotation entry's free column
+        is its value or an affine image of another's; the block is carried
+        through C's rows as pinv(A)·chart·A, A the rows of the body's rotation
+        entries over the columns that reach them.  That is exact when each
+        rotation entry is its own free column; a body with some rotation DOFs
+        held or tied gets the projection, because composing then changes which
+        orientations the held components leave reachable, and no matrix maps
+        one family onto the other.
         """
         n = len(self._free_idx)
         out = np.diag(np.ones(n) if signs is None else np.asarray(signs, dtype=np.float64))
@@ -3515,9 +3499,9 @@ class ParameterTable:
         """Physical esds for every free or tied parameter.
 
         σ²_phys = diag(C · Cov_free · Cᵀ), where Cov_free is the covariance
-        of the *physical* free parameters: the internal esds chain-ruled
-        through the transforms, correlated by ``correlation`` when given
-        (diagonal otherwise — the pre-v0.3 behaviour).  Identity ties
+        of the free parameters: the solver's esds, correlated by
+        ``correlation`` when given (diagonal otherwise — the pre-v0.3
+        behaviour).  Identity ties
         thereby report exactly the source esd; general rows get full linear
         propagation including cross terms.  Held parameters are omitted.
 
@@ -3555,7 +3539,7 @@ class ParameterTable:
 
     def _phys_sigma_free(self, theta: np.ndarray, stderr_internal: np.ndarray
                          ) -> np.ndarray:
-        """Chain-ruled physical esd of each free parameter (θ-column order).
+        """Physical esd of each free parameter (θ-column order).
 
         **An esd whose variance has no double is returned as ``inf``**, the
         value every consumer already reads as unmeasured (WP-1463).  Since the
@@ -3565,19 +3549,14 @@ class ParameterTable:
         a row would then report an infinite esd where WP-1072 wants an absent
         one.  Nothing measured sits within a hundred orders of this cap.
         """
-        with np.errstate(invalid="ignore", over="ignore"):
-            s = np.array(
-                [abs(dphys_dinternal(float(t), self.entries[i].transform)) * float(sd)
-                 for t, sd, i in zip(theta, stderr_internal, self._free_idx,
-                                     strict=True)],
-                dtype=np.float64)
+        s = np.array(stderr_internal, dtype=np.float64)
         return np.where(np.isnan(s) | (s < _SIGMA_MAX), s, np.inf)
 
     def _cov_free(self, theta: np.ndarray, stderr_internal: np.ndarray,
                   correlation: np.ndarray | None) -> np.ndarray:
         """Covariance of the *physical* free parameters (Cov_free).
 
-        Diagonal from the chain-ruled esds; off-diagonal from ``correlation``
+        Diagonal from the solver's esds; off-diagonal from ``correlation``
         when given.  This is the construction :meth:`stderr_physical` uses —
         it calls this method rather than repeating it — so any block extracted
         from it carries the same Bérar-Lelann conditioning as the reported

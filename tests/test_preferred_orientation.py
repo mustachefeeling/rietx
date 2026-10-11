@@ -48,10 +48,9 @@ def test_po_defaults_off_and_round_trips():
 
     phase.preferred_orientation = _po((0, 0, 1), 1.0)
     r = phase.preferred_orientation.r
-    # min is MARCH_R_MIN, not 0.0: a zero lower bound maps to an internal
-    # bound of −∞ and lets softplus underflow to exactly zero, which the
-    # March factor then divides by (WP-1028 §(e))
-    assert r.value == 1.0 and r.vary is False and r.transform == "softplus"
+    # min is MARCH_R_MIN, not 0.0: the March factor divides by r
+    # (WP-1028 §(e))
+    assert r.value == 1.0 and r.vary is False
     assert (r.min, r.max) == (MARCH_R_MIN, MARCH_R_MAX)
 
     phase.preferred_orientation.r.value = 0.8

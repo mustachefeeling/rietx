@@ -287,7 +287,7 @@ def test_a_negative_width_is_refused_rather_than_silently_zeroed(lab6_doc):
     doc["payload"]["instrument"]["initialization"][0]["Y"] = [-15.8, -15.8, False]
     with pytest.raises(RecipeError) as exc:
         read_recipe(doc)
-    assert "softplus-bounded at zero" in str(exc.value)
+    assert "bounded below at zero" in str(exc.value)
 
 
 def test_the_spf_schema_is_refused_by_name(lab6_doc):

@@ -24,17 +24,17 @@ from pydantic import Field, field_validator, model_validator
 
 from .common import Base, Parameter, _InheritsDeclaredDefaults
 
-#: the lower bound below which ``params.transforms.internal_bounds`` treats a
-#: softplus parameter as *unbounded* below, which is what lets its physical
-#: value underflow to exactly zero
-_SOFTPLUS_FLOOR = 1e-12
+#: A lower bound at or under this is a bound at zero to
+#: :meth:`PreferredOrientation._r_bound_is_reachable`.  It is the value under
+#: which a stored ``min`` meant no bound at all before schema 0.46 (WP-1938),
+#: so no stored document repairs differently.
+_ZERO_BOUND = 1e-12
 
 #: March coefficient bounds.  r = 1 is the identity, r < 1 / r > 1 map to
 #: platy / needle habit (the mapping flips between reflection and transmission
 #: geometry — see :mod:`rietx.model.preferred_orientation`), and a value
 #: outside this range describes a texture no powder mount produces.  The floor
-#: is what makes the softplus bound reachable at all: see
-#: :class:`PreferredOrientation`.  Measured on a 90 wt % NaCl mixture where r
+#: keeps r off the pole at zero: see :class:`PreferredOrientation`.  Measured on a 90 wt % NaCl mixture where r
 #: underflowed to zero: the stall went away *and* the fit improved, Rwp 30.8 %
 #: → 13.2 % (WP-1028 §(e)).
 MARCH_R_MIN = 0.15
@@ -227,27 +227,22 @@ class PreferredOrientation(_InheritsDeclaredDefaults):
     r < 1 / r > 1 → platy / needle mapping (which flips between reflection and
     transmission geometry) live in :mod:`rietx.model.preferred_orientation`.
 
-    ``r`` is softplus-bounded strictly positive (a hard zero bound stalls TRF)
-    and **defaults to 1.0, vary=False** — r ≡ 1 is exactly the no-correction
-    case, so a phase carrying this block but not refining it is bit-identical
-    to one without it.
+    ``r`` is bounded strictly positive and **defaults to 1.0, vary=False** —
+    r ≡ 1 is exactly the no-correction case, so a phase carrying this block
+    but not refining it is bit-identical to one without it.
 
-    **The strictness is a promise softplus alone does not keep** (WP-1028
-    §(e)).  ``min=0.0`` maps to an internal bound of −∞ (``internal_bounds``
-    treats any lower bound at or under 1e-12 as absent), and ``log(1+e^u)``
-    underflows to *exactly* 0.0 below u ≈ −745.  The March factor divides by
-    r, so the residual becomes inf/NaN, nothing raises, and TRF grinds its
-    whole budget on garbage — measured, a 3-second stage that had not
-    returned after ten minutes.  So the bound is :data:`MARCH_R_MIN`, which
-    makes the internal bound finite and the underflow unreachable.  It is
-    physics, not a fudge: r = 1 is the identity, and a March coefficient
-    outside 0.15-6 describes a texture no powder mount produces.
+    **The floor is :data:`MARCH_R_MIN`, not 0** (WP-1028 §(e)).  The March
+    factor divides by r, so at r = 0 the residual becomes inf/NaN, nothing
+    raises, and the solver grinds its whole budget on garbage — measured
+    before WP-1938, a 3-second stage that had not returned after ten minutes.
+    The floor is physics, not a fudge: r = 1 is the identity, and a March
+    coefficient outside 0.15-6 describes a texture no powder mount produces.
     """
 
     axis: tuple[int, int, int]
     r: Parameter = Field(
         default_factory=lambda: Parameter(value=1.0, vary=False, min=MARCH_R_MIN,
-                                          max=MARCH_R_MAX, transform="softplus")
+                                          max=MARCH_R_MAX)
     )
 
     @model_validator(mode="after")
@@ -258,17 +253,15 @@ class PreferredOrientation(_InheritsDeclaredDefaults):
 
     @model_validator(mode="after")
     def _r_bound_is_reachable(self) -> "PreferredOrientation":
-        """Repair a lower bound that softplus cannot actually enforce.
+        """Repair a lower bound at zero, where the March factor's pole is.
 
-        Only fires on a bound *at or below* the softplus floor — the value
-        that promises "strictly positive" and delivers zero.  Any positive
-        bound a caller chose is left alone, because a positive bound already
-        maps to a finite internal one and the underflow cannot happen.  This
-        exists because the broken bound outlives the default: a JSON project
-        or a history node written before this fix carries ``min: 0.0``
-        explicitly, and would deserialize straight back into the stall.
+        Only fires on a bound *at or below* :data:`_ZERO_BOUND`.  Any positive
+        bound a caller chose is left alone.  This exists because the broken
+        bound outlives the default: a JSON project or a history node written
+        before this fix carries ``min: 0.0`` explicitly, and would deserialize
+        straight back into the stall.
         """
-        if self.r.min <= _SOFTPLUS_FLOOR:
+        if self.r.min <= _ZERO_BOUND:
             self.r.min = MARCH_R_MIN
         if not math.isfinite(self.r.max):
             self.r.max = MARCH_R_MAX
@@ -920,7 +913,7 @@ class Phase(_InheritsDeclaredDefaults):
     cell: Cell
     atoms: list[Atom]
     scale: Parameter = Field(
-        default_factory=lambda: Parameter(value=1.0, vary=False, min=0.0, transform="softplus")
+        default_factory=lambda: Parameter(value=1.0, vary=False, min=0.0)
     )
     # Primary-extinction coefficient (Sabine model, model/extinction.py), the
     # squared mosaic-block size D² in µm² (WP-1451).  Attenuates the strong
@@ -928,11 +921,10 @@ class Phase(_InheritsDeclaredDefaults):
     # integrated intensity is multiplied by
     # E(hkl) = E_B·sin²θ + E_L·cos²θ with a dimensionless x ∝ ext·|F|²·(λ/V)².
     # ext = 0 ⇒ E ≡ 1 exactly (off by default), so it is opt-in and never
-    # perturbs a structure that does not free it.  Softplus-bounded positive
-    # (a hard zero bound stalls TRF; the staged plan seeds it off zero).
+    # perturbs a structure that does not free it.  Bounded at zero, and the
+    # staged plan seeds it off zero.
     extinction: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, vary=False, min=0.0, unit="um^2",
-                                          transform="softplus")
+        default_factory=lambda: Parameter(value=0.0, vary=False, min=0.0, unit="um^2")
     )
     # Optional single-axis March-Dollase preferred-orientation correction
     # (model/preferred_orientation.py).  None ⇒ no correction; a block with the
@@ -944,10 +936,10 @@ class Phase(_InheritsDeclaredDefaults):
     # size term varies as 1/cosθ (Scherrer), strain term as tanθ.  Lorentzian
     # FWHMs add under convolution, so these stack on the instrument X, Y.
     lor_size: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg")
     )
     lor_strain: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg")
     )
     # WP-1343.  The **magnetic** component's own extra Lorentzian broadening,
     # in the same deg-2θ units and under the same two laws as the pair above:
@@ -968,8 +960,8 @@ class Phase(_InheritsDeclaredDefaults):
     # *height* and the moment comes back low by the ratio of the two widths.
     #
     # Zero **is** the off state (no extra magnetic broadening) and is the
-    # default, and the forward model divides by neither, so ``min = 0.0``
-    # under softplus is safe by root CLAUDE.md's rule.  The conversion to a
+    # default, and the forward model divides by neither, so ``min = 0.0`` is
+    # safe by root CLAUDE.md's rule.  The conversion to a
     # coherence length does divide, and ``model.microstructure`` already
     # answers a zero coefficient with no value at all rather than an infinite
     # length — ``lor_size``'s existing ``unavailable="at_zero"`` case.
@@ -981,10 +973,10 @@ class Phase(_InheritsDeclaredDefaults):
     # ``magnetic_symmetry`` is declared, so on every other phase they cannot
     # be freed either.
     magnetic_lor_size: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg")
     )
     magnetic_lor_strain: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg")
     )
     # Sample contribution to Gaussian *variance* (deg² 2θ; variances add under
     # convolution): size term varies as 1/cos²θ (GSAS's P), strain term as
@@ -992,10 +984,10 @@ class Phase(_InheritsDeclaredDefaults):
     # lor_strain this is the instrument ⊕ sample profile split: calibrate
     # U V W X Y on a standard, freeze them, then refine only these four.
     gauss_size: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg^2", transform="softplus")
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg^2")
     )
     gauss_strain: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg^2", transform="softplus")
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg^2")
     )
     # Optional Stephens (1999) anisotropic strain broadening: an hkl-dependent
     # Lorentzian width Λ(hkl)·tanθ replacing the isotropic lor_strain·tanθ.

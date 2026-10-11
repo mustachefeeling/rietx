@@ -32,19 +32,17 @@ def test_roughness_blocks_default_to_the_identity():
     s = RoughnessSuortti()
     assert s.kind == "suortti"
     assert s.b.value == 0.0 and s.b.vary is False
-    assert s.b.min == 0.0 and s.b.transform == "softplus"
+    assert s.b.min == 0.0
     # a is strictly interior on purpose: at b = 0 the gradient
     # dR/db = (1-a)(1 - 1/sin(theta)) vanishes identically when a = 1, so a
     # default of 1.0 would make the parameter unable to lift off.
     assert 0.0 < s.a.value < 1.0
-    assert s.a.transform == "identity"
 
     p = RoughnessPitschke()
     assert p.kind == "pitschke"
     assert p.c.value == 0.0 and p.c.vary is False
-    assert p.c.min == 0.0 and p.c.transform == "softplus"
+    assert p.c.min == 0.0
     assert 0.0 < p.tau.value < p.tau.max  # interior, same lift-off reason
-    assert p.tau.transform == "identity"
 
 
 def test_roughness_bounds_encode_the_published_regimes():

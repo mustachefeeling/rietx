@@ -563,8 +563,8 @@ def test_the_size_caps_scherrer_k_is_the_one_in_caglioti():
     ``tests/CLAUDE.md`` § Guards that go quiet describes — it cannot fail — so
     the coupling is a pin instead, and it is on the whole inlined expression
     rather than only on the constant: retuning ``SCHERRER_K``, or drifting the
-    algebra, fails here.  Same idiom as ``schemas.structure._SOFTPLUS_FLOOR``
-    against ``params.transforms._SOFTPLUS_MIN``.
+    algebra, fails here.  Same idiom as the two ``_ZERO_BOUND`` copies in
+    ``schemas.structure`` and ``schemas.instrument``.
 
     Bit-identity, not approximate agreement: both sides are
     ``math.degrees(k·λ/L)`` with the same association, so anything looser would

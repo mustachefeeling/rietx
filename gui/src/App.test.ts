@@ -124,7 +124,6 @@ const RESULT = {
 function param(path: string, over: Record<string, unknown> = {}) {
   const row = {
     path, value: 1, vary: false, lo: "-Infinity" as any, hi: "Infinity" as any,
-    transform: "identity",
     tie: null as any, locked: false, esd: null as number | null, mode_fixed: false,
     // the family glob the server matched (WP-1202); the table renders it as a
     // help key and never re-derives the match

@@ -97,7 +97,7 @@ def test_render_parse_diff_is_a_fixed_point(project):
 
 def test_the_fixed_point_holds_over_the_shapes_that_broke_it(tmp_path,
                                                              pattern_file):
-    """Every row kind at once — long paths, ties, locks, bounds, transforms.
+    """Every row kind at once — long paths, ties, locks, bounds.
 
     Two renderer bugs lived here. A fixed 36-column value field emitted
     ``polarization                   0.99min 0`` (the parser then refused
@@ -116,13 +116,34 @@ def test_the_fixed_point_holds_over_the_shapes_that_broke_it(tmp_path,
     assert rows["instrument.polarization"].annotations["min"] == 0.0
     assert rows["phases.0.cell.b"].annotations["tie"].endswith("phases.0.cell.a")
     assert rows["phases.0.cell.alpha"].annotations["locked"] is True
-    assert rows["phases.0.scale"].annotations["softplus"] is True
+    assert rows["phases.0.scale"].annotations["min"] == 0.0
     # lebail force-fixes every atom path, and the row says so rather than
     # looking editable (the Le Bail dummy-atom trap, WP-1004)
     assert rows["phases.0.atoms.0.biso"].annotations["mode-fixed"] is True
 
     delta, errors = td.changes(td.parse(text), project)
     assert (errors, delta.is_empty()) == ([], True)
+
+
+def test_a_document_written_with_transform_words_still_reads(project):
+    """An ``.rxt`` rendered before schema 0.46 carries ``softplus``/``logit``
+    beside the bounds (WP-1938).  The renderer no longer writes them; the
+    parser folds each into the row's bounds through the schema's one map, so
+    the old document compares equal to the live rows and applies nothing."""
+    text = td.render(project)
+    assert "softplus" not in text and "logit" not in text
+    line = next(ln for ln in text.splitlines()
+                if ln.strip().startswith("scale ") and "min 0" in ln)
+    old = text.replace(line, f"{line}  softplus", 1)
+    # an old row whose bound was left to the transform alone folds to min 0
+    bare = line.replace("min 0", "").rstrip() + "  softplus"
+    for doc in (old, text.replace(line, bare, 1)):
+        parsed = td.parse(doc)
+        assert parsed.errors == []
+        [row] = [r for r in parsed.rows if r.path == "phases.0.scale"]
+        assert row.annotations["min"] == 0.0 and "softplus" not in row.annotations
+        delta, errors = td.changes(parsed, project)
+        assert (errors, delta.is_empty()) == ([], True)
 
 
 def test_a_hold_renders_as_an_annotation_and_refuses_the_at_marker(

@@ -22,7 +22,7 @@ protocols by eye.
     phase 0 "NAC"                    # I 21 3 · No. 199 · cubic · Laue m-3
       cell.a        @ 10.251285      min 10.1  max 10.4  esd 3.1e-05
       cell.b          10.251285      = cell.a
-      scale         @ 1.234e-06      min 0  softplus
+      scale         @ 1.234e-06      min 0
       atoms.0.biso  @ 0.52           min 0  max 25            # Na1 Na
     instrument
       zero_shift    @ 0.0021
@@ -78,7 +78,7 @@ from fnmatch import fnmatch
 from typing import Any, get_args
 
 from .._about import TEXTDOC_MAGIC
-from ..schemas.common import Mode
+from ..schemas.common import Mode, legacy_transform_bounds
 from ..schemas.indexing import PeakFlag
 from ..schemas.migrate import migrate_document_text
 from ..schemas.plan import PlanSpec, StageSpec
@@ -150,8 +150,15 @@ _KEYWORDS = (TEXTDOC_MAGIC, "project", "pattern", "mode", "limits", "excluded", 
              "guard", "tolerance", "passes", "stage", "phase", "instrument", "peaks",
              *RESERVED_BLOCKS)
 
-_FLAG_WORDS = ("locked", "mode-fixed", "held", "softplus", "logit")
+_FLAG_WORDS = ("locked", "mode-fixed", "held")
 _PAIR_WORDS = ("min", "max", "esd")
+
+#: Flag words a document rendered before schema 0.46 carries, when a row's
+#: transform was rendered beside its bounds (WP-1938).  Read, never written:
+#: each folds into the row's ``min``/``max`` through the schema's one map
+#: (:func:`~rietx.schemas.common.legacy_transform_bounds`), so an old document
+#: compares equal to the live rows, whose bounds are that box already.
+_LEGACY_TRANSFORM_WORDS = ("softplus", "logit")
 
 #: Order the annotations render in.  One tuple, so the renderer and the
 #: read-only check below cannot disagree about what an annotation *is*.
@@ -161,8 +168,7 @@ _PAIR_WORDS = ("min", "max", "esd")
 #: has to run to the end of the line to be unambiguous.  Rendering it in the
 #: middle produced a document this module's own parser could not read back, which
 #: is what the round-trip test exists to catch.
-_ANNOTATION_ORDER = ("min", "max", "softplus", "logit", "locked", "mode-fixed",
-                     "held", "esd", "tie")
+_ANNOTATION_ORDER = ("min", "max", "locked", "mode-fixed", "held", "esd", "tie")
 
 
 # ----------------------------------------------------------------------
@@ -303,8 +309,6 @@ def annotations_of(row) -> dict[str, Any]:
         out["min"] = float(_fmt(row.lo))
     if row.hi != float("inf"):
         out["max"] = float(_fmt(row.hi))
-    if row.transform != "identity":
-        out[row.transform] = True
     if row.locked:
         out["locked"] = True
     if row.mode_fixed:
@@ -720,6 +724,7 @@ def _parse_row(n: int, body: str, prefix: str, raw: str, fail) -> Row | None:
         value, rest = float(rest[0]), rest[1:]
 
     annotations: dict[str, Any] = {}
+    legacy: list[str] = []
     while rest:
         word = rest.pop(0)
         if word in _PAIR_WORDS:
@@ -737,10 +742,18 @@ def _parse_row(n: int, body: str, prefix: str, raw: str, fail) -> Row | None:
             rest = []
         elif word in _FLAG_WORDS:
             annotations[word] = True
+        elif word in _LEGACY_TRANSFORM_WORDS:
+            legacy.append(word)
         else:
             fail(n, f"unknown annotation {word!r} on {local!r}; expected "
                     f"{', '.join((*_PAIR_WORDS, '=', *_FLAG_WORDS))}", raw, local)
             return None
+    for word in legacy:
+        lo, hi = legacy_transform_bounds(word, annotations.get("min", float("-inf")),
+                                         annotations.get("max", float("inf")))
+        annotations["min"] = lo
+        if hi != float("inf"):
+            annotations["max"] = hi
     return Row(line=n, path=prefix + local, local=local, vary=vary, value=value,
                annotations=annotations, text=raw.rstrip())
 
@@ -1057,8 +1070,6 @@ _ANNOTATION_REASONS = {
            "path it follows instead",
     "min": "bounds come from the schema, not from this document",
     "max": "bounds come from the schema, not from this document",
-    "softplus": "a transform is part of how the parameter is stored",
-    "logit": "a transform is part of how the parameter is stored",
     "locked": "locked is structural (symmetry, or a representation that owns "
               "this channel)",
     "mode-fixed": "mode-fixed follows the intensity mode; change 'mode' instead",

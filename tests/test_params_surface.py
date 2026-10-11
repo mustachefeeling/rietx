@@ -122,9 +122,9 @@ def test_parameters_lists_the_whole_table(ref):
     assert not rows["phases.0.cell.b"].refinable
     assert rows["phases.0.cell.alpha"].locked
     assert rows["phases.0.extinction"].refinable and not rows["phases.0.extinction"].vary
-    # bounds and transforms come through, so a client can build an editor
-    assert rows["phases.0.scale"].transform == "softplus"
+    # bounds come through, so a client can build an editor
     assert rows["phases.0.scale"].lo == 0.0
+    assert not hasattr(rows["phases.0.scale"], "transform")
 
 
 def test_parameters_reports_why_a_row_is_held(ref):

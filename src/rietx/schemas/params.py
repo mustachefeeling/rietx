@@ -1,7 +1,7 @@
 """The parameter table as data: one row per refinable scalar.
 
 ``params.vector.Entry`` is the ground truth of what a parameter *is* — path,
-value, vary flag, bounds, transform, affine tie, locked flag — but it is a
+value, vary flag, bounds, affine tie, locked flag — but it is a
 dataclass inside the optimiser's translation layer, and the hot loop is
 deliberately free of pydantic.  :class:`ParameterRow` is its serializable twin
 for the cold paths: a listing for a caller (``Refinement.parameters()``), a GUI
@@ -37,7 +37,7 @@ from typing import Any
 
 from pydantic import Field
 
-from .common import Base, TransformKind
+from .common import Base
 
 
 class TieSpec(Base):
@@ -117,7 +117,6 @@ class ParameterRow(Base):
     vary: bool = False
     lo: float = float("-inf")
     hi: float = float("inf")
-    transform: TransformKind = "identity"
     tie: TieSpec | None = None
     locked: bool = False
     #: The caller declared that this parameter does not move (WP-1435),

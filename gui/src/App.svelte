@@ -1043,7 +1043,7 @@
       </div>
       <div class="segmented" role="group" aria-label="disclosure">
         <button class:on={simple} onclick={() => setSimple(true)}
-          title="hide bounds, transforms and stage seeds">Simple</button>
+          title="hide bounds and stage seeds">Simple</button>
         <button class:on={!simple} onclick={() => setSimple(false)}
           title="show every field a stage and a parameter carry">Advanced</button>
       </div>

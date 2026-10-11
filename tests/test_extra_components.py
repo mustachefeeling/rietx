@@ -162,7 +162,7 @@ def test_json_round_trip_keeps_every_peak_parameter():
     assert len(back.extra_components) == 2
     assert back.extra_components[1].position.value == 70.0
     assert back.extra_components[0].label == "hump"
-    assert back.extra_components[0].fwhm.transform == "softplus"
+    assert back.extra_components[0].fwhm.min == HUMP_FWHM_MIN
 
 
 def test_a_stored_zero_width_bound_is_repaired_rather_than_deserialized():
@@ -185,24 +185,20 @@ def test_a_stored_zero_width_bound_is_repaired_rather_than_deserialized():
     assert kept.fwhm.min == 1.0
 
 
-def test_the_restated_softplus_floor_still_equals_the_one_that_decides():
-    """Three spellings of one number, pinned to the one with the vote.
+def test_the_restated_zero_bound_is_one_number():
+    """Two spellings of one number, pinned together.
 
-    ``_SOFTPLUS_FLOOR`` in ``schemas/instrument.py`` (the repair above) and in
-    ``schemas/structure.py`` (``PreferredOrientation.r``, pre-existing on main)
-    are both restatements — declared rather than imported, to keep the schemas
-    importing nothing from ``params``.  The number that actually decides whether
-    a softplus lower bound exists is ``transforms._SOFTPLUS_MIN``: ``to_internal``
-    maps any ``min`` at or under it to −∞.  Nothing else asserts the copies track
-    it, so changing ``transforms`` would leave both repairs pointing at a bound
-    the transform no longer forgives, in silence.  Pin them.
+    ``_ZERO_BOUND`` in ``schemas/instrument.py`` (the repair above) and in
+    ``schemas/structure.py`` (``PreferredOrientation.r``) are restatements,
+    declared rather than imported to keep the two schemas independent.  Each
+    reads a stored ``min`` at or under it as a bound at zero, and 1e-12 is the
+    value under which a stored ``min`` meant no bound before schema 0.46
+    (WP-1938), so no stored document repairs differently.  Pin both.
     """
-    from rietx.params.transforms import _SOFTPLUS_MIN
-    from rietx.schemas.instrument import _SOFTPLUS_FLOOR as _INSTRUMENT_FLOOR
-    from rietx.schemas.structure import _SOFTPLUS_FLOOR as _STRUCTURE_FLOOR
+    from rietx.schemas.instrument import _ZERO_BOUND as _INSTRUMENT_FLOOR
+    from rietx.schemas.structure import _ZERO_BOUND as _STRUCTURE_FLOOR
 
-    assert _INSTRUMENT_FLOOR == _SOFTPLUS_MIN
-    assert _STRUCTURE_FLOOR == _SOFTPLUS_MIN
+    assert _INSTRUMENT_FLOOR == _STRUCTURE_FLOOR == 1e-12
 
 
 def test_the_restated_four_ln2_still_equals_the_profiles_own():
@@ -337,12 +333,6 @@ def test_the_fd_column_matches_a_hand_written_derivative():
     u = (tt - pos) / fwhm
     curve = height * np.exp(-4.0 * np.log(2.0) * u * u)
 
-    from rietx.params.transforms import dphys_dinternal
-
-    def dpdu(path):
-        e = table.entries[table._paths[path]]
-        return dphys_dinternal(float(theta[free.index(path)]), e.transform)
-
     expect = {
         # ∂/∂2θ₀ = +8 ln2 · u/Γ · curve
         PEAK_PATHS[0]: 8.0 * np.log(2.0) * u / fwhm * curve,
@@ -367,7 +357,7 @@ def test_the_fd_column_matches_a_hand_written_derivative():
     for path, dy in expect.items():
         col = jac[:n_data, free.index(path)]
         # the residual is (y_obs − y_calc)/σ, hence the minus sign
-        truth = -sqrt_w * dy * dpdu(path)
+        truth = -sqrt_w * dy
         err = np.max(np.abs(col - truth))
         if path in rel_bars:
             assert err <= rel_bars[path] * np.max(np.abs(truth)), path
@@ -507,19 +497,14 @@ def test_the_width_bound_is_measured_against_the_instrument_alone():
 # ----------------------------------------------------------------------
 # the absorption block, and the span it is built from
 # ----------------------------------------------------------------------
-def test_a_softplus_off_state_does_not_by_itself_make_a_zero_column():
+def test_an_off_state_does_not_by_itself_make_a_zero_column():
     """Why the ``_span_basis`` filter changes nothing that shipped before it.
 
-    ``to_internal`` clamps, so a softplus parameter at its own off state has a
-    tiny-but-real derivative rather than none, and no design row is zero either.
+    A parameter at its own off state is refined in its own units (WP-1938), so
+    its column is its physical derivative, and no design row is zero either.
     An exactly-zero column comes from a **product** — a peak at zero height —
     which is what the filter is for.
     """
-    from rietx.params.transforms import dphys_dinternal, to_internal
-
-    u = to_internal(0.0, "softplus")
-    assert np.isfinite(u) and dphys_dinternal(u, "softplus") > 0.0
-
     _s, _i, _d, _t, model = _state(
         peaks=(),
         background=BackgroundPSpline.for_range(15.0, 110.0, knot_step_deg=8.0),

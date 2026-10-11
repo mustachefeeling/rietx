@@ -28,7 +28,6 @@ export interface ParamRow {
   vary: boolean;
   lo: number;
   hi: number;
-  transform: string;
   tie: TieSpec | null;
   locked: boolean;
   /** the caller declared this parameter does not move, with `Refinement.hold`

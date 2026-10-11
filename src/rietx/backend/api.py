@@ -61,7 +61,6 @@ from contextlib import nullcontext
 from typing import Any, Protocol
 
 import numpy as np
-from scipy.special import expit
 
 from .._about import DIST_NAME
 
@@ -92,11 +91,6 @@ class Backend(Protocol):
     minimum: Any
     where: Any
     isfinite: Any
-    # parameter transforms, in their overflow-safe forms — the traced decode
-    # (backend/traced.py) is written once against these, so every backend
-    # reproduces ``params.transforms.to_physical`` rather than approximating it
-    logaddexp: Any
-    sigmoid: Any
     # reductions / linear algebra
     einsum: Any
     matmul: Any
@@ -172,9 +166,6 @@ class NumpyBackend:
     where = staticmethod(np.where)
     isfinite = staticmethod(np.isfinite)
 
-    logaddexp = staticmethod(np.logaddexp)
-    sigmoid = staticmethod(expit)   # scipy's, i.e. the branch-free safe form
-
     einsum = staticmethod(np.einsum)
     matmul = staticmethod(np.matmul)
     sum = staticmethod(np.sum)
@@ -219,7 +210,7 @@ class NumpyBackend:
 _OP_NAMES = (
     "exp", "sqrt", "log", "sin", "cos", "tan", "arcsin", "arccos",
     "radians", "degrees", "abs", "sign", "power", "clip",
-    "maximum", "minimum", "where", "isfinite", "logaddexp", "sigmoid",
+    "maximum", "minimum", "where", "isfinite",
     "einsum", "matmul", "sum", "cumsum", "diff",
     "asarray", "zeros", "zeros_like", "full_like", "concatenate", "stack",
     "conj", "real", "imag",
@@ -245,10 +236,9 @@ class JaxBackend:
         self._jax = jax
         self.pi = jnp.pi
         self.linalg = jnp.linalg
-        # every op is jnp's by name, except the few jax puts elsewhere
-        aliases = {"sigmoid": jax.nn.sigmoid}
+        # every op is jnp's by name
         for op in _OP_NAMES:
-            setattr(self, op, aliases.get(op) or getattr(jnp, op))
+            setattr(self, op, getattr(jnp, op))
 
     @staticmethod
     def scalarize(x: Any) -> Any:
@@ -405,13 +395,9 @@ _TORCH_UNARY = {
     "tan": "tan", "arcsin": "arcsin", "arccos": "arccos",
     "radians": "deg2rad", "degrees": "rad2deg",
     "abs": "abs", "sign": "sign", "isfinite": "isfinite", "real": "real",
-    # torch.sigmoid is the overflow-safe form, matching scipy's expit and
-    # jax.nn.sigmoid — not a hand-rolled 1/(1+exp(-x))
-    "sigmoid": "sigmoid",
 }
 #: …and the two-argument ones (torch rejects a bare python scalar for ``other``)
-_TORCH_BINARY = {"power": "pow", "maximum": "maximum", "minimum": "minimum",
-                 "logaddexp": "logaddexp"}
+_TORCH_BINARY = {"power": "pow", "maximum": "maximum", "minimum": "minimum"}
 
 
 class TorchBackend:

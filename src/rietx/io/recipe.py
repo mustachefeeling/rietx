@@ -116,6 +116,7 @@ from ..model.profiles.caglioti import (
 from ..params.vector import background_parameters, extra_component_parameters
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.instrument import (
+    TCHZ_BOUNDS,
     BackgroundChebyshev,
     EmissionLine,
     Geometry,
@@ -626,12 +627,13 @@ def _read_instrument(payload: dict, pattern: PatternData,
         if declared is None and raw is not None:
             declared = float(raw)
         if declared is not None:
-            _refuse_negative_width(letter, attr, param, declared, scale)
+            _refuse_negative_width(letter, attr, declared, scale)
             param.min = min(param.min, declared * scale)
             param.value = declared * scale
         _apply(param, broadening.get(letter), path, diagnostics=diags,
                scale=scale)
-        _widen(param, f"instrument.profile.{attr}")
+        _widen(param, f"instrument.profile.{attr}",
+               width=TCHZ_BOUNDS[attr][0] >= 0.0)
 
     _refuse_constant_lorentzian(iparm, broadening, diags)
     # validated again for W's floor (ProfileTCHZ._w_floor_is_reachable): a W
@@ -728,38 +730,34 @@ def _iparm(iparm: dict, key: str):
     return entry
 
 
-def _refuse_negative_width(letter: str, attr: str, param: Parameter,
-                           declared: float, scale: float) -> None:
-    """A width this package transforms through softplus cannot start negative.
+def _refuse_negative_width(letter: str, attr: str, declared: float,
+                           scale: float) -> None:
+    """A width this package bounds at zero cannot start negative.
 
-    ``ProfileTCHZ``'s W, X and Y are softplus-bounded at zero because a
-    Lorentzian or Gaussian FWHM contribution is a width, and a negative one is
-    not a shape.  GSAS-II bounds none of them, and it matters here rather than
-    hypothetically: **both** committed LaB6 reference outputs converge to a
-    negative Y (GSAS-II −15.81 centideg, TOPAS −8.97), so a recipe seeded from
-    a previous fit will carry one.
-
-    The failure it would cause is the silent kind.  ``to_internal`` clamps a
-    non-positive value to 1e-12 before taking the inverse softplus, so a
-    declared −15.81 would arrive as ~0 and the fit would answer from a model
-    the recipe did not describe.  Refused by name instead.
+    ``ProfileTCHZ``'s W, X and Y are bounded below at zero (W at the Γ_G²
+    clamp) because a Lorentzian or Gaussian FWHM contribution is a width, and
+    a negative one is not a shape.  Which terms those are is read off
+    :data:`TCHZ_BOUNDS`.  GSAS-II bounds none of them, and it matters here
+    rather than hypothetically: **both** committed LaB6 reference outputs
+    converge to a negative Y (GSAS-II −15.81 centideg, TOPAS −8.97), so a
+    recipe seeded from a previous fit will carry one.  Refused by name, so the
+    fit never answers from a model the recipe did not describe.
     """
-    if param.transform != "softplus" or declared >= 0.0:
+    if TCHZ_BOUNDS[attr][0] < 0.0 or declared >= 0.0:
         return
     raise RecipeError(
         f"instrument {letter} = {declared:g} converts to "
         f"instrument.profile.{attr} = {declared * scale:g}, and this package's "
         f"{'Gaussian variance' if attr == 'w' else 'Lorentzian FWHM'} term is "
-        f"softplus-bounded at zero — a width is not a shape when it is "
+        f"bounded below at zero — a width is not a shape when it is "
         f"negative. GSAS-II bounds none of U V W X Y Z, so a recipe seeded "
         f"from a converged GSAS-II or TOPAS fit can carry a negative one (both "
-        f"committed LaB6 references converge to a negative Y). Reading it "
-        f"would silently give ~0 rather than the declared value, so it is "
+        f"committed LaB6 references converge to a negative Y), so it is "
         f"refused: start from a non-negative width, or refine X and Y from "
         f"this package's own zero")
 
 
-def _widen(param: Parameter, path: str) -> None:
+def _widen(param: Parameter, path: str, *, width: bool) -> None:
     """Let a recipe's starting value sit outside this package's default bounds.
 
     ``ProfileTCHZ`` seeds its bounds for a *lab* pattern; a 28-ID-1 recipe
@@ -769,14 +767,14 @@ def _widen(param: Parameter, path: str) -> None:
     default box is widened to admit the declared value rather than the value
     being clipped to the box.
 
-    A softplus parameter's **lower** bound is never lowered past zero — that
-    bound is the transform's own domain, not a seeded guess, and
+    A ``width``'s **lower** bound is never lowered past zero — that bound is
+    the width's own domain, not a seeded guess, and
     :func:`_refuse_negative_width` has already refused anything that would want
     it moved.
     """
     if param.value < param.min:
         floor = param.value - abs(param.value) - 1.0
-        param.min = max(floor, 0.0) if param.transform == "softplus" else floor
+        param.min = max(floor, 0.0) if width else floor
     if param.value > param.max:
         param.max = param.value + abs(param.value) + 1.0
 
@@ -965,8 +963,7 @@ def _read_extra_components(peaks: dict, pattern: PatternData,
             position=Parameter(value=0.0 if pos is None else float(pos),
                                vary=pos_vary, unit="deg"),
             height=Parameter(value=0.0 if height is None else abs(float(height)),
-                             vary=h_vary, min=0.0, unit="counts",
-                             transform="softplus"),
+                             vary=h_vary, min=0.0, unit="counts"),
             label=f"recipe background peak {i}")
         peak.fwhm.value = max(fwhm, peak.fwhm.min)
         peak.fwhm.vary = s_vary
@@ -1167,13 +1164,13 @@ def _split(key: str, spec: dict | None, block_key: str, magnitude_key: str,
     """One GSAS-II (magnitude, ``LG_eta``) pair → this package's two halves.
 
     The dead-column question, and why the answer is not a seed.  Both halves
-    are softplus-bounded with ``min=0``, and softplus's slope *is* its value
-    (dp/du = 1 − e⁻ᵖ ≈ p), so a coefficient at exactly zero has a gradient of
-    1e-12 and TRF cannot move it — a free parameter nothing can change, which
-    is the shape WP-1076 exists to keep out of a result.  ``Stage.seed`` would
-    lift it, but only to a number this reader would have to invent, and the two
-    reference engines disagree about η by more than any seed would decide (one
-    returns η = 0.078, the other 1.5e4, outside [0, 1] entirely).
+    are bounded with ``min=0``, and before WP-1938 a coefficient at exactly
+    zero had a gradient of 1e-12 that TRF could not move — a free parameter
+    nothing can change, which is the shape WP-1076 exists to keep out of a
+    result.  ``Stage.seed`` would lift it, but only to a number this reader
+    would have to invent, and the two reference engines disagree about η by
+    more than any seed would decide (one returns η = 0.078, the other 1.5e4,
+    outside [0, 1] entirely).
 
     So a half that starts at its off state is left **fixed and said**, not
     freed: the recipe's own η stands, the magnitude refines, and the fit runs
@@ -1219,11 +1216,10 @@ def _split(key: str, spec: dict | None, block_key: str, magnitude_key: str,
                 level="warning", code="RECIPE_FLAG_DROPPED",
                 message=(
                     f"{base} is flagged for refinement, but LG_eta = {share:g} "
-                    f"puts phases.*.{attr} at exactly its off state, where a "
-                    f"softplus parameter's gradient is its own value and TRF "
-                    f"cannot move it. It is held rather than declared free and "
-                    f"left standing still; the other half refines, so this fit "
-                    f"has one free parameter fewer than the reference engine's"),
+                    f"puts phases.*.{attr} at exactly its off state, on its "
+                    f"lower bound of zero. It is held rather than declared free "
+                    f"there; the other half refines, so this fit has one free "
+                    f"parameter fewer than the reference engine's"),
                 where=[f"phases.*.{attr}"]))
     if eta_vary and lor.vary and gauss.vary:
         diags.append(Diagnostic(

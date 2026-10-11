@@ -5,7 +5,7 @@ The score is the Rao / Gauss-Newton one-parameter gain
 through :func:`~rietx.optimize.statistics.block_projection_r2` — absorption
 of a candidate by the currently-free block directly, candidate-vs-candidate
 ties on the free-block-projected columns.  This module sees only matrices,
-paths and constants: enumerating candidates, seeding transform floors and
+paths and constants: enumerating candidates, seeding floored rows and
 compiling the probe model are :meth:`rietx.refine.Refinement.suggest`'s
 job, and the Layer-2 cross-reference arrives as already-built *objects*,
 because ``strategy`` builds no ``report`` object and imports none at module
@@ -71,16 +71,13 @@ SUGGEST_SEED_STEPHENS = 1000.0
 class Candidate:
     """One held-but-refinable parameter as the caller enumerated it.
 
-    ``index`` is the parameter's column in the probe Jacobian, ``dp_du`` the
-    transform slope at the probe point (what converts the internal gradient
-    to physical units — never zero, because a floor-dead candidate is seeded
-    off the floor before the Jacobian is built and arrives here with
-    ``seeded=True`` and its ``seed_value``).
+    ``index`` is the parameter's column in the probe Jacobian, in the
+    parameter's own units (WP-1938).  A floor candidate is scored at its seed
+    and arrives here with ``seeded=True`` and its ``seed_value``.
     """
 
     path: str
     index: int
-    dp_du: float
     seeded: bool = False
     seed_value: float | None = None
 
@@ -145,7 +142,7 @@ def build_suggestion(jac: np.ndarray, resid: np.ndarray, free: list[int],
     for c in candidates:
         if c.path not in gains:
             continue
-        gradient = 2.0 * float(jac[:, c.index] @ resid) / c.dp_du
+        gradient = 2.0 * float(jac[:, c.index] @ resid)
         scored.append((c, ParameterCandidate(
             path=c.path, gain=gains[c.path], gradient=gradient,
             absorption=absorption.get(c.path, 0.0), seeded=c.seeded,

@@ -446,8 +446,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "is the Caglioti term that usually goes negative, and it carries "
             "much the widest negative range. It is not the only one that may: "
             "U's default bound admits a small negative value too, while W, X "
-            "and Y are softplus-floored at zero and cannot go negative at "
-            "all. The width curve's minimum sits at tanθ = −V/(2U). Nothing "
+            "and Y are bounded below and cannot go negative at all. The width "
+            "curve's minimum sits at tanθ = −V/(2U). Nothing "
             "in the specimen reaches V, so it is purely instrumental, and a "
             "phase's `gauss_strain` adds to U instead."
         ),
@@ -572,7 +572,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         title="Background-peak height",
         description=(
             "The peak intensity of an explicit Gaussian background term, in the "
-            "pattern's own count units. Softplus with min 0 because zero is the "
+            "pattern's own count units. Bounded at min 0 because zero is the "
             "off state: h = 0 makes the whole term identically zero, so a "
             "declared-but-never-freed peak is bit-identical to no peak at all."
         ),
@@ -595,7 +595,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "`HUMP_TOO_NARROW`. For a `peak` sharp is the whole point — it is a "
             "real reflection from something that is not one of your phases — so "
             "no width guard fires and the floor is only there because the "
-            "profile divides by Γ. Softplus in both cases, floored at a small "
+            "profile divides by Γ. In both cases it is floored at a small "
             "positive value; the floor differs by kind (0.1 for a hump, 0.005 "
             "for a peak) because the two are derived from the coarsest and the "
             "finest scan step anything can be refined from."
@@ -638,7 +638,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "that is what a reflection intensity is, and it is not called "
             "`scale` on purpose: every `*.scale` path is force-fixed under Le "
             "Bail and Pawley, where a declared peak still has to refine. "
-            "Softplus with min 0 because zero is the off state — area 0 makes "
+            "Bounded at min 0 because zero is the off state — area 0 makes "
             "the term identically zero, so a declared-but-never-freed peak is "
             "bit-identical to no peak at all. An area that refines to its zero "
             "bound means the data does not see the peak, and its centre then "
@@ -654,8 +654,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         description=(
             "The Lorentzian fraction of a declared sharp peak's pseudo-Voigt: "
             "0 is a pure Gaussian, 1 a pure Lorentzian, and both ends are "
-            "legitimate rather than poles, which is why this is logit- rather "
-            "than softplus-transformed. Its **upper bound** also sizes the "
+            "legitimate rather than poles, which is why it is bounded to "
+            "[0, 1] with no floor inside it. Its **upper bound** also sizes the "
             "frozen evaluation window, because the half-width at which the "
             "profile's discarded area stays within tolerance is a steep "
             "function of η (about 1 FWHM at η = 0, about 16 at η = 1). A "

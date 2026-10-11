@@ -228,10 +228,10 @@ DISCONTINUITY_SIGMA = 3.0
 
 #: Both fences below are *ratio* tests, and a ratio is meaningless once its
 #: denominator is floating-point noise.  A parameter the data do not constrain
-#: at all — a softplus coefficient sitting on its floor — is where this bites:
-#: dp/du → 0 there, so its esd collapses **alongside** its value and the
-#: significance leg inverts instead of protecting.  Measured on the synthetic
-#: ramp: an unrefinable ``instrument.profile.y`` came back with a median step of
+#: at all is where this bites, and before WP-1938 a coefficient sitting on its
+#: floor was one: its slope there went to zero, so its esd collapsed
+#: **alongside** its value and the significance leg inverted instead of
+#: protecting.  Measured on the synthetic ramp then: an unrefinable ``instrument.profile.y`` came back with a median step of
 #: 4e-16, one step of 1.3e-11 (29 000× the median) and σ ≈ 4e-55, and the
 #: forward/backward chains "disagreed" at 1e16 σ over 1e-60 and 1e-74.  So a
 #: step or a between-chain difference is also required to be this large a
@@ -3032,8 +3032,8 @@ def _path_dependence_diagnostics(forward: SeriesResult,
             # …nor one whose two chains agree below the noise floor on every
             # shared pattern: the comparison calls that agreement whatever
             # the esds say (the n_sigma floor below), so there was nothing an
-            # esd could have changed — a softplus coefficient on its floor,
-            # measured on different patterns by each chain, is the case
+            # esd could have changed — a coefficient on its floor, measured
+            # on different patterns by each chain, is the case
             if measured and np.any(gap > _noise_floor(vf, vb)):
                 unjudged.append(path)
             continue

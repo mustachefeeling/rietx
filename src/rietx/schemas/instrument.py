@@ -27,7 +27,7 @@ if TYPE_CHECKING:  # the blank a measured background is built from
 #: Å.  Strictly positive floor for a wavelength :class:`Parameter`.  λ reaches
 #: the model only through sin θ = λ/2d, so λ ≤ 0 puts every reflection at
 #: 2θ = 0 (or off the sphere) and the profile derivatives go with it — the
-#: "softplus min=0 where the physics divides" trap of the root ``CLAUDE.md``,
+#: "``min=0`` where the physics divides" trap of the root ``CLAUDE.md``,
 #: one rank over.  1e-3 Å is three orders below any diffraction wavelength, so
 #: the bound is a fence and not a claim about the instrument.
 _WAVELENGTH_MIN_A = 1e-3
@@ -193,7 +193,7 @@ class Harmonic(_InheritsDeclaredDefaults):
     #: would be a second copy of line 0, degenerate with the phase scales) and
     #: n ≤ 0 is not a diffraction order at all.
     order: int = Field(default=DEFAULT_HARMONIC_ORDER, ge=2)
-    # Every attribute stated, ``unit`` and ``transform`` included: the derived
+    # Every attribute stated, ``unit`` included: the derived
     # emission line takes this object by reference (:attr:`NeutronSource.lines`)
     # so a refined weight writes back here, and a Parameter leaving any
     # attribute unset is copied on the way into a class that inherits declared
@@ -201,7 +201,7 @@ class Harmonic(_InheritsDeclaredDefaults):
     weight: Parameter = Field(
         default_factory=lambda: Parameter(
             value=HARMONIC_WEIGHT_SEED, min=0.0, max=HARMONIC_WEIGHT_MAX,
-            unit=None, transform="identity")
+            unit=None)
     )
 
     @property
@@ -580,7 +580,7 @@ class RoughnessSuortti(_InheritsDeclaredDefaults):
     peak moves out as sinθ_min grows.  Past b ≈ 3 the correction is effectively
     dead and its gradient is flat, so an optimiser that wanders there stalls.
     Two things guard this: the staged plan seeds ``b`` near the sensitive
-    region rather than at the softplus floor, and the ``ROUGHNESS_UNCONSTRAINED``
+    region rather than at its floor of 0, and the ``ROUGHNESS_UNCONSTRAINED``
     diagnostic fires on *either* dead branch by measuring the modelled
     depression over the fitted window instead of looking at ``b`` itself.
     ``max = 5`` bounds the excursion without pretending the bound is physics.
@@ -604,8 +604,7 @@ class RoughnessSuortti(_InheritsDeclaredDefaults):
         default_factory=lambda: Parameter(value=0.5, min=0.0, max=1.0)
     )
     b: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, max=5.0,
-                                          transform="softplus")
+        default_factory=lambda: Parameter(value=0.0, min=0.0, max=5.0)
     )
 
 
@@ -649,8 +648,7 @@ class RoughnessPitschke(_InheritsDeclaredDefaults):
 
     kind: Literal["pitschke"] = "pitschke"
     c: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, max=4.0,
-                                          transform="softplus")
+        default_factory=lambda: Parameter(value=0.0, min=0.0, max=4.0)
     )
     tau: Parameter = Field(
         default_factory=lambda: Parameter(value=0.05, min=0.0, max=0.3)
@@ -1090,16 +1088,13 @@ TCHZ_BOUNDS_COARSE: dict[str, tuple[float, float]] = {
     "x": (0.0, 8.0), "y": (0.0, 8.0)}
 
 _TCHZ_UNITS = {"u": "deg^2", "v": "deg^2", "w": "deg^2", "x": "deg", "y": "deg"}
-_TCHZ_TRANSFORMS = {"u": "identity", "v": "identity", "w": "softplus",
-                    "x": "softplus", "y": "softplus"}
 
 
 def _tchz_width(name: str, value: float | None = None, *,
                 box: Literal["default", "coarse"] = "default") -> Parameter:
     lo, hi = (TCHZ_BOUNDS if box == "default" else TCHZ_BOUNDS_COARSE)[name]
     return Parameter(value=TCHZ_DEFAULTS[name] if value is None else value,
-                     min=lo, max=hi, unit=_TCHZ_UNITS[name],
-                     transform=_TCHZ_TRANSFORMS[name])
+                     min=lo, max=hi, unit=_TCHZ_UNITS[name])
 
 
 class BackgroundChebyshev(Base):
@@ -1145,9 +1140,7 @@ class BackgroundPSpline(Base):
     the vary flags (WP-1208), so a term held at 0 with ``vary=False`` was
     freed on every fit anyway.  Inside the span of a fine spline its column
     was a flat direction, reported once per pair of background columns
-    (WP-1454).  Declare one with ``Parameter(value=1e-3, min=0.0,
-    transform="softplus")``; exactly 0 under softplus is the zero floor,
-    where its column is live but tiny.
+    (WP-1454).  Declare one with ``Parameter(value=1e-3, min=0.0)``.
     """
 
     kind: Literal["pspline"] = "pspline"
@@ -1258,18 +1251,17 @@ class BackgroundFixedPlusChebyshev(_InheritsDeclaredDefaults):
     fixed_source: str | None = None
     #: The multiplier on the stored curve.  Fixed at 1.0 by default, so a model
     #: that declares nothing behaves exactly as it did before this field
-    #: existed.  ``min=0.0`` with a softplus is safe here because zero **is**
-    #: the off state — the model is linear in this parameter and divides by
-    #: nothing (root CLAUDE.md § Invariants, the ``MARCH_R_MIN`` rule read the
-    #: other way).  It keeps the curve from being subtracted by a solver that
-    #: found a negative multiplier cheaper than the physics.  It is **not** a
-    #: bound anything reports: ``params.transforms.internal_bounds`` maps a
-    #: softplus lower limit of 0.0 to −∞, so a scale driven to zero is a
-    #: vanishing gradient rather than a ``BOUND_HIT``.  What makes a
-    #: double-counted curve visible is the refined scale itself, which lands a
-    #: whole unit from where the caller declared it.
+    #: existed.  ``min=0.0`` is safe here because zero **is** the off state —
+    #: the model is linear in this parameter and divides by nothing (root
+    #: CLAUDE.md § Invariants, the ``MARCH_R_MIN`` rule read the other way).
+    #: It keeps the curve from being subtracted by a solver that found a
+    #: negative multiplier cheaper than the physics.  Since WP-1938 it is an
+    #: ordinary bound, so a scale driven to zero can come back as a
+    #: ``BOUND_HIT``.  What makes a double-counted curve visible is the refined
+    #: scale itself, which lands a whole unit from where the caller declared
+    #: it.
     scale: Parameter = Field(
-        default_factory=lambda: Parameter(value=1.0, min=0.0, transform="softplus")
+        default_factory=lambda: Parameter(value=1.0, min=0.0)
     )
     chebyshev: BackgroundChebyshev = Field(default_factory=lambda: BackgroundChebyshev())
 
@@ -1317,8 +1309,7 @@ class BackgroundFixedPlusChebyshev(_InheritsDeclaredDefaults):
                          [float(v) for v, k in zip(blank.sigma, keep, strict=True)
                           if k]),
             fixed_source=source,
-            scale=Parameter(value=scale, vary=vary_scale, min=0.0,
-                            transform="softplus"),
+            scale=Parameter(value=scale, vary=vary_scale, min=0.0),
             chebyshev=BackgroundChebyshev.with_terms(n_terms, vary=True),
         )
 
@@ -1336,10 +1327,7 @@ HUMP_FIELDS: tuple[str, ...] = ("position", "height", "fwhm")
 
 #: Lower bound on :attr:`HumpComponent.fwhm`, in °2θ.  The Gaussian divides by
 #: Γ, so this is the :data:`~rietx.schemas.structure.MARCH_R_MIN` situation and
-#: not a `min=0.0` one: ``internal_bounds`` maps any lower bound ≤ 1e-12 to −∞
-#: and ``log(1+e^u)`` underflows to *exactly* 0.0, so a softplus "strictly
-#: positive" width is a promise the transform does not keep and a zero width is
-#: a pole (root CLAUDE.md § Invariants).
+#: not a `min=0.0` one: a zero width is a pole (root CLAUDE.md § Invariants).
 #:
 #: The number comes from the sampling rule the rest of the package already
 #: quotes: :data:`rietx.background.diagnostics.STEPS_PER_FWHM_MIN` = 5 steps
@@ -1372,9 +1360,8 @@ COMPONENT_FIELDS: dict[str, tuple[str, ...]] = {
 }
 
 #: Lower bound on :attr:`PeakComponent.fwhm`, in °2θ.  The same pole the
-#: :data:`HUMP_FWHM_MIN` comment describes — the pseudo-Voigt divides by Γ and a
-#: softplus ``min=0.0`` underflows to *exactly* zero — derived by the same rule
-#: at the other end of the instrument range.
+#: :data:`HUMP_FWHM_MIN` comment describes, since the pseudo-Voigt divides by
+#: Γ, derived by the same rule at the other end of the instrument range.
 #:
 #: :data:`rietx.background.diagnostics.STEPS_PER_FWHM_MIN` = 5 channels across a
 #: feature is the minimum anything can be refined from; 0.001 °2θ is the step of
@@ -1409,11 +1396,12 @@ EXTRA_PEAK_FWHM_MIN = 0.005
 #: Tight bounds are the caller's to set and are worth setting.
 EXTRA_PEAK_FWHM_MAX = 0.5
 
-#: Softplus lower bound at or under which `internal_bounds` gives up on the
-#: bound entirely — the same 1e-12 `schemas/structure.py` uses, restated here
-#: rather than imported so `schemas/instrument.py` keeps importing nothing from
-#: its sibling.
-_SOFTPLUS_FLOOR = 1e-12
+#: A lower bound at or under this is a bound at zero to the width repairs
+#: below — the same 1e-12 `schemas/structure.py` uses, restated here rather
+#: than imported so `schemas/instrument.py` keeps importing nothing from its
+#: sibling.  It is the value under which a stored ``min`` meant no bound at
+#: all before schema 0.46, so no stored document repairs differently.
+_ZERO_BOUND = 1e-12
 
 #: What :attr:`Instrument.extra_components` was called in v1.2, kept here as the
 #: one spelling of the legacy name so the field migration and the path migration
@@ -1498,7 +1486,7 @@ class HumpComponent(_InheritsDeclaredDefaults):
 
     Fields, and the reason each bound is the bound it is:
 
-    * ``position`` — °2θ, identity transform, **unbounded by default**.  It is
+    * ``position`` — °2θ, **unbounded by default**.  It is
       not a Bragg position, so nothing constrains it but the data; and the
       bound one would want — the fitted range — is not a fact this schema can
       see, since it depends on the pattern and on the excluded regions.  That
@@ -1511,14 +1499,14 @@ class HumpComponent(_InheritsDeclaredDefaults):
       ``ParameterTable.unmeasured_rows`` already names.  A caller who knows the
       range may set ``min``/``max``, and a finite stored bound is the caller's
       claim, as everywhere else.
-    * ``height`` — softplus, ``min=0.0``, default 0.0.  ``min=0.0`` under
-      softplus is safe here for exactly one reason: **zero is the off state.**
-      h = 0 makes the whole term identically zero and the peak contributes
-      nothing anywhere, so the underflow softplus permits lands on the
-      identity, not on a pole (contrast ``PreferredOrientation.r``, whose
-      identity is interior at r = 1 with the pole *at* the bound).
-    * ``fwhm`` — °2θ, softplus, floored at :data:`HUMP_FWHM_MIN`
-      with a reachability validator, because this one *does* divide.
+    * ``height`` — ``min=0.0``, default 0.0.  ``min=0.0`` is safe here for
+      exactly one reason: **zero is the off state.**  h = 0 makes the whole
+      term identically zero and the peak contributes nothing anywhere, so the
+      bound lands on the identity, not on a pole (contrast
+      ``PreferredOrientation.r``, whose identity is interior at r = 1 with
+      the pole *at* zero).
+    * ``fwhm`` — °2θ, floored at :data:`HUMP_FWHM_MIN` with a reachability
+      validator, because this one *does* divide.
     * shape — **Gaussian only, and the fence is deliberate.**  No mixing
       parameter: a broad feature is described by a few tens of channels of
       curvature sitting on a polynomial that can already absorb the difference
@@ -1526,8 +1514,8 @@ class HumpComponent(_InheritsDeclaredDefaults):
       data cannot separate from the terms underneath it.  It is also what the
       practice being matched does — TOPAS's ``gauss_fwhm``.  If a mixing
       parameter is ever added, its identity is interior (η = 0 and η = 1 are
-      both legitimate ends, so the ``PreferredOrientation.r`` trap applies) and
-      it needs a logit transform, not a softplus.
+      both legitimate ends, so the ``PreferredOrientation.r`` trap does not
+      apply) and it needs the box [0, 1], not a floor.
 
     All three default to ``vary=False``: a declared peak is inert until a stage
     frees it, and ``height = 0`` means a declared-but-never-freed peak is
@@ -1539,12 +1527,11 @@ class HumpComponent(_InheritsDeclaredDefaults):
     position: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, unit="deg"))
     height: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="counts",
-                                          transform="softplus"))
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="counts"))
     fwhm: Parameter = Field(
         default_factory=lambda: Parameter(value=5.0,
                                          min=HUMP_FWHM_MIN,
-                                         unit="deg", transform="softplus"))
+                                         unit="deg"))
     #: Discriminator.  Its one legal value names this member of
     #: :data:`ExtraComponent`; the union dispatches on it, never on shape.
     kind: Literal["hump"] = "hump"
@@ -1555,16 +1542,16 @@ class HumpComponent(_InheritsDeclaredDefaults):
 
     @model_validator(mode="after")
     def _fwhm_floor_is_reachable(self) -> "HumpComponent":
-        """Repair a width bound softplus cannot actually enforce.
+        """Repair a width bound at zero, where the Gaussian's pole is.
 
         The ``PreferredOrientation._r_bound_is_reachable`` pattern, and for the
         same reason: the broken bound **outlives the default**.  A JSON project
         or a history node written with ``min: 0.0`` deserializes straight back
         into the pole, and no default_factory ever runs on that path.  Only a
-        bound at or under the softplus floor is touched; any positive bound a
-        caller chose already maps to a finite internal one and is left alone.
+        bound at or under :data:`_ZERO_BOUND` is touched; any positive bound a
+        caller chose is left alone.
         """
-        if self.fwhm.min <= _SOFTPLUS_FLOOR:
+        if self.fwhm.min <= _ZERO_BOUND:
             # value **before** min: ``Base`` validates on assignment, so raising
             # the floor under a value that is still below it would trip
             # ``Parameter._check_bounds`` mid-repair.  Lifting the value first is
@@ -1625,7 +1612,7 @@ class PeakComponent(_InheritsDeclaredDefaults):
 
     Fields, and the reason each bound is the bound it is:
 
-    * ``center`` — °2θ, identity transform, and **finite ``min``/``max`` are
+    * ``center`` — °2θ, and **finite ``min``/``max`` are
       required**.  This is the one place this member disagrees with
       :class:`HumpComponent`, whose ``position`` is deliberately unbounded, and
       the difference is not taste: a hump is evaluated on the whole grid, so its
@@ -1635,21 +1622,21 @@ class PeakComponent(_InheritsDeclaredDefaults):
       it — the frozen-per-stage invariant held by construction instead of by
       plumbing ``free_paths`` into the compile.  With no bound there is no
       window to size, so the refusal is a real one and it suggests a range.
-    * ``area`` — counts·deg, softplus, ``min=0.0``, default 0.0.  ``min=0.0``
-      under softplus is safe for the one reason it is ever safe: **zero is the
-      off state.**  A = 0 makes the term identically zero everywhere, so the
-      underflow softplus permits lands on the identity and not on a pole (root
-      CLAUDE.md § Invariants; contrast ``PreferredOrientation.r``).  A declared
-      peak is therefore bit-identical to no peak until something frees it.
-    * ``fwhm`` — °2θ, softplus, floored at :data:`EXTRA_PEAK_FWHM_MIN` with the
+    * ``area`` — counts·deg, ``min=0.0``, default 0.0.  ``min=0.0`` is safe
+      for the one reason it is ever safe: **zero is the off state.**  A = 0
+      makes the term identically zero everywhere, so the bound lands on the
+      identity and not on a pole (root CLAUDE.md § Invariants; contrast
+      ``PreferredOrientation.r``).  A declared peak is therefore bit-identical
+      to no peak until something frees it.
+    * ``fwhm`` — °2θ, floored at :data:`EXTRA_PEAK_FWHM_MIN` with the
       same reachability repair :class:`HumpComponent` carries, because this one
       divides.  **Finite ``min``/``max`` are required** for the window reason
       above: the half-width is ``k(η)·fwhm.max``, so an unbounded width is an
       unbounded window.
-    * ``eta`` — the Gaussian/Lorentzian mixing, logit-transformed, default 0.5.
-      Both ends are legitimate (η = 0 is a pure Gaussian, η = 1 a pure
-      Lorentzian) and neither is a pole, so unlike a softplus width this needs
-      no floor — but it does need a logit rather than a softplus, which is what
+    * ``eta`` — the Gaussian/Lorentzian mixing, bounded to [0, 1], default
+      0.5.  Both ends are legitimate (η = 0 is a pure Gaussian, η = 1 a pure
+      Lorentzian) and neither is a pole, so unlike a width this needs no floor
+      — but it does need the upper bound, which is what
       :class:`HumpComponent`'s own docstring predicted for the η it declined to
       have.  **η's upper bound sizes the window too**: ``k(η)`` is the
       half-width in FWHM units at which the discarded area of the profile stays
@@ -1672,16 +1659,14 @@ class PeakComponent(_InheritsDeclaredDefaults):
     center: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, unit="deg"))
     area: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="counts*deg",
-                                          transform="softplus"))
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="counts*deg"))
     fwhm: Parameter = Field(
         default_factory=lambda: Parameter(value=0.1,
                                           min=EXTRA_PEAK_FWHM_MIN,
                                           max=EXTRA_PEAK_FWHM_MAX,
-                                          unit="deg", transform="softplus"))
+                                          unit="deg"))
     eta: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.5, min=0.0, max=1.0,
-                                          transform="logit"))
+        default_factory=lambda: Parameter(value=0.5, min=0.0, max=1.0))
     #: Place an image of this peak at every emission line, weighted by the
     #: line's weight × its Lorentz-polarisation ratio.  ``False`` for something
     #: that does not diffract (fluorescence, a detector artefact).
@@ -1705,7 +1690,7 @@ class PeakComponent(_InheritsDeclaredDefaults):
         caller's pattern that the schema cannot see — the
         :meth:`HumpComponent._fwhm_floor_is_reachable` situation inverted, where
         the repair was possible precisely because the floor was a property of
-        the transform and not of anyone's data.
+        the profile's pole and not of anyone's data.
         """
         for name, hint in (("center", "min=28.0, max=28.8"),
                            ("fwhm", f"min={EXTRA_PEAK_FWHM_MIN}, max=0.5")):
@@ -1721,14 +1706,14 @@ class PeakComponent(_InheritsDeclaredDefaults):
 
     @model_validator(mode="after")
     def _fwhm_floor_is_reachable(self) -> "PeakComponent":
-        """Repair a width bound softplus cannot actually enforce.
+        """Repair a width bound at zero, where the pseudo-Voigt's pole is.
 
         :meth:`HumpComponent._fwhm_floor_is_reachable` byte for byte, at this
         member's floor, and for the reason stated there: the broken bound
         **outlives the default**, so a stored ``min: 0.0`` deserializes straight
         back into the pole and no ``default_factory`` ever runs on that path.
         """
-        if self.fwhm.min <= _SOFTPLUS_FLOOR:
+        if self.fwhm.min <= _ZERO_BOUND:
             # value **before** min, as in the hump: ``Base`` validates on
             # assignment, so raising the floor under a value still below it
             # would trip ``Parameter._check_bounds`` mid-repair.

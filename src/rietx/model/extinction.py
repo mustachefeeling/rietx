@@ -141,10 +141,12 @@ def _laue_and_deriv(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     Reaching the ill-conditioned region needs x far below anything |F|² can
     produce — a numerically-cancelling systematic absence floors at |F|² ~ 1e-29
     in fp64, some 130 orders above the threshold — so it takes a *coefficient*
-    collapse: ``ext`` is softplus with ``min=0.0``, hence unbounded below
-    internally, and a trial step down a degenerate intensity direction (scale ⊗
-    emission-line weight ⊗ extinction) lands it in the denormal window on its
-    way to the exact zero that switches the correction off.
+    collapse: a trial step down a degenerate intensity direction (scale ⊗
+    emission-line weight ⊗ extinction) can land ``ext`` in the denormal window
+    on its way to the exact zero that switches the correction off.  Measured
+    before WP-1938, when its solver coordinate was unbounded below; it is now
+    bounded at ``min=0.0``, and the clamp stays for whatever still reaches
+    that window.
     """
     xp = get_backend()
     x = xp.asarray(x, dtype=np.float64)

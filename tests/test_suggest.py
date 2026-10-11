@@ -128,8 +128,7 @@ def _build(jac, r, free, cands, chi2_red=1.0, **kw):
     from rietx.strategy.suggest import Candidate, build_suggestion
     return build_suggestion(
         jac, r, free,
-        [Candidate(path=p, index=i, dp_du=d, **extra)
-         for p, i, d, extra in cands],
+        [Candidate(path=p, index=i, **extra) for p, i, extra in cands],
         chi2_red=chi2_red, **kw)
 
 
@@ -147,7 +146,7 @@ def test_build_planted_signal_wins_resolved():
     """The candidate whose direction the residual contains ranks first."""
     jac, r = _planted(signal=30.0)
     res = _build(jac, r, [0, 1, 2],
-                 [(f"c{i}", 3 + i, 1.0, {}) for i in range(4)])
+                 [(f"c{i}", 3 + i, {}) for i in range(4)])
     best = res.best_or_none()
     assert best is not None and best.path == "c0"
     assert res.groups[0].resolved and res.groups[0].gain > res.noise_floor
@@ -162,8 +161,8 @@ def test_build_collinear_pair_is_one_unresolved_group():
     jac[:, 4] = jac[:, 3] + 1e-4 * rng.standard_normal(m)
     r = rng.standard_normal(m) + 30.0 * jac[:, 3] / np.linalg.norm(jac[:, 3])
     res = _build(jac, r, [0, 1, 2],
-                 [("instrument.profile.w", 3, 1.0, {}),
-                  ("phases.0.gauss_size", 4, 1.0, {})])
+                 [("instrument.profile.w", 3, {}),
+                  ("phases.0.gauss_size", 4, {})])
     assert res.best_or_none() is None
     assert len(res.groups) == 1 and not res.groups[0].resolved
     assert {pc.path for pc in res.groups[0].members} == {
@@ -182,7 +181,7 @@ def test_build_absorbed_candidate_never_wins():
     jac[:, 3] = jac[:, 0] + 0.05 * rng.standard_normal(m)   # ≈ in span(F)
     r = rng.standard_normal(m) + 5.0 * jac[:, 0] / np.linalg.norm(jac[:, 0])
     res = _build(jac, r, [0, 1, 2],
-                 [("absorbed", 3, 1.0, {}), ("clean", 4, 1.0, {})])
+                 [("absorbed", 3, {}), ("clean", 4, {})])
     assert [pc.path for pc in res.non_separable] == ["absorbed"]
     assert res.non_separable[0].absorption > 0.95
     assert all(pc.path != "absorbed"
@@ -196,7 +195,7 @@ def test_build_converged_suggests_nothing():
     q, _ = np.linalg.qr(jac)
     r = rng.standard_normal(150)
     r -= q @ (q.T @ r)
-    res = _build(jac, r, [0, 1], [(f"c{i}", 2 + i, 1.0, {}) for i in range(3)])
+    res = _build(jac, r, [0, 1], [(f"c{i}", 2 + i, {}) for i in range(3)])
     assert res.groups == [] and res.best_or_none() is None
     assert "converged" in res.summary
 
@@ -206,9 +205,9 @@ def test_build_zero_column_skipped_seed_reported():
     jac[:, 4] = 0.0
     r += 25.0 * jac[:, 5] / np.linalg.norm(jac[:, 5])   # seeded one has signal too
     res = _build(jac, r, [0, 1, 2],
-                 [("c0", 3, 1.0, {}),
-                  ("dead.path", 4, 1.0, {}),
-                  ("seeded.path", 5, 0.02,
+                 [("c0", 3, {}),
+                  ("dead.path", 4, {}),
+                  ("seeded.path", 5,
                    {"seeded": True, "seed_value": 1e-3})])
     assert res.skipped == ["dead.path"]
     assert res.n_evaluated == 2
@@ -218,11 +217,11 @@ def test_build_zero_column_skipped_seed_reported():
 
 
 def test_build_gradient_physical_units():
-    """gradient = 2(Jᵀr)_j / dp_du, sign preserved."""
+    """gradient = 2(Jᵀr)_j, sign preserved: the column is already in the
+    parameter's own units (WP-1938)."""
     jac, r = _planted(signal=30.0)
-    dp_du = 0.25
-    res = _build(jac, r, [0, 1, 2], [("c0", 3, dp_du, {})])
-    expected = 2.0 * float(jac[:, 3] @ r) / dp_du
+    res = _build(jac, r, [0, 1, 2], [("c0", 3, {})])
+    expected = 2.0 * float(jac[:, 3] @ r)
     pc = res.groups[0].members[0]
     assert pc.gradient == pytest.approx(expected, rel=1e-12)
 
@@ -235,8 +234,8 @@ def test_build_action_kind_cross_reference():
 
     jac, r = _planted(signal=30.0)
     res = _build(jac, r, [0, 1, 2],
-                 [("instrument.zero_shift", 3, 1.0, {}),
-                  ("phases.0.cell.a", 4, 1.0, {})],
+                 [("instrument.zero_shift", 3, {}),
+                  ("phases.0.cell.a", 4, {})],
                  actions=[FakeAction("refine_zero_shift",
                                      ["instrument.zero_shift"]),
                           FakeAction("refine_cell", ["phases.*.cell.*"])])
@@ -253,7 +252,7 @@ def test_build_top_n_truncates_groups():
     r = rng.standard_normal(m)
     for k in range(2, 8):                     # every candidate carries signal
         r += 20.0 * jac[:, k] / np.linalg.norm(jac[:, k])
-    res = _build(jac, r, [0, 1], [(f"c{i}", 2 + i, 1.0, {}) for i in range(6)],
+    res = _build(jac, r, [0, 1], [(f"c{i}", 2 + i, {}) for i in range(6)],
                  top_n=2)
     assert len(res.groups) == 2
     assert res.n_evaluated == 6
@@ -578,7 +577,7 @@ def test_delta_bic_is_schwarzs_form_at_the_gauss_newton_chi2():
     import math
 
     jac, r = _planted(signal=30.0)
-    res = _build(jac, r, [0, 1, 2], [(f"c{i}", 3 + i, 1.0, {}) for i in range(4)])
+    res = _build(jac, r, [0, 1, 2], [(f"c{i}", 3 + i, {}) for i in range(4)])
     ssr, n = float(r @ r), len(r)
     assert res.groups
     for g in res.groups:
@@ -609,7 +608,7 @@ def test_delta_bic_refuses_a_tie_that_clears_the_noise_floor():
     r -= q @ (q.T @ r)                     # ⟂ the free block and candidate a
     unit = jac[:, 3] - q[:, :3] @ (q[:, :3].T @ jac[:, 3])
     r += 4.0 * unit / np.linalg.norm(unit)                     # gain ≡ 16.0
-    res = _build(jac, r, [0, 1, 2], [("a", 3, 1.0, {}), ("b", 4, 1.0, {})])
+    res = _build(jac, r, [0, 1, 2], [("a", 3, {}), ("b", 4, {})])
     top = res.groups[0]
     assert not top.resolved
     assert top.gain == pytest.approx(16.0, rel=0.05)

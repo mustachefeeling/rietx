@@ -259,12 +259,16 @@ driver alone).
 
 ## Tasks
 
-- [ ] The table builds identity entries for every declared transform, with
+- [x] The table builds identity entries for every declared transform, with
       the bounds above; `transforms.py` keeps only what migration needs.
-- [ ] Read-point migration for a stored `transform`, with a fixture of a
+      (Deleted: the one map left is `schemas.common.legacy_transform_bounds`.)
+- [x] Read-point migration for a stored `transform`, with a fixture of a
       pre-change project and history opening unchanged in meaning.
+      (`test_project.py::test_a_log_written_with_transforms_opens_unchanged_in_meaning`.)
 - [ ] Every reader in the list above, each fixed or deleted, and the grep that
-      finds no `"softplus"` branch left outside migration.
+      finds no `"softplus"` branch left outside migration. (Code done
+      2026-10-11; the manual's Part 1, the skill's references and the
+      examples still describe the word.)
 - [ ] Seeds: for each caller of `seed_softplus` and WP-1930's floor seed,
       measure whether it still changes an answer, and delete what does not.
 - [ ] The traced backends (`backend/traced.py`) and the cross-backend matrix.

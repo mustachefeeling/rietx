@@ -228,14 +228,7 @@ def test_body_esds_equal_the_central_fd_chain():
         tm[col] -= h
         vp, vm = table.decode(tp), table.decode(tm)
         jac[:, col] = [(vp[p] - vm[p]) / (2 * h) for p in rows]
-    # the scale is softplus: chain its internal esd the way the table does
-    from rietx.params.transforms import dphys_dinternal
-    sc = table.free_paths.index("phases.0.scale")
-    s_phys = s_int.copy()
-    s_phys[sc] *= abs(dphys_dinternal(float(theta[sc]), "softplus"))
-    var = np.einsum("ij,jk,ik->i", jac, corr * np.outer(s_phys, s_phys), jac)
-    # the FD Jacobian is of θ, so the scale's column carries dφ/du already;
-    # the scale reaches no body row, which makes the chain factor moot there
+    var = np.einsum("ij,jk,ik->i", jac, corr * np.outer(s_int, s_int), jac)
     for r, p in enumerate(rows):
         assert esd[p] == pytest.approx(math.sqrt(var[r]), rel=1e-9), p
 
