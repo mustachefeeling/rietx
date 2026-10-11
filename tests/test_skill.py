@@ -111,7 +111,7 @@ def test_the_body_is_within_its_caps():
 @pytest.mark.parametrize("path", REFERENCES, ids=lambda p: p.name)
 def test_every_reference_file_is_within_its_cap(path: Path):
     generated = path in API_INDEXES
-    cap = skill_caps.api_index_ceiling(path) if generated else REFERENCE_MAX_BYTES
+    cap = API_INDEX_MAX_BYTES if generated else REFERENCE_MAX_BYTES
     size = len(path.read_bytes())
     assert size <= cap, (
         f"{path.name} is {size} B (cap {cap}); "
@@ -121,19 +121,6 @@ def test_every_reference_file_is_within_its_cap(path: Path):
            "criterion tests/skill_caps.py's API_INDEX_MAX_BYTES records."
            if generated else "split it.")
     )
-
-
-def test_api_md_keeps_its_own_ceiling_and_a_new_index_needs_no_line():
-    """`api.md`'s ceiling carries its raise history; a technique index without
-    a line of its own takes the technique default, so creating one edits no
-    list (the reason `API_INDEXES` is a glob)."""
-    assert skill_caps.api_index_ceiling(API_INDEX) == API_INDEX_MAX_BYTES
-    unnamed = REFERENCE_DIR / "api-not-a-technique-yet.md"
-    assert (skill_caps.api_index_ceiling(unnamed)
-            == skill_caps.API_TECHNIQUE_INDEX_MAX_BYTES)
-    named = {p.name for p in API_INDEXES}
-    dead = sorted(set(skill_caps.API_INDEX_CEILINGS) - named)
-    assert not dead, f"a ceiling for an index the generator no longer writes: {dead}"
 
 
 def test_no_name_has_an_entry_row_in_two_api_indexes():

@@ -97,15 +97,17 @@ series, history and projects (3.3 kB), routed by `SKILL.md` §9 and §9b.
       index. `read_gsas_tof_iparm` leaves `SKILL_EXCLUDED_VERBS` for a row in
       `api-io.md`. The TOF classes go to an `api-tof.md` and the rigid-body
       classes to `api-bodies.md`. The first PR that documents each set creates
-      its index, without waiting for WP-1812. A field on an everyday type
-      still renders in `api.md`. (4) This WP lands the prototype, cherry-picked
+      its index, without waiting for WP-1812. An everyday field whose type
+      grows (`Instrument.source` accepting a `TOFSource`) still renders in
+      `api.md`. A field the technique adds to an everyday type follows
+      `TECHNIQUE_FIELDS`. (4) This WP lands the prototype, cherry-picked
       so mustachefeeling stays the commit's author.
-- [ ] The `io` technique in `make_api_index.py`, the one 39 000 B ceiling in
+- [x] The `io` technique in `make_api_index.py`, the one 39 000 B ceiling in
       `skill_caps.py`, and `SKILL.md`'s routing row (the prototype's
       commit, cherry-picked onto `main` after #815)
-- [ ] Tests: every index against the ceiling; one entry row per name;
+- [x] Tests: every index against the ceiling; one entry row per name;
       the dotted-name check over every index
-- [ ] Skill: this WP is the skill change; `rietx skill --install . --copy`
+- [x] Skill: this WP is the skill change; `rietx skill --install . --copy`
       re-syncs the two committed copies
 
 ## Acceptance

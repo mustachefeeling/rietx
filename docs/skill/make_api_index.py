@@ -42,15 +42,18 @@ CLAUDE.md § skill), which is an authored file and not a generated one.
 shape, never by size.**  `api-io.md` holds the readers and writers for another
 program's file (TOPAS, FullProf, GSAS, GSAS-II, a PowderLine recipe): a session
 reaches them only with such a file in front of it, and the body's routing table
-named that situation before the file existed.  It took `api.md` from 39 694 to
-33 208 B (2026-10-07), the cap history in `tests/skill_caps.py` having run out
-of raises.  An alphabetical or per-module split was measured and declined: no
+named that situation before the file existed.  It took `api.md` from 39 789 to
+33 292 B (WP-1920, issue #808), the cap history in `tests/skill_caps.py` having
+run out of raises.  An alphabetical or per-module split was measured and declined: no
 session knows which half or module holds a name it has not met, so it loads
 them all.  **Where a name lands** is decided once, by whoever adds it to
 ``SECTIONS`` or to a ``TECHNIQUES`` entry (the coverage gate in
 `tests/test_skill.py` refuses a verb placed nowhere, and another refuses one
 placed twice); a new keyword or field lands in whichever file already holds
-its name, with no decision at all.
+its name, with no decision at all.  A technique's own classes go to its index
+beside its verbs, and a reader of another program's file goes to `api-io.md`
+whatever technique it serves.  The first pull request that documents a
+technique creates its index.
 
 **Rendering is deliberately its own.**  ``str(inspect.signature(f))`` quotes
 every annotation under ``from __future__ import annotations`` and pydantic's
@@ -440,7 +443,8 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
 #: everyday type (``rx.Phase``) would land in the everyday index by the back
 #: door that the technique-index rule above closes for its verbs.  Each one
 #: belongs in the technique's own ``api-<technique>.md``; rigid bodies get that
-#: index in WP-1812, and until then their fields are deferred here exactly as
+#: index from the first pull request that documents them (WP-1920's rule;
+#: WP-1812 plans it), and until then their fields are deferred here exactly as
 #: ``tests/api_surface_deferred.txt`` defers them from the manual (WP-1805: no
 #: raised cap).  ``tests/test_skill.py`` holds every name here to a real field.
 TECHNIQUE_FIELDS: dict[str, frozenset[str]] = {
