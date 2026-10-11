@@ -362,6 +362,14 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     first outer iteration: a stage that starts at its minimum has nothing
     downhill to find.
 
+    The first can also end a crawl.  A column that vanishes at the current
+    point, such as a moment angle at a direction the symmetry fixes, is scaled
+    to unit norm like every other, so its step is the largest and λ grows to
+    hold it.  At λ near 1e8 every step is tiny, three in a row fall under
+    ``ftol``, and the stage reports convergence far from a minimum: χ² 454 660
+    where 2556 was reachable, on a two-site moment fit (WP-1938 D12;
+    WP-1929 owns the remedy).
+
     Each step solves the damped model over the box (:func:`_solve_step`).
     When that step crosses a row of ``inequalities``, the step is solved again
     over the box and every row together (:func:`_solve_constrained_step`), so
