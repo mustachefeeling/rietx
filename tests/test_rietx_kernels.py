@@ -124,6 +124,18 @@ def test_the_axial_planes_are_checked_only_when_they_are_read(fcj):
                      e, *nodes[1:], True, 0, len(ROWS))
 
 
+def test_a_zero_width_basis_call_writes_nothing_and_returns(fcj):
+    """Every window empty: 1.1.0 looped zero times, and 1.2.0's x86-64 build
+    panicked in ``chunks_exact_mut(0)`` until a review caught it."""
+    e = np.zeros((0, 0))
+    outs = [np.zeros((N, 0)) for _ in range(4)]
+    rows = len(ROWS)
+    rk.bases_fcj(*outs, e, e, np.zeros((N, 0)), ROWS, fcj["w1"], fcj["w2"],
+                 np.zeros(N, dtype=np.int64), np.zeros((rows, NN)),
+                 np.zeros((rows, NN)), np.zeros((rows, NN)), np.zeros((rows, NN)),
+                 e, e, e, e, False, 0, rows)
+
+
 def _scatter(y, i0, i1, coefs, n_terms):
     rng = np.random.default_rng(1)
     planes = rng.uniform(0, 1, (4, 3, 8))
@@ -158,3 +170,23 @@ def test_the_scatter_refuses_a_window_it_cannot_hold(defect):
 
 def test_the_kernel_interface_is_the_major_version():
     assert rk.KERNEL_ABI == int(rk.__version__.split(".")[0])
+
+
+def test_the_exponential_refuses_what_it_cannot_write():
+    """``exp`` (1.2.0) exists so its bound can be measured; it writes its
+    output through a checked borrow, as the scatter does."""
+    if not hasattr(rk, "exp"):
+        pytest.skip(f"rietx-kernels {rk.__version__} has no exp (1.2.0)")
+    x, out = np.linspace(-5.0, 0.0, 8), np.empty(8)
+    rk.exp(out, x)
+    assert np.allclose(out, np.exp(x), rtol=1e-15, atol=0)
+    with pytest.raises(ValueError, match="out has 7"):
+        rk.exp(np.empty(7), x)
+    with pytest.raises(ValueError, match="out"):
+        rk.exp(x, x)
+    with pytest.raises(ValueError):
+        rk.exp(out, np.linspace(-5.0, 0.0, 16)[::2])
+    frozen = np.empty(8)
+    frozen.flags.writeable = False
+    with pytest.raises(ValueError, match="out"):
+        rk.exp(frozen, x)

@@ -1,6 +1,6 @@
 # WP-1940 — the kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — rietx-kernels 1.1.0 on PyPI and the figure draws on it (#868); next the vectorised exponential as 1.2.0
+Milestone: unscheduled · Status: 🔄 2026-10-11 — rietx-kernels 1.2.0 in #872, SLEEF's exp and AVX2 on x86-64 and arm64 unchanged; next its publish, after #868
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: 1939
 Priority: P2 2026-10-10 — the decision is taken (Rust, § Decisions) and every agent install pays numba's 143 MB and warm-up until this lands; the first task is a bit-neutral 1.4× that ships on its own
@@ -193,7 +193,10 @@ The pool's dispatch (`_spread` over a no-op, 8 workers, idle) is
 (0 of 4 000 000 differ) and cost 1.97 and 2.10 ns per element, against
 0.33 ns for a multiply-and-add. Roughly three quarters of `omega_fcj`'s 2.6 ns
 per element is the exponential. SLEEF-class vector exponentials run at
-0.3–0.5 ns per element.
+0.3–0.5 ns per element. *Superseded in part 2026-10-11 (5th session,
+continued):* only with AVX2. A port of SLEEF's unfused `exp` runs two wide at
+1.76 ns an element on darwin/arm64, against the C library's 1.92, and loses
+inside the kernel there and on Linux aarch64 (the handover entry's table).
 
 ### The relaxed rule
 
@@ -237,7 +240,8 @@ abi3 maturity and the packaging precedent, which still favour Rust.
    language bought. The gain is Amdahl-bounded: 57 % of trigger is numpy and
    python outside the kernels.
 2. **Vectorised exponential in the FCJ kernels** (needs the relaxed rule).
-   3–4× on their 2.4 s. With (1), the kernel share of trigger drops to
+   3–4× on their 2.4 s. *Superseded 2026-10-11:* 2.3–2.9× per point on
+   x86-64 with AVX2 and a loss on arm64, so 1.2.0 ships it on x86-64 only. With (1), the kernel share of trigger drops to
    ~0.3 s and trigger lands near 3.7 s. A pure-Rust implementation also makes
    the kernel tier give the same bits on every platform; the numpy parts of
    the forward model keep their platform libm, so the fit as a whole does not.
@@ -248,7 +252,8 @@ abi3 maturity and the packaging precedent, which still favour Rust.
    is a quarter of a split 1.36 ms call; rayon dispatches in a few µs. A
    dependency and a second pool. Measure after (1).
 5. **x86-64-v3 multiversioning** (`multiversion` crate) for Linux x86_64's
-   3–15 % FCJ loss. Bit-neutral.
+   3–15 % FCJ loss. Bit-neutral. *Done 2026-10-11 without the crate:* an
+   AVX2 build beside the baseline one, chosen at run time (`fcj.rs`).
 6. **Const generics for `spell` and `has_ax`**: the compiler almost
    certainly unswitches both. Zero expected; check the assembly and stop.
 
@@ -315,7 +320,7 @@ measurement. FPA and the peaks buffer stay fenced (1122).
 - [x] Branch counters in the agreement pass (`n_terms` arms, `spell`,
       `has_ax`), and the pass run on Windows and macOS x86_64 (a temporary
       workflow, as 1939 did), closing 1939's two owed platforms.
-- [ ] The relaxed rule written: root CLAUDE.md's compiled-tier clause,
+- [x] The relaxed rule written: root CLAUDE.md's compiled-tier clause,
       `compiled.py` and kernel docstrings, `test_compiled_kernels.py`'s bars
       per kernel, the fit-level guard; `tests/CLAUDE.md` § Quoting numbers'
       "which path produced it" sentence re-read against it.
@@ -330,14 +335,15 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       machinery removed from the model tier; `install.md` and
       `compatibility.md` say what changed. One PR with numba's removal and
       the pin, opened once 1.0.0 is on PyPI (§ Decisions item 7).
-- [ ] Vectorised exponential: choose and license-check an implementation
+- [x] Vectorised exponential: choose and license-check an implementation
       (SLEEF is Boost-licensed, ARM optimized-routines MIT, numpy's SIMD `exp`
       BSD; GPL sources are concepts only), state its bound, loop interchange
       in the two FCJ kernels, the bound asserted, goldens re-pinned once;
       measured against the serial numbers above. Released as 1.2.0, with
-      the relaxed rule (§ Decisions items 7 and 9).
-- [ ] x86-64-v3 multiversioning, measured on the Linux x86_64 runner against
-      1939's 0.85–0.97×.
+      the relaxed rule (§ Decisions items 7 and 9). PR #872: on x86-64 only,
+      and no golden needed re-pinning (2026-10-11 entry).
+- [x] x86-64-v3 multiversioning, measured on the Linux x86_64 runner against
+      1939's 0.85–0.97×: an AVX2 build beside the baseline, PR #872.
 - [x] Release machinery: `kernels.yml` (five wheels, each tested on its own
       platform with the refusals and the `--gate` agreement pass, published
       on a `kernels-v*` tag) and `RELEASING.md` § The kernel wheel.
@@ -355,11 +361,14 @@ measurement. FPA and the peaks buffer stay fenced (1122).
 - [x] 1.1.0 on PyPI (the maintainer's tag and approval), then rietx calls the
       rasteriser and pins `rietx-kernels>=1.1,<2`: PR #868, stacked on #867
       and readied once the wheel is on the index.
-- [ ] Tests: the guard, the bars, the branch counters, `test_capabilities`'s
+- [x] Tests: the guard, the bars, the branch counters, `test_capabilities`'s
       new flag writer, `test_compiled_kernels.py` on both paths; the fast
       selection's passed+skipped delta quoted. When numba leaves, the
       agreement pass's reference moves from numba to the numpy path, in the
       bench and in `kernels.yml`'s `test` job.
+- [ ] 1.2.0 on PyPI: #868 and #872 merged, the full-suite run on the
+      Linux wheel read against the nightly, then the maintainer's tag and
+      approval. rietx's floor stays at 1.1 unless the maintainer raises it.
 - [x] Skill: `references/diagnostics-indexing.md`'s `compiled_kernels`
       paragraph rewritten (no numba to omit; a wheel that imports or does
       not), and `install.md`'s agent admonition. No body change: an agent
@@ -400,6 +409,153 @@ with the guard green is a pass.
 - `docs/RELEASING.md` (build from the tag, never by hand).
 
 ## Handover log
+
+### 2026-10-11 (5th session, continued) — 1.2.0: SLEEF's exponential on x86-64 only
+
+The faster exponential pays on x86-64 and loses on arm64, so rietx-kernels
+1.2.0 uses it on x86-64 only. On GitHub's Linux runner the trigger fit runs
+24 % faster end to end, 16.1 s against 21.3 s, because its asymmetric-peak
+kernels run 2.7× faster. Windows and Intel macOS show the same 2.4–2.9× on
+those kernels. On Apple silicon and Linux ARM the C library's exponential beat
+every portable one tried, so those wheels keep 1.1.0's code and its exact
+bits. Nothing is published yet: 1.2.0 waits on #868, on #872, and on a
+full-suite run on its Linux wheel.
+
+*Done* (PR #872, branch `wp1940-vector-exp`, stacked on #868).
+- `kernels/src/sleef.rs` ports the non-FMA branch of SLEEF 3.5.1's `xexp`.
+  SLEEF is Boost-licensed, so the notice heads the file, the licence sits
+  beside it as `sleef.LICENSE`, the crate's metadata reads `MIT AND BSL-1.0`,
+  and `ATTRIBUTION.md` has a row. Two changes keep it the same function:
+  `rint` by the 1.5·2⁵² shift, and a clamp that SLEEF's own selects hide.
+  ARM's optimized-routines vector `exp` was compared and not used. It is
+  2.4 ulp, needs a 128-entry table, has a bound that assumes a fused
+  multiply-add, and takes a slow path below −708, where these exponents land.
+- `kernels/src/fcj.rs` holds the two FCJ loops in two shapes, chosen by
+  target. On x86-64 the node loop runs outside the window loop and the
+  exponential is SLEEF's, built twice, for AVX2 and for the baseline, and
+  chosen per call by `is_x86_feature_detected!`. Elsewhere it is 1.1.0's
+  loops verbatim, on `f64::exp`.
+- `rietx_kernels.exp(out, x)` exposes the FCJ kernels' exponential so its
+  bound is measured on each wheel, and `kernels.yml` asserts the wheel has it.
+- Three tests. `test_the_fcj_exponential_holds_its_stated_bound` holds 3.8e3
+  points to 1.0 ulp against `decimal` at 60 digits, plus SLEEF's selected
+  edges. `test_the_exponential_refuses_what_it_cannot_write` is the binding's
+  refusal case. The slow `test_a_fit_on_the_kernels_lands_where_the_numpy_path_does`
+  fits trigger and cpd-1a on both paths, with bars of 5 esd on θ and 0.25 σ
+  on the curve. Each bar was made to fail once, and reported the gap it
+  measured.
+- The relaxed rule is written in root CLAUDE.md's rule 3, `compiled.py`'s
+  rule 3, the three crate headers, `tests/CLAUDE.md`'s which-path sentence,
+  three test docstrings and the bench's bar list.
+- No golden was re-pinned. The bit goldens are the numpy path's, the compiled
+  path's comparison runs on darwin/arm64 at 1e-13, and the arm64 wheel's bits
+  are 1.1.0's.
+- `/code-review high --fix` found seven things, and five are fixed. The
+  x86-64 bases loop panicked on a zero-width call, which the binding allows,
+  through `chunks_exact_mut(0)`. It now returns, and a refusal-file case
+  pins it: without the fix it raised `PanicException` on an x86-64 build run
+  under Rosetta. No CI runner lacks AVX2, so the baseline build never ran;
+  `rietx_kernels.force_baseline` forces it, and
+  `test_the_avx2_and_baseline_builds_give_the_same_bits` holds every plane of
+  the two builds equal on x86-64. The fit guard quotes the shipping build's
+  drift, names a parameter refined on one path only, and refuses an empty
+  comparison. Its bench loader is one module fixture. Declined: a macro over
+  the four dispatch signatures, since the build-equality test catches the
+  swap it guards against. Left to the maintainer: the floor, below.
+- Rosetta runs x86-64 Python on this Mac without AVX2, so it runs the
+  baseline build. The kernel files' 68 fast tests pass there.
+- The bench prints "theta" in section 2's header. The letter raised
+  `UnicodeEncodeError` under cp1252 on the Windows runner. `kernels.yml` skips
+  that section, so it had never run there. Not generalised: no other example
+  runs on Windows in CI.
+
+*Measured.*
+- Bound: 0.927 ulp at worst on the test's points, at `exp(425.2…)`, and 0.908
+  over a 1.2e5-point sweep. numpy's `exp` measures 0.509 on darwin/arm64.
+- Bits: the SLEEF port gives one output checksum on Windows x64, on Linux
+  x86-64 at baseline and at x86-64-v3, and on Linux aarch64. The C libraries
+  give one checksum per library. Every loop shape gives the same bits for a
+  given exponential. On the C library's, the interchange matched 1.1.0 on
+  every plane and the whole trigger fit.
+- Microbench, from `examples/aot_spike/expprobe` on the throwaway branch
+  `wp1940-exp-probe`: one `omega_fcj` call of 494 rows, 151 points and 8
+  nodes, in ns per point and node.
+
+  | runner | 1.1.0 | interchange + SLEEF, baseline | at x86-64-v3 |
+  |---|---|---|---|
+  | Linux x86-64, EPYC 7763 | 8.97 | 7.34 | 3.88 |
+  | Windows x64 | 8.04 | 5.70 | 3.30 |
+  | macOS x86-64, i7-8700B | 14.3 | 11.8 | 4.9 |
+  | Linux aarch64, Neoverse-N2 | 6.55 | 10.30 | — |
+  | darwin/arm64, this Mac | 2.40 | 3.62 | — |
+
+  On arm64 the best variant, a fused SLEEF over blocks of 8 points, reached
+  2.22 (darwin) and 6.09 (N2), under 8 %. The exponential alone on
+  darwin/arm64: the C library 1.92 ns, SLEEF 1.76, fused SLEEF 1.37. The
+  unfused loop vectorises two wide there and is throughput-bound, at 45 NEON
+  instructions a pair.
+- End to end, GitHub's ubuntu-latest (EPYC 7763), `[dev]`, python 3.12.3,
+  numpy 2.5.4, trigger, 3 interleaved repeats a wheel: 1.1.0 20.92–21.29 s
+  with 9.77 s in the FCJ kernels, 1.2.0 15.97–16.10 s with 3.58 s, numpy
+  36.45–37.09 s. Final θ lands 0.34 esd from numpy's on 1.1.0 and 0.42 on
+  1.2.0. darwin/arm64 runs 1.1.0's loops, so it is unchanged by construction.
+- The fit guard's drift is all along the Lorentzian ridge, the instrument's
+  `x` against the phases' `lor_size`. On darwin/arm64 it is 0.22 esd on the C
+  library's exponential and 0.53 on SLEEF's built for arm64 (not shipped),
+  with the curve within 9.8e-5 σ. The guard passed on the Linux and Windows
+  runners. On the macOS x86-64 runner (numpy 2.4.6) cpd-1a's curve moved
+  1.68e-2 σ, failing the first 1e-2 bar, and under 1e-2 when the same job
+  reran. cpd-1a has no FCJ rows, so that is the platform's unrepeatable
+  stopping point and not the new exponential; Rosetta reproduced neither. The
+  curve bar is now 0.25 σ, 15× the widest gap.
+- Fast suite, darwin/arm64, `[dev]`, python 3.12.10, this branch's 1.2.0
+  wheel, `main` at 7d9be3cb: 9036 passed, 178 skipped, 1 xfailed. That is
+  +3 passed and +1 skipped on #868's tree, the four fast tests this branch
+  added; the skip is the build-equality test, which has one build to compare
+  off x86-64. The added fast tests cost 0.12 s (the bound test) and under
+  0.01 s each (two refusal cases) on this machine.
+
+*Full suite on the 1.2.0 Linux wheel.* Run 38098902918 on
+`wp1940-exp-probe`, nightly's full job (`[dev,jax]`, python 3.13, numpy
+2.5.4) on 87c5b727's tree: 3 failed, 9398 passed, 131 skipped, 1 xfailed in
+1:48:44. Two failures were the CLAUDE.md line caps, fixed in 84aca167 before
+the run read them. The third was the corundum block test in
+`test_acceptance_stephens.py`: its fit stopped on a 100-iteration budget, and
+the raw-N Hamilton verdict read off it sat 0.018 % of χ² from the line on
+darwin/arm64 and fell below it on Linux. Given 1000 iterations in that stage
+the fit converges, the margin is 0.052–0.057 % on both architectures, and the
+docstring's ΔBIC (−15.1, −18.6) comes back exactly; the test now asserts
+convergence. Run 38105367999 confirms the file on Linux: 5 passed. The
+2026-10-10 nightly's one failure, `test_pair_diagnostic_class`'s magnetic
+two-site case, passed in this run. Not generalised: no other acceptance test
+flipped on SLEEF's bits, and auditing every verdict read off a `max_iter`
+fit is a sweep of its own.
+
+*Gotchas.*
+- Under fat LTO, `--emit=asm` shows code from before link-time optimisation,
+  with nothing vectorised. Set `CARGO_PROFILE_RELEASE_LTO=false` to read
+  vectorisation. Apple's assembler writes the vector form as `fdiv.2d`.
+- `wp1940-exp-probe` has no PR and stays on the remote until the maintainer
+  says to delete it.
+- The x86-64 build runs here under Rosetta: `uv python install
+  cpython-3.12-macos-x86_64-none`, a venv on it, `maturin build --target
+  x86_64-apple-darwin`. Rosetta reports no AVX2, so it runs the baseline
+  build, and its timings mean nothing.
+
+*Decisions owed, the maintainer's.*
+1. Raise rietx's floor to `rietx-kernels>=1.2`? `KERNEL_FLOOR`'s rule says
+   no, because 1.2.0 adds no kernel rietx calls, and the resolver installs
+   1.2.0 anyway. Raising it would guarantee every x86-64 install has the
+   faster kernels. Recommended: leave it at 1.1.
+2. Fused multiply-add in the AVX2 build: another 10–20 % on x86-64 (3.88 to
+   3.47 ns on Linux), but the AVX2 and baseline builds would then disagree in
+   the last bit. Recommended: no.
+
+*Next.*
+1. The maintainer merges #868, then #872, tags `kernels-v1.2.0` on #872's
+   merge commit and approves the publish.
+2. Close WP-1940 once 1.2.0 is on PyPI. No rietx change is needed while the
+   floor stays at 1.1.
 
 ### 2026-10-11 — 1.1.0 is on PyPI, and the figure draws on it
 

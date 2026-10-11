@@ -24,6 +24,14 @@
 //! multiply and an add into one fused operation, so the source order is the
 //! rounding order.
 //!
+//! **One exception since 1.2.0: the FCJ kernels' `exp` on x86-64** (WP-1940
+//! § The relaxed rule, "transcendentals to a stated bound, associations as
+//! written").  There `omega_fcj` and `bases_fcj` call SLEEF's (`sleef.rs`),
+//! held to its documented 1.0 ulp, where numpy and the symmetric kernels call
+//! the platform's.  Everything else in them is still a transcription, so their
+//! sums keep the numpy line's order.  `fcj.rs` holds their two shapes and why
+//! arm64 keeps 1.1.0's.
+//!
 //! Two shapes are load-bearing, and both were measured (WP-1939's file):
 //!
 //! - **Outputs are raw pointers, not `PyReadwriteArray`.**  `compiled._spread`
@@ -71,9 +79,14 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::f64::consts::{LN_2, PI};
 
+mod fcj;
 mod raster;
+#[cfg(target_arch = "x86_64")]
+mod sleef;
 
-const K4LN2: f64 = 4.0 * LN_2;
+use fcj::{bases_fcj_loop, exp as fcj_exp, omega_fcj_loop};
+
+pub(crate) const K4LN2: f64 = 4.0 * LN_2;
 
 /// The kernel interface number: the crate's major version, so rietx's
 /// `rietx-kernels>=N,<N+1` pin and this integer cannot disagree.
@@ -302,34 +315,6 @@ unsafe fn omega_sym_loop(out: *mut f64, ow: usize, x: &[f64], xw: usize, rows: &
 }
 
 #[allow(clippy::too_many_arguments)]
-unsafe fn omega_fcj_loop(out: *mut f64, ow: usize, x: &[f64], xw: usize, rows: &[i64],
-                         w1: &[f64], w2: &[f64], width: &[i64], phi: &[f64], om: &[f64],
-                         nn: usize, spell: i64, lo: usize, hi: usize) {
-    let srp = (LN_2 / PI).sqrt();
-    for r in lo..hi {
-        let j = rows[r] as usize;
-        let (g, e) = (w1[j], w2[j]);
-        let n = width[j] as usize;
-        let xs = &x[j * xw..j * xw + n];
-        let (ph, wt) = (&phi[r * nn..r * nn + nn], &om[r * nn..r * nn + nn]);
-        let o = unsafe { out.add(j * ow) };
-        for c in 0..n {
-            let xv = xs[c];
-            let mut s = 0.0;
-            for m in 0..nn {
-                let u = (xv - ph[m]) / g;
-                let uu = u * u;
-                let ex = if spell == 0 { -K4LN2 * uu } else { (-K4LN2 * u) * u };
-                let lor = (2.0 / (PI * g)) / (1.0 + 4.0 * uu);
-                let gau = (2.0 / g) * srp * ex.exp();
-                s += wt[m] * (e * lor + (1.0 - e) * gau);
-            }
-            unsafe { *o.add(c) = s };
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
 unsafe fn bases_sym_loop(o_om: *mut f64, o_dp: *mut f64, o_dg: *mut f64, o_de: *mut f64,
                          ow: usize, x: &[f64], xw: usize, rows: &[i64], pos: &[f64],
                          w1: &[f64], w2: &[f64], width: &[i64], lo: usize, hi: usize) {
@@ -354,66 +339,6 @@ unsafe fn bases_sym_loop(o_om: *mut f64, o_dp: *mut f64, o_dg: *mut f64, o_de: *
                 *o_dp.add(k + c) = -(e * dl_dx + (1.0 - e) * dg_dx);
                 *o_dg.add(k + c) = e * dl_dg + (1.0 - e) * dg_dg;
                 *o_de.add(k + c) = lor - gau;
-            }
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-unsafe fn bases_fcj_loop(o: [*mut f64; 6], ow: usize, x: &[f64], xw: usize, rows: &[i64],
-                         w1: &[f64], w2: &[f64], width: &[i64], phi: &[f64], om: &[f64],
-                         dphi: &[f64], dom: &[f64], dphi_sl: &[f64], dom_sl: &[f64],
-                         dphi_hl: &[f64], dom_hl: &[f64], nn: usize, has_ax: bool,
-                         lo: usize, hi: usize) {
-    let [o_om, o_dp, o_dg, o_de, o_sl, o_hl] = o;
-    let srp = (LN_2 / PI).sqrt();
-    for r in lo..hi {
-        let j = rows[r] as usize;
-        let (g, e) = (w1[j], w2[j]);
-        let n = width[j] as usize;
-        let xs = &x[j * xw..j * xw + n];
-        let b = r * nn;
-        let (ph, wt, dph, dw) = (&phi[b..b + nn], &om[b..b + nn], &dphi[b..b + nn],
-                                 &dom[b..b + nn]);
-        let k = j * ow;
-        for c in 0..n {
-            let xv = xs[c];
-            let (mut s_om, mut s_dg, mut s_de) = (0.0, 0.0, 0.0);
-            let (mut a_pos, mut b_pos) = (0.0, 0.0);
-            let (mut a_sl, mut b_sl, mut a_hl, mut b_hl) = (0.0, 0.0, 0.0, 0.0);
-            for m in 0..nn {
-                let u = (xv - ph[m]) / g;
-                let den = 1.0 + 4.0 * u * u;
-                let lor = (2.0 / (PI * g)) / den;
-                let gau = (2.0 / g) * srp * ((-K4LN2 * u) * u).exp();
-                let pv = e * lor + (1.0 - e) * gau;
-                let dl_dx = -lor * (8.0 * u / g) / den;
-                let dg_dx = -gau * (2.0 * K4LN2 * u / g);
-                let ddx = e * dl_dx + (1.0 - e) * dg_dx;
-                let dl_dg = (lor / g) * (8.0 * u * u / den - 1.0);
-                let dg_dg = (gau / g) * (2.0 * K4LN2 * u * u - 1.0);
-                let w = wt[m];
-                s_om += w * pv;
-                s_dg += w * (e * dl_dg + (1.0 - e) * dg_dg);
-                s_de += w * (lor - gau);
-                a_pos += dw[m] * pv;
-                b_pos += (w * dph[m]) * ddx;
-                if has_ax {
-                    a_sl += dom_sl[b + m] * pv;
-                    b_sl += (w * dphi_sl[b + m]) * ddx;
-                    a_hl += dom_hl[b + m] * pv;
-                    b_hl += (w * dphi_hl[b + m]) * ddx;
-                }
-            }
-            unsafe {
-                *o_om.add(k + c) = s_om;
-                *o_dg.add(k + c) = s_dg;
-                *o_de.add(k + c) = s_de;
-                *o_dp.add(k + c) = a_pos - b_pos;
-                if has_ax {
-                    *o_sl.add(k + c) = a_sl - b_sl;
-                    *o_hl.add(k + c) = a_hl - b_hl;
-                }
             }
         }
     }
@@ -633,6 +558,31 @@ fn bases_fcj(
     Ok(())
 }
 
+/// `out[i] = e^x[i]` through the FCJ kernels' exponential, so that its bound
+/// can be measured on each wheel's own platform.  No kernel of rietx calls it.
+#[pyfunction]
+fn exp(py: Python<'_>, out: &Bound<'_, PyArray1<f64>>, x: PyReadonlyArray1<'_, f64>)
+       -> PyResult<()> {
+    let mut o = out.try_readwrite().map_err(|e| PyValueError::new_err(format!("out: {e}")))?;
+    let os = o.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let xs = sl(&x)?;
+    per_row(xs.len(), "x", &[("out", os.len())])?;
+    disjoint(&[span(os)], &[span(xs)])?;
+    py.detach(|| {
+        for (a, &b) in os.iter_mut().zip(xs) {
+            *a = fcj_exp(b);
+        }
+    });
+    Ok(())
+}
+
+/// Force the x86-64 FCJ loops onto their baseline build, so a test can hold
+/// it to the AVX2 build's bits; returns the previous setting (`fcj.rs`).
+#[pyfunction]
+fn force_baseline(on: bool) -> bool {
+    fcj::BASELINE.swap(on, std::sync::atomic::Ordering::Relaxed)
+}
+
 #[pymodule]
 fn rietx_kernels(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
@@ -642,6 +592,8 @@ fn rietx_kernels(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(omega_fcj, m)?)?;
     m.add_function(wrap_pyfunction!(bases_sym, m)?)?;
     m.add_function(wrap_pyfunction!(bases_fcj, m)?)?;
+    m.add_function(wrap_pyfunction!(exp, m)?)?;
+    m.add_function(wrap_pyfunction!(force_baseline, m)?)?;
     m.add_function(wrap_pyfunction!(raster::render_rows, m)?)?;
     m.add_function(wrap_pyfunction!(raster::id_plane, m)?)?;
     Ok(())

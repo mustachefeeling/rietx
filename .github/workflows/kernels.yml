@@ -41,7 +41,8 @@ name: Kernels
 # bars are in the bench's docstring).  test_raster_kernels.py holds the
 # figure's kernels to src/rietx/viz/figure3d/raster.py on the bit inside real
 # renders; it skips under a wheel without them, so the import step below
-# asserts this run's wheel has them.  The numpy path itself lives in
+# asserts this run's wheel has them.  It asserts `exp` too (1.2.0), whose
+# bound test_compiled_kernels.py measures and skips without.  The numpy path itself lives in
 # src/rietx/model/forward.py.  ci.yml's fast suite tests a change there
 # against the published wheel, so it is not a trigger here.
 
@@ -151,6 +152,8 @@ jobs:
               f"rietx-kernels was installed from {url}, not from dist/"
           assert hasattr(k, "render_rows") and hasattr(k, "id_plane"), \
               "this run's wheel has no rasteriser, so test_raster_kernels.py would skip"
+          assert hasattr(k, "exp"), \
+              "this run's wheel has no exp, so the bound test would skip"
           PY
       - name: The refusals
         run: '"$PY" -m pytest tests/test_rietx_kernels.py'

@@ -54,14 +54,22 @@ The three rules this module is held to
    is **bit-identical** — multiplies and adds in the order ``np.bincount``
    performs them, with no library function in it, so the bar is the bit and
    ``tests/test_compiled_kernels.py`` asserts it.  The profile kernels call
-   ``exp``, and **whose ``exp`` decides the last bit**: Rust's ``f64::exp``
-   calls the platform C library's, as numba did, and numpy uses its own
-   vectorised routine.  Measured, they agree bit for bit on darwin/arm64
-   against numpy 2.5.2 and miss by ~3e-17 relative on Linux — so the contract
-   is the rounding bar (≤ 1e-15, WP-1112's bar for FCJ rows) and the bit is
-   asserted only where it was measured.  The wheel matched numba bit for bit
-   on all five platforms it ships for (WP-1940), so these bars are the ones
-   numba was held to.  The numpy builder stays the oracle for bit-identity
+   ``exp``, and **whose ``exp`` decides the last bit**.  The symmetric kernels
+   call the platform C library's through Rust's ``f64::exp``, as numba did,
+   and numpy uses its own vectorised routine.  Measured, they agree bit for
+   bit on darwin/arm64 against numpy 2.5.2 and miss by ~3e-17 relative on
+   Linux, so the contract is the rounding bar (≤ 1e-15) and the bit is
+   asserted only where it was measured.  The FCJ kernels sum their nodes in a
+   loop where numpy runs a matmul, so their bar was 1e-13 relative from the
+   start (WP-1112's).  From ``rietx-kernels`` 1.2.0, on x86-64, they call
+   SLEEF's ``exp`` (``kernels/src/sleef.rs``) under WP-1940's relaxed rule:
+   **transcendentals to a stated bound, associations as written**.  The bound
+   is SLEEF's documented 1.0 ulp, asserted on every wheel, and every sum keeps
+   the numpy line's association.  On arm64 they keep the C library's, which
+   is faster there (``kernels/src/fcj.rs`` has the measurements).  A whole fit on the kernels is held to the
+   numpy path's by two runaway bars, θ in esd and the curve in σ.  Up to 1.1.0
+   the wheel matched numba bit for bit on all five platforms it ships for.
+   The numpy builder stays the oracle for bit-identity
    against the per-reflection loop (``tests/test_batched_forward.py``), which
    is why it has to remain a live, exercised path and not merely dead fallback
    code — and why every test in that file declares the numpy path rather than

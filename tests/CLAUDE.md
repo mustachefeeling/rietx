@@ -231,9 +231,9 @@ CI leg by 3-4×**, so it reads CI's `junit-*` file when the branch has one (WP-1
   tier is on unless switched off, so a golden or a bit-identity assertion says
   `compiled.set_enabled(False)` (or `True`) rather than inheriting. The
   signature of getting this wrong is a test that **passes on darwin/arm64 and
-  fails on Linux**, whose C library `exp` the kernels call and numpy does not.
-  `conftest.py` also asks for one kernel thread per xdist worker, so a
-  wall-clock budget is not a function of the worker count.
+  fails on Linux**, whose C library `exp` the symmetric kernels call (x86-64's FCJ
+  kernels call SLEEF's, WP-1940) and numpy does not. `conftest.py` also asks for one
+  kernel thread per xdist worker, so a wall-clock budget is not a function of the worker count.
 - **A worktree needs its own venv, and quote which one you used.** The main
   checkout's `.venv` resolves `rietx` to the *main checkout's* `src`, so a
   worktree session running it measures the wrong tree — green, and about code
