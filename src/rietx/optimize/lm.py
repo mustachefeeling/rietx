@@ -688,7 +688,12 @@ def _solve_constrained_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndar
     polished = _equality_step(H, g, G[active], h[active], eps)
     row_scale = np.linalg.norm(G, axis=1) * np.linalg.norm(polished) + np.abs(h)
     if np.all(G @ polished - h >= -_POLISH_FEASIBLE * row_scale):
-        _, stationary = nnls(G[active].T, H @ polished - g)
+        try:
+            _, stationary = nnls(G[active].T, H @ polished - g)
+        except RuntimeError:
+            # nnls's iteration cap: the polish is unverified, so the
+            # least-distance point stands
+            stationary = np.inf
         if stationary <= _POLISH_STATIONARY * max(np.linalg.norm(g),
                                                   np.linalg.norm(H @ polished)):
             s = polished

@@ -397,12 +397,8 @@ def _kkt_rows(H, g, step, G, h):
     return float(slack.min()), res / np.linalg.norm(g)
 
 
-@pytest.mark.parametrize("seed", range(6))
-def test_the_constrained_step_is_the_exact_minimiser(seed):
-    """The step over the box and the rows satisfies the problem's optimality
-    conditions to rounding: every row held, and the gradient a non-negative
-    combination of the active ones.  Seeds 4 and 5 are rank-deficient at
-    λ = 0, where the eigenvalue cut binds."""
+def _crossing_problem(seed):
+    """A box, twelve rows and a model whose box-only step crosses a row."""
     rng = np.random.default_rng(seed)
     n = 6
     J = rng.standard_normal((80, n)) @ np.diag(10.0 ** rng.uniform(-3, 3, n))
@@ -419,15 +415,24 @@ def test_the_constrained_step_is_the_exact_minimiser(seed):
     lam = 0.0 if seed % 2 == 0 else 1e-3
     box, _ = lm._solve_step(A, b, lam, x, lo, hi, n_rows=80)
     assert rows.crossed(x, box), "the case was meant to bind a row"
-
-    step, side = lm._solve_constrained_step(A, b, lam, x, lo, hi, [rows], n_rows=80)
-    # in the equilibrated variable s = d·Δ, where the problem is O(1)
+    # the problem in the equilibrated variable s = d·Δ, where it is O(1)
     H = A / np.outer(d, d) + lam * np.eye(n)
     eye = np.eye(n)
     has_lo, has_hi = np.isfinite(lo), np.isfinite(hi)
     G = np.vstack([eye[has_lo], -eye[has_hi], T / d])
     h = np.concatenate([((lo - x) * d)[has_lo], -((hi - x) * d)[has_hi],
                         -rows.slack(x)])
+    return A, b, lam, x, lo, hi, rows, box, d, H, G, h
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_the_constrained_step_is_the_exact_minimiser(seed):
+    """The step over the box and the rows satisfies the problem's optimality
+    conditions to rounding: every row held, and the gradient a non-negative
+    combination of the active ones.  Seeds 4 and 5 are rank-deficient at
+    λ = 0, where the eigenvalue cut binds."""
+    A, b, lam, x, lo, hi, rows, box, d, H, G, h = _crossing_problem(seed)
+    step, side = lm._solve_constrained_step(A, b, lam, x, lo, hi, [rows], n_rows=80)
     worst_row, stationarity = _kkt_rows(H, b / d, step * d, G, h)
     assert worst_row > -1e-11
     if seed < 4:                      # exact only where the model is not flat
@@ -443,6 +448,28 @@ def test_the_constrained_step_is_the_exact_minimiser(seed):
         return 0.5 * D @ (A + lam * np.diag(d * d)) @ D - b @ D
 
     assert model(step) <= model(tau * box) + 1e-12 * abs(model(tau * box))
+
+
+def test_a_capped_optimality_check_keeps_the_least_distance_point(monkeypatch):
+    """The polish is kept only once an nnls call shows the gradient a
+    non-negative combination of its rows, and that call has a cap too.
+    Capped, the polish is unverified and the least-distance point is the step,
+    where the uncaught RuntimeError ended the whole fit."""
+    A, b, lam, x, lo, hi, rows, box, d, H, G, h = _crossing_problem(0)
+    real = lm.nnls
+    checks = []
+
+    def capped_check(E, f, maxiter=None):
+        if maxiter is None:                 # only the optimality check passes none
+            checks.append(1)
+            raise RuntimeError("Maximum number of iterations reached.")
+        return real(E, f, maxiter=maxiter)
+
+    monkeypatch.setattr(lm, "nnls", capped_check)
+    step, _ = lm._solve_constrained_step(A, b, lam, x, lo, hi, [rows], n_rows=80)
+    assert checks == [1]
+    worst_row, _ = _kkt_rows(H, b / d, step * d, G, h)
+    assert worst_row > -1e-9
 
 
 def test_a_failed_constrained_solve_falls_back_to_the_first_row(monkeypatch):
