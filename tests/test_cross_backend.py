@@ -111,7 +111,7 @@ KINK_PATHS = frozenset({"instrument.geometry.axial_sl",
                         "instrument.geometry.axial_hl"})
 
 #: a column is "live" when its norm clears this fraction of the largest
-#: column's — below it the value is transform-floor noise, not a derivative
+#: column's — below it the value is rounding noise, not a derivative
 DEAD_COL_FRAC = 1e-6
 
 #: the multi-histogram reference's FD step, the v0.2 harness's rule (applied
@@ -163,8 +163,8 @@ def _state_sharp_widths():
     scale: against jax it put 9.3e-2 into ``w``'s column, 9.5e-3 into ``v``'s
     and 1.8e-3 into ``u``'s.  :func:`~rietx.optimize.least_squares.fd_step`
     sizes a width's step by its unit, and every column lands within 1.1e-7.
-    ``w`` is declared identity rather than left softplus because a softplus
-    row on its floor has a dead column and the matrix skips it.
+    ``w`` sits on its floor, so the reference differences it from above
+    (:func:`_central_fd_jacobian`).
     """
     structure = make_lab6()
     structure.phases[0].scale.value = 2e-4
@@ -172,8 +172,7 @@ def _state_sharp_widths():
     ins.source.dispersion = None
     profile = ins.profile
     profile.u.value, profile.v.value = 1e-5, 1e-5
-    profile.w = Parameter(value=0.0, min=0.0, max=1.0, unit="deg^2",
-                          transform="identity")
+    profile.w = Parameter(value=0.0, min=0.0, max=1.0, unit="deg^2")
     profile.x.value, profile.y.value = 2e-3, 1e-3
     tt = np.arange(5.0, 30.0, 0.001)
     rng = np.random.default_rng(3)
@@ -387,10 +386,8 @@ def _state_extra_components():
     ins.extra_components = [HumpComponent(
         label="hump",
         position=Parameter(value=34.0, unit="deg"),
-        height=Parameter(value=120.0, min=0.0, unit="counts",
-                         transform="softplus"),
-        fwhm=Parameter(value=9.0, min=HUMP_FWHM_MIN, unit="deg",
-                       transform="softplus"))]
+        height=Parameter(value=120.0, min=0.0, unit="counts"),
+        fwhm=Parameter(value=9.0, min=HUMP_FWHM_MIN, unit="deg"))]
 
     grid = np.arange(15.0, 90.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
@@ -425,8 +422,8 @@ def _state_extra_peak():
     path (the emission-line Bragg image).
 
     Two lines, so the Kα2 image and its Lorentz-polarisation gain are both in
-    the columns; ``eta`` freed as well as the other three, since the mixing is a
-    logit-transformed parameter and no other row in this matrix has one.
+    the columns; ``eta`` freed as well as the other three, since the mixing is
+    bounded on both sides and no other row in this matrix has such a parameter.
 
     Off every identity, for the reason the hump row states: a zero area would
     make the centre, width and mixing columns identically zero and the state
@@ -453,11 +450,9 @@ def _state_extra_peak():
     ins.extra_components = [PeakComponent(
         label="holder",
         center=Parameter(value=41.0, min=40.5, max=41.5, unit="deg"),
-        area=Parameter(value=260.0, min=0.0, unit="counts*deg",
-                       transform="softplus"),
-        fwhm=Parameter(value=0.22, min=EXTRA_PEAK_FWHM_MIN, max=0.5,
-                       unit="deg", transform="softplus"),
-        eta=Parameter(value=0.45, min=0.0, max=1.0, transform="logit"))]
+        area=Parameter(value=260.0, min=0.0, unit="counts*deg"),
+        fwhm=Parameter(value=0.22, min=EXTRA_PEAK_FWHM_MIN, max=0.5, unit="deg"),
+        eta=Parameter(value=0.45, min=0.0, max=1.0))]
 
     grid = np.arange(15.0, 90.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
@@ -681,7 +676,7 @@ def _state_bodies():
                 alpha=P(value=84.3), beta=P(value=97.6), gamma=P(value=104.2))
     phase = Phase(name="body", space_group="P-1", cell=cell, atoms=[
         Atom(label="Li", species="Li", x=P(value=0.71), y=P(value=0.12),
-             z=P(value=0.63))], scale=P(value=1e-2, min=0.0, transform="softplus"))
+             z=P(value=0.63))], scale=P(value=1e-2, min=0.0))
     phase = add_body(phase, "c6br", [f"C{i}" for i in range(6)] + ["Br"],
                      ["C"] * 6 + ["Br"], c6br(), (0.31, 0.42, 0.27),
                      orientation=(0.9, 0.1, 0.2, 0.3), biso=2.0,
@@ -848,11 +843,30 @@ def _central_fd_jacobian(config, model, table):
     # would be differenced across zero, where the Gaussian clamps
     typicals = np.ones(len(_theta(model, table)))
     typicals[:len(table.free_paths)] = _fd_typicals(table)
+    # A column sitting on a bound is differenced on the feasible side only,
+    # at the same O(h²) order.  Since WP-1938 a row on its floor is a live
+    # physical column, and the model past a bound is another branch: srm660c's
+    # extinction at 0 differs by 0.78 rel-L2 differenced from below, and the
+    # central quotient averaged the two (0.389) while the analytic column met
+    # the one-sided one to 6.2e-6.
+    entries = [table.entries[table._paths[p]] for p in table.free_paths]
+    lo = np.full(len(typicals), -np.inf)
+    hi = np.full(len(typicals), np.inf)
+    lo[:len(entries)] = [e.lo for e in entries]
+    hi[:len(entries)] = [e.hi for e in entries]
 
     def jacobian(theta: np.ndarray) -> np.ndarray:
         cols = []
         for c in range(len(theta)):
             h = fd_step(theta[c], typicals[c])
+            side = 1.0 if theta[c] <= lo[c] else -1.0 if theta[c] >= hi[c] else 0.0
+            if side:
+                t1, t2 = theta.copy(), theta.copy()
+                t1[c] += side * h
+                t2[c] += side * 2.0 * h
+                cols.append(side * (-3.0 * residual(theta) + 4.0 * residual(t1)
+                                    - residual(t2)) / (2.0 * h))
+                continue
             tp, tm = theta.copy(), theta.copy()
             tp[c] += h
             tm[c] -= h
@@ -908,7 +922,7 @@ METHODS = {
 
 def _assert_columns(J_ref, J_test, labels, *, rel_max, cos_min,
                     kink=frozenset(), what=""):
-    """Per-column rel-L2 + cosine agreement, skipping transform-floor columns."""
+    """Per-column rel-L2 + cosine agreement, skipping dead columns."""
     assert J_ref.shape == J_test.shape, f"{what}: {J_ref.shape} vs {J_test.shape}"
     scale = np.linalg.norm(J_ref, axis=0).max()
     n_live = 0
