@@ -16,6 +16,23 @@ pinned.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (#898 (b)): a second user hit lesson
+  2, and asks for `OMP_NUM_THREADS` too.** An application runs rietx beside
+  other parallel work and sets `RIETX_COMPILED_THREADS=1`, because the
+  default oversubscribes. It asks that `NUMBA_NUM_THREADS` or
+  `OMP_NUM_THREADS` be read as well, for users who do not know rietx's
+  variable. Checked at `d80ca5f4`: `model.compiled.n_threads()`
+  (`compiled.py:195-208`) reads only `RIETX_COMPILED_THREADS` (an int ≥ 1,
+  anything else silently ignored), else `min(8, os.cpu_count())`. The pool
+  is a Python `ThreadPoolExecutor` over GIL-releasing Rust kernels, so
+  neither OpenMP nor numba ever controlled it. numba left with WP-1940, so
+  that half of the ask is moot. Whether `OMP_NUM_THREADS` is read as a
+  fallback is a small decision to take with task 1's default-in-a-pool
+  question (numexpr reads `NUMEXPR_NUM_THREADS`, then `OMP_NUM_THREADS`).
+  `os.cpu_count()` ignores CPU affinity and cgroup limits (inferred). The
+  variable is in no manual page either, and WP-1950's embedding section
+  will name it.
+
 - **2026-09-28, from [1338](1338-the-skills-own-gates.md): a body sentence is paid for by a cut.** The
   body's budget is the specification's 5 000 tokens, 17 000 B, and it is at
   30 509 B, so a change may not grow it (`tests/skill_caps.py`). Guidance

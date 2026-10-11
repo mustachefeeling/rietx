@@ -106,6 +106,34 @@ and is not proposed here. No code is ported.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (#726, the reporter's comment of
+  2026-10-11 09:56Z): a second public case, PbSO₄, where both documented
+  remedies together give a wrong class.** Both histograms of
+  `tests/data/gsas2_pbso4.gpx` (Hill 1992). The screen gets the cell
+  `index_pattern` returned for the neutron pattern, (6.9644, 5.4038, 8.4956) Å,
+  0.1-0.2 % long, so the true class reads `P c - n`. The reproducer is in the
+  comment and reads the histograms through the private
+  `io.projects.gsas2._read_tree`. **Reproduced at d80ca5f4 on the X-ray
+  histogram** (`[dev]`, macOS arm64):
+
+  | arm | `best_or_none()` | `P c - n` |
+  |---|---|---|
+  | `refine_cell=True` | `P c - n` | ΔBIC −295.5, 5 testable |
+  | + `auto_background(seed=True)` | **`P c - -`** | refuted at (2,3,0) 57.579° |
+  | `profile_only` Le Bail first, then screen with its instrument and cell | `P c - n` | ΔBIC −559.6, 7 testable |
+
+  `P c - -` excludes `P n m a`. The reporter's reading: rows 2 and 3 screen
+  cells that agree to 75 ppm, and what separates them is the shared profile
+  fit (Rwp 0.170 against 0.087), so refining the cell inside the shared fit
+  (option 4) is not enough on this pattern. Only a full Le Bail before the
+  screen got the X-ray class with either background. The neutron arms were
+  not re-run here. In the reporter's numbers they abstain at every arm
+  except Le Bail first on 10-100°, which gives `P c - n` at ΔBIC −88. Their
+  closing note bears on the default this WP chooses: the skill's recipe
+  already runs a `profile_only` Le Bail, then discards it and screens the
+  unrefined cell with the declared instrument. The neutron half's mechanism
+  is WP-1542's, and its Inherited has it.
+
 - **2026-10-09, from WP-1930 (PR #849).** `validation_plan` called
   without `two_theta_max` takes the 6° cap of `VALIDATION_SLACK_BOUNDS_DEG`,
   and on FAP its `profile` stage then never converges (max_iter at 100, 400 and

@@ -32,6 +32,20 @@ issue #561, sized M. It needs no body.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (#561, #677, in PR #888): the first half
+  of R8 is open as the reporter's PR, and it asks this WP's question.** PR
+  #888 (opened 2026-10-11, fork, rebased on #823) adds `TetherRestraint` and
+  `AntiBumpRestraint` (TOPAS `Distance_Restrain_Keep_Within` and
+  `Keep_Out`/`AI_Anti_Bump`, cited by page), and the pair-list builder
+  `model.restraints.anti_bump_restraints`. A pair with no stated minimum gets
+  no row, which is #677's rule. Planarity and `RESTRAINT_PAIRS_STALE` are left
+  for a second PR. The PR builds the list on the caller's side, as explicit
+  rows, and asks the maintainer to choose that or the engine-frozen form the
+  Context records. That is `/pr-review`'s question. It also takes
+  `SCHEMA_VERSION` 0.46, as PRs #871 and #903 do. The claims match #561 and
+  #677. Checked against the tree at d80ca5f4: no `TetherRestraint` or
+  `AntiBumpRestraint` under `src/`.
+
 - **2026-10-11, from the issue triage (#561, #562): PR #675 holds the radii
   this WP's r₀ could read.** PR #675 (the reporter's, open since 2026-10-02)
   adds `crystallography/radii.py` with Shannon 1976 ionic (`ionic_radius`,

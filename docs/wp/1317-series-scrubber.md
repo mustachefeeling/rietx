@@ -53,6 +53,18 @@ screenshots come from `docs/manual/make_screenshots.py`.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (#218, in PR #903): the two asks are
+  open as the reporter's PR, and the scrubber is not in it.** PR #903 (opened
+  2026-10-11, fork) adds `SequentialRefinement.forward_`, published at
+  WP-1333's early point under `direction="both"`, and
+  `SeriesResult.moved_paths(n, min_sigma)`, which skips esd-less paths,
+  coordinate DOFs and exact tied duplicates. It records
+  `SeriesResult.relative_paths` and `.angle_paths` (`SCHEMA_VERSION` 0.45 to
+  0.46, shared with PRs #871 and #888). The PR says `api.md` lands 72 B over
+  its ceiling and leaves that to the maintainer. The claims match #218.
+  Checked against the tree at d80ca5f4: neither `forward_` nor `moved_paths`
+  exists under `src/`.
+
 - **From WP-1469 (2026-09-29): a new marker for the vocabulary, and the
   panel does not draw it yet.** `SEQUENTIAL_RWP_OUTLIER` names a pattern
   every rung left above the Rwp fence (#481's blank frame is the case). Its
