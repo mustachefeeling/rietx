@@ -38,7 +38,6 @@ from rietx.backend.linalg64 import COLUMN_REL_L2_MAX, to_host_fp64
 from rietx.backend.traced import make_traced_decode, make_traced_residual
 from rietx.model import rows as row_layout
 from rietx.optimize.least_squares import _make_residual
-from rietx.params.transforms import to_physical
 from tests.test_backend_shim import STATES
 
 #: every op the shim promises, plus the non-``_OP_NAMES`` primitives
@@ -73,32 +72,6 @@ def test_backend_implements_the_whole_vocabulary(name):
         assert getattr(xp, attr, None) is not None, f"{name}: missing {attr}"
     assert callable(getattr(xp.linalg, "inv", None))
     assert callable(getattr(xp.linalg, "det", None))
-
-
-@pytest.mark.parametrize("name", BACKEND_NAMES)
-def test_transform_ops_match_the_reference_transforms(name):
-    """``xp.logaddexp`` / ``xp.exp`` / ``xp.sigmoid`` reproduce
-    ``params.transforms.to_physical``.
-
-    The traced decode is written once against these three ops, so a backend
-    whose sigmoid saturates differently (or whose softplus takes a linear
-    branch above some threshold, as ``torch.nn.functional.softplus`` does)
-    would decode a *different physical model* while every shape check passed.
-    """
-    xp = backend_or_skip(name)
-    u = np.array([-40.0, -3.0, -0.5, 0.0, 0.5, 3.0, 40.0])
-    with xp.full_precision():
-        got = {
-            "softplus": to_host_fp64(xp.logaddexp(xp.zeros_like(xp.asarray(u)),
-                                                  xp.asarray(u))),
-            "exp": to_host_fp64(xp.exp(xp.asarray(u))),
-            "logit": to_host_fp64(xp.sigmoid(xp.asarray(u))),
-        }
-    for kind, values in got.items():
-        want = np.array([to_physical(float(x), kind) for x in u])
-        # fp32 devices carry their own floor; the point is the *branch*, not ulps
-        tol = 1e-5 if "mps" in name else 1e-12
-        assert np.allclose(values, want, rtol=tol, atol=tol), f"{name}/{kind}"
 
 
 @pytest.mark.parametrize("state", list(STATES))
@@ -153,10 +126,9 @@ def test_traced_residual_matches_the_numpy_reference(name, state):
 def test_traced_decode_matches_the_numpy_decode(name, state):
     """θ → physical values agrees with ``ParameterTable.decode``.
 
-    Separated from the residual test because a decode that is wrong only for a
-    *transformed* parameter (softplus width, logit occupancy) can still produce
-    a residual that looks fine at θ₀ — the transforms are near-identity in the
-    middle of their range.
+    Separated from the residual test because a decode that is wrong only for
+    one kind of row (a tie's constant, a derived block's output) can still
+    produce a residual that looks fine at θ₀.
     """
     xp = backend_or_skip(name)
     built = STATES[state]()

@@ -508,31 +508,34 @@ def test_the_scale_column_is_exact_and_its_step_size_does_not_matter(frac):
 def test_a_dead_phase_takes_the_fd_path_rather_than_dividing_by_its_scale():
     """``scale == 0`` is reachable and the analytic column is 0/0 there.
 
-    A softplus lower bound of 0 maps to −∞ internally and underflows to
-    exactly 0.0 below u ≈ −745 (root CLAUDE.md § Invariants: safe wherever
-    zero is the *off state*, a bug wherever the physics divides).  Here it
-    divides — and unlike a width, a zero scale does **not** make the
-    derivative zero: it is the whole unscaled chain, which is exactly what
-    lets a dead phase come back.  So the dispatcher tests the scale and the
-    finite-difference path, which stays correct there, keeps the column.
+    A scale is refined in its own units on a lower bound of 0 (WP-1938), so
+    a phase the data do not support stops exactly on it.  The analytic
+    column divides by the scale — and unlike a width, a zero scale does
+    **not** make the derivative zero: it is the whole unscaled chain, which
+    is exactly what lets a dead phase come back.  So the dispatcher tests the
+    scale and the finite-difference path, which stays correct there, keeps
+    the column.
 
-    Both halves are asserted, because either alone would pass for the wrong
-    reason.  The fence is shown to be **load-bearing** — the analytic
-    expression really does produce NaN at this state, so it is not being
-    fenced against a hazard that could not arise — and the column the
-    dispatcher actually builds is shown to be the FD's.  Here that column is
-    zeros, and correctly so: at u = −800 the softplus underflows on *both*
-    sides of the step, so no perturbation escapes and the direction is flat
-    in θ.  That is this package's "a phase the data cannot see is a flat
-    direction" one rank down (root CLAUDE.md § Invariants) — the honest
-    answer is zero, and NaN is the only wrong one.
+    Three halves are asserted, because any one alone would pass for the
+    wrong reason.  The fence is shown to be **load-bearing**: the analytic
+    expression really does produce NaN at this state.  The column the
+    dispatcher builds is shown to be a finite difference.  And it is the one
+    the scale has anywhere else, since the model is linear in it: the phase
+    at zero still has its pattern as a gradient.  Under softplus it was
+    zeros, the slope having underflowed on both sides of the step.
     """
-    from rietx.optimize.least_squares import _make_jacobian, _scale_column
+    from rietx.optimize.least_squares import (
+        _fd_typicals,
+        _make_jacobian,
+        _scale_column,
+        fd_step,
+    )
 
     model, table, theta, _ = _scale_state()
     c = table.free_paths.index("phases.0.scale")
+    live = _make_jacobian(model, table)(theta)[:, c]   # analytic, scale > 0
     theta = theta.copy()
-    theta[c] = -800.0                       # softplus underflows to exactly 0
+    theta[c] = 0.0
     values = table.decode(theta)
     assert values["phases.0.scale"] == 0.0
 
@@ -546,26 +549,33 @@ def test_a_dead_phase_takes_the_fd_path_rather_than_dividing_by_its_scale():
     assert np.all(np.isfinite(column)), "the 0/0 fence let a NaN through"
 
     residual = _make_residual(model, table)
-    h = 1e-6 * max(1.0, abs(theta[c]))
+    h = fd_step(theta[c], _fd_typicals(table)[c])
     tp = theta.copy()
     tp[c] += h
     fd = (residual(tp) - residual(theta)) / h
-    np.testing.assert_array_equal(column, fd)
+    # the dispatcher's FD is the peak chain's, which differences the
+    # per-reflection scalars rather than the whole model: the two agree to
+    # rounding (equal while both were the softplus zeros)
+    np.testing.assert_allclose(column, fd, rtol=0.0,
+                               atol=1e-12 * np.max(np.abs(fd)))
+    err = np.max(np.abs(column - live)) / np.max(np.abs(live))
+    assert err < 1e-8, f"the column at zero is not the live one: {err:.3e}"
 
 
 def test_a_width_is_stepped_by_its_unit_and_everything_else_by_one():
-    """WP-1936: an identity width takes FLOOR_SEEDS' size for its unit.
+    """WP-1936: a width takes FLOOR_SEEDS' size for its unit.
 
-    ``u`` and ``v`` are deg² terms of a variance, so they are widths although
-    they may go negative.  ``x`` is declared identity here, and a deg row
-    bounded at 0 is a width.  The zero shift is in degrees too, but it is an
-    offset that may go negative, so it keeps 1.  So do the softplus ``w`` and
-    ``y``, whose θ is already logarithmic, and the unitless cell.
+    ``u``, ``v`` and ``w`` are deg² terms of a variance, so they are widths
+    although ``u`` and ``v`` may go negative.  ``x`` and ``y`` are deg rows
+    bounded at 0, so they are widths.  Since WP-1938 every row is refined in
+    its own units, so ``w`` and ``y`` take their unit's size too, where under
+    softplus their θ was already logarithmic and kept 1.  The zero shift is
+    in degrees, but it is an offset that may go negative, so it keeps 1.  So
+    does the unitless cell.
     """
     structure = make_rutile()
     ins = Instrument.bragg_brentano()
-    ins.profile.x = Parameter(value=1e-3, min=0.0, max=1.0, unit="deg",
-                              transform="identity")
+    ins.profile.x = Parameter(value=1e-3, min=0.0, max=1.0, unit="deg")
     table = ParameterTable(structure, ins)
     table.set_vary(["*"], False)
     paths = ["phases.0.cell.a", "instrument.zero_shift",
@@ -577,8 +587,9 @@ def test_a_width_is_stepped_by_its_unit_and_everything_else_by_one():
         "phases.0.cell.a": 1.0, "instrument.zero_shift": 1.0,
         "instrument.profile.u": FLOOR_SEEDS["deg^2"],
         "instrument.profile.v": FLOOR_SEEDS["deg^2"],
-        "instrument.profile.w": 1.0, "instrument.profile.x": FLOOR_SEEDS["deg"],
-        "instrument.profile.y": 1.0}
+        "instrument.profile.w": FLOOR_SEEDS["deg^2"],
+        "instrument.profile.x": FLOOR_SEEDS["deg"],
+        "instrument.profile.y": FLOOR_SEEDS["deg"]}
 
 
 def test_a_variable_with_no_unit_is_stepped_by_the_width_it_drives():

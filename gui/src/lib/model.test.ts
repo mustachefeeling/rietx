@@ -38,7 +38,7 @@ import { normalize, type ParamRow } from "./table";
 function row(path: string, extra: Partial<ParamRow> = {}): ParamRow {
   return normalize([{
     path, value: 1, vary: false, lo: "-Infinity", hi: "Infinity",
-    transform: "identity", tie: null, locked: false, esd: null,
+    tie: null, locked: false, esd: null,
     mode_fixed: false, refinable: true, held_because: "", ...extra,
   }])[0];
 }

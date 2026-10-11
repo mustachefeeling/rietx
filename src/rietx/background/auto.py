@@ -107,8 +107,7 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     # Declined means absent, never a zero one: a plan's ``instrument.background.*``
     # frees whatever path exists (WP-1454).
     if diag.air_scatter_gain > AIR_SCATTER_TRIGGER:
-        bkg.air_scatter = Parameter(value=1e-3, vary=True, min=0.0,
-                                    transform="softplus")
+        bkg.air_scatter = Parameter(value=1e-3, vary=True, min=0.0)
     if seed:
         level = _seed_level(data)
         for c in bkg.coefficients:

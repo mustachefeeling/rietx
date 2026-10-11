@@ -235,10 +235,11 @@ stage itself.
 ## The positivity cone, the seed and the guard
 
 $\sigma^2(M) \ge 0$ for every $hkl$ is a cone coupling all fifteen coefficients,
-so it cannot be a box bound. Under the default TRF driver it is a guard
-(`STEPHENS_STRAIN_NOT_POSITIVE`). Under the bounded-LM driver it is carried as a
-linear inequality, and the guard falls silent with nothing left to report
-({ref}`ch-estimation`). Read a firing as "these coefficients are not quotable",
+so it cannot be a box bound. The default bounded-LM driver carries it as a
+linear inequality, and the guard (`STEPHENS_STRAIN_NOT_POSITIVE`) falls silent
+with nothing left to report ({ref}`ch-estimation`). Under `solver="trf"` the
+guard is the only check. A joint fit builds no cone under either driver, so the
+guard fires there too. Read a firing as "these coefficients are not quotable",
 never as evidence of anisotropy. The guard's test is one-sided, because zero
 lies on the cone itself. An earlier ≤ 0 form that flagged the inert all-zero
 block produced a since-withdrawn claim about isotropic specimens.

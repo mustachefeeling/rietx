@@ -27,6 +27,7 @@ import rietx as rx
 from rietx.gui import GuiSession
 from rietx.gui import textdoc as td
 from rietx.schemas.plan import StageSpec
+from rietx.schemas.structure import PreferredOrientation
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -97,7 +98,7 @@ def test_render_parse_diff_is_a_fixed_point(project):
 
 def test_the_fixed_point_holds_over_the_shapes_that_broke_it(tmp_path,
                                                              pattern_file):
-    """Every row kind at once — long paths, ties, locks, bounds, transforms.
+    """Every row kind at once — long paths, ties, locks, bounds.
 
     Two renderer bugs lived here. A fixed 36-column value field emitted
     ``polarization                   0.99min 0`` (the parser then refused
@@ -116,13 +117,79 @@ def test_the_fixed_point_holds_over_the_shapes_that_broke_it(tmp_path,
     assert rows["instrument.polarization"].annotations["min"] == 0.0
     assert rows["phases.0.cell.b"].annotations["tie"].endswith("phases.0.cell.a")
     assert rows["phases.0.cell.alpha"].annotations["locked"] is True
-    assert rows["phases.0.scale"].annotations["softplus"] is True
+    assert rows["phases.0.scale"].annotations["min"] == 0.0
     # lebail force-fixes every atom path, and the row says so rather than
     # looking editable (the Le Bail dummy-atom trap, WP-1004)
     assert rows["phases.0.atoms.0.biso"].annotations["mode-fixed"] is True
 
     delta, errors = td.changes(td.parse(text), project)
     assert (errors, delta.is_empty()) == ([], True)
+
+
+def test_a_document_written_with_transform_words_still_reads(project):
+    """An ``.rxt`` rendered before schema 0.46 carries ``softplus``/``logit``
+    beside the bounds (WP-1938).  The renderer no longer writes them; the
+    parser folds each into the row's bounds through the schema's one map, so
+    the old document compares equal to the live rows and applies nothing."""
+    text = td.render(project)
+    assert "softplus" not in text and "logit" not in text
+    line = next(ln for ln in text.splitlines()
+                if ln.strip().startswith("scale ") and "min 0" in ln)
+    old = text.replace(line, f"{line}  softplus", 1)
+    # an old row whose bound was left to the transform alone folds to min 0
+    bare = line.replace("min 0", "").rstrip() + "  softplus"
+    for doc in (old, text.replace(line, bare, 1)):
+        parsed = td.parse(doc)
+        assert parsed.errors == []
+        [row] = [r for r in parsed.rows if r.path == "phases.0.scale"]
+        assert row.annotations["min"] == 0.0 and "softplus" not in row.annotations
+        delta, errors = td.changes(parsed, project)
+        assert (errors, delta.is_empty()) == ([], True)
+
+
+def test_a_document_written_before_a_floor_applies_nothing(tmp_path, pattern_file):
+    """An ``.rxt`` rendered before W's floor says ``min 0`` on W, and a W under
+    it (WP-1938).  Opening that project today raises both to 1e-8, so the
+    document's numbers compare equal through the schema and apply nothing.
+    March r's floor is the same case.  A bound no validator raises is still an
+    edit, refused as before."""
+    structure, ins = perturbed_models()
+    structure.phases[0].preferred_orientation = PreferredOrientation(axis=(0, 0, 1))
+    project = rx.Project.create(tmp_path / "floors.rex", pattern=pattern_file,
+                                structure=structure, instrument=ins,
+                                plan="mccusker_default")
+    project.refinement.set_values({"instrument.profile.w": 1e-8})
+    text = td.render(project)
+    rows = {row.path: row for row in td.parse(text).rows}
+    assert rows["instrument.profile.w"].annotations["min"] == 1e-8
+    assert rows["phases.0.preferred_orientation.r"].annotations["min"] == 0.15
+
+    def written_before(doc, local, lo, value=None):
+        line = next(ln for ln in doc.splitlines() if ln.split()[:1] == [local])
+        old = re.sub(r"min \S+", f"min {lo}", line)
+        if value is not None:
+            old = re.sub(rf"^(\s*{re.escape(local)}\s+(?:@\s*)?)\S+",
+                         rf"\g<1>{value}", old)
+        assert old != line
+        return doc.replace(line, old, 1)
+
+    old = written_before(text, "profile.w", 0, value="1e-12")
+    old = written_before(old, "preferred_orientation.r", 0)
+    delta, errors = _changes(old, project)
+    assert (errors, delta.is_empty()) == ([], True)
+
+    _, errors = _changes(written_before(text, "scale", -1), project)
+    assert [e.where for e in errors] == ["phases.0.scale"]
+    assert "cannot be edited here" in errors[0].message
+
+    # a W the schema raises past the live one sets the raised number, which
+    # apply accepts, rather than the typed one, which it would refuse
+    project.refinement.set_values({"instrument.profile.w": 0.003})
+    delta, errors = _changes(written_before(td.render(project), "profile.w", 0,
+                                            value="0"), project)
+    assert (errors, delta.values) == ([], {"instrument.profile.w": 1e-8})
+    td.apply(project, delta)
+    assert project.refinement.instrument.profile.w.value == 1e-8
 
 
 def test_a_hold_renders_as_an_annotation_and_refuses_the_at_marker(

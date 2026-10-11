@@ -5,9 +5,10 @@ The score is the Rao / Gauss-Newton one-parameter gain
 through :func:`~rietx.optimize.statistics.block_projection_r2` — absorption
 of a candidate by the currently-free block directly, candidate-vs-candidate
 ties on the free-block-projected columns.  This module sees only matrices,
-paths and constants: enumerating candidates, seeding transform floors and
-compiling the probe model are :meth:`rietx.refine.Refinement.suggest`'s
-job, and the Layer-2 cross-reference arrives as already-built *objects*,
+paths and constants: enumerating candidates, seeding floored roughness and
+Stephens rows and compiling the probe model are
+:meth:`rietx.refine.Refinement.suggest`'s job, and the Layer-2
+cross-reference arrives as already-built *objects*,
 because ``strategy`` builds no ``report`` object and imports none at module
 scope.
 
@@ -44,25 +45,33 @@ from ..schemas.suggest import (
     SuggestionResult,
 )
 
-#: Probe seeds, per family.  A floor candidate cannot be scored at its stored
-#: value: a softplus column at p ≈ 0 comes out of the scalar-FD chain as
-#: rounding noise (dp/du ≈ 1e-12 puts the chain's perturbation below the
-#: model evaluation's own fp noise — and the gain statistic, being
-#: scale-invariant, would amplify that noise to a measured-looking number), a
-#: Stephens block at S ≡ 0 sits on √Σ's unbounded slope (an FD there returns
-#: an h-dependent value, not a derivative), and Suortti roughness at b = 0 is
-#: the *identity*, a column of exact zeros — for which 1e-3 is still a dead
-#: correction, hence the measured 0.3 of ``_ROUGHNESS_STAGE``.  So those
-#: columns are evaluated at the seed the corresponding stage would start its
-#: solve from (the ``strategy/staged.py`` literals: ``seed=1e-3``, roughness
-#: ``0.3``, ``strain_seed=1000.0``) and the candidate reports ``seeded=True``.
+#: Probe seeds, per family.  Two kinds of floor candidate are scored at the
+#: seed the corresponding stage would start its solve from (the
+#: ``strategy/staged.py`` literals: roughness ``0.3``,
+#: ``strain_seed=1000.0``), and report ``seeded=True``.  A Stephens block at
+#: S ≡ 0 sits on √Σ's unbounded slope (an FD there returns an h-dependent
+#: value, not a derivative).  Suortti roughness at b = 0 is the *identity*,
+#: and 0.3 is ``_ROUGHNESS_STAGE``'s measured start.
+#:
+#: **A width on its floor is scored where it is, from its physical column.**
+#: Until WP-1938 a width at 0 was probed from 1e-3, because its softplus
+#: column there came out of the FD chain as rounding noise.  Kept after the
+#: physical coordinates arrived, that seed manufactured suggestions.  On BT-1
+#: X-ray it put ``phases.0.lor_size`` (predicted gain 18 910),
+#: ``lor_strain`` (15 040), ``gauss_size`` (11 000) and ``gauss_strain``
+#: (7 348) at the top.  On Si 640c it put ``instrument.profile.x`` (1 465)
+#: and ``profile.y`` (1 228) there.  Freed and refitted, every one of them
+#: stayed on its floor and χ² did not move (Δχ² = 0.000).  Unseeded, the top
+#: suggestion on BT-1 X-ray is ``phases.0.atoms.2.occ`` (predicted gain
+#: 946.6, refitted Δχ² −945.5) and on Si 640c ``phases.0.extinction``
+#: (predicted 757.9, refitted −2478.9).
+#:
 #: The seeds live in a **second** probe build whose only contribution is
 #: those columns — never in the shared residual: measured on the layers
 #: suite's truth fixture, seeding the shared state instead broadens every
 #: peak, moves probe χ²_red from 1.01 to 7.1, and hands every width
 #: parameter a spurious gain ≈ 3×10⁴ at a *converged* fit
 #: (``Refinement.suggest`` implements the split and tells the same story).
-SUGGEST_SEED_SOFTPLUS = 1e-3
 SUGGEST_SEED_ROUGHNESS = 0.3
 SUGGEST_SEED_STEPHENS = 1000.0
 
@@ -71,16 +80,15 @@ SUGGEST_SEED_STEPHENS = 1000.0
 class Candidate:
     """One held-but-refinable parameter as the caller enumerated it.
 
-    ``index`` is the parameter's column in the probe Jacobian, ``dp_du`` the
-    transform slope at the probe point (what converts the internal gradient
-    to physical units — never zero, because a floor-dead candidate is seeded
-    off the floor before the Jacobian is built and arrives here with
-    ``seeded=True`` and its ``seed_value``).
+    ``index`` is the parameter's column in the probe Jacobian, in the
+    parameter's own units (WP-1938).  A roughness or Stephens candidate on
+    its floor is scored at its seed and arrives here with ``seeded=True`` and
+    its ``seed_value``.  Every other candidate, a width on 0 included, is
+    scored at its stored value.
     """
 
     path: str
     index: int
-    dp_du: float
     seeded: bool = False
     seed_value: float | None = None
 
@@ -145,7 +153,7 @@ def build_suggestion(jac: np.ndarray, resid: np.ndarray, free: list[int],
     for c in candidates:
         if c.path not in gains:
             continue
-        gradient = 2.0 * float(jac[:, c.index] @ resid) / c.dp_du
+        gradient = 2.0 * float(jac[:, c.index] @ resid)
         scored.append((c, ParameterCandidate(
             path=c.path, gain=gains[c.path], gradient=gradient,
             absorption=absorption.get(c.path, 0.0), seeded=c.seeded,

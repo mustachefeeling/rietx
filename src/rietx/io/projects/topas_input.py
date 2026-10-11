@@ -27,6 +27,7 @@ from typing import Any
 
 import numpy as np
 
+from ...model.profiles.caglioti import _MIN_GAMMA_G2  # the Γ_G² clamp, deg²
 from .topas_refined import (
     Affine,
     Expr,
@@ -50,8 +51,6 @@ _MOMENT_KEYS = ("mlx", "mly", "mlz")
 #: TCH (1987) and rietx have 0.11116.
 _TCH_GAMMA = (2.69269, 2.42843, 4.47163, 0.07842)
 _TCH_ETA = (1.36603, -0.47719, 0.11116)
-#: ``model.profiles.caglioti._MIN_GAMMA_G2``: rietx's floor on Γ_G², in deg².
-_MIN_GAMMA_G2 = 1e-8
 #: rietx's Sabine extinction constants (``model.extinction``).
 _SABINE_LAUE = (-0.5, 0.25, -0.10416667, 0.036458333, -0.0109375, 2.8497409e-3)
 _SABINE_XPOL = 0.079411

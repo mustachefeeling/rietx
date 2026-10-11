@@ -1,4 +1,7 @@
-"""Weighted least-squares driver on scipy's Trust Region Reflective solver.
+"""Weighted least squares: the Jacobian, the two drivers and the esds.
+
+The default driver is the bounded Levenberg-Marquardt of :mod:`.lm`; scipy's
+Trust Region Reflective is ``solver="trf"`` (:data:`SOLVERS`).
 
 Minimises  S(θ) = Σ_i w_i (y_obs,i − y_calc,i(θ))²,  w_i = 1/σ_i²
 (Rietveld 1969; weights per counting statistics — see PatternData.sig).
@@ -25,7 +28,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -41,7 +44,6 @@ from ..model import rows as row_layout
 from ..model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, DerivativeBases
 from ..model.forward import accumulate_planes as _accumulate
 from ..model.restraints import restraint_partials
-from ..params.transforms import dphys_dinternal
 from ..params.vector import (
     FLOOR_SEEDS,
     ParameterTable,
@@ -55,14 +57,25 @@ if TYPE_CHECKING:
     from ..params.multi import MultiParameterTable
     from . import lm as lm_mod
 
-#: Available minimisers.  ``"trf"`` is scipy's Trust Region Reflective — the
-#: default, the reference, and the driver every shipped acceptance number was
-#: measured with.  ``"lm"`` is the bounded Levenberg-Marquardt of
-#: :mod:`.lm` (WP-0601), whose reason to exist is constraint vocabulary rather
-#: than speed: bounds enforced inside the linear solve, and linear inequalities
-#: on *functionals* of θ (the Stephens strain positivity cone) that a box
-#: cannot express.
+#: Available minimisers.  ``"lm"`` is the bounded Levenberg-Marquardt of
+#: :mod:`.lm` (WP-0601): bounds enforced inside the linear solve, an exact
+#: step inside them (WP-1937), and linear inequalities on *functionals* of θ
+#: (the Stephens strain positivity cone, the Γ_G² floor) that a box cannot
+#: express, held inside the same step when one binds (WP-1938 D8).
+#: ``"trf"`` is scipy's Trust Region Reflective, the default until WP-1938
+#: and the driver every acceptance number before it was measured with.  From
+#: a poor start it can end in a basin LM leaves: on issue #900's synthetic
+#: PbSO₄ (scale 2400× high, everything free in one stage) TRF stops on
+#: ``max_iter`` at χ² 4.5e5 with Pb Biso 133, where LM reaches 7111 and 1.48.
 SOLVERS = ("trf", "lm")
+
+#: The driver a fit runs when the caller names none (WP-1938).  Every
+#: signature defaulting ``solver=`` reads this one constant.  It moved with the
+#: physical coordinates because each half alone was worse than the pair it
+#: replaced, TRF over the softplus coordinates before WP-1938: on WP-1937's
+#: grid of 14 acceptance fits, physical + LM left one fit's minimum unsettled,
+#: softplus + TRF three, physical + TRF four and softplus + LM seven.
+DEFAULT_SOLVER = "lm"
 
 #: Wyckoff site DOFs — coordinates (``dof``, tied to x, y, z) and anisotropic
 #: ADPs (``adp``, tied to the six U^ij).  Both get analytic columns that chain
@@ -185,11 +198,15 @@ class LSQOutcome:
     #: ``model.pawley.stderr``, its values in the per-phase buffers)
     n_aux: int = 0
     #: which driver produced this — "trf" (scipy, the reference) or "lm"
-    solver: str = "trf"
-    #: steps the bounded-LM driver shortened to stay inside a linear-inequality
-    #: constraint (the Stephens strain cone).  0 under TRF, which has no such
-    #: vocabulary — see ``optimize/lm.py``.
+    solver: str = DEFAULT_SOLVER
+    #: steps the bounded-LM driver held on a linear-inequality constraint (the
+    #: Stephens strain cone, the Γ_G² floor), each solved over the box and the
+    #: rows together (WP-1938 D8).  0 under TRF, which has no such vocabulary —
+    #: see ``optimize/lm.py``.
     n_constraint_truncations: int = 0
+    #: the same count by the label of each block the box-only step crossed
+    #: (:attr:`.lm.LMOutcome.truncated_by`); empty under TRF and in a joint fit
+    truncated_by: dict[str, int] = field(default_factory=dict)
     #: McCusker et al. (1999) §7's convergence quantity, measured over the
     #: final accepted step with both sides in external parameter units — see
     #: :func:`_final_shift_over_esd`.  ``None`` when it cannot be measured (no
@@ -622,11 +639,9 @@ def _fd_typicals(table: ParameterTable,
                  ) -> np.ndarray:
     """Each free column's typical size, the ``typical`` of :func:`fd_step`.
 
-    An identity row that is a **width** takes
+    A row that is a **width** takes
     :data:`~rietx.params.vector.FLOOR_SEEDS`' size for its unit (WP-1936).
-    Every other row takes 1, the step it always had.  A softplus row's θ is
-    close to the logarithm of its value, so a step of 1e-6 there is already
-    relative in the value.
+    Every other row takes 1, the step it always had.
 
     **Why a width needs its own size.**  The peak chain differences the
     reflection widths, and a width is curved on the scale of the peak's own
@@ -650,8 +665,8 @@ def _fd_typicals(table: ParameterTable,
     is unchanged while |θ| exceeds the size, which holds for every such row
     the package builds.
 
-    The size is in **column units**, which is what the floor seed is in
-    already (:meth:`~rietx.params.vector.ParameterTable.seed_floor`'s
+    The size is in **column units**, which is what a stage's seed is in
+    already (:meth:`~rietx.params.vector.ParameterTable.seed_floored`'s
     write), so a value-scaled joint column needs no factor.
 
     **A named variable with no unit of its own is sized by what it drives.**
@@ -666,8 +681,6 @@ def _fd_typicals(table: ParameterTable,
     coef = table.constraint_block()[0].tocsc()
     out = np.ones(len(table.free_paths), dtype=np.float64)
     for c, path in enumerate(table.free_paths):
-        if table.entries[table._paths[path]].transform != "identity":
-            continue
         row, unit, k = path, table._units.get(path), 1.0
         if unit is None and is_variable_path(path) and identities[c][0] != path:
             row = identities[c][0]
@@ -799,7 +812,7 @@ def _po_column(model: CompiledModel, bases: DerivativeBases,
     ``po_intensity_grad`` supplies the analytic per-(line, reflection)
     ∂intensity/∂r (P is a pure multiplier, so positions and widths are
     untouched); it is applied to the same frozen profile bases the forward
-    model uses.  The softplus chain factor ∂r/∂θ is applied by the caller.
+    model uses.
     """
     dint = model.po_intensity_grad(ip, values)
     if dint is None:
@@ -839,11 +852,9 @@ def _scale_column(model: CompiledModel, bases: DerivativeBases,
     hit, so the price was the ones a neighbouring cell column had evicted.
 
     **Not valid at ``scale == 0``**, where the true derivative is the whole
-    unscaled chain and this expression is 0/0.  A softplus lower bound of 0
-    is reachable in fp (root CLAUDE.md § Invariants: safe where zero is the
-    off state, a bug where the physics divides — here it divides), so the
-    caller tests the scale and leaves a dead phase to the FD path, which
-    stays correct there.
+    unscaled chain and this expression is 0/0.  A scale's lower bound of 0 is
+    reachable, so the caller tests the scale and leaves a dead phase to the
+    FD path, which stays correct there.
     """
     scale = values[f"phases.{ip}.scale"]
     # WP-1343: the scale enters *each* component's ``base`` exactly once and
@@ -858,7 +869,7 @@ def _scale_column(model: CompiledModel, bases: DerivativeBases,
 
 
 def _axial_column(model: CompiledModel, bases: DerivativeBases,
-                  which: int, dpdu: float) -> np.ndarray:
+                  which: int) -> np.ndarray:
     """∂y/∂θ_c for S/L (which=8) or H/L (which=9) from the node-FD bases.
 
     The plane holds zeros at symmetric rows, so one term over all rows is
@@ -872,7 +883,7 @@ def _axial_column(model: CompiledModel, bases: DerivativeBases,
         plane = pp.d_sl if which == 8 else pp.d_hl
         if plane is None:
             continue
-        coef = np.where(pp.finite, pp.inten * dpdu, 0.0)
+        coef = np.where(pp.finite, pp.inten, 0.0)
         parts.append((pp.layout,
                       [(coef, plane)] if np.any(coef != 0.0) else []))
     return _accumulate(len(model.tt), parts)
@@ -947,9 +958,8 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
 
     * it reaches **one** path at coefficient exactly 1: the column *is* that
       parameter's column, so every branch applies, the closed-form ones
-      included.  Their formulae assume ``p = to_physical(θ_c)``, which is what
-      a unit coefficient means; ``dpdu_of`` still reads the **variable's** own
-      transform, which is the chain factor that belongs there.
+      included.  Their formulae assume ``p = θ_c``, which is what a unit
+      coefficient means.
     * it reaches several, or one at any other coefficient: only the branches
       that read their coefficients off C may have it.  Those are
       ``_peak_chain_column`` (it perturbs θ and decodes, so every coefficient
@@ -1082,10 +1092,6 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
 
     typicals = _fd_typicals(table, identities)
 
-    def dpdu_of(c: int, theta: np.ndarray) -> float:
-        e = table.entries[table._paths[free[c]]]
-        return dphys_dinternal(float(theta[c]), e.transform)
-
     fixed_intens = _lebail_snapshot(model)
 
     def jacobian(theta: np.ndarray) -> np.ndarray:
@@ -1121,18 +1127,16 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
         for c, (path, extra, own) in enumerate(identities):
             if bkg_mix[c] is not None:
                 # y is linear in the coefficient: ∂y/∂c_n = basis row; the
-                # penalty rows are linear too (√λ·D₂), chain-ruled through
-                # the transform for the (softplus-bounded) air term
+                # penalty rows are linear too (√λ·D₂)
                 n, w = bkg_mix[c][:, 0].astype(np.intp), bkg_mix[c][:, 1]
-                dpdu = dpdu_of(c, theta_t)
-                J[:n_data, c] = -sqrt_w * (w @ model.bkg_design[n]) * dpdu
+                J[:n_data, c] = -sqrt_w * (w @ model.bkg_design[n])
                 if n_bkg_pen:
-                    J[n_data:n_data + n_bkg_pen, c] = model.bkg_penalty[:, n] @ w * dpdu
+                    J[n_data:n_data + n_bkg_pen, c] = model.bkg_penalty[:, n] @ w
             elif path in axial_paths and own:
                 b = get_bases()
                 if b.axial_ok:
                     J[:n_data, c] = -sqrt_w * _axial_column(
-                        model, b, axial_paths[path], dpdu_of(c, theta_t))
+                        model, b, axial_paths[path])
                 else:
                     fd_cols.append(c)
             elif ((dof := _STRUCTURAL_PATH.match(path)) and model.mode == "rietveld"
@@ -1140,20 +1144,20 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                     and _within_atom(extra, dof.group(1), dof.group(2))):
                 rows, grad = (("x", "y", "z"), model.coordinate_intensity_grad) \
                     if dof.group(3) == "dof" else (U_NAMES, model.adp_intensity_grad)
-                J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _structural_column(
+                J[:n_data, c] = -sqrt_w * _structural_column(
                     model, table, get_bases(), values, c,
                     int(dof.group(1)), int(dof.group(2)), rows, grad)
             elif ((po := _PO_PATH.match(path)) and model.mode == "rietveld"
                     and own
                     and not model.mag_split(int(po.group(1)))):
-                J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _po_column(
+                J[:n_data, c] = -sqrt_w * _po_column(
                     model, get_bases(), values, int(po.group(1)))
             elif ((sc := _SCALE_PATH.match(path)) and model.mode == "rietveld"
                     and own and values[path] > 0.0):
                 # exactly linear, so no perturbed ``phase_peaks``; the scale
                 # test is the 0/0 fence _scale_column's docstring names, and
                 # a phase sitting at zero falls through to the FD path below
-                J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _scale_column(
+                J[:n_data, c] = -sqrt_w * _scale_column(
                     model, get_bases(), values, int(sc.group(1)))
             elif model.scalar_chain_supported(path) and all(
                     model.scalar_chain_supported(p) and p not in bkg_cols
@@ -1190,8 +1194,8 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
 
         if model.restraints is not None and n_table:
             # One unconditional matrix block below the data/penalty/Pawley rows:
-            # ∂row/∂θ_c = (R_phys @ C)[i,c]·dφ/du[c], since decode gives
-            # p = C·to_physical(θ) + d (and the derived rows after it).  Rietveld-only (the Pawley block is then
+            # ∂row/∂θ_c = (R_phys @ C)[i,c], since decode gives
+            # p = C·θ + d (and the derived rows after it).  Rietveld-only (the Pawley block is then
             # empty, so restr_blk starts right after the penalty rows), and the
             # rows touch table θ only — no Pawley-intensity columns.
             restr0 = restr_blk.start
@@ -1209,9 +1213,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
             # (WP-1804).  C small: dense is fine
             cmat = table.local_jacobian(
                 np.asarray(theta_t, dtype=np.float64)).toarray()
-            dpdu = np.array([dpdu_of(c, theta_t) for c in range(n_table)],
-                            dtype=np.float64)
-            J[restr0:restr0 + n_restraint, :n_table] = (r_phys @ cmat) * dpdu
+            J[restr0:restr0 + n_restraint, :n_table] = r_phys @ cmat
         return J
 
     return jacobian
@@ -1260,19 +1262,17 @@ def strain_cone_inequalities(model: CompiledModel, table: ParameterTable,
     """Stephens positivity rows σ²(M) = T·θ + c ≥ 0, one block per phase.
 
     σ²(M) is ``strain_monomials @ S`` and S is an *affine* function of the free
-    vector (``decode`` gives p = C·to_physical(θ) + d), so on the strain rows —
-    whose DOFs carry the identity transform, by construction, since the cone
-    couples all fifteen coefficients and cannot be a box — the whole thing is
-    linear in θ.  That is what makes it expressible to the bounded-LM driver
+    vector (``decode`` gives p = C·θ + d), so the whole thing is linear in
+    θ.  That is what makes it expressible to the bounded-LM driver
     and inexpressible to TRF.
 
     Two cases are skipped rather than enforced, both deliberately:
 
     * **no strain DOF free in this stage** — T is then identically zero, so the
       rows are a constant that the solver could never satisfy if it were
-      already negative, and would silently freeze the step at τ = 0;
+      already negative, and would silently freeze the step;
     * **an infeasible starting point** — feasibility is *maintained*, not
-      restored, by a fraction-to-the-boundary rule.  The staged plans start
+      restored, by the step (``lm._solve_constrained_step``).  The staged plans start
       from the isotropic limit S = ε²·[M²], which is strictly inside the cone,
       so this is the pathological case and not the normal one; when it does
       happen the existing ``STEPHENS_STRAIN_NOT_POSITIVE`` guard still fires on
@@ -1305,14 +1305,133 @@ def strain_cone_inequalities(model: CompiledModel, table: ParameterTable,
     return out
 
 
+def gaussian_width_inequalities(model: CompiledModel, table: ParameterTable,
+                                x0: np.ndarray) -> list["lm_mod.LinearInequality"]:
+    """Γ_G² ≥ ``caglioti._MIN_GAMMA_G2`` at every reflection, one block per phase.
+
+    ``gaussian_fwhm`` takes Γ_G = √max(Γ_G², ε) with ε = 1e-8 deg².  Under it
+    every Gaussian width column is exactly zero, so a stage that steps there
+    stops in place.  LM's bounded step reaches it (WP-1938 D7).  With W's
+    floor at 0 it landed W exactly there, and with U and V near 0 that put
+    Γ_G² under ε at every point: on the manual's minimal NAC call (macOS
+    arm64, ``[dev]``) the fit ended at Rwp 0.18028 against TRF's 0.13375.  W's
+    floor is ε since, which settles that case on its own.  A negative U or V
+    still reaches the clamp: the 150 K Cr₂WO₆ fixture ended at Rwp 0.25458
+    against TRF's 0.09924, with U −0.0767 and V −0.179 putting Γ_G² under ε
+    at 31 of 31 reflections.  These rows hold that.  GSAS-II clamps the same
+    way (``GSASIIstrMath.GetReflSigGamCW``, σ ≥ 0.001 centideg²), but its
+    Marquardt takes no bounds, so no step lands on a floor there.
+
+    The rows are held inside the step (WP-1938 D8).  Truncating a box-only
+    step against them stalled wherever the optimum wanted Γ_G² under ε at
+    most reflections: three of WP-1937's fourteen grid fits stopped short
+    (``lm.LinearInequality``).
+
+    A row per (emission line, reflection) whose evaluation window holds data,
+    the nuclear one or a magnetic component's wider one, at the frozen hkl
+    list's Bragg angles for the starting cell and λ:
+
+        Γ_G² = (u + gauss_strain)·tan²θ + v·tanθ + w + gauss_size/cos²θ
+
+    The five values are table rows, every row is refined in its own units, and
+    p = C·θ + d, so each row is exactly affine in θ.  A cell or λ the stage
+    frees moves the angles a little, and the rows stay where the stage
+    started, as the Stephens cone's d-spacings do.  Exact duplicate rows go,
+    and so do rows no free column reaches.
+
+    A row the start already violates is dropped, for
+    :func:`strain_cone_inequalities`' reason: the step keeps feasibility and
+    cannot restore it.  So a stage starting with Γ_G² under ε at a reflection
+    is not held there.  U = V = 0 with W on its floor sits exactly on every
+    row, and is held.
+
+    A phase whose width rows are derived (``ParameterTable.derived_paths``) is
+    skipped, since a derived row is written after C and is not affine in θ.
+
+    Single-histogram only, like the cone: :func:`run_multi_least_squares`
+    builds no inequality.  TRF never sees these rows, and
+    ``RESOLUTION_NOT_POSITIVE`` stays its guard
+    (:func:`~rietx.strategy.staged.check_resolution_positive`).
+    """
+    from ..model.profiles.caglioti import _MIN_GAMMA_G2
+    from . import lm as lm_mod
+
+    if not table.free_paths:
+        return []
+    C, d = table.constraint_block()
+    C = C.toarray()
+    derived = table.derived_paths()
+    values = table.decode(x0)
+    lams = model.line_lambdas(values)
+    out: list[lm_mod.LinearInequality] = []
+    for ip, cp in enumerate(model.phases):
+        names = ("instrument.profile.u", "instrument.profile.v",
+                 "instrument.profile.w", f"phases.{ip}.gauss_strain",
+                 f"phases.{ip}.gauss_size")
+        if any(n in derived for n in names):
+            continue
+        try:
+            rows = [table._paths[n] for n in names]
+        except KeyError:                        # defensive: every phase has both
+            continue
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        _d, tt_lines = model._cell_block(cp, cell, lams)
+        theta = []
+        for il, tt in enumerate(tt_lines):
+            tt = np.asarray(tt, dtype=np.float64)
+            win = cp.win[il]
+            used = win[:, 1] > win[:, 0]
+            if cp.win_mag is not None:          # a magnetic peak's, drawn wider
+                used |= cp.win_mag[il][:, 1] > cp.win_mag[il][:, 0]
+            used &= np.isfinite(tt)
+            theta.append(np.radians(0.5 * tt[used]))
+        th = np.concatenate(theta) if theta else np.empty(0)
+        if not th.size:
+            continue
+        t = np.tan(th)
+        # coefficients of u, v, w, gauss_strain, gauss_size in Γ_G²
+        basis = np.column_stack([t * t, t, np.ones_like(t), t * t,
+                                 1.0 / (np.cos(th) ** 2)])
+        T = basis @ C[rows, :]
+        c = basis @ d[rows] - _MIN_GAMMA_G2
+        Tc = np.unique(np.column_stack([T, c]), axis=0)
+        T, c = Tc[:, :-1], Tc[:, -1]
+        # violated beyond rounding, so a row a previous stage left on its
+        # face is kept (``lm.LinearInequality.violated``)
+        keep = (np.any(T != 0.0, axis=1)
+                & ~lm_mod.LinearInequality(T=T, c=c).violated(x0))
+        if not keep.any():
+            continue
+        out.append(lm_mod.LinearInequality(
+            T=np.ascontiguousarray(T[keep]), c=c[keep],
+            label=f"instrument.profile (phases.{ip})"))
+    return out
+
+
+def _pad_inequalities(blocks: list["lm_mod.LinearInequality"], n_aux: int
+                      ) -> list["lm_mod.LinearInequality"]:
+    """Each block's T widened by ``n_aux`` zero columns for the Pawley tail.
+
+    The builders read the table, whose columns are the leading part of the
+    solver's vector.  A Pawley intensity enters neither Γ_G² nor σ²(M), so its
+    columns are zero.  Unpadded, ``T·θ`` raised a shape ``ValueError`` on
+    every Pawley stage freeing a Stephens block under LM.
+    """
+    if not n_aux:
+        return blocks
+    return [replace(
+        b, T=np.hstack([b.T, np.zeros((b.T.shape[0], n_aux))])) for b in blocks]
+
+
 def _free_values(table: ParameterTable, theta: np.ndarray) -> list[float]:
     """Physical values of the table's free paths at ``theta`` — the ``values``
     field of an ``eval`` event, in ``free_paths`` order (which ``stage_start``
     carries as ``free_paths``, so a stream consumer can align them).
 
-    The slice drops the appended Pawley intensity tail: it refines on the
-    identity transform outside the table, and its per-hkl values are
-    serialized per history node (``ReflectionState``), not per evaluation.
+    The slice drops the appended Pawley intensity tail: it refines outside
+    the table, and its per-hkl values are serialized per history node
+    (``ReflectionState``), not per evaluation.
     """
     values = table.decode(np.asarray(theta[:len(table.free_paths)],
                                      dtype=np.float64))
@@ -1394,11 +1513,9 @@ def _final_shift_over_esd(table: ParameterTable,
     """McCusker et al. (1999) §7's convergence quantity, external units.
 
     max |Δp_i| / esd(p_i) over the solve's final accepted step, with *both*
-    sides in external parameter units: Δp decoded exactly through the
-    transform chain, the esd the chain-ruled physical one every reported
-    parameter carries — an internal-space ratio is meaningless at finite step
-    (softplus/logit curvature).  The appended Pawley intensity block refines
-    on the identity transform, so internal equals external there and its rows
+    sides in external parameter units: Δp decoded through C, and the esd
+    that every reported parameter carries.  The appended Pawley
+    intensity block refines outside the table in its own units, so its rows
     join directly.  ``None`` when the quantity cannot be measured — no
     accepted step, or no esds — never zero (WP-1076's honest empty state).
     """
@@ -1620,7 +1737,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       compute_uncertainties: bool = True,
                       events=None, stage: str = "",
                       backend: str = "numpy",
-                      solver: str = "trf",
+                      solver: str = DEFAULT_SOLVER,
                       cancel=None) -> LSQOutcome:
     """Solve one stage.  ``cancel`` — a :class:`~.cancel.CancelToken`, read
     between residual evaluations; a set token raises
@@ -1692,7 +1809,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     x0 = table.x0()
     lo, hi = table.bounds()
     if model.pawley is not None:
-        # append the per-hkl intensity block (identity transform, bounded ≥ 0)
+        # append the per-hkl intensity block (bounded ≥ 0)
         plo, phi = model.pawley_bounds()
         x0 = np.concatenate([x0, model.pawley_x0()])
         lo = np.concatenate([lo, plo])
@@ -1711,17 +1828,20 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           solver=solver,
                           n_degenerate_cell_probes=cell_guard.n_degenerate)
 
-    n_truncated = 0
+    n_truncated, truncated_by = 0, {}
     # one budget, in residual evaluations, for both drivers (WP-1937)
     max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
-        # the strain cone is built against the *starting* point, because
-        # feasibility is maintained rather than restored (see the builder)
-        cone = strain_cone_inequalities(model, table, x0[:n_table])
+        # the strain cone and the Γ_G² floor (WP-1938 D7) are built against
+        # the *starting* point, because feasibility is maintained rather than
+        # restored (see the builders)
+        ineqs = _pad_inequalities(
+            strain_cone_inequalities(model, table, x0[:n_table])
+            + gaussian_width_inequalities(model, table, x0[:n_table]), n_aux)
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
-                          ftol=ftol, inequalities=cone, events=events, stage=stage,
+                          ftol=ftol, inequalities=ineqs, events=events, stage=stage,
                           track=tracker, table=table)
-        n_truncated = res.n_truncated
+        n_truncated, truncated_by = res.n_truncated, res.truncated_by
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
                             ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
@@ -1756,6 +1876,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       residual_cosine=cos_table,
                       active_bounds=_active_bounds(res, n_table),
                       n_constraint_truncations=n_truncated,
+                      truncated_by=truncated_by,
                       max_shift_over_esd=_final_shift_over_esd(
                           table, tracker.step(), stderr_full, corr, n_table),
                       termination=termination,
@@ -1829,7 +1950,7 @@ def run_multi_least_squares(models: list[CompiledModel],
                             max_iter: int = 100, ftol: float = 1e-9,
                             compute_uncertainties: bool = True,
                             backend: str = "numpy",
-                            solver: str = "trf") -> LSQOutcome:
+                            solver: str = DEFAULT_SOLVER) -> LSQOutcome:
     """Joint solve of several histograms stacked into one residual (WP-0308).
 
     Each histogram keeps its own compiled model (⇒ its own frozen hkl list,
@@ -1988,8 +2109,8 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
     # BL² (killing the 0.98 high-correlation guard).
     sqrt = np.sqrt(np.maximum(np.diag(cov), 0.0))
     # A live column whose variance has no double can still have an esd that
-    # does: a softplus scale at 1e-166 has a variance of ~1e+330 and an esd of
-    # ~1e+165, and its physical esd is an ordinary 7.66e-9 (WP-1463).  So the
+    # does: one at a variance of ~1e+330 has an esd of ~1e+165 (WP-1463 met it
+    # on a softplus scale at 1e-166, before WP-1938).  So the
     # root is taken before the product there, and its correlations come from
     # the scale-free K, where the product form would divide inf by inf.
     wide = live & ~np.isfinite(sqrt)

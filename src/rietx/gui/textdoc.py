@@ -22,7 +22,7 @@ protocols by eye.
     phase 0 "NAC"                    # I 21 3 · No. 199 · cubic · Laue m-3
       cell.a        @ 10.251285      min 10.1  max 10.4  esd 3.1e-05
       cell.b          10.251285      = cell.a
-      scale         @ 1.234e-06      min 0  softplus
+      scale         @ 1.234e-06      min 0
       atoms.0.biso  @ 0.52           min 0  max 25            # Na1 Na
     instrument
       zero_shift    @ 0.0021
@@ -77,8 +77,10 @@ from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from typing import Any, get_args
 
+from pydantic import BaseModel, ValidationError
+
 from .._about import TEXTDOC_MAGIC
-from ..schemas.common import Mode
+from ..schemas.common import Mode, Parameter, legacy_transform_bounds
 from ..schemas.indexing import PeakFlag
 from ..schemas.migrate import migrate_document_text
 from ..schemas.plan import PlanSpec, StageSpec
@@ -150,8 +152,15 @@ _KEYWORDS = (TEXTDOC_MAGIC, "project", "pattern", "mode", "limits", "excluded", 
              "guard", "tolerance", "passes", "stage", "phase", "instrument", "peaks",
              *RESERVED_BLOCKS)
 
-_FLAG_WORDS = ("locked", "mode-fixed", "held", "softplus", "logit")
+_FLAG_WORDS = ("locked", "mode-fixed", "held")
 _PAIR_WORDS = ("min", "max", "esd")
+
+#: Flag words a document rendered before schema 0.46 carries, when a row's
+#: transform was rendered beside its bounds (WP-1938).  Read, never written:
+#: each folds into the row's ``min``/``max`` through the schema's one map
+#: (:func:`~rietx.schemas.common.legacy_transform_bounds`), so an old document
+#: compares equal to the live rows, whose bounds are that box already.
+_LEGACY_TRANSFORM_WORDS = ("softplus", "logit")
 
 #: Order the annotations render in.  One tuple, so the renderer and the
 #: read-only check below cannot disagree about what an annotation *is*.
@@ -161,8 +170,7 @@ _PAIR_WORDS = ("min", "max", "esd")
 #: has to run to the end of the line to be unambiguous.  Rendering it in the
 #: middle produced a document this module's own parser could not read back, which
 #: is what the round-trip test exists to catch.
-_ANNOTATION_ORDER = ("min", "max", "softplus", "logit", "locked", "mode-fixed",
-                     "held", "esd", "tie")
+_ANNOTATION_ORDER = ("min", "max", "locked", "mode-fixed", "held", "esd", "tie")
 
 
 # ----------------------------------------------------------------------
@@ -303,8 +311,6 @@ def annotations_of(row) -> dict[str, Any]:
         out["min"] = float(_fmt(row.lo))
     if row.hi != float("inf"):
         out["max"] = float(_fmt(row.hi))
-    if row.transform != "identity":
-        out[row.transform] = True
     if row.locked:
         out["locked"] = True
     if row.mode_fixed:
@@ -720,6 +726,7 @@ def _parse_row(n: int, body: str, prefix: str, raw: str, fail) -> Row | None:
         value, rest = float(rest[0]), rest[1:]
 
     annotations: dict[str, Any] = {}
+    legacy: list[str] = []
     while rest:
         word = rest.pop(0)
         if word in _PAIR_WORDS:
@@ -737,10 +744,18 @@ def _parse_row(n: int, body: str, prefix: str, raw: str, fail) -> Row | None:
             rest = []
         elif word in _FLAG_WORDS:
             annotations[word] = True
+        elif word in _LEGACY_TRANSFORM_WORDS:
+            legacy.append(word)
         else:
             fail(n, f"unknown annotation {word!r} on {local!r}; expected "
                     f"{', '.join((*_PAIR_WORDS, '=', *_FLAG_WORDS))}", raw, local)
             return None
+    for word in legacy:
+        lo, hi = legacy_transform_bounds(word, annotations.get("min", float("-inf")),
+                                         annotations.get("max", float("inf")))
+        annotations["min"] = lo
+        if hi != float("inf"):
+            annotations["max"] = hi
     return Row(line=n, path=prefix + local, local=local, vary=vary, value=value,
                annotations=annotations, text=raw.rstrip())
 
@@ -862,7 +877,8 @@ def changes(parsed: ParsedDocument, project) -> tuple[Delta, list[TextError]]:
             fail(line, f"phase {index} is named {phases[index].name!r}; renaming "
                        "a phase is a model edit (PATCH /api/structure)",
                  f"phases.{index}.name")
-    _row_changes(parsed, rows, delta, fail, orphaned)
+    models = {"phases": phases, "instrument": project.refinement.instrument}
+    _row_changes(parsed, rows, models, delta, fail, orphaned)
     _peak_changes(parsed, project, delta, fail)
     return delta, errors
 
@@ -927,8 +943,48 @@ def _plan_line(parsed: ParsedDocument) -> int:
     return parsed.stage_lines[0] - 1 if parsed.stage_lines else 1
 
 
-def _row_changes(parsed: ParsedDocument, rows: dict, delta: Delta, fail,
-                 orphaned: list[str] = ()) -> None:
+def _schema_keeps(models: dict, row: Row) -> dict[str, float]:
+    """The row's typed value and bounds as the schema stores them today.
+
+    A validator on the model holding a Parameter may raise a stored bound to a
+    floor, and the value with it: W to the Γ_G² clamp (``ProfileTCHZ``), March
+    r off its pole (``PreferredOrientation``).  A document written before a
+    floor carries the old numbers, as an old file does, and a number the schema
+    raises to the live one is no edit (WP-1938).  Re-validating the holding
+    model with the typed numbers asks those validators, so no floor is
+    restated here.  Empty where the path is no model's Parameter field or the
+    schema refuses the numbers.
+    """
+    *walk, name = row.path.split(".")
+    holder: Any = models
+    for segment in walk:
+        if isinstance(holder, dict):
+            holder = holder.get(segment)
+        elif isinstance(holder, list):
+            index = int(segment) if segment.isdigit() else len(holder)
+            holder = holder[index] if index < len(holder) else None
+        else:
+            holder = getattr(holder, segment, None)
+        if holder is None:
+            return {}
+    if not (isinstance(holder, BaseModel)
+            and isinstance(getattr(holder, name, None), Parameter)):
+        return {}
+    data = holder.model_dump()
+    if row.value is not None:
+        data[name]["value"] = row.value
+    for key in ("min", "max"):
+        if key in row.annotations:
+            data[name][key] = row.annotations[key]
+    try:
+        kept = getattr(type(holder).model_validate(data), name)
+    except ValidationError:
+        return {}
+    return {"value": kept.value, "min": kept.min, "max": kept.max}
+
+
+def _row_changes(parsed: ParsedDocument, rows: dict, models: dict, delta: Delta,
+                 fail, orphaned: list[str] = ()) -> None:
     for row in parsed.rows:
         if any(row.path.startswith(prefix) for prefix in orphaned):
             continue  # its block already failed; see the note in ``changes``
@@ -939,7 +995,24 @@ def _row_changes(parsed: ParsedDocument, rows: dict, delta: Delta, fail,
         if live is None:
             fail(row.line, f"unknown parameter {row.path!r}", row.path, row.text)
             continue
-        if row.value is not None and float(_fmt(live.value)) != row.value:
+        memo: list[dict[str, float]] = []
+
+        def kept(row=row, memo=memo) -> dict[str, float]:
+            """:func:`_schema_keeps` for this row, asked at most once."""
+            if not memo:
+                memo.append(_schema_keeps(models, row))
+            return memo[0]
+
+        # An edit sets the number the schema stores.  A value it raises to the
+        # live one is no edit, and one it raises past the live one sets the
+        # raised number, which ``set_values`` then accepts.
+        value = row.value
+        differs = value is not None and float(_fmt(live.value)) != value
+        if differs:
+            value = kept().get("value", value)
+            differs = (value == row.value
+                       or float(_fmt(value)) != float(_fmt(live.value)))
+        if differs:
             # A locked or tied row would be refused by ``set_values`` at apply
             # time, and that refusal would arrive with a line number attached —
             # but ``validate_only`` never applies, and an editor that only
@@ -953,14 +1026,14 @@ def _row_changes(parsed: ParsedDocument, rows: dict, delta: Delta, fail,
                                f"{live.held_because}{sources}",
                      row.path, row.text)
             else:
-                delta.values[row.path] = row.value
+                delta.values[row.path] = value
         if row.vary != live.vary:
             if row.vary and not live.refinable:
                 fail(row.line, f"{row.path} cannot be freed: {live.held_because}",
                      row.path, row.text)
             else:
                 delta.vary[row.path] = row.vary
-        _check_annotations(row, live, fail)
+        _check_annotations(row, live, fail, kept)
 
 
 def _glob_row(row: Row, rows: dict, delta: Delta, fail) -> None:
@@ -1057,8 +1130,6 @@ _ANNOTATION_REASONS = {
            "path it follows instead",
     "min": "bounds come from the schema, not from this document",
     "max": "bounds come from the schema, not from this document",
-    "softplus": "a transform is part of how the parameter is stored",
-    "logit": "a transform is part of how the parameter is stored",
     "locked": "locked is structural (symmetry, or a representation that owns "
               "this channel)",
     "mode-fixed": "mode-fixed follows the intensity mode; change 'mode' instead",
@@ -1068,14 +1139,15 @@ _ANNOTATION_REASONS = {
 }
 
 
-def _check_annotations(row: Row, live, fail) -> None:
+def _check_annotations(row: Row, live, fail, kept) -> None:
     """Annotations are read-only, and only a *differing* one is an error.
 
     Compared against :func:`annotations_of` — the same dict the renderer printed
     — so there is no second opinion about what an annotation says.  A user who
     *deletes* ``min 0`` is not asking for an unbounded parameter (no verb would
     do that), so omission means "no opinion" while a mismatch means "you edited
-    something no API call can change".
+    something no API call can change".  A bound the schema raises to the live
+    one does not differ: ``kept`` returns the row's :func:`_schema_keeps`.
     """
     current = annotations_of(live)
     for key, typed in row.annotations.items():
@@ -1083,7 +1155,9 @@ def _check_annotations(row: Row, live, fail) -> None:
             fail(row.line, f"{row.path} is not {key!r} — "
                            f"{_ANNOTATION_REASONS.get(key, 'this is read-only')}",
                  row.path, row.text)
-        elif current[key] != typed:
+        elif current[key] != typed and not (
+                key in ("min", "max") and key in kept()
+                and float(_fmt(kept()[key])) == current[key]):
             shown = current[key] if current[key] is not True else key
             fail(row.line, f"{key} on {row.path} is {shown}, and cannot be "
                            f"edited here: {_ANNOTATION_REASONS[key]}",

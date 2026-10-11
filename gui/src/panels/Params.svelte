@@ -249,10 +249,10 @@
             {/if}
             <span class="esd mono muted tabular">{formatEsd(row.value, row.esd)}</span>
             {#if !simple}
-              <span class="bounds mono muted" title="bounds and transform">
+              <span class="bounds mono muted" title="bounds">
                 {row.lo > -Infinity || row.hi < Infinity
                   ? `[${row.lo}, ${row.hi}]`
-                  : ""}{row.transform === "identity" ? "" : ` ${row.transform}`}
+                  : ""}
               </span>
             {/if}
             {#if row.refinable}

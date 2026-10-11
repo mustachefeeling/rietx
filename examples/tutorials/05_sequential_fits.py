@@ -237,8 +237,8 @@ print(series_broken)
 
 # %% [markdown]
 # The 700 K pattern failed on every attempt, and `SEQUENTIAL_RWP_OUTLIER` names it.
-# The 800 K pattern started from that failure, so its warm start failed too.
-# `SEQUENTIAL_RESEED` says it was refitted from the initial model, and its answer is good.
+# The 800 K pattern started from that failure, so its first warm start failed too.
+# The chain escalated one rung, to a staged warm start, and that answer is good: the entry's `rung` reads `warm_staged`.
 #
 # A pattern whose fit diverges on every attempt goes further: it is quarantined (`SEQUENTIAL_UNRECOVERED`), seeds no successor and is left out of the series' statistics.
 # Either way the rest of the trajectory survives, and the summary says which points to distrust.

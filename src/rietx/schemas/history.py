@@ -55,9 +55,9 @@ class NodeAction(Base):
     ``Refinement.cherry_pick`` reconstructs a ``Stage`` from them and re-runs it
     elsewhere — so a field missing here is a stage that replays differently from
     the one recorded.  ``seed``/``strain_seed`` were added in WP-1004 for exactly
-    that reason: without them a cherry-picked extinction stage left its softplus
-    coefficient on the dead-gradient floor, and a Stephens stage started from the
-    all-zero block the seed exists to avoid.  Both are additive with a 0.0
+    that reason: without them a cherry-picked extinction stage left its
+    coefficient on the floor its seed lifts it off, and a Stephens stage started
+    from the all-zero block the seed exists to avoid.  Both are additive with a 0.0
     default, which is the no-seed behaviour, so pre-v1.0 nodes replay unchanged.
     ``restraint_weight_scale`` (WP-1074) is the same rule for eq (7)'s c_w: a
     stiff early stage cherry-picked without it would run its restraints at the
@@ -174,8 +174,7 @@ class NodeAction(Base):
             for name, prm in self.variables.items():
                 args = f"{name!r}, {prm.value!r}"
                 for field, default in (("vary", False), ("min", -math.inf),
-                                       ("max", math.inf), ("transform", "identity"),
-                                       ("unit", None)):
+                                       ("max", math.inf), ("unit", None)):
                     got = getattr(prm, field)
                     if got != default:
                         args += f", {field}={got!r}"

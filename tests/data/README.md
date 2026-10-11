@@ -525,6 +525,24 @@ of 3350 elements, by at most 1.58e-11 (2.3e-13 of its largest value), and
 processes reproduced every key bit for bit.  The Linux policy below is
 unchanged: `y_calc` itself differs there, so the gate still skips.
 
+**WP-1938 re-baseline (2026-10-11)**: all ten states, on macOS 26.6.2 arm64
+(Python 3.12.10, numpy 2.5.4).  In that venv, main's code at `12db370b`
+reproduces every old file bit for bit, so the move is the code's.  The table now
+refines every entry in physical units.  `theta` moved on each former softplus
+entry by exactly the softplus map.  A Lorentzian width stored at 0 sat at 1e-12
+under softplus and now sits at 0, which moved `y_calc` by up to 1.2e-11 of its
+largest value (`srm660c`, `toy_rich`, `toy_stephens`).  The other states moved
+by at most 1.3e-15, the round trip through softplus.  A former softplus column
+is now the physical one, so the old column equals the new one times expit(u).
+That holds to finite-difference truncation, at most 3.7e-6 relative, on every
+column but three.  Those three are the widths at 0: `profile.y` in `srm660c`
+and `toy_rich`, and `lor_size` in `toy_stephens`.  Against a
+Richardson-extrapolated one-sided derivative, the old columns were off by 7 %,
+45 % and 14 %, and the new ones by 1.1e-6, 2.8e-8 and 1.6e-8.  The old step in u
+moved such a width by about 1e-20, below rounding.  `lebail_intensity` and
+`pawley_x0` moved by at most 5.8e-16 relative, since both are seeded from the
+decoded values.
+
 These are *environment-pinned* bit patterns, not physical reference values: a
 different BLAS/numpy build may legitimately differ in final bits.  **WP-1002
 measured which half of that sentence is true.**  The *numpy* half is not:

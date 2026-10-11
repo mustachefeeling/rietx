@@ -115,9 +115,14 @@ def _extinction_x(f2: np.ndarray, wavelength: float, volume: float,
 def _laue_and_deriv(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """E_L(x) and dE_L/dx over the three Sabine regimes (branchless select).
 
-    At x ≤ 0 the Laue factor is 1 and its reported derivative is 0 (GSAS-II's
+    At x < 0 the Laue factor is 1 and its reported derivative is 0 (GSAS-II's
     convention — the value is continuous there, the derivative has a step of c₁
-    that is harmless because the chain factor multiplies it by x → 0).
+    that is harmless because the chain factor multiplies it by x → 0).  At
+    x = 0 itself the series arm is selected.  Its value there is exactly 1, so
+    no number moves, and its slope is c₁, the derivative from inside the
+    ``ext ≥ 0`` floor.  Selected as the constant, x = 0 handed autodiff a slope
+    of 0, and jax's extinction column on a coefficient at its floor read 0.78
+    from the analytic one (WP-1938).
 
     **Each branch is evaluated on x clamped to its own domain**, because a
     branchless select computes both arms everywhere and discards one.  Neither
@@ -141,10 +146,12 @@ def _laue_and_deriv(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     Reaching the ill-conditioned region needs x far below anything |F|² can
     produce — a numerically-cancelling systematic absence floors at |F|² ~ 1e-29
     in fp64, some 130 orders above the threshold — so it takes a *coefficient*
-    collapse: ``ext`` is softplus with ``min=0.0``, hence unbounded below
-    internally, and a trial step down a degenerate intensity direction (scale ⊗
-    emission-line weight ⊗ extinction) lands it in the denormal window on its
-    way to the exact zero that switches the correction off.
+    collapse: a trial step down a degenerate intensity direction (scale ⊗
+    emission-line weight ⊗ extinction) can land ``ext`` in the denormal window
+    on its way to the exact zero that switches the correction off.  Measured
+    before WP-1938, when its solver coordinate was unbounded below; it is now
+    bounded at ``min=0.0``, and the clamp stays for whatever still reaches
+    that window.
     """
     xp = get_backend()
     x = xp.asarray(x, dtype=np.float64)
@@ -160,8 +167,8 @@ def _laue_and_deriv(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     inv_sqrt = 1.0 / xp.sqrt(xsafe)
     asym = _PI2 * (1.0 - 0.125 / xsafe) * inv_sqrt
     dasym = _PI2 * inv_sqrt * (-0.5 / xsafe + 0.1875 / xsafe ** 2)
-    el = xp.where(x <= 0.0, 1.0, xp.where(x <= 1.0, series, asym))
-    dl = xp.where(x <= 0.0, 0.0, xp.where(x <= 1.0, dseries, dasym))
+    el = xp.where(x < 0.0, 1.0, xp.where(x <= 1.0, series, asym))
+    dl = xp.where(x < 0.0, 0.0, xp.where(x <= 1.0, dseries, dasym))
     return el, dl
 
 

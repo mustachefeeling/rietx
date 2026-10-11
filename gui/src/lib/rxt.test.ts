@@ -46,8 +46,8 @@ describe("the scanner", () => {
   it("colours the flag words and keeps the hyphen in mode-fixed", () => {
     expect(tokens("  atoms.0.biso     0.5  locked")).toEqual([
       ["path", "atoms.0.biso"], ["number", "0.5"], ["flag", "locked"]]);
-    expect(tokens("  scale   1  mode-fixed  softplus")).toEqual([
-      ["path", "scale"], ["number", "1"], ["flag", "mode-fixed"], ["flag", "softplus"]]);
+    expect(tokens("  scale   1  mode-fixed  held")).toEqual([
+      ["path", "scale"], ["number", "1"], ["flag", "mode-fixed"], ["flag", "held"]]);
   });
 
   it("colours a stage line's globs and keywords", () => {

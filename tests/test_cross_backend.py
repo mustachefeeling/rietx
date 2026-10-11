@@ -111,7 +111,7 @@ KINK_PATHS = frozenset({"instrument.geometry.axial_sl",
                         "instrument.geometry.axial_hl"})
 
 #: a column is "live" when its norm clears this fraction of the largest
-#: column's — below it the value is transform-floor noise, not a derivative
+#: column's — below it the value is rounding noise, not a derivative
 DEAD_COL_FRAC = 1e-6
 
 #: the multi-histogram reference's FD step, the v0.2 harness's rule (applied
@@ -163,8 +163,8 @@ def _state_sharp_widths():
     scale: against jax it put 9.3e-2 into ``w``'s column, 9.5e-3 into ``v``'s
     and 1.8e-3 into ``u``'s.  :func:`~rietx.optimize.least_squares.fd_step`
     sizes a width's step by its unit, and every column lands within 1.1e-7.
-    ``w`` is declared identity rather than left softplus because a softplus
-    row on its floor has a dead column and the matrix skips it.
+    ``w`` sits on its floor, so the reference differences it from above
+    (:func:`_central_fd_jacobian`).
     """
     structure = make_lab6()
     structure.phases[0].scale.value = 2e-4
@@ -172,8 +172,7 @@ def _state_sharp_widths():
     ins.source.dispersion = None
     profile = ins.profile
     profile.u.value, profile.v.value = 1e-5, 1e-5
-    profile.w = Parameter(value=0.0, min=0.0, max=1.0, unit="deg^2",
-                          transform="identity")
+    profile.w = Parameter(value=0.0, min=0.0, max=1.0, unit="deg^2")
     profile.x.value, profile.y.value = 2e-3, 1e-3
     tt = np.arange(5.0, 30.0, 0.001)
     rng = np.random.default_rng(3)
@@ -284,7 +283,7 @@ def _state_families_variable():
                                  0.0, np.inf),
                                 ("D", 0.1993, -1.0, 1.0)):
         table.add_parameter(f"{VAR_PREFIX}{name}", value, vary=True,
-                            lo=lo, hi=hi, transform="identity")
+                            lo=lo, hi=hi)
     table.set_tie("phases.0.atoms.0.biso", AffineTie.identity(f"{VAR_PREFIX}B"))
     table.set_tie("phases.0.atoms.1.biso",
                   AffineTie(terms=((f"{VAR_PREFIX}B", 2.0),), const=0.1))
@@ -387,10 +386,8 @@ def _state_extra_components():
     ins.extra_components = [HumpComponent(
         label="hump",
         position=Parameter(value=34.0, unit="deg"),
-        height=Parameter(value=120.0, min=0.0, unit="counts",
-                         transform="softplus"),
-        fwhm=Parameter(value=9.0, min=HUMP_FWHM_MIN, unit="deg",
-                       transform="softplus"))]
+        height=Parameter(value=120.0, min=0.0, unit="counts"),
+        fwhm=Parameter(value=9.0, min=HUMP_FWHM_MIN, unit="deg"))]
 
     grid = np.arange(15.0, 90.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
@@ -425,8 +422,8 @@ def _state_extra_peak():
     path (the emission-line Bragg image).
 
     Two lines, so the Kα2 image and its Lorentz-polarisation gain are both in
-    the columns; ``eta`` freed as well as the other three, since the mixing is a
-    logit-transformed parameter and no other row in this matrix has one.
+    the columns; ``eta`` freed as well as the other three, since the mixing is
+    bounded on both sides and no other row in this matrix has such a parameter.
 
     Off every identity, for the reason the hump row states: a zero area would
     make the centre, width and mixing columns identically zero and the state
@@ -453,11 +450,9 @@ def _state_extra_peak():
     ins.extra_components = [PeakComponent(
         label="holder",
         center=Parameter(value=41.0, min=40.5, max=41.5, unit="deg"),
-        area=Parameter(value=260.0, min=0.0, unit="counts*deg",
-                       transform="softplus"),
-        fwhm=Parameter(value=0.22, min=EXTRA_PEAK_FWHM_MIN, max=0.5,
-                       unit="deg", transform="softplus"),
-        eta=Parameter(value=0.45, min=0.0, max=1.0, transform="logit"))]
+        area=Parameter(value=260.0, min=0.0, unit="counts*deg"),
+        fwhm=Parameter(value=0.22, min=EXTRA_PEAK_FWHM_MIN, max=0.5, unit="deg"),
+        eta=Parameter(value=0.45, min=0.0, max=1.0))]
 
     grid = np.arange(15.0, 90.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
@@ -681,7 +676,7 @@ def _state_bodies():
                 alpha=P(value=84.3), beta=P(value=97.6), gamma=P(value=104.2))
     phase = Phase(name="body", space_group="P-1", cell=cell, atoms=[
         Atom(label="Li", species="Li", x=P(value=0.71), y=P(value=0.12),
-             z=P(value=0.63))], scale=P(value=1e-2, min=0.0, transform="softplus"))
+             z=P(value=0.63))], scale=P(value=1e-2, min=0.0))
     phase = add_body(phase, "c6br", [f"C{i}" for i in range(6)] + ["Br"],
                      ["C"] * 6 + ["Br"], c6br(), (0.31, 0.42, 0.27),
                      orientation=(0.9, 0.1, 0.2, 0.3), biso=2.0,
@@ -848,11 +843,30 @@ def _central_fd_jacobian(config, model, table):
     # would be differenced across zero, where the Gaussian clamps
     typicals = np.ones(len(_theta(model, table)))
     typicals[:len(table.free_paths)] = _fd_typicals(table)
+    # A column sitting on a bound is differenced on the feasible side only,
+    # at the same O(h²) order.  Since WP-1938 a row on its floor is a live
+    # physical column, and the model past a bound is another branch: srm660c's
+    # extinction at 0 differs by 0.78 rel-L2 differenced from below, and the
+    # central quotient averaged the two (0.389) while the analytic column met
+    # the one-sided one to 6.2e-6.
+    entries = [table.entries[table._paths[p]] for p in table.free_paths]
+    lo = np.full(len(typicals), -np.inf)
+    hi = np.full(len(typicals), np.inf)
+    lo[:len(entries)] = [e.lo for e in entries]
+    hi[:len(entries)] = [e.hi for e in entries]
 
     def jacobian(theta: np.ndarray) -> np.ndarray:
         cols = []
         for c in range(len(theta)):
             h = fd_step(theta[c], typicals[c])
+            side = 1.0 if theta[c] <= lo[c] else -1.0 if theta[c] >= hi[c] else 0.0
+            if side:
+                t1, t2 = theta.copy(), theta.copy()
+                t1[c] += side * h
+                t2[c] += side * 2.0 * h
+                cols.append(side * (-3.0 * residual(theta) + 4.0 * residual(t1)
+                                    - residual(t2)) / (2.0 * h))
+                continue
             tp, tm = theta.copy(), theta.copy()
             tp[c] += h
             tm[c] -= h
@@ -908,7 +922,7 @@ METHODS = {
 
 def _assert_columns(J_ref, J_test, labels, *, rel_max, cos_min,
                     kink=frozenset(), what=""):
-    """Per-column rel-L2 + cosine agreement, skipping transform-floor columns."""
+    """Per-column rel-L2 + cosine agreement, skipping dead columns."""
     assert J_ref.shape == J_test.shape, f"{what}: {J_ref.shape} vs {J_test.shape}"
     scale = np.linalg.norm(J_ref, axis=0).max()
     n_live = 0
@@ -1145,13 +1159,17 @@ def test_multi_histogram_stacked_layout():
 # stage boundaries: the frozen state, regenerated
 # ----------------------------------------------------------------------
 #: recompile gap at a stage boundary — whole-matrix Frobenius and worst single
-#: column, both relative.  Measured at the WP-1112 area-criterion windows:
-#: srm660c's cell stage 4.4e-4 / 2.6e-3, the toy Le Bail and Pawley cells
-#: 1.3e-4 and 3.6e-4 (at the pre-1112 ±30·FWHM margins the same gaps read
+#: column, both relative, the Frobenius taken over columns each scaled to unit
+#: norm so that no parameter's units weight it (WP-1938: unscaled, the scale's
+#: physical column took srm660c's from 4.4e-4 to 2.6e-3 with no column's gap
+#: moving).  Scaled, it is srm660c's cell stage 9.4e-4 / 2.6e-3 and the toy
+#: Le Bail and Pawley cells 6.0e-5 and 1.8e-4, the last two 1.3e-4 and 3.6e-4
+#: unscaled.  Measured at the WP-1112 area-criterion windows
+#: (at the pre-1112 ±30·FWHM margins the unscaled gaps read
 #: 5.9e-6 / 6.9e-5 — window edges then sat in deep tail, so re-freezing them
 #: after a stage's parameter move shifted almost no weight; an edge now
 #: carries its share of the stated ≤2 % discarded area, and the recompile
-#: gap is honestly larger).  The bars sit ~4×/3× above the worst measured
+#: gap is honestly larger).  The bars sit ~2×/3× above the worst measured
 #: gap and ~5×/1.3× below the gross-discreteness scale (a dropped
 #: reflection or a stale window at a moved cell changes columns by 1e-2 and
 #: up) — narrower headroom than the fat-window era's 15×, which is the
@@ -1232,9 +1250,16 @@ def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld",
             per_column = [float(np.linalg.norm(A[:, k] - B[:, k])
                                 / np.linalg.norm(A[:, k]))
                           for k in range(len(idx))]
+            # each column against its own norm before the whole-matrix one:
+            # unscaled, the norm weights columns by their units, and in
+            # physical units (WP-1938) a scale's column outweighs the rest
+            # 1500-fold, so the matrix gap became that one column's
+            norms = np.linalg.norm(A, axis=0)
+            live = norms > 0.0
             records.append({
                 "stage": stage.name,
-                "frobenius": float(np.linalg.norm(A - B) / np.linalg.norm(A)),
+                "frobenius": float(np.linalg.norm((A - B)[:, live] / norms[live])
+                                   / np.sqrt(np.count_nonzero(live))),
                 "worst_column": max(per_column),
                 "worst_path": prev_free[int(np.argmax(per_column))],
                 # did the recompile actually produce a different frozen state?

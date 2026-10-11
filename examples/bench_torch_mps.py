@@ -186,8 +186,8 @@ def corundum_state():
                        z=p(0.35216), biso=p(0.30, min=0.0, max=25.0)),
                rx.Atom(label="O", species="O", x=p(0.30624), y=p(0.0),
                        z=p(0.25), biso=p(0.30, min=0.0, max=25.0))],
-        scale=p(1e-3, min=0.0, transform="softplus"),
-        lor_size=p(0.02, min=0.0, transform="softplus"))])
+        scale=p(1e-3, min=0.0),
+        lor_size=p(0.02, min=0.0))])
     instrument = rx.Instrument.bragg_brentano(radiation="CuKa",
                                              goniometer_radius_mm=173.0,
                                              monochromator_two_theta=26.6)

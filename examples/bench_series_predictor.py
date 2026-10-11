@@ -49,9 +49,9 @@ Four rules this script is written around
    state does not advance, the snapshot difference is identically zero and the
    predictor degenerates to the copy seed.  No special case is needed and none
    is written.
-4. **Extrapolation is clamped as a step, never as a value.**  A softplus width
-   sitting near zero extrapolates negative and a refused write would be a probe
-   bug, not a finding (the WP says so).  ``_limited`` shrinks the step to keep
+4. **Extrapolation is clamped as a step, never as a value.**  A width sitting
+   near zero extrapolates negative, and a refused write would be a probe bug,
+   not a finding (the WP says so).  ``_limited`` shrinks the step to keep
    ``keep`` of the gap to the bound, so a parameter already *at* its bound
    moves by exactly zero instead of by a repaired amount.
 
@@ -100,9 +100,9 @@ def _limited(cur: float, step: float, lo: float, hi: float,
     The step is clamped, not the value, which is what makes the degenerate
     cases silent: a parameter already sitting on its bound has zero gap, so it
     moves by zero rather than by a repaired amount, and a non-finite step
-    leaves the value alone.  ``keep < 1`` matters because the transforms need
-    a strict interior — softplus at its floor and logit at either end are the
-    two that would otherwise be handed an endpoint.
+    leaves the value alone.  ``keep < 1`` keeps the value strictly inside its
+    bounds, which the softplus and logit entries before WP-1938 needed; an
+    endpoint is a legal value now that every entry refines in its own units.
     """
     if step == 0.0 or not np.isfinite(step):
         return cur
@@ -211,9 +211,8 @@ class _Secant(_Predictor):
 class _Tangent(_Predictor):
     """One Gauss-Newton step against the next pattern's data.
 
-    ``J·δ ≈ −r`` at the warm state, in **internal** θ space — which is where
-    the solver's own bounds live, so the clamp needs no transform reasoning and
-    a softplus floor is simply −∞.
+    ``J·δ ≈ −r`` at the warm state, in θ space, where the solver's own bounds
+    live: each entry's ``min``/``max`` in its own units since WP-1938.
 
     The step is **corrector-checked**: the residual is re-evaluated at θ + δ and
     the seed is kept only if the cost actually fell.  An undamped Gauss-Newton

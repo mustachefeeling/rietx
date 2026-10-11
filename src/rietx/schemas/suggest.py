@@ -58,10 +58,11 @@ class ParameterCandidate(Base):
     column on the span of the currently-free block (0.0 when nothing is
     free).
 
-    ``seeded`` marks a candidate whose stored value sits on a transform floor
-    where its column is dead (softplus at 0, a Stephens block at S ≡ 0): the
+    ``seeded`` marks a candidate whose stored value sits on a floor the probe
+    lifts it off (surface roughness at 0, a Stephens block at S ≡ 0): the
     score was measured at ``seed_value``, not at the stored value, and an
-    assumed probe point must never look like a measured state.
+    assumed probe point must never look like a measured state.  A width on 0
+    is scored at 0 and is never seeded (WP-1938).
 
     ``action_kind`` is the FitReport Layer-2 cross-reference: when this
     candidate's path matches a ``SuggestedAction``'s paths, the action's kind

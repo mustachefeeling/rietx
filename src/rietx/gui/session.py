@@ -62,6 +62,7 @@ from ..help import help_registry as _help_registry
 from ..history.events import EventStream
 from ..io.readers import read_pattern
 from ..optimize.cancel import CancelToken, RefinementCancelled
+from ..optimize.least_squares import DEFAULT_SOLVER
 from ..project import Project
 from ..refine import (
     _VERSION,
@@ -190,7 +191,7 @@ class GuiSession:
     """
 
     def __init__(self, project: Project | None = None, *, backend: str = "numpy",
-                 solver: str = "trf", state_dir: str | Path | None = None) -> None:
+                 solver: str = DEFAULT_SOLVER, state_dir: str | Path | None = None) -> None:
         self._lock = threading.RLock()
         self._cond = threading.Condition(self._lock)
         self.project = project

@@ -49,10 +49,14 @@ ref = rx.Refinement(structure, instrument, backend="numpy", solver="trf")
 ```
 
 `backend` selects how the arrays are computed and `solver` selects the
-least-squares driver. `numpy` and `trf` are the defaults and the answer for
-almost every caller; [](install.md) covers what the optional backends buy and
-what they cost, and `Capabilities.backends` and `Capabilities.solvers` report
-what the build in front of you actually has.
+least-squares driver. `numpy` and `lm` are the defaults and the answer for
+almost every caller. `solver="trf"`, as above, selects scipy's Trust Region
+Reflective, the previous default. Use it to reproduce a number measured before
+1.8. From a poor start it can end in a basin the default driver leaves, and
+the theory manual's estimation chapter, § Solvers, gives one such fit.
+[](install.md) covers what the optional backends buy and what they
+cost, and `Capabilities.backends` and `Capabilities.solvers` report what the
+build in front of you actually has.
 
 `Refinement.result_` holds the most recent result, so a caller that fitted in
 one place can read it in another without threading the return value through:
@@ -526,7 +530,7 @@ result = ref.fit(data, plan="magnetic_width")   # RefinementPlan.magnetic_width(
 A stage list that frees a magnetic width in the same stage that first frees the
 moment is reported as `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` before the first
 stage runs, by `Refinement.fit` and by `Refinement.run_stage` alike. The middle
-stage seeds the two widths off their zero floor and reaches nothing else.
+stage frees the two widths from their zero floor, with no seed.
 
 While the terms are held at zero, `MAGNETIC_WIDTH_UNMODELLED` says whether they
 are needed. It reads the *shape* of the converged residual, not an observed
@@ -558,7 +562,7 @@ property of the dataset; expect the other back unmeasured.
 esds (the ratio `MomentEvidence.supported` uses for a moment), and one that came
 back with no esd at all. That message names a cause only where it checked one:
 a magnetic component with no intensity (a zero moment), or the term on its
-softplus floor. On the Cr₂WO₆ tutorial pattern at 4 K
+zero floor. On the Cr₂WO₆ tutorial pattern at 4 K
 (k = 0, with magnetic-only intensity on the parent's absences) the size term
 comes back 0.034 ± 0.013°, 2.6 esds and so unmeasured, the strain term on its
 floor with no esd (also unmeasured), and the moment moves 2.124 ± 0.048 → 2.171 ± 0.043 μ_B. On
@@ -665,6 +669,13 @@ and then released, with the best converged minimum reported.
 `MagneticTrial.n_starts`, `MagneticTrial.n_minima` and `MagneticTrial.start`
 are that sweep made visible, and a multimodal class says so in
 `MagneticSolution.caveats`.
+
+Every start frees the moment sizes before their directions
+(`rietx.strategy.magnetic.SOLVE_STAGE_NAMES`). A small moment's direction
+barely moves the pattern, and neither does one the symmetry fixes. Freed
+together with the sizes, such a direction took the default driver's largest
+steps, and a released start stopped far from the minimum while reporting
+`converged` (WP-1938).
 
 A stage entry that frees nothing is reported. `Stage` accepts a free-list
 glob matching no parameter silently, and a term this histogram's forward model
@@ -883,18 +894,19 @@ gives it. Set it to say that one stage is different: an early stage whose seed
 the next one is unusually sensitive to, or a single-stage fit that has to
 converge as hard as an endpoint.
 
-`Stage.seed` and `Stage.strain_seed` both exist to lift a parameter off an
-exact zero that the solver cannot move away from. They are not interchangeable,
-because the two pathologies are opposite.
+`Stage.seed` and `Stage.strain_seed` both start a parameter away from an
+exact zero. They are not interchangeable, because the two zeros differ.
 
-- `Stage.seed` lifts any softplus-bounded parameter the stage frees to the given
-  value. The softplus map's slope at zero is itself near zero, so a coefficient
-  starting at exactly zero has no gradient and never moves. The extinction and
-  surface-roughness stages use it.
+- `Stage.seed` lifts each parameter the stage frees that sits on a lower bound
+  of 0 or above to the given value. A value already above its floor is left
+  where it is. Some corrections are the identity at zero, so the seed says
+  where their solve starts: the surface-roughness stage starts at 0.3, near the
+  band where the data can see it. It is the only shipped stage that seeds.
+  `StageResult.seeded` records each lift.
 - `Stage.strain_seed` puts a freed but all-zero Stephens block on a small
-  microstrain, in ppm of ΔM/M. Those coefficients are identity-transformed, so
-  `Stage.seed` cannot reach them, and their problem at zero is the exploding
-  gradient of a square root rather than a dead one.
+  microstrain, in ppm of ΔM/M. Those coefficients are unbounded below, so
+  `Stage.seed` cannot reach them. Their problem at zero is the unbounded slope
+  of a square root.
 
 Both default to `0.0`, meaning no seed.
 
@@ -1039,7 +1051,7 @@ for stage in result.stages:
 | `StageResult.cost_final` | the cost it reached |
 | `StageResult.freed` | the paths this stage actually freed, after globbing |
 | `StageResult.ftol` | the tolerance it was solved at; `None` = the solver default |
-| `StageResult.n_constraint_truncations` | steps the bounded-LM driver shortened to stay inside a linear-inequality constraint |
+| `StageResult.n_constraint_truncations` | steps the bounded-LM driver held on a linear-inequality constraint |
 | `StageResult.n_degenerate_cell_probes` | trial cells this stage's residual refused as degenerate (zero or negative volume) rather than warning about and returning NaN |
 | `StageResult.held` | paths the plan freed that this stage held anyway, because the data could not see their phase |
 | `StageResult.held_reach` | per held path, the tied parameters it also stopped |
@@ -1048,7 +1060,6 @@ for stage in result.stages:
 | `StageResult.unknown_paths` | the literal `turn_on` paths that name no parameter of this model; `None` on a result stored before the check existed |
 | `StageResult.unreached_histograms` | joint fits: per histogram, the globs that freed rows of another histogram and matched none of this one; `{}` on a single histogram, `None` on a result stored before the check existed |
 | `StageResult.seeded` | each row this stage lifted before solving, with the value it started from; `None` on a result stored before the field existed |
-| `StageResult.floor_unseeded` | the freed rows it left on their softplus floor, because their unit has no seed size; `None` on a result stored before the field existed |
 
 `StageResult.freed` is the field to read when a stage did nothing. A glob that
 matches no path is not an error, because that is how the shipped plans reach a
@@ -1067,20 +1078,15 @@ because one plan runs every pattern of a series ([](series.md)). A misspelt
 family inside a glob looks exactly like a glob that correctly matched nothing,
 so no rule can report it, and `freed` is the place to look.
 
-A stage starts a freed width a short way inside its floor. Most width terms
-are softplus parameters, and at zero a softplus slope is 1e-12. There the
-solver cannot tell whether moving it helps, so two machines can stop at
-different answers. Caglioti `U` and `V` are not softplus, since they may go
-negative, so they are never seeded.
-When a stage frees one that sits on its floor, it first starts it at a small
-value for its unit. A width in degrees starts at 1e-3°, a Gaussian variance in
-deg² at its square, and an extinction coefficient at 1e-3 µm².
-`StageResult.seeded` lists every row a stage lifted and the value it started
-from, including those a `Stage.seed` lifted. A parameter whose unit has no
-such size, such as a hump's height in counts, stays on its floor.
-`StageResult.floor_unseeded` names it, and the fit reports
-`SOFTPLUS_FREED_AT_FLOOR` at `warning`. Give it a positive starting value to
-clear the warning.
+A stage can start a freed row inside its floor. `Stage(..., seed=...)` lifts
+each row the stage frees that sits exactly on a lower bound of 0 or above.
+The shipped plans seed one thing, surface roughness at 0.3. Suortti roughness
+is the identity at b = 0, and the data see it best near b = 0.2 to 0.5, so the
+roughness stage starts there. Extinction and the two magnetic widths are freed
+from 0 with no seed, since each one's column at 0 is its physical one. A row
+that can go negative, such as Caglioti `U` and `V` or the zero shift, is
+never seeded. Every other freed row starts where it is, in its own units. `StageResult.seeded` lists every row a stage
+lifted and the value it started from.
 
 A literal phase path can also name a row the model will not free. An atom's
 coordinates are refined along the directions its site symmetry allows, as
@@ -1152,9 +1158,12 @@ fit that is working.
 A cost that rises from `StageResult.cost_initial` to `StageResult.cost_final`
 is a diverged stage, and `StageResult.status` says so.
 
-`StageResult.n_constraint_truncations` is `0` under the default `trf` solver,
-which has no linear-inequality vocabulary at all. It counts only under
-`solver="lm"`, and today the only such constraint is the Stephens strain cone.
+`StageResult.n_constraint_truncations` counts the steps the default `lm` solver
+held on a linear inequality. Each such step crossed a row when solved for the
+bounds alone, and was solved again over the bounds and the rows together. Two
+constraints are rows: the Stephens strain cone, and the floor on the Gaussian
+width at every reflection. It is `0` under `solver="trf"`, which has no
+linear-inequality vocabulary at all, and in a joint fit, which builds no rows.
 
 `StageResult.n_degenerate_cell_probes` counts trials, never the answer: `Cell`
 declares no bounds of its own, so an underdetermined cell stage can reach a
@@ -1188,7 +1197,9 @@ print(finding.message)
 `GuardFinding.code`, `GuardFinding.paths`, `GuardFinding.value` and
 `GuardFinding.message` are the four fields. A client reads `paths` to offer a
 link and `value` to sort; nothing has to take a string apart. `str(finding)` is
-`GuardFinding.message`.
+`GuardFinding.message`. A finding from `GuardFinding.at_bound` also carries
+`GuardFinding.limit`, the limit that held the parameter, such as
+`("lower", 0.0)`. Every other kind leaves it `None`.
 
 There is one constructor per kind of finding, so each format string is written
 once:

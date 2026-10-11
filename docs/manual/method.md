@@ -70,10 +70,11 @@ protocol, the analytic $S/L$ and $H/L$ Jacobian columns agree with a
 residual-vector finite difference to only ~2 %, where every other column is
 ≤ 1e-5, because the analytic derivative is one-sided while the central
 difference straddles the corner. At $s = h$ the two columns are identical. A
-Gauss-Newton step moves the pair along the diagonal forever, the correlation
-guard reports ρ = +1.000, the bounded LM converges with the pair still
-bit-identical, and TRF escapes onto an asymmetric solution by way of its own
-internal scaling. Neither escape is principled. When two drivers "disagree" like
+Gauss-Newton step moves the pair along the diagonal, and the correlation
+guard reports ρ = +1.000. Both drivers leave the diagonal, in opposite
+directions. From $S/L = H/L = 0.025$ the bounded LM ends at 0.0367 and 0.0254
+($R_{wp}$ 0.08751), and TRF at the mirror point 0.0251 and 0.0376 ($R_{wp}$ 0.08668).
+Neither escape is principled. When two drivers "disagree" like
 this, the finding is that the parameterisation owns a corner no step can see
 across.
 

@@ -4312,7 +4312,7 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                 # (`weight_percent cBN_wtpct 0.000`). None is the only absence.
                 scale=rx.Parameter(value=(1e-4 if ph.scale is None
                                           else ph.scale / scale_divisor),
-                                   min=0.0, transform="softplus",
+                                   min=0.0,
                                    **({"vary": ph.vary["scale"]}
                                       if "scale" in ph.vary else {})),
                 **_reserved_phase_terms(model, len(phases), RESERVED_PHASE_TERMS,
@@ -4430,7 +4430,7 @@ def _reserved_phase_terms(model: TopasModel, ip: int, terms, reported=None) -> d
             continue
         if reported is not None:
             reported.append((ip, term))
-        out[term] = rx.Parameter(value=read.value, min=0.0, transform="softplus",
+        out[term] = rx.Parameter(value=read.value, min=0.0,
                                  vary=bool(read.vary))
     return out
 

@@ -1181,6 +1181,10 @@ lanes, the ten trial sessions first:
 | 2026-10-10 | c9c0a10d | 3 | 0 | 16K | 5 | 11K | 2.49 | 2 / 0 | +8.38 | +30% |
 | 2026-10-10 | 896835e5 | 1 | 1 | 0K | 10 | 24K | 2.03 | 0 / 0 | +3.15 | +22% |
 | 2026-10-10 | ed430d40 | 1 | 0 | 5K | 22 | 37K | 0.96 | 1 / 0 | -1.12 | -17% |
+| 2026-10-11 | c1c1f2cf | 6 | 0 | 7K | 6 | 12K | 4.42 | 1 / 0 | +52.91 | +41% |
+| 2026-10-11 | 16e7289b | 1 | 1 | 12K | 56 | 112K | 4.98 | 1 / 0 | +2.76 | +7% |
+| 2026-10-11 | e1c53c36 | 3 | 0 | 11K | 14 | 21K | 3.50 | 2 / 0 | +23.93 | +37% |
+| 2026-10-11 | bdba13b6 | 2 | 0 | 4K | 24 | 35K | 1.73 | 2 / 0 | +15.00 | +25% |
 
 Session 38257a74 (WP-1523) resumed its one lane by `SendMessage` with a
 revised design after the first report. The tool counts that as no redo, and the
@@ -1190,6 +1194,10 @@ Session f69c397c (WP-1907) is entered as kept 2 and fixed 1 where the tool
 printed 0 and 0. It kept two items under written `lanes: keep` lines, and it
 fixed the second lane's workflow (a model input) by a Python rewrite. The tool
 did not count that edit.
+
+Session 16e7289b (WP-1938) is entered as kept 1 where the tool printed 0. It
+kept one item, the failing tests, under a written `lanes: keep` line at 111K.
+The tool found no lane-shaped item to count it against.
 
 **The decision: adopted** (2026-10-08,
 [WP-1903](../wp/1903-the-lane-trial-decides.md)). The rule is now `/wp-start`

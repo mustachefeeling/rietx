@@ -23,6 +23,7 @@ from rietx.crystallography.structure_factor import (
 )
 from rietx.crystallography.symmetry import generate_reflections
 from rietx.model.corrections import lorentz_polarization
+from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
 from rietx.schemas.instrument import (
     TCHZ_BOUNDS,
     TCHZ_BOUNDS_COARSE,
@@ -189,11 +190,12 @@ def test_a_bare_width_inside_the_default_box_refuses_by_name():
 ])
 def test_the_x_ray_profile_box_is_unchanged(build):
     """The coarse box is the neutron preset's alone: every X-ray instrument
-    still builds the profile it always has, literal for literal."""
+    still builds the profile it always has, literal for literal.  W's floor is
+    the Γ_G² clamp since WP-1938 (D7), on both presets."""
     expected = {
         "u": dict(value=0.0, min=-0.05, max=1.0, unit="deg^2"),
         "v": dict(value=0.0, min=-0.5, max=0.5, unit="deg^2"),
-        "w": dict(value=1e-3, min=0.0, max=1.0, unit="deg^2",
+        "w": dict(value=1e-3, min=_MIN_GAMMA_G2, max=1.0, unit="deg^2",
                   transform="softplus"),
         "x": dict(value=1e-3, min=0.0, max=1.0, unit="deg",
                   transform="softplus"),

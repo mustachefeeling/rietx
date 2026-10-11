@@ -85,7 +85,7 @@ was built from. Then start with [](quickstart.md).
 |---|---|
 | Python ≥ 3.11 | |
 | `numpy` ≥ 1.26 | the fp64 arrays the core computes in |
-| `scipy` ≥ 1.11 | the trust-region least-squares solver |
+| `scipy` ≥ 1.11 | the bounded linear solves inside the default driver, and the `trf` driver |
 | `pydantic` ≥ 2.6 | the schemas: validation, defaults, JSON round-trip |
 | `gemmi` ≥ 0.6.5 | CIF reading, space groups, symmetry operations |
 | `spglib` ≥ 2.4 | site symmetry, Wyckoff positions, cell reduction |

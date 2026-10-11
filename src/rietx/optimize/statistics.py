@@ -62,10 +62,10 @@ COLUMN_SAFE_EXPONENT = 400
 def column_rescale(jac: np.ndarray) -> np.ndarray | None:
     """Exact power-of-two factors bringing out-of-range columns back, or ``None``.
 
-    A column built as ``dp/du · ∂r/∂p`` is as small as its transform's slope,
-    and a softplus scale at 1e-170 has one of 1e-170 (WP-1463).  Squared, its
-    entries underflow, so a norm reads it as zero and a variance as infinite,
-    although the physical esd ``dp/du · esd`` is an ordinary number.  Every
+    A column can sit at the edge of the double range: before WP-1938 a phase
+    scale at 1e-170 had one of 1e-170, its solver coordinate's slope (WP-1463).
+    Squared, its entries underflow, so a norm reads it as zero and a variance
+    as infinite, although the physical esd is an ordinary number.  Every
     quantity read off a normalised column is unchanged by rescaling it, and a
     power of two is the rescaling that rounds nothing: it moves the exponent
     and leaves the significand alone.
@@ -299,8 +299,8 @@ def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     everything.
 
     A column that is **tiny but not zero** is live, and before WP-1463 the
-    arithmetic said otherwise.  A softplus scale at 1e-166 has a column of
-    1e-158: its variance K·(1/d)² overflowed to ``inf`` and read as
+    arithmetic said otherwise.  A phase scale at 1e-166, in the solver
+    coordinates of the time, had a column of 1e-158: its variance K·(1/d)² overflowed to ``inf`` and read as
     unmeasured, and below about 1e-170 its d² underflowed to zero and read as
     gradient-free.  Its physical esd was 7.66e-9 at every value in between.
     :func:`column_rescale` removes the underflow, exactly and only where it
@@ -550,10 +550,9 @@ def _span_basis(jac: np.ndarray, cols: list[int]) -> np.ndarray:
     **Exactly** zero is the operative word, and it is why this filter changes
     no number that shipped before it.  No design row is ever zero (checked: the
     Chebyshev rows, the clamped-cubic B-spline rows and the 1/2θ air row all
-    carry signal), and a softplus parameter at its own off state does *not*
-    produce one either — ``to_internal`` clamps, so ``BackgroundPSpline.air_scatter``
-    at value 0 gives dp/du = 1e-12 and a column that is tiny but a real
-    direction.  What does produce one is a **product**: an additive background
+    carry signal), and a parameter at its own off state does *not* produce
+    one either — ``BackgroundPSpline.air_scatter`` at value 0 has its 1/2θ row
+    as its column.  What does produce one is a **product**: an additive background
     peak at zero height has ∂y/∂2θ₀ = ∂y/∂Γ = h·(…) = 0 to the bit, so a
     declared peak freed at its default height hands this function two of them.
 

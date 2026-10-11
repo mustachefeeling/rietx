@@ -7,7 +7,10 @@ minority of this package's runtime — ``derivative_bases`` costs ~2× the
 forward evaluation, and Coelho (2005) measured his own N = 1325 case dropping
 the *solve* from 484 s to 2.86 s while the whole refinement only went
 2441 s → 1785 s.  So a solver that halved every solve would buy ≈1.25× overall,
-and the reason this WP exists is constraint vocabulary, not speed.
+and the reason this WP exists is constraint vocabulary, not speed.  A larger
+factor in the table comes from the evaluation count.  Since WP-1938 every
+parameter refines in its own units, and on corundum and cpd-2 TRF stops on
+``max_iter`` where LM converges.
 
 Three things this script is careful about, each because it would otherwise
 produce a misleading number:
@@ -102,10 +105,12 @@ def _cpd2_qpa():
     drivers converge at equivalent Rwp before the texture stage, and whether
     brucite's March-Dollase basin (r ≈ 0.67, Rwp 0.133 vs 0.245) is downhill
     from there depends on *which* point of the valley the upstream stages
-    stopped at.  Measured 2026-08-21: from the LM path's biso state, a TRF
-    polish of the same final stage also stays at Rwp 0.244 — a genuine local
-    minimum, so this is basin selection on a degenerate valley, not a driver
-    defect (WP-1113's file has the bisection).
+    stopped at.  Measured 2026-08-21, in the softplus coordinates of the
+    time: from the LM path's biso state, a TRF polish of the same final stage
+    also stays at Rwp 0.244 — a genuine local minimum, so this is basin
+    selection on a degenerate valley, not a driver defect (WP-1113's file has
+    the bisection).  In physical coordinates (WP-1938) LM reaches the basin,
+    Rwp 0.13260, and TRF stops on ``max_iter`` at 0.13297.
 
     ``max_iter`` is raised to 400 here because at the shipped per-stage cap
     the LM's ``cell`` stage happens to be *truncated* out of the path that
@@ -188,14 +193,15 @@ def main() -> None:
         run(case)
     print("\nRead the ΔBIC column with the WP-0503 caution in mind: a driver "
           "that finds a\nlower χ² has not necessarily found a better answer. "
-          "On SRM 660c the LM lands\n0.25 % higher in χ² and 1.3 µm closer to "
-          "the NIST-certified specimen displacement,\nbecause the two part "
-          "company in the ill-conditioned axial corner where the FCJ\nprofile "
-          "has a corner at S/L = H/L — which is exactly where the default "
-          "instrument\nstarts both apertures.  On cpd-2 the large negative "
-          "ΔBIC is the real thing: the\nLM path stops at a width-valley point "
-          "from which the texture basin is out of\nreach (see _cpd2_qpa's "
-          "docstring, and WP-1113 for the bisection).")
+          "On SRM 660c the LM lands\n1.9 % higher in χ² because the two part "
+          "company in the ill-conditioned axial\ncorner where the FCJ profile "
+          "has a corner at S/L = H/L, which is exactly where\nthe default "
+          "instrument starts both apertures: S/L and H/L come back swapped\n"
+          "(0.025 and 0.038 under TRF, 0.037 and 0.025 under LM), and the "
+          "specimen\ndisplacement moves 1.0 µm.  On corundum and cpd-2 TRF "
+          "stops on max_iter, so its\nrow is where it stopped rather than a "
+          "minimum (see _cpd2_qpa's docstring, and\nWP-1113 for the bisection "
+          "the softplus coordinates needed).")
 
 
 if __name__ == "__main__":

@@ -219,6 +219,40 @@ silently stop acting (WP-1938).
 
 ### Inherited
 
+- **2026-10-11, from WP-1938 D12 (fourth session): the stationary azimuth
+  also stalls the default driver.** A moment angle's column scales with its
+  modulus and vanishes at a direction the symmetry fixes. LM scales every
+  column to unit norm, so that angle takes the largest step, and λ grows
+  until every parameter crawls. LM's `ftol_runs` then fires on three tiny
+  decreases in a row and reports `converged`. Measured on the two-site Pnma
+  set (`tests/test_pair_diagnostic_class.py`, macOS arm64, `[dev,jax]`): a
+  released start stopped at χ² 454 660 with λ 5e7-7e9, against 2555.8 under
+  TRF. `solve_magnetic` now frees the moduli first (`SOLVE_STAGE_NAMES`),
+  which reaches 2556.06. A magnetic plan a user builds gets no such stage,
+  so the task here owns the driver side as well as the esd side. Two
+  remedies were named and not measured: count a decrease toward `ftol_runs`
+  only while λ is small, and damp an angle column at least by its
+  finite-rotation response (the curvature `MOMENT_PROBE_ANGLE_RAD` reads).
+  The two-site test no longer asserts that the winner pairs nothing or its
+  esds: under LM they are 0.031 and 0.159 μ_B and the pair is named. Restore
+  both assertions when this WP lands. The 150 K Cr₂WO₆ class at k = (0, ½, ½)
+  with unsupported moments crawls under TRF too, ten continuations of 400
+  evaluations, and is listed as stopped short.
+- **2026-10-11, from WP-1938 (in flight, branch `wp1938-physical-units`,
+  PR #883): a floor is now an ordinary bound, and LM is the default.** Every
+  entry is refined in physical units, so `staged.bound_untested` and its
+  `None` third state are gone: a scale or width on 0 is answered by
+  `bound_findings`, reads `at_bound=True` and keeps a finite marginal esd (an
+  absent phase's scale is 0 ± σ, and its QPA esd is computable).
+  `GuardFinding.limit` (`("lower", 0.0)` / `("upper", hi)`, written only in
+  `bound_findings`) carries which limit bound, and `BOUND_HIT` on a lower limit
+  of exactly 0 gives an interim suggestion (`refine._ZERO_FLOOR_SUGGESTION`)
+  rather than "widen the bound". The NAC acceptance fit's Biso at a caller's
+  `min=0` reaches that branch too, so a zero floor is not always a scale or
+  width. This WP's own code and suggestion for a floor replace that interim
+  text. The default driver is LM (`DEFAULT_SOLVER`), so the flag task can read
+  LM's exact active set by default once 1938 merges.
+
 - **2026-10-10, from WP-1937: the active set exists.**
   `LSQOutcome.active_bounds` carries each driver's set over the table
   columns (−1 lower, +1 upper, 0 neither). The LM driver's is exact: the

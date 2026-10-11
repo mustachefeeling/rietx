@@ -32,10 +32,9 @@ Design notes shared with the jax backend, restated because they bind:
   flipped to torch *only inside* the Jacobian call, so ``compile_model`` and the
   numpy residual never see a tensor — WP-0401 gotcha (1), which for a device
   backend would otherwise put non-fp64 arrays into frozen state.
-* **Dense-C decode.**  ``ParameterTable`` promises p = C·θ_phys + d is a
-  constant affine map during a solve; C is materialised dense here and the
-  softplus/exp/logit transforms become elementwise torch ops, so ``decode`` is
-  exact under autodiff.
+* **Dense-C decode.**  ``ParameterTable`` promises p = C·θ + d is a
+  constant affine map during a solve; C is materialised dense here, so
+  ``decode`` is exact under autodiff.
 """
 
 from __future__ import annotations

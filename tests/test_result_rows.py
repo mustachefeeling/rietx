@@ -68,11 +68,10 @@ def test_a_free_row_is_measured_and_a_tied_row_is_not(lebail):
     a different cause.  Measured on this fit: 31 rows, 13 free and 13 measured,
     18 symmetry-tied and 18 unmeasured.
 
-    Since WP-1463 a free row on its transform's zero floor is unmeasured too,
-    since nothing could test it.  Whether this fit's ``instrument.profile.y``
-    ends there is a function of where TRF stopped on a flat direction: on
-    py3.11 Linux it did, on macOS arm64 it did not.  So the floor rows are
-    identified by value and the partition is asserted around them.
+    A free row on its floor of 0 is measured like any other (WP-1938).  From
+    WP-1463 until then it read ``None``, a softplus floor having no finite
+    limit to test against, and whether this fit's ``instrument.profile.y``
+    ended there depended on the platform.
     """
     _, ref, result = lebail
     assert result.status == "converged"
@@ -80,20 +79,13 @@ def test_a_free_row_is_measured_and_a_tied_row_is_not(lebail):
     rows = {p.path for p in result.parameters}
     tied = {r.path for r in ref.parameters() if r.tie is not None}
     free = {r.path for r in ref.parameters() if r.vary and r.tie is None}
-    # "on its floor" as ``staged.bound_untested`` reads it: within a
-    # hundredth of its own esd of zero, or within 1e-10 where it has none
-    floor = {p.path for p in result.parameters
-             if p.path in free and p.value >= 0.0
-             and (p.value <= 1e-10
-                  or (p.stderr is not None and p.value <= 0.01 * p.stderr))}
     measured = {p.path for p in result.parameters if p.at_bound is not None}
     unmeasured = {p.path for p in result.parameters if p.at_bound is None}
 
-    assert unmeasured == (tied & rows) | floor
-    assert measured == (free & rows) - floor
+    assert unmeasured == tied & rows
+    assert measured == free & rows
     # not a vacuous partition in either direction
     assert len(tied & rows) == 18 and len(free & rows) == 13
-    assert len(floor) <= 1 and len(measured) >= 12
 
 
 def test_at_bound_names_exactly_the_paths_bound_hit_names():

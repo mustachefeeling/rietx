@@ -32,19 +32,17 @@ def test_roughness_blocks_default_to_the_identity():
     s = RoughnessSuortti()
     assert s.kind == "suortti"
     assert s.b.value == 0.0 and s.b.vary is False
-    assert s.b.min == 0.0 and s.b.transform == "softplus"
+    assert s.b.min == 0.0
     # a is strictly interior on purpose: at b = 0 the gradient
     # dR/db = (1-a)(1 - 1/sin(theta)) vanishes identically when a = 1, so a
     # default of 1.0 would make the parameter unable to lift off.
     assert 0.0 < s.a.value < 1.0
-    assert s.a.transform == "identity"
 
     p = RoughnessPitschke()
     assert p.kind == "pitschke"
     assert p.c.value == 0.0 and p.c.vary is False
-    assert p.c.min == 0.0 and p.c.transform == "softplus"
+    assert p.c.min == 0.0
     assert 0.0 < p.tau.value < p.tau.max  # interior, same lift-off reason
-    assert p.tau.transform == "identity"
 
 
 def test_roughness_bounds_encode_the_published_regimes():
@@ -531,11 +529,9 @@ def test_the_roughness_stage_is_inert_without_a_block():
 
 
 def test_the_seed_lifts_the_strength_parameter_into_its_sensitive_band():
-    """A softplus parameter at exactly 0 has a dead internal gradient, and for
-    Suortti b a token 1e-3 seed would be dead in the *physics* too: both b -> 0
-    and b -> infinity are the identity, so the seed has to land near the
+    """For Suortti b a token 1e-3 seed would be a dead correction: both
+    b -> 0 and b -> infinity are the identity, so the seed has to land near the
     measured sensitivity peak (b ~ 0.17 at 5 deg, ~ 0.46 at 20 deg)."""
-    from rietx.params.transforms import dphys_dinternal, to_internal
     from rietx.strategy.staged import RefinementPlan
     from tests.test_schemas import make_lab6
 
@@ -543,15 +539,12 @@ def test_the_seed_lifts_the_strength_parameter_into_its_sensitive_band():
     assert stage.name == "roughness"
     assert 0.1 < stage.seed < 0.6
 
-    assert dphys_dinternal(to_internal(0.0, "softplus"), "softplus") < 1e-6
-    assert dphys_dinternal(to_internal(stage.seed, "softplus"), "softplus") > 0.1
-
     table = ParameterTable(make_lab6(), _bb(RoughnessSuortti()))
-    freed = table.set_vary(stage.turn_on, True)  # seed_softplus takes paths
-    table.seed_softplus(freed, stage.seed)
+    freed = table.set_vary(stage.turn_on, True)  # seed_floored takes paths
+    table.seed_floored(freed, stage.seed)
     seeded = {e.path: e.value for e in table.entries}
     assert seeded["instrument.geometry.surface_roughness.b"] == pytest.approx(stage.seed)
-    # ... and the seed leaves the identity-transform shape parameter alone
+    # ... and leaves the shape parameter, which already sits above it, alone
     assert seeded["instrument.geometry.surface_roughness.a"] == pytest.approx(0.5)
 
 

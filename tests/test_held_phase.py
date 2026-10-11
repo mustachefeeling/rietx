@@ -739,9 +739,17 @@ def test_the_ramp_reproduction_no_longer_runs_away():
     # held paths, so the chain still says the thing no per-pattern code can
     persistent = [d for d in series.diagnostics
                   if d.code == "SEQUENTIAL_PERSISTENT_FINDING"]
-    assert len(persistent) == 1
-    assert persistent[0].where == ["phases.1.cell.a"]
-    assert "13 of 13" in persistent[0].message
+    held = [d for d in persistent if d.message.startswith("PHASE_UNCONSTRAINED")]
+    assert len(held) == 1
+    assert held[0].where == ["phases.1.cell.a"]
+    assert "13 of 13" in held[0].message
+    # The one other persistent finding is the absent phase's scale on its
+    # floor of 0.  Since WP-1938 a floor is an ordinary bound, so BOUND_HIT
+    # answers it, where a softplus row was set aside as untested (11 of 13
+    # patterns, macOS arm64, `[dev,jax]`).
+    others = [d for d in persistent if d not in held]
+    assert all(d.where == ["phases.1.scale"]
+               and d.message.startswith("BOUND_HIT") for d in others), others
 
 
 @pytest.mark.slow

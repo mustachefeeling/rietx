@@ -2863,11 +2863,11 @@ class CompiledModel:
                                for cp in self.phases]) if self.phases else np.zeros(0)
 
     def pawley_bounds(self) -> tuple[np.ndarray, np.ndarray]:
-        """Intensities are bounded ≥ 0 (identity transform, TRF-reflected).
+        """Intensities are bounded ≥ 0, a box the driver holds.
 
         Positivity is a box, not a restraint: a single reflection's intensity
         does not couple to the others, so unlike the ADP positive-definite cone
-        it can be enforced component-wise.  Keeping the transform identity is
+        it can be enforced component-wise.  Refining the intensity itself is
         what makes the block's Jacobian columns exactly linear.
         """
         n = self.pawley.n if self.pawley is not None else 0
@@ -3936,8 +3936,8 @@ def seed_phase_scales(structure: Structure, instrument: Instrument,
                       mode: Mode = "rietveld") -> float:
     """Match the summed calculated intensity to the data, split evenly.
 
-    Deterministic, and it keeps a first stage inside the softplus transform's
-    live range: a scale orders of magnitude off is the most common reason a
+    Deterministic, and it starts a first stage near its answer: a scale orders
+    of magnitude off is the most common reason a
     first stage goes nowhere, and it is what a model assembled from somewhere
     *else* usually arrives with — every code's scale factor carries its own
     normalisation (on one committed pattern GSAS-II's converged scale is

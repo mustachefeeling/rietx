@@ -43,6 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_refinement as bench  # noqa: E402
 
 import rietx as rx  # noqa: E402
+from rietx.optimize.least_squares import DEFAULT_SOLVER, SOLVERS  # noqa: E402
 
 
 def _collect(setup: bench.Setup, stage: str, solver: str):
@@ -214,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--case", required=True,
                     help=f"one of: {', '.join(c.key for c in bench.CASES)}")
     ap.add_argument("--stage", required=True, help="stage name in the plan")
-    ap.add_argument("--solver", default="trf", choices=["trf", "lm"])
+    ap.add_argument("--solver", default=DEFAULT_SOLVER, choices=list(SOLVERS))
     ap.add_argument("--params", default="",
                     help="comma-separated path globs for the value columns "
                          "(default: the six biggest scale-relative movers)")

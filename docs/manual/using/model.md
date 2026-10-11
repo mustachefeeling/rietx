@@ -92,7 +92,6 @@ listing is the cheapest way to see what is there.
 | `ParameterRow.value` | float | the current physical value |
 | `ParameterRow.vary` | bool | whether it is free in the next fit |
 | `ParameterRow.lo`, `ParameterRow.hi` | float | inclusive physical bounds as stored, ±inf when unbounded. A cell the data cannot see also gets a per-stage default the row does not show (§ "A cell the data cannot see gets a bound you did not set") |
-| `ParameterRow.transform` | str | the reparameterisation, {eq}`par-softplus` |
 | `ParameterRow.tie` | `TieSpec` or None | what this value follows, if anything |
 | `ParameterRow.locked` | bool | structurally fixed, `set_vary` can never free it |
 | `ParameterRow.held` | bool | you declared it does not move, with `Refinement.hold` |
@@ -186,41 +185,41 @@ amplitude the first one did.
 
 ## What the optimiser actually varies
 
-`ParameterRow.value`, `lo` and `hi` are physical. The solver does not see them.
-A parameter with a `transform` is reparameterised first, and its bounds are
-mapped into the internal variable, which is monotonic so the interval survives.
+`ParameterRow.value`, `lo` and `hi` are what the solver sees. Every parameter
+refines in its own unit, and `lo` and `hi` go to the driver as a box. The
+default driver solves each step inside that box, so a parameter the data push
+against a bound lands exactly on it ({ref}`ch-estimation`, § Solvers). A width
+or a scale can therefore end on its off state at 0. [](data.md)'s warning about
+reaching exactly zero is that consequence.
 
-| Physical bounds | Transform | Internal bounds |
-|---|---|---|
-| [4.0, 4.3] | `identity` | [4.0, 4.3] |
-| [0.0, inf] | `softplus` | [−inf, inf] |
-| [1e-6, 1.0] | `softplus` | [−13.82, 0.5413] |
-| [0.0, 1.0] | `logit` | [−inf, 27.63] |
+A `transform` stored before schema 0.46 is read as the box it enforced.
 
-The pattern in the second and fourth rows is the one to know: a lower bound at
-or below 1e-12 becomes −inf, so the optimiser runs unconstrained instead of
-pressing a hard zero. That is why a width or a scale can descend smoothly to
-its off state rather than stalling against a wall, and why [](data.md)'s
-warning about reaching exactly zero is a consequence rather than a bug.
+| Stored `transform` | Bounds it becomes |
+|---|---|
+| `identity` | unchanged |
+| `softplus` or `exp` | `min` raised to 0 |
+| `logit` | `min` raised to 0 and `max` lowered to 1 |
+
+So `Parameter(value=0.5, min=-1.0, transform="softplus")` builds with
+`min=0.0`, and a project saved by an earlier release opens with the bounds its
+fits ran in.
 
 ### A `Parameter` you supply keeps what its field declares
 
 A field with a physical range declares it in its default: `Atom.biso` is
-[0, 25] Å², `Phase.scale` is [0, inf] under `softplus`, `ProfileTCHZ.u` is
-[−0.05, 1.0] deg². A `Parameter` you pass for such a field inherits each of
-`min`, `max` and `unit` that you left unset, and the `transform` together with
-the bounds it enforces. So `Parameter(value=5e-3, vary=True)` passed as a phase
-scale arrives softplus from zero, as the default would. The same value passed
-as `Phase.lor_size` with `min=-1.0` keeps your bound and the identity
-transform, because softplus under a lower bound of −1 would move a negative
-value to zero at the first step. Whatever you state wins, in either direction.
+[0, 25] Å², `Phase.scale` is [0, inf], `ProfileTCHZ.u` is [−0.05, 1.0] deg². A
+`Parameter` you pass for such a field inherits each of `min`, `max` and `unit`
+that you left unset. So `Parameter(value=5e-3, vary=True)` passed as a phase
+scale arrives bounded below at zero, as the default would. The same value
+passed as `Phase.lor_size` with `min=-1.0` keeps your bound. Whatever you state
+wins, in either direction.
 
 A value outside the inherited range is refused when the model is built, naming
 the field and the range. State the range you mean on the `Parameter`, or, for a
 coarse instrument's widths, build them with `ProfileTCHZ.coarse`.
 
 Until schema 0.17 for `Atom`, and 0.35 for every other class, a `Parameter`
-you supplied came out unbounded, with no unit and the identity transform. In
+you supplied came out unbounded and with no unit. In
 issue #204 that let an iron Biso refine to −165 Å² at unchanged Rwp. A history
 log written by such a release is repaired when it is read ([](files.md)).
 
@@ -240,10 +239,12 @@ side is yours. Such a cell can therefore report `BOUND_HIT` while its
 `ParameterRow.hi` still reads `inf`. The row is the bound you stored, and the
 window is the solver's bound for one stage.
 
-Only that phase's cell is bounded. A bound is not free: the solver takes its
-step scale from the distance to the bounds, so bounding a cell changes how it
-moves even when the bound is never reached. A phase the data can see is left alone,
-and a fit of one gives the identical answer it gave before this existed.
+Only that phase's cell is bounded. Under the default driver a bound the step
+never reaches leaves each step as it would be without it. Under `solver="trf"` a bound is not free: TRF
+takes its step scale from the distance to the bounds, so bounding a cell
+changes how it moves even when the bound is never reached. A phase the data can
+see is left alone, and a fit of one gives the identical answer it gave before
+this existed.
 
 The window bounds the symptom. The cause is reported separately, as
 `PHASE_UNCONSTRAINED`: which phase the data cannot distinguish from absent, and
@@ -257,10 +258,9 @@ holds those parameters instead of bounding them; see `StageResult.held` in
 [](refining.md). The window stays for the case a hold cannot cover: a phase
 that is visible when the stage starts and is refined by it.
 
-The transform is also in the esd chain. {eq}`est-cov` gives the uncertainty of
-the internal variable. Multiplying by dp/du at the solution is what makes it
-physical, and only then is it propagated through `C` to the rows that follow
-it.
+The esd chain starts in the same units. {eq}`est-cov` gives the uncertainty of
+each free column in its own unit, and that is propagated through `C` to the
+rows that follow it.
 
 ## Editing the table
 
@@ -363,8 +363,7 @@ instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
 holder = PeakComponent(
     label="steel holder 110",
     center=Parameter(value=44.6, min=44.3, max=44.9, unit="deg"),
-    area=Parameter(value=800.0, min=0.0, unit="counts*deg",
-                   transform="softplus"),
+    area=Parameter(value=800.0, min=0.0, unit="counts*deg"),
 )
 instrument.extra_components.append(holder)
 
@@ -386,10 +385,10 @@ deliberate: you can see your specimen and the package cannot.
 
 | Field | Is | Bound |
 |---|---|---|
-| `PeakComponent.center` | the apparent 2θ of the primary emission line | finite `min`/`max` required, since they size the frozen window; identity transform, no default, because there is no default place for an intruder |
-| `PeakComponent.area` | its integrated intensity, counts·deg | softplus, `min=0`, and zero is the off state, so the bound is safe. An area rather than a height because a reflection intensity is an area, and not called `scale`, because every `*.scale` path is force-fixed under Le Bail and Pawley |
-| `PeakComponent.fwhm` | its width in 2θ | softplus, floored at `EXTRA_PEAK_FWHM_MIN` (the profile divides by Γ) and bounded above, since `fwhm.max` is what the window is built from |
-| `PeakComponent.eta` | the Lorentzian fraction of its pseudo-Voigt | logit, `[0, 1]`, both ends legitimate rather than poles. `eta.max` sizes the window too |
+| `PeakComponent.center` | the apparent 2θ of the primary emission line | finite `min`/`max` required, since they size the frozen window; no default, because there is no default place for an intruder |
+| `PeakComponent.area` | its integrated intensity, counts·deg | `min=0`, and zero is the off state, so the bound is safe. An area rather than a height because a reflection intensity is an area, and not called `scale`, because every `*.scale` path is force-fixed under Le Bail and Pawley |
+| `PeakComponent.fwhm` | its width in 2θ | floored at `EXTRA_PEAK_FWHM_MIN` (the profile divides by Γ) and bounded above, since `fwhm.max` is what the window is built from |
+| `PeakComponent.eta` | the Lorentzian fraction of its pseudo-Voigt | `[0, 1]`, both ends legitimate rather than poles. `eta.max` sizes the window too |
 | `PeakComponent.all_lines` | whether to place an image at every emission line | `True`; set it false for something that does not diffract |
 | `PeakComponent.label` | a free-text tag, rendered in diagnostics | not a parameter and not part of any dot-path |
 | `PeakComponent.kind` | the union discriminator, `"peak"` | fixed; it names which member of `ExtraComponent` this is, and the union dispatches on it rather than on shape |
@@ -530,12 +529,14 @@ present with `vary=False`.
 | `RefinedParameter.at_bound` | true, false, or None where the row was not tested |
 
 A parameter the data said nothing about reports no esd rather than a small one.
-A free parameter can end up in a direction the residual does not move at all (a
-width whose peak shape does not need it, a scale for a phase that is not in the
-specimen), and there is no variance to report for it, so
-`stderr` is `None`. It is `None` on the tied rows that draw on such a parameter
-too: a tie whose source measured nothing measured nothing. Read a `None` esd on
-a row you meant to refine as a signal to take that parameter out of the plan.
+A free parameter can end up in a direction the residual does not move at all
+(the centre of a declared peak whose area refined to zero), and there is no
+variance to report for it, so `stderr` is `None`. It is `None` on the tied rows
+that draw on such a parameter too: a tie whose source measured nothing measured
+nothing. Read a `None` esd on a row you meant to refine as a signal to take that
+parameter out of the plan. A scale or a peak area that refined to zero is not
+such a direction. Its column is still the pattern it would add, so it keeps its
+esd, and `at_bound` says whether the floor held it.
 
 A parameter sitting on its bound is not a measurement, so do not quote one.
 That is what `at_bound` is for, and it has three states rather than two:
@@ -546,16 +547,14 @@ That is what `at_bound` is for, and it has three states rather than two:
 | `False` | tested, and interior |
 | `None` | not tested, so no answer either way |
 
-`None` covers three cases. A tied row is never tested. It is not in the free
+`None` covers two cases. A tied row is never tested. It is not in the free
 vector the fit solves, so nothing looked at it, and its value can sit on its own
 declared bound while every source is interior. A result built without a fit
 behind it has nothing to report: [`replay`](history.md) recomputes a recorded
 node's curves without running the guard, so every one of its rows is `None`.
-And a free row can sit on a floor the solver cannot see. A scale or width
-declared with `min=0` refines through a softplus transform, whose limit is at
-minus infinity in the solver's coordinates, so a scale that ends at 0 has no
-bound there to test against. An absent phase's scale is the usual case, and
-`QPA_ESD_UNAVAILABLE` names it when its esd goes too.
+A free scale or width on its floor of 0 is tested like any other bound. An
+absent phase's scale is the usual case, and it reads `True` when the data push
+it onto that floor.
 
 What counts as being on a bound is the solver's own test rather than a second
 one. A value is on a bound when it sits within 1e-10 of that bound's own

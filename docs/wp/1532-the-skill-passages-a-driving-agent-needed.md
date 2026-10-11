@@ -56,6 +56,12 @@ The row needs that check before it is written.
 
 ### Inherited
 
+- **2026-10-11, from WP-1920 (closed, PR #906): the split landed.** It
+  supersedes WP-1510's entry below. `api.md` is 33 292 B, and every `api*.md`
+  has one ceiling of 39 000 B. The readers and writers for another program's
+  file are in `api-io.md`. A row for one of those names lands there, and
+  `tests/test_skill.py` refuses a name with entry rows in two indexes.
+
 - **From WP-1907 (2026-10-07), a number in the body is now a claim.**
   `tests/test_skill_claims.py` fails on any number in `SKILL.md` that is
   neither a `CLAIMS` row (checked against the package) nor a `NOT_CLAIMS` row

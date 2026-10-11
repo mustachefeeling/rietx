@@ -22,17 +22,16 @@ class RefinedParameter(Base):
 
     **``at_bound`` has three states, and one of them is "nobody looked"**
     (WP-1076).  ``True``/``False`` are answers about a *measured* row;
-    ``None`` says the question was not asked of this row, which happens three
+    ``None`` says the question was not asked of this row, which happens two
     ways: the result was assembled without a guard report (``refine.replay``,
     which is evaluate-only, and any hand-built result), and a **tied** row,
     which is not in the free vector and so is never tested — its value
     follows its sources, and it can sit on its own declared bound while every
-    source is interior.  The third is a free row sitting on its transform's
-    asymptote (WP-1463): a softplus scale at 0.0 has no finite internal limit
-    to test against, so ``staged.bound_untested`` names it and the row reads
-    ``None``.  An absent phase's scale is the usual case.  Before WP-1076 the field was ``bool = False`` and
-    nothing wrote it, so every row of every result asserted "not at a bound"
-    about a parameter no code had looked at.
+    source is interior.  A free scale or width on its floor of 0 is tested
+    like any other bound (WP-1938), so an absent phase's scale reads ``True``
+    when the data push it onto that floor.  Before WP-1076 the field was
+    ``bool = False`` and nothing wrote it, so every row of every result
+    asserted "not at a bound" about a parameter no code had looked at.
 
     **``True`` says the limit carried load, not that the value is near one**
     (WP-1434).  The row must sit within a hundredth of its own esd of the
@@ -80,8 +79,7 @@ class Statistics(Base):
 
     ``max_shift_over_esd`` is McCusker et al. (1999) §7's convergence
     quantity: the largest |Δθᵢ|/esd(θᵢ) over the final accepted step of the
-    answer-producing solve, both sides in external parameter units (the
-    transform chain makes internal-space ratios meaningless at finite step).
+    answer-producing solve, both sides in external parameter units.
     The paper's band — converged when ≤ 0.1
     (``optimize.statistics.MAX_SHIFT_CONVERGED``) — is quoted, never tuned,
     and gates nothing; a TRF solve at ftol 1e-9 satisfies it a fortiori, so
@@ -804,8 +802,11 @@ class StageResult(Base):
     #: fits' parameter shifts needs to know whether they were converged the
     #: same way.
     ftol: float | None = None
-    #: steps the bounded-LM driver shortened against a linear-inequality
-    #: constraint (the Stephens strain cone) during this stage.  Always 0 under
+    #: steps the bounded-LM driver held on a linear-inequality constraint (the
+    #: Stephens strain cone, or the Γ_G² floor of WP-1938 D7) during this
+    #: stage: the step for the box alone crossed a row, and the step solved
+    #: over the box and the rows replaced it (WP-1938 D8; the name is from
+    #: before D8, when such a step was truncated).  Always 0 under
     #: TRF, which has no such vocabulary.  Nonzero in the *final* stage means
     #: the answer sits on or near a constraint face and additionally raises a
     #: ``CONSTRAINT_ACTIVE`` diagnostic — the only signal that a declared
@@ -947,22 +948,32 @@ class StageResult(Base):
     #: reason.  It feeds ``STAGE_FREED_NOTHING``.
     unreached_histograms: dict[int, list[str]] | None = None
     #: each row this stage lifted before solving, and the value it started at
-    #: in column units (WP-1930).  Two writers put a row here: the stage's own
-    #: :attr:`~rietx.strategy.staged.Stage.seed`, and the floor seed, which
-    #: starts a freed softplus row sitting on its floor at its unit's
-    #: :data:`~rietx.params.vector.FLOOR_SEEDS` value.  The floor seed exists
-    #: because a fit's minimum otherwise depended on rounding: on LaB₆ + cBN
-    #: one platform reached χ²_red 9.69 and the other 12.48, with
-    #: ``instrument.profile.y`` left on its floor (issue #832).  ``None`` means
-    #: a result stored before the field; every runner writes a mapping, and an
-    #: empty one is a stage that lifted nothing.
+    #: in column units (WP-1930).  One writer puts a row here: the stage's own
+    #: :attr:`~rietx.strategy.staged.Stage.seed`, through
+    #: :meth:`~rietx.params.vector.ParameterTable.seed_floored`, which starts a
+    #: freed row sitting exactly on a floor of 0 or above at the seed.
+    #: WP-1930's second writer, a floor seed sized by unit, went with WP-1938:
+    #: it existed because a softplus column at its floor was twelve orders below
+    #: its neighbours, and a row refined in its own units has its physical
+    #: column there.  ``None`` means a result stored before the field; all three
+    #: runners write a mapping, and an empty one is a stage that lifted nothing.
     seeded: dict[str, float] | None = None
-    #: freed softplus rows this stage left on their floor, because their unit
-    #: has no seed size (a hump's height is in counts).  Their columns are
-    #: twelve orders below their neighbours, so whether the solver moves them
-    #: is decided by rounding.  It feeds ``SOFTPLUS_FREED_AT_FLOOR``.  ``None``
-    #: on a result stored before the field, for :attr:`seeded`'s reason.
-    floor_unseeded: list[str] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_floor_unseeded(cls, value: Any) -> Any:
+        """Open a result stored while the floor seed existed (WP-1930 to 1938).
+
+        ``floor_unseeded`` named the freed softplus rows that seed could not
+        size, and fed ``SOFTPLUS_FREED_AT_FLOOR``.  Both went with the seed
+        (WP-1938), so nothing writes the field and nothing could read it.  A
+        stored value is dropped rather than refused under ``extra="forbid"``,
+        because old documents open.
+        """
+        if isinstance(value, dict) and "floor_unseeded" in value:
+            value = dict(value)
+            value.pop("floor_unseeded")
+        return value
 
 
 class HistogramResult(Base):

@@ -139,7 +139,7 @@ from .backend.api import backend_dtype_note
 from .history.events import EventStream, _attach_progress, as_event_stream
 from .history.tree import RefinementTree
 from .optimize.cancel import RefinementCancelled
-from .optimize.least_squares import NFEV_PER_ITERATION, SOLVERS
+from .optimize.least_squares import DEFAULT_SOLVER, NFEV_PER_ITERATION, SOLVERS
 from .params.vector import VAR_PREFIX, ParameterTable
 from .refine import (
     _VERSION,
@@ -228,10 +228,10 @@ DISCONTINUITY_SIGMA = 3.0
 
 #: Both fences below are *ratio* tests, and a ratio is meaningless once its
 #: denominator is floating-point noise.  A parameter the data do not constrain
-#: at all — a softplus coefficient sitting on its floor — is where this bites:
-#: dp/du → 0 there, so its esd collapses **alongside** its value and the
-#: significance leg inverts instead of protecting.  Measured on the synthetic
-#: ramp: an unrefinable ``instrument.profile.y`` came back with a median step of
+#: at all is where this bites, and before WP-1938 a coefficient sitting on its
+#: floor was one: its slope there went to zero, so its esd collapsed
+#: **alongside** its value and the significance leg inverted instead of
+#: protecting.  Measured on the synthetic ramp then: an unrefinable ``instrument.profile.y`` came back with a median step of
 #: 4e-16, one step of 1.3e-11 (29 000× the median) and σ ≈ 4e-55, and the
 #: forward/backward chains "disagreed" at 1e16 σ over 1e-60 and 1e-74.  So a
 #: step or a between-chain difference is also required to be this large a
@@ -475,10 +475,21 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
     against 1623 for the staged refit and 2863 unchained, for the same weight
     fractions to three decimals.
 
-    The seeds carry over as the maximum across the plan's stages, so this is
-    the compressed plan rather than a different protocol — ``seed_softplus``
-    only lifts values *below* the seed, and a carried value that far down the
-    softplus floor is indistinguishable from a cold zero.
+    The warm refit carries no ``seed``.  ``seed_floored`` lifts every freed
+    row sitting exactly on its floor, and a warm start's rows on a floor are
+    the neighbour's converged answers.  A stage seed says where a cold solve
+    starts.  On a warm start it lifts that answer off its floor before the
+    solve begins.  Measured on the
+    four-pattern LaB₆ ramp of ``tests/test_sequential.py`` under
+    ``mccusker_structural``, the plan's 0.3 lifted pattern 1's converged
+    ``instrument.profile.y`` from 0 to 0.3° and ``phases.0.extinction`` from
+    0 to 0.3.  That refit ended at χ²_red 1.05828 in 15 iterations, against
+    1.05145 in 11 with no seed.  Patterns 2 and 3 lifted extinction alone and
+    ended at the same χ² either way.
+
+    ``strain_seed`` does carry over, as the maximum across the plan's
+    stages.  ``seed_stephens`` touches only a block that is still all zero,
+    and such a block cannot move without it, warm or cold.
     """
     turn_on: list[str] = []
     for stage in plan.stages:
@@ -490,7 +501,7 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
                       max_iter=max((s.max_iter for s in plan.stages), default=100),
                       lebail_cycles=max((s.lebail_cycles for s in plan.stages),
                                         default=3),
-                      seed=max((s.seed for s in plan.stages), default=0.0),
+                      seed=0.0,
                       strain_seed=max((s.strain_seed for s in plan.stages),
                                       default=0.0))],
         correlation_guard=plan.correlation_guard,
@@ -505,8 +516,22 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
         lebail_passes=plan.lebail_passes)
 
 
-def _ladder(base_plan: RefinementPlan, warm_plan: RefinementPlan
-            ) -> list[tuple[str, RefinementPlan, bool]]:
+def _unseeded(plan: RefinementPlan) -> RefinementPlan:
+    """``plan`` with no stage ``seed``, for a solve that starts warm.
+
+    A stage seed says where a cold solve starts.  On a warm start a row on its
+    floor is the neighbour's converged answer, and seeding it lifts that
+    answer before the solve begins (:func:`_collapse` has the measurement).
+    ``strain_seed`` stays, for the reason it stays there.  ``plan`` itself
+    comes back when no stage seeds.
+    """
+    if not any(s.seed for s in plan.stages):
+        return plan
+    return replace(plan, stages=[replace(s, seed=0.0) for s in plan.stages])
+
+
+def _ladder(base_plan: RefinementPlan, warm_plan: RefinementPlan, *,
+            staged: bool) -> list[tuple[str, RefinementPlan, bool]]:
     """``(rung, plan, warm)`` for one warm-startable pattern, in ladder order.
 
     Three rungs under the default ``refit="single"`` — the collapsed warm refit,
@@ -527,10 +552,10 @@ def _ladder(base_plan: RefinementPlan, warm_plan: RefinementPlan
     converged fit and then the lower Rwp, so once any attempt clears the
     threshold the best one does too.
     """
-    first = "warm_staged" if warm_plan is base_plan else "warm"
+    first = "warm_staged" if staged else "warm"
     rungs: list[tuple[str, RefinementPlan, bool]] = [(first, warm_plan, True)]
-    if first != "warm_staged":
-        rungs.append(("warm_staged", base_plan, True))
+    if not staged:
+        rungs.append(("warm_staged", _unseeded(base_plan), True))
     rungs.append(("cold", base_plan, False))
     return rungs
 
@@ -577,8 +602,7 @@ def _bounded_plan(plan: RefinementPlan, budget_nfev: int | None) -> RefinementPl
     ``max_iter × NFEV_PER_ITERATION``, so the budget divides before it is
     applied.  Never raises a stage's budget: ``min`` with what the stage
     already declared, so a plan whose stages are already tighter than the bound
-    is returned unchanged — as the *same object*, which keeps
-    :func:`_ladder`'s ``warm_plan is base_plan`` identity readable.
+    is returned unchanged, as the *same object*.
     """
     if budget_nfev is None:
         return plan
@@ -938,7 +962,7 @@ class SequentialRefinement:
     """
 
     def __init__(self, structure: Structure, instrument: Instrument, *,
-                 backend: str = "numpy", solver: str = "trf",
+                 backend: str = "numpy", solver: str = DEFAULT_SOLVER,
                  carry: Sequence[str] = ("*",),
                  carry_hkl_intensities: bool = True,
                  history: bool | str | Path = False):
@@ -1193,8 +1217,9 @@ class SequentialRefinement:
         if x is not None and x_label == "index":
             x_label = "x"
         base_plan = resolve_plan(plan, mode)
-        warm_plan = base_plan if refit == "stages" else _collapse(base_plan)
-        ladder = _ladder(base_plan, warm_plan)
+        warm_plan = (_unseeded(base_plan) if refit == "stages"
+                     else _collapse(base_plan))
+        ladder = _ladder(base_plan, warm_plan, staged=refit == "stages")
 
         order = list(range(len(patterns)))
         if direction == "backward":
@@ -3031,8 +3056,8 @@ def _path_dependence_diagnostics(forward: SeriesResult,
             # …nor one whose two chains agree below the noise floor on every
             # shared pattern: the comparison calls that agreement whatever
             # the esds say (the n_sigma floor below), so there was nothing an
-            # esd could have changed — a softplus coefficient on its floor,
-            # measured on different patterns by each chain, is the case
+            # esd could have changed — a coefficient on its floor, measured
+            # on different patterns by each chain, is the case
             if measured and np.any(gap > _noise_floor(vf, vb)):
                 unjudged.append(path)
             continue
@@ -3061,7 +3086,7 @@ def refine_sequential(patterns: Sequence[PatternData], structure: Structure,
                       instrument: Instrument, *,
                       carry: Sequence[str] = ("*",),
                       carry_hkl_intensities: bool = True,
-                      backend: str = "numpy", solver: str = "trf",
+                      backend: str = "numpy", solver: str = DEFAULT_SOLVER,
                       history: bool | str | Path = False,
                       **kw) -> SeriesResult:
     """One-shot functional API for a warm-started series.

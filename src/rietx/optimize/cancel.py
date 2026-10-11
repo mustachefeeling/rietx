@@ -14,7 +14,7 @@ route onto it is one line and no lifecycle can go wrong.  Everything about
 
 * the in-flight stage is **abandoned** — no history node, the parameter table
   is not committed, and the structure/instrument are restored to their
-  pre-stage values (a stage that seeds — extinction's softplus lift, the
+  pre-stage values (a stage that seeds — extinction's floor lift, the
   Stephens isotropic ray — writes to the models before solving, and leaving
   that seed behind would be a stage that half-ran);
 * :attr:`RefinementCancelled.completed_stages` and

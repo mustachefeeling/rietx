@@ -80,7 +80,7 @@ never silently ignore a refine flag.
 | a `size_broadening` or `strain_broadening` `model` other than `isotropic` | PowderLine itself raises `NotImplementedError` for these |
 | a non-zero `Zero` | see below |
 | a non-zero `Z` | this package's Lorentzian width is X/cosθ + Y·tanθ, with no constant term |
-| a negative `W`, `X` or `Y` | those are softplus-bounded at zero here; reading one would silently give ≈0 rather than the declared value |
+| a negative `W`, `X` or `Y` | those are bounded below at zero here (`W` at 1e-8 deg²), so the fit would start from a model the recipe did not describe |
 | a hump whose Lorentzian γ exceeds one 2θ step | `HumpComponent` is a Gaussian, deliberately |
 | an `Uaniso` atom | anisotropic displacement through a recipe is not read yet |
 | a top-level `single_peaks` block with any live entry | free-standing peaks are not part of a refinement here; {ref}`fit_peaks <fitting-peaks-you-name>` fits them on their own |
@@ -122,10 +122,9 @@ GSAS-II carries one magnitude per broadening effect plus a Lorentzian share
 `LG_eta`; this package carries a Lorentzian and a Gaussian parameter per effect
 and no share. So the translation is a split rather than a rename: η of the
 magnitude becomes the Lorentzian coefficient and (1 − η) the Gaussian one. At
-η = 1 the Gaussian half is exactly zero, where a softplus parameter's gradient
-is its own value and the optimiser cannot move it. That half is held rather than
-declared free, with a warning saying the fit runs one parameter short of the
-reference engine's.
+η = 1 the Gaussian half is exactly zero. That half is held at zero rather than
+declared free, so the recipe's own η stands and the magnitude refines. A warning
+says the fit runs one parameter short of the reference engine's.
 
 Two numbers are deliberately not carried across. The Chebyshev coefficients are
 re-seeded from zero, because the two codes scale the polynomial's domain

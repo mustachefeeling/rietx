@@ -406,6 +406,57 @@ def test_an_unbounded_biso_written_after_206_is_a_choice_and_kept(
     assert reopened.history_diagnostics == []
 
 
+#: The keys of a stored ``Parameter`` since schema 0.46, which dropped
+#: ``transform`` (WP-1938); every release before wrote that key too.
+_PARAMETER_KEYS = {"value", "vary", "min", "max", "expr", "unit", "stderr"}
+
+
+def _stamp_transforms(obj) -> None:
+    """Give every stored ``Parameter`` the ``transform`` key a 0.45 log wrote."""
+    if isinstance(obj, dict):
+        if set(obj) == _PARAMETER_KEYS:
+            obj["transform"] = "identity"
+        for value in obj.values():
+            _stamp_transforms(value)
+    elif isinstance(obj, list):
+        for value in obj:
+            _stamp_transforms(value)
+
+
+def test_a_log_written_with_transforms_opens_unchanged_in_meaning(
+        tmp_path, pattern_file):
+    """WP-1938 task 2: a history written at schema 0.45, when every stored
+    ``Parameter`` carried ``transform``, opens with each word folded into the
+    box the table already built from it.  No value moves, no repair note
+    fires, and every other parameter reads exactly as it was written."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+    want = project.refinement.structure.phases[0].model_dump()
+
+    def edit(state):
+        _stamp_transforms(state)
+        phase = state["structure"]["phases"][0]
+        phase["scale"].update(transform="softplus", min=0.0)
+        phase["atoms"][0]["occ"].update(transform="logit", min=-1.0, max=2.0)
+        phase["cell"]["a"].update(transform="exp")
+
+    log = _age_log(project, "0.45", edit)
+    text = log.read_text(encoding="utf-8")
+    assert all(f'"transform": "{k}"' in text
+               for k in ("softplus", "logit", "exp", "identity"))
+
+    reopened = rx.Project.open(project.path)
+    assert reopened.history_diagnostics == []
+    got = reopened.refinement.structure.phases[0]
+    assert (got.scale.min, got.scale.max) == (0.0, math.inf)
+    assert (got.atoms[0].occ.min, got.atoms[0].occ.max) == (0.0, 1.0)
+    assert got.cell.a.min == max(want["cell"]["a"]["min"], 0.0)
+    want["atoms"][0]["occ"].update(min=0.0, max=1.0)
+    want["cell"]["a"]["min"] = max(want["cell"]["a"]["min"], 0.0)
+    assert got.model_dump() == want      # every value, and every other bound
+    rows = {r.path: r for r in reopened.refinement.parameters()}
+    assert (rows["phases.0.atoms.0.occ"].lo, rows["phases.0.atoms.0.occ"].hi) == (0.0, 1.0)
+
+
 def test_a_unit_declared_later_is_no_range_to_restore(tmp_path, pattern_file):
     """WP-1451 declared extinction's unit, µm², after ``Phase`` inherited at
     0.35.  A log written before both holds that parameter's declared range and
@@ -417,7 +468,7 @@ def test_a_unit_declared_later_is_no_range_to_restore(tmp_path, pattern_file):
     _age_log(project, "0.34", unitless_extinction)
     reopened = rx.Project.open(project.path)
     ext = reopened.refinement.structure.phases[0].extinction
-    assert (ext.min, ext.transform, ext.unit) == (0.0, "softplus", None)
+    assert (ext.min, ext.unit) == (0.0, None)
     assert reopened.history_diagnostics == []
 
 
@@ -433,7 +484,7 @@ def test_a_log_that_never_stamped_its_schema_reads_as_the_oldest(
 def test_each_class_is_repaired_from_its_own_version(tmp_path, pattern_file):
     """``Phase`` inherited at 0.35, ``Atom`` at 0.17.  A log written at 0.34
     with both left bare holds one defect and one choice: the scale gets its
-    softplus floor back, the biso is left as it was declared."""
+    floor back, the biso is left as it was declared."""
     project = _create(tmp_path / "s.rex", pattern_file)
 
     def edit(state):
@@ -443,7 +494,7 @@ def test_each_class_is_repaired_from_its_own_version(tmp_path, pattern_file):
     _age_log(project, "0.34", edit)
     reopened = rx.Project.open(project.path)
     phase = reopened.refinement.structure.phases[0]
-    assert (phase.scale.min, phase.scale.transform) == (0.0, "softplus")
+    assert phase.scale.min == 0.0
     assert phase.atoms[1].biso.min == float("-inf")
     [note] = reopened.history_diagnostics
     assert note.where == ["phases.0.scale"] and "schema 0.35" in note.message
