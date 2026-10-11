@@ -274,7 +274,10 @@ driver alone).
 - [ ] The traced backends (`backend/traced.py`) and the cross-backend matrix.
 - [ ] Re-measure every acceptance suite and VALIDATION.md's rows; list every
       number that moves by more than 1 % with its reason.
-- [ ] Root CLAUDE.md and DESIGN.md clauses rewritten in the same change.
+- [x] Root CLAUDE.md and DESIGN.md clauses rewritten in the same change.
+      (The softplus invariant became the physical-units one, WP-1463's
+      clause keeps `column_rescale` without its softplus case, and DESIGN.md
+      dates the transforms' removal and the driver flip.)
 - [ ] Tests, plus obs/calc/diff PNGs to `tests/output/` for the fits whose
       answer moves.
 - [ ] Skill: any rule that tells an agent to seed a width before freeing it.

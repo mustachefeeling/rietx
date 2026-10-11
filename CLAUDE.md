@@ -68,14 +68,14 @@ row there whenever a new correction lands.**
 Structure/Instrument/PatternData (schemas/, pydantic, JSON round-trip)
   → ParameterTable (params/vector.py): tree → flat fp64 θ, dot-paths
     ("phases.0.cell.a", "instrument.profile.w", "instrument.background.c2"),
-    crystal-system cell ties (b←a etc.), softplus/logit transforms
+    crystal-system cell ties (b←a etc.), physical units, min/max as box bounds
   → CompiledModel (model/forward.py): per-stage frozen state — reflection list
     (crystallography/symmetry.py, gemmi), per-atom symmetry-op subsets
     (structure_factor.py), per-(emission line, reflection) point windows,
     FCJ quadrature node counts (profiles/fcj.py), background design matrix
     (+ P-spline penalty rows); derivative_bases() serves both the analytic
     Jacobian and FitReport Layer 1 from one expansion
-  → run_least_squares (optimize/least_squares.py): scipy TRF, bounds,
+  → run_least_squares (optimize/least_squares.py): bounded LM (TRF selectable),
     analytic peak-chain Jacobian (FD fallback), esds from χ²·(JᵀJ)⁻¹ ×
     Bérar-Lelann inflation
   → staged runner (strategy/staged.py) loops stages, guards, recompiles
@@ -260,10 +260,10 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   residual). A new branch, or a new way to widen C, extends that gate;
   `test_cross_backend.py`'s `families_tied` row is where other backends check it. Un-gated, a
   background column measured wrong by 49 % of its own scale (WP-1070).
-- **A branch's oracle must be exact where the branch is; the whole-model FD is not.** It
-  perturbs θ, so on a transformed parameter it carries the transform's O(h) curvature and
-  certifies the FD column it is a copy of — a phase scale's FD column sat 4.6e-6 from the truth
-  while agreeing with the whole-model FD to 2e-11 (WP-1121). Check where the check is exact
+- **A branch's oracle must be exact where the branch is; a forward difference is not.** It
+  carries the map's O(h) curvature and certifies the FD column it is a copy of: in softplus
+  coordinates a phase scale's FD column sat 4.6e-6 from the truth while agreeing with the
+  whole-model FD to 2e-11 (WP-1121). Check where the check is exact
   instead: where the model is *linear* in the parameter (phase scale, Pawley intensity) a
   difference quotient in **physical** space has no truncation error at any step, so the bar is
   agreement at a **100 % step** (3.6e-16 there) and error growing as the step shrinks is
@@ -373,7 +373,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   true and unpropagatable, so `_cov_free` drops it and `ParameterTable.unmeasured_rows` names what
   it reached — and **consumers mark, never clamp**: a tie inherits its source's blindness, a
   geometry row only if its own partials touch one, QPA the *whole* block since W normalises by a
-  sum. **A tiny column is live** (WP-1463): square one only via `statistics.column_rescale`.
+  sum. **A column is squared only via `statistics.column_rescale`** (WP-1463): one at the edge
+  of the double range underflows and reads as dead.
 - **A declared name is a claim, and an absent writer fails no test** (WP-1076, the rule above one
   rank up). Two shapes: a field whose empty state reads as an *answer*
   (`RefinedParameter.at_bound` was `bool = False`, so every result said "not at a bound" about
@@ -485,15 +486,15 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   snapping costs ≤ 830 ppm in d; past it symbol and angle contradict each other (β = 93.2 under an
   orthorhombic symbol), one of the two is wrong, and choosing is the caller's — so the value is
   left byte-for-byte and still raises (WP-1028).
-- **A softplus `min=0.0` is safe wherever zero is the *off state*, and a bug wherever the physics
-  divides.** `internal_bounds` maps any lower bound ≤ 1e-12 to −∞, and `log(1+e^u)` underflows to
-  exactly 0.0 below u ≈ −745, so "strictly positive" is a promise the transform does not keep.
-  Thirteen of the fourteen parameters declaring it are fine (a zero width is no broadening,
-  extinction 0 is E ≡ 1) because their identity *is* zero; `PreferredOrientation.r`'s identity is
-  interior (r = 1) with a pole at the bound, and it fed the solver NaNs for a whole budget without
-  raising. So the pattern to check on a new parameter is not "softplus with min=0" but "softplus
-  with min=0 **and** a pole at zero", which needs a real floor (`MARCH_R_MIN`) plus a validator,
-  because a stored `min: 0.0` outlives the default.
+- **Every parameter refines in its own units, and the default driver lands a value exactly on
+  its bound** (WP-1938). `min`/`max` are box bounds with no transform between them and θ (an old
+  file's word folds into bounds at read, `schemas.common.legacy_transform_bounds`). So a bound
+  must be a value where the model *and its columns* are defined. Two were not: March-Dollase r has a
+  pole at 0 (`MARCH_R_MIN`), and W on 0 put Γ_G² under the clamp at every reflection, so the U,
+  V, W columns were exactly zero and LM stopped in place (`caglioti._MIN_GAMMA_G2` is W's floor).
+  A new parameter with a pole or a clamp at its bound needs a real floor plus a validator, since
+  a stored `min: 0.0` outlives the default. A bound on a *combination* is an LM
+  `LinearInequality` held inside the step (the Stephens cone, Γ_G² ≥ 1e-8), never a box.
 - **Every physics function cites its reference** (author, year, journal) in the docstring, and
   documents conventions by physics not letters (e.g. size↔1/cosθ, strain↔tanθ; GSAS and FullProf
   swap X/Y labels).
@@ -774,8 +775,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   isotropic direction is identically that column), so the block subsumes it and must itself be
   freed *in* the sample-broadening stage, not after. The isotropic limit S = ε²·[M²] is both the
   seed and the only legal start: at S ≡ 0 the √ has unbounded slope, so `Stage.strain_seed`, not
-  `Stage.seed`, which reaches softplus
-  entries only. σ²(M) ≥ 0 is a *cone* coupling all fifteen, so it cannot be a box bound. The default
+  `Stage.seed`, which lifts only a row sitting on a floor at or above 0. σ²(M) ≥ 0 is a *cone* coupling all fifteen, so it cannot be a box bound. The default
   LM driver holds it as a linear inequality. Under `solver="trf"`, and in a joint fit (no cone), it
   is a guard (`STEPHENS_STRAIN_NOT_POSITIVE`). Read a firing as "these coefficients are
   not quotable", never as evidence *of* anisotropy. **Zero is on the cone, not outside it** — the
