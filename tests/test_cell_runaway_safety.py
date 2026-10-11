@@ -1064,17 +1064,19 @@ def test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error(tmp_path)
     structure = lebail_scaffold("P 1", TRICLINIC)
     findings = []
     for plan in ("profile_only", "lab_bragg_brentano"):
-        ref = rx.Refinement(structure, ins, history=False)
+        # TRF, because its trajectory is the one that reaches the guard, on
+        # every start tried.  Under LM, the default since WP-1938, the wrong
+        # cell stays within 0.01 Å of its start (Rwp 0.3316 at three starts
+        # 1e-14 apart) and the guard is never asked.
+        ref = rx.Refinement(structure, ins, history=False, solver="trf")
         result = ref.fit(data, mode="lebail", plan=plan, telemetry=False,
                          two_theta_limits=(8.0, 70.0))
         # a result came back with numbers in it, which is the claim; how good
-        # it is is not, since the cell is wrong on purpose.  Since WP-1930
-        # seeds profile.w off its floor, rounding picks where the widths go:
-        # on main every run ended with a negative Gaussian width and no peaks
-        # drawn (Rwp 0.33), and with the seed a nudge of 1e-14 to one start
-        # value sends some runs to widths at their upper bound, cut short by
-        # the frozen peak windows, whose fresh compile reads Rwp 4-7 (Linux
-        # CI: 1.1e9).  Both are the same non-fit, so no bar on Rwp can pass.
+        # it is is not, since the cell is wrong on purpose.  Under TRF rounding
+        # picks where the widths go: three starts 1e-14 apart read Rwp 127.7,
+        # 0.33 and 7.8e6 after profile_only (WP-1938, macOS arm64), and Linux
+        # CI once read 1.1e9.  All are the same non-fit, so no bar on Rwp can
+        # pass.
         assert math.isfinite(float(result.statistics.rwp))
         assert float(result.statistics.rwp) > 0.0
         findings += [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
