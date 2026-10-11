@@ -333,18 +333,24 @@ driver alone).
       0 floor, rel-L2 0.779, because `_laue_and_deriv` selected the constant
       arm at x = 0. The series arm is exact there; then 182 passed, 103
       skipped, goldens bit-identical. Torch is the nightly's.)
-- [ ] Re-measure every acceptance suite and VALIDATION.md's rows; list every
+- [x] Re-measure every acceptance suite and VALIDATION.md's rows; list every
       number that moves by more than 1 % with its reason.
+      (Fourth session, by a lane: 17 of 129 rows moved, each attributed on
+      this tree, under forced TRF and on `origin/main`, and listed in the
+      1.8.0 notes. The landing page's SRM 660c cell follows.)
 - [x] Root CLAUDE.md and DESIGN.md clauses rewritten in the same change.
       (The softplus invariant became the physical-units one, WP-1463's
       clause keeps `column_rescale` without its softplus case, and DESIGN.md
       dates the transforms' removal and the driver flip.)
-- [ ] Tests, plus obs/calc/diff PNGs to `tests/output/` for the fits whose
-      answer moves.
+- [x] Tests, plus obs/calc/diff PNGs to `tests/output/` for the fits whose
+      answer moves. (No moved fit is locally worse. SRM 660c's 148.7° peak
+      top is underfit at 85 % of its height, 83 % on `main`.)
 - [x] Skill: any rule that tells an agent to seed a width before freeing it.
       (`surprises.md` §8.6 and §8.14, a row each in `magnetic.md` and
       `diagnostics-projects.md`; both copies re-synced.)
-- [ ] **The default driver flip** (moved from 1937's checklist). Flip
+- [x] **The default driver flip** (moved from 1937's checklist).
+      (Text edits landed in the second and third sessions; its PNGs are the
+      item above.) Flip
       `solver=` to `"lm"` in every signature that defaults it (`refine.py` ×4, `multi.py` ×2,
       `sequential.py` ×2, `project.py` ×2, both `run_*least_squares`,
       `LSQOutcome.solver`), as one constant; `Provenance.solver`'s `"trf"`

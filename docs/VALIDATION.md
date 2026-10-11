@@ -116,9 +116,9 @@ WP-1103's design case on real data: the SRM 660c protocol, contaminated by injec
 
 **Claims:** declaring a sharp intruder that overlaps sample peaks recovers the cell the same data gives when the intruder is not there, and ignoring it does not
 
-**Referenced to:** the *clean* arm of this same fixture, refined by the same protocol — not the NIST certificate, because what is being measured is the bias an unmodelled overlapping line adds, and the protocol's own +28 ppm offset from the certificate is common to every arm and cancels
+**Referenced to:** the *clean* arm of this same fixture, refined by the same protocol — not the NIST certificate, because what is being measured is the bias an unmodelled overlapping line adds, and the protocol's own +25 ppm offset from the certificate is common to every arm and cancels
 
-**Measured:** declare -1.0 ppm against the clean arm, ignore +7.6 ppm (bar 20 ppm); the ignore arm also inflates the cell esd 8.7x (2.08e-05 -> 1.81e-04 A) and Rwp 3.7x (0.0867 -> 0.3171)
+**Measured:** declare -1.4 ppm against the clean arm, ignore +9.9 ppm (bar 20 ppm); the ignore arm also inflates the cell esd 8.7x (2.08e-05 -> 1.81e-04 A) and Rwp 3.6x (0.0875 -> 0.3174)
 
 **Diagnostics:** `EXTRA_PEAK_ON_REFLECTION`
 
@@ -130,7 +130,7 @@ WP-1103's design case on real data: the SRM 660c protocol, contaminated by injec
 
 **Referenced to:** the same clean arm; the ceiling is that nothing anywhere gates either choice, which is a property of the code rather than of a number
 
-**Measured:** exclude +0.6 ppm for 256 of 5332 channels (4.8 %) — i.e. on THIS fixture exclusion is as accurate as declaring, and the case for declaring is the retained channels and the measured intruder, not cell accuracy. A pattern with few reflections is where that changes, and LaB6 is not one
+**Measured:** exclude +0.2 ppm for 256 of 5332 channels (4.8 %) — i.e. on THIS fixture exclusion is as accurate as declaring, and the case for declaring is the retained channels and the measured intruder, not cell accuracy. A pattern with few reflections is where that changes, and LaB6 is not one
 
 #### `test_the_declared_holder_lines_come_back_where_they_were_put`
 
@@ -140,7 +140,7 @@ WP-1103's design case on real data: the SRM 660c protocol, contaminated by injec
 
 **Referenced to:** the injected truth, which is known exactly because the injection uses the package's own evaluator — so this row is a self-consistency check on real data and never a claim about a real holder
 
-**Measured:** centres within 0.005 deg of 37.4418 and 43.6205 (bar 0.05); areas 123.4(36) and 124.5(20) against 120, 0.9 and 2.2 sigma high, which is the on-reflection degeneracy being real
+**Measured:** centres within 0.005 deg of 37.4420 and 43.6206 (bar 0.05); areas 123.2(36) and 124.5(20) against 120, 0.9 and 2.2 sigma high, which is the on-reflection degeneracy being real
 
 #### `test_the_declared_peaks_are_ticks_and_not_background`
 
@@ -276,7 +276,7 @@ The absolute lab anchor. NIST's own SRM 660c certification measurement, refined 
 
 **Referenced to:** NIST's cell recomputed for this dataset's 20.85 C block, 4.156780 A, under an explicitly interim +-2e-4 A band; the certificate's own +-8e-6 at 22.5 C is NOT claimed and the residual is a characterised cotTheta/sin2Theta aberration (divergence, tube tails, monochromator passband) fenced to the v2 FPA work
 
-**Measured:** a = 4.156895(21) A, +28 ppm; Rwp 8.67 %, GoF 1.87; zero_shift held at exactly 0.0; displacement -0.0801 mm vs the CIF's -0.07877
+**Measured:** a = 4.156882(21) A, +25 ppm; Rwp 8.75 %, GoF 1.89; zero_shift held at exactly 0.0; displacement -0.0791 mm vs the CIF's -0.07877. The Gaussian width is real at all 60 reflections. Before WP-1938 it sat on its clamp at 12 of them, and the fit read 4.156895 A, +28 ppm, Rwp 8.67 %
 
 #### `test_srm660c_extinction_does_no_harm`
 
@@ -286,7 +286,7 @@ The absolute lab anchor. NIST's own SRM 660c certification measurement, refined 
 
 **Referenced to:** the cell must return to its own unextinguished value within the same 2e-4 A band; the extinction parameter itself is one-sided (< 1e-2 from a 1e-3 seed)
 
-**Measured:** extinction 5.0e-10 from a 1e-3 seed; Rwp 0.0866784, a 4.1568955 — the warm-extend path agrees with the whole plan to 2e-12 in Rwp and 1e-9 A in a
+**Measured:** extinction exactly 0.0 from a 1e-3 seed; Rwp 0.0875138, a 4.1568823; the warm-extend path agrees with the whole plan to 9e-11 in Rwp and 6e-10 A in a
 
 ### `tests/test_acceptance_srm676a.py`
 
@@ -310,7 +310,7 @@ The second absolute anchor, and the sharper one — but only on the axial ratio,
 
 **Referenced to:** ITA's rhombohedral/hexagonal relations for an R lattice (a_H = 2 a_R sin(alpha/2), c_H = a_R sqrt(3 + 6 cos alpha), V_H = 3 V_R) as the identity bar, and this package's own hexagonal-axes Le Bail fit of the same pattern from the same physical starting lattice as the own_result bar.  **No certificate claim**: the +-1e-3 band against SRM 676a is a sanity check that the fit found the right lattice, not a graded comparison — this is Le Bail with only w/u/v/x/y and lor_size free, deliberately looser than the Rietveld row above, which owns this specimen's certificate claim.  Registered because WP-1036 made the RHOMBOHEDRAL description representable at all; before it, c refined free of a and all three angles were locked, so this row could not have been written
 
-**Measured:** a = b = c and alpha = beta = gamma bitwise after the fit; alpha walks 54.987 -> 55.288 from a 0.3 deg displacement (certificate 55.287); the two descriptions agree to 5.6e-9 (a) and 1.5e-8 (c) relative with Rwp equal to five decimals; V_H = 3 V_R to 1e-9; against the certificate a -328 / c -336 ppm, the same uniform d-scale systematic the Rietveld row measures at -312 / -282; Rwp 0.147, GoF 1.64
+**Measured:** a = b = c and alpha = beta = gamma bitwise after the fit; alpha walks 54.987 -> 55.288 from a 0.3 deg displacement (certificate 55.287); the two descriptions agree to 4.8e-10 (a) and 4.9e-9 (c) relative with Rwp equal to five decimals; V_H = 3 V_R to 1e-9; against the certificate a -328 / c -336 ppm, the same uniform d-scale systematic the Rietveld row measures at -312 / -282; Rwp 0.147, GoF 1.64
 
 ### `tests/test_acceptance_powderline.py`
 
@@ -384,7 +384,7 @@ The only fixtures carrying **two** reference engines, and they disagree: 2665 pp
 
 **Referenced to:** nothing, for the reason the DRX row gives; a 0.12 ceiling and a 0.01 band on TOPAS, which shares neither Z nor the negative-Y clamp with GSAS-II
 
-**Measured:** Rwp 8.799 % against TOPAS's 8.519 % and GSAS-II's 6.53 %
+**Measured:** Rwp 8.801 % against TOPAS's 8.519 % and GSAS-II's 6.53 %
 
 #### `test_lab6_declares_the_three_model_differences_it_has`
 
@@ -616,7 +616,7 @@ The same round robin with anomalous scattering applied — a pre-registered, par
 
 **Referenced to:** the dispersion-off baseline, at 2e-6 A — well inside the 21e-6 A esd, so the anchor is safe either way
 
-**Measured:** a = 4.156895 A both ways
+**Measured:** a = 4.156882 A both ways
 
 #### `test_srm660c_displacement_parameters_absorb_the_change`
 
@@ -626,7 +626,7 @@ The same round robin with anomalous scattering applied — a pre-registered, par
 
 **Referenced to:** the dispersion-off baseline; floors on the size of the move (>0.02 and >0.05 A^2) plus a physical band on the result, which is a characterisation and not an accuracy claim — no certified Biso exists for this specimen
 
-**Measured:** B(La) and B(B) move ~12 % / ~22 %; Rwp 8.668 -> 8.646 %
+**Measured:** B(La) and B(B) move ~12 % / ~22 %; Rwp 8.751 -> 8.730 %
 
 #### `test_the_neglect_diagnostic_clears_when_the_block_is_on`
 
@@ -662,7 +662,7 @@ A correction that provably cannot improve the fit, on real data. The whole of it
 
 **Referenced to:** the analytic prediction DeltaB = c(muR)*lambda^2/2, computed before the refits.  Rwp and the cell are held to 1e-6 and 1e-9 A **between two of our own fits** — referenced to floating point, not to any external value, because Rouse's expression factors exactly into a Debye-Waller shape
 
-**Measured:** Delta Rwp 4.0e-9, Delta a -3.8e-11 A, every Biso +0.01687 against a predicted 0.016875
+**Measured:** Delta Rwp 4.0e-9, Delta a -1.8e-11 A, every Biso +0.01687 against a predicted 0.016875
 
 #### `test_fit_quality_and_the_circular_cell`
 
@@ -726,7 +726,7 @@ A warm-started chain over the round robin: what changes when only the starting p
 
 **Referenced to:** **deliberately not asserted.** Before WP-1123's intermediate_ftol: 2863 iterations unchained, 1623 re-walking the staged plan warm, 904 with the plan collapsed; the carry-glob hypothesis was refuted at 838. Gating a speed number would turn machine noise into a test failure
 
-**Measured:** 725 vs 1826 iterations at identical mean Rwp (627 carrying everything)
+**Measured:** 278 vs 1015 iterations at identical mean Rwp (260 carrying everything)
 
 #### `test_the_hostile_series_exercises_the_reseed_fence`
 
@@ -762,7 +762,7 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 **Referenced to:** **no accuracy claim.** Hamilton at alpha = 0.05 and Delta BIC both pass at N/f^2 (WP-1417), while at most one of the four S_HKL coefficients lies 2 sigma from zero; the strain-variance cone sigma^2(M) >= 0 fails on 7 of 43 reflections, so STEPHENS_STRAIN_NOT_POSITIVE fires and no S_HKL is quotable.  The r ~ 0.65 March coefficient is checked against WP-0310's own measurement on the same material
 
-**Measured:** Rwp 18.62 -> 17.84 %, Delta BIC +22.4 at N/f^2 (N_eff 479, f 3.889; +592.3 at raw N), 3 parameters added, anisotropy at its 1e6 cap (narrowest direction at zero strain; bar 3.0)
+**Measured:** Rwp 18.62 -> 18.09 %, Delta BIC +9.2 at N/f^2 (N_eff 479, f 3.889; +392.2 at raw N), 3 parameters added, anisotropy at its 1e6 cap (narrowest direction at zero strain; bar 3.0); the TRF fit stops at max_iter in its biso stage
 
 **Diagnostics:** `STEPHENS_STRAIN_NOT_POSITIVE`
 
@@ -774,7 +774,7 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 **Referenced to:** the Layer-1 strain diagnostic's own verdict (not detected, R^2 < 0.5) plus the derived pattern count for R-3c; the anisotropy ratio of an insignificant fit is a runaway guard at 6, not a threshold
 
-**Measured:** R^2 = 0, anisotropy 4.51x, 4 patterns, 64 reflections; 2.02x with WP-1930's floor seed off, at the same chi2_red 2.65601, so the ratio rides the Lorentzian split's flat direction; never leaves the cone at any seed
+**Measured:** R^2 = 0.0006, anisotropy 1.52x, 4 patterns, 64 reflections, at chi2_red 2.65601; 2.03x before WP-1938 at the same chi2_red, so the ratio rides the Lorentzian split's flat direction; never leaves the cone at any seed
 
 #### `test_corundum_block_is_inert_and_hamilton_blesses_it_only_at_raw_n`
 
@@ -782,7 +782,7 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 **Claims:** freeing the block on an isotropic specimen is inert, and both statistics say so at N/f^2 while Hamilton at the raw channel count blesses it
 
-**Referenced to:** Hamilton's R-ratio test at alpha = 0.05 and raw N **passes** a 0.16 % chi^2 improvement from three inert parameters, exactly as it passes brucite's 8.2 % one, on 7251 channels.  At N/f^2 (issue #270, WP-1417) both tests refuse it: Delta BIC -18.6 against brucite's +22.4.  The certificate-grade c/a is asserted not to move (rel=1e-4)
+**Referenced to:** Hamilton's R-ratio test at alpha = 0.05 and raw N **passes** a 0.16 % chi^2 improvement from three inert parameters, exactly as it passes brucite's 8.2 % one, on 7251 channels.  At N/f^2 (issue #270, WP-1417) both tests refuse it: Delta BIC -18.6 against brucite's +9.2.  The certificate-grade c/a is asserted not to move (rel=1e-4)
 
 **Measured:** Delta BIC -18.6 at N/f^2 and Hamilton refuses; Hamilton at raw N says justified; c/a unmoved
 
@@ -790,11 +790,11 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 `characterisation` · dataset `qarr` · survives 4 starts
 
-**Claims:** under solver='lm' the cone is carried as a linear inequality and brucite comes back inside it — at a higher Rwp, which is the point
+**Claims:** under solver='lm' the cone is carried as a linear inequality and brucite comes back inside it
 
-**Referenced to:** the physics constraint itself: sigma^2(M) > 0 on all 43 reflections, with the optimum sitting on the cone face.  Rwp is bounded loosely and is expected to be WORSE than the unconstrained fit's
+**Referenced to:** the physics constraint itself: sigma^2(M) > 0 on all 43 reflections, with the optimum sitting on the cone face.  Rwp is bounded loosely.  Before WP-1938 it was WORSE than the unconstrained TRF fit's.  In physical units that TRF fit stops at max_iter above it
 
-**Measured:** 0 of 43 violations; Rwp 0.17946 against TRF's 0.17844
+**Measured:** 0 of 43 violations; Rwp 0.17942 against TRF's 0.18092 (0.17946 against 0.17844 before WP-1938)
 
 #### `test_unconstrained_solver_leaves_the_cone_on_the_same_data`
 
@@ -804,7 +804,7 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 **Referenced to:** the same cone test, opposite direction — at least 5 of 43 reflections violating, plus the guard diagnostic
 
-**Measured:** 7 of 43 violations at the pinned seed; 14/7/0/0 across the four-seed sweep, which is why that row carries starts=4
+**Measured:** 7 of 43 violations at the pinned seed; 13/7/26/24 across the four-seed sweep (seeds 400 and 1600 end at max_iter), which is why that row carries starts=4
 
 **Diagnostics:** `STEPHENS_STRAIN_NOT_POSITIVE`
 
@@ -1050,7 +1050,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** A literature cell (F d -3 m, a = 8.3941 A), so 1e-3 and no ppm claim.  The inversion is referenced to nothing external: it is asserted structurally, as the presence of predicted_but_absent on the correct cell and its ABSENCE on the wrong one -- and since WP-1043 the mechanism is regenerated, not quoted
 
-**Measured:** cubic F first at -334 ppm, its P description of identical axes second; predicted_seen_fraction 0.46 against 0.19 and n_indexed identical at 17 of 17, so the reversed member is the whole separation.  The detector then fires on the truth and not on the rival: F d -3 m's d-glide refutes the CORRECT cell (3 of 52) while P's Le Bail fit predicts 163 reflections on a 17-line pattern and reports ZERO absent.  The grade no longer inverts: both are low, P held there by supercell_refuted and engines_disagree (it was medium before WP-1449 and WP-1510 refuted the P description as an index-2 superlattice, and the list lost six lines).  WP-1043 measured why: the detector's inputs are the candidate's to buy -- the rival's own fit drives the co-refined background NEGATIVE (mean -5.8 counts; no physical floor in the validation plan), so net clears 3 sigma at 99.6 % of channels and nothing can read absent; with the truth's background under the same positions 8-14 absences return, while swapping widths alone (inflated 2-3x in both fits) restores none.  Rwp 0.22 against 0.71 is the same corrupted fit seen by a different instrument, so it stays surfaced and never ranked on.  best_or_none() returns None either way
+**Measured:** cubic F first at -334 ppm, its P description of identical axes second; predicted_seen_fraction 0.46 against 0.19 and n_indexed identical at 17 of 17, so the reversed member is the whole separation.  The detector then fires on the truth and not on the rival: F d -3 m's d-glide refutes the CORRECT cell (3 of 52) while P's Le Bail fit predicts 163 reflections on a 17-line pattern and reports ZERO absent.  The grade no longer inverts: both are low, P held there by supercell_refuted and engines_disagree (it was medium before WP-1449 and WP-1510 refuted the P description as an index-2 superlattice, and the list lost six lines).  WP-1043 measured why: the detector's inputs are the candidate's to buy -- the rival's own fit drives the co-refined background NEGATIVE (mean -5.8 counts; no physical floor in the validation plan), so net clears 3 sigma at 99.6 % of channels and nothing can read absent; with the truth's background under the same positions 8-14 absences return, while swapping widths alone (inflated 2-3x in both fits) restores none.  Rwp 0.21 against 0.72 is the same corrupted fit seen by a different instrument, so it stays surfaced and never ranked on.  best_or_none() returns None either way
 
 #### `test_the_tail_components_escape_not_separable_and_are_flagged_by_cause`
 
@@ -1196,7 +1196,7 @@ A parameter that is exactly degenerate in one histogram and measurable in severa
 
 **Referenced to:** each histogram against **its own solo fit** on the same protocol -- our own results either side of one change, so the bar is the 10 % degradation being an order larger on one histogram than the other, not any external value
 
-**Measured:** neutron Rwp 0.05259 alone -> 0.06226 jointly (+18 %); X-ray 0.09364 -> 0.09373 (+0.1 %), a ratio of ~200
+**Measured:** neutron Rwp 0.05259 alone -> 0.06226 jointly (+18 %); X-ray 0.09365 -> 0.09373 (+0.1 %), a ratio of ~200
 
 #### `test_freeing_the_neutron_wavelength_recovers_its_fit`
 
@@ -1478,7 +1478,7 @@ A magnetic moment on real neutron data, and the refusal of one. The pair is one 
 
 **Referenced to:** the same protocol from the other in-plane seed
 
-**Measured:** |m| agrees to 3e-6 mu_B (7e-5 esd; bar 0.1 esd); Rwp to 1.2e-9 relative
+**Measured:** |m| agrees to 2.4e-8 mu_B (5e-7 esd; bar 0.1 esd); Rwp to 3e-11 relative
 
 #### `test_the_150k_null_finds_no_moment`
 
@@ -1488,7 +1488,7 @@ A magnetic moment on real neutron data, and the refusal of one. The pair is one 
 
 **Referenced to:** the nuclear-only fit to the same 150 K pattern; the claim is inadmissibility (supported is False), not a value
 
-**Measured:** |m| 0.067 +/- 0.83 mu_B (0.08 sigma, bar 3); Rwp 0.099241 against 0.099242 nuclear-only (bar 1e-3 relative)
+**Measured:** |m| 0.017 +/- 3.24 mu_B (0.005 sigma, bar 3); Rwp 0.099242 against 0.099242 nuclear-only, 1.8e-6 relative (bar 1e-3 relative). The esd grows as the modulus shrinks, since the moment's column vanishes at zero: TRF stopped at 0.067 +/- 0.83
 
 ### `tests/test_acceptance_magnetic_lamno3.py`
 
@@ -1526,7 +1526,7 @@ roughness a surface, Stephens a strain model, March-Dollase a habit — dispersi
 wants the species and the wavelength, both already in the model. Neglecting it
 costs RMS 2.26 -> 0.64 wt % on round-robin QPA.
 
-**The anchors survive.** SRM 660c's cell does not move (4.156895 A either way).
+**The anchors survive.** SRM 660c's cell does not move (4.156882 A either way since WP-1938, 4.156895 A before).
 SRM 676a's certificate-grade c/a moves +30.1 -> +30.5 ppm against a 100 ppm bar —
 measured for this WP, since WP-0504 never checked it. And Rwp on corundum gets
 *worse*, 14.585 -> 14.737 %, while the physics gets better: the rule at the top of
@@ -1564,7 +1564,7 @@ should know about before trusting a number, each with what would close it.
 
 - **No dataset here can constrain a low-angle intensity correction.** The qarr phases first reflect at 25.6/28.3/31.8 deg and SRM 660c at 21.4, so surface roughness (WP-0502) has a negative acceptance result only: two of three phases collapse to the identity and raise ROUGHNESS_UNCONSTRAINED.  Closing it needs a pattern starting below ~15 deg with real low-angle reflections.
 
-- **The SRM 660c certificate band is not reached and is not claimed.** Measured +28 ppm against a certificate uncertainty of +-8e-6 A.  The residual is a characterised cotTheta/sin2Theta aberration — equatorial divergence, tube tails, monochromator passband — which is the fundamental-parameters territory fenced to v2, not a tuning gap.
+- **The SRM 660c certificate band is not reached and is not claimed.** Measured +25 ppm against a certificate uncertainty of +-8e-6 A.  The residual is a characterised cotTheta/sin2Theta aberration — equatorial divergence, tube tails, monochromator passband — which is the fundamental-parameters territory fenced to v2, not a tuning gap.
 
 - **GoF does not reach 1 on lab data and should not be expected to.** Cline et al. (2015) put the floor for analytical-PSF fits on this instrument class at 1.5-1.9; FPA reaches 1.08.  Measured 1.63 on corundum with Rexp ~ 8.9 %, so Rwp 14.6 % is mostly counting statistics.  A policy demanding GoF -> 1 would be demanding FPA.
 

@@ -465,7 +465,7 @@ STANDARDS: tuple[Standard, ...] = (
         key="srm660c", title="NIST SRM 660c — LaB₆ (lab CuKα)",
         description=("Certified line-profile standard on the NIST divergent-beam "
                      "diffractometer. The package's **absolute** cell anchor "
-                     "(a = 4.156895(25) Å, +28 ppm). Zero held at 0, displacement "
+                     "(a = 4.156882(21) Å, +25 ppm). Zero held at 0, displacement "
                      "refined — the NIST protocol."),
         files=("nist_srm660c_100a.cif",), pattern="nist_srm660c_100a.cif",
         reader_options=(("block", "_meas"),), build=_build_srm660c,

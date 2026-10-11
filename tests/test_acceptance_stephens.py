@@ -16,7 +16,8 @@ case as a success story):
 Adding the three anisotropic Stephens patterns to brucite improves Rwp from
 18.62 % to 17.84 %, and that improvement passes *both* statistical tests for
 the added parameters — Hamilton's R-ratio test at α = 0.05 and ΔBIC, +22.4 at
-N/f² on the 1.7.0 tree (+592 at raw N).
+N/f² on the 1.7.0 tree (+592 at raw N).  In physical units (WP-1938) the same
+TRF fit stops at max_iter at 18.09 %, and ΔBIC reads +9.2 (+392 at raw N).
 It is nonetheless **physically inadmissible**: the refinement drives σ²(M)
 negative on 12 of the 43 fitted reflections, and the fit stops at max_iter
 rather than converging.  σ² is a variance; a negative one is not a large
@@ -63,7 +64,9 @@ seed    LM Rwp               LM σ² < 0           TRF Rwp              TRF σ²
 ======  ===================  ==================  ===================  ==============
 
 Measured before 1.6.0. Re-run on the 1.7.0 tree, the TRF column reads 14, 7,
-0 and 0 of 43, and seed 800 gives LM 0.17946 against TRF 0.17844.
+0 and 0 of 43, and seed 800 gives LM 0.17946 against TRF 0.17844.  In physical
+units (WP-1938) it reads 13, 7, 26 and 24, seeds 400 and 1600 stop at
+max_iter, and seed 800 gives LM 0.17942 against TRF 0.18092.
 
 So: the constraint holds from **every** start, which is what it promised, and
 the unconstrained driver leaves the cone from the low seeds only.  But the
@@ -275,7 +278,8 @@ def test_brucite_improvement_is_justified_but_leaves_the_physical_cone(
         == pytest.approx(0.65, abs=0.05)
 
     # 1. the improvement is real and passes both tests for the added
-    #    parameters at N/f² (measured ΔBIC +22.4 at N_eff 479; +592 at raw N)
+    #    parameters at N/f² (measured ΔBIC +9.2 at N_eff 479, +392 at raw N;
+    #    +22.4 and +592 on 1.7.0, before WP-1938's physical units)
     assert iso.statistics.rwp == pytest.approx(0.1855, abs=0.01)
     assert ani.statistics.rwp == pytest.approx(0.1790, abs=0.01)
     assert ani.statistics.rwp < iso.statistics.rwp
@@ -394,17 +398,18 @@ def test_constrained_solver_keeps_brucite_inside_the_cone():
     frozen reflection list, which is a thing no box bound and therefore no
     ``scipy.optimize.least_squares`` call can express.  The comparison that
     matters is not Δ Rwp but *how many reflections the answer is unphysical
-    on* — and at this seed the constrained fit is the worse of the two by Rwp:
+    on*.  On 1.7.0 the constrained fit was the worse of the two by Rwp at this
+    seed.  In physical units (WP-1938) TRF stops at max_iter above it:
 
-    ==================  ======  ===================
-    brucite, seed 800   Rwp     reflections σ² < 0
-    ==================  ======  ===================
-    TRF, unconstrained  17.84   7 of 43
-    LM, cone enforced   17.95   0 of 43
-    ==================  ======  ===================
+    ==================  ===========  ===========  ===================
+    brucite, seed 800   Rwp, 1.7.0   Rwp, 1.8     reflections σ² < 0
+    ==================  ===========  ===========  ===================
+    TRF, unconstrained  17.84        18.09        7 of 43
+    LM, cone enforced   17.95        17.94        0 of 43
+    ==================  ===========  ===========  ===================
 
-    A fit that is inadmissible on 7 of its 43 reflections is not a better fit
-    for having a lower Rwp; it is a fit whose S_HKL cannot be quoted.  Same
+    On 1.7.0 a fit inadmissible on 7 of its 43 reflections had the lower Rwp,
+    and it was still not the better fit: its S_HKL cannot be quoted.  Same
     shape as the v0.5 method result — a correction that is right can move Rwp
     the wrong way — which is why every assertion below is about the cone and
     the guard rather than the residual.
