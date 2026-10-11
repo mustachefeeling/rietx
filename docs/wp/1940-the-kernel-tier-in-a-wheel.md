@@ -515,11 +515,21 @@ full-suite run on its Linux wheel.
   off x86-64. The added fast tests cost 0.12 s (the bound test) and under
   0.01 s each (two refusal cases) on this machine.
 
-*In flight.*
-- Run 38098902918 on `wp1940-exp-probe`: nightly's full job, `[dev,jax]`,
-  python 3.13, on this branch's Linux wheel. The baseline is the 2026-10-10
-  nightly (run 38048650490): 1 failed (`test_pair_diagnostic_class`, the
-  magnetic two-site case), 9349 passed, 131 skipped, 1 xfailed, 2:04:41.
+*Full suite on the 1.2.0 Linux wheel.* Run 38098902918 on
+`wp1940-exp-probe`, nightly's full job (`[dev,jax]`, python 3.13, numpy
+2.5.4) on 87c5b727's tree: 3 failed, 9398 passed, 131 skipped, 1 xfailed in
+1:48:44. Two failures were the CLAUDE.md line caps, fixed in 84aca167 before
+the run read them. The third was the corundum block test in
+`test_acceptance_stephens.py`: its fit stopped on a 100-iteration budget, and
+the raw-N Hamilton verdict read off it sat 0.018 % of χ² from the line on
+darwin/arm64 and fell below it on Linux. Given 1000 iterations in that stage
+the fit converges, the margin is 0.052–0.057 % on both architectures, and the
+docstring's ΔBIC (−15.1, −18.6) comes back exactly; the test now asserts
+convergence. Run 38105367999 confirms the file on Linux: 5 passed. The
+2026-10-10 nightly's one failure, `test_pair_diagnostic_class`'s magnetic
+two-site case, passed in this run. Not generalised: no other acceptance test
+flipped on SLEEF's bits, and auditing every verdict read off a `max_iter`
+fit is a sweep of its own.
 
 *Gotchas.*
 - Under fat LTO, `--emit=asm` shows code from before link-time optimisation,
@@ -542,11 +552,9 @@ full-suite run on its Linux wheel.
    the last bit. Recommended: no.
 
 *Next.*
-1. Read run 38098902918 against the nightly baseline. A new failure blocks
-   the publish.
-2. The maintainer merges #868, then #872, tags `kernels-v1.2.0` on #872's
+1. The maintainer merges #868, then #872, tags `kernels-v1.2.0` on #872's
    merge commit and approves the publish.
-3. Close WP-1940 once 1.2.0 is on PyPI. No rietx change is needed while the
+2. Close WP-1940 once 1.2.0 is on PyPI. No rietx change is needed while the
    floor stays at 1.1.
 
 ### 2026-10-11 — 1.1.0 is on PyPI, and the figure draws on it
