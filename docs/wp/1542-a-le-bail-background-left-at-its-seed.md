@@ -43,6 +43,27 @@ here (2026-10-03, at the maintainer's request).
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (#726, the reporter's comment of
+  2026-10-11 09:56Z): the extinction screen's shared fit does not seed the
+  background, and on a neutron pattern it never recovers.** Checked at
+  d80ca5f4: `determine_extinction_symbol` calls `seed_widths(ins, peaks)` and
+  nothing else on the instrument (`indexing/extinction.py:714-716`), so the
+  background stays where the caller's instrument has it. That answers the
+  2026-10-07 entry below for the screen. The indexer's `validate_by_lebail`
+  is a separate path and is still unmeasured. The reporter's case, not
+  re-run here: the PbSO₄ D1A histogram of `tests/data/gsas2_pbso4.gpx` with
+  `constant_wavelength_neutron`'s all-zero Chebyshev, `validation_plan`
+  replayed in `P m m m`. After the `bkg` stage the background sits at 3.6
+  counts (median, 10-30°) where the data sit at 200. Rwp is 0.58 there and
+  0.35 once the widths are freed, with `w` going from 0.21 to 1.37 deg². Le
+  Bail then hands the pedestal to every reflection, including (0,0,1), (1,0,0)
+  and (0,1,0), which Pnma forbids. On the reporter's reading, each class is
+  then scored by how many reflections it has left to carry the background.
+  Task 4 should add this pattern beside the hump and high-pedestal fixtures.
+  On the X-ray histogram, seeding the background flipped the screen to a
+  wrong class (WP-1910's Inherited, reproduced), so a seed alone does not
+  fix this pattern.
+
 - **2026-10-08, from the second issue triage (issue #833): a second voice
   for #725's default.** #833's third item asks for `auto_background(seed=True)`
   as the default, beside a REML-chosen P-spline λ and a

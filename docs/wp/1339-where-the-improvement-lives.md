@@ -124,6 +124,38 @@ and (2) is accepted.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (#219, in PR #904; and a re-run of the
+  ridge case): asks (1) and (2) are open as the reporter's PR, and the ridge
+  now holds the wrong phase.** PR #904 (opened 2026-10-11, fork) adds
+  `report.cumulative_delta_chi2` and `report.split_localisation`, moves
+  `viz/compare.py` onto `report.cumulative_chi2`, and rewrites the
+  `schemas/sequential.py:79` sentence. Ask (3) is not in it. Its tests are
+  synthetic, and the NiO acceptance waits on permission to ship the pattern.
+  The claims match #219. Checked against the tree at d80ca5f4: no
+  `report/localisation.py`, and no `cumulative_delta_chi2` under `src/`.
+
+  The reporter re-ran the two-phase Cu toy at 08176f6f, after WP-1523, with
+  the same script, pattern and plan (comment of 2026-10-11 15:17Z). The
+  specimen is one cubic Cu phase. The model is the parent plus an
+  `I 4/m m m` subgroup that is not there. Their numbers, not re-run here,
+  since the script is not in the thread:
+
+  | subgroup seed | Rwp | `PHASE_UNCONSTRAINED` holds | its reading |
+  |---|---|---|---|
+  | degenerate | 0.0399 | the subgroup | 0.81σ |
+  | split, δ = 5e-4 | 0.0399 | **the parent** | 0.20σ |
+  | split, δ = 1e-3, 2e-3, 4e-3 | 0.0399 | **the parent** | 0.53σ |
+
+  In the last two rows the parent's cell and strain are held while the
+  phantom subgroup carries the pattern at 31-82σ. `HIGH_CORRELATION` on the
+  two scales (ρ −0.994 to −0.998) fires in every arm. The positive control (a
+  real 40 % subgroup) flags the parent at 2.3σ and 2.2σ from the degenerate
+  and δ = 5e-4 seeds. So the marginal test reads low on a collinear pair, as
+  the entry below expected, but on whichever phase the start left weaker.
+  Which of the two the rule should hold is WP-1523's decision, and its
+  Inherited carries the same numbers. Before any becomes a target, the
+  script has to be on the tree; the batch asks the reporter for it.
+
 - **From WP-1523, 2026-10-04: the support statistic changed, and the ridge
   case is unmeasured under it.** "Seen" is now the phase scale over its esd at
   3σ (`refine._answer_significance`). The esd comes from (JᵀWJ)⁻¹ against

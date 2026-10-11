@@ -161,6 +161,19 @@ the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (#418, in PR #889): C0b is open as the
+  reporter's PR.** PR #889 (opened 2026-10-11, fork) moves isotropy's
+  kind-neutral half (`order_parameter_space`, `isotropy_directions` and their
+  linear algebra) into `crystallography/representation/order_parameter.py`.
+  The moved code is byte-identical apart from docstring cross-references, and
+  there are no shims. Everything built on `magnetic/operators.py` stays in
+  `magnetic/`. It cites #286 and #565 for context only and changes neither.
+  The claims match #418's decision. Checked against the tree at d80ca5f4: no
+  `representation/order_parameter.py`. The 2026-10-08 entry below applies:
+  the 1.6.0 wheel already shipped `isotropy.py`, so the move is a break and
+  belongs in the 1.8.0 staging file. PR #889 touches no file under
+  `docs/releases/`.
+
 - **2026-10-08, from WP-1546 (the 1.7.0 cut): the modules C0a and C0b move
   have shipped.** PR #842 moved `irreps.py` and `modes.py` without shims on
   the premise that neither had been released. The 1.6.0 wheel on PyPI ships

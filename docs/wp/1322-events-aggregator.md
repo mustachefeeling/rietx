@@ -79,6 +79,18 @@ from `SeriesResult`, so neither surface invents a second set of names.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (#207, #223, in PR #902): Tasks 1 and 3
+  are open as the reporter's PR.** PR #902 (opened 2026-10-11, fork) writes a
+  `record: "run"` header line on every opened `EventStream` (#223) and adds
+  `rietx events <log | run dir> [--json]` over
+  `history.aggregate.summarize_events` (#207), which splits a log on that
+  header. It answers this WP's open question as a record rather than a kind,
+  and still moves `EVENT_SCHEMA_VERSION` from 2 to 3, because a version-2
+  reader that validates every line refuses the header either way. The PR's
+  claims match both issues. The 2026-09-25 entry below (a job's many run
+  directories) is not in it. Checked against the tree at d80ca5f4: no
+  `history/aggregate.py`, no `events` subcommand in `cli.py`.
+
 - **2026-09-25, from a transcript review of an agent session on `in-situ
   series 1`: the records were there and the report was still wrong.** The user
   asked the agent to report its own metrics. The session left 887 run
