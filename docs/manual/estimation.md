@@ -403,7 +403,12 @@ It is the default because it settles where TRF crawls. Every parameter refines
 in its own units, with its declared limits as box bounds, and TRF's strictly
 feasible iterates approach a bound slowly. On 14 acceptance fits each started
 five ways, one fit's χ² spread by more than 1e-9 under this driver and four
-under TRF.
+under TRF. From a poor start TRF can also end in a different basin. Issue
+#900's synthetic PbSO₄ frees every parameter in one stage, from a scale 2400
+times too high. This driver reaches χ² 7111 with the Pb $B_{iso}$ at 1.48 Å²,
+against a true 1.49. TRF stops on its iteration limit at χ² 4.5 × 10⁵, with
+the Pb $B_{iso}$ at 133 Å². It reports `STAGE_MAX_ITER` and
+`BISO_UNUSUALLY_LARGE`.
 
 It also carries constraints TRF cannot. Linear inequalities on functionals of
 θ are rows $T\theta + c \ge 0$, a shape no per-parameter box can express. Two

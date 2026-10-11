@@ -4,9 +4,12 @@ Before WP-1938 a restated bound dropped the field's softplus, and TRF then
 damped the scale hardest while the Biso values absorbed the excess intensity:
 χ² 2.657e5 with Pb Biso 61, ``converged``.  Every field is refined in physical
 units now, so the two spellings are one parameterisation, and the default LM
-driver reaches the true basin from either.  TRF still fails on this start
-(χ² 4.5e5, ``max_iter``), loudly: ``STAGE_MAX_ITER`` and
-``BISO_UNUSUALLY_LARGE`` among seven warnings (WP-1938's 2026-10-11 Context).
+driver reaches the true basin from either.  On the issue's own protocol,
+dispersion on, TRF still fails from this start (χ² 4.5e5, ``max_iter``, Pb
+Biso 133), loudly: ``STAGE_MAX_ITER`` and ``BISO_UNUSUALLY_LARGE`` among
+seven warnings, where LM reaches χ² 7111.  With dispersion declared off, as
+here, TRF finds the true basin at χ² 1.04e4 against LM's 7304 (WP-1938,
+macOS arm64, third session), so this file pins the default driver only.
 
 Synthetic PbSO₄ with Poisson noise, no download, the issue's own script.
 """

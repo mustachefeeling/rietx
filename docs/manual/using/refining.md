@@ -51,7 +51,10 @@ ref = rx.Refinement(structure, instrument, backend="numpy", solver="trf")
 `backend` selects how the arrays are computed and `solver` selects the
 least-squares driver. `numpy` and `lm` are the defaults and the answer for
 almost every caller. `solver="trf"`, as above, selects scipy's Trust Region
-Reflective, the previous default. [](install.md) covers what the optional backends buy and what they
+Reflective, the previous default. Use it to reproduce a number measured before
+1.8. From a poor start it can end in a basin the default driver leaves, and
+the theory manual's estimation chapter, § Solvers, gives one such fit.
+[](install.md) covers what the optional backends buy and what they
 cost, and `Capabilities.backends` and `Capabilities.solvers` report what the
 build in front of you actually has.
 

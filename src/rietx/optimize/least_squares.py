@@ -60,7 +60,10 @@ if TYPE_CHECKING:
 #: (the Stephens strain positivity cone, the Γ_G² floor) that a box cannot
 #: express, held inside the same step when one binds (WP-1938 D8).
 #: ``"trf"`` is scipy's Trust Region Reflective, the default until WP-1938
-#: and the driver every acceptance number before it was measured with.
+#: and the driver every acceptance number before it was measured with.  From
+#: a poor start it can end in a basin LM leaves: on issue #900's synthetic
+#: PbSO₄ (scale 2400× high, everything free in one stage) TRF stops on
+#: ``max_iter`` at χ² 4.5e5 with Pb Biso 133, where LM reaches 7111 and 1.48.
 SOLVERS = ("trf", "lm")
 
 #: The driver a fit runs when the caller names none (WP-1938).  Every

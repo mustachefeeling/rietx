@@ -330,10 +330,13 @@ driver alone).
       declared off it reaches χ² 7304, both spellings. The true parameters
       score 5777, but the one stage freezes its windows at the start's
       narrower Lorentzian widths, so the bar is twice the truth's χ².)
-- [ ] `solver="trf"` says what it costs now: under physical coordinates a
+- [x] `solver="trf"` says what it costs now: under physical coordinates a
       positive field can land in the wrong basin (#900's 2.657e5 against
       7111), and `x_scale="jac"` does not rescue it. A docstring, or a
       diagnostic when TRF is selected; the choice is the maintainer's.
+      (A sentence, no diagnostic: `estimation.md` § Solvers, `refining.md`
+      and the `SOLVERS` comment, with #900's dispersion-on numbers, χ² 4.5e5
+      and Pb Biso 133 under TRF.)
 
 ## Acceptance
 
