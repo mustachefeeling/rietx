@@ -249,6 +249,19 @@ driver alone).
   quoted number rests on the fit: VALIDATION.md declares brucite's S_HKL
   unquotable, and the test asserts 0.17 < Rwp < 0.20. That bracket is this
   fit's bar on the grid. A formulation that cannot go negative is WP-1946.
+- *D10, one minimum is judged by the answer* (the maintainer's choice,
+  2026-10-11, third session). A fit has one answer when every refined value
+  agrees across the five starts to under 0.01 of its esd. The χ²_red spread
+  is reported beside it under the old 1e-9 bar. Brucite isotropic (1.1e-8)
+  and corundum (3.5e-8) pass the first and miss the second, and the cause is
+  frozen-per-stage windows rather than the driver. An intermediate stage
+  stops at ftol 1e-6, so the starts leave it slightly apart. On corundum
+  that put two window edges, of about 200, one data point apart at the last
+  stage's compile, and that stage's cost then differed by 2.1e-5. The answers
+  differ by 4.5e-5 esd (brucite) and 3.7e-3 esd (corundum). Re-solving the
+  last stage once on a fresh compile collapses the spreads to 1.1e-10 and
+  3.3e-12. It was declined, since it moves every fit's final χ² (by −1.7e-5
+  and −6e-5 here) and costs 6-8 evaluations a fit.
 
 ## Non-goals
 
@@ -303,7 +316,11 @@ driver alone).
       builds no cone under LM (`run_multi_least_squares`), so the guard still
       fires there. Regenerate the skill's `api.md`. PNGs for the fits whose
       answer moves.
-- [ ] **Brucite's valley.** Physical + LM spread 1.1e-8 on brucite
+- [x] **Brucite's valley.** Closed 2026-10-11 as D10: the split is a
+      frozen window one data point apart at the last stage's compile, and
+      the answers agree to 4.5e-5 esd. No Linux run was needed, since five
+      starts 1e-14 apart reproduce it here. The original text follows.
+      Physical + LM spread 1.1e-8 on brucite
       (isotropic) at `790c7ce7`. Two exactly degenerate Lorentzian pairs
       (`profile.y` with `lor_strain`, `profile.x` with `lor_size`) split
       differently per start, and `axial_sl` ended at 0.2 or under 3e-10. A
@@ -348,10 +365,11 @@ driver alone).
 .venv/bin/python -m ruff check src tests examples
 ```
 
-The twelve-fit grid of WP-1929's second session, rerun on the default driver,
-reaches one minimum per fit (spread under 1e-9) and one `profile.x` esd on
-BT-1. Brucite + Stephens is the one exception (D9): its bar is the
-0.17 < Rwp < 0.20 its acceptance test asserts, on every start.
+The grid of `examples/probe_driver_grid.py`, rerun on the default driver,
+reaches one minimum per fit (every refined value within 0.01 esd across the
+five starts, D10) and one `profile.x` esd on BT-1. Brucite + Stephens is the
+one exception (D9): its bar is the 0.17 < Rwp < 0.20 its acceptance test
+asserts, on every start.
 
 ## References
 
