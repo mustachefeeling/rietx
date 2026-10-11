@@ -87,6 +87,11 @@ The row needs that check before it is written.
   chosen `idx.candidates[i]`, placed cheapest first. `diagnostics-indexing.md`
   is closed to growth, so it needs a cut or goes in the docstring. No new
   signature is needed.
+  - *2026-10-11, from the issue triage (#728):* PR #754 put the one-call
+    screen in the manual (`docs/manual/using/indexing.md:1218`, on
+    `idx.candidates[0]`, with a note that the field is `.candidates`). The
+    skill row is still open. Checked against the tree at 7d9be3cb: no file
+    under `docs/skill/rietx/` screens a chosen `candidates[i]`.
 
 - **From WP-1510 (2026-10-03): `api.md` has 95 B of headroom left.** WP-1539
   raised `API_INDEX_MAX_BYTES` to 39 600, and WP-1510's `index_pattern(formula=,

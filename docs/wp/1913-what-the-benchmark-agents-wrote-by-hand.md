@@ -72,6 +72,21 @@ an alias" by design. So the cheap fix is a pointer that names `stderr` for
 `esd` (the near-miss table in `rietx._nearmiss`); an alias or a rename is a
 schema change across every result reader.
 
+### Inherited
+
+- **2026-10-11, from the issue triage (#728): the issue's unnumbered fifth
+  ask has no owner.** `Refinement.suggest` reports an FCJ axial term seeded
+  at 0 as "without leverage", since its derivative vanishes there. The
+  showcase agent seeded it at 0.02 by hand. The ask is that `suggest` name
+  the seed such a term needs (`"axial_hl: seed 0.02"`), as `Stage.strain_seed`
+  is documented for Stephens. The 2026-10-05 thread answer filed "3, 4, 5"
+  here and counted `.esd` as 5, so this ask fell between the numbers. PR #754
+  listed it as "a table to agree on". Checked against the tree at 7d9be3cb:
+  `strategy/suggest.py:65-67` holds probe seeds for softplus, roughness and
+  Stephens only, and the summary at `:235` prints the "without leverage"
+  count with no seed named. No WP mentions it. Take it here as a task, or
+  give it its own WP.
+
 ## Non-goals
 
 - Parts 1 and 2 of #728 (WP-1511, WP-1532).

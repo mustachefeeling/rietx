@@ -96,6 +96,28 @@ negative variance is still the open question.
     the macro would not read back what rietx writes. The reader task should
     say which forms it reads: the macro (what users bring), the writer's
     equations (what a round trip needs), or both.
+  - *2026-10-11, from the issue triage (#732):* the first bullet is
+    superseded. The reporter wrote at 07:41 that "M3" was a reading of the
+    TCHZ macro and no TOPAS run, so it cannot be an oracle under their
+    clean-room rule. At 08:09 they posted a black-box TOPAS 6 run instead:
+    `case_nacl_xray` from #815, written with `TCHZ_Peak_Type`, every value
+    distinct and fixed, Y_calc at zero cycles, LP canary 18/18. TOPAS 6
+    accepts only the 12-argument form, and by position its six value slots
+    are (u, v, w, z, x, y): slots 1-3 are Γ_G² += u tan²θ + v tanθ + w,
+    slot 4 is Γ_G² += s4/cos²θ (no rietx term; it folds into U and W),
+    slot 5 is Γ_L += s5 tanθ (`profile.y`), slot 6 is Γ_L += s6/cosθ
+    (`profile.x`), each with factor 1. Rewritten as #815's equations under
+    that reading, the runs reproduce TOPAS's Y_calc to 2.5e-9 and 1.1e-7. A
+    second run swapping slots 4 and 5 swaps the inferred map. The Technical
+    Reference's printed signature, taken by position, misses by 0.69 and
+    0.091. So a reader maps by position, never by the file's names, which
+    are user labels (`pkx` in some tutorial inputs, `pkz` in others). The
+    reporter offers the inputs, outputs with SHA-256, scripts and provenance
+    as fixtures, which is this WP's first task. No reply on the thread yet.
+    Checked against the tree at 7d9be3cb: no file under `tests/data/`
+    mentions TCHZ (the same session's X-ray extinction run is there, as
+    `topas_export_nacl_xray_ext20_ycalc.txt` from #839), and `to_structure`
+    still builds no `Instrument`.
 
 ## Non-goals
 

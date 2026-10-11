@@ -323,6 +323,23 @@ a `tests/data/README.md` row.
   past `ZERO`. WP-1327's LaMnO₃ acceptance still seeds its widths by hand
   for this reason.
 
+- **2026-10-11, from the issue triage (#732, #761): three asks this file
+  names have no task line.** The 2026-10-08 #732 entry leaves "steps 2 and 4
+  as tasks", but § Tasks has neither: step 2 is the Chebyshev domain stored
+  on the background model, step 4 the GSAS-I `ZERO` unit. #761 (2026-10-06,
+  no thread answer yet) is named only in the 2026-10-06 handover. It asks
+  that `write_fullprof_pcr` and the GSAS-II phase CIF write the restated
+  hexagonal `a` and `c` free where the rhombohedral cell was free, with
+  coordinates still held. It carries one decision for the maintainer: a
+  caller who freed a_r with α_r held moved a_h and c_h at a fixed ratio,
+  which neither program can state, and the reporter would keep both held and
+  say so. Checked against the tree at 7d9be3cb: `BackgroundChebyshev`
+  (`schemas/instrument.py:1068`) still holds only `kind` and `coefficients`,
+  the domain being the grid's (`background/models.py:88`), and the GSAS-II phase CIF writes
+  no refine flags at all (`io/projects/gsas2.py:1750`, `:1988`), so #761's
+  freeing applies to the `.pcr` writer alone and needs the free set to reach
+  it (#722's Part B, unlanded for FullProf).
+
 ## Non-goals
 
 - Magnetic writers for FullProf, GSAS and GSAS-II: none of those programs
