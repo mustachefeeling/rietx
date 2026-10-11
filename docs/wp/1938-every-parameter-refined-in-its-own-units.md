@@ -1,6 +1,6 @@
 # WP-1938 — every parameter refined in its own units
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — physical units and the LM default landed; D6, three grid fits and 22 fast failures open
+Milestone: unscheduled · Status: 🔄 2026-10-11 — D6 and the fast suite landed, the cone stall a recorded exception (D9); TRF caveat, docs, seeds, the valley and the acceptance re-measure open
 Track: What fires, and what stays silent
 Depends on: 1936 (the FD step, landed 2026-10-09), 1937 (a driver that handles widths on zero, landed 2026-10-10), 1940 soft (merge after it, so the re-pinned numbers and the grid are the shipping kernels'; the work can start before)
 Priority: P1 2026-10-10 — was P2: WP-1937 landed, nothing blocks it, and it now carries the default-driver flip WP-1929's P1 rests on
@@ -356,6 +356,160 @@ BT-1. Brucite + Stephens is the one exception (D9): its bar is the
   transformed parameter's error is meaningless near its limit).
 
 ## Handover log
+
+### 2026-10-11 (second session) — the stored field goes, the fast suite is green, and the cone stall is the model's
+
+A saved project, history log or `.rxt` document no longer stores how a
+parameter was transformed. Every old one opens with the same meaning, and the
+numbers the package computes did not move by a single bit. Every quick test
+passes under the new default solver. The one fit that still scatters across
+starts is brucite with a direction-dependent strain model. The cause is the
+model's edge, not the solver: there the width grows as a square root, so no
+slope-following solver can steer. No other program handles that edge better,
+so it is a recorded exception, and WP-1946 holds an idea for removing the edge
+altogether. Issue #900 is closed by this branch and has a test. Not closing:
+the seeds, the docs pass, brucite's valley and the acceptance re-measure
+remain.
+
+*Done* (11 commits on top of `f7841a6d`, plus two from main):
+- `248051f7`: the ten backend goldens re-captured, each move checked by
+  mechanism first (below). `tests/data/README.md` § backend_goldens has the
+  record.
+- `95fb4008`: `test_neutron_cw`'s X-ray box reads W's floor through
+  `_MIN_GAMMA_G2`. The joint test asserts one `w` column per histogram,
+  because on flat data both widths now end exactly on the floor.
+- `b6509529`: the P 1 runaway test names TRF, the trajectory that reaches the
+  guard. Under LM the wrong cell stays put.
+- `ffee6d38`: the Le Bail alternation pins re-measured under LM.
+  `WORSE_START` 1.0048 → 1.0036, the middle of LM's worse-pass range.
+- `b5892f77`: D9 and WP-1946 (the maintainer chose "exception + new WP" after
+  the prior-art survey).
+- `c7cadcc1`: D6, by a lane. `Parameter.transform` is gone and schema
+  0.45 → 0.46. `schemas.common.legacy_transform_bounds` is the one map from an
+  old word to bounds, used by `Parameter`'s before-validator and the `.rxt`
+  parser. Breaks for old code: `transform=` on `add_variable`/`add_parameter`,
+  and `Candidate.dp_du`.
+- `b2beb767`: #900's script as `tests/test_issue_900_restated_bound.py`.
+  #900 was folded by the merge of #901, and its Inherited entry was pruned
+  into Context and two tasks.
+- `7b125061`: the 1.8.0 notes. Session 1 had left them describing WP-1930's
+  floor seed (deleted by D4), "the default driver is unchanged" and schema
+  0.44.
+- `b263a180`: `test_cross_backend[fd-srm660c]` failed here and passed on
+  main. The FD reference now differences a column on its bound from inside.
+- The cone stall is ticked as D9. Not ticked: the 16 failures (the fast tier
+  is green, but the slow ones need step 5 of *Next*), and the traced
+  backends (jax/torch are not installed here; CI's `[dev,jax]` job runs them
+  at `gh pr ready`).
+
+*Measured* (macOS 26.6.2 arm64, `[dev]`, Python 3.12.10, numpy 2.5.4,
+rietx-kernels 1.2.0):
+- Goldens. Main's code at `12db370b` reproduces main's goldens in this venv,
+  so every move is this branch's. θ moved by exactly the softplus map. Old
+  column = new × expit(u) to ≤ 3.7e-6 on every column but three: Lorentzian
+  widths stored at 0 (`profile.y` in srm660c and toy_rich, `lor_size` in
+  toy_stephens). Against a Richardson one-sided derivative, the old columns
+  were 7 %, 45 % and 14 % off, and the new ones are off by 1.1e-6, 2.8e-8 and
+  1.6e-8. D6 then left all ten bit-identical.
+- Le Bail under LM: TRF's pass 1 (13.847 %) sits where Γ_G² is under the
+  clamp (U = −0.0032), so LM stops at 13.918-13.920 %. The worse-pass shape
+  holds from +0.20 % to +0.52 %, and +0.10 % and +0.56 % converge instead.
+  The kept Rwp is 0.139185, and the slow +2 % wander gives 1.750941 kept and
+  1.945486 for the next fit. Each number is identical across starts 1e-14
+  apart.
+- P 1 runaway: under LM the cell moves < 0.01 Å, Rwp 0.3316 at three starts.
+  TRF runs away on each, with Rwp 127.7, 0.33 and 7.8e6.
+- The cone (D9's evidence). Six of 43 reflections end on σ² = 0. Lifting any
+  of them raises the cost as √h (+0.0032 at 1e-6, +0.10 at 1e-3, +3.3 at 1).
+  The FD quotient along the lifting direction grows as 1/√h, and the
+  forward-difference columns read the secant or 0. Five starts give one face
+  set, with costs up to 4e-5 apart. A floor σ² ≥ ε²M² gives:
+
+  | floor | χ²_red, five starts | last stage |
+  |---|---|---|
+  | none | 7.7177-7.7202 | `exhausted_fp64` |
+  | 1 ppm | 7.74062688-89 | `ftol_runs` |
+  | 0.1 ppm | 7.6999-7.7008 | `exhausted_fp64` |
+  | 0.01 ppm | 7.7359-7.7362 | `exhausted_fp64` |
+
+  Prior art (a Sonnet survey, GSAS-II checked at `GSASIIstrMath.py:3265`): no
+  code holds σ² ≥ 0. The details are in WP-1946.
+- Brucite isotropic and corundum end every stage with no Γ_G² row on the
+  face. One start in five takes a different path through a middle stage:
+  χ²_red 1.1e-8 and 3.4e-8 apart. That is brucite's-valley work, not D7's.
+- #900 under LM: both spellings reach χ² 7304 with scale 4.18e-4 and Pb Biso
+  1.479 (truth 4.2e-4 and 1.49). The truth scores 5777, but one stage freezes
+  its windows at the start's narrower Lorentzian widths: `y_calc` gives 7372,
+  and a fresh `predict` at the same values 6725. TRF ends `max_iter` at 4.5e5
+  with Pb Biso 133, under seven warnings, so the TRF caveat is a sentence
+  rather than a new diagnostic.
+- `fd-srm660c`: extinction on its 0 floor is 0.78 off differenced from below,
+  and the central quotient 0.389. The analytic column meets the one-sided one
+  to 6.2e-6. Matrix: 54 passed, 101 skipped (the jax/torch rows).
+- Fast suite on the final tree, with main `d80ca5f4` merged and no other suite
+  running: 0 failed, 9131 passed, 175 skipped, 2 xfailed, 5:09. The lane's run
+  read 9129 / 175 / 2, and the +2 is #900's two cases. Session 1's last run
+  read 22 failed, 9089 passed and 178 skipped, on an x86-64 venv for part of
+  it. The branch's 40 added tests cost 14.73 s (local junit), led by
+  `test_absent_phase.py` at 7.13 s for 6, `test_gaussian_width_floor.py` at
+  3.45 s for 11, and `test_issue_900_restated_bound.py` at 2.25 s for 2.
+- Lanes: one, opus.
+
+  | lane | est | requests | main at dispatch | saved $ |
+  |---|---|---|---|---|
+  | d6-stored-field | 45 | 224 | 208K | +2.76 |
+
+  The trial row is in `docs/milestones/process.md`, entered as kept 1. The
+  selective policy's replay row with this session's u, mo and d reads 123,
+  +55 %.
+
+*Declined or deferred*:
+- `/code-review high --fix` was deferred again. The PR stays draft mid-WP, and
+  the docs pass and the acceptance re-measure still move code. Run it before
+  `gh pr ready`.
+- The full suite did not run, since the WP is mid-flight.
+- About 20 test files still pass `transform=` (`grep -rln 'transform="softplus"' tests`).
+  The validator folds them, and they double as old-code coverage.
+
+*Gotchas*:
+- To probe while a lane edits the tree, export a snapshot:
+  `git archive HEAD src tests examples | tar -x -C <scratchpad>/headtree`,
+  then run with `PYTHONPATH=<snapshot>/src`. Every cone and #900 number above
+  came that way.
+- A χ² compared with the truth's needs the frozen windows in mind: a
+  one-stage plan from a far start truncates its own tails.
+- The worktree guard refuses `$(...)`, a variable in a path, and a `cd`.
+  Write the path out.
+
+*Next*, in order:
+1. TRF's caveat, decided in this session: a sentence, no diagnostic. Put it in
+   `docs/manual/estimation.md` § Solvers and the `solver=` docstrings, with
+   #900's numbers. Tick the task.
+2. The docs pass. The lane's list of Part 1 lines is `using/data.md` 44-52,
+   196-201, 803-805, 814, 1033-1034, 1199-1201; `model.md` 195-214, 366,
+   389-391; `concepts.md:246`; `recipe.md` 83, 125; `refining.md` 562,
+   891-892; `gui-power.md` 45, 101; `files.md:653`; `report.md:600`. Then the
+   skill's `surprises.md` 57, 186-187, `magnetic.md:55` and
+   `diagnostics-projects.md:80`. Then examples (`nac_11bm.py:70`,
+   `srm660c_lab.py:34`, `bench_*`, `probe_varpro.py`, and
+   `probe_driver_grid.py`, whose `_install_physical` is now a no-op) and
+   `src/rietx/io/CLAUDE.md:300`. Also session 1's list: the tutorials'
+   `solver=trf`, `first-refinement.md:73-87`, the speed sentences in `lm.py`
+   and `estimation.md` (`examples/bench_solver.py`), root CLAUDE.md's
+   softplus and WP-1463 clauses, and `DESIGN.md:268,371`. Finally, stale src
+   comments: `least_squares.py` 68/70/2103, `vector.py` 1018/2909,
+   `staged.py` 135/288/411/535, `suggest.py:56`.
+3. Seeds: the extinction and magnetic-width measurement, and the
+   `SUGGEST_SEED_SOFTPLUS` name.
+4. Brucite's valley: a Linux run (a temporary branch workflow), then the
+   mechanism behind the mid-stage path split on brucite isotropic and
+   corundum.
+5. The acceptance suites and VALIDATION.md re-measured, with every > 1 % move
+   listed in the 1.8.0 notes and PNGs written. The slow half of the 16
+   failures gets checked here (`test_magnetic_solve_acceptance` 150 K trial,
+   `test_acceptance_sequential`).
+6. `/code-review high --fix`, the full suite on main merged in, and
+   `gh pr ready`.
 
 - **2026-10-11** — first session: physical coordinates and the LM default
   land, and LM's step now holds linear inequalities exactly. Not closing.
