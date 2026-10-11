@@ -43,17 +43,17 @@ assert width.min == 0.0
 
 `Parameter.positive` is the constructor for a quantity with no physical meaning
 below zero: a peak width, a scale, an absorption coefficient. It sets
-`min=0.0` and the softplus transform, which keeps the optimiser away from the
-hard bound instead of letting it stall against it.
+`min=0.0`. Every parameter refines in its own unit, and the driver holds `min`
+and `max` as a box, so a value the data push downwards lands exactly on its
+bound.
 
 :::{warning}
-Softplus does not promise a strictly positive value. The internal variable maps
-to `log(1 + exp(u))`, which underflows to exactly `0.0` for `u` below about
-−745, so a `min=0.0` softplus parameter can reach zero. That is harmless
-wherever zero is the off state, which is nearly everywhere in this package: a
-zero width is no broadening, a zero extinction coefficient is no extinction. It
-is a bug wherever the physics divides by the value, and such a parameter carries
-a real floor instead. `PreferredOrientation.r` is the one that does.
+A `min=0.0` parameter can end at exactly `0.0`. That is harmless wherever zero
+is the off state, which is nearly everywhere in this package: a zero width is
+no broadening, a zero extinction coefficient is no extinction. It is a bug
+wherever the physics divides by the value, and such a parameter carries a real
+floor above zero instead. `PreferredOrientation.r` stops at 0.15, a hump's
+width at `HUMP_FWHM_MIN`, and `ProfileTCHZ.w` at 1e-8 deg².
 :::
 
 `stderr` is the one field a fit writes back. It is `None` on a parameter that
@@ -193,12 +193,12 @@ and the rest describe what this specimen did to the peaks.
 | `Phase.symmetry_operations` | list[str] or None | `None` | the phase's symmetry operations as `x,y,z` triplets, for a group no symbol names in this cell |
 | `Phase.cell` | `Cell` | required | lengths and angles |
 | `Phase.atoms` | list[`Atom`] | required | the asymmetric unit, at least one |
-| `Phase.scale` | `Parameter` | 1.0, fixed, softplus | this phase's contribution to the total intensity |
-| `Phase.lor_size` | `Parameter` | 0.0 deg, softplus | Lorentzian size broadening, 1/cos θ |
-| `Phase.lor_strain` | `Parameter` | 0.0 deg, softplus | Lorentzian strain broadening, tan θ |
-| `Phase.gauss_size` | `Parameter` | 0.0 deg², softplus | Gaussian size broadening, 1/cos²θ |
-| `Phase.gauss_strain` | `Parameter` | 0.0 deg², softplus | Gaussian strain broadening, tan²θ |
-| `Phase.extinction` | `Parameter` | 0.0 µm², fixed, softplus | primary extinction, the squared mosaic-block size D², {eq}`corr-sabine`; 0 is E ≡ 1 exactly |
+| `Phase.scale` | `Parameter` | 1.0, fixed, ≥ 0 | this phase's contribution to the total intensity |
+| `Phase.lor_size` | `Parameter` | 0.0 deg, ≥ 0 | Lorentzian size broadening, 1/cos θ |
+| `Phase.lor_strain` | `Parameter` | 0.0 deg, ≥ 0 | Lorentzian strain broadening, tan θ |
+| `Phase.gauss_size` | `Parameter` | 0.0 deg², ≥ 0 | Gaussian size broadening, 1/cos²θ |
+| `Phase.gauss_strain` | `Parameter` | 0.0 deg², ≥ 0 | Gaussian strain broadening, tan²θ |
+| `Phase.extinction` | `Parameter` | 0.0 µm², fixed, ≥ 0 | primary extinction, the squared mosaic-block size D², {eq}`corr-sabine`; 0 is E ≡ 1 exactly |
 | `Phase.preferred_orientation` | `PreferredOrientation` or None | `None` | single-axis March-Dollase, {eq}`corr-md` |
 | `Phase.microstrain` | `StephensStrain` or None | `None` | anisotropic strain, width per hkl, {eq}`ms-sigma` |
 | `Phase.particle_radius_um` | float or None | `None` | Brindley microabsorption input, {eq}`corr-brindley`; a plain float, never refined |
@@ -800,9 +800,9 @@ parameters, in degrees 2θ throughout.
 |---|---|---|---|
 | `ProfileTCHZ.u` | `Parameter` | 0.0 deg², in [−0.05, 1] | Gaussian tan²θ term, {eq}`prof-caglioti-g` |
 | `ProfileTCHZ.v` | `Parameter` | 0.0 deg², in [−0.5, 0.5] | Gaussian tan θ term |
-| `ProfileTCHZ.w` | `Parameter` | 1e-3 deg², softplus | Gaussian constant term |
-| `ProfileTCHZ.x` | `Parameter` | 1e-3 deg, softplus | Lorentzian 1/cos θ term, {eq}`prof-caglioti-l` |
-| `ProfileTCHZ.y` | `Parameter` | 0.0 deg, softplus | Lorentzian tan θ term |
+| `ProfileTCHZ.w` | `Parameter` | 1e-3 deg², in [1e-8, 1] | Gaussian constant term |
+| `ProfileTCHZ.x` | `Parameter` | 1e-3 deg, in [0, 1] | Lorentzian 1/cos θ term, {eq}`prof-caglioti-l` |
+| `ProfileTCHZ.y` | `Parameter` | 0.0 deg, in [0, 1] | Lorentzian tan θ term |
 | `ProfileTCHZ.shape` | `"tchz_pv"` or `"voigt"` | `"tchz_pv"` | pseudo-Voigt or the exact convolution |
 
 Match the physics, not the letters. GSAS and FullProf swap the X and Y
@@ -811,11 +811,15 @@ assignments, so a value copied from another code has to be matched by its
 backwards gives a different width function rather than a mislabelled one, and
 this manual has made the mistake itself.
 
-`w`, `x` and `y` are softplus-positive; `u` and `v` carry negative lower bounds,
-so the Gaussian polynomial can bend downward. The quantity that has to stay
-positive is the total Γ_G² across the measured range rather than each term, so
-read a negative `u` or `v` as a statement about the fitted resolution curve and
-check the width it produces at both ends of the range.
+`x` and `y` are bounded below at 0. `w` stops at 1e-8 deg², the variance under
+which the Gaussian width is clamped and every width column is zero,
+{eq}`prof-caglioti-floor`. `u` and `v` carry negative lower bounds, so the
+Gaussian polynomial can bend downward. The quantity that has to stay positive is
+the total Γ_G² across the measured range rather than each term. The default
+driver holds it above the clamp at every reflection, and under `solver="trf"`
+`RESOLUTION_NOT_POSITIVE` reports where it fell under. Read a negative `u` or
+`v` as a statement about the fitted resolution curve, and check the width it
+produces at both ends of the range.
 
 `shape` is a compile-time choice rather than a refinable one, and both shapes
 consume the same five widths, so switching never changes the parameter table.
@@ -1030,8 +1034,8 @@ matching. Code that assigns the old attribute raises.
 | Field | Is | Bound |
 |---|---|---|
 | `HumpComponent.position` | the hump's apparent 2θ | unbounded by default, since it is not a Bragg position and the range that would bound it is a property of the pattern rather than of the instrument |
-| `HumpComponent.height` | its peak value in counts | softplus, `min=0`, and zero is the off state, so the bound is safe |
-| `HumpComponent.fwhm` | its width in 2θ | softplus, floored at `HUMP_FWHM_MIN`: the Gaussian divides by Γ, so a zero width is a pole rather than an identity |
+| `HumpComponent.height` | its peak value in counts | `min=0`, and zero is the off state, so the bound is safe |
+| `HumpComponent.fwhm` | its width in 2θ | floored at `HUMP_FWHM_MIN`: the Gaussian divides by Γ, so a zero width is a pole rather than an identity |
 | `HumpComponent.label` | a free-text tag | not a parameter and not part of any dot-path |
 | `HumpComponent.kind` | the union discriminator, `"hump"` | fixed; it names which member of `ExtraComponent` this is, and the union dispatches on it rather than on shape |
 
@@ -1196,9 +1200,8 @@ instrument = Instrument.debye_scherrer(wavelength=0.412359)
 instrument.extra_components = [HumpComponent(
     label="Kapton halo",
     position=Parameter(value=5.0, unit="deg"),
-    height=Parameter(value=50.0, min=0.0, unit="counts", transform="softplus"),
-    fwhm=Parameter(value=2.0, min=HUMP_FWHM_MIN, unit="deg",
-                   transform="softplus"))]
+    height=Parameter(value=50.0, min=0.0, unit="counts"),
+    fwhm=Parameter(value=2.0, min=HUMP_FWHM_MIN, unit="deg"))]
 assert len(instrument.extra_components) == 1
 ```
 

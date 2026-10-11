@@ -650,7 +650,7 @@ zero in all 95 constant-wavelength histograms of GSAS-II's own tutorial
 corpus), a non-zero `Azimuth`, which changes what `Polariz.` means, and a
 negative `U`, `W`, `X` or `Y`. That last one is the ordinary case rather than a
 corner. GSAS-II bounds none of its width coefficients, this package's are
-bounded at zero through a softplus, and two of the four constant-wavelength
+bounded below, and two of the four constant-wavelength
 files in that corpus converged to a negative `X`. A `W` of 0 is read onto
 `W`'s floor, the variance the Gaussian width is clamped at
 ({ref}`ch-profiles`).

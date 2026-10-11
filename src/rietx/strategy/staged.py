@@ -285,8 +285,8 @@ MAGNETIC_WIDTH_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
 )
 
 #: The value a freed magnetic width is lifted to before step 2 solves, in
-#: deg 2θ.  **Not a claim about the specimen — a claim about softplus.**  Both
-#: terms were softplus-bounded at zero, where the map's slope is 1e-12, so a
+#: deg 2θ.  **Not a claim about the specimen; a seed from the softplus era.**
+#: Both terms were softplus-bounded at zero, where the map's slope is 1e-12, so a
 #: coefficient at its exact default had a column twelve orders below its
 #: neighbours.  TRF's Jacobi scaling kept such a column live (WP-1463), and
 #: measured on the synthetic k ≠ 0 supercell and on Cr₂WO₆ the answer was the

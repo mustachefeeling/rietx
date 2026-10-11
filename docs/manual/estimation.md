@@ -423,10 +423,16 @@ unchanged. The rule before truncated the bounded step at the first row it
 crossed, and that stalled wherever the optimum lay on a row's face. An answer that
 pressed a row says so. Per-stage counts of the held steps are recorded, and a
 `CONSTRAINT_ACTIVE` diagnostic names the block in the answer-producing stage.
-It is the one signal that a declared constraint was active. Speed was measured
-at 0.74–1.04× against TRF, as expected: the
-normal-equation solve is a minority of the runtime, so solver work is
-Amdahl-bounded at ≈1.25× here. {ref}`ch-method` works through two places where
+It is the one signal that a declared constraint was active.
+
+Speed was measured with `examples/bench_solver.py` on four acceptance
+protocols (macOS arm64, three runs). Where both drivers converge, on SRM 660c
+and the 11-BM NAC pattern, this driver is 1.19–1.30× faster. It needs 78 and 35
+residual evaluations there, against TRF's 83 and 51. The solve itself is a
+minority of the runtime, so a faster solve alone would buy at most about
+1.25×. On corundum and the four-phase cpd-2 protocol TRF stops on its
+iteration limit after 906 and 3865 evaluations. This driver converges in 116
+and 224, 11.6–35× faster. {ref}`ch-method` works through two places where
 the Coelho papers disagree with their own text, and how measurement settled
 them.
 

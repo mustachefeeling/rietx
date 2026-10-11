@@ -53,12 +53,13 @@ around 0.2 while the block collectively absorbs ~46 % of it. Ask "can this
 *group*, acting together, imitate that one?" — that is what
 `background_absorption` measures.
 
-**8.6 Some parameters are dead at zero and some explode there.** A
-softplus-transformed coefficient (extinction, roughness strength) has
-dp/du → 0 at the floor, so it will never move: it needs `Stage.seed`. A
-Stephens block has Λ ∝ √Σ with *unbounded* slope at Σ = 0, so it needs
-`Stage.strain_seed` to start on the isotropic ray instead. These are opposite
-pathologies with opposite fixes; the plans already carry both.
+**8.6 A width on its zero floor can move; a Stephens block at zero cannot
+start.** Every parameter refines in its own units, so a width, scale or
+extinction coefficient freed at 0 has its physical column there and can leave
+the floor unseeded. A Stephens block has Λ ∝ √Σ with *unbounded* slope at
+Σ = 0, so it needs `Stage.strain_seed` to start on the isotropic ray.
+`Stage.seed` is a plan's choice of where a solve starts. The plans already
+carry both.
 
 **8.7 A default is a decision, in either direction.** Anisotropic ADPs,
 Stephens strain, surface roughness and preferred orientation are opt-in per
@@ -182,17 +183,16 @@ or preferred orientation whose coefficient has reached a bound. **Corollary:
 treat elapsed time as a diagnostic. If a stage runs long, do not wait for it —
 look at what you freed.**
 
-**8.14 A bound that exists is not a bound that holds.**
-`PreferredOrientation.r` is declared `min=0.0` with a softplus transform, the
-idiom that is supposed to keep a parameter strictly positive. The softplus
-pre-image runs to −∞, so `r` reaches **exactly 0**, and the March-Dollase factor
-then evaluates `(1 − c)/r` and returns inf/NaN. Nothing raises: the residual
-becomes garbage and the trust region grinds through its whole budget on it (a
-3-second stage that had not returned after ten minutes). Bounding `r` to
-0.15–6 fixed the stall *and* the fit, Rwp 30.8 % → 13.2 %. **Corollary: for any
-parameter whose model divides by it, set a real floor rather than trusting the
-transform — and read `RuntimeWarning: divide by zero` as a fit-stopping error,
-not noise.**
+**8.14 A floor of zero under a parameter the model divides by is a pole the
+fit can reach.** The driver lands a parameter exactly on its bound when the
+data push that way, so a `min=0.0` value can end at **exactly 0**. When
+`PreferredOrientation.r` had that floor it reached 0, and the March-Dollase
+factor evaluated `(1 − c)/r` to inf/NaN. Nothing raises: the residual becomes
+garbage and the solver grinds through its whole budget on it (a 3-second stage
+that had not returned after ten minutes). Bounding `r` to 0.15–6 fixed the
+stall *and* the fit, Rwp 30.8 % → 13.2 %. **Corollary: for any parameter whose
+model divides by it, set a real floor above zero, and read `RuntimeWarning:
+divide by zero` as a fit-stopping error, not noise.**
 
 **8.15 A coverage score cannot tell a mixture from a low-symmetry single phase,
 and this project already published that mistake and withdrew it.** Measured on

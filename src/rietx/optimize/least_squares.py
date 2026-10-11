@@ -1,4 +1,7 @@
-"""Weighted least-squares driver on scipy's Trust Region Reflective solver.
+"""Weighted least squares: the Jacobian, the two drivers and the esds.
+
+The default driver is the bounded Levenberg-Marquardt of :mod:`.lm`; scipy's
+Trust Region Reflective is ``solver="trf"`` (:data:`SOLVERS`).
 
 Minimises  S(θ) = Σ_i w_i (y_obs,i − y_calc,i(θ))²,  w_i = 1/σ_i²
 (Rietveld 1969; weights per counting statistics — see PatternData.sig).
@@ -68,10 +71,10 @@ SOLVERS = ("trf", "lm")
 
 #: The driver a fit runs when the caller names none (WP-1938).  Every
 #: signature defaulting ``solver=`` reads this one constant.  It moved with the
-#: physical coordinates because each half alone was worse than TRF in softplus
-#: coordinates: on WP-1937's grid of 14 acceptance fits, physical + LM left one
-#: fit's minimum unsettled where today's default left three, and softplus + LM
-#: left seven.
+#: physical coordinates because each half alone was worse than the pair it
+#: replaced, TRF over the softplus coordinates before WP-1938: on WP-1937's
+#: grid of 14 acceptance fits, physical + LM left one fit's minimum unsettled,
+#: softplus + TRF three, physical + TRF four and softplus + LM seven.
 DEFAULT_SOLVER = "lm"
 
 #: Wyckoff site DOFs — coordinates (``dof``, tied to x, y, z) and anisotropic

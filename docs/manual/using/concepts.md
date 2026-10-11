@@ -239,13 +239,10 @@ The path is `"vars."` plus the name, and it is an ordinary dot-path from there:
 a fit refines it and reports an esd for it. `Refinement.remove_variable` deletes
 one, and refuses while anything still follows it, naming the dependents.
 
-`min`, `max` and `transform` are the part worth thinking about, because a
-variable is a `Parameter` and those are the fields the fit reads. Declared with
-the same bounds and transform as the model parameter it replaces, it produces
-the identical column and the identical answer. Declared with different ones it
-is a different problem. A quantity whose physical parameter uses the softplus
-reparameterisation, given the default `identity`, is no longer kept off its own
-floor.
+`min` and `max` are the part worth thinking about, because a variable is a
+`Parameter` and those are the fields the fit reads. Declared with the same
+bounds as the model parameter it replaces, it produces the identical column and
+the identical answer. Declared with different ones it is a different problem.
 
 A dependent's own bounds reach the solver too, and you do not have to do the
 arithmetic. A tie says `dependent = coefficient · source + offset`, so a

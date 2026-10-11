@@ -1,4 +1,4 @@
-"""Bounded Levenberg-Marquardt driver — the alternative to scipy's TRF.
+"""Bounded Levenberg-Marquardt driver, the default since WP-1938.
 
 Gauss-Newton normal equations with the adaptive Marquardt constant of Coelho,
 A. A. (2018). *J. Appl. Cryst.* **51**, 428-435 ("Optimum Levenberg-Marquardt
@@ -40,11 +40,17 @@ stalled.  Brucite + Stephens stopped ``exhausted_fp64`` with its S_HKL spread
 7e-5 relative over five starts.  Under D7's Γ_G² rows, two LaB₆ fits and
 BT-1's X-ray fit stopped short of the rows' face.
 
-It is not a speed play.  The normal-equation solve is a minority of this
-package's runtime — ``derivative_bases`` costs ~2× the forward evaluation, and
-Coelho's own N = 1325 case drops the *solve* from 484 s to 2.86 s while the
-whole refinement only drops 2441 s → 1785 s — so a solver that halved every
-solve would buy ≈1.25× overall.
+**Speed comes from the evaluation count, not the solve.**  The
+normal-equation solve is a minority of this package's runtime —
+``derivative_bases`` costs ~2× the forward evaluation, and Coelho's own
+N = 1325 case drops the *solve* from 484 s to 2.86 s while the whole
+refinement only drops 2441 s → 1785 s — so a faster solve alone would buy
+≈1.25×.  Measured with ``examples/bench_solver.py`` (macOS arm64, ``[dev]``,
+rietx-kernels 1.2.0, three runs, WP-1938): 1.19-1.30× on SRM 660c and 11-BM
+NAC, where both drivers converge (78 against 83 and 35 against 51 residual
+evaluations).  On corundum and the cpd-2 QPA protocol TRF stops on
+``max_iter`` after 906 and 3865 evaluations and LM converges in 116 and 224,
+11.6-14.5× and 34.1-35.3× faster.
 
 Conventions, which must match :mod:`.least_squares` exactly or λ is meaningless:
 
@@ -77,14 +83,14 @@ protocol whose width stages walk a degenerate valley into a stage that opens
 a *new* basin — the QPA cpd-2 protocol, where per-phase size/strain × U,V,W,
 X,Y are near-degenerate and the texture stage's March-Dollase basin is only
 downhill from some points of that valley — the two drivers stop at different,
-locally equivalent valley points, and the LM's can be one from which the
-texture basin is unreachable (Rwp 0.245 against TRF's 0.133, brucite 76
-against 38 wt %).  Measured to be a *genuine local minimum*, not a driver
-defect: a TRF polish from the LM's exact state stays at Rwp 0.244.  Basin
-selection on a shared degeneracy is path luck, not driver quality — but the
-reference protocols were tuned under TRF, so on a texture-bearing staged plan
-prefer the default driver or re-validate the answer (the case lives in
-``examples/bench_solver.py``).
+locally equivalent valley points.  In the softplus coordinates before
+WP-1938, the LM's was one from which the texture basin is unreachable (Rwp
+0.245 against TRF's 0.133, brucite 76 against 38 wt %), and a TRF polish from
+its exact state stayed at Rwp 0.244: a *genuine local minimum*, not a driver
+defect.  In physical coordinates LM reaches the basin (Rwp 0.13260) and TRF
+stops on ``max_iter`` at 0.13297.  Basin selection on a shared degeneracy is
+path luck, not driver quality, so re-validate a texture-bearing staged answer
+from a second start (the case lives in ``examples/bench_solver.py``).
 
 **The cost is always a fresh fp64 residual evaluation**, never an extrapolation
 from the same reduced-precision quantities that built the columns.  That is

@@ -562,7 +562,7 @@ property of the dataset; expect the other back unmeasured.
 esds (the ratio `MomentEvidence.supported` uses for a moment), and one that came
 back with no esd at all. That message names a cause only where it checked one:
 a magnetic component with no intensity (a zero moment), or the term on its
-softplus floor. On the Cr₂WO₆ tutorial pattern at 4 K
+zero floor. On the Cr₂WO₆ tutorial pattern at 4 K
 (k = 0, with magnetic-only intensity on the parent's absences) the size term
 comes back 0.034 ± 0.013°, 2.6 esds and so unmeasured, the strain term on its
 floor with no esd (also unmeasured), and the moment moves 2.124 ± 0.048 → 2.171 ± 0.043 μ_B. On
@@ -887,18 +887,19 @@ gives it. Set it to say that one stage is different: an early stage whose seed
 the next one is unusually sensitive to, or a single-stage fit that has to
 converge as hard as an endpoint.
 
-`Stage.seed` and `Stage.strain_seed` both exist to lift a parameter off an
-exact zero that the solver cannot move away from. They are not interchangeable,
-because the two pathologies are opposite.
+`Stage.seed` and `Stage.strain_seed` both start a parameter away from an
+exact zero. They are not interchangeable, because the two zeros differ.
 
-- `Stage.seed` lifts any softplus-bounded parameter the stage frees to the given
-  value. The softplus map's slope at zero is itself near zero, so a coefficient
-  starting at exactly zero has no gradient and never moves. The extinction and
-  surface-roughness stages use it.
+- `Stage.seed` lifts each parameter the stage frees that sits on a lower bound
+  of 0 or above to the given value. A value already above its floor is left
+  where it is. Some corrections are the identity at zero, so the seed says
+  where their solve starts: the surface-roughness stage starts at 0.3, near the
+  band where the data can see it. The extinction stage seeds 1e-3 and the
+  middle magnetic-width stage 0.05°. `StageResult.seeded` records each lift.
 - `Stage.strain_seed` puts a freed but all-zero Stephens block on a small
-  microstrain, in ppm of ΔM/M. Those coefficients are identity-transformed, so
-  `Stage.seed` cannot reach them, and their problem at zero is the exploding
-  gradient of a square root rather than a dead one.
+  microstrain, in ppm of ΔM/M. Those coefficients are unbounded below, so
+  `Stage.seed` cannot reach them. Their problem at zero is the unbounded slope
+  of a square root.
 
 Both default to `0.0`, meaning no seed.
 

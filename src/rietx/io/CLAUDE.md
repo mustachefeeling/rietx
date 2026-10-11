@@ -297,9 +297,9 @@ it. Chapter: `docs/manual/using/recipe.md`; measured convention table:
 - **Never adopt the other engine's project defaults, and never carry a quantity
   normalised in its units** — the Chebyshev coefficients and the phase scale
   are re-seeded, each saying so.
-- **A parameter that cannot move is held, not declared free**: a softplus
-  coefficient at zero has gradient ≈ its own value, so freeing one is WP-1076's
-  dead column. Drop the flag at `warning` naming what it costs.
+- **A flag the model cannot honour as written is dropped at `warning`, naming
+  what it costs**: a half `LG_eta` puts at its off state stays fixed, so the
+  recipe's η stands and the fit is one parameter short (`RECIPE_FLAG_DROPPED`).
 
 ## Adding a format
 

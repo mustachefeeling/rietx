@@ -293,7 +293,9 @@ driver alone).
       dates the transforms' removal and the driver flip.)
 - [ ] Tests, plus obs/calc/diff PNGs to `tests/output/` for the fits whose
       answer moves.
-- [ ] Skill: any rule that tells an agent to seed a width before freeing it.
+- [x] Skill: any rule that tells an agent to seed a width before freeing it.
+      (`surprises.md` §8.6 and §8.14, a row each in `magnetic.md` and
+      `diagnostics-projects.md`; both copies re-synced.)
 - [ ] **The default driver flip** (moved from 1937's checklist). Flip
       `solver=` to `"lm"` in every signature that defaults it (`refine.py` ×4, `multi.py` ×2,
       `sequential.py` ×2, `project.py` ×2, both `run_*least_squares`,

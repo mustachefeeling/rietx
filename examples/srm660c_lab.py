@@ -31,7 +31,7 @@ def build_model():
                        z=rx.Parameter(value=z),
                        biso=rx.Parameter(value=b, min=0.0, max=25.0))
                for lab, sp, x, y, z, b in _ATOMS],
-        scale=rx.Parameter(value=1e-4, min=0.0, transform="softplus"))])
+        scale=rx.Parameter(value=1e-4, min=0.0))])
 
     # graphite (002) post-monochromator at 2θ_m ≈ 26.6° sets the polarization
     instrument = rx.Instrument.bragg_brentano(radiation="CuKa",

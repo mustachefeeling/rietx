@@ -98,7 +98,7 @@ def build_inputs():
                     y=rx.Parameter(value=0.5), z=rx.Parameter(value=0.5),
                     biso=rx.Parameter(value=0.276, min=0.0, max=25.0)),
         ],
-        scale=rx.Parameter(value=1e-4, min=0.0, transform="softplus"),
+        scale=rx.Parameter(value=1e-4, min=0.0),
     )])
     instrument = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     instrument.profile.w.value = 2e-3

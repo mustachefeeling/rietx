@@ -67,7 +67,7 @@ def run() -> tuple[rx.PatternData, rx.Refinement, rx.RefinementResult, rx.Refine
                     y=rx.Parameter(value=0.25), z=rx.Parameter(value=0.25),
                     biso=rx.Parameter(value=0.9, min=0.0, max=25.0)),
         ],
-        scale=rx.Parameter(value=1e-7, min=0.0, transform="softplus"),
+        scale=rx.Parameter(value=1e-7, min=0.0),
     ))
     # the impurity is a refinement move like any other — record it in the DAG
     ref.edit(structure=structure2, label="add CaF2 impurity phase")
