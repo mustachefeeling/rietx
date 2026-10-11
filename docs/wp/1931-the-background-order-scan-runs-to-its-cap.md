@@ -112,6 +112,18 @@ claim the proposal makes and has not measured.
   `select_pspline_lambda` does not exist under `src/`, and
   `BACKGROUND_ORDER_AT_CAP` exists only on PR #871's branch.
 
+- **Decided 2026-10-11 (#833): the REML selector is parked.** Task 1
+  (`BACKGROUND_ORDER_AT_CAP`, PR #871) goes ahead on its own. Tasks 3-4
+  (`select_pspline_lambda` and its default) wait until a criterion exists that
+  does not read profile misfit as background. The reporter's measurement above
+  is the reason: on both standards REML makes the background more flexible
+  than the default, which is the harm `BACKGROUND_ABSORPTION` guards. When the
+  work resumes, the acceptance is rewritten around `worst_absorption`, the one
+  measure that separated the arms (0.46 against 0.08). The maintainer also
+  noted that λ is the package's wavelength symbol. So any new name, message or
+  document for the smoothing strength must not be readable as a wavelength.
+  `lambda_smooth` (WP-1454) is the existing case.
+
 ## Non-goals
 
 - The seed default (#725, #833 item 3): WP-1542.

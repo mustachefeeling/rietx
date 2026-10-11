@@ -493,6 +493,17 @@ the reporter's fork.
   or #680 settled the 2026-09-16 "field spelling" question for a phase
   carrying both operator lists was not checked, and chunk 2 may depend on it.
 
+- **Decided 2026-10-11 (#286): the unit and the acceptance row.** The
+  AMPLIMODES unit is accepted with both clauses: modes are normalised and
+  projected in the unstrained reference metric Pᵀ·G_parent·P, with strain a
+  separate Γ-point term, and a polar child's origin removes the global
+  translation. The acceptance row "Ba₂FeSbSe₅ S4(a,b) refines to the fork's
+  figures" becomes "A_τ and Hotelling's T² on the shipped BT-1 LaMnO₃
+  pattern", against Perez-Mato et al. 2010 Table 13 (R4+ 1.19, R5+ 0.09,
+  X5+ 0.56, M2+ 0.36, M3+ 0.90 Å). The old row's run used the furthest-atom
+  unit at raw-N ΔBIC and predates #680, and the new one is public and
+  rerunnable.
+
 ## Non-goals
 
 - Moment modes (SARAh-style basis-vector amplitudes): 1327 owns
@@ -523,7 +534,9 @@ the reporter's fork.
 
 ## Acceptance
 
-Ba₂FeSbSe₅'s S4(a,b) basis refines to the fork's figures within its esds;
+On the shipped BT-1 LaMnO₃ pattern against Pm-3m, A_τ reproduces Perez-Mato
+et al. 2010 Table 13 within its esds and Hotelling's T² is reported for the
+block (decided 2026-10-11, #286);
 every A = 0 control equals |det P|² × parent; the ten named settings and
 every shipped fixture are bit-identical.
 

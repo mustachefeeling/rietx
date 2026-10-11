@@ -668,6 +668,18 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   asserts at `:96` and `:99`. Not re-run (about 400 s). The 2026-10-10 Linux
   nightly (`32a2b473`) passed it; its one failure was #865.
 
+- **Decided 2026-10-11 (#820): option (a) for the 150 K acceptance test.** The
+  package keeps its 3σ support rule. The test asserts the verdict, ΔBIC ≤ 0,
+  convergence, and bands on the lead pair (sum 0.5-0.7 μ_B, esd
+  0.2-0.35 μ_B). It drops the two asserts on `supported` and
+  `pair_supported` (`tests/test_magnetic_solve_acceptance.py:96`, `:99`),
+  which sit within 0.3 % of the gate on both platforms. The stale docstring
+  numbers at `:73-77` are corrected in the same change. The gate's own
+  logic is tested separately, on constructed pairs well clear of 3σ either
+  side. This follows `tests/CLAUDE.md` § Budgets in tests: an assertion
+  within its measured cross-platform spread of a threshold senses where the
+  solver stopped.
+
 ## Non-goals
 
 - Modulated and incommensurate structures (superspace): issue #258 holds the
