@@ -21,7 +21,17 @@ Two issues, one seam (`src/rietx/indexing/reduce.py` and how its output reaches 
 
 ### Inherited
 
-(empty)
+- **2026-10-11, from the issue triage (#843, a duplicate of #797): the
+  sign is chosen inside `niggli_reduce`, and the cell fails a gate.** #843
+  is the 797 cell, found again by the 2026-10-08 `/pr-review` gate. That
+  machine's `.hypothesis/` database replays it, so every gate run there
+  fails this test until task 2 lands. Re-traced at 7d9be3cb (`[dev]`, macOS
+  arm64): the G6 vector straight out of `niggli_reduce`, before `normalize`
+  runs, already carries η = −1.753e-5 against the exact image's +1.753e-5,
+  and its other five parameters match that image to 1.7e-16. `normalize`
+  changes nothing here, so the step task 2 changes is in the reduction. The
+  flip moves the metric by 2|η| = 3.5e-5 on a G6 vector of scale 202, which
+  is #843's 2.3e-7 of max|red| in reciprocal A..F.
 
 ## Non-goals
 

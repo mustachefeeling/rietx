@@ -1,6 +1,6 @@
 # WP-1547 — the fast tier's tail is cut back, and its report reads CI's seconds
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — every task landed (PR #869); the ten-run acceptance waits for the merge
+Milestone: unscheduled · Status: 🔄 2026-10-11 — shards merged (#869); the ten-run acceptance reads main from here
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-09 — a cost item with the maintainer at the wall: every code PR waits 32-37 min, and the median leg rose 43 % in one week
@@ -194,6 +194,9 @@ only if the last task moves Python versions into the nightly.
       runner, and that `-n logical` was measured to buy nothing (this WP).
 - [x] Skill: none. This changes how the repo is tested, not how rietx is
       driven.
+- [x] The nightly runs the fast suite on 3.12 and on 3.13 (`middle`), and
+      RELEASING step 4 gates on those two and Windows. `full` is read at a
+      cut and does not gate (the maintainer's decision, 2026-10-11).
 
 ## Acceptance
 
@@ -223,6 +226,59 @@ gh run view <id> --json jobs   # each "fast …" job's startedAt to completedAt;
 - Runs 36362163974, 37100295315, 37966391017, 37978210348; PR #810.
 
 ## Handover log
+
+### 2026-10-11 (2nd session) — the release gate reads 3.12 and 3.13 on their own, and the trim stays
+
+PR #869 merged, and the maintainer took both of its open decisions. The trim
+stays: in eight weeks of the four-Python matrix, a middle version failed alone
+eight times, and none of the five that reached a test was a language break.
+The release gate changed shape. Step 4 had asked for the nightly's `full` job
+green, but `full` is red about half the time for reasons that have nothing to
+do with the Python version. So the nightly now runs the fast suite on 3.12 and
+on 3.13 as jobs of their own, and those two with Windows are the gate.
+
+Done:
+
+- `nightly.yml`: `py312` becomes `middle`, a matrix over 3.12 and 3.13 named
+  `fast suite (Linux, Python …)`. Its header says why `full` is not the gate.
+- `docs/RELEASING.md` step 4 names the three gating jobs and says `full` is
+  read and does not gate. `release.yml`, `ci.yml` and `tests/CLAUDE.md` § CI
+  say the same.
+
+Measured (GitHub's API, 2026-10-11):
+
+- Nightly, the 60 runs from 2026-08-22 to 2026-10-10. `full` was red on 27,
+  in three stretches, each one test failing on every night:
+  `test_acceptance_lab6_cbn` (correlation diagnostic) 08-27 to 09-10,
+  `test_acceptance_indexing` (brucite's rank) 09-22 to 09-26, and
+  `test_pair_diagnostic_class` on 10-07 and 10-10. Windows was red on 20,
+  all Windows-specific (`test_eval_skill`, `test_docs_consistency`'s
+  gitignored-link row, `test_runs`, `test_skill_cli`). v1.2.0 and v1.3.0
+  shipped inside the first `full` stretch. The other five releases from
+  v1.1.0 to v1.7.0 each followed a nightly with every job green.
+- Per push, every failed `ci.yml` run from 2026-08-16 to the merge: 84. The
+  red fast legs were all four in 35, 3.11 alone in 18, another job in 13,
+  and 3.12 or 3.13 without 3.11 or 3.14 in 8. Of those 8, five were tests
+  pinned to a float's last digits or one solver path (`test_history`,
+  `test_fitreport_layers`, `test_background_peaks`, `test_sequential`,
+  `test_cell_runaway_safety`), all on PR branches, each fixed by changing the
+  test. Two logs hold no pytest summary. One was `srm660c_lab.py` exiting 1
+  on main (run 32567276564), cause not read. Seven of the eight fell between
+  08-21 and 08-26.
+
+Gotchas:
+
+- The Windows job runs Python 3.13 as well, so a 3.13 break can show there
+  first.
+- On a log holding escape codes, `gh api .../jobs/<id>/logs` prints nothing
+  and exits 1 unless given `--allow-escape-sequences`.
+
+Next:
+
+1. Check that both `middle` jobs go green on their first nightly. If one
+   fails where `full` passed, read its environment step first: each leg now
+   prints its numpy and scipy versions.
+2. The ten-run read and the record refresh stay as the entry below says.
 
 ### 2026-10-11 — each fast leg runs as two shards; the ten-run acceptance waits for the merge
 

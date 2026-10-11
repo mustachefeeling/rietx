@@ -161,6 +161,20 @@ the report still said "No syntax errors" (`blocks.SCAT_SOURCE_MAX` holds it at
 40). A report whose value table comes back empty is a silent PLATON. Run settings
 and alert lists are in 1319's Context.
 
+### Inherited
+
+- **2026-10-11, from the issue triage (#756): the superspace-number rule of
+  2026-10-06 13:56 (from #682) is in no WP.** `SuperspaceGroup.number` is a
+  caller-supplied label nothing sets or checks
+  (`crystallography/superspace/operators.py:572-579`). Once a block assembler
+  can emit one, it writes the number only when it came from a file that was
+  read, or when the group built from the operators is confirmed as that
+  number in the standard setting. Otherwise it writes the symbol and
+  operators alone. The negative arm: a group carrying a wrong number is
+  refused or written without it. This binds the msCIF writer (#678's N-W9)
+  and C-g's registry. Checked against the tree at 7d9be3cb: nothing under
+  `io/cif` or `crystallography/cif.py` writes a superspace number.
+
 ## Non-goals
 
 - **Not C-a, C-b or C-c**: [1319](1319-structure-interchange.md). **Not C-f**:

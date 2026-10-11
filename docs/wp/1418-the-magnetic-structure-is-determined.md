@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-08 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-11 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829), #565's certificates part 4 (PR #853); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -624,6 +624,62 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   propagation vector `k` and add no qualifier.** Root CLAUDE.md § Conventions
   carries the rule that keeps it free. The same note is in 1326, 1327, 1328 and 1329.
 
+- **2026-10-11, from the issue triage (#565, in PR #853): part 4 of 5 is
+  open.** PR #853 (the reporter's, created 2026-10-09) carries the
+  span-containment certificate, containment transfers (item 5) and the
+  sign-free fit transfer (item 6): `Containment` and `Transfer` records,
+  `Witness.interior` and `margin`, and `span`, `containment` and `transfer` in
+  `RELATION_CERTIFICATES`. Part 5 (the consistency rule, `merged_classes`) has
+  not started. Checked against the tree at 7d9be3cb: `RELATION_CERTIFICATES`
+  (`isotropy.py:1442`) has five members and `merged_classes` is absent. Parts
+  1-3 merged as #582, #772 and #809. #455's cubic residue rides parts 4-5, so
+  #455 can close with #565.
+
+- **2026-10-11, from the issue triage (#390): half of the accepted acceptance
+  wording is not on the tree.** The descent audit's ΔBIC note meets the first
+  half. The second half, "the report says the secondary order parameter is
+  unsupported rather than absent", appears nowhere. Checked against the tree at
+  7d9be3cb: `margin` (`strategy/magnetic.py:556`), `_descend` (`:1131`),
+  `_tie_lattice_lines` (`:1225`) and `SEED_TILT` (`moments.py:186`) are on
+  `main`; "secondary order" and "unsupported rather" match nothing in
+  `strategy/magnetic.py` or `docs/manual/using`, and the audit is in neither
+  the skill nor the manual. `_maximal_subgroups` is maximal only among the
+  classes enumerated at the winner's k; WP-1919 generates the full set. Two
+  more gaps in § Tasks: no box for #384 part 1 (`magnetic_candidates` on the
+  FitReport) or for #458's recipe (the `nuclear_reference=` seam, alternation
+  with a stopping rule, the plan, the scale diagnostic), though Inherited
+  entries decide both.
+
+- **2026-10-11, from the issue triage (#820): the reporter's comment of
+  2026-10-08 08:09 asks a gate question.** (1) The pair-class test failed on
+  Linux from the day #743 added it, with no regression window over 13 runs:
+  class 0's ρ(Mn1, Mn2) is −0.498 on Linux and −0.962 on macOS, either side of
+  `MOMENT_PAIR_RHO_MIN` = 0.95. #829 dropped the count and #849 moved the
+  naming check onto the 150 K solution. (2) In the 150 K test the lead pair's
+  sum/esd is 2.9994σ on Linux and 2.9917σ on macOS against a 3σ gate, and the
+  docstring's 0.59 ± 0.26 (2.3σ) and ΔBIC −37.3 are stale. The verdict does
+  not depend on the gate (both eligible classes at ΔBIC −42 and −45). Only
+  the two asserts on `supported` and `pair_supported` sit on the edge. The
+  reporter's option (a): keep the gate, assert the verdict, ΔBIC ≤ 0,
+  convergence and bands on the pair (sum 0.5-0.7, esd 0.2-0.35 μ_B), and drop
+  or soften those two lines. Open for the maintainer: does a pair at 3.0σ
+  count as support? Checked against the tree at 7d9be3cb: the docstring
+  numbers are still at `tests/test_magnetic_solve_acceptance.py:73-77` and the
+  asserts at `:96` and `:99`. Not re-run (about 400 s). The 2026-10-10 Linux
+  nightly (`32a2b473`) passed it; its one failure was #865.
+
+- **Decided 2026-10-11 (#820): option (a) for the 150 K acceptance test.** The
+  package keeps its 3σ support rule. The test asserts the verdict, ΔBIC ≤ 0,
+  convergence, and bands on the lead pair (sum 0.5-0.7 μ_B, esd
+  0.2-0.35 μ_B). It drops the two asserts on `supported` and
+  `pair_supported` (`tests/test_magnetic_solve_acceptance.py:96`, `:99`),
+  which sit within 0.3 % of the gate on both platforms. The stale docstring
+  numbers at `:73-77` are corrected in the same change. The gate's own
+  logic is tested separately, on constructed pairs well clear of 3σ either
+  side. This follows `tests/CLAUDE.md` § Budgets in tests: an assertion
+  within its measured cross-platform spread of a threshold senses where the
+  solver stopped.
+
 ## Non-goals
 
 - Modulated and incommensurate structures (superspace): issue #258 holds the
@@ -1115,3 +1171,36 @@ congruence and the guard, a Weyl citation, `_svd_rows` returning `None`, the
 repeated `_certify`, chain-only isometries) was left by agreement.
 
 *Next:* #820's second half, then #565 parts 4 and 5.
+
+### 2026-10-11 — #565's certificates part 4
+
+One more of this WP's PRs merged from outside. A candidate family whose
+shell-intensity matrices are another's pulled back through a fixed amplitude map,
+up to one scale, is now proved contained in it without a draw. A proved
+separation then travels along every proved containment, and by a sign-free bound
+to a third family that reproduces its witness draw.
+
+*Done.* PR #853 (#565 part 4 of 5, head `83715775`) merged as `8c5c6879` after two
+rounds. Round 1 found two defects, each fixed with a test that fails on the old
+source. The transfer's cone bound covered only b's projected stack, so a
+near-kernel with r_K up to `INTENSITY_RTOL` could leak past margins as small as
+1.7e-9; `_transfer_margin` now subtracts r_K·Y·(2ρ + ρ²) and widens Γ by
+1 + ρ². And `_propagate` dropped the `Transfer` record, so the fit-transfer loop
+read a copied verdict's witness as its own draw. Three statements were brought
+into line with the code, among them the factor n_a on the `Containment` and
+`Isometry` residual bounds.
+
+*Gate:* Stacked with #870, #823 and #822 on `main` `b7df6a10` as `a3495a34`,
+macOS arm64, `[dev,jax]`, nothing else running: fast 9173 passed, 115 skipped, 1
+xfailed and 1 failed (#843's Hypothesis case); slow 305 passed, 12 skipped.
+`main` after the last merge (`8c5c6879`) differs from it only by three
+docs-and-CI merges (#879, #881, #874) that landed between #823 and #822. The
+fast suite on `f7ab7096` with #853 gave the same counts, and nothing the slow
+suite runs changed.
+
+*Left open, by agreement:* `_powder_equivalent` recomputes the little group;
+`Witness.margin` is never re-checked; the fit cache is keyed on
+`id(v.witness)`; `ISOMETRY_RESIDUAL`'s docstring; the LAPACK citation lacks its
+authors and year.
+
+*Next:* #565 part 5, then M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs.

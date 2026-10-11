@@ -1208,7 +1208,8 @@ def test_a_placement_touches_only_the_planning_record(paths: list, placement: bo
 
 
 def test_the_row_separates_placements_from_landings_and_names_the_untriaged() -> None:
-    issues = [_issue(266), _issue(284), _issue(374), _issue(407, author="newcomer")]
+    issues = [_issue(266, author="yue-here"), _issue(284, author="mustachefeeling"),
+              _issue(374, author="yue-here"), _issue(407, author="newcomer")]
     citations = {"1416": {266}, "1338": {284, 287}}
     statuses = {"1416": "⬜", "1338": "🔄"}
     refs = [
@@ -1227,10 +1228,14 @@ def test_the_row_separates_placements_from_landings_and_names_the_untriaged() ->
     assert not by[407].triaged
     text = backlog.table(rows, today=backlog.date(2026, 9, 21))
     assert text.count(backlog.UNTRIAGED) == 1 and "ROADMAP" in text
-    assert backlog.summary(rows).splitlines() == [
+    pr = backlog.wp_claim.PullRequest
+    prs = (pr(385, "", "them", "", "", False, None, (374,)),
+           pr(386, "", "mustachefeeling", "", "", False, None, ()))
+    assert backlog.summary(rows, prs).splitlines() == [
         "4 open; 1 untriaged; 1 with a landed reference; 1 cited by an open PR",
         "untriaged: #407",
         "landed reference: #284",
+        "not by mustachefeeling or yue-here: #407 newcomer, PR #385 them",
     ]
 
 

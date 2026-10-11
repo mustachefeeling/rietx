@@ -73,6 +73,10 @@ import wp_claim  # noqa: E402  (a sibling hook, not a package)
 ISSUE_RE = wp_claim._ISSUE_RE  # ``#N`` with a word boundary, the one spelling
 STATUS_RE = re.compile(r"^Milestone:.*?Status:\s*(\S)", re.MULTILINE)
 UNTRIAGED = "untriaged"
+# The maintainer and the recurring contributor (Michael Gaultois).  An issue or
+# PR by anyone else is named to the maintainer before any public act on it,
+# here and in `/pr-review`, which reads this list (2026-10-11).
+KNOWN_AUTHORS = frozenset({"yue-here", "mustachefeeling"})
 # Paths a placement touches and a fix does not.  A prefix matches a directory
 # or a whole file; the suffix is every CLAUDE.md.
 PLACEMENT = (
@@ -205,18 +209,23 @@ def table(rows: list, today: Optional[date] = None) -> str:
     return "\n".join(lines)
 
 
-def summary(rows: list) -> str:
-    """The three counts a round quotes, and the lists behind two of them."""
+def summary(rows: list, prs: tuple = ()) -> str:
+    """The three counts a round quotes, the lists behind two of them, and every
+    open issue or PR whose author is outside :data:`KNOWN_AUTHORS`."""
     untriaged = [r.issue.number for r in rows if not r.triaged]
     landed = [r.issue.number for r in rows if r.landed]
     in_pr = [r.issue.number for r in rows if r.open_prs]
     fmt = lambda ns: " ".join(f"#{n}" for n in ns) or "none"  # noqa: E731
+    others = [f"#{r.issue.number} {r.issue.author}" for r in rows
+              if r.issue.author not in KNOWN_AUTHORS]
+    others += [f"PR #{pr.number} {pr.author}" for pr in prs if pr.author not in KNOWN_AUTHORS]
     return "\n".join(
         [
             f"{len(rows)} open; {len(untriaged)} untriaged; {len(landed)} with a landed "
             f"reference; {len(in_pr)} cited by an open PR",
             f"untriaged: {fmt(untriaged)}",
             f"landed reference: {fmt(landed)}",
+            f"not by {' or '.join(sorted(KNOWN_AUTHORS))}: {', '.join(others) or 'none'}",
         ]
     )
 
@@ -354,9 +363,8 @@ def merged_pr_references(root: Path) -> tuple:
     return refs, None
 
 
-def open_pr_references(root: Path) -> tuple:
-    """Through ``wp_claim.open_prs``, whose issue parsing ``/wp-start`` already trusts."""
-    prs = wp_claim.open_prs(root)
+def open_pr_references(prs: Optional[list]) -> tuple:
+    """From ``wp_claim.open_prs``, whose issue parsing ``/wp-start`` already trusts."""
     if prs is None:
         return None, "gh: could not list the open pull requests"
     return [
@@ -422,8 +430,9 @@ def main(argv: list) -> int:
 
     references: list = []
     notes = []
+    prs = wp_claim.open_prs(root)
     for name, (got, why) in (
-        ("open PRs", open_pr_references(root)),
+        ("open PRs", open_pr_references(prs)),
         ("merged PRs", merged_pr_references(root)),
     ):
         if got is None:
@@ -447,7 +456,7 @@ def main(argv: list) -> int:
 
     print(table(rows))
     print()
-    print(summary(rows))
+    print(summary(rows, tuple(prs or ())))
     for note in notes:
         print(note)
     print(f"files: {out_dir}/<N>.md, one per issue above")

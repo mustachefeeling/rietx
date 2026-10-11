@@ -147,6 +147,41 @@ handover log has the tables).
   37928572815 on 9219e886, was green. Eleven merges sit between, among them
   #849 (this WP), #855 (WP-1936's FD step) and #861 (spglib 2.8). Which one
   moved it was not checked.
+- **2026-10-11, from the issue triage (#865, in PR #870): the two-site test
+  this WP re-baselined fails by CPU, and its class 2 reading was backwards.**
+  The 2026-10-10 nightly went red at `32a2b473` on
+  `test_the_two_site_set_reaches_one_minimum_and_pairs_nothing` (the entry
+  above). No merge moved it: the runner's CPU did. The reporter
+  ran it twelve times on `ubuntu-latest`: 7 of 7 AMD EPYC 7763 runners fail
+  and 5 of 5 Intel Xeon runners pass, at one sha. Only class 2 moves. Intel
+  and macOS stop at m ≈ 0, where |F_m|² ∝ m² gives the column no gradient; AMD
+  walks past it from two of three starts to χ² lower by 41, with
+  ρ(Mn1, Mn2) = −0.99997. So class 2's m ≈ 0 is itself a stopping point, the
+  same kind as the pairs this WP removed, and the docstring's "collapses to
+  m ≈ 0" names the worse minimum. PR #870 asserts the winner only (8 of 8
+  runners pass). Whether a moment trial should be seeded off m = 0, as this
+  WP seeds a width off its floor, is the open question it leaves. Checked
+  against the tree at 7d9be3cb: `tests/test_pair_diagnostic_class.py:42-73`
+  still asserts no `MOMENT_PAIR_DEGENERATE` from any class.
+
+- **2026-10-11, from the issue triage (#832): the band's Linux run has
+  happened, and the reporter's sweep left three splits in no WP.** The
+  2026-10-10 nightly (run 38048650490, `32a2b473`, containing #849) ran the
+  Linux full suite at 9349 passed, 1 failed, and the failure was the two-site
+  test (#865, above), so `test_the_shared_fit_reaches_one_minimum_on_every_platform`
+  passed on Linux. The reporter's sweep of 2026-10-08 11:55 (19 acceptance
+  files, 222 fits, Linux and macOS) found lab6_cbn's shared plan the only
+  split that started at #700. Three others it found are in no WP: (a) the
+  degenerate LaB₆ plan, χ²_red 5.470 on Linux against 6.001 on macOS, with the
+  quoted "Rwp 0.1294, QPA 16.542" reproduced by neither; (b) Stephens brucite,
+  where TRF stops at `max_iter` on Linux (Rwp 0.18030) and converges on macOS
+  (0.17844), so `docs/VALIDATION.md:765`'s 17.84 % is the macOS value; (c)
+  five indexing Le Bail fits split after #741, the short-wavelength P
+  candidate leaving `profile.y` on its floor on Linux (χ²_red 32.27 against
+  29.38). The Next list's "still stale" Cr₂WO₆ number is done
+  (`docs/VALIDATION.md:1471` reads 0.2035). Checked against the tree at
+  7d9be3cb: the nightly's failure list read from its log, `seed_floor` at
+  `params/vector.py:2901`; (a)-(c) not re-measured.
 
 ## Non-goals
 

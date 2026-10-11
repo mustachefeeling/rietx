@@ -83,7 +83,46 @@ claim the proposal makes and has not measured.
 
 ### Inherited
 
-(empty)
+- **2026-10-11, from the issue triage (#833): task 1 is in PR #871, and the
+  reporter measured task 2, which undercuts the selector and this WP's
+  acceptance.** PR #871 (open, 2026-10-10) adds `BACKGROUND_ORDER_AT_CAP`
+  with its manual and skill rows. The reporter's comment of 2026-10-10 is a
+  spike on `33fe516e`, no code proposed. They ran exact Gaussian REML (Wood
+  2011 § 2 eq. 4) on the Le Bail stage's linear problem, checked against a
+  dense evaluation on a 300-point synthetic. λ is `lambda_smooth` (default 1).
+  - **Standards: interior, and reading misfit as background.** Si 640c and
+    LaB₆ 660a at auto and 1° knots: REML λ 1.8e-5 to 1.3e-3, tr(H) at the
+    coefficient count, φ̂ 1.3 and 3.1-3.3. Misfit-free replicates of the same
+    problem give φ̂ 1.0 and λ 1.9e-3 to 2.1e-2: 6-350× above REML on the
+    real data, and still 50-540× below the default.
+  - **WP-1055's fixture: the right answer is the edge.** Its true background
+    is flat, which is in the penalty's null space. At the generating profile
+    REML runs to λ ≥ 2.6e12 and Biso lands at 0.688(194) and 0.685(964)
+    against 0.5. With the profile fitted beside a 1° spline the Le Bail stage
+    degenerates first (Rwp 0.21, five `BOUND_HIT`), and REML follows it to
+    1.9e-4, where Biso B goes to −0.185 with `BACKGROUND_ABSORPTION`.
+  - **This WP's acceptance cannot tell the arms apart.** "Interior" fails on
+    the fixture exactly where REML is right. "Biso within 2 esd of 0.5" is met
+    by λ = 0 too, since B's esd is 1.15. `worst_absorption` separates them,
+    0.46 against 0.08.
+  - Not measured: a Le Bail-stage λ carried through the Rietveld stages.
+
+  Whether tasks 3-4 go ahead, and on which criterion, is the maintainer's
+  call. Not reproduced here. Checked against the tree at 7d9be3cb:
+  `select_pspline_lambda` does not exist under `src/`, and
+  `BACKGROUND_ORDER_AT_CAP` exists only on PR #871's branch.
+
+- **Decided 2026-10-11 (#833): the REML selector is parked.** Task 1
+  (`BACKGROUND_ORDER_AT_CAP`, PR #871) goes ahead on its own. Tasks 3-4
+  (`select_pspline_lambda` and its default) wait until a criterion exists that
+  does not read profile misfit as background. The reporter's measurement above
+  is the reason: on both standards REML makes the background more flexible
+  than the default, which is the harm `BACKGROUND_ABSORPTION` guards. When the
+  work resumes, the acceptance is rewritten around `worst_absorption`, the one
+  measure that separated the arms (0.46 against 0.08). The maintainer also
+  noted that λ is the package's wavelength symbol. So any new name, message or
+  document for the smoothing strength must not be readable as a wavelength.
+  `lambda_smooth` (WP-1454) is the existing case.
 
 ## Non-goals
 
@@ -106,6 +145,12 @@ claim the proposal makes and has not measured.
       and after, with obs/calc/diff PNGs to `tests/output/`.
 - [ ] Skill: the new code's `references/judging.md` row; a SKILL.md line only
       if the default changes.
+- [ ] Score the order scan's BIC at the effective sample size of the masked
+      residual, as `report.body_misfit` does for its ΔBIC, and measure where
+      FAP.XRA and Si 640c then stop.
+- [ ] `select_arpls_lambda` says when it falls back to the flexible end of its
+      grid (no smoothing strength reached `dw_floor`), the cap code's sibling,
+      unless PR #871 carries it.
 
 ## Acceptance
 
@@ -133,6 +178,18 @@ emits `BACKGROUND_ORDER_AT_CAP`.
 - Craven, P. & Wahba, G. (1979). *Numer. Math.* 31, 377-403.
 
 ## Handover log
+
+- **2026-10-11** — PR #871 (task 1, `mustachefeeling`) reviewed and held for
+  three items: a `SCHEMA_VERSION` bump for `BackgroundSelection.diagnostics`, a
+  skill line for the worked default, and the stopping rule stated in the
+  manual's "Choosing the flexibility" section. The worked default's FAP.XRA
+  reaches the cap: 16 of 16, d = 0.721. The review keeps § 10 as it is and
+  asks for a line in the abstention row. Measured on FAP.XRA in review (3179
+  masked channels, ln m = 8.1): every term but the 7th earns 15 to 3166 against
+  that penalty while d stays at 0.20-0.72. Scaled by m_eff/m, with d read as a
+  lag-1 correlation, the 10th, 14th and 16th terms earn 7.3, 10.0 and 3.3.
+  That is the case for the effective-sample-size task added above. The
+  `select_arpls_lambda` task is the sibling the review found.
 
 - **2026-10-08** — created, from the 2026-10-08 issue triage (issue #833).
   Checked against the tree at `a3f9140a`: the Si640c rows reproduce (16 and

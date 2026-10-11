@@ -62,25 +62,13 @@ assumed.
 
 ### Inherited
 
-- **2026-09-21, from the issue triage: #349 wants the field #212 wants, and
-  three small exports come with it.** #349 (`rietx.navigate`, PICIP, fenced
-  at v2+ by its author) computes the knowns' element vector as
-  k_E ∝ Σ_p S_p·V_p·n_{E,p} — refined scale × cell volume × occupancy-weighted
-  element count per cell — which is `phase_zmv(...).element_counts`, the
-  quantity the #212 restraint row above already needs, and linear in the
-  scales so its covariance follows from the one `weight_fractions()` takes.
-  Whichever WP cuts the #212 row exports the three asks with it, since they
-  are the same seam: `PhaseQuantity.element_counts: dict[str, float]`
-  (computed, not exported; a `SCHEMA_VERSION` bump), a weight-fraction
-  covariance beside the existing `weight_fraction_stderr` diagonal, and
-  `FitReport.unidentified_phase` as a field (`present`, `n_foreign`,
-  `n_shift_matched`, `strongest_two_theta`), which today a program recovers
-  by parsing `layer0_actions` for `add_impurity_phase`. Checked at
-  `4ee4e7f5`: none of the three exists. **Decided 2026-09-21** (posted on
-  #349): when `navigate` is cut it lives inside the package on `indexing`'s
-  pattern, and the nominal composition is an argument to
-  `sample_from_result`, never a field on a result, which records
-  measurements only.
+- **2026-10-11, from the issue triage: issue #212's restraint row is
+  [1942](1942-a-soft-restraint-on-a-sum-across-phases.md), and #349's three
+  exports went with it.** The two entries that said nobody had cut it (the
+  2026-09-04 one from 1119 and the 2026-09-21 one about #349) are replaced by
+  this line. The row stays one instance of a parametric constraint, so this
+  WP keeps citing #212; the seam, the measured workaround and the exports
+  live in 1942.
 - **2026-09-04, from [1119](1119-named-variables.md): the soft dependency is
   discharged, and one piece of your scope is now unowned.** A named coefficient
   is a named variable and that object exists: `Refinement.add_variable(name,
@@ -98,22 +86,6 @@ assumed.
   `p = C·θ + d` is what the constraint block computes, so a coefficient times a
   series axis is free, and anything with a product or a power of the axis in it
   is outside the machinery entirely.
-- **2026-09-04, from [1119](1119-named-variables.md): issue #212 is a WP of its
-  own and nobody has cut it.** 1119 was asked to decide whether the cross-phase
-  linear *restraint* row belongs to it, and the answer was no — it is a residual
-  row and a `Structure`-level schema seam, sharing only the (path, coefficient)
-  shape with a tie. The seam, as 1119 leaves it: `Phase.restraints` is per
-  phase and `Structure` holds no cross-phase list, so the row belongs beside
-  `resolve_phase_restraints` (`model/restraints.py:114`); it needs a new
-  `BLOCK_ORDER` block in `model/rows.py`; and it needs no expression language,
-  because `√w·(Σ c_k·x_k − target)/σ` over (path, coefficient) pairs is the
-  whole thing and `phase_zmv(...).element_counts` (`optimize/qpa.py`) already
-  carries n_{E,p}. The evidence in the issue: Cu/(Ca+Al) = 1.935 through a
-  reduction series, where diffraction alone moves 17 wt % between two phases for
-  0.2–0.5 pp of Rwp. This WP names it as one instance of a parametric
-  constraint, so **cutting that WP is the next action on it** and it is recorded
-  here rather than in 1119, which is closed.
-
 - **2026-09-02, from the magnetic scattering track
   ([1329](1329-moment-in-a-series.md)): a second use case, named, not
   measured.** An ordered moment through T_N is an order parameter, m ∝

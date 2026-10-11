@@ -453,6 +453,57 @@ the reporter's fork.
   found nothing" misses the middle case. Detail and the three answers are in
   #293's thread.
 
+- **2026-10-11, from the issue triage (#286): the reporter's comment of
+  2026-10-08 proposes the three reserved decisions, four chunks and two
+  questions, with no reply yet.**
+  - Unit: AMPLIMODES normalisation, Σ mult·|ε|² = 1 over a primitive cell of
+    the child lattice in Å, reported as A_τ (the 2026-09-16 thread answer
+    already agreed this). New are two clauses: normalise and project in the
+    unstrained reference metric Pᵀ·G_parent·P, with strain a separate Γ-point
+    term, and a polar child's origin zeroes the global translation. Measured on
+    `gsas2_bt1_lamno3.cif` against Pm-3m: R4+ 1.19, R5+ 0.09, X5+ 0.55, M2+
+    0.34, M3+ 0.90 Å, against Perez-Mato et al. 2010 Table 13's 1.19, 0.09,
+    0.56, 0.36, 0.90. The strained child metric moves one irrep by up to
+    0.04 Å. The furthest-atom unit is 2.0-2.8× by irrep, so it becomes a
+    derived column and the fork's ±0.5 Å bound goes.
+  - Hook: the affine block built in one pass (480 `tie` calls cost 202 s, the
+    block milliseconds). No analytic contraction: 73 ms a Jacobian for 22
+    amplitudes on a 40-atom child, 0.79 s at 160 atoms. The seed comes from the
+    builder, so no `Stage` field is needed while `api.md` is at its cap.
+  - Cell: `magnetic_supercell` refuses 5 of 36 displacive children of a Pnma
+    parent (C-centred types in a primitive doubled cell). The proposal derives
+    the child's cell through a `DerivedBlock` (WP-1804) plus Γ strain
+    amplitudes held at zero, replacing #293's `MetricConstraints`.
+  - Chunks, one PR each: (1) modes in Å in the reference metric, acoustic
+    modes removed, `mode_amplitudes`; (2) the derived cell; (3)
+    `Phase.distortion_modes` and `displacive_statement` with a schema bump,
+    NaTaO₃ P4/mbm M3+ 0.38 Å and BT-1 LaMnO₃ as positive arms; (4) reporting,
+    `DISTORTION_MODE_UNSUPPORTED` gated on Hotelling's T² (a null 22-mode
+    block passes a 2σ gate on A_τ every time).
+  - Question 1, for the maintainer: is the unit accepted with its two
+    clauses? Question 2: may the acceptance row "Ba₂FeSbSe₅ S4(a,b) refines to
+    the fork's figures" become "A_τ and T² on the shipped BT-1 LaMnO₃
+    pattern", since the private run used the furthest-atom unit at raw-N ΔBIC
+    and predates #680?
+
+  Checked against the tree at 7d9be3cb: no `distortion_modes`,
+  `displacive_statement` or `DISTORTION_MODE_UNSUPPORTED` under `src/` or
+  `tests/`; `crystallography/representation/{irreps,modes}.py` exist (PR
+  #842). The refusal count and timings were not re-measured. Whether PR #448
+  or #680 settled the 2026-09-16 "field spelling" question for a phase
+  carrying both operator lists was not checked, and chunk 2 may depend on it.
+
+- **Decided 2026-10-11 (#286): the unit and the acceptance row.** The
+  AMPLIMODES unit is accepted with both clauses: modes are normalised and
+  projected in the unstrained reference metric Pᵀ·G_parent·P, with strain a
+  separate Γ-point term, and a polar child's origin removes the global
+  translation. The acceptance row "Ba₂FeSbSe₅ S4(a,b) refines to the fork's
+  figures" becomes "A_τ and Hotelling's T² on the shipped BT-1 LaMnO₃
+  pattern", against Perez-Mato et al. 2010 Table 13 (R4+ 1.19, R5+ 0.09,
+  X5+ 0.56, M2+ 0.36, M3+ 0.90 Å). The old row's run used the furthest-atom
+  unit at raw-N ΔBIC and predates #680, and the new one is public and
+  rerunnable.
+
 ## Non-goals
 
 - Moment modes (SARAh-style basis-vector amplitudes): 1327 owns
@@ -483,7 +534,9 @@ the reporter's fork.
 
 ## Acceptance
 
-Ba₂FeSbSe₅'s S4(a,b) basis refines to the fork's figures within its esds;
+On the shipped BT-1 LaMnO₃ pattern against Pm-3m, A_τ reproduces Perez-Mato
+et al. 2010 Table 13 within its esds and Hotelling's T² is reported for the
+block (decided 2026-10-11, #286);
 every A = 0 control equals |det P|² × parent; the ten named settings and
 every shipped fixture are bit-identical.
 

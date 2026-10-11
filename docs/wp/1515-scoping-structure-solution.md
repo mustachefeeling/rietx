@@ -185,6 +185,15 @@ the whole surface with real agents.
   under WP-1514. Private-corpus figures stay out of the public tree unless
   the corpus is cited by number (root CLAUDE.md § Licensing).
 
+- **2026-10-11, from the issue triage (#562): the 2026-10-03 reservation of
+  WP-1904 is void.** WP-1904 was taken on 2026-10-04 by the skill evaluation
+  strategy (PR #698, ✅), and the reporter was told on the thread to claim
+  1904 for the Wyckoff-class enumeration. Checked against the tree at
+  7d9be3cb: `docs/wp/1904-the-skill-evaluation-strategy.md` exists, no
+  `crystallography/site_classes.py` exists, and no open PR claims it. The
+  module takes the next free number when it is cut, and the thread is
+  corrected in the same triage.
+
 ## What the scoping decides
 
 1. The routes and their order.

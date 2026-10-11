@@ -44,6 +44,33 @@ the files) sits beside the fence and is not part of T-1.
 
 ### Inherited
 
+
+- **2026-10-11, from the issue triage (#193): the `read_gsas2_instprm` ruling
+  of 2026-09-18 is recorded only in WP-1419.** WP-1419's Inherited (about line
+  360) rules one reader dispatching on the file's own `Type`, never a `_tof`
+  sibling. `io/instrument_profile.py` already reads `Type`, keys
+  `CW_TYPES`/`HISTOGRAM_TYPES`, and refuses a flight-time bank by name, and
+  that refusal is the branch. If the two halves return different types,
+  dispatch moves up a level and discriminates on `kind`. The reporter's branch
+  keeps two readers and offered on 2026-09-18 to make it one, "one commit" if
+  asked. This WP's tasks carry the readers and not this spelling. Checked
+  against the tree at 7d9be3cb: `read_gsas2_instprm` is at
+  `io/instrument_profile.py:1610`, and this file had no "instprm" line.
+
+- **2026-10-11, from the issue triage (#678): the 2026-10-08 thread decisions
+  on the superspace cuts are in no WP file.** This WP only orders N-W2 and N-W3
+  after T-1. Decided on the thread: N-W2 opens with a check of spgrep's little
+  group and small irreps at an irrational k (a rational k reproduced at its
+  float value, a near-rational k that must not snap), and #682's three
+  follow-ups (the `number` field, function-level references, the hand-typed
+  775/24 counts) fold into N-W2's PR. Not decided: the reporter's amendments
+  A1-A6 (q-determination through M-8, an N-W3a/b split, one `Modulation.q`,
+  Laue-invariant classes, k₂ on the residue, satellite widths). They are
+  taken when N-W2's and N-W3's WPs are cut, and the cutter reads the thread.
+  A1's answer lands in WP-1418's #795 entry. Checked against the tree at
+  7d9be3cb: `crystallography/superspace/` holds `generation.py`,
+  `operators.py` and `symbols.py` only.
+
 ## Non-goals
 
 - The TOF profile, spectrum and forward model (T-2/T-3), multi-bank (T-5).

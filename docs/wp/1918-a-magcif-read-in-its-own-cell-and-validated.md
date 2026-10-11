@@ -123,7 +123,16 @@ transcriptions were deliberately not copied. TOPAS is a black box.
 
 ### Inherited
 
-Empty at filing.
+- **2026-10-11, from the issue triage (#757): #756's C-a registry has landed,
+  so I-b and I-c take tag names from it.** `rietx.io.cif.registry` (PR #851)
+  has no `_parent_*` rows yet, and `tests/test_cif_registry.py` asserts that
+  what is written equals the registry. The C-f writer therefore adds
+  `_parent_space_group.name_H-M_alt`, `.child_transform_Pp_abc` and
+  `_parent_propagation_vector.kxkykz` as rows with their `cif_mag.dic`
+  definitions, and I-b agrees the field names with it first. Checked against
+  the tree at 7d9be3cb: `io/cif/registry.py`; none of
+  `CIF_MAGNETIC_SUPERCELL_READ`, `CIF_TEXT_REPAIRED`,
+  `CIF_MAGNETIC_RESTATED_BNS` is under `src/`.
 
 ## Non-goals
 

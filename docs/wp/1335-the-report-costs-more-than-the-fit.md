@@ -132,6 +132,23 @@ choice.
   `Refinement.fit`'s docstring (`refine.py:3376`) still says "a trajectory
   costs ≈2.5× the fit". Correct it in the same change that cuts the cost.
 
+- **2026-10-11, from the issue triage (#245): the reporter's three paired
+  timings of 2026-09-04 are not carried here.** Neutron CW, neither a
+  March-Dollase nor a Stephens block, 3 292 points: 2.81 s against about
+  0.55 s (5.1×). X-ray, one phase, isotropic broadening, 13 997 points: 2.92 s
+  against 0.80 s (3.65×). X-ray with March-Dollase and a Stephens block,
+  48 001 points: 298.22 s against 5.35 s (55.7×), with another arm at about
+  26× on about 49 000 points. The reporter withdrew "scales with N_points",
+  since the 13 997-point case sits below both others. They suspect the
+  per-reflection texture and strain analysis at every stage, not isolated; a
+  pair differing only in the Stephens block would isolate it. The same comment
+  measured the bracketed `stage_start` to `stage_end` time at 2.36 s of the
+  298.22 s, and says `y_obs`, `y_calc`, background and ticks are filled whether
+  or not `stage_reports` is on. Checked against the tree at 7d9be3cb:
+  `refine.py:4115` still says "≈2.5× the fit", `_strain_errors` is still called
+  first (`report/strain.py:301`), and `references/series.md` in the skill
+  already gives 6.5×.
+
 ## Non-goals
 
 - The solver's own cost, and the exhausted-budget stop rule — 1334.

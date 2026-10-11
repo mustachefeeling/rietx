@@ -308,6 +308,34 @@ refined parameters, chained through the covariance of the origin, rotation and
 cell. A distance between two atoms of one body has no esd, because the template
 fixes it.
 
+A named-bond torsion turns a declared set of the body's atoms by an angle
+$\varphi$ about the line through two other body atoms, before the pose, in
+the right-handed sense from the first axis atom to the second (TOPAS's
+`Rotate_about_points` {cite}`coelho2018topas`):
+
+```{math}
+:label: par-torsion
+
+\mathbf{T}_i \;\leftarrow\; \mathbf{T}_a + R_{\hat{\mathbf{u}}}(\varphi)\,
+(\mathbf{T}_i - \mathbf{T}_a),
+\qquad \hat{\mathbf{u}} = \frac{\mathbf{T}_b - \mathbf{T}_a}{|\mathbf{T}_b - \mathbf{T}_a|},
+```
+
+{source}`rietx.params.bodies.apply_torsions`
+
+with $R_{\hat{\mathbf u}}(\varphi)$ Rodrigues' rotation. The moved set is
+declared, not derived from bonds, so the derivative with respect to
+$\varphi$ is exact by construction. Written with its middle pair in the
+axis's order, $i$–$a$–$b$–$j$, a dihedral changes by $\varphi$ when $j$ is
+a moved atom and by $-\varphi$ when $i$ is. Like the body's own rotation,
+a torsion refines as an anchored increment, $\varphi = \varphi_0 + \delta\varphi$, and every
+commit sets $\varphi_0 \leftarrow \varphi_0 + \delta\varphi$ and
+$\delta\varphi \leftarrow 0$. About one axis that composition is addition,
+so the chart moves by a translation and the esd of $\delta\varphi$ is the
+esd of $\varphi$.
+
+A body's *shape* is a hypothesis the data can reject. `Refinement.check_rigid_bodies` releases each body's atoms as free coordinates held near the template by soft restraints and compares the two fits on the data χ² alone, by Hamilton's R-factor ratio test {cite}`hamilton1965` and by ΔBIC {cite}`schwarz1978`, both at the effective sample size of the serially correlated residual. It warns (`RIGID_BODY_MISFIT`) only when both reject the body, and names the template bonds the released fit moved.
+
 ## Soft restraints
 
 A bond-length, angle or value restraint contributes one row to the residual

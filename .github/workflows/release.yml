@@ -37,9 +37,10 @@ name: Release
 #
 # The `pypi` environment is the human gate.  Add yourself as a required
 # reviewer in Settings -> Environments -> pypi, and the run pauses there: that
-# approval is where the project's pre-upload gate (nightly.yml's Windows job
-# green on this commit) is asserted by a person, since no workflow can wait
-# 2 h for a nightly.  The tag-on-main check below is the other half of it —
+# approval is where the project's pre-upload gate (nightly.yml's Windows and
+# `middle` jobs green on this commit) is asserted by a person, since no
+# workflow can wait 2 h for a nightly.  The tag-on-main check below is the
+# other half of it —
 # main is branch-protected, so a commit that is on main has already passed
 # lint and the fast suite on 3.11 and 3.14 plus jax (3.12 and 3.13 run
 # nightly since WP-1547; docs/RELEASING.md step 4).

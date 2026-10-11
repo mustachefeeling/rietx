@@ -21,6 +21,17 @@ generated skill reference and manual section. This is chunk R10 of issue #561, s
   both Part 2 equations. Check what is left before starting.
 - It touches no v1.6 file.
 
+### Inherited
+
+- **2026-10-11, from WP-1808 (closed, #823): two torsion surfaces are this
+  WP's.** `BodyTorsion` and its fields sit in `tests/api_surface_deferred.txt`
+  with WP-1812 as the reason, so the partition task moves them too. A fit
+  reports the twist increment, which is 0 after the last commit, with the
+  angle's esd, and the composed angle lives only in the record. Whether
+  `RefinementResult` carries the composed angle with that esd was left to this
+  WP in #823's question 3. A torsion already round-trips through the textdoc
+  (`test_a_body_with_a_torsion_round_trips_through_json_and_textdoc`).
+
 ## Non-goals
 
 - Fragment file formats (WP-1813).
