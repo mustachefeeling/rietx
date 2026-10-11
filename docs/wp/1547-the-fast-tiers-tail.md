@@ -1,6 +1,6 @@
 # WP-1547 — the fast tier's tail is cut back, and its report reads CI's seconds
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — five of six tasks landed (PR #857); the ten-run re-measure waits for the merge
+Milestone: unscheduled · Status: 🔄 2026-10-11 — every task landed (PR #869); the ten-run acceptance waits for the merge
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-09 — a cost item with the maintainer at the wall: every code PR waits 32-37 min, and the median leg rose 43 % in one week
@@ -98,6 +98,32 @@ hyperthreaded workers had each run at about half speed. So `-n logical` is
 not a fix. One side effect matters here: per-test seconds in junit halved on
 10-07, so compare junit across that date only after the division above.
 
+**The re-measure after #857 (2026-10-10).** "Fast suite" step minutes on
+main's six successful push runs since #857 merged:
+
+| Run | Merge | py3.11 | py3.12 | py3.13 | py3.14 | jax | Python median |
+|---|---|---|---|---|---|---|---|
+| 38036573431 | #861 | 28.5 | 26.2 | 16.0 | 15.9 | 30.4 | 21.1 |
+| 38038633449 | #860 | 28.4 | 16.6 | 24.1 | 19.9 | 31.2 | 22.0 |
+| 38043823874 | #858 | 26.8 | 27.9 | 20.3 | 16.7 | 23.8 | 23.5 |
+| 38072781107 | #862 | 27.8 | 26.0 | 15.5 | 25.9 | 23.6 | 25.9 |
+| 38079936613 | #863 | 18.4 | 17.5 | 24.3 | 23.8 | 20.1 | 21.1 |
+| 38088718957 | #864 | 28.5 | 26.2 | 21.9 | 25.9 | 20.6 | 26.1 |
+
+The four runs before #857 had Python medians of 23.8-31.1. The cut took about
+7 minutes off, and every run is still over 20. The median of the six medians
+is 22.8. A run waits for its slowest leg, which took 24.3-31.2 min. Leg times
+are bimodal by runner. In the junit of the last three runs, a Python leg's
+summed test time was 1814-2147 s on three legs and 2798-3352 s on eight, with
+one at 2579. With five legs, most runs draw at least one slow runner. py3.11
+was the slowest Python leg in 9 of the 12 runs with all four. It alone
+resolves numpy 2.4.6 and scipy 1.17.1, since numpy 2.5 dropped 3.11. But it
+took 18.4 min in 38079936613, so most of its gap is runner draws.
+Sharding halves every leg. Trimming the matrix alone would not help, because
+py3.11 and jax stay and set the wall. #857's py3.11 failure was the #243
+fixture (fixed by #859), and #859's red was spglib 2.8 (fixed by #861). No
+other run went red.
+
 **Sharding constraints (from WP-1506).** Sharding must keep each
 `xdist_group` whole. GitHub Free allows 20 concurrent jobs, so five legs
 times N shards meets the limit when two PRs are readied together. Sharding
@@ -127,18 +153,6 @@ edits, and a missed one drops that platform's answer silently. A YAML anchor
 or one script every leg calls would fix it. It is low stakes, and in scope
 only if the last task moves Python versions into the nightly.
 
-### Inherited
-
-- **2026-10-10, from WP-1936's session: #857's merge turned main's py3.11 leg
-  red.** `test_fit_usable.py::test_issue_243_reproduction_reads_unusable_while_converged`
-  read `max_iter` where it pins `converged` (run 38002319163, every other leg
-  green). The fixture was chaotic, not wrong: unseeded, its later stages
-  wander, and a 1e-12 change to the FD step moved the final Rwp from 1.56 to
-  2243. The fix on branch `wp1547-issue243-flake` runs the reproduction's
-  first three stages, which reach the same answer at every nudge. Read it
-  when the ten-run re-measure counts flaky legs. This one was rounding, not
-  a slow test, and what moved py3.11's rounding at #857 is not established.
-
 ## Non-goals
 
 - Why `isotropy.analyse` is slow: WP-1418.
@@ -165,10 +179,17 @@ only if the last task moves Python versions into the nightly.
       and let `/wp-handover` read the PR's CI `junit-py3.13` artifact when
       one exists, falling back to the local file. tests/CLAUDE.md § Budgets
       in tests gains one clause: local seconds understate CI by 3-4×.
-- [ ] Re-measure ten main runs after the above. If the median Python leg is
+- [x] Re-measure main runs after the above. If the median Python leg is
       still over about 20 min, shard by recorded junit time with groups kept
       whole, and trim the PR matrix to the oldest and newest Python, with
-      the middle two in the nightly.
+      the middle two in the nightly. (Six runs, not ten: every one was over.)
+- [x] Shard each fast leg in two by recorded junit time, every `xdist_group`
+      and every file whole (`tests/shards.py`, `tests/shard_times.json`).
+- [x] `ci.yml` runs py3.11, py3.14 and jax, two shards each. py3.12 runs in
+      the nightly, where `full` already covers 3.13. The nightly's three
+      copies of the environment line become one module every leg calls.
+- [x] `added_test_times.py` reads a directory of shard files, and
+      `/wp-handover` step 7 downloads both py3.14 shards.
 - [x] `ci.yml`'s header: one line saying `-n auto` is 2 workers on this
       runner, and that `-n logical` was measured to buy nothing (this WP).
 - [x] Skill: none. This changes how the repo is tested, not how rietx is
@@ -176,17 +197,22 @@ only if the last task moves Python versions into the nightly.
 
 ## Acceptance
 
-- Over ten consecutive successful main runs after the last task lands, the
-  median of the four Python legs' "Fast suite" step is 20 min or under.
+- Over ten consecutive successful main runs after the shards land, the
+  median run's slowest fast job is 20 min or under. A job is timed from its
+  start to its end, setup included, since each shard pays its own. (Amended
+  2026-10-10: the bar was the median of four Python legs' "Fast suite" step,
+  which no longer exists once a leg is two jobs. A run waits for its slowest
+  job, so that is what the bar now reads.)
 - Every test that left the fast tier passes once in the nightly's `full` job.
-- Fast passed+skipped moves by exactly the tests added minus those marked
-  `slow`, quoted with venv and platform.
+- Each leg's passed+skipped, summed over its two shards, equals the
+  unsharded fast count at the same commit. The fast count moves by exactly
+  the tests added minus those marked `slow`, quoted with venv and platform.
 
 ```sh
 gh run list --workflow ci.yml --branch main --event push --status success --limit 10 --json databaseId
-gh run view <id> --json jobs   # each "fast py3.x" job's "Fast suite" step
+gh run view <id> --json jobs   # each "fast …" job's startedAt to completedAt; take the largest
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
-.venv/bin/python -m pytest -n auto --dist loadgroup -m slow tests/test_lebail_alternation.py tests/test_magnetic_irreps.py
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow" --shard 1/2   # and 2/2
 ```
 
 ## References
@@ -197,6 +223,121 @@ gh run view <id> --json jobs   # each "fast py3.x" job's "Fast suite" step
 - Runs 36362163974, 37100295315, 37966391017, 37978210348; PR #810.
 
 ## Handover log
+
+### 2026-10-11 — each fast leg runs as two shards; the ten-run acceptance waits for the merge
+
+The tail cut in #857 took about seven minutes off a fast leg. Every main run
+since still waited 24-31 minutes for its slowest leg. So each leg now runs as
+two jobs, and each job takes about half the suite. Files and shared-fixture
+groups stay whole, packed by the seconds CI recorded. The per-push matrix
+is now the oldest and newest Python plus jax, six jobs a run. Python 3.12
+moved to the nightly, where 3.13 already ran in the full suite. A break on a
+middle Python alone now shows the next morning. Whether a run now finishes
+in 20 minutes is known only after ten main runs on the merged tree.
+
+**Done** (PR #869, branch `wp1547-ten-run-remeasure`):
+
+- The re-measure, in Context: six successful main runs since #857 had Python
+  medians of 21.1-26.1 min. The WP asked for ten. All six were over the bar,
+  so the rule fired on six.
+- `--shard K/N` (`tests/shards.py`, the hook in `tests/conftest.py`). It packs
+  units longest first onto the least-loaded shard. A unit is a set of files
+  joined by shared `xdist_group` names. The weights are
+  `tests/shard_times.json`, taken from main run 38088718957 on 61422693. That
+  is the first run after the kernel wheel replaced numba (#864, WP-1940's
+  first half). The record has a numpy and a jax profile, because
+  `test_cross_backend.py` costs 391 s on the jax leg and 16 s elsewhere.
+  `tests/test_shards.py` holds 26 cases. A lane built this.
+- A module skipped at import is reported by shard 1 alone (886f5c93). Such
+  a module has no item for the split to place. On CI's first sharded run
+  every shard counted its skip, and py3.14's two shards summed to 9223 cases
+  against the base's 9192 plus 23 added. The eight extra were jax, torch and
+  six browser files.
+- `ci.yml`: py3.11, py3.14 and jax, two shards each. The artifacts are
+  `junit-py3.14-1` and so on.
+- `nightly.yml`: a `py312` fast job. `tests/record_environment.py` replaces
+  the three pasted copies of the probe line (WP-1519's note, in scope once a
+  Python version moved to the nightly). The per-push legs call it too.
+- `added_test_times.py` reads a directory. `/wp-handover` step 7 downloads
+  `junit-py3.14-*` and passes the directory.
+- `docs/RELEASING.md`: step 3 named six required checks, stale since
+  WP-1506. Step 4 now also asks for the nightly's `py312` and `full` jobs to
+  be green on the release commit. That is a new release bar and needs the
+  maintainer's yes.
+- Acceptance is amended to read each run's slowest fast job, timed with its
+  setup. The old bar read a step that no longer exists.
+- Acceptance item 2 is met. Nightly 38048650490 ran on 32a2b473, after #857.
+  It ended 1 failed, 9349 passed, 131 skipped, and the failure is unrelated.
+  spgrep is in `[dev]`, so no skip path reaches the seven `all-*` cases or
+  the wide Le Bail test.
+- `/code-review high --fix` made six fixes, committed together as 0230bbd7.
+  `tests.shards` refuses a leg missing a shard. The `ci.yml` include comment
+  now covers retiring 3.14. `release.yml` and `DESIGN.md` no longer claim
+  3.12 and 3.13 per push. The conftest hook got a corrected comment and one
+  loop. Declined: weighting the tutorials by the one leg that runs them
+  (about a minute on one py3.14 shard), a guard against mixing legs in the
+  directory `added_test_times` reads, and the median of two legs being their
+  mean.
+- Inherited pruned: the #243 note is consumed. Its fix merged as #859, and
+  the re-measure counts its red run.
+- Forward reference: WP-1930. The nightly after its #849 is red on its
+  two-site test.
+
+**Measured:**
+
+- Fast on the final tree, `[dev]`, macOS arm64, Python 3.12, no other
+  pytest running: 9041 passed, 177 skipped, 1 xfailed, so 9219 in all. The
+  base is 9192 cases in CI's py3.12 and py3.14 junit at 33fe516e (run
+  38091884560). The 27 added cases are 26 in `test_shards.py` and 1 in
+  `test_added_test_times.py`. Wall 4:36.
+- First sharded CI run, 38093251416 on 953c3639, dispatched on the branch.
+  One run, so a direction only. Job walls, setup included: py3.11 13.3 and
+  15.0 min, py3.14 10.7 and 11.1, jax 15.1 and 16.7. The slowest job was
+  16.7 min. Test seconds per shard: py3.11 1497 and 1698, py3.14 1159 and
+  1258, jax 1717 and 1924. Shard 2 is the heavier by 8-13 % on every leg.
+- Second sharded run, 38094285221 on 886f5c93, with the skip-report fix.
+  Each leg's cases summed over its two shards: py3.11 9219, py3.14 9219,
+  jax 9231. The base's own legs had 9192, 9192 and 9204, so each moved by
+  exactly the 27 added. Job walls: py3.11 11.6 and 11.9 min, py3.14 13.4 and
+  13.9, jax 9.7 and 10.6. The slowest job was 13.9 min.
+- The end-to-end row cost 4.8 s on CI's py3.14, well short of the tail.
+- Collection, same venv, before the last four added cases: 9207 unsharded, 4377 at `1/2` and 4830 at `2/2`. The shards are disjoint and
+  their union is the unsharded list. Estimated shard seconds are 1492 and
+  1492 under numpy, 1186 and 1186 under jax. The fast tier's one multi-file
+  unit is `test_help.py`, `test_landing.py` and `test_manual.py`
+  (`manual-build`).
+- Added tests, local junit: `test_shards.py` 9.94 s, of which 9.88 s is the
+  end-to-end row. It starts pytest three times. The machine was loaded.
+- Lane, `session_usage.py lanes`: shard-mechanism, estimate 25, actual 24
+  requests, dispatched at 186K. Its re-read was 5K of 9K. Main made 22
+  requests while it ran. Lane $1.24, saved −$1.12 (−17 % of the session).
+  The selective policy's replay row: −1 % at u = 5K.
+
+**Gotchas:**
+
+- The tutorials weigh about 0 s in the numpy profile, because three of four
+  legs skipped them. On py3.14 the shard that draws `test_tutorials.py`
+  carries about 119 s more than its estimate.
+- A stale record costs balance and never a test. Refresh it with
+  `gh run download <main run> -p 'junit-*' -D DIR`, then
+  `python -m tests.shards DIR "main run N (sha)"`.
+- WP-1940's #867 and #868 move the figure tests onto Rust kernels after this
+  record was taken. Balance drifts a little when they land.
+- Under xdist the summary line carries no deselected count. Read a shard's
+  size from its passed+skipped.
+- Only one `lanes:` line was written. The kept items had none, so the trial
+  row reads kept 0.
+
+Next:
+
+1. The maintainer decides on RELEASING step 4's new bar.
+2. After the merge, read ten consecutive successful main runs: each run's
+   slowest fast job, start to end. A median of 20 min or under closes the
+   WP. Over it, choose between three shards (nine jobs a run, two runs at
+   once) and the tail (`test_magnetic_isotropy`, WP-1418).
+3. Check that the nightly's `py312` job runs green once.
+4. Refresh the record from a sharded main run if one leg's two shards
+   differ by more than a few minutes. The first run had them 0.4-1.7 min apart.
 
 ### 2026-10-10 — a fix from WP-1936's session (reconstructed post hoc)
 

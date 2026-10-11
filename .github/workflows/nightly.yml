@@ -3,9 +3,9 @@ name: nightly
 # Everything the per-push gate leaves out, once a night.  Until WP-1003's
 # visibility flip this was two workflows on a free-tier budget — weekly.yml
 # (full suite + the 3.11/3.14 edges) and monthly.yml (macOS, torch) — and the
-# collapse back into one nightly is the un-shaping both files promised.  The
-# 3.11/3.14 fast jobs did not move here: ci.yml now runs the whole support
-# window per push.
+# collapse back into one nightly is the un-shaping both files promised.  Since
+# WP-1547 ci.yml runs the two ends of the support window per push, and the
+# middle runs here: `py312`, and `full` on 3.13.
 #
 # No run or monthly totals here — a cross-workflow total written in a comment
 # rots (one sat at 303 against a measured ≈495); read spend from the Actions
@@ -14,7 +14,10 @@ name: nightly
 # What each job is *for*:
 #
 # * `full` is the only place the slow real-data acceptance suites run in CI,
-#   and it installs `[dev,jax]`, so it *is* the scheduled jax coverage.
+#   and it installs `[dev,jax]`, so it *is* the scheduled jax coverage.  It is
+#   also the only run on Python 3.13.
+# * `py312` is the fast suite on Python 3.12, which left ci.yml's per-push
+#   matrix (WP-1547).  A break on a middle version alone shows here.
 # * `windows` backs the OS classifier row (WP-1002 measured the fast suite
 #   green there after real fixes, guarded by tests/test_portability.py) and
 #   is the pre-upload gate for any release claiming Windows.
@@ -60,13 +63,7 @@ jobs:
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[dev,jax]"
       - name: Record the environment
-        run: |
-          .venv/bin/python -c "import sys, numpy, scipy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
-          .venv/bin/python -c "import numpy; numpy.show_config()"
-          # the two probes an indexing speed-up is gated on (WP-1509, 1519):
-          # False is the slower exact path, and the tests that ask them
-          # harder skip, which -q never names
-          .venv/bin/python -c "from rietx.indexing.engines import row_local_product as r; from rietx.indexing.reduce import stacked_pinv_exact as p; print('row_local_product', r(), 'stacked_pinv_exact', p())"
+        run: .venv/bin/python -m tests.record_environment
       - name: Full suite
         # the bit-identity goldens skip here — pinned to darwin/arm64
         # (tests/test_backend_shim.py, GOLDEN_PLATFORM); the macos job reports
@@ -83,6 +80,27 @@ jobs:
           path: tests/output/
           if-no-files-found: warn
           retention-days: 7
+
+  py312:
+    name: fast suite (Linux, Python 3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+      - run: uv venv --python 3.12
+      - run: uv pip install -e ".[dev]"
+      - name: Record the environment
+        run: .venv/bin/python -m tests.record_environment
+      - name: Fast suite
+        # what ci.yml's py3.12 leg ran until WP-1547, unsharded: the nightly
+        # has no one waiting on it
+        env:
+          RIETX_TUTORIALS: skip
+        run: .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 
   windows:
     name: fast suite (Windows)
@@ -102,12 +120,7 @@ jobs:
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[dev]"
       - name: Record the environment
-        run: |
-          .venv/Scripts/python -c "import sys, platform, numpy, scipy; print(sys.version, sys.platform, platform.machine()); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
-          # the two probes an indexing speed-up is gated on (WP-1509, 1519):
-          # False is the slower exact path, and the tests that ask them
-          # harder skip, which -q never names
-          .venv/Scripts/python -c "from rietx.indexing.engines import row_local_product as r; from rietx.indexing.reduce import stacked_pinv_exact as p; print('row_local_product', r(), 'stacked_pinv_exact', p())"
+        run: .venv/Scripts/python -m tests.record_environment
       - name: Fast suite
         run: .venv/Scripts/python -m pytest -n auto --dist loadgroup -m "not slow"
 
@@ -124,13 +137,7 @@ jobs:
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[dev,jax]"
       - name: Record the environment
-        run: |
-          .venv/bin/python -c "import sys, platform, numpy, scipy; print(sys.version, sys.platform, platform.machine()); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
-          .venv/bin/python -c "import numpy; numpy.show_config()"
-          # the two probes an indexing speed-up is gated on (WP-1509, 1519):
-          # False is the slower exact path, and the tests that ask them
-          # harder skip, which -q never names
-          .venv/bin/python -c "from rietx.indexing.engines import row_local_product as r; from rietx.indexing.reduce import stacked_pinv_exact as p; print('row_local_product', r(), 'stacked_pinv_exact', p())"
+        run: .venv/bin/python -m tests.record_environment
       - name: Suite
         # the bit-identity gate is deselected and run as its own step below.
         # Measured 2026-07-29: this runner does *not* reproduce the capture
