@@ -71,8 +71,8 @@ name: CI
 # files and whole xdist groups by the seconds in tests/shard_times.json.  On
 # main's six runs after WP-1547's tail cut, a leg's fast suite took 15.5-31.2
 # min and a run waited 24-31 min for the slowest of its five legs.  The middle
-# Pythons left the per-push matrix: the nightly runs 3.12, and its full suite
-# runs on 3.13.  So a break on a middle version alone shows the next morning.
+# Pythons left the per-push matrix: the nightly runs the fast suite on 3.12
+# and 3.13.  So a break on a middle version alone shows the next morning.
 # Six fast jobs a run leave room for three runs at once under the free plan's
 # 20 concurrent jobs.
 
@@ -208,7 +208,7 @@ jobs:
       fail-fast: false
       matrix:
         # the oldest and newest Python of the support window.  The nightly
-        # runs 3.12, and its full suite runs on 3.13.
+        # runs the fast suite on 3.12 and 3.13.
         python: ["3.11", "3.14"]
         shard: [1, 2]
         # the newest leg executes the tutorials, in whichever shard holds
