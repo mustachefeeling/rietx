@@ -1,6 +1,6 @@
 # WP-1940 — the kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — rietx-kernels 1.2.0 in #872, SLEEF's exp and AVX2 on x86-64 and arm64 unchanged; next its publish, after #868
+Milestone: unscheduled · Status: 🔄 2026-10-11 — rietx-kernels 1.2.0 merged in #872, the floor kept at 1.1; next the maintainer's `kernels-v1.2.0` tag and approval, then the close
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: 1939
 Priority: P2 2026-10-10 — the decision is taken (Rust, § Decisions) and every agent install pays numba's 143 MB and warm-up until this lands; the first task is a bit-neutral 1.4× that ships on its own
@@ -81,6 +81,16 @@ the premise of item 8:
    at 3143 atoms, against 565 ms. Item 8 was taken on § The other two numba
    tiers' 5-8×, which timed plain renders only. numba still leaves the figure
    in the `compiled.py` PR.
+10. **rietx's floor stays at `rietx-kernels>=1.1`** (taken 2026-10-11). 1.2.0
+    adds `exp` and `force_baseline`, which rietx never calls, so
+    `KERNEL_FLOOR`'s rule leaves the floor where it is. A fresh install
+    resolves to 1.2.0. An environment already holding 1.1.0 keeps the slower
+    FCJ kernels on x86-64 until it upgrades.
+11. **The AVX2 build takes no fused multiply-add** (taken 2026-10-11). Fusing
+    would buy another 10-20 % on x86-64, 3.88 to 3.47 ns a point and node on
+    the Linux runner. The AVX2 and baseline builds would then disagree in the
+    last bit, and `test_the_avx2_and_baseline_builds_give_the_same_bits`
+    holds them equal.
 
 ### What 1939 established
 
@@ -368,7 +378,7 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       bench and in `kernels.yml`'s `test` job.
 - [ ] 1.2.0 on PyPI: #868 and #872 merged, the full-suite run on the
       Linux wheel read against the nightly, then the maintainer's tag and
-      approval. rietx's floor stays at 1.1 unless the maintainer raises it.
+      approval. rietx's floor stays at 1.1 (§ Decisions item 10).
 - [x] Skill: `references/diagnostics-indexing.md`'s `compiled_kernels`
       paragraph rewritten (no numba to omit; a wheel that imports or does
       not), and `install.md`'s agent admonition. No body change: an agent
@@ -478,8 +488,9 @@ full-suite run on its Linux wheel.
   given exponential. On the C library's, the interchange matched 1.1.0 on
   every plane and the whole trigger fit.
 - Microbench, from `examples/aot_spike/expprobe` on the throwaway branch
-  `wp1940-exp-probe`: one `omega_fcj` call of 494 rows, 151 points and 8
-  nodes, in ns per point and node.
+  `wp1940-exp-probe` (deleted 2026-10-11, the bench with it): one
+  `omega_fcj` call of 494 rows, 151 points and 8 nodes, in ns per point and
+  node.
 
   | runner | 1.1.0 | interchange + SLEEF, baseline | at x86-64-v3 |
   |---|---|---|---|
@@ -535,14 +546,14 @@ fit is a sweep of its own.
 - Under fat LTO, `--emit=asm` shows code from before link-time optimisation,
   with nothing vectorised. Set `CARGO_PROFILE_RELEASE_LTO=false` to read
   vectorisation. Apple's assembler writes the vector form as `fdiv.2d`.
-- `wp1940-exp-probe` has no PR and stays on the remote until the maintainer
-  says to delete it.
+- `wp1940-exp-probe` had no PR. The maintainer had it deleted on 2026-10-11.
 - The x86-64 build runs here under Rosetta: `uv python install
   cpython-3.12-macos-x86_64-none`, a venv on it, `maturin build --target
   x86_64-apple-darwin`. Rosetta reports no AVX2, so it runs the baseline
   build, and its timings mean nothing.
 
-*Decisions owed, the maintainer's.*
+*Decisions owed, the maintainer's.* Both were taken as recommended on
+2026-10-11, as § Decisions items 10 and 11.
 1. Raise rietx's floor to `rietx-kernels>=1.2`? `KERNEL_FLOOR`'s rule says
    no, because 1.2.0 adds no kernel rietx calls, and the resolver installs
    1.2.0 anyway. Raising it would guarantee every x86-64 install has the
