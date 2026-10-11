@@ -1,6 +1,6 @@
 # WP-1920 — the API index splits by shape: another program's files go to `api-io.md`
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-11 — claimed by @yue-here
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-08 — the decision other WPs wait on: `api.md` is 3 B under its ceiling, and PR #815, #801's follow-ups and TOF T-1 each hold back names to fit
