@@ -1,6 +1,6 @@
 # WP-1923 — A candidate is reported as a lattice in its conventional setting, and the reduction is an exact change of basis
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-11 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: — (1915 soft, the same file's covariance map)
 Priority: P2 2026-10-08 — a monoclinic candidate read by a user or an agent as an unrelated cell (β = 81.8° for a lattice whose conventional β is 98.2°), nothing flagged, and the workaround is calling `reduce_cell` + `conventional_cell` by hand; the 797 half is a 1.2e-5 drift on one cell that `same_lattice` could read as a σ
