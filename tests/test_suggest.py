@@ -442,9 +442,10 @@ def test_candidate_absorbed_by_free_set_is_not_a_winner(truth):
 
 
 def test_softplus_floor_candidate_found_with_seeded_flag(truth):
-    """An X error must surface lor_size even though it sits at the softplus
-    floor where its unseeded column is fp noise — via the second, seeded
-    probe build, reported as seeded=True from the stage seed."""
+    """An X error must surface lor_size, which sits on its floor of 0, via
+    the second, seeded probe build, reported as seeded=True from the stage
+    seed.  Its unseeded column was fp noise while widths were softplus; since
+    WP-1938 the seed reaches it through its bounds and its width unit."""
     r, data = _refinement(truth)
     r.instrument.profile.x.value = 9e-3
     res = r.suggest(data)
@@ -557,7 +558,7 @@ def test_pawley_floor_seed_that_changes_the_overlap_groups_still_suggests():
     # and the column is the seeded one, not only the flag: on this fixture's
     # 3° window a width is a 1/cosθ or tanθ column, near-collinear with the
     # Lorentzian Y term and with each other, and that is the group it scores
-    # in.  The unseeded column is fp noise and lands nowhere near it.
+    # in.
     (group,) = [g for g in res.groups
                 if "phases.0.lor_size" in {m.path for m in g.members}]
     assert {m.path for m in group.members} == {

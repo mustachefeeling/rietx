@@ -670,8 +670,8 @@ def test_the_gaussian_size_variance_is_normalised_as_lambda_squared():
 def test_a_seed_lands_on_one_number_in_the_shared_column():
     """A scaled entry is seeded in *column* units, so the histograms agree.
 
-    ``Stage.seed`` lifts a softplus coefficient off the exact-zero floor before
-    solving.  Seeded as a physical value it would put the two histograms at
+    ``Stage.seed`` lifts a coefficient off its zero floor before solving.
+    Seeded as a physical value it would put the two histograms at
     different internal coordinates for one shared column, and
     ``_rebuild_columns``'s "identical values from each histogram" would silently
     stop holding — the last write would win and the reference histogram would
@@ -682,7 +682,7 @@ def test_a_seed_lands_on_one_number_in_the_shared_column():
                    for lam in (0.41390, 0.71070)]
     mt = MultiParameterTable(structure, instruments)
     mt.set_vary(["phases.*.lor_size"], True)
-    mt.seed_softplus(["phases.0.lor_size"], 1e-3)
+    mt.seed_floored(["phases.0.lor_size"], 1e-3)
 
     values = mt.decode(mt.x0())
     # each histogram's own physical value is the seed times its own factor …

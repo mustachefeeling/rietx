@@ -1435,12 +1435,13 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         anchor="forward-model.html#three-intensity-models",
     ),
     "seed": HelpEntry(
-        title="Softplus seed value",
+        title="Floor seed value",
         description=(
-            "Lifts any softplus-floored parameter this stage frees to this "
-            "value. A parameter sitting exactly at its floor has no gradient, "
-            "so a stage that frees extinction without seeding it refines "
-            "nothing. Use `strain_seed` for a Stephens block: that one has "
+            "Starts every parameter this stage frees that is bounded below at "
+            "0 and sits below this value at it. A parameter that can go "
+            "negative is never seeded. Suortti b = 0 is the identity, so the "
+            "roughness stage uses it to start b near where the data can see "
+            "it. Use `strain_seed` for a Stephens block: that one has "
             "the opposite problem."
         ),
         default="0.0",
@@ -1451,9 +1452,9 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         description=(
             "Microstrain in ppm used to seed an all-zero Stephens block onto "
             "the isotropic ray. At S = 0 the square root in the width law has "
-            "unbounded slope, which is the opposite pathology to a dead "
-            "gradient and needs its own setting: `seed` reaches softplus "
-            "entries only, and these coefficients are not softplus."
+            "unbounded slope, and needs its own setting: `seed` reaches "
+            "parameters bounded below at 0 only, and these coefficients can "
+            "go negative."
         ),
         unit="ppm", default="0.0",
         typical="100-1000 ppm where a stage frees an anisotropic strain block",

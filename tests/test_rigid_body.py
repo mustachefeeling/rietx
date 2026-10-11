@@ -590,14 +590,15 @@ def test_a_variable_driving_a_body_phase_cell_takes_an_exact_column():
 
 def test_a_seeded_cell_length_moves_the_body_atoms_with_it():
     """Every value writer ends in a rebuild, and the rebuild refreshes the
-    derived rows (WP-1805, the #773 follow-up): ``seed_softplus`` on a
-    softplus cell length moves a body's fractional coordinates, as a cell-only
-    stage does, and leaves them where the block puts them."""
+    derived rows (WP-1805, the #773 follow-up): ``seed_floored`` on a free
+    cell length sitting on its floor moves a body's fractional coordinates,
+    as a cell-only stage does, and leaves them where the block puts them."""
     s = body_structure(Q_TRUE)
-    s.phases[0].cell.a = Parameter(value=CELL[0], min=0.0, transform="softplus")
+    s.phases[0].cell.a = Parameter(value=CELL[0], min=CELL[0])
     table = ParameterTable(s, INS)
     before = table.decode(table.x0())["phases.0.atoms.0.x"]
-    assert table.seed_softplus(["phases.0.cell.a"], CELL[0] + 0.5)
+    table.set_vary(["phases.0.cell.a"], True)
+    assert table.seed_floored(["phases.0.cell.a"], CELL[0] + 0.5)
     stored = {e.path: e.value for e in table.entries}
     block = table.derived[0]
     placed = block.evaluate(np.array([stored[q] for q in block.inputs]))

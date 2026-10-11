@@ -126,17 +126,20 @@ class Stage:
     #: converge as hard as an endpoint.
     ftol: float | None = None
     lebail_cycles: int = 3  # intensity-partitioning refreshes (lebail mode)
-    #: lift any softplus-bounded parameter this stage frees off the exact-zero
-    #: floor to this value before solving, so TRF sees a live gradient (the
-    #: softplus map's slope at p≈0 is ≈0, so a coefficient starting at 0 would
-    #: never move).  0 = no seed.  The extinction stage uses it; unlike the FCJ
-    #: AXIAL_SIZING_FLOOR (an identity-transform bound, movable off zero on its
-    #: own) a softplus coefficient genuinely needs the value nudge.
+    #: start every row this stage frees that is bounded below at 0 and sits
+    #: below this value at it, before solving
+    #: (``ParameterTable.seed_floored``; recorded in ``StageResult.seeded``).
+    #: 0 = no seed.  A row that can go negative is never seeded.  The
+    #: roughness stage uses it to start a correction that is the identity at
+    #: its floor near the band where the data see it.  The extinction and
+    #: magnetic-width stages use it too.  Their seeds were for the softplus
+    #: map's slope at zero, which WP-1938's physical coordinates removed, and
+    #: whether they still change an answer is WP-1938's measurement.
     seed: float = 0.0
     #: microstrain (ppm of ΔM/M) to put a freed but still all-zero Stephens
     #: block on before solving.  ``seed`` cannot serve: the S_HKL DOFs are
-    #: identity-transform, and their pathology at zero is the *exploding*
-    #: gradient of √Σ rather than the softplus's dead one.  0 = no seed.
+    #: unbounded below, and their pathology at zero is the *exploding*
+    #: gradient of √Σ.  0 = no seed.
     strain_seed: float = 0.0
     #: c_w of McCusker eq (7), S = S_y + c_w·S_G: how heavily this stage weights
     #: the geometric 'observations' (every soft restraint the phases declare)
@@ -181,12 +184,13 @@ class Stage:
 #:
 #: The glob matches only instruments that declared a block, so it is safe in
 #: any plan (same property as the preferred-orientation stage).  The seed lifts
-#: the softplus strength parameter (Suortti ``b``, Pitschke ``c``) off the zero
-#: floor where dp/du → 0; 0.3 is chosen from the measured sensitivity peak of
-#: the Suortti model, which sits near b ≈ 0.17 for data from 5° 2θ and b ≈ 0.46
-#: from 20° — not at a token 1e-3, which for ``b`` is not merely a dead
-#: *internal* gradient but a genuinely dead *correction* (see
-#: RoughnessSuortti: both b → 0 and b → ∞ are the identity).
+#: the strength parameter (Suortti ``b``, Pitschke ``c``) off its zero floor;
+#: 0.3 is chosen from the measured sensitivity peak of the Suortti model, which
+#: sits near b ≈ 0.17 for data from 5° 2θ and b ≈ 0.46 from 20° — not at a
+#: token 1e-3, which for ``b`` is a genuinely dead *correction* (see
+#: RoughnessSuortti: both b → 0 and b → ∞ are the identity).  The seed reaches
+#: every freed row bounded below at 0 that sits under it
+#: (``ParameterTable.seed_floored``, WP-1938), Pitschke's ``tau`` included.
 _ROUGHNESS_STAGE = (
     Stage("roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3),
 )
@@ -282,14 +286,17 @@ MAGNETIC_WIDTH_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
 
 #: The value a freed magnetic width is lifted to before step 2 solves, in
 #: deg 2θ.  **Not a claim about the specimen — a claim about softplus.**  Both
-#: terms are softplus-bounded at zero, where the map's slope is 1e-12, so a
-#: coefficient at its exact default has a column twelve orders below its
-#: neighbours.  TRF's Jacobi scaling keeps such a column live (WP-1463), and
-#: measured on the synthetic k ≠ 0 supercell and on Cr₂WO₆ the answer is the
-#: same to four digits unseeded and seeded at 0.02, 0.05 or 0.15; the seed is
-#: kept so the preset does not rest on a solver equilibrating the column, and
-#: it costs nothing.  It is ``Stage.seed``'s existing job (the extinction
-#: stage seeds 1e-3, the roughness stage 0.3), and 0.05 deg is inside the
+#: terms were softplus-bounded at zero, where the map's slope is 1e-12, so a
+#: coefficient at its exact default had a column twelve orders below its
+#: neighbours.  TRF's Jacobi scaling kept such a column live (WP-1463), and
+#: measured on the synthetic k ≠ 0 supercell and on Cr₂WO₆ the answer was the
+#: same to four digits unseeded and seeded at 0.02, 0.05 or 0.15; the seed was
+#: kept so the preset did not rest on a solver equilibrating the column, and
+#: it cost nothing.  Since WP-1938 both are refined in deg with a lower bound
+#: of 0, so their column at zero is the physical one and the seed's reason is
+#: gone; whether it still changes an answer is that WP's measurement.  It is
+#: ``Stage.seed``'s existing job (the extinction stage seeds 1e-3, the
+#: roughness stage 0.3), and 0.05 deg is inside the
 #: range the term is for and below
 #: :data:`~rietx.model.forward.MAGNETIC_SIZING_FLOOR`, which is what the
 #: windows were sized for.
@@ -297,11 +304,11 @@ MAGNETIC_WIDTH_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
 #: **The seed reaches the two widths and nothing else**, by construction:
 #: step 2's globs name only them, and after step 1 (which does not free them)
 #: they sit at their zero floor.  So the stage lifts exactly the entries at
-#: the floor — the reading ``Stage.seed``'s own comment gives — whether
-#: ``ParameterTable.seed_softplus`` lifts every softplus entry below the seed
-#: or only those at the floor (issue #499).  Steps 1 and 3 carry no seed: step
-#: 1's job is the moment at the off state, and on step 3 a seed would reach
-#: the moment and the scale beside the widths, which is #499's failure.
+#: the floor, whether ``ParameterTable.seed_floored`` lifts every row bounded
+#: at 0 below the seed or only those at the floor (issue #499).  Steps 1 and 3
+#: carry no seed: step 1's job is the moment at the off state, and on step 3 a
+#: seed would reach the moment and the scale beside the widths, which is #499's
+#: failure.
 MAGNETIC_WIDTH_SEED_DEG = 0.05
 
 
@@ -400,8 +407,9 @@ class RefinementPlan:
             # the ADPs all attenuate high-Q intensity, so letting the
             # structure/ADPs settle first leaves extinction with only its
             # (different, low-angle-weighted) signature to fit.  The
-            # coefficient starts at exactly 0 on the softplus floor, so the
-            # stage seeds it to lift TRF off the zero.
+            # coefficient starts at exactly 0, its floor, and the stage seeds
+            # it there: a seed from the softplus era, when the column at 0
+            # was dead (WP-1938 asks whether it still changes an answer).
             Stage("extinction", ["phases.*.extinction"], seed=1e-3),
             *_ROUGHNESS_STAGE,
         ])
@@ -523,14 +531,14 @@ class RefinementPlan:
         costs.
         """
         names = ("moment", "magnetic_width", "moment_and_width")
-        # Step 2 seeds the width off its exact-zero softplus floor, for the
-        # reason the extinction stage seeds 1e-3: the map's slope there is
-        # 1e-12, and the preset should not rest on the solver equilibrating
-        # that column (``MAGNETIC_WIDTH_SEED_DEG``).  Step 1 must NOT seed it — that stage's whole job is
-        # the moment with the widths at the off state, where the second frozen
-        # family is not even built — and step 3 need not, because step 2 has
-        # already lifted it (``MAGNETIC_WIDTH_SEED_DEG`` says why the seed is
-        # confined to step 2's two globs).
+        # Step 2 seeds the width off its exact-zero floor, as the extinction
+        # stage seeds 1e-3 (``MAGNETIC_WIDTH_SEED_DEG`` has the softplus-era
+        # reason, and why WP-1938 asks whether it still holds).  Step 1 must
+        # NOT seed it — that stage's whole job is the moment with the widths
+        # at the off state, where the second frozen family is not even built —
+        # and step 3 need not, because step 2 has already lifted it
+        # (``MAGNETIC_WIDTH_SEED_DEG`` says why the seed is confined to step
+        # 2's two globs).
         seeds = (0.0, MAGNETIC_WIDTH_SEED_DEG, 0.0)
         return cls(stages=[Stage(name, list(paths), seed=seed)
                            for name, paths, seed

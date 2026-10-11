@@ -657,8 +657,8 @@ def _fd_typicals(table: ParameterTable,
     is unchanged while |θ| exceeds the size, which holds for every such row
     the package builds.
 
-    The size is in **column units**, which is what the floor seed is in
-    already (:meth:`~rietx.params.vector.ParameterTable.seed_floor`'s
+    The size is in **column units**, which is what a stage's seed is in
+    already (:meth:`~rietx.params.vector.ParameterTable.seed_floored`'s
     write), so a value-scaled joint column needs no factor.
 
     **A named variable with no unit of its own is sized by what it drives.**

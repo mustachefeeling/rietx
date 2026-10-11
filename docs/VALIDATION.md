@@ -248,7 +248,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 `characterisation` `ceiling` · dataset `lab6_cbn`
 
-**Claims:** the shared-broadening fit reaches one minimum whatever the platform's rounding, and its profile stage records the floor seed that made it single
+**Claims:** the shared-broadening fit reaches one minimum whatever the platform's rounding, and its profile stage seeds nothing: refined in deg, profile.y leaves its floor on its own (WP-1938)
 
 **Referenced to:** issue #832: the same tree reached Rwp 0.18696 on Linux and 0.16478 on macOS. The 2 % band about the two-platform measurement is the reporter's, and it fails at either old minimum
 

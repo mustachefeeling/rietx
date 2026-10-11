@@ -44,18 +44,18 @@ from ..schemas.suggest import (
     SuggestionResult,
 )
 
-#: Probe seeds, per family.  A floor candidate cannot be scored at its stored
-#: value: a softplus column at p ≈ 0 comes out of the scalar-FD chain as
-#: rounding noise (dp/du ≈ 1e-12 puts the chain's perturbation below the
-#: model evaluation's own fp noise — and the gain statistic, being
-#: scale-invariant, would amplify that noise to a measured-looking number), a
-#: Stephens block at S ≡ 0 sits on √Σ's unbounded slope (an FD there returns
-#: an h-dependent value, not a derivative), and Suortti roughness at b = 0 is
-#: the *identity*, a column of exact zeros — for which 1e-3 is still a dead
-#: correction, hence the measured 0.3 of ``_ROUGHNESS_STAGE``.  So those
-#: columns are evaluated at the seed the corresponding stage would start its
-#: solve from (the ``strategy/staged.py`` literals: ``seed=1e-3``, roughness
-#: ``0.3``, ``strain_seed=1000.0``) and the candidate reports ``seeded=True``.
+#: Probe seeds, per family.  A floor candidate is scored at the seed the
+#: corresponding stage would start its solve from (the ``strategy/staged.py``
+#: literals: ``seed=1e-3``, roughness ``0.3``, ``strain_seed=1000.0``), and the
+#: candidate reports ``seeded=True``.  A Stephens block at S ≡ 0 sits on √Σ's
+#: unbounded slope (an FD there returns an h-dependent value, not a
+#: derivative), and Suortti roughness at b = 0 is the *identity* — for which
+#: 1e-3 is still a dead correction, hence the measured 0.3 of
+#: ``_ROUGHNESS_STAGE``.  A width below 1e-3 takes the 1e-3 seed: a row
+#: bounded at 0 whose unit has a size in ``params.vector.FLOOR_SEEDS``, lifted by
+#: ``ParameterTable.seed_floored``.  Its original reason, a softplus column at
+#: p ≈ 0 that came out of the FD chain as rounding noise, went with WP-1938's
+#: physical coordinates; the seed stays until measured.
 #: The seeds live in a **second** probe build whose only contribution is
 #: those columns — never in the shared residual: measured on the layers
 #: suite's truth fixture, seeding the shared state instead broadens every

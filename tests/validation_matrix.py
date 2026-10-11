@@ -419,8 +419,8 @@ CLAIMS: tuple[Claim, ...] = (
         "test_acceptance_lab6_cbn", "test_the_shared_fit_reaches_one_minimum_on_every_platform",
         "lab6_cbn", ("characterisation", "ceiling"),
         "the shared-broadening fit reaches one minimum whatever the "
-        "platform's rounding, and its profile stage records the floor seed "
-        "that made it single",
+        "platform's rounding, and its profile stage seeds nothing: refined "
+        "in deg, profile.y leaves its floor on its own (WP-1938)",
         reference="issue #832: the same tree reached Rwp 0.18696 on Linux and "
                   "0.16478 on macOS. The 2 % band about the two-platform "
                   "measurement is the reporter's, and it fails at either old "

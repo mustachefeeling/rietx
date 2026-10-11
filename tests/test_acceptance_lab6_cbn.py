@@ -210,7 +210,7 @@ _TAIL = [
 #: free, this histogram had two minima and rounding chose between them: a
 #: 3e-14 relative change to ``w``'s start moved χ²_red from 9.69 to 12.48, with
 #: ``instrument.profile.y`` left on its softplus floor, and Linux and macOS
-#: reported one each.  The floor seed (``params.vector.FLOOR_SEEDS``) gives one
+#: reported one each.  WP-1930's floor seed gave one
 #: minimum, χ²_red 9.84, but there Γ_G² < 0 at 98-100 % of points, so the data
 #: cannot determine ``u, v, w`` and their esds come back absent or at ρ = ±1.
 #: Held at 11-BM's sharp start (Γ_G² = ``w`` = 2e-5 deg²), the fit reaches
@@ -428,13 +428,16 @@ def test_the_shared_fit_reaches_one_minimum_on_every_platform(shared):
 
     The band is the reporter's, 2 % about the measured value: it fails at
     either old minimum (11 % high and 2.3 % low) while leaving the
-    cross-platform spread, 1e-12, a margin of ten orders.  The record says how
-    the minimum was made single: the ``profile`` stage started
-    ``instrument.profile.y`` off its softplus floor.
+    cross-platform spread, 1e-12, a margin of ten orders.  WP-1930 made the
+    minimum single by starting ``instrument.profile.y`` off its softplus
+    floor.  WP-1938 refines it in deg, where its column at 0 is the physical
+    one, so the ``profile`` stage seeds nothing and ``y`` leaves 0 on its own
+    (0.0369 at Rwp 0.168656, macOS arm64, ``[dev]``).
     """
     assert shared.statistics.rwp == pytest.approx(SHARED_RWP, rel=0.02)
     profile = next(s for s in shared.stages if s.name == "profile")
-    assert set(profile.seeded) == {"instrument.profile.y"}
+    assert profile.seeded == {}
+    assert shared.parameter("instrument.profile.y").value > 0.0
 
 
 def test_the_fits_render(shared, degenerate):

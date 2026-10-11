@@ -1200,8 +1200,8 @@ def test_the_strain_arm_holds_the_magnetic_component_as_drawn():
 # ================================ the seed, against issue #499
 
 def test_the_preset_seed_reaches_the_two_widths_and_nothing_else():
-    """Issue #499: ``Stage.seed`` lifts every softplus entry its globs match
-    that sits below the seed, converged or not.  The preset does not depend
+    """Issue #499: ``Stage.seed`` lifts every freed row bounded at 0 that
+    sits below the seed, converged or not.  The preset does not depend
     on that reading: step 2's globs name only the two widths, which step 1
     left at their zero floor, so the entries it lifts are exactly the ones a
     floor-only seed would lift too — and steps 1 and 3, whose globs reach the
@@ -1210,7 +1210,7 @@ def test_the_preset_seed_reaches_the_two_widths_and_nothing_else():
     assert plan.stages[0].seed == 0.0 and plan.stages[2].seed == 0.0
 
     ph = _mnf2()
-    ph.scale.value = 1e-4          # far below the seed, and softplus-bounded
+    ph.scale.value = 1e-4          # far below the seed, and bounded at 0
     st = rx.Structure(phases=[ph])
     ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
     table = ParameterTable(st, ins)
@@ -1218,7 +1218,7 @@ def test_the_preset_seed_reaches_the_two_widths_and_nothing_else():
     freed = table.set_vary(plan.stages[1].turn_on, True)
     at_floor = [p for p in freed
                 if table.entries[table._paths[p]].value == 0.0]
-    seeded = table.seed_softplus(freed, plan.stages[1].seed)
+    seeded = table.seed_floored(freed, plan.stages[1].seed)
     assert sorted(seeded) == ["phases.0.magnetic_lor_size",
                               "phases.0.magnetic_lor_strain"]
     assert sorted(seeded) == sorted(at_floor)

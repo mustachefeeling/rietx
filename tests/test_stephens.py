@@ -419,9 +419,9 @@ def test_seed_puts_a_freed_zero_block_on_the_isotropic_ray():
     t = table_for(brucite(StephensStrain.from_values([0.0] * 15)))
     dofs = t.set_vary(["phases.*.microstrain.dof.*"], True)
     assert len(dofs) == 4
-    # the softplus seed cannot reach identity-transform DOFs — that is exactly
-    # why seed_stephens exists
-    assert t.seed_softplus(dofs, 1e-3) == []
+    # the stage seed cannot reach DOFs unbounded below — that is exactly why
+    # seed_stephens exists
+    assert t.seed_floored(dofs, 1e-3) == []
     assert sorted(t.seed_stephens(dofs, 1200.0)) == sorted(dofs)
     values = t.decode(t.x0())
     got = np.array([values[f"phases.0.microstrain.{n}"] for n in S_NAMES])

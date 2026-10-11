@@ -130,26 +130,24 @@ def test_mccusker_structural_frees_extinction_after_displacement():
     assert ext.seed == 1e-3
 
 
-def test_seed_softplus_lifts_a_zero_coefficient_into_a_live_gradient():
+def test_the_stage_seed_lifts_a_zero_coefficient_off_its_floor():
+    """The extinction stage's seed reaches the coefficient through its bounds
+    (WP-1938): it is free, bounded below at 0, and on that floor."""
     from rietx import Instrument
-    from rietx.params.transforms import dphys_dinternal, to_internal
     from rietx.params.vector import ParameterTable
     from tests.test_schemas import make_lab6
 
     table = ParameterTable(make_lab6(), Instrument.debye_scherrer(wavelength=1.5406))
     table.set_vary(["*"], False)
     freed = table.set_vary(["phases.*.extinction"], True)
-    # at exactly 0 the softplus internal gradient is effectively dead
-    assert dphys_dinternal(to_internal(0.0, "softplus"), "softplus") < 1e-6
-
-    seeded = table.seed_softplus(freed, 1e-3)
-    assert seeded == ["phases.0.extinction"]
     e = next(x for x in table.entries if x.path == "phases.0.extinction")
+    assert e.value == 0.0 and e.lo == 0.0
+
+    seeded = table.seed_floored(freed, 1e-3)
+    assert seeded == ["phases.0.extinction"]
     assert e.value == 1e-3
-    # after the nudge the gradient is alive again
-    assert dphys_dinternal(to_internal(1e-3, "softplus"), "softplus") > 1e-4
-    # seeding is idempotent-ish: a value already above the seed is left alone
-    assert table.seed_softplus(freed, 1e-3) == []
+    # seeding is idempotent-ish: a value already at the seed is left alone
+    assert table.seed_floored(freed, 1e-3) == []
 
 
 def test_stagespec_round_trips_the_seed():

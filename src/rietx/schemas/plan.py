@@ -83,8 +83,9 @@ class StageSpec(Base):
         "for the last)"))
     lebail_cycles: int = 3
     seed: float = Field(0.0, description=(
-        "lift softplus-floored parameters this stage frees to this value "
-        "(dead-gradient pathology, e.g. extinction)"))
+        "start every parameter this stage frees that is bounded below at 0 "
+        "and sits below this value at it (e.g. surface roughness, whose "
+        "correction is the identity at 0)"))
     strain_seed: float = Field(0.0, description=(
         "microstrain (ppm) to seed an all-zero Stephens block onto the "
         "isotropic ray (exploding-gradient pathology — the opposite fix)"))

@@ -168,11 +168,16 @@ driver alone).
 - *D2, the driver.* `optimize.least_squares.DEFAULT_SOLVER = "lm"`, read by
   every signature that defaults `solver=`, the GUI's included.
 - *D3, a plan's seed stays.* `Stage.seed` and `suggest()`'s probe seeds keep
-  acting, on a free row whose lower bound is at least 0 and whose value is
-  below the seed, never on the transform word. Physical coordinates do not
-  make every seed redundant: surface roughness at b = 0 is the identity, so
-  its column is exactly zero in any coordinates (the `_ROUGHNESS_STAGE`
-  comment). Whether the extinction and magnetic-width seeds still change an
+  acting through `ParameterTable.seed_floored`, on a free row whose lower
+  bound is at least 0 and whose value sits on it, never on the transform
+  word. A row merely below the seed is not touched (issue #499): selected
+  that way, the roughness stage's 0.3 lifted Pitschke `tau` from its 0.05
+  default to its maximum. The probe's 1e-3 seed reaches only rows whose unit
+  has a `FLOOR_SEEDS` size, since seeded by bounds alone sample transparency
+  moved every peak in the probe's second build. The roughness seed's reason
+  is the plan's start, not a dead column: the lane measured Suortti b's
+  column at b = 0 as 2.7e6 against the scale's 1.9e6 (synthetic LaB₆, Bragg
+  Brentano). Whether the extinction and magnetic-width seeds still change an
   answer is the Seeds task's measurement.
 - *D4, the floor seed goes.* WP-1930's `seed_floor`, its `FLOOR_SEEDS` use
   there and `SOFTPLUS_FREED_AT_FLOOR` existed only for the trap, and WP-1937's

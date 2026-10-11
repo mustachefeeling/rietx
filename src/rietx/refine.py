@@ -96,6 +96,7 @@ from .params.multi import _unscoped
 from .params.vector import (
     CELL_SAFETY_ANGLE_DEG,
     CELL_SAFETY_FRACTION,
+    FLOOR_SEEDS,
     VAR_PREFIX,
     AffineTie,
     ParameterTable,
@@ -364,12 +365,10 @@ class _StageHold:
     #: for ``blocked_by_hold``'s reason: decided before the solve, unchanged
     #: by it, and delivered to the two ``StageResult`` call sites this way
     unknown_paths: list[str] = dataclasses.field(default_factory=list)
-    #: ``StageResult.seeded`` and ``.floor_unseeded`` (WP-1930), riding here
-    #: for the same reason: decided before the solve, and unrecoverable after
-    #: it, when the seeded row has moved and the unseeded one may have left
-    #: its floor.
+    #: ``StageResult.seeded`` (WP-1930), riding here for the same reason:
+    #: decided before the solve, and unrecoverable after it, when the seeded
+    #: row has moved.
     seeded: dict[str, float] = dataclasses.field(default_factory=dict)
-    floor_unseeded: list[str] = dataclasses.field(default_factory=list)
     #: ``(path, escaped_value, clamped_value)`` for every free cell parameter
     #: ``clamp_cell_runaway`` pulled back this stage — empty on every stage
     #: that never leaves the safety window, which is every stage measured so
@@ -3246,7 +3245,7 @@ class Refinement:
         (*considering* freeing is not a refinement move), and
         ``result_``/working state are untouched.
 
-        Candidates sitting on a transform floor are probed from their
+        Candidates sitting on a floor of 0 are probed from their
         family's stage seed (``seeded=True``, ``seed_value`` says from
         where), and the seeds live in a **second** build whose only
         contribution is those candidates' columns: the residual, the free
@@ -3344,18 +3343,25 @@ class Refinement:
         blocks_now = blocks[0]
         fp = table.free_paths
 
-        # build 2 — floor candidates only.  A softplus column at its floor is
-        # fp noise (dp/du ≈ 1e-12 puts the chain's perturbation below the
-        # model's own rounding), a Stephens block at S ≡ 0 has √'s unbounded
-        # slope, and Suortti roughness at b = 0 is the identity with a column
-        # of exact zeros — so those columns (and only those) are taken from
-        # the seeded state a stage would actually start such a solve at.
+        # build 2 — floor candidates only.  A row bounded below at 0 and
+        # under its family's seed, a Stephens block at S ≡ 0 (√'s unbounded
+        # slope) and Suortti roughness at b = 0 (the identity) are scored from
+        # the seeded state a stage would start such a solve at, so those
+        # columns (and only those) come from build 2.  The floor rows are
+        # chosen by their bounds since every row became identity (WP-1938).
         seeded: dict[str, float] = {}
         rough = [p for p in cand_paths
                  if p.startswith("instrument.geometry.surface_roughness.")]
-        for p in table.seed_softplus(rough, SUGGEST_SEED_ROUGHNESS):
+        for p in table.seed_floored(rough, SUGGEST_SEED_ROUGHNESS):
             seeded[p] = SUGGEST_SEED_ROUGHNESS
-        for p in table.seed_softplus(cand_paths, SUGGEST_SEED_SOFTPLUS):
+        # the 1e-3 seed reaches widths alone: a row whose unit has a size in
+        # FLOOR_SEEDS, ``_fd_typicals``' reading of a width (WP-1936).  By its
+        # bounds alone it also reached a geometry aberration that is off at
+        # 0, and sample transparency seeded there moved every peak in build 2,
+        # which broke the identity pairs and the absorption this probe
+        # reports (WP-1938)
+        widths = [p for p in cand_paths if table._units.get(p) in FLOOR_SEEDS]
+        for p in table.seed_floored(widths, SUGGEST_SEED_SOFTPLUS):
             seeded[p] = SUGGEST_SEED_SOFTPLUS
         strain = [p for p in cand_paths if ".microstrain.dof." in p]
         entries = {e.path: e for e in table.entries}
@@ -3662,18 +3668,14 @@ class Refinement:
                     freed.remove(path)
         seeded: dict[str, float] = {}
         if stage.seed:
-            # lift softplus coefficients (e.g. extinction) off the zero floor
-            # so TRF has a live gradient this stage
-            seeded = dict.fromkeys(table.seed_softplus(freed, stage.seed),
+            # start a freed row sitting on its floor where the plan says:
+            # roughness at b = 0 is the identity, and its stage starts b in
+            # the band the data can see (WP-1938)
+            seeded = dict.fromkeys(table.seed_floored(freed, stage.seed),
                                    stage.seed)
-        # and any freed row still on its floor, at its unit's size (WP-1930):
-        # there the row's column is 1e-12 of its neighbours and whether the
-        # solver lifts it is decided by rounding
-        floor_seeded, floor_unseeded = table.seed_floor(freed)
-        seeded.update(floor_seeded)
         if stage.strain_seed:
-            # the Stephens DOFs are identity-transform, so the softplus seed
-            # above never sees them; put an all-zero block on the isotropic ray
+            # the Stephens DOFs are unbounded below, so the seed above never
+            # sees them; put an all-zero block on the isotropic ray
             table.seed_stephens(freed, stage.strain_seed)
 
         # regenerate reflection list/windows/FCJ nodes with current values
@@ -4059,7 +4061,7 @@ class Refinement:
             reach={c: list(v) for c, v in held_reach.items()},
             scale_b_held=dict(scale_b_held),
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
-            seeded=seeded, floor_unseeded=floor_unseeded,
+            seeded=seeded,
             cell_runaway=list(cell_runaway),
             cell_runaway_unresolved=[(d, list(e)) for d, e in cell_runaway_unresolved],
             # Le Bail and Pawley read the screen alone, which the result
@@ -4428,7 +4430,6 @@ class Refinement:
             diagnostics.extend(_hold_diagnostics(stage_results))
             diagnostics.extend(_unknown_path_diagnostics(
                 stage_results, [e.path for e in table.entries]))
-            diagnostics.extend(_floor_unseeded_diagnostics(stage_results))
 
             self.result_ = _build_result(
                 model, table, outcome.theta, mode=mode, status=outcome.status,
@@ -4623,7 +4624,7 @@ class Refinement:
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths,
-                seeded=hold.seeded, floor_unseeded=hold.floor_unseeded,
+                seeded=hold.seeded,
                 # checked, trivially: one histogram has no elsewhere
                 unreached_histograms={},
             ))
@@ -4876,14 +4877,13 @@ class Refinement:
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths, unreached_histograms={},
-                seeded=hold.seeded, floor_unseeded=hold.floor_unseeded)
+                seeded=hold.seeded)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
             diagnostics.extend(_hold_diagnostics([stage_result]))
             diagnostics.extend(_unknown_path_diagnostics(
                 [stage_result], [e.path for e in table.entries]))
-            diagnostics.extend(_floor_unseeded_diagnostics([stage_result]))
 
             # before the node is recorded, which is where `_run_plan` writes it
             # too; the two call sites must not disagree about when a stage's
@@ -6162,37 +6162,6 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
                         f"it ({listing} lists every path this model "
                         "has), or write a glob if the stage is meant to reach "
                         "a component some models do not declare"),
-        ))
-    return out
-
-
-def _floor_unseeded_diagnostics(stage_results: list[StageResult]
-                                ) -> list[Diagnostic]:
-    """``SOFTPLUS_FREED_AT_FLOOR`` — a stage freed a row it could not seed.
-
-    The floor seed (``ParameterTable.seed_floor``, WP-1930) lifts a freed
-    softplus row off its floor by its unit, and a unit with no size is left
-    where it is.  There the row's column is twelve orders below its
-    neighbours, so whether the solver moves it is decided by rounding, and two
-    platforms can reach two minima (issue #832).  One diagnostic per path,
-    naming the stages, for :func:`_unknown_path_diagnostics`' reason.
-    """
-    by_path: dict[str, list[str]] = {}
-    for sr in stage_results:
-        for path in sr.floor_unseeded or ():
-            by_path.setdefault(path, []).append(sr.name)
-    out = []
-    for path, stages in by_path.items():
-        which = _stage_list(stages)
-        out.append(Diagnostic(
-            level="warning", code="SOFTPLUS_FREED_AT_FLOOR",
-            message=(f"{which} freed {path} on its softplus floor, where its "
-                     "gradient is 1e-12 of its neighbours', so whether it "
-                     "moved off zero is decided by rounding"),
-            where=[path],
-            suggestion=("start it inside its floor: give the parameter a "
-                        "positive value before the fit, or give the stage a "
-                        "seed (Stage(..., seed=...)) of a size it can reach"),
         ))
     return out
 

@@ -476,9 +476,10 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
     fractions to three decimals.
 
     The seeds carry over as the maximum across the plan's stages, so this is
-    the compressed plan rather than a different protocol — ``seed_softplus``
-    only lifts values *below* the seed, and a carried value that far down the
-    softplus floor is indistinguishable from a cold zero.
+    the compressed plan rather than a different protocol — ``seed_floored``
+    only lifts a row bounded below at 0 whose value is *below* the seed, and a
+    carried value that far down its floor is indistinguishable from a cold
+    zero.
     """
     turn_on: list[str] = []
     for stage in plan.stages:
