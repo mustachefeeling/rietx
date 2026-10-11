@@ -526,8 +526,10 @@ def end_to_end(case: str, wheel: dict, repeats: int) -> None:
     # to run (the numpy path's own repeats included) cannot pass on its last
     # repeat alone
     ref = finals["numpy"][0]
+    # "theta", not the letter: a Windows console's cp1252 has no θ, and the
+    # print raised there (WP-1940)
     print("| arm | wall min–max s | median | ×numpy (median) | Rwp | "
-          "final θ vs numpy |")
+          "final theta vs numpy |")
     print("|---|---|---|---|---|---|")
     med_np = statistics.median(walls["numpy"])
     for arm, ws in walls.items():
