@@ -200,8 +200,9 @@ is available as an independent alternative.
 
 ## Choosing the flexibility
 
-Two knobs are selected with the same two ingredients: the Chebyshev order (or
-P-spline λ), and the estimator's λ.
+Two knobs are selected with the same two ingredients: the Chebyshev order and
+the estimator's λ. (The P-spline's λ is not selected: `auto_background` fixes it
+at 1.0.)
 
 - BIC on peak-masked channels {cite}`schwarz1978`. Background flexibility has to
   be justified by the background channels alone, so Bragg-peak channels (net
@@ -213,6 +214,12 @@ P-spline λ), and the estimator's λ.
   threshold, extra flexibility chases noise. Masked channels are treated as
   contiguous, which makes the test slightly conservative, in the safe
   direction.
+
+The two scans combine them differently. The order scan steps from 2 terms to
+`max_order` (16 by default) and stops at the first $d \ge 1.8$. It returns the
+lowest BIC among the orders it tried, so $d$ only ends the scan and never picks
+the order. The arPLS scan steps from stiff to flexible and returns the first λ
+with $d \ge 1.2$; its BIC is reported and decides nothing.
 
 A scan can end at its cap without either ingredient deciding: BIC still
 falling at `max_order` and $d$ short of the stop. The order returned is then
