@@ -57,7 +57,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1918](1918-a-magcif-read-in-its-own-cell-and-validated.md) | A magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out | P2 | — ([1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) soft) | [Unscheduled](#unscheduled-coming-from-another-code) |
-| [1920](1920-the-api-index-splits-by-shape.md) | The API index splits by shape: another program's files go to `api-io.md` | P2 | — | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1923](1923-a-candidate-in-its-conventional-setting.md) | A candidate is reported as a lattice in its conventional setting, and the reduction is an exact change of basis | P2 | — ([1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | P2 | — ([1520](1520-a-search-refines-each-assignment-once.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1927](1927-tof-t1-the-axis-and-its-readers.md) | TOF T-1: the time-of-flight axis and its readers | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
@@ -620,7 +619,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1905](1905-the-skill-eval-suite.md) | The skill eval suite: `claude plugin eval` over the skill tree, cases from real failures, judge-free first | ✅ 2026-10-06 | — | [1904](1904-the-skill-evaluation-strategy.md) |
 | [1906](1906-the-skill-body-rewrite.md) | The skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved | ✅ 2026-10-07 | — | [1905](1905-the-skill-eval-suite.md) ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) |
 | [1907](1907-the-skill-stays-in-sync.md) | The skill stays in sync: constants and formulas pinned to the package, a changed-surface check at review, the judge-free tier nightly | ✅ 2026-10-07 | — | — ([1905](1905-the-skill-eval-suite.md) soft) |
-| [1920](1920-the-api-index-splits-by-shape.md) | The API index splits by shape: another program's files go to `api-io.md` | ⬜ | P2 | — |
+| [1920](1920-the-api-index-splits-by-shape.md) | The API index splits by shape: another program's files go to `api-io.md` | ✅ 2026-10-11 | — | — |
 | [1928](1928-the-toy-anomalous-golden-reads-a-frozen-y-obs.md) | The toy_anomalous golden reads a frozen y_obs | ✅ 2026-10-08 | — | — |
 | [1941](1941-a-release-note-is-a-file-per-change.md) | A release note is a file per change | ⬜ | P3 | — |
 

@@ -32,6 +32,14 @@ issue #561, sized M. It needs no body.
 
 ### Inherited
 
+- **2026-10-11, from WP-1920 (closed, PR #906): this WP's PR may create
+  `api-bodies.md`.** The maintainer ruled that the first pull request
+  documenting the rigid-body classes creates their index, without waiting for
+  WP-1812. `TetherRestraint` and `AntiBumpRestraint` would go there with
+  `RigidBody`, `BodyOrigin` and `BodyTorsion`, as one `TECHNIQUES` entry in
+  `docs/skill/make_api_index.py`. A new `api-<shape>.md` takes the one
+  39 000 B ceiling and edits no list.
+
 - **2026-10-11, from the issue triage (#561, #677, in PR #888): the first half
   of R8 is open as the reporter's PR, and it asks this WP's question.** PR
   #888 (opened 2026-10-11, fork, rebased on #823) adds `TetherRestraint` and
