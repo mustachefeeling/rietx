@@ -1,10 +1,8 @@
 # WP-1938 — every parameter refined in its own units
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — every task but one landed; a 343-column Pawley fit stops a stage
-on its cap under the default driver, and what to do is the maintainer's call
+Milestone: unscheduled · Status: ✅ 2026-10-11 — shipped in #883; the large Pawley stage moved to WP-1953
 Track: What fires, and what stays silent
 Depends on: 1936 (the FD step, landed 2026-10-09), 1937 (a driver that handles widths on zero, landed 2026-10-10), 1940 soft (merge after it, so the re-pinned numbers and the grid are the shipping kernels'; the work can start before)
-Priority: P1 2026-10-10 — was P2: WP-1937 landed, nothing blocks it, and it now carries the default-driver flip WP-1929's P1 rests on
 
 ## Goal
 
@@ -459,25 +457,9 @@ driver alone).
       refusal into a quiet result. `lm.minimize` now refuses a budget under
       one evaluation in scipy's words, which covers the joint fit too.
       WP-1947 still owns a refusal that names `max_iter`.
-- [ ] **A large Pawley under the default driver** (fifth session, found by
-      the lane above). FAP.XRA in `pawley` mode, default plan, 343 columns at
-      the `profile` stage. `main` (`6075319c`, TRF): every stage converged,
-      Rwp 0.07825358. This branch's LM: the `profile` stage stops on its
-      400-evaluation cap, Rwp 0.08035928. At every λ > 0 BCCG's step
-      promised a cost *increase* (model +0.05 down to +7e-6) where the exact
-      box solve promised a decrease, so LM raised λ and crawled. LM with the
-      exact step at every size converges at 0.08029 in 6.3 s against 16.7 s.
-      This branch's TRF reaches 0.07838, and LM restarted from TRF's answer
-      keeps it and reaches 0.07825. The refined profile parameters differ by
-      at most 1.5 esd, so the gap is mostly in the intensities. NAC Pawley
-      went the other way under 1937 (LM 0.13478, TRF 0.13628). Two
-      decisions, the maintainer's: what the step above
-      `BVLS_MAX_COLUMNS` does when BCCG promises no descent (the exact solve
-      costs 1.5-11 s a step at 1000 columns, per 1937), and whether a Pawley
-      fit's start is this WP's to fix or only to report. To reproduce:
-      `tests/test_acceptance_fap.build_fap_inputs()`, then
-      `Refinement(structure, instrument, solver=…).fit(data, mode="pawley")`,
-      and `lm.BVLS_MAX_COLUMNS = 10**6` for the exact step.
+- [x] **A large Pawley under the default driver** (fifth session). Moved
+      2026-10-11 to WP-1953, with the measurement, when #883 merged
+      without a fix.
 
 ## Acceptance
 
@@ -501,6 +483,27 @@ asserts, on every start.
   transformed parameter's error is meaningless near its limit).
 
 ## Handover log
+
+### 2026-10-11 (sixth session) — closed: #883 merged, the large Pawley stage moved to WP-1953
+
+The work shipped. The maintainer merged #883 with the large Pawley stage
+unfixed, so that task moved to its own WP, and the skill now warns an agent
+about it. This handover closes the WP.
+
+*Done* (branch `wp1938-close`, from `ab8d949a`):
+- `b59715ae`: WP-1953 filed with the measurement, the last task here
+  ticked as moved, and the dependants re-rated. WP-1929 goes to P1, its
+  last blocker landed; WP-1945, 1946 and 1948 name the landing, and 1948
+  stays down a rung for 1947. The fifth entry's sentence on BCCG is
+  corrected in place: six of seven sampled λ > 0, not every one.
+- `e1a41beb`: `surprises.md` §8.31, in budget (+1 B) by shortening §8.14's
+  story and a sentence of §8.6, both this WP's own rows.
+
+*Measured*: none new. The prose-only branch skipped `/code-review`.
+
+*Next*: none here. WP-1953 owns the large Pawley stage. A release is owed
+at once (`docs/RELEASING.md` § When): this WP was P1 and closes #900, a
+silent wrong basin under TRF.
 
 ### 2026-10-11 (fifth session) — both review tasks closed; a large Pawley fit needs a decision
 
@@ -576,8 +579,12 @@ declined below.
   | this branch, LM, exact step at every size | converged | 0.08028663 | 6.3 s |
   | this branch, LM from TRF's answer | converged | 0.07825264 | |
 
-  At every λ > 0 the BCCG step promised a cost increase (model +0.05 to
-  +7e-6) where the exact solve promised a decrease. The refined profile
+  The stage made 635 box solves for 400 evaluations, so about 235 BCCG
+  steps were rejected unevaluated as promising no descent. On eight
+  sampled systems BCCG's step left its own damped model above zero at six
+  of the seven with λ > 0 (+0.05 to +7e-6), and the exact solve's was
+  below zero at all eight. (Corrected 2026-10-11: this said "at every
+  λ > 0" and called the model value a promise.) The refined profile
   parameters of the TRF and exact-LM answers differ by at most 1.5 esd.
   Walls are one loaded run each.
 - The trigger fit on the kernels from starts 1e-14 apart in `profile.x`:

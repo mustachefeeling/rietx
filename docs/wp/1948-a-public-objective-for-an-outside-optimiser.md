@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: 1947 (the evaluation without a solve); 1938 (the parameter coordinates)
-Priority: P4 2026-10-11 — one embedder drives the pattern half through private names and pins `rietx<1.6` (P3 by the rubric), down a rung until 1938 decides what θ is
+Priority: P4 2026-10-11 — one embedder drives the pattern half through private names and pins `rietx<1.6` (P3 by the rubric), down a rung until 1947 lands; 1938 settled θ as physical units (#883)
 
 ## Goal
 
