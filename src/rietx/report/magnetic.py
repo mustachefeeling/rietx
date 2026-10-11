@@ -678,7 +678,7 @@ def magnetic_width_findings(model, values, *, esds=None, free=(),
                 f"answer rather than cold"),
             suggestion=(
                 f"fit(data, plan=\"magnetic_width\") — the three-step order "
-                f"(moment, then phases.{ip}.magnetic_lor_size seeded off its "
+                f"(moment, then phases.{ip}.magnetic_lor_size freed from its "
                 f"zero floor beside the converged moment, then both to the "
                 f"final tolerance). A "
                 f"single stage freeing the width beside the moment is "

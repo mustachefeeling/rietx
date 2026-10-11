@@ -297,12 +297,15 @@ driver alone).
 - [x] Read-point migration for a stored `transform`, with a fixture of a
       pre-change project and history opening unchanged in meaning.
       (`test_project.py::test_a_log_written_with_transforms_opens_unchanged_in_meaning`.)
-- [ ] Every reader in the list above, each fixed or deleted, and the grep that
+- [x] Every reader in the list above, each fixed or deleted, and the grep that
       finds no `"softplus"` branch left outside migration. (Code done
-      2026-10-11; the manual's Part 1, the skill's references and the
-      examples still describe the word.)
-- [ ] Seeds: for each caller of `seed_softplus` and WP-1930's floor seed,
+      2026-10-11; the docs pass closed it the same day. What `grep -rn
+      softplus src` still finds is migration or a dated note.)
+- [x] Seeds: for each caller of `seed_softplus` and WP-1930's floor seed,
       measure whether it still changes an answer, and delete what does not.
+      (D11. The extinction, magnetic-width and probe width seeds are gone.
+      No warm start seeds, whether the collapsed refit, `refit="stages"` or
+      the `warm_staged` rung (`sequential._unseeded`). Roughness keeps 0.3.)
 - [ ] The traced backends (`backend/traced.py`) and the cross-backend matrix.
 - [ ] Re-measure every acceptance suite and VALIDATION.md's rows; list every
       number that moves by more than 1 % with its reason.

@@ -390,8 +390,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "depression falls, not how deep it goes. Both limits return the "
             "identity, so any one depression is reproducible by two values of "
             "b, and `ROUGHNESS_UNCONSTRAINED` measures the modelled depression "
-            "rather than b itself. b = 0 is a dead gradient, so a stage that "
-            "frees it seeds it."
+            "rather than b itself. b = 0 is the identity, so a stage that "
+            "frees it starts it at 0.3, near where the data can see it."
         ),
         unit=None, default="0.0",
         typical="0.1-0.5; past about 3 the correction is dead and its gradient flat",
@@ -696,8 +696,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "size (a powder has no secondary extinction), attenuating the "
             "strong low-angle reflections of a well-crystallised specimen. "
             "0 is exactly no correction, so a phase that does not free it is "
-            "unaffected. The gradient at 0 is dead, which is why the staged "
-            "plans seed it off zero with `Stage.seed` when they free it."
+            "unaffected. Its column at 0 is the physical one, so the staged "
+            "plans free it from 0 with no seed."
         ),
         unit="µm²", default="0.0",
         typical="0 for a ground powder; 0.1 to 100 (blocks of 0.3 to 10 µm) "
@@ -1440,15 +1440,15 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
     "seed": HelpEntry(
         title="Floor seed value",
         description=(
-            "Starts every parameter this stage frees that is bounded below at "
-            "0 and sits below this value at it. A parameter that can go "
+            "Starts every parameter this stage frees that sits exactly on a "
+            "lower bound of 0 or above at this value. A parameter that can go "
             "negative is never seeded. Suortti b = 0 is the identity, so the "
             "roughness stage uses it to start b near where the data can see "
-            "it. Use `strain_seed` for a Stephens block: that one has "
-            "the opposite problem."
+            "it. It is the only shipped stage that seeds. Use `strain_seed` "
+            "for a Stephens block: that one has the opposite problem."
         ),
         default="0.0",
-        typical="1e-4 to 1e-3 where a stage frees extinction",
+        typical="0.3 where a stage frees surface roughness; 0 elsewhere",
     ),
     "strain_seed": HelpEntry(
         title="Stephens strain seed",

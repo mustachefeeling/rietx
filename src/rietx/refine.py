@@ -96,7 +96,6 @@ from .params.multi import _unscoped
 from .params.vector import (
     CELL_SAFETY_ANGLE_DEG,
     CELL_SAFETY_FRACTION,
-    FLOOR_SEEDS,
     VAR_PREFIX,
     AffineTie,
     ParameterTable,
@@ -3240,9 +3239,11 @@ class Refinement:
         (*considering* freeing is not a refinement move), and
         ``result_``/working state are untouched.
 
-        Candidates sitting on a floor of 0 are probed from their
-        family's stage seed (``seeded=True``, ``seed_value`` says from
-        where), and the seeds live in a **second** build whose only
+        Surface roughness on its floor and a Stephens block at S ≡ 0 are
+        probed from their stage's seed (``seeded=True``, ``seed_value`` says
+        from where).  A width on its floor is probed where it is, from its
+        physical column (``strategy.suggest`` has the measurement).  The
+        seeds live in a **second** build whose only
         contribution is those candidates' columns: the residual, the free
         block and every live column come from the unseeded current state.
         Measured on the layers suite's truth fixture, seeding the shared
@@ -3262,7 +3263,6 @@ class Refinement:
         """
         from .strategy.suggest import (
             SUGGEST_SEED_ROUGHNESS,
-            SUGGEST_SEED_SOFTPLUS,
             SUGGEST_SEED_STEPHENS,
             Candidate,
             build_suggestion,
@@ -3337,26 +3337,18 @@ class Refinement:
         blocks_now = blocks[0]
         fp = table.free_paths
 
-        # build 2 — floor candidates only.  A row bounded below at 0 and
-        # under its family's seed, a Stephens block at S ≡ 0 (√'s unbounded
-        # slope) and Suortti roughness at b = 0 (the identity) are scored from
-        # the seeded state a stage would start such a solve at, so those
-        # columns (and only those) come from build 2.  The floor rows are
-        # chosen by their bounds since every row became identity (WP-1938).
+        # build 2 — two kinds of floor candidate only.  A Stephens block at
+        # S ≡ 0 (√'s unbounded slope) and Suortti roughness at b = 0 (the
+        # identity) are scored from the seeded state a stage would start such
+        # a solve at, so those columns (and only those) come from build 2.
+        # A width on its floor stays in build 1.  Its column there is the
+        # physical one (WP-1938), and probed from a 1e-3 seed it led the list
+        # with gains no refit realised (``strategy.suggest`` has the numbers).
         seeded: dict[str, float] = {}
         rough = [p for p in cand_paths
                  if p.startswith("instrument.geometry.surface_roughness.")]
         for p in table.seed_floored(rough, SUGGEST_SEED_ROUGHNESS):
             seeded[p] = SUGGEST_SEED_ROUGHNESS
-        # the 1e-3 seed reaches widths alone: a row whose unit has a size in
-        # FLOOR_SEEDS, ``_fd_typicals``' reading of a width (WP-1936).  By its
-        # bounds alone it also reached a geometry aberration that is off at
-        # 0, and sample transparency seeded there moved every peak in build 2,
-        # which broke the identity pairs and the absorption this probe
-        # reports (WP-1938)
-        widths = [p for p in cand_paths if table._units.get(p) in FLOOR_SEEDS]
-        for p in table.seed_floored(widths, SUGGEST_SEED_SOFTPLUS):
-            seeded[p] = SUGGEST_SEED_SOFTPLUS
         strain = [p for p in cand_paths if ".microstrain.dof." in p]
         entries = {e.path: e for e in table.entries}
         for p in table.seed_stephens(strain, SUGGEST_SEED_STEPHENS):
@@ -7019,7 +7011,8 @@ def _copy_seeded_column(jac: np.ndarray, jac2: np.ndarray, i: int,
     build into the current state's Jacobian, one row block at a time.
 
     The two builds share the data rows but not always every penalty block:
-    a seeded width decides which Pawley reflections count as overlapped, so
+    a seeded Stephens block decides which Pawley reflections count as
+    overlapped (a width did too, until WP-1938 stopped seeding one), so
     the equal-split restraint block can differ in length and a whole-column
     copy dies in a numpy broadcast (#244).  A block of equal length is
     copied; one whose length differs keeps the current state's rows, which

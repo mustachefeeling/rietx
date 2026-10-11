@@ -951,7 +951,7 @@ class StageResult(Base):
     #: in column units (WP-1930).  One writer puts a row here: the stage's own
     #: :attr:`~rietx.strategy.staged.Stage.seed`, through
     #: :meth:`~rietx.params.vector.ParameterTable.seed_floored`, which starts a
-    #: freed row bounded below at 0 and sitting under the seed at the seed.
+    #: freed row sitting exactly on a floor of 0 or above at the seed.
     #: WP-1930's second writer, a floor seed sized by unit, went with WP-1938:
     #: it existed because a softplus column at its floor was twelve orders below
     #: its neighbours, and a row refined in its own units has its physical

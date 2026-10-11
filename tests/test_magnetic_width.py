@@ -59,7 +59,6 @@ from rietx.report.schemas import (
 from rietx.schemas.common import Parameter
 from rietx.schemas.structure import Moment, Phase
 from rietx.strategy.staged import (
-    MAGNETIC_WIDTH_SEED_DEG,
     MAGNETIC_WIDTH_STAGE_PATHS,
     PLAN_INFO,
     PLAN_PRESETS,
@@ -549,18 +548,20 @@ def test_an_intensity_model_force_fixes_the_width(mode):
 
 @pytest.mark.parametrize("mode", ["lebail", "pawley"])
 def test_an_intensity_model_never_seeds_a_width_it_force_fixes(mode):
-    """Round 2, item 1: the preset's step 2 seeds both widths, and the stage
-    runner used to seed ``freed`` *before* dropping the paths the mode
-    force-fixes — so a Le Bail or Pawley run of ``plan="magnetic_width"``
-    left both at ``MAGNETIC_WIDTH_SEED_DEG``, unrefined, and the next
-    Rietveld fit's "widths held at zero" step drew them split at 0.05°."""
+    """Round 2, item 1: the stage runner used to seed ``freed`` *before*
+    dropping the paths the mode force-fixes.  The preset's step 2 then seeded
+    both widths to 0.05° under Le Bail or Pawley, unrefined, and the next
+    Rietveld fit's "widths held at zero" step drew them split at 0.05°.  The
+    preset seeds nothing since WP-1938, so a stage carrying the old seed is
+    what still reaches the runner's order."""
     ph = _mnf2()
     ph.scale.value = 0.02
     ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
     ins.profile.u.value, ins.profile.w.value = 0.05, 0.03
     data = _neutron_data(ph, ins)
     ref = rx.Refinement(rx.Structure(phases=[_mnf2()]), ins.model_copy(deep=True))
-    res = ref.fit(data, mode=mode, plan=PLAN_PRESETS["magnetic_width"]())
+    res = ref.fit(data, mode=mode, plan=rx.RefinementPlan(stages=[rx.Stage(
+        "magnetic_width", list(MAGNETIC_WIDTH_STAGE_PATHS[1]), seed=0.05)]))
     out = ref.structure.phases[0]
     assert (out.magnetic_lor_size.value, out.magnetic_lor_strain.value) == (
         0.0, 0.0)
@@ -612,16 +613,16 @@ def test_the_preset_is_the_three_step_order():
     assert plan.stages[0].turn_on == list(MAGNETIC_WIDTH_STAGE_PATHS[0])
     # step 1: the moment, with the widths absent from the free list
     assert not any("magnetic_lor" in g for g in plan.stages[0].turn_on)
-    assert plan.stages[0].seed == 0.0
-    # step 2: **both** widths, seeded off the softplus floor.  Both, because
+    # step 2: **both** widths, freed from their zero floor.  Both, because
     # which of the two carries the effect is a property of the dataset, so a
     # size-only step would be blind to an excess that grows with angle.
     assert plan.stages[1].turn_on == ["phases.*.magnetic_lor_size",
                                       "phases.*.magnetic_lor_strain"]
-    assert plan.stages[1].seed == MAGNETIC_WIDTH_SEED_DEG > 0.0
     # step 3: both
     assert any("moment.dof" in g for g in plan.stages[2].turn_on)
     assert any("magnetic_lor" in g for g in plan.stages[2].turn_on)
+    # no step seeds (WP-1938): a width's column at 0 is its physical one
+    assert [s.seed for s in plan.stages] == [0.0, 0.0, 0.0]
 
 
 #: Issue #609: the preset's texts said step 2 holds the moment.  Staging is
@@ -951,7 +952,7 @@ def test_a_planted_magnetic_width_and_moment_are_recovered():
     truth_size, truth_moment = 0.22, 4.60
     # counts chosen so the width's esd is a few 1e-3 rather than 1e-4: at
     # 10^6-count peaks the esd shrinks past the systematic floor this recovery
-    # has (the seeded start, and the window truncation of a Lorentzian tail),
+    # has (the window truncation of a Lorentzian tail),
     # and "within 1 sigma" would then be a statement about the count rate
     ph = _mnf2(size=truth_size)
     ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
@@ -1013,8 +1014,7 @@ def test_run_stage_reports_the_order_before_it_solves():
     ref.structure.phases[0].scale.value = 0.02
     res = ref.run_stage(data, rx.Stage(
         "everything", ["phases.*.atoms.*.moment.dof*",
-                       "phases.*.magnetic_lor_size", "phases.*.scale"],
-        seed=MAGNETIC_WIDTH_SEED_DEG))
+                       "phases.*.magnetic_lor_size", "phases.*.scale"]))
     assert "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT" in {
         d.code for d in res.diagnostics}
 
@@ -1195,34 +1195,6 @@ def test_the_strain_arm_holds_the_magnetic_component_as_drawn():
     model.y_obs[:] = np.asarray(model.evaluate(v), dtype=np.float64)
     d_lambda, _weight = _strain_errors(model, v, 0)
     assert np.max(np.abs(d_lambda)) < 1e-6
-
-
-# ================================ the seed, against issue #499
-
-def test_the_preset_seed_reaches_the_two_widths_and_nothing_else():
-    """Issue #499: ``Stage.seed`` lifts every freed row bounded at 0 that
-    sits below the seed, converged or not.  The preset does not depend
-    on that reading: step 2's globs name only the two widths, which step 1
-    left at their zero floor, so the entries it lifts are exactly the ones a
-    floor-only seed would lift too — and steps 1 and 3, whose globs reach the
-    scale and the moment, carry no seed at all."""
-    plan = PLAN_PRESETS["magnetic_width"]()
-    assert plan.stages[0].seed == 0.0 and plan.stages[2].seed == 0.0
-
-    ph = _mnf2()
-    ph.scale.value = 1e-4          # far below the seed, and bounded at 0
-    st = rx.Structure(phases=[ph])
-    ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
-    table = ParameterTable(st, ins)
-    table.set_vary(plan.stages[0].turn_on, True)
-    freed = table.set_vary(plan.stages[1].turn_on, True)
-    at_floor = [p for p in freed
-                if table.entries[table._paths[p]].value == 0.0]
-    seeded = table.seed_floored(freed, plan.stages[1].seed)
-    assert sorted(seeded) == ["phases.0.magnetic_lor_size",
-                              "phases.0.magnetic_lor_strain"]
-    assert sorted(seeded) == sorted(at_floor)
-    assert table.entries[table._paths["phases.0.scale"]].value == 1e-4
 
 
 def test_a_freed_width_with_no_esd_is_named_not_measured():

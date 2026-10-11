@@ -126,11 +126,13 @@ def test_mccusker_structural_frees_extinction_after_displacement():
     assert names.index("extinction") < names.index("roughness")
     ext = plan.stages[names.index("extinction")]
     assert ext.turn_on == ["phases.*.extinction"]
-    assert ext.seed == 1e-3
+    # no seed since WP-1938: the coefficient's column at 0 is the physical
+    # one, and dropping the 1e-3 seed moved no BT-1 answer beyond 3.4e-8 esd
+    assert ext.seed == 0.0
 
 
 def test_the_stage_seed_lifts_a_zero_coefficient_off_its_floor():
-    """The extinction stage's seed reaches the coefficient through its bounds
+    """A caller's ``Stage.seed`` reaches the coefficient through its bounds
     (WP-1938): it is free, bounded below at 0, and on that floor."""
     from rietx import Instrument
     from rietx.params.vector import ParameterTable

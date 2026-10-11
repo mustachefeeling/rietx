@@ -530,7 +530,7 @@ result = ref.fit(data, plan="magnetic_width")   # RefinementPlan.magnetic_width(
 A stage list that frees a magnetic width in the same stage that first frees the
 moment is reported as `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` before the first
 stage runs, by `Refinement.fit` and by `Refinement.run_stage` alike. The middle
-stage seeds the two widths off their zero floor and reaches nothing else.
+stage frees the two widths from their zero floor, with no seed.
 
 While the terms are held at zero, `MAGNETIC_WIDTH_UNMODELLED` says whether they
 are needed. It reads the *shape* of the converged residual, not an observed
@@ -894,8 +894,8 @@ exact zero. They are not interchangeable, because the two zeros differ.
   of 0 or above to the given value. A value already above its floor is left
   where it is. Some corrections are the identity at zero, so the seed says
   where their solve starts: the surface-roughness stage starts at 0.3, near the
-  band where the data can see it. The extinction stage seeds 1e-3 and the
-  middle magnetic-width stage 0.05°. `StageResult.seeded` records each lift.
+  band where the data can see it. It is the only shipped stage that seeds.
+  `StageResult.seeded` records each lift.
 - `Stage.strain_seed` puts a freed but all-zero Stephens block on a small
   microstrain, in ppm of ΔM/M. Those coefficients are unbounded below, so
   `Stage.seed` cannot reach them. Their problem at zero is the unbounded slope
@@ -1072,13 +1072,13 @@ family inside a glob looks exactly like a glob that correctly matched nothing,
 so no rule can report it, and `freed` is the place to look.
 
 A stage can start a freed row inside its floor. `Stage(..., seed=...)` lifts
-each row the stage frees that is bounded below at 0 and sits below the seed.
-The shipped plans seed three things. Extinction starts at 1e-3 µm², the two
-magnetic widths at 0.05°, and surface roughness at 0.3. Suortti roughness is
-the identity at b = 0, and the data see it best near b = 0.2 to 0.5, so the
-roughness stage starts there. A row that can go negative, such as Caglioti
-`U` and `V` or the zero shift, is never seeded. Every other freed row starts
-where it is, in its own units. `StageResult.seeded` lists every row a stage
+each row the stage frees that sits exactly on a lower bound of 0 or above.
+The shipped plans seed one thing, surface roughness at 0.3. Suortti roughness
+is the identity at b = 0, and the data see it best near b = 0.2 to 0.5, so the
+roughness stage starts there. Extinction and the two magnetic widths are freed
+from 0 with no seed, since each one's column at 0 is its physical one. A row
+that can go negative, such as Caglioti `U` and `V` or the zero shift, is
+never seeded. Every other freed row starts where it is, in its own units. `StageResult.seeded` lists every row a stage
 lifted and the value it started from.
 
 A literal phase path can also name a row the model will not free. An atom's

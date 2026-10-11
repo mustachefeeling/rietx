@@ -671,7 +671,7 @@ def _with_roughness_pitschke(inputs: StandardInputs) -> None:
 
 def _with_extinction(inputs: StandardInputs) -> None:
     inputs.plan.stages.append(
-        Stage("extinction", ["phases.*.extinction"], seed=1e-3))
+        Stage("extinction", ["phases.*.extinction"]))
 
 
 def _with_preferred_orientation(inputs: StandardInputs) -> None:

@@ -126,15 +126,17 @@ class Stage:
     #: converge as hard as an endpoint.
     ftol: float | None = None
     lebail_cycles: int = 3  # intensity-partitioning refreshes (lebail mode)
-    #: start every row this stage frees that is bounded below at 0 and sits
-    #: below this value at it, before solving
+    #: start every row this stage frees that sits exactly on a lower bound of
+    #: 0 or above at this value, before solving
     #: (``ParameterTable.seed_floored``; recorded in ``StageResult.seeded``).
     #: 0 = no seed.  A row that can go negative is never seeded.  The
-    #: roughness stage uses it to start a correction that is the identity at
-    #: its floor near the band where the data see it.  The extinction and
-    #: magnetic-width stages use it too.  Their seeds were for the softplus
-    #: map's slope at zero, which WP-1938's physical coordinates removed, and
-    #: whether they still change an answer is WP-1938's measurement.
+    #: roughness stage is the one shipped stage that seeds, at 0.3.  Suortti
+    #: roughness is the identity at b = 0, so the seed says where its solve
+    #: starts, near the band where the data see it.  The extinction and
+    #: magnetic-width stages seeded too, for the softplus map's slope at zero.
+    #: WP-1938 refines every row in its own units.  Dropping those two seeds
+    #: then moved χ² by at most 1.8e-13 relative and every value by at most
+    #: 2.3e-6 esd.
     seed: float = 0.0
     #: microstrain (ppm of ΔM/M) to put a freed but still all-zero Stephens
     #: block on before solving.  ``seed`` cannot serve: the S_HKL DOFs are
@@ -189,8 +191,9 @@ class Stage:
 #: sits near b ≈ 0.17 for data from 5° 2θ and b ≈ 0.46 from 20° — not at a
 #: token 1e-3, which for ``b`` is a genuinely dead *correction* (see
 #: RoughnessSuortti: both b → 0 and b → ∞ are the identity).  The seed reaches
-#: every freed row bounded below at 0 that sits under it
-#: (``ParameterTable.seed_floored``, WP-1938), Pitschke's ``tau`` included.
+#: every freed row sitting exactly on a floor of 0 or above
+#: (``ParameterTable.seed_floored``, WP-1938).  Pitschke's ``tau`` at its 0.05
+#: default is above its floor, so it starts where it is (issue #499).
 _ROUGHNESS_STAGE = (
     Stage("roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3),
 )
@@ -253,13 +256,23 @@ _EXTRA_COMPONENT_STAGE = (
 #: 1. the moment, with both widths held at zero (their default, which *is* the
 #:    off state — the second frozen family is not even built, so the widths
 #:    are not merely fixed but structurally absent from the draw);
-#: 2. the widths, seeded off their floor, **beside** the moment step 1
+#: 2. the widths, freed from their zero floor, **beside** the moment step 1
 #:    converged.  Staging is cumulative, so the moment is not held here: it
 #:    keeps refining with the widths (issue #609).  What the order buys is the
 #:    start, not a hold — the moment enters this stage at its own converged
 #:    value rather than cold, so the pair is not freed together from nothing;
 #: 3. the same free set again, the plan's last stage, so it converges at the
-#:    solver's own ftol rather than the intermediate one and carries no seed.
+#:    solver's own ftol rather than the intermediate one.
+#:
+#: No step seeds.  Until WP-1938, step 2 lifted both widths to 0.05°.  That
+#: seed existed for the softplus map's slope of 1e-12 at zero.  Both widths
+#: now refine in deg with a lower bound of 0, so their column at zero is the
+#: physical one.
+#: Measured on the planted MnF₂ setup of ``tests/test_magnetic_width.py`` in
+#: four cases (magnetic size 0.22° or 0.6°, magnetic strain 0.25°, no width),
+#: seeded and unseeded fits agree in χ² to 1e-14 relative and in both widths
+#: and the moment to 2.3e-6 esd.  Their evaluation counts differ by at most
+#: one.
 #:
 #: Holding the moment through step 2 was measured as the alternative (issue
 #: #609, MnF₂ with planted widths 0.1°, 0.25° and 0.6° from starts 3.0–5.5
@@ -283,33 +296,6 @@ MAGNETIC_WIDTH_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
     ("phases.*.atoms.*.moment.dof*", "phases.*.magnetic_lor_size",
      "phases.*.magnetic_lor_strain"),
 )
-
-#: The value a freed magnetic width is lifted to before step 2 solves, in
-#: deg 2θ.  **Not a claim about the specimen; a seed from the softplus era.**
-#: Both terms were softplus-bounded at zero, where the map's slope is 1e-12, so a
-#: coefficient at its exact default had a column twelve orders below its
-#: neighbours.  TRF's Jacobi scaling kept such a column live (WP-1463), and
-#: measured on the synthetic k ≠ 0 supercell and on Cr₂WO₆ the answer was the
-#: same to four digits unseeded and seeded at 0.02, 0.05 or 0.15; the seed was
-#: kept so the preset did not rest on a solver equilibrating the column, and
-#: it cost nothing.  Since WP-1938 both are refined in deg with a lower bound
-#: of 0, so their column at zero is the physical one and the seed's reason is
-#: gone; whether it still changes an answer is that WP's measurement.  It is
-#: ``Stage.seed``'s existing job (the extinction stage seeds 1e-3, the
-#: roughness stage 0.3), and 0.05 deg is inside the
-#: range the term is for and below
-#: :data:`~rietx.model.forward.MAGNETIC_SIZING_FLOOR`, which is what the
-#: windows were sized for.
-#:
-#: **The seed reaches the two widths and nothing else**, by construction:
-#: step 2's globs name only them, and after step 1 (which does not free them)
-#: they sit at their zero floor.  So the stage lifts exactly the entries at
-#: the floor, whether ``ParameterTable.seed_floored`` lifts every row bounded
-#: at 0 below the seed or only those at the floor (issue #499).  Steps 1 and 3
-#: carry no seed: step 1's job is the moment at the off state, and on step 3 a
-#: seed would reach the moment and the scale beside the widths, which is #499's
-#: failure.
-MAGNETIC_WIDTH_SEED_DEG = 0.05
 
 
 @dataclass
@@ -407,10 +393,13 @@ class RefinementPlan:
             # the ADPs all attenuate high-Q intensity, so letting the
             # structure/ADPs settle first leaves extinction with only its
             # (different, low-angle-weighted) signature to fit.  The
-            # coefficient starts at exactly 0, its floor, and the stage seeds
-            # it there: a seed from the softplus era, when the column at 0
-            # was dead (WP-1938 asks whether it still changes an answer).
-            Stage("extinction", ["phases.*.extinction"], seed=1e-3),
+            # coefficient starts at exactly 0, its floor, and its column there
+            # is the physical one, so the stage carries no seed.  The 1e-3
+            # seed it had was for the softplus map's dead slope at 0.  Measured
+            # on BT-1 X-ray and neutron, the only acceptance fits where it
+            # fired, dropping it moved χ² by at most 1.8e-13 relative and
+            # every refined value by at most 3.4e-8 esd (WP-1938).
+            Stage("extinction", ["phases.*.extinction"]),
             *_ROUGHNESS_STAGE,
         ])
 
@@ -531,18 +520,12 @@ class RefinementPlan:
         costs.
         """
         names = ("moment", "magnetic_width", "moment_and_width")
-        # Step 2 seeds the width off its exact-zero floor, as the extinction
-        # stage seeds 1e-3 (``MAGNETIC_WIDTH_SEED_DEG`` has the softplus-era
-        # reason, and why WP-1938 asks whether it still holds).  Step 1 must
-        # NOT seed it — that stage's whole job is the moment with the widths
-        # at the off state, where the second frozen family is not even built —
-        # and step 3 need not, because step 2 has already lifted it
-        # (``MAGNETIC_WIDTH_SEED_DEG`` says why the seed is confined to step
-        # 2's two globs).
-        seeds = (0.0, MAGNETIC_WIDTH_SEED_DEG, 0.0)
-        return cls(stages=[Stage(name, list(paths), seed=seed)
-                           for name, paths, seed
-                           in zip(names, MAGNETIC_WIDTH_STAGE_PATHS, seeds,
+        # no step seeds: step 2 frees the widths from their zero floor, where
+        # their column is the physical one (``MAGNETIC_WIDTH_STAGE_PATHS``
+        # has the measurement that retired the 0.05° seed, WP-1938)
+        return cls(stages=[Stage(name, list(paths))
+                           for name, paths
+                           in zip(names, MAGNETIC_WIDTH_STAGE_PATHS,
                                   strict=True)])
 
     @classmethod

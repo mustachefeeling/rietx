@@ -1,7 +1,7 @@
 """What a stage lifts before solving, and how the record says so.
 
-``Stage.seed`` starts each row the stage frees that is bounded below at 0 and
-sits under the seed at the seed (``ParameterTable.seed_floored``), and
+``Stage.seed`` starts each row the stage frees that sits exactly on a floor of
+0 or above at the seed (``ParameterTable.seed_floored``), and
 ``StageResult.seeded`` records each such row with its start in column units.
 
 WP-1930's floor seed lived here too: it started a freed softplus row sitting

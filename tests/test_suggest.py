@@ -13,7 +13,7 @@ from rietx.schemas.suggest import (
     ParameterCandidate,
     SuggestionResult,
 )
-from rietx.strategy.suggest import SUGGEST_SEED_SOFTPLUS
+from rietx.strategy.suggest import SUGGEST_SEED_STEPHENS
 from tests.test_fitreport_layers import _report_for, _result_for, _truth
 
 
@@ -440,11 +440,11 @@ def test_candidate_absorbed_by_free_set_is_not_a_winner(truth):
     assert "phases.0.gauss_size" not in _member_paths(res)
 
 
-def test_softplus_floor_candidate_found_with_seeded_flag(truth):
-    """An X error must surface lor_size, which sits on its floor of 0, via
-    the second, seeded probe build, reported as seeded=True from the stage
-    seed.  Its unseeded column was fp noise while widths were softplus; since
-    WP-1938 the seed reaches it through its bounds and its width unit."""
+def test_a_floored_width_is_scored_where_it_sits(truth):
+    """An X error must surface lor_size, which sits on its floor of 0, scored
+    at 0 from its physical column and reported unseeded (WP-1938).  Until
+    then the probe lifted it to 1e-3 first, and on BT-1 and Si 640c that
+    seed put widths at the top that stayed on their floor when freed."""
     r, data = _refinement(truth)
     r.instrument.profile.x.value = 9e-3
     res = r.suggest(data)
@@ -452,23 +452,40 @@ def test_softplus_floor_candidate_found_with_seeded_flag(truth):
     assert {m.path for m in top.members} == {
         "instrument.profile.x", "phases.0.lor_size"}
     lor = next(m for m in top.members if m.path == "phases.0.lor_size")
-    assert lor.seeded and lor.seed_value == SUGGEST_SEED_SOFTPLUS
+    assert not lor.seeded and lor.seed_value is None
     assert not top.resolved  # the identity pair again — never a fake winner
 
 
-def test_suggest_is_read_only(truth):
+def test_suggest_is_read_only(truth, monkeypatch):
     """No history node, no model/value/vary/result mutation, no leaked seed."""
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.instrument import RoughnessSuortti
+
     r, data = _refinement(truth)
-    r.instrument.profile.x.value = 9e-3   # forces the seeded second build
+    r.instrument.profile.x.value = 9e-3
+    # a Suortti block on its floor is scored from its seed, so it forces the
+    # seeded second build (a width on its floor no longer does, WP-1938)
+    r.instrument.geometry.surface_roughness = RoughnessSuortti()
+    lifted: list[str] = []
+    seed_floored = ParameterTable.seed_floored
+
+    def spy(self, paths, value):
+        out = seed_floored(self, paths, value)
+        lifted.extend(out)
+        return out
+
+    monkeypatch.setattr(ParameterTable, "seed_floored", spy)
     before_vals = {row.path: row.value for row in r.parameters()}
     before_vary = {row.path: row.vary for row in r.parameters()}
     free_before = list(r._free_paths)
     r.suggest(data)
+    assert lifted == ["instrument.geometry.surface_roughness.b"]
     assert r.history is None and r.result_ is None and r._model is None
     assert list(r._free_paths) == free_before
     assert {row.path: row.value for row in r.parameters()} == before_vals
     assert {row.path: row.vary for row in r.parameters()} == before_vary
     # the seed went into probe copies, never into the working models
+    assert r.instrument.geometry.surface_roughness.b.value == 0.0
     assert r.structure.phases[0].lor_size.value == 0.0
 
 
@@ -488,23 +505,27 @@ def test_lebail_mode_fixed_paths_never_enumerate(truth):
 
 
 def test_pawley_floor_seed_that_changes_the_overlap_groups_still_suggests():
-    """#244: in Pawley mode a floored width is probed from its seed, and the
-    seed can change which reflections count as overlapped, so the seeded
+    """#244: in Pawley mode a floored candidate is probed from its seed, and
+    the seed can change which reflections count as overlapped, so the seeded
     build's equal-split restraint block has a different row count from the
     current state's.  The seeded column is carried block by block; before,
     a whole-column copy died in a numpy broadcast, and ``summary()`` — the
     path #244 was reported through — died with it.
 
+    #244 was a seeded width.  Since WP-1938 a width on its floor is scored
+    where it sits, so the seeded family here is an all-zero Stephens block,
+    whose isotropic seed broadens every peak as a width seed did.
+
     Made-up pseudo-tetragonal monoclinic cell (a ≈ b, so many reflection
     pairs sit at the overlap threshold) under a narrow synchrotron-like
     profile.  The specimen carries a Lorentzian size width the model does
-    not, so a Pawley fit freeing only the background leaves the four sample
+    not, so a Pawley fit freeing only the background leaves the sample
     widths on their floor with real leverage for ``suggest()`` to report.
     """
     from rietx.model.forward import compile_model
     from rietx.model.rows import block
     from rietx.params.vector import ParameterTable
-    from rietx.schemas.structure import lebail_scaffold
+    from rietx.schemas.structure import StephensStrain, lebail_scaffold
     from rietx.strategy.staged import RefinementPlan, Stage
 
     ins = rx.Instrument.debye_scherrer(wavelength=0.4139)
@@ -515,17 +536,22 @@ def test_pawley_floor_seed_that_changes_the_overlap_groups_still_suggests():
     cell = (5.310, 5.327, 9.20, 90.0, 90.0, 90.0)
     widths = ("lor_size", "lor_strain", "gauss_size", "gauss_strain")
 
-    def restraint_rows(width):
+    def start():
         s = lebail_scaffold("P 1 21/c 1", cell)
-        for name in widths:
-            getattr(s.phases[0], name).value = width
-        model = compile_model(s, ins, grid, mode="pawley")
+        s.phases[0].microstrain = StephensStrain()     # all zero: S ≡ 0
+        return s
+
+    def restraint_rows(structure):
+        model = compile_model(structure, ins, grid, mode="pawley")
         model.build_pawley_restraint()
         return block(model, "pawley_restraint").n
 
-    # the precondition, or the test proves nothing: the seeds suggest() puts
-    # on the four floored sample widths move the block
-    assert restraint_rows(0.0) != restraint_rows(SUGGEST_SEED_SOFTPLUS)
+    # the precondition, or the test proves nothing: the seed suggest() puts
+    # on the all-zero block moves the restraint block
+    seeded = start()
+    seeded.phases[0].microstrain = StephensStrain.isotropic(
+        SUGGEST_SEED_STEPHENS, seeded.phases[0].cell)
+    assert restraint_rows(start()) != restraint_rows(seeded)
 
     specimen = lebail_scaffold("P 1 21/c 1", cell)
     specimen.phases[0].lor_size.value = 5e-3
@@ -536,32 +562,34 @@ def test_pawley_floor_seed_that_changes_the_overlap_groups_still_suggests():
     counts = np.random.default_rng(3).poisson(y).astype(float)
     data = rx.PatternData(two_theta=tt.tolist(), intensity=counts.tolist())
 
-    r = rx.Refinement(lebail_scaffold("P 1 21/c 1", cell), ins)
+    r = rx.Refinement(start(), ins)
     r.set_vary(["*"], False)
     r.fit(data, mode="pawley", plan=RefinementPlan(
         stages=[Stage(name="background", turn_on=["instrument.background.*"])]))
     assert all(getattr(r.structure.phases[0], n).value == 0.0 for n in widths)
+    assert not any(r.structure.phases[0].microstrain.values())
     assert "next: free" in r.summary()
 
-    # a seeded width reaches the result, not only the return: the probe on
-    # the fitted channels (the ones summary() asks about) reports the planted
-    # width, probed from its seed
+    # a seeded column reaches the result, not only the return: the probe on
+    # the fitted channels (the ones summary() asks about) reports the block's
+    # DOFs probed from the seed, and the planted width probed where it sits
     m = r._model
     res = r.suggest(rx.PatternData(two_theta=m.tt.tolist(),
                                    intensity=m.y_obs.tolist(),
                                    sigma=m.sigma.tolist()))
     reported = {c.path: c for g in res.groups for c in g.members}
     reported.update({c.path: c for c in res.non_separable})
+    dofs = [c for p, c in reported.items() if ".microstrain.dof." in p]
+    assert dofs and all(c.seeded and c.seed_value is not None for c in dofs)
     lor = reported["phases.0.lor_size"]
-    assert lor.seeded and lor.seed_value == SUGGEST_SEED_SOFTPLUS
-    # and the column is the seeded one, not only the flag: on this fixture's
-    # 3° window a width is a 1/cosθ or tanθ column, near-collinear with the
-    # Lorentzian Y term and with each other, and that is the group it scores
-    # in.
+    assert not lor.seeded and lor.seed_value is None
+    # on this fixture's 3° window a width is a 1/cosθ or tanθ column,
+    # near-collinear with the Lorentzian X and Y terms, and that is the group
+    # it scores in (the block locks lor_strain)
     (group,) = [g for g in res.groups
                 if "phases.0.lor_size" in {m.path for m in g.members}]
     assert {m.path for m in group.members} == {
-        "instrument.profile.y", "phases.0.lor_size", "phases.0.lor_strain"}
+        "instrument.profile.x", "instrument.profile.y", "phases.0.lor_size"}
 
 
 # ----------------------------------------------------------------------
