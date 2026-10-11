@@ -219,6 +219,16 @@ silently stop acting (WP-1938).
 
 ### Inherited
 
+- **2026-10-12, from WP-1954 (the 1.8.0 cut): the release waits for this
+  WP.** The maintainer asked on 2026-10-12 for 1.8.0 to be cut after this
+  WP merges. `docs/releases/1.8.0.md` was rewritten from the tag range that
+  day, so stage this WP's user-facing changes into its sections as they land:
+  the `BOUND_HIT` bullet under § Numbers that move already describes the
+  current bound test and advice, and the new floor code and `profile_interval`
+  belong under § New › Elsewhere. The cut re-measures only what this WP's
+  handover lists as moving by more than 1 %, so that list is load-bearing.
+  README's NAC output block prints a `BOUND_HIT` line the cut will re-run.
+
 - **2026-10-11, from WP-1938 D12 (fourth session): the stationary azimuth
   also stalls the default driver.** A moment angle's column scales with its
   modulus and vanishes at a direction the symmetry fixes. LM scales every

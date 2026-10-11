@@ -75,6 +75,16 @@ argument (Nocedal & Wright 2006, *Numerical Optimization*, §4.1-4.2). The
 projected-gradient step along −b is cheap at any size, so a step that
 promises less could fall back to it. That is a candidate, not a decision.
 
+### Inherited
+
+- **2026-10-12, from WP-1954 (the 1.8.0 cut): the notes state this as a
+  known limit.** `docs/releases/1.8.0.md` § Numbers that move carries a
+  bullet quoting the FAP.XRA figures above and naming this WP. If the fix
+  merges before 1.8.0 is tagged, rewrite that bullet to say what the fix
+  changed, and change the framing paragraph's sentence that names the
+  128-column limit. The maintainer had not decided at 2026-10-12 whether the
+  cut waits for this WP.
+
 ## Non-goals
 
 - When a stage that is improving little should stop and say so: WP-1334.
