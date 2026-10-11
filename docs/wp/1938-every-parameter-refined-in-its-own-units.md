@@ -156,6 +156,41 @@ installed. On x86-64 the FCJ kernels call SLEEF's exponential in 1.2.0 (within
 `rietx_kernels.__version__`. The bit goldens are the numpy path's and do not
 move.
 
+**Decisions taken 2026-10-11** (first session, after the fast suite's first
+run under the change: 68 failed, 9013 passed, 188 skipped on macOS arm64,
+`[dev]`; 18 of the 68 pass under physical + TRF, so they come from the
+driver alone).
+
+- *D1, the table.* Every entry is built `identity`;
+  `params.transforms.physical_bounds` turns a declared transform into the box
+  it enforced (softplus and exp `lo = max(lo, 0)`, logit also
+  `hi = min(hi, 1)`).
+- *D2, the driver.* `optimize.least_squares.DEFAULT_SOLVER = "lm"`, read by
+  every signature that defaults `solver=`, the GUI's included.
+- *D3, a plan's seed stays.* `Stage.seed` and `suggest()`'s probe seeds keep
+  acting, on a free row whose lower bound is at least 0 and whose value is
+  below the seed, never on the transform word. Physical coordinates do not
+  make every seed redundant: surface roughness at b = 0 is the identity, so
+  its column is exactly zero in any coordinates (the `_ROUGHNESS_STAGE`
+  comment). Whether the extinction and magnetic-width seeds still change an
+  answer is the Seeds task's measurement.
+- *D4, the floor seed goes.* WP-1930's `seed_floor`, its `FLOOR_SEEDS` use
+  there and `SOFTPLUS_FREED_AT_FLOOR` existed only for the trap, and WP-1937's
+  grid measured physical + LM without them. `FLOOR_SEEDS` survives as
+  `_fd_typicals`' step table (WP-1936). `StageResult.seeded` stays, recording
+  what `Stage.seed` lifted.
+- *D5, a floor is an ordinary bound.* `bound_untested` and its `None` third
+  state go, so a scale or width on 0 is answered by `bound_findings` and keeps
+  its marginal esd (WP-1929's decided rule). Until WP-1929 gives a floor its
+  own code, `BOUND_HIT` on a lower limit of exactly 0 must not advise widening
+  the bound.
+- *D6, the stored field.* `Parameter.transform` leaves the schema. A
+  `mode="before"` validator on `Parameter` folds a stored or passed
+  `transform` into the bounds (D1's map), as
+  `Instrument._migrate_v1_2_background_peaks` does for a vanished field, so
+  every read point and old python code both open unchanged in meaning.
+  `SCHEMA_VERSION` takes a bump.
+
 ## Non-goals
 
 - The esd rule for a row on its bound, and the floor diagnostic: WP-1929.

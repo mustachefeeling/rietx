@@ -61,7 +61,7 @@ from ..schemas.instrument import (
 )
 from ..schemas.structure import MOMENT_COMPONENTS, Structure
 from .derived import DerivedBlock
-from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physical
+from .transforms import dphys_dinternal, internal_bounds, physical_bounds, to_internal, to_physical
 
 #: Dot-path suffix of a source line's wavelength row.  One authority for the
 #: spelling, since three places test for it: the collector, the freedom check
@@ -1164,9 +1164,12 @@ class ParameterTable:
     # -- collection ----------------------------------------------------
     def _add(self, path: str, p: Parameter, *, force_fixed: bool = False,
              tie: AffineTie | None = None) -> None:
+        # every entry is refined in its own units (WP-1938): a declared
+        # transform becomes the bounds it enforced
+        lo, hi = physical_bounds(p.min, p.max, p.transform)
         self.entries.append(Entry(
             path=path, value=p.value, vary=p.vary and not force_fixed and tie is None,
-            lo=p.min, hi=p.max, transform=p.transform, tie=tie,
+            lo=lo, hi=hi, transform="identity", tie=tie,
             locked=force_fixed,
         ))
         self._units[path] = p.unit
@@ -2308,8 +2311,9 @@ class ParameterTable:
         """
         if path in self._paths:
             raise ValueError(f"parameter {path!r} already exists")
+        lo, hi = physical_bounds(lo, hi, transform)
         self.entries.append(Entry(path=path, value=value, vary=vary,
-                                  lo=lo, hi=hi, transform=transform))
+                                  lo=lo, hi=hi, transform="identity"))
         self._units[path] = unit
         self._rebuild()
 

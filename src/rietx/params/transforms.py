@@ -61,6 +61,21 @@ def dphys_dinternal(u: float, kind: str) -> float:
     raise ValueError(f"unknown transform {kind!r}")
 
 
+def physical_bounds(lo: float, hi: float, kind: str) -> tuple[float, float]:
+    """The box a declared transform enforced, stated as bounds (WP-1938).
+
+    softplus and exp kept a value above zero, logit inside (0, 1), whatever
+    ``lo``/``hi`` said; refined in physical units, each is that box.
+    """
+    if kind in ("softplus", "exp"):
+        return max(lo, 0.0), hi
+    if kind == "logit":
+        return max(lo, 0.0), min(hi, 1.0)
+    if kind == "identity":
+        return lo, hi
+    raise ValueError(f"unknown transform {kind!r}")
+
+
 def internal_bounds(lo: float, hi: float, kind: str) -> tuple[float, float]:
     """Map physical bounds into the internal space (transforms are monotonic)."""
     if kind == "identity":

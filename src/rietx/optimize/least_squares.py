@@ -55,14 +55,21 @@ if TYPE_CHECKING:
     from ..params.multi import MultiParameterTable
     from . import lm as lm_mod
 
-#: Available minimisers.  ``"trf"`` is scipy's Trust Region Reflective — the
-#: default, the reference, and the driver every shipped acceptance number was
-#: measured with.  ``"lm"`` is the bounded Levenberg-Marquardt of
-#: :mod:`.lm` (WP-0601), whose reason to exist is constraint vocabulary rather
-#: than speed: bounds enforced inside the linear solve, and linear inequalities
-#: on *functionals* of θ (the Stephens strain positivity cone) that a box
-#: cannot express.
+#: Available minimisers.  ``"lm"`` is the bounded Levenberg-Marquardt of
+#: :mod:`.lm` (WP-0601): bounds enforced inside the linear solve, an exact
+#: step inside them (WP-1937), and linear inequalities on *functionals* of θ
+#: (the Stephens strain positivity cone) that a box cannot express.
+#: ``"trf"`` is scipy's Trust Region Reflective, the default until WP-1938
+#: and the driver every acceptance number before it was measured with.
 SOLVERS = ("trf", "lm")
+
+#: The driver a fit runs when the caller names none (WP-1938).  Every
+#: signature defaulting ``solver=`` reads this one constant.  It moved with the
+#: physical coordinates because each half alone was worse than TRF in softplus
+#: coordinates: on WP-1937's grid of 14 acceptance fits, physical + LM left one
+#: fit's minimum unsettled where today's default left three, and softplus + LM
+#: left seven.
+DEFAULT_SOLVER = "lm"
 
 #: Wyckoff site DOFs — coordinates (``dof``, tied to x, y, z) and anisotropic
 #: ADPs (``adp``, tied to the six U^ij).  Both get analytic columns that chain
@@ -185,7 +192,7 @@ class LSQOutcome:
     #: ``model.pawley.stderr``, its values in the per-phase buffers)
     n_aux: int = 0
     #: which driver produced this — "trf" (scipy, the reference) or "lm"
-    solver: str = "trf"
+    solver: str = DEFAULT_SOLVER
     #: steps the bounded-LM driver shortened to stay inside a linear-inequality
     #: constraint (the Stephens strain cone).  0 under TRF, which has no such
     #: vocabulary — see ``optimize/lm.py``.
@@ -1620,7 +1627,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       compute_uncertainties: bool = True,
                       events=None, stage: str = "",
                       backend: str = "numpy",
-                      solver: str = "trf",
+                      solver: str = DEFAULT_SOLVER,
                       cancel=None) -> LSQOutcome:
     """Solve one stage.  ``cancel`` — a :class:`~.cancel.CancelToken`, read
     between residual evaluations; a set token raises
@@ -1829,7 +1836,7 @@ def run_multi_least_squares(models: list[CompiledModel],
                             max_iter: int = 100, ftol: float = 1e-9,
                             compute_uncertainties: bool = True,
                             backend: str = "numpy",
-                            solver: str = "trf") -> LSQOutcome:
+                            solver: str = DEFAULT_SOLVER) -> LSQOutcome:
     """Joint solve of several histograms stacked into one residual (WP-0308).
 
     Each histogram keeps its own compiled model (⇒ its own frozen hkl list,

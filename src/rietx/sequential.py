@@ -139,7 +139,7 @@ from .backend.api import backend_dtype_note
 from .history.events import EventStream, _attach_progress, as_event_stream
 from .history.tree import RefinementTree
 from .optimize.cancel import RefinementCancelled
-from .optimize.least_squares import NFEV_PER_ITERATION, SOLVERS
+from .optimize.least_squares import DEFAULT_SOLVER, NFEV_PER_ITERATION, SOLVERS
 from .params.vector import VAR_PREFIX, ParameterTable
 from .refine import (
     _VERSION,
@@ -938,7 +938,7 @@ class SequentialRefinement:
     """
 
     def __init__(self, structure: Structure, instrument: Instrument, *,
-                 backend: str = "numpy", solver: str = "trf",
+                 backend: str = "numpy", solver: str = DEFAULT_SOLVER,
                  carry: Sequence[str] = ("*",),
                  carry_hkl_intensities: bool = True,
                  history: bool | str | Path = False):
@@ -3061,7 +3061,7 @@ def refine_sequential(patterns: Sequence[PatternData], structure: Structure,
                       instrument: Instrument, *,
                       carry: Sequence[str] = ("*",),
                       carry_hkl_intensities: bool = True,
-                      backend: str = "numpy", solver: str = "trf",
+                      backend: str = "numpy", solver: str = DEFAULT_SOLVER,
                       history: bool | str | Path = False,
                       **kw) -> SeriesResult:
     """One-shot functional API for a warm-started series.

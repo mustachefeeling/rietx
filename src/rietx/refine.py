@@ -68,6 +68,7 @@ from .model.restraints import summarise_restraints
 from .model.rows import layout as row_layout
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import (
+    DEFAULT_SOLVER,
     SOLVERS,
     _jacobian_for,
     _longest_line_wavelength,
@@ -1785,7 +1786,7 @@ class Refinement:
     """
 
     def __init__(self, structure: Structure, instrument: Instrument, *,
-                 backend: str = "numpy", solver: str = "trf",
+                 backend: str = "numpy", solver: str = DEFAULT_SOLVER,
                  history: bool | str | Path | RefinementTree = True):
         if backend != "numpy":
             # fail fast (with the install hint) instead of at the first stage;
@@ -3426,7 +3427,7 @@ class Refinement:
 
     @classmethod
     def from_node(cls, tree: RefinementTree, node_id: str, *,
-                  backend: str = "numpy", solver: str = "trf") -> "Refinement":
+                  backend: str = "numpy", solver: str = DEFAULT_SOLVER) -> "Refinement":
         """Open a refinement positioned at an existing checkpoint."""
         node = tree[node_id]
         with _refined_state():
@@ -6546,7 +6547,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
                   stderr_internal=None, correlation=None,
-                  backend: str = "numpy", solver: str = "trf",
+                  backend: str = "numpy", solver: str = DEFAULT_SOLVER,
                   mu_r_source: str = "given",
                   mu_r_skipped: str | None = None,
                   guard=None,
@@ -9301,7 +9302,7 @@ def estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None:
 def refine(data: PatternData, structure: Structure, instrument: Instrument,
            *, mode: Mode = "rietveld", plan: RefinementPlan | str = "mccusker_default",
            two_theta_limits: tuple[float, float] | None = None,
-           backend: str = "numpy", solver: str = "trf",
+           backend: str = "numpy", solver: str = DEFAULT_SOLVER,
            history: bool | str | Path | RefinementTree = False,
            events=None, cancel=None, telemetry=None,
            label: str | None = None) -> RefinementResult:

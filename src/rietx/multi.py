@@ -29,6 +29,7 @@ from .model.components import EXTRA_TICK_KEY
 from .model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from .model.microstructure import microstructure_table
 from .optimize.least_squares import (
+    DEFAULT_SOLVER,
     SOLVERS,
     _longest_line_wavelength,
     rechart_outcome,
@@ -746,7 +747,7 @@ class MultiHistogramRefinement:
 
     def __init__(self, structure: Structure, instruments: list[Instrument], *,
                  sharing: SharingMap | None = None, backend: str = "numpy",
-                 solver: str = "trf"):
+                 solver: str = DEFAULT_SOLVER):
         if backend != "numpy":
             from .backend import resolve_backend
 
@@ -1566,7 +1567,7 @@ def refine_multi(data: list[PatternData], structure: Structure,
                  sharing: SharingMap | None = None,
                  two_theta_limits=None,
                  weights: list[float] | None = None,
-                 backend: str = "numpy", solver: str = "trf") -> RefinementResult:
+                 backend: str = "numpy", solver: str = DEFAULT_SOLVER) -> RefinementResult:
     """One-shot joint refinement of ``structure`` against several ``data``/
     ``instruments`` pairs.  Functional wrapper over
     :class:`MultiHistogramRefinement`."""
