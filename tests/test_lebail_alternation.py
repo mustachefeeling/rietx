@@ -17,12 +17,13 @@ test asserts the shape and not the count.  A start of +0.6 % or more diverges at
 loop does.  Every Rwp the fast tests pin was measured at 5.1-25°.
 
 The worse-pass start was +0.3 % until WP-1938, which refines every width in
-its own units.  Under softplus + TRF +0.3 % read 13.845 % then 13.865 %, the
-fixed point every converging start reaches here.  In physical units pass 1
-from +0.3 % already lands on that fixed point under either driver.  From
-+0.45 % to +0.52 % pass 1 reads 13.847 % and pass 2 13.865 %, under LM and
-TRF alike (macOS arm64, ``[dev]``), so ``WORSE_START`` is the middle of that
-range.  The one
+its own units and makes LM the default driver.  Under TRF, from +0.45 % to
++0.52 % pass 1 reads 13.847 % and pass 2 13.865 %.  That pass 1 sits where
+Γ_G² is under the clamp at the high-angle reflections (U = -0.0032).  LM holds
+Γ_G² ≥ 1e-8 at every reflection (D7, D8), so it stops short of that point.
+Under LM, from +0.20 % to +0.52 % pass 1 reads 13.918-13.920 % and pass 2
+13.932 %.  +0.10 % and +0.56 % converge instead (macOS arm64, ``[dev]``), so
+``WORSE_START`` is the middle of that range.  The one
 ``slow`` test keeps 5.1-50° (``WIDE_LIMITS``), where its pins were measured.
 
 At 5.1-50° the per-pass numbers were re-measured in WP-1930.  Its floor seed
@@ -56,8 +57,8 @@ PATTERN = DATA / "11BM_LaB6_cBN_mg2044.xye"
 LIMITS = (5.1, 25.0)
 WIDE_LIMITS = (5.1, 50.0)
 CODE = "LEBAIL_ALTERNATION_STOPPED"
-#: Rwp is quoted from a converged TRF fit, whose stopping point moves with the
-#: platform's libm.  Before WP-1930 the exact-cell pass 1 at 5.1-50° read
+#: Rwp is quoted from a converged fit, whose stopping point moves with the
+#: platform's libm.  The spread below was measured under TRF.  Before WP-1930 the exact-cell pass 1 at 5.1-50° read
 #: 0.168210 on macOS arm64 and 0.168236-0.168238 on Linux x86-64 (CI,
 #: py3.11/3.12 and jax), a spread of 2.8e-5.  The bar is 3.6 times that, and it
 #: holds on every leg for each pass a test keeps.  A discarded pass is asserted
@@ -65,9 +66,10 @@ CODE = "LEBAIL_ALTERNATION_STOPPED"
 #: platforms.
 RWP_PLATFORM_SPREAD = 1e-4
 #: the cell start whose pass 2 comes back worse than pass 1 (module docstring)
-WORSE_START = 1.0048
-#: the Rwp of that start's kept pass 1 (0.138453 from +0.3 % under softplus)
-WORSE_KEPT_RWP = 0.138471
+WORSE_START = 1.0036
+#: the Rwp of that start's kept pass 1 under LM, identical to six digits
+#: across starts nudged by 1e-14 (0.138471 from +0.48 % under TRF)
+WORSE_KEPT_RWP = 0.139185
 
 
 @pytest.fixture(scope="module")
@@ -164,7 +166,7 @@ def test_one_pass_is_the_plain_fit_and_says_nothing(pattern):
 
 @pytest.mark.xdist_group("lebail-worse")
 def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(worse):
-    """``WORSE_START`` cells: 13.847 then a worse pass 2, and the loop sits at pass 1."""
+    """``WORSE_START`` cells: 13.918 then a worse pass 2, and the loop sits at pass 1."""
     ref, result = worse
     stop = _stop(result)
     assert stop.level == "warning"
@@ -174,8 +176,8 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(worse)
     assert stop.value == result.statistics.rwp
     # the per-pass table the message prints, read as numbers.  Pass 1 is the
     # kept answer and is pinned to RWP_PLATFORM_SPREAD, in per cent.  Pass 2
-    # is the discarded one, and only its order is the claim.  It read 13.865
-    # on macOS arm64, the fixed point every converging start reaches here.
+    # is the discarded one, and only its order is the claim.  It read 13.932
+    # on macOS arm64 under LM.
     table = [float(v) for v in re.search(
         r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(",")]
     assert len(table) == 2
@@ -234,15 +236,17 @@ def test_the_cap_is_a_cap_and_says_it_truncated(pattern):
 def test_the_state_the_loop_keeps_is_the_state_a_hand_loop_would_continue_from(pattern):
     """Restoring the best pass must not hand the next ``fit`` a start the hand
     loop never had.  Seeding the restored intensities does exactly that: the
-    +2 % start measured 254.09 % against the loop's 194.56 % on pass 4."""
+    +2 % start measured 254.09 % against the loop's 194.56 % on pass 4
+    (194.55 % under LM)."""
     ref = _refinement(1.02)
     result = _fit(ref, pattern, 8, limits=WIDE_LIMITS)
     stop = _stop(result)
     assert "pass 3 of 4 was kept" in stop.message
-    assert result.statistics.rwp == pytest.approx(1.75104, abs=1e-4)
+    # 1.75104 and 1.94562 under TRF; under LM identical across starts 1e-14 apart
+    assert result.statistics.rwp == pytest.approx(1.750941, abs=1e-4)
     nxt = ref.fit(pattern, mode="lebail", plan="profile_only",
                   two_theta_limits=WIDE_LIMITS, telemetry=False)
-    assert nxt.statistics.rwp == pytest.approx(1.94562, abs=1e-4)
+    assert nxt.statistics.rwp == pytest.approx(1.945486, abs=1e-4)
     _plot(result, "lebail_alternation_wander_kept.png")
 
 
