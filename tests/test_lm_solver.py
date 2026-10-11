@@ -321,8 +321,15 @@ def test_the_step_reaches_a_face_where_truncation_stalls(monkeypatch):
     constrained minimiser, so one step lands there.  The truncated step runs
     along the Newton direction towards θ_u and stops at the face.  The next
     one points at θ_u again from almost the same line, so it meets the face
-    at almost the same point: the fit stopped ``exhausted_fp64`` 2.1 from θ*
-    with S 70 % above its minimum, as brucite + Stephens stopped on the cone.
+    at almost the same point.
+
+    A change of 1e-15 in the start picks one of two ways of failing, and the
+    platform picks too.  The fit stops ``exhausted_fp64`` after 7 evaluations,
+    2.1 from θ* with S 70 % above its minimum, as brucite + Stephens stopped
+    on the cone.  Or it crawls along the face to the 400-evaluation cap and
+    stops 0.83 from θ* with S 11 % above, which Linux CI does from (3, 3).
+    The three starts below take both on macOS arm64, and the test asserts
+    what both share.
     """
     residual, jacobian, X, y = _collinear_pair()
     a = np.array([np.cos(0.7), np.sin(0.7)])
@@ -343,10 +350,13 @@ def test_the_step_reaches_a_face_where_truncation_stalls(monkeypatch):
     assert out.n_truncated >= 1
 
     monkeypatch.setattr(lm, "_solve_constrained_step", _truncated_step)
-    stalled = lm.minimize(residual, jacobian, x0, lo=-inf, hi=inf, inequalities=[row])
-    assert stalled.termination == "exhausted_fp64"
-    assert np.linalg.norm(stalled.x - star) > 1.0
-    assert 2.0 * stalled.cost > 1.5 * s_star
+    for nudge in (0.0, 1e-15, -1e-14):
+        start = x0 * np.array([1.0, 1.0 + nudge])
+        stalled = lm.minimize(residual, jacobian, start, lo=-inf, hi=inf,
+                              inequalities=[row])
+        assert stalled.termination in ("exhausted_fp64", "max_nfev")
+        assert np.linalg.norm(stalled.x - star) > 0.5
+        assert 2.0 * stalled.cost > 1.05 * s_star
 
 
 def test_a_step_that_crosses_no_row_is_the_box_step_bit_for_bit(monkeypatch):
