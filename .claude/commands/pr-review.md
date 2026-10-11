@@ -114,6 +114,12 @@ whether a maintainer has commented — **and the reason for its rank**:
    merge stales the diffs sharing a file with it.
 5. **Reviewable lines**, ascending.
 
+**Name every PR by another author first, above the ranked rows.** That means
+an author outside `KNOWN_AUTHORS` in `.claude/skills/issue-review/backlog.py`,
+which lists the maintainer and the recurring contributor. Such a PR keeps
+its rank, but `all` does not merge it on its own authority: it goes to the
+batch, named first (the maintainer asked for this on 2026-10-11).
+
 List the maintainer's own open PRs, marked, last. Two limits, stated once: the
 rank does not know which small PR unblocks unstarted work, and degree counts
 files, not difficulty. The user overrules with arguments.
@@ -188,7 +194,8 @@ the user's `/compact` or `/clear`). Nothing is carried in a file.
 
 **The batch**: one numbered message; per item the PR, the question in one
 sentence, what it blocks (held review / merge / nothing), and your
-recommendation. Group: governance calls, then held reviews, then held merges.
+recommendation. Group: PRs by other authors (§ Triage), then governance
+calls, then held reviews, then held merges.
 `AskUserQuestion` only for ≤ 4 genuine multi-way choices. Then apply in one
 pass — post, merge, close — with a step-10 line each. **A gate main has moved
 under is void**: before merging a freed PR compare `origin/main` with the sha
