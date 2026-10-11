@@ -75,6 +75,35 @@ a poor basin). VALIDATION.md's rows and the landing page are re-measured.
 
 ### Inherited
 
+- **2026-10-11, from the issue triage (issue #900): a restated `min=0.0`
+  is physical + TRF today, and it fails.** `schemas.common.declared_fills`
+  inherits a declared transform only when the caller omitted every bound it
+  enforces. So `Phase.scale=Parameter(value=1.0, min=0.0)` comes back
+  `identity` with a hard bound at zero, and `Parameter(value=1.0)` keeps the
+  softplus. Every softplus field behaves this way, and a benchmark template
+  wrote it. Checked against the tree at `08176f6f` with the issue's own
+  script (synthetic PbSO₄, one stage freeing everything, scale started 2400×
+  high; macOS arm64, `[dev]`):
+
+  | coordinates + driver | status | χ² | iterations | scale | Pb Biso |
+  |---|---|---|---|---|---|
+  | softplus + TRF | converged | 7111 | 17 | 4.18e-4 | 1.48 |
+  | identity, `min=0` + TRF | converged | 2.657e5 | 153 | 7.33e-3 | 61.1 |
+  | identity, `min=0` + TRF, `x_scale="jac"` | converged | 2.657e5 | 92 | 7.33e-3 | 61.1 |
+  | identity, `min=0` + LM | converged | 7111 | 22 | 4.18e-4 | 1.48 |
+  | softplus + LM | converged | 7111 | 18 | 4.18e-4 | 1.48 |
+
+  Physical + LM reaches the right answer, so this WP's flip closes #900.
+  Two consequences belong here. First, add the script as a test of the
+  default driver: it is short (about 5 s) and needs no download. Second,
+  `solver="trf"` stays selectable, and after the coordinates land every
+  positive field under TRF is the failing row. `x_scale="jac"` does not
+  rescue it. So the TRF docstring or a diagnostic must say so. An interim
+  change to `declared_fills` before this WP lands was considered.
+  Decided 2026-10-11: no interim fix, because this WP is in flight and
+  removes the distinction that function draws. The reporter was told
+  `solver="lm"` or omitting the `min` works until then.
+
 - **2026-10-11, from WP-1940 (closed).** The soft dependency is met:
   rietx-kernels 1.2.0 is on PyPI, and rietx's floor stays at `>=1.1`. On
   arm64, 1.2.0 gives 1.1.0's bits, so a grid or re-pinned number measured on
