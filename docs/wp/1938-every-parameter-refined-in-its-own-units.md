@@ -434,7 +434,7 @@ driver alone).
       it too: an old W of 1e-12 opens as 1e-8. The two `.prm`/`.instprm`
       sites keep their line, because a negative W there is the reader's to
       refuse, and the validator would raise it silently.)
-- [ ] **LM's two constrained-step costs** (review of #883). When `nnls` runs
+- [x] **LM's two constrained-step costs** (review of #883). When `nnls` runs
       out of iterations (`lm._NoConstrainedStep`), the fallback shortens the
       box step to the first row it reaches. From a point already on a face that
       is τ = 0, so the stage ends `exhausted_fp64` and reads as converged, and
@@ -444,6 +444,32 @@ driver alone).
       Pawley-shaped system, against BCCG's ≤ 22 ms, and Γ_G² rows are now built
       in every mode. Measure both on the NAC Pawley protocol and the grid
       before changing either, since both move converged fits.
+      (Fifth session, by a lane: neither changed, because neither reaches a
+      fit. The 14 grid fits at start 0, NAC Pawley (142 columns) and FAP
+      Pawley (343) ran no `nnls` fallback. Every constrained step was at 29
+      columns or fewer, and neither Pawley crossed a row. Forced onto the
+      Pawley systems, the constrained step took 2.7-5.7 ms at 142 columns
+      and 42-70 ms at 343, against BCCG's 0.4-1.9 ms. The τ = 0 path stays
+      unmeasured, since no fixture reaches it.)
+- [ ] **A large Pawley under the default driver** (fifth session, found by
+      the lane above). FAP.XRA in `pawley` mode, default plan, 343 columns at
+      the `profile` stage. `main` (`6075319c`, TRF): every stage converged,
+      Rwp 0.07825358. This branch's LM: the `profile` stage stops on its
+      400-evaluation cap, Rwp 0.08035928. At every λ > 0 BCCG's step
+      promised a cost *increase* (model +0.05 down to +7e-6) where the exact
+      box solve promised a decrease, so LM raised λ and crawled. LM with the
+      exact step at every size converges at 0.08029 in 6.3 s against 16.7 s.
+      This branch's TRF reaches 0.07838, and LM restarted from TRF's answer
+      keeps it and reaches 0.07825. The refined profile parameters differ by
+      at most 1.5 esd, so the gap is mostly in the intensities. NAC Pawley
+      went the other way under 1937 (LM 0.13478, TRF 0.13628). Two
+      decisions, the maintainer's: what the step above
+      `BVLS_MAX_COLUMNS` does when BCCG promises no descent (the exact solve
+      costs 1.5-11 s a step at 1000 columns, per 1937), and whether a Pawley
+      fit's start is this WP's to fix or only to report. To reproduce:
+      `tests/test_acceptance_fap.build_fap_inputs()`, then
+      `Refinement(structure, instrument, solver=…).fit(data, mode="pawley")`,
+      and `lm.BVLS_MAX_COLUMNS = 10**6` for the exact step.
 
 ## Acceptance
 
