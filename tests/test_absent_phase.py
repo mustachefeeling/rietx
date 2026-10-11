@@ -497,14 +497,15 @@ def test_one_pattern_counts_once_however_many_stages_fired_it():
 
 
 # ----------------------------------------------------------------------
-# a scale at zero, and the esds it takes with it (WP-1463)
+# a scale on its floor, and the esds it keeps (WP-1463, WP-1938)
 # ----------------------------------------------------------------------
-# No plan reaches these states on this fixture: TRF stops the absent scale
-# between 1e-28 and 1e-135.  A real 48-pattern series reached 1e-179 and 0.0,
-# so the fixture lets TRF finish and then moves the scale's internal value u to
-# where that series stopped, re-evaluating the residual and Jacobian there.
-# Every post-fit step then runs as in production.  S = softplus(u), and it
-# reaches exactly 0.0 once u passes about -745.
+# Every entry is refined in its own units since WP-1938, so the absent scale's
+# column is the phase's own pattern at any value of the scale, 0.0 included.
+# Under softplus its slope underflowed and the esds went (WP-1463).  The
+# fixture lets the driver finish and then moves the scale to a chosen physical
+# value, re-evaluating the residual and Jacobian there; every post-fit step
+# then runs as in production.  A real 48-pattern series stopped its absent
+# scale at 1e-179 and at 0.0.
 
 def _scale_only_plan():
     from rietx.schemas.plan import PlanSpec, StageSpec
@@ -520,38 +521,61 @@ def _scale_only_plan():
 
 @pytest.fixture
 def fit_absent_at(monkeypatch):
-    """``fit(u)`` fits the absent-phase fixture with its scale moved to ``u``."""
+    """``fit(s)`` fits the absent-phase fixture with its scale moved to ``s``.
+
+    Both drivers are wrapped, so the move happens whichever one the stage
+    runs; ``s=None`` leaves the fit where the driver stopped it.
+    """
     import importlib
 
     lsq = importlib.import_module("rietx.optimize.least_squares")
     refine_module = importlib.import_module("rietx.refine")
-    solve, run = lsq.least_squares, refine_module.run_least_squares
-    where = {"k": None, "u": None}
+    trf, lm, run = (lsq.least_squares, lsq._lm_outcome,
+                    refine_module.run_least_squares)
+    where = {"k": None, "s": None}
 
     def run_recording_the_column(model, table, **kw):
         free = table.free_paths
         where["k"] = free.index("phases.1.scale") if "phases.1.scale" in free else None
         return run(model, table, **kw)
 
-    def solve_then_move(fun, x0, jac=None, **kw):
-        res = solve(fun, x0, jac=jac, **kw)
-        if where["k"] is not None and where["u"] is not None:
+    def move(res, fun, jac):
+        if where["k"] is not None and where["s"] is not None:
             x = res.x.copy()
-            x[where["k"]] = where["u"]
+            x[where["k"]] = where["s"]
             res.x, res.fun, res.jac = x, fun(x), jac(x)
             res.cost = 0.5 * float(res.fun @ res.fun)
         return res
 
-    monkeypatch.setattr(lsq, "least_squares", solve_then_move)
+    def trf_then_move(fun, x0, jac=None, **kw):
+        return move(trf(fun, x0, jac=jac, **kw), fun, jac)
+
+    def lm_then_move(fun, jac, x0, lo, hi, **kw):
+        return move(lm(fun, jac, x0, lo, hi, **kw), fun, jac)
+
+    monkeypatch.setattr(lsq, "least_squares", trf_then_move)
+    monkeypatch.setattr(lsq, "_lm_outcome", lm_then_move)
     monkeypatch.setattr(refine_module, "run_least_squares", run_recording_the_column)
 
-    def fit(u, plan="mccusker_default"):
-        where["u"] = u
+    def fit(s, plan="mccusker_default"):
+        where["s"] = s
         structure, ins = _absent_phase_inputs()
         return Refinement(structure, ins, history=False).fit(synthesize(), plan=plan)
 
     fit.where = where
     return fit
+
+
+def _empty_phase_inputs():
+    """The absent-phase fixture with every site of the absent phase empty.
+
+    Its pattern is zero at any scale, so its scale has no gradient anywhere.
+    That is the one blind scale physical coordinates leave (WP-1938).
+    """
+    structure, ins = _absent_phase_inputs()
+    for atom in structure.phases[1].atoms:
+        atom.occ.value = 0.0
+    return structure, ins
 
 
 def _row(result, path):
@@ -562,22 +586,21 @@ def _fraction_esds(result):
     return [q.weight_fraction_stderr for q in result.qpa.phases]
 
 
-@pytest.mark.parametrize("u", [-380.0, -400.0, -700.0])
-def test_a_tiny_scale_keeps_the_esds_it_had_at_1e_135(fit_absent_at, u):
-    """The answer no longer depends on how far TRF walked down a flat line.
+@pytest.mark.parametrize("s", [1e-135, 1e-166, 1e-304])
+def test_where_on_its_floor_the_scale_stopped_moves_no_esd(fit_absent_at, s):
+    """The answer does not depend on how far down the floor the driver went.
 
-    At u = -380 (S ≈ 1e-166) the internal variance overflowed; at -400
-    (S ≈ 2e-174) its d² underflowed as well; -700 is S ≈ 1e-304.  Each lost
-    every weight-fraction esd before WP-1463, and each now carries the esds
-    of the natural fit, whose scale TRF left at 4.2e-135.
+    The model is linear in a scale, so its column is the same at 1e-304 as at
+    0.0.  Under softplus the internal variance overflowed at S ≈ 1e-166 and
+    every weight-fraction esd went with it (WP-1463).  The reference is the
+    fit as the driver left it, which on this fixture is exactly 0.0.
     """
     reference = fit_absent_at(None)
-    moved = fit_absent_at(u)
-    s_ref, s = _row(reference, "phases.1.scale"), _row(moved, "phases.1.scale")
-    # where TRF leaves the natural scale moves with platform libm, and since
-    # WP-1463 any nonzero value is a valid reference
-    assert 0.0 < s.value < 1e-160 and s_ref.value > 0.0
-    assert s.stderr == pytest.approx(s_ref.stderr, rel=1e-9)
+    moved = fit_absent_at(s)
+    s_ref, s_moved = _row(reference, "phases.1.scale"), _row(moved, "phases.1.scale")
+    assert s_moved.value == s
+    assert s_ref.stderr is not None and s_ref.stderr > 0.0
+    assert s_moved.stderr == pytest.approx(s_ref.stderr, rel=1e-9)
     assert _fraction_esds(moved) == pytest.approx(_fraction_esds(reference),
                                                   rel=1e-9)
     assert all(e is not None for e in _fraction_esds(moved))
@@ -585,18 +608,39 @@ def test_a_tiny_scale_keeps_the_esds_it_had_at_1e_135(fit_absent_at, u):
 
 
 @pytest.mark.parametrize("plan", ["mccusker_default", "scale_only"])
-def test_a_scale_at_zero_names_the_phase_that_withheld_every_esd(fit_absent_at,
-                                                                plan):
-    """At exactly 0.0 the column is zero by every route, so the esds go.
+def test_a_scale_at_zero_keeps_its_esd_and_every_fraction_esd(fit_absent_at, plan):
+    """At exactly 0.0 the column is the phase's pattern, so nothing is withheld.
 
-    dS/du has underflowed, and the analytic branch hands a zero scale to the
-    finite difference, which decodes 0.0 again.  What changed is that the loss
-    now says which phase caused it, under a plan that frees the absent
-    phase's cell and under one that frees only its scale.
+    Under softplus dS/du underflowed there and every fraction lost its esd
+    (WP-1463).  The scale's marginal esd is WP-1929's decided rule for a row
+    on its bound; it holds under a plan that frees the absent phase's cell
+    and under one that frees only its scale.
     """
-    result = fit_absent_at(-800.0, plan=_scale_only_plan()
+    result = fit_absent_at(0.0, plan=_scale_only_plan()
                            if plan == "scale_only" else plan)
-    assert _row(result, "phases.1.scale").value == 0.0
+    row = _row(result, "phases.1.scale")
+    assert row.value == 0.0
+    assert row.stderr is not None and np.isfinite(row.stderr) and row.stderr > 0.0
+    assert all(e is not None and np.isfinite(e) for e in _fraction_esds(result))
+    assert "QPA_ESD_UNAVAILABLE" not in {d.code for d in result.diagnostics}
+
+
+@pytest.mark.parametrize("plan", ["mccusker_default", "scale_only"])
+def test_a_scale_with_no_gradient_names_the_phase_that_withheld_every_esd(plan):
+    """A phase whose pattern is zero at every scale still withholds the block.
+
+    Every W_i divides by a sum that includes it, so one unmeasured scale
+    leaves no fraction quotable (WP-1110 item 14).  The loss says which phase
+    caused it, under a plan that frees the phase's cell and under one that
+    frees only its scale.
+    """
+    structure, ins = _empty_phase_inputs()
+    result = Refinement(structure, ins, history=False).fit(
+        synthesize(),
+        plan=_scale_only_plan() if plan == "scale_only" else plan)
+    OUT.mkdir(exist_ok=True)
+    result.plot(OUT / f"absent_phase_empty_{plan}.png")
+    assert _row(result, "phases.1.scale").stderr is None
     assert _fraction_esds(result) == [None, None]
     fired = [d for d in result.diagnostics if d.code == "QPA_ESD_UNAVAILABLE"]
     assert len(fired) == 1
@@ -610,67 +654,43 @@ def test_a_scale_only_plan_leaves_phase_unconstrained_nothing_to_say(fit_absent_
     """Why the QPA block's comment was wrong on 15 of the 16.
 
     ``PHASE_UNCONSTRAINED`` is about a phase's *other* free parameters, and a
-    plan freeing only the scale gives it none.  The new finding is what names
-    the phase there.
+    plan freeing only the scale gives it none.  What names the phase there is
+    the floor its scale stopped on.
     """
-    result = fit_absent_at(-800.0, plan=_scale_only_plan())
+    result = fit_absent_at(0.0, plan=_scale_only_plan())
     codes = {d.code for d in result.diagnostics}
     assert "PHASE_UNCONSTRAINED" not in codes
-    assert "QPA_ESD_UNAVAILABLE" in codes
+    assert [d.where for d in result.diagnostics
+            if d.code == "BOUND_HIT" and "phases.1.scale" in d.where] \
+        == [["phases.1.scale"]]
 
 
-@pytest.mark.parametrize("u", [None, -400.0, -800.0])
-def test_at_bound_on_a_scale_at_its_floor_is_not_an_answer(fit_absent_at, u):
-    """A softplus floor has no finite internal limit, so nothing tested it.
+@pytest.mark.parametrize("s", [None, 0.0, 1e-166])
+def test_a_scale_on_its_floor_is_at_its_bound_and_is_not_told_to_widen_it(
+        fit_absent_at, s):
+    """A floor of 0 is an ordinary bound (WP-1938), so the row says ``True``.
 
-    Before WP-1463 the row said ``False``.  Asked in physical space the
-    WP-1434 conjunction would say ``True``, since the residual cosine is 0.030
-    and pushes outward, and ``BOUND_HIT`` would advise widening a bound on a
-    quantity that cannot be negative.  The honest state is ``None``.  The
-    phase that is there sits far from its floor, and stays a tested ``False``.
+    The residual cosine is +0.030 there and pushes the scale outward, so the
+    limit carried load.  ``BOUND_HIT`` names it, with advice for a quantity
+    that cannot go negative instead of "widen the bound".  The message keeps
+    the text every other bound's has.  The phase that is there sits far from
+    its floor, and stays a tested ``False``.
     """
-    result = fit_absent_at(u)
-    assert _row(result, "phases.1.scale").at_bound is None
+    from rietx.refine import _ZERO_FLOOR_SUGGESTION
+
+    result = fit_absent_at(s)
+    assert _row(result, "phases.1.scale").at_bound is True
     assert _row(result, "phases.0.scale").at_bound is False
-    assert not any(d.code == "BOUND_HIT" and "phases.1.scale" in d.where
-                   for d in result.diagnostics)
+    (hit,) = [d for d in result.diagnostics
+              if d.code == "BOUND_HIT" and "phases.1.scale" in d.where]
+    assert hit.message.startswith("phases.1.scale refined to its bound (ρ=+")
+    assert hit.value > 0.0
+    assert hit.suggestion == _ZERO_FLOOR_SUGGESTION
+    assert "widen" not in hit.suggestion
 
 
-def test_a_joint_fit_withholds_a_blind_scale_and_names_it(monkeypatch):
-    """``multi.py`` had its own QPA builder, and it skipped the blind-scale rule.
-
-    So a joint fit with a scale at 0.0 propagated the other fractions as if
-    that phase were known, which is the confident wrong number the single fit
-    had been refusing since WP-1110.  Both now call one builder.  The row path
-    is the joint surface's own: the absent scale is per histogram here, so
-    ``hist.h.`` prefixes it.
-    """
-    import importlib
-
-    from rietx import MultiHistogramRefinement
+def _joint_inputs(*, empty: bool):
     from tests import test_multi_histogram as tmh
-
-    lsq = importlib.import_module("rietx.optimize.least_squares")
-    multi = importlib.import_module("rietx.multi")
-    solve, run = lsq.least_squares, multi.run_multi_least_squares
-    cols: list[int] = []
-
-    def run_recording(models, mtable, **kw):
-        cols[:] = [k for k, p in enumerate(mtable.free_paths)
-                   if p.endswith("phases.1.scale")]
-        return run(models, mtable, **kw)
-
-    def solve_then_zero(fun, x0, jac=None, **kw):
-        res = solve(fun, x0, jac=jac, **kw)
-        if cols:
-            x = res.x.copy()
-            x[cols] = -800.0
-            res.x, res.fun, res.jac = x, fun(x), jac(x)
-            res.cost = 0.5 * float(res.fun @ res.fun)
-        return res
-
-    monkeypatch.setattr(lsq, "least_squares", solve_then_zero)
-    monkeypatch.setattr(multi, "run_multi_least_squares", run_recording)
 
     structure, instruments = tmh.perturbed_inputs()
     absent = make_lab6().phases[0]
@@ -678,6 +698,9 @@ def test_a_joint_fit_withholds_a_blind_scale_and_names_it(monkeypatch):
     for n in "abc":
         getattr(absent.cell, n).value = 5.2
     absent.scale.value = 1e-9
+    if empty:
+        for atom in absent.atoms:
+            atom.occ.value = 0.0
     structure = Structure(phases=[structure.phases[0], absent])
     patterns = [
         tmh.synthesize(0.41390, 3.0, 24.0, scale=5e-4, zero=0.006,
@@ -685,18 +708,60 @@ def test_a_joint_fit_withholds_a_blind_scale_and_names_it(monkeypatch):
         tmh.synthesize(0.71070, 6.0, 46.0, scale=9e-4, zero=-0.010,
                        bkg=[70.0, 5.0, -2.0], seed=2),
     ]
+    return structure, instruments, patterns
+
+
+def test_a_joint_fit_withholds_a_blind_scale_and_names_it():
+    """``multi.py`` had its own QPA builder, and it skipped the blind-scale rule.
+
+    So a joint fit with a blind scale propagated the other fractions as if
+    that phase were known, which is the confident wrong number the single fit
+    had been refusing since WP-1110.  Both now call one builder.  The row path
+    is the joint surface's own: the absent scale is per histogram here, so
+    ``hist.h.`` prefixes it.
+    """
+    from rietx import MultiHistogramRefinement
+
+    structure, instruments, patterns = _joint_inputs(empty=True)
     result = MultiHistogramRefinement(structure, instruments).fit(
         patterns, plan="mccusker_default")
 
-    assert cols, "the absent scale was never free"
     for h, hist in enumerate(result.histograms):
         assert [q.weight_fraction_stderr for q in hist.qpa.phases] == [None, None]
         fired = [d for d in hist.diagnostics if d.code == "QPA_ESD_UNAVAILABLE"]
         assert [d.where for d in fired] == [[f"hist.{h}.phases.1.scale"]]
 
 
-def test_a_series_whose_phase_left_says_so_in_every_pattern(fit_absent_at):
-    """Five patterns, the absent scale at 0.0 in each.
+def test_a_joint_fit_tests_a_scale_on_its_floor_like_the_single_fit():
+    """The joint runner's bound test has no floor exemption either (WP-1938).
+
+    Histogram 0's absent scale stops on 0.0 and reads ``at_bound=True`` with
+    its marginal esd, and ``BOUND_HIT`` names it by its joint row path.
+    Histogram 1's noise holds its own copy 0.8σ off the floor, so only the
+    fractions are asserted there.
+    """
+    from rietx import MultiHistogramRefinement
+    from rietx.refine import _ZERO_FLOOR_SUGGESTION
+
+    structure, instruments, patterns = _joint_inputs(empty=False)
+    result = MultiHistogramRefinement(structure, instruments).fit(
+        patterns, plan="mccusker_default")
+    OUT.mkdir(exist_ok=True)
+    for h in range(len(patterns)):
+        result.for_histogram(h).plot(OUT / f"absent_phase_joint_floor_h{h}.png")
+
+    row = _row(result, "hist.0.phases.1.scale")
+    assert row.value == 0.0 and row.at_bound is True
+    assert row.stderr is not None and row.stderr > 0.0
+    hits = [d for d in result.diagnostics
+            if d.code == "BOUND_HIT" and "hist.0.phases.1.scale" in d.where]
+    assert [d.suggestion for d in hits] == [_ZERO_FLOOR_SUGGESTION]
+    for hist in result.histograms:
+        assert all(q.weight_fraction_stderr is not None for q in hist.qpa.phases)
+
+
+def test_a_series_whose_phase_has_no_gradient_says_so_in_every_pattern():
+    """Five patterns, the empty phase's scale blind in each.
 
     Each entry names the phase, and ``SEQUENTIAL_PERSISTENT_FINDING`` counts
     it across the series with no edit of its own, its codes being an open
@@ -704,8 +769,7 @@ def test_a_series_whose_phase_left_says_so_in_every_pattern(fit_absent_at):
     """
     from rietx.sequential import refine_sequential
 
-    fit_absent_at.where["u"] = -800.0
-    structure, ins = _absent_phase_inputs()
+    structure, ins = _empty_phase_inputs()
     series = refine_sequential([synthesize(noise_seed=s) for s in range(5)],
                                structure, ins, plan="mccusker_default")
     for entry in series.entries:

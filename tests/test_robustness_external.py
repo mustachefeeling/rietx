@@ -615,18 +615,21 @@ def _nacl_pattern(tmp_path, *, cell_error=0.0):
 # max_iter x NFEV_PER_ITERATION rather than max_iter x n_params (WP-1109): the
 # constant multiplier *loosens* the cap below four free parameters and tightens
 # it above, and this stage frees exactly one.  The row is about the status, not
-# the number — either exit must still report MODEL_FAR_FROM_DATA.
-@pytest.mark.parametrize("max_iter, expect_status",
-                         [(1, "max_iter"), (50, "converged")])
+# the number — either exit must still report MODEL_FAR_FROM_DATA.  The
+# truncated row runs TRF: the scale is linear, and the LM driver solves it in
+# two evaluations, inside any budget (WP-1938).
+@pytest.mark.parametrize("max_iter, expect_status, solver",
+                         [(1, "max_iter", "trf"), (50, "converged", None)])
 def test_a_fit_nowhere_near_the_data_is_reported_however_the_solver_exited(
-        tmp_path, max_iter, expect_status):
+        tmp_path, max_iter, expect_status, solver):
     # the defect is the *converged* row: the refinement does not error, it
     # returns status="converged" and a batch caller believes it
     from rietx import Refinement
+    from rietx.optimize.least_squares import DEFAULT_SOLVER
     from rietx.strategy.staged import Stage
 
     start, ins, pattern = _nacl_pattern(tmp_path, cell_error=0.03)
-    ref = Refinement(start, ins)
+    ref = Refinement(start, ins, solver=solver or DEFAULT_SOLVER)
     result = ref.run_stage(pattern, Stage(name="scale",
                                           turn_on=["phases.*.scale"],
                                           max_iter=max_iter))
@@ -669,23 +672,8 @@ def test_a_fit_on_the_data_reports_neither_robustness_diagnostic(tmp_path):
 
 
 # ----------------------------------------------------------------------
-# (e) March-Dollase r cannot underflow to zero and divide the residual
+# (e) March-Dollase r cannot reach zero and divide the residual
 # ----------------------------------------------------------------------
-
-
-def test_a_zero_lower_bound_lets_softplus_underflow_to_exactly_zero():
-    # the mechanism, asserted where it lives: min=0.0 maps to an internal
-    # bound of −∞, and log(1+e^u) is exactly 0.0 below u ≈ −745
-    from rietx.params.transforms import internal_bounds, to_physical
-    from rietx.schemas.structure import MARCH_R_MIN
-
-    assert internal_bounds(0.0, np.inf, "softplus")[0] == -np.inf
-    assert to_physical(-800.0, "softplus") == 0.0
-
-    # a positive bound makes it finite, and the floor is then unreachable
-    lo, _ = internal_bounds(MARCH_R_MIN, 6.0, "softplus")
-    assert np.isfinite(lo)
-    assert to_physical(lo, "softplus") == pytest.approx(MARCH_R_MIN)
 
 
 def test_the_march_factor_is_what_a_zero_r_destroys():

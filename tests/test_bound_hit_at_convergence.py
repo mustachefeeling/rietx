@@ -96,8 +96,11 @@ _ZERO = Stage("zero", [ZERO])
 _CELL = Stage("cell", ["phases.*.cell.*"])
 
 
-def _fit(data, *stages):
-    return rx.Refinement(_seeded(), _instrument(), history=False).fit(
+def _fit(data, *stages, solver=None):
+    from rietx.optimize.least_squares import DEFAULT_SOLVER
+
+    return rx.Refinement(_seeded(), _instrument(), history=False,
+                         solver=solver or DEFAULT_SOLVER).fit(
         data, plan=RefinementPlan(stages=list(stages)))
 
 
@@ -183,7 +186,7 @@ FTOLS = [1e-9, 1e-6, 1e-4, 1e-3]
 FTOL_STOPS_EARLY = 1e-2
 
 
-def _fit_at(data, ftol, *stages):
+def _fit_at(data, ftol, *stages, solver=None):
     """``stages`` with the **last** one stopped at ``ftol``.
 
     ``RefinementPlan.stage_ftols`` is the one authority applying the schedule
@@ -193,10 +196,10 @@ def _fit_at(data, ftol, *stages):
     """
     stages = [dataclasses.replace(s) for s in stages]
     stages[-1].ftol = ftol
-    return _fit(data, *stages)
+    return _fit(data, *stages, solver=solver)
 
 
-def _answering_stage(data, ftol, *stages):
+def _answering_stage(data, ftol, *stages, solver=None):
     """``(table, outcome)`` of the stage whose θ becomes the result.
 
     ``check_guards`` is the one place both are in hand, and it is where the
@@ -213,7 +216,7 @@ def _answering_stage(data, ftol, *stages):
 
     refine_mod.check_guards = spy
     try:
-        _fit_at(data, ftol, *stages)
+        _fit_at(data, ftol, *stages, solver=solver)
     finally:
         refine_mod.check_guards = real
     return captured[-1]
@@ -258,8 +261,12 @@ def test_a_stage_that_stopped_early_is_not_a_bound_hit(data):
     budget and must not be dressed as a bound the answer sits on, so it is the
     *distance* half that declines it.  Asserted with the angle, because a row
     that passed for the wrong reason would look identical.
+
+    TRF runs it, because stopping early is TRF's behaviour here.  The LM
+    driver's step lands the shift exactly on its limit, where it is a bound
+    hit, and its ``ftol`` needs three small decreases in a row (WP-1938).
     """
-    result = _fit_at(data, FTOL_STOPS_EARLY, _SCALE_BKG, _ZERO)
+    result = _fit_at(data, FTOL_STOPS_EARLY, _SCALE_BKG, _ZERO, solver="trf")
     zero = {p.path: p for p in result.parameters}[ZERO]
 
     # nowhere near the limit …
@@ -267,7 +274,7 @@ def test_a_stage_that_stopped_early_is_not_a_bound_hit(data):
     # … while the residual keeps a large angle with that column, i.e. the
     # gradient half alone would have fired
     table, outcome = _answering_stage(data, FTOL_STOPS_EARLY,
-                                      _SCALE_BKG, _ZERO)
+                                      _SCALE_BKG, _ZERO, solver="trf")
     cos = float(outcome.residual_cosine[list(table.free_paths).index(ZERO)])
     assert cos < -BOUND_HIT_COS_MIN
 
@@ -358,25 +365,37 @@ def test_the_rows_render(data):
                     two_theta_range=(20.0, 35.0))
 
 
-def test_a_width_on_its_floor_is_not_read_against_its_far_limit():
-    """The esd window cannot be asked of a row sitting on its transform's floor.
+def test_a_width_on_its_floor_is_read_against_its_floor():
+    """A floor of 0 is the nearer limit and the only candidate (WP-1938).
 
-    There the internal esd is the physical one over σ(u).  Here that is 1e64
-    for a physical 0.07, so the window of a hundredth of an esd admits an upper
-    limit 150 internal units away, and a cosine pushing up fired ``BOUND_HIT``
-    on a width at zero.  CI's py3.11 Linux leg met exactly this on
-    ``instrument.profile.y`` in a joint fit (WP-1463), where the row said
-    ``None`` and the diagnostic said it was at its bound.
+    Under softplus a width at zero had an internal esd of 1e64 for a physical
+    0.07, so the esd window admitted a far limit and ``BOUND_HIT`` fired on
+    ``instrument.profile.y`` pressing on its upper bound (WP-1463).  In its own
+    units the esd is the physical one, and the finding names which limit held
+    it.  That is what ``BOUND_HIT``'s advice reads, and the rendered text is
+    unchanged by it.
     """
-    from rietx.strategy.staged import bound_findings, bound_untested
+    from rietx.refine import _ZERO_FLOOR_SUGGESTION, _guard_diagnostics
+    from rietx.strategy.staged import GuardReport, bound_findings
 
-    bounds = (np.array([-np.inf]), np.array([0.0]))
-    free, theta = ["instrument.profile.y"], np.array([-150.0])
-    esd, cos = np.array([1e64]), np.array([-0.03])
+    free, esd = ["instrument.profile.y"], np.array([0.07])
+    floor = (np.array([0.0]), np.array([1.0]))
+    (found,) = bound_findings(floor, free, np.array([0.0]),
+                              cos=np.array([+0.03]), esd=esd)
+    assert found.limit == ("lower", 0.0)
+    assert str(found) == "instrument.profile.y"
+    # pulled back inside, the floor carried no load
+    assert bound_findings(floor, free, np.array([0.0]),
+                          cos=np.array([-0.03]), esd=esd) == []
 
-    unskipped = bound_findings(bounds, free, theta, cos=cos, esd=esd)
-    assert {p for f in unskipped for p in f.paths} == set(free)
-    untested = bound_untested(bounds, free, theta, ["softplus"], esd=esd)
-    assert untested == free
-    assert bound_findings(bounds, free, theta, cos=cos, esd=esd,
-                          untested=untested) == []
+    # a lower limit that is not 0, and an upper one, keep "widen the bound"
+    (shifted,) = bound_findings((np.array([1e-6]), np.array([1.0])), free,
+                                np.array([1e-6]), cos=np.array([+0.03]), esd=esd)
+    (upper,) = bound_findings(floor, free, np.array([1.0]),
+                              cos=np.array([-0.03]), esd=esd)
+    assert shifted.limit == ("lower", 1e-6) and upper.limit == ("upper", 1.0)
+    advice = [d.suggestion for d in _guard_diagnostics(
+        GuardReport(at_bounds=[found, shifted, upper]))]
+    assert advice == [_ZERO_FLOOR_SUGGESTION,
+                      "widen the bound or fix the parameter",
+                      "widen the bound or fix the parameter"]

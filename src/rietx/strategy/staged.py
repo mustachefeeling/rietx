@@ -126,17 +126,22 @@ class Stage:
     #: converge as hard as an endpoint.
     ftol: float | None = None
     lebail_cycles: int = 3  # intensity-partitioning refreshes (lebail mode)
-    #: lift any softplus-bounded parameter this stage frees off the exact-zero
-    #: floor to this value before solving, so TRF sees a live gradient (the
-    #: softplus map's slope at p≈0 is ≈0, so a coefficient starting at 0 would
-    #: never move).  0 = no seed.  The extinction stage uses it; unlike the FCJ
-    #: AXIAL_SIZING_FLOOR (an identity-transform bound, movable off zero on its
-    #: own) a softplus coefficient genuinely needs the value nudge.
+    #: start every row this stage frees that sits exactly on a lower bound of
+    #: 0 or above at this value, before solving
+    #: (``ParameterTable.seed_floored``; recorded in ``StageResult.seeded``).
+    #: 0 = no seed.  A row that can go negative is never seeded.  The
+    #: roughness stage is the one shipped stage that seeds, at 0.3.  Suortti
+    #: roughness is the identity at b = 0, so the seed says where its solve
+    #: starts, near the band where the data see it.  The extinction and
+    #: magnetic-width stages seeded too, for the softplus map's slope at zero.
+    #: WP-1938 refines every row in its own units.  Dropping those two seeds
+    #: then moved χ² by at most 1.8e-13 relative and every value by at most
+    #: 2.3e-6 esd.
     seed: float = 0.0
     #: microstrain (ppm of ΔM/M) to put a freed but still all-zero Stephens
     #: block on before solving.  ``seed`` cannot serve: the S_HKL DOFs are
-    #: identity-transform, and their pathology at zero is the *exploding*
-    #: gradient of √Σ rather than the softplus's dead one.  0 = no seed.
+    #: unbounded below, and their pathology at zero is the *exploding*
+    #: gradient of √Σ.  0 = no seed.
     strain_seed: float = 0.0
     #: c_w of McCusker eq (7), S = S_y + c_w·S_G: how heavily this stage weights
     #: the geometric 'observations' (every soft restraint the phases declare)
@@ -181,12 +186,14 @@ class Stage:
 #:
 #: The glob matches only instruments that declared a block, so it is safe in
 #: any plan (same property as the preferred-orientation stage).  The seed lifts
-#: the softplus strength parameter (Suortti ``b``, Pitschke ``c``) off the zero
-#: floor where dp/du → 0; 0.3 is chosen from the measured sensitivity peak of
-#: the Suortti model, which sits near b ≈ 0.17 for data from 5° 2θ and b ≈ 0.46
-#: from 20° — not at a token 1e-3, which for ``b`` is not merely a dead
-#: *internal* gradient but a genuinely dead *correction* (see
-#: RoughnessSuortti: both b → 0 and b → ∞ are the identity).
+#: the strength parameter (Suortti ``b``, Pitschke ``c``) off its zero floor;
+#: 0.3 is chosen from the measured sensitivity peak of the Suortti model, which
+#: sits near b ≈ 0.17 for data from 5° 2θ and b ≈ 0.46 from 20° — not at a
+#: token 1e-3, which for ``b`` is a genuinely dead *correction* (see
+#: RoughnessSuortti: both b → 0 and b → ∞ are the identity).  The seed reaches
+#: every freed row sitting exactly on a floor of 0 or above
+#: (``ParameterTable.seed_floored``, WP-1938).  Pitschke's ``tau`` at its 0.05
+#: default is above its floor, so it starts where it is (issue #499).
 _ROUGHNESS_STAGE = (
     Stage("roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3),
 )
@@ -249,13 +256,23 @@ _EXTRA_COMPONENT_STAGE = (
 #: 1. the moment, with both widths held at zero (their default, which *is* the
 #:    off state — the second frozen family is not even built, so the widths
 #:    are not merely fixed but structurally absent from the draw);
-#: 2. the widths, seeded off their floor, **beside** the moment step 1
+#: 2. the widths, freed from their zero floor, **beside** the moment step 1
 #:    converged.  Staging is cumulative, so the moment is not held here: it
 #:    keeps refining with the widths (issue #609).  What the order buys is the
 #:    start, not a hold — the moment enters this stage at its own converged
 #:    value rather than cold, so the pair is not freed together from nothing;
 #: 3. the same free set again, the plan's last stage, so it converges at the
-#:    solver's own ftol rather than the intermediate one and carries no seed.
+#:    solver's own ftol rather than the intermediate one.
+#:
+#: No step seeds.  Until WP-1938, step 2 lifted both widths to 0.05°.  That
+#: seed existed for the softplus map's slope of 1e-12 at zero.  Both widths
+#: now refine in deg with a lower bound of 0, so their column at zero is the
+#: physical one.
+#: Measured on the planted MnF₂ setup of ``tests/test_magnetic_width.py`` in
+#: four cases (magnetic size 0.22° or 0.6°, magnetic strain 0.25°, no width),
+#: seeded and unseeded fits agree in χ² to 1e-14 relative and in both widths
+#: and the moment to 2.3e-6 esd.  Their evaluation counts differ by at most
+#: one.
 #:
 #: Holding the moment through step 2 was measured as the alternative (issue
 #: #609, MnF₂ with planted widths 0.1°, 0.25° and 0.6° from starts 3.0–5.5
@@ -279,30 +296,6 @@ MAGNETIC_WIDTH_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
     ("phases.*.atoms.*.moment.dof*", "phases.*.magnetic_lor_size",
      "phases.*.magnetic_lor_strain"),
 )
-
-#: The value a freed magnetic width is lifted to before step 2 solves, in
-#: deg 2θ.  **Not a claim about the specimen — a claim about softplus.**  Both
-#: terms are softplus-bounded at zero, where the map's slope is 1e-12, so a
-#: coefficient at its exact default has a column twelve orders below its
-#: neighbours.  TRF's Jacobi scaling keeps such a column live (WP-1463), and
-#: measured on the synthetic k ≠ 0 supercell and on Cr₂WO₆ the answer is the
-#: same to four digits unseeded and seeded at 0.02, 0.05 or 0.15; the seed is
-#: kept so the preset does not rest on a solver equilibrating the column, and
-#: it costs nothing.  It is ``Stage.seed``'s existing job (the extinction
-#: stage seeds 1e-3, the roughness stage 0.3), and 0.05 deg is inside the
-#: range the term is for and below
-#: :data:`~rietx.model.forward.MAGNETIC_SIZING_FLOOR`, which is what the
-#: windows were sized for.
-#:
-#: **The seed reaches the two widths and nothing else**, by construction:
-#: step 2's globs name only them, and after step 1 (which does not free them)
-#: they sit at their zero floor.  So the stage lifts exactly the entries at
-#: the floor — the reading ``Stage.seed``'s own comment gives — whether
-#: ``ParameterTable.seed_softplus`` lifts every softplus entry below the seed
-#: or only those at the floor (issue #499).  Steps 1 and 3 carry no seed: step
-#: 1's job is the moment at the off state, and on step 3 a seed would reach
-#: the moment and the scale beside the widths, which is #499's failure.
-MAGNETIC_WIDTH_SEED_DEG = 0.05
 
 
 @dataclass
@@ -400,9 +393,13 @@ class RefinementPlan:
             # the ADPs all attenuate high-Q intensity, so letting the
             # structure/ADPs settle first leaves extinction with only its
             # (different, low-angle-weighted) signature to fit.  The
-            # coefficient starts at exactly 0 on the softplus floor, so the
-            # stage seeds it to lift TRF off the zero.
-            Stage("extinction", ["phases.*.extinction"], seed=1e-3),
+            # coefficient starts at exactly 0, its floor, and its column there
+            # is the physical one, so the stage carries no seed.  The 1e-3
+            # seed it had was for the softplus map's dead slope at 0.  Measured
+            # on BT-1 X-ray and neutron, the only acceptance fits where it
+            # fired, dropping it moved χ² by at most 1.8e-13 relative and
+            # every refined value by at most 3.4e-8 esd (WP-1938).
+            Stage("extinction", ["phases.*.extinction"]),
             *_ROUGHNESS_STAGE,
         ])
 
@@ -523,18 +520,12 @@ class RefinementPlan:
         costs.
         """
         names = ("moment", "magnetic_width", "moment_and_width")
-        # Step 2 seeds the width off its exact-zero softplus floor, for the
-        # reason the extinction stage seeds 1e-3: the map's slope there is
-        # 1e-12, and the preset should not rest on the solver equilibrating
-        # that column (``MAGNETIC_WIDTH_SEED_DEG``).  Step 1 must NOT seed it — that stage's whole job is
-        # the moment with the widths at the off state, where the second frozen
-        # family is not even built — and step 3 need not, because step 2 has
-        # already lifted it (``MAGNETIC_WIDTH_SEED_DEG`` says why the seed is
-        # confined to step 2's two globs).
-        seeds = (0.0, MAGNETIC_WIDTH_SEED_DEG, 0.0)
-        return cls(stages=[Stage(name, list(paths), seed=seed)
-                           for name, paths, seed
-                           in zip(names, MAGNETIC_WIDTH_STAGE_PATHS, seeds,
+        # no step seeds: step 2 frees the widths from their zero floor, where
+        # their column is the physical one (``MAGNETIC_WIDTH_STAGE_PATHS``
+        # has the measurement that retired the 0.05° seed, WP-1938)
+        return cls(stages=[Stage(name, list(paths))
+                           for name, paths
+                           in zip(names, MAGNETIC_WIDTH_STAGE_PATHS,
                                   strict=True)])
 
     @classmethod
@@ -825,6 +816,13 @@ class GuardFinding:
     #: deliberately not part of :meth:`__str__`, which is the pre-v1.0 text
     #: byte for byte and is what the other diagnostics are built from.
     detail: str = ""
+    #: the limit that carried load, as ``("lower", 0.0)`` or ``("upper", hi)``
+    #: in the solver's coordinates.  Written only by :meth:`at_bound`, from
+    #: the nearer limit :func:`bound_findings` chose, and read only where
+    #: ``BOUND_HIT`` picks its suggestion: a lower limit of exactly 0 is a
+    #: scale or width that cannot go negative, and is no bound to widen
+    #: (WP-1938).  ``None`` on every other finding, which has no limit.
+    limit: tuple[str, float] | None = None
 
     def __str__(self) -> str:
         return self.message
@@ -837,18 +835,20 @@ class GuardFinding:
 
     @classmethod
     def at_bound(cls, path: str, cos: float | None = None,
-                 gap_over_esd: float | None = None) -> "GuardFinding":
+                 gap_over_esd: float | None = None, *,
+                 limit: tuple[str, float] | None = None) -> "GuardFinding":
         """``cos`` is the evidence that the limit carried load, not that the
         value sits near one — see :func:`bound_findings`.  Both are ``None``
         on the fallback path, where no solve stood behind the test, and the
-        finding then renders exactly as it did before WP-1434.
+        finding then renders exactly as it did before WP-1434.  ``limit`` is
+        which limit that was; it changes no rendered text.
         """
         if cos is None:
-            return cls("BOUND_HIT", (path,), None, path)
+            return cls("BOUND_HIT", (path,), None, path, limit=limit)
         gap = ("" if gap_over_esd is None
                else f", {gap_over_esd:.1e} esd from the limit")
         return cls("BOUND_HIT", (path,), float(cos), path,
-                   detail=f" (ρ={cos:+.3f}{gap})")
+                   detail=f" (ρ={cos:+.3f}{gap})", limit=limit)
 
     @classmethod
     def background_absorption(cls, path: str, r2: float) -> "GuardFinding":
@@ -1015,10 +1015,6 @@ class GuardReport:
     measured_top_correlations: list = field(default_factory=list)
     measured_soft_modes: list = field(default_factory=list)
     measured_exchangeability: list = field(default_factory=list)
-    #: free paths sitting on their transform's asymptote, where the bound test
-    #: cannot be asked (:func:`bound_untested`, WP-1463).  Not findings: the
-    #: rows' ``at_bound`` reads ``None`` for these instead of ``False``.
-    bound_untested: list[str] = field(default_factory=list)
 
     def findings(self) -> list[GuardFinding]:
         """Every finding, in the order the diagnostics are emitted in
@@ -1144,6 +1140,13 @@ def check_hump_width(table, model) -> list[GuardFinding]:
     floored *and* no Lorentzian X/Y left to carry a physical width), the peak is
     skipped rather than passed.  The instrument model being unphysical at that
     angle is a separate, more fundamental defect and not this guard's to name.
+
+    Under the LM driver a single-histogram fit holds Γ_G² ≥ ``_MIN_GAMMA_G2``
+    at every reflection, so Γ_G ≥ 1e-4° there (WP-1938 D7,
+    ``optimize.least_squares.gaussian_width_inequalities``).  This guard's
+    floor of 10·√ε, 1e-3°, sits a decade above that, and the inequality also
+    counts the phase's Gaussian terms, which this instrument-only width does
+    not.  So the abstention can still happen under LM.
     """
     from ..model.profiles.caglioti import _MIN_GAMMA_G2
 
@@ -1219,10 +1222,11 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
     unphysical set of coefficients — the width law's √ has nothing to take and
     the model quietly reports zero broadening for that direction.  The
     constraint is a *cone* coupling all fifteen coefficients (like ADP positive
-    definiteness), which is why it cannot be a box bound and has to be a guard
-    under the default TRF driver.  ``solver="lm"`` can carry it as a linear
-    inequality instead (``optimize/lm.py``), and then this guard falls silent
-    because there is nothing left to report — which is the point.
+    definiteness), which is why it cannot be a box bound.  The default LM
+    driver carries it as a linear inequality (``optimize/lm.py``), and then
+    this guard falls silent because there is nothing left to report.  It is
+    the only check under ``solver="trf"``, and in a joint fit under either
+    driver, since ``run_multi_least_squares`` builds no cone.
 
     Zero is *inside* the physical set, and the test is one-sided for that
     reason: an all-zero block is the exact no-broadening identity, and a
@@ -1494,9 +1498,9 @@ def check_biso_negative(table, model) -> list[GuardFinding]:
 
 #: relative tolerance below which a Γ_G² counts as *on* zero rather than below
 #: it (WP-1311) — the :data:`STEPHENS_CONE_TOL` situation one seam over, and
-#: resolved the same way.  Zero is inside the physical set: U = V = W = 0 is an
-#: instrument with no Gaussian broadening at all, which is the state every
-#: profile starts from before a resolution stage frees anything.  Relative to
+#: resolved the same way.  Zero is inside the physical set: U = V = 0 with W
+#: on its floor, the clamp itself (WP-1938), is an instrument with almost no
+#: Gaussian broadening, and a fit can stop there.  Relative to
 #: the largest |Γ_G²| over the same fitted range, because the quadratic is
 #: evaluated here and inside ``gaussian_fwhm`` in different association orders
 #: and the two disagree in the last bits.
@@ -1539,6 +1543,16 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
     happens to ask about.  A sample term large enough to lift the total back
     over zero does not make U, V, W quotable.  Read a firing as "this
     resolution function is not quotable", never as a verdict on the sample.
+
+    This is TRF's guard, and a joint fit's.  The LM driver on a single
+    histogram also holds the **total** Γ_G², each phase's Gaussian size and
+    strain included, at or above ``caglioti._MIN_GAMMA_G2`` at every
+    reflection, as a linear inequality (WP-1938 D7,
+    ``optimize.least_squares.gaussian_width_inequalities``).  That keeps the
+    width columns alive, and it does not make this guard redundant.  A phase
+    term can carry the total while the instrument quadratic is negative, the
+    points between reflections are not held, and a stage that starts under
+    the floor builds no rows there.  So the guard can still fire under LM.
     """
     import numpy as np
 
@@ -1574,8 +1588,8 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
 #: about the same column, and the value is calibrated to how far
 #: ``make_strictly_feasible`` pushes an iterate off a bound it is sitting on.
 #:
-#: Relative it must be, because the free vector is *internal*: a softplus width
-#: and an identity-transform cell edge share no scale.  Relative to the **span**
+#: Relative it must be, because the free vector mixes units: a width in deg²
+#: and a cell edge in Å share no scale.  Relative to the **span**
 #: — what this was until WP-1110 — is the version that misfires, and widely: a
 #: caller's ``Parameter(min=1e-14, max=1e14)`` scale gives a span of 1e14, hence
 #: a tolerance of 1e6, so a scale of 1.0 sitting fourteen orders of magnitude
@@ -1610,7 +1624,7 @@ BOUND_HIT_COS_MIN = 1e-4
 
 
 def bound_findings(bounds, free: list[str], theta, *,
-                   cos=None, esd=None, untested=()) -> list[GuardFinding]:
+                   cos=None, esd=None) -> list[GuardFinding]:
     """Free paths whose bound **carried load** — the one place this happens.
 
     ``bounds`` is the ``(lo, hi)`` pair from a
@@ -1666,30 +1680,24 @@ def bound_findings(bounds, free: list[str], theta, *,
     whole span, and without it which bound gets reported is decided by the
     order the branches are written in rather than by where the value sits.
 
-    **A row on its transform's floor is skipped** (``untested``, the list
-    :func:`bound_untested` returns, WP-1463).  There the internal esd is the
-    physical one divided by σ(u), so it grows without limit, and the esd
-    window above admits a *finite* limit many decades away.  A width at zero
-    then read as pressing on its upper bound whenever the cosine came out
-    negative: ``BOUND_HIT`` fired on ``instrument.profile.y`` at its floor on
-    CI's py3.11 Linux leg while the row said ``None``.  Skipping it keeps the
-    two channels one list.
+    **A floor is an ordinary bound** (WP-1938).  Every entry is refined in
+    its own units, so a scale or width declared ``min=0`` has a finite lower
+    limit of 0 and is tested like any other.  Each finding carries the limit
+    it was found against (:attr:`GuardFinding.limit`), so the diagnostic can
+    tell a quantity that cannot go negative from a bound a caller could widen.
     """
     import numpy as np
 
     lo, hi = bounds
-    skip = set(untested)
     out: list[GuardFinding] = []
     for k, path in enumerate(free):
-        if path in skip:
-            continue
         t = theta[k]
         below, above = t - lo[k], hi[k] - t
         # the nearer limit is the only candidate; ``None`` where it is infinite
         if below <= above:
-            gap, limit, sign = below, lo[k], +1.0
+            gap, limit, sign, side = below, lo[k], +1.0, "lower"
         else:
-            gap, limit, sign = above, hi[k], -1.0
+            gap, limit, sign, side = above, hi[k], -1.0, "upper"
         if not np.isfinite(limit):
             continue
 
@@ -1706,65 +1714,15 @@ def bound_findings(bounds, free: list[str], theta, *,
         if not near:
             continue
 
+        which = (side, float(limit))
         if cos is None:
-            out.append(GuardFinding.at_bound(path))
+            out.append(GuardFinding.at_bound(path, limit=which))
             continue
         c = float(cos[k])
         # ``sign`` is +1 at a lower limit, where a solver still pressing
         # outward would be *lowering* θ, i.e. g > 0; −1 at an upper one
         if sign * c > 0.0 and abs(c) >= BOUND_HIT_COS_MIN:
-            out.append(GuardFinding.at_bound(path, c, scaled))
-    return out
-
-
-def bound_untested(bounds, free: list[str], theta, transforms: list[str], *,
-                   esd=None) -> list[str]:
-    """Free paths on a limit :func:`bound_findings` cannot see (WP-1463).
-
-    A softplus entry declared ``min=0`` has an internal lower limit of −∞, so
-    :func:`bound_findings` skips it.  Its physical floor is still 0, and a
-    scale can sit there to within 1e-300.  Reporting ``at_bound=False`` for it
-    would be an answer to a question nobody asked (WP-1076).  Asking it would
-    say ``True`` for an absent phase, whose residual cosine is 0.030 and
-    pushes outward. ``BOUND_HIT`` would then advise widening a bound on a
-    quantity that cannot be negative, and do the same for every width
-    that refines to zero.  So the answer is ``None``, and this function names
-    the rows it applies to.
-
-    The asymptote is the physical image of the infinite internal limit, so
-    softplus and ``exp`` give 0 and ``logit`` gives 0 and 1, with no list of
-    transforms kept here.  "On it" is :func:`bound_findings`' distance half
-    asked in physical space: within :data:`BOUND_HIT_ESD_FRAC` of the physical
-    esd, or within :data:`BOUND_HIT_RTOL` where the esd is absent, as it is at
-    exactly 0.0.  Everything else is left to :func:`bound_findings`, so a
-    value an esd or more away from its floor still reads ``False``.
-    """
-    import numpy as np
-
-    from ..params.transforms import dphys_dinternal, to_physical
-
-    lo, hi = bounds
-    out: list[str] = []
-    for k, path in enumerate(free):
-        kind = transforms[k]
-        value = to_physical(float(theta[k]), kind)
-        e = None if esd is None else float(esd[k])
-        with np.errstate(invalid="ignore", over="ignore"):
-            sigma = abs(dphys_dinternal(float(theta[k]), kind)) * e if e else None
-        for limit in (lo[k], hi[k]):
-            if np.isfinite(limit):
-                continue
-            asymptote = to_physical(float(limit), kind)
-            if not np.isfinite(asymptote):
-                continue
-            gap = abs(value - asymptote)
-            if sigma is not None and np.isfinite(sigma) and sigma > 0.0:
-                near = gap <= BOUND_HIT_ESD_FRAC * sigma
-            else:
-                near = gap <= BOUND_HIT_RTOL * max(1.0, abs(asymptote))
-            if near:
-                out.append(path)
-                break
+            out.append(GuardFinding.at_bound(path, c, scaled, limit=which))
     return out
 
 
@@ -1885,13 +1843,8 @@ def check_guards(table, outcome, threshold: float,
                 report.roughness_correlations.append(
                     GuardFinding.roughness_absorption(path, r2))
 
-    bounds = table.bounds()
-    esd = getattr(outcome, "stderr_internal", None)
-    report.bound_untested = bound_untested(
-        bounds, free, outcome.theta,
-        [table.entries[table._paths[p]].transform for p in free], esd=esd)
     report.at_bounds = bound_findings(
-        bounds, free, outcome.theta,
-        cos=getattr(outcome, "residual_cosine", None), esd=esd,
-        untested=report.bound_untested)
+        table.bounds(), free, outcome.theta,
+        cos=getattr(outcome, "residual_cosine", None),
+        esd=getattr(outcome, "stderr_internal", None))
     return report

@@ -175,6 +175,20 @@ Debye-Waller factor is not floored, so there is no hinge to lean on.
 
 ### Inherited
 
+- **2026-10-11, from WP-1938 (2nd session): LM is the default on that
+  branch, and the stall is the model's edge.** Once 1938 merges, a
+  single-histogram fit holds the cone by default. So
+  `STEPHENS_STRAIN_NOT_POSITIVE` fires only under `solver="trf"` and in a
+  joint fit, and this WP's "names `solver="lm"`" suggestion becomes "the
+  default holds the cone". Brucite + Stephens under LM (D8's exact step) ends
+  with 6 of 43 reflections exactly on σ² = 0, with zero strain width at the
+  edge rather than outside it. Lifting any of them raises the cost as √h,
+  and LM stops with one face set at costs 4e-5 apart (χ²_red 7.7177-7.7202
+  over five starts). 1938 recorded that as an exception (its D9), and
+  WP-1946 owns a formulation that cannot go negative. The intensity in
+  reflections the clamp leaves at zero width, which this WP's finding is to
+  report, now also arises on the cone's face under LM.
+
 - **2026-10-10, from WP-1937: the flip to `solver="lm"` moved to WP-1938.**
   This WP's suggestion that names `solver="lm"` changes shape only when 1938
   makes it the default. Measured there, in physical coordinates: brucite +

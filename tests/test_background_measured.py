@@ -40,7 +40,6 @@ from rietx.background import select_chebyshev_order
 from rietx.background.models import FIXED_RANGE_SLACK_STEPS, interpolate_fixed
 from rietx.model.forward import SCALE_PATH, compile_model
 from rietx.optimize.least_squares import _make_jacobian
-from rietx.params.transforms import dphys_dinternal
 from rietx.params.vector import ParameterTable, background_parameters
 from rietx.refine import mode_fixed_path
 from rietx.schemas.instrument import BackgroundFixedPlusChebyshev, Instrument
@@ -315,12 +314,6 @@ def test_a_double_counted_curve_asks_for_a_scale_the_parameter_may_not_hold():
     which ``min=0`` puts outside the parameter's range, so the fit cannot reach
     it and ends with its background too high.  That is the whole argument for
     ``min=0``: the wrong answer is loud rather than silent.
-
-    Loud in the **value**, not in a ``BOUND_HIT``.
-    ``params.transforms.internal_bounds`` maps a softplus lower limit of 0.0 to
-    −∞, so ``strategy.staged.bound_findings`` has no finite bound to test and a
-    scale driven to zero reports as a vanishing gradient rather than as a
-    parameter against a bound.
     """
     import dataclasses
 
@@ -345,8 +338,8 @@ def test_the_scale_column_is_the_curve_itself():
     """Exact where the check is exact (CLAUDE.md § Invariants).
 
     The model is *linear* in this parameter, so its column is the sampled curve
-    weighted and chained through the transform, with no truncation term to
-    tolerate. The oracle is that product, not another finite difference.
+    weighted, with no truncation term to tolerate. The oracle is that product,
+    not another finite difference.
     """
     _d, _s, _i, table, model = _state(vary_scale=True)
     theta = table.x0()
@@ -354,9 +347,7 @@ def test_the_scale_column_is_the_curve_itself():
     c = free.index(SCALE_PATH)
     col = _make_jacobian(model, table)(theta)[:len(model.tt), c]
 
-    entry = table.entries[table._paths[SCALE_PATH]]
-    dpdu = dphys_dinternal(float(theta[c]), entry.transform)
-    truth = -(1.0 / model.sigma) * model.bkg_design[-1] * dpdu
+    truth = -(1.0 / model.sigma) * model.bkg_design[-1]
     assert np.max(np.abs(col - truth)) <= 1e-15 * np.max(np.abs(truth))
 
 

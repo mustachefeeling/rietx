@@ -77,22 +77,21 @@ diagnostic, provenance, agreement indices last.
 
 ```text
 RefinementResult: converged (rietveld)
-  stage scale_bkg: converged (10 evals, ftol=1e-06)
+  stage scale_bkg: converged (2 evals, ftol=1e-06)
   ...
-  stage biso: converged (9 evals, ftol=solver default), max|Δθ|/esd=0.000
-  diagnostics: 2 unresolved
-    WARNING BOUND_HIT: phases.1.atoms.0.biso refined to its bound — widen the bound or fix the parameter
+  stage profile: converged (8 evals, ftol=solver default), max|Δθ|/esd=0.000
+  diagnostics: 1 unresolved
     INFO CAPILLARY_OFFSET_UNAVAILABLE: ...
-  provenance: rietx 1.7.0, backend=numpy, solver=trf
-  Rwp 0.0933 / Rexp 0.0264 (GoF 3.54), Rp 0.0625, χ² 12.5, DW 0.18
+  provenance: rietx 1.8.0.dev0, backend=numpy, solver=lm
+  Rwp 0.1337 / Rexp 0.0357 (GoF 3.75), Rp 0.0723, χ² 14.1, DW 0.11
 ```
 
 `RefinementResult.status` is a plain string, one of `converged`, `max_iter` and
 `diverged`. The second of those means the solver ran out of iterations. It does
 not mean the fit failed.
 
-`Statistics.rwp` is a fraction rather than a percentage: 0.0933 is the Rwp of
-9.3 % you would quote in a paper, and every R-factor in the package is stored
+`Statistics.rwp` is a fraction rather than a percentage: 0.1337 is the Rwp of
+13.4 % you would quote in a paper, and every R-factor in the package is stored
 this way. A `Refinement` session prints more ({ref}`printing-a-result`), and
 [](results.md) says what each statistic measures.
 
@@ -271,7 +270,8 @@ phase: Na2Ca3Al2F14, I 21 3, a=10.257 A, 6 asymmetric atoms
 Le Bail:  status=converged  Rwp=0.1435  GoF=5.44  a=10.251214 A
 Rietveld: status=converged  Rwp=0.0933  GoF=3.54
           a = 10.251216 +/- 0.000040 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
-          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound (ρ=+0.187, 1.6e-27 esd from the limit)
+          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound (ρ=+0.187, 0.0e+00 esd from the limit)
+          [info] CAPILLARY_OFFSET_UNAVAILABLE: ...
 ```
 
 It goes on to print the report summary, its five worst regions, and the history
@@ -324,7 +324,7 @@ Six things in it are moves that any later refinement repeats:
    n0000  root                   —
    n0001  stage:bkg              Rwp 3.1772
    n0002  stage:zero             Rwp 1.0407
-   n0003  stage:cell             Rwp 0.1683
+   n0003  stage:cell             Rwp 0.1682
    n0004  stage:profile_w        Rwp 0.1592
    n0005  stage:profile          Rwp 0.1435  [lebail]
    n0006  edit_model:add CaF2 impurity phase —

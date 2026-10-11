@@ -45,20 +45,12 @@ angle in silence.
 
 {source}`rietx.crystallography.symmetry.cell_constraints`
 
-Strictly positive quantities (widths, scales) refine through the softplus
-transform,
+Every parameter refines in its own units, with its `min` and `max` passed to
+the driver as a box. A `transform` stored before schema 0.46 is read as the box
+it enforced: softplus and exp as a lower bound at zero, logit also as an upper
+bound at one.
 
-```{math}
-:label: par-softplus
-
-p \;=\; \log(1 + e^{u}),
-```
-
-{source}`rietx.params.transforms`
-
-smooth, monotonic and $p > 0$ for all finite $u$, so the optimiser works in an
-unconstrained variable instead of pressing a hard zero bound. Bounded quantities
-use a logit.
+{source}`rietx.schemas.common.legacy_transform_bounds`
 
 ## Site-symmetry degrees of freedom
 

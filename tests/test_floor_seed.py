@@ -1,9 +1,14 @@
-"""A stage starts a freed softplus row sitting on its floor a short way inside.
+"""What a stage lifts before solving, and how the record says so.
 
-WP-1930, issue #832 and #836 item 3.  At the floor the softplus slope is
-1e-12, so whether the solver ever lifts the row is decided by rounding: on
-LaB₆ + cBN one platform reached χ²_red 9.69 and the other 12.48.  The seed is
-sized by unit (``FLOOR_SEEDS``); a floor row with no size is reported.
+``Stage.seed`` starts each row the stage frees that sits exactly on a floor of
+0 or above at the seed (``ParameterTable.seed_floored``), and
+``StageResult.seeded`` records each such row with its start in column units.
+
+WP-1930's floor seed lived here too: it started a freed softplus row sitting
+on its floor at a size per unit, because its column there was twelve orders
+below its neighbours and rounding chose whether it ever left (issue #832).
+WP-1938 refines every row in its own units, so that column is the physical
+one, and the floor seed and its ``SOFTPLUS_FREED_AT_FLOOR`` report went.
 """
 
 from __future__ import annotations
@@ -13,8 +18,7 @@ from pathlib import Path
 import pytest
 
 import rietx as rx
-from rietx.params.vector import FLOOR_SEEDS, SOFTPLUS_FLOOR_VALUE, ParameterTable
-from rietx.schemas.instrument import HumpComponent
+from rietx.params.vector import ParameterTable
 from tests import test_multi_histogram as tm
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -31,103 +35,34 @@ def pattern():
     return synthesize()
 
 
-def _with_a_flat_hump():
-    """The synthetic models with a hump whose height starts on its floor."""
+def test_the_stage_seed_selects_rows_by_their_bounds():
+    """WP-1938: a row qualifies by its lower bound, never a transform word."""
     structure, ins = perturbed_models()
-    ins.extra_components = [HumpComponent(
-        position=rx.Parameter(value=30.0, unit="deg"),
-        fwhm=rx.Parameter(value=6.0, min=1.0, unit="deg"),
-        height=rx.Parameter(value=0.0, min=0.0, unit="counts",
-                            transform="softplus"))]
-    return structure, ins
-
-
-def test_each_unit_starts_at_its_own_size():
-    structure, ins = perturbed_models()
-    assert ins.profile.y.value == 0.0 and ins.profile.x.value > 1e-4
     table = ParameterTable(structure, ins)
-    seeded, unseeded = table.seed_floor([
-        "instrument.profile.y", "phases.0.gauss_size", "phases.0.extinction",
-        "instrument.profile.x", "instrument.profile.u", "phases.0.scale"])
-    assert seeded == {"instrument.profile.y": FLOOR_SEEDS["deg"],
-                      "phases.0.gauss_size": FLOOR_SEEDS["deg^2"],
-                      "phases.0.extinction": FLOOR_SEEDS["um^2"]}
-    assert unseeded == []
-    # a variance is seeded at the square, so it adds the same width
-    assert FLOOR_SEEDS["deg^2"] == pytest.approx(FLOOR_SEEDS["deg"] ** 2)
+    table.set_vary(["*"], False)
+    freed = table.set_vary(["instrument.profile.x", "instrument.profile.y",
+                            "instrument.zero_shift"], True)
+    assert ins.zero_shift.value == 0.0 and ins.profile.x.value == 1e-3
+    # y sits on its floor of 0 and is lifted; x is above the seed; the zero
+    # shift can go negative, so its zero is not a floor
+    assert table.seed_floored(freed, 1e-4) == ["instrument.profile.y"]
     values = {e.path: e.value for e in table.entries}
-    for path, value in seeded.items():
-        assert values[path] == value
-    # a start somebody chose is left alone, as is an identity row at zero
-    assert values["instrument.profile.x"] == ins.profile.x.value
-    assert values["instrument.profile.u"] == 0.0
-
-
-@pytest.mark.parametrize("value, lifted", [
-    (0.0, True), (1e-12, True), (3e-11, True), (SOFTPLUS_FLOOR_VALUE, True),
-    (10 * SOFTPLUS_FLOOR_VALUE, False), (1e-4, False)])
-def test_only_a_row_on_its_floor_is_lifted(value, lifted):
-    """Issue #832's two floor values, 1e-12 and 3e-11, both count as on it."""
-    structure, ins = perturbed_models()
-    ins.profile.y.value = value
-    seeded, _ = ParameterTable(structure, ins).seed_floor(["instrument.profile.y"])
-    assert bool(seeded) is lifted
-
-
-def test_a_box_narrower_than_the_seed_takes_half_its_width():
-    structure, ins = perturbed_models()
-    ins.profile.y.max = FLOOR_SEEDS["deg"]
-    seeded, _ = ParameterTable(structure, ins).seed_floor(["instrument.profile.y"])
-    assert seeded == {"instrument.profile.y": FLOOR_SEEDS["deg"] / 2}
-
-
-def test_a_named_variable_is_seeded_by_its_declared_unit():
-    """A variable declared like the width it replaces is that width to the fit."""
-    structure, ins = perturbed_models()
-    table = ParameterTable(structure, ins)
-    table.add_parameter("vars.w", 0.0, vary=True, lo=0.0, transform="softplus",
-                        unit="deg")
-    seeded, unseeded = table.seed_floor(["vars.w"])
-    assert seeded == {"vars.w": FLOOR_SEEDS["deg"]} and unseeded == []
-
-
-def test_a_cap_lowers_the_seed_and_a_dry_run_writes_nothing():
-    """The joint table's two halves: one seed per shared column, asked first."""
-    structure, ins = perturbed_models()
-    table = ParameterTable(structure, ins)
-    path = "instrument.profile.y"
-    assert table.seed_floor([path], write=False)[0] == {path: FLOOR_SEEDS["deg"]}
-    assert {e.path: e.value for e in table.entries}[path] == 0.0
-    seeded, _ = table.seed_floor([path], cap={path: 1e-4})
-    assert seeded == {path: 1e-4}
-
-
-def test_a_unit_with_no_size_is_left_and_named():
-    structure, ins = _with_a_flat_hump()
-    table = ParameterTable(structure, ins)
-    path = "instrument.extra_components.0.height"
-    seeded, unseeded = table.seed_floor([path])
-    assert seeded == {} and unseeded == [path]
-    assert {e.path: e.value for e in table.entries}[path] == 0.0
-
-
-def test_a_collapsed_scale_is_left_to_the_support_report():
-    """A scale on its floor is an absent phase, PHASE_UNCONSTRAINED's case
-    (WP-1301), so the floor seed neither lifts it nor asks for a start."""
-    structure, ins = perturbed_models()
-    structure.phases[0].scale.value = 1e-12
-    seeded, unseeded = ParameterTable(structure, ins).seed_floor(["phases.0.scale"])
-    assert seeded == {} and unseeded == []
+    assert values["instrument.profile.y"] == 1e-4
+    assert values["instrument.profile.x"] == 1e-3
+    assert values["instrument.zero_shift"] == 0.0
+    # a row the stage did not free keeps the value a caller gave it
+    assert table.seed_floored(["phases.0.extinction"], 1e-3) == []
 
 
 def test_a_fit_records_what_each_stage_seeded(pattern):
+    """A plan with no seed lifts nothing, and each stage says so with ``{}``.
+
+    The synthetic truth has ``y`` = 0, so the freed width may stay on its
+    floor; what it may not do is leave its box."""
     structure, ins = perturbed_models()
     result = rx.Refinement(structure, ins, history=False).fit(pattern, plan=PROFILE)
-    assert [s.seeded for s in result.stages] == [
-        {}, {"instrument.profile.y": FLOOR_SEEDS["deg"]}]
-    assert [s.floor_unseeded for s in result.stages] == [[], []]
-    assert not [d for d in result.diagnostics if d.code == "SOFTPLUS_FREED_AT_FLOOR"]
-    assert result.parameter("instrument.profile.y").value > SOFTPLUS_FLOOR_VALUE
+    assert [s.seeded for s in result.stages] == [{}, {}]
+    assert 0.0 <= result.parameter("instrument.profile.y").value <= ins.profile.y.max
     OUT.mkdir(exist_ok=True)
     result.plot(path=str(OUT / "floor_seed_profile.png"))
     import matplotlib.pyplot as plt
@@ -136,66 +71,61 @@ def test_a_fit_records_what_each_stage_seeded(pattern):
 
 
 def test_a_stage_seed_is_recorded_too(pattern):
-    """``Stage.seed`` lifts every softplus row below it, x included (#499)."""
+    """``Stage.seed`` lifts a freed row on its floor and nothing else: ``x``
+    starts above 0 and below the seed, and keeps the start it was given
+    (#499)."""
     structure, ins = perturbed_models()
     plan = rx.RefinementPlan(stages=[
         PROFILE.stages[0],
         rx.Stage("profile", ["instrument.profile.x", "instrument.profile.y"],
                  max_iter=10, seed=0.01)])
     result = rx.Refinement(structure, ins, history=False).fit(pattern, plan=plan)
-    assert result.stages[1].seeded == {"instrument.profile.x": 0.01,
-                                       "instrument.profile.y": 0.01}
+    assert result.stages[1].seeded == {"instrument.profile.y": 0.01}
 
 
-def test_a_floor_row_with_no_seed_is_a_diagnostic(pattern):
-    structure, ins = _with_a_flat_hump()
-    path = "instrument.extra_components.0.height"
-    plan = rx.RefinementPlan(stages=[
-        PROFILE.stages[0],
-        rx.Stage("hump", [path], max_iter=5),
-        rx.Stage("again", [path], max_iter=5)])
-    result = rx.Refinement(structure, ins, history=False).fit(pattern, plan=plan)
-    assert result.stages[1].floor_unseeded == [path]
-    found = [d for d in result.diagnostics if d.code == "SOFTPLUS_FREED_AT_FLOOR"]
-    assert len(found) == 1 and found[0].where == [path]
-    # the second stage finds it on its floor again only if it never moved
-    names = [s.name for s in result.stages if s.floor_unseeded]
-    assert ("stage 'hump'" if names == ["hump"] else "stages 'hump', 'again'"
-            ) in found[0].message
-
-
-def test_run_stage_seeds_and_reports_too(pattern):
+def test_run_stage_records_its_seed_too(pattern):
     """``run_stage`` builds its own ``StageResult``: the second call site."""
-    structure, ins = _with_a_flat_hump()
+    structure, ins = perturbed_models()
     ref = rx.Refinement(structure, ins, history=False)
-    path = "instrument.extra_components.0.height"
     result = ref.run_stage(pattern, rx.Stage(
-        "both", ["instrument.profile.y", path], max_iter=5))
-    assert result.stages[-1].seeded == {"instrument.profile.y": FLOOR_SEEDS["deg"]}
-    assert result.stages[-1].floor_unseeded == [path]
-    assert [d.where for d in result.diagnostics
-            if d.code == "SOFTPLUS_FREED_AT_FLOOR"] == [[path]]
+        "y", ["instrument.profile.y"], max_iter=5, seed=1e-3))
+    assert result.stages[-1].seeded == {"instrument.profile.y": 1e-3}
 
 
 def test_a_joint_fit_seeds_each_histograms_row():
+    """The third call site: one row per histogram, each at the seed."""
     patterns = [
         tm.synthesize(0.41390, 3.0, 24.0, scale=5e-4, zero=0.006,
                       bkg=[40.0, -6.0, 1.5], seed=1),
         tm.synthesize(0.71070, 6.0, 46.0, scale=9e-4, zero=-0.010,
                       bkg=[70.0, 5.0, -2.0], seed=2)]
     structure, instruments = tm.perturbed_inputs()
-    result = rx.refine_multi(patterns, structure, instruments, plan=PROFILE)
+    plan = rx.RefinementPlan(stages=[
+        PROFILE.stages[0],
+        rx.Stage("profile", ["instrument.profile.x", "instrument.profile.y"],
+                 max_iter=10, seed=1e-4)])
+    result = rx.refine_multi(patterns, structure, instruments, plan=plan)
     seeded = result.stages[1].seeded
     assert len(seeded) == 2, seeded
     assert all(p.endswith("instrument.profile.y") for p in seeded)
-    assert set(seeded.values()) == {FLOOR_SEEDS["deg"]}
-    assert result.stages[1].floor_unseeded == []
+    assert set(seeded.values()) == {1e-4}
 
 
 def test_a_stored_stage_record_says_nobody_looked():
-    """WP-1076's rule: a result from before the fields may have freed a floor
-    row, so the default is ``None`` rather than an empty answer."""
+    """WP-1076's rule: a result from before the field may have seeded a row,
+    so the default is ``None`` rather than an empty answer."""
     old = rx.StageResult.model_validate_json(
         '{"name": "cell", "status": "converged", "n_iterations": 3, '
         '"cost_initial": 2.0, "cost_final": 1.0}')
-    assert old.seeded is None and old.floor_unseeded is None
+    assert old.seeded is None
+
+
+def test_a_record_from_the_floor_seed_still_opens():
+    """A result stored while the floor seed existed carries
+    ``floor_unseeded``; it opens, and the retired field is dropped (WP-1938)."""
+    old = rx.StageResult.model_validate_json(
+        '{"name": "hump", "status": "converged", "n_iterations": 3, '
+        '"cost_initial": 2.0, "cost_final": 1.0, '
+        '"seeded": {}, "floor_unseeded": ["instrument.extra_components.0.height"]}')
+    assert old.seeded == {}
+    assert "floor_unseeded" not in old.model_dump()

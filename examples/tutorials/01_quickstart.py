@@ -111,12 +111,13 @@ result
 # Read the summary from the top.
 #
 # 1. **Status.** Every stage converged.
-#    Each stage line gives the iterations it took and its `ftol`, the relative drop in the cost below which the stage stops.
+#    Each stage line gives the residual evaluations it took and its `ftol`, the relative drop in the cost below which the stage stops.
 #    Every stage but the last stops at `1e-06`, because each later stage refines its parameters again.
 #    The last runs to the solver's default, `1e-9`, and that is the answer the result reports.
 #    `max|Δθ|/esd` on the last line is the largest final step of any parameter, in units of its own esd. McCusker et al. (1999) treat 0.1 or less as converged.
 # 2. **Diagnostics.** These outrank every statistic.
 #    `PATTERN_UNDERSAMPLED` is the step count from `diagnose` again.
+#    `BOUND_HIT` says the data push `instrument.profile.y`, the Lorentzian tan θ width, below zero, so it ends on its floor of 0.
 #    `FROZEN_COMPILE_STALE` says the peak windows were sized at the values the last stage started from, and the cell has moved since.
 #    Running the plan again re-sizes them.
 # 3. **Agreement indices** come last. Rwp is useful for comparing two fits of the same data over the same channels, and says little on its own.

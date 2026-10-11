@@ -229,9 +229,9 @@ def test_a_term_past_the_cap_is_bounded_at_the_table():
     table.freeze_strain_cap(cap)
     _, hi = table.bounds()
     k = table.free_paths.index("phases.0.lor_strain")
-    # internal space is softplus, so compare after mapping back
-    from rietx.params.transforms import to_physical
-    assert to_physical(float(hi[k]), "softplus") == pytest.approx(cap, rel=1e-9)
+    # the column is the coefficient itself since WP-1938, so the cap is the
+    # bound as written
+    assert hi[k] == pytest.approx(cap, rel=1e-9)
 
 
 def test_no_claim_frozen_caps_nothing():
@@ -462,8 +462,7 @@ def test_a_size_term_on_the_floor_is_bounded_at_the_table():
     table.freeze_size_cap(cap)
     _, hi = table.bounds()
     k = table.free_paths.index("phases.0.lor_size")
-    from rietx.params.transforms import to_physical
-    assert to_physical(float(hi[k]), "softplus") == pytest.approx(cap, rel=1e-9)
+    assert hi[k] == pytest.approx(cap, rel=1e-9)
 
 
 # ----------------------------------------------------------------------
@@ -564,8 +563,8 @@ def test_the_size_caps_scherrer_k_is_the_one_in_caglioti():
     ``tests/CLAUDE.md`` § Guards that go quiet describes — it cannot fail — so
     the coupling is a pin instead, and it is on the whole inlined expression
     rather than only on the constant: retuning ``SCHERRER_K``, or drifting the
-    algebra, fails here.  Same idiom as ``schemas.structure._SOFTPLUS_FLOOR``
-    against ``params.transforms._SOFTPLUS_MIN``.
+    algebra, fails here.  Same idiom as the two ``_ZERO_BOUND`` copies in
+    ``schemas.structure`` and ``schemas.instrument``.
 
     Bit-identity, not approximate agreement: both sides are
     ``math.degrees(k·λ/L)`` with the same association, so anything looser would

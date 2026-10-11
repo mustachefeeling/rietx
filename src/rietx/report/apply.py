@@ -167,7 +167,7 @@ def stage_for(action: SuggestedAction, *, prefix: str = "apply",
     The name carries the kind (``apply:refine_cell``) so the history log reads as
     what happened rather than as an anonymous stage, and ``turn_on`` is the
     action's own globs verbatim.  No seeds: a suggestion never proposes a
-    softplus-floored or Stephens block — those arrive through a plan, whose
+    floored width or a Stephens block — those arrive through a plan, whose
     stages carry the seeds the pathologies need.
     """
     if recipe(action.kind).how != "stage":

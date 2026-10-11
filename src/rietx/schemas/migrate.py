@@ -6,6 +6,12 @@ applied: a renamed dot-path, repaired on the document *text*
 release dropped from a caller's own ``Parameter``, repaired on the parsed
 models (:func:`restore_declared_ranges`, :data:`DECLARED_RANGE_READ_POINTS`).
 
+A vanished *field* is neither: no dot-path names it, so it is folded or
+dropped by a ``mode="before"`` validator on the schema that lost it, which
+every read point already crosses.  ``Parameter.transform`` (schema 0.46,
+``Parameter._fold_transform``) and ``StageResult.floor_unseeded`` are the
+current two.
+
 **The rename is textual on purpose.**  A dot-path is not confined to
 one schema field: it is a value in a history node's ``free_paths``, a glob in a
 saved plan's ``turn_on``, a key in a tie table, a row label in an ``.rxt``.
@@ -160,8 +166,8 @@ def declared_range_repairs(model: Base, written: str, prefix: str = "") -> list[
     **The defect** (issue #204, the read half #209): until a class inherited
     (:class:`~rietx.schemas.common._InheritsDeclaredDefaults`, from its
     ``_declared_since``), a caller's ``Parameter(value=..., vary=...)`` for a
-    field that declares a range got ``(-inf, inf)``, no unit and ``identity``,
-    and ``model_dump`` wrote those out explicitly.  So such a document reloads
+    field that declares a range got ``(-inf, inf)`` and no unit, and
+    ``model_dump`` wrote those out explicitly.  So such a document reloads
     with every key present, inherits nothing at construction, and refines
     unbounded again.  Fixed at construction for ``Atom`` by PR #206, for every
     other class by WP-1321; this is what reaches the documents already written.
@@ -260,7 +266,7 @@ def restore_declared_ranges(found: dict[str, list[tuple[str, dict]]],
         for _, c in places:
             # min before max is always legal: the old pair held the value and
             # the new pair does, so [new min, old max] holds it on the way
-            for attr in ("min", "max", "unit", "transform"):
+            for attr in ("min", "max", "unit"):
                 if attr in c["fills"]:
                     setattr(c["param"], attr, c["fills"][attr])
         notes.append(_restored_note(first, document, ids))
@@ -270,8 +276,6 @@ def restore_declared_ranges(found: dict[str, list[tuple[str, dict]]],
 def _describe(attrs: dict) -> str:
     text = f"[{attrs['min']}, {attrs['max']}]"
     text += f" {attrs['unit']}" if attrs["unit"] else ", no unit"
-    if attrs["transform"] != "identity":
-        text += f", {attrs['transform']}"
     return text
 
 
@@ -292,7 +296,7 @@ def _where(candidate: dict) -> str:
 
 def _restored_note(candidate: dict, document: str, ids: list[str]) -> Diagnostic:
     before, after = candidate["before"], candidate["after"]
-    bound = any(before[a] != after[a] for a in ("min", "max", "transform"))
+    bound = any(before[a] != after[a] for a in ("min", "max"))
     return Diagnostic(
         level="warning" if bound else "info",
         code="DECLARED_RANGE_RESTORED",

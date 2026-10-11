@@ -59,6 +59,7 @@ from .model.forward import (
 from .model.geometry import cell_volumes, geometry_table
 from .model.microstructure import microstructure_table
 from .model.profiles.caglioti import (
+    _MIN_GAMMA_G2,
     SCHERRER_K,
     apparent_size_from_size_coefficient,
     gaussian_fwhm,
@@ -68,6 +69,7 @@ from .model.restraints import summarise_restraints
 from .model.rows import layout as row_layout
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import (
+    DEFAULT_SOLVER,
     SOLVERS,
     _jacobian_for,
     _longest_line_wavelength,
@@ -363,12 +365,10 @@ class _StageHold:
     #: for ``blocked_by_hold``'s reason: decided before the solve, unchanged
     #: by it, and delivered to the two ``StageResult`` call sites this way
     unknown_paths: list[str] = dataclasses.field(default_factory=list)
-    #: ``StageResult.seeded`` and ``.floor_unseeded`` (WP-1930), riding here
-    #: for the same reason: decided before the solve, and unrecoverable after
-    #: it, when the seeded row has moved and the unseeded one may have left
-    #: its floor.
+    #: ``StageResult.seeded`` (WP-1930), riding here for the same reason:
+    #: decided before the solve, and unrecoverable after it, when the seeded
+    #: row has moved.
     seeded: dict[str, float] = dataclasses.field(default_factory=dict)
-    floor_unseeded: list[str] = dataclasses.field(default_factory=list)
     #: ``(path, escaped_value, clamped_value)`` for every free cell parameter
     #: ``clamp_cell_runaway`` pulled back this stage — empty on every stage
     #: that never leaves the safety window, which is every stage measured so
@@ -1785,7 +1785,7 @@ class Refinement:
     """
 
     def __init__(self, structure: Structure, instrument: Instrument, *,
-                 backend: str = "numpy", solver: str = "trf",
+                 backend: str = "numpy", solver: str = DEFAULT_SOLVER,
                  history: bool | str | Path | RefinementTree = True):
         if backend != "numpy":
             # fail fast (with the install hint) instead of at the first stage;
@@ -2323,7 +2323,6 @@ class Refinement:
         for e in table.entries:
             rows.append(ParameterRow(
                 path=e.path, value=e.value, vary=e.vary, lo=e.lo, hi=e.hi,
-                transform=e.transform,
                 tie=(TieSpec._from_tie(e.tie, user=e.path in self._applied_ties)
                      if e.tie is not None else None),
                 locked=e.locked,
@@ -2476,14 +2475,13 @@ class Refinement:
         from :attr:`_variables`, which is why that dict is the one authority for
         what a variable *is* and why ``snapshot`` has to carry it.
 
-        Bounds and transform come straight off the caller's ``Parameter``, which
-        is what makes a variable and the model parameter it replaces produce the
+        Bounds come straight off the caller's ``Parameter``, which is what
+        makes a variable and the model parameter it replaces produce the
         identical :class:`~rietx.params.vector.Entry`.
         """
         for name, prm in self._variables.items():
             table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
-                                lo=prm.min, hi=prm.max, transform=prm.transform,
-                                unit=prm.unit)
+                                lo=prm.min, hi=prm.max, unit=prm.unit)
 
     def _write_back(self, table: ParameterTable) -> None:
         """``apply_to_models``, plus the one thing it structurally cannot do.
@@ -2665,7 +2663,6 @@ class Refinement:
 
     def add_variable(self, name: str, value: float, *, vary: bool = False,
                      min: float = -math.inf, max: float = math.inf,
-                     transform: str = "identity",
                      unit: str | None = None) -> str:
         """Declare a named variable other parameters can follow.  Returns its path.
 
@@ -2684,14 +2681,13 @@ class Refinement:
         there on: :meth:`parameters` lists it, :meth:`set_vary` globs it,
         :meth:`set_values` moves it, and a fit refines it and gives it an esd.
 
-        ``min``/``max``/``transform`` are the declaration that matters.  A
-        variable is a :class:`~rietx.schemas.common.Parameter`, and the table
-        reads an entry's bounds and transform straight off one — so a variable
-        declared like the model parameter it replaces is **indistinguishable**
-        to the fit, which is the property that makes this a renaming rather
-        than a new degree of freedom.  Declared unlike it, it is a different
-        problem: a softplus parameter given the default identity transform is
-        no longer kept off its own floor.
+        ``min``/``max`` are the declaration that matters.  A variable is a
+        :class:`~rietx.schemas.common.Parameter`, and the table reads an
+        entry's bounds straight off one — so a variable declared like the model
+        parameter it replaces is **indistinguishable** to the fit, which is the
+        property that makes this a renaming rather than a new degree of
+        freedom.  Declared unlike it, it is a different problem: a width
+        whose variable leaves out ``min=0.0`` may refine below zero.
 
         Refuses a name that is not a single identifier, one that would collide
         with an existing entry, and a redeclaration — :meth:`remove_variable`
@@ -2706,15 +2702,14 @@ class Refinement:
             raise ValueError(
                 f"variable {name!r} already exists; remove_variable({name!r}) "
                 "first, so the history records that the old one ended")
-        prm = Parameter(value=value, vary=vary, min=min, max=max,
-                        transform=transform, unit=unit)
+        prm = Parameter(value=value, vary=vary, min=min, max=max, unit=unit)
         path = f"{VAR_PREFIX}{name}"
         # the table is the authority on collisions: add_parameter raises on a
         # path that already exists, and probing one here means the refusal
         # happens before the register is touched
         self._working_table().add_parameter(
             path, prm.value, vary=prm.vary, lo=prm.min, hi=prm.max,
-            transform=prm.transform, unit=prm.unit)
+            unit=prm.unit)
         self._variables[name] = prm
         if prm.vary and (self._free_paths or self._free_set_declared):
             # ``_free_paths`` is the *declared* free set, and once a stage has
@@ -3245,9 +3240,11 @@ class Refinement:
         (*considering* freeing is not a refinement move), and
         ``result_``/working state are untouched.
 
-        Candidates sitting on a transform floor are probed from their
-        family's stage seed (``seeded=True``, ``seed_value`` says from
-        where), and the seeds live in a **second** build whose only
+        Surface roughness on its floor and a Stephens block at S ≡ 0 are
+        probed from their stage's seed (``seeded=True``, ``seed_value`` says
+        from where).  A width on its floor is probed where it is, from its
+        physical column (``strategy.suggest`` has the measurement).  The
+        seeds live in a **second** build whose only
         contribution is those candidates' columns: the residual, the free
         block and every live column come from the unseeded current state.
         Measured on the layers suite's truth fixture, seeding the shared
@@ -3265,10 +3262,8 @@ class Refinement:
         ``action_kind`` (an instrument width, an atom DOF) is an expected
         disagreement, not an inconsistency.
         """
-        from .params.transforms import dphys_dinternal
         from .strategy.suggest import (
             SUGGEST_SEED_ROUGHNESS,
-            SUGGEST_SEED_SOFTPLUS,
             SUGGEST_SEED_STEPHENS,
             Candidate,
             build_suggestion,
@@ -3304,7 +3299,7 @@ class Refinement:
         blocks = [()]
 
         def probe():
-            """Compile the table's state on model copies; return (jac, resid, x0)."""
+            """Compile the table's state on model copies; return (jac, resid)."""
             structure = self.structure.model_copy(deep=True)
             instrument = self.instrument.model_copy(deep=True)
             table.apply_to_models(structure, instrument)
@@ -3335,45 +3330,42 @@ class Refinement:
             n_data[0] = len(model.tt)
             blocks[0] = row_layout(model)
             return (_jacobian_for(model, table, self._backend)(x0),
-                    _make_residual(model, table)(x0), x0)
+                    _make_residual(model, table)(x0))
 
         # build 1 — the honest current state: residual, free block, and every
         # candidate column whose physical derivative is quotable there
-        jac, resid, x0 = probe()
+        jac, resid = probe()
         blocks_now = blocks[0]
         fp = table.free_paths
 
-        # build 2 — floor candidates only.  A softplus column at its floor is
-        # fp noise (dp/du ≈ 1e-12 puts the chain's perturbation below the
-        # model's own rounding), a Stephens block at S ≡ 0 has √'s unbounded
-        # slope, and Suortti roughness at b = 0 is the identity with a column
-        # of exact zeros — so those columns (and only those) are taken from
-        # the seeded state a stage would actually start such a solve at.
+        # build 2 — two kinds of floor candidate only.  A Stephens block at
+        # S ≡ 0 (√'s unbounded slope) and Suortti roughness at b = 0 (the
+        # identity) are scored from the seeded state a stage would start such
+        # a solve at, so those columns (and only those) come from build 2.
+        # A width on its floor stays in build 1.  Its column there is the
+        # physical one (WP-1938), and probed from a 1e-3 seed it led the list
+        # with gains no refit realised (``strategy.suggest`` has the numbers).
         seeded: dict[str, float] = {}
         rough = [p for p in cand_paths
                  if p.startswith("instrument.geometry.surface_roughness.")]
-        for p in table.seed_softplus(rough, SUGGEST_SEED_ROUGHNESS):
+        for p in table.seed_floored(rough, SUGGEST_SEED_ROUGHNESS):
             seeded[p] = SUGGEST_SEED_ROUGHNESS
-        for p in table.seed_softplus(cand_paths, SUGGEST_SEED_SOFTPLUS):
-            seeded[p] = SUGGEST_SEED_SOFTPLUS
         strain = [p for p in cand_paths if ".microstrain.dof." in p]
         entries = {e.path: e for e in table.entries}
         for p in table.seed_stephens(strain, SUGGEST_SEED_STEPHENS):
             seeded[p] = entries[p].value
         if seeded:
-            jac2, _, x2 = probe()
+            jac2, _ = probe()
             for i, p in enumerate(fp):
                 if p in seeded:
                     _copy_seeded_column(jac, jac2, i, blocks_now, blocks[0], p)
-                    x0[i] = x2[i]  # dp/du is the seeded point's too
         free_idx = [i for i, p in enumerate(fp) if p in free_before]
         # in Pawley mode the intensity block co-refines with anything, so it
         # belongs to the free block, not to the candidates
         free_idx += list(range(len(fp), jac.shape[1]))
         candidates = [
-            Candidate(path=p, index=i,
-                      dp_du=dphys_dinternal(float(x0[i]), entries[p].transform),
-                      seeded=p in seeded, seed_value=seeded.get(p))
+            Candidate(path=p, index=i, seeded=p in seeded,
+                      seed_value=seeded.get(p))
             for i, p in enumerate(fp) if p not in free_before]
         chi2_red = float(resid @ resid) / max(len(resid) - len(free_idx), 1)
         actions = () if report is None else getattr(
@@ -3426,7 +3418,7 @@ class Refinement:
 
     @classmethod
     def from_node(cls, tree: RefinementTree, node_id: str, *,
-                  backend: str = "numpy", solver: str = "trf") -> "Refinement":
+                  backend: str = "numpy", solver: str = DEFAULT_SOLVER) -> "Refinement":
         """Open a refinement positioned at an existing checkpoint."""
         node = tree[node_id]
         with _refined_state():
@@ -3572,7 +3564,7 @@ class Refinement:
 
         A stage writes to ``self.structure``/``self.instrument`` *before*
         solving — the between-stage recompile needs the freed values in the
-        models, and a seeding stage (extinction's softplus lift, the Stephens
+        models, and a seeding stage (extinction's floor lift, the Stephens
         isotropic ray) changes them.  Without restoring, a cancelled stage would
         leave that seed behind: half a stage, and exactly the kind of state
         nobody would think to look for.  The parameter table and the history
@@ -3661,18 +3653,14 @@ class Refinement:
                     freed.remove(path)
         seeded: dict[str, float] = {}
         if stage.seed:
-            # lift softplus coefficients (e.g. extinction) off the zero floor
-            # so TRF has a live gradient this stage
-            seeded = dict.fromkeys(table.seed_softplus(freed, stage.seed),
+            # start a freed row sitting on its floor where the plan says:
+            # roughness at b = 0 is the identity, and its stage starts b in
+            # the band the data can see (WP-1938)
+            seeded = dict.fromkeys(table.seed_floored(freed, stage.seed),
                                    stage.seed)
-        # and any freed row still on its floor, at its unit's size (WP-1930):
-        # there the row's column is 1e-12 of its neighbours and whether the
-        # solver lifts it is decided by rounding
-        floor_seeded, floor_unseeded = table.seed_floor(freed)
-        seeded.update(floor_seeded)
         if stage.strain_seed:
-            # the Stephens DOFs are identity-transform, so the softplus seed
-            # above never sees them; put an all-zero block on the isotropic ray
+            # the Stephens DOFs are unbounded below, so the seed above never
+            # sees them; put an all-zero block on the isotropic ray
             table.seed_stephens(freed, stage.strain_seed)
 
         # regenerate reflection list/windows/FCJ nodes with current values
@@ -3814,10 +3802,9 @@ class Refinement:
             # stage's own lebail/guard/event uses, and ``_build_result`` at
             # the end of ``fit()``) would silently see the pre-clamp cell
             # while ``RefinedParameter.value`` (read off these same entries)
-            # reports the clamped one.  ``table.x0()`` is the encoder inverse
-            # of ``decode`` over the free columns (round-trips through the
-            # same ``to_internal``/``to_physical`` pair `decode` uses), so
-            # re-deriving it here is a re-encoding of the committed table,
+            # reports the clamped one.  ``table.x0()`` reads the free columns
+            # off the committed entries, the inverse of ``decode`` over them,
+            # so re-deriving it here is a re-encoding of the committed table,
             # not a second source of truth.
             outcome = dataclasses.replace(outcome, theta=table.x0())
 
@@ -4003,7 +3990,11 @@ class Refinement:
                 second, cost_initial=outcome.cost_initial,
                 n_iterations=outcome.n_iterations + second.n_iterations,
                 n_constraint_truncations=(outcome.n_constraint_truncations
-                                          + second.n_constraint_truncations))
+                                          + second.n_constraint_truncations),
+                truncated_by={k: (outcome.truncated_by.get(k, 0)
+                                  + second.truncated_by.get(k, 0))
+                              for k in {**outcome.truncated_by,
+                                        **second.truncated_by}})
             # the significance the result will quote.  A phase the support
             # hold still holds keeps the reading its hold was decided on, so
             # the hold and PHASE_UNCONSTRAINED cannot disagree; every other
@@ -4058,7 +4049,7 @@ class Refinement:
             reach={c: list(v) for c, v in held_reach.items()},
             scale_b_held=dict(scale_b_held),
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
-            seeded=seeded, floor_unseeded=floor_unseeded,
+            seeded=seeded,
             cell_runaway=list(cell_runaway),
             cell_runaway_unresolved=[(d, list(e)) for d, e in cell_runaway_unresolved],
             # Le Bail and Pawley read the screen alone, which the result
@@ -4427,7 +4418,6 @@ class Refinement:
             diagnostics.extend(_hold_diagnostics(stage_results))
             diagnostics.extend(_unknown_path_diagnostics(
                 stage_results, [e.path for e in table.entries]))
-            diagnostics.extend(_floor_unseeded_diagnostics(stage_results))
 
             self.result_ = _build_result(
                 model, table, outcome.theta, mode=mode, status=outcome.status,
@@ -4622,7 +4612,7 @@ class Refinement:
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths,
-                seeded=hold.seeded, floor_unseeded=hold.floor_unseeded,
+                seeded=hold.seeded,
                 # checked, trivially: one histogram has no elsewhere
                 unreached_histograms={},
             ))
@@ -4875,14 +4865,13 @@ class Refinement:
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths, unreached_histograms={},
-                seeded=hold.seeded, floor_unseeded=hold.floor_unseeded)
+                seeded=hold.seeded)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
             diagnostics.extend(_hold_diagnostics([stage_result]))
             diagnostics.extend(_unknown_path_diagnostics(
                 [stage_result], [e.path for e in table.entries]))
-            diagnostics.extend(_floor_unseeded_diagnostics([stage_result]))
 
             # before the node is recorded, which is where `_run_plan` writes it
             # too; the two call sites must not disagree about when a stage's
@@ -5399,6 +5388,31 @@ _REVISABLE_CODES = ("BOUND_HIT", "RESOLUTION_NOT_POSITIVE",
                     "COVARIANCE_DIRECTION_DISCARDED")
 
 
+#: ``BOUND_HIT``'s advice when the limit that carried load is a lower bound of
+#: exactly 0 (WP-1938).  A scale or a width cannot go negative, so "widen the
+#: bound" is wrong there.  A caller's ``min=0`` on a displacement parameter
+#: reaches this too: the 11-BM NAC acceptance fit declares one, and its Biso
+#: stops there.  So the reasons name what a negative B stands in for
+#: (``BISO_NEGATIVE``'s list) beside the scale's and the width's.
+_ZERO_FLOOR_SUGGESTION = (
+    "the data push this parameter below zero, where it cannot go. The usual "
+    "reasons are a phase or term the data do not support, a width the "
+    "instrument already supplies, or, for a displacement parameter, "
+    "absorption or a wrong species or occupancy. Fix it at 0")
+
+
+def _at_zero_floor(limit: tuple[str, float] | None) -> bool:
+    """Whether a ``BOUND_HIT`` limit is a floor no wider bound can lower.
+
+    A lower limit of exactly 0, and Caglioti W's floor at the Γ_G² clamp
+    (``caglioti._MIN_GAMMA_G2``, WP-1938 D7): ``ProfileTCHZ`` raises any W
+    bound under the clamp back to it, so "widen the bound" cannot be acted on
+    there either.
+    """
+    return (limit is not None and limit[0] == "lower"
+            and 0.0 <= limit[1] <= _MIN_GAMMA_G2)
+
+
 def _guard_diagnostics(guard) -> list[Diagnostic]:
     """Guard findings as diagnostics — one prose message per :class:`GuardFinding`.
 
@@ -5423,7 +5437,11 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
             level="warning", code="BOUND_HIT", where=list(finding.paths),
             value=finding.value,
             message=f"{path} refined to its bound{finding.detail}",
-            suggestion="widen the bound or fix the parameter",
+            # a lower limit of 0, or W's clamp, is a scale or width, which no
+            # wider bound can help (WP-1938); WP-1929 owns a floor's own code
+            suggestion=(_ZERO_FLOOR_SUGGESTION
+                        if _at_zero_floor(finding.limit)
+                        else "widen the bound or fix the parameter"),
         ))
     for finding in guard.nonpositive_adps:
         msg = str(finding)
@@ -5842,8 +5860,8 @@ def _constraint_diagnostics(stage_name: str, outcome) -> list[Diagnostic]:
     """`CONSTRAINT_ACTIVE` when the answer-producing stage pressed a constraint.
 
     Only the stage whose θ becomes the result is examined: earlier stages'
-    counts are on their :class:`StageResult` rows, but a truncation there
-    shaped an intermediate state, not the reported values.  ``info`` rather
+    counts are on their :class:`StageResult` rows, but a constrained step
+    there shaped an intermediate state, not the reported values.  ``info`` rather
     than ``warning`` — landing on the cone face is what the constrained driver
     is *for* (the admissible optimum), but an agent must know the constraint
     was active rather than merely declared, because an active face means the
@@ -5853,16 +5871,31 @@ def _constraint_diagnostics(stage_name: str, outcome) -> list[Diagnostic]:
     n = getattr(outcome, "n_constraint_truncations", 0)
     if not n:
         return []
+    # which block bound each step, by its label (WP-1938 D7): the Stephens
+    # cone's end in ``.microstrain``, the Γ_G² floor's start with
+    # ``instrument.profile``
+    by = getattr(outcome, "truncated_by", None) or {}
+    which = "; ".join(f"{label}: {k}" for label, k in sorted(by.items()))
+    suggestion = ("the constrained values are admissible, not measured: vary "
+                  "the starting seed and quote them only if they survive")
+    if any(label.endswith(".microstrain") for label in by):
+        suggestion += ("; for the Stephens strain cone the "
+                       "STEPHENS_STRAIN_NOT_POSITIVE protocol row applies even "
+                       "though that guard is silent while the default LM "
+                       "driver holds the cone")
+    if any(label.startswith("instrument.profile") for label in by):
+        suggestion += ("; for the Γ_G² floor (1e-8 deg², Γ_G = 1e-4°) the data "
+                       "asked for no Gaussian width at some reflection, so U, V, "
+                       "W and the phase's Gaussian size and strain describe that "
+                       "floor rather than a measured resolution")
     return [Diagnostic(
         level="info", code="CONSTRAINT_ACTIVE",
-        message=(f"the bounded-LM driver shortened {n} step(s) against a linear "
-                 f"inequality constraint (the Stephens strain positivity cone) "
-                 f"in stage {stage_name!r} — the optimum sits on or near a "
+        message=(f"the bounded-LM driver held {n} step(s) on a linear "
+                 f"inequality constraint"
+                 + (f" ({which})" if which else "")
+                 + f" in stage {stage_name!r} — the optimum sits on or near a "
                  "constraint face"),
-        suggestion="the constrained coefficients are admissible, not measured: "
-                   "vary the starting seed and quote them only if they survive "
-                   "(the STEPHENS_STRAIN_NOT_POSITIVE protocol row applies even "
-                   "though that guard is silent under solver='lm')",
+        suggestion=suggestion,
     )]
 
 
@@ -6161,37 +6194,6 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
                         f"it ({listing} lists every path this model "
                         "has), or write a glob if the stage is meant to reach "
                         "a component some models do not declare"),
-        ))
-    return out
-
-
-def _floor_unseeded_diagnostics(stage_results: list[StageResult]
-                                ) -> list[Diagnostic]:
-    """``SOFTPLUS_FREED_AT_FLOOR`` — a stage freed a row it could not seed.
-
-    The floor seed (``ParameterTable.seed_floor``, WP-1930) lifts a freed
-    softplus row off its floor by its unit, and a unit with no size is left
-    where it is.  There the row's column is twelve orders below its
-    neighbours, so whether the solver moves it is decided by rounding, and two
-    platforms can reach two minima (issue #832).  One diagnostic per path,
-    naming the stages, for :func:`_unknown_path_diagnostics`' reason.
-    """
-    by_path: dict[str, list[str]] = {}
-    for sr in stage_results:
-        for path in sr.floor_unseeded or ():
-            by_path.setdefault(path, []).append(sr.name)
-    out = []
-    for path, stages in by_path.items():
-        which = _stage_list(stages)
-        out.append(Diagnostic(
-            level="warning", code="SOFTPLUS_FREED_AT_FLOOR",
-            message=(f"{which} freed {path} on its softplus floor, where its "
-                     "gradient is 1e-12 of its neighbours', so whether it "
-                     "moved off zero is decided by rounding"),
-            where=[path],
-            suggestion=("start it inside its floor: give the parameter a "
-                        "positive value before the fit, or give the stage a "
-                        "seed (Stage(..., seed=...)) of a size it can reach"),
         ))
     return out
 
@@ -6546,7 +6548,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
                   stderr_internal=None, correlation=None,
-                  backend: str = "numpy", solver: str = "trf",
+                  backend: str = "numpy", solver: str = DEFAULT_SOLVER,
                   mu_r_source: str = "given",
                   mu_r_skipped: str | None = None,
                   guard=None,
@@ -6570,10 +6572,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # at_bound is the BOUND_HIT findings projected onto the rows, never a
     # second bound test (WP-1076).  Only the free set was tested, so a tied
     # row — in `parameters`, absent from the free vector — reports None, and
-    # so does every row when no guard ran at all (`replay`), and a free row
-    # sitting on its transform's asymptote (`bound_untested`, WP-1463).
-    tested = (set(table.free_paths) - set(guard.bound_untested)
-              if guard is not None else set())
+    # so does every row when no guard ran at all (`replay`).  A free row on
+    # a floor of 0 is tested like any other bound (WP-1938).
+    tested = set(table.free_paths) if guard is not None else set()
     on_bound = {p for f in guard.at_bounds for p in f.paths} if guard is not None else set()
     # A CELL_RUNAWAY finding's own message says the named cell's value is
     # "not a measurement", so its esd is withheld while the row stays (it is
@@ -7023,7 +7024,8 @@ def _copy_seeded_column(jac: np.ndarray, jac2: np.ndarray, i: int,
     build into the current state's Jacobian, one row block at a time.
 
     The two builds share the data rows but not always every penalty block:
-    a seeded width decides which Pawley reflections count as overlapped, so
+    a seeded Stephens block decides which Pawley reflections count as
+    overlapped (a width did too, until WP-1938 stopped seeding one), so
     the equal-split restraint block can differ in length and a whole-column
     copy dies in a numpy broadcast (#244).  A block of equal length is
     copied; one whose length differs keeps the current state's rows, which
@@ -7848,11 +7850,9 @@ def _extra_peak_diagnostics(model: CompiledModel, values: dict,
         lo = entry.lo if entry is not None else 0.0
         # ``BOUND_HIT_RTOL`` is scipy's own test, imported rather than
         # restated so this and ``BOUND_HIT`` cannot drift apart on what
-        # counts as *at* a limit.  The ``<= 0`` clause beside it
-        # is not a second test of the same thing: softplus underflows to
-        # *exactly* zero well before the internal coordinate reaches any
-        # bound, so an area can be off at its identity without ever being
-        # "at" a bound in scipy's sense.
+        # counts as *at* a limit.  The ``<= 0`` clause beside it covers an
+        # area whose stated lower bound is below zero, which is off at its
+        # identity without being "at" that bound.
         at_zero = (area <= 0.0
                    or (np.isfinite(lo)
                        and abs(area - lo) <= BOUND_HIT_RTOL * max(1.0, abs(lo))))
@@ -8272,7 +8272,7 @@ def _air_scatter_undeclared_diagnostics(model: CompiledModel,
             "humped or line-dense pattern"),
         suggestion=(
             "declare the term and refit: instrument.background.air_scatter = "
-            "Parameter(value=1e-3, min=0.0, transform=\"softplus\"); if the "
+            "Parameter(value=1e-3, min=0.0); if the "
             "rise is not air scatter, raise the pattern's lower limit instead"),
         value=fraction,
     )]
@@ -8303,10 +8303,11 @@ def _quantify_phases(table: ParameterTable, theta: np.ndarray,
     parameters, and a plan freeing only the scale gives it nothing to say
     (WP-1463 measured it silent at S = 0.0).
 
-    Since WP-1463 a scale is blind only where its column is exactly zero.  A
-    tiny scale (the absent phase at 1e-170) now has the esd it had at 1e-135.
-    The zero column that remains is a softplus scale at S = 0.0, whose slope
-    dS/du has underflowed, or a phase with no gradient at any scale.
+    Since WP-1463 a scale is blind only where its column is exactly zero.
+    Since WP-1938 a scale is refined in its own units, so its column is the
+    phase's pattern at any value, and an absent phase's scale at 0.0 keeps
+    its esd.  The zero column that remains is a phase with no gradient at any
+    scale, such as one whose sites are all empty.
     """
     scale_paths = [f"phases.{ip}.scale" for ip in range(len(structure.phases))]
     scale_cov = None
@@ -9204,8 +9205,7 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
         # unknown parameter".  Declared *before* the ties, exactly as
         # ``_prepare_table`` does it.
         table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
-                            lo=prm.min, hi=prm.max, transform=prm.transform,
-                            unit=prm.unit)
+                            lo=prm.min, hi=prm.max, unit=prm.unit)
     table.set_vary(["*"], False)
     applied_ties: dict = {}
     dropped: list[str] = []
@@ -9301,7 +9301,7 @@ def estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None:
 def refine(data: PatternData, structure: Structure, instrument: Instrument,
            *, mode: Mode = "rietveld", plan: RefinementPlan | str = "mccusker_default",
            two_theta_limits: tuple[float, float] | None = None,
-           backend: str = "numpy", solver: str = "trf",
+           backend: str = "numpy", solver: str = DEFAULT_SOLVER,
            history: bool | str | Path | RefinementTree = False,
            events=None, cancel=None, telemetry=None,
            label: str | None = None) -> RefinementResult:

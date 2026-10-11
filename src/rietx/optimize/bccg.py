@@ -138,7 +138,7 @@ def solve(A: np.ndarray, b: np.ndarray, *,
 
     The diagonal pre-conditioner (A_ii = 1) is applied here rather than by the
     caller: a zero diagonal entry (a parameter with an identically zero
-    Jacobian column — a dead softplus gradient, a locked direction) would divide
+    Jacobian column — a dead gradient, a locked direction) would divide
     by zero, so those entries keep scale 1 and, with b_i = 0, simply never move.
 
     ``tol`` and ``k_max_rule`` expose the two published stopping rules so a test

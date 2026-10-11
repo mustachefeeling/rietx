@@ -1,22 +1,17 @@
 """The traced residual — written once, for every autodiff backend.
 
 ``ParameterTable.decode`` and ``optimize.least_squares._make_residual`` are the
-numpy reference, and neither is traceable: ``decode`` runs
-``to_physical(float(t))`` per element, and the ``float()`` coercions collapse a
-tracer to a constant.  So an autodiff backend needs a *twin* of each — and
-until this module existed, jax and torch each carried their own copy of both.
+numpy reference, and neither is traceable: ``decode`` returns python floats, and
+a ``float()`` coercion collapses a tracer to a constant.  So an autodiff backend
+needs a *twin* of each — and until this module existed, jax and torch each
+carried their own copy of both.
 
 Two copies of a pure function is two chances to drift, and WP-0408 measured the
 cost of that: when WP-0406's soft-restraint rows landed, they had to be added to
 the torch twin by hand, after the fact, because nothing structural tied the
-copies together.  Here the twin is written once and parameterised by ``xp``:
-
-* the **transform application** goes through ``xp.logaddexp`` / ``xp.exp`` /
-  ``xp.sigmoid``, which every backend provides in its overflow-safe form, so
-  the traced decode reproduces ``params.transforms.to_physical`` rather than
-  approximating it;
-* the **row layout** is not written here at all — :mod:`rietx.model.rows`
-  owns it, and the numpy reference builds from the same assembler.
+copies together.  Here the twin is written once and parameterised by ``xp``,
+and the **row layout** is not written here at all — :mod:`rietx.model.rows`
+owns it, and the numpy reference builds from the same assembler.
 
 A new backend therefore inherits both for free, and
 ``tests/test_backend_conformance.py`` holds every registered backend to the
@@ -79,40 +74,21 @@ def active(xp):
 def make_traced_decode(table, xp):
     """Traceable twin of :meth:`ParameterTable.decode` (θ → value dict).
 
-    Builds the same map from frozen constants: elementwise transform
-    application (grouped by kind into *static* masks) followed by the dense
-    constant matmul p = C·θ_phys + d.  Values come back as 0-d traced scalars
-    keyed by dot-path — exactly the dict shape the forward model consumes.
-
-    The masks are static python/numpy booleans, and both branches of every
-    ``where`` are smooth everywhere, so the discarded branch cannot poison the
-    selected tangent (a NaN or an inf there would propagate through the
-    derivative even where it is not selected).
+    Builds the same map from frozen constants: the dense constant matmul
+    p = C·θ + d, every column being in its parameter's own units (WP-1938).
+    Values come back as 0-d traced scalars keyed by dot-path — exactly the
+    dict shape the forward model consumes.
     """
     C, d = table.constraint_block()
     # kept as host fp64 and lifted *inside* the call — see the module docstring
     C_host = np.asarray(C.toarray(), dtype=np.float64)
     d_host = np.asarray(d, dtype=np.float64)
     paths = [e.path for e in table.entries]
-    transforms = [table.entries[i].transform for i in table._free_idx]
-    masks = {kind: np.array([t == kind for t in transforms])
-             for kind in set(transforms) if kind != "identity"}
-    apply = {"softplus": lambda u: xp.logaddexp(xp.zeros_like(u), u),
-             "exp": xp.exp,
-             "logit": xp.sigmoid}
-    unknown = set(masks) - set(apply)
-    if unknown:   # a new transform kind must land here as well as in transforms.py
-        raise NotImplementedError(
-            f"traced decode has no rule for transform kind(s) {sorted(unknown)}; "
-            "add it here and to params.transforms.to_physical together")
 
     blocks = list(getattr(table, "derived", []))
 
     def decode(theta):
-        p = theta
-        for kind, mask in masks.items():
-            p = xp.where(mask, apply[kind](theta), p)
-        full = xp.matmul(xp.asarray(C_host), p) + xp.asarray(d_host)
+        full = xp.matmul(xp.asarray(C_host), theta) + xp.asarray(d_host)
         # scalarize: these 0-d values come from *indexing*, not from an op, so
         # a backend's own result guard has not seen them (identity everywhere
         # except torch-MPS — see backend.api.scalar_tensor_class)

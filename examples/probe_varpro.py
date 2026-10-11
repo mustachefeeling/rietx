@@ -158,8 +158,8 @@ class Profiler:
     def _check_linearity(self) -> None:
         """The linear columns must really be linear, and really unbounded.
 
-        A softplus entry, a finite bound or a tie would each make the inner
-        solve a different problem than the one being reported, silently.  The
+        A finite bound or a tie would each make the inner solve a different
+        problem than the one being reported, silently.  The
         tie check is empirical — perturb the column and read the decode — so
         it holds whatever the constraint machinery does internally.
         """
@@ -179,8 +179,8 @@ class Profiler:
                      if abs(after[p] - before[p]) > 1e-12}
             if set(moved) != {path} or abs(moved[path] - 1.0) > 1e-12:
                 raise Refuse(f"{path} is not an identity column of the decode "
-                             f"(moves {sorted(moved)}); a transform or a tie "
-                             "makes the background nonlinear in θ")
+                             f"(moves {sorted(moved)}); a tie makes the "
+                             "background nonlinear in θ")
 
     def _verify_assembly(self) -> None:
         """The hand-assembled profiled residual *is* the package residual.
@@ -381,8 +381,8 @@ def trust_radius_ratio(prof: Profiler) -> float:
 
     scipy's TRF sets its initial radius from ‖x0 / x_scale‖, and with the
     default ``x_scale=1.0`` that is just ‖x0‖.  Background coefficients are
-    counts — order 10²-10³ — while everything else is a cell edge, an angle
-    or a softplus internal of order 1, so the linear block carries nearly the
+    counts — order 10²-10³ — while everything else is a cell edge, an angle,
+    a width or a scale of order 1 or below, so the linear block carries nearly the
     whole norm and removing it shrinks the starting radius by this factor.
     Not a fact about variable projection; a fact about the globaliser it has
     to be driven with, and the reason a measured count can land *below* the

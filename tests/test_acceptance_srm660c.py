@@ -77,8 +77,9 @@ def build_srm_inputs():
     # test_acceptance_dispersion.py measures its ON arm against, so the
     # setting has to be stated here rather than inherited — the whole value of
     # that comparison is that exactly one thing differs between the two arms.
-    # Measured either way, the cell does not move (4.156895 Å); what moves is
-    # Rwp (8.661 → 8.640 %) and B(La)/B(B) (~12 % / ~22 %).
+    # Measured either way, the cell does not move (4.156895 Å on 1.7.0,
+    # 4.156882 Å since WP-1938's Γ_G² inequality); what moves is Rwp
+    # (8.661 → 8.640 % on 1.7.0) and B(La)/B(B) (~12 % / ~22 %).
     instrument.source.dispersion = None
     return data, structure, instrument
 
@@ -192,7 +193,8 @@ def test_srm660c_extinction_does_no_harm(srm660c_baseline):
     assert result.statistics.rwp < 0.10
     a = ref.fitted_structure.phases[0].cell.a.value
     assert abs(a - A_REFERENCE) < 2e-4, f"extinction biased the cell to a={a:.6f}"
-    # extinction refines back *below* its 1e-3 seed (measured ≈ 2e-10): the
-    # data actively drove it to zero rather than letting it absorb residual
+    # extinction refines back from its 1e-3 seed to exactly 0, its lower bound
+    # (≈ 2e-10 under softplus): the data drove it to zero rather than letting
+    # it absorb residual
     ext = ref.fitted_structure.phases[0].extinction.value
     assert ext < 1e-2, f"extinction refined non-negligible ({ext:.3g}) on SRM 660c"

@@ -695,9 +695,9 @@ def _sim_phase(name, sg, cell, atoms, scale, drift):
         atoms=[rx.Atom(label=lab, species=sp, x=_p(x), y=_p(y), z=_p(z),
                        biso=_p(bi, min=0.0, max=25.0))
                for lab, sp, x, y, z, bi in atoms],
-        scale=_p(scale, min=0.0, transform="softplus"),
-        lor_size=_p(0.03, min=0.0, transform="softplus"),
-        lor_strain=_p(0.0, min=0.0, transform="softplus"))
+        scale=_p(scale, min=0.0),
+        lor_size=_p(0.03, min=0.0),
+        lor_strain=_p(0.0, min=0.0))
 
 
 def _trigger_phases(drift: float = 0.0) -> list[rx.Phase]:

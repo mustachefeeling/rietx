@@ -41,6 +41,7 @@ from . import _about
 from .history.store import fingerprint
 from .history.tree import RefinementTree
 from .io.readers import identify_format, read_pattern, reader_options_for
+from .optimize.least_squares import DEFAULT_SOLVER
 from .refine import _VERSION, Refinement
 from .schemas.common import Diagnostic, Mode
 from .schemas.history import NodeAction
@@ -123,7 +124,7 @@ class Project:
                excluded_regions: list[tuple[float, float]] | None = None,
                reader_options: dict[str, Any] | None = None,
                ui: dict[str, Any] | None = None,
-               backend: str = "numpy", solver: str = "trf") -> "Project":
+               backend: str = "numpy", solver: str = DEFAULT_SOLVER) -> "Project":
         """Create a project directory around a pattern file and a model.
 
         ``pattern`` is a **path**, not a :class:`PatternData`: a project's
@@ -206,7 +207,7 @@ class Project:
 
     @classmethod
     def open(cls, path: str | Path, *, backend: str = "numpy",
-             solver: str = "trf") -> "Project":
+             solver: str = DEFAULT_SOLVER) -> "Project":
         """Open an existing project, resuming at the history head.
 
         Every binding is re-checked rather than assumed, and each failure raises

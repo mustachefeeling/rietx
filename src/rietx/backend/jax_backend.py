@@ -20,10 +20,9 @@ Design (docs/wp/0402-jax-backend.md):
   Le Bail intensity snapshot) directly; only θ is traced.  ``jit`` embeds them
   once, and one XLA executable is reused across all seed chunks (the last
   chunk is zero-padded to keep the shape).
-* **Dense-C decode.**  ``ParameterTable`` promises p = C·θ_phys + d is a
+* **Dense-C decode.**  ``ParameterTable`` promises p = C·θ + d is a
   constant affine map during a solve; the scipy.sparse C is materialised dense
-  here and the softplus/exp/logit transforms become elementwise jnp ops, so
-  ``decode`` is exact under autodiff.
+  here, so ``decode`` is exact under autodiff.
 * **Host boundary.**  The produced Jacobian is a plain fp64 numpy array in
   ``optimize.least_squares._make_jacobian``'s exact row/column layout
   ([data | background-penalty | Pawley-restraint] rows × [table θ | Pawley

@@ -29,6 +29,7 @@ from .model.components import EXTRA_TICK_KEY
 from .model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from .model.microstructure import microstructure_table
 from .optimize.least_squares import (
+    DEFAULT_SOLVER,
     SOLVERS,
     _longest_line_wavelength,
     rechart_outcome,
@@ -72,7 +73,6 @@ from .refine import (
     _extra_peak_tick_support,
     _far_from_data_diagnostics,
     _flat_moment_scan,
-    _floor_unseeded_diagnostics,
     _guard_diagnostics,
     _harmonic_diagnostics,
     _judge_magnetic_groups,
@@ -119,7 +119,6 @@ from .strategy.staged import (
     GuardReport,
     RefinementPlan,
     bound_findings,
-    bound_untested,
     check_adp_positive_definite,
     check_biso_negative,
     check_biso_plausible,
@@ -236,9 +235,6 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
         (FIT,), "a probe count summed over the joint search"),
     "_unknown_path_diagnostics": (
         (FIT,), "a stage's globs are the plan's, matched against every table"),
-    "_floor_unseeded_diagnostics": (
-        (FIT,), "a stage's seed is decided once, against every table, before "
-                "the joint solve (WP-1930)"),
     "_max_iter_diagnostics": (
         (FIT,), "a stage's budget is spent by the one joint solve"),
     "_phase_support_diagnostics": (
@@ -746,7 +742,7 @@ class MultiHistogramRefinement:
 
     def __init__(self, structure: Structure, instruments: list[Instrument], *,
                  sharing: SharingMap | None = None, backend: str = "numpy",
-                 solver: str = "trf"):
+                 solver: str = DEFAULT_SOLVER):
         if backend != "numpy":
             from .backend import resolve_backend
 
@@ -866,11 +862,7 @@ class MultiHistogramRefinement:
             seeded: dict[str, float] = {}
             if stage.seed:
                 seeded = dict.fromkeys(
-                    self.mtable.seed_softplus(freed, stage.seed), stage.seed)
-            # and any freed row still on its floor (WP-1930), the
-            # single-histogram runner's rule and its reason
-            floor_seeded, floor_unseeded = self.mtable.seed_floor(freed)
-            seeded.update(floor_seeded)
+                    self.mtable.seed_floored(freed, stage.seed), stage.seed)
             self.mtable.apply_to_models()
             # the single-histogram runner's rule (``_run_stage``, #598): the
             # moment frames follow the cell this stage starts from, and the
@@ -1004,7 +996,7 @@ class MultiHistogramRefinement:
                 moment_flat_axes=kept_axes,
                 moment_turned=[b for b in kept_axes if b in moment_turned],
                 unknown_paths=unknown_paths, unreached_histograms=unreached,
-                seeded=seeded, floor_unseeded=floor_unseeded))
+                seeded=seeded))
 
         assert models is not None and outcome is not None
         self._models = models
@@ -1239,19 +1231,9 @@ class MultiHistogramRefinement:
 
         # one bound test, two consumers: the rows' at_bound flag and the
         # BOUND_HIT diagnostics (WP-1076)
-        bounds = mt.bounds()
-        # a row on its transform's asymptote reads None, as in the single fit,
-        # and the bound test skips it (WP-1463)
-        transforms = ["identity"] * len(mt.free_paths)
-        for h, sub in enumerate(mt.tables):
-            for j, c in enumerate(mt.col_map(h)):
-                transforms[c] = sub.entries[sub._free_idx[j]].transform
-        untested = bound_untested(bounds, mt.free_paths, outcome.theta,
-                                  transforms, esd=outcome.stderr_internal)
         at_bounds = bound_findings(
-            bounds, mt.free_paths, outcome.theta,
-            cos=outcome.residual_cosine, esd=outcome.stderr_internal,
-            untested=untested)
+            mt.bounds(), mt.free_paths, outcome.theta,
+            cos=outcome.residual_cosine, esd=outcome.stderr_internal)
         # Histogram 0's physical esds, built once in the loop above and read by
         # two consumers (WP-1131): the shared rows of ``_parameters``, and the
         # microstructure block, which reads histogram 0 because its value scale
@@ -1259,7 +1241,7 @@ class MultiHistogramRefinement:
         # a second build here would double the cost for the same dict.
         esd_hist0 = per_esds[0] if per_esds else {}
         parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_hist0,
-                                      answer_runaway, untested)
+                                      answer_runaway)
         diagnostics = list(specimen_diags) + self._top_diagnostics(
             outcome, correlation_guard, top_bg, at_bounds, models)
         if stage_results:
@@ -1282,7 +1264,6 @@ class MultiHistogramRefinement:
             listing="[e.path for t in ref.mtable.tables for e in t.entries]")
         diagnostics = diagnostics + _unreached_histogram_diagnostics(
             stage_results, [h.label for h in histograms])
-        diagnostics = diagnostics + _floor_unseeded_diagnostics(stage_results)
         # a stage's budget is spent by the one joint solve (FIT)
         diagnostics = diagnostics + _max_iter_diagnostics(stage_results)
         # one CELL_RUNAWAY per stage that fired the joint clamp above,
@@ -1353,7 +1334,7 @@ class MultiHistogramRefinement:
             histograms=histograms)
 
     def _parameters(self, thetas, stderr, corr, at_bounds, esd0,
-                    answer_runaway=(), untested=()) -> list[RefinedParameter]:
+                    answer_runaway=()) -> list[RefinedParameter]:
         mt = self.mtable
         params: list[RefinedParameter] = []
         # The single-histogram rule (``refine._build_result``): a cell the
@@ -1373,7 +1354,7 @@ class MultiHistogramRefinement:
         # per-histogram rows `hist.h.…` — which is exactly how
         # `MultiParameterTable.free_paths` spells them, so the projection keys
         # on the row path and needs no second naming convention (WP-1076).
-        tested = set(mt.free_paths) - set(untested)
+        tested = set(mt.free_paths)
         on_bound = {p for f in at_bounds for p in f.paths}
         # shared parameters reported once, from histogram 0's covariance (its
         # diagonal esd is the true combined marginal — cross-terms with the
@@ -1566,7 +1547,7 @@ def refine_multi(data: list[PatternData], structure: Structure,
                  sharing: SharingMap | None = None,
                  two_theta_limits=None,
                  weights: list[float] | None = None,
-                 backend: str = "numpy", solver: str = "trf") -> RefinementResult:
+                 backend: str = "numpy", solver: str = DEFAULT_SOLVER) -> RefinementResult:
     """One-shot joint refinement of ``structure`` against several ``data``/
     ``instruments`` pairs.  Functional wrapper over
     :class:`MultiHistogramRefinement`."""

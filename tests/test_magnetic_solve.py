@@ -1732,7 +1732,13 @@ def test_a_budget_stop_is_continued_from_where_it_stopped():
                  max_iter=1),
         rx.Stage("all", ["phases.*.cell.*", "phases.*.atoms.*.biso"],
                  max_iter=1)])
-    _ref, result = _fit(rx.Structure(phases=[tetragonal()]), instrument,
+    # The start is 0.004 Å off the simulated cell.  From the truth itself the
+    # LM driver converges both one-iteration stages, so nothing is continued
+    # and the test would not reach the code it is about (WP-1938).
+    start = tetragonal()
+    start.cell.a.value += 0.004
+    start.cell.c.value += 0.004
+    _ref, result = _fit(rx.Structure(phases=[start]), instrument,
                         data, starved)
     assert [s.name for s in result.stages] == ["all (continued)"]
     freed = {p.path for p in result.parameters if p.vary}

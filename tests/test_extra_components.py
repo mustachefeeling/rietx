@@ -162,7 +162,7 @@ def test_json_round_trip_keeps_every_peak_parameter():
     assert len(back.extra_components) == 2
     assert back.extra_components[1].position.value == 70.0
     assert back.extra_components[0].label == "hump"
-    assert back.extra_components[0].fwhm.transform == "softplus"
+    assert back.extra_components[0].fwhm.min == HUMP_FWHM_MIN
 
 
 def test_a_stored_zero_width_bound_is_repaired_rather_than_deserialized():
@@ -185,24 +185,20 @@ def test_a_stored_zero_width_bound_is_repaired_rather_than_deserialized():
     assert kept.fwhm.min == 1.0
 
 
-def test_the_restated_softplus_floor_still_equals_the_one_that_decides():
-    """Three spellings of one number, pinned to the one with the vote.
+def test_the_restated_zero_bound_is_one_number():
+    """Two spellings of one number, pinned together.
 
-    ``_SOFTPLUS_FLOOR`` in ``schemas/instrument.py`` (the repair above) and in
-    ``schemas/structure.py`` (``PreferredOrientation.r``, pre-existing on main)
-    are both restatements — declared rather than imported, to keep the schemas
-    importing nothing from ``params``.  The number that actually decides whether
-    a softplus lower bound exists is ``transforms._SOFTPLUS_MIN``: ``to_internal``
-    maps any ``min`` at or under it to −∞.  Nothing else asserts the copies track
-    it, so changing ``transforms`` would leave both repairs pointing at a bound
-    the transform no longer forgives, in silence.  Pin them.
+    ``_ZERO_BOUND`` in ``schemas/instrument.py`` (the repair above) and in
+    ``schemas/structure.py`` (``PreferredOrientation.r``) are restatements,
+    declared rather than imported to keep the two schemas independent.  Each
+    reads a stored ``min`` at or under it as a bound at zero, and 1e-12 is the
+    value under which a stored ``min`` meant no bound before schema 0.46
+    (WP-1938), so no stored document repairs differently.  Pin both.
     """
-    from rietx.params.transforms import _SOFTPLUS_MIN
-    from rietx.schemas.instrument import _SOFTPLUS_FLOOR as _INSTRUMENT_FLOOR
-    from rietx.schemas.structure import _SOFTPLUS_FLOOR as _STRUCTURE_FLOOR
+    from rietx.schemas.instrument import _ZERO_BOUND as _INSTRUMENT_FLOOR
+    from rietx.schemas.structure import _ZERO_BOUND as _STRUCTURE_FLOOR
 
-    assert _INSTRUMENT_FLOOR == _SOFTPLUS_MIN
-    assert _STRUCTURE_FLOOR == _SOFTPLUS_MIN
+    assert _INSTRUMENT_FLOOR == _STRUCTURE_FLOOR == 1e-12
 
 
 def test_the_restated_four_ln2_still_equals_the_profiles_own():
@@ -337,12 +333,6 @@ def test_the_fd_column_matches_a_hand_written_derivative():
     u = (tt - pos) / fwhm
     curve = height * np.exp(-4.0 * np.log(2.0) * u * u)
 
-    from rietx.params.transforms import dphys_dinternal
-
-    def dpdu(path):
-        e = table.entries[table._paths[path]]
-        return dphys_dinternal(float(theta[free.index(path)]), e.transform)
-
     expect = {
         # ∂/∂2θ₀ = +8 ln2 · u/Γ · curve
         PEAK_PATHS[0]: 8.0 * np.log(2.0) * u / fwhm * curve,
@@ -367,7 +357,7 @@ def test_the_fd_column_matches_a_hand_written_derivative():
     for path, dy in expect.items():
         col = jac[:n_data, free.index(path)]
         # the residual is (y_obs − y_calc)/σ, hence the minus sign
-        truth = -sqrt_w * dy * dpdu(path)
+        truth = -sqrt_w * dy
         err = np.max(np.abs(col - truth))
         if path in rel_bars:
             assert err <= rel_bars[path] * np.max(np.abs(truth)), path
@@ -507,19 +497,14 @@ def test_the_width_bound_is_measured_against_the_instrument_alone():
 # ----------------------------------------------------------------------
 # the absorption block, and the span it is built from
 # ----------------------------------------------------------------------
-def test_a_softplus_off_state_does_not_by_itself_make_a_zero_column():
+def test_an_off_state_does_not_by_itself_make_a_zero_column():
     """Why the ``_span_basis`` filter changes nothing that shipped before it.
 
-    ``to_internal`` clamps, so a softplus parameter at its own off state has a
-    tiny-but-real derivative rather than none, and no design row is zero either.
+    A parameter at its own off state is refined in its own units (WP-1938), so
+    its column is its physical derivative, and no design row is zero either.
     An exactly-zero column comes from a **product** — a peak at zero height —
     which is what the filter is for.
     """
-    from rietx.params.transforms import dphys_dinternal, to_internal
-
-    u = to_internal(0.0, "softplus")
-    assert np.isfinite(u) and dphys_dinternal(u, "softplus") > 0.0
-
     _s, _i, _d, _t, model = _state(
         peaks=(),
         background=BackgroundPSpline.for_range(15.0, 110.0, knot_step_deg=8.0),
@@ -1925,9 +1910,12 @@ def test_a_declared_peak_the_data_cannot_see_says_so():
 
     A peak reaches the pattern only through `area × profile`, so at zero area
     nothing constrains its centre either — WP-1110 item 13's zero-scale phase,
-    one rank down.  The area's own esd is *absent*, which is the equilibrated
+    one rank down.  The centre's esd is *absent*, which is the equilibrated
     covariance telling the truth; the diagnostic is what makes that legible
-    without a reader knowing to look for a missing number.
+    without a reader knowing to look for a missing number.  The area itself
+    is refined in its own units (WP-1938), so its column is the profile at
+    any area: on its floor of 0 it keeps its marginal esd and reads
+    ``at_bound=True``, where under softplus its slope had underflowed.
     """
     structure, ins, data, _strong = _clean_lab6()
     peak = make_peak(center=43.5, span=0.5, area=0.0)
@@ -1943,8 +1931,11 @@ def test_a_declared_peak_the_data_cannot_see_says_so():
     assert any(p.endswith(".center") for p in fired.where)
     assert any(p.endswith(".area") for p in fired.where)
 
-    area = next(p for p in result.parameters if p.path.endswith(".area"))
-    assert area.stderr is None                    # unmeasured, not precise
+    rows = {p.path.rsplit(".", 1)[1]: p for p in result.parameters
+            if p.path.startswith("instrument.extra_components.0.")}
+    assert rows["area"].value == 0.0 and rows["area"].at_bound is True
+    assert rows["area"].stderr is not None and rows["area"].stderr > 0.0
+    assert rows["center"].stderr is None          # unmeasured, not precise
 
 
 def test_a_declared_peak_on_a_predicted_line_is_named_as_a_degeneracy():
@@ -2023,6 +2014,13 @@ def test_the_peak_absorption_statistic_separates_the_three_cases():
         design case (real intruder)  0.0004
         parasitic (on a reflection)  0.2099
 
+    The healthy peak sits at 46.0°, between LaB₆ (200) at 43.51° and (210) at
+    48.96°.  It sat at 43.5° until WP-1938, on (200).  There the area's
+    softplus column had died at an area near 0 and hid the overlap.  Refined
+    in its own units the area column lives at 0, and the R² there is the
+    overlap at whatever width the solver left: 0.0094 at TRF's 0.5°, 0.0358
+    at the LM driver's 0.10°.  At 46.0° both drivers give 0.0000.
+
     The separation is real — three orders of magnitude — and it is still **not
     enough to ship a threshold on**: three arms of one synthetic fixture, one
     phase, one component.  The background guard's 0.25 was measured across real
@@ -2044,7 +2042,7 @@ def test_the_peak_absorption_statistic_separates_the_three_cases():
             "instrument.extra_components.0.fwhm", "phases.*.atoms.*.biso"]
 
     healthy = worst(_fit_with_peak(structure, ins, data,
-                                   make_peak(center=43.5, span=0.5, area=200.0),
+                                   make_peak(center=46.0, span=0.5, area=200.0),
                                    free))
     s2, i2, d2, _ = _clean_lab6(seed=1, boost_at=strong)
     parasitic = worst(_fit_with_peak(s2, i2, d2,

@@ -194,10 +194,10 @@ print(f"true: size {TRUE_SIZE:.0f} Å, strain {TRUE_STRAIN}")
 # %% [markdown]
 # The Lorentzian size and strain match the truth to within two esds.
 #
-# Read the Gaussian rows with their esds.
-# The fit drove `gauss_strain` to essentially zero, with an esd far larger than the value.
-# A reading whose esd dwarfs its value is not a measurement.
-# The Gaussian size had nothing to measure at all, and says so.
+# Read the Gaussian rows next.
+# The fit drove both Gaussian terms onto their zero floor, and each row says so (`at_zero`).
+# The synthetic specimen has no Gaussian broadening, so there is no Gaussian size or strain to quote.
+# A Gaussian reading that does come back is quoted with its esd, and one whose esd dwarfs its value is not a measurement.
 #
 # Quote a size as an order of magnitude, with the Scherrer constant it was read with (0.9 here).
 # The constant depends on crystallite shape, so the size is a coherent domain size and not a particle size.

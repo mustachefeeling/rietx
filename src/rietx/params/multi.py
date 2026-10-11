@@ -10,7 +10,7 @@ scale (incident flux × illuminated volume) differ.
 
 :class:`MultiParameterTable` owns one ordinary :class:`ParameterTable` per
 histogram — so each keeps its crystal-system cell ties, Wyckoff DOFs and
-transforms unchanged — and threads a single combined free vector θ through them
+bounds unchanged — and threads a single combined free vector θ through them
 with a column map that folds *shared* columns onto one shared combined column
 (fed to every histogram's model) while giving *per-histogram* columns their own.
 The stacked residual/Jacobian in
@@ -379,53 +379,34 @@ class MultiParameterTable:
                 out[h] = elsewhere
         return out
 
-    def seed_softplus(self, scoped_paths: list[str], value: float) -> list[str]:
-        """Lift softplus params off the zero floor (per histogram); see the
-        single-histogram :meth:`ParameterTable.seed_softplus`."""
-        seeded: list[str] = []
-        for h, table in enumerate(self.tables):
+    def seed_floored(self, scoped_paths: list[str], value: float) -> list[str]:
+        """Lift free rows bounded below at 0 up to ``value`` (per histogram);
+        see the single-histogram :meth:`ParameterTable.seed_floored`.
+
+        A shared column is seeded in every histogram or in none.  Each
+        histogram's box is its own (WP-1131), so a seed can fit under one
+        histogram's upper bound and not another's; written in some, the
+        histograms would disagree about one column and the last write would
+        win ``x0``.
+        """
+        wants = []
+        for h in range(len(self.tables)):
             want = [self._unscope(h, p) for p in scoped_paths
                     if self._owner(p) in (None, h)]
-            for p in table.seed_softplus([w for w in want if w is not None], value):
+            wants.append([w for w in want if w is not None])
+        declined = {p for h, table in enumerate(self.tables) for p in wants[h]
+                    if self.sharing.is_shared(p)
+                    and table._floor_seed_target(p, value) is None}
+        seeded: list[str] = []
+        for h, table in enumerate(self.tables):
+            want = [p for p in wants[h] if p not in declined]
+            for p in table.seed_floored(want, value):
                 # once per shared column, as :meth:`set_vary` returns it
                 if self._canonical(h, p) not in seeded:
                     seeded.append(self._canonical(h, p))
         if seeded:
             self._rebuild_columns()
         return seeded
-
-    def seed_floor(self, scoped_paths: list[str]) -> tuple[dict[str, float], list[str]]:
-        """Lift freed softplus rows off their floor (per histogram); see the
-        single-histogram :meth:`ParameterTable.seed_floor`."""
-        wants = []
-        for h in range(len(self.tables)):
-            want = [self._unscope(h, p) for p in scoped_paths
-                    if self._owner(p) in (None, h)]
-            wants.append([w for w in want if w is not None])
-        # a shared column takes the smallest seed any histogram's box allows,
-        # so every histogram writes one column value (:meth:`seed_softplus`'s
-        # rule): a box is physical, and each histogram divides it by its own
-        # value scale
-        smallest: dict[str, float] = {}
-        for h, table in enumerate(self.tables):
-            for p, value in table.seed_floor(wants[h], write=False)[0].items():
-                c = self._canonical(h, p)
-                smallest[c] = min(value, smallest.get(c, value))
-        seeded: dict[str, float] = {}
-        unseeded: list[str] = []
-        for h, table in enumerate(self.tables):
-            lifted, left = table.seed_floor(
-                wants[h], cap={p: smallest[self._canonical(h, p)]
-                               for p in wants[h] if self._canonical(h, p) in smallest})
-            # once per shared column, as :meth:`set_vary` returns it
-            for p, value in lifted.items():
-                seeded.setdefault(self._canonical(h, p), value)
-            for p in left:
-                if self._canonical(h, p) not in unseeded:
-                    unseeded.append(self._canonical(h, p))
-        if seeded:
-            self._rebuild_columns()
-        return seeded, unseeded
 
     # -- combined column layout ----------------------------------------
     def _rebuild_columns(self) -> None:

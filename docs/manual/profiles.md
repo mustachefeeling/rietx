@@ -61,6 +61,38 @@ parameters are not quotable", the same reading
 `STEPHENS_STRAIN_NOT_POSITIVE` has and for the same reason: a variance left its
 physical set, and the widths built on it are not measurements.
 
+$W$ has a floor of its own. Its lower bound is the clamp itself, $\varepsilon$ =
+{{ MIN_GAMMA_G2 }} deg², and not 0. Under the clamp every Gaussian width column
+is exactly zero. The default Levenberg-Marquardt driver puts a parameter
+exactly on its bound when the data push it there ({ref}`ch-estimation`,
+§ Solvers). With a floor of 0, a stage freeing $W$ while $U$ and $V$ were near
+0 put $\Gamma_G^2$ under the clamp at every point, and the stage stopped there.
+With $U$ and $V$ at 0, $W$ on its floor holds $\Gamma_G^2$ at $\varepsilon$,
+and a step up in $W$ still widens every peak. A stored or passed
+lower bound under the floor is raised to it when the profile is built, and a
+value under it is raised with it. GSAS-II clamps the same way, but its solver
+takes no bounds, so no step lands on a floor there. The floor holds $W$ and
+not the sum. A negative $U$ or $V$ can still take $\Gamma_G^2$ under the
+clamp.
+
+So the driver also holds the sum on a single-histogram fit. Each reflection on
+the data adds one row to its linear inequalities ({ref}`ch-estimation`,
+§ Solvers):
+
+```{math}
+:label: prof-caglioti-floor
+
+\Gamma_G^2(\theta_{hkl}) \;\ge\; \varepsilon
+\qquad \text{for every reflection } hkl \text{ on the data}
+```
+
+{source}`rietx.optimize.least_squares.gaussian_width_inequalities`
+
+$\Gamma_G^2$ here includes the phase's Gaussian size and strain terms, and the
+angles are those of the cell at the start of the stage. TRF and a joint fit
+build no rows, and neither does a reflection that starts under the clamp. The
+guard above stays the check for those.
+
 ```{math}
 :label: prof-caglioti-l
 

@@ -49,6 +49,23 @@ chain on the same data is reported as a range, never gated.
 
 ### Inherited
 
+- **2026-10-11, from WP-1938 D13 (fourth session): the fences read a
+  powder twin as path dependence.** Reversing every moment gives the same
+  powder pattern, and so does a mirror of the lattice that fixes the site. On
+  `tests/test_moment_angle_chart.py`'s series (one Mn on **a** in P m m m)
+  the backward chain crosses patterns where the azimuth is unmeasured (esd
+  10²-10⁴) and comes out on a twin: φ = 0.077 under LM, −0.077 under TRF,
+  against the forward chain's 3.065 at p000, at equal χ². Both fences
+  (`sequential._path_dependence_diagnostics`, `_discontinuity_steps`) take an
+  angle modulo a turn only (#604), so they report up to 97σ. The test now
+  allows that one finding where the two chains are twins. The task this
+  opens: compare a moment's direction modulo the twins the powder cannot
+  separate. Time reversal is universal, and a phase reverses all its moments
+  together. A mirror depends on the crystal and on the site. The GUI's
+  disagreement column must measure what the fences do (`sequential._angle_paths`).
+  The maintainer asked for a new WP. It was folded here instead, because
+  this WP owns the moment's path-dependence flag (task 1) and the template
+  folds into an open owner first.
 - **2026-09-29, from [1469](1469-what-the-series-fences-cannot-see.md): a
   frame the Rwp fence rejected on every rung now has a code, and PR #522
   named the hook.** `SeriesEntry.above_fence` (derived from the new

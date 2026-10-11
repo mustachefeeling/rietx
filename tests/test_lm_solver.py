@@ -250,10 +250,25 @@ def test_linear_inequality_keeps_every_iterate_feasible():
                       lo=np.full(4, -np.inf), hi=np.full(4, np.inf),
                       inequalities=[cone], max_nfev=1200)
 
-    assert not cone.violated(out.x).any()
+    slack = float((T @ out.x + cone.c)[0])
     assert out.n_truncated > 0
-    # active constraint: the solution is pushed onto (just inside) the surface
-    assert float((T @ out.x + cone.c)[0]) < 1e-3
+    assert out.truncated_by == {"test": out.n_truncated}
+    # the step solves the rows exactly, so the answer is on the surface to
+    # rounding, where truncation left it 0.5 % short of each step's crossing
+    assert abs(slack) < 1e-12 * (np.abs(T) @ np.abs(out.x) + abs(offset))
+
+
+def test_a_row_left_on_its_face_by_rounding_is_not_violated():
+    """The builders drop a block or row the stage's start violates.  An exact
+    step leaves a row on its face to rounding, either side of zero, and a
+    strict test handed the next stage no cone: brucite + Stephens left a row
+    at −1.5e-11 against a largest σ²(M) of 6.3e6, and the stages after took 19
+    of 43 reflections out of the cone (``test_acceptance_stephens``)."""
+    rows = lm.LinearInequality(T=np.array([[1.0, -1.0], [1.0, 1.0]]), c=np.zeros(2))
+    on_face = np.array([1.0, 1.0 + 4.0 * np.finfo(float).eps])
+    assert rows.slack(on_face)[0] < 0.0
+    assert not rows.violated(on_face).any()
+    assert rows.violated(np.array([1.0, 1.1])).tolist() == [True, False]
 
 
 def test_inactive_inequality_changes_nothing():
@@ -269,7 +284,220 @@ def test_inactive_inequality_changes_nothing():
                               inequalities=[slack], max_nfev=800)
 
     assert constrained.n_truncated == 0
-    assert np.allclose(constrained.x, free.x)
+    assert np.array_equal(constrained.x, free.x)
+    assert (constrained.cost, constrained.nfev) == (free.cost, free.nfev)
+
+
+def _collinear_pair():
+    """Two columns 30 % apart in shape, an exactly linear residual and the
+    unconstrained minimum at (1, 1)."""
+    x = np.linspace(-1.0, 1.0, 50)
+    X = np.column_stack([x, x + 0.3 * x * x])
+    y = X @ np.ones(2)
+    return (lambda t: X @ t - y), (lambda t: X), X, y
+
+
+def _truncated_step(A, b, lam, x, lo, hi, inequalities, *, n_rows):
+    """The rule before WP-1938 D8, kept here as the counterfactual: the
+    box-only step, projected off rows already on their face and shortened to
+    99.5 % of the way to the first row it reaches."""
+    step, _ = lm._solve_step(A, b, lam, x, lo, hi, n_rows=n_rows)
+    for iq in inequalities:
+        g0 = iq.slack(x)
+        rows = iq.T[g0 <= 1e-9 * max(float(np.max(np.abs(g0))), 1.0)]
+        rows = rows[rows @ step < 0.0]
+        if len(rows):
+            mu = np.linalg.lstsq(rows @ rows.T, rows @ step, rcond=None)[0]
+            step = step - rows.T @ mu
+    tau = min(iq.max_feasible_fraction(x, step) for iq in inequalities)
+    return (0.995 * tau if tau < 1.0 else 1.0) * step, np.zeros(len(x), dtype=np.int8)
+
+
+def test_the_step_reaches_a_face_where_truncation_stalls(monkeypatch):
+    """WP-1938 D8's case in two parameters: the optimum on a row's face.
+
+    The constrained optimum of an exactly linear residual has a closed form,
+    θ* = θ_u + (β − aᵀθ_u)/(aᵀA⁻¹a)·A⁻¹a.  The exact step is the model's
+    constrained minimiser, so one step lands there.  The truncated step runs
+    along the Newton direction towards θ_u and stops at the face.  The next
+    one points at θ_u again from almost the same line, so it meets the face
+    at almost the same point.
+
+    A change of 1e-15 in the start picks one of two ways of failing, and the
+    platform picks too.  The fit stops ``exhausted_fp64`` after 7 evaluations,
+    2.1 from θ* with S 70 % above its minimum, as brucite + Stephens stopped
+    on the cone.  Or it crawls along the face to the 400-evaluation cap and
+    stops 0.83 from θ* with S 11 % above, which Linux CI does from (3, 3).
+    The three starts below take both on macOS arm64, and the test asserts
+    what both share.
+    """
+    residual, jacobian, X, y = _collinear_pair()
+    a = np.array([np.cos(0.7), np.sin(0.7)])
+    beta = float(a @ np.ones(2)) + 0.5       # the free minimum violates aᵀθ ≥ β
+    row = lm.LinearInequality(T=a[None, :], c=np.array([-beta]), label="face")
+    A = X.T @ X
+    free = np.linalg.solve(A, X.T @ y)
+    A_inv_a = np.linalg.solve(A, a)
+    star = free + (beta - a @ free) / (a @ A_inv_a) * A_inv_a
+    s_star = float(residual(star) @ residual(star))
+    inf = np.full(2, np.inf)
+    x0 = np.array([3.0, 3.0])
+
+    out = lm.minimize(residual, jacobian, x0, lo=-inf, hi=inf, inequalities=[row])
+    assert out.status == 1 and out.nfev <= 3
+    assert np.allclose(out.x, star, rtol=0.0, atol=1e-12)
+    assert 2.0 * out.cost == pytest.approx(s_star, rel=1e-12)
+    assert out.n_truncated >= 1
+
+    monkeypatch.setattr(lm, "_solve_constrained_step", _truncated_step)
+    for nudge in (0.0, 1e-15, -1e-14):
+        start = x0 * np.array([1.0, 1.0 + nudge])
+        stalled = lm.minimize(residual, jacobian, start, lo=-inf, hi=inf,
+                              inequalities=[row])
+        assert stalled.termination in ("exhausted_fp64", "max_nfev")
+        assert np.linalg.norm(stalled.x - star) > 0.5
+        assert 2.0 * stalled.cost > 1.05 * s_star
+
+
+def test_a_step_that_crosses_no_row_is_the_box_step_bit_for_bit(monkeypatch):
+    """WP-1938 D8 changes a step only where a row binds.  Every trial of a fit
+    whose rows never bind is the bounded solve's step landed on its bounds,
+    to the bit, with no inequality block and with one that never binds."""
+    residual, jacobian, free = _linear_problem(seed=2)
+    lo, hi = np.full(4, -np.inf), np.full(4, np.inf)
+    i = int(np.argmax(np.abs(free)))
+    lo[i], hi[i] = (-np.inf, 0.5 * free[i]) if free[i] > 0 else (0.5 * free[i], np.inf)
+    far = lm.LinearInequality(T=np.ones((1, 4)), c=np.array([1e6]), label="far")
+
+    def refused(*args, **kwargs):
+        raise AssertionError("the constrained solve ran where no row binds")
+
+    monkeypatch.setattr(lm, "_solve_constrained_step", refused)
+    real = lm._solve_step
+    for blocks in ([], [far]):
+        steps, trials = [], []
+
+        def spy(A, b, lam, x, lo_, hi_, *, n_rows):
+            step, side = real(A, b, lam, x, lo_, hi_, n_rows=n_rows)
+            landed = np.where(side < 0, lo_, np.where(side > 0, hi_,
+                                                      np.clip(x + step, lo_, hi_)))
+            steps.append(landed)
+            return step, side
+
+        monkeypatch.setattr(lm, "_solve_step", spy)
+        out = lm.minimize(residual, jacobian, np.zeros(4), lo=lo, hi=hi,
+                          inequalities=blocks, max_nfev=200,
+                          on_trial=lambda x, *rest: trials.append(x.copy()))
+        assert out.n_bound_hits == 1 and out.n_truncated == 0 and trials
+        assert all(np.array_equal(t, s) for t, s in zip(trials, steps))
+
+
+def _kkt_rows(H, g, step, G, h):
+    """Largest breach, relative, of ``min ½sᵀHs − gᵀs`` s.t. ``Gs ≥ h``:
+    (most negative row slack, stationarity residual).  The multipliers are
+    the non-negative combination of near-active rows closest to the
+    gradient."""
+    from scipy.optimize import nnls
+
+    scale = np.linalg.norm(G, axis=1) * np.linalg.norm(step) + np.abs(h)
+    slack = (G @ step - h) / scale
+    near = slack <= 1e-9
+    grad = H @ step - g
+    _, res = nnls(G[near].T, grad) if near.any() else (None, np.linalg.norm(grad))
+    return float(slack.min()), res / np.linalg.norm(g)
+
+
+def _crossing_problem(seed):
+    """A box, twelve rows and a model whose box-only step crosses a row."""
+    rng = np.random.default_rng(seed)
+    n = 6
+    J = rng.standard_normal((80, n)) @ np.diag(10.0 ** rng.uniform(-3, 3, n))
+    if seed >= 4:
+        J[:, -1] = 2.0 * J[:, 0]
+    A = J.T @ J
+    d = np.sqrt(np.diag(A))
+    b = J.T @ rng.standard_normal(80) * 100.0
+    x = rng.standard_normal(n)
+    lo = x - np.where(rng.random(n) < 0.5, 0.05 / d, np.inf)
+    hi = x + np.where(rng.random(n) < 0.3, 0.05 / d, np.inf)
+    T = rng.standard_normal((12, n)) / d
+    rows = lm.LinearInequality(T=T, c=-T @ x + rng.uniform(0.0, 0.05, 12))
+    lam = 0.0 if seed % 2 == 0 else 1e-3
+    box, _ = lm._solve_step(A, b, lam, x, lo, hi, n_rows=80)
+    assert rows.crossed(x, box), "the case was meant to bind a row"
+    # the problem in the equilibrated variable s = d·Δ, where it is O(1)
+    H = A / np.outer(d, d) + lam * np.eye(n)
+    eye = np.eye(n)
+    has_lo, has_hi = np.isfinite(lo), np.isfinite(hi)
+    G = np.vstack([eye[has_lo], -eye[has_hi], T / d])
+    h = np.concatenate([((lo - x) * d)[has_lo], -((hi - x) * d)[has_hi],
+                        -rows.slack(x)])
+    return A, b, lam, x, lo, hi, rows, box, d, H, G, h
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_the_constrained_step_is_the_exact_minimiser(seed):
+    """The step over the box and the rows satisfies the problem's optimality
+    conditions to rounding: every row held, and the gradient a non-negative
+    combination of the active ones.  Seeds 4 and 5 are rank-deficient at
+    λ = 0, where the eigenvalue cut binds."""
+    A, b, lam, x, lo, hi, rows, box, d, H, G, h = _crossing_problem(seed)
+    step, side = lm._solve_constrained_step(A, b, lam, x, lo, hi, [rows], n_rows=80)
+    worst_row, stationarity = _kkt_rows(H, b / d, step * d, G, h)
+    assert worst_row > -1e-11
+    if seed < 4:                      # exact only where the model is not flat
+        assert stationarity < 1e-8
+    # a variable it puts on a bound is reported there, for the exact landing
+    for k in np.flatnonzero(side):
+        bound = lo[k] if side[k] < 0 else hi[k]
+        assert x[k] + step[k] == pytest.approx(bound, rel=1e-12, abs=1e-12 / d[k])
+    # and it is never worse for the model than the box step cut to the rows
+    tau = rows.max_feasible_fraction(x, box)
+
+    def model(D):
+        return 0.5 * D @ (A + lam * np.diag(d * d)) @ D - b @ D
+
+    assert model(step) <= model(tau * box) + 1e-12 * abs(model(tau * box))
+
+
+def test_a_capped_optimality_check_keeps_the_least_distance_point(monkeypatch):
+    """The polish is kept only once an nnls call shows the gradient a
+    non-negative combination of its rows, and that call has a cap too.
+    Capped, the polish is unverified and the least-distance point is the step,
+    where the uncaught RuntimeError ended the whole fit."""
+    A, b, lam, x, lo, hi, rows, box, d, H, G, h = _crossing_problem(0)
+    real = lm.nnls
+    checks = []
+
+    def capped_check(E, f, maxiter=None):
+        if maxiter is None:                 # only the optimality check passes none
+            checks.append(1)
+            raise RuntimeError("Maximum number of iterations reached.")
+        return real(E, f, maxiter=maxiter)
+
+    monkeypatch.setattr(lm, "nnls", capped_check)
+    step, _ = lm._solve_constrained_step(A, b, lam, x, lo, hi, [rows], n_rows=80)
+    assert checks == [1]
+    worst_row, _ = _kkt_rows(H, b / d, step * d, G, h)
+    assert worst_row > -1e-9
+
+
+def test_a_failed_constrained_solve_falls_back_to_the_first_row(monkeypatch):
+    """nnls can stop at its iteration cap.  The step is then the box-only
+    step shortened to the first row it reaches, and the fit stays feasible."""
+    residual, jacobian, X, y = _collinear_pair()
+    a = np.array([np.cos(0.7), np.sin(0.7)])
+    row = lm.LinearInequality(T=a[None, :], c=np.array([-(a @ np.ones(2) + 0.5)]))
+
+    def capped(*args, **kwargs):
+        raise RuntimeError("Maximum number of iterations reached.")
+
+    monkeypatch.setattr(lm, "nnls", capped)
+    inf = np.full(2, np.inf)
+    out = lm.minimize(residual, jacobian, np.array([3.0, 3.0]), lo=-inf, hi=inf,
+                      inequalities=[row])
+    assert out.n_truncated >= 1
+    assert float(row.slack(out.x)[0]) >= 0.0
 
 
 def test_empty_parameter_vector():
@@ -414,3 +642,46 @@ def test_a_block_above_the_bvls_cut_takes_the_bccg_step(monkeypatch):
     small, _ = lm._solve_step(A[:-1, :-1], b[:-1], 0.0, np.zeros(n - 1),
                               lo[:-1], hi[:-1], n_rows=3 * n)
     assert not calls and np.all(small >= 0.0)
+
+
+def test_a_budget_under_one_evaluation_is_refused_as_trf_refuses_it():
+    """``max_iter=0`` reached scipy as ``max_nfev=0`` and was refused, while
+    LM ran it as one evaluation that moved nothing (#890's triage).  The
+    default flip would have turned the refusal into a quiet ``max_iter``."""
+    residual, jacobian, _, _ = _collinear_pair()
+    inf = np.full(2, np.inf)
+    for budget in (0, -4):
+        with pytest.raises(ValueError, match="max_nfev"):
+            scipy_lsq(residual, np.zeros(2), jac=jacobian, method="trf",
+                      max_nfev=budget)
+        with pytest.raises(ValueError, match="max_nfev"):
+            lm.minimize(residual, jacobian, np.zeros(2), lo=-inf, hi=inf,
+                        max_nfev=budget)
+
+
+@pytest.mark.parametrize("solver", ["lm", "trf"])
+def test_a_stage_with_max_iter_0_is_refused_on_either_driver(solver):
+    import rietx as rx
+    from tests.test_refine_synthetic import perturbed_models, synthesize
+
+    structure, instrument = perturbed_models()
+    plan = rx.RefinementPlan(stages=[rx.Stage("scale", ["phases.*.scale"],
+                                              max_iter=0)])
+    ref = rx.Refinement(structure, instrument, history=False, solver=solver)
+    with pytest.raises(ValueError, match="max_nfev"):
+        ref.fit(synthesize(), plan=plan)
+
+
+@pytest.mark.parametrize("solver", ["lm", "trf"])
+def test_a_joint_stage_with_max_iter_0_is_refused_on_either_driver(solver):
+    """The joint fit reaches ``lm.minimize`` through its own call site, so the
+    refusal is checked there too rather than inferred from the single fit."""
+    import rietx as rx
+    from tests.test_joint_xray_neutron import _flat, _neutron, _xray, corundum
+
+    plan = rx.RefinementPlan(stages=[rx.Stage("scale", ["phases.*.scale"],
+                                              max_iter=0)])
+    with pytest.raises(ValueError, match="max_nfev"):
+        rx.refine_multi([_flat(20.0, 80.0), _flat(20.0, 80.0)],
+                        rx.Structure(phases=[corundum()]), [_xray(), _neutron()],
+                        plan=plan, solver=solver)

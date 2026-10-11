@@ -52,9 +52,10 @@ for d in result.diagnostics:
     print(f"  [{d.level}] {d.code}: {d.message}")
 
 # %% [markdown]
-# Three warnings came back.
+# Four warnings came back.
 #
 # - `SITE_SNAPPED_TO_SPECIAL_POSITION`: the CIF gives Ca1's x as 0.3333333333, which is 1/3 to ten digits. The reader placed it exactly on the special position.
+# - `BOUND_HIT`: the data push the extinction coefficient below zero, so it ends on its floor of 0, which is no extinction at all. This specimen shows none to measure.
 # - `RESOLUTION_UNCONSTRAINED`: the peaks are mostly Lorentzian, so the Gaussian width terms U, V and W are poorly determined. Do not quote them.
 # - `PATTERN_UNDERSAMPLED`: the step count notebook 01 measured.
 #

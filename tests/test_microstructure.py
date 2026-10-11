@@ -35,7 +35,6 @@ from rietx.model.profiles.caglioti import (
     strain_coefficient_for_microstrain,
 )
 from rietx.params.multi import MultiParameterTable
-from rietx.params.transforms import to_internal
 from rietx.params.vector import ParameterTable
 from rietx.report import build_report
 from rietx.schemas.instrument import BackgroundChebyshev
@@ -461,8 +460,10 @@ def test_a_declared_size_window_travels_with_the_value_across_wavelengths():
     # the two histograms therefore agree about the shared column's window, so
     # the intersection is the identity rather than a silent tightening: the
     # bound the solver sees is the declared 0.03 deg in the *reference*
-    # histogram's units, which is where the shared column lives
+    # histogram's units, which is where the shared column lives; the column
+    # is the coefficient itself since WP-1938, so the box is [0, 0.03]
     mt.set_vary(["phases.*.lor_size"], True)
     col = mt.free_paths.index("phases.0.lor_size")
-    _, hi = mt.bounds()
-    assert hi[col] == pytest.approx(to_internal(0.03, "softplus"), rel=1e-12)
+    lo, hi = mt.bounds()
+    assert lo[col] == 0.0
+    assert hi[col] == pytest.approx(0.03, rel=1e-12)

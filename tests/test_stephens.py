@@ -419,9 +419,9 @@ def test_seed_puts_a_freed_zero_block_on_the_isotropic_ray():
     t = table_for(brucite(StephensStrain.from_values([0.0] * 15)))
     dofs = t.set_vary(["phases.*.microstrain.dof.*"], True)
     assert len(dofs) == 4
-    # the softplus seed cannot reach identity-transform DOFs — that is exactly
-    # why seed_stephens exists
-    assert t.seed_softplus(dofs, 1e-3) == []
+    # the stage seed cannot reach DOFs unbounded below — that is exactly why
+    # seed_stephens exists
+    assert t.seed_floored(dofs, 1e-3) == []
     assert sorted(t.seed_stephens(dofs, 1200.0)) == sorted(dofs)
     values = t.decode(t.x0())
     got = np.array([values[f"phases.0.microstrain.{n}"] for n in S_NAMES])
@@ -547,6 +547,27 @@ def test_injected_anisotropy_is_recovered():
 
     OUT.mkdir(exist_ok=True)
     plot_result(result, path=str(OUT / "stephens_injection_fit.png"))
+
+
+def test_a_pawley_fit_holds_the_cone_under_lm():
+    """The cone's rows read the table, and a Pawley solve's vector also
+    carries one intensity per reflection.  Unpadded, ``T·θ`` raised a shape
+    ``ValueError`` on every Pawley stage freeing a Stephens block under LM
+    (``least_squares._pad_inequalities``)."""
+    truth, inst = _injection_state(_brucite_coef(600.0))
+    data = _synthetic(truth, inst)
+    start, start_inst = _injection_state(_brucite_coef(600.0))
+    result = Refinement(start, start_inst, solver="lm", history=False).fit(
+        data, mode="pawley", plan=RefinementPlan(stages=[
+            Stage("bkg", ["instrument.background.*"]),
+            Stage("microstrain", ["instrument.background.*",
+                                  "phases.*.microstrain.dof.*"]),
+        ]))
+    assert result.status == "converged"
+    # the cone was present and pressed, so the padded rows were exercised
+    assert result.stages[-1].n_constraint_truncations >= 1
+    OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(OUT / "stephens_pawley_lm_fit.png"))
 
 
 def _fit_isotropic_only(data, *, seed_ppm: float) -> Refinement:

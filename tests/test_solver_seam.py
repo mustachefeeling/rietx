@@ -299,30 +299,47 @@ def test_the_active_set_names_a_scale_held_by_its_ceiling(pattern, solver):
 # -- what the iteration budget means (WP-1109) ----------------------------
 
 def _spy_least_squares(monkeypatch):
-    """Record the kwargs every TRF call is made with."""
+    """Record the kwargs every driver call is made with, TRF's and LM's.
+
+    Both drivers take ``max_nfev`` and ``ftol`` from the same place in
+    ``run_least_squares``.  Only TRF takes ``xtol`` and ``gtol``, so an LM row
+    carries ``None`` there."""
     import scipy.optimize as so
 
     import rietx.optimize.least_squares as ls
+    import rietx.optimize.lm as lm
 
     calls = []
     original = so.least_squares
+    original_lm = lm.minimize
 
     def spy(*args, **kwargs):
         res = original(*args, **kwargs)
-        calls.append({"max_nfev": kwargs.get("max_nfev"),
+        calls.append({"driver": "trf", "max_nfev": kwargs.get("max_nfev"),
                       "ftol": kwargs.get("ftol"),
                       "xtol": kwargs.get("xtol"), "gtol": kwargs.get("gtol"),
                       "n_par": len(res.x), "nfev": int(res.nfev),
                       "njev": int(res.njev or 0), "status": int(res.status)})
         return res
 
+    def spy_lm(*args, **kwargs):
+        res = original_lm(*args, **kwargs)
+        calls.append({"driver": "lm", "max_nfev": kwargs.get("max_nfev"),
+                      "ftol": kwargs.get("ftol"), "xtol": None, "gtol": None,
+                      "n_par": len(res.x), "nfev": int(res.nfev),
+                      "njev": int(res.njev), "status": int(res.status)})
+        return res
+
     monkeypatch.setattr(ls, "least_squares", spy)
+    monkeypatch.setattr(lm, "minimize", spy_lm)
     return calls
 
 
-def test_the_budget_counts_iterations_not_parameters(pattern, monkeypatch):
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_the_budget_counts_iterations_not_parameters(pattern, monkeypatch,
+                                                     solver):
     """``max_iter`` prices iterations, and the multiplier that turns it into
-    scipy's evaluation cap is a constant.  It used to be ``n_params``, which
+    each driver's evaluation cap is a constant.  It used to be ``n_params``, which
     priced a finite-difference Jacobian this package does not build: the same
     stage then got a budget that grew with the model, ~30x looser than the
     name at 42 free parameters.  The claim under test is that the cap no
@@ -335,16 +352,18 @@ def test_the_budget_counts_iterations_not_parameters(pattern, monkeypatch):
     plan = rx.RefinementPlan.mccusker_default()
     for stage in plan.stages:
         stage.max_iter = 37
-    refine(pattern, structure, instrument, plan=plan)
+    refine(pattern, structure, instrument, plan=plan, solver=solver)
 
-    assert calls, "no TRF call observed"
+    assert calls and {c["driver"] for c in calls} == {solver}
     assert len({c["n_par"] for c in calls}) > 1, \
         "fixture must span stages of differing size for this to discriminate"
     for c in calls:
         assert c["max_nfev"] == 37 * NFEV_PER_ITERATION
 
 
-def test_stage_ftol_reaches_the_solver_and_only_its_own_stage(pattern, monkeypatch):
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_stage_ftol_reaches_the_solver_and_only_its_own_stage(pattern, monkeypatch,
+                                                              solver):
     """The three tolerance sources arrive at the solver in precedence order.
 
     ``Stage.ftol`` (WP-1113) is per-stage and beats everything; every other
@@ -359,8 +378,9 @@ def test_stage_ftol_reaches_the_solver_and_only_its_own_stage(pattern, monkeypat
     structure, instrument = perturbed_models()
     plan = rx.RefinementPlan.mccusker_default()
     plan.stages[1].ftol = 1e-4
-    refine(pattern, structure, instrument, plan=plan)
+    refine(pattern, structure, instrument, plan=plan, solver=solver)
 
+    assert {c["driver"] for c in calls} == {solver}
     assert len(calls) == len(plan.stages)
     assert calls[1]["ftol"] == 1e-4
     middle = {c["ftol"] for c in calls[:-1] if c["ftol"] != 1e-4}
@@ -368,8 +388,9 @@ def test_stage_ftol_reaches_the_solver_and_only_its_own_stage(pattern, monkeypat
     assert calls[-1]["ftol"] not in (1e-4, plan.intermediate_ftol)
 
 
+@pytest.mark.parametrize("solver", SOLVERS)
 def test_the_exact_schedule_is_one_field_and_reaches_every_stage(
-        pattern, monkeypatch):
+        pattern, monkeypatch, solver):
     """``intermediate_ftol=None`` is the whole way back to the pre-WP-1123
     schedule: every stage then arrives at the solver's own default, which is
     what "bit-identical to the fully-converged plan" rests on."""
@@ -379,22 +400,25 @@ def test_the_exact_schedule_is_one_field_and_reaches_every_stage(
     structure, instrument = perturbed_models()
     plan = rx.RefinementPlan.mccusker_default()
     plan.intermediate_ftol = None
-    refine(pattern, structure, instrument, plan=plan)
+    refine(pattern, structure, instrument, plan=plan, solver=solver)
 
+    assert {c["driver"] for c in calls} == {solver}
     assert len(calls) == len(plan.stages)
     assert len({c["ftol"] for c in calls}) == 1
 
 
-def test_a_converging_fit_never_feels_the_budget(pattern, monkeypatch):
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_a_converging_fit_never_feels_the_budget(pattern, monkeypatch, solver):
     """CLAUDE.md's rule for a wall-clock budget applies to this one: a runaway
     guard, never a timer.  Tightening it ~30x is only answer-preserving if no
     converging stage was relying on the slack, so every stage here must both
     reach a convergence status and stop well inside its cap."""
     calls = _spy_least_squares(monkeypatch)
     structure, instrument = perturbed_models()
-    result = refine(pattern, structure, instrument)
+    result = refine(pattern, structure, instrument, solver=solver)
 
     assert result.status == "converged"
+    assert calls and {c["driver"] for c in calls} == {solver}
     for c in calls:
         assert c["status"] > 0, f"stage stopped on its budget: {c}"
         assert c["nfev"] < c["max_nfev"], c
@@ -417,7 +441,8 @@ def test_the_trf_tolerances_are_the_module_constants(pattern, monkeypatch):
     assert XTOL == GTOL == 1e-12
     calls = _spy_least_squares(monkeypatch)
     structure, instrument = perturbed_models()
-    refine(pattern, structure, instrument)
-    assert calls
+    # xtol and gtol are TRF's alone: the LM driver takes neither
+    refine(pattern, structure, instrument, solver="trf")
+    assert calls and {c["driver"] for c in calls} == {"trf"}
     for c in calls:
         assert c["xtol"] == XTOL and c["gtol"] == GTOL

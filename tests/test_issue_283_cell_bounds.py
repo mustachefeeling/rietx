@@ -422,16 +422,18 @@ def test_the_joint_closures_reach_a_degenerate_cell_the_same_way():
         residual(np.array([180.0]))  # and a degenerate trial, directly
 
 
+@pytest.mark.parametrize("solver", ["lm", "trf"])
 def test_run_multi_least_squares_guards_both_closures_and_reports_the_count(
-        monkeypatch):
+        monkeypatch, solver):
     """The joint entry point hands its driver the same two guards, sharing
     one counter, and the count reaches its :class:`LSQOutcome`.
 
-    Driven through the driver seat rather than through a real trust-region
-    path: scipy's ``least_squares`` is replaced by a stand-in that exercises
-    the two callables it is handed, which is what ``run_multi_least_squares``
-    actually promises about them.  The ``_inner`` swap is the same trick the
-    two guard unit tests above use."""
+    Driven through the driver seat rather than through a real search: the
+    seat ``solver`` names (scipy's ``least_squares`` for TRF, ``_lm_outcome``
+    for LM, the default since WP-1938) is replaced by a stand-in that
+    exercises the two callables it is handed, which is what
+    ``run_multi_least_squares`` actually promises about them.  The ``_inner``
+    swap is the same trick the two guard unit tests above use."""
     structure = _rhombohedral_boundary_cell()
     structure.phases[0].cell.alpha.value = 120.0
     models, mtable = _joint_alpha_only(structure)
@@ -451,12 +453,16 @@ def test_run_multi_least_squares_guards_both_closures_and_reports_the_count(
         assert np.array_equal(jac(np.asarray(x0)), J)         # last good one
         return SimpleNamespace(x=np.asarray(x0), cost=0.5 * float(r @ r),
                                nfev=3, status=1, jac=J, fun=r,
-                               termination="ftol",
+                               termination="ftol", n_truncated=0,
                                active_mask=np.zeros(len(x0), dtype=int))
 
-    monkeypatch.setattr(lsq, "least_squares", driver)
+    if solver == "trf":
+        monkeypatch.setattr(lsq, "least_squares", driver)
+    else:
+        monkeypatch.setattr(lsq, "_lm_outcome",
+                            lambda fun, jac, x0, lo, hi, **kw: driver(fun, x0, jac))
     outcome = run_multi_least_squares(models, mtable, max_iter=3,
-                                      backend="numpy",
+                                      backend="numpy", solver=solver,
                                       compute_uncertainties=False)
 
     assert isinstance(seen["fun"], _DegenerateCellGuard)

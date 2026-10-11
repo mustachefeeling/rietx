@@ -597,7 +597,7 @@ and `Refinement.summary`'s `next:` line is exactly this number.
 | `ParameterCandidate.gain` | the exact Gauss-Newton one-parameter predicted Δχ² | weighted SSR units and unreduced: compare it against `SuggestionResult.noise_floor` and nothing else |
 | `ParameterCandidate.gradient` | ∂χ²/∂p in the parameter's physical units, sign included | which way the parameter wants to move |
 | `ParameterCandidate.absorption` | R² of this column on the span of the currently-free block | 0.0 when nothing is free; near 1 is what `SuggestionResult.non_separable` collects |
-| `ParameterCandidate.seeded` | whether the score was measured somewhere other than the stored value | true for a candidate sitting on a transform floor where its column is dead: softplus at 0, a Stephens block at S ≡ 0 |
+| `ParameterCandidate.seeded` | whether the score was measured somewhere other than the stored value | true for surface roughness at 0 and a Stephens block at S ≡ 0, scored where their stage would start the solve. A width at 0 is scored at 0 and is never seeded |
 | `ParameterCandidate.seed_value` | where, when it was | an assumed probe point must never look like a measured state |
 | `ParameterCandidate.action_kind` | the matching `SuggestedAction.kind`, when the paths agree | the cross-reference: two independent methods naming the same move |
 

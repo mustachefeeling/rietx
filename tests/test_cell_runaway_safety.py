@@ -17,7 +17,10 @@ phase's cell.a walked 4.1566 -> 3803 Å in twenty TRF iterations of one "both"
 stage (still reporting ``converged``), and the next stage's ``compile_model``
 crashed with the WP-1110 ``generate_reflections`` refusal
 (``refusing to enumerate reflections for cell a=295.588 ...``) before that
-next stage's own ``_freeze_cell_windows`` ever ran.
+next stage's own ``_freeze_cell_windows`` ever ran.  That walk needed the
+scales refined through softplus: since WP-1938 they are refined in their own
+units and the construction no longer walks, so the firing path is reached by
+an injected escape (:func:`_fit_with_injected_escape`).
 
 The fix (``refine.clamp_cell_runaway``) is a **post-solve** correction, not a
 second live bound: it inspects the committed cell values after a stage solves
@@ -304,15 +307,23 @@ def test_every_free_cell_ends_in_the_physical_range(degenerate_pair_fit):
         assert 1.0 < a < 100.0, f"{phase.name}: a = {a:.6g} Å ran away"
 
 
-def test_cell_runaway_is_reported_when_it_fires(degenerate_pair_fit):
-    _, result = degenerate_pair_fit
-    fired = [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
-    assert len(fired) == 1, [d.code for d in result.diagnostics]
-    finding = fired[0]
-    assert finding.level == "warning"
-    assert all(p.startswith("phases.") and p.endswith(".cell.a")
-              for p in finding.where)
-    assert finding.value is not None and finding.value > 0.0
+def test_the_trigger_construction_no_longer_walks_in_physical_units(
+        degenerate_pair_fit):
+    """The walk was a softplus artefact, and the clamp has nothing to do now.
+
+    Measured on this fixture (macOS arm64, ``[dev]``): with the scales
+    refined through softplus, TRF drove the decoy's scale to 2.7e-25 and
+    ``CELL_RUNAWAY`` fired.  Refined in their own units (WP-1938) the decoy's
+    scale stops at 1.2e-6 with a live cell column, and its cell moves 1.1 %
+    under either driver.  The firing path is pinned by the injected escapes
+    below (``test_the_rietveld_trigger_reports_the_esd_its_last_stage_measured``,
+    ``lebail_pair_fits``), which reach it on every platform.
+    """
+    ref, result = degenerate_pair_fit
+    assert not any(d.code == "CELL_RUNAWAY" for d in result.diagnostics)
+    for phase in ref.structure.phases:
+        a = phase.cell.a.value
+        assert abs(a / TRUE_A - 1.0) < CELL_SAFETY_FRACTION, f"{phase.name}: a = {a}"
 
 
 #: the plan shape of the second instance on issue #374 (Le Bail, two phases
@@ -512,6 +523,8 @@ def test_the_rietveld_trigger_reports_the_esd_its_last_stage_measured():
         _RIETVELD_STAGES, mode="rietveld", escape_at="both", restore_at="bkg")
     fired = [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
     assert len(fired) == 1 and fired[0].where == [ESCAPED]
+    assert fired[0].level == "warning"
+    assert fired[0].value is not None and fired[0].value > 0.0
     assert [s.name for s in result.stages][-1] == "zero"
     for phase in (0, 1):
         rows = _cell_rows(result, phase)
@@ -671,19 +684,18 @@ def test_fit_re_derives_theta_after_a_firing_clamp_with_no_collapse(monkeypatch)
     """End-to-end regression, through the public ``Refinement.fit()`` surface
     rather than a direct ``_build_result`` call.
 
-    On the degenerate-pair fixture, ``clamp_cell_runaway`` fires but so does
-    WP-1301's collapse-restore (one phase's support drops once its cell is
-    pulled back near the true value, since that is what stops it trading
-    scale against the other phase) -- and the second, restore-driven solve's
-    own ``theta`` is a fresh encoder output that was never stale, so it masks
-    the very bug this checks for regardless of whether the fix is present
-    (confirmed empirically: this construction, and two narrower-window
-    variants, all passed even against the pre-fix tree). So
-    ``_unsupported_phase_paths`` is patched to report no collapse ever, which
-    does not change what the clamp does (still fires, still pulls the cell
-    back to the same window edge) and isolates exactly the branch the fix
-    touches: the stage's own outcome, clamped and returned directly to
-    ``_build_result``, with no second solve in between.
+    The escape is injected (:func:`_fit_with_injected_escape`) into a plan
+    whose one stage produces the answer.  The degenerate pair walked only
+    while its scales were refined through softplus, so since WP-1938 nothing
+    found escapes on any platform.  WP-1301's collapse-restore would re-solve
+    and hand ``_build_result`` a fresh ``theta`` that was never stale, which
+    masks the bug whether or not the fix is present, so the helper patches
+    ``_unsupported_phase_paths`` to report no collapse.  That leaves exactly
+    the branch the fix touches: the stage's own outcome, clamped and returned
+    directly to ``_build_result``, with no second solve in between.  Made to
+    fail on purpose once: without ``_run_stage``'s
+    ``dataclasses.replace(outcome, theta=table.x0())`` the decoded cell is the
+    escaped 5.468 Å against the clamped entry's 4.887 Å.
 
     Rather than recompiling a second model to compare ``y_calc`` against (a
     fresh ``compile_model`` call makes its own frozen-window/FCJ-node sizing
@@ -699,8 +711,6 @@ def test_fit_re_derives_theta_after_a_firing_clamp_with_no_collapse(monkeypatch)
     import sys
 
     refine_module = sys.modules["rietx.refine"]  # see the other test's note
-    monkeypatch.setattr(refine_module, "_unsupported_phase_paths",
-                        lambda *a, **k: [])
 
     captured = {}
     real_build_result = refine_module._build_result
@@ -713,14 +723,10 @@ def test_fit_re_derives_theta_after_a_firing_clamp_with_no_collapse(monkeypatch)
 
     monkeypatch.setattr(refine_module, "_build_result", spy)
 
-    structure, ins = _degenerate_pair(1e-5)
-    ref = Refinement(structure, ins, history=False)
-    plan = RefinementPlan(stages=[
-        Stage("both", ["phases.*.scale", "phases.*.cell.*"], max_iter=20),
-    ])
-    data = synthesize()
-    result = ref.fit(data, plan=plan)
-    assert any(d.code == "CELL_RUNAWAY" for d in result.diagnostics)
+    result = _fit_with_injected_escape(
+        _RIETVELD_STAGES[:1], mode="rietveld", escape_at="both", restore_at=None)
+    assert [d.where for d in result.diagnostics
+            if d.code == "CELL_RUNAWAY"] == [[ESCAPED]]
     assert captured, "the spy never ran -- fit() must call _build_result by name"
 
     for path, entry_value in captured["entry_values"].items():
@@ -1058,17 +1064,19 @@ def test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error(tmp_path)
     structure = lebail_scaffold("P 1", TRICLINIC)
     findings = []
     for plan in ("profile_only", "lab_bragg_brentano"):
-        ref = rx.Refinement(structure, ins, history=False)
+        # TRF, because its trajectory is the one that reaches the guard, on
+        # every start tried.  Under LM, the default since WP-1938, the wrong
+        # cell stays within 0.01 Å of its start (Rwp 0.3316 at three starts
+        # 1e-14 apart) and the guard is never asked.
+        ref = rx.Refinement(structure, ins, history=False, solver="trf")
         result = ref.fit(data, mode="lebail", plan=plan, telemetry=False,
                          two_theta_limits=(8.0, 70.0))
         # a result came back with numbers in it, which is the claim; how good
-        # it is is not, since the cell is wrong on purpose.  Since WP-1930
-        # seeds profile.w off its floor, rounding picks where the widths go:
-        # on main every run ended with a negative Gaussian width and no peaks
-        # drawn (Rwp 0.33), and with the seed a nudge of 1e-14 to one start
-        # value sends some runs to widths at their upper bound, cut short by
-        # the frozen peak windows, whose fresh compile reads Rwp 4-7 (Linux
-        # CI: 1.1e9).  Both are the same non-fit, so no bar on Rwp can pass.
+        # it is is not, since the cell is wrong on purpose.  Under TRF rounding
+        # picks where the widths go: three starts 1e-14 apart read Rwp 127.7,
+        # 0.33 and 7.8e6 after profile_only (WP-1938, macOS arm64), and Linux
+        # CI once read 1.1e9.  All are the same non-fit, so no bar on Rwp can
+        # pass.
         assert math.isfinite(float(result.statistics.rwp))
         assert float(result.statistics.rwp) > 0.0
         findings += [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]

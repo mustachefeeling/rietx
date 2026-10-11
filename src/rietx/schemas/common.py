@@ -393,9 +393,18 @@ from .._nearmiss import did_you_mean
 #: 0.44 → 0.45 (WP-1808): ``RigidBody.torsions``, named-bond torsions inside
 #: a body (axis, declared moved set, the angle record).  Additive and defaulted to
 #: empty, a body without one building exactly the 0.44 table.
-SCHEMA_VERSION = "0.45"
-
-TransformKind = Literal["identity", "softplus", "exp", "logit"]
+#: 0.45 → 0.46 (WP-1938): two fields leave.  ``Parameter.transform`` goes
+#: because every parameter is now refined in its own units, with its bounds
+#: passed to the driver as a box.  A stored or passed ``transform`` is folded
+#: into the bounds it enforced by a ``mode="before"`` validator on
+#: ``Parameter`` (:func:`legacy_transform_bounds`): softplus and exp become
+#: ``min ≥ 0``, logit also ``max ≤ 1``.  ``StageResult.floor_unseeded`` (0.44)
+#: goes with WP-1930's floor seed, and a before-validator on ``StageResult``
+#: drops a stored one.  Every document written before opens unchanged in
+#: meaning, since the table already built each declared transform as that box.
+#: A document written here carries neither key, and an older build reads it as
+#: all-identity with the same bounds.
+SCHEMA_VERSION = "0.46"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated
@@ -541,7 +550,10 @@ class Parameter(Base):
     vary:
         Whether the parameter is free in the least-squares problem.
     min, max:
-        Inclusive bounds passed to the bounded minimiser.
+        Inclusive bounds passed to the bounded minimiser, which refines the
+        value in these units (WP-1938).  A ``transform`` written before
+        schema 0.46 is folded into them on read
+        (:func:`legacy_transform_bounds`).
     expr:
         Reserved for nonlinear constraint expressions; **not implemented** —
         must be ``None``. The design (a tiny AST-whitelisted DSL emitted as
@@ -557,11 +569,6 @@ class Parameter(Base):
         because it is the carrier for the nonlinear half of WP-1119's named
         variables, whose linear half the affine block above already computes —
         removing it now would buy one bump and cost another to undo.
-    transform:
-        Reparameterisation used internally.  ``softplus`` maps an unbounded
-        internal variable to a strictly positive physical value, which keeps
-        the optimiser away from the hard lower bound of quantities such as peak
-        widths and scale factors.
     stderr:
         Estimated standard deviation, filled in by the refinement.
     """
@@ -571,9 +578,39 @@ class Parameter(Base):
     min: float = -math.inf
     max: float = math.inf
     expr: str | None = None
-    transform: TransformKind = "identity"
     unit: str | None = None
     stderr: float | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fold_transform(cls, data: object) -> object:
+        """Read a stored or passed ``transform`` as the bounds it enforced.
+
+        The field left the schema at 0.46 (WP-1938), as
+        ``Instrument._migrate_v1_2_background_peaks`` handles a vanished field.
+        Every project, history line and ``.rxt`` written before carries it, and
+        so does python written against it, so both open unchanged in meaning:
+        the table had already built each declared transform as this box.  The
+        bound it sets counts as stated, so a declared range does not replace
+        it.  A field whose declared floor is above zero (a hump's width,
+        March ``r``, Caglioti ``w``) raises a ``min`` of 0 to that floor at
+        read, as it does for any caller's.
+        """
+        if not isinstance(data, dict) or "transform" not in data:
+            return data
+        data = dict(data)
+        kind = data.pop("transform")
+        if kind == "identity":
+            return data
+        try:
+            lo = float(data.get("min", -math.inf))
+            hi = float(data.get("max", math.inf))
+        except (TypeError, ValueError):
+            return data  # the field's own validation names the bad bound
+        data["min"], new_hi = legacy_transform_bounds(kind, lo, hi)
+        if new_hi != hi:
+            data["max"] = new_hi
+        return data
 
     @model_validator(mode="after")
     def _check_bounds(self) -> "Parameter":
@@ -596,9 +633,8 @@ class Parameter(Base):
     @classmethod
     def positive(cls, value: float, *, vary: bool = False, unit: str | None = None,
                  max: float = math.inf) -> "Parameter":
-        """A strictly positive parameter using the softplus reparameterisation."""
-        return cls(value=value, vary=vary, min=0.0, max=max, transform="softplus",
-                   unit=unit)
+        """A parameter bounded below at zero."""
+        return cls(value=value, vary=vary, min=0.0, max=max, unit=unit)
 
 
 def P(value: float, **kw) -> Parameter:  # noqa: N802 - deliberate short helper
@@ -606,21 +642,31 @@ def P(value: float, **kw) -> Parameter:  # noqa: N802 - deliberate short helper
     return Parameter(value=value, **kw)
 
 
+def legacy_transform_bounds(kind: str, lo: float, hi: float) -> tuple[float, float]:
+    """The box a ``transform`` written before schema 0.46 enforced (WP-1938).
+
+    softplus and exp kept a value above zero and logit inside (0, 1), whatever
+    ``lo`` and ``hi`` said.  Refined in physical units, each is that box.  The
+    one map from the old word to bounds: ``Parameter``'s read validator and the
+    ``.rxt`` parser's legacy flag words both call it.
+    """
+    if kind == "identity":
+        return lo, hi
+    if kind in ("softplus", "exp"):
+        return max(lo, 0.0), hi
+    if kind == "logit":
+        return max(lo, 0.0), min(hi, 1.0)
+    raise ValueError(
+        f"unknown transform {kind!r}: a stored transform is one of identity, "
+        "softplus, exp or logit, and since schema 0.46 it is read as bounds")
+
+
 #: What a bare ``Parameter`` holds for each attribute a field's declared
 #: default can carry.  In a document written before a class inherited
 #: (:class:`_InheritsDeclaredDefaults`), an attribute holding this value is the
 #: only trace an omission left once it was serialized.
 BARE_PARAMETER_ATTRS: dict[str, object] = {
-    "min": -math.inf, "max": math.inf, "unit": None, "transform": "identity"}
-
-#: The bounds each transform enforces by construction: softplus and exp keep a
-#: value above zero, logit inside (0, 1), whatever ``min``/``max`` say.  So a
-#: transform is part of how its field's declared *range* is enforced, and it is
-#: inherited only together with every bound it enforces — softplus arriving
-#: under a caller's own ``min=-1`` would clamp their value to 1e-12 at the
-#: first decode (``params.transforms.to_internal``), silently.
-_TRANSFORM_ENFORCES: dict[str, tuple[str, ...]] = {
-    "identity": (), "softplus": ("min",), "exp": ("min",), "logit": ("min", "max")}
+    "min": -math.inf, "max": math.inf, "unit": None}
 
 
 def declared_fills(declared: Parameter, present) -> dict[str, object]:
@@ -629,33 +675,26 @@ def declared_fills(declared: Parameter, present) -> dict[str, object]:
     ``present`` names the attributes the caller stated.  ``min``, ``max`` and
     ``unit`` are inherited one by one wherever the caller left them out, the
     rule PR #206 set for ``Atom`` (issue #204): an explicit bound always wins,
-    in either direction, and only a true omission inherits.  ``transform``
-    travels with the bounds it enforces (:data:`_TRANSFORM_ENFORCES`), never
-    alone.  **One rule, two readers**: construction (a key absent from the
-    caller's input) and the history reader's repair (an attribute holding the
-    bare value in a document written before its class inherited) ask the same
-    question with a different notion of absence, and neither restates it.
+    in either direction, and only a true omission inherits.  **One rule, two
+    readers**: construction (a key absent from the caller's input) and the
+    history reader's repair (an attribute holding the bare value in a document
+    written before its class inherited) ask the same question with a different
+    notion of absence, and neither restates it.
     """
-    fills: dict[str, object] = {attr: getattr(declared, attr)
-                                for attr in ("min", "max", "unit")
-                                if attr not in present}
-    if ("transform" not in present
-            and all(b in fills for b in _TRANSFORM_ENFORCES[declared.transform])):
-        fills["transform"] = declared.transform
-    return fills
+    return {attr: getattr(declared, attr) for attr in ("min", "max", "unit")
+            if attr not in present}
 
 
 class _InheritsDeclaredDefaults(Base):
     """A schema whose ``Parameter`` fields declare a range: a caller's own
     ``Parameter`` inherits what it left out.
 
-    A field declares its physical range, unit and transform in its
-    ``default_factory`` (``Atom.occ``: min 0, max 1.5; ``Phase.lor_size``:
-    min 0, degrees, softplus) rather than as a field constraint, so before
-    this the range applied only when the field was omitted entirely.  A caller
-    supplying ``Parameter(value=..., vary=...)`` — the natural way to set a
-    start or hold one — silently got ``(-inf, inf)``, no unit and ``identity``
-    instead (issue #204: a refined Biso of −165 Å² and an 81-point QPA error
+    A field declares its physical range and unit in its ``default_factory``
+    (``Atom.occ``: min 0, max 1.5; ``Phase.lor_size``: min 0, degrees) rather
+    than as a field constraint, so before this the range applied only when the
+    field was omitted entirely.  A caller supplying
+    ``Parameter(value=..., vary=...)`` — the natural way to set a start or hold
+    one — silently got ``(-inf, inf)`` and no unit instead (issue #204: a refined Biso of −165 Å² and an 81-point QPA error
     at unchanged Rwp, invisible at the call site).  PR #206 closed it for
     ``Atom``; WP-1321 audited every other class carrying such a field and
     moved the validator here, so a class opts in by inheriting and a field

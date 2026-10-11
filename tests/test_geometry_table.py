@@ -214,17 +214,15 @@ def _rutile_with_covariance(rho: float = 0.6, *, restraints=(),
     """Rutile with a planted correlated covariance on (a, c, O-DOF).
 
     A planted covariance rather than a fitted one, so the propagation is
-    checked against an exactly known input.  ``a`` carries a softplus
-    transform so the internal→physical chain rule is exercised too, and the
-    tetragonal ``b ← a`` tie plus the 4f site's single DOF (x and y move
-    together) make the affine block non-trivial.
+    checked against an exactly known input.  The tetragonal ``b ← a`` tie
+    plus the 4f site's single DOF (x and y move together) make the affine
+    block non-trivial.
 
     ``restraints``/``restraint_weight_scale`` exist for the WP-1074 seam pin
     below: they change the compiled *model* and must change nothing here.
     """
     structure = make_rutile(vary_coords=True)
     structure.phases[0].restraints = list(restraints)
-    structure.phases[0].cell.a.transform = "softplus"
     table = ParameterTable(structure, LAB)
     table.set_vary(["*"], False)
     table.set_vary(["phases.0.cell.a", "phases.0.cell.c",

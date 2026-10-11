@@ -518,7 +518,7 @@ def test_the_structure_is_shared_and_the_instruments_are_not():
     xd, nd = _flat(20.0, 80.0), _flat(20.0, 80.0)
     ref = rx.MultiHistogramRefinement(rx.Structure(phases=[corundum()]),
                                       [_xray(), _neutron()])
-    ref.fit([xd, nd], plan="profile_only")
+    result = ref.fit([xd, nd], plan="profile_only")
     assert ref.n_histograms == 2
 
     cells = [s.phases[0].cell.a.value for s in ref.fitted_structures]
@@ -526,10 +526,13 @@ def test_the_structure_is_shared_and_the_instruments_are_not():
         "the shared cell differs between histograms — the structure is not "
         "shared")
 
-    ws = [i.profile.w.value for i in ref.fitted_instruments]
-    assert ws[0] != ws[1], (
-        "both histograms carry the same profile width; the instruments are "
+    # On flat data every width ends on its floor (WP-1938), so the two values
+    # agree and cannot tell two instruments from one.  The columns can.
+    paths = {p.path for p in result.parameters}
+    assert {f"hist.{h}.instrument.profile.w" for h in (0, 1)} <= paths, (
+        "the profile width is not a column per histogram; the instruments are "
         "supposed to be per-histogram")
+    assert "instrument.profile.w" not in paths
 
 
 # ----------------------------------------------- the weighting, measured ---

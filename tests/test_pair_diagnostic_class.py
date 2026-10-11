@@ -39,29 +39,33 @@ def test_a_propagation_vector_off_gamma_is_named_too():
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("magnetic-solve-two-site")
-def test_the_two_site_winner_reaches_one_minimum_and_pairs_nothing():
+def test_the_two_site_winner_finds_each_site_its_own_moment():
     """The two-site Pnma set of ``test_magnetic_solve``, which carried this
     file's end-to-end naming check until WP-1930 showed both its pairs were
     stopping points.
 
     Mn1 (4b) and Mn2 (4a) are related by c/2, so l-even and l-odd reflections
-    measure m₁ + m₂ and m₁ − m₂ separately, and the true point is not a flat
-    valley.  The winner, class 0, pairs or not by where the walk stops: issue
-    #820 measured ρ(Mn1, Mn2) at −0.962 in one macOS venv and −0.498 on Linux,
-    either side of ``MOMENT_PAIR_RHO_MIN`` = 0.95, at one χ².  With the floor
-    seed the "all" stage starts ``lor_size`` and ``gauss_strain`` off their
-    floor, class 0's moment stage converges where it hit ``max_iter`` before,
-    and ρ is −0.114 with Linux's esds.  The naming check moved to the 150 K
-    Cr₂WO₆ solution, whose pair is structural
-    (``test_magnetic_solve_acceptance``).
+    measure m₁ + m₂ and m₁ − m₂ separately.  Swapping the two moduli leaves
+    the size of each combination unchanged.  The swapped point is a second
+    minimum, χ² higher by only 0.66 (2556.51 against 2555.85, macOS arm64).  The flat start lands on it
+    under both drivers since the floor seed went (WP-1938 D4), so the sweep
+    reports two minima and the released start that reaches the truth wins.
+    Under LM the released starts reach it only because the moduli climb before
+    the angles turn (D12): freed together, they stopped at χ² 454 660.
 
-    Class 2, the flat model, is still a stopping point, so only the winner is
-    asserted to pair nothing.  On macOS arm64 and on Intel Xeon CI runners
-    all three of its starts stop at m ≈ 0, where |F_m|² ∝ m² has no gradient
-    and no column to correlate.  On AMD EPYC 7763 runners two of the three
-    reach m₁ ≈ m₂ ≈ 0.097, χ² lower by 41, where ρ = −0.99997 and the pair is
-    named (0.137 +/- 5.738 μ_B).  Same commit, same wheels: the runner's CPU
-    decides (#865).
+    Whether the winner's moduli are named a pair is left out.  Both moments lie
+    along **a**, where the azimuth is stationary, and how far from it the
+    solver stops decides the moduli esds and ρ (WP-1929 task 4).  Issue #820
+    measured ρ at −0.962 on one macOS venv and −0.498 on Linux, either side of
+    ``MOMENT_PAIR_RHO_MIN``; under LM on macOS arm64 the esds are 0.031 and
+    0.159 μ_B and the pair is named.  A named pair still has to quote the
+    quadrature sum the data measure, so that is asserted.
+
+    Class 2, the flat model, is still a stopping point, so nothing is asserted
+    about it.  On macOS arm64 and on Intel Xeon CI runners all three of its
+    starts stopped at m ≈ 0 under TRF.  On AMD EPYC 7763 runners two of the
+    three reached m₁ ≈ m₂ ≈ 0.097 and named the pair: the runner's CPU decided
+    (#865).
     """
     from tests import test_magnetic_solve as T
 
@@ -76,14 +80,12 @@ def test_the_two_site_winner_reaches_one_minimum_and_pairs_nothing():
     ref = T.nuclear_fit(T.two_site(), data, instrument)
     solution = rx.solve_magnetic(ref, data, sites=["Mn1", "Mn2"], ion="Mn3+")
 
-    pairs = [d.message for d in solution.diagnostics
-             if d.code == "MOMENT_PAIR_DEGENERATE"]
-    assert not [m for m in pairs if m.startswith("class 0")], pairs
     winner = next(t for t in solution.trials if t.class_index == 0)
-    assert not any(r.paired_with for r in winner.moments)
-    assert winner.n_minima == 1
+    assert solution.best is not None and solution.best.class_index == 0
     m1, m2 = winner.moments
     assert m1.magnitude == pytest.approx(3.5, abs=0.01)
     assert m2.magnitude == pytest.approx(0.7, abs=0.01)
-    # Linux's esds before the seed were 0.002 and 0.004 μ_B
-    assert m1.esd < 0.01 and m2.esd < 0.01
+    for row in winner.moments:
+        if row.paired_with:
+            assert row.paired_magnitude == pytest.approx(
+                (3.5 ** 2 + 0.7 ** 2) ** 0.5, abs=0.01)

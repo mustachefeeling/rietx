@@ -390,8 +390,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "depression falls, not how deep it goes. Both limits return the "
             "identity, so any one depression is reproducible by two values of "
             "b, and `ROUGHNESS_UNCONSTRAINED` measures the modelled depression "
-            "rather than b itself. b = 0 is a dead gradient, so a stage that "
-            "frees it seeds it."
+            "rather than b itself. b = 0 is the identity, so a stage that "
+            "frees it starts it at 0.3, near where the data can see it."
         ),
         unit=None, default="0.0",
         typical="0.1-0.5; past about 3 the correction is dead and its gradient flat",
@@ -446,8 +446,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "is the Caglioti term that usually goes negative, and it carries "
             "much the widest negative range. It is not the only one that may: "
             "U's default bound admits a small negative value too, while W, X "
-            "and Y are softplus-floored at zero and cannot go negative at "
-            "all. The width curve's minimum sits at tanθ = −V/(2U). Nothing "
+            "and Y are bounded below and cannot go negative at all. The width "
+            "curve's minimum sits at tanθ = −V/(2U). Nothing "
             "in the specimen reaches V, so it is purely instrumental, and a "
             "phase's `gauss_strain` adds to U instead."
         ),
@@ -459,9 +459,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         title="Caglioti W",
         description=(
             "The constant term of the Gaussian variance, so it sets the width "
-            "the pattern would have at zero angle. It is bounded positive: a "
-            "negative W is a negative variance. Freeing W together with a "
-            "free `gauss_size` fits the same constant twice at low angle."
+            "the pattern would have at zero angle. Its lower bound is the "
+            "small variance the Gaussian width is clamped at, not 0. Under that "
+            "clamp the width stops responding to U, V and W, and a fit there "
+            "stops. Freeing W together with a free `gauss_size` fits the same "
+            "constant twice at low angle."
         ),
         unit="deg² 2θ", default="0.001",
         typical="0.001-0.02 on a laboratory diffractometer",
@@ -570,7 +572,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         title="Background-peak height",
         description=(
             "The peak intensity of an explicit Gaussian background term, in the "
-            "pattern's own count units. Softplus with min 0 because zero is the "
+            "pattern's own count units. Bounded at min 0 because zero is the "
             "off state: h = 0 makes the whole term identically zero, so a "
             "declared-but-never-freed peak is bit-identical to no peak at all."
         ),
@@ -593,7 +595,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "`HUMP_TOO_NARROW`. For a `peak` sharp is the whole point — it is a "
             "real reflection from something that is not one of your phases — so "
             "no width guard fires and the floor is only there because the "
-            "profile divides by Γ. Softplus in both cases, floored at a small "
+            "profile divides by Γ. In both cases it is floored at a small "
             "positive value; the floor differs by kind (0.1 for a hump, 0.005 "
             "for a peak) because the two are derived from the coarsest and the "
             "finest scan step anything can be refined from."
@@ -636,7 +638,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "that is what a reflection intensity is, and it is not called "
             "`scale` on purpose: every `*.scale` path is force-fixed under Le "
             "Bail and Pawley, where a declared peak still has to refine. "
-            "Softplus with min 0 because zero is the off state — area 0 makes "
+            "Bounded at min 0 because zero is the off state — area 0 makes "
             "the term identically zero, so a declared-but-never-freed peak is "
             "bit-identical to no peak at all. An area that refines to its zero "
             "bound means the data does not see the peak, and its centre then "
@@ -652,8 +654,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         description=(
             "The Lorentzian fraction of a declared sharp peak's pseudo-Voigt: "
             "0 is a pure Gaussian, 1 a pure Lorentzian, and both ends are "
-            "legitimate rather than poles, which is why this is logit- rather "
-            "than softplus-transformed. Its **upper bound** also sizes the "
+            "legitimate rather than poles, which is why it is bounded to "
+            "[0, 1] with no floor inside it. Its **upper bound** also sizes the "
             "frozen evaluation window, because the half-width at which the "
             "profile's discarded area stays within tolerance is a steep "
             "function of η (about 1 FWHM at η = 0, about 16 at η = 1). A "
@@ -694,8 +696,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "size (a powder has no secondary extinction), attenuating the "
             "strong low-angle reflections of a well-crystallised specimen. "
             "0 is exactly no correction, so a phase that does not free it is "
-            "unaffected. The gradient at 0 is dead, which is why the staged "
-            "plans seed it off zero with `Stage.seed` when they free it."
+            "unaffected. Its column at 0 is the physical one, so the staged "
+            "plans free it from 0 with no seed."
         ),
         unit="µm²", default="0.0",
         typical="0 for a ground powder; 0.1 to 100 (blocks of 0.3 to 10 µm) "
@@ -1003,10 +1005,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "them. Seed an all-zero block onto the isotropic ray with "
             "`Stage.strain_seed`: at S = 0 the square root in the width has "
             "unbounded slope. Positivity of σ²(M) is a cone coupling all "
-            "fifteen coefficients, so under the default solver it is reported "
-            "by `STEPHENS_STRAIN_NOT_POSITIVE` rather than bounded. Read that "
-            "flag as 'these coefficients are not quotable', not as evidence of "
-            "anisotropy."
+            "fifteen coefficients, so it cannot be a box bound. The default "
+            "LM solver holds it as a linear inequality. Under `solver=\"trf\"`, "
+            "and in a joint fit, it is reported by "
+            "`STEPHENS_STRAIN_NOT_POSITIVE` instead. Read that flag as 'these "
+            "coefficients are not quotable', not as evidence of anisotropy."
         ),
         unit=None, default=None,
         typical="the isotropic seed is ε²·[M²] for a strain ε of 1e-4 to 1e-3",
@@ -1435,25 +1438,26 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         anchor="forward-model.html#three-intensity-models",
     ),
     "seed": HelpEntry(
-        title="Softplus seed value",
+        title="Floor seed value",
         description=(
-            "Lifts any softplus-floored parameter this stage frees to this "
-            "value. A parameter sitting exactly at its floor has no gradient, "
-            "so a stage that frees extinction without seeding it refines "
-            "nothing. Use `strain_seed` for a Stephens block: that one has "
-            "the opposite problem."
+            "Starts every parameter this stage frees that sits exactly on a "
+            "lower bound of 0 or above at this value. A parameter that can go "
+            "negative is never seeded. Suortti b = 0 is the identity, so the "
+            "roughness stage uses it to start b near where the data can see "
+            "it. It is the only shipped stage that seeds. Use `strain_seed` "
+            "for a Stephens block: that one has the opposite problem."
         ),
         default="0.0",
-        typical="1e-4 to 1e-3 where a stage frees extinction",
+        typical="0.3 where a stage frees surface roughness; 0 elsewhere",
     ),
     "strain_seed": HelpEntry(
         title="Stephens strain seed",
         description=(
             "Microstrain in ppm used to seed an all-zero Stephens block onto "
             "the isotropic ray. At S = 0 the square root in the width law has "
-            "unbounded slope, which is the opposite pathology to a dead "
-            "gradient and needs its own setting: `seed` reaches softplus "
-            "entries only, and these coefficients are not softplus."
+            "unbounded slope, and needs its own setting: `seed` reaches "
+            "parameters bounded below at 0 only, and these coefficients can "
+            "go negative."
         ),
         unit="ppm", default="0.0",
         typical="100-1000 ppm where a stage frees an anisotropic strain block",

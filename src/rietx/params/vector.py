@@ -10,8 +10,9 @@ Compiles a (Structure, Instrument) pair into:
   matmul stays exact under the future autodiff backends).  Crystal-system
   cell ties are the identity-row special case; Wyckoff site constraints
   (``crystallography.wyckoff``) supply general rows;
-* the mapping between the free internal vector θ (what the optimiser sees)
-  and the full physical value dict consumed by the forward model;
+* the mapping between the free vector θ (what the optimiser sees, each
+  column in its parameter's own units since WP-1938) and the full physical
+  value dict consumed by the forward model;
 * zero or more **derived blocks** (``params.derived``, WP-1804) applied after
   the affine matmul: closed-form nonlinear maps onto locked rows, a rigid
   body's atoms being the case they exist for.  "Constant during a run" is a
@@ -61,7 +62,6 @@ from ..schemas.instrument import (
 )
 from ..schemas.structure import MOMENT_COMPONENTS, Structure
 from .derived import DerivedBlock
-from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physical
 
 #: Dot-path suffix of a source line's wavelength row.  One authority for the
 #: spelling, since three places test for it: the collector, the freedom check
@@ -272,7 +272,6 @@ class Entry:
     vary: bool
     lo: float
     hi: float
-    transform: str
     tie: AffineTie | None = None  # affine dependence on other entries
     locked: bool = False  # structurally fixed: set_vary may never free it
     #: the caller declared this parameter does not move (WP-1435).  Written by
@@ -846,9 +845,7 @@ def _size_parameter_name(path: str) -> str | None:
 #: authority is there, and the inline is one expression); the two spellings are
 #: held together by an equality pin rather than by this comment —
 #: ``tests/test_strain_cap.py::test_the_size_caps_scherrer_k_is_the_one_in_caglioti``,
-#: which fails if either number moves.  Same idiom as
-#: ``schemas.structure._SOFTPLUS_FLOOR`` against
-#: ``params.transforms._SOFTPLUS_MIN``.
+#: which fails if either number moves.
 _SIZE_CAP_SCHERRER_K = 0.9
 
 
@@ -1005,46 +1002,23 @@ def _magnetic_component_drawn(phase, instrument) -> bool:
         return False
 
 
-#: A softplus entry at or below this value is on its floor (WP-1930).  The
-#: transform clamps a stored 0 to 1e-12 (``transforms._SOFTPLUS_MIN``), and a
-#: fit that ends on the floor leaves the value near there: 1e-12 on one
-#: platform and 3e-11 on the other in issue #832's sweep.  This bar is 30× above
-#: the larger.  At 1e-9 the softplus slope is 1e-9, so a row that far down
-#: carries no gradient a solver can act on, and no width or coefficient that
-#: small is a measurement.
-SOFTPLUS_FLOOR_VALUE = 1e-9
-
-#: The value a stage starts a freed softplus row at when the row sits on its
-#: floor, keyed by the unit its :class:`Parameter` declares (WP-1930, #836).
+#: A typical size for a width-like row, keyed by the unit its
+#: :class:`Parameter` declares.  One reader: the forward-difference step of a
+#: row bounded below at 0 is sized by it (``optimize.least_squares._fd_typicals``,
+#: WP-1936), so a column at exactly 0 is measured over a step the physics
+#: notices rather than an absolute one.  ``Refinement.suggest`` no longer
+#: seeds a width from it (WP-1938, ``strategy.suggest`` has the measurement).
 #:
-#: **Why a seed at all.**  At the floor the softplus slope is 1e-12, so the row's
-#: Jacobian column is twelve orders below its neighbours.  A Gauss-Newton step
-#: there predicts a change in cost below the cost's own rounding, so whether the
-#: trust region ever lifts the row is decided by the last bits.  On LaB₆ + cBN a
-#: 3e-14 relative change to one start value moved χ²_red from 9.69 to 12.48,
-#: with ``instrument.profile.y`` left on its floor.  MINUIT's manual warns of
-#: the same thing for any transformed parameter at its limit.
+#: **The sizes.**  A width in deg 2θ is 1e-3°, the extinction stage's own
+#: seed.  A Gaussian variance in deg² is its square, so it adds the same 1e-3°
+#: to the FWHM.  An extinction coefficient in µm² is 1e-3 too.  WP-1936's log
+#: has the step measured against the jax Jacobian at these sizes.
 #:
-#: **The sizes.**  A width in deg 2θ starts at 1e-3°, the extinction stage's
-#: own seed.  A Gaussian variance in deg² starts at its square, so it adds the
-#: same 1e-3° to the FWHM.  An extinction coefficient in µm² starts at 1e-3 too.
-#: At 1e-3 the softplus slope is 1e-3, nine orders above the floor's, and a
-#: seed that small is cheap to walk back where the data put the width at zero.
-#: Measured on 11-BM LaB₆ + cBN, BT-1 neutron and lab Cu Kα brucite: every seed
-#: from 1e-3° to 0.05° reached one χ² per fit, under rounding-level changes to
-#: the start as well.  The larger seed saved a few iterations on the sharp
-#: instrument (36-40 against 41-45).  It cost more elsewhere: at 0.05° nine
-#: synthetic suites whose true width is zero ran out of iterations or moved,
-#: and LaB₆ + cBN with its Gaussian free stopped at χ²_red 9.84 rather than
-#: 9.66.  WP-1930's log has the tables.
-#:
-#: A row with any other unit has no natural size: a background hump's height
-#: is in counts, and its scale is the data's.  It is left where it is and
-#: reported (``SOFTPLUS_FREED_AT_FLOOR``).
-#:
-#: **A second reader.**  The finite-difference step of an identity width row
-#: is sized by the same table (``optimize.least_squares._fd_typicals``,
-#: WP-1936), so a new width unit belongs here for both reasons.
+#: The table was WP-1930's floor seed first, which started a freed softplus
+#: row on its floor at these values because its column there was twelve orders
+#: below its neighbours.  WP-1938 refines every row in its own units, so the
+#: column at a floor is the physical one and that seed is gone; the sizes
+#: stayed, being the step's.  A new width unit belongs here.
 FLOOR_SEEDS: dict[str, float] = {"deg": 1e-3, "deg^2": 1e-3 ** 2, "um^2": 1e-3}
 
 
@@ -1105,9 +1079,10 @@ class ParameterTable:
         #: it always wrote, and ``x0``/``bounds`` skip the lookup's branch.
         self._value_scale: dict[str, float] = {}
         #: path → the unit its :class:`Parameter` declared, for every entry
-        #: :meth:`_add` built.  Read by :meth:`seed_floor` alone, which sizes a
-        #: floor seed by unit; kept beside :class:`Entry` rather than in it,
-        #: because ``Entry`` mirrors ``ParameterRow`` field for field.
+        #: :meth:`_add` built.  Read by ``optimize.least_squares._fd_typicals``,
+        #: which sizes a column's step by unit (WP-1936); kept
+        #: beside :class:`Entry` rather than in it, because ``Entry`` mirrors
+        #: ``ParameterRow`` field for field.
         self._units: dict[str, str | None] = {}
         #: atom base path (``phases.0.atoms.2``) → the orthonormal frame of
         #: that site's allowed moment subspace, in crystal-axis rows.  Built
@@ -1164,9 +1139,10 @@ class ParameterTable:
     # -- collection ----------------------------------------------------
     def _add(self, path: str, p: Parameter, *, force_fixed: bool = False,
              tie: AffineTie | None = None) -> None:
+        # every entry is refined in its own units (WP-1938)
         self.entries.append(Entry(
             path=path, value=p.value, vary=p.vary and not force_fixed and tie is None,
-            lo=p.min, hi=p.max, transform=p.transform, tie=tie,
+            lo=p.min, hi=p.max, tie=tie,
             locked=force_fixed,
         ))
         self._units[path] = p.unit
@@ -1262,10 +1238,9 @@ class ParameterTable:
         An all-zero block is the exact no-broadening identity, so it is allowed
         to *exist*; refining from there is not.  Λ ∝ √Σ has unbounded slope at
         the origin, so the first Jacobian column would be enormous and TRF's
-        first step garbage — the failure inverts the softplus-at-zero trap
-        (dead gradient) into an exploding one, and neither is something to
-        discover from a bad fit.  ``Stage(seed=…)`` cannot help: it lifts
-        softplus entries only, and these are identity-transform.
+        first step garbage, and that is not something to discover from a bad
+        fit.  ``Stage(seed=…)`` cannot help: it lifts a row on a floor at or
+        above zero, and these DOFs are unbounded.
         """
         block = phase.microstrain
         if block is None:
@@ -1305,10 +1280,10 @@ class ParameterTable:
                 # to enforce exactly
                 self.entries.append(Entry(
                     path=f"{base}.microstrain.{name}", value=0.0, vary=False,
-                    lo=p.min, hi=p.max, transform=p.transform, locked=True))
+                    lo=p.min, hi=p.max, locked=True))
         for k, path in enumerate(dof_paths):
             self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+                                      lo=-np.inf, hi=np.inf))
         # S scales as microstrain², so one unit-ppm projection serves any seed
         unit, *_ = np.linalg.lstsq(
             basis.T.astype(np.float64),
@@ -1348,7 +1323,7 @@ class ParameterTable:
                 self._add(f"{base}.{c}", p, force_fixed=True)
         for k, path in enumerate(dof_paths):
             self.entries.append(Entry(path=path, value=0.0, vary=want_vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+                                      lo=-np.inf, hi=np.inf))
             self._anchored_dofs[path] = tuple(
                 (f"{base}.{c}", float(basis[k][c_idx]))
                 for c_idx, c in enumerate(("x", "y", "z")) if basis[k][c_idx] != 0)
@@ -1443,8 +1418,7 @@ class ParameterTable:
         for path in paths:
             self.entries.append(Entry(
                 path=path, value=0.0, vary=body.rotation_vary,
-                lo=-RIGID_BODY_ROTATION_BOUND, hi=RIGID_BODY_ROTATION_BOUND,
-                transform="identity"))
+                lo=-RIGID_BODY_ROTATION_BOUND, hi=RIGID_BODY_ROTATION_BOUND))
         self._anchored_rotations[bbase] = paths
         # named-bond torsions (WP-1808): the same kind about one axis each, in
         # degrees and unboxed — a turn about a fixed axis has no singular
@@ -1452,7 +1426,7 @@ class ParameterTable:
         twists = block.twist_paths(bbase)
         for path, torsion in zip(twists, body.torsions, strict=True):
             self.entries.append(Entry(path=path, value=0.0, vary=torsion.vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+                                      lo=-np.inf, hi=np.inf))
         self._anchored_torsions[bbase] = twists
         self._bodies.append((bbase, body.name, block))
 
@@ -1577,7 +1551,7 @@ class ParameterTable:
                 self._add(f"{base}.{name}", p, force_fixed=True)
         for k, path in enumerate(dof_paths):
             self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+                                      lo=-np.inf, hi=np.inf))
         self._add(f"{base}.biso", atom.biso, force_fixed=True)
 
     def _collect_atom_moment(self, base: str, phase, atom) -> None:
@@ -1617,7 +1591,7 @@ class ParameterTable:
         for name in MOMENT_COMPONENTS:
             self._add(f"{base}.moment.{name}", getattr(moment, name),
                       force_fixed=True)
-        # Unbounded and identity-transform, like every other DOF here: the
+        # Unbounded, like every other DOF here: the
         # modulus is *signed* on a one-dimensional subspace (the only way two
         # independent sites can be stated antiparallel along one axis), and on
         # a larger one the antipode is an angle away.  |μ| is the magnitude,
@@ -1625,7 +1599,7 @@ class ParameterTable:
         for k, value in enumerate(seed):
             self.entries.append(Entry(
                 path=f"{base}.moment.dof{k}", value=float(value),
-                vary=want_vary, lo=-np.inf, hi=np.inf, transform="identity"))
+                vary=want_vary, lo=-np.inf, hi=np.inf))
 
     def _refresh_moment_components(self) -> None:
         """Write every moment block's components back from its DOFs.
@@ -1975,7 +1949,7 @@ class ParameterTable:
         **The derived rows follow, here** (WP-1805, the #773 follow-up).  Every
         writer that moves a value outside a solve ends in a rebuild — the
         seeds, the anchored-DOF rebase, re-anchor and displacement, the tie
-        refresh — and any of them can move a block input (a softplus cell
+        refresh — and any of them can move a block input (a seeded cell
         length, a body origin), so the refresh is made where they all pass
         rather than remembered by each.
         """
@@ -2131,9 +2105,7 @@ class ParameterTable:
         """
         if not self.derived:
             return self._C
-        p_free = np.array([to_physical(float(t), self.entries[i].transform)
-                           for t, i in zip(theta, self._free_idx, strict=True)],
-                          dtype=np.float64)
+        p_free = np.asarray(theta, dtype=np.float64)
         p = self._C @ p_free + self._d if len(p_free) else self._d.copy()
         jac = self._C.toarray()
         for block, (ins, outs) in zip(self.derived, self._derived_idx, strict=True):
@@ -2297,7 +2269,6 @@ class ParameterTable:
     # -- table surgery (used by Wyckoff constraint wiring) -------------
     def add_parameter(self, path: str, value: float, *, vary: bool = False,
                       lo: float = -np.inf, hi: float = np.inf,
-                      transform: str = "identity",
                       unit: str | None = None) -> None:
         """Append a synthetic parameter (e.g. a Wyckoff displacement DOF).
 
@@ -2309,7 +2280,7 @@ class ParameterTable:
         if path in self._paths:
             raise ValueError(f"parameter {path!r} already exists")
         self.entries.append(Entry(path=path, value=value, vary=vary,
-                                  lo=lo, hi=hi, transform=transform))
+                                  lo=lo, hi=hi))
         self._units[path] = unit
         self._rebuild()
 
@@ -2916,15 +2887,29 @@ class ParameterTable:
                    and e.path.rsplit(".", 1)[-1] in self._CELL_SUFFIXES
                    for e in self.entries)
 
-    def seed_softplus(self, paths: list[str], value: float) -> list[str]:
-        """Lift softplus-bounded free params sitting below ``value`` up to it.
+    def seed_floored(self, paths: list[str], value: float) -> list[str]:
+        """Lift each free row sitting on a floor at or above 0 to ``value``.
 
-        A softplus coefficient at ~0 has an internal gradient ≈ 0 (dp/du =
-        σ(u) → 0 as p → 0), so TRF cannot move it off the floor.  When a stage
-        frees such a parameter this nudges it to a small positive seed so the
-        first Jacobian has a live column.  Only softplus entries strictly
-        below ``value`` are touched (already-lifted ones and other transforms
-        are left alone); returns the paths actually seeded.
+        ``Stage.seed``'s writer, and ``Refinement.suggest``'s probe.  A row
+        qualifies by its **bounds**, never by a transform word: it is free,
+        its lower bound is at least 0, its value is on that bound, and the
+        seed is above it.  Only a row on its floor is touched (issue #499), so
+        a start a caller chose is never overwritten: Pitschke ``tau`` at its
+        0.05 default stays there under the roughness stage's 0.3.  Some
+        corrections are the identity at their floor, and a plan says where
+        their solve starts: Suortti surface roughness at b = 0 leaves every
+        intensity unchanged, and b → ∞ does too, so the roughness stage
+        starts b at 0.3, near the band where the data can see it
+        (``strategy.staged._ROUGHNESS_STAGE``).  A row that can go negative
+        (an offset, a Stephens DOF, a background coefficient) is left alone,
+        since its zero is not a floor.  So is a row whose upper bound lies
+        under the seed: written there, the value would leave its own box, and
+        the model write-back refuses it.  Returns the paths seeded.
+
+        Until WP-1938 this selected softplus rows, whose column at the floor
+        was twelve orders below its neighbours in the internal coordinate.
+        Every row is now refined in its own units, where that column is the
+        physical one, so the bounds are what is left of that reading.
 
         **The seed is in column units, not this table's** (WP-1131): a scaled
         entry (:meth:`apply_value_scale`) is seeded to ``value`` times its
@@ -2936,73 +2921,31 @@ class ParameterTable:
         """
         seeded = []
         for path in paths:
-            i = self._paths.get(path)
-            if i is None:
-                continue
-            e = self.entries[i]
-            target = value * self._value_scale.get(path, 1.0)
-            if e.transform == "softplus" and e.value < target:
-                e.value = target
+            target = self._floor_seed_target(path, value)
+            if target is not None:
+                self.entries[self._paths[path]].value = target
                 seeded.append(path)
         if seeded:
             self._rebuild()
         return seeded
 
-    def seed_floor(self, paths: list[str], cap: dict[str, float] | None = None,
-                   *, write: bool = True) -> tuple[dict[str, float], list[str]]:
-        """Start each freed softplus row sitting on its floor a short way inside.
-
-        A row is on its floor at or below :data:`SOFTPLUS_FLOOR_VALUE` (in
-        column units, as :meth:`seed_softplus` reads a seed).  It is lifted to
-        :data:`FLOOR_SEEDS`' value for its unit, times its value scale, or
-        to half its upper bound where that is lower.  Only
-        rows on the floor are touched, so a start a caller chose is never
-        overwritten: issue #499 was a seed that lifted every row below it,
-        the moment and the scale included.
-
-        ``cap`` maps a path to a ceiling on its seed in column units.  A joint
-        table passes it so a shared column takes one seed in every histogram,
-        since each histogram's box divides by its own value scale.
-        ``write=False`` returns what would be seeded and changes nothing.
-
-        Returns ``(seeded, unseeded)``: the paths lifted with the column value
-        each now starts at, and the floor rows whose unit has no seed, a
-        ``.scale`` excepted.
-        """
-        seeded: dict[str, float] = {}
-        unseeded: list[str] = []
-        for path in paths:
-            i = self._paths.get(path)
-            if i is None:
-                continue
-            e = self.entries[i]
-            scale = self._value_scale.get(path, 1.0)
-            if e.transform != "softplus" or e.value > SOFTPLUS_FLOOR_VALUE * scale:
-                continue
-            seed = FLOOR_SEEDS.get(self._units.get(path))
-            if seed is None:
-                # a scale on its floor is a phase or curve the data cannot see,
-                # which PHASE_UNCONSTRAINED reports (WP-1301); starting it
-                # positive is the advice that report exists to withhold
-                if not path.endswith(".scale"):
-                    unseeded.append(path)
-                continue
-            # a box narrower than the seed takes half its own width instead
-            seed = min(seed, 0.5 * e.hi / scale,
-                       (cap or {}).get(path, float("inf")))
-            if write:
-                e.value = seed * scale
-            seeded[path] = seed
-        if seeded and write:
-            self._rebuild()
-        return seeded, unseeded
+    def _floor_seed_target(self, path: str, value: float) -> float | None:
+        """What :meth:`seed_floored` would write at ``path``, or None."""
+        i = self._paths.get(path)
+        if i is None:
+            return None
+        e = self.entries[i]
+        target = value * self._value_scale.get(path, 1.0)
+        if e.vary and 0.0 <= e.lo and e.value <= e.lo < target <= e.hi:
+            return target
+        return None
 
     def seed_stephens(self, paths: list[str], microstrain: float) -> list[str]:
         """Put a freed but still all-zero Stephens block on the isotropic ray.
 
-        The counterpart of :meth:`seed_softplus` for the anisotropic-strain
-        DOFs, and needed for the opposite reason: they are identity-transform,
-        so ``seed_softplus`` skips them, and their pathology at zero is an
+        The counterpart of :meth:`seed_floored` for the anisotropic-strain
+        DOFs, and needed for the opposite reason: they are unbounded below,
+        so ``seed_floored`` skips them, and their pathology at zero is an
         *exploding* rather than a dead gradient (Λ ∝ √Σ).  The seed is the
         isotropic limit — S = microstrain²·[M²], the one point of the allowed
         subspace that is guaranteed to give σ²(M) > 0 for every reflection.
@@ -3142,9 +3085,8 @@ class ParameterTable:
                 for i, e in enumerate(self.entries)}
 
     def x0(self) -> np.ndarray:
-        return np.array([to_internal(self._unscaled(self.entries[i]),
-                                     self.entries[i].transform)
-                         for i in self._free_idx], dtype=np.float64)
+        return np.array([self._unscaled(self.entries[i]) for i in self._free_idx],
+                        dtype=np.float64)
 
     def _unscaled(self, e: Entry) -> float:
         """``e.value`` in the units the free column carries (see
@@ -3317,16 +3259,13 @@ class ParameterTable:
                 # is that limit divided.  Applied here rather than in each
                 # branch, so a new bound kind inherits it.
                 e_lo, e_hi = e_lo / scale, e_hi / scale
-            low, high = internal_bounds(e_lo, e_hi, e.transform)
-            lo.append(low)
-            hi.append(high)
+            lo.append(e_lo)
+            hi.append(e_hi)
         return np.asarray(lo), np.asarray(hi)
 
     def decode(self, theta: np.ndarray) -> dict[str, float]:
-        """Internal free vector → full physical value dict, via C·p_free + d."""
-        p_free = np.array([to_physical(float(t), self.entries[i].transform)
-                           for t, i in zip(theta, self._free_idx, strict=True)],
-                          dtype=np.float64)
+        """Free vector → full physical value dict, via C·θ + d."""
+        p_free = np.asarray(theta, dtype=np.float64)
         p = self._C @ p_free + self._d if len(p_free) else self._d
         if self.derived:
             p = np.array(p, dtype=np.float64)   # never write into ``_d``
@@ -3507,15 +3446,14 @@ class ParameterTable:
         """∂θ_old/∂θ_new over the free columns, for ``rechart_outcome``.
 
         The moment signs on the diagonal and each composed body's block on
-        its rotation columns (disjoint sets).  A rotation entry is an identity
-        transform, so its free column is its value or an affine image of
-        another's; the block is carried through C's rows as
-        pinv(A)·chart·A, A the rows of the body's rotation entries over the
-        columns that reach them.  That is exact when each rotation entry is its
-        own free column; a body with some rotation DOFs held or tied gets the
-        projection, because composing then changes which orientations the
-        held components leave reachable, and no matrix maps one family onto
-        the other.
+        its rotation columns (disjoint sets).  A rotation entry's free column
+        is its value or an affine image of another's; the block is carried
+        through C's rows as pinv(A)·chart·A, A the rows of the body's rotation
+        entries over the columns that reach them.  That is exact when each
+        rotation entry is its own free column; a body with some rotation DOFs
+        held or tied gets the projection, because composing then changes which
+        orientations the held components leave reachable, and no matrix maps
+        one family onto the other.
         """
         n = len(self._free_idx)
         out = np.diag(np.ones(n) if signs is None else np.asarray(signs, dtype=np.float64))
@@ -3568,9 +3506,9 @@ class ParameterTable:
         """Physical esds for every free or tied parameter.
 
         σ²_phys = diag(C · Cov_free · Cᵀ), where Cov_free is the covariance
-        of the *physical* free parameters: the internal esds chain-ruled
-        through the transforms, correlated by ``correlation`` when given
-        (diagonal otherwise — the pre-v0.3 behaviour).  Identity ties
+        of the free parameters: the solver's esds, correlated by
+        ``correlation`` when given (diagonal otherwise — the pre-v0.3
+        behaviour).  Identity ties
         thereby report exactly the source esd; general rows get full linear
         propagation including cross terms.  Held parameters are omitted.
 
@@ -3608,7 +3546,7 @@ class ParameterTable:
 
     def _phys_sigma_free(self, theta: np.ndarray, stderr_internal: np.ndarray
                          ) -> np.ndarray:
-        """Chain-ruled physical esd of each free parameter (θ-column order).
+        """Physical esd of each free parameter (θ-column order).
 
         **An esd whose variance has no double is returned as ``inf``**, the
         value every consumer already reads as unmeasured (WP-1463).  Since the
@@ -3618,19 +3556,14 @@ class ParameterTable:
         a row would then report an infinite esd where WP-1072 wants an absent
         one.  Nothing measured sits within a hundred orders of this cap.
         """
-        with np.errstate(invalid="ignore", over="ignore"):
-            s = np.array(
-                [abs(dphys_dinternal(float(t), self.entries[i].transform)) * float(sd)
-                 for t, sd, i in zip(theta, stderr_internal, self._free_idx,
-                                     strict=True)],
-                dtype=np.float64)
+        s = np.array(stderr_internal, dtype=np.float64)
         return np.where(np.isnan(s) | (s < _SIGMA_MAX), s, np.inf)
 
     def _cov_free(self, theta: np.ndarray, stderr_internal: np.ndarray,
                   correlation: np.ndarray | None) -> np.ndarray:
         """Covariance of the *physical* free parameters (Cov_free).
 
-        Diagonal from the chain-ruled esds; off-diagonal from ``correlation``
+        Diagonal from the solver's esds; off-diagonal from ``correlation``
         when given.  This is the construction :meth:`stderr_physical` uses —
         it calls this method rather than repeating it — so any block extracted
         from it carries the same Bérar-Lelann conditioning as the reported

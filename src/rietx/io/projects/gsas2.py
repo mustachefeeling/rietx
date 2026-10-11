@@ -1663,7 +1663,7 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                                  vary=site["vary_occupancy"]),
                 biso=rx.Parameter(value=site["biso"], vary=site["vary_biso"]))
                 for site in sites],
-            scale=rx.Parameter(value=1e-3, min=0.0, transform="softplus"))])
+            scale=rx.Parameter(value=1e-3, min=0.0))])
     except ValueError as exc:
         raise Gsas2GpxError(
             f"{named}: phase {chosen.name!r} states values this build's "

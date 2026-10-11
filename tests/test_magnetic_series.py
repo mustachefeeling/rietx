@@ -405,20 +405,29 @@ def test_a_held_verdict_from_a_truncated_fit_does_not_invalidate_the_bracket():
     assert "Do not quote it" not in onset.note
 
 
-def test_the_ascent_out_of_the_floor_terminates_at_once():
+@pytest.mark.parametrize(("solver", "max_iter"), [("trf", 1), ("lm", 3)])
+def test_the_ascent_out_of_the_floor_terminates_at_once(solver, max_iter):
     """The measurement the asymmetry above rests on, run rather than quoted.
 
-    Seeded *at* the floor against a pattern carrying a real 4.5 μ_B, one
-    iteration per stage already reaches a supported moment.  So a truncated fit
+    Seeded *at* the floor against a pattern carrying a real 4.5 μ_B, a few
+    iterations per stage already reach a supported moment.  So a truncated fit
     cannot manufacture "unsupported" the way it can manufacture "supported",
     and the asymmetric fence is not a convenience.
+
+    How few depends on the driver.  TRF's first trust region is sized from
+    the start, so one iteration (4 evaluations) reaches 4.56 μ_B.  The LM
+    driver's first step is Gauss-Newton's, and the moment's column vanishes
+    at the floor, so its first three trials overshoot (λ = 0, 1, 10) and one
+    iteration leaves the moment at 0.001.  Two reach 0.85 μ_B, unsupported,
+    and three reach 2.05 μ_B, supported (WP-1938).
     """
     from rietx.params.vector import ParameterTable
     from rietx.report.magnetic import analyse_moments
 
     data = simulate(4.5, 4400, scale=6.0, background=300.0)
-    ref = rx.Refinement(Structure(phases=[mnf2(MOMENT_FLOOR_MU_B)]), neutron())
-    result = ref.fit(data, plan=moment_plan(max_iter=1))
+    ref = rx.Refinement(Structure(phases=[mnf2(MOMENT_FLOOR_MU_B)]), neutron(),
+                        solver=solver)
+    result = ref.fit(data, plan=moment_plan(max_iter=max_iter))
     table = ParameterTable(ref.structure, ref.instrument)
     row = analyse_moments(
         ref._model, table.decode(table.x0()), ref.structure,

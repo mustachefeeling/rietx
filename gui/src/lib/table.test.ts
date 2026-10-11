@@ -49,7 +49,6 @@ function row(path: string, over: Partial<ParamRow> = {}): ParamRow {
     vary: false,
     lo: -Infinity,
     hi: Infinity,
-    transform: "identity",
     tie: null,
     locked: false,
     held: false,

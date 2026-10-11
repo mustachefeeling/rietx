@@ -276,7 +276,7 @@ def _declared_fields():
                 continue
             default = info.default_factory()
             if any(getattr(default, a) != getattr(bare, a)
-                   for a in ("min", "max", "unit", "transform")):
+                   for a in ("min", "max", "unit")):
                 out.append((cls, name, default))
     return out
 
@@ -287,15 +287,15 @@ def test_every_schema_field_that_declares_a_range_passes_it_on():
     holds, so a field *or a class* added later with a declared range is
     exercised with no edit here.  Each must inherit the shared rule, and a
     bare ``Parameter`` at the declared value must come out carrying every
-    declared bound and unit, and the transform wherever it came with them.
-    The sort behind "every" is the WP file's; nothing is excluded."""
+    declared bound and unit.  The sort behind "every" is the WP file's;
+    nothing is excluded."""
     from rietx.schemas.common import _InheritsDeclaredDefaults
 
     found = _declared_fields()
     for cls, name, default in found:
         assert issubclass(cls, _InheritsDeclaredDefaults), (cls.__name__, name)
         got = cls._inherit_declared_bounds({name: Parameter(value=default.value)})[name]
-        for attr in ("min", "max", "unit", "transform"):
+        for attr in ("min", "max", "unit"):
             assert getattr(got, attr) == getattr(default, attr), (cls.__name__, name, attr)
     # a guard against a loop that silently matched nothing, not a pin of the set
     names = {cls.__name__ for cls, _, _ in found}
@@ -303,39 +303,68 @@ def test_every_schema_field_that_declares_a_range_passes_it_on():
             "Geometry", "Source"} <= names
 
 
-def test_a_phase_scale_left_bare_is_softplus_from_zero():
+def test_a_phase_scale_left_bare_is_bounded_from_zero():
     """The class the WP's Context called milder, measured: a bare
-    ``Parameter`` dropped the softplus floor *with* the bound, so a scale or
-    a width could refine negative.  Both now arrive as declared."""
+    ``Parameter`` dropped the floor *with* the bound, so a scale or a width
+    could refine negative.  Both now arrive as declared."""
     phase = make_lab6().phases[0]
     got = Phase(**{**phase.model_dump(exclude={"scale", "lor_size"}),
                    "scale": Parameter(value=5e-3, vary=True),
                    "lor_size": Parameter(value=0.01, vary=True)})
-    assert (got.scale.min, got.scale.transform) == (0.0, "softplus")
-    assert (got.lor_size.min, got.lor_size.unit, got.lor_size.transform) == (
-        0.0, "deg", "softplus")
+    assert got.scale.min == 0.0
+    assert (got.lor_size.min, got.lor_size.unit) == (0.0, "deg")
     assert got.scale.vary and got.scale.value == 5e-3
 
 
-def test_a_transform_travels_only_with_the_bounds_it_enforces():
-    """Softplus under a caller's own ``min=-1`` would clamp their value to
-    1e-12 at the first decode, silently; so a caller who states the bound
-    keeps their own transform, and an explicit transform always wins.
-    Logit enforces both ends, so it needs both inherited."""
+def test_a_caller_bound_wins_and_an_omitted_one_inherits():
+    """``min``, ``max`` and ``unit`` are inherited one by one: a caller's own
+    bound wins in either direction, and only a true omission inherits."""
     from rietx.schemas.instrument import PeakComponent
 
     phase = make_lab6().phases[0]
     base = phase.model_dump(exclude={"lor_size", "gauss_size"})
     got = Phase(**base, lor_size=Parameter(value=-0.5, min=-1.0),
-                gauss_size=Parameter(value=0.01, transform="identity"))
-    assert (got.lor_size.min, got.lor_size.transform) == (-1.0, "identity")
-    assert (got.gauss_size.min, got.gauss_size.transform) == (0.0, "identity")
+                gauss_size=Parameter(value=0.01))
+    assert got.lor_size.min == -1.0
+    assert got.gauss_size.min == 0.0
 
     eta = PeakComponent._inherit_declared_bounds(
         {"eta": Parameter(value=0.5, max=0.9)})["eta"]
-    assert (eta.min, eta.max, eta.transform) == (0.0, 0.9, "identity")
+    assert (eta.min, eta.max) == (0.0, 0.9)
     eta = PeakComponent._inherit_declared_bounds({"eta": Parameter(value=0.5)})["eta"]
-    assert (eta.min, eta.max, eta.transform) == (0.0, 1.0, "logit")
+    assert (eta.min, eta.max) == (0.0, 1.0)
+
+
+@pytest.mark.parametrize(("kind", "lo", "hi", "want"), [
+    ("softplus", 0.0, math.inf, (0.0, math.inf)),
+    ("softplus", -math.inf, math.inf, (0.0, math.inf)),
+    ("exp", -2.0, 5.0, (0.0, 5.0)),
+    ("logit", -1.0, 2.0, (0.0, 1.0)),
+    ("logit", 0.2, 0.9, (0.2, 0.9)),
+    ("identity", -1.0, 2.0, (-1.0, 2.0)),
+])
+def test_old_python_passing_a_transform_gets_the_box_it_enforced(kind, lo, hi, want):
+    """``Parameter.transform`` left the schema at 0.46 (WP-1938), and python
+    written against it still constructs: the word becomes the bounds it
+    enforced, and the value is untouched."""
+    p = Parameter(value=0.5, min=lo, max=hi, transform=kind)
+    assert (p.min, p.max, p.value) == (*want, 0.5)
+    assert "transform" not in p.model_dump()
+
+
+def test_old_python_passing_a_transform_to_a_declared_field_keeps_its_floor():
+    """The fold's ``min`` counts as stated, as the transform's box did: a
+    ``softplus`` passed to a field declaring a negative floor stays at zero,
+    and the unit still inherits."""
+    from rietx.schemas.instrument import ProfileTCHZ
+
+    prof = ProfileTCHZ(u=Parameter(value=0.01, transform="softplus"))
+    assert (prof.u.min, prof.u.max, prof.u.unit) == (0.0, 1.0, "deg^2")
+
+
+def test_an_unknown_transform_is_refused_by_name():
+    with pytest.raises(ValidationError, match="unknown transform 'tanh'"):
+        Parameter(value=0.5, transform="tanh")
 
 
 def test_a_bare_width_outside_the_declared_box_is_refused_by_name():
@@ -359,12 +388,12 @@ def test_inheriting_does_not_touch_the_callers_parameter_on_any_class():
     from rietx.schemas.instrument import Geometry
 
     p = Parameter(value=0.0)
-    before = (p.min, p.max, p.unit, p.transform, frozenset(p.model_fields_set))
+    before = (p.min, p.max, p.unit, frozenset(p.model_fields_set))
     phase = Phase(**make_lab6().phases[0].model_dump(exclude={"extinction"}),
                   extinction=p)
     geo = Geometry(kind="debye_scherrer", sample_displacement=p)
-    assert (p.min, p.max, p.unit, p.transform, frozenset(p.model_fields_set)) == before
-    assert (phase.extinction.min, phase.extinction.transform) == (0.0, "softplus")
+    assert (p.min, p.max, p.unit, frozenset(p.model_fields_set)) == before
+    assert phase.extinction.min == 0.0
     assert (geo.sample_displacement.min, geo.sample_displacement.max,
             geo.sample_displacement.unit) == (-1.0, 1.0, "mm")
 

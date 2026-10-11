@@ -707,8 +707,35 @@ def test_collapse_unions_the_plans_turn_on_globs():
     for stage in plan.stages:
         for glob in stage.turn_on:
             assert glob in single.stages[0].turn_on
-    # seeds survive the compression, so the protocol is the same one
-    assert single.stages[0].seed == max(s.seed for s in plan.stages)
+
+
+def test_a_warm_refit_lifts_no_carried_floor_value():
+    """WP-1938: the collapsed warm refit carries no ``Stage.seed``.
+
+    ``seed_floored`` lifts every freed row sitting exactly on its floor, and
+    on a warm start those rows are the neighbour's converged zeros.  Carrying
+    the plan's 0.3 lifted pattern 1's converged ``profile.y`` and
+    ``extinction`` to 0.3 on the LaB₆ ramp and ended at χ²_red 1.05828
+    against 1.05145.  ``strain_seed`` still carries, since an all-zero
+    Stephens block cannot move without it and ``seed_stephens`` touches no
+    other."""
+    plan = rx.RefinementPlan.mccusker_structural()
+    assert max(s.seed for s in plan.stages) > 0.0     # the plan does seed
+    assert _collapse(plan).stages[0].seed == 0.0
+    stephens = rx.RefinementPlan.lab_sample_refine()
+    assert max(s.strain_seed for s in stephens.stages) > 0.0
+    assert _collapse(stephens).stages[0].strain_seed == max(
+        s.strain_seed for s in stephens.stages)
+
+    # and the table: a converged zero stays where the neighbour left it,
+    # where the plan's own largest seed would have lifted it
+    structure, ins = _start_models()
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    freed = table.set_vary(_collapse(plan).stages[0].turn_on, True)
+    assert table.seed_floored(freed, _collapse(plan).stages[0].seed) == []
+    assert "phases.0.extinction" in table.seed_floored(
+        freed, max(s.seed for s in plan.stages))
 
 
 def test_refit_single_agrees_with_refit_stages(thermal_patterns):
@@ -801,17 +828,43 @@ def test_the_ladder_is_the_rungs_in_order_and_never_repeats_one():
     base = rx.RefinementPlan.mccusker_default()
     collapsed = _collapse(base)
 
-    single = _ladder(base, collapsed)
+    single = _ladder(base, collapsed, staged=False)
     assert [name for name, _, _ in single] == ["warm", "warm_staged", "cold"]
     assert [plan for _, plan, _ in single] == [collapsed, base, base]
     assert [warm for _, _, warm in single] == [True, True, False]
 
-    stages = _ladder(base, base)
+    stages = _ladder(base, base, staged=True)
     assert [name for name, _, _ in stages] == ["warm_staged", "cold"]
     assert [plan for _, plan, _ in stages] == [base, base]
 
     # the names are the vocabulary the schema and the panels quote
     assert set(RUNGS) == {name for name, _, _ in single}
+
+
+def test_a_warm_rung_seeds_nothing_and_the_cold_one_keeps_the_plans_seeds():
+    """Every warm rung starts from the neighbour's answer, so it takes no
+    ``seed``: the roughness stage's 0.3 would lift a converged b = 0 off its
+    floor.  The cold rung is the plan as written, and so is the first pattern.
+    ``strain_seed`` survives everywhere (WP-1938 D11)."""
+    from rietx.sequential import _ladder, _unseeded
+
+    base = rx.RefinementPlan.mccusker_structural()
+    assert any(s.seed for s in base.stages)
+    strain = [s.strain_seed for s in base.stages]
+    for staged_refit in (False, True):
+        warm = _unseeded(base) if staged_refit else _collapse(base)
+        for name, plan, is_warm in _ladder(base, warm, staged=staged_refit):
+            if not is_warm:
+                assert plan is base, name
+                continue
+            assert not any(s.seed for s in plan.stages), name
+            if len(plan.stages) == len(base.stages):
+                assert [s.strain_seed for s in plan.stages] == strain, name
+            else:
+                assert plan.stages[0].strain_seed == max(strain), name
+    # a plan with nothing to drop comes back as itself
+    unseeded = _unseeded(base)
+    assert _unseeded(unseeded) is unseeded
 
 
 def _dictate(runner, script):
@@ -943,8 +996,7 @@ def test_the_bound_caps_evaluations_and_never_raises_a_stage():
 
     The solver caps evaluations at ``max_iter × NFEV_PER_ITERATION``, so the
     budget divides before it is applied — and a stage already tighter than the
-    bound is left alone, as the *same object*, which is what keeps
-    ``_ladder``'s ``warm_plan is base_plan`` identity readable.
+    bound is left alone, as the *same object*.
     """
     from rietx.optimize.least_squares import NFEV_PER_ITERATION
     from rietx.sequential import _bounded_plan

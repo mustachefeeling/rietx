@@ -37,6 +37,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .._about import SERVER_TOKEN, STATE_DIR_ENV, STATE_DIR_NAME
+from ..optimize.least_squares import DEFAULT_SOLVER
 from ..project import Project
 from ..viz.packed import MEDIA_TYPE as PACKED_MEDIA_TYPE
 from ..viz.packed import Packed
@@ -706,7 +707,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="print one JSON boot line (url, port, project, pid, scratch_of)")
     parser.add_argument("--backend", default="numpy",
                         help="Jacobian backend (see rietx.capabilities())")
-    parser.add_argument("--solver", default="trf")
+    parser.add_argument("--solver", default=DEFAULT_SOLVER)
     parser.add_argument("--scratch", action="store_true",
                         help="open a throwaway copy of the project; the "
                              "directory named on the command line is never "

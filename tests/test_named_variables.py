@@ -120,8 +120,7 @@ def variable_arm(*, master_max: float = 25.0) -> rx.Refinement:
     structure, ins = four_site_models(true=False, master_max=master_max)
     ref = rx.Refinement(structure, ins)
     master = structure.phases[0].atoms[0].biso
-    ref.add_variable("B_metal", master.value, min=master.min, max=master.max,
-                     transform=master.transform)
+    ref.add_variable("B_metal", master.value, min=master.min, max=master.max)
     for j, (scale, offset) in enumerate(COEFFS):
         ref.tie(BISOS[j], "vars.B_metal", scale=scale, offset=offset)
     return ref
@@ -141,7 +140,7 @@ def pattern():
 def test_a_variable_is_a_row_like_any_other(ref):
     assert ref.add_variable("A", 0.7, min=0.0, max=25.0) == "vars.A"
     row = {r.path: r for r in ref.parameters()}["vars.A"]
-    assert (row.value, row.lo, row.hi, row.transform) == (0.7, 0.0, 25.0, "identity")
+    assert (row.value, row.lo, row.hi) == (0.7, 0.0, 25.0)
     assert row.tie is None and not row.locked and not row.mode_fixed
     assert row.refinable and not row.vary
     # an ordinary dot-path from there on: the glob frees it, set_values moves it
@@ -151,10 +150,10 @@ def test_a_variable_is_a_row_like_any_other(ref):
 
 
 def test_the_declaration_is_the_parameter_and_the_table_reads_it(ref):
-    """Bounds and transform reach the table, which is what makes it a renaming."""
-    ref.add_variable("S", 3.0, min=0.0, transform="softplus", unit="arb")
+    """Bounds reach the table, which is what makes it a renaming."""
+    ref.add_variable("S", 3.0, min=0.0, unit="arb")
     entry = {e.path: e for e in ref._working_table().entries}["vars.S"]
-    assert (entry.lo, entry.hi, entry.transform) == (0.0, np.inf, "softplus")
+    assert (entry.lo, entry.hi) == (0.0, np.inf)
 
 
 def test_add_variable_refuses_a_name_a_glob_could_not_reach(ref):

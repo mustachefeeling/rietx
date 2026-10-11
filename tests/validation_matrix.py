@@ -263,11 +263,11 @@ CLAIMS: tuple[Claim, ...] = (
         reference="the *clean* arm of this same fixture, refined by the same "
                   "protocol — not the NIST certificate, because what is being "
                   "measured is the bias an unmodelled overlapping line adds, "
-                  "and the protocol's own +28 ppm offset from the certificate "
+                  "and the protocol's own +25 ppm offset from the certificate "
                   "is common to every arm and cancels",
-        measured="declare -1.0 ppm against the clean arm, ignore +7.6 ppm "
+        measured="declare -1.4 ppm against the clean arm, ignore +9.9 ppm "
                  "(bar 20 ppm); the ignore arm also inflates the cell esd 8.7x "
-                 "(2.08e-05 -> 1.81e-04 A) and Rwp 3.7x (0.0867 -> 0.3171)",
+                 "(2.08e-05 -> 1.81e-04 A) and Rwp 3.6x (0.0875 -> 0.3174)",
         diagnostics=("EXTRA_PEAK_ON_REFLECTION",),
     ),
     Claim(
@@ -278,7 +278,7 @@ CLAIMS: tuple[Claim, ...] = (
         reference="the same clean arm; the ceiling is that nothing anywhere "
                   "gates either choice, which is a property of the code rather "
                   "than of a number",
-        measured="exclude +0.6 ppm for 256 of 5332 channels (4.8 %) — i.e. on "
+        measured="exclude +0.2 ppm for 256 of 5332 channels (4.8 %) — i.e. on "
                  "THIS fixture exclusion is as accurate as declaring, and the "
                  "case for declaring is the retained channels and the measured "
                  "intruder, not cell accuracy. A pattern with few reflections "
@@ -293,8 +293,8 @@ CLAIMS: tuple[Claim, ...] = (
                   "injection uses the package's own evaluator — so this row is "
                   "a self-consistency check on real data and never a claim "
                   "about a real holder",
-        measured="centres within 0.005 deg of 37.4418 and 43.6205 (bar 0.05); "
-                 "areas 123.4(36) and 124.5(20) against 120, 0.9 and 2.2 sigma "
+        measured="centres within 0.005 deg of 37.4420 and 43.6206 (bar 0.05); "
+                 "areas 123.2(36) and 124.5(20) against 120, 0.9 and 2.2 sigma "
                  "high, which is the on-reflection degeneracy being real",
     ),
     Claim(
@@ -419,8 +419,8 @@ CLAIMS: tuple[Claim, ...] = (
         "test_acceptance_lab6_cbn", "test_the_shared_fit_reaches_one_minimum_on_every_platform",
         "lab6_cbn", ("characterisation", "ceiling"),
         "the shared-broadening fit reaches one minimum whatever the "
-        "platform's rounding, and its profile stage records the floor seed "
-        "that made it single",
+        "platform's rounding, and its profile stage seeds nothing: refined "
+        "in deg, profile.y leaves its floor on its own (WP-1938)",
         reference="issue #832: the same tree reached Rwp 0.18696 on Linux and "
                   "0.16478 on macOS. The 2 % band about the two-platform "
                   "measurement is the reporter's, and it fails at either old "
@@ -449,9 +449,11 @@ CLAIMS: tuple[Claim, ...] = (
                   "residual is a characterised cotTheta/sin2Theta aberration "
                   "(divergence, tube tails, monochromator passband) fenced to "
                   "the v2 FPA work",
-        measured="a = 4.156895(21) A, +28 ppm; Rwp 8.67 %, GoF 1.87; "
-                 "zero_shift held at exactly 0.0; displacement -0.0801 mm vs "
-                 "the CIF's -0.07877",
+        measured="a = 4.156882(21) A, +25 ppm; Rwp 8.75 %, GoF 1.89; "
+                 "zero_shift held at exactly 0.0; displacement -0.0791 mm vs "
+                 "the CIF's -0.07877. The Gaussian width is real at all 60 "
+                 "reflections. Before WP-1938 it sat on its clamp at 12 of "
+                 "them, and the fit read 4.156895 A, +28 ppm, Rwp 8.67 %",
     ),
     Claim(
         "test_acceptance_srm660c", "test_srm660c_extinction_does_no_harm",
@@ -461,9 +463,9 @@ CLAIMS: tuple[Claim, ...] = (
         reference="the cell must return to its own unextinguished value "
                   "within the same 2e-4 A band; the extinction parameter "
                   "itself is one-sided (< 1e-2 from a 1e-3 seed)",
-        measured="extinction 5.0e-10 from a 1e-3 seed; Rwp 0.0866784, "
-                 "a 4.1568955 — the warm-extend path agrees with the "
-                 "whole plan to 2e-12 in Rwp and 1e-9 A in a",
+        measured="extinction exactly 0.0 from a 1e-3 seed; Rwp 0.0875138, "
+                 "a 4.1568823; the warm-extend path agrees with the "
+                 "whole plan to 9e-11 in Rwp and 6e-10 A in a",
     ),
     # ---- SRM 676a: certificate grade on the ratio only ------------------
     Claim(
@@ -507,8 +509,8 @@ CLAIMS: tuple[Claim, ...] = (
                   "not have been written",
         measured="a = b = c and alpha = beta = gamma bitwise after the fit; "
                  "alpha walks 54.987 -> 55.288 from a 0.3 deg displacement "
-                 "(certificate 55.287); the two descriptions agree to 5.6e-9 "
-                 "(a) and 1.5e-8 (c) relative with Rwp equal to five decimals; "
+                 "(certificate 55.287); the two descriptions agree to 4.8e-10 "
+                 "(a) and 4.9e-9 (c) relative with Rwp equal to five decimals; "
                  "V_H = 3 V_R to 1e-9; against the certificate a -328 / "
                  "c -336 ppm, the same uniform d-scale systematic the Rietveld "
                  "row measures at -312 / -282; Rwp 0.147, GoF 1.64",
@@ -614,7 +616,7 @@ CLAIMS: tuple[Claim, ...] = (
         reference="nothing, for the reason the DRX row gives; a 0.12 ceiling "
                   "and a 0.01 band on TOPAS, which shares neither Z nor the "
                   "negative-Y clamp with GSAS-II",
-        measured="Rwp 8.799 % against TOPAS's 8.519 % and GSAS-II's 6.53 %",
+        measured="Rwp 8.801 % against TOPAS's 8.519 % and GSAS-II's 6.53 %",
     ),
     Claim(
         "test_acceptance_powderline", "test_lab6_declares_the_three_model_differences_it_has",
@@ -921,7 +923,7 @@ CLAIMS: tuple[Claim, ...] = (
         "dispersion is applied",
         reference="the dispersion-off baseline, at 2e-6 A — well inside the "
                   "21e-6 A esd, so the anchor is safe either way",
-        measured="a = 4.156895 A both ways",
+        measured="a = 4.156882 A both ways",
     ),
     Claim(
         "test_acceptance_dispersion",
@@ -933,7 +935,7 @@ CLAIMS: tuple[Claim, ...] = (
                   "move (>0.02 and >0.05 A^2) plus a physical band on the "
                   "result, which is a characterisation and not an accuracy "
                   "claim — no certified Biso exists for this specimen",
-        measured="B(La) and B(B) move ~12 % / ~22 %; Rwp 8.668 -> 8.646 %",
+        measured="B(La) and B(B) move ~12 % / ~22 %; Rwp 8.751 -> 8.730 %",
     ),
     Claim(
         "test_acceptance_dispersion",
@@ -973,7 +975,7 @@ CLAIMS: tuple[Claim, ...] = (
                   "referenced to floating point, not to any external value, "
                   "because Rouse's expression factors exactly into a "
                   "Debye-Waller shape",
-        measured="Delta Rwp 4.0e-9, Delta a -3.8e-11 A, every Biso +0.01687 "
+        measured="Delta Rwp 4.0e-9, Delta a -1.8e-11 A, every Biso +0.01687 "
                  "against a predicted 0.016875",
     ),
     Claim(
@@ -1044,7 +1046,7 @@ CLAIMS: tuple[Claim, ...] = (
                   "collapsed; the carry-glob hypothesis was refuted at 838. "
                   "Gating a speed number would turn machine noise into a "
                   "test failure",
-        measured="725 vs 1826 iterations at identical mean Rwp (627 "
+        measured="278 vs 1015 iterations at identical mean Rwp (260 "
                  "carrying everything)",
     ),
     Claim(
@@ -1090,10 +1092,11 @@ CLAIMS: tuple[Claim, ...] = (
                   "STEPHENS_STRAIN_NOT_POSITIVE fires and no S_HKL is "
                   "quotable.  The r ~ 0.65 March coefficient is checked "
                   "against WP-0310's own measurement on the same material",
-        measured="Rwp 18.62 -> 17.84 %, Delta BIC +22.4 at N/f^2 (N_eff 479, "
-                 "f 3.889; +592.3 at raw N), 3 parameters added, "
+        measured="Rwp 18.62 -> 18.09 %, Delta BIC +9.2 at N/f^2 (N_eff 479, "
+                 "f 3.889; +392.2 at raw N), 3 parameters added, "
                  "anisotropy at its 1e6 cap (narrowest direction at zero "
-                 "strain; bar 3.0)",
+                 "strain; bar 3.0); the TRF fit stops at max_iter in its "
+                 "biso stage",
         starts=4,
         diagnostics=("STEPHENS_STRAIN_NOT_POSITIVE",),
     ),
@@ -1106,10 +1109,10 @@ CLAIMS: tuple[Claim, ...] = (
                   "detected, R^2 < 0.5) plus the derived pattern count for "
                   "R-3c; the anisotropy ratio of an insignificant fit is a "
                   "runaway guard at 6, not a threshold",
-        measured="R^2 = 0, anisotropy 4.51x, 4 patterns, 64 reflections; "
-                 "2.02x with WP-1930's floor seed off, at the same chi2_red "
-                 "2.65601, so the ratio rides the Lorentzian split's flat "
-                 "direction; never leaves the cone at any seed",
+        measured="R^2 = 0.0006, anisotropy 1.52x, 4 patterns, 64 "
+                 "reflections, at chi2_red 2.65601; 2.03x before WP-1938 at "
+                 "the same chi2_red, so the ratio rides the Lorentzian "
+                 "split's flat direction; never leaves the cone at any seed",
     ),
     Claim(
         "test_acceptance_stephens",
@@ -1122,7 +1125,7 @@ CLAIMS: tuple[Claim, ...] = (
                   "**passes** a 0.16 % chi^2 improvement from three inert "
                   "parameters, exactly as it passes brucite's 8.2 % one, on "
                   "7251 channels.  At N/f^2 (issue #270, WP-1417) both tests "
-                  "refuse it: Delta BIC -18.6 against brucite's +22.4.  The "
+                  "refuse it: Delta BIC -18.6 against brucite's +9.2.  The "
                   "certificate-grade c/a is asserted not to move (rel=1e-4)",
         measured="Delta BIC -18.6 at N/f^2 and Hamilton refuses; Hamilton "
                  "at raw N says justified; c/a unmoved",
@@ -1132,25 +1135,27 @@ CLAIMS: tuple[Claim, ...] = (
         "test_constrained_solver_keeps_brucite_inside_the_cone", "qarr",
         ("characterisation",),
         "under solver='lm' the cone is carried as a linear inequality and "
-        "brucite comes back inside it — at a higher Rwp, which is the point",
+        "brucite comes back inside it",
         reference="the physics constraint itself: sigma^2(M) > 0 on all 43 "
                   "reflections, with the optimum sitting on the cone face.  "
-                  "Rwp is bounded loosely and is expected to be WORSE than "
-                  "the unconstrained fit's",
-        measured="0 of 43 violations; Rwp 0.17946 against TRF's 0.17844",
+                  "Rwp is bounded loosely.  Before WP-1938 it was WORSE than "
+                  "the unconstrained TRF fit's.  In physical units that TRF "
+                  "fit stops at max_iter above it",
+        measured="0 of 43 violations; Rwp 0.17942 against TRF's 0.18092 "
+                 "(0.17946 against 0.17844 before WP-1938)",
         starts=4,
     ),
     Claim(
         "test_acceptance_stephens",
         "test_unconstrained_solver_leaves_the_cone_on_the_same_data", "qarr",
         ("characterisation",),
-        "the control for the row above: the default TRF driver, same data, "
+        "the control for the row above: the TRF driver its fixture names, same data, "
         "leaves the cone",
         reference="the same cone test, opposite direction — at least 5 of "
                   "43 reflections violating, plus the guard diagnostic",
-        measured="7 of 43 violations at the pinned seed; 14/7/0/0 across "
-                 "the four-seed sweep, which is why that row carries "
-                 "starts=4",
+        measured="7 of 43 violations at the pinned seed; 13/7/26/24 across "
+                 "the four-seed sweep (seeds 400 and 1600 end at max_iter), "
+                 "which is why that row carries starts=4",
         starts=4,
         diagnostics=("STEPHENS_STRAIN_NOT_POSITIVE",),
     ),
@@ -1637,7 +1642,7 @@ CLAIMS: tuple[Claim, ...] = (
                  "channels and nothing can read absent; with the truth's "
                  "background under the same positions 8-14 absences return, "
                  "while swapping widths alone (inflated 2-3x in both fits) "
-                 "restores none.  Rwp 0.22 against 0.71 is the same corrupted "
+                 "restores none.  Rwp 0.21 against 0.72 is the same corrupted "
                  "fit seen by a different instrument, so it stays surfaced "
                  "and never ranked on.  best_or_none() returns None either "
                  "way",
@@ -1950,7 +1955,7 @@ CLAIMS: tuple[Claim, ...] = (
                   "the bar is the 10 % degradation being an order larger on "
                   "one histogram than the other, not any external value",
         measured="neutron Rwp 0.05259 alone -> 0.06226 jointly (+18 %); X-ray "
-                 "0.09364 -> 0.09373 (+0.1 %), a ratio of ~200",
+                 "0.09365 -> 0.09373 (+0.1 %), a ratio of ~200",
     ),
     Claim(
         "test_acceptance_wavelength",
@@ -2378,8 +2383,8 @@ CLAIMS: tuple[Claim, ...] = (
         "cr2wo6_hb2a", ("own_result",),
         "seeded along a or along b, the 4 K fit lands on the same moment",
         reference="the same protocol from the other in-plane seed",
-        measured="|m| agrees to 3e-6 mu_B (7e-5 esd; bar 0.1 esd); Rwp to "
-                 "1.2e-9 relative",
+        measured="|m| agrees to 2.4e-8 mu_B (5e-7 esd; bar 0.1 esd); Rwp to "
+                 "3e-11 relative",
         starts=2,
     ),
     Claim(
@@ -2390,8 +2395,11 @@ CLAIMS: tuple[Claim, ...] = (
         "a small invented one",
         reference="the nuclear-only fit to the same 150 K pattern; the claim "
                   "is inadmissibility (supported is False), not a value",
-        measured="|m| 0.067 +/- 0.83 mu_B (0.08 sigma, bar 3); Rwp 0.099241 "
-                 "against 0.099242 nuclear-only (bar 1e-3 relative)",
+        measured="|m| 0.017 +/- 3.24 mu_B (0.005 sigma, bar 3); Rwp 0.099242 "
+                 "against 0.099242 nuclear-only, 1.8e-6 relative (bar 1e-3 "
+                 "relative). The esd grows as the modulus shrinks, since the "
+                 "moment's column vanishes at zero: TRF stopped at 0.067 +/- "
+                 "0.83",
     ),
     # ---- LaMnO3 on BT-1: WP-1327's second dataset, k = 0 ----
     Claim(
@@ -2492,8 +2500,8 @@ INTERMEDIATE_FTOL_DEFAULT = 1e-6
 #:   wants µR, roughness a surface, Stephens a strain model, March-Dollase a
 #:   habit; dispersion wants the species and the wavelength, both already in
 #:   the model.  Neglecting it costs RMS 2.26 → 0.64 wt % on round-robin QPA.
-#: * *Anchors survive.*  SRM 660c's cell does not move (4.156895 Å either
-#:   way).  SRM 676a's certificate-grade c/a moves +30.1 → +30.5 ppm against a
+#: * *Anchors survive.*  SRM 660c's cell does not move (4.156882 Å either
+#:   way since WP-1938, 4.156895 Å before).  SRM 676a's certificate-grade c/a moves +30.1 → +30.5 ppm against a
 #:   100 ppm bar — measured for this WP, since WP-0504 never checked it.
 #: * *And Rwp gets **worse*** on corundum, 14.585 → 14.737 %, while the
 #:   physics gets better.  The v0.5 method result once more, now at the level
@@ -2538,7 +2546,7 @@ GAPS: tuple[tuple[str, str], ...] = (
      "ROUGHNESS_UNCONSTRAINED.  Closing it needs a pattern starting below "
      "~15 deg with real low-angle reflections."),
     ("The SRM 660c certificate band is not reached and is not claimed.",
-     "Measured +28 ppm against a certificate uncertainty of +-8e-6 A.  The "
+     "Measured +25 ppm against a certificate uncertainty of +-8e-6 A.  The "
      "residual is a characterised cotTheta/sin2Theta aberration — equatorial "
      "divergence, tube tails, monochromator passband — which is the "
      "fundamental-parameters territory fenced to v2, not a tuning gap."),
@@ -2838,8 +2846,8 @@ def render_markdown() -> str:
       "March-Dollase a habit — dispersion\nwants the species and the "
       "wavelength, both already in the model. Neglecting it\ncosts RMS 2.26 "
       "-> 0.64 wt % on round-robin QPA.\n")
-    w("**The anchors survive.** SRM 660c's cell does not move (4.156895 A "
-      "either way).\nSRM 676a's certificate-grade c/a moves +30.1 -> +30.5 "
+    w("**The anchors survive.** SRM 660c's cell does not move (4.156882 A "
+      "either way since WP-1938, 4.156895 A before).\nSRM 676a's certificate-grade c/a moves +30.1 -> +30.5 "
       "ppm against a 100 ppm bar —\nmeasured for this WP, since WP-0504 never "
       "checked it. And Rwp on corundum gets\n*worse*, 14.585 -> 14.737 %, "
       "while the physics gets better: the rule at the top of\nthis document, "

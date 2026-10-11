@@ -1,36 +1,38 @@
-"""WP-1937: does each acceptance fit reach one minimum, under each driver?
+"""WP-1937, WP-1938: does each acceptance fit reach one minimum, under each driver?
 
 Run: ``.venv/bin/python examples/probe_driver_grid.py [--jobs N] [--out DIR]
-[--fits a,b] [--arms softplus:trf,physical:lm]``
+[--fits a,b] [--arms lm,trf]``
 
 Fourteen fits from the acceptance suites, each built by its own test module,
 run from five starts.  Start k multiplies every ``Parameter.value`` in the
 input structure and instrument by (1 + k·1e-14), a rounding-sized change.  A
-fit whose χ²_red agrees across the five to under 1e-9 relative has one
-answer; WP-1929 found fits that did not, and traced them to widths refined in
-softplus coordinates near zero.
+fit whose refined values agree across the five to under 0.01 of their esds
+has one answer (WP-1938 D10).  The χ²_red spread is reported beside it, under
+a 1e-9 bar: WP-1929 found fits over it and traced them to widths refined in
+softplus coordinates near zero.  A χ² spread over the bar with the values
+inside theirs is a frozen window one data point apart at a stage's compile,
+the same minimum seen through two objectives (WP-1938's third session).
 
-Each **arm** is a coordinate system and a driver:
+Each **arm** is a driver: ``lm`` (the default since WP-1938) or ``trf``,
+forced on every solve by rebinding ``run_least_squares`` and
+``run_multi_least_squares`` in each loaded ``rietx`` module (``rietx.refine``
+imports the function by name).  Every parameter is refined in physical units
+under both, so the softplus arms WP-1937 compared are gone with the transforms.
 
-* ``softplus`` is the tree as it is.  ``physical`` monkeypatches
-  ``ParameterTable.__init__`` so every softplus entry becomes an identity
-  entry with ``lo = max(lo, 0)``: WP-1929's definition, and what WP-1938 makes
-  the default.  Once it lands the two arms are the same.
-* ``trf`` / ``lm`` force the driver on every solve, by rebinding
-  ``run_least_squares`` and ``run_multi_least_squares`` in each loaded
-  ``rietx`` module (``rietx.refine`` imports the function by name).
-
-Both patches are process-wide, so each (fit, arm) cell runs in its own
+The patch is process-wide, so each (fit, arm) cell runs in its own
 subprocess, ``--jobs`` at a time.  Each cell writes one JSON line per start to
-``--out``; the table printed at the end reads them back, so an interrupted run
-resumes where it stopped.  Nothing here is a wall-clock number.
+``--out``, with every stage's name, status and cost, so a start that takes a
+different path can be read back stage by stage.  The table printed at the end
+reads them back, so an interrupted run resumes where it stopped.  Nothing
+here is a wall-clock number.  Brucite with the Stephens block is held to the
+Rwp bracket its acceptance test asserts instead (WP-1938 D9), so the table
+quotes each fit's Rwp range beside its spread.
 
 Measured 2026-10-10 (macOS arm64, ``[dev]``, ``src`` at ``790c7ce7``): fits
-over the 1e-9 bar were 3 of 14 under softplus + TRF (today's default), 7
-under softplus + LM, 4 under physical + TRF and 2 under physical + LM.  On
-the WP's final tree, whose LM start is no longer nudged off its bounds,
-physical + LM misses on brucite + Stephens alone (2.1e-6).  The handover
-entry of ``docs/wp/1937-a-bounded-step-solved-exactly.md`` has the tables.
+over the 1e-9 bar were 3 of 14 under softplus + TRF (the default then), 7
+under softplus + LM, 4 under physical + TRF and 2 under physical + LM.  The
+handover entries of ``docs/wp/1937-a-bounded-step-solved-exactly.md`` and
+``docs/wp/1938-every-parameter-refined-in-its-own-units.md`` have the tables.
 """
 
 from __future__ import annotations
@@ -52,7 +54,10 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 STARTS = (0, 1, 2, 3, 4)
 BAR = 1e-9
-ARMS = ("softplus:trf", "softplus:lm", "physical:trf", "physical:lm")
+#: the bar a fit is judged by (WP-1938 D10): the largest difference of any
+#: refined value from start 0's, in that value's esd
+ESD_BAR = 0.01
+ARMS = ("lm", "trf")
 
 
 # ------------------------------------------------------------- the patches
@@ -82,21 +87,6 @@ def _install_solver(solver: str, calls: list[dict]) -> None:
                                 ("run_multi_least_squares", multi_orig, multi)):
             if getattr(mod, name, None) is orig:
                 setattr(mod, name, new)
-
-
-def _install_physical() -> None:
-    from rietx.params import vector
-
-    orig = vector.ParameterTable.__init__
-
-    def init(self, *a, **kw):
-        orig(self, *a, **kw)
-        for e in self.entries:
-            if e.transform == "softplus":
-                e.transform = "identity"
-                e.lo = max(e.lo, 0.0)
-
-    vector.ParameterTable.__init__ = init
 
 
 def _nudge(obj, factor: float, seen: set[int] | None = None) -> None:
@@ -285,11 +275,8 @@ FITS = {
 # ------------------------------------------------------------- one cell
 def run_cell(fit: str, arm: str, out: Path) -> None:
     """Every start of one (fit, arm), one JSON line each.  Runs in-process."""
-    coord, solver = arm.split(":")
     calls: list[dict] = []
-    if coord == "physical":
-        _install_physical()
-    _install_solver(solver, calls)
+    _install_solver(arm, calls)
     with out.open("w", encoding="utf-8", newline="\n") as fh:
         for k in STARTS:
             calls.clear()
@@ -297,6 +284,11 @@ def run_cell(fit: str, arm: str, out: Path) -> None:
             try:
                 result = FITS[fit](1.0 + k * 1e-14)
                 row["chi2"] = result.statistics.chi2
+                row["rwp"] = result.statistics.rwp
+                row["stages"] = [[st.name, st.status, st.cost_final]
+                                 for st in result.stages]
+                row["params"] = {q.path: [q.value, q.stderr]
+                                 for q in result.parameters if q.stderr}
                 row["max_iter"] = sorted({s.name for s in result.stages
                                           if s.status == "max_iter"})
                 row["nfev"] = sum(s.n_iterations for s in result.stages)
@@ -309,7 +301,7 @@ def run_cell(fit: str, arm: str, out: Path) -> None:
 
 # ------------------------------------------------------------- the grid
 def _cell_path(out: Path, fit: str, arm: str) -> Path:
-    return out / f"{fit}__{arm.replace(':', '_')}.jsonl"
+    return out / f"{fit}__{arm}.jsonl"
 
 
 def _rows(path: Path) -> list[dict]:
@@ -332,21 +324,50 @@ def _spawn(fit: str, arm: str, out: Path) -> str:
     return f"{fit} {arm}: rc={rc}, {time.time() - t0:.0f} s"
 
 
+def _param_spread(rows: list[dict]) -> str:
+    """The largest difference of any refined value from start 0's, in its esd.
+
+    A χ² spread over the bar can be a different minimum or the same one seen
+    through different frozen windows (a window edge one point apart at a
+    stage's compile, WP-1938's third session).  This column tells them apart.
+    """
+    if not all("params" in r for r in rows):
+        return "—"
+    worst, where = _worst(rows)
+    mark = "" if worst < ESD_BAR else " ✗"
+    return f"{worst:.1e}{mark} {where}"
+
+
+def _worst(rows: list[dict]) -> tuple[float, str]:
+    worst, where = 0.0, ""
+    base = rows[0]["params"]
+    for r in rows[1:]:
+        for path, (v, _) in r["params"].items():
+            if path in base:
+                d = abs(v - base[path][0]) / base[path][1]
+                if d > worst:
+                    worst, where = d, path
+    return worst, where
+
+
 def table(out: Path, fits: list[str], arms: list[str]) -> str:
-    lines = ["| fit | arm | χ²_red min | spread | max_iter stages | Σ nfev |",
-             "|---|---|---|---|---|---|"]
+    lines = ["| fit | arm | χ²_red min | spread | max Δp/esd | Rwp | max_iter stages | Σ nfev |",
+             "|---|---|---|---|---|---|---|---|"]
     for fit in fits:
         for arm in arms:
             rows = _rows(_cell_path(out, fit, arm))
             chi = [r["chi2"] for r in rows if "chi2" in r]
             if len(chi) < len(rows) or not rows:
-                lines.append(f"| {fit} | {arm} | error or missing | | | |")
+                lines.append(f"| {fit} | {arm} | error or missing | | | | | |")
                 continue
             spread = (max(chi) - min(chi)) / min(chi)
-            mark = "" if spread < BAR else " ✗"
+            mark = "" if spread < BAR else " ·"
             stopped = sorted({s for r in rows for s in r["max_iter"]})
             nfev = [r["nfev"] for r in rows]
+            rwp = [r.get("rwp", math.nan) for r in rows]
             lines.append(f"| {fit} | {arm} | {min(chi):.9f} | {spread:.1e}{mark} | "
+                         f"{_param_spread(rows)} | "
+                         f"{min(rwp):.5f}–{max(rwp):.5f} | "
                          f"{', '.join(stopped) or '—'} | {min(nfev)}–{max(nfev)} |")
     return "\n".join(lines)
 

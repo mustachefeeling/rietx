@@ -213,7 +213,9 @@ def test_an_interior_eta_frees_both_halves(drx_doc):
 
 
 def test_an_off_state_half_is_held_and_said(drx):
-    """LG_eta = 1: the Gaussian half is dead under softplus, so it is not freed."""
+    """LG_eta = 1: the Gaussian half starts at 0, and freed there it splits the
+    width in a way the data does not resolve (``io.recipe._split``), so it is
+    held and the hold is said."""
     for phase in drx.structure.phases:
         assert phase.lor_size.vary
         assert not phase.gauss_size.vary
@@ -287,7 +289,7 @@ def test_a_negative_width_is_refused_rather_than_silently_zeroed(lab6_doc):
     doc["payload"]["instrument"]["initialization"][0]["Y"] = [-15.8, -15.8, False]
     with pytest.raises(RecipeError) as exc:
         read_recipe(doc)
-    assert "softplus-bounded at zero" in str(exc.value)
+    assert "bounded below at zero" in str(exc.value)
 
 
 def test_the_spf_schema_is_refused_by_name(lab6_doc):

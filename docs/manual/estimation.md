@@ -369,28 +369,70 @@ refinement across patterns {cite}`stinton2007` is out of scope.
 
 ## Solvers
 
-The default driver is scipy's Trust Region Reflective. The bounded
-Levenberg-Marquardt alternative implements Coelho's adaptive Marquardt
+The default driver is a bounded Levenberg-Marquardt. scipy's Trust Region
+Reflective, the previous default, stays available as `solver="trf"`. The
+Levenberg-Marquardt driver implements Coelho's adaptive Marquardt
 constant {cite}`coelho2018`, with the system diagonally pre-conditioned to
 $A_{ii} = 1$. That pre-conditioning makes λ dimensionless and lets the published
-constants transfer. Each damped step is solved exactly inside the parameter
-bounds by bounded-variable least squares {cite}`stark1995`, so a parameter the
-step puts on a bound lands on it. Above 128 parameters, a size only a Pawley
-block reaches, the exact solve grows too slow, and the step is the
-bound-constrained conjugate gradient of {cite}`coelho2005` (conjugate gradients
-per {cite}`hestenes1952,polak1971`). Conventions: $A = J^\top J$,
-$b = -J^\top r$, and the paper's objective $S = r^\top r$ is $\chi^2$.
+constants transfer. Each damped step solves
 
-The driver earns its place on constraint vocabulary rather than speed. Box
-bounds are enforced inside the linear solve, and linear inequalities on
-functionals of θ are available as rows $T\theta \ge 0$, the shape of the
-Stephens positivity cone ({ref}`ch-microstructure`), which no per-parameter box
-can express. An answer that pressed the cone says so. Per-stage truncation
-counts are recorded, and a `CONSTRAINT_ACTIVE` diagnostic fires for the
-answer-producing stage, which is the one signal that a declared constraint was
-active. Speed was measured at 0.74–1.04× against TRF, as expected: the
-normal-equation solve is a minority of the runtime, so solver work is
-Amdahl-bounded at ≈1.25× here. {ref}`ch-method` works through two places where
+```{math}
+:label: est-lm-step
+
+\begin{aligned}
+\Delta \;=\; &\mathop{\mathrm{arg\,min}}_{\Delta}\;
+  \tfrac12\,\Delta^\top \bigl(A + \lambda\,\mathrm{diag}\,A\bigr)\,\Delta
+  - b^\top\Delta \\
+&\text{subject to}\quad \ell \le \theta + \Delta \le u
+  \quad\text{and}\quad T(\theta + \Delta) + c \ge 0,
+\end{aligned}
+```
+
+{source}`rietx.optimize.lm._solve_constrained_step`
+
+with $\ell$ and $u$ the declared limits and the rows $T\theta + c \ge 0$
+described below. Without a row binding, the step is solved by bounded-variable
+least squares {cite}`stark1995`, so a parameter the step puts on a bound lands
+on it. Above 128 parameters, a size only a Pawley block reaches, that solve
+grows too slow, and the step is the bound-constrained conjugate gradient of
+{cite}`coelho2005` (conjugate gradients per {cite}`hestenes1952,polak1971`).
+Conventions: $A = J^\top J$, $b = -J^\top r$, and the paper's objective
+$S = r^\top r$ is $\chi^2$.
+
+It is the default because it settles where TRF crawls. Every parameter refines
+in its own units, with its declared limits as box bounds, and TRF's strictly
+feasible iterates approach a bound slowly. On 14 acceptance fits each started
+five ways, one fit's χ² spread by more than 1e-9 under this driver and four
+under TRF. From a poor start TRF can also end in a different basin. Issue
+#900's synthetic PbSO₄ frees every parameter in one stage, from a scale 2400
+times too high. This driver reaches χ² 7111 with the Pb $B_{iso}$ at 1.48 Å²,
+against a true 1.49. TRF stops on its iteration limit at χ² 4.5 × 10⁵, with
+the Pb $B_{iso}$ at 133 Å². It reports `STAGE_MAX_ITER` and
+`BISO_UNUSUALLY_LARGE`.
+
+It also carries constraints TRF cannot. Linear inequalities on functionals of
+θ are rows $T\theta + c \ge 0$, a shape no per-parameter box can express. Two
+kinds exist. One is the Stephens positivity cone ({ref}`ch-microstructure`).
+The other is the floor on the Gaussian width at every reflection,
+{eq}`prof-caglioti-floor`. When the bounded step crosses a row, the step is
+solved again over the bounds and the rows together. That is a least-squares
+problem with linear inequality constraints. It is solved exactly by Lawson and
+Hanson's reduction to a least-distance problem and then to non-negative least
+squares {cite}`lawson1974`. A step that crosses no row is the bounded step
+unchanged. The rule before truncated the bounded step at the first row it
+crossed, and that stalled wherever the optimum lay on a row's face. An answer that
+pressed a row says so. Per-stage counts of the held steps are recorded, and a
+`CONSTRAINT_ACTIVE` diagnostic names the block in the answer-producing stage.
+It is the one signal that a declared constraint was active.
+
+Speed was measured with `examples/bench_solver.py` on four acceptance
+protocols (macOS arm64, three runs). Where both drivers converge, on SRM 660c
+and the 11-BM NAC pattern, this driver is 1.19–1.30× faster. It needs 78 and 35
+residual evaluations there, against TRF's 83 and 51. The solve itself is a
+minority of the runtime, so a faster solve alone would buy at most about
+1.25×. On corundum and the four-phase cpd-2 protocol TRF stops on its
+iteration limit after 906 and 3865 evaluations. This driver converges in 116
+and 224, 11.6–35× faster. {ref}`ch-method` works through two places where
 the Coelho papers disagree with their own text, and how measurement settled
 them.
 

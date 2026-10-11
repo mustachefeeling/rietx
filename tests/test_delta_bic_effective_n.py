@@ -62,8 +62,7 @@ def _suggest(resid, column):
     jac = column[:, None]
     chi2_red = float(resid @ resid) / len(resid)
     return build_suggestion(
-        jac, resid, [], [Candidate(path="phases.0.atoms.1.occ", index=0,
-                                   dp_du=1.0)],
+        jac, resid, [], [Candidate(path="phases.0.atoms.1.occ", index=0)],
         chi2_red=chi2_red, esd_inflation=berar_lelann_factor(resid))
 
 

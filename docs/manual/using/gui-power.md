@@ -42,7 +42,7 @@ phase 0 "fluorapatite"            # P 63/m · No. 176 · hexagonal · Laue 6/m
   cell.a                  9.3717  min 1
   cell.b                  9.3717  min 1  = 1·phases.0.cell.a
   cell.alpha                  90  locked
-  scale                    0.001  min 0  softplus
+  scale                    0.001  min 0
   atoms.0.z             0.001913  = 0.001913 + 1·phases.0.atoms.0.dof.0   # Ca1 Ca
 
 instrument
@@ -98,7 +98,7 @@ They render in this order:
 | `@` before the value | this parameter is free; a bare value holds it | yes |
 | the value itself | the parameter's value | yes |
 | `min` / `max` | the bound the solver is given | no; bounds come from the schema rather than from this document |
-| `softplus` / `logit` | the transform the parameter refines through | no; a transform is part of how the parameter is stored |
+| `softplus` / `logit` | read only from a document written before 1.8, as the bound it enforced: `min 0`, and `max 1` for `logit` | no; nothing writes it now |
 | `locked` | structurally fixed, by symmetry or by a representation that owns the value | no |
 | `mode-fixed` | held because the intensity mode holds it; Le Bail and Pawley force-fix every atom parameter, the phase scale and the emission lines | no |
 | `esd` | the standard uncertainty the last fit produced | no; an esd is a result of a fit and not an input to one |

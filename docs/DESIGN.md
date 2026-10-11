@@ -265,8 +265,14 @@ matmul — exact under autodiff); v0.1 implements the identity-tie subset
 Nonlinear ties (`expr`) will use a tiny AST-whitelisted DSL emitted as
 backend ops — **asteval and sympy were evaluated and rejected** (asteval
 cannot run on autodiff tracers; sympy's torch lambdify printer is immature).
-Transforms: identity + native TRF bounds by default; softplus for widths and
-scales (hard lower bounds stall TRF); logit for occupancies.
+Transforms: none since WP-1938 (2026-10-11). Every parameter refines in its
+own units, with its declared `min`/`max` as box bounds the driver holds. v0.1
+used softplus for widths and scales, because hard lower bounds stall TRF, and
+logit for occupancies. Near zero a softplus column is expit(u)·∂r/∂p, which
+falls below rounding: BT-1's `profile.x` esd read 0.0032, 0.0066 or 0.0089 at
+one χ², and LaB₆ + cBN reached four minima from five starts 1e-14 apart. The
+bounded LM below answers the stall instead, by putting a value exactly on its
+bound. An old file's `transform` word folds into bounds at read.
 
 **Rigid bodies: a typed `derived` block, not a linearisation inside C** *(measured
 2026-10-01, WP-1803; issue #561).* A body atom's coordinates
@@ -396,6 +402,18 @@ brucite that takes the fit from 12 of 43 reflections outside the cone to 0 of
 43, at a *higher* Rwp. It does not make those coefficients measured — they stay
 start-dependent across seeds — but an inadmissible answer stops being one of
 the outcomes.
+
+*Superseded in part (2026-10-11, WP-1938): the bounded LM is the default.* It
+flipped together with the physical coordinates above, because each change
+alone was worse than TRF in softplus coordinates. On WP-1937's grid of 14
+acceptance fits, each started five ways 1e-14 apart, the fits whose χ²_red
+spread passed 1e-9 numbered 3 under softplus + TRF, 7 under softplus + LM, 4
+under physical + TRF and 1 under physical + LM. In softplus coordinates LM's
+exact step drove widths to u ≈ −400, where their columns die. Since then the
+step holds the linear inequalities inside its quadratic programme (Lawson and
+Hanson's LSI → LDP → NNLS), rather than truncating a box step against them.
+The Γ_G² ≥ 1e-8 floor at every reflection is the second inequality. TRF stays
+selectable as `solver="trf"`.
 
 Two properties of the driver are load-bearing rather than incidental, and any
 future driver must keep both. The cost is always a **fresh fp64 residual
