@@ -123,6 +123,22 @@ handover log has the tables).
 
 ### Inherited
 
+- **2026-10-11, from WP-1938 (in flight, PR #883): the floor seed is
+  deleted on that branch.** Under physical coordinates the trap it worked
+  around is gone, so `seed_floor`, `SOFTPLUS_FLOOR_VALUE`,
+  `SOFTPLUS_FREED_AT_FLOOR` and `StageResult.floor_unseeded` go (a
+  before-validator drops the stored key). `FLOOR_SEEDS` stays as the FD step
+  table. `Stage.seed` survives as `seed_floored`, lifting only a freed row
+  sitting on a floor at or above 0. LaB₆ + cBN's shared fit then seeds
+  nothing and `profile.y` leaves 0 on its own: 0.0369 at Rwp 0.168656, inside
+  the reporter's 2 % band, and `test_acceptance_lab6_cbn` asserts
+  `seeded == {}`. That figure was measured in a venv later found to run
+  x86_64 under Rosetta, so re-measure it on arm64 before this WP's band task
+  quotes it. The Caglioti W is now floored at 1e-8 deg²
+  (`caglioti._MIN_GAMMA_G2`) and LM holds Γ_G² ≥ 1e-8 at every reflection as
+  a linear inequality (WP-1938's D7/D8), so the free-Gaussian LaB₆ plans
+  reach one answer, χ²_red 9.692771, where they split between 9.661 and 9.840.
+
 - **2026-10-09, from WP-1929: the floor's column is rounding noise, and a
   finite softplus floor may make the seed unnecessary.** The Jacobian
   differences each column with h = 1e-6·max(1, |u|) in *internal*

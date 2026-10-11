@@ -1,6 +1,6 @@
 # WP-1938 — every parameter refined in its own units
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-11 — physical units and the LM default landed; D6, three grid fits and 22 fast failures open
 Track: What fires, and what stays silent
 Depends on: 1936 (the FD step, landed 2026-10-09), 1937 (a driver that handles widths on zero, landed 2026-10-10), 1940 soft (merge after it, so the re-pinned numbers and the grid are the shipping kernels'; the work can start before)
 Priority: P1 2026-10-10 — was P2: WP-1937 landed, nothing blocks it, and it now carries the default-driver flip WP-1929's P1 rests on
@@ -311,6 +311,133 @@ BT-1.
   transformed parameter's error is meaningless near its limit).
 
 ## Handover log
+
+- **2026-10-11** — first session: physical coordinates and the LM default
+  land, and LM's step now holds linear inequalities exactly. Not closing.
+
+  Every parameter is now refined in its own units, and LM is the default
+  driver. That removed the softplus trap this WP exists for. It also exposed a
+  second trap that softplus had hidden. LM's exact step can land a Gaussian
+  width exactly on zero, where the model's variance clamp makes every width
+  column zero and the fit stops in place: the manual's first-refinement call
+  ended at Rwp 0.180 against TRF's 0.134. Flooring W at the clamp and making
+  LM hold Γ_G² ≥ 1e-8 at every reflection, with its inequalities solved
+  inside the step rather than by truncating it, fixes that call and the 150 K
+  magnetic fixture. Three grid fits still miss the one-minimum bar, and
+  roughly a third of the WP's tasks remain, the stored-field removal among
+  them.
+
+  *Done* (12 commits; decisions D1-D8 in Context say why each went the way it
+  did; D7 and D8 were the maintainer's choices after measurements):
+  - D1/D2 (`6fad41ac`): identity entries with `physical_bounds`, and
+    `DEFAULT_SOLVER = "lm"` in every defaulting signature, the GUI's included.
+  - D3/D4 (`db5cb8fe`): `seed_floored` replaces `seed_softplus` and lifts only
+    a freed row on a floor at or above 0; WP-1930's floor seed, its diagnostic
+    and `StageResult.floor_unseeded` are deleted (a before-validator drops the
+    stored key, which D6's schema bump must mention).
+  - D5 (`15fc6105`): `bound_untested` is gone; `GuardFinding.limit` carries
+    which bound held, and `BOUND_HIT` on a lower limit of 0 gets
+    `refine._ZERO_FLOOR_SUGGESTION` until WP-1929 gives a floor its own code.
+  - The driver flip's tests and texts (`901e55e6`): TRF-subject tests name
+    `solver="trf"`, the solver-seam spy records both drivers, the Stephens
+    cone texts say LM holds it, the flat-combination case at 1e-6 is a strict
+    xfail (LM stops on `ftol_runs` at λ ≈ 1e11).
+  - D7 (`7a849e7d`, measured, then `cf31d595`): W's floor is
+    `caglioti._MIN_GAMMA_G2`, raised at read by `ProfileTCHZ` like
+    `MARCH_R_MIN` and by the `.instprm`, `.prm` and recipe readers; the TOPAS
+    writer imports the constant.
+  - D8 (`e1cf66de`): a box step that crosses an inequality row is replaced by
+    Lawson and Hanson's LSI → LDP → NNLS solve (1974, ch. 23), its active set
+    then solved as equalities; a step crossing no row is the BVLS/BCCG step
+    unchanged. `gaussian_width_inequalities` returns on top of W's floor, and
+    `_pad_inequalities` fixes Pawley + Stephens under LM raising a shape error.
+  - None of the checklist's items is complete, so none is ticked: each has a
+    named remainder under *Next*.
+
+  *Measured* (macOS arm64, `[dev]` unless marked):
+  - Minimal NAC call: Rwp 0.18028 under LM before D7, 0.13375 after, equal to
+    TRF to four digits in u, v, w, x, y. 150 K Cr₂WO₆ fixture: 0.2546 → 0.09924
+    (TRF's). The W floor alone left it at 0.25458, with U −0.0767 and V −0.179
+    putting Γ_G² under the clamp at 31 of 31 reflections.
+  - The 14-fit grid (`examples/probe_driver_grid.py --arms softplus:lm`, the
+    "softplus" arm now physical): with D8, over the 1e-9 bar are brucite +
+    Stephens (spread 3.3e-4, χ²_red 7.7177; every late step held as λ climbs to
+    6e9, likely Λ = √σ² masked to zero slope at the cone's face,
+    `stephens.py:211`), brucite isotropic (1.1e-8) and corundum (3.5e-8), each
+    after one held Γ_G² step. Both LaB₆ free-Gaussian plans reach χ²_red
+    9.692771 (9.661421 and 9.840220 before); bt1_xray 2.383802 → 2.384175.
+  - Fast suite on the final tree: 22 failed, 9089 passed, 178 skipped, 2
+    xfailed, 5:25. The 22: 11 `test_backend_shim` goldens, which this venv runs
+    and the session's earlier x86_64 venv skipped; D6's three
+    (`test_textdoc` fixed point, `test_named_variables`,
+    `test_params_surface`); three `test_neutron_cw` box pins of W's old 0
+    floor; `test_joint_xray_neutron::test_the_structure_is_shared_and_the_instruments_are_not`;
+    three `test_lebail_alternation` cases that D8's step moved after `15fc6105`
+    fixed them; `test_cell_runaway_safety::test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error`.
+    The first run, before any fix and under x86_64, was 68 failed, 9013 passed,
+    188 skipped, 1 xfailed, so the two totals are not comparable. Added tests
+    cost 13.86 s over 30 (local junit), led by `test_absent_phase.py` at 8.00 s
+    for 6 and `test_gaussian_width_floor.py` 4.74 s for 11.
+  - Slow files run by lanes: `test_acceptance_stephens` 5 of 5 (one assertion
+    widened to the guard's tolerance, σ² on the face at −6.5e-16),
+    `test_acceptance_nac` 3 of 3, `test_magnetic_solve_acceptance` 1 of 2 (150 K
+    trial 2.7 S2(a,b) ends `max_iter`, as under the truncating driver). The
+    sequential cpd-1d case from the 16-failure list no longer reproduces:
+    0.13092 chained against 0.13087 alone (x86_64).
+  - The full suite did not run: the WP is mid-flight, and the tree moves again
+    under D6.
+  - Lanes: six, all opus, $63.89 against main's $13.50; trial row in
+    `docs/milestones/process.md`, saved +$52.91 (+41 %). Requests ran 4.42× the
+    estimates. The selective policy's replay row reads 118, −17 %.
+
+  | lane | est | requests | main at dispatch | saved $ |
+  |---|---|---|---|---|
+  | seeds | 30 | 139 | 252K | +6.83 |
+  | floor-bounds | 40 | 197 | 290K | +12.23 |
+  | driver-flip | 45 | 189 | 302K | +7.12 |
+  | resolution-inequality | 40 | 113 | 353K | +5.22 |
+  | w-floor | 30 | 153 | 367K | +9.63 |
+  | qp-step | 60 | 181 | 380K | +11.88 |
+
+  *Gotchas*:
+  - Until it was rebuilt after the driver-flip lane, this worktree's venv ran
+    x86_64 under Rosetta (a WP-1940
+    probe's `uv python install` had made it the default 3.12). The seeds,
+    floor-bounds and driver-flip lanes measured there: `lab6_cbn`'s 0.168656
+    and the first fast run among them. Re-measure any of those before quoting.
+  - `.claude/hooks` refuses `cd`, an `awk` program, and complex shell lines
+    in this worktree; scratch scripts go in the scratchpad and run as one
+    plain command.
+  - LM's stall shows as `exhausted_fp64` or `no_descent` with every step held
+    and λ climbing. Read the stage's truncation count before reading its Rwp.
+  - `/code-review high --fix` was deferred: the PR stays draft mid-WP, and D6
+    rewrites much of this code.
+
+  Next, in order:
+  1. Re-pin the 11 `test_backend_shim` goldens and the three `test_neutron_cw`
+     box pins, with old → new in the commit, and fix
+     `test_joint_xray_neutron`, the three Le Bail cases and the triclinic
+     cell-runaway test, each by its mechanism.
+  2. D6 (task 2 and the rest of tasks 1, 3 and 5): remove `Parameter.transform`
+     with a before-validator, `Entry.transform`/`ParameterRow.transform`, the
+     transform machinery in `vector.py`, `least_squares._fd_typicals`'s branch,
+     `traced.py`'s masks, the textdoc and GUI flag words (`gui/src/lib/rxt.ts`
+     `FLAGS`, `Params.svelte`; rebuild the dist), the help texts, and bump
+     `SCHEMA_VERSION` naming `floor_unseeded`'s drop too. This fixes D6's three
+     failures.
+  3. The three grid fits over the bar: brucite + Stephens first (the cone
+     task; read `stephens.py:211`'s zero-slope mask at the face), then the
+     held Γ_G² step behind brucite isotropic and corundum. Decide each against
+     the acceptance (one minimum per fit) before tuning anything.
+  4. The seeds measurement (extinction and magnetic-width), the tutorial
+     notebooks still printing `solver=trf` (`examples/tutorials/build.py`),
+     `first-refinement.md:73-87`'s example output, `lm.py`'s and
+     `estimation.md`'s speed sentences with `examples/bench_solver.py` on
+     arm64, root CLAUDE.md's softplus and WP-1463 clauses (~line 776) and
+     `DESIGN.md:268,371`.
+  5. Then `/code-review high --fix`, the acceptance suites and VALIDATION.md
+     re-measured with every >1 % move listed, the full suite on main merged
+     in, and `gh pr ready`.
 
 - **2026-10-09** — created from WP-1929's second session. No open WP owns the
   parameter transforms: 1463 and 1535, which last changed the floor handling,

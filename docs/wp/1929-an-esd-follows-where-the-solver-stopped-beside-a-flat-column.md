@@ -219,6 +219,21 @@ silently stop acting (WP-1938).
 
 ### Inherited
 
+- **2026-10-11, from WP-1938 (in flight, branch `wp1938-physical-units`,
+  PR #883): a floor is now an ordinary bound, and LM is the default.** Every
+  entry is refined in physical units, so `staged.bound_untested` and its
+  `None` third state are gone: a scale or width on 0 is answered by
+  `bound_findings`, reads `at_bound=True` and keeps a finite marginal esd (an
+  absent phase's scale is 0 ± σ, and its QPA esd is computable).
+  `GuardFinding.limit` (`("lower", 0.0)` / `("upper", hi)`, written only in
+  `bound_findings`) carries which limit bound, and `BOUND_HIT` on a lower limit
+  of exactly 0 gives an interim suggestion (`refine._ZERO_FLOOR_SUGGESTION`)
+  rather than "widen the bound". The NAC acceptance fit's Biso at a caller's
+  `min=0` reaches that branch too, so a zero floor is not always a scale or
+  width. This WP's own code and suggestion for a floor replace that interim
+  text. The default driver is LM (`DEFAULT_SOLVER`), so the flag task can read
+  LM's exact active set by default once 1938 merges.
+
 - **2026-10-10, from WP-1937: the active set exists.**
   `LSQOutcome.active_bounds` carries each driver's set over the table
   columns (−1 lower, +1 upper, 0 neither). The LM driver's is exact: the
