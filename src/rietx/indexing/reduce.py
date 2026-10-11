@@ -196,7 +196,22 @@ def lattice_vectors(cell: tuple[float, ...]) -> np.ndarray:
 
 def reduce_cell(cell: tuple[float, ...], centring: str = "P", *,
                 kind: str = "niggli") -> ReducedCell:
-    """Niggli (default) or Delaunay reduction, with the change of basis kept."""
+    """Niggli (default) or Delaunay reduction, with the change of basis kept.
+
+    **The reduced cell is the exact image of the input under that change of
+    basis** (WP-1923).  Inside ε a reduction step treats a near-zero ξ, η or ζ
+    as zero and may hand it either sign, and gemmi records no basis change for
+    it.  Flipping one sign is not a change of basis, so the reduced metric then
+    sat one ε from the input's.  Measured on the cell of issue #797, (3, 11,
+    14.1972, 65°, 65°, 65°): η = −1.753e-5 out of ``niggli_reduce`` against
+    +1.753e-5 in M·G·Mᵀ, the other five parameters agreeing to 1.7e-16.  So
+    where any entry's sign disagrees with M·G·Mᵀ, the cell is built from
+    M·G·Mᵀ; elsewhere gemmi's cell is kept as it was, to the bit.  The image
+    differs from gemmi's vector by under ε, which is all the reduction promised.
+    Over ``tests/test_acceptance_indexing.py``, 316 of 7102 reductions had a
+    sign to correct, 142 of the 145 distinct cells by under 1e-14 of the
+    metric's scale (a right angle's rounding) and none at #797's ε scale.
+    """
     import gemmi
 
     uc = gemmi.UnitCell(*cell)
@@ -211,10 +226,38 @@ def reduce_cell(cell: tuple[float, ...], centring: str = "P", *,
         raise ValueError(f"kind must be 'niggli' or 'delaunay', not {kind!r}")
     gv.normalize(epsilon=eps)
     out = gv.get_cell()
+    triplet = gv.change_of_basis.triplet()
+    reduced = (out.a, out.b, out.c, out.alpha, out.beta, out.gamma)
+    image = _metric_image(cell, triplet)
+    if np.any(image * _metric_of_g6(gv.parameters) < 0.0):
+        reduced = _cell_from_metric(image)
     return ReducedCell(
-        cell=(out.a, out.b, out.c, out.alpha, out.beta, out.gamma),
-        change_of_basis=gv.change_of_basis.triplet(), centring=centring,
+        cell=reduced, change_of_basis=triplet, centring=centring,
         kind=kind, already_reduced=already)
+
+
+def _metric_of_g6(g6: Sequence[float]) -> np.ndarray:
+    """The direct metric of gemmi's G6 vector (A, B, C, ξ, η, ζ)."""
+    a, b, c, xi, eta, zeta = g6
+    return np.array([[a, zeta / 2, eta / 2], [zeta / 2, b, xi / 2],
+                     [eta / 2, xi / 2, c]])
+
+
+def _metric_image(cell: tuple[float, ...], triplet: str) -> np.ndarray:
+    """M·G·Mᵀ, the input's direct metric under the reduction's change of basis."""
+    from ..crystallography.lattice import direct_metric_tensor
+    m = _basis_change(triplet)
+    return m @ np.asarray(direct_metric_tensor(*cell), dtype=np.float64) @ m.T
+
+
+def _cell_from_metric(g: np.ndarray
+                      ) -> tuple[float, float, float, float, float, float]:
+    """Cell parameters from a direct metric tensor."""
+    a, b, c = (float(np.sqrt(g[i, i])) for i in range(3))
+    ang = [float(np.degrees(np.arccos(np.clip(g[m, n] / (l1 * l2), -1.0, 1.0))))
+           for (m, n), (l1, l2) in (((1, 2), (b, c)), ((0, 2), (a, c)),
+                                    ((0, 1), (a, b)))]
+    return a, b, c, ang[0], ang[1], ang[2]
 
 
 def _system_from_number(number: int) -> str:
@@ -291,12 +334,7 @@ def cell_from_vectors(lattice: np.ndarray
                       ) -> tuple[float, float, float, float, float, float]:
     """Cell parameters from row-vector lattice vectors — spglib's output form."""
     lat = np.asarray(lattice, dtype=np.float64)
-    g = lat @ lat.T
-    a, b, c = (float(np.sqrt(g[i, i])) for i in range(3))
-    ang = [float(np.degrees(np.arccos(np.clip(g[m, n] / (l1 * l2), -1.0, 1.0))))
-           for (m, n), (l1, l2) in (((1, 2), (b, c)), ((0, 2), (a, c)),
-                                    ((0, 1), (a, b)))]
-    return a, b, c, ang[0], ang[1], ang[2]
+    return _cell_from_metric(lat @ lat.T)
 
 
 def conventional_cell(cell: tuple[float, ...], *, symprec: float = 1e-3
@@ -341,26 +379,20 @@ def reduction(af: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
     """(A..F) of the Niggli-reduced form, and the 6×6 map T that took ``af`` there.
 
     red = T·af, so a covariance of ``af`` is T·cov·Tᵀ in the reduced frame
-    (:func:`reduced_covariance`).  T is ``None`` when red = af component for
-    component, which is what keeps a pair already in its reduced setting
+    (:func:`reduced_covariance`).  T is ``None`` when the change of basis is
+    the identity, which is what keeps a pair already in its reduced setting
     bit-identical to the test before WP-1518.
 
-    **The triplet alone is not the whole map.**  Within the reduction's ε,
-    gemmi's normalisation can flip the sign of a near-zero D, E or F without
-    recording it in the change of basis.  Measured on 2000 cells with an angle
-    within 1e-3° of 90°, 909 disagreed with the triplet's map, every one by the
-    sign of one or two components.  Those rows of T are flipped, so the
-    covariance's cross terms keep the sign of the vector they describe.
+    **T is the whole map** because :func:`reduce_cell` returns the exact image
+    of its input under the triplet (WP-1923), so T·af equals red to rounding.
+    Until then the reduction could give a near-zero D, E or F the sign of a
+    value it treats as zero, and this function flipped those rows of T to
+    agree.  Flipping one sign is not a change of basis: the 797 cell's red sat
+    1.2e-5 off T·af in E and 4e-8 in A..C, one ε from the input's metric.
     """
     from .qspace import af_from_cell, cell_from_af
     reduced = reduce_cell(cell_from_af(af))
-    red = af_from_cell(reduced.cell)
-    t = _af_map(reduced.change_of_basis)
-    mapped = np.asarray(af, dtype=np.float64) if t is None else t @ af
-    flip = mapped * red < 0.0
-    if flip.any():
-        t = (np.eye(6) if t is None else t) * np.where(flip, -1.0, 1.0)[:, None]
-    return red, t
+    return af_from_cell(reduced.cell), _af_map(reduced.change_of_basis)
 
 
 def _basis_change(triplet: str) -> np.ndarray:

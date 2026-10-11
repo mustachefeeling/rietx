@@ -326,15 +326,54 @@ def test_the_reduction_map_takes_a_to_f_where_the_reduction_does(a, b, c, al,
     (10.1736, 10.1736, 7.2114, 90.0, 89.99999996617657, 90.0),
     (4.9378, 3.3955, 4.4419, 90.0, 89.99999877161947, 90.0),
     (11.2545, 7.4719, 8.663, 90.0, 89.99999996944449, 89.99998580312608),
+    (3.0, 11.0, 14.197202585325392, 65.0, 65.0, 65.0),           # issue #797
 ])
-def test_the_map_carries_a_sign_the_reduction_snapped(cell):
-    """Within ε of 90° gemmi flips a near-zero D, E or F's sign and the triplet
-    does not say so.  Hypothesis's generic cells never land there, and without
-    the flip these four disagreed with red by 1.7e-9 to 6.6e-7 of its scale."""
+def test_the_map_needs_no_sign_the_reduction_chose(cell):
+    """Within ε gemmi gives a near-zero ξ, η or ζ either sign and the triplet
+    does not say so.  Hypothesis's generic cells never land there.  Unmapped,
+    the first four disagreed with red by 1.7e-9 to 6.6e-7 of its scale; a row
+    flip of T then hid the sign and left the metric one ε away (the fifth,
+    1.2e-5).  Since WP-1923 the reduced cell is the exact image, so the
+    triplet's map alone takes af to red."""
     af = af_from_cell(cell)
     red, t = reduction(af)
     mapped = af if t is None else t @ af
     assert np.allclose(mapped, red, rtol=0.0, atol=1e-14 * np.max(np.abs(red)))
+
+
+@pytest.mark.parametrize("centring", ["P", "C", "I", "F", "R"])
+@settings(max_examples=40, deadline=None,
+          suppress_health_check=[HealthCheck.filter_too_much])
+@given(lengths, lengths, lengths, angles, angles, angles)
+@example(3.0, 11.0, 14.197202585325392, 65.0, 65.0, 65.0)           # #797
+@example(3.4481, 3.4481, 7.9668, 90.0, 89.9999997, 90.0)
+def test_the_reduced_cell_is_the_exact_image_of_its_input(centring, a, b, c,
+                                                          al, be, ga):
+    """WP-1923: M·G·Mᵀ of the input under the recorded change of basis *is*
+    the reduced metric, and it is gemmi's reduced vector to within the
+    reduction's own ε.  Not ``is_niggli``: that predicate tests signs without
+    ε, and it fails gemmi's own output on fp ties (``ReducedCell``'s note)."""
+    import gemmi
+
+    from rietx.crystallography.lattice import direct_metric_tensor
+    from rietx.indexing.reduce import NIGGLI_EPS_RELATIVE, _basis_change
+
+    cell = (a, b, c, al, be, ga)
+    assume(_valid(cell))
+    r = reduce_cell(cell, centring)
+    m = _basis_change(r.change_of_basis)
+    image = m @ np.asarray(direct_metric_tensor(*cell)) @ m.T
+    got = np.asarray(direct_metric_tensor(*r.cell))
+    assert np.allclose(got, image, rtol=0.0, atol=1e-12 * np.max(np.abs(image)))
+    uc = gemmi.UnitCell(*cell)
+    eps = NIGGLI_EPS_RELATIVE * uc.volume ** (1.0 / 3.0)
+    gv = gemmi.GruberVector(uc, centring)
+    gv.niggli_reduce(epsilon=eps)
+    gv.normalize(epsilon=eps)
+    A, B, C, xi, eta, zeta = gv.parameters
+    theirs = np.array([[A, zeta / 2, eta / 2], [zeta / 2, B, xi / 2],
+                       [eta / 2, xi / 2, C]])
+    assert np.max(np.abs(got - theirs)) <= eps
 
 
 def _own_frame_covariance(af: np.ndarray, rel: float, slots) -> np.ndarray:
