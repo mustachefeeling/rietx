@@ -309,6 +309,31 @@ def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     takes :func:`normal_factors` and never forms the variance, as
     :func:`~rietx.optimize.least_squares.covariance_estimates` does.
 
+    **A row on its bound stays in the matrix** (WP-1929).  Since WP-1938 a
+    floor is an ordinary bound of 0, and a width or scale resting on it has a
+    live column, so its own esd and every neighbour's are *marginal*.  That is
+    TOPAS's reading, and the row is tagged instead
+    (:attr:`~rietx.schemas.results.RefinedParameter.at_bound`).  The other
+    reading conditions on the row: it leaves the matrix, and each correlated
+    neighbour's esd shrinks by √(1 − ρ²).  Two things decided it.  The marginal
+    esd is the larger, and it moves continuously as a row approaches its
+    bound, while the conditional one jumps when the at-bound test fires.
+    Self & Liang (1987, *J. Am. Stat. Assoc.* **82**, 605) put the sampling
+    distribution of a neighbour between the two.  Before WP-1938 the choice
+    looked like one between a number that depended on where the solver
+    stopped and one that did not.  It was neither: the floor row's column was
+    differenced below rounding, and the column taken in physical units gives
+    one marginal esd at every stopping point (BT-1's ``profile.x``, 0.0098437
+    at internal coordinates −25.5 and −514).
+
+    No floor makes a column dead after WP-1938.  What ``1/d = 0`` and
+    :meth:`~rietx.params.vector.ParameterTable.unmeasured_rows` still catch
+    is a column the model is exactly flat in.  The cases named in the package
+    are a zero upstream (a phase scale of 0 empties its phase's structural
+    columns, a moment of 0 its angles and widths), a clamp (every Gaussian
+    width column under ``caglioti._MIN_GAMMA_G2``), and a body turned about an
+    axis its template is symmetric under.
+
     This lives here, rather than inside :func:`covariance_estimates`, because
     two surfaces now need it — the whole-pattern fit and the per-peak profile
     fits of :mod:`rietx.indexing.peakfit` — and they must not be able to
