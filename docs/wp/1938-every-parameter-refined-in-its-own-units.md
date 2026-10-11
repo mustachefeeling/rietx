@@ -223,6 +223,18 @@ driver alone).
   them. That is the cone-stall task, and it lets D7's inequality return on top
   of W's floor. The LaB₆ free-Gaussian answers move, since their optimum now
   lives in the clamp region.
+- *D9, brucite + Stephens is a recorded exception* (the maintainer's choice,
+  2026-10-11, second session). Its spread is a property of the model's edge,
+  not of the driver. Six of 43 reflections end exactly on the cone's edge,
+  where the width √σ² has infinite slope. Lifting any of them raises the cost
+  as √h, so each is a genuine minimum in that direction. The forward-difference
+  columns there read the √ secant or 0, and LM stalls with one face set at
+  costs 4e-5 apart (χ²_red 7.7177-7.7202). A 1 ppm strain floor gave one
+  answer (7.7406) at 0.3 % worse χ², and smaller floors brought the stall
+  back, so it was declined. No code surveyed keeps σ² ≥ 0 at all, and no
+  quoted number rests on the fit: VALIDATION.md declares brucite's S_HKL
+  unquotable, and the test asserts 0.17 < Rwp < 0.20. That bracket is this
+  fit's bar on the grid. A formulation that cannot go negative is WP-1946.
 
 ## Non-goals
 
@@ -281,7 +293,11 @@ driver alone).
       default reaches 1.7e-9. Rerun it on Linux and after the coordinates
       land; if it splits again, establish the mechanism, then fix it or give
       brucite its own bar with the reason.
-- [ ] **The cone stall.** Physical + LM spreads 1.6e-6 on brucite +
+- [x] **The cone stall.** Closed 2026-10-11 as D9: D8 holds the cone inside
+      the step, and the spread that remains is the model's edge, not the
+      driver. It moves no quoted number. WP-1946 owns a formulation that
+      cannot go negative. The original text follows.
+      Physical + LM spreads 1.6e-6 on brucite +
       Stephens. `sample_broadening` truncates 8 steps against the strain cone
       and stops `exhausted_fp64`, and the S_HKL differ at 7e-5 relative. BVLS
       holds boxes only, and the cone is projected and truncated around the
@@ -300,7 +316,8 @@ driver alone).
 
 The twelve-fit grid of WP-1929's second session, rerun on the default driver,
 reaches one minimum per fit (spread under 1e-9) and one `profile.x` esd on
-BT-1.
+BT-1. Brucite + Stephens is the one exception (D9): its bar is the
+0.17 < Rwp < 0.20 its acceptance test asserts, on every start.
 
 ## References
 
