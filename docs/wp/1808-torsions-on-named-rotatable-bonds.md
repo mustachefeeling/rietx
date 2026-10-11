@@ -47,6 +47,25 @@ and refines with an esd. This is chunk R7 of issue #561, sized M.
 
 ## Handover log
 
+- **2026-10-11** — what the review of #823 adds to the reconstructed entry
+  below, from the `/pr-review` run that merged it.
+  - **Found in review and fixed before merge.** A zero-length axis made every
+    body atom NaN without an error (`NaN < TORSION_STILL_TOL` is false); it is
+    now refused by the torsion's name, the chained case included. The hold
+    refusal names the twist glob. Three citations gained their journals.
+  - **Gate.** Stacked with #870, #822 and #853 on `main` `b7df6a10` as
+    `a3495a34`, macOS arm64, `[dev,jax]`, nothing else running: fast 9173
+    passed, 115 skipped, 1 xfailed and 1 failed (#843's Hypothesis case); slow
+    305 passed, 12 skipped.
+  - **The manual's dihedral sentence** is fixed in PR #884. Round 1 fixed it
+    in `help.py` only: written with its middle pair in the axis's order, a
+    dihedral changes by +φ when its last atom moves and by −φ when its first
+    does.
+  - **Left open, by agreement:** a tied twist in `test_cross_backend.py`'s
+    `bodies` config; one helper for the three numpy walks of the torsion chain
+    and the two index-triple builders; `compare_freed` reading
+    `anchored_dof_paths` and not the rotation set (inherited from #801).
+
 - **2026-10-09** — (reconstructed post hoc, 2026-10-11, from the three
   `WP-1808:` commits and PR #823's body and thread) built by @mustachefeeling
   in PR #823; the maintainer merged it on 2026-10-11 as `c6163587`; closed.

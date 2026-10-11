@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-08 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-11 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829), #565's certificates part 4 (PR #853); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -1171,3 +1171,36 @@ congruence and the guard, a Weyl citation, `_svd_rows` returning `None`, the
 repeated `_certify`, chain-only isometries) was left by agreement.
 
 *Next:* #820's second half, then #565 parts 4 and 5.
+
+### 2026-10-11 — #565's certificates part 4
+
+One more of this WP's PRs merged from outside. A candidate family whose
+shell-intensity matrices are another's pulled back through a fixed amplitude map,
+up to one scale, is now proved contained in it without a draw. A proved
+separation then travels along every proved containment, and by a sign-free bound
+to a third family that reproduces its witness draw.
+
+*Done.* PR #853 (#565 part 4 of 5, head `83715775`) merged as `8c5c6879` after two
+rounds. Round 1 found two defects, each fixed with a test that fails on the old
+source. The transfer's cone bound covered only b's projected stack, so a
+near-kernel with r_K up to `INTENSITY_RTOL` could leak past margins as small as
+1.7e-9; `_transfer_margin` now subtracts r_K·Y·(2ρ + ρ²) and widens Γ by
+1 + ρ². And `_propagate` dropped the `Transfer` record, so the fit-transfer loop
+read a copied verdict's witness as its own draw. Three statements were brought
+into line with the code, among them the factor n_a on the `Containment` and
+`Isometry` residual bounds.
+
+*Gate:* Stacked with #870, #823 and #822 on `main` `b7df6a10` as `a3495a34`,
+macOS arm64, `[dev,jax]`, nothing else running: fast 9173 passed, 115 skipped, 1
+xfailed and 1 failed (#843's Hypothesis case); slow 305 passed, 12 skipped.
+`main` after the last merge (`8c5c6879`) differs from it only by three
+docs-and-CI merges (#879, #881, #874) that landed between #823 and #822. The
+fast suite on `f7ab7096` with #853 gave the same counts, and nothing the slow
+suite runs changed.
+
+*Left open, by agreement:* `_powder_equivalent` recomputes the little group;
+`Witness.margin` is never re-checked; the fit cache is keyed on
+`id(v.witness)`; `ISOMETRY_RESIDUAL`'s docstring; the LAPACK citation lacks its
+authors and year.
+
+*Next:* #565 part 5, then M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs.
