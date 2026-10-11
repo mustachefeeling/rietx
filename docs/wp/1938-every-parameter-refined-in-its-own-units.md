@@ -1,6 +1,6 @@
 # WP-1938 — every parameter refined in its own units
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — D6 and the fast suite landed, the cone stall a recorded exception (D9); TRF caveat, docs, seeds, the valley and the acceptance re-measure open
+Milestone: unscheduled · Status: 🔄 2026-10-11 — docs, seeds, the valley (D10) and the traced backends landed; three magnetic slow failures and VALIDATION.md's rows open
 Track: What fires, and what stays silent
 Depends on: 1936 (the FD step, landed 2026-10-09), 1937 (a driver that handles widths on zero, landed 2026-10-10), 1940 soft (merge after it, so the re-pinned numbers and the grid are the shipping kernels'; the work can start before)
 Priority: P1 2026-10-10 — was P2: WP-1937 landed, nothing blocks it, and it now carries the default-driver flip WP-1929's P1 rests on
@@ -408,6 +408,148 @@ asserts, on every start.
   transformed parameter's error is meaningless near its limit).
 
 ## Handover log
+
+### 2026-10-11 (third session) — the docs, the seeds and the grid settled; three magnetic slow tests left
+
+The package now describes itself as it behaves. The manual, the agent skill,
+the examples and the tutorials say that a parameter's limits are held
+directly and that LM is the default driver. Four seeds that existed only for
+the old coordinates are gone, and one of them had been recommending moves a
+refit gained nothing from. A series no longer pushes a converged zero back up
+on its next pattern, which had cost one pattern 0.65 % in χ². Every fit on the
+grid now reaches one answer from every start, judged by its values in esd as
+the maintainer chose. The two fits that still scatter in χ² do so because one
+window edge falls a data point apart, not because the driver stops in two
+places. Not closing: three magnetic acceptance tests fail on the slow
+selection, and VALIDATION.md's quoted numbers have not been re-measured. The
+session stopped there because the account's weekly usage limit stopped every
+subagent.
+
+*Done* (13 commits on top of `d23750de`):
+- `f7e41574`: TRF's caveat as a sentence (no diagnostic) in `estimation.md`
+  § Solvers, `refining.md` and the `SOLVERS` comment. #900's TRF failure is
+  the issue's dispersion-on protocol (χ² 4.5e5, Pb Biso 133). With
+  dispersion off, as `test_issue_900_restated_bound.py` declares, TRF reaches
+  the true basin at 1.04e4, and the test's docstring now says which is which.
+- `3f3e2908`: root CLAUDE.md and DESIGN.md. The softplus invariant became
+  the physical-units rule (a bound is reached exactly, so it must be a value
+  where the model and its columns are defined). WP-1463's clause keeps
+  `column_rescale` without its softplus case.
+- `3cb8c3c0`: D10 and the grid script. Its arms are drivers now, and each row
+  records stage costs and every value's esd. The bar is 0.01 esd.
+- `ad659455`: the docs pass, by a lane. Part 1, the skill (§8.6, §8.14), the
+  examples, the five tutorials and the src comments. Two things were checked
+  here: `method.md`'s S/L-H/L story (both drivers now leave the diagonal to
+  mirror points) and the minimal call's output in `first-refinement.md`. Its
+  old block was the worked example's, which named `phases.1`, so 0.1337 is
+  the minimal call's own Rwp.
+- `42ebdfdd`, `fb2f62d8`, `d3c202ac`: D11, by a lane on this session's
+  measurements, plus `sequential._unseeded` for the two warm paths the lane
+  found (`refit="stages"` and the `warm_staged` rung). The 1.8.0 notes stage
+  all of it. They also paired TRF's dispersion-on χ² with LM's dispersion-off
+  one, and now quote 7111 for LM on the issue's protocol.
+- `1f8e10b1`: jax's extinction column at the 0 floor read 0.779 from the
+  analytic one. `_laue_and_deriv` now selects the series arm at x = 0, which
+  is exactly 1 there, so no value moved and the goldens are bit-identical.
+- `a9c28efc`: four slow tests re-pinned by the acceptance lane, each checked
+  here (NAC golden's new `lor_strain` suggestion gains Δχ² −24 017 when
+  freed; SRM 660c displacement −0.0801 → −0.0791 from the Γ_G² rows; the
+  kernels-vs-numpy test leaves out an exact Gaussian null set; the absent
+  phase's 0-floor scale is a `BOUND_HIT` persistent finding).
+- Ticked: the readers, seeds, traced backends, CLAUDE.md/DESIGN.md, skill,
+  valley and TRF-caveat tasks. Not ticked: the acceptance re-measure (rows),
+  tests + PNGs (no PNG looked at), the 16 failures (three remain) and the
+  driver flip (its PNGs).
+
+*Measured* (macOS 26.6.2 arm64, Python 3.12.10, rietx-kernels 1.2.0; `[dev]`
+until the traced-backends task, `[dev,jax]` after):
+- Grid, LM, five starts (`examples/probe_driver_grid.py --arms lm`): all 14
+  under 0.01 esd. χ²_red spreads over 1e-9: brucite isotropic 1.1e-8 (values
+  4.5e-5 esd), corundum 3.5e-8 (3.7e-3 esd), brucite + Stephens 3.3e-4 (7.4e-3
+  esd, Rwp 0.17939-0.17942). BT-1 neutron's `profile.x` esd is 0.0098437 at
+  every start.
+- The window flip (D10's evidence): corundum starts 0 and 3 compile
+  identically through stage 8, whose windows differ at two edges by one
+  point, `[0, 50]` and `[1, 6]`. Re-solving the last stage once on a fresh
+  compile collapses χ² spreads to 3.3e-12 (corundum) and 1.1e-10 (brucite).
+- Seeds (D11): the numbers are in Context. Roughness 0.3 fired on no grid fit.
+- `bench_solver.py`, three runs (the lane): LM 1.19-1.30× on SRM 660c and
+  NAC; 11.6-14.5× and 34.1-35.3× on corundum and cpd-2, where TRF stops on
+  `max_iter`. LM reaches cpd-2's texture basin (Rwp 0.13260 against 0.13297).
+- SRM 660c S/L and H/L from 0.025 each: LM 0.0367/0.0254 (Rwp 0.08751), TRF
+  0.0251/0.0376 (0.08668).
+- Cross-backend matrix on `[dev,jax]` after the Laue fix: 182 passed, 103
+  skipped across the cross-backend, jax, conformance, shim and extinction
+  files.
+- Slow selection (`-m slow`, `[dev,jax]`, alone on the machine): 3 failed,
+  302 passed, 12 skipped, 17:36. The lane's earlier run before its re-pins
+  read 7 failed, 298 passed. Slowest setups: indexing acceptance 576 s, the
+  150 K Cr₂WO₆ fixture 415 s.
+- Fast suite on the final tree, `[dev,jax]`, alone on the machine: 0 failed,
+  9208 passed, 111 skipped, 2 xfailed, 4:54. The seeds lane's run on `[dev]`
+  read 9131 / 175 / 2. The totals differ by 13: one test added since that
+  run (`test_sequential.py`), and the jax modules whose skips became cases.
+  So the two are not comparable. The branch's added tests cost about 13.5 s
+  (local junit), led by `test_absent_phase.py` at 6.58 s for 6,
+  `test_gaussian_width_floor.py` at 3.51 s for 11 and
+  `test_issue_900_restated_bound.py` at 2.40 s for 2. This session's two in
+  `test_sequential.py` cost 0.01 s.
+- Lanes: three, opus. The acceptance lane and four agents it started stopped
+  on the weekly usage limit before reporting; the tree kept their edits.
+
+  | lane | est | requests | main at dispatch | saved $ |
+  |---|---|---|---|---|
+  | docs-pass | 45 | 175 | 146K | +9.77 |
+  | seeds-edit | 30 | 105 | 298K | +6.71 |
+  | acceptance-remeasure | 50 | 168 | 347K | +7.45 |
+
+  Trial row in `docs/milestones/process.md`: +$23.93 (+37 %), requests 3.50×
+  the estimates. The selective policy's replay row reads 125 items laned,
+  −9 %.
+
+*Declined or deferred*:
+- `/code-review high --fix`, deferred for the third time. The WP is not
+  closing, the PR stays draft, the three magnetic failures will move code,
+  and the review's agents cannot run while the usage limit holds.
+- The full suite did not run: the slow and fast selections ran separately on
+  this tree, and the final tree is still to come.
+- D10's settle pass (a re-solve on a fresh compile) was offered and declined.
+  No WP was filed for it.
+- `io/recipe.py`'s `_split` still holds an `LG_eta` half at its off state.
+  Its softplus reason is gone, and the docs now describe the hold without a
+  mechanism. Not changed.
+- The 4 K Cr₂WO₆ width numbers in `using/refining.md` (near line 565) were not
+  re-measured.
+- Explicit `seed=1e-3` extinction stages in `test_acceptance_nac.py:241` and
+  `test_acceptance_srm660c.py:187`, and `qpa_plan`'s 1e-4 width seed, stay as
+  those tests' declared protocols.
+
+*Gotchas*:
+- A lane that dies keeps its edits in the tree but loses its report, and a
+  piped pytest keeps only what was piped. Rerun with `-rf` before trusting a
+  count.
+- The worktree guard refuses `sed -i` with an `a\` append and any multi-line
+  sed. Use Edit or a scratchpad script.
+- The venv is `[dev,jax]` now, so counts are not comparable with session 2's
+  `[dev]` ones.
+
+*Next*, in order:
+1. The three slow failures, each by mechanism.
+   `test_pair_diagnostic_class::test_the_two_site_winner_reaches_one_minimum_and_pairs_nothing`
+   reports a quadrature sum of 0.112 ± 6.043 where it should be 3.568, so it
+   looks like a stall near moment zero. The lane's agent had started freeing
+   moduli only in the first stage.
+   `test_moment_angle_chart::test_a_series_on_the_cut_gives_no_finding_and_every_angle_in_the_chart`
+   gets `SEQUENTIAL_PATH_DEPENDENT` on `moment.dof1`. Check whether
+   `_unseeded` or LM moved it, by running the series on `fb2f62d8^`.
+   `test_magnetic_solve_acceptance::test_the_150k_pattern_has_nothing_to_solve`
+   is on the 16-failure list: under LM all four classes refine, and the test
+   pairs rows to classes by index.
+2. VALIDATION.md: compare every row that quotes a measured number with the
+   slow run (`tests/validation_matrix.py`, then regenerate). List each move
+   over 1 % in the 1.8.0 notes, and look at the PNGs of those fits.
+3. `/code-review high --fix`, then the full suite on current main merged in,
+   then `gh pr ready`.
 
 ### 2026-10-11 (second session) — the stored field goes, the fast suite is green, and the cone stall is the model's
 
