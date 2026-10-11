@@ -88,24 +88,30 @@ series, history and projects (3.3 kB), routed by `SKILL.md` §9 and §9b.
 
 ## Tasks
 
-- [ ] **Decision (maintainer):** #808's three questions. (1) Is `api-io.md`
-      the first cut and the name, and does `api-series.md` come in the same
-      change or wait? (2) Does `api.md`'s ceiling stay at 39 700 or return to
-      39 000? (3) After the split, does `read_gsas_tof_iparm` leave
-      `SKILL_EXCLUDED_VERBS` for a row in `api-io.md`, and do the rigid
-      track's deferred names wait for `api-bodies.md`?
-- [ ] The `io` technique in `make_api_index.py`, the per-index ceilings in
+- [x] **Decision (maintainer, 2026-10-11):** #808's three questions, plus
+      who lands it. (1) `api-io.md` is the first cut and the name.
+      `api-series.md` waits until `api.md` nears its ceiling again. (2) Every
+      `api*.md` gets one ceiling, 39 000 B, the 1 kB margin under the 40 kB
+      truncation `api.md` started from. The per-index table the prototype
+      added is then unneeded. (3) Each held-back name goes to its shape's
+      index. `read_gsas_tof_iparm` leaves `SKILL_EXCLUDED_VERBS` for a row in
+      `api-io.md`. The TOF classes go to an `api-tof.md` and the rigid-body
+      classes to `api-bodies.md`. The first PR that documents each set creates
+      its index, without waiting for WP-1812. A field on an everyday type
+      still renders in `api.md`. (4) This WP lands the prototype, cherry-picked
+      so mustachefeeling stays the commit's author.
+- [ ] The `io` technique in `make_api_index.py`, the one 39 000 B ceiling in
       `skill_caps.py`, and `SKILL.md`'s routing row (the prototype's
-      commit, rebased onto `main` and over #815 if that lands first)
-- [ ] Tests: each index against its own ceiling; one entry row per name;
+      commit, cherry-picked onto `main` after #815)
+- [ ] Tests: every index against the ceiling; one entry row per name;
       the dotted-name check over every index
 - [ ] Skill: this WP is the skill change; `rietx skill --install . --copy`
       re-syncs the two committed copies
 
 ## Acceptance
 
-`python -m tests.skill_caps` exits 0 with `api.md` at least 6 kB under its
-ceiling, and every name in the old `api.md` has exactly one entry row across
+`python -m tests.skill_caps` exits 0 with `api.md` at least 5.5 kB under its
+39 000 B ceiling, and every name in the old `api.md` has exactly one entry row across
 the indexes.
 
 ```sh
