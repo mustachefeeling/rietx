@@ -78,6 +78,7 @@ from .refine import (
     _extra_peak_diagnostics,
     _extra_peak_tick_support,
     _far_from_data_diagnostics,
+    _fixed_literal_diagnostics,
     _flat_moment_scan,
     _guard_diagnostics,
     _harmonic_diagnostics,
@@ -257,11 +258,14 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_unreached_histogram_diagnostics": (
         (FIT,), "joint-only, and the plan's (WP-1414): a stage's reach is "
                 "decided before any histogram is compiled"),
-    # -- deliberately not computed ---------------------------------------------
     "_fixed_literal_diagnostics": (
-        (ABSENT,), "not wired for a joint fit yet: its table scopes paths per "
-                   "histogram, so a literal phase path is matched there by "
-                   "_unreached_histogram_diagnostics' rules, not this one's"),
+        (FIT,), "a plan read (#803, WP-1341), through _joint_fixed_literals: "
+                "each histogram's table is asked under the joint matching rule, "
+                "so a literal reports on a histogram where it matched a fixed "
+                "row and STAGE_FREED_NOTHING on one where it matched none, "
+                "never both on one histogram, and a shared row fixed in "
+                "several tables is one finding"),
+    # -- deliberately not computed ---------------------------------------------
     "_hold_diagnostics": (
         (ABSENT,), "a joint fit has no hold verb, so no StageResult here "
                    "carries blocked_by_hold for HOLD_BLOCKED_PLAN to report"),
@@ -890,7 +894,7 @@ class MultiHistogramRefinement:
                                         for h, d in enumerate(data)])
             try:
                 (models, outcome, stage_results, cell_runaway_diags,
-                 answer_runaway, specimen_diags) = self._run_plan(
+                 answer_runaway, opening_diags) = self._run_plan(
                     plan, mode, data, limits, weights, stream, cancel)
             except RefinementCancelled as exc:
                 if stream is not None:
@@ -904,7 +908,7 @@ class MultiHistogramRefinement:
             self.result_ = self._build_result(models, outcome, weights,
                                                plan.correlation_guard,
                                                stage_results, cell_runaway_diags,
-                                               answer_runaway, specimen_diags)
+                                               answer_runaway, opening_diags)
             if stream is not None:
                 stream.emit("fit_end", status=self.result_.status,
                             rwp=self.result_.statistics.rwp,
@@ -1038,9 +1042,11 @@ class MultiHistogramRefinement:
         # histogram (⇒ per-histogram frozen discreteness) and joint-solve.
         # the shared structure's own findings, asked of it as declared — the
         # single-histogram path asks them before any stage for that reason
-        # (DIAGNOSTIC_SCOPES: SPECIMEN)
-        specimen_diags = _symmetry_silence_diagnostics(self.mtable.structures[0],
-                                                       mode)
+        # (DIAGNOSTIC_SCOPES: SPECIMEN) — and the plan's literal paths the
+        # model will not free, a plan read decided before any stage too (FIT)
+        opening_diags = (
+            _symmetry_silence_diagnostics(self.mtable.structures[0], mode)
+            + _joint_fixed_literals(plan.stages, self.mtable))
         self.mtable.set_vary(["*"], False)
         stage_results: list[StageResult] = []
         # one CELL_RUNAWAY diagnostic per stage that fired, exactly as the
@@ -1240,7 +1246,7 @@ class MultiHistogramRefinement:
 
         assert models is not None and outcome is not None
         return (models, outcome, stage_results, cell_runaway_diags,
-                answer_runaway, specimen_diags)
+                answer_runaway, opening_diags)
 
     def _emit_stage_start(self, stream, stage, index, n_stages, models, *,
                           freed, held, unknown_paths, unreached, **extra) -> None:
@@ -1312,7 +1318,7 @@ class MultiHistogramRefinement:
 
     def _build_result(self, models, outcome, weights, correlation_guard,
                       stage_results, cell_runaway_diags=(),
-                      answer_runaway=(), specimen_diags=()) -> RefinementResult:
+                      answer_runaway=(), opening_diags=()) -> RefinementResult:
         mt = self.mtable
         n = mt.n_histograms
         thetas = mt.split(outcome.theta)
@@ -1504,7 +1510,7 @@ class MultiHistogramRefinement:
         esd_hist0 = per_esds[0] if per_esds else {}
         parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_hist0,
                                       answer_runaway)
-        diagnostics = list(specimen_diags) + self._top_diagnostics(
+        diagnostics = list(opening_diags) + self._top_diagnostics(
             outcome, correlation_guard, top_bg, at_bounds, models)
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
@@ -1810,6 +1816,41 @@ def _unreached_histogram_diagnostics(stage_results: list[StageResult],
                         "scope the stage (hist.<k>.…) if one histogram was "
                         "the intent"),
         ))
+    return out
+
+
+def _joint_fixed_literals(stages, mtable) -> list[Diagnostic]:
+    """``STAGE_PATH_NOT_FREE`` for a joint plan (#803, WP-1341).
+
+    ``refine._fixed_literal_diagnostics`` asked of each histogram's table,
+    with the joint fit's second name for each row.  A literal then matches a
+    row exactly when :meth:`~rietx.params.multi.MultiParameterTable.set_vary`
+    would match it.  That is also the "matched" of
+    :meth:`~rietx.params.multi.MultiParameterTable.unreached_histograms`, so
+    on any one histogram a literal gets this finding (it matched a fixed row)
+    or ``STAGE_FREED_NOTHING`` (it matched none), never both.
+
+    A shared row is one column, so a shared path fixed in every table is one
+    finding, keyed by its ``where``.  The message says which histograms' tables
+    hold it.  A joint fit has no tie verb, so there are no user ties to spare.
+    """
+    found: dict[str, tuple[Diagnostic, list[int]]] = {}
+    for h, table in enumerate(mtable.tables):
+        for d in _fixed_literal_diagnostics(
+                stages, table, (),
+                canonical=lambda p, h=h: mtable._canonical(h, p)):
+            key = d.where[0]
+            if key in found:
+                found[key][1].append(h)
+            else:
+                found[key] = (d, [h])
+    out = []
+    for d, hs in found.values():
+        n = mtable.n_histograms
+        scope = ("every histogram" if n > 1 and len(hs) == n else
+                 f"histogram{'' if len(hs) == 1 else 's'} "
+                 f"{', '.join(str(h) for h in hs)}")
+        out.append(d.model_copy(update={"message": f"{d.message} in {scope}"}))
     return out
 
 

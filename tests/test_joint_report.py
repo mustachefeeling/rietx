@@ -16,6 +16,7 @@ from rietx import MultiHistogramRefinement, Refinement, Stage, runs
 from rietx.history.events import read_events
 from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from rietx.optimize.statistics import MAX_SHIFT_CONVERGED
+from rietx.params.multi import SharingMap
 from rietx.strategy.staged import RefinementPlan
 from tests.test_multi_histogram import (
     _broadened,
@@ -286,3 +287,69 @@ def test_the_specimen_size_is_reported_once(size_patterns):
         solo.plot(OUT / f"joint_report_size_solo_h{h}.png")
         assert _size(joint) == pytest.approx(_size(solo.microstructure[0]),
                                              rel=0.005)
+
+
+# ------------------------------------------- STAGE_PATH_NOT_FREE, jointly --
+def _codes(result, code):
+    return [d for d in result.diagnostics if d.code == code]
+
+
+def _one_stage(patterns, turn_on, *, sharing=None):
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(structure, instruments, sharing=sharing)
+    return ref.fit(patterns, plan=RefinementPlan(stages=[
+        Stage("only", ["phases.*.scale", *turn_on], max_iter=5)]))
+
+
+@pytest.mark.parametrize("path, says", [
+    # test_params_surface's four, on the same LaB6: B on 6f, La on 1a
+    ("phases.0.atoms.1.x", "follows phases.0.atoms.1.dof.0"),
+    ("phases.0.atoms.1.y", "is fixed by symmetry or by the model"),
+    ("phases.0.atoms.0.z", "is fixed by symmetry or by the model"),
+    ("phases.0.cell.b", "follows phases.0.cell.a"),
+])
+def test_a_joint_plan_naming_a_fixed_literal_says_so(two_patterns, path, says):
+    """Issue #803: one finding per path, naming its stage and its histograms.
+
+    The rows are shared, so both tables hold them fixed and the finding is
+    one.  ``STAGE_FREED_NOTHING`` stays silent: the literal matched a row in
+    both histograms, which is that check's "reached".
+    """
+    result = _one_stage(two_patterns, [path])
+    assert path not in result.stages[0].freed
+    (found,) = _codes(result, "STAGE_PATH_NOT_FREE")
+    assert found.level == "warning" and found.where == [path]
+    assert found.message == (f"stage 'only' asked for {path}, which {says}, so "
+                             "nothing was freed for it in every histogram")
+    if path == "phases.0.cell.b":
+        assert found.suggestion.startswith("free phases.0.cell.a instead")
+    assert not _codes(result, "STAGE_PATH_UNKNOWN")
+    assert not _codes(result, "STAGE_FREED_NOTHING")
+
+
+@pytest.mark.parametrize("turn_on", [
+    ["phases.0.atoms.1.dof.*"],
+    ["phases.*.atoms.*.x"],
+    ["instrument.geometry.sample_displacement"],
+    ["phases.0.cell.a", "phases.0.cell.b"],
+], ids=["dof-glob", "pattern", "instrument-literal", "tie-beside-source"])
+def test_a_joint_plan_that_frees_what_it_names_stays_silent(two_patterns, turn_on):
+    """#789's silence cases, jointly.  The fifth, a user's own tie, cannot
+    arise: a joint fit has no tie verb."""
+    result = _one_stage(two_patterns, turn_on)
+    assert not _codes(result, "STAGE_PATH_NOT_FREE")
+
+
+def test_a_per_histogram_row_is_reported_on_its_own_histogram(two_patterns):
+    """A cell made per-histogram is one row per table.  A scoped literal
+    addresses one of them, and a bare one both, as ``set_vary`` reads them."""
+    sharing = SharingMap(per_histogram=["phases.0.cell.*"])
+    scoped = _one_stage(two_patterns, ["hist.1.phases.0.cell.b"], sharing=sharing)
+    (found,) = _codes(scoped, "STAGE_PATH_NOT_FREE")
+    assert found.where == ["hist.1.phases.0.cell.b"]
+    assert found.message.endswith("in histogram 1")
+    assert found.suggestion.startswith("free hist.1.phases.0.cell.a instead")
+
+    bare = _one_stage(two_patterns, ["phases.0.cell.b"], sharing=sharing)
+    assert sorted(d.where[0] for d in _codes(bare, "STAGE_PATH_NOT_FREE")) == [
+        "hist.0.phases.0.cell.b", "hist.1.phases.0.cell.b"]

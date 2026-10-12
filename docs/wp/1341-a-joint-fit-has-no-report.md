@@ -174,10 +174,13 @@ against the tree at e1d19359 on arrival.
       (the joint result now carries every screen, `hist.<h>.`-scoped), and
       the specimen's one microstructure block in every report. It inherits
       the joint path's missing #272 recompile (handover).
-- [ ] `STAGE_PATH_NOT_FREE` on a joint plan (#803, folded 2026-10-12): the
+- [x] `STAGE_PATH_NOT_FREE` on a joint plan (#803, folded 2026-10-12): the
       helper reads each histogram's table under the joint matching rule, one
       finding per path names the histograms whose table holds it fixed, and
-      the `DIAGNOSTIC_SCOPES` row moves from `ABSENT` to `FIT`.
+      the `DIAGNOSTIC_SCOPES` row moves from `ABSENT` to `FIT`. Landed
+      2026-10-12 as `multi._joint_fixed_literals` over
+      `refine._fixed_literal_diagnostics(canonical=)`; single-fit output is
+      unchanged.
 - [ ] Tests: a joint fit produces an event log a reader can partition by
       histogram; the microstructure reading agrees with the solo arms' shared
       size (WP-1131's 408.8/408.8 Å shape); `STAGE_PATH_NOT_FREE` fires on a
