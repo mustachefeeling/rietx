@@ -136,46 +136,32 @@ its cell 13.4e-4 Å off.
 **Not generalised, deliberately.** A joint fit (`multi.py`) keeps the screen
 alone, because WP-1341 owns its report. Le Bail and Pawley fix the scale, so
 the screen is all they read. The ridge case of WP-1339's Inherited (#219) is
-for 1339. The marginal z is the statistic that could see it, and this WP does
-not measure it there.
+for 1339. *Superseded in part 2026-10-12:* the reporter has since measured the
+marginal z on the ridge, and the choice this WP makes there is § Decided
+2026-10-12.
 
-### Inherited
+### Decided 2026-10-12: the hold stands on a collinear pair
 
-- **2026-10-11, from the issue triage (#219): on a collinear pair the 3σ test
-  holds whichever phase the start left weaker, and that can be the real
-  one.** The handover's forward reference ("the #219 ridge, unmeasured under
-  the marginal") is now measured, by the reporter at 08176f6f. Specimen: one
-  cubic Cu phase. Model: the parent plus an absent `I 4/m m m` subgroup. Rwp
-  is 0.0399 in every arm. From the degenerate seed the subgroup is held at
-  0.81σ. From seeds split by δ = 5e-4 to 4e-3 the **parent** is held, at
-  0.20σ and 0.53σ, with its cell and strain, while the phantom carries the
-  pattern at 31-82σ. A real 40 % subgroup gets its parent flagged at 2.2σ and
-  2.3σ from the two nearest seeds. `HIGH_CORRELATION` on the two scales fires
-  everywhere. The full table and the PR (#904) are in WP-1339's Inherited.
-  Not re-run here: the script is not in the thread, and the batch asks for
-  it. For this WP's close: a hold that removes a phase's structural columns
-  is a claim that phase is absent. Two scales at ρ −0.99 make that claim
-  unmeasurable for either phase. Decide whether the hold stands down there,
-  and record the choice.
+Issue #219's ridge, measured by its reporter at 08176f6f: one cubic Cu phase,
+modelled as the parent plus an absent `I 4/m m m` subgroup, the two scales at
+ρ −0.99. Whichever phase the start leaves weaker reads under 3σ marginal and
+is held, and from seeds split by δ = 5e-4 to 4e-3 that is the parent, at
+0.20σ and 0.53σ. WP-1339's Inherited holds the full table.
 
-- **From WP-1534, 2026-10-04: a phase with no reflection in range keeps a
-  free scale that walks a flat direction.** WP-1534's four-phase fixture
-  (`tests/test_scale_b_ridge.py`) fitted over 25–33° Cu Kα leaves bcc Fe no
-  reflection. One scale-and-background stage left Fe's scale at 0.0. A second,
-  identical stage moved it to 125.8 at an Rwp equal to sixteen figures, and
-  the QPA then read iron at 99.99 wt%. `PHASE_UNCONSTRAINED` fired, and
-  `QPA_ESD_UNAVAILABLE` withheld the esds, but the fraction stood. The rule
-  that holds a phase's flat structural paths and "never its scale" assumes
-  the scale has a column; with no reflection it has none. Possibly your task
-  6, the stage-start hold reading the previous answer. Repro: the fixture's
-  `_models(START_SCALES)` on `np.arange(25, 33, 0.01)`, plan
-  `[Stage("s", BIG), Stage("s2", BIG)]`. WP-1534's narrow tests leave Fe out
-  because of it.
-- **From WP-1903, 2026-10-07: the two signs your lane entry left open were
-  one verdict.** `baseline`'s policy table printed a change in cost and its
-  peak-context bands a saving, so +26% and −31% both said lanes cost more at
-  your 74K re-read. Both blocks now print a change, negative a saving
-  (`2d6e632a`). Nothing in this WP needs to change; delete this on arrival.
+The hold stays as it is there. At ρ −0.99 the data cannot say which of the two
+phases carries the pattern, and a marginal z under 3σ says so of either one.
+Standing the hold down would let a phase with no significance of its own
+refine its cell, which is the case this WP exists to stop. `HIGH_CORRELATION`
+fires on the two scales in every arm and names the ambiguity.
+
+A statistic that could tell "absent" from "exchangeable with another phase" is
+the scale's z marginal over every column except the other phases' scales. On a
+noise phase the inflation comes from its own cell and widths, so that reading
+would stay low. On the ridge it would come from the partner's scale. It is not
+built here, because the reporter's script is not in the thread and the
+statistic cannot be measured without it. It goes to WP-1339, which owns the
+ridge. Task 6 changes how a stage reaches the hold and leaves its rule alone.
+It was not measured on the ridge.
 
 ## Non-goals
 
