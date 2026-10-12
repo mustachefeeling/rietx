@@ -14,8 +14,8 @@ moves the ticks with the peaks.
 ## Context
 
 **The defect (found by WP-1534, 2026-10-04).** The tick builder in
-`refine.py` (the loop that fills `ticks`, `tick_hkl` and `tick_support`,
-about line 6170) adds `instrument.zero_shift` to each Bragg angle and nothing
+`refine.py` (the loop in `_build_result` that fills `ticks`, `tick_hkl` and
+`tick_support`) added `instrument.zero_shift` to each Bragg angle and nothing
 else. The forward model also applies the sample displacement and the other
 geometric position corrections. So a fit with a refined displacement draws
 its ticks away from the peaks it fitted.
@@ -31,8 +31,8 @@ right and the ticks are not. `main` at `e6606705` draws the same offset.
 Layer 0 reads `ticks` to decide which observed peaks are unindexed: it once
 flagged every Kα2 peak as an impurity because the ticks lacked that line. A
 displacement of a few tenths of a millimetre, common on a lab Bragg–Brentano
-mount, moves a peak by about 0.1° at mid-angle. Whether that crosses Layer
-0's matching window has not been measured.
+mount, moves a peak by about 0.1° at mid-angle. Measured in § Tasks, last
+item: it crosses the window, and the larger effect is on Layer 1's actions.
 
 ## Non-goals
 
@@ -72,8 +72,33 @@ mount, moves a peak by about 0.1° at mid-angle. Whether that crosses Layer
       and adds no instrument shift by design, so it is a different object.
       `tests/test_tick_positions.py` holds each of the three builders to the
       calculated curve's apex.
-- [ ] Measure whether Layer 0's unindexed-peak finding changes on the
-      acceptance fixtures with a refined displacement.
+- [x] Measure whether Layer 0's unindexed-peak finding changes on the
+      acceptance fixtures with a refined displacement. It does, in both
+      directions. Twelve `qpa_plan` fits, each run on the pre-fix tree and
+      on this one (Rwp and displacement agree to four places, so only the
+      ticks differ): cpd-1a to 1h over 5–150°, cpd-1c over 20–40° and
+      25–33°, cpd-2 and cpd-4. `unmatched_obs` before → after: 1a 6→6, 1b
+      12→12, 1c 6→11, 1d 6→7, 1e 7→7, 1f 4→5, 1g 6→6, 1h 4→7, 1c 20–40°
+      4→3, 1c 25–33° 3→1, cpd-2 8→9, cpd-4 30→18. `unmatched_calc`: 1d 4→5,
+      1f 4→2, 1g 2→4, 1h 2→1, cpd-2 6→5, cpd-4 19→27, the rest unchanged.
+      The full-range displacements are −0.08 to −0.21 mm (cpd-4 +0.26), so
+      the tick moves 0.03–0.11°, the size of Layer 0's 0.08° window. The
+      peaks that become unmatched on 1c (31.62°, 36.08°, 47.40°, 56.46°,
+      62.70°, 67.80°) sit 0.15–0.19° below strong zincite ticks, on curves of
+      650–1860 counts: the flank lobes of a profile misfit. The old ticks sat
+      about 0.11° low, so a lobe fell inside the window by accident. The
+      larger change is in the suggested actions. Listed actions before →
+      after: 1c eight → one, 1f seven → one, 1h seven → none, cpd-2 nine →
+      one. The plan had already vetoed most of the old lists (cell, zero,
+      displacement, widths, axial asymmetry). The active ones were
+      `increase_background_flexibility` 0.50 and `refine_sample_transparency`
+      0.07 on 1c, and `refine_sample_transparency` 0.07, 0.02 and 0.20 on
+      1f, 1h and cpd-2. After the fix the active ones are `add_impurity_phase`
+      on 1c (0.30) and 1f (0.40), and none on 1h and cpd-2 (whose
+      `reindex_or_recheck_cell` 0.40 stays, vetoed). `LAYER0_MATCH_TOL_DEG` and
+      the unmatched definition are not touched here. A residual lobe on the
+      flank of a strong peak reading as an unindexed peak is Layer 0's own
+      question, and it is open.
 
 ## Acceptance
 

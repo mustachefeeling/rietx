@@ -1278,7 +1278,8 @@ class RefinementResult(Base):
     # per-point σ actually used in the fit (file esds when present, Poisson
     # fallback otherwise) — the FitReport weights with these, never re-derives
     sigma: list[float] = Field(default_factory=list)
-    # per-phase reflection tick positions (deg 2θ)
+    # per-phase reflection tick positions (deg 2θ), where the model draws each
+    # peak: Bragg angle plus zero and the geometry's shift (WP-1908)
     ticks: dict[str, list[float]] = Field(default_factory=dict)
     #: Which reflection each of those ticks is, index for index, as the orbit
     #: representative ``h k l`` (WP-1438).  A **companion**, not a change of
