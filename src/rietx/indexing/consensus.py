@@ -541,27 +541,34 @@ def enumerate_ambiguity(outcome: ConsensusOutcome, peaks: PeakList, *,
     mandatory check, and this enumeration — measured at 45 s of a
     ceiling-bound corundum run, with one candidate's 55-lattice sweep
     uninterruptible — consumed the whole validation reserve whenever it ran
-    first.  ``cancel`` is read between candidates; one the clock stops before
-    stays out of ``ambiguity_checked``, which the gate reads as an unasked
-    question (capping), never a clean answer.
+    first.  ``cancel`` is read between candidates and, since #895, between
+    one candidate's derivative cells, so a stop waits one child's work rather
+    than a whole sweep.  A candidate the clock stops before or during its
+    sweep stays out of ``ambiguity_checked`` with no partners written, which
+    the gate reads as an unasked question (capping), never a clean answer.
     """
     checked = set(checked_indices(outcome.candidates, outcome.engines_run,
                                   top=top))
     for i, cand in enumerate(outcome.candidates):
         if i in checked and i not in outcome.ambiguity_checked \
                 and not (cancel is not None and bool(cancel)):
-            cand.ambiguity = _partners(cand, peaks)
+            partners = _partners(cand, peaks, cancel=cancel)
+            if partners is None:
+                break
+            cand.ambiguity = partners
             outcome.ambiguity_checked.append(i)
 
 
-def _partners(cand: CellCandidate, peaks: PeakList):
+def _partners(cand: CellCandidate, peaks: PeakList, *, cancel=None):
+    """The candidate's partners, ``[]`` where the sweep refuses, ``None`` if stopped."""
     from .ambiguity import ambiguity_partners
 
     try:
         return ambiguity_partners(cand.cell, cand.system, cand.centring,
                                   peaks.q(), peaks.q_esd(), peaks.wavelength,
                                   float(peaks.two_theta_max),
-                                  two_theta_min=float(peaks.two_theta_min))
+                                  two_theta_min=float(peaks.two_theta_min),
+                                  cancel=cancel)
     except (ValueError, RuntimeError, np.linalg.LinAlgError):
         return []
 
