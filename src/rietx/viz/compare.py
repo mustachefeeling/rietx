@@ -17,7 +17,8 @@ views, in increasing order of how much they actually settle:
 2. **weighted residual (y_obs − y_calc)/σ per variant, overlaid** — same
    vertical scale for every variant, so "smaller is better" is literal.
 3. **cumulative Δχ² against the reference variant** — Σ_{2θ' ≤ 2θ}
-   (δ²_variant − δ²_reference), plotted against 2θ.  A *falling* curve is a
+   (δ²_variant − δ²_reference), plotted against 2θ
+   (:func:`rietx.report.cumulative_delta_chi2` for any two results).  A *falling* curve is a
    variant winning; a rising one is losing; a flat one is a variant doing
    nothing.  The slope localises the improvement to the angles that produced
    it, which is the difference between "this correction helped" and "this
@@ -929,6 +930,7 @@ class RunRecord:
     #: cumulative Σδ², summed over every fitted channel before any decimation:
     #: the reference-independent half of the Δχ² panel, so the client can
     #: re-reference to any variant without a server round trip
+    #: (:func:`rietx.report.cumulative_chi2`, decimated)
     cumulative_chi2: np.ndarray
     ticks: dict[str, list[float]] = field(default_factory=dict)
     #: which reflection each tick is, index for index (WP-1438); a phase whose
@@ -1015,6 +1017,7 @@ def run(standard_key: str, variant_key: str, *,
     variant keeps the same channels and the page's Δχ² stays a subtraction.
     """
     from ..refine import Refinement
+    from ..report.localisation import cumulative_chi2, weighted_residual
 
     data_dir = Path(data_dir) if data_dir is not None else default_data_dir()
     standard = STANDARD_BY_KEY[standard_key]
@@ -1041,9 +1044,13 @@ def run(standard_key: str, variant_key: str, *,
     y_obs = np.asarray(result.y_obs, dtype=float)
     y_calc = np.asarray(result.y_calc, dtype=float)
     y_bkg = np.asarray(result.y_background, dtype=float)
-    sigma = np.asarray(result.sigma)
-    delta = (y_obs - y_calc) / np.where(sigma > 0.0, sigma, 1.0)
-    cumulative = np.cumsum(delta ** 2)
+    # the package's authority for both, so the page's Δχ² (a subtraction of
+    # two records' cumulatives) is report.cumulative_delta_chi2 (WP-1339).
+    # σ is result.sig(): it floors σ ≤ 0 at a thousandth of the median where
+    # this line used to floor at 1.0, so a record differs from its
+    # predecessors only on a pattern with a non-positive σ.
+    delta = weighted_residual(result)
+    cumulative = cumulative_chi2(result)
 
     idx = decimation_index(tt, [y_obs], max_points)
     stats = result.statistics
