@@ -1187,6 +1187,44 @@ histogram: its curves and statistics moved to the top level and `histograms`
 cleared, so `result.for_histogram(0).plot()` and a report built from it operate
 per pattern. Reports are per-histogram for the same reason the statistics are.
 
+### Watching and stopping a joint fit
+
+`MultiHistogramRefinement.fit` takes `events=`, `cancel=`, `telemetry=`,
+`label=` and `progress=`, and each means what it means on `Refinement.fit`.
+The fit records itself into one run directory however many histograms it
+holds.
+
+<!-- api-doc: no-exec — a joint two-histogram refinement, tens of seconds of solver time -->
+```python
+joint = rx.MultiHistogramRefinement(structure, [instrument_a, instrument_b])
+result = joint.fit([pattern_a, pattern_b], events="joint.jsonl")
+```
+
+The joint solve is one solve, so each event kind is emitted once per fit,
+stage or evaluation. On the two LaB₆ patterns above the log held one
+`fit_start`, five `stage_start`, 38 `eval`, five `stage_end` and one `fit_end`.
+An `eval` measures the stacked residual. Its `values` line up with the
+`free_paths` of the latest `stage_start`, where a row that belongs to one
+histogram is spelled `hist.<h>.` and a shared row is bare.
+
+A fact about one histogram rides in a `histograms` list on `fit_start`,
+`stage_start`, `stage_end` and `fit_end`, one row per histogram, each stamped
+with its `histogram_index`. Every one of those events also carries
+`n_histograms`. A `stage_end` row holds that histogram's Rwp at the end of the
+stage, beside the pooled `rwp`. On the last stage of that fit the rows read
+0.0411 and 0.0613 and the pooled figure 0.0514, the same numbers the result
+reports. A `stage_start` row holds `unreached`, the globs that freed rows of
+another histogram and none of this one.
+
+A cancelled stage is abandoned. The parameter table and every histogram's
+models go back to where the stage found them, and
+`RefinementCancelled.completed_stages` names the stages that finished. Its
+`node_id` is `None`, because a joint fit keeps no history.
+
+A joint run writes no `snapshot.json`, so `rietx watch` lists it and follows its
+status with no picture. The live view draws one pattern, and a joint fit has
+several.
+
 ### What the joint fit bought
 
 On those two LaB₆ patterns the shared cell came back identical in both entries

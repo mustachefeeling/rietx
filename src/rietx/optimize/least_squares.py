@@ -1867,7 +1867,20 @@ def _free_values(table: ParameterTable, theta: np.ndarray) -> list[float]:
     The slice drops the appended Pawley intensity tail: it refines outside
     the table, and its per-hkl values are serialized per history node
     (``ReflectionState``), not per evaluation.
+
+    A joint fit hands its :class:`~rietx.params.multi.MultiParameterTable`
+    (WP-1341).  Each combined path is then read from the histogram that owns
+    it, and a shared one from histogram 0, whose value scale is 1 (WP-1131).
+    That is where the joint result reads a shared row's value too.
     """
+    if not isinstance(table, ParameterTable):
+        from ..params.multi import _unscoped
+
+        decoded = table.decode(np.asarray(theta, dtype=np.float64))
+        owner = [int(p.split(".", 2)[1]) if p.startswith("hist.") else 0
+                 for p in table.free_paths]
+        return [float(decoded[h][_unscoped(p)])
+                for h, p in zip(owner, table.free_paths, strict=True)]
     values = table.decode(np.asarray(theta[:len(table.free_paths)],
                                      dtype=np.float64))
     return [float(values[p]) for p in table.free_paths]
@@ -2432,7 +2445,9 @@ def run_multi_least_squares(models: list[CompiledModel],
                             max_iter: int = 100, ftol: float = 1e-9,
                             compute_uncertainties: bool = True,
                             backend: str = "numpy",
-                            solver: str = DEFAULT_SOLVER) -> LSQOutcome:
+                            solver: str = DEFAULT_SOLVER,
+                            events=None, stage: str = "",
+                            cancel=None) -> LSQOutcome:
     """Joint solve of several histograms stacked into one residual (WP-0308).
 
     Each histogram keeps its own compiled model (⇒ its own frozen hkl list,
@@ -2466,6 +2481,11 @@ def run_multi_least_squares(models: list[CompiledModel],
     per-model and the stacked column map would have to scatter each phase's T
     into the joint vector.  Deferred rather than half-done — a joint refinement
     with `solver="lm"` gets the bounded driver, not the cone.
+
+    ``events``, ``stage`` and ``cancel`` are :func:`run_least_squares`' own
+    (WP-1341).  An ``eval`` is one evaluation of the *stacked* residual, so
+    its ``cost`` and its ``values`` are the joint solve's, aligned with
+    ``mtable.free_paths``.
     """
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
@@ -2484,19 +2504,43 @@ def run_multi_least_squares(models: list[CompiledModel],
     jacobian = _DegenerateCellJacobianGuard(jacobian, cell_guard)
     n_cols = len(mtable.free_paths)
 
+    if cancel is not None:
+        # read at an evaluation boundary, below the event wrapper, as in
+        # :func:`run_least_squares`
+        inner_c = residual
+
+        def residual(theta: np.ndarray):
+            if cancel.is_set():
+                raise RefinementCancelled(
+                    f"cancelled during stage {stage!r}" if stage else "cancelled",
+                    stage=stage)
+            return inner_c(theta)
+
     # the closure the stationary-angle test probes after the solve, taken
     # below the TRF wrapper for :func:`run_least_squares`' reason: a probe
-    # must not move the step tracker ``max_shift_over_esd`` is read from
+    # must not emit an ``eval`` or move the step tracker
+    # ``max_shift_over_esd`` is read from
     probe = residual
     tracker = _StepTracker()
     if solver == "trf":
         # scipy TRF has no accepted-point hook, so the residual closure is
         # the hook, as in :func:`run_least_squares`
         inner_t = residual
+        counter = {"n": 0}
 
         def residual(theta: np.ndarray):
             r = inner_t(theta)
-            tracker.accept(theta, 0.5 * float(r @ r))
+            cost = 0.5 * float(r @ r)
+            if events is not None:
+                counter["n"] += 1
+                data = {"stage": stage, "n_eval": counter["n"], "cost": cost,
+                        "accepted": bool(cost < tracker.best_cost)}
+                if tracker.best is not None:
+                    data["step_norm"] = float(np.linalg.norm(
+                        np.asarray(theta, dtype=np.float64) - tracker.best))
+                data["values"] = _free_values(mtable, theta)
+                events.emit("eval", **data)
+            tracker.accept(theta, cost)
             return r
 
     # sample caps first: ``_freeze_cell_windows_multi`` ends in
@@ -2520,8 +2564,8 @@ def run_multi_least_squares(models: list[CompiledModel],
     max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
-                          ftol=ftol, inequalities=[], events=None, stage="",
-                          track=tracker)
+                          ftol=ftol, inequalities=[], events=events, stage=stage,
+                          track=tracker, table=mtable)
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
                             ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)

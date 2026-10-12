@@ -154,9 +154,13 @@ against the tree at e1d19359 on arrival.
       Defined 2026-10-12: one shift and one esd per column of the joint θ
       (`least_squares._final_shift_over_esd_multi`), copied onto the joint
       result's statistics.
-- [ ] `events=` (and `cancel=`) on `MultiHistogramRefinement.fit`, carrying
+- [x] `events=` (and `cancel=`) on `MultiHistogramRefinement.fit`, carrying
       the histogram index in `data` the way `sequential.py` carries the series
-      index — no new `EventKind`.
+      index — no new `EventKind`. Landed 2026-10-12 with `telemetry=`,
+      `label=` and `progress=`. Each kind is emitted once per fit, stage or
+      evaluation, because the joint solve is one solve; the index rides in a
+      `histograms` row per histogram (`history/events.py` says why it is not
+      the series' per-event stamp).
 - [ ] `stage_reports=`, or a written reason it is not offered here.
 - [ ] Whichever part of the report path is histogram-agnostic, reachable from
       a joint result; per-histogram where the quantity is per-histogram, and
