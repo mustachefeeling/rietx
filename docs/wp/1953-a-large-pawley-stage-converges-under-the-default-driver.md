@@ -185,6 +185,52 @@ pattern is bit-identical across the three, and which start reached which
 minimum. The swapped point sits 0.66 higher in χ² by the test's docstring and
 arm64's winner only 0.11 above macOS's, so the pattern itself may differ.
 
+### The step above 128 columns, measured (2026-10-12)
+
+macOS arm64, `[dev]`, Python 3.12.10, branch at `5ba19a83` plus the
+running-max column scale (its task below) unless a row says otherwise.
+Another session's suite loaded the machine for part of the time, so the
+seconds are loose. The default plan with `mode="pawley"`.
+
+FAP.XRA, 335-343 columns:
+
+| step above 128 columns | `profile` stage | no-descent steps | Rwp | wall |
+|---|---|---|---|---|
+| BCCG as shipped, scale per iteration | `max_nfev`, 400 | 236 of 635 solves | 0.08035928 | 18.7 s |
+| BCCG, running-max scale | `max_nfev`, 400 | 237 of 636 | 0.08035932 | 18.5 s |
+| BCCG, Cauchy point when it lowers the model more | `max_nfev`, 400 | 0 | 0.08035937 | 16.7 s |
+| exact BVLS, either scale | converged, 13 | 0 | 0.08028663 | 6.0-6.6 s |
+| projected Newton (Bertsekas 1982), ridge 1e-8 | converged, 10 | 0 | 0.08024166 | 2.2 s |
+| projected Newton, ridge 1e-12 | converged, 9; half its solves at the 50-iteration cap | 0 | 0.07824433 | 7.3 s |
+| projected CG, tight | converged, 22 | 0 | 0.07824512 | 2.3 s |
+| projected CG, 2n budget | converged, 20 (`profile_w` 95) | 0 | 0.07824506 | 2.1 s |
+| TRF (WP-1938's row) | converged | | 0.07825358 | 20.2 s |
+
+11-BM NAC, 1 492-1 499 columns, not the 142 WP-1937 quoted:
+
+| step | stages | Rwp | wall |
+|---|---|---|---|
+| BCCG as shipped | `profile` on `max_nfev` 400, 68 no-descent | 0.15340222 | 299 s, loaded |
+| projected CG, tight | every stage converged | 0.12620514 | 326 s, loaded |
+| projected CG, 2n budget | every stage converged | 0.12620721 | 74 s |
+| TRF | every stage converged | 0.13483346 | 750 s, partly loaded |
+
+Per solve, offline on 13 FAP and 24 NAC systems captured from those fits:
+BCCG's model value was positive at most λ > 0, up to 6e6 times the size of
+the best value found, so it is wrong in sign and not only short. BVLS took
+0.04-0.25 s at 343 columns and 0.66-3.11 s at 1 493-1 495. Tight projected
+CG took 0.002-0.04 s at 343 and 0.007-11 s at 1 493, the long solves all at
+λ = 0. The 2n budget holds every NAC solve under 0.64 s and reaches 0.10-0.98
+of the tight step's decrease on the hardest λ = 0 systems.
+
+**The basin follows the near-null directions.** At λ = 0 the FAP systems
+have 4-8 eigenvalues under 1e-8 of the largest, and on one system they carry
+gradient 6e-4. BVLS's eigenvalue cut and a 1e-8 ridge damp them, and both
+land at 0.0802-0.0803. CG and a 1e-12 ridge follow them, and both land at
+0.0782, TRF's answer. This is WP-1938's second finding: LM did not settle
+worse than TRF, the exact step's cut did. The same cut serves every table
+fit up to 128 columns, which the basin task should keep in mind.
+
 ## Non-goals
 
 - When a stage that is improving little should stop and say so: WP-1334.
@@ -213,15 +259,27 @@ arm64's winner only 0.11 above macOS's, so the pattern itself may differ.
       pins. `test_high_correlation_dedup`'s row passes on the macOS runner.
       `test_stationary_moment_angle`'s still fails there, 0.004349 against
       0.003091, so it is the vanishing-column task's.
-- [ ] Measure before deciding: every Pawley fixture above 128 columns the
+- [x] Measure before deciding: every Pawley fixture above 128 columns the
       suite or the examples can build (FAP.XRA at least, and a wider range of
       NAC or a round-robin pattern if one crosses 128), under TRF, LM as
       shipped and LM with `lm.BVLS_MAX_COLUMNS = 10**6`. Record per stage the
       termination, the count of BCCG steps promising no descent, and the
-      seconds per step.
-- [ ] Decide the step above 128 columns when BCCG promises no descent (the
+      seconds per step. Measured 2026-10-12 below (§ The step above 128
+      columns, measured).
+- [x] Decide the step above 128 columns when BCCG promises no descent (the
       exact step, a Cauchy-point fallback, a tighter BCCG, or a higher cap),
-      and record it here as `Decided YYYY-MM-DD:`.
+      and record it here as `Decided YYYY-MM-DD:`. **Decided 2026-10-12:**
+      projected conjugate gradients from the Cauchy point (Moré & Toraldo
+      1991; Lin & Moré 1999's subspace step). CG runs on the free variables,
+      stops at the first bound it meets, fixes that variable on it exactly and
+      restarts; once CG converges on a face, a variable whose gradient points
+      into the box is released. Every segment lowers the model, so every step
+      descends. A budget of 2n Hessian products caps a solve. Not exact BVLS
+      everywhere: 10-100× the cost per solve wherever λ > 0, 0.7-3.1 s at
+      1 500 columns, and at λ = 0 its steps have norm 1e11-1e12 along null
+      directions. Not a Cauchy fallback: it ends the wrong-side steps and
+      still crawls. Not BCCG's own loose stop on the new loop: FAP's
+      `profile` stage then takes 341 evaluations.
 - [ ] Implement it, with a test on a system where BCCG's step promises no
       descent.
 - [ ] The vanishing-column crawl: measure the three remedies on e8's verify
