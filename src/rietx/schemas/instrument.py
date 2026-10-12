@@ -490,23 +490,21 @@ class ProfileTOF(_InheritsDeclaredDefaults):
     #: FWHMs, which is why they are squares in the law above and why a value
     #: read from a file is used as written.
     #:
-    #: **Softplus-floored at zero.**  ``sig-*`` are variance coefficients
-    #: (GSAS Technical Manual p. 144), so each is floored at zero rather than
-    #: only their sum at a given d; σ²(d) ≥ 0 is a *cone* coupling all three,
-    #: which a box cannot express, so the whole polynomial is checked where
-    #: it is evaluated.  Softplus rather than a bound at zero under the
-    #: identity transform, because :func:`~rietx.params.transforms.internal_bounds`
-    #: maps a lower bound at zero to −∞: the value cannot go negative and the
-    #: solver has **no active bound** to sit on.  The dead gradient at exactly
-    #: zero is what ``Stage(seed=…)`` is for.  Zero stays the default: it is a
-    #: physical statement (no Gaussian broadening), and a negative value read
-    #: from a file is refused by name at read.
+    #: **Floored at zero.**  ``sig-*`` are variance coefficients (GSAS
+    #: Technical Manual p. 144), so each is floored at zero rather than only
+    #: their sum at a given d; σ²(d) ≥ 0 is a *cone* coupling all three, which
+    #: a box cannot express, so the whole polynomial is checked where it is
+    #: evaluated.  The floor is each row's lower bound, which the driver holds
+    #: as a box since every parameter is refined in its own units (WP-1938), and
+    #: a free row starting on it is what ``Stage(seed=…)`` lifts.  Zero stays
+    #: the default: it is a physical statement (no Gaussian broadening), and a
+    #: negative value read from a file is refused by name at read.
     sig0: Parameter = Field(default_factory=lambda: Parameter(
-        value=0.0, min=0.0, unit="us^2", transform="softplus"))
+        value=0.0, min=0.0, unit="us^2"))
     sig1: Parameter = Field(default_factory=lambda: Parameter(
-        value=0.0, min=0.0, unit="us^2/A^2", transform="softplus"))
+        value=0.0, min=0.0, unit="us^2/A^2"))
     sig2: Parameter = Field(default_factory=lambda: Parameter(
-        value=0.0, min=0.0, unit="us^2/A^4", transform="softplus"))
+        value=0.0, min=0.0, unit="us^2/A^4"))
     #: µs.  Lorentzian FWHM terms, in d⁰, d¹ and d² (GSAS's ``gam-0``…``gam-2``,
     #: profile function 3).  GSAS-II's ``.instprm`` names Lorentzian terms
     #: ``X``, ``Y``, ``Z`` for a TOF bank without publishing their d-laws, so
@@ -527,14 +525,14 @@ class ProfileTOF(_InheritsDeclaredDefaults):
         declaration, and ``ProfileTOF(alpha1=0.45)`` reading as a validation
         error is a papercut every harness on this track has hit.
 
-        The **unit, bounds and transform come from the field's own default**
+        The **unit and bounds come from the field's own default**
         rather than from a table retyped here: a second spelling of ten units
         is a second thing to keep in step, and this way
         ``ProfileTOF(alpha1=0.45).alpha1.unit`` cannot disagree with
-        ``ProfileTOF().alpha1.unit``.  Carrying the *bounds* and the
-        *transform* is what makes the σ floor above real: a bare
+        ``ProfileTOF().alpha1.unit``.  Carrying the *bounds* is what makes
+        the σ floor above real: a bare
         ``ProfileTOF(sig1=300.0)`` is how every harness on this track builds
-        one, and coercing it to a plain unbounded identity parameter would
+        one, and coercing it to a plain unbounded parameter would
         have left the floor reachable only by callers who typed the whole
         ``Parameter`` out.  A ``Parameter`` passed in explicitly is left
         exactly as written — including a ``unit`` of ``None`` and bounds of
@@ -546,7 +544,7 @@ class ProfileTOF(_InheritsDeclaredDefaults):
         default = cls.model_fields[info.field_name].get_default(
             call_default_factory=True)
         return _as_parameter(v, unit=default.unit, min=default.min,
-                             max=default.max, transform=default.transform)
+                             max=default.max)
 
 
 class IncidentSpectrum(_InheritsDeclaredDefaults):

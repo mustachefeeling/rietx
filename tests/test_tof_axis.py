@@ -244,13 +244,13 @@ def test_a_coerced_profile_is_the_same_table_as_a_declared_one():
 
     prof = dict(alpha1=0.45, beta0=0.055, beta1=0.003, sig1=300.0)
     floats = ProfileTOF(**prof)
-    # a coerced coefficient carries the field's own bounds and transform as
-    # well as its unit: the σ triple is softplus-floored at zero, and a
+    # a coerced coefficient carries the field's own bounds as well as its
+    # unit: the σ triple is floored at zero, and a
     # coercion that dropped that would leave the floor reachable only by a
     # caller who typed the whole Parameter out
     params = ProfileTOF(**{k: rx.Parameter(
         value=v, unit=(d := getattr(ProfileTOF(), k)).unit, min=d.min,
-        max=d.max, transform=d.transform) for k, v in prof.items()})
+        max=d.max) for k, v in prof.items()})
     assert floats == params
 
     structure, _ = _si()
@@ -258,7 +258,7 @@ def test_a_coerced_profile_is_the_same_table_as_a_declared_one():
     for pr in (floats, params):
         ins = rx.Instrument.tof_neutron_bank(
             difc=12000.0, tzero=-5.0, two_theta_bank_deg=90.0, profile=pr)
-        rows.append([(e.path, e.value, e.lo, e.hi, e.transform)
+        rows.append([(e.path, e.value, e.lo, e.hi)
                      for e in ParameterTable(structure, ins).entries])
     assert rows[0] == rows[1]
 
