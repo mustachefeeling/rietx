@@ -461,7 +461,7 @@ The two-site Pnma set, `solve_magnetic` with the `moduli` stage dropped
 - [x] Re-measure the goldens and the acceptance grid again when the held
       scale lands. Full suite on the branch's final tree, macOS arm64,
       `[dev]`: no golden moved, every acceptance suite passed, and two slow
-      rows moved and were answered (the handover entry of the third session).
+      rows moved and were answered (the 2026-10-13 handover entry).
       FAP.XRA and 11-BM NAC Pawley keep one answer from starts 1e-14 apart,
       0.07824432 (five) and 0.12620721 (three).
 - [ ] The Linux arm64 two-site winner (§ The crawl beside a vanishing column,
@@ -511,7 +511,10 @@ written down as a property of the fixture. `test_e8` passes on Windows.
 
 ## Handover log
 
-### 2026-10-12 (third session) — the crawl beside a vanishing column ends: a held scale and a measured curvature
+### 2026-10-13 — the crawl beside a vanishing column ends: a held scale and a measured curvature
+
+The third session on this WP, from 2026-10-12 into 2026-10-13, dated by its
+last commits.
 
 LM no longer crawls to a false `converged` beside a parameter whose column
 vanishes, such as a moment angle at a direction the symmetry fixes. The
