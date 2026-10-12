@@ -725,6 +725,23 @@ CLAIMS: tuple[Claim, ...] = (
     ),
     Claim(
         "test_acceptance_fap",
+        "test_a_pawley_fit_past_the_bvls_cut_converges_every_stage",
+        "fap", ("own_result", "ceiling"),
+        "the default Pawley plan, whose block crosses lm.BVLS_MAX_COLUMNS, "
+        "converges every stage under the default driver, and lands no "
+        "higher than TRF does from the same start",
+        reference="this package's own TRF fit on the same channels and plan: "
+                  "Rwp 0.07826556-0.07992336 over five starts 1e-14 apart.  "
+                  "The bar, Rwp < 0.0790, sits under BCCG's capped 0.0804 "
+                  "and above LM's answer; convergence of every stage is the "
+                  "ceiling half (WP-1953)",
+        measured="Rwp 0.07824432 on all five starts, every stage converged, "
+                 "343 columns at the profile stage, 0.8 s idle (macOS "
+                 "arm64, 2026-10-12)",
+        starts=5,
+    ),
+    Claim(
+        "test_acceptance_fap",
         "test_the_file_states_a_wider_free_set_than_this_plan",
         "fap", ("cross_code", "identity"),
         "the free set this plan refines against the free set GSAS's own file "

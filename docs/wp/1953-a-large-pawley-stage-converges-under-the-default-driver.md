@@ -243,13 +243,18 @@ fit up to 128 columns, which the basin task should keep in mind.
 
 ## Tasks
 
-- [ ] FCJ at a zero aperture: one aperture at 0 is the limit, both at 0 is
+- [x] FCJ at a zero aperture: one aperture at 0 is the limit, both at 0 is
       off. The siblings are the compile sizing (`fcj_on`), the axial
       column's `axial_ok`, and the indexing peak fit's own `fcj` flag. A test
       that the profile at H/L = 0 is the H/L → 0⁺ limit, and that e8's
       verify stage lands on 0. Re-measure what frees one aperture from 0
       (QPA sample 1 and cpd-2, Stephens brucite, the `rietx compare`
-      standards). Stage the note in `docs/releases/1.9.0.md`.
+      standards). Stage the note in `docs/releases/1.9.0.md`. `fcj_live` is
+      the one off-state test; `test_lab_instrument.py` pins the limit, the
+      exchange symmetry and the sizing, all failing on `main`. Every
+      acceptance suite passed on the shipped tree (full suite below), so the
+      protocols that now refine S/L beside H/L = 0 stay inside their bars;
+      cpd-1a moved Rwp 0.17125 → 0.16676.
 - [x] Windows: re-run `test_e8` on `windows-latest` after the fix, and the
       two macOS-nightly rows, before diagnosing either alone. Throwaway run
       38272975913 on the FCJ commit `5ba19a83` alone (Python 3.13, `[dev]`):
@@ -338,9 +343,15 @@ fit up to 128 columns, which the basin task should keep in mind.
       TRF runs these unscaled (`x_scale=1`), which is why it never meets
       either. Measure across the grid, then land the held scale and the
       parked branch with it.
-- [ ] Re-measure the goldens and the acceptance grid under the FCJ limit
-      and the projected-CG step (this PR), and again when the held scale
-      lands; the Linux arm64 two-site winner with it.
+- [x] Re-measure the goldens and the acceptance grid under the FCJ limit
+      and the projected-CG step (this PR). Full suite on `243863de`, macOS
+      arm64, `[dev]`, Python 3.12.10, 26 m 41 s with another session's
+      benchmark and this session's NAC runs loading the machine: 9553
+      passed, 186 skipped, 3 xfailed, 1 failed, the failure the missing
+      validation-matrix row for the new FAP Pawley test, since added. No
+      golden moved.
+- [ ] Re-measure the goldens and the acceptance grid again when the held
+      scale lands, and the Linux arm64 two-site winner with it.
 - [x] The basin: five starts 1e-14 apart per fixture under both drivers.
       Write down whether LM's and TRF's answers differ by start or by driver.
       Measured 2026-10-12 on the shipped tree (macOS arm64, `[dev]`), cell a
@@ -353,8 +364,11 @@ fit up to 128 columns, which the basin task should keep in mind.
       five; TRF's one start gives 0.13483346 (five would cost about an hour
       at 750 s each, not run). The WP-1938 finding that LM settles above TRF
       on FAP was the exact step's eigenvalue cut, and does not survive.
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/` for each fit whose answer
-      moves.
+- [x] Tests + obs/calc/diff PNGs to `tests/output/` for each fit whose answer
+      moves. `fap_pawley.png` (new acceptance row) and `qarr_cpd-1a*.png`
+      looked at: calculated tracks observed, the residual a small
+      derivative shape on fluorite's strongest line. `report_loop_e8*.png`
+      come from `test_e8` itself.
 - [x] Skill: `references/surprises.md` §8.31 says a large Pawley stage can
       stop on its budget under LM. Remove it, or restate it, once this lands.
       Removed: LM now converges FAP.XRA and NAC Pawley at or below TRF's Rwp.
