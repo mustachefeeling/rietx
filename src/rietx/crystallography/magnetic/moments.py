@@ -89,9 +89,59 @@ References
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 
 from ..lattice import direct_metric_tensor
+
+#: ``phases.i.atoms.j.moment.dof<k>``, the moment block's own DOF paths
+#: (``ParameterTable._collect_atom_moment`` names them).  ``dof0`` is the
+#: modulus and every higher one an angle.  It lives here because two layers
+#: read it: the runners that hold a flat direction (``refine``) and the
+#: solver's stationary-angle test (``optimize.least_squares``), which may not
+#: import ``refine``.
+MOMENT_DOF_PATH = re.compile(r"^phases\.\d+\.atoms\.\d+\.moment\.dof\d+$")
+
+#: A moment direction whose calculated-pattern response is this far below the
+#: modulus's measures nothing (WP-1327).  Two tests read it, and they ask two
+#: different questions.
+#:
+#: **The hold** (``refine._flat_moment_scan``) asks whether a direction is
+#: flat everywhere.  It turns the moment by ``refine.MOMENT_PROBE_ANGLE_RAD``
+#: each way and holds an angle only when neither turn moves the pattern by
+#: more than this fraction of what the same tip displacement of the modulus
+#: does.  A held angle leaves the stage.
+#:
+#: **The stationary-angle test** (``optimize.least_squares``, WP-1929) asks
+#: whether the first derivative vanishes where the fit stopped.  At a direction
+#: the symmetry fixes, the pattern is even in the angle.  The angle's column is
+#: zero there while its curvature is not.  The test moves the free angles, with
+#: everything else fixed, until every angle column is below this fraction of
+#: its site's modulus column, and then decides by Δχ² whether the fit stopped
+#: at that direction.  An angle that passes stays free and keeps its value.
+#: Only its column leaves the covariance.
+#:
+#: **Measured, not chosen.**  On the cubic collinear test structure the
+#: orbit-averaged intensity is provably independent of the moment direction.
+#: There the two angle DOFs respond at ~1e-15 of the modulus's response to the
+#: finite rotation, which is roundoff.  On Cr₂WO₆ at 4 K under BNS 58.395 the
+#: in-plane angle *is* determined, and the same probe reads ~1e0.  The floor
+#: sits in the middle of the fifteen orders between the two.  The joint Newton
+#: step of the stationary test reaches 1.3e-12 or less at every stop of the
+#: two-site Pnma set, six orders inside it.
+#:
+#: Both tests exist because the package's other "measured nothing" mechanism
+#: (:meth:`ParameterTable.unmeasured_free`, through
+#: ``optimize.statistics.normal_covariance``) fires only on a column with **no
+#: gradient at all** (``d > 0.0``), and an analytically flat direction is not
+#: bitwise flat.  Widening that test to a relative one would change the esd of
+#: every fit in the package.  The stationary test is that widening restricted
+#: to the one parameterisation whose columns vanish by symmetry at a point the
+#: data determine.  It acts only on a fit with a free moment angle, and there
+#: it moves every esd correlated with that angle.  The hold changes only which
+#: angles a stage frees.
+MOMENT_DIRECTION_SUPPORT = 1e-6
 
 #: Parameter names of the moment DOFs, by subspace dimension.  Data rather
 #: than a formula because the *report* reads it: "the angle a powder cannot

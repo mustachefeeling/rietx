@@ -46,7 +46,9 @@ def _nac():
 
 
 def _bound_hit_paths(result) -> set[str]:
-    return {p for d in result.diagnostics if d.code == "BOUND_HIT" for p in d.where}
+    # a floor's finding is ``FLOOR_HIT`` (WP-1929), and ``at_bound`` projects both
+    return {p for d in result.diagnostics if d.code in ("BOUND_HIT", "FLOOR_HIT")
+            for p in d.where}
 
 
 @pytest.fixture(scope="module")
@@ -154,7 +156,8 @@ def test_the_bound_test_lives_in_one_place():
     # on its upper bound / free / interior / on its only bound
     found = bound_findings((lo, hi), names, np.array([1.0, 5.0, 1.5, 0.0]))
     assert [f.paths for f in found] == [("two_sided",), ("one_sided",)]
-    assert {f.code for f in found} == {"BOUND_HIT"}
+    # the one-sided row sits on a floor of 0, which is its own code (WP-1929)
+    assert [f.code for f in found] == ["BOUND_HIT", "FLOOR_HIT"]
     # an infinite bound is skipped rather than compared, so it can neither
     # raise nor answer False for every column through a NaN
     assert bound_findings((lo, hi), names,

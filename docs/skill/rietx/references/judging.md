@@ -354,7 +354,7 @@ that term quotes each fraction as if the phase were known, which an agent did on
 16 of 48 patterns of a real series. The fractions themselves are the fit's.
 Remove the phase and refit for esds, or run `ref.profile_fraction(data, phase)`
 for a range. A scale that refined to 0.0 keeps its esd, reads `at_bound=True`
-and fires `BOUND_HIT`, even when `PHASE_UNCONSTRAINED` is silent because the
+and fires `FLOOR_HIT`, even when `PHASE_UNCONSTRAINED` is silent because the
 scale is the phase's only free parameter. It usually means the phase is absent.
 
 A lab Cu Kα in-situ pattern gave one phase at 1.41 ± 0.65 wt% with no
@@ -491,7 +491,7 @@ and reports it at histogram 0's wavelength, saying so through
 carries the coefficient it needs; the crystallite behind them is one number.
 
 **`SIZE_UNUSUALLY_SMALL` and `STRAIN_UNUSUALLY_LARGE` flag a coefficient
-outside its usual range, and `BOUND_HIT` on the same path says why it stopped
+outside its usual range, and `BOUND_HIT` or `FLOOR_HIT` on the same path says why it stopped
 there:** a width term pinned to a bound is a held value, not a measurement,
 and reads no differently in the table until you check for it.
 

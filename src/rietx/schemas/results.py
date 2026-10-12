@@ -34,19 +34,23 @@ class RefinedParameter(Base):
     asserted "not at a bound" about a parameter no code had looked at.
 
     **``True`` says the limit carried load, not that the value is near one**
-    (WP-1434).  The row must sit within a hundredth of its own esd of the
-    limit *and* the residual must still push it out of the allowed range, so a
-    value resting on a limit the fit is not pressing reads ``False`` and there
-    is nothing there to widen.  ``BOUND_HIT``'s ``Diagnostic.value`` carries
-    the evidence, signed; this flag is the bit.
+    (WP-1434).  Under the default ``lm`` driver the row is in the driver's
+    exact active set: it sits on the limit and the gradient there points out
+    of the allowed range (WP-1929).  Under ``trf``, or a system too large for
+    an exact step, it must sit within a hundredth of its own esd of the limit
+    *and* the residual must still push it outward.  Either way a value resting
+    on a limit the fit is not pressing reads ``False`` and there is nothing
+    there to widen.  The diagnostic's ``Diagnostic.value`` carries the
+    evidence, signed; this flag is the bit.
 
     **The source is the guard, never a local recomputation.**  The one place
     the bound test happens is :func:`rietx.strategy.staged.bound_findings`,
-    whose findings become the ``BOUND_HIT`` diagnostics; this flag is a
-    projection of that same list onto the rows, so the two can never
-    disagree.  ``BOUND_HIT`` stays the reported channel — the flag exists so
-    that an agent iterating ``parameters`` does not have to cross-reference
-    ``diagnostics`` by path.
+    whose findings become the ``BOUND_HIT`` and ``FLOOR_HIT`` diagnostics
+    (``FLOOR_HIT`` on a floor no wider bound can lower, WP-1929); this flag is
+    a projection of that same list onto the rows, so it is ``True`` under
+    either code and the two can never disagree.  The diagnostics stay the
+    reported channel — the flag exists so that an agent iterating
+    ``parameters`` does not have to cross-reference ``diagnostics`` by path.
     """
 
     path: str
@@ -771,6 +775,47 @@ class PhaseMicrostructure(Base):
         return None
 
 
+class MomentAngleTest(Base):
+    """One round of the stationary-angle test on a stage's covariance (WP-1929).
+
+    A moment's polar angle and azimuth have Jacobian columns that vanish at a
+    direction the symmetry fixes, because the pattern is even in the angle
+    there.  The covariance equilibrates every column to unit norm, so near such
+    a direction a column's direction is set by where the solver stopped, and
+    so were the other esds.  The test moves ``paths`` together,
+    everything else fixed, until every column is below
+    ``MOMENT_DIRECTION_SUPPORT`` of its site's modulus column.  It then refits
+    the other columns by one linear step at the stop and at that point.
+    ``statistic`` is the difference in data χ² over χ²_red·f².  The angles pass
+    when it is at most ``cut``, the 95 % point of the χ̄² mixture for
+    ``len(paths)`` one-sided directions (Self & Liang, 1987; Shapiro, 1985).
+    Their columns then leave the covariance, so each has no esd, and their
+    values stand.
+
+    A set that fails and has more than one angle drops one and is tested
+    again.  The dropped angle contributes most to the second-order change, or
+    has the largest column where the Newton step did not reach the floor.
+    ``reached`` is ``False`` for a set whose Newton step did not reach it, and
+    ``statistic`` is then ``None``.
+
+    ``half_widths`` is filled on a round that passed.  Per angle, it is the
+    distance either side of the stationary direction at which the data χ²,
+    every other parameter held, rises by χ²_red·f².  It is no esd.  It is the
+    step ``Refinement.profile_interval`` starts from for such an angle.
+    """
+
+    paths: list[str]
+    reached: bool
+    statistic: float | None = None
+    cut: float
+    zeroed: bool
+    #: each angle's value where the Newton step drove the columns to the
+    #: floor, filled when ``reached``.  The distance from the fitted value is
+    #: what the statistic was read across.
+    stationary_at: dict[str, float] = Field(default_factory=dict)
+    half_widths: dict[str, float] = Field(default_factory=dict)
+
+
 class StageResult(Base):
     """One stage's outcome.
 
@@ -958,6 +1003,15 @@ class StageResult(Base):
     #: column there.  ``None`` means a result stored before the field; all three
     #: runners write a mapping, and an empty one is a stage that lifted nothing.
     seeded: dict[str, float] | None = None
+    #: the stationary-angle test the stage's covariance ran (WP-1929), one
+    #: :class:`MomentAngleTest` per round in the order they ran.  A round with
+    #: ``zeroed`` set names the angles whose columns left the covariance: they
+    #: stayed free, kept their values and carry no esd.  Its writer is the
+    #: solve (``LSQOutcome.moment_angle_tests``), copied here unchanged by all
+    #: three runners.  ``None`` means no test ran: no moment angle was free
+    #: beside its free modulus, the stage computed no covariance, or the result
+    #: was stored before the field.  It feeds ``MOMENT_ANGLE_STATIONARY``.
+    moment_angle_tests: list[MomentAngleTest] | None = None
 
     @model_validator(mode="before")
     @classmethod

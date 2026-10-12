@@ -19,7 +19,7 @@ import sys
 
 import numpy as np
 import pytest
-from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import HealthCheck, assume, example, given, settings
 from hypothesis import strategies as st
 
 from rietx.crystallography.lattice import cell_volume
@@ -297,6 +297,9 @@ def test_cell_equality_respects_the_measured_precision():
 @settings(max_examples=60, deadline=None,
           suppress_health_check=[HealthCheck.filter_too_much])
 @given(lengths, lengths, lengths, angles, angles, angles)
+# issue #797 (and #843, the same cell): gemmi's reduction gave η the sign of
+# the ε-sized value it treats as zero, so the reduced cell sat 1.2e-5 off T·af
+@example(3.0, 11.0, 14.197202585325392, 65.0, 65.0, 65.0)
 def test_the_reduction_map_takes_a_to_f_where_the_reduction_does(a, b, c, al,
                                                                   be, ga):
     """WP-1518: T·af is the reduced A..F, so T·cov·Tᵀ is its covariance.
@@ -323,15 +326,166 @@ def test_the_reduction_map_takes_a_to_f_where_the_reduction_does(a, b, c, al,
     (10.1736, 10.1736, 7.2114, 90.0, 89.99999996617657, 90.0),
     (4.9378, 3.3955, 4.4419, 90.0, 89.99999877161947, 90.0),
     (11.2545, 7.4719, 8.663, 90.0, 89.99999996944449, 89.99998580312608),
+    (3.0, 11.0, 14.197202585325392, 65.0, 65.0, 65.0),           # issue #797
 ])
-def test_the_map_carries_a_sign_the_reduction_snapped(cell):
-    """Within ε of 90° gemmi flips a near-zero D, E or F's sign and the triplet
-    does not say so.  Hypothesis's generic cells never land there, and without
-    the flip these four disagreed with red by 1.7e-9 to 6.6e-7 of its scale."""
+def test_the_map_needs_no_sign_the_reduction_chose(cell):
+    """Within ε gemmi gives a near-zero ξ, η or ζ either sign and the triplet
+    does not say so.  Hypothesis's generic cells never land there.  Unmapped,
+    the first four disagreed with red by 1.7e-9 to 6.6e-7 of its scale; a row
+    flip of T then hid the sign and left the metric one ε away (the fifth,
+    1.2e-5).  Since WP-1923 the reduced cell is the exact image, so the
+    triplet's map alone takes af to red."""
     af = af_from_cell(cell)
     red, t = reduction(af)
     mapped = af if t is None else t @ af
     assert np.allclose(mapped, red, rtol=0.0, atol=1e-14 * np.max(np.abs(red)))
+
+
+@pytest.mark.parametrize("centring", ["P", "C", "I", "F", "R"])
+@settings(max_examples=40, deadline=None,
+          suppress_health_check=[HealthCheck.filter_too_much])
+@given(lengths, lengths, lengths, angles, angles, angles)
+@example(3.0, 11.0, 14.197202585325392, 65.0, 65.0, 65.0)           # #797
+@example(3.4481, 3.4481, 7.9668, 90.0, 89.9999997, 90.0)
+def test_the_reduced_cell_is_the_exact_image_of_its_input(centring, a, b, c,
+                                                          al, be, ga):
+    """WP-1923: M·G·Mᵀ of the input under the recorded change of basis *is*
+    the reduced metric, and it is gemmi's reduced vector to within the
+    reduction's own ε.  Not ``is_niggli``: that predicate tests signs without
+    ε, and it fails gemmi's own output on fp ties (``ReducedCell``'s note)."""
+    import gemmi
+
+    from rietx.crystallography.lattice import direct_metric_tensor
+    from rietx.indexing.reduce import NIGGLI_EPS_RELATIVE, _basis_change
+
+    cell = (a, b, c, al, be, ga)
+    assume(_valid(cell))
+    r = reduce_cell(cell, centring)
+    m = _basis_change(r.change_of_basis)
+    image = m @ np.asarray(direct_metric_tensor(*cell)) @ m.T
+    got = np.asarray(direct_metric_tensor(*r.cell))
+    assert np.allclose(got, image, rtol=0.0, atol=1e-12 * np.max(np.abs(image)))
+    uc = gemmi.UnitCell(*cell)
+    eps = NIGGLI_EPS_RELATIVE * uc.volume ** (1.0 / 3.0)
+    gv = gemmi.GruberVector(uc, centring)
+    gv.niggli_reduce(epsilon=eps)
+    gv.normalize(epsilon=eps)
+    A, B, C, xi, eta, zeta = gv.parameters
+    theirs = np.array([[A, zeta / 2, eta / 2], [zeta / 2, B, xi / 2],
+                       [eta / 2, xi / 2, C]])
+    assert np.max(np.abs(got - theirs)) <= eps
+
+
+_SETTING_STEPS = st.sampled_from([(1, 0, 0, 1), (1, 0, 1, 1), (1, 0, -2, 1),
+                                   (1, 2, 0, 1), (1, -2, 1, -1), (-1, 0, 0, 1),
+                                   (1, 0, 3, 1), (3, -4, 2, -3)])
+
+
+@pytest.mark.parametrize("centring", ["P", "C"])
+@settings(max_examples=40, deadline=None,
+          suppress_health_check=[HealthCheck.filter_too_much])
+@given(lengths, lengths, lengths, st.floats(min_value=90.5, max_value=125.0),
+       _SETTING_STEPS, st.booleans())
+@example(4.541, 4.884, 10.198, 98.22, (-1, 0, 0, 1), False)      # issue #779
+def test_a_monoclinic_cell_is_re_set_to_the_conventional_setting(
+        centring, a, b, c, beta, step, swap):
+    """WP-1923: whatever (a, c) basis an engine arrived at, the re-set lands
+    on b unique, β obtuse, a and c the shortest translations normal to b,
+    and on the cell spglib's ``std_lattice`` standardises the lattice to."""
+    from rietx.indexing.qspace import cell_from_af
+    from rietx.indexing.reduce import af_map, conventional_setting
+
+    truth = (a, b, c, 90.0, beta, 90.0)
+    assume(_valid(truth))
+    p, q, r, s_ = step
+    if centring == "C" and q % 2:
+        q += 1
+    assume(p * s_ - q * r in (1, -1))
+    rows = [(p, 0, q), (0, p * s_ - q * r, 0), (r, 0, s_)]
+    if swap and centring == "P":
+        rows = [rows[2], (0, -rows[1][1], 0), rows[0]]
+    engine_af = af_map(rows) @ af_from_cell(truth)
+    engine_cell = cell_from_af(engine_af)
+    assume(min(engine_cell[:3]) > 1.0 and max(engine_cell[:3]) < 200.0)
+
+    change = conventional_setting(engine_af, "monoclinic", centring)
+    got = engine_cell if change is None else cell_from_af(
+        af_map(change) @ engine_af)
+    if change is not None:
+        m = np.asarray(change)
+        assert round(np.linalg.det(m)) == 1
+        if centring == "C":
+            assert m[0, 2] % 2 == 0 and m[0, 0] % 2 == 1   # (a+b)/2 survives
+    assert got[3] == pytest.approx(90.0, abs=1e-9)
+    assert got[5] == pytest.approx(90.0, abs=1e-9)
+    assert got[4] >= 90.0 - 1e-9
+    if centring == "P":
+        assert got[0] <= got[2] + 1e-9
+        assert got[4] <= 120.0 + 1e-9               # a Gauss-reduced pair
+
+    lat = lattice_vectors(truth)
+    if centring == "C":                              # spglib reads a P basis
+        lat = np.array([(lat[0] - lat[1]) / 2, (lat[0] + lat[1]) / 2, lat[2]])
+    std, _, symbol = conventional_cell(cell_from_vectors(lat), symprec=1e-5)
+    assume(symbol in ("P2/m", "C2/m"))               # not a higher lattice
+    assert got == pytest.approx(std, rel=1e-7, abs=1e-6)
+
+
+@pytest.mark.parametrize("centring", ["P", "C"])
+@pytest.mark.parametrize("cell", [
+    (4.541, 4.884, 10.198, 90.0, 90.0, 90.0),       # a right angle's rounding
+    (10.8253, 22.1482, 10.8253, 90.0, 90.0, 90.0),  # and an a = c tie
+])
+def test_rounding_is_not_a_setting_to_re_set(centring, cell):
+    """A right angle or a tie reached through a change of basis is re-set to
+    the identity on the second pass, never flipped on its last bit."""
+    from rietx.indexing.reduce import af_map, conventional_setting
+
+    rows = [(0, 0, 1), (0, -1, 0), (1, 0, 4)] if centring == "P" \
+        else [(1, 0, -6), (0, -1, 0), (0, 0, 1)]
+    engine_af = af_map(rows) @ af_from_cell(cell)
+    change = conventional_setting(engine_af, "monoclinic", centring)
+    af = engine_af if change is None else af_map(change) @ engine_af
+    assert conventional_setting(af, "monoclinic", centring) is None
+
+
+def test_a_metric_that_is_no_lattice_has_no_setting():
+    from rietx.indexing.reduce import conventional_setting
+
+    assert conventional_setting(np.full(6, np.nan), "monoclinic") is None
+    assert conventional_setting(np.array([0.05, 0.04, -0.01, 0.0, 0.001, 0.0]),
+                                "monoclinic") is None
+
+
+def test_a_re_set_carries_the_covariance_with_the_metric():
+    """The fit's esds come from the re-set covariance, not the engine's: a
+    sign flip of a and b leaves every esd alone, a c ← c + a step does not."""
+    from rietx.indexing.engines import conventional_fit
+    from rietx.indexing.qspace import CandidateFit, cell_esds, cell_from_af
+
+    def fit_of(cell):
+        af = af_from_cell(cell)
+        cov = np.diag((1e-5 * np.abs(af) + 1e-9) ** 2)
+        cov[0, 4] = cov[4, 0] = 0.3 * np.sqrt(cov[0, 0] * cov[4, 4])
+        return CandidateFit(af=af, cov_af=cov, cell=cell_from_af(af),
+                            cell_esd=cell_esds(af, cov), system="monoclinic",
+                            n_lines=20, chi2_red=1.0, residual_q=np.zeros(20))
+
+    acute = fit_of((4.541, 4.884, 10.198, 90.0, 81.78, 90.0))
+    new, change = conventional_fit(acute, "monoclinic", "P")
+    assert change == ((-1, 0, 0), (0, -1, 0), (0, 0, 1))
+    assert new.cell[4] == pytest.approx(98.22)
+    assert np.allclose(new.cell_esd, acute.cell_esd, rtol=1e-9)
+    assert np.allclose(new.af, af_from_cell(new.cell), rtol=1e-12)
+
+    long_c = fit_of((4.541, 4.884, 11.0, 90.0, 120.0, 90.0))
+    new, change = conventional_fit(long_c, "monoclinic", "P")
+    assert change == ((1, 0, 0), (0, 1, 0), (1, 0, 1))
+    assert not np.allclose(new.cell_esd, long_c.cell_esd, rtol=1e-3)
+    assert np.allclose(new.cell_esd, cell_esds(new.af, new.cov_af), rtol=0.0)
+
+    tetragonal = fit_of((4.0, 4.0, 9.0, 90.0, 90.0, 90.0))
+    assert conventional_fit(tetragonal, "tetragonal", "P") == (tetragonal, None)
 
 
 def _own_frame_covariance(af: np.ndarray, rel: float, slots) -> np.ndarray:

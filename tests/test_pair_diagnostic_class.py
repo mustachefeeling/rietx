@@ -39,7 +39,7 @@ def test_a_propagation_vector_off_gamma_is_named_too():
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("magnetic-solve-two-site")
-def test_the_two_site_winner_finds_each_site_its_own_moment():
+def test_the_two_site_winner_finds_each_site_its_own_moment(monkeypatch):
     """The two-site Pnma set of ``test_magnetic_solve``, which carried this
     file's end-to-end naming check until WP-1930 showed both its pairs were
     stopping points.
@@ -53,13 +53,16 @@ def test_the_two_site_winner_finds_each_site_its_own_moment():
     Under LM the released starts reach it only because the moduli climb before
     the angles turn (D12): freed together, they stopped at χ² 454 660.
 
-    Whether the winner's moduli are named a pair is left out.  Both moments lie
-    along **a**, where the azimuth is stationary, and how far from it the
-    solver stops decides the moduli esds and ρ (WP-1929 task 4).  Issue #820
-    measured ρ at −0.962 on one macOS venv and −0.498 on Linux, either side of
-    ``MOMENT_PAIR_RHO_MIN``; under LM on macOS arm64 the esds are 0.031 and
-    0.159 μ_B and the pair is named.  A named pair still has to quote the
-    quadrature sum the data measure, so that is asserted.
+    Both moments lie along **a**, where the pattern is even in every angle, so
+    the angle columns vanish there.  Before WP-1929 the covariance kept them,
+    equilibrated to unit norm, and how far from **a** the solver stopped
+    decided the moduli esds and ρ.  Issue #820 measured ρ at −0.962 on one
+    macOS venv and −0.498 on Linux, either side of ``MOMENT_PAIR_RHO_MIN``.
+    Under LM on macOS arm64 the esds were 0.031 and 0.159 μ_B, and the pair
+    was named.  The stationary-angle test now leaves the four angle columns out
+    at the winner's stop, so the moduli esds are 0.00150 and 0.00111 μ_B with
+    ρ −0.24 (the three class-0 stops of WP-1929's measurement read
+    0.00150-0.00151 and 0.00111-0.00112), and no pair is named.
 
     Class 2, the flat model, is still a stopping point, so nothing is asserted
     about it.  On macOS arm64 and on Intel Xeon CI runners all three of its
@@ -67,7 +70,20 @@ def test_the_two_site_winner_finds_each_site_its_own_moment():
     three reached m₁ ≈ m₂ ≈ 0.097 and named the pair: the runner's CPU decided
     (#865).
     """
+    from rietx.strategy import magnetic as solve
     from tests import test_magnetic_solve as T
+
+    # ρ is read from the covariance the pair fold reads, keyed by the result
+    # it was taken from, so the winner's own is the one asserted
+    taken: dict[int, list] = {}
+    measure = solve._moment_correlations
+
+    def recorded(ref, result):
+        pairs = measure(ref, result)
+        taken[id(result)] = pairs or []
+        return pairs
+
+    monkeypatch.setattr(solve, "_moment_correlations", recorded)
 
     instrument = T.neutron()
     truth = T.candidate_named("P n m a", T.MN_SITE, (0, 0, 0), T.A_TYPE_BNS)
@@ -85,7 +101,14 @@ def test_the_two_site_winner_finds_each_site_its_own_moment():
     m1, m2 = winner.moments
     assert m1.magnitude == pytest.approx(3.5, abs=0.01)
     assert m2.magnitude == pytest.approx(0.7, abs=0.01)
-    for row in winner.moments:
-        if row.paired_with:
-            assert row.paired_magnitude == pytest.approx(
-                (3.5 ** 2 + 0.7 ** 2) ** 0.5, abs=0.01)
+    assert not any(row.paired_with for row in winner.moments)
+    assert m1.esd == pytest.approx(0.00150, rel=0.05)
+    assert m2.esd == pytest.approx(0.00111, rel=0.05)
+    (pair,) = taken[id(winner._result)]
+    assert pair.rho == pytest.approx(-0.24, abs=0.02)
+    # the record that moved them: the winner's last stage left its four
+    # angle columns out, and the solution says so through the fit's own code
+    stage = winner._result.stages[-1]
+    (passed,) = [t for t in stage.moment_angle_tests if t.zeroed]
+    assert len(passed.paths) == 4 and passed.statistic <= passed.cut
+    assert "MOMENT_ANGLE_STATIONARY" in {d.code for d in winner._result.diagnostics}

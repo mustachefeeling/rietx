@@ -2405,7 +2405,12 @@ def _discontinuity_steps(series: SeriesResult,
         scale = float(np.median(step[judged]))
         if not np.isfinite(scale) or scale <= _noise_floor(value[kept]):
             continue
-        combined = np.sqrt(np.nan_to_num(sd[:-1]) ** 2 + np.nan_to_num(sd[1:]) ** 2)
+        # a missing esd is a direction the data did not measure, so its σ is
+        # infinite and no step against it is significant.  Read as 0 it was
+        # perfectly measured, and since WP-1929 a moment angle at a direction
+        # the symmetry fixes has none: its powder-twin flip of π read "59×".
+        combined = np.sqrt(np.nan_to_num(sd[:-1], nan=np.inf) ** 2
+                           + np.nan_to_num(sd[1:], nan=np.inf) ** 2)
         big = judged & (step > DISCONTINUITY_FACTOR * scale) & (
             step > DISCONTINUITY_SIGMA * combined)
         if not big.any():

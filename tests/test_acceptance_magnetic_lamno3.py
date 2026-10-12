@@ -177,9 +177,13 @@ def test_the_50k_moment_is_supported_and_lies_along_a(lamno3):
     (3.54-3.56 μ_B with the axial or Lorentzian widths freed or held).  The
     support ratio is held above 10, where the rule's own bar is 3.  "Along
     a" is two statements: My is exactly zero, the tutorial's hold, and the
-    polar angle from c is 90° within three of its own esds, the tutorial's
-    "Mz is close to zero".  The moment removes about half of the
-    nuclear-only misfit.
+    tutorial's "Mz is close to zero".  Since WP-1929 the fit asks the second
+    itself.  The polar angle ends 0.091 rad from 90°, and moving it there, the
+    rest refitted, changes χ² by 0.57 × χ²_red·f² against the one-angle cut of
+    2.71 (macOS arm64).  So the angle sits at the direction the symmetry fixes,
+    its column leaves the covariance, and it has no esd.  Before, it read
+    0.0608 rad, and 90° was within 1.5 of it.  The moment removes about half
+    of the nuclear-only misfit.
     """
     nuc = lamno3["nuc"]
     result, row, polar = lamno3[PN_MA]
@@ -194,8 +198,12 @@ def test_the_50k_moment_is_supported_and_lies_along_a(lamno3):
     assert abs(my) < 1e-9, row.crystalaxis
     assert abs(mx) / row.magnitude > 0.98, row.crystalaxis
     from_c = np.arccos(abs(mz) / row.magnitude)
-    assert polar.esd is not None
-    assert np.pi / 2 - from_c < 3.0 * polar.esd, (from_c, polar.esd)
+    (passed,) = [t for t in result.stages[-1].moment_angle_tests if t.zeroed]
+    assert passed.paths == [POLAR] and passed.statistic <= passed.cut
+    assert polar.esd is None
+    # on the profile's own scale: 90° is inside one half-width of the angle
+    assert np.pi / 2 - from_c < passed.half_widths[POLAR], (
+        from_c, passed.half_widths)
     assert result.statistics.rwp < 0.6 * nuc.statistics.rwp, (
         result.statistics.rwp, nuc.statistics.rwp)
 

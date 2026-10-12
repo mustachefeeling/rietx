@@ -157,7 +157,7 @@ undetermined parameters, and differencing them silently is how a batch
 publishes noise: real rows read a cell edge whose **esd was an order of
 magnitude larger than the edge itself**, a microstrain esd of **78011**, and a
 phase present at **6e-5 wt %**. Screen by a minimum weight fraction and by the
-untrustworthy-value codes (`PHASE_UNCONSTRAINED`, `BOUND_HIT`) before
+untrustworthy-value codes (`PHASE_UNCONSTRAINED`, `BOUND_HIT`, `FLOOR_HIT`) before
 differencing anything, then say so with the result — a median screened to
 patterns above 1 wt % that did not declare its screen could not be reproduced
 from the saved rows by a later audit, which is a defect in the record even

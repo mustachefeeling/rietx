@@ -115,9 +115,9 @@ EXCLUDED_TYPES: dict[str, str] = {
 EXCLUSIONS: dict[str, str] = {
     "GuardFinding.detail": (
         "a rendering fragment, not a fact about the fit (WP-1434): the "
-        "already-formatted clause the BOUND_HIT diagnostic appends to its own "
-        "sentence, written by GuardFinding.at_bound and read at that one "
-        "place. The evidence a caller reads programmatically is "
+        "already-formatted clause the BOUND_HIT or FLOOR_HIT diagnostic "
+        "appends to its own sentence, written by GuardFinding.at_bound and "
+        "read at that one place. The evidence a caller reads programmatically is "
         "Diagnostic.value, which carries the same number, and the sentence a "
         "person reads is Diagnostic.message. Deliberately outside __str__, "
         "which is the pre-v1.0 text byte for byte."

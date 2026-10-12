@@ -9,6 +9,8 @@ enabled when the diagnostics flag a low-angle rise.
 
 from __future__ import annotations
 
+import warnings
+
 from ..schemas.common import Parameter
 from ..schemas.instrument import Background, BackgroundChebyshev, BackgroundPSpline
 from ..schemas.pattern import PatternData
@@ -67,6 +69,12 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     are equal is that constant) or a Chebyshev's constant term.  The air term,
     where one is switched on, stays at its own start.  Whether this should be
     the default is #725's question; the default is unchanged here.
+
+    ``kind="chebyshev"`` returns a background, not the selection, so what the
+    selection reports arrives as a ``UserWarning`` whose text starts with its
+    code: ``BACKGROUND_ORDER_AT_CAP`` when the order is the scan's cap of 16
+    rather than a choice (issue #833).  ``select_chebyshev_order`` carries the
+    same ``Diagnostic`` on its ``diagnostics``, beside the scan.
     """
     if two_theta_limits is not None:
         lo, hi = (float(v) for v in two_theta_limits)
@@ -85,6 +93,9 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     diag = diagnostics or diagnose(data, wavelength=wavelength, source=source)
     if kind == "chebyshev":
         sel = select_chebyshev_order(data)
+        for d in sel.diagnostics:
+            warnings.warn(f"{d.code}: {d.message}. {d.suggestion}",
+                          UserWarning, stacklevel=2)
         cheb = BackgroundChebyshev.with_terms(int(sel.selected))
         if seed and cheb.coefficients:
             cheb.coefficients[0].value = _seed_level(data)

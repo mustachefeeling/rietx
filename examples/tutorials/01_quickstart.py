@@ -117,7 +117,7 @@ result
 #    `max|Δθ|/esd` on the last line is the largest final step of any parameter, in units of its own esd. McCusker et al. (1999) treat 0.1 or less as converged.
 # 2. **Diagnostics.** These outrank every statistic.
 #    `PATTERN_UNDERSAMPLED` is the step count from `diagnose` again.
-#    `BOUND_HIT` says the data push `instrument.profile.y`, the Lorentzian tan θ width, below zero, so it ends on its floor of 0.
+#    `FLOOR_HIT` says the data push `instrument.profile.y`, the Lorentzian tan θ width, below zero, so it ends on its floor of 0.
 #    `FROZEN_COMPILE_STALE` says the peak windows were sized at the values the last stage started from, and the cell has moved since.
 #    Running the plan again re-sizes them.
 # 3. **Agreement indices** come last. Rwp is useful for comparing two fits of the same data over the same channels, and says little on its own.

@@ -26,6 +26,7 @@ from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferen
 from rietx._about import DIST_NAME, DOCS_URL, REPO_URL
 from rietx.crystallography.atomic_volume import VOLUME_RATIO_BOUNDS, VOLUME_SCATTER
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
+from rietx.crystallography.magnetic.moments import MOMENT_DIRECTION_SUPPORT
 from rietx.crystallography.scattering import _itc_handover
 from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 from rietx.examples import list_examples
@@ -49,6 +50,7 @@ from rietx.model.geometry import (
 )
 from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
 from rietx.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
+from rietx.optimize.least_squares import STATIONARY_ANGLE_LEVEL
 from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
 from rietx.optimize.statistics import (
     EFFECTIVE_OBS_ALPHA,
@@ -67,6 +69,7 @@ from rietx.report.schemas import (
 )
 from rietx.schemas.fraction import FRACTION_PROFILE_DCHI2, FRACTION_PROFILE_EXCESS
 from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
+from rietx.schemas.interval import PARAMETER_INTERVAL_MAX_REFITS
 from rietx.schemas.suggest import SUGGEST_MIN_GAIN
 from rietx.strategy.staged import HUMP_MIN_WIDTH_MULT
 
@@ -167,6 +170,7 @@ myst_substitutions = {
     "BRINDLEY_MU_R_FENCE": BRINDLEY_MU_R_FENCE,
     "FRACTION_PROFILE_DCHI2": FRACTION_PROFILE_DCHI2,
     "FRACTION_PROFILE_EXCESS": FRACTION_PROFILE_EXCESS,
+    "PARAMETER_INTERVAL_MAX_REFITS": PARAMETER_INTERVAL_MAX_REFITS,
     "CYLINDER_MU_R_MAX": CYLINDER_MU_R_MAX,
     "EFFECTIVE_OBS_ALPHA": EFFECTIVE_OBS_ALPHA,
     "MAX_SHIFT_CONVERGED": MAX_SHIFT_CONVERGED,
@@ -178,6 +182,10 @@ myst_substitutions = {
     # the covariance's pinv cut and the scale-B floor derived from it
     # (WP-1534); formatted, the floor being an irrational sqrt
     "PINV_RCOND": f"{PINV_RCOND:.0e}",
+    # the moment-direction floor both the hold and the stationary-angle test
+    # read, and that test's level (WP-1929)
+    "MOMENT_DIRECTION_SUPPORT": f"{MOMENT_DIRECTION_SUPPORT:.0e}",
+    "STATIONARY_ANGLE_LEVEL": STATIONARY_ANGLE_LEVEL,
     "SCALE_B_SEPARATION_FLOOR": f"{SCALE_B_SEPARATION_FLOOR:.1e}",
     "DEFAULT_N_UNINDEXED": DEFAULT_N_UNINDEXED,
     "DEFAULT_SEARCH_LINES": DEFAULT_SEARCH_LINES,

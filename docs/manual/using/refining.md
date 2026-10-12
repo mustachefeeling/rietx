@@ -428,6 +428,29 @@ reports: `StageResult.moment_flat_axes` names the axis,
 reported direction is one of a cone of equally good ones. Quote the angle to
 the axis, not the direction.
 
+A free angle can also sit at a direction the site symmetry fixes, such as a
+moment along the a axis in an orthorhombic group. The data determine it there, and
+the fit does not hold it. Its Jacobian column vanishes at that direction, so
+an esd read from it would depend on where the solver stopped, and so would the
+esd of everything correlated with it. After each solve the fit tests for this,
+by the estimation chapter's {eq}`est-stationary-angle`. An
+angle that passes keeps its value, has no esd, and is named by
+`MOMENT_ANGLE_STATIONARY`. `StageResult.moment_angle_tests` holds each round of
+the test:
+
+| Field | Holds |
+|---|---|
+| `MomentAngleTest.paths` | the angles this round tested together |
+| `MomentAngleTest.reached` | whether moving them, everything else fixed, drove every column below the floor |
+| `MomentAngleTest.statistic` | Δχ² from where the fit stopped to that direction, the other parameters refitted, over χ²_red·f²; `None` where the direction was not reached |
+| `MomentAngleTest.cut` | the 95 % point the statistic is held against, 2.71 for one angle and 6.50 for four |
+| `MomentAngleTest.zeroed` | whether these angles left the covariance |
+| `MomentAngleTest.stationary_at` | each angle's value at the direction where its column vanishes, the image nearest the fitted value; empty where the direction was not reached |
+| `MomentAngleTest.half_widths` | on a passing round, each angle's distance either side of the direction at which χ², everything else held, rises by χ²_red·f² |
+
+For a number on such an angle, call `ref.profile_interval(data, path)`. It
+steps from the angle's half-width and reports `stderr` as `None`.
+
 A moment the data does not support comes back unsupported, and the test is a
 ratio. Refine the same model against a pattern above the ordering
 temperature and the modulus goes to nothing, because |F_m|² ∝ m² and the only
@@ -1060,6 +1083,7 @@ for stage in result.stages:
 | `StageResult.unknown_paths` | the literal `turn_on` paths that name no parameter of this model; `None` on a result stored before the check existed |
 | `StageResult.unreached_histograms` | joint fits: per histogram, the globs that freed rows of another histogram and matched none of this one; `{}` on a single histogram, `None` on a result stored before the check existed |
 | `StageResult.seeded` | each row this stage lifted before solving, with the value it started from; `None` on a result stored before the field existed |
+| `StageResult.moment_angle_tests` | each round of the test that left moment angles at a direction the symmetry fixes out of the covariance, one `MomentAngleTest` per round; `None` when no moment angle was free beside its free modulus |
 
 `StageResult.freed` is the field to read when a stage did nothing. A glob that
 matches no path is not an error, because that is how the shipped plans reach a
@@ -1377,6 +1401,14 @@ Two rules matter to anyone consuming the stream. Read `data` with `.get` rather
 than by unpacking a fixed shape, because fields are added to a kind without a
 version bump. And a cancelled run's `fit_end` omits the statistics entirely,
 because there is no fitted result to report.
+
+A path is opened for appending, so a second fit given the same path adds to the
+same file. Each stream marks where it starts: the first line it writes is a run
+header, `{"record": "run", "run": <id>, "t": …}`, which is not an event and
+never reaches a callback. `read_events` returns the events and skips the
+headers. `rietx events` ([](cli.md)) prints a log run by run, and
+`rietx.history.aggregate.summarize_events` is the same summary as an object.
+A reader that branches on `kind` should first check that `record` is `"event"`.
 
 `Capabilities.event_schema_version` reports the version a build emits;
 [](compatibility.md) says what that version promises.

@@ -32,6 +32,7 @@ from .optimize.least_squares import (
     DEFAULT_SOLVER,
     SOLVERS,
     _longest_line_wavelength,
+    covariance_jacobian,
     rechart_outcome,
     run_multi_least_squares,
 )
@@ -99,6 +100,7 @@ from .refine import (
     _width_census_diagnostics,
     clamp_cell_runaway,
 )
+from .report.magnetic import moment_angle_stationary_diagnostics
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
 from .schemas.instrument import Instrument
@@ -118,6 +120,7 @@ from .strategy.staged import (
     GuardFinding,
     GuardReport,
     RefinementPlan,
+    _exact_active_bounds,
     bound_findings,
     check_adp_positive_definite,
     check_biso_negative,
@@ -912,7 +915,8 @@ class MultiHistogramRefinement:
                 # a moment committed in its principal chart (#604): the
                 # combined x0 is cached, so it is rebuilt before it is read
                 self.mtable._rebuild_columns()
-                outcome = rechart_outcome(outcome, self.mtable.x0(), signs)
+                outcome = rechart_outcome(outcome, self.mtable.x0(), signs,
+                                          self.mtable.free_paths)
             # A phase's own support can stay above PHASE_SUPPORT_SIGMA in
             # every histogram and its shared cell still walk to nonsense — the
             # single-histogram runner's own joint-degeneracy gap
@@ -958,7 +962,8 @@ class MultiHistogramRefinement:
                 signs = self.mtable.commit(second.theta)
                 if signs is not None:
                     self.mtable._rebuild_columns()
-                    second = rechart_outcome(second, self.mtable.x0(), signs)
+                    second = rechart_outcome(second, self.mtable.x0(), signs,
+                                             self.mtable.free_paths)
                 second_runaway = _clamp_cell_runaway_multi(self.mtable, start_values)
                 if second_runaway:
                     self.mtable._rebuild_columns()
@@ -996,7 +1001,8 @@ class MultiHistogramRefinement:
                 moment_flat_axes=kept_axes,
                 moment_turned=[b for b in kept_axes if b in moment_turned],
                 unknown_paths=unknown_paths, unreached_histograms=unreached,
-                seeded=seeded))
+                seeded=seeded,
+                moment_angle_tests=outcome.moment_angle_tests))
 
         assert models is not None and outcome is not None
         self._models = models
@@ -1230,10 +1236,11 @@ class MultiHistogramRefinement:
             y_background=np.concatenate(per_ybkg))
 
         # one bound test, two consumers: the rows' at_bound flag and the
-        # BOUND_HIT diagnostics (WP-1076)
+        # BOUND_HIT/FLOOR_HIT diagnostics (WP-1076, WP-1929)
         at_bounds = bound_findings(
             mt.bounds(), mt.free_paths, outcome.theta,
-            cos=outcome.residual_cosine, esd=outcome.stderr_internal)
+            cos=outcome.residual_cosine, esd=outcome.stderr_internal,
+            active=_exact_active_bounds(outcome))
         # Histogram 0's physical esds, built once in the loop above and read by
         # two consumers (WP-1131): the shared rows of ``_parameters``, and the
         # microstructure block, which reads histogram 0 because its value scale
@@ -1251,6 +1258,9 @@ class MultiHistogramRefinement:
             # reported esd is read off (WP-1333)
             diagnostics = diagnostics + _covariance_diagnostics(
                 stage_results[-1].name, outcome, answer=True)
+            # the single fit's builder, off the same stage's record (WP-1929)
+            diagnostics = diagnostics + moment_angle_stationary_diagnostics(
+                stage_results[-1])
         # Every stage, not only the last one, exactly as the single-histogram
         # path sums it (``refine._degenerate_cell_diagnostics``): a degenerate
         # probe is a fact about the search and not about the final point.
@@ -1404,8 +1414,10 @@ class MultiHistogramRefinement:
                                     free[i], free[j], c[i, j]))
         if outcome.jac is not None and len(free) > 1:
             try:
+                # the matrix the covariance cut (``check_guards``' rule)
                 report.discarded_directions = check_discarded_directions(
-                    outcome.jac, free, report.flat_directions)
+                    covariance_jacobian(outcome, free), free,
+                    report.flat_directions)
             except np.linalg.LinAlgError:
                 if getattr(outcome, "covariance_error", None) is None:
                     raise

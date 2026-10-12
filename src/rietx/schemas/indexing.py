@@ -103,7 +103,23 @@ from .structure import Cell
 #: is under :data:`PEAK_NO_INTENSITY_SIGMA` of its own esd, not only for one at
 #: its zero bound, so ``usable()`` drops 6 of 798 lines across the 16 IUCr
 #: round-robin lab patterns, all with I/σ_I < 1 (``cpd-4`` 78 → 77).
-INDEXING_THRESHOLDS_VERSION = "1.7"
+#: 1.8 (WP-1923): a monoclinic candidate's ``cell``, ``cell_esd`` and ``af``
+#: are reported in the conventional setting — b unique, a and c the shortest
+#: translations normal to b, β obtuse — where they were the engine's setting
+#: (β = 81.78° for a lattice whose conventional β is 98.22°, issue #779), and
+#: ``CellCandidate.engine_cell``/``.change_of_basis`` record what it was.
+#: Grades, ranks and Le Bail fits are setting-invariant and do not move.  And
+#: ``reduce.reduce_cell`` returns the exact image of its input under its own
+#: change of basis, where a near-zero entry inside ε could take the opposite
+#: sign (issue #797), so a dedup χ² can move by that sign's ε.
+#: 1.9: the Kα2 alias screen allows one sampling step beyond its
+#: ``PEAK_ALIAS_TOL_FWHM_FRAC`` of a FWHM (``indexing.peaks._alias_tolerance``),
+#: so ``pick_peaks(...).usable()`` drops a Kα2 maximum the 1.8 screen kept
+#: wherever a FWHM spans fewer than about 3.3 channels: ``cpd-4`` offers 76
+#: usable lines where 1.8 offered 77, and the corundum list loses one
+#: ``no_intensity`` component (2 → 1).  A Cu Kα rock salt at a 0.02° step went
+#: from 7 of 9 lines indexed to all of them.
+INDEXING_THRESHOLDS_VERSION = "1.9"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
@@ -193,7 +209,10 @@ PEAK_DETECT_SEPARATION_FWHM_FRAC = 0.25
 #: group is fitted independently, with its own full doublet — comes back as a
 #: real line with real intensity.  Measured on a synthetic Cu Kα pattern: one
 #: spurious line per resolved doublet.  Stripping is not the alternative (see
-#: :mod:`rietx.indexing.peakfit`); recognising the alias is.
+#: :mod:`rietx.indexing.peakfit`); recognising the alias is.  The screen adds
+#: one sampling step on top (``indexing.peaks._alias_tolerance``): both positions
+#: it compares are channel maxima, and on an undersampled profile the step, not
+#: the FWHM, bounds their disagreement.
 PEAK_ALIAS_TOL_FWHM_FRAC = 0.3
 #: Observed height ratio, as multiples of the emission line's own ``weight``,
 #: inside which an alias is accepted as such.  Wide on purpose: the ratio equals
@@ -1063,8 +1082,22 @@ class CellCandidate(Base):
     lattice_group: str = ""
     volume: float = 0.0
     volume_esd: float = 0.0
-    #: (A..F), the quadratic-form parameters actually fitted
+    #: (A..F), the quadratic-form parameters actually fitted, carried into
+    #: the setting :attr:`cell` is reported in
     af: tuple[float, float, float, float, float, float] = (0.0,) * 6
+    #: the cell in the setting the engine arrived at, before
+    #: :attr:`change_of_basis` re-set it to the conventional one (WP-1923).
+    #: Written by :func:`~rietx.indexing.engines.to_cell_candidate` on every
+    #: candidate it builds, equal to :attr:`cell` where nothing was re-set;
+    #: ``None`` only on a candidate built some other way.
+    engine_cell: tuple[float, float, float, float, float, float] | None = None
+    #: M, integer and unimodular, with (reported basis rows) = M · (engine
+    #: basis rows): a monoclinic cell is re-set to b unique, a and c the
+    #: shortest translations normal to b, β obtuse
+    #: (:func:`~rietx.indexing.reduce.conventional_setting`).  The identity
+    #: where nothing was re-set; same writer as :attr:`engine_cell`.
+    change_of_basis: tuple[tuple[int, int, int], tuple[int, int, int],
+                           tuple[int, int, int]] | None = None
     n_indexed: int = 0
     n_lines: int = 0
     chi2_red: float = 0.0

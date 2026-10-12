@@ -289,13 +289,31 @@ def _shoulder_seeds(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
         # ΔBIC prune cannot refuse, because against "no peak at all" there
         # genuinely is intensity there.
         if len(alias_positions) and np.min(
-                np.abs(alias_positions - tt[i])) < (PEAK_ALIAS_TOL_FWHM_FRAC
-                                                    * fwhm[i]):
+                np.abs(alias_positions - tt[i])) < _alias_tolerance(fwhm[i],
+                                                                    step):
             alias.append(int(i))
             continue
         out.append(int(i))
     return (np.array(sorted(out), dtype=np.int64),
             np.array(sorted(alias), dtype=np.int64))
+
+
+def _alias_tolerance(fwhm: float, step: float) -> float:
+    """How far a candidate may sit from a predicted Kα2 position and still be it.
+
+    ``PEAK_ALIAS_TOL_FWHM_FRAC`` of a FWHM, **plus one sampling step**.  Both
+    ends of the comparison are channel positions — the candidate is a channel
+    maximum, and the predicted position is Bragg's law applied to the parent's
+    channel maximum — so each is off its true maximum by up to half a step and
+    their difference by up to a whole one, whatever the profile.  A tolerance in
+    FWHM alone is smaller than that wherever a FWHM spans fewer than 1/0.3 ≈ 3.3
+    channels.  Measured (#878): Cu Kα rock salt on the preset's own
+    0.032° FWHM at a 0.02° step, the 400 and 331 aliases sat 0.0116° and 0.0145°
+    from their predicted positions against a 0.0114° tolerance, came back as two
+    lines of their own, and the true cF cell indexed 7 of 9 lines —
+    ``indexed_fraction_low`` on a clean pattern.
+    """
+    return PEAK_ALIAS_TOL_FWHM_FRAC * float(fwhm) + max(float(step), 0.0)
 
 
 def _secondary_line_two_theta(tt_primary: np.ndarray, instrument: Instrument
@@ -339,6 +357,7 @@ def _drop_kalpha2_aliases(tt: np.ndarray, idx: np.ndarray, height: np.ndarray,
     if len(lines) < 2 or not len(idx):
         return idx, np.array([], dtype=np.int64)
     lo_r, hi_r = PEAK_ALIAS_RATIO_RANGE
+    step = float(np.median(np.diff(tt))) if len(tt) > 1 else 0.0
     alias: set[int] = set()
     predicted_all = _secondary_line_two_theta(tt[idx], instrument)
     order = np.argsort(height)[::-1]            # strongest parent first
@@ -355,8 +374,8 @@ def _drop_kalpha2_aliases(tt: np.ndarray, idx: np.ndarray, height: np.ndarray,
                     continue
                 if height[b] >= height[a]:
                     continue
-                if abs(tt[idx[b]] - predicted) > (PEAK_ALIAS_TOL_FWHM_FRAC
-                                                  * fwhm[idx[b]]):
+                if abs(tt[idx[b]] - predicted) > _alias_tolerance(
+                        fwhm[idx[b]], step):
                     continue
                 r = height[b] / max(height[a], 1e-12)
                 if lo_r * w <= r <= hi_r * w:

@@ -2035,6 +2035,42 @@ CLAIMS: tuple[Claim, ...] = (
                  "Rwp identical to 5 decimals, x(O) to 1.2e-6",
     ),
     Claim(
+        "test_acceptance_wavelength",
+        "test_a_width_on_its_floor_leaves_one_esd_at_every_start",
+        "ndruo_joint", ("prediction", "identity"),
+        "issue #831's platform split, reproduced on one machine: with the "
+        "neutron fit's Lorentzian y on 0, x's esd is one number however the "
+        "start is nudged at the size of two platforms' arithmetic",
+        reference="the esd the width column gives when taken in physical "
+                  "units and chained by dp/du, computed by WP-1929 at three "
+                  "softplus stopping points before WP-1938 refined in those "
+                  "units (0.0098437, 1e-4 relative), and the spread across "
+                  "four nudged starts under 1e-6 relative",
+        measured="0.0098437 at nudges 0, +-1e-14, 2e-14 (eight nudges spread "
+                 "4e-8 relative, macOS arm64); y = 0 +- 0.018101, at_bound. "
+                 "The pre-1938 tree gives 0.00322, Linux's figure",
+    ),
+    Claim(
+        "test_acceptance_wavelength",
+        "test_a_width_on_its_floor_has_a_one_sided_profile_interval",
+        "ndruo_joint", ("characterisation",),
+        "the neutron fit's Lorentzian y on its floor of 0 gets a one-sided "
+        "profile interval: the bound is one end, and the other lies where "
+        "the data's chi2 has risen by chi2_1(0.90) x chi2_red x f^2, inside "
+        "the sqrt(2.706) esd a stationary floor would give, because the "
+        "data press y against the floor",
+        reference="the threshold itself for where the end lies (1 % of it), "
+                  "and the stationary-floor end sqrt(2.706) x 0.018101 = "
+                  "0.0298 as a ceiling that LM's active set (the gradient "
+                  "at 0 points out of the range) says the end must sit "
+                  "under; the value is pinned at ten times its own solve "
+                  "tolerance, 1e-3 esd",
+        measured="upper end 0.0166098 (0.558 of 0.0298), Delta chi2 there "
+                 "0.0044 under a cut of 21.343, 19 refits, 3 s; the same to "
+                 "5e-10 relative at six starts nudged by 1e-14 (macOS "
+                 "arm64)",
+    ),
+    Claim(
         "test_acceptance_wavelength", "test_the_fits_render",
         "ndruo_joint", ("ceiling",),
         "the per-histogram obs/calc/diff renderings exist, so the fit can be "

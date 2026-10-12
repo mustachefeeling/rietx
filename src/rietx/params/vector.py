@@ -977,8 +977,9 @@ def tie_window(lo: float, hi: float, coeff: float,
     the independent one, by hand and visibly.  rietx cannot copy that — its
     limits are schema physics that go on existing after a parameter is tied —
     so it derives what TOPAS has the user write, and reports it: a source held
-    at a window it did not declare comes back through ``bound_findings`` as
-    ``BOUND_HIT`` like any other bound the stage imposed.
+    at a window it did not declare comes back through ``bound_findings`` like
+    any other bound the stage imposed, as ``BOUND_HIT``, or as ``FLOOR_HIT``
+    where the window it inherits is a floor of 0 (a ``Biso``'s, WP-1929).
     """
     a, b = lo - offset_hi, hi - offset_lo
     a, b = a / coeff, b / coeff
