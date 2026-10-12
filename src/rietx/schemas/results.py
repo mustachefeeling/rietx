@@ -775,6 +775,43 @@ class PhaseMicrostructure(Base):
         return None
 
 
+class MomentAngleTest(Base):
+    """One round of the stationary-angle test on a stage's covariance (WP-1929).
+
+    A moment's polar angle and azimuth have Jacobian columns that vanish at a
+    direction the symmetry fixes, because the pattern is even in the angle
+    there.  The covariance equilibrates every column to unit norm, so near such
+    a direction a column's direction is set by where the solver stopped, and
+    so were the other esds.  The test moves ``paths`` together,
+    everything else fixed, until every column is below
+    ``MOMENT_DIRECTION_SUPPORT`` of its site's modulus column.  It then refits
+    the other columns by one linear step at the stop and at that point.
+    ``statistic`` is the difference in data χ² over χ²_red·f².  The angles pass
+    when it is at most ``cut``, the 95 % point of the χ̄² mixture for
+    ``len(paths)`` one-sided directions (Self & Liang, 1987; Shapiro, 1985).
+    Their columns then leave the covariance, so each has no esd, and their
+    values stand.
+
+    A set that fails and has more than one angle drops one and is tested
+    again.  The dropped angle contributes most to the second-order change, or
+    has the largest column where the Newton step did not reach the floor.
+    ``reached`` is ``False`` for a set whose Newton step did not reach it, and
+    ``statistic`` is then ``None``.
+
+    ``half_widths`` is filled on a round that passed.  Per angle, it is the
+    distance either side of the stationary direction at which the data χ²,
+    every other parameter held, rises by χ²_red·f².  It is no esd.  It is the
+    step ``Refinement.profile_interval`` starts from for such an angle.
+    """
+
+    paths: list[str]
+    reached: bool
+    statistic: float | None = None
+    cut: float
+    zeroed: bool
+    half_widths: dict[str, float] = Field(default_factory=dict)
+
+
 class StageResult(Base):
     """One stage's outcome.
 
@@ -962,6 +999,15 @@ class StageResult(Base):
     #: column there.  ``None`` means a result stored before the field; all three
     #: runners write a mapping, and an empty one is a stage that lifted nothing.
     seeded: dict[str, float] | None = None
+    #: the stationary-angle test the stage's covariance ran (WP-1929), one
+    #: :class:`MomentAngleTest` per round in the order they ran.  A round with
+    #: ``zeroed`` set names the angles whose columns left the covariance: they
+    #: stayed free, kept their values and carry no esd.  Its writer is the
+    #: solve (``LSQOutcome.moment_angle_tests``), copied here unchanged by all
+    #: three runners.  ``None`` means no test ran: no moment angle was free
+    #: beside its free modulus, the stage computed no covariance, or the result
+    #: was stored before the field.  It feeds ``MOMENT_ANGLE_STATIONARY``.
+    moment_angle_tests: list[MomentAngleTest] | None = None
 
     @model_validator(mode="before")
     @classmethod

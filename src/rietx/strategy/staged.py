@@ -1910,10 +1910,15 @@ def check_guards(table, outcome, threshold: float,
             report.measured_exchangeability = exchangeability_scan(model, table)
         try:
             # no esds, nothing to qualify; and a Pawley solve cuts the matrix
-            # augmented by its intensity block, which ``outcome.jac`` omits
+            # augmented by its intensity block, which ``outcome.jac`` omits.
+            # The matrix is the one the covariance cut: a moment angle the
+            # stationary test left out (WP-1929) is a zero column here too.
             if outcome.correlation is not None and not outcome.n_aux:
+                from ..optimize.least_squares import covariance_jacobian
+
                 report.discarded_directions = check_discarded_directions(
-                    outcome.jac, free, report.flat_directions)
+                    covariance_jacobian(outcome, free), free,
+                    report.flat_directions)
         except np.linalg.LinAlgError:
             # ``soft_modes``' rule above: the stage already said so
             if getattr(outcome, "covariance_error", None) is None:

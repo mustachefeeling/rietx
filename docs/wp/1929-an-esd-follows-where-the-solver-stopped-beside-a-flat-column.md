@@ -292,7 +292,7 @@ continuations of 400 evaluations.
 - [x] `profile_interval(path)`, the one-sided interval for a row on its
       bound (Venzon & Moolgavkar 1988). `strategy/fraction_profile.py` has the
       pinned-refit and Δχ² machinery.
-- [ ] Moment angles at a stationary direction: leave the normal matrix (or
+- [x] Moment angles at a stationary direction: leave the normal matrix (or
       extend `MOMENT_DIRECTION_SUPPORT`'s hold to them, whichever keeps one
       authority), and rewrite that constant's comment. Physical coordinates do
       not touch this half: the azimuth is already identity. Then restore the

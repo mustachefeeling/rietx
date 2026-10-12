@@ -304,6 +304,62 @@ one-sided end lies inside $\sqrt{c}$ esd. On the BT-1 neutron fit in the test
 suite the Lorentzian $Y$ refines to 0 ± 0.0181. Its 95 % end lies at 0.0166,
 0.56 of the $\sqrt{2.71}$ esd a stationary bound would give.
 
+## A moment angle at a direction the symmetry fixes
+
+A moment refines as a modulus and one or two angles. At a direction the site
+symmetry fixes, the pattern is even in each angle, so the angle's Jacobian
+column vanishes there while its curvature does not. The covariance of
+{eq}`est-cov` scales every column to unit norm before the pseudo-inverse. Beside
+such a direction the scaled column points wherever the solver happened to stop,
+and so do the esds of everything correlated with it. On a simulated two-site
+Pnma pattern with both moments along $\mathbf{a}$, the two moduli read 0.031
+and 0.159 μ_B with the angle columns in, and 0.0015 and 0.0011 μ_B with them
+left out.
+
+So after each solve the fit tests its free angles $S$, the $k$ angles whose
+site's modulus is also free. It moves them, with every other parameter fixed,
+until each angle column is at most {{ MOMENT_DIRECTION_SUPPORT }} of its site's
+modulus column. The move is Gauss-Newton on the stacked columns, with first and
+second derivatives by central differences, and it ends at $\theta_N$. With
+$J_o$ the solve's Jacobian at the stop $\hat\theta$ without the columns of $S$,
+the columns stay in the covariance when
+
+```{math}
+:label: est-stationary-angle
+
+\frac{\min_\beta \lVert r(\theta_N) + J_o \beta \rVert^2
+      - \min_\beta \lVert r(\hat\theta) + J_o \beta \rVert^2}
+     {\chi^2_{\mathrm{red}} \cdot S''/S} \;>\; c_k,
+\qquad
+\sum_{j=1}^{k} \binom{k}{j}\, 2^{-k} \bigl(1 - F_j(c_k)\bigr) = 1 - \gamma,
+```
+
+{source}`rietx.optimize.least_squares.stationary_angle_test`
+
+with $r$ the weighted data residual, $F_j$ the $\chi^2_j$ distribution
+function and $\gamma$ = {{ STATIONARY_ANGLE_LEVEL }}. The two minimisations
+refit every other parameter by one linear step at each end. Measured on 96
+simulated fits, that step gave the same verdict as refitting in full. The
+pattern is even in each angle, so the direction is the boundary of the
+parameter space in the squared distance from it. The statistic then follows
+the $\bar\chi^2$ mixture of $k$ one-sided directions {cite}`shapiro1985`, and
+for one angle that is the $\tfrac12\chi^2_0 + \tfrac12\chi^2_1$ of
+{cite}`self1987`, so $c_1$ is the bound quantile of {eq}`est-interval`. At 95 %
+$c_k$ is 2.71, 4.23 and 6.50 for one, two and four angles.
+
+{source}`rietx.optimize.statistics.chi_bar_squared_quantile`
+
+A set within its cut leaves the covariance. Its angles keep their values and
+have no esd, and the fit says so with `MOMENT_ANGLE_STATIONARY`. A set that
+fails drops one angle and is tested again, at most $k$ times. The angle dropped
+is the one with the largest second-order change
+$\tfrac12 \lVert \partial^2 r / \partial \alpha^2 \rVert\, \delta^2$, or the
+one with the largest column where the move did not reach the floor. A moment
+tilted 0.05 rad from $\mathbf{a}$ scores about 2500 with the four angles
+together, so its polar angle keeps its column. The two azimuths beside it pass
+on their own, and leaving them out gives the moduli 0.0015 and 0.0011 μ_B
+again.
+
 ## A scale and a B the range cannot separate
 
 A uniform displacement parameter $B$ multiplies every reflection of a phase by

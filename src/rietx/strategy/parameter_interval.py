@@ -89,7 +89,31 @@ def interval_quantile(level: float, one_sided: bool) -> float:
             f"a one-sided interval at level {level:g} is the bound alone: the "
             "statistic puts half its mass on the bound, so a level of 0.5 or "
             "below needs no refit at all")
+    if one_sided:
+        # the k = 1 member of the χ̄² family the stationary-angle test cuts at
+        # (WP-1929), so the two cannot disagree about Self & Liang's mixture
+        from ..optimize.statistics import chi_bar_squared_quantile
+
+        return chi_bar_squared_quantile(level, 1)
     return float(chi2.ppf(q, 1))
+
+
+def _stationary_half_width(result, path: str) -> float | None:
+    """The step for a moment angle the answer stage's covariance left out.
+
+    Such an angle sits at a direction the symmetry fixes, where its column
+    vanishes, so it has no esd (WP-1929).  The pattern still determines it
+    through curvature, and the passing round of
+    ``StageResult.moment_angle_tests`` records the distance either side at
+    which χ², everything else held, rises by χ²_red·f².  That distance is the
+    profile's first step.  ``None`` where the path was not left out.
+    """
+    stage = result.stages[-1] if result.stages else None
+    for test in (getattr(stage, "moment_angle_tests", None) or []):
+        if test.zeroed and path in test.half_widths:
+            width = float(test.half_widths[path])
+            return width if math.isfinite(width) and width > 0.0 else None
+    return None
 
 
 class _SideStopped(Exception):
@@ -243,7 +267,13 @@ def profile_interval(refinement, data, path: str, *,
         raise ValueError(f"max_refits is a whole number of refits per side, at "
                          f"least 1, not {max_refits!r}")
     row = _refined_row(refinement, result, path)
-    if row.stderr is None or not (math.isfinite(row.stderr) and row.stderr > 0.0):
+    step = row.stderr
+    if step is None or not (math.isfinite(step) and step > 0.0):
+        # a moment angle the stationary test left out of the covariance has
+        # no esd and is still determined, by curvature: its record carries
+        # the scale to step in (WP-1929)
+        step = _stationary_half_width(result, path)
+    if step is None:
         raise ValueError(
             f"{path!r} has no esd from the last fit, so there is no scale to step "
             "the profile in: the residual does not move along it, and a "
@@ -272,7 +302,7 @@ def profile_interval(refinement, data, path: str, *,
             if sign in ends:
                 continue
             ends[sign] = _walk(refinement, data, path, row.value, sign, limit,
-                               row.stderr, cut, chi2_fit, max_refits, points)
+                               step, cut, chi2_fit, max_refits, points)
 
     lowest = min([chi2_fit, *(p.chi2 for p in points if p.chi2 is not None)])
     (lower, lower_stop), (upper, upper_stop) = ends[-1], ends[1]

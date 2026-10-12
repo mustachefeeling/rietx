@@ -37,6 +37,12 @@ from .background.diagnostics import (
     dead_channels,
     sampling_steps_per_fwhm,
 )
+from .crystallography.magnetic.moments import (
+    MOMENT_DIRECTION_SUPPORT,
+)
+from .crystallography.magnetic.moments import (
+    MOMENT_DOF_PATH as _MOMENT_DOF,
+)
 from .crystallography.magnetic.scattering import check_group_is_structure_symmetry
 from .crystallography.symmetry import reflection_label, reflection_label_row
 from .help import help_key_for
@@ -76,6 +82,7 @@ from .optimize.least_squares import (
     covariance_estimates,
     rechart_outcome,
     run_least_squares,
+    stationary_columns,
 )
 from .optimize.qpa import (
     LINEAR_ATTENUATION_BY_SOURCE,
@@ -108,7 +115,10 @@ from .params.vector import (
     is_variable_path,
     retired_spelling,
 )
-from .report.magnetic import magnetic_width_findings
+from .report.magnetic import (
+    magnetic_width_findings,
+    moment_angle_stationary_diagnostics,
+)
 from .report.schemas import (
     MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA,
     THRESHOLDS_VERSION,
@@ -444,10 +454,6 @@ def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
     return [(path, scale * coeff) for path, coeff in seen.items()]
 
 
-#: ``phases.i.atoms.j.moment.dof<k>`` — the moment block's own DOF paths.
-_MOMENT_DOF = re.compile(r"^phases\.\d+\.atoms\.\d+\.moment\.dof\d+$")
-
-
 def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
                              support: np.ndarray | None = None) -> list[str]:
     """The free columns that move nothing but phases the data cannot see.
@@ -717,25 +723,11 @@ def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable,
     return held, held_reach, ridged
 
 
-#: A moment direction whose calculated-pattern response is this far below the
-#: modulus's measures nothing, and is held (WP-1327).
-#:
-#: **Measured, not chosen.**  On the cubic collinear test structure — where the
-#: orbit-averaged intensity is provably independent of the moment direction —
-#: the two angle DOFs respond at ~1e-15 of the modulus's response for the
-#: finite rotation below, which is roundoff.  On Cr₂WO₆ at 4 K under BNS
-#: 58.395, where the in-plane angle *is* determined, the same probe reads
-#: ~1e0.  Fifteen orders of magnitude separate the two, so the floor sits in
-#: the middle of the gap rather than at the edge of either.
-#:
-#: This exists because the package's other "measured nothing" mechanism
-#: (:meth:`ParameterTable.unmeasured_free`, through
-#: ``optimize.statistics.normal_covariance``) fires only on a column with **no
-#: gradient at all** — ``d > 0.0`` — and an analytically flat direction is not
-#: bitwise flat.  Widening that test to a relative one would change the esd of
-#: every fit in the package; holding the moment block's own flat directions
-#: changes nothing outside it.
-MOMENT_DIRECTION_SUPPORT = 1e-6
+# ``MOMENT_DIRECTION_SUPPORT`` is defined in
+# :mod:`rietx.crystallography.magnetic.moments` (imported at the top of this
+# module), because the solver's stationary-angle test reads it as well and
+# ``optimize`` may not import ``refine``.  Its comment there says how the
+# hold below and that test relate.
 
 #: **A finite rotation, and that is the whole point.**  0.1 rad ≈ 5.7°.
 #:
@@ -835,8 +827,8 @@ def _flat_rotation_axis(model: CompiledModel, values: dict[str, float],
 
     **The SVD proposes, the finite rotation decides.**  The smallest right
     singular vector is a candidate only; it is held only when turning the
-    moment about it by :data:`MOMENT_PROBE_ANGLE_RAD`, at every one of those
-    directions, moves the pattern by no more than
+    moment about it by :data:`MOMENT_PROBE_ANGLE_RAD` each way, at every one
+    of those directions, moves the pattern by no more than
     :data:`MOMENT_DIRECTION_SUPPORT` of what the same tip displacement of the
     modulus does — the per-column test's own floor and step, so a direction
     is held by one rule whichever way the frame happens to lie.
@@ -874,10 +866,15 @@ def _flat_rotation_axis(model: CompiledModel, values: dict[str, float],
         scale = float(np.linalg.norm(
             evaluate(s, signed + math.copysign(MOMENT_PROBE_ANGLE_RAD * mu,
                                                signed)) - y))
-        turned = float(np.linalg.norm(
-            evaluate(_rotate(s, axis, MOMENT_PROBE_ANGLE_RAD)) - y))
-        if scale <= 0.0 or turned > MOMENT_DIRECTION_SUPPORT * scale:
+        if scale <= 0.0:
             return None
+        # both senses of the turn, for the per-column probe's reason: a
+        # one-sided turn can land on a mirror image of ``s`` and read flat
+        for sign in (1.0, -1.0):
+            turned = float(np.linalg.norm(
+                evaluate(_rotate(s, axis, sign * MOMENT_PROBE_ANGLE_RAD)) - y))
+            if turned > MOMENT_DIRECTION_SUPPORT * scale:
+                return None
     return axis
 
 
@@ -964,8 +961,14 @@ def _flat_moment_scan(model: CompiledModel, table: ParameterTable,
         # the same tip displacement both ways: a rotation by δφ moves the
         # moment by |μ|·δφ, so the modulus is probed by exactly that much
         scale = response(modulus, MOMENT_PROBE_ANGLE_RAD * max(mu, 1e-6))
-        return scale <= 0.0 or response(path, MOMENT_PROBE_ANGLE_RAD) <= (
-            MOMENT_DIRECTION_SUPPORT * scale)
+        # **Both signs** (WP-1929).  The pattern is even about every direction
+        # the symmetry fixes, so from a start 0.05 rad off one a +0.1 rad turn
+        # lands on the start's mirror image and moves nothing.  That held a
+        # determined angle, and the fit ended at χ² 20614.  A direction is flat
+        # only when neither turn moves the pattern.
+        return scale <= 0.0 or all(
+            response(path, sign * MOMENT_PROBE_ANGLE_RAD)
+            <= MOMENT_DIRECTION_SUPPORT * scale for sign in (1.0, -1.0))
 
     flat = [p for p in paths if column_flat(p)]
     # The combination (#599): a site whose two angles are both live — free,
@@ -1648,6 +1651,10 @@ def _answer_significance(model: CompiledModel, table: ParameterTable,
     held_of = {ip: [c for c in held if ip in _phases_reached([c], reach)]
                for ip in seen}
     free = list(table.free_paths)
+    # the moment angles the solve's covariance left out at a stationary
+    # direction (WP-1929) leave this marginal too, or the significance would
+    # be read off the matrix the reported esds were not
+    stationary = {free[i] for i in stationary_columns(outcome, free)}
     extra = list(dict.fromkeys(c for cs in held_of.values() for c in cs))
     freed = table.set_vary(extra, True) if extra else []
     try:
@@ -1659,8 +1666,9 @@ def _answer_significance(model: CompiledModel, table: ParameterTable,
             jac = np.asarray(outcome.jac, dtype=np.float64)
         column_reach = table.column_reach()
         for ip in seen:
-            columns = _significance_columns(
+            columns = [c for c in _significance_columns(
                 free, [c for c in held_of[ip] if c in freed], column_reach)
+                if c not in stationary]
             try:
                 # never above the screen it is bounded by: a direction the
                 # pinv cut discards reads zero variance, which would inflate z
@@ -3447,6 +3455,12 @@ class Refinement:
         refit, and ``fit_is_minimum`` is ``False`` when one found χ² below the
         fit's.
 
+        A moment angle the fit's covariance left out at a direction the
+        symmetry fixes (``MOMENT_ANGLE_STATIONARY``, WP-1929) has no esd and
+        still has an interval.  It is two-sided, and it steps from the
+        angle's half-width in ``StageResult.moment_angle_tests``: the distance
+        either side at which χ², everything else held, rises by χ²_red·f².
+
         Opt-in and read-only: 6-30 refits a side as measured, all on a branch
         with ``telemetry=False``, so the working
         state and ``result_`` are untouched and the history's HEAD is put back
@@ -4660,6 +4674,7 @@ class Refinement:
                 seeded=hold.seeded,
                 # checked, trivially: one histogram has no elsewhere
                 unreached_histograms={},
+                moment_angle_tests=outcome.moment_angle_tests,
             ))
             if stage_reports:
                 self.stage_reports_.append(self._stage_report(
@@ -4910,7 +4925,8 @@ class Refinement:
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths, unreached_histograms={},
-                seeded=hold.seeded)
+                seeded=hold.seeded,
+                moment_angle_tests=outcome.moment_angle_tests)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
@@ -6804,6 +6820,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         moved={q for d in diagnostics
                if d.code == "MAGNETIC_WIDTH_MOVED_MOMENT"
                for q in d.where if "magnetic_lor" in q})
+
+    # WP-1929: the moment angles the answer stage's covariance left out at a
+    # stationary direction, read off its own record
+    if stage_results:
+        diagnostics = diagnostics + moment_angle_stationary_diagnostics(
+            stage_results[-1])
 
     # Specimen absorption: report what was applied and, crucially, the Biso
     # bias it removed — for a capillary Rwp is provably unchanged by it, so

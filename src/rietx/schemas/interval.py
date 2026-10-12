@@ -101,7 +101,10 @@ class ParameterInterval(Base):
     """The profile interval for one refined parameter.
 
     ``value``, ``stderr`` and ``at_bound`` are the caller's last fit, copied so
-    the interval reads on its own.  ``one_sided`` is ``True`` exactly when
+    the interval reads on its own.  ``stderr`` is ``None`` for a moment angle
+    the fit's covariance left out at a direction the symmetry fixes
+    (``StageResult.moment_angle_tests``, WP-1929), whose profile steps from
+    the half-width that record carries instead.  ``one_sided`` is ``True`` exactly when
     ``at_bound`` is: the bound is one end, and the other is where the data's
     χ² has risen by ``delta_chi2_cut``.  That threshold is ``quantile`` × χ²_red
     × f², f the fit's ``esd_inflation``, with ``quantile`` the χ²₁ point at
@@ -123,7 +126,7 @@ class ParameterInterval(Base):
 
     path: str
     value: float
-    stderr: float
+    stderr: float | None
     at_bound: bool | None
     level: float
     one_sided: bool

@@ -222,6 +222,50 @@ def moment_pair_diagnostics(rows: list[MomentEvidence]) -> list[Diagnostic]:
     return out
 
 
+def moment_angle_stationary_diagnostics(stage) -> list[Diagnostic]:
+    """``MOMENT_ANGLE_STATIONARY`` (info): the moment angles a stage's
+    covariance left out at a direction the symmetry fixes (WP-1929).
+
+    Built from ``stage.moment_angle_tests``, the solve's own record, and never
+    re-derived: the test needs the residual closure and the solve's stop, and
+    the record is what survives the fit.  ``stage`` is the answer-producing
+    stage, whose covariance every reported esd is read off.  Silent where no
+    round passed, including where no test ran.  ``value`` is the passing
+    round's statistic, and ``where`` its angles.
+    """
+    tests = getattr(stage, "moment_angle_tests", None) or []
+    passed = next((t for t in tests if t.zeroed), None)
+    if passed is None:
+        return []
+    k = len(passed.paths)
+    kept = [p for p in dict.fromkeys(q for t in tests for q in t.paths)
+            if p not in passed.paths]
+    message = (
+        f"{', '.join(passed.paths)} {'sits' if k == 1 else 'sit'} at a "
+        f"direction the site symmetry fixes, where the pattern is even in the "
+        f"angle and its column vanishes. Moving {'it' if k == 1 else 'them'} "
+        f"onto that direction, the other parameters refitted, changes the data "
+        f"chi2 by {passed.statistic:.3g} x chi2_red x f^2, within the cut of "
+        f"{passed.cut:.3g} for {k} one-sided "
+        f"{'direction' if k == 1 else 'directions'} at 95 %. "
+        f"{'Its column' if k == 1 else 'Their columns'} left the covariance, "
+        f"so {'it carries' if k == 1 else 'they carry'} no esd and the other "
+        f"esds no longer depend on where the solver stopped beside "
+        f"{'it' if k == 1 else 'them'}. The values are kept")
+    if kept:
+        message += (f". Tested and kept with an esd, as determined: "
+                    f"{', '.join(kept)}")
+    return [Diagnostic(
+        level="info", code="MOMENT_ANGLE_STATIONARY", where=list(passed.paths),
+        value=passed.statistic, message=message,
+        suggestion=("quote the moment direction as along the symmetry "
+                    "direction, not as an angle with an esd. For an interval "
+                    "on one of these angles, call "
+                    "Refinement.profile_interval(data, path); it steps from "
+                    "the angle's half-width in "
+                    "StageResult.moment_angle_tests"))]
+
+
 def _row(model, values, ip, j, cp, msites, phase_name, cell, held_set,
          structure, esd, flat_axes, turned) -> MomentEvidence:
     from ..crystallography.magnetic.moments import (

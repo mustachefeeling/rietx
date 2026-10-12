@@ -36,9 +36,13 @@ from scipy.optimize import least_squares
 
 from ..backend import get_backend
 from ..backend.api import TORCH_DEVICES
-from ..backend.linalg64 import get_precision_policy, require_fp64
+from ..backend.linalg64 import get_precision_policy, require_fp64, to_host_fp64
 from ..crystallography.adp import U_NAMES
 from ..crystallography.lattice import DegenerateCellError
+from ..crystallography.magnetic.moments import (
+    MOMENT_DIRECTION_SUPPORT,
+    MOMENT_DOF_PATH,
+)
 from ..crystallography.stephens import S_NAMES
 from ..model import rows as row_layout
 from ..model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, DerivativeBases
@@ -51,6 +55,7 @@ from ..params.vector import (
     size_cap,
     strain_cap,
 )
+from ..schemas.results import MomentAngleTest
 from .cancel import RefinementCancelled
 
 if TYPE_CHECKING:
@@ -295,6 +300,35 @@ class LSQOutcome:
     #: points reach ``covariance_estimates`` through; ``refine`` turns it into
     #: ``COVARIANCE_UNAVAILABLE`` naming the stage.
     covariance_error: str | None = None
+    #: the stationary-angle test's rounds (WP-1929,
+    #: :func:`stationary_angle_test`), the record ``StageResult`` copies.  A
+    #: round with ``zeroed`` set names the angles whose columns this outcome's
+    #: :attr:`stderr_internal` and :attr:`correlation` were computed without;
+    #: :attr:`jac` keeps them.  ``None`` where no test ran: no free moment angle
+    #: beside its free modulus, or no covariance computed.
+    moment_angle_tests: list[MomentAngleTest] | None = None
+
+
+def stationary_columns(outcome: LSQOutcome, free_paths: list[str]) -> list[int]:
+    """The columns of ``outcome`` its covariance was computed without.
+
+    Read off the record (:attr:`LSQOutcome.moment_angle_tests`) and indexed in
+    ``free_paths``, the order ``outcome.jac`` is in.  A reader of the Jacobian
+    that has to describe the same matrix the covariance inverted, such as the
+    discarded-direction guard or a phase's significance, zeroes these.
+    """
+    tests = getattr(outcome, "moment_angle_tests", None) or []
+    zeroed = [p for t in tests if t.zeroed for p in t.paths]
+    index = {p: i for i, p in enumerate(free_paths)}
+    return [index[p] for p in zeroed if p in index]
+
+
+def covariance_jacobian(outcome: LSQOutcome, free_paths: list[str]):
+    """``outcome.jac`` as its covariance saw it: :func:`stationary_columns`
+    zeroed.  ``None`` where the outcome has no Jacobian."""
+    if outcome.jac is None:
+        return None
+    return _without_columns(outcome.jac, stationary_columns(outcome, free_paths))
 
 
 def rechart_outcome(outcome: LSQOutcome, theta: np.ndarray,
@@ -446,6 +480,308 @@ def _residual_cosine(jac, fun) -> np.ndarray | None:
     # a column of 1e-170 squares to zero and would read as "not held" (WP-1463)
     denom = column_norms(j) * np.linalg.norm(f)
     return np.divide(j.T @ f, denom, out=np.zeros(j.shape[1]), where=denom > 0)
+
+
+#: The confidence level of the stationary-angle test (WP-1929).  A set of
+#: moment angles sits at a direction the symmetry fixes when Δχ² to that
+#: direction, the other columns refitted, is within this point of the χ̄²
+#: mixture for that many one-sided directions
+#: (:func:`~.statistics.chi_bar_squared_quantile`).  The pattern is even in
+#: each angle there, so "on the direction" is the boundary δ² = 0 of the
+#: parameter space.  For one angle the statistic is Self & Liang's
+#: ½χ²₀ + ½χ²₁ (Self, S. G. & Liang, K.-Y., 1987, *J. Am. Statist. Assoc.*
+#: **82**, 605), and for several it is the χ̄² family (Shapiro, A., 1985,
+#: *Biometrika* **72**, 133).  The value is
+#: ``schemas.interval.PARAMETER_INTERVAL_LEVEL``'s, the level a profile
+#: interval on a bound is cut at.
+STATIONARY_ANGLE_LEVEL = 0.95
+
+#: Central-difference step, in radians, for the test's angle columns and their
+#: second derivatives.  ``refine._flat_rotation_axis`` takes the same step on
+#: the same quantity, an angle of order one.
+STATIONARY_ANGLE_STEP = 1e-4
+
+#: Joint Gauss-Newton iterations the test spends on one round at most.  It
+#: also stops at the first iteration that does not reduce the largest column.
+#: On the two-site Pnma set (macOS arm64) the step reaches the floor in two or
+#: three iterations from every stop, and stops improving after one beside a
+#: determined angle.
+STATIONARY_ANGLE_MAX_ITER = 8
+
+
+@dataclass
+class _StationaryPoint:
+    """Where :func:`_joint_newton` drove a set of angles, and what it read."""
+
+    theta: np.ndarray            # the best iterate, the whole of x
+    ratios: np.ndarray           # each angle column over its modulus column
+    reached: bool                # every ratio at or under the floor
+    resid: np.ndarray            # the data residual at ``theta``
+    curvature_stop: np.ndarray | None   # ∂²r/∂α_a∂α_b at the stop, (n, k, k)
+    curvature_diag: np.ndarray   # ∂²r/∂α_a² at ``theta``, (n, k)
+
+
+def _moment_angle_columns(free_paths: list[str]) -> list[tuple[int, int]]:
+    """``(angle column, modulus column)`` for every free moment angle.
+
+    An angle whose site's modulus is not a free column has no reference for
+    the floor.  It is no candidate, and keeps its column.  A joint fit scopes a
+    per-histogram path as ``hist.h.…``, so the pattern is matched on the bare
+    path and the modulus is looked up scoped first, then bare.
+    """
+    from ..params.multi import _unscoped
+
+    index = {p: i for i, p in enumerate(free_paths)}
+    out = []
+    for i, p in enumerate(free_paths):
+        bare = _unscoped(p)
+        if not MOMENT_DOF_PATH.match(bare) or bare.endswith(".dof0"):
+            continue
+        modulus = p.rsplit(".dof", 1)[0] + ".dof0"
+        j = index.get(modulus)
+        if j is None:
+            j = index.get(_unscoped(modulus))
+        if j is not None:
+            out.append((i, j))
+    return out
+
+
+def _joint_newton(resid, x: np.ndarray, r_stop: np.ndarray, idx: list[int],
+                  modulus_norms: np.ndarray) -> _StationaryPoint:
+    """Move the angles ``idx`` together until their columns vanish.
+
+    Gauss-Newton on the stacked columns C(α) = ∂r/∂α, every other entry of
+    ``x`` fixed: δα = −lstsq(∂C/∂α, C), central differences at
+    :data:`STATIONARY_ANGLE_STEP` for C and for ∂C/∂α = ∂²r/∂α∂α.  Iterated,
+    because one step leaves an error of order δ³, and joint, because two
+    sites' angle columns are coupled (WP-1929's deferred measurement).  The
+    best iterate is kept, by its largest column over its modulus column.  Costs
+    2k² + 1 residual evaluations an iteration for k angles, the k columns
+    reusing the diagonal second differences' points.
+    """
+    from .statistics import column_norms
+
+    h = STATIONARY_ANGLE_STEP
+    k = len(idx)
+
+    def columns(th: np.ndarray):
+        plus, minus = [], []
+        for i in idx:
+            tp, tm = th.copy(), th.copy()
+            tp[i] += h
+            tm[i] -= h
+            plus.append(resid(tp))
+            minus.append(resid(tm))
+        c = np.column_stack([(p - m) / (2.0 * h)
+                             for p, m in zip(plus, minus, strict=True)])
+        return c, plus, minus
+
+    def ratios_of(c: np.ndarray) -> np.ndarray:
+        return column_norms(c) / modulus_norms
+
+    th, r0 = x.copy(), r_stop
+    c, plus, minus = columns(th)
+    ratios = ratios_of(c)
+    curvature_stop = None
+    for _ in range(STATIONARY_ANGLE_MAX_ITER):
+        if not np.all(np.isfinite(ratios)) or ratios.max() <= MOMENT_DIRECTION_SUPPORT:
+            break
+        m = np.empty((len(r0), k, k))
+        for a in range(k):
+            m[:, a, a] = (plus[a] - 2.0 * r0 + minus[a]) / h ** 2
+            for b in range(a + 1, k):
+                corner = {}
+                for sa in (1.0, -1.0):
+                    for sb in (1.0, -1.0):
+                        t = th.copy()
+                        t[idx[a]] += sa * h
+                        t[idx[b]] += sb * h
+                        corner[sa, sb] = resid(t)
+                m[:, a, b] = m[:, b, a] = (
+                    corner[1.0, 1.0] - corner[1.0, -1.0]
+                    - corner[-1.0, 1.0] + corner[-1.0, -1.0]) / (4.0 * h ** 2)
+        if curvature_stop is None:
+            curvature_stop = m
+        # block a of the stacked system is column a's rows: C[:, a] against
+        # M[:, a, :], so C.T flattened and M with its first two axes swapped
+        step = -np.linalg.lstsq(m.transpose(1, 0, 2).reshape(k * len(r0), k),
+                                c.T.reshape(-1), rcond=None)[0]
+        trial = th.copy()
+        trial[idx] += step
+        c_new, plus_new, minus_new = columns(trial)
+        ratios_new = ratios_of(c_new)
+        if not np.all(np.isfinite(ratios_new)) or ratios_new.max() >= ratios.max():
+            break
+        th, c, plus, minus, ratios = trial, c_new, plus_new, minus_new, ratios_new
+        r0 = resid(th)
+    diag = np.column_stack([(plus[a] - 2.0 * r0 + minus[a]) / h ** 2
+                            for a in range(k)])
+    return _StationaryPoint(
+        theta=th, ratios=ratios,
+        reached=bool(np.all(np.isfinite(ratios))
+                     and ratios.max() <= MOMENT_DIRECTION_SUPPORT),
+        resid=r0, curvature_stop=curvature_stop, curvature_diag=diag)
+
+
+def _refitted_increase(jac_data: np.ndarray, angles: list[int],
+                       r_stop: np.ndarray, r_point: np.ndarray) -> float:
+    """Δχ² from the stop to ``r_point``, the other columns refitted linearly.
+
+    min_β ‖r_point + J_o β‖² − min_β ‖r_stop + J_o β‖², J_o the stop's data
+    Jacobian without ``angles``.  One linear step stands in for re-solving
+    everything else with the angles pinned: on 96 fits it gave the full
+    refit's verdict every time, its statistic at most 1.5 away (WP-1929,
+    scratchpad ``case_e_linear.py``).  The columns are scaled to unit norm
+    first, and one least-squares solve serves both right-hand sides, so a
+    direction the cut drops is dropped from both.
+    """
+    from .statistics import column_norms
+
+    others = np.setdiff1d(np.arange(jac_data.shape[1]), angles)
+    rhs = np.column_stack([r_stop, r_point])
+    j_o = jac_data[:, others]
+    d = column_norms(j_o) if j_o.shape[1] else np.zeros(0)
+    live = np.isfinite(d) & (d > 0.0)
+    if live.any():
+        j_o = j_o[:, live] / d[live]
+        rhs = rhs - j_o @ np.linalg.lstsq(j_o, rhs, rcond=None)[0]
+    return float(rhs[:, 1] @ rhs[:, 1] - rhs[:, 0] @ rhs[:, 0])
+
+
+def _half_widths(curvature_diag: np.ndarray, resid: np.ndarray,
+                 scale: float) -> list[float | None]:
+    """Each angle's distance either side of the stationary point at which the
+    data χ², everything else held, rises by ``scale`` (χ²_red·f²).
+
+    With the column zero there, r(δ) ≈ r* + ½·r″δ², so the rise is
+    (r*·r″)δ² + ¼‖r″‖²δ⁴, and δ² is the positive root of that quadratic in δ²,
+    in whichever of its two forms does not cancel.  ``None`` where the angle
+    has no curvature either.
+    """
+    out: list[float | None] = []
+    for a in range(curvature_diag.shape[1]):
+        m = curvature_diag[:, a]
+        qa = 0.25 * float(m @ m)
+        qb = float(resid @ m)
+        if not (np.isfinite(qa) and np.isfinite(qb)) or qa <= 0.0:
+            out.append(None)
+            continue
+        disc = math.sqrt(qb * qb + 4.0 * qa * scale)
+        d2 = 2.0 * scale / (qb + disc) if qb >= 0.0 else (disc - qb) / (2.0 * qa)
+        out.append(math.sqrt(d2) if d2 > 0.0 and np.isfinite(d2) else None)
+    return out
+
+
+def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
+                          free_paths: list[str], n_free: int
+                          ) -> tuple[list[MomentAngleTest] | None, list[int]]:
+    """Which free moment angles sit at a direction the symmetry fixes (WP-1929).
+
+    The pattern is even in a moment's polar angle and azimuth about every
+    direction the site symmetry fixes, so their columns vanish there while the
+    angle is still determined by curvature.  The covariance equilibrates every
+    column to unit norm (``statistics.normal_factors``), so beside such a
+    direction where the solver stopped decided the other esds: the two-site
+    Pnma set's moduli read 0.031 and 0.159 μ_B in full, against 0.00151 and
+    0.00111 (ρ −0.24) with the angle columns left out.
+
+    Every free angle beside a free modulus is a candidate
+    (:func:`_moment_angle_columns`).  A round drives the set to where its
+    columns vanish (:func:`_joint_newton`), reads Δχ² there with the other
+    columns refitted (:func:`_refitted_increase`) over χ²_red·f², and passes
+    the set when that is within the χ̄² cut for its size at
+    :data:`STATIONARY_ANGLE_LEVEL`.  The set has reached the direction when
+    every column is at most ``MOMENT_DIRECTION_SUPPORT`` of its site's modulus
+    column.  A failing set of several drops one angle and is tested again, at
+    most once per angle: the one with the largest ½‖∂²r/∂α²‖·δ², or the
+    largest column where the Newton step did not reach the floor.  A moment
+    tilted 0.05 rad fails jointly beside two azimuths that pass alone, and this
+    is how they are separated.
+
+    ``resid`` is the solve's residual; only its first ``n_data`` rows are read.
+    ``jac`` is the solve's own Jacobian at ``x``, and ``n_free`` is P in
+    χ²_red = χ²/(N − P), as :func:`covariance_estimates` counts it.  Returns
+    the record, ``None`` where no angle was a candidate or χ²_red·f² is not
+    positive, and the columns of ``x`` the covariance leaves out.
+    """
+    from .statistics import (
+        berar_lelann_factor,
+        chi_bar_squared_quantile,
+        column_norms,
+    )
+
+    pairs = _moment_angle_columns(free_paths)
+    if not pairs:
+        return None, []
+    x = np.asarray(x, dtype=np.float64)
+    jac_data = to_host_fp64(jac)[:n_data]
+
+    def r(th: np.ndarray) -> np.ndarray:
+        return np.asarray(resid(th), dtype=np.float64)[:n_data]
+
+    r_stop = r(x)
+    chi2_red = float(r_stop @ r_stop) / max(n_data - n_free, 1)
+    f = berar_lelann_factor(r_stop)
+    scale = chi2_red * f * f
+    if not (np.isfinite(scale) and scale > 0.0):
+        return None, []
+    modulus = column_norms(jac_data[:, [j for _, j in pairs]])
+    reference = {i: float(m) for (i, _), m in zip(pairs, modulus, strict=True)
+                 if np.isfinite(m) and m > 0.0}
+    tested = [i for i, _ in pairs if i in reference]
+    if not tested:
+        return None, []
+
+    rounds: list[MomentAngleTest] = []
+    while tested:
+        k = len(tested)
+        paths = [free_paths[i] for i in tested]
+        cut = chi_bar_squared_quantile(STATIONARY_ANGLE_LEVEL, k)
+        point = _joint_newton(r, x, r_stop, tested,
+                              np.array([reference[i] for i in tested]))
+        statistic = None
+        if point.reached:
+            statistic = _refitted_increase(jac_data, tested, r_stop,
+                                           point.resid) / scale
+            if not np.isfinite(statistic):
+                statistic = None
+        if statistic is not None and statistic <= cut:
+            half = _half_widths(point.curvature_diag, point.resid, scale)
+            rounds.append(MomentAngleTest(
+                paths=paths, reached=True, statistic=statistic, cut=cut,
+                zeroed=True, half_widths={p: w for p, w in zip(
+                    paths, half, strict=True) if w is not None}))
+            return rounds, list(tested)
+        rounds.append(MomentAngleTest(paths=paths, reached=statistic is not None,
+                                      statistic=statistic, cut=cut, zeroed=False))
+        if k == 1:
+            break
+        if statistic is None or point.curvature_stop is None:
+            drop = int(np.argmax(np.where(np.isfinite(point.ratios),
+                                          point.ratios, np.inf)))
+        else:
+            delta = point.theta[tested] - x[tested]
+            drop = int(np.argmax([
+                0.5 * float(np.linalg.norm(point.curvature_stop[:, a, a]))
+                * delta[a] ** 2 for a in range(k)]))
+        tested = tested[:drop] + tested[drop + 1:]
+    return rounds, []
+
+
+def _without_columns(jac, columns: list[int]):
+    """``jac`` with ``columns`` zeroed, for the covariance alone.
+
+    A zero column is the covariance's own "measured nothing": infinite
+    variance, no correlation with anything, and an absent esd downstream
+    (``ParameterTable.unmeasured_rows``).  The solve's Jacobian itself is
+    untouched, because the residual cosine, the active set and every guard
+    reading ``LSQOutcome.jac`` describe the fit as solved.
+    """
+    if not columns:
+        return jac
+    out = np.array(to_host_fp64(jac), dtype=np.float64, copy=True)
+    out[:, columns] = 0.0
+    return out
 
 
 def _feasible_start(x0: np.ndarray, lo: np.ndarray, hi: np.ndarray,
@@ -1774,6 +2110,11 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                     stage=stage)
             return inner_c(theta)
 
+    # the closure the stationary-angle test probes after the solve: below the
+    # TRF event wrapper, so a probe neither emits an ``eval`` nor moves the
+    # step tracker ``max_shift_over_esd`` is read from, and above the cancel
+    # check, so a stop requested during the test is honoured like any other
+    probe = residual
     tracker = _StepTracker()
     if solver == "trf":
         # One wrapper, two jobs in a fixed order per call: emit the eval event
@@ -1852,9 +2193,15 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # the intensity tail lands on the model's Pawley block.
     stderr = corr = stderr_full = None
     covariance_error = None
+    moment_angle_tests = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
+        # a moment angle at a direction the symmetry fixes leaves the
+        # covariance, and only the covariance (WP-1929)
+        moment_angle_tests, stationary = stationary_angle_test(
+            probe, res.x, res.jac, len(model.tt), table.free_paths, len(res.x))
         stderr_full, corr_full, covariance_error = _guarded_covariance(
-            res.jac, res.fun, len(res.x), n_data=len(model.tt))
+            _without_columns(res.jac, stationary), res.fun, len(res.x),
+            n_data=len(model.tt))
     if stderr_full is not None:
         stderr, corr = stderr_full[:n_table], corr_full[:n_table, :n_table]
         if model.pawley is not None:
@@ -1879,7 +2226,8 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           table, tracker.step(), stderr_full, corr, n_table),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
-                      covariance_error=covariance_error)
+                      covariance_error=covariance_error,
+                      moment_angle_tests=moment_angle_tests)
 
 
 def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
@@ -2028,10 +2376,17 @@ def run_multi_least_squares(models: list[CompiledModel],
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
 
-    stderr = corr = covariance_error = None
+    stderr = corr = covariance_error = moment_angle_tests = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
+        # the single-histogram rule (WP-1929) on the stacked residual: a
+        # moment angle's column is every histogram's rows of it, and a shared
+        # angle is stationary only where the joint χ² says so
+        moment_angle_tests, stationary = stationary_angle_test(
+            residual, res.x, res.jac, n_data_total, mtable.free_paths,
+            len(res.x))
         stderr, corr, covariance_error = _guarded_covariance(
-            res.jac, res.fun, len(res.x), n_data=n_data_total)
+            _without_columns(res.jac, stationary), res.fun, len(res.x),
+            n_data=n_data_total)
     jac_data = np.asarray(res.jac)[:n_data_total] if res.jac is not None else None
     # ``jac_data`` drops the penalty and restraint *rows*; the angle keeps
     # them, being read off the cost the driver actually minimised
@@ -2041,7 +2396,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                       active_bounds=_active_bounds(res, len(res.x)),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
-                      covariance_error=covariance_error)
+                      covariance_error=covariance_error,
+                      moment_angle_tests=moment_angle_tests)
 
 
 def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,

@@ -395,6 +395,52 @@ def berar_lelann_factor(delta: np.ndarray) -> float:
     return max(float(np.sqrt((quad + lin @ lin) / chi2)), 1.0)
 
 
+def chi_bar_squared_quantile(level: float, k: int) -> float:
+    """The ``level`` point of the χ̄² mixture of ``k`` one-sided directions.
+
+    A likelihood-ratio statistic for k parameters that each sit on the boundary
+    of their range under the null follows Σⱼ C(k, j)/2ᵏ · χ²ⱼ, with χ²₀ the
+    point mass at 0 (Self, S. G. & Liang, K.-Y., 1987, *J. Am. Statist. Assoc.*
+    **82**, 605; the χ̄² family: Shapiro, A., 1985, *Biometrika* **72**, 133).
+    The weights are binomial because the k directions are taken as
+    independent.  Each half of a direction's sampling distribution lands on the
+    boundary with probability ½.  Returns the c with P(T > c) = 1 − ``level``:
+    2.706, 4.231 and 6.497 at 95 % for k = 1, 2 and 4.
+
+    k = 1 is ½χ²₀ + ½χ²₁, whose point is χ²₁'s at 2·``level`` − 1, in closed
+    form.  :func:`rietx.strategy.parameter_interval.interval_quantile` returns
+    it for a row on its bound by calling this.  k > 1 is solved by Brent's
+    method on the tail.  The tail is at most P(χ²ₖ > c) · (1 − 2⁻ᵏ), so χ²ₖ's
+    own point brackets the root from above.
+    """
+    from math import comb
+
+    from scipy.optimize import brentq
+    from scipy.stats import chi2
+
+    if isinstance(k, bool) or int(k) != k or k < 1:
+        raise ValueError(f"the mixture needs at least one direction, not k={k!r}")
+    k = int(k)
+    if not 0.0 < level < 1.0:
+        raise ValueError(f"a confidence level lies strictly between 0 and 1, "
+                         f"not {level!r}")
+    alpha = 1.0 - level
+    # the point mass at 0 carries 2⁻ᵏ, so a level at or below it needs no cut
+    if alpha >= 1.0 - 0.5 ** k:
+        raise ValueError(
+            f"at level {level:g} the mixture of {k} one-sided directions puts "
+            f"its {0.5 ** k:g} point mass at 0 above the level, so no positive "
+            "cut exists")
+    if k == 1:
+        return float(chi2.ppf(2.0 * level - 1.0, 1))
+    weights = [comb(k, j) / 2.0 ** k for j in range(k + 1)]
+
+    def excess(c: float) -> float:
+        return sum(w * chi2.sf(c, j) for j, w in enumerate(weights) if j) - alpha
+
+    return float(brentq(excess, 1e-12, float(chi2.isf(alpha, k)), xtol=1e-12))
+
+
 def _chi2_absolute(stats) -> float:
     """The weighted residual sum of squares ``report.layer2.delta_bic`` wants.
 
