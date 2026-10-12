@@ -280,8 +280,12 @@ fit up to 128 columns, which the basin task should keep in mind.
       directions. Not a Cauchy fallback: it ends the wrong-side steps and
       still crawls. Not BCCG's own loose stop on the new loop: FAP's
       `profile` stage then takes 341 evaluations.
-- [ ] Implement it, with a test on a system where BCCG's step promises no
-      descent.
+- [x] Implement it, with a test on a system where BCCG's step promises no
+      descent. `bccg.projected_cg`, taken by `lm._solve_step` above the cut.
+      `test_bccg.py::test_a_clamp_past_a_bound_raises_the_model_…` is a
+      two-variable system where Coelho's BCCG ends at model value +44 070 and
+      the projected CG on the exact minimiser; six random bounded problems
+      pin it to BVLS's answer at 1e-9.
 - [ ] The vanishing-column crawl: measure the three remedies on e8's verify
       stage, the two-site Pnma set and `_LM_FALSE_CONVERGENCE`; decide; land
       it with the parked branch; re-measure the goldens and the acceptance

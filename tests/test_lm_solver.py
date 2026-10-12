@@ -297,11 +297,11 @@ def _collinear_pair():
     return (lambda t: X @ t - y), (lambda t: X), X, y
 
 
-def _truncated_step(A, b, lam, x, lo, hi, inequalities, *, n_rows):
+def _truncated_step(A, b, lam, x, lo, hi, inequalities, *, n_rows, scale=None):
     """The rule before WP-1938 D8, kept here as the counterfactual: the
     box-only step, projected off rows already on their face and shortened to
     99.5 % of the way to the first row it reaches."""
-    step, _ = lm._solve_step(A, b, lam, x, lo, hi, n_rows=n_rows)
+    step, _ = lm._solve_step(A, b, lam, x, lo, hi, n_rows=n_rows, scale=scale)
     for iq in inequalities:
         g0 = iq.slack(x)
         rows = iq.T[g0 <= 1e-9 * max(float(np.max(np.abs(g0))), 1.0)]
@@ -377,8 +377,8 @@ def test_a_step_that_crosses_no_row_is_the_box_step_bit_for_bit(monkeypatch):
     for blocks in ([], [far]):
         steps, trials = [], []
 
-        def spy(A, b, lam, x, lo_, hi_, *, n_rows):
-            step, side = real(A, b, lam, x, lo_, hi_, n_rows=n_rows)
+        def spy(A, b, lam, x, lo_, hi_, *, n_rows, scale=None):
+            step, side = real(A, b, lam, x, lo_, hi_, n_rows=n_rows, scale=scale)
             landed = np.where(side < 0, lo_, np.where(side > 0, hi_,
                                                       np.clip(x + step, lo_, hi_)))
             steps.append(landed)
@@ -622,9 +622,12 @@ def test_widths_pressed_on_zero_together_reach_the_bound_exactly():
     assert out.active_mask.tolist() == [-1 if p else 0 for p in pinned] + [0]
 
 
-def test_a_block_above_the_bvls_cut_takes_the_bccg_step(monkeypatch):
-    """A Pawley-sized system is solved by BCCG, inside the same box; BVLS's
-    cost grows as n³ per active-set change (``BVLS_MAX_COLUMNS``)."""
+def test_a_block_above_the_bvls_cut_takes_the_projected_cg_step(monkeypatch):
+    """A Pawley-sized system is solved by projected CG inside the same box
+    (WP-1953); BVLS's cost grows as n³ per active-set change
+    (``BVLS_MAX_COLUMNS``).  On a well-conditioned system the two agree, and
+    the variables the CG puts on a bound are reported, so the driver lands
+    them exactly as it does BVLS's."""
     from rietx.optimize import bccg
 
     n = lm.BVLS_MAX_COLUMNS + 1
@@ -633,15 +636,59 @@ def test_a_block_above_the_bvls_cut_takes_the_bccg_step(monkeypatch):
     A, b = J.T @ J, J.T @ rng.standard_normal(3 * n)
     lo, hi = np.zeros(n), np.full(n, np.inf)
     calls = []
-    real = bccg.solve
-    monkeypatch.setattr(bccg, "solve", lambda *a, **k: calls.append(1) or real(*a, **k))
+    real = bccg.projected_cg
+    monkeypatch.setattr(bccg, "projected_cg",
+                        lambda *a, **k: calls.append(1) or real(*a, **k))
     step, side = lm._solve_step(A, b, 0.0, np.zeros(n), lo, hi, n_rows=3 * n)
-    assert calls and not side.any()
+    assert calls and side.any() and np.all(step[side < 0] == 0.0)
     assert np.all(step >= 0.0)
+    monkeypatch.setattr(lm, "BVLS_MAX_COLUMNS", n)
     calls.clear()
-    small, _ = lm._solve_step(A[:-1, :-1], b[:-1], 0.0, np.zeros(n - 1),
-                              lo[:-1], hi[:-1], n_rows=3 * n)
-    assert not calls and np.all(small >= 0.0)
+    exact, exact_side = lm._solve_step(A, b, 0.0, np.zeros(n), lo, hi, n_rows=3 * n)
+    assert not calls
+    np.testing.assert_allclose(step, exact, atol=1e-9 * float(np.max(np.abs(exact))))
+    assert np.array_equal(side, exact_side)
+
+
+def _vanishing_column():
+    """φ enters only as φ²·bump against data carrying the opposite bump, so
+    φ = 0 is the minimum, its column 2φ·bump vanishes there, and χ² keeps a
+    curvature Gauss-Newton cannot see: a moment angle at a direction the
+    symmetry fixes, or FCJ's H/L beside zero on ``test_e8``."""
+    t = np.linspace(0.0, 3.0, 60)
+    bump = np.exp(-0.5 * ((t - 1.5) / 0.2) ** 2)
+    y = 2.0 * np.exp(-0.7 * t) + 0.4 * bump
+
+    def residual(th):
+        return y - th[0] * np.exp(-th[1] * t) + 0.5 * th[2] ** 2 * bump
+
+    def jacobian(th):
+        e = np.exp(-th[1] * t)
+        return np.stack([-e, th[0] * t * e, th[2] * bump], axis=1)
+
+    return residual, jacobian
+
+
+def test_a_column_that_vanishes_at_its_minimum_keeps_its_scale(monkeypatch):
+    """WP-1953: each column is scaled by the largest norm it has had this
+    stage (Moré 1978).  Re-scaled to unit norm at every iteration instead,
+    φ's shrinking column took the largest step, λ climbed to 1.7e10 to hold
+    it, and three tiny decreases ended the run on ``ftol_runs`` at χ² 1.891
+    with a and k far from their answer.  Held, it converges to the minimum
+    with φ at 0, χ² 0.744854 (scipy's TRF on a and k alone agrees)."""
+    residual, jacobian = _vanishing_column()
+    x0 = np.array([1.0, 0.2, 0.8])
+    free = np.full(3, -np.inf), np.full(3, np.inf)
+    held = lm.minimize(residual, jacobian, x0, lo=free[0], hi=free[1])
+    assert held.termination == "ftol_runs" and held.lambda_final < 1.0
+    assert 2.0 * held.cost == pytest.approx(0.7448542326231441, rel=1e-8)
+    assert abs(held.x[2]) < 1e-4
+
+    real = lm._solve_step
+    monkeypatch.setattr(lm, "_solve_step", lambda *a, scale=None, **k: real(*a, **k))
+    fresh = lm.minimize(residual, jacobian, x0, lo=free[0], hi=free[1])
+    assert fresh.termination == "ftol_runs" and fresh.lambda_final > 1e8
+    assert 2.0 * fresh.cost > 2.0 * held.cost * 2.0
 
 
 def test_a_budget_under_one_evaluation_is_refused_as_trf_refuses_it():

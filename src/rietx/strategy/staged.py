@@ -1652,7 +1652,8 @@ def _exact_active_bounds(outcome):
     (:attr:`~rietx.optimize.least_squares.LSQOutcome.n_aux`), number at most
     :data:`~rietx.optimize.lm.BVLS_MAX_COLUMNS`.  A row in it sits exactly on
     its bound with the gradient there pointing outward (WP-1937).  Above the
-    cut the step is BCCG's, which can stop a row just off its bound, and
+    cut the step is projected CG's, whose budgeted solve can stop short of a
+    bound the exact one would reach (WP-1953), and
     TRF's set is scipy's mask, set within ``XTOL`` whatever the gradient.
     Neither is the multiplier test, so both return ``None`` and
     :func:`bound_findings` takes its conjunction instead.

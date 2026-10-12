@@ -213,3 +213,60 @@ def test_empty_system():
 def test_rejects_unknown_damping():
     with pytest.raises(ValueError, match="damping"):
         bccg.solve(np.eye(2), np.ones(2), damping="sometimes")
+
+
+# ---------------------------------------------------------------------------
+# projected CG, the LM driver's step above its BVLS cut since WP-1953
+# ---------------------------------------------------------------------------
+
+def _model(H, g, y):
+    return 0.5 * float(y @ H @ y) - float(g @ y)
+
+
+def test_a_clamp_past_a_bound_raises_the_model_and_projected_cg_does_not():
+    """WP-1953: BCCG's first CG step here runs along the weak eigenvector to
+    (−300, 300).  It clamps the first variable at −0.1 and keeps the second at
+    300, so the step ends at model value +44 070, worse than not moving.  On
+    FAP.XRA's Pawley fit that was most steps at λ > 0.  Projected CG stops at
+    the bound, restarts, and lands on the exact minimiser."""
+    H = np.array([[1.0, 0.99], [0.99, 1.0]])
+    g = np.array([-3.0, 3.0])
+    lo, hi = np.full(2, -0.1), np.full(2, np.inf)
+    coelho = bccg.solve(H, g, lo=lo, hi=hi).x
+    assert _model(H, g, coelho) == pytest.approx(44070.005, rel=1e-9)
+    y, side = bccg.projected_cg(H, g, lo, hi)
+    np.testing.assert_allclose(y, [-0.1, 3.099], rtol=1e-12)
+    assert y[0] == -0.1 and side.tolist() == [-1, 0]
+    assert _model(H, g, y) < 0.0
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_projected_cg_reaches_the_box_minimiser(seed):
+    """On well-conditioned bounded problems the projected CG is exact: its
+    point satisfies the KKT conditions and matches a dense active-set solve."""
+    from scipy.optimize import lsq_linear
+
+    rng = np.random.default_rng(seed)
+    n = 12
+    J = rng.standard_normal((3 * n, n))
+    H, g = J.T @ J, J.T @ rng.standard_normal(3 * n)
+    lo = -rng.uniform(0.0, 0.3, n)
+    hi = rng.uniform(0.0, 0.3, n)
+    y, side = bccg.projected_cg(H, g, lo, hi, budget=50 * n)
+    w, V = np.linalg.eigh(H)
+    R = np.sqrt(w)[:, None] * V.T
+    exact = lsq_linear(R, (V.T @ g) / np.sqrt(w), bounds=(lo, hi), method="bvls").x
+    np.testing.assert_allclose(y, exact, atol=1e-9)
+    assert np.all(y[side < 0] == lo[side < 0]) and np.all(y[side > 0] == hi[side > 0])
+    assert np.all((lo <= y) & (y <= hi))
+
+
+def test_a_spent_budget_still_returns_a_descent_step():
+    rng = np.random.default_rng(3)
+    n = 40
+    J = rng.standard_normal((n, n)) @ np.diag(np.logspace(0, -4, n))
+    H, g = J.T @ J, J.T @ rng.standard_normal(n)
+    lo, hi = np.full(n, -0.05), np.full(n, 0.05)
+    y, _ = bccg.projected_cg(H, g, lo, hi, budget=3)
+    assert np.all((lo <= y) & (y <= hi))
+    assert _model(H, g, y) < 0.0
