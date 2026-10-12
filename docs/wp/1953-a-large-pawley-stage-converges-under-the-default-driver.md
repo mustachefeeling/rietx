@@ -286,10 +286,39 @@ fit up to 128 columns, which the basin task should keep in mind.
       two-variable system where Coelho's BCCG ends at model value +44 070 and
       the projected CG on the exact minimiser; six random bounded problems
       pin it to BVLS's answer at 1e-9.
-- [ ] The vanishing-column crawl: measure the three remedies on e8's verify
-      stage, the two-site Pnma set and `_LM_FALSE_CONVERGENCE`; decide; land
-      it with the parked branch; re-measure the goldens and the acceptance
-      grid, and the Linux arm64 two-site winner.
+- [x] The vanishing-column crawl: measure the three remedies on e8's verify
+      stage, the two-site Pnma set and `_LM_FALSE_CONVERGENCE`; decide.
+      **Decided 2026-10-12: each column keeps the largest norm it has had
+      this stage** (Moré 1978, MINPACK's `mode=1`), the third remedy and the
+      only one that is a driver's documented practice. Measured on macOS
+      arm64, `[dev]`: e8's verify stage converges in 22 evaluations at
+      λ 0.42 where it ran 400 at λ ≈ 1e3. `_LM_FALSE_CONVERGENCE` passes, so
+      its strict xfail is gone. The two-site Pnma set with moduli and angles
+      freed together (no `moduli` stage) finds the truth, Mn1 3.4981 and Mn2
+      0.6996 μ_B at χ²_red 1.05745, where `main` lands on the swapped minimum
+      at 1.05772. `test_magnetic_moment_frame`'s four arms keep `main`'s
+      χ²_red to nine digits (0.978225621 … 0.978226448). On a synthetic toy
+      the per-iteration scale stops on `ftol_runs` at λ 1.7e10 with χ² 1.891
+      and the held one reaches 0.744854 (`test_a_column_that_vanishes_…`).
+      The count-only-at-small-λ rule was not built: it turns a false
+      `converged` into a budget stop and fixes nothing.
+- [ ] **A column that is rounding noise from a stage's first iteration.**
+      The parked exact angle column (`wp1953-central-angle-columns`) still
+      sets off the crawl under the held scale, because a running maximum of
+      noise is noise. Cherry-picked and measured 2026-10-12: the moment
+      stage's angle column is 1.7e-13 of the largest at its first
+      iteration, where the smallest real column, a background term, is
+      3.2e-5; LM stops on `ftol_runs` at λ 4e6-2.4e9, χ²_red 0.978236,
+      0.979134, 1.335554 and 1.352919 for β₀ 101.0, 101.1, 101.5 and 103.0.
+      Normalised to unit norm, noise is a random direction with a huge
+      physical step. A dead-column rule would fix it, but parameters
+      refine in their own units, so column norms span decades and a
+      relative cut risks holding a real parameter in silence. Measure a
+      cut, or a per-column noise floor from the column's own difference
+      step, across the acceptance grid before landing the branch, which
+      stays parked.
+- [ ] Re-measure the goldens and the acceptance grid under the held scale
+      and the projected-CG step, and the Linux arm64 two-site winner.
 - [ ] The basin: five starts 1e-14 apart per fixture under both drivers.
       Write down whether LM's and TRF's answers differ by start or by driver.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for each fit whose answer
