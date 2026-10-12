@@ -105,6 +105,18 @@ equal to `equal_reduced_many` on every pair.
   `ambiguity.py` or `priors.py`, so the count stands for this tree. The
   task's box stays open for the session that builds on it.
 
+- **2026-10-12, from WP-1930: `equal_reduced`'s χ² can go negative on a
+  rank-deficient Σ.** It takes `pinv(sigma, hermitian=True)` of the summed
+  covariance (`indexing/reduce.py:578` and `:600`). numpy inverts a kept
+  eigenvalue with its sign, and an exactly flat direction comes back at a
+  rounding-level eigenvalue of either sign. On the refinement side that gave
+  six widths an esd of 0 on LaB₆ + cBN, above a cut of 1e-15
+  (`statistics._psd_pinv` now inverts by magnitude). Here a kept negative
+  eigenvalue would make χ² negative and pass `CELL_EQUALITY_CHI2`, merging
+  two cells. A high-symmetry cell's `cov_af` is rank-deficient, so the case
+  is reachable. Not measured: the replay rule of WP-1519 governs any change,
+  so it was left here rather than fixed from a refinement WP.
+
 ## Non-goals
 
 - The #797 reduction being an exact change of basis, and the conventional

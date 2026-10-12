@@ -234,6 +234,19 @@ land at 0.0802-0.0803. CG and a 1e-12 ridge follow them, and both land at
 worse than TRF, the exact step's cut did. The same cut serves every table
 fit up to 128 columns, which the basin task should keep in mind.
 
+### Inherited
+
+- **2026-10-12, from WP-1930: #918 also fixes the macOS nightly's red
+  `test_high_correlation_dedup.py`.** At 56427c4a the axial pair's columns
+  at the zero-aperture start were exactly zero, so the `axial` stage ended
+  where it began and later stages left 0 by rounding. A 1e-14 nudge to `w`'s
+  start sent the pair to `axial_sl` 0 and `axial_hl` 0.2 with no
+  `HIGH_CORRELATION`, reproducing the CI failure on an M4. At e1d19359 each
+  start column is 8.81 and ten nudges all end interior with the pair flagged.
+  The next macOS nightly is the confirmation. The Linux LaB₆ + cBN silence
+  over the same nightlies was the covariance's sign handling, fixed in
+  WP-1930's `statistics._psd_pinv`, and touches none of this WP's files.
+
 ## Non-goals
 
 - When a stage that is improving little should stop and say so: WP-1334.

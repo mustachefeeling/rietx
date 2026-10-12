@@ -78,6 +78,16 @@ S = ε²·[M²] is rank one in this form. M = vᵀg with g = (G\*₁₁, G\*₂�
 
 **Licensing.** GSAS-II for concepts only. TOPAS through its manual only.
 
+### Inherited
+
+- **2026-10-12, from WP-1930 (#832's sweep of 2026-10-08): brucite split
+  by platform before WP-1938.** TRF stopped at `max_iter` on Linux (Rwp
+  0.18030) and converged on macOS (0.17844), so `docs/VALIDATION.md`'s
+  17.84 % brucite figure is the macOS value. The default driver has been LM
+  since WP-1938; whether the split survives is unmeasured. This WP re-fits
+  brucite's Stephens block, so it is the cheapest place to check both
+  platforms.
+
 ## Non-goals
 
 - TRF's guard (`STEPHENS_STRAIN_NOT_POSITIVE`) and the clamp's messages:
