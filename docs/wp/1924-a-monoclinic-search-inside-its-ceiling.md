@@ -35,6 +35,16 @@ Not yet established: what dichotomy holds at 2 GB; whether the 9 GB is that allo
 
 **Issue #895 (2026-10-11): Stop waits up to about 5 s a candidate in the ambiguity sweep.** It is one form of "a deadline read at too coarse a boundary". Checked at `d80ca5f4` and again at `e1d19359`: `consensus.enumerate_ambiguity` reads `cancel` once per candidate, and `cancel` is the run's `Deadline`, which wraps the caller's token (`workflow.py`). The work between reads is `ambiguity.ambiguity_partners`, a loop over 55 `derivative_cells` with `predicted_lines` per child, and it takes no `cancel`. Measured on synthetic 40-line lists (Cu Kα, `[dev]`, macOS arm64): one candidate's sweep takes 0.19 s cubic, 1.5 s tetragonal, 3.0 s orthorhombic and 3.8-4.9 s monoclinic or triclinic. The slowest single child is 8-233 ms. `consensus.supercell_checks` takes no `cancel` at all. A read per derivative cell bounds the wait at the slowest child, and `Deadline.expired` is a monotonic-clock read. One rule: a sweep the token stops leaves its candidate out of `ambiguity_checked` and returns no partial list, since an empty list reads as "no partners", a clean answer. No test called `enumerate_ambiguity` directly before this WP.
 
+### Profile (2026-10-12)
+
+Measured at `e1d19359`, `[dev]`, macOS arm64, on a machine shared with five other sessions at load 110-180. Memory is the process's physical footprint, sampled every 20 s and read as its lifetime peak (`proc_pid_rusage`), with each phase boundary logged. macOS leaves compressed pages out of the resident set, so under this load the resident set read 57 MB while the footprint read 1.9 GB. Every clock below is CPU seconds, because the load gave a run about a fifth of a core. `tests/repro_780.py` rebuilds the case; `--cpu-clock` counts its ceiling the same way.
+
+**Dichotomy.** The allocation was phase 2's setup in `_search_one` (`dichotomy.py:995` at `e1d19359`). It gathered every survivor list's rows at once, `n_dof` floats an index, into a dict held until the unit returned. The lists come from the grid's last stage (`_grid_pass`, `:797`). Each surviving box there keeps its own int64 list, shared only by its few children. On #780's case the grid ends after 161 705 boxes and 157 s of CPU, with 273 871 cells, 22 689 lists and 165 million indices. That is 1.29 GB of lists and 5.2 GB of gathered rows. The footprint climbed from 1.9 GB to 6.79 GB in the two minutes after the grid finished, and held there. The size is the index count times 8 + 8·`n_dof` bytes. The index count grows with the grid: steeply with `max_d_axis`, and with `max_volume` until the axis bounds cap the volume. Over d ∈ [3, 11] Å it is 0.63 M at 150 Å³, 2.1 M at 300 Å³, 3.6 M at 600 Å³ and 4.1 M at 1200 Å³. At 600 Å³ it is 12.6 M to 14 Å and 26.5 M to 17 Å. The budget does not enter: a unit that finishes its grid holds the allocation whatever its ceiling.
+
+**svd.** Neither the 0.2-2.5 GB spread nor the 11-50 s overrun reproduces. At 120 s of CPU svd made 11 200 calls, kept 53 candidates and peaked at 0.26 GB. Its unit overran its slice by 0.2 s, one block of 200 trials between clock reads. Ranking took 0.2 s, consensus 0.1 s and the supercell checks 0.1 s. The 2026-10-08 runs had numba on, and nothing measured here says what moved them.
+
+**The ceiling holds, and it starves the engine that finds the cell.** Since WP-1940 the grid alone costs 157 s of CPU on this case. Dichotomy runs first in each system, so under any ceiling below that it takes the whole run. At 120 s of CPU it reached 131 912 boxes, and svd and trial_error never started. The run returned no candidate. svd alone finds the lattice in 27 s of CPU. This is a scheduling question, left as the last task.
+
 ## Non-goals
 
 - Shrinking the metric box to buy speed (`indexing/CLAUDE.md`).
@@ -43,18 +53,19 @@ Not yet established: what dichotomy holds at 2 GB; whether the 9 GB is that allo
 
 ## Tasks
 
-- [ ] Profile one dichotomy unit for memory with a sampling tool, not `tracemalloc`, on the monoclinic fixture above. Name the allocation, its size as a function of box count and of `max_volume`, and whether it is released.
-- [ ] Do the same for svd's 0.2-2.5 GB spread, and find where the 11-50 s past the ceiling is spent.
+- [x] Profile one dichotomy unit for memory with a sampling tool, not `tracemalloc`, on the monoclinic fixture above. Name the allocation, its size as a function of box count and of `max_volume`, and whether it is released.
+- [x] Do the same for svd's 0.2-2.5 GB spread, and find where the 11-50 s past the ceiling is spent.
 - [ ] Fix what the profile names, keeping every finished search bit-identical (`python -m tests.unit_replay`, digests per platform; 1519's harness).
 - [x] #895: read `cancel` at the child boundary in `ambiguity_partners` and `supercell_checks`, with a test that a cancelled token stops a sweep within one child's work and leaves the candidate unchecked. Done for `ambiguity_partners`. `supercell_checks` keeps no token: it runs over the reported list (≤ 12 candidates), 10-16 ms of CPU a pair, 0.1 s on #780's run, and the gate has no unasked state for it (2026-10-12 handover).
 - [ ] Add a peak-RSS figure to `estimate_ceiling` or to the result's budget diagnostic if the profile shows it is predictable from the spec, so a caller can see it before a run.
 - [ ] Tests: a bounded-memory guard that fails on the allocation, declared with its measured spread (a pass margin under 10× is a load sensor). Quote platform and extras with every count.
+- [ ] Scheduling: under a whole-run ceiling shorter than dichotomy's grid, svd and trial_error never start and the run returns nothing (§ Profile). Decide how the scheduler draws a unit's share of the ceiling, or which engine opens a system, and keep finished searches bit-identical.
 - [ ] Skill: the indexing reference row for a monoclinic or hexagonal search with a large volume bound (cap the volume, search one system at a time, read `INDEX_SEARCH_INCOMPLETE` per engine), tagged Measured or Hypothesis.
 
 ## Acceptance
 
 ```sh
-.venv/bin/python /path/to/repro-780.py 120      # RSS and wall within the stated bound
+.venv/bin/python -m tests.repro_780 120         # peak memory and wall within the stated bound
 .venv/bin/python -m pytest tests/test_indexing_scheduler.py tests/test_indexing_engines.py -n auto --dist loadgroup
 .venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup
 .venv/bin/python -m ruff check src tests examples
