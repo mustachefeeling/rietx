@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-11 — a Pawley fit above 128 columns stops a stage on its budget under the default and lands worse than TRF; few fits run that path, and `solver="trf"` is the workaround
+Priority: P1 2026-10-12 — was P2: WP-1954 found the Windows release gate red on `test_e8` from a platform-dependent LM stop, every Windows run since that day, so each cut ships it as a known issue until this lands
 
 ## Goal
 
@@ -77,13 +77,36 @@ promises less could fall back to it. That is a candidate, not a decision.
 
 ### Inherited
 
+- **2026-10-12, from WP-1954 (at the 1.8.0 tag): on Windows the report loop
+  stops somewhere else, and 1.8.0 shipped with it red.**
+  `test_report_loop.py::test_e8_collinear_window_applies_no_position_action`
+  failed on every Windows run that day: the nightly on `dd20f0fd` and on the
+  release commit `56427c4a`, and a throwaway workflow at eight merges back to
+  `0f30d584`, whose own nightly had passed the night before. Freeing axial
+  asymmetry on the test's 20-56° window ends at χ² 51.43422542054468 on
+  Windows against 51.41434042984701 on macOS arm64. From there the Windows
+  report reads the position trend as separable and offers
+  `refine_sample_transparency` at 0.999, where macOS caps every position
+  action at 0.3 (macOS's round-1 position ratio is 1.29 against the 2.0
+  gate). The loop's verify step rejects it. Measured on GitHub's
+  `windows-latest` (AMD EPYC 7763, Python 3.13.15, numpy 2.5.4, scipy 1.18.1,
+  scipy-openblas 0.3.34, rietx-kernels 1.2.0). 1.7.0 passes on the same CPU.
+  Pinning `spgrep` to 0.7.0 changed nothing. Start nudges of ±1e-14 to ±3e-14
+  on macOS kept 51.414 and the cap. Linux 3.12 and 3.13 pass. The maintainer
+  shipped it as a known issue, and the 1.8.0 notes carry a bullet naming this
+  WP. A fix should stage its note in `docs/releases/1.9.0.md`. The nightly
+  macOS job, which does not gate, failed two more tests on both commits, and
+  both pass on a local Mac:
+  `test_high_correlation_dedup.py::test_a_real_plan_reports_a_persistent_pair_once_naming_every_stage`
+  ("the axial pair raised no HIGH_CORRELATION at all") and
+  `test_stationary_moment_angle.py::test_an_angle_without_an_esd_still_has_a_profile_interval`
+  (0.00435 against a bar of 0.00309). Read them as candidates for the same
+  class before diagnosing them alone.
 - **2026-10-12, from WP-1954 (the 1.8.0 cut): the notes state this as a
-  known limit, and the cut does not wait.** The maintainer decided on
-  2026-10-12 that 1.8.0 ships without this WP. `docs/releases/1.8.0.md`
-  § Numbers that move carries a bullet quoting the FAP.XRA figures above and
-  naming this WP. If the fix merges before 1.8.0 is tagged, rewrite that
-  bullet to say what the fix changed, and the framing paragraph's sentence
-  that names the 128-column limit.
+  known limit, and the cut did not wait.** 1.8.0 shipped on 2026-10-12
+  without this WP. `docs/releases/1.8.0.md` § Numbers that move carries a
+  bullet quoting the FAP.XRA figures above and naming this WP. The fix's own
+  note goes in `docs/releases/1.9.0.md`.
 - **2026-10-12, from WP-1929 (fifth session): on Linux arm64 the two-site
   class 0 winner is the swapped minimum.** A throwaway workflow ran
   `solve_magnetic` on the two-site Pnma set at `main` `869b6cf8` (run
