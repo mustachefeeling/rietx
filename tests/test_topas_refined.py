@@ -252,9 +252,14 @@ def test_a_result_writes_a_symmetry_tied_row_from_its_source():
         ref.fitted_structure, free=ref).count("p0_cell_a")
 
 
-def test_p1_expand_is_refused_beside_the_refined_set():
-    with pytest.raises(ValueError, match="p1_expand"):
-        from_structure(rx.Structure(phases=[_pnma()]), p1_expand=True, free=["x"])
+def test_p1_expand_beside_the_refined_set_ties_the_copies():
+    """Refused in 1.7.0; now every copy is written over the site it copies."""
+    text = from_structure(rx.Structure(phases=[_pnma()]), p1_expand=True,
+                          free=["phases.0.atoms.0.biso"])
+    assert 'space_group "P 1"' in text
+    # the general site's eight copies share its one name; the held sites stay held
+    assert text.count(" beq A1_biso 0.7") == 8
+    assert text.count(" beq ! 0.7") == 8
 
 
 def test_the_refined_path_spells_the_space_group_as_the_plain_one_does():

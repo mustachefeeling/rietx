@@ -393,7 +393,7 @@ same-label sites. The merge is equal or refuse: the part's scale, cell, space
 group and each site's position, element and occupancy must equal `<name>`'s,
 every part site needs a site of that label in `<name>`, and
 `TOPAS_MAGNETIC_PART_MERGED` reports the merge. Every other refusal the part
-states stays in force, and `read_topas_inp` does not list the merged `mag_only` among the refused. `write_topas_inp` does not write this form yet.
+states stays in force, and `read_topas_inp` does not list the merged `mag_only` among the refused. `write_topas_inp` writes this form with `instrument=`.
 (What comes back, below).
 
 `rx.write_topas_inp` writes a magnetic phase back in the same form. The `str`
@@ -433,6 +433,26 @@ every atom of the cell. The species of a moment-bearing atom is written as its
 ion, which a neutron pattern does not notice. Every flag in the file is `!`: the
 ties that made the copies one parameter are not stated in P1, so free what you
 mean to refine in TOPAS yourself.
+Beside `free=`, `scale=`, `instrument=` or `pattern=` the copies are tied
+instead: each is an equation over the parameter it copies
+(`mly = -0.1099*Fe1_moment_dof0;`, the moment a `prm` in μ_B), so the file
+refines as the model does, and the anti-translation partners of a supercell and
+a `tie_equal` across copies come out as one name. `p1_expand="auto"` restates
+only a phase TOPAS cannot name as it stands (a k ≠ 0 supercell, an untabulated
+family group, a non-standard setting), writes every other phase in its own
+group, and names each phase it restated, `TOPAS_PHASE_RESTATED_IN_P1`.
+
+A magnetic-only width (`magnetic_lor_size`, `magnetic_lor_strain`) has no
+keyword in a TOPAS `str`, which has one peak shape. So with `instrument=` a
+phase that carries one is written as two `str` sharing every parameter: the
+nuclear part, and `"<name> magnetic part"`, which lists only the
+moment-bearing sites, each `mag_only`, under the magnetic group, with the two
+widths added to its Lorentzian terms. That is rietx's model term for term,
+since nuclear and magnetic scattering do not interfere for unpolarised
+neutrons. Without `instrument=` the file has no profile to add them to,
+and `TOPAS_FIELD_NOT_WRITTEN` names them. TOPAS 6's zero-cycle pattern for such a file agrees with rietx's to
+3.6e-3 of the peak, against 5e-2 without the width
+(`tests/test_topas_p1_ties.py`).
 
 ### A magnetic phase from a FullProf `.pcr`
 
@@ -796,8 +816,13 @@ exactly what it wrote before. A `RefinementResult` lists a tied copy beside the
 free parameters but not the equation: a symmetry tie (a cubic cell's `b` and
 `c`, a special position's coordinates) is rederived from the structure and
 written from its source, while a copy made by `Refinement.tie` is written as its
-own refined parameter. `p1_expand=True` cannot be combined with `free=`,
-`scale=` or `instrument=`.
+own refined parameter. `p1_expand=True` beside `free=`,
+`scale=`, `instrument=` or `pattern=` writes each copy of a site as an equation
+over the parameter it copies. `p1_expand` is `False`, `True` or `"auto"`, and
+anything else (`1`, `np.True_`) raises. `"auto"` restates only a phase whose
+magnetic group TOPAS cannot name; a bare `"auto"` with no such phase writes the
+plain form `p1_expand=False` writes, and with one it takes the refined route
+(every parameter stated as stored), the other phases in their own groups.
 
 All three write space groups from `get_spacegroup(...).xhm()`, never a
 phase's own stored spelling, so a setting this build already resolved is not
@@ -923,8 +948,11 @@ file. Common to all three: the emission profile and instrument geometry
 (`Instrument` is not part of what any of these readers returns), and cell and
 site bound windows. A TOPAS `str` leaves out a phase's magnetic-only widths,
 extinction and preferred orientation, and `write_topas_inp(..., diagnostics=[])`
-names each, `TOPAS_FIELD_NOT_WRITTEN`; a whole input writes the extinction and
-refuses a magnetic-only width, so it names the preferred orientation alone. FullProf-specific: the fitted 2θ range, the background and
+names each, `TOPAS_FIELD_NOT_WRITTEN`; a whole input with `instrument=` writes the extinction and a
+magnetic-only width (as a nuclear `str` and a `mag_only` one), so it names the
+preferred orientation alone. It refuses a phase that has both a magnetic-only
+width and extinction, since rietx's one Sabine factor on the summed |F|² has no
+two-`str` statement in TOPAS; without `instrument=` the width is named as above. FullProf-specific: the fitted 2θ range, the background and
 every control/output switch on a `.pcr` are protocol `to_structure` never
 reads into a `Structure`. `write_fullprof_pcr` fills them with safe, inert
 placeholders purely to keep the file complete, since a `.pcr` is positional
