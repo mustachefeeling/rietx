@@ -124,6 +124,17 @@ down.
 
 ### Inherited
 
+- **2026-10-12, from WP-1523: within one fit the stage-start hold now reads
+  the previous stage's answer too.** A phase that one stage's answer called
+  unseen is held from the next stage's start, even where its screen passes
+  3σ, and is released only if a later answer sees it. Each pattern's fit
+  starts with no prior, so a chain's first stage still reads the screen
+  alone. Carrying the last pattern's reading across the boundary would be a
+  `RefinementState` fact, which crosses no pattern boundary until someone
+  builds it (root CLAUDE.md, WP-1441); that is this WP's choice to make. On
+  issue #481's sweep the change moved 1 of 64 weak real fits from refined to
+  held (planted 1.2e-7, `mccusker_structural`, 2.46σ), so a re-entry count
+  taken before 2026-10-12 can move by that much.
 - **2026-10-04, from WP-1523: the hold's threshold moved, so re-measure
   before quoting.** A phase is now seen when its scale is 3σ from zero by its
   marginal esd against counting noise (`refine._answer_significance`). The old

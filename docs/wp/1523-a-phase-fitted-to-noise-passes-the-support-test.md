@@ -1,9 +1,8 @@
 # WP-1523 — A phase fitted to noise passes the support test
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-13 — a phase fitted to noise is held from either start, and a plan holds it from the stage after the answer that called it unseen
 Track: What fires, and what stays silent
 Depends on: — (1420 soft: the same hold, in a chain)
-Priority: P2 2026-09-29 — a frame with no phase in it reports that phase's cell with an esd and no `PHASE_UNCONSTRAINED`, depending on where the fit started; a path few fits run
 
 ## Goal
 
@@ -200,7 +199,7 @@ It was not measured on the ridge.
       107 now solves 5 times for 5 stages and 11 for `mccusker_structural`'s
       11, against 6 and 18. The prior changed no stage start of the 184 on
       the three fixture files, so nothing there moved. The sweep and the one
-      weak fit it moved are in the 2026-10-12 handover entry.
+      weak fit it moved are in the 2026-10-13 handover entry.
 
 ## Acceptance
 
@@ -229,6 +228,40 @@ tests pass unchanged or with each moved assertion justified here.
 
 ## Handover log
 
+- **2026-10-13** — A plan no longer frees a phase it has just called unseen. Each stage now reads the previous stage's answer as well as the quick screen. So a phase whose scale was fitted to noise stays held from the stage start. Before, it was freed, chased the noise, collapsed and solved a second time, once per stage. On issue #481's blank frame under the 11-stage structural plan that cost 18 solves and 233 iterations; it now costs 11 and 59. The answers move only at the threshold: of 64 fits of weak real phases, one went from refined to held, at 2.46σ. The WP closes.
+
+  **Done.** `_hold_unsupported_phases` takes `prior`, the previous stage's `_answer_significance`, and holds a phase that either reading puts under 3σ. `_run_plan` hands it in. `run_stage`, joint fits and the first stage of each pattern in a series start without one. New tests in `tests/test_phase_significance.py`: seed 107 under `mccusker_default` solves once per stage, the same blank under `mccusker_structural` holds the cell from `profile` on, and a phase the prior holds is released when the answer sees it. `using/refining.md` says a stage reads the previous answer. A root `CLAUDE.md` clause was added and reverted, because the file sits at its pinned 978 lines; the rule is in the docstring and the test guards it.
+
+  **Inherited, pruned.** The #219 ridge entry became § Decided 2026-10-12: the hold stands on a collinear pair, and the statistic that could stand it down went to 1339. The WP-1534 entry (Fe with no reflection walks its scale) no longer reproduces under the default LM driver, and task 6 cannot reach it, since the hold never holds a scale; see Findings. The WP-1903 entry asked to be deleted.
+
+  **Measured** (`.venv` `[dev]`, macOS arm64, shared with other sessions at load averages 35 to 170, so no wall clock is quoted). Issue #481's frame, blank seeds 100-109 and weak phases at four planted scales on seeds 100-103, each from the fitted and the unfitted start. Solves are calls to `run_least_squares`.
+
+  | Planted | Plan | Fits | Solves before → after (stages) | Iterations | Cell reported |
+  |---|---|---|---|---|---|
+  | 0 | default | 20 | 103 → 101 (100) | 2545 → 2490 | 0 → 0 |
+  | 0 | structural | 20 | 248 → 221 (220) | 2921 → 1993 | 0 → 0 |
+  | 3e-8 | default | 8 | 46 → 45 (40) | 1208 → 1179 | 2 → 2 |
+  | 3e-8 | structural | 8 | 134 → 95 (88) | 2814 → 704 | 0 → 0 |
+  | 6e-8 | default | 8 | 40 → 40 (40) | 727 → 727 | 8 → 8 |
+  | 6e-8 | structural | 8 | 104 → 96 (88) | 1140 → 828 | 0 → 0 |
+  | 1.2e-7 | default | 8 | 40 → 40 (40) | 349 → 349 | 8 → 8 |
+  | 1.2e-7 | structural | 8 | 103 → 96 (88) | 1129 → 808 | 1 → 0 |
+  | 2.5e-7 | default | 8 | 40 → 40 (40) | 282 → 282 | 8 → 8 |
+  | 2.5e-7 | structural | 8 | 88 → 88 (88) | 492 → 492 | 8 → 8 |
+
+  In all, 946 solves became 862 over 832 stages, so the second solves went from 114 to 30, and iterations from 13 607 to 9852. `CELL_RUNAWAY` fired in none of the 104 fits on either side, so the review's "can trip `CELL_RUNAWAY`" did not reproduce at `e1d19359`. The one moved fit is planted 1.2e-7, seed 100, fitted start, `mccusker_structural`. Before, `extinction` collapsed the phase, `roughness` freed it again, and its answer read at least 3σ, so the cell came back 4.15764 ± 0.00081 Å, 1.0e-3 Å off. Now `roughness` holds it from the start, its answer reads 2.46σ with the held columns freed, and the cell stays held. That plan already held the phase in the other 7 of those 8 fits.
+
+  On the absent-, held-phase and scale-B files the prior changed none of 184 stage starts. Their solves (75, 112, 21) and every assertion are unchanged. Across the fast selection, with a plugin wrapping the hold, the prior acted at 28 of 3437 stage starts, in five tests. Eight are the two seed-107 tests. Eighteen are `test_extra_components`' hump fixture, which asserts nothing that moved: 18 solves became 12 in each arm, iterations went 205 → 72 with the peak and 139 → 67 without, the hump's fwhm 5.43387 → 5.43382 (esd 0.355), Rwp +6e-8, and `PHASE_UNCONSTRAINED` fires either way, reading 0.22σ → 1.08σ with the peak and 0.82σ → 1.01σ without. Two are `test_diagnostics_geometry`'s flat corundum, 7 solves → 6.
+
+  FAST_AND_FULL_COUNTS
+
+  **Review pass.** `/code-review high --fix` found 8 and fixed 3: a dead length check, a mode gate repeated at the call site, and a docstring that now names a stage seed as what can stale the prior. For its finding 4 I added the prior-held release test. Declined: `run_stage`, and so the GUI's stage-by-stage path, keeps the screen alone, because a reading carried across verbs goes stale after `set_values` or a checkout; stepping a plan by hand still pays the second solve per stage. Also declined: a record field naming which reading decided a hold. `StageResult.held` names what was held, `PHASE_UNCONSTRAINED` quotes the deciding reading, and a field would move the schema. Its findings 3 and 8 are this entry.
+
+  **Findings, no owner.** Under `solver="trf"` a phase with no reflection in range walks its scale. On WP-1534's four-phase fixture over 25-33° Cu Kα, two scale-and-background stages take Fe's scale from 1e-4 to 164.7, and QPA reads iron at 99.99 wt%. `PHASE_UNCONSTRAINED` and `QPA_ESD_UNAVAILABLE` fire. Under the default LM driver the scale stays at its start, and QPA reads iron at 0.61 wt%, which is the start value. The hold's rule "never its scale" assumes the scale has a column. WP-1534 and WP-1463 are closed, so this needs a WP.
+
+  **Gotchas.** The prior is per fit. A held phase is judged at its held values, so a borderline phase gets no second look with its columns refining; that is the one fit the sweep moved. A stage seed moves values between the prior and the stage start, and since the minimum is taken it errs only towards holding. Skill: the `PHASE_UNCONSTRAINED` row is unchanged, because what fires it and what it means did not move; "it releases itself in the stage where the phase appears" still holds. Forward references went to 1339 (the ridge statistic) and 1420 (the prior is per fit, and a re-entry count can move).
+
+  Next: nothing in this WP. The open threads are 1339's ridge statistic, 1420's re-entry across a chain, and the `trf` scale walk, which needs filing.
 - **2026-10-04** — A phase that is not in the pattern is now held and named by `PHASE_UNCONSTRAINED`, from either start. The old test asked whether one point of the phase's curve rose above 1σ of the noise. A scale fitted to pure noise lifts that point past 1σ, because the fit also moves the phase's cell to wherever the noise peaks. The new test asks whether the phase's scale is 3σ from zero, with an esd that counts that freedom. Indexing already asks a line for that 3σ. On 20 blank frames it calls 1 seen, where the old test called 9. The cost is that a phase at about 1/16 000 of a strong one's scale is now mostly held (1 of 8 fits saw it, against 6 of 8 before). Its cell came back up to 1000 ppm off when refined, so that loses no measurement.
 
   **Done.** The decision and the seed sweep that chose it are in § Decided 2026-10-04, revised the same day. `phase_support` is the screen ‖y_p/σ‖₂. `refine._answer_significance` is the test: scale over its esd from (JᵀWJ)⁻¹ against counting noise, marginal over every column but displacements and occupancies, with a held phase's columns freed for the measurement and z capped at the screen. `PHASE_SUPPORT_SIGMA` is 3.0, held equal to `ABSENT_SIGMA` by test. Reflection and declared-peak support are window norms. A phase still held at the end quotes the reading its hold was decided on, and the message says so. New `tests/test_phase_significance.py` covers the blank from both starts, seed 107's collapse path, a weak real phase from both starts, a release, the threshold and the norms. The skill's `PHASE_UNCONSTRAINED` row, the QPA-scan note, the manual's `model.md` and `series.md`, and the root rule are restated.

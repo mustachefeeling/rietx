@@ -124,6 +124,16 @@ and (2) is accepted.
 
 ### Inherited
 
+- **2026-10-12, from WP-1523 (closed): the hold stands on the ridge, and the
+  statistic that could stand it down is yours.** WP-1523 § Decided
+  2026-10-12 keeps the support hold as it is on a collinear pair: at ρ −0.99
+  a marginal z under 3σ is true of either phase, and `HIGH_CORRELATION`
+  already names the pair. The candidate that could tell "absent" from
+  "exchangeable with another phase" is the scale's z marginal over every
+  column except the other phases' scales. On a noise phase the inflation
+  comes from its own cell and widths, so that reading would stay low; on the
+  ridge it would come from the partner's scale. It is unbuilt and unmeasured,
+  because the #219 script is not in the thread.
 - **2026-10-11, from the issue triage (#219, in PR #904; and a re-run of the
   ridge case): asks (1) and (2) are open as the reporter's PR, and the ridge
   now holds the wrong phase.** PR #904 (opened 2026-10-11, fork) adds
