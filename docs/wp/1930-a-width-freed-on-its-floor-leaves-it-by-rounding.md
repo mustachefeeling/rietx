@@ -121,83 +121,21 @@ handover log has the tables).
   reaches 9.661408 at every perturbation, with `w` on its floor and the
   resolution diagnostics firing, so holding the Gaussian still stands.
 
-### Inherited
-
-- **2026-10-11, from WP-1938 (in flight, PR #883): the floor seed is
-  deleted on that branch.** Under physical coordinates the trap it worked
-  around is gone, so `seed_floor`, `SOFTPLUS_FLOOR_VALUE`,
-  `SOFTPLUS_FREED_AT_FLOOR` and `StageResult.floor_unseeded` go (a
-  before-validator drops the stored key). `FLOOR_SEEDS` stays as the FD step
-  table. `Stage.seed` survives as `seed_floored`, lifting only a freed row
-  sitting on a floor at or above 0. LaB₆ + cBN's shared fit then seeds
-  nothing and `profile.y` leaves 0 on its own: 0.0369 at Rwp 0.168656, inside
-  the reporter's 2 % band, and `test_acceptance_lab6_cbn` asserts
-  `seeded == {}`. That figure was measured in a venv later found to run
-  x86_64 under Rosetta, so re-measure it on arm64 before this WP's band task
-  quotes it. The Caglioti W is now floored at 1e-8 deg²
-  (`caglioti._MIN_GAMMA_G2`) and LM holds Γ_G² ≥ 1e-8 at every reflection as
-  a linear inequality (WP-1938's D7/D8), so the free-Gaussian LaB₆ plans
-  reach one answer, χ²_red 9.692771, where they split between 9.661 and 9.840.
-
-- **2026-10-09, from WP-1929: the floor's column is rounding noise, and a
-  finite softplus floor may make the seed unnecessary.** The Jacobian
-  differences each column with h = 1e-6·max(1, |u|) in *internal*
-  coordinates (`optimize/least_squares.py:592`, and `:1061` for the FD
-  fallback). At u ≈ −27.6 that step moves the width by about 3e-17, below
-  its own last digit, so the gradient TRF sees at a freed floor row is noise.
-  This is the mechanism 1930's Context describes as "depends on rounding".
-  On BT-1, differencing the width itself and chaining by dp/du made the esds
-  agree to 1e-8 at u = −25.54, −25.5 and −514. WP-1929's session proposed
-  probing a **finite internal floor** for softplus parameters, at TOPAS's
-  defaults (widths 1e-6, scale 1e-11; TOPAS 5 Technical Reference § 2.5).
-  There dp/du ≈ 1e-6, which is enough for both an accurate column and a usable
-  gradient. If that probe closes the LaB₆ + cBN split, it replaces this WP's
-  seed. Read 1929's 2026-10-09 handover entry and
-  https://claude.ai/artifact/CYGoz3cF63QUJ345z4zKMY before landing the seed.
-- **2026-10-10, from WP-1547: the nightly after #849 is red on this WP's
-  two-site test.** Nightly 38048650490 ran on 32a2b473.
-  `test_pair_diagnostic_class.py::test_the_two_site_set_reaches_one_minimum_and_pairs_nothing`
-  found a pair: "class 2: phases.0.atoms.0.moment.dof0 and
-  phases.0.atoms.1.moment.dof0 are a powder-degenerate moment pair". The
-  job ended 1 failed, 9349 passed, 131 skipped. The nightly before,
-  37928572815 on 9219e886, was green. Eleven merges sit between, among them
-  #849 (this WP), #855 (WP-1936's FD step) and #861 (spglib 2.8). Which one
-  moved it was not checked.
-- **2026-10-11, from the issue triage (#865, in PR #870): the two-site test
-  this WP re-baselined fails by CPU, and its class 2 reading was backwards.**
-  The 2026-10-10 nightly went red at `32a2b473` on
-  `test_the_two_site_set_reaches_one_minimum_and_pairs_nothing` (the entry
-  above). No merge moved it: the runner's CPU did. The reporter
-  ran it twelve times on `ubuntu-latest`: 7 of 7 AMD EPYC 7763 runners fail
-  and 5 of 5 Intel Xeon runners pass, at one sha. Only class 2 moves. Intel
-  and macOS stop at m ≈ 0, where |F_m|² ∝ m² gives the column no gradient; AMD
-  walks past it from two of three starts to χ² lower by 41, with
-  ρ(Mn1, Mn2) = −0.99997. So class 2's m ≈ 0 is itself a stopping point, the
-  same kind as the pairs this WP removed, and the docstring's "collapses to
-  m ≈ 0" names the worse minimum. PR #870 asserts the winner only (8 of 8
-  runners pass). Whether a moment trial should be seeded off m = 0, as this
-  WP seeds a width off its floor, is the open question it leaves. Checked
-  against the tree at 7d9be3cb: `tests/test_pair_diagnostic_class.py:42-73`
-  still asserts no `MOMENT_PAIR_DEGENERATE` from any class.
-
-- **2026-10-11, from the issue triage (#832): the band's Linux run has
-  happened, and the reporter's sweep left three splits in no WP.** The
-  2026-10-10 nightly (run 38048650490, `32a2b473`, containing #849) ran the
-  Linux full suite at 9349 passed, 1 failed, and the failure was the two-site
-  test (#865, above), so `test_the_shared_fit_reaches_one_minimum_on_every_platform`
-  passed on Linux. The reporter's sweep of 2026-10-08 11:55 (19 acceptance
-  files, 222 fits, Linux and macOS) found lab6_cbn's shared plan the only
-  split that started at #700. Three others it found are in no WP: (a) the
-  degenerate LaB₆ plan, χ²_red 5.470 on Linux against 6.001 on macOS, with the
-  quoted "Rwp 0.1294, QPA 16.542" reproduced by neither; (b) Stephens brucite,
-  where TRF stops at `max_iter` on Linux (Rwp 0.18030) and converges on macOS
-  (0.17844), so `docs/VALIDATION.md:765`'s 17.84 % is the macOS value; (c)
-  five indexing Le Bail fits split after #741, the short-wavelength P
-  candidate leaving `profile.y` on its floor on Linux (χ²_red 32.27 against
-  29.38). The Next list's "still stale" Cr₂WO₆ number is done
-  (`docs/VALIDATION.md:1471` reads 0.2035). Checked against the tree at
-  7d9be3cb: the nightly's failure list read from its log, `seed_floor` at
-  `params/vector.py:2901`; (a)-(c) not re-measured.
+**Superseded in part 2026-10-12 (WP-1938, PR #883).** Every parameter
+now refines in its own units, so a width's floor is an ordinary bound of 0
+and its column there is the physical one. WP-1938 deleted the floor seed
+(`seed_floor`, `SOFTPLUS_FLOOR_VALUE`, `SOFTPLUS_FREED_AT_FLOOR`,
+`StageResult.floor_unseeded`) and the finite-softplus-floor probe WP-1929
+proposed with it. `Stage.seed` survives as `seed_floored`, lifting only a
+freed row on a floor at or above 0. The decided protocol for LaB₆ + cBN
+stands: `u, v, w` held, and `profile.y` now leaves 0 by itself, so the
+`profile` stage seeds nothing. Re-measured on arm64 (this worktree's `[dev]`
+venv, Apple M4, numpy 2.5.4): Rwp 0.168656276, χ²_red 10.151815, `y`
+0.036893 ± 0.001239, LaB₆ 17.791 ± 0.319 wt %, every value and esd the same
+bits at the last nightly's tree (56427c4a). That nightly's Linux plot reads Rwp
+0.1687, GoF 3.19 (run 38261107758). The degenerate plan reads Rwp 0.1289, GoF
+2.44 on both (χ²_red 5.934160 on macOS), so #832's split (a), 5.470 against
+6.001, is gone.
 
 ## Non-goals
 
@@ -205,6 +143,12 @@ handover log has the tables).
 - A coefficient read off its floor after the fit: WP-1914.
 - The PVII/FPA peak-shape gap the suite's own comments name as why Rwp is
   worse than TOPAS's.
+- Two splits from #832's sweep (2026-10-08): Stephens brucite stopping at
+  `max_iter` on Linux, and five indexing Le Bail fits leaving `profile.y` on
+  its floor on Linux after #741. Both are unowned and unmeasured since
+  WP-1938; the 2026-10-12 handover lists them for filing.
+- Whether a magnetic moment trial should start off m = 0 (#865's open
+  question, PR #870): a magnetic stopping point, and this WP no longer seeds.
 
 ## Tasks
 
