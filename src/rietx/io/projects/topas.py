@@ -160,7 +160,7 @@ import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
@@ -4483,6 +4483,12 @@ def _operation_set(group) -> frozenset[str]:
     return frozenset(op.wrap().triplet() for op in group.operations())
 
 
+class _GroupIdentityRefusal(ValueError):
+    """A refusal about which group the phase is (parent k, untabulated, setting,
+    family): the ones a P 1 restatement answers, unlike a missing moment or a
+    phase's own k, which P 1 carries no better."""
+
+
 def _magnetic_group_line(phase, *, ion_species_ok: bool = False) -> str | None:
     """The ``mag_space_group`` value to write for ``phase``, or a refusal.
 
@@ -4538,7 +4544,7 @@ def _magnetic_group_line(phase, *, ion_species_ok: bool = False) -> str | None:
             f"back. A group with no moment constrains nothing; drop "
             f"magnetic_symmetry, or give the magnetic sites their moments")
     if mag.propagation_vector_parent is not None:
-        raise ValueError(
+        raise _GroupIdentityRefusal(
             f"{where}: it is a magnetic supercell built from the parent "
             f"propagation vector k = ({', '.join(mag.propagation_vector_parent)}"
             f"), and a TOPAS `str` has no keyword for the parent k, so the file "
@@ -4549,7 +4555,7 @@ def _magnetic_group_line(phase, *, ion_species_ok: bool = False) -> str | None:
     group = mag.group()
     found = identification(group)
     if not found.named:
-        raise ValueError(
+        raise _GroupIdentityRefusal(
             f"{where}: its magnetic group ({group.order} operations) is not "
             f"one of the tabulated magnetic space groups ({found.reason}), and "
             f"TOPAS states a magnetic group only by its number or symbol. A "
@@ -4557,7 +4563,7 @@ def _magnetic_group_line(phase, *, ion_species_ok: bool = False) -> str | None:
     number = found.bns_number
     standard = MagneticSymmetry.model_validate(number)
     if set(standard.group().all_operations()) != set(group.all_operations()):
-        raise ValueError(
+        raise _GroupIdentityRefusal(
             f"{where}: its magnetic group is BNS {number} in a setting other "
             f"than the standard one, and TOPAS's `mag_space_group {number}` "
             f"generates the standard setting's operators, so the moments "
@@ -4572,7 +4578,7 @@ def _magnetic_group_line(phase, *, ion_species_ok: bool = False) -> str | None:
         raise ValueError(f"{where}: {exc}") from exc
     nuclear = resolve_group(phase.space_group, phase.symmetry_operations)
     if _operation_set(family) != _operation_set(nuclear):
-        raise ValueError(
+        raise _GroupIdentityRefusal(
             f"{where}: its positions refine under {phase.space_group!r} and "
             f"its moments under BNS {number}, whose family group (its "
             f"operations with time reversal dropped) is {family.xhm()!r}. A "
@@ -4653,7 +4659,7 @@ def _snapped_xyz(sg, atom) -> list[float]:
 
 def from_structure(structure: Structure, *,
                    diagnostics: list[Diagnostic] | None = None,
-                   p1_expand: bool = False,
+                   p1_expand: bool | Literal["auto"] = False,
                    free=None, scale: str | None = None, instrument=None,
                    pattern=None, data_name: str | None = None,
                    names: dict | None = None) -> str:
@@ -4759,8 +4765,7 @@ def from_structure(structure: Structure, *,
     ``free=`` the stored ``Parameter.vary`` flags are the free set. The
     file's header says which. ``names=`` a dict to collect ``{TOPAS name: (path,
     a, b)}``, the named value being ``a·path + b``. Without ``free``, ``scale``
-    and ``instrument`` nothing below changes. ``p1_expand=True`` cannot be
-    combined with them (the free paths name the structure as given).
+    and ``instrument`` nothing below changes.
 
     **A whole input** (#732): with ``instrument=`` the ``str`` also carries the
     peak shape (rietx's TCHZ width laws as ``pv_fwhm``/``pv_lor`` equations) and
@@ -4779,6 +4784,21 @@ def from_structure(structure: Structure, *,
     ``TOPAS_FIELD_NOT_WRITTEN``, the one phase term it neither writes nor
     refuses.
 
+    **P1 with ties** (#721): beside ``free=``, ``scale=``, ``instrument=`` or
+    ``pattern=``, ``p1_expand=True`` writes every phase the same way but each
+    copy as an equation over the parameter it copies (``R·x + t`` of its site's
+    coordinates, its site's B, its site's moment carried by the image's axial
+    matrix), so the file refines as the model does. ``"auto"`` restates only a
+    phase this writer would refuse for its magnetic group (a k ≠ 0 supercell,
+    an untabulated family group, a non-standard setting) and says so,
+    ``TOPAS_PHASE_RESTATED_IN_P1``; a bare ``"auto"`` with no such phase writes the
+    plain form ``False`` writes. ``p1_expand`` is ``False``, ``True`` or ``"auto"``
+    and raises on anything else. A phase with a magnetic-only width is
+    written as two ``str`` sharing every parameter, the nuclear part and
+    ``"<name> magnetic part"`` whose ``mag_only`` sites and magnetic group carry
+    the moments and whose Lorentzian terms add the width. A phase that also has
+    extinction is refused: one Sabine factor on both components has no two-``str`` form.
+
     Four refusals besides the phase-name quote check above, the fourth being
     :func:`_tail`'s on a non-finite value. A label or
     species carrying whitespace: a ``site`` line is space-separated, so an
@@ -4789,24 +4809,24 @@ def from_structure(structure: Structure, *,
     everything after it on that line, x/y/z/occ/beq included.
     """
     from ..._about import DIST_NAME
+    from .topas_input import any_phase_needs_p1, check_p1_expand
 
-    if p1_expand and (free is not None or scale is not None
-                      or instrument is not None or pattern is not None):
-        raise ValueError(
-            "p1_expand=True cannot be combined with free=, scale=, instrument= "
-            "or pattern=: the free paths name the structure as given, and the "
-            "P 1 restatement renames its atoms")
-    if p1_expand:
+    check_p1_expand(p1_expand)
+    refined_path = (free is not None or scale is not None
+                    or instrument is not None or pattern is not None)
+    if p1_expand == "auto" and not refined_path and not any_phase_needs_p1(structure):
+        p1_expand = False    # nothing to restate: the plain form, as False writes it
+    if p1_expand is True and not refined_path:
         from ...crystallography.magnetic.p1 import restate_in_p1
 
         structure = restate_in_p1(structure, species_as_ion=True)
-    if (free is not None or scale is not None or instrument is not None
-            or pattern is not None):
+    elif refined_path or p1_expand:
         from .topas_input import from_structure_refined
 
         text, _ = from_structure_refined(structure, free=free, scale=scale,
                                          instrument=instrument, pattern=pattern,
-                                         data_name=data_name, names=names)
+                                         data_name=data_name, p1_expand=p1_expand,
+                                         diagnostics=diagnostics, names=names)
         if diagnostics is not None:
             diagnostics.extend(_refined_diagnostics(structure, instrument))
         return text
@@ -5024,8 +5044,9 @@ def _not_written_diagnostics(structure: Structure, *,
     The magnetic-only widths (they apply to magnetic reflections alone, which
     a structure-only ``str`` cannot single out), extinction and a preferred
     orientation with r ≠ 1. ``whole``: the file is a whole input
-    (``instrument=``), which writes the extinction as ``scale_pks`` and refuses a
-    magnetic-only width, so only the texture is left to name. One diagnostic
+    (``instrument=``), which writes the extinction as ``scale_pks`` and a
+    magnetic-only width as a ``mag_only`` magnetic part, so only the texture is
+    left to name. One diagnostic
     per file; ``where`` names each term by its parameter-table path
     (``…preferred_orientation.r``, not the block).
     """
@@ -5116,7 +5137,7 @@ def _moment_tail(moment, cell, allowed=(True, True, True)) -> str:
 
 def write_topas_inp(structure: Structure, path: str | Path, *,
                     diagnostics: list[Diagnostic] | None = None,
-                    p1_expand: bool = False, free=None, scale=None,
+                    p1_expand: bool | Literal["auto"] = False, free=None, scale=None,
                     instrument=None, pattern=None) -> None:
     """Write. See
     :func:`from_structure` for exactly what carries and what does not, and
@@ -5130,17 +5151,12 @@ def write_topas_inp(structure: Structure, path: str | Path, *,
                            p1_expand=p1_expand, free=free, scale=scale,
                            instrument=instrument), encoding="utf-8")
         return
-    if p1_expand:
-        raise ValueError(
-            "p1_expand=True cannot be combined with pattern=: the free paths "
-            "name the structure as given, and the P 1 restatement renames its "
-            "atoms")
     from .topas_input import from_structure_refined, write_data_file
 
     data_name = f"{path.stem}.xye"
     text, columns = from_structure_refined(
         structure, free=free, scale=scale, instrument=instrument, pattern=pattern,
-        data_name=data_name)
+        data_name=data_name, p1_expand=p1_expand, diagnostics=diagnostics)
     if diagnostics is not None:
         diagnostics.extend(_refined_diagnostics(structure, instrument))
     write_data_file(path.with_name(data_name), columns)

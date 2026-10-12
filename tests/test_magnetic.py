@@ -2135,8 +2135,9 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # WP-1931's ``BackgroundSelection.diagnostics`` 0.47, and WP-1929's
     # ``ParameterInterval``, a new answer type, 0.48, and its
     # ``StageResult.moment_angle_tests`` 0.49, and WP-1809's one-sided
-    # distance restraints (``TetherRestraint``, ``AntiBumpRestraint``) 0.50.
-    assert caps.schema_version == "0.50"
+    # distance restraints (``TetherRestraint``, ``AntiBumpRestraint``) 0.50, and
+    # WP-1317's ``SeriesResult.relative_paths`` and ``.angle_paths`` 0.51.
+    assert caps.schema_version == "0.51"
 
 
 def test_every_moment_dof_has_a_help_entry():
