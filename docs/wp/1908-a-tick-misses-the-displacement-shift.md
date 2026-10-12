@@ -40,8 +40,18 @@ mount, moves a peak by about 0.1° at mid-angle. Whether that crosses Layer
 
 ## Tasks
 
-- [ ] Reproduce on a synthetic pattern with a known displacement, and on
+- [x] Reproduce on a synthetic pattern with a known displacement, and on
       cpd-1c over 20–40°. Measure the tick-to-peak offset before the fix.
+      Measured at `5ef289bd` (apex of the calculated curve minus the tick,
+      darwin/arm64). Synthetic rutile, Cu Kα1, s = 0.5 mm on R = 217.5 mm,
+      refined back to 0.5000: of 25 isolated ticks, each sits low by the
+      amount −2·s·cosθ/R gives, 0.256° at 27.4° falling to 0.137° at 117.5°.
+      cpd-1c under
+      `qpa_plan`, Kα1 ticks: 20–40° fits −0.807 mm with the zero at its −0.5°
+      bound (Rwp 0.0795) and the ticks sit 0.50° low at 25.1° and 27.8°;
+      25–33° fits −1.000 mm and +0.5° (both bounds, Rwp 0.1215) and they sit
+      0.65° low. The −0.69/−0.78 mm and 0.4° in § Context did not reproduce on
+      this tree. The sign and the size of the offset did.
 - [ ] Build the tick positions from the same position corrections the
       forward model applies, through one function both read (two
       derivations of one position is the class root CLAUDE.md warns about
