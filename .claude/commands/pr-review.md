@@ -286,36 +286,42 @@ line if the checkpoint ended it. Close with
 
    - **`docs/wp/README.md`**: regenerate it with `wp_index.py`.
    - **The schema number**, `src/rietx/schemas/common.py` and the pin in
-     `tests/test_magnetic.py`. Both sides took main's number N for different
-     changes, so the PR's change moves to M, the next number after N. Keep
-     main's ladder note, then the PR's with its transition rewritten to
-     `N → M`. Drop a sentence in it that only coordinated the number with
-     other open PRs, and say so in the review. In the pin's comment keep
-     main's sentence and append the PR's item at M. **Then set
-     `SCHEMA_VERSION = "M"` and the pin's `assert` by hand.** Both lines sit
-     outside the conflict and merge clean at N, because both sides wrote N.
-     (That is git's default conflict style. `--conflict=diff3` draws them
-     inside the hunk.) A sync that resolves only the marked hunks leaves two
-     schema changes under one number. In a dry run of #911 onto `edad5b5a`
-     (2026-10-12) the pin test passed and `git diff --check` was clean that
-     way, and only the grep below showed 0.50. A release note on the branch
-     that names N for this change names M.
+     `tests/test_magnetic.py`. Main is at N, and the PR wrote P, usually N
+     too. The PR's change takes M, the next number after N. Keep main's
+     ladder notes, then the PR's with its transition rewritten to `N → M`.
+     Drop a sentence in it that only coordinated the number with other open
+     PRs, and say so in the review. In the pin's comment keep main's sentence
+     and append the PR's item at M. **Then set `SCHEMA_VERSION = "M"` and
+     the pin's `assert` by hand.** Where P is N, both lines sit outside the
+     conflict and merge clean at N. (That is git's default conflict style.
+     `--conflict=diff3` draws them inside the hunk.) A sync that resolves
+     only the marked hunks then leaves two schema changes under one number.
+     In a dry run of #911 onto `edad5b5a` (2026-10-12) the pin test passed
+     and `git diff --check` was clean that way. **Every other line the PR
+     adds that quotes P moves to M too**: a `_declared_since` stamp on a
+     class it adds, a release note, the manual, a skill row. Those lines
+     merge clean at P. A stale `_declared_since` also makes
+     `newest_declared_since()` skip a repair the new class needs.
    - **`docs/releases/<next>.md`**, the staging file: keep both sides when
      every hunk only adds, main's lines first. `git checkout --conflict=diff3
      -- <file>` shows each hunk's base. An empty `|||||||` section is an
      append on both sides, as two notes under `## New` gave (2026-10-12).
-     Anything in it is an edit, and an edit asks for a rebase.
+     Anything in it is an edit, and an edit asks for a rebase. So does a
+     file both sides created, whose whole base is empty.
 
    ```sh
    git merge --abort
    git checkout --detach refs/pr/N
    git -c merge.wpindex.driver='git merge-file %A %O %B' merge --no-edit origin/main     # conflicts on bookkeeping alone
+   git diff --name-only --diff-filter=U           # the files to resolve
    python3 .claude/hooks/wp_index.py              # when the index conflicts
    # resolve the schema number and the staging file as above, then:
-   grep -n 'SCHEMA_VERSION = "' src/rietx/schemas/common.py     # must print M
+   git diff origin/main -- src/rietx/schemas/common.py | grep -x '+SCHEMA_VERSION = "M"'   # exits 1 while the constant is stale
+   git diff -U0 origin/main | grep -n -F 'P'      # read every hit: main's own item, or now M
    git diff --check                               # no conflict markers left
    .venv/bin/python -m pytest tests/test_magnetic.py -k capability_flag_is_derived
-   git add -u
+   git add <each file resolved or renumbered>
+   git status --short                             # nothing modified beyond those
    git commit -m "Merge main; <what was synced, e.g. renumber SCHEMA_VERSION to M>" \
      -m "Synced with Claude Code on behalf of @yue-here."
    gh pr view N --json headRepositoryOwner,headRepository,headRefName
