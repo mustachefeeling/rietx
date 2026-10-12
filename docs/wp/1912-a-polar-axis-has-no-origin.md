@@ -148,8 +148,14 @@ Licensing: SHELXL is closed. Use the paper only.
       `mccusker_structural` (LM and TRF), Zn stays at 0 with no esd and O
       refines to 0.38231(57), while the unheld pair quotes ±0.00029 on each
       z.*
-- [ ] `help.py` entry for any new field; Manual Part 2 (the constraint with a
+- [x] `help.py` entry for any new field; Manual Part 2 (the constraint with a
       *Source* line beside the Wyckoff DOFs) and Part 1 (one paragraph).
+      *Done 2026-10-12: `help.py` has no arm for a `Phase` field or a row
+      extra, so the coordinate-DOF entry gained one sentence naming the hold.
+      Part 2 carries `par-origin-floats` and `par-origin-hold` beside
+      `par-origin`. Part 1 rewrites the `concepts.md` paragraph around the
+      field and adds the origin hold to `model.md`'s held-reasons table. The
+      1.9.0 staged notes carry the addition.*
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for the ZnO case.
 - [ ] Skill: a row keyed by the new code. `references/diagnostics.md` is closed
       to growth (`tests/skill_caps.py`), so pay for it with a cut, or let

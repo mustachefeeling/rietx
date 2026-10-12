@@ -84,10 +84,45 @@ factor,
 
 ({cite}`itc-a` Part 15): the polar axis of a polar group, nothing for a
 non-polar one. A fit freeing a coordinate of every atom along it has a flat
-direction; fixing it by holding one atom's coordinate, as
-`Refinement.hold_floating_origin` does, leaves the others' esds measured
-relative to that atom, where a restraint on the mean coordinate would spread
-them {cite}`flack1988`. The $U^{ij}$ tensor transforms as $U \to R\,U
+direction.
+
+With `Phase.floating_origin = "hold"` the parameter table fixes that
+direction. For each basis row $\mathbf{f}$ of {eq}`par-origin`, it first asks
+whether the columns a stage could free can shift the phase along
+$\mathbf{f}$ and move nothing else:
+
+```{math}
+:label: par-origin-floats
+
+\exists\,\Delta p_{\mathrm{free}}:\quad C\,\Delta p_{\mathrm{free}} = \mathbf{v}_{\mathbf{f}}
+```
+
+{source}`rietx.params.vector.ParameterTable._origin_floats`
+
+Here $C$ is the block of {eq}`par-affine` over every column that is not held,
+locked or tied. The vector $\mathbf{v}_{\mathbf{f}}$ moves each coordinate row
+of the phase by its component of $\mathbf{f}$ and every other row the forward
+model reads by zero. Where {eq}`par-origin-floats` has a solution, the table
+holds the displacement DOF of the first atom whose basis row is
+$\pm\mathbf{f}$:
+
+```{math}
+:label: par-origin-hold
+
+\Delta\theta_{j^\ast k} = 0,
+\qquad j^\ast = \min\{\, j : B_{jk} = \pm\mathbf{f} \,\}
+```
+
+{source}`rietx.params.vector.ParameterTable._fix_origin`
+
+The other atoms' coordinates along $\mathbf{f}$ are then measured relative to
+atom $j^\ast$. Their esds are the esds of those differences, and atom $j^\ast$
+has none. A restraint on the mean coordinate would instead give every atom an
+esd {cite}`flack1988`. Where a caller's tie or hold already leaves
+{eq}`par-origin-floats` without a solution, the table holds nothing more,
+because a second hold would remove a real degree of freedom.
+
+The $U^{ij}$ tensor transforms as $U \to R\,U
 R^\top$ under a rotation acting on fractional coordinates, so the allowed
 ADP pattern spans the invariant subspace of that action on symmetric 3×3
 matrices {cite}`peterse1966` (cross-checked against the cctbx tables

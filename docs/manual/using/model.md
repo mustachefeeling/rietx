@@ -117,7 +117,7 @@ They are distinguishable on purpose, because the fix differs.
 | `locked` | structurally fixed: a symmetry-fixed cell angle, a fully fixed special position, the first emission line's weight, a non-primary emission line's wavelength, `biso` on a site that declares an anisotropic tensor | no |
 | `tie` | an affine function of other rows, so the freedom lives in its sources | only if it is your own tie |
 | `mode_fixed` | refinable in principle, but the current intensity mode force-fixes it | switch back to `rietveld` |
-| `held` | you declared this parameter does not move, whatever a plan asks for ({ref}`holding-a-parameter`). The only reason you both created and can lift | `Refinement.unhold` |
+| `held` | you declared this parameter does not move, whatever a plan asks for ({ref}`holding-a-parameter`). The only reason you both created and can lift. A coordinate DOF held to fix a polar group's origin (`Phase.floating_origin`) is `held` too, and `ParameterRow.origin_axis` names the direction it fixes | `Refinement.unhold` |
 | `ParameterRow.needs_held_cell` | a wavelength that cannot be freed right now, because this histogram's cell is free and the two are an exactly flat direction. The only dynamic held-reason: hold the cell and the same row becomes refinable ({ref}`a-refinable-wavelength`) | no |
 
 `ParameterRow.refinable` is false if any of the five holds. The five counts do
