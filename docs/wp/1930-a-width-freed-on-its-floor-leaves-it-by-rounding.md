@@ -163,10 +163,14 @@ bits at the last nightly's tree (56427c4a). That nightly's Linux plot reads Rwp
 - [x] The package side: `Stage` seeds a floor row it frees (#836 item 3),
       through `Stage.seed`'s existing path, with the seed's size and source in
       the docstring. A diagnostic only if a caller can still free one unseeded.
-- [ ] A χ² or Rwp band on `test_acceptance_lab6_cbn.py` tight enough to see
+- [x] A χ² or Rwp band on `test_acceptance_lab6_cbn.py` tight enough to see
       12.5 against 9.7 (the reporter suggests Rwp within 2 % of the
-      re-measured value), run on both nightly platforms. *Landed and green
-      on macOS 2026-10-09; the Linux nightly after merge is the second run.*
+      re-measured value), run on both nightly platforms. *Linux x86-64:
+      green in the nightly full suite at 32a2b473 (WP-1930's form) and at
+      0f30d584, dd20f0fd and 56427c4a (WP-1938's), the last plotting Rwp
+      0.1687, GoF 3.19. macOS arm64: green here 2026-10-12, Rwp 0.168656276,
+      χ²_red 10.151815. The macOS nightly runs only the fast tier, so its
+      macOS runs are local ones.*
 - [x] Re-measure VALIDATION.md's row and the landing page's copy on the
       chosen protocol (`docs/landing/README.md` says how the page's numbers
       are rebuilt).
