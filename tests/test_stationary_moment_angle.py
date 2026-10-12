@@ -127,6 +127,9 @@ def test_a_stop_beside_the_symmetry_direction_leaves_the_angles_out():
     assert abs(only.statistic) < 1.0 and only.cut == pytest.approx(6.497, abs=1e-3)
     assert set(only.half_widths) == set(ANGLES)
     rows = _rows(result)
+    # the direction is recorded beside the stop, never at another 2π image
+    assert set(only.stationary_at) == set(ANGLES)
+    assert all(abs(only.stationary_at[p] - rows[p].value) < 0.1 for p in ANGLES)
     # free, refined and without an esd: the value stands
     assert all(rows[p].vary and rows[p].stderr is None for p in ANGLES)
     assert rows[f"{MN1}.dof0"].stderr == pytest.approx(0.00152, rel=0.05)

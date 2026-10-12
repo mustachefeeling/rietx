@@ -745,15 +745,25 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
                                            point.resid) / scale
             if not np.isfinite(statistic):
                 statistic = None
+        # where the columns vanish, so a reader can see how far the stop was.
+        # An angle is 2π-periodic and a Newton step can land on another image
+        # of the same direction (87π from a stop at 3.121 on Cr₂WO₆ at 4 K),
+        # so the image nearest the fitted value is the one recorded
+        stationary_at = ({p: float(x[i] + math.remainder(point.theta[i] - x[i],
+                                                         2.0 * math.pi))
+                          for p, i in zip(paths, tested, strict=True)}
+                         if point.reached else {})
         if statistic is not None and statistic <= cut:
             half = _half_widths(point.curvature_diag, point.resid, scale)
             rounds.append(MomentAngleTest(
                 paths=paths, reached=True, statistic=statistic, cut=cut,
-                zeroed=True, half_widths={p: w for p, w in zip(
+                zeroed=True, stationary_at=stationary_at,
+                half_widths={p: w for p, w in zip(
                     paths, half, strict=True) if w is not None}))
             return rounds, list(tested)
         rounds.append(MomentAngleTest(paths=paths, reached=statistic is not None,
-                                      statistic=statistic, cut=cut, zeroed=False))
+                                      statistic=statistic, cut=cut, zeroed=False,
+                                      stationary_at=stationary_at))
         if k == 1:
             break
         if statistic is None or point.curvature_stop is None:

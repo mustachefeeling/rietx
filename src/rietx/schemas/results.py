@@ -809,6 +809,10 @@ class MomentAngleTest(Base):
     statistic: float | None = None
     cut: float
     zeroed: bool
+    #: each angle's value where the Newton step drove the columns to the
+    #: floor, filled when ``reached``.  The distance from the fitted value is
+    #: what the statistic was read across.
+    stationary_at: dict[str, float] = Field(default_factory=dict)
     half_widths: dict[str, float] = Field(default_factory=dict)
 
 

@@ -445,6 +445,7 @@ the test:
 | `MomentAngleTest.statistic` | Δχ² from where the fit stopped to that direction, the other parameters refitted, over χ²_red·f²; `None` where the direction was not reached |
 | `MomentAngleTest.cut` | the 95 % point the statistic is held against, 2.71 for one angle and 6.50 for four |
 | `MomentAngleTest.zeroed` | whether these angles left the covariance |
+| `MomentAngleTest.stationary_at` | each angle's value at the direction where its column vanishes, the image nearest the fitted value; empty where the direction was not reached |
 | `MomentAngleTest.half_widths` | on a passing round, each angle's distance either side of the direction at which χ², everything else held, rises by χ²_red·f² |
 
 For a number on such an angle, call `ref.profile_interval(data, path)`. It
