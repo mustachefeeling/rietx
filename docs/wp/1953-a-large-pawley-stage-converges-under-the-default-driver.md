@@ -427,7 +427,14 @@ The two-site Pnma set, `solve_magnetic` with the `moduli` stage dropped
       solves start with a column under 1e-6 of the largest. The parked
       branch stays parked, and that part of this task is declined: with exact
       zero columns the moment-frame arms sit on a saddle that only the
-      stage-start probe left.
+      stage-start probe left. The full suite then found a held curvature
+      gone stale at a saddle: `test_moment_angle_chart`'s series stopped its
+      first forward pattern with the azimuth on −a, χ²_red 0.994003 against
+      the twin minimum's 0.992763, and fired `SEQUENTIAL_PATH_CHECK_INCOMPLETE`.
+      So a held curvature is measured again at a would-be stop and dropped if
+      it has turned negative. With that rule every pattern of both chains
+      reaches χ² at or below #918's, and the two chains agree at every pattern,
+      where on #918 they differed at p002 and p005.
       *As filed:* The held scale cannot help it: a running maximum of noise is noise,
       and noise normalised to unit norm is a random direction with a huge
       physical step. Two measured cases. The parked exact angle column

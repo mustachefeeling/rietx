@@ -404,10 +404,15 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     furthest for its size (:func:`_furthest_moved`).  Where that curvature is
     positive and exceeds what the damped model gives the coordinate,
     ``A_ii + λ·d_i²``, it becomes the coordinate's diagonal for the rest of the
-    stage, and λ restarts from its value at the start of the iteration.  Each
-    coordinate is measured at most once a stage.  A negative curvature is not
-    taken, since the model must stay positive semidefinite, and Gauss-Newton's
-    long steps are what leave a maximum.  A measurement's two evaluations are
+    stage, and λ restarts from its value at the start of the iteration.  A
+    crawl measures each coordinate at most once a stage.  A negative curvature
+    is not taken, since the model must stay positive semidefinite, and
+    Gauss-Newton's long steps are what leave a maximum.  So at a would-be stop
+    each held curvature is measured again, and one that has turned negative is
+    dropped and the stage goes on.  Held there, it made a maximum read as a
+    minimum: the first pattern of ``test_moment_angle_chart``'s series stopped
+    with the azimuth on −a at χ²_red 0.994003, where the twin minimum beside
+    it reads 0.992763.  A measurement's two evaluations are
     derivative information, like scipy's finite-difference Jacobian calls, so
     ``max_nfev`` does not count them.
 
@@ -566,6 +571,16 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                         lam = lam_start
         if spent:
             break
+        if (not accepted or small_runs >= _CONVERGED_RUNS) and np.any(curvature > 0.0):
+            # a would-be stop: a held curvature that has turned negative made
+            # a maximum read as a minimum, so it is dropped and the stage goes on
+            turned = [i for i in np.flatnonzero(curvature > 0.0)
+                      if (c := _measured_curvature(residual, x, s, int(i), lo, hi))
+                      is not None and c < 0.0]
+            if turned:
+                curvature[turned] = 0.0
+                small_runs = 0
+                continue
         if not accepted:
             # No downhill step exists that the cost can resolve.  That is
             # convergence, on the first outer iteration as on any later one,

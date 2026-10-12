@@ -518,7 +518,10 @@ raised λ to 100, the driver measures $\tfrac12\,\partial^2 S/\partial\theta_i^2
 by a central second difference along the parameter the last rejected step
 moved furthest for its size. Where that curvature is positive and larger than
 $A_{ii} + \lambda D_{ii}^2$, it replaces $A_{ii}$ for the rest of the stage, and
-λ starts again. Each parameter is measured at most once a stage.
+λ starts again. Each parameter is measured at most once a stage this way. A
+held curvature is measured again before the stage may stop, and dropped if it
+has turned negative. Held at a maximum, it would make the maximum read as a
+minimum.
 
 It is the default because it settles where TRF crawls. Every parameter refines
 in its own units, with its declared limits as box bounds, and TRF's strictly
