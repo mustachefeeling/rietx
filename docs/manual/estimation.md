@@ -316,11 +316,14 @@ Pnma pattern with both moments along $\mathbf{a}$, the two moduli read 0.031
 and 0.159 μ_B with the angle columns in, and 0.0015 and 0.0011 μ_B with them
 left out.
 
-So after each solve the fit tests its free angles $S$, the $k$ angles whose
-site's modulus is also free. It moves them, with every other parameter fixed,
-until each angle column is at most {{ MOMENT_DIRECTION_SUPPORT }} of its site's
-modulus column. The move is Gauss-Newton on the stacked columns, with first and
-second derivatives by central differences, and it ends at $\theta_N$. With
+So after each solve the fit tests its free angles $S$. These are the $k$ free
+columns that move only moment angles, where some free column also moves each of
+those sites' moduli. A column is read by what it moves, so a named variable
+driving two sites' azimuths is one angle of $S$. The fit moves them, with every
+other parameter fixed, until each angle column is at most
+{{ MOMENT_DIRECTION_SUPPORT }} of the largest of its sites' modulus columns.
+The move is Gauss-Newton on the stacked columns, with first and second
+derivatives by central differences, and it ends at $\theta_N$. With
 $J_o$ the solve's Jacobian at the stop $\hat\theta$ without the columns of $S$,
 the columns stay in the covariance when
 

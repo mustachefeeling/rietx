@@ -77,6 +77,20 @@ promises less could fall back to it. That is a candidate, not a decision.
 
 ### Inherited
 
+- **2026-10-12, from WP-1929 (fifth session): on Linux arm64 the two-site
+  class 0 winner is the swapped minimum.** A throwaway workflow ran
+  `solve_magnetic` on the two-site Pnma set at `main` `869b6cf8` (run
+  38239010950, numpy 2.5.4, scipy-openblas 0.3.34). On `ubuntu-24.04-arm`
+  (Neoverse-N2) the winner has Mn1 at 0.69950 and Mn2 at 3.49821 μ_B, χ²_red
+  1.0574924. On `ubuntu-latest` (AMD EPYC 7763) it has Mn1 at 3.49778, χ²_red
+  1.0574900. macOS arm64 reads 3.49801 and 1.0574474. So
+  `test_the_two_site_winner_finds_each_site_its_own_moment` would fail on
+  arm64 Linux, which no CI job runs slow. Not diagnosed: whether the
+  simulated pattern is bit-identical across the three, and which start
+  reached which minimum. The test's docstring puts the swapped point 0.66
+  higher in χ², and arm64's winner sits only 0.11 above macOS's, so the
+  pattern itself may differ. Read both before blaming the driver.
+
 - **2026-10-12, from WP-1929: the esd half of the stationary angle has
   landed.** `least_squares.stationary_angle_test` zeroes a passing angle's
   column for the covariance, with its own central differences, so the parked
