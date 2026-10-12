@@ -1856,7 +1856,9 @@ def test_a_flat_rotation_across_two_angles_is_held_and_named():
 #: The LM row stopped falsely converged until WP-1953.  After the turn λ
 #: climbed to 1e11 and three tiny accepted steps ended the solve on
 #: ``ftol_runs`` at χ²_red 11.03 with the moment on [111], a point a fresh LM
-#: solve left for χ² 4e-16 in 17 evaluations (WP-1938).  The vanishing angle
+#: solve left for χ² 4e-16 in 17 evaluations (WP-1938).  The tag v1.8.0 stops
+#: the same start at χ²_red 35.5, the number 1.9.0's notes quote, since the
+#: driver changed between the two measurements (WP-1953).  The vanishing angle
 #: column had been re-scaled to unit norm at every iteration; held at its
 #: largest norm this stage, it converges, and the row was a strict xfail
 #: until then.

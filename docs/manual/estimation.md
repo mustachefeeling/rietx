@@ -494,7 +494,9 @@ transfer. Each damped step solves
 
 with $\ell$ and $u$ the declared limits and the rows $T\theta + c \ge 0$
 described below. $D$ is diagonal, and $D_{ii}$ is the largest norm column $i$
-of $J$ has had in the stage, the scaling of MINPACK {cite}`more1978`. Without
+of $J$ has had in the stage, the scaling of MINPACK {cite}`more1978`, or the
+square root of a curvature held for the parameter where that is larger (below).
+Without
 a row binding, the step is solved by bounded-variable least squares
 {cite}`stark1995`, so a parameter the step puts on a bound lands on it. Above
 128 parameters, a size only a Pawley block reaches, that solve grows too slow.
