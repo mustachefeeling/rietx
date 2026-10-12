@@ -421,7 +421,10 @@ from .._nearmiss import did_you_mean
 #: left out of the covariance has a profile interval and no esd.  Every
 #: earlier document opens unchanged; an older build refuses one carrying the
 #: new field, or an interval whose ``stderr`` is ``None``.
-SCHEMA_VERSION = "0.49"
+#: 0.49 → 0.50 (WP-1809): ``TetherRestraint`` and ``AntiBumpRestraint`` join
+#: the ``Restraint`` union, and ``RestraintRow.kind`` gains ``"tether"`` and
+#: ``"anti_bump"``.  Additive: no existing document carries either.
+SCHEMA_VERSION = "0.50"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated
