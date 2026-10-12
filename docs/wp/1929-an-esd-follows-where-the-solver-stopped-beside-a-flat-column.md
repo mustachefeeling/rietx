@@ -1,6 +1,6 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: ✅ 2026-10-12 — shipped in #909 and this PR; the Linux check passed on a GitHub x86-64 runner; arm64 Linux's swapped minimum went to WP-1953
+Milestone: unscheduled · Status: ✅ 2026-10-12 — shipped in #909 and #915; the Linux check passed on a GitHub x86-64 runner; arm64 Linux's swapped minimum went to WP-1953
 Track: What fires, and what stays silent
 Depends on: 1938 (physical coordinates, which remove the point-dependence this WP reports on)
 
