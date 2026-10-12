@@ -2134,8 +2134,9 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # ``Parameter.transform`` and ``StageResult.floor_unseeded`` 0.46,
     # WP-1931's ``BackgroundSelection.diagnostics`` 0.47, and WP-1929's
     # ``ParameterInterval``, a new answer type, 0.48, and its
-    # ``StageResult.moment_angle_tests`` 0.49.
-    assert caps.schema_version == "0.49"
+    # ``StageResult.moment_angle_tests`` 0.49, and WP-1809's one-sided
+    # distance restraints (``TetherRestraint``, ``AntiBumpRestraint``) 0.50.
+    assert caps.schema_version == "0.50"
 
 
 def test_every_moment_dof_has_a_help_entry():
