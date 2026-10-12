@@ -2516,6 +2516,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                     stage=stage)
             return inner_c(theta)
 
+        residual.__wrapped__ = inner_c
+
     # the closure the stationary-angle test probes after the solve, taken
     # below the TRF wrapper for :func:`run_least_squares`' reason: a probe
     # must not emit an ``eval`` or move the step tracker
@@ -2542,6 +2544,10 @@ def run_multi_least_squares(models: list[CompiledModel],
                 events.emit("eval", **data)
             tracker.accept(theta, cost)
             return r
+
+        # ``inspect.unwrap`` reaches the guard underneath, so a check that the
+        # driver was handed the guarded closure still can ask
+        residual.__wrapped__ = inner_t
 
     # sample caps first: ``_freeze_cell_windows_multi`` ends in
     # ``refresh_bounds``, which is what pushes *all three* freezes into the
