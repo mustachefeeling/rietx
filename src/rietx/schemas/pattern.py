@@ -190,9 +190,15 @@ class PatternData(Base):
         (WP-1544). ``sigma: None`` and an empty ``excluded_regions`` are printed,
         because whether the file carried σ decides the weights."""
         from .._display import tree
-        tt = self.tt()
-        head = (f"PatternData of {tt.size} points, {tt[0]:g}–{tt[-1]:g}° 2θ, "
-                f"median step {float(np.median(np.diff(tt))):.4g}°")
+        # Through ``x()``, not ``tt()``: printing a bank is the first thing a
+        # caller does with one, and ``tt()`` refuses a flight-time axis.
+        x = self.x()
+        if self.axis == "two_theta":
+            span, step_unit = f"{x[0]:g}–{x[-1]:g}° 2θ", "°"
+        else:
+            span, step_unit = f"{x[0]:g}–{x[-1]:g} µs time of flight", " µs"
+        head = (f"PatternData of {x.size} points, {span}, "
+                f"median step {float(np.median(np.diff(x))):.4g}{step_unit}")
         return tree(self, order=("intensity", "sigma", "excluded_regions", "metadata"),
                     show_empty=True, head=head)
 

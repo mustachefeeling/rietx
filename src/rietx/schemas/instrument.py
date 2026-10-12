@@ -776,6 +776,13 @@ class TOFSource(_InheritsDeclaredDefaults):
         The one place the relation is written, so the readers, the tests and
         (later) the forward model cannot each carry their own version of it.
         Accepts a scalar or an array.
+
+        References: Larson, A. C. & Von Dreele, R. B. (2004), *General
+        Structure Analysis System (GSAS)*, Los Alamos National Laboratory
+        Report LAUR 86-748, p. 141 (``DIFC``, ``DIFA`` and the constant term);
+        the ``DIFB``/d term is the ``difB`` key of GSAS-II's instrument
+        parameter file, Toby, B. H. & Von Dreele, R. B. (2013), J. Appl.
+        Cryst. 46, 544-549, whose documentation (not the paper) states it.
         """
         import numpy as _np
 
@@ -794,6 +801,10 @@ class TOFSource(_InheritsDeclaredDefaults):
         place.  On real calibrations (a small DIFA against a DIFC of
         thousands) the iteration contracts by |2·DIFA·d/DIFC| ≪ 1 a step and
         converges in a handful of iterations.
+
+        The relation inverted is the one of :meth:`tof_from_d` (Larson & Von
+        Dreele, 2004, LAUR 86-748, p. 141; ``DIFB`` term: Toby & Von Dreele,
+        2013, J. Appl. Cryst. 46, 544-549, via GSAS-II's documentation).
         """
         import numpy as _np
 

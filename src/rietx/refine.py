@@ -2182,6 +2182,11 @@ class Refinement:
         undoing.  It costs one table build on a cold path — the same build the
         next stage compile or ``parameters()`` call performs anyway.
         """
+        # Refused before anything is touched: a bank's table builds without
+        # error, so nothing later stops the edit, and by then the structure,
+        # the ties and the holds have moved (WP-1035's half-applied edit).
+        if instrument is not None:
+            require_two_theta(None, "Refinement.edit()", instrument=instrument)
         candidate = self.structure if structure is None else structure
         # No magnetic-group judgement here: ``edit`` receives refined state
         # plus one change (the GUI's funnel for every model edit), which is the
@@ -2213,7 +2218,6 @@ class Refinement:
         if structure is not None:
             self.structure = structure.model_copy(deep=True)
         if instrument is not None:
-            require_two_theta(None, "Refinement.edit()", instrument=instrument)
             self.instrument = instrument.model_copy(deep=True)
             # An instrument edit is a deliberate redefinition of the instrument
             # this Refinement is built with — swapping the anode changes the

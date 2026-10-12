@@ -99,7 +99,7 @@ because the file stated the unit, never because the numbers looked like one.
 | file | what makes it a flight time |
 |---|---|
 | GSAS bank, `TIME_MAP` bintype | the bintype. Its steps are tabulated in a separate `TIME_MAP` record (triples of (first channel, flight time, step) in clock ticks), so the axis is exact and every record layout (`STD`, `ESD`, `FXYE`) is read |
-| GSAS bank, `RALF` or `SLOG` bintype | the bintype, and an `FXYE` record layout, which writes its own x column. This is what Mantid's `SaveGSS` emits (its default format is `RALF`). Under `ESD` or `STD` the axis would have to be integrated from the four bank coefficients and the bank is refused by name instead: the manual says a `RALF` step "varies (irregularly) in pseudoconstant Δt/t steps", and reconstructing a real ISIS GEM bank's axis from its own coefficients reproduces that bank's explicit column only to ~9 × 10⁻³ µs, a near miss, which is the one error shape nothing downstream can see |
+| GSAS bank, `RALF` or `SLOG` bintype | the bintype, and an `FXYE` record layout, which writes its own x column. This is what Mantid's `SaveGSS` emits (its default format is `RALF`). Under `ESD` or `STD` the axis would have to be integrated from the four bank coefficients and the bank is refused by name instead: the manual says a `RALF` step "varies (irregularly) in pseudoconstant Δt/t steps", and reconstructing a real bank's axis from its own coefficients reproduces that bank's explicit column only to ~9 × 10⁻³ µs, a near miss, which is the one error shape nothing downstream can see |
 | `.xy` / `.xye` with a Mantid header | the line `' The X-axis unit is: Time-of-flight`. A *stated unit* only: "tof" also turns up in file names and provenance comments, and flipping a pattern's abscissa on a substring would change what every number in the file means on the strength of a coincidence. A file that mentions a flight time and states no unit is read as 2θ and says so (`PATTERN_X_AXIS_ASSUMED`) |
 
 The same header line is how a `dSpacing`, `MomentumTransfer` or `Wavelength`
@@ -765,7 +765,7 @@ a single number admits.
 
 Several banks in one file are a selection rather than a default: pass
 `bank=`, as `#Bank n:` states it, or the read refuses and names the numbers it
-found. Refused by name as well: a time-of-flight or energy-dispersive `Type`,
+found. A time-of-flight `Type: PNT` file is read as a bank (one bank per file for now). Refused by name as well: an energy-dispersive or unknown `Type`,
 a non-zero `Z` (this package's profile is `u, v, w, x, y` exactly, and `Z` is
 zero in all 95 constant-wavelength histograms of GSAS-II's own tutorial
 corpus), a non-zero `Azimuth`, which changes what `Polariz.` means, and a

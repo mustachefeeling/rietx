@@ -18,7 +18,7 @@ scan are the same three columns — and states which in a comment header:
 
 That third line is what this reader reads.  It is a **stated unit**, which is
 the only shape that can be trusted: the word "tof" also turns up in file names,
-provenance comments and workspace names (``# from gem77976_b1_tof.dat``), and
+provenance comments and workspace names (``# from run_0042_b1_tof.dat``), and
 flipping a pattern's abscissa on a substring in a comment would change what
 every number in the file *means* on the strength of a coincidence.  A file that
 carries a TOF-looking token without stating a unit is therefore read as 2θ —
@@ -68,7 +68,7 @@ _TOF_UNIT_RE = re.compile(
 #: a Q column is neither of this package's two axes, so it falls to
 #: :func:`check_axis`'s refusal arm rather than being classified here.
 _ANGLE_UNIT_RE = re.compile(
-    r"2\s*theta|two[-\s]?theta|2θ|\bdegree|\bdeg\b|\bangle\b", re.I)
+    r"2[-\s]?theta|two[-\s]?theta|2θ|\bdegree|\bdeg\b|\bangle\b", re.I)
 
 #: Units that are **recognisably something else** — the policy's refusal arm.
 #: These are Mantid's own Unit Factory names, because Mantid is what writes this

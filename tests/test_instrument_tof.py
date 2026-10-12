@@ -315,7 +315,7 @@ def test_ityp_and_icoff_are_read_in_milliseconds_with_their_esds(tmp_path):
     slot and are reported dropped."""
     notes = []
     spec_recs = spectrum_records(1, 1, ELEVEN, esds=[0.1] * 11)
-    spec_recs.append(rec("INS  1IECOR1", (13, " 1.000-0.110")))
+    spec_recs.append(rec("INS  1IECOR1", (13, " 1.000-0.093")))
     src = read_gsas_tof_iparm(write(tmp_path, iparm(bank(1, spectrum=spec_recs))),
                               diagnostics=notes)[1].source
     sp = src.incident_spectrum
@@ -366,11 +366,11 @@ INSTPRM = """\
 #GSAS-II instrument parameter file
 Type:PNT
 Bank:1.0
-fltPath:63.183
+fltPath:41.527
 2-theta:90.0
 Azimuth:0.0
-difC:22586.9009385
-difA:-0.981525860367
+difC:19873.4106827
+difA:-0.734106295581
 difB:0.0
 Zero:0.0
 alpha:4.0
@@ -379,7 +379,7 @@ beta-1:3.63
 beta-q:0.0
 sig-0:0.0
 sig-1:10.0
-sig-2:403.353978439
+sig-2:391.208417563
 sig-q:0.0
 X:0.0
 Y:0.0
@@ -393,13 +393,13 @@ def test_an_instprm_reads_the_named_keys(tmp_path):
     notes = []
     ins = read_gsas2_instprm(write(tmp_path, INSTPRM, "b.instprm"), diagnostics=notes)
     src = ins.source
-    assert src.difc.value == pytest.approx(22586.9009385)
-    assert src.difa.value == pytest.approx(-0.981525860367)
+    assert src.difc.value == pytest.approx(19873.4106827)
+    assert src.difa.value == pytest.approx(-0.734106295581)
     assert src.two_theta_bank_deg == 90.0
     prof = src.profile_tof
     assert (prof.alpha0.value, prof.alpha1.value) == (0.0, 4.0)
     assert (prof.beta0.value, prof.beta1.value) == (0.001, 3.63)
-    assert prof.sig2.value == pytest.approx(403.353978439)
+    assert prof.sig2.value == pytest.approx(391.208417563)
     (dropped,) = [n for n in notes if n.code == "GSAS2_INSTPRM_FIELD_DROPPED"]
     assert {"beta-q", "sig-q", "Z", "X", "Y", "Bank", "fltPath"} <= set(dropped.where)
 

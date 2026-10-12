@@ -291,7 +291,9 @@ class GSASBank:
     abscissa, and :attr:`axis` is what says which: degrees for a ``CONS``
     bank, microseconds for a flight-time one.  A single number carrying two
     units is what the centidegree fold already made this format's trap, so the
-    range is never quoted without the axis beside it.  ``None`` means this
+    range is never quoted without the axis beside it.  ``axis`` is ``None``
+    for a bank that is neither (``COND``, ``CONQ``, ``LPSD``, ``EDS``, an
+    unknown bintype), which this reader cannot open.  ``x_range=None`` means this
     bank could not be read at all, and :attr:`refused` then carries the
     reader's own sentence saying why (a ``RALF`` bank of ``ESD`` records, an
     ``ALT`` layout) — reported rather than raised, because enumerating a file
@@ -303,7 +305,7 @@ class GSASBank:
     #: the record layout as declared, ``"STD"`` for a bank stating no flag
     type_flag: str
     n_channels: int
-    axis: AxisKind
+    axis: AxisKind | None
     x_range: tuple[float, float] | None
     refused: str | None = None
 
@@ -360,7 +362,8 @@ def gsas_banks(path: str | Path) -> list[GSASBank]:
         tail = bank_line.split()[5:]
         token = next((t for t in tail if t[:1].isalpha()), None)
         flag = (token or "STD").upper()
-        axis: AxisKind = "two_theta" if bintype in _ANGLE_BINTYPES else "tof"
+        axis: AxisKind | None = ("two_theta" if bintype in _ANGLE_BINTYPES else
+                                 "tof" if bintype in _TOF_BINTYPES else None)
         x_range: tuple[float, float] | None = None
         refused: str | None = None
         try:
@@ -374,6 +377,20 @@ def gsas_banks(path: str | Path) -> list[GSASBank]:
                             type_flag=flag, n_channels=int(head_m.group(2)),
                             axis=axis, x_range=x_range, refused=refused))
     return out
+
+
+def _first_bank_number(path: str | Path) -> int | None:
+    """The number the file's *first* BANK record declares, or None.
+
+    For one caller: Project.open re-reading a pattern whose recorded reader
+    call predates bank=.  Such a project was created when this reader
+    answered a multi-bank file with its first bank, and an old project must
+    always open — so the reopen asks for that bank by number rather than
+    tripping the "which one?" refusal that exists for a *new* call.
+    """
+    lines = Path(path).read_text(encoding="utf-8", errors="ignore").splitlines()
+    records, _ = _bank_records(lines)
+    return int(records[0][2].group(1)) if records else None
 
 
 def read_gsas(path: str | Path, *, bank: int | None = None,
@@ -560,7 +577,10 @@ def _read_bank(p: Path, lines: list[str],
         sig = arr[:, 2]
     elif type_flag == "ESD":
         arr = _reshape(_esd_fields(body, p), 2, p, type_flag)
-        x = _synth_axis(axis, bintype, lines, bank_line, c1, c2, len(arr), p)
+        # ``arr`` holds the zero pairs padding the last record to ten fields,
+        # so the axis is built for the declared count, as the STD branch does
+        x = _synth_axis(axis, bintype, lines, bank_line, c1, c2,
+                        min(len(arr), nchan), p)
         y, sig = arr[:, 0], arr[:, 1]
     else:  # STD: counts only, Poisson esd
         values = _floats([t for line in body for t in line.split()], p, type_flag)
@@ -639,11 +659,17 @@ def _time_map_axis(lines: list[str], bank_line: str, n: int,
     ``RALF``/``SLOG`` FXYE columns hold (measured: an ISIS GEM bank's first
     channel spans 1104.000-1108.416 µs and its FXYE x is 1106.1995).
     """
-    want = _map_number(bank_line)
+    want = _map_number(bank_line, p)
     for i, line in enumerate(lines):
         m = _TIME_MAP_RE.match(line)
         if m and int(m.group(1)) == want:
-            nval, nrec, clock_ns = int(m.group(2)), int(m.group(3)), float(m.group(4))
+            nval, nrec = int(m.group(2)), int(m.group(3))
+            try:
+                clock_ns = float(m.group(4))
+            except ValueError:
+                raise ValueError(
+                    f"{p.name}: the TIME_MAP {want} record's clock width "
+                    f"{m.group(4)!r} is not a number of nanoseconds") from None
             break
     else:
         seen = sorted({int(m.group(1)) for m in
@@ -704,13 +730,25 @@ def _time_map_axis(lines: list[str], bank_line: str, n: int,
     return (start + 0.5 * step) * clock_ns / 1000.0
 
 
-def _map_number(bank_line: str) -> int:
-    """The TIME_MAP number a bank record points at — its first coefficient."""
+def _map_number(bank_line: str, p: Path) -> int:
+    """The TIME_MAP number a bank record points at — its first coefficient.
+
+    Refused by name when the record states none or states something that is not
+    an integer: reading such a bank against the file's map 1 would pass the
+    terminator check whenever map 1 happened to fit, with no diagnostic, and a
+    reader repairs a file only where it can say so.
+    """
     fields = bank_line.split()
     try:
         return int(fields[5])
     except (IndexError, ValueError):
-        return 1
+        stated = fields[5] if len(fields) > 5 else "nothing"
+        raise ValueError(
+            f"{p.name}: this TIME_MAP bank's record states {stated!r} where "
+            f"the number of its time map belongs — {bank_line.strip()!r}. "
+            f"Which map the channels follow is not established by the file, "
+            f"and assuming map 1 would read a bank against a table it may not "
+            f"own.") from None
 
 
 def _one_axis_per_file(records: list[tuple[int, str, "re.Match[str]"]],

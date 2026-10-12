@@ -126,6 +126,11 @@ def save_instrument_profile(instrument: Instrument, path: str | Path) -> None:
     on the sample's own instrument; it is three lines and it is where the
     centre bounds belong.
     """
+    # A bank would be written and could not be read back (the loader's
+    # ``_iter_parameters`` is a constant-wavelength list), so it is refused here.
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(None, "save_instrument_profile()", instrument=instrument)
     ins = instrument.model_copy(deep=True)
     ins.geometry.sample_displacement.value = 0.0
     ins.geometry.sample_transparency.value = 0.0
@@ -177,6 +182,12 @@ def load_instrument_profile(path: str | Path, *,
         notes = restore_declared_ranges(found, where)
         if diagnostics is not None:
             diagnostics.extend(notes)
+    # A profile file holding a bank (written by a version that did not refuse
+    # one) is refused by name: ``_iter_parameters`` lists constant-wavelength
+    # parameters, and a bank's ``difc`` and ``profile_tof.*`` would stay free.
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(None, "load_instrument_profile()", instrument=ins)
     for p in _iter_parameters(ins):
         p.vary = False
     return ins

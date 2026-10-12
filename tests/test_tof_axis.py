@@ -496,8 +496,8 @@ def six_bank_ralf(path, *, nchan=N):
 
     Each bank starts at its own flight time and steps in its own pseudo-Δt/t,
     so which bank a read returned is visible in the first channel alone — the
-    property a synthetic fixture needs here, since the real six-bank file that
-    established this (``gem77976.gss``) is a beamtime's and is not vendored.
+    property a synthetic fixture needs here, since a real six-bank GEM export
+    established this and is not vendored.
     Mantid's own between-bank comment line goes in too: it is what the body
     loop has to skip rather than treat as a terminator.
     """
@@ -726,20 +726,20 @@ INS  1ICOFF3   0.340000E-03   0.000000E+00   0.000000E+00   0.000000E+00
 INS  1IECOF1   0.120000E+00   0.100000E+02   0.440000E-03   0.600000E+01
 INS  1IECOF2   0.180000E-04   0.580000E+01   0.260000E-05   0.390000E+02
 INS  1IECOF3   0.650000E-05   0.000000E+00   0.000000E+00   0.000000E+00
-INS  1IECOR1 1.000-0.110 0.679-0.055-0.558 0.222 0.066 0.002-0.002 0.000
+INS  1IECOR1 1.000-0.093 0.612-0.047-0.501 0.198 0.058 0.003-0.001 0.000
 INS  1PRCF1     1   12   0.01000
 INS  1PRCF11   0.000000E+00   0.123456E+00   0.345678E-01   0.123457E-01
 INS  1PRCF12   0.000000E+00   0.234567E+03   0.000000E+00   0.000000E+00
 INS  1PRCF13   0.000000E+00   0.000000E+00   0.000000E+00   0.000000E+00
-INS  2 ICONS  11974.73   -2.3500   -3.6200
+INS  2 ICONS  10231.58   -1.7200   -2.9100
 INS  2BNKPAR      1.50     90.00
 INS  2PRCF1     1   12   0.00100
-INS  2PRCF11   0.000000E+00   0.200000E+00   0.337096E+02   0.551603E+02
-INS  2PRCF12   0.000000E+00   0.167064E+03   0.000000E+00   0.000000E+00
+INS  2PRCF11   0.000000E+00   0.200000E+00   0.298413E+02   0.472056E+02
+INS  2PRCF12   0.000000E+00   0.154817E+03   0.000000E+00   0.000000E+00
 INS  2PRCF13   0.000000E+00   0.000000E+00   0.000000E+00   0.000000E+00
 INS  2PRCF2     2   15   0.00100
-INS  2PRCF21   0.000000E+00   0.200000E+00   0.337096E+02   0.551603E+02
-INS  2PRCF22   0.000000E+00   0.167064E+03   0.000000E+00   0.000000E+00
+INS  2PRCF21   0.000000E+00   0.200000E+00   0.298413E+02   0.472056E+02
+INS  2PRCF22   0.000000E+00   0.154817E+03   0.000000E+00   0.000000E+00
 INS  2PRCF23   0.000000E+00   0.000000E+00   0.000000E+00   0.000000E+00
 INS  2PRCF24   0.000000E+00   0.000000E+00   0.000000E+00
 """
@@ -747,16 +747,16 @@ INS  2PRCF24   0.000000E+00   0.000000E+00   0.000000E+00
 INSTPRM = """\
 #GSAS-II instrument parameter file; do not add/delete items!
 beta-0:0.001
-fltPath:63.183
+fltPath:41.527
 Bank:1.0
 sig-1:10.0
 2-theta:90.0
 sig-q:0.0
 sig-0:0.0
-sig-2:403.353978439
+sig-2:391.208417563
 beta-1:3.63
 Zero:0.0
-difC:22586.9009385
+difC:19873.4106827
 X:0.0
 Azimuth:0.0
 Y:0.0
@@ -765,7 +765,7 @@ beta-q:0.0
 Z:0.0
 Type:PNT
 difB:0.0
-difA:-0.981525860367
+difA:-0.734106295581
 """
 
 
@@ -787,13 +787,13 @@ def test_a_gsas_i_tof_file_gives_one_instrument_per_bank(tmp_path):
     # DIST is carried as l2; FPATH1 is not a record the manual lists, so the
     # primary flight path is not stated and stays unset
     assert (one.l1_m, one.l2_m) == (None, 2.50)
-    assert banks[2].source.difc.value == 11974.73
+    assert banks[2].source.difc.value == 10231.58
     # a calibration arrives frozen, exactly as load_instrument_profile's does
     assert not any(getattr(one, n).vary for n in ("difc", "difa", "tzero", "difb"))
     assert not any(getattr(one.profile_tof, f).vary for f in ProfileTOF.model_fields)
     assert one.profile_tof.alpha1.value == pytest.approx(0.123456)
     assert one.profile_tof.sig1.value == pytest.approx(234.567)
-    assert banks[2].source.profile_tof.sig1.value == pytest.approx(167.064)
+    assert banks[2].source.profile_tof.sig1.value == pytest.approx(154.817)
     # one read per bank, and bank 2's second set declined by name
     read = [n for n in notes if n.code == "GSAS_IPARM_PROFILE_READ"]
     declined = [n for n in notes if n.code == "GSAS_IPARM_PROFILE_DECLINED"]
@@ -969,8 +969,8 @@ def test_a_gsas_ii_instprm_reads_every_named_coefficient(tmp_path):
     p.write_text(INSTPRM, encoding="utf-8")
     notes = []
     source = read_gsas2_instprm(str(p), diagnostics=notes).source
-    assert source.difc.value == pytest.approx(22586.9009385)
-    assert source.difa.value == pytest.approx(-0.981525860367)
+    assert source.difc.value == pytest.approx(19873.4106827)
+    assert source.difa.value == pytest.approx(-0.734106295581)
     assert source.tzero.value == 0.0
     assert source.two_theta_bank_deg == 90.0
     profile = source.profile_tof
@@ -979,7 +979,7 @@ def test_a_gsas_ii_instprm_reads_every_named_coefficient(tmp_path):
     assert (profile.alpha0.value, profile.alpha1.value) == (0.0, 4.0)
     assert (profile.beta0.value, profile.beta1.value) == (0.001, 3.63)
     assert (profile.sig0.value, profile.sig1.value) == (0.0, 10.0)
-    assert profile.sig2.value == pytest.approx(403.353978439)
+    assert profile.sig2.value == pytest.approx(391.208417563)
     assert not any(getattr(profile, f).vary for f in ProfileTOF.model_fields)
     dropped = [n for n in notes if n.code == "GSAS2_INSTPRM_FIELD_DROPPED"]
     assert len(dropped) == 1
@@ -1404,3 +1404,178 @@ def test_a_bank_table_writes_its_calibration_back():
     table.apply_to_models(s2, b2)
     assert b2.source.difc.value == 5200.0
     assert b2.zero_shift == bank.zero_shift
+
+
+def test_a_project_made_before_bank_existed_still_opens_on_a_multi_bank_file(
+        tmp_path, cw_models):
+    """The reader answered a multi-bank file with its first bank for its whole
+    life, so a project written then records no ``bank``.  An old project must
+    always open: the reopen asks for the file's first bank by number."""
+    import json
+
+    structure, instrument = cw_models
+    one = tmp_path / "one.gsa"
+    one.write_text("one bank\nBANK 1 4 1 CONS 1000 20 STD\n"
+                   "    10.0    11.0    12.0    13.0\n", encoding="utf-8")
+    proj = tmp_path / "proj.rex"
+    rx.Project.create(proj, pattern=one, structure=structure,
+                      instrument=instrument)
+    doc = json.loads((proj / "project.json").read_text(encoding="utf-8"))
+    assert "bank" not in doc["patterns"][0]["options"]
+    # the same project, but the file it points at now holds three banks — the
+    # first being the one the project was fitted on, so the bytes are
+    # re-hashed and the fingerprint is untouched
+    stored = proj / doc["patterns"][0]["filename"]
+    stored.write_text(stored.read_text(encoding="utf-8")
+                      + "BANK 2 4 1 CONS 2000 20 STD\n"
+                        "    10.0    11.0    12.0    13.0\n", encoding="utf-8")
+    import hashlib
+    doc["patterns"][0]["sha256"] = hashlib.sha256(stored.read_bytes()).hexdigest()
+    (proj / "project.json").write_text(json.dumps(doc), encoding="utf-8")
+    reopened = rx.Project.open(proj)
+    assert reopened.data.two_theta[0] == pytest.approx(10.0)
+
+
+def test_a_refused_bank_edit_leaves_the_working_state_where_it_was(cw_models):
+    """``edit`` refuses a bank, and the refusal comes before any state moves:
+    the structure, the user ties and the head are all as they were."""
+    structure, instrument = cw_models
+    ref = rx.Refinement(structure, instrument)
+    ref.tie_equal(["instrument.profile.u", "instrument.profile.v"])
+    assert ref._ties
+    ties_before = dict(ref._ties)
+    head_before = ref._head_id
+    s2 = structure.model_copy(deep=True)
+    s2.phases[0].cell.a.value += 0.5
+    bank = rx.Instrument.tof_neutron_bank(difc=5123.45, two_theta_bank_deg=90.0)
+    with pytest.raises(ValueError) as exc:
+        ref.edit(structure=s2, instrument=bank)
+    assert str(exc.value).startswith("Refinement.edit()")
+    assert ref.structure.phases[0].cell.a.value == structure.phases[0].cell.a.value
+    assert ref._ties == ties_before
+    assert ref._head_id == head_before
+
+
+def test_a_flight_time_pattern_prints_and_says_which_axis_it_is(tof_pattern):
+    """Reading a bank and looking at it is what the build offers; ``str`` went
+    through ``tt()``, which refuses a flight-time axis, so ``print(data)`` and a
+    notebook cell both raised."""
+    text = str(tof_pattern)
+    assert "1000–2990 µs time of flight" in text
+    assert "median step 10 µs" in text
+    assert "° 2θ" not in text
+    cw = PatternData(two_theta=[10.0, 10.5, 11.0], intensity=[1.0, 2.0, 3.0])
+    assert "10–11° 2θ, median step 0.5°" in str(cw)
+
+
+def test_a_profile_holding_a_bank_is_refused_by_name_at_both_doors(tmp_path):
+    """The writer produced a file the loader could not read (an
+    ``AttributeError`` for ``source.polarization``, a 500 in the GUI's
+    preview).  The writer now refuses, and a file written before that is
+    refused by the loader in the same words."""
+    import json
+
+    bank = rx.Instrument.tof_neutron_bank(difc=5123.45, two_theta_bank_deg=90.0)
+    with pytest.raises(ValueError) as exc:
+        rx.save_instrument_profile(bank, tmp_path / "bank.json")
+    assert str(exc.value).startswith("save_instrument_profile()")
+    assert not (tmp_path / "bank.json").exists()
+
+    cw = rx.Instrument.constant_wavelength_neutron(1.5)
+    rx.save_instrument_profile(cw, tmp_path / "cw.json")
+    doc = json.loads((tmp_path / "cw.json").read_text(encoding="utf-8"))
+    doc["instrument"] = bank.model_dump(
+        mode="json", exclude={"background", "extra_components"})
+    (tmp_path / "old.json").write_text(json.dumps(doc), encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        rx.load_instrument_profile(tmp_path / "old.json")
+    assert str(exc.value).startswith("load_instrument_profile()")
+
+
+def test_an_esd_time_map_bank_padded_to_ten_fields_is_checked_at_its_declared_count(
+        tmp_path):
+    """A real ESD record is padded with explicit zero pairs, so a bank whose
+    channel count is not a multiple of five arrives with 1-4 extra pairs; the
+    map's terminator check wants the declared count, not the padded one."""
+    p = time_map_bank(tmp_path / "pad.gsa", nchan=7)
+    text = p.read_text(encoding="utf-8").rstrip("\n")
+    p.write_text(text + f"{0.0:8.1f}" * 6 + "\n", encoding="utf-8")
+    data = rx.read_pattern(str(p))
+    assert len(data.tof) == 7
+    assert data.tof[0] == pytest.approx(2000.5)
+
+
+@pytest.mark.parametrize("record, stated", [
+    ("TIME_MAP ESD", "'ESD'"),
+    ("TIME_MAP  2.0 ESD", "'2.0'"),
+])
+def test_a_time_map_bank_with_no_readable_map_number_is_refused_by_name(
+        tmp_path, record, stated):
+    """Map 1 would otherwise be assumed, and a map 1 that happens to fit the
+    channel count passes the terminator check with no diagnostic."""
+    p = time_map_bank(tmp_path / "nomap.gsa")
+    p.write_text(p.read_text(encoding="utf-8").replace("TIME_MAP  1 ESD", record),
+                 encoding="utf-8")
+    with pytest.raises(ValueError, match="nomap.gsa") as exc:
+        rx.read_pattern(str(p))
+    assert stated in str(exc.value)
+    assert "number of its time map" in str(exc.value)
+
+
+def test_a_clock_width_that_is_not_a_number_names_the_file(tmp_path):
+    p = time_map_bank(tmp_path / "clk.gsa")
+    p.write_text(p.read_text(encoding="utf-8").replace("TIME_MAP  100",
+                                                   "TIME_MAP  ."),
+                 encoding="utf-8")
+    with pytest.raises(ValueError, match="clk.gsa") as exc:
+        rx.read_pattern(str(p))
+    assert "clock width" in str(exc.value)
+
+
+@pytest.mark.parametrize("bintype, axis", [
+    ("CONS", "two_theta"), ("RALF", "tof"), ("COND", None), ("EDS", None),
+    ("LPSD", None)])
+def test_gsas_banks_names_an_axis_only_for_a_bintype_that_has_one(
+        tmp_path, bintype, axis):
+    """``COND``/``CONQ``/``LPSD``/``EDS`` are neither angle nor time; listing
+    them as ``"tof"`` told a caller filtering on ``axis`` something false."""
+    p = tmp_path / "one.gsa"
+    p.write_text(f"BANK 1 4 1 {bintype} 1000 20 STD\n"
+                 "    10.0    11.0    12.0    13.0\n", encoding="utf-8")
+    (bank,) = gsas_banks(str(p))
+    assert bank.axis == axis
+
+
+@pytest.mark.parametrize("unit", ["2-Theta", "2 Theta", "2theta", "Two-Theta",
+                                  "2θ (deg)"])
+def test_a_file_stating_its_2theta_axis_in_any_spelling_draws_no_assumption(
+        tmp_path, unit):
+    """``2-Theta`` was captured as a stated unit, matched no pattern, and drew
+    ``PATTERN_X_AXIS_ASSUMED`` on a file that had stated its axis."""
+    p = tmp_path / "stated.xye"
+    p.write_text(f"# The X-axis unit is: {unit}\n"
+                 + "\n".join(f"{10.0 + 0.02 * i} {i} {1.0 + 0.1 * i}"
+                             for i in range(N)) + "\n", encoding="utf-8")
+    notes = []
+    data = rx.read_pattern(str(p), diagnostics=notes)
+    assert data.axis == "two_theta"
+    assert notes == []
+
+
+def test_the_descending_and_repeat_notes_name_the_flight_time_on_a_bank(tmp_path):
+    """They said "2θ" and ``where=["two_theta"]`` about a Mantid TOF file written
+    high to low."""
+    p = tmp_path / "desc.xye"
+    rows = [(7000.0 + 3.0 * i, 1.0 + i, 0.5 + i) for i in range(N)][::-1]
+    rows.insert(3, rows[3])
+    p.write_text("# The X-axis unit is: Time-of-flight\n"
+                 + "\n".join(f"{x} {y} {e}" for x, y, e in rows) + "\n",
+                 encoding="utf-8")
+    notes = []
+    data = rx.read_pattern(str(p), diagnostics=notes)
+    assert data.axis == "tof"
+    by = {n.code: n for n in notes}
+    assert "high flight-time to low" in by["PATTERN_SCAN_REVERSED"].message
+    assert "2θ" not in by["PATTERN_SCAN_REVERSED"].message
+    assert by["PATTERN_SCAN_REVERSED"].where == ["tof"]
+    assert "flight-time value(s)" in by["PATTERN_DUPLICATE_POINTS"].message

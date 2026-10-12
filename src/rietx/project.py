@@ -40,6 +40,7 @@ from typing import Any
 from . import _about
 from .history.store import fingerprint
 from .history.tree import RefinementTree
+from .io.formats.gsas import _first_bank_number
 from .io.readers import identify_format, read_pattern, reader_options_for
 from .optimize.least_squares import DEFAULT_SOLVER
 from .refine import _VERSION, Refinement
@@ -261,8 +262,15 @@ class Project:
                 "history was fitted against the recorded bytes")
 
         notes: list[Diagnostic] = []
-        data = read_pattern(pattern_path, diagnostics=notes,
-                            **_reader_options(ref_doc))
+        options = _reader_options(ref_doc)
+        if ref_doc.reader == "gsas" and "bank" not in options:
+            # A project written before read_gsas refused a multi-bank file
+            # recorded no bank, and that reader answered with the first one.
+            # The recorded fingerprint still vouches for the choice.
+            first = _first_bank_number(pattern_path)
+            if first is not None:
+                options["bank"] = str(first)
+        data = read_pattern(pattern_path, diagnostics=notes, **options)
         # ``Project.create`` refuses a TOF pattern, so a project on disk should
         # never point at one — but the file it points at is on disk beside it
         # and the document is editable, so the reopen asks again rather than

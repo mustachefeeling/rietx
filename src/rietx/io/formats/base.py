@@ -374,6 +374,8 @@ def ascending(x: Any, intensity: Any, sigma: Any = None, *,
     name = Path(path).name
     label = "2θ" if axis == "two_theta" else "the flight time"
     unit = "°" if axis == "two_theta" else " µs"
+    # the descending-scan and repeated-value notes name the quantity as well
+    noun = "2θ" if axis == "two_theta" else "flight-time"
 
     step = np.diff(tt)
     # ``<= 0`` with at least one strict descent, so that a descending scan which
@@ -386,10 +388,10 @@ def ascending(x: Any, intensity: Any, sigma: Any = None, *,
         if diagnostics is not None:
             diagnostics.append(Diagnostic(
                 level="info", code="PATTERN_SCAN_REVERSED",
-                message=(f"{name} stores its points from high 2θ to low; they "
+                message=(f"{name} stores its points from high {noun} to low; they "
                          "were reversed. The same measurement, stored backwards "
                          "— reversing loses nothing"),
-                where=["two_theta"]))
+                where=[axis]))
 
     if tt.size > 1 and not np.all(step > 0):
         repeat = np.flatnonzero(step == 0.0)
@@ -410,9 +412,9 @@ def ascending(x: Any, intensity: Any, sigma: Any = None, *,
             if diagnostics is not None:
                 diagnostics.append(Diagnostic(
                     level="info", code="PATTERN_DUPLICATE_POINTS",
-                    message=(f"{name} repeats {int(repeat.size)} 2θ value(s) with "
+                    message=(f"{name} repeats {int(repeat.size)} {noun} value(s) with "
                              "the same intensity; the repeats were dropped"),
-                    where=["two_theta"]))
+                    where=[axis]))
         else:
             i = int(np.flatnonzero(step <= 0)[0])
             extra = (" — if these are separate ranges, name one with scan="

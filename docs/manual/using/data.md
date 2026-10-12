@@ -862,7 +862,7 @@ cancels its own second order exactly. Part 2 has both.
 
 :::{admonition} Time-of-flight is not this
 :class: note
-Everything here is constant wavelength. A time-of-flight instrument spans a
+Everything in this chapter is constant wavelength: a time-of-flight bank can be read, and its instrument described (`TOFSource`, below), but nothing refines one yet. A time-of-flight instrument spans a
 range of wavelengths across several detector banks, which changes the profile
 function, the intensity corrections and the number of histograms at once, and
 the thermal scattering-length table cannot give b(λ) for a resonant absorber.
