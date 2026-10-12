@@ -129,6 +129,7 @@ from .preferred_orientation import (
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from .profiles.fcj import (
     fcj_extent_deg,
+    fcj_live,
     fcj_node_count,
     fcj_offsets_weights,
     fcj_offsets_weights_batch,
@@ -220,7 +221,7 @@ def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
         lo = np.where(too_wide, lo, mid)
     return hi
 #: quadrature nodes are sized as if the axial S/L, H/L were at least this
-#: large.  Applied **by value** whenever both are positive, so that
+#: large.  Applied **by value** whenever either is positive, so that
 #: ``predict()`` at given values does not depend on which parameters are free
 #: (#774); and, for the optimiser, when either is about to be *refined* from
 #: zero, so the finite-difference Jacobian sees a live parameter instead of a
@@ -2433,10 +2434,12 @@ class CompiledModel:
         depend smoothly on (pos, S/L, H/L); their derivatives are finite-
         differenced on the node vectors themselves (≤64 numbers per peak).
 
-        ``axial_ok`` is False when either axial ratio sits at ≤ 0 while FCJ
-        nodes exist — the parameterisation is discontinuous there (FCJ's
-        overlap trapezoid has zero height) and the axial columns must fall
-        back to plain FD.
+        ``axial_ok`` is False when FCJ nodes exist at apertures where the
+        aberration is off (both zero, :func:`~.profiles.fcj.fcj_live`).  A
+        refinement freeing them from there starts where the node-FD has no
+        smear to difference, so the axial columns fall back to plain FD.  One
+        zero aperture is a live aberration and keeps its node-FD columns
+        (WP-1953).
 
         ``axial_derivs=False`` skips the two aperture node-FD evaluations and
         leaves every ∂Ω/∂sl, ∂Ω/∂hl entry ``None`` (WP-0605 task 0): they
@@ -2480,9 +2483,9 @@ class CompiledModel:
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
         h_pos, h_ax = 1e-5, 1e-7
-        # d_sl/d_hl exist only while the parameterisation is smooth there; at
-        # either aperture ≤ 0 the axial columns fall back to FD (``axial_ok``)
-        build_axial = axial_derivs and sl > 0.0 and hl > 0.0
+        # d_sl/d_hl exist only while the aberration acts; at both apertures
+        # zero the axial columns fall back to FD (``axial_ok``)
+        build_axial = axial_derivs and fcj_live(sl, hl)
         n_ph = len(self.phases)
         peaks_all: list = [None] * n_ph
         planes_all: list = [None] * n_ph
@@ -2519,7 +2522,7 @@ class CompiledModel:
             inten = lay.gather(peaks, 3)
             finite = np.isfinite(pos)
             has_fcj = bool(np.any((lay.fcj > 0) & finite))
-            if has_fcj and (sl <= 0.0 or hl <= 0.0):
+            if has_fcj and not fcj_live(sl, hl):
                 axial_ok = False
             d_pos = d_gamma = d_eta = d_sl = d_hl = None
             if not profile_derivs:
@@ -3458,27 +3461,23 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     # explicit set — even an empty one — licenses the gates.
     gate_off_states = moving_paths is not None
     # FCJ sizing values (floored below ``AXIAL_SIZING_FLOOR`` whether or not
-    # the axial parameters are free, #774).  The aberration's weight is the overlap trapezoid of height
-    # 2·min(S/L, H/L), so it can act this stage only if **both** apertures
-    # can be positive — a value already above zero, or a path the stage can
-    # move.  One aperture pinned at 0 with only the other freed (the QPA
-    # protocol's `lines_axial` stage) previously floored both for sizing and
-    # allocated nodes that evaluated as one-hot symmetric fallbacks — full
-    # node-generation and (nodes × window) kernel cost for an exact identity,
-    # measured 2.5× on the bases build (WP-1112's gate record).
+    # the axial parameters are free, #774).  The aberration acts unless both
+    # apertures are zero (``fcj_live``), so nodes are sized when either is
+    # already positive or either is free this stage.  Until WP-1953 one zero
+    # aperture switched it off, and the QPA protocol's `lines_axial` stage,
+    # freeing S/L alone beside H/L = 0, refined a parameter that moved
+    # nothing.
     moving_paths = moving_paths or set()
     axial_free = ("instrument.geometry.axial_sl" in moving_paths
                   or "instrument.geometry.axial_hl" in moving_paths)
-    can_sl = geom.axial_sl.value > 0.0 or "instrument.geometry.axial_sl" in moving_paths
-    can_hl = geom.axial_hl.value > 0.0 or "instrument.geometry.axial_hl" in moving_paths
     sl_eff = geom.axial_sl.value
     hl_eff = geom.axial_hl.value
-    # the floor follows the values alone once both are positive (#774); only
+    # the floor follows the values alone once either is positive (#774); only
     # the refine-from-zero case still reads the plan
-    if (sl_eff > 0.0 and hl_eff > 0.0) or (axial_free and can_sl and can_hl):
+    if sl_eff > 0.0 or hl_eff > 0.0 or axial_free:
         sl_eff = max(sl_eff, AXIAL_SIZING_FLOOR)
         hl_eff = max(hl_eff, AXIAL_SIZING_FLOOR)
-    fcj_on = sl_eff > 0.0 and hl_eff > 0.0
+    fcj_on = fcj_live(sl_eff, hl_eff)
 
     # a reflection is kept if *any* line lands in range: the min-λ line sits
     # lowest, so generate with λ_min and translate the low-2θ cutoff from the

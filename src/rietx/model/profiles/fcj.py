@@ -19,6 +19,15 @@ trapezoid in ξ:
 (2·min for |s−h| ≥ ξ, linearly falling to zero at ξ = s + h; FCJ eqs. 4-13
 reduce to this after collecting their two half-integrals).
 
+**One aperture at zero.**  W then has no height, and the profile below is a
+ratio of two zeros.  Its limit as h → 0⁺ with s > 0 is a uniform weight over
+[0, s], since W/(2h) → 1 there and the falling edge shrinks to nothing.  The
+quadrature evaluates that limit directly, so the profile is continuous on the
+whole box of apertures, and only s = h = 0 is the symmetric peak.  Until
+WP-1953 a single zero aperture gave the symmetric peak instead.  That was a
+jump at the very bound the LM driver's exact step lands a variable on, and a
+fit freeing both apertures crawled beside it to its evaluation cap.
+
 **The singularity and its removal.**  Expressed as a density in 2φ, the
 aberration D(2φ) = W(ξ)·|dξ/d2φ| diverges like 1/√(2θ − 2φ) at the Bragg
 position (FCJ §2, the reason naive sampling fails).  Substituting ξ as the
@@ -68,13 +77,27 @@ def _gauss_legendre_01(n: int) -> tuple[np.ndarray, np.ndarray]:
     return (0.5 * (x + 1.0)).astype(np.float64), (0.5 * w).astype(np.float64)
 
 
-def _xi_max(two_theta_rad: np.ndarray, sl: float, hl: float) -> np.ndarray:
-    # shared by the runtime quadrature and the compile-time sizing below
+def fcj_live(sl: float, hl: float) -> bool:
+    """Whether the aberration acts at these apertures: neither negative and
+    not both zero.  One zero aperture acts (the module docstring's limit).
+
+    The one test every reader of the off state calls, so the profile, the
+    compile-time node sizing and the axial columns agree on where it is.
+    """
+    return sl >= 0.0 and hl >= 0.0 and sl + hl > 0.0
+
+
+def _tan_cap(two_theta_rad: np.ndarray) -> np.ndarray:
+    # |tan 2θ| bounds ξ; infinite at 2θ = 90°
     xp = get_backend()
     with np.errstate(divide="ignore"):
         cap = xp.abs(xp.tan(two_theta_rad))
-    cap = xp.where(xp.isfinite(cap), cap, np.inf)
-    return xp.minimum(sl + hl, cap)
+    return xp.where(xp.isfinite(cap), cap, np.inf)
+
+
+def _xi_max(two_theta_rad: np.ndarray, sl: float, hl: float) -> np.ndarray:
+    # shared by the runtime quadrature and the compile-time sizing below
+    return get_backend().minimum(sl + hl, _tan_cap(two_theta_rad))
 
 
 def fcj_extent_deg(two_theta_deg: np.ndarray, sl: float, hl: float) -> np.ndarray:
@@ -91,12 +114,11 @@ def fcj_extent_deg(two_theta_deg: np.ndarray, sl: float, hl: float) -> np.ndarra
 def fcj_node_count(two_theta_deg: float, fwhm_deg: float, sl: float, hl: float) -> int:
     """Frozen per-reflection quadrature size; 0 → treat peak as symmetric.
 
-    Both apertures must be positive for the aberration to act: the overlap
-    trapezoid W has height 2·min(S/L, H/L), so a point sample or point slit
-    (either ratio = 0) carries no weight in this parameterisation — set both,
-    or tie them equal, rather than zeroing one.
+    The aberration acts unless both apertures are zero (:func:`fcj_live`).  A
+    point slit beside a sample of half-length S still smears the peak, over
+    the uniform weight the module docstring derives.
     """
-    if sl <= 0.0 or hl <= 0.0:
+    if not fcj_live(sl, hl):
         return 0
     extent = float(fcj_extent_deg(np.array(two_theta_deg), sl, hl))
     if extent < SKIP_EXTENT_FWHM_RATIO * fwhm_deg:
@@ -110,15 +132,19 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
     """Apparent-angle images 2φ_q (deg) and normalised weights ω_q (Σω = 1).
 
     The composite peak is  Σ_q ω_q · Ω(2θ_i − 2φ_q)  with the same unit-area
-    profile Ω used for symmetric peaks.  When the aberration vanishes (either
-    aperture ratio ≤ 0, or ξ_max = 0) the result falls back to the single
-    symmetric image, expressed branchlessly (purity (d)) as a ``where``-select
-    of the *same shape*: every image at 2θ with a one-hot weight vector, whose
-    dot with the profile rows reproduces the single-image path bit-for-bit.
-    The parameterisation discontinuity at S/L, H/L → 0 is genuine (the overlap
-    trapezoid has zero height); ``axial_ok=False`` already routes those
-    Jacobian columns to FD, so autodiff correctness *at* the fallback boundary
-    is out of scope.
+    profile Ω used for symmetric peaks.  When the aberration vanishes (both
+    apertures zero, a negative one, or ξ_max = 0) the result falls back to the
+    single symmetric image, expressed branchlessly (purity (d)) as a
+    ``where``-select of the *same shape*: every image at 2θ with a one-hot
+    weight vector, whose dot with the profile rows reproduces the single-image
+    path bit-for-bit.  That fallback is the limit of the profile as both
+    apertures go to zero, since the smear's extent goes with them.
+
+    **One aperture at zero** gives W unit height on the first segment, which
+    then spans [0, ξ_max], and the second segment has zero length.  That is
+    the uniform limit of the module docstring, and the trapezoid's own
+    expression is selected wherever both apertures are positive, so those
+    weights are the ones computed before WP-1953 bit for bit.
 
     Composite quadrature: W(ξ) has a kink at ξ = |s − h|, so the integral is
     split there into two Gauss-Legendre segments (W exactly constant on the
@@ -136,10 +162,16 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
     tau = xp.asarray(tau_np, dtype=np.float64)
     glw = xp.asarray(glw_np, dtype=np.float64)
     tt = xp.radians(two_theta_deg)
-    xi_max = _xi_max(tt, sl, hl)
-    ok = (xi_max > 0.0) & (sl > 0.0) & (hl > 0.0)
+    cap = _tan_cap(tt)
+    xi_max = xp.minimum(sl + hl, cap)
+    ok = (xi_max > 0.0) & (sl >= 0.0) & (hl >= 0.0)
 
-    xi_kink = xp.minimum(xp.abs(sl - hl), xi_max)
+    # capped by the tangent alone: |s − h| ≤ s + h for apertures ≥ 0 (a
+    # negative one is masked by ``ok``), so capping by ξ_max too changes no
+    # selected value, but ties the two at one zero aperture, where a traced
+    # backend splits the tie's derivative in half and the kink stops moving
+    # with the zero aperture (WP-1953)
+    xi_kink = xp.minimum(xp.abs(sl - hl), cap)
     # segment A: [0, ξ_kink], W ≡ 2·min(s,h); segment B: [ξ_kink, ξ_max]
     xi = xp.concatenate([tau * xi_kink, xi_kink + tau * (xi_max - xi_kink)])
     seg_len = xp.concatenate([xp.full_like(glw, xi_kink),
@@ -148,7 +180,16 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
 
     cphi = xp.clip(xp.cos(tt) * xp.sqrt(1.0 + xi * xi), -1.0, 1.0)
     phi = xp.degrees(xp.arccos(cphi))
-    w_overlap = xp.clip(sl + hl - xi, 0.0, 2.0 * xp.minimum(sl, hl))
+    # one aperture at zero: W/(2·min) per node, which is 1 on segment A and
+    # 1 − τ on segment B for every min > 0.  Segment B has zero length there,
+    # so its values are the uniform limit's, and a traced backend's derivative
+    # at the zero aperture is the trapezoid's one-sided one rather than the
+    # derivative of a constant weight
+    unit_w = xp.asarray(np.concatenate([np.ones_like(tau_np), 1.0 - tau_np]),
+                        dtype=np.float64)
+    w_overlap = xp.where(xp.minimum(sl, hl) > 0.0,
+                         xp.clip(sl + hl - xi, 0.0, 2.0 * xp.minimum(sl, hl)),
+                         unit_w)
     omega = glw2 * seg_len * w_overlap
     total = omega.sum()
     ok = ok & (total > 0.0)
@@ -183,9 +224,9 @@ def fcj_offsets_weights_batch(two_theta_deg: np.ndarray, sl: float, hl: float,
         cap = np.abs(np.tan(tt))
     cap = np.where(np.isfinite(cap), cap, np.inf)
     xi_max = np.minimum(sl + hl, cap)
-    ok = (xi_max > 0.0) & (sl > 0.0) & (hl > 0.0)
+    ok = (xi_max > 0.0) & (sl >= 0.0) & (hl >= 0.0)
 
-    xi_kink = np.minimum(abs(sl - hl), xi_max)
+    xi_kink = np.minimum(abs(sl - hl), cap)
     xi = np.concatenate([tau * xi_kink, xi_kink + tau * (xi_max - xi_kink)],
                         axis=1)
     seg_len = np.concatenate([np.broadcast_to(xi_kink, (b, m)),
@@ -196,7 +237,9 @@ def fcj_offsets_weights_batch(two_theta_deg: np.ndarray, sl: float, hl: float,
     with np.errstate(invalid="ignore"):
         cphi = np.clip(np.cos(tt) * np.sqrt(1.0 + xi * xi), -1.0, 1.0)
         phi = np.degrees(np.arccos(cphi))
-        w_overlap = np.clip(sl + hl - xi, 0.0, 2.0 * min(sl, hl))
+        w_overlap = (np.clip(sl + hl - xi, 0.0, 2.0 * min(sl, hl))
+                     if min(sl, hl) > 0.0
+                     else np.concatenate([np.ones_like(tau), 1.0 - tau])[None, :])
     omega = glw2 * seg_len * w_overlap
     total = omega.sum(axis=1, keepdims=True)
     ok = ok & (total > 0.0)

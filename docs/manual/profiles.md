@@ -519,6 +519,14 @@ clamped to [8, 64]), and node positions follow $s$, $h$ and $2\theta$ smoothly.
 When the asymmetric extent falls below {{ SKIP_EXTENT_FWHM_RATIO }} of the peak
 FWHM the aberration is invisible, and the peak is treated as symmetric.
 
+With one aperture at zero the trapezoid {eq}`prof-fcj-weight` has no height,
+and {eq}`prof-fcj-integral` is a ratio of two zeros. Its limit as $h \to 0^+$
+with $s > 0$ is a uniform weight over $[0, \xi_{\max}]$, because $W/2h \to 1$
+there and the falling edge shrinks to nothing. rietx evaluates that limit, so
+the profile is continuous over the whole range of apertures. Only
+$s = h = 0$ gives the symmetric peak. A refinement can therefore land an
+aperture exactly on its lower bound of zero.
+
 The quadrature is split at the kink of the trapezoid {eq}`prof-fcj-weight`,
 which keeps the response $C^1$ everywhere but the inherent FCJ corner at
 $s = h$. That corner is a genuine non-differentiability, and it has measured

@@ -33,6 +33,16 @@ With no active bounds and ``removal=False`` this reduces to textbook CG, and so
 must reproduce a direct solve — the anchor
 ``tests/test_bccg.py::test_unconstrained_matches_direct_solve``.
 
+**The LM driver no longer takes this step** (WP-1953).  Above
+:data:`.lm.BVLS_MAX_COLUMNS` it took it until then, and on the Pawley blocks
+that cross that cut it was wrong in sign: its model value was positive at most
+λ > 0 on FAP.XRA's 343 columns, up to 6e6 times the size of the best value,
+because a variable clamped mid-loop moves *less* than the CG step assumed while
+the residual is updated as if it had not.  The stage then spent its budget
+raising λ.  The driver's step there is :func:`projected_cg` below, which
+stops at a bound instead of projecting past it.  :func:`solve` stays as the
+paper's method, with the readings the tests pin.
+
 The system is diagonally pre-conditioned to A_ii = 1 before any of this, which
 is also what makes the Levenberg-Marquardt λ of :mod:`.lm` dimensionless.
 """
@@ -254,3 +264,124 @@ def solve(A: np.ndarray, b: np.ndarray, *,
         n_active_avg=float(np.mean(active_counts)) if active_counts else 0.0,
         clamped=sorted(set(clamped)),
     )
+
+
+#: :func:`projected_cg` stops on a face once the free gradient falls to this
+#: fraction of the starting gradient's norm.  Far tighter than BCCG's own stop
+#: (``_CONVERGED_FRACTION`` on the *squared* residual, 1e-2 on its norm): run
+#: with that stop instead, FAP's ``profile`` stage needed 341 evaluations
+#: against 20 (WP-1953).
+_PCG_TOL = 1e-10
+#: Hessian products one :func:`projected_cg` solve may spend, per variable.
+#: Measured on 24 systems of 11-BM NAC's Pawley fit (1 493-1 499 columns):
+#: unbudgeted, a solve at λ = 0 took up to 11 s, and 2n held every one under
+#: 0.64 s.  The whole fit still converges every stage, at Rwp 0.12620721
+#: (0.12620514 unbudgeted), in 71 s on macOS arm64 (WP-1953).
+_PCG_BUDGET_PER_VARIABLE = 2
+#: Armijo fraction and halving cap of the Cauchy point's projected search
+_CAUCHY_ARMIJO = 1e-4
+_CAUCHY_HALVINGS = 60
+
+
+def _model(H: np.ndarray, g: np.ndarray, y: np.ndarray) -> float:
+    return 0.5 * float(y @ (H @ y)) - float(g @ y)
+
+
+def _cauchy_point(H: np.ndarray, g: np.ndarray, lo: np.ndarray,
+                  hi: np.ndarray) -> np.ndarray:
+    """The projected steepest-descent point: start at the unconstrained
+    minimiser along ``g``, project onto the box, and halve the step until the
+    model falls by the Armijo fraction of its first-order prediction
+    (Moré, J. J. & Toraldo, G. (1991). *SIAM J. Optim.* **1**, 93-113, the
+    projected search)."""
+    curvature = float(g @ (H @ g))
+    if curvature <= 0.0 or not np.any(g):
+        return np.zeros_like(g)
+    t = float(g @ g) / curvature
+    for _ in range(_CAUCHY_HALVINGS):
+        y = np.clip(t * g, lo, hi)
+        if _model(H, g, y) <= -_CAUCHY_ARMIJO * float(g @ y):
+            return y
+        t *= 0.5
+    return np.zeros_like(g)
+
+
+def projected_cg(H: np.ndarray, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
+                 budget: int | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Minimise ``½yᵀHy − gᵀy`` over ``lo ≤ y ≤ hi`` by projected conjugate
+    gradients, the step :mod:`.lm` takes above its BVLS cut (WP-1953).
+
+    ``H`` is symmetric positive semi-definite and ``lo ≤ 0 ≤ hi``, so y = 0 is
+    feasible.  The method is the subspace step of Lin, C.-J. & Moré, J. J.
+    (1999). *SIAM J. Optim.* **9**, 1100-1127, started from the Cauchy point:
+
+    1. **The Cauchy point** (:func:`_cauchy_point`) fixes the variables a
+       steepest-descent step already pushes onto a bound.
+    2. **CG on the free variables**, from a residual recomputed at the current
+       point.  A CG step that would leave the box is cut at the first bound it
+       meets, that variable is put *on* the bound and fixed, and CG restarts.
+    3. **Release.**  Once CG converges on a face, a fixed variable whose
+       gradient points into the box is freed, and step 2 runs again; with none
+       to free the face's minimiser is the box's.
+
+    Every CG segment lowers the model, the cut one included, so the step
+    always descends, which is what BCCG's projection past a bound could not
+    promise.  ``budget`` caps the Hessian products (default
+    :data:`_PCG_BUDGET_PER_VARIABLE` per variable); a solve that spends it
+    returns the best point so far, still a descent step.
+
+    Returns the step and which bound each variable was fixed on (−1 lower,
+    +1 upper, 0 neither), the convention :func:`.lm._solve_step` lands
+    variables exactly on.
+    """
+    n = len(g)
+    budget = _PCG_BUDGET_PER_VARIABLE * n if budget is None else budget
+    y = _cauchy_point(H, g, lo, hi)
+    floor = _PCG_TOL * _PCG_TOL * max(float(g @ g), np.finfo(np.float64).tiny)
+    fixed = (y <= lo) | (y >= hi)
+    spent = 0
+    while spent < budget:
+        grad = H @ y - g
+        spent += 1
+        r = np.where(fixed, 0.0, -grad)
+        rr = float(r @ r)
+        if rr <= floor:
+            release = fixed & (((y <= lo) & (grad < 0.0)) | ((y >= hi) & (grad > 0.0)))
+            if not np.any(release):
+                break
+            fixed &= ~release
+            continue
+        p = r
+        stalled = False
+        while spent < budget:
+            q = H @ p
+            spent += 1
+            pq = float(p @ q)
+            if pq <= 0.0:
+                stalled = True      # flat along p: no CG step left to take
+                break
+            alpha = rr / pq
+            with np.errstate(divide="ignore", invalid="ignore"):
+                reach = np.where(p > 0.0, (hi - y) / p,
+                                 np.where(p < 0.0, (lo - y) / p, np.inf))
+            reach = np.where(fixed, np.inf, reach)
+            tau = float(np.min(reach)) if n else np.inf
+            if tau < alpha:
+                hit = reach <= tau
+                y = y + tau * p
+                y = np.where(hit & (p > 0.0), hi, np.where(hit & (p < 0.0), lo, y))
+                fixed |= hit
+                break
+            y = y + alpha * p
+            r = np.where(fixed, 0.0, r - alpha * q)
+            rr_next = float(r @ r)
+            if rr_next <= floor:
+                break
+            p = r + (rr_next / rr) * p
+            rr = rr_next
+        if stalled:
+            break
+    side = np.zeros(n, dtype=np.int8)
+    side[fixed & (y <= lo)] = -1
+    side[fixed & (y >= hi)] = 1
+    return y, side

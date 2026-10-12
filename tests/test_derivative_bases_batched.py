@@ -38,6 +38,7 @@ from rietx import Instrument, PatternData
 from rietx.model import compiled
 from rietx.model.forward import compile_model
 from rietx.model.profiles.fcj import (
+    fcj_live,
     fcj_offsets_weights,
     fcj_offsets_weights_batch,
 )
@@ -123,7 +124,7 @@ def _scalar_reference(model, values, *, axial_derivs=True):
                 dphi, dom = (phi1 - phi) / H_POS, (om1 - om) / H_POS
                 d_pos = (dom @ pv) - ((om * dphi) @ d_dx)
                 d_sl = d_hl = None
-                if axial_derivs and sl > 0.0 and hl > 0.0:
+                if axial_derivs and fcj_live(sl, hl):
                     phi2, om2 = fcj_offsets_weights(float(pos[k]),
                                                     sl + H_AX, hl, n_fcj)
                     dphi, dom = (phi2 - phi) / H_AX, (om2 - om) / H_AX
@@ -193,14 +194,15 @@ def test_batched_node_generation_matches_the_scalar_authority():
         phi_s, om_s = fcj_offsets_weights(float(tt), 0.025, 0.030, 12)
         assert _rel(phi_b[j], phi_s) < 1e-15
         assert _rel(om_b[j], om_s) < 1e-15
-    # the branchless fallback: a zero aperture turns every row one-hot, and
-    # the batch must serve the scalar's exact select per row
-    phi0, om0 = fcj_offsets_weights_batch(np.array([12.0, 45.0]),
-                                          0.025, 0.0, 12)
-    for j, tt in enumerate((12.0, 45.0)):
-        phi_s, om_s = fcj_offsets_weights(float(tt), 0.025, 0.0, 12)
-        assert np.array_equal(phi0[j], phi_s)
-        assert np.array_equal(om0[j], om_s)
+    # one zero aperture is the uniform limit (WP-1953), and both at zero is
+    # the branchless fallback that turns every row one-hot; the batch must
+    # serve the scalar's exact select per row in both
+    for sl, hl in ((0.025, 0.0), (0.0, 0.0)):
+        phi0, om0 = fcj_offsets_weights_batch(np.array([12.0, 45.0]), sl, hl, 12)
+        for j, tt in enumerate((12.0, 45.0)):
+            phi_s, om_s = fcj_offsets_weights(float(tt), sl, hl, 12)
+            assert np.array_equal(phi0[j], phi_s)
+            assert np.array_equal(om0[j], om_s)
     assert om0[0, 0] == 1.0 and float(om0[0, 1:].sum()) == 0.0
     assert np.all(phi0[0] == 12.0)
 

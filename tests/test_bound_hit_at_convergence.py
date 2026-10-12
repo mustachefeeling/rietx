@@ -493,7 +493,8 @@ def test_the_active_set_is_read_only_where_it_is_exact():
     """LM up to ``BVLS_MAX_COLUMNS`` solved columns; never TRF's mask.
 
     A Pawley block counts, because the driver solves it beside the table and
-    the step past the cut is BCCG's, which can stop a row just off its bound.
+    the step past the cut is projected CG's, whose budgeted solve can stop
+    short of a bound the exact one would reach (WP-1953).
     """
     from rietx.optimize.lm import BVLS_MAX_COLUMNS
     from rietx.strategy.staged import _exact_active_bounds

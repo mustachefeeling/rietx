@@ -449,3 +449,26 @@ def test_the_file_states_a_wider_free_set_than_this_plan(fap_inputs, fap_fit):
     assert EXP.n_variables == 28
     assert len(free_in_gsas) == 21          # 2 cell + 12 DOF + 7 Biso
     assert result.statistics.n_free_parameters == 20
+
+
+def test_a_pawley_fit_past_the_bvls_cut_converges_every_stage(fap_inputs):
+    """WP-1953: the default plan's Pawley fit solves 335-343 columns, past
+    ``lm.BVLS_MAX_COLUMNS``.  Under BCCG's step the ``profile`` stage ran to
+    its 400-evaluation cap at Rwp 0.08036, 236 of its 635 steps promising no
+    descent.  The projected-CG step converges every stage, in TRF's basin:
+    Rwp 0.0782443 under LM, 0.0783830 under TRF (macOS arm64).  The exact
+    BVLS step converges too, at 0.0802866, because its eigenvalue cut drops
+    near-null directions that still carry gradient."""
+    from rietx.optimize import lm
+
+    data, structure, instrument = fap_inputs
+    ref = rx.Refinement(structure, instrument)
+    result = ref.fit(data, mode="pawley")
+    assert ref._model.pawley.n > lm.BVLS_MAX_COLUMNS
+    assert [s.status for s in result.stages] == ["converged"] * len(result.stages)
+    assert result.statistics.rwp < 0.0790
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    result.plot(path=str(out / "fap_pawley.png"))
+    import matplotlib.pyplot as plt
+    plt.close("all")

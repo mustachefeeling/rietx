@@ -72,7 +72,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from ..model.corrections import lorentz_polarization
-from ..model.profiles.fcj import fcj_node_count, fcj_offsets_weights
+from ..model.profiles.fcj import fcj_live, fcj_node_count, fcj_offsets_weights
 from ..model.profiles.pseudovoigt import pseudo_voigt_derivs, tch_gamma_eta
 from ..model.profiles.voigt import fwhm_to_voigt_params, voigt_derivs
 from ..optimize.statistics import normal_covariance
@@ -168,7 +168,7 @@ class _GroupModel:
         self.polarization = instrument.source.polarization.value
         self.sl = instrument.geometry.axial_sl.value
         self.hl = instrument.geometry.axial_hl.value
-        self.fcj = self.sl > 0.0 and self.hl > 0.0
+        self.fcj = fcj_live(self.sl, self.hl)
         # FCJ quadrature sizes and the per-line amplitude gains, frozen per
         # (component, line) before the fit and never changed inside it: the
         # differentiability invariant one level down from the stage compile that

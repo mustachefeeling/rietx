@@ -51,8 +51,8 @@ Two documented exceptions, neither of them drift:
   few-1e-3 level — measured jax-vs-analytic 6.1e-3 on ``axial_hl``.  Those two
   columns get WP-0402's loose bar, and only when the state actually sits on the
   kink.  ``_lab_state``/``toy_rich`` use unequal ratios on purpose.
-* **Axial columns routed to FD** (``DerivativeBases.axial_ok`` False, i.e. an
-  axial ratio ≤ 0 with FCJ nodes allocated): autodiff correctness *at* that
+* **Axial columns routed to FD** (``DerivativeBases.axial_ok`` False, i.e.
+  both axial ratios zero with FCJ nodes allocated): autodiff correctness *at* that
   discontinuity was declared out of scope in WP-0401, so those columns are
   excluded explicitly rather than quietly tolerated.  No config here triggers
   it; the check asserts that, so the exclusion cannot go silent.
@@ -123,7 +123,7 @@ FD_STEP = 1e-6
 # ----------------------------------------------------------------------
 # configs: (model, table) at a compiled expansion point
 # ----------------------------------------------------------------------
-def _families_state(*, shape: str = "tchz_pv"):
+def _families_state(*, shape: str = "tchz_pv", axial_hl: float | None = None):
     """The 18 analytic column families on the v0.2 lab Bragg-Brentano state.
 
     ``shape="voigt"`` swaps in WP-0405's true Gaussian⊗Lorentzian peak, which is
@@ -136,6 +136,8 @@ def _families_state(*, shape: str = "tchz_pv"):
     """
     structure, ins, pattern = _lab_state()
     ins.profile.shape = shape
+    if axial_hl is not None:
+        ins.geometry.axial_hl.value = axial_hl
     table = ParameterTable(structure, ins)
     table.set_vary(["*"], False)
     for path in ANALYTIC_FAMILIES:
@@ -152,6 +154,13 @@ def _state_families():
 
 def _state_families_voigt():
     return _families_state(shape="voigt")
+
+
+def _state_axial_one_zero():
+    """H/L on its bound of zero beside a positive S/L (WP-1953): a live
+    aberration whose axial columns take the node-FD path, and where a traced
+    backend differentiates the uniform-limit branch of the FCJ weights."""
+    return _families_state(axial_hl=0.0)
 
 
 def _state_sharp_widths():
@@ -724,6 +733,7 @@ def _state_bodies():
 CONFIGS = {"families": _state_families,
            "bodies": _state_bodies,
            "families_voigt": _state_families_voigt,
+           "axial_one_zero": _state_axial_one_zero,
            "sharp_widths": _state_sharp_widths,
            "families_tied": _state_families_tied,
            "families_variable": _state_families_variable,
@@ -755,6 +765,7 @@ def _config(name: str, *marks):
 CONFIG_PARAMS = [
     _config("families"),
     _config("families_voigt"),
+    _config("axial_one_zero"),
     _config("sharp_widths"),
     _config("families_tied"),
     _config("families_variable"),
@@ -1026,6 +1037,30 @@ def test_the_magnetic_config_declines_the_traced_backends_by_name(config):
             _jacobian_for(model, table, name)
     if not asked:
         pytest.skip("no autodiff backend installed")
+
+
+@pytest.mark.xdist_group("xb-axial_one_zero")
+@pytest.mark.parametrize("name", ["jax", "torch"])
+def test_a_zero_aperture_column_meets_its_one_sided_difference(name):
+    """WP-1953: a traced backend's ``axial_hl`` column at H/L = 0 is the
+    feasible side's, measured at its own scale.
+
+    The matrix row above cannot hold it: the column's norm is 0.047 against a
+    largest column of 1.8e6, so it falls under ``DEAD_COL_FRAC`` once right.
+    Wrong, it was 3360 on jax, because the FCJ kink was capped by ξ_max and the
+    two tie at one zero aperture, where jax gives each side half the
+    derivative.  Fixed, jax and torch meet the one-sided central difference to
+    1.5e-3; the bar leaves 13× room for that difference's own truncation.
+    """
+    model, table = _state("axial_one_zero")
+    theta = _theta(model, table)
+    path = "instrument.geometry.axial_hl"
+    c = _labels(model, table).index(path)
+    ref = _central_fd_jacobian("axial_one_zero", model, table)(theta)[:, [c]]
+    col = _backend_jacobian(name)("axial_one_zero", model, table)(theta)[:, [c]]
+    # alone in its own slice, the column is the largest, so it is live
+    _assert_columns(ref, col, [path], rel_max=KINK_REL_L2_MAX,
+                    cos_min=KINK_COSINE_MIN, what=f"{name} at 0: ")
 
 
 @pytest.mark.parametrize("config", CONFIG_PARAMS)

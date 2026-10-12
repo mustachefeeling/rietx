@@ -454,6 +454,16 @@ The one cross-code comparison. GSAS-II's converged fluorapatite tutorial, with i
 
 **Measured:** 20 -> 18 free parameters, 287.5 -> 319.4 points per parameter; B(O) 0.3647(1513) / 0.6016(1590) / 0.5377(1078) free against 0.5150(754) tied, the three free values 0.99 / 0.54 / 0.21 of their own esds from the tied value (esds with Berar-Lelann eqs (10)-(12), #674); the four untied Biso sites move by < 0.5 sigma
 
+#### `test_a_pawley_fit_past_the_bvls_cut_converges_every_stage`
+
+`own_result` `ceiling` · dataset `fap` · survives 5 starts
+
+**Claims:** the default Pawley plan, whose block crosses lm.BVLS_MAX_COLUMNS, converges every stage under the default driver, and lands no higher than TRF does from the same start
+
+**Referenced to:** this package's own TRF fit on the same channels and plan: Rwp 0.07826556-0.07992336 over five starts 1e-14 apart.  The bar, Rwp < 0.0790, sits under BCCG's capped 0.0804 and above LM's answer; convergence of every stage is the ceiling half (WP-1953)
+
+**Measured:** Rwp 0.07824432 on all five starts, every stage converged, 343 columns at the profile stage, 0.8 s idle (macOS arm64, 2026-10-12)
+
 #### `test_the_file_states_a_wider_free_set_than_this_plan`
 
 `cross_code` `identity` · dataset `fap`

@@ -334,7 +334,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "The Finger-Cox-Jephcoat H/L, the receiving slit height divided by "
             "the goniometer radius. It is the second half of the axial "
             "asymmetry and is correlated with `axial_sl` closely enough that "
-            "refining one while holding the other is a common protocol."
+            "refining one while holding the other is a common protocol. One "
+            "ratio alone still smears the peaks, and only both at zero turn "
+            "the asymmetry off."
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",

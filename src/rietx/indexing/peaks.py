@@ -40,7 +40,7 @@ from scipy.signal import find_peaks, peak_widths, savgol_coeffs, savgol_filter
 from ..background import background_envelope
 from ..model.forward import PAWLEY_OVERLAP_FWHM_FRAC, _overlap_groups
 from ..model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
-from ..model.profiles.fcj import fcj_extent_deg
+from ..model.profiles.fcj import fcj_extent_deg, fcj_live
 from ..model.profiles.pseudovoigt import tch_gamma_eta
 from ..schemas.indexing import (
     PEAK_ALIAS_RATIO_RANGE,
@@ -152,7 +152,7 @@ def window_indices(two_theta: np.ndarray, lo_seed: float, hi_seed: float,
     sl = instrument.geometry.axial_sl.value
     hl = instrument.geometry.axial_hl.value
     extra = (float(fcj_extent_deg(np.array(float(lo_seed)), sl, hl))
-             if sl > 0.0 and hl > 0.0 else 0.0)
+             if fcj_live(sl, hl) else 0.0)
     i0 = int(np.searchsorted(two_theta, lo_seed - half - extra, side="left"))
     i1 = int(np.searchsorted(two_theta, hi_seed + half, side="right"))
     return i0, i1

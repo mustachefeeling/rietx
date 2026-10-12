@@ -7,8 +7,10 @@ exactly inside the parameter box by bounded-variable least squares (Stark, P.
 B. & Parker, R. L. (1995). *Comput. Statist.* **10**, 129-141; WP-1937).  The
 paper pairs the schedule with the bound-constrained conjugate gradient of
 :mod:`.bccg` (Coelho 2005), which this driver used for every step until
-WP-1937 and still uses above :data:`BVLS_MAX_COLUMNS`, where only a Pawley
-block reaches.
+WP-1937 and above :data:`BVLS_MAX_COLUMNS` until WP-1953.  Above that cut,
+where only a Pawley block reaches, the step is now projected conjugate
+gradients (:func:`.bccg.projected_cg`), because BCCG's was measured wrong in
+sign there.
 Independent implementation from the papers; TOPAS is closed source and none of
 it was consulted.
 
@@ -174,14 +176,15 @@ _POLISH_STATIONARY = 1e-8
 #: rounding error in one entry of JᵀJ (see :func:`_solve_step`).
 _EIGEN_CUT_PER_ROW = float(np.finfo(np.float64).eps)
 #: Largest system the step solves exactly by BVLS; above it the step is
-#: BCCG's (:func:`_solve_step`).  Measured on Pawley-shaped systems (one
-#: banded column per reflection plus 13 dense ones, macOS arm64, WP-1937):
-#: a BVLS solve costs 2-34 ms at 128 columns, 0.13-0.8 s at 400, 1.5-11 s at
-#: 1000 and 10-177 s at 2000, the range spanning few to most intensities on
-#: their floor.  BCCG costs at most 22 ms at every size, and reaches a model
-#: value 5-22 % short of the exact minimum.  Every table-only stage in the
-#: acceptance fits is far below the cut, so only a Pawley block crosses it;
-#: on NAC's (142 columns) the two steps reach the same answer.
+#: projected CG's (:func:`_solve_step`, WP-1953).  Measured on Pawley-shaped
+#: systems (one banded column per reflection plus 13 dense ones, macOS arm64,
+#: WP-1937): a BVLS solve costs 2-34 ms at 128 columns, 0.13-0.8 s at 400,
+#: 1.5-11 s at 1000 and 10-177 s at 2000, the range spanning few to most
+#: intensities on their floor.  On real Pawley systems (WP-1953) it cost
+#: 0.04-0.25 s at 343 columns and 0.66-3.1 s at 1 493-1 495, where the
+#: projected CG took 0.002-0.04 s and at most 0.64 s.  Every table-only stage
+#: in the acceptance fits is far below the cut, so only a Pawley block
+#: crosses it.
 BVLS_MAX_COLUMNS = 128
 
 
@@ -306,8 +309,10 @@ class LMOutcome:
     #: convention (−1 lower, +1 upper, 0 neither) and exact: the variable sits
     #: *on* the bound, the step having landed it there, and the gradient at
     #: the returned point pushes it outward, so its multiplier is positive
-    #: (WP-1937).  Exact up to :data:`BVLS_MAX_COLUMNS`; above it the step is
-    #: BCCG's, which can leave a variable just off its bound and so out of
+    #: (WP-1937).  Exact up to :data:`BVLS_MAX_COLUMNS`.  Above it the step
+    #: is projected CG's, which lands a variable exactly on a bound too, but
+    #: a solve that spends its budget can stop before a variable reaches the
+    #: bound the exact minimiser would put it on, which then stays out of
     #: this set.  scipy's TRF reports the same field within ``xtol`` of a
     #: bound whatever the gradient, its iterates being strictly feasible.
     active_mask: np.ndarray | None = None
@@ -368,8 +373,11 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     to unit norm like every other, so its step is the largest and λ grows to
     hold it.  At λ near 1e8 every step is tiny, three in a row fall under
     ``ftol``, and the stage reports convergence far from a minimum: χ² 454 660
-    where 2556 was reachable, on a two-site moment fit (WP-1938 D12;
-    WP-1929 owns the remedy).
+    where 2556 was reachable, on a two-site moment fit (WP-1938 D12).  A
+    column that is rounding noise from a stage's first iteration does the
+    same, and a refit can then stop where it started, at λ ≈ 1e10.  WP-1953
+    owns the remedy: keeping each column's largest norm as its scale fixed
+    the first case and left the second.
 
     Each step solves the damped model over the box (:func:`_solve_step`).
     When that step crosses a row of ``inequalities``, the step is solved again
@@ -567,25 +575,30 @@ def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
     to minimum norm.  The cut binds only near λ = 0: a damped system has every
     eigenvalue at or above λ.
 
-    **Above** :data:`BVLS_MAX_COLUMNS` the step is BCCG's, inexact and fast.
-    scipy's BVLS refactors the free set from scratch at each active-set change,
-    so its cost grows as n³ times the number of changes, and a Pawley block
-    appends one column per reflection.
+    **Above** :data:`BVLS_MAX_COLUMNS` the step is projected conjugate
+    gradients (:func:`.bccg.projected_cg`, WP-1953) on the same scaled model
+    and box.  scipy's BVLS refactors the free set from scratch at each
+    active-set change, so its cost grows as n³ times the number of changes,
+    and a Pawley block appends one column per reflection: 0.7-3.1 s a solve at
+    1 500 columns, where the projected CG takes under 0.64 s.  Its step always
+    lowers the model, which BCCG's, the step here until WP-1953, did not.  It
+    makes no eigenvalue cut, and on FAP.XRA's Pawley fit that is the
+    difference between BVLS's Rwp 0.0803 and TRF's 0.0782, which it reaches.
 
     Returns the step and which bound each variable was solved onto (−1 lower,
     +1 upper, 0 neither), so the caller can land those variables *exactly* on
-    the bound the solve chose.  BCCG reports none.
+    the bound the solve chose.
     """
     n = len(b)
     d = np.sqrt(np.maximum(np.diag(A), 0.0))
     d = np.where(d > 0.0, d, 1.0)
-    if n > BVLS_MAX_COLUMNS:
-        out = bccg.solve(A + lam * np.diag(d * d), b, lo=lo - x, hi=hi - x)
-        return out.x, np.zeros(n, dtype=np.int8)
     inv_d = 1.0 / d
     A_s = A * np.outer(inv_d, inv_d)
     A_s[np.diag_indices(n)] += lam
     b_s = b * inv_d
+    if n > BVLS_MAX_COLUMNS:
+        y, side = bccg.projected_cg(A_s, b_s, (lo - x) * d, (hi - x) * d)
+        return y * inv_d, side
     w, V = np.linalg.eigh(A_s)
     w_max = float(w[-1]) if n else 0.0
     keep = w > _EIGEN_CUT_PER_ROW * max(n_rows, n) * w_max
