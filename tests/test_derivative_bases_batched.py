@@ -38,6 +38,7 @@ from rietx import Instrument, PatternData
 from rietx.model import compiled
 from rietx.model.forward import compile_model
 from rietx.model.profiles.fcj import (
+    fcj_live,
     fcj_offsets_weights,
     fcj_offsets_weights_batch,
 )
@@ -123,7 +124,7 @@ def _scalar_reference(model, values, *, axial_derivs=True):
                 dphi, dom = (phi1 - phi) / H_POS, (om1 - om) / H_POS
                 d_pos = (dom @ pv) - ((om * dphi) @ d_dx)
                 d_sl = d_hl = None
-                if axial_derivs and sl > 0.0 and hl > 0.0:
+                if axial_derivs and fcj_live(sl, hl):
                     phi2, om2 = fcj_offsets_weights(float(pos[k]),
                                                     sl + H_AX, hl, n_fcj)
                     dphi, dom = (phi2 - phi) / H_AX, (om2 - om) / H_AX
