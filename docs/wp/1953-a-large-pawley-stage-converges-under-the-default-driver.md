@@ -451,9 +451,10 @@ was stale. The 1.8.0 notes' bullet became the staged 1.9.0 note.
 - Full suite on `243863de` before the review and the merge: 9553 passed,
   186 skipped, 3 xfailed, 1 failed (the missing matrix row, since added),
   26 m 41 s under load. Every acceptance suite passed, the QPA, Stephens
-  and SRM 660c protocols included, and no golden moved. The full selection
-  on the merged tree: see the PR, run after this entry once the other
-  session's suite has finished.
+  and SRM 660c protocols included, and no golden moved. Full suite on the
+  merged tree (`5c82a90b` plus this entry), run alone once the other
+  session's suite had finished: 9579 passed, 190 skipped, 3 xfailed, 0
+  failed, 23 m 22 s.
 
 *Review* (`/code-review high --fix`): four fixed. The traced backends
 differentiated a constant weight at one zero aperture (about 245 against
