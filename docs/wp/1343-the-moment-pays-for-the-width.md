@@ -254,6 +254,19 @@ the cheaper of the two at the time; the skill row is required either way.
 
 ### Inherited
 
+- **2026-10-12, from [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md):
+  the moment rung reads moduli by name and skips a tied one.**
+  `refine._moment_rung` keeps only untied `dof0` entries. A modulus a
+  `vars.X` drives is tied, and the variable is no moment path, so that site
+  has no row and `MAGNETIC_WIDTH_MOVED_MOMENT` has nothing to compare. Two
+  more reads take freed paths by name: the gate in `fit` that decides whether
+  to build the rung, and the `moments` set of
+  `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`. A stage that frees a moment only
+  through a variable is invisible to both. `_MAGNETIC_WIDTH_PATH` has the same
+  shape for a width a variable drives. The fix is `ParameterTable.column_reach`,
+  with one rung row per column so a tie still counts once. Found by reading,
+  not run.
+
 - **2026-10-05, from the issue triage (issue #729):
   `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` fires on a warm refit through
   `fit`, the third step its own docstring calls fine.**

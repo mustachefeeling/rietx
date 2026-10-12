@@ -1,9 +1,8 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — flag, FLOOR_HIT, profile_interval and the stationary-angle rule landed; awaits the #831 Linux check and the named-variable task
+Milestone: unscheduled · Status: ✅ 2026-10-12 — shipped in #909 and #915; the Linux check passed on a GitHub x86-64 runner; arm64 Linux's swapped minimum went to WP-1953
 Track: What fires, and what stays silent
 Depends on: 1938 (physical coordinates, which remove the point-dependence this WP reports on)
-Priority: P1 2026-10-11 — was P2: 1938 landed (#883), its last blocker, so the reporting rule and the floor diagnostic can start on physical coordinates under the LM default
 
 ## Goal
 
@@ -373,12 +372,15 @@ it left: `test_magnetic_solve_acceptance.py`'s 150 K test still gives class
       its code. (The stationary angle's row went in `references/magnetic.md`
       beside `MOMENT_PAIR_DEGENERATE`: `judging.md` has no code table and
       26 B of budget.)
-- [ ] An angle driven by a named variable is tested too.
+- [x] An angle driven by a named variable is tested too.
       `least_squares._moment_angle_columns` picks candidates by the free
       path's name, so a `vars.X` driving two sites' azimuths, or a modulus
       driven by one, is never tested, and its column stays in the covariance
       silently. Root CLAUDE.md's flatness rule (WP-1342) says to read C's
       `column_reach` for this. Found by the 2026-10-12 review.
+      **Done 2026-10-12** (fifth session): candidates are read off what each
+      column moves. The siblings in the flat hold and the moment rung went to
+      1327 and 1343 as Inherited items.
 
 ## Acceptance
 
@@ -409,6 +411,108 @@ its floor moves by more than 1 % without a line in the handover saying why.
   doi:10.2307/2347496 (profile-likelihood interval).
 
 ## Handover log
+
+### 2026-10-12 (3rd session) — closed: an angle a named variable drives is tested, and Linux agrees
+
+The stationary-angle test now finds an angle however the caller wrote the
+constraint. An azimuth shared by two sites through a named variable used to
+hide from it, and those fits got back the esds this WP set out to remove: on
+the two-site set, 0.0040 μ_B for a modulus whose honest esd is 0.0011, and
+polar angles quoted at ±499 rad. The test now reads each column by what it
+moves, and those fits match the unconstrained one. The Linux check the WP was
+waiting for ran on GitHub's runners. On x86-64 the class 0 moduli esds match
+macOS to 7e-5, although the two fits stopped in different places, which is
+the WP's goal. On arm64 Linux the same solve picked the other of the two
+minima, a different problem that WP-1953 now holds. The maintainer closed the
+WP on the x86-64 result.
+
+- *Done.*
+  - `05c37073`: candidates from C's reach. `least_squares._column_entries`
+    gives each column of θ the entries it moves, keyed `(table, path)` so a
+    joint fit's copies stay apart, with C's coefficient. A column is an angle
+    when every model path it moves is a moment angle, variables dropped
+    first. Its reference is the largest modulus column among its sites. The
+    2π wrap is 2π over the coefficient the angles share, and absent where
+    they share none. Two tests: the rule on ten synthetic columns, and the
+    two-site fit with `vars.phi` and `vars.m1`. Both fail on `main` (a
+    `TypeError`, and a round naming Mn2's polar angle alone) and pass here.
+    Manual Part 2's candidate sentence, Part 1's two field rows,
+    `MomentAngleTest`'s docstring and `MOMENT_DIRECTION_SUPPORT`'s comment
+    follow.
+  - `0e74f6ec`: the task ticked, and its siblings folded. The flat-direction
+    hold reads names and probes a tied angle's source alone (1327).
+    `_moment_rung` skips a tied modulus, and the rung gate and
+    `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` read freed paths by name (1343).
+  - `e9437be0`: arm64 Linux's swapped minimum, into 1953.
+  - `93b7bb66`: review fixes (below).
+  - Comment on #831 with the runner figures, inviting Mike to confirm on his
+    own machine (issuecomment-6122915988).
+- *Measured* (macOS arm64, `[dev]`, unless a row names its platform).
+  - **The fix**, two-site null set, seed 4 (scratchpad `probe_vars.py`):
+
+    | arm | Mn1 esd | Mn2 esd | polar esds | tested |
+    |---|---|---|---|---|
+    | no variables | 0.0015222 | 0.0011236 | none | 4 angles, zeroed |
+    | `vars.phi`, `vars.m1`, `main` | 0.0020652 | 0.0040241 | 115, 499 rad | Mn2's polar alone, not reached |
+    | `vars.phi`, `vars.m1`, branch | 0.0015223 | 0.0011214 | none | 2 polar + `vars.phi`, zeroed |
+
+    The plain arm printed the same digits before and after. Tilted 0.05 rad,
+    the variable arm behaves as the plain one: the tilt is kept (statistic
+    2475 against 2487), and Mn2's polar angle is kept after a round that did
+    not reach the direction. Seeds 0-4 on the variable arm zero `vars.phi` on
+    three of five. On seed 0 the plain arm keeps its azimuths as well.
+  - **Linux**, the class 0 winner at `869b6cf8` (run 38239010950, numpy
+    2.5.4, scipy-openblas 0.3.34):
+
+    | platform | χ²_red | Mn1 | Mn2 |
+    |---|---|---|---|
+    | macOS arm64 | 1.0574474 | 3.49801 ± 0.0015111 | 0.69960 ± 0.0011132 |
+    | `ubuntu-latest`, AMD EPYC 7763 | 1.0574900 | 3.49778 ± 0.0015111 | 0.69953 ± 0.0011133 |
+    | `ubuntu-24.04-arm`, Neoverse-N2 | 1.0574924 | 0.69950 ± 0.0011189 | 3.49821 ± 0.0014957 |
+
+  - **Magnetic fits before and after**: 192 `Refinement.fit` calls over 15
+    magnetic test files, slow acceptance included, recorded on `869b6cf8`
+    and on the branch (the 2nd session's plugin, `record_both.py`). No esd
+    moved by more than 1 % and no value by more than 1e-6.
+  - **Tests.** Fast selection after the review, alone: 9240 passed,
+    175 skipped, 2 xfailed in 4:36. That is +2 against the last entry's
+    9238 + 175, the two tests this session added. `added_test_times`: 1.46 s
+    over the 2. The full selection did not run, because the fit comparison
+    above shows no measured number moves. The WP's acceptance command, with
+    the touched files: 81 passed.
+  - **Lanes**: none dispatched.
+- *Review* (`/code-review high --fix 869b6cf8..HEAD`, 8 findings).
+  - Fixed in `93b7bb66`. `_column_entries` walked `reach_block` itself, a
+    second copy of `column_reach`'s zero rule. It now reads `column_reach`
+    (0.3 → 0.7 ms a stage on fluorapatite). The docstring named the caller's
+    variable as what refits. Three lines re-wrapped. The stale index was
+    regenerated with this entry.
+  - Declined, three. `MOMENT_ANGLE_STATIONARY` names `vars.phi` and not the
+    angles it drives: the record keys on the column (WP-1342's rule), and a
+    tied row's esd follows its source's everywhere. That held for a
+    model-path tie before this branch. A modulus reference may be a column
+    that also moves something else: the reference is a scale, and the
+    Newton step reaches 1e-12 against a floor of 1e-6. Coefficients 1 and 2
+    share a period the fallback does not compute: no such tie exists in the
+    tree, and the fallback is documented.
+  - The fourth, the Status line's "this PR", is the PR number below.
+- *Gotchas.*
+  - Linux numbers come from a throwaway workflow on a branch with no PR,
+    pushed with `git push origin HEAD` and deleted after. The log stays
+    readable by run id.
+  - The worktree guard refuses a heredoc appending to a tracked file and a
+    loop over a shell variable. Write with the editor, and put loops in a
+    scratchpad script.
+  - The TOPAS importer ties follower sites' moduli to the first site's. On
+    `main` those sites' angles were never tested.
+- *Next.*
+  1. A release is owed: this WP was P1 for a silent wrong answer.
+     WP-1954's 1.8.0 cut is in flight, and it carries this if it is cut from
+     a `main` holding this PR.
+  2. If Mike's figures on #831 disagree past 1 %, that is a new issue
+     against the stationary-angle test, not WP-1953's.
+  3. The siblings: 1327 (the flat hold) and 1343 (the rung). The arm64 swap:
+     1953.
 
 ### 2026-10-12 (2nd session) — a moment angle at a stationary direction leaves the covariance
 

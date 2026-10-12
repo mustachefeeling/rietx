@@ -140,6 +140,19 @@ rule above applies to the form factors.
 
 ### Inherited
 
+- **2026-10-12, from [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md):
+  the flat-direction hold reads moment angles by name.**
+  `refine._flat_moment_scan` takes its candidates from `table.free_paths`
+  through `MOMENT_DOF_PATH`. It probes each one by moving that entry alone in
+  the decoded values. So a `vars.X` driving two sites' azimuths is never
+  probed, and a flat direction it carries is never held. A tied angle is
+  probed wrongly too: the source moves and its followers stay put, though the
+  column moves both. 1929 fixed the same blindness in the stationary-angle
+  test by reading C (`least_squares._moment_angle_columns`). Here the probe
+  also has to move the column through `decode`. The #599 combination is per
+  site, so a variable spanning two sites needs a rule of its own. Found by
+  reading, not run.
+
 - **2026-10-02, from the issue triage (issue #612): `magnetic_supercell` cannot
   state the textbook MnO case (F m −3 m, k = ½½½).** *Checked at `ca9bda29`*
   with the reporter's script, output identical to the issue. Under
