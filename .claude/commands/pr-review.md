@@ -301,7 +301,9 @@ line if the checkpoint ended it. Close with
      adds that quotes P moves to M too**: a `_declared_since` stamp on a
      class it adds, a release note, the manual, a skill row. Those lines
      merge clean at P. A stale `_declared_since` also makes
-     `newest_declared_since()` skip a repair the new class needs.
+     `newest_declared_since()` skip a repair the new class needs. The
+     block's grep is whole-word: without `-w`, 0.50 matched 0.500000E+01 in
+     #911's GSAS fixtures.
    - **`docs/releases/<next>.md`**, the staging file: keep both sides when
      every hunk only adds, main's lines first. `git checkout --conflict=diff3
      -- <file>` shows each hunk's base. An empty `|||||||` section is an
@@ -317,7 +319,7 @@ line if the checkpoint ended it. Close with
    python3 .claude/hooks/wp_index.py              # when the index conflicts
    # resolve the schema number and the staging file as above, then:
    git diff origin/main -- src/rietx/schemas/common.py | grep -x '+SCHEMA_VERSION = "M"'   # exits 1 while the constant is stale
-   git diff -U0 origin/main | grep -n -F 'P'      # read every hit: main's own item, or now M
+   git diff -U0 origin/main | grep -n -w -F 'P'   # read every hit: main's own item, or now M
    git diff --check                               # no conflict markers left
    .venv/bin/python -m pytest tests/test_magnetic.py -k capability_flag_is_derived
    git add <each file resolved or renumbered>
