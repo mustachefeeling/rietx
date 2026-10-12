@@ -518,6 +518,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1951](1951-a-glob-that-names-a-site-and-frees-nothing.md) | A glob that names a site and frees nothing | ⬜ | P3 | — |
 | [1952](1952-the-xy-reader-says-what-it-skipped.md) | The xy reader says what it skipped | ⬜ | P3 | — |
 | [1953](1953-a-large-pawley-stage-converges-under-the-default-driver.md) | A large Pawley stage converges under the default driver | 🔄 2026-10-12 | P2 | — |
+| [1955](1955-a-column-at-a-zero-aperture-and-a-column-the-matrix-cannot-see.md) | A column at a zero aperture, and a column the agreement matrix cannot see | ⬜ | P3 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
