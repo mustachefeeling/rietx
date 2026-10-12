@@ -1,6 +1,6 @@
 # WP-1809 — Tether, planarity and anti-bump restraints, pairs frozen per plan
 
-Milestone: rigid-bodies · Status: ⬜
+Milestone: rigid-bodies · Status: 🔄 2026-10-12 — tether and anti-bump merged as #888, the caller building the pair list; planarity and `RESTRAINT_PAIRS_STALE` open
 Depends on: —
 Priority: P3 2026-10-06 — needs no body; it can run beside WP-1804
 
@@ -23,7 +23,8 @@ issue #561, sized M. It needs no body.
   diagnostic names pairs that entered r₀ from outside the list.
 - An outside branch (`3b333db0`, on #561, 2026-10-06) has the caller build the list
   into explicit rows instead of the engine freezing it at plan compile. That departs
-  from the record. If it is kept, ask the maintainer first.
+  from the record. If it is kept, ask the maintainer first. It was kept: the
+  2026-10-12 handover entry records the decision, and it supersedes the bullet above.
 - The pair-list builder uses the minimum-image shift from PR #778 (merged), so the list
   does not depend on which cell an atom is stored in.
 - It may land as two PRs: tether and anti-bump first, then planarity and the stale-pairs
@@ -86,7 +87,7 @@ issue #561, sized M. It needs no body.
 
 ## Tasks
 
-- [ ] Tether and anti-bump rows; the pair-list builder frozen at plan compile
+- [x] Tether and anti-bump rows; the pair-list builder (built by the caller, #888)
 - [ ] Planarity rows; `RESTRAINT_PAIRS_STALE` at plan end
 - [ ] Manual Part 2 equations for the new kinds
 - [ ] Tests (the acceptance below)
@@ -107,5 +108,66 @@ issue #561, sized M. It needs no body.
 - Issue #561; PR #596; issue #777 and PR #778 (the minimum-image shift).
 
 ## Handover log
+
+- **2026-10-12** — tether and anti-bump, the first half of R8, built by
+  @mustachefeeling in PR #888 (seven `WP-1809:` commits) and merged by the
+  `/pr-review` run as `edad5b5a`. Planarity and `RESTRAINT_PAIRS_STALE` are
+  still open.
+
+  **The caller builds the pair list.** This replaces the engine-frozen list
+  that the Context records. The PR asked, and the round-1 review answered on
+  2026-10-11. Explicit rows keep the restraint row count fixed for every stage
+  by construction. They survive JSON and history checkout, and they need no
+  new state in `RefinementState`. The cost is that a pair drifting inside r₀
+  from outside the list gets no restraint. `RESTRAINT_PAIRS_STALE` is where
+  that gets named: it will search the phase at plan end. An engine-built list
+  can come later as a convenience that calls this builder.
+
+  *Done:*
+  - `TetherRestraint` gives the row √w·max(0, d − d_max)/σ. TOPAS calls it
+    `Distance_Restrain_Keep_Within`. `AntiBumpRestraint` gives
+    √w·min(0, d − d_min)/σ, TOPAS's `Distance_Restrain_Keep_Out` and
+    `AI_Anti_Bump`. Both join the `Restraint` union, and
+    `RestraintRow.kind` gains `"tether"` and `"anti_bump"`.
+    `SCHEMA_VERSION` went 0.49 → 0.50.
+  - Both reuse the bond row's image resolution and partials through one
+    `side` field on the compiled `_Bond`. On the flat side the row and its
+    partials are zero. At the kink the slope is taken as zero.
+  - `model.restraints.anti_bump_restraints` returns explicit rows. A species
+    pair with no stated minimum gets no row (#677's rule). A body's own pairs
+    are skipped in the body's own copy only. The image shell is centred on
+    the nearest lattice vector and sized by the cut, so the list does not
+    depend on the stored cell.
+  - The two row equations are in manual Part 2 (`parameterisation.md`). Both
+    kinds are deferred in `tests/api_surface_deferred.txt` until WP-1812, and
+    `api.md` is unchanged. The `api-bodies.md` index the WP-1920 inheritance
+    allowed was not created.
+  - `tests/test_one_sided_restraints.py`, whose staged fit writes
+    `tests/output/one_sided_restraints_li_o.png`.
+
+  *Measured* (the contributor's figures, from #888):
+  - Each row agrees with a central difference to 1e-5 relative, 6e-4 Å from
+    the kink on both sides. The kink itself is untested. There the one-sided
+    slopes are 0 and 1/σ, and a central difference returns their mean.
+  - The pair list equals an exhaustive 11³-cell search at a 10 Å cut. A P2₁
+    contact survives five whole-lattice shifts of the stored coordinates.
+  - A two-stage fit from Li–O 1.7 Å reached 2.298 Å against a 2.3 Å truth, at
+    GoF 1.02, with both rows in the report at deviation 0.
+
+  *Gate* (this run, main `4a8c6d08` + #888 as `0c4108d2`, macOS arm64,
+  Python 3.12.10, `[dev,jax]`): ruff clean. The fast suite gave 9331 passed,
+  113 skipped and 2 xfailed in 346 s. Another session's fast suite overlapped
+  its last three minutes. The manual built clean under `-W`. The slow suite
+  gave 308 passed and 12 skipped in 1531 s. Main had not moved, so the merge
+  left it identical to the gated tree.
+
+  *Inherited, still open.* #759 § 3 (a) sets R8b's planarity form, the
+  distance sum to a least-squares plane. #759 § 3 (b) and PR #675 concern the
+  builder's `min_distance`. Today it takes the caller's number, species-pair
+  mapping or callable. Reading #675's radii there, and saying
+  which pairs got no row, is still this WP's decision.
+
+  Next: R8b, the planarity rows and `RESTRAINT_PAIRS_STALE` at plan end, with
+  its skill row.
 
 - **2026-10-06** — created by WP-1803's re-cut, from #596's proposal.
