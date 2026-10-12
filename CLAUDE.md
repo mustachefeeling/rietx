@@ -352,8 +352,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   data in silence (22 003 points against 132 reflections on 11-BM NAC). `optimize.statistics` is
   the one authority: `count_unique_reflections`, `effective_observations` (Altomare 1995,
   overlap-corrected, a float). Its two bands, like `background.diagnostics`' five-to-ten steps
-  per FWHM, are **quoted from the papers, never tuned**: they set a diagnostic's *level*, nothing
-  else.
+  per FWHM, are **quoted from the papers, never tuned**: they set a diagnostic's *level* alone.
 - **A derived quantity's esd goes through the whole covariance; one that cannot be measured is
   absent rather than zero** (WP-1072, McCusker §10). `model/geometry.py` propagates J·Cov·Jᵀ off
   the final Jacobian and carries the diagonal-only number beside it (`qpa.weight_fractions`'
@@ -375,6 +374,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   *whole* block since W normalises by a sum. **A row on its bound stays in the matrix** (WP-1929):
   its esd and its neighbours' are marginal, `at_bound` says where it sits, and a refit holding it is
   the conditional reading. **A column is squared only via `statistics.column_rescale`** (WP-1463).
+  A moment angle a Δχ² test finds at a symmetry-fixed direction is zeroed **for the covariance
+  alone** (WP-1929): a reader of the inverted matrix takes `covariance_jacobian`, not `outcome.jac`.
 - **A declared name is a claim, and an absent writer fails no test** (WP-1076, the rule above one
   rank up). Two shapes: a field whose empty state reads as an *answer*
   (`RefinedParameter.at_bound` was `bool = False`, so every result said "not at a bound" about
@@ -438,11 +439,10 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   copies it to `result.sigma` verbatim, so a result's σ is a *lookup*, never a re-derivation
   (WP-1029). σ is therefore **a function of the declared scale**, so an Rwp column down a scan of
   scales ranks nothing until one σ is chosen for all of it (7.2 % of one arm's is weighting; 1309).
-  **`weighted` is
-  `DataRef.has_sigma`** (σ *measured*, not σ *present* — what `textdoc` renders as "σ from
-  file"); `delta` is always Δ/σ, because Δ/σ is what the fit minimised either way, and the flag
-  changes only the axis title. A test that recomputes a residual cannot catch this class of bug:
-  the pin compares what each renderer **drew** against what the route **sent**.
+  **`weighted` is `DataRef.has_sigma`** (σ *measured*, not σ *present* — what `textdoc` renders as
+  "σ from file"); `delta` is always Δ/σ, because Δ/σ is what the fit minimised either way, and the
+  flag changes only the axis title. A test that recomputes a residual cannot catch this class of
+  bug: the pin compares what each renderer **drew** against what the route **sent**.
 - **Background flexibility is a correctness question, not a cosmetic one.** A background able to
   imitate the peaks biases ADPs up and scales (hence QPA fractions) down while Rwp *improves*.
   Measure it **once**, as the block projection R² of a structural Jacobian column onto the
