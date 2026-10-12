@@ -170,8 +170,16 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
 
     cphi = xp.clip(xp.cos(tt) * xp.sqrt(1.0 + xi * xi), -1.0, 1.0)
     phi = xp.degrees(xp.arccos(cphi))
+    # one aperture at zero: W/(2·min) per node, which is 1 on segment A and
+    # 1 − τ on segment B for every min > 0.  Segment B has zero length there,
+    # so its values are the uniform limit's, and a traced backend's derivative
+    # at the zero aperture is the trapezoid's one-sided one rather than the
+    # derivative of a constant weight
+    unit_w = xp.asarray(np.concatenate([np.ones_like(tau_np), 1.0 - tau_np]),
+                        dtype=np.float64)
     w_overlap = xp.where(xp.minimum(sl, hl) > 0.0,
-                         xp.clip(sl + hl - xi, 0.0, 2.0 * xp.minimum(sl, hl)), 1.0)
+                         xp.clip(sl + hl - xi, 0.0, 2.0 * xp.minimum(sl, hl)),
+                         unit_w)
     omega = glw2 * seg_len * w_overlap
     total = omega.sum()
     ok = ok & (total > 0.0)
@@ -220,7 +228,8 @@ def fcj_offsets_weights_batch(two_theta_deg: np.ndarray, sl: float, hl: float,
         cphi = np.clip(np.cos(tt) * np.sqrt(1.0 + xi * xi), -1.0, 1.0)
         phi = np.degrees(np.arccos(cphi))
         w_overlap = (np.clip(sl + hl - xi, 0.0, 2.0 * min(sl, hl))
-                     if min(sl, hl) > 0.0 else np.ones_like(xi))
+                     if min(sl, hl) > 0.0
+                     else np.concatenate([np.ones_like(tau), 1.0 - tau])[None, :])
     omega = glw2 * seg_len * w_overlap
     total = omega.sum(axis=1, keepdims=True)
     ok = ok & (total > 0.0)
