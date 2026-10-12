@@ -1,6 +1,6 @@
 # WP-1912 — a polar axis has no origin, and the fit walks along it
 
-Milestone: unscheduled · Status: 🔄 2026-10-08 — the opt-in `hold_floating_origin()` landed from outside (PR #749); the default #727 asks for is the maintainer's decision
+Milestone: unscheduled · Status: 🔄 2026-10-12 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — the default structural preset reaches it on every polar space group with a free coordinate, and the CIF it writes carries an absolute coordinate hundreds of cells out with an esd; flagged only by `FLAT_DIRECTION` on the result, so not P1
