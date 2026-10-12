@@ -307,25 +307,16 @@ def test_two_histograms_of_one_radiation_answer_for_themselves():
 def test_the_specimen_and_the_fit_are_told_once():
     """SPECIMEN and FIT rows land at top level, once, never per histogram.
 
-    The stage must stop on its budget, so it starts corundum's a 0.4 % long
-    against patterns drawn at the true cell and frees the cell beside the
-    scale.  A width freed on a flat pattern served until WP-1953, whose held
-    column scale solved that stage in three evaluations."""
-    truth = rx.Structure(phases=[corundum()])
-    truth.phases[0].scale.value = 1e-4
-    grid = _flat(20.0, 80.0)
-    data = [rx.PatternData(
-        two_theta=grid.two_theta,
-        intensity=(np.asarray(_y_calc(truth, ins, grid)) + 10.0).tolist())
-        for ins in (_xray(), _neutron())]
+    The stage must stop on its budget.  A scale alone is linear, and the LM
+    driver solves it in two evaluations, so the stage also frees a width,
+    which a flat pattern keeps widening past one iteration (WP-1938)."""
     phase = corundum()
     phase.space_group = "R -3 c"  # bare: gemmi picks a setting and says so
-    phase.scale.value = 1e-4
-    phase.cell.a.value *= 1.004
     starved = RefinementPlan(stages=[Stage(
-        "scale", ["phases.*.scale", "phases.*.cell.*"], max_iter=1)])
-    joint = rx.refine_multi(data, rx.Structure(phases=[phase]),
-                            [_xray(), _neutron()], plan=starved)
+        "scale", ["phases.*.scale", "phases.*.gauss_strain"], max_iter=1)])
+    joint = rx.refine_multi([_flat(20.0, 80.0), _flat(20.0, 80.0)],
+                            rx.Structure(phases=[phase]), [_xray(), _neutron()],
+                            plan=starved)
     top = [d.code for d in joint.diagnostics]
     assert top.count("SPACE_GROUP_SETTING_ASSUMED") == 1
     assert top.count("STAGE_MAX_ITER") == 1

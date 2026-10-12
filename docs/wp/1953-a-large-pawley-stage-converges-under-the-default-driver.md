@@ -188,7 +188,8 @@ arm64's winner only 0.11 above macOS's, so the pattern itself may differ.
 ### The step above 128 columns, measured (2026-10-12)
 
 macOS arm64, `[dev]`, Python 3.12.10, branch at `5ba19a83` plus the
-running-max column scale (its task below) unless a row says otherwise.
+running-max column scale (its task below) unless a row says otherwise. That
+scale did not land, so the rows marked *shipped* were re-run without it.
 Another session's suite loaded the machine for part of the time, so the
 seconds are loose. The default plan with `mode="pawley"`.
 
@@ -204,6 +205,7 @@ FAP.XRA, 335-343 columns:
 | projected Newton, ridge 1e-12 | converged, 9; half its solves at the 50-iteration cap | 0 | 0.07824433 | 7.3 s |
 | projected CG, tight | converged, 22 | 0 | 0.07824512 | 2.3 s |
 | projected CG, 2n budget | converged, 20 (`profile_w` 95) | 0 | 0.07824506 | 2.1 s |
+| *shipped*: projected CG, 2n budget, scale per iteration | converged, 9 | 0 | 0.07824432 | 0.8 s, idle |
 | TRF (WP-1938's row) | converged | | 0.07825358 | 20.2 s |
 
 11-BM NAC, 1 492-1 499 columns, not the 142 WP-1937 quoted:
@@ -213,6 +215,7 @@ FAP.XRA, 335-343 columns:
 | BCCG as shipped | `profile` on `max_nfev` 400, 68 no-descent | 0.15340222 | 299 s, loaded |
 | projected CG, tight | every stage converged | 0.12620514 | 326 s, loaded |
 | projected CG, 2n budget | every stage converged | 0.12620721 | 74 s |
+| *shipped*: projected CG, 2n budget, scale per iteration | every stage converged, 0.20-0.77 s a solve | 0.12620721 | 71 s |
 | TRF | every stage converged | 0.13483346 | 750 s, partly loaded |
 
 Per solve, offline on 13 FAP and 24 NAC systems captured from those fits:
@@ -286,39 +289,54 @@ fit up to 128 columns, which the basin task should keep in mind.
       two-variable system where Coelho's BCCG ends at model value +44 070 and
       the projected CG on the exact minimiser; six random bounded problems
       pin it to BVLS's answer at 1e-9.
-- [x] The vanishing-column crawl: measure the three remedies on e8's verify
+- [ ] The vanishing-column crawl: measure the three remedies on e8's verify
       stage, the two-site Pnma set and `_LM_FALSE_CONVERGENCE`; decide.
-      **Decided 2026-10-12: each column keeps the largest norm it has had
-      this stage** (Moré 1978, MINPACK's `mode=1`), the third remedy and the
-      only one that is a driver's documented practice. Measured on macOS
-      arm64, `[dev]`: e8's verify stage converges in 22 evaluations at
-      λ 0.42 where it ran 400 at λ ≈ 1e3. `_LM_FALSE_CONVERGENCE` passes, so
-      its strict xfail is gone. The two-site Pnma set with moduli and angles
-      freed together (no `moduli` stage) finds the truth, Mn1 3.4981 and Mn2
-      0.6996 μ_B at χ²_red 1.05745, where `main` lands on the swapped minimum
-      at 1.05772. `test_magnetic_moment_frame`'s four arms keep `main`'s
-      χ²_red to nine digits (0.978225621 … 0.978226448). On a synthetic toy
-      the per-iteration scale stops on `ftol_runs` at λ 1.7e10 with χ² 1.891
-      and the held one reaches 0.744854 (`test_a_column_that_vanishes_…`).
-      The count-only-at-small-λ rule was not built: it turns a false
-      `converged` into a budget stop and fixes nothing.
+      **Measured 2026-10-12, not landed.** Keeping each column's largest norm
+      this stage as its scale (Moré 1978, MINPACK's `mode=1`) fixes every
+      case named: e8's verify stage converges in 22 evaluations at λ 0.42
+      where it ran 400 at λ ≈ 1e3; `_LM_FALSE_CONVERGENCE` passes; the
+      two-site Pnma set with moduli and angles freed together (no `moduli`
+      stage) finds the truth, Mn1 3.4981 and Mn2 0.6996 μ_B at χ²_red
+      1.05745, where `main` lands on the swapped minimum at 1.05772; and
+      `test_magnetic_moment_frame`'s four arms keep `main`'s χ²_red to nine
+      digits. The toy `test_lm_solver.py::test_a_column_that_vanishes_…` is a
+      strict xfail until it lands (per-iteration scale: `ftol_runs` at λ
+      1.7e10, χ² 1.891; held: 0.744854).
+      **It broke one row, and that is why it is out.**
+      `test_stationary_moment_angle.py::test_an_angle_without_an_esd_still_has_a_profile_interval`
+      failed on the Linux and macOS runners (throwaway run 38279055364) and
+      here under a +1e-14 nudge of the start tilt (one of six nudges; `main`
+      passes all six). The fit's azimuth stops at 0.01550 against `main`'s
+      0.01089, still inside the ±0.03 rad interval, but now on a creep that
+      ends on `ftol_runs` at λ 1.38 after 105 evaluations and moves 1e-5
+      with each nudge. The profile behind the interval is the real fault:
+      every refit has one column at 1.3e-7 to 5.4e-7 of the largest (the
+      polar angle at its own fixed direction), and most refits end
+      `exhausted_fp64` at λ 1e10 after 12 evaluations without moving, on
+      `main` too. The upper side warm-starts from a first refit that
+      wandered 193 evaluations, so Δχ² there rises from 5.8 at φ 0.028 to
+      11.2 beside the fit, and the interval's upper end lands on the value.
+      So the held scale lands together with the rule below.
 - [ ] **A column that is rounding noise from a stage's first iteration.**
-      The parked exact angle column (`wp1953-central-angle-columns`) still
-      sets off the crawl under the held scale, because a running maximum of
-      noise is noise. Cherry-picked and measured 2026-10-12: the moment
-      stage's angle column is 1.7e-13 of the largest at its first
-      iteration, where the smallest real column, a background term, is
-      3.2e-5; LM stops on `ftol_runs` at λ 4e6-2.4e9, χ²_red 0.978236,
-      0.979134, 1.335554 and 1.352919 for β₀ 101.0, 101.1, 101.5 and 103.0.
-      Normalised to unit norm, noise is a random direction with a huge
-      physical step. A dead-column rule would fix it, but parameters
-      refine in their own units, so column norms span decades and a
-      relative cut risks holding a real parameter in silence. Measure a
-      cut, or a per-column noise floor from the column's own difference
-      step, across the acceptance grid before landing the branch, which
-      stays parked.
-- [ ] Re-measure the goldens and the acceptance grid under the held scale
-      and the projected-CG step, and the Linux arm64 two-site winner.
+      The held scale cannot help it: a running maximum of noise is noise,
+      and noise normalised to unit norm is a random direction with a huge
+      physical step. Two measured cases. The parked exact angle column
+      (`wp1953-central-angle-columns`, cherry-picked over the held scale):
+      the moment stage's angle column is 1.7e-13 of the largest where the
+      smallest real one is 3.2e-5, and LM stops on `ftol_runs` at λ 4e6-2.4e9,
+      χ²_red 0.978236, 0.979134, 1.335554 and 1.352919 for β₀ 101.0, 101.1,
+      101.5 and 103.0. And the profile refits above, at 1.3e-7 against a
+      real 1.6e-5. A cut on the relative norm alone risks holding a real
+      parameter in silence, since parameters refine in their own units and
+      two decades separate those last two. Candidates: a floor from the
+      column's response to a finite step (the WP's "finite-rotation
+      response"), or a floor from the column's own difference noise. scipy's
+      TRF runs these unscaled (`x_scale=1`), which is why it never meets
+      either. Measure across the grid, then land the held scale and the
+      parked branch with it.
+- [ ] Re-measure the goldens and the acceptance grid under the FCJ limit
+      and the projected-CG step (this PR), and again when the held scale
+      lands; the Linux arm64 two-site winner with it.
 - [ ] The basin: five starts 1e-14 apart per fixture under both drivers.
       Write down whether LM's and TRF's answers differ by start or by driver.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for each fit whose answer

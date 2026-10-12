@@ -275,8 +275,8 @@ _PCG_TOL = 1e-10
 #: Hessian products one :func:`projected_cg` solve may spend, per variable.
 #: Measured on 24 systems of 11-BM NAC's Pawley fit (1 493-1 499 columns):
 #: unbudgeted, a solve at λ = 0 took up to 11 s, and 2n held every one under
-#: 0.64 s while the fit still converged every stage (Rwp 0.12620721 against
-#: 0.12620514 unbudgeted, WP-1953).
+#: 0.64 s.  The whole fit still converges every stage, at Rwp 0.12620721
+#: (0.12620514 unbudgeted), in 71 s on macOS arm64 (WP-1953).
 _PCG_BUDGET_PER_VARIABLE = 2
 #: Armijo fraction and halving cap of the Cauchy point's projected search
 _CAUCHY_ARMIJO = 1e-4

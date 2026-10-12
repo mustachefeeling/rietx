@@ -60,11 +60,8 @@ Conventions, which must match :mod:`.least_squares` exactly or λ is meaningless
   objective ``S = rᵀr`` is our χ² and ``LSQOutcome.cost_*`` is scipy's ½·rᵀr;
 * ``A = JᵀJ``, ``b = −Jᵀr`` — exactly Coelho's equation (6), whose ``b`` is
   ``−½∇S``;
-* λ is added after the diagonal pre-conditioner, which is what makes it
-  dimensionless and lets the published constants transfer.  The
-  pre-conditioner is each column's largest norm this stage (:func:`minimize`),
-  so ``A_ii = 1`` for a column at its largest and under 1 for one that has
-  shrunk since (WP-1953).
+* λ is added after the diagonal pre-conditioner ``A_ii = 1``, which is what
+  makes it dimensionless and lets the published constants transfer.
 
 **The sign of ΔS_t.**  The paper's equation (9) defines ``r_u = ΔS_t/ΔS`` with
 ``ΔS_t = Δpᵀb``.  Taken literally with its own ``b`` that is positive for a
@@ -371,18 +368,16 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     first outer iteration: a stage that starts at its minimum has nothing
     downhill to find.
 
-    **Each column keeps the largest norm it has had this stage** as its
-    scale (Moré, J. J. (1978). *Lecture Notes in Mathematics* **630**,
-    105-116, the scaling MINPACK calls ``mode=1``).  Scaled afresh at every
-    iteration instead, a column that shrinks towards a stationary point, such
-    as a moment angle at a direction the symmetry fixes, took the largest
-    step, and λ grew to hold it until every parameter crawled.  Three tiny
-    decreases then ended the stage on ``ftol_runs`` far from a minimum
-    (χ²_red 11.03 at λ ≈ 1e11 on a one-site moment fit, WP-1938 D12), or the
-    budget ran out (``test_e8``'s axial stage, 400 evaluations at λ ≈ 1e3,
-    WP-1953).  With the scale held, both converge, the second in 22
-    evaluations.  The scale resets with each call, so a stage starts from its
-    own columns.
+    The first can also end a crawl.  A column that vanishes at the current
+    point, such as a moment angle at a direction the symmetry fixes, is scaled
+    to unit norm like every other, so its step is the largest and λ grows to
+    hold it.  At λ near 1e8 every step is tiny, three in a row fall under
+    ``ftol``, and the stage reports convergence far from a minimum: χ² 454 660
+    where 2556 was reachable, on a two-site moment fit (WP-1938 D12).  A
+    column that is rounding noise from a stage's first iteration does the
+    same, and a refit can then stop where it started, at λ ≈ 1e10.  WP-1953
+    owns the remedy: keeping each column's largest norm as its scale fixed
+    the first case and left the second.
 
     Each step solves the damped model over the box (:func:`_solve_step`).
     When that step crosses a row of ``inequalities``, the step is solved again
@@ -423,7 +418,6 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     status = 0
     n_outer = 0
     termination = "max_nfev"
-    scale = None
 
     while n_fev < max_nfev:
         n_outer += 1
@@ -434,18 +428,12 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
         Jh = to_host_fp64(J)
         A = Jh.T @ Jh
         b = -(Jh.T @ r)
-        # each column keeps the largest norm it has had this stage (Moré
-        # 1978, MINPACK's ``mode=1``): a column that shrinks towards a
-        # stationary point keeps the damping its scale earned, rather than
-        # taking the largest step and dragging λ up for every parameter
-        col = np.sqrt(np.maximum(np.diag(A), 0.0))
-        scale = col if scale is None else np.maximum(scale, col)
 
         accepted = False
         exhausted = False
         spent = False
         for _inner in range(_INNER_MAX):
-            step, side = _solve_step(A, b, lam, x, lo, hi, n_rows=len(r), scale=scale)
+            step, side = _solve_step(A, b, lam, x, lo, hi, n_rows=len(r))
             crossed = [iq.label for iq in ineqs if iq.crossed(x, step)]
             if crossed:
                 # the box-only step leaves the feasible set: solve the same
@@ -455,7 +443,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                     truncated_by[label] = truncated_by.get(label, 0) + 1
                 try:
                     step, side = _solve_constrained_step(A, b, lam, x, lo, hi, ineqs,
-                                                         n_rows=len(r), scale=scale)
+                                                         n_rows=len(r))
                 except _NoConstrainedStep:
                     # nnls ran out of iterations: shorten the box-only step to
                     # the first row it reaches, the pre-D8 rule without the
@@ -560,8 +548,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
 
 
 def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
-                lo: np.ndarray, hi: np.ndarray, *, n_rows: int,
-                scale: np.ndarray | None = None
+                lo: np.ndarray, hi: np.ndarray, *, n_rows: int
                 ) -> tuple[np.ndarray, np.ndarray]:
     """One damped Gauss-Newton step, solved exactly inside the box (WP-1937).
 
@@ -603,7 +590,7 @@ def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
     the bound the solve chose.
     """
     n = len(b)
-    d = np.sqrt(np.maximum(np.diag(A), 0.0)) if scale is None else scale
+    d = np.sqrt(np.maximum(np.diag(A), 0.0))
     d = np.where(d > 0.0, d, 1.0)
     inv_d = 1.0 / d
     A_s = A * np.outer(inv_d, inv_d)
@@ -636,8 +623,7 @@ class _NoConstrainedStep(RuntimeError):
 
 def _solve_constrained_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
                             lo: np.ndarray, hi: np.ndarray,
-                            inequalities: list[LinearInequality], *, n_rows: int,
-                            scale: np.ndarray | None = None
+                            inequalities: list[LinearInequality], *, n_rows: int
                             ) -> tuple[np.ndarray, np.ndarray]:
     """The damped step over the box *and* the linear-inequality rows (WP-1938 D8).
 
@@ -675,7 +661,7 @@ def _solve_constrained_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndar
     """
     n = len(b)
     eps = float(np.finfo(np.float64).eps)
-    d = np.sqrt(np.maximum(np.diag(A), 0.0)) if scale is None else scale
+    d = np.sqrt(np.maximum(np.diag(A), 0.0))
     d = np.where(d > 0.0, d, 1.0)
     inv_d = 1.0 / d
     H = A * np.outer(inv_d, inv_d)
