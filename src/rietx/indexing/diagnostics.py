@@ -27,6 +27,7 @@ import math
 import numpy as np
 
 from ..crystallography.atomic_volume import VOLUME_SCATTER, formula_unit_volume
+from ..model.profiles.fcj import fcj_live
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
     MAX_RELATIVE_SIGMA_Q,
@@ -327,7 +328,7 @@ def undeclared_instrument(instrument: Instrument) -> dict[str, str]:
     """
     out: dict[str, str] = {}
     geo = instrument.geometry
-    if geo.axial_sl.value == 0.0 and geo.axial_hl.value == 0.0:
+    if not fcj_live(geo.axial_sl.value, geo.axial_hl.value):
         out["instrument.geometry"] = (
             "geometry.axial_sl and geometry.axial_hl are 0, so no axial "
             "divergence is modelled")
