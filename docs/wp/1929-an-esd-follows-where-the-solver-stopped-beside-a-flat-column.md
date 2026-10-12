@@ -1,6 +1,6 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — flag, FLOOR_HIT, profile_interval and the stationary-angle rule landed; awaits the #831 Linux check and the named-variable task
+Milestone: unscheduled · Status: 🔄 2026-10-12 — flag, FLOOR_HIT, profile_interval, the stationary-angle rule and its named-variable reading landed; awaits the #831 Linux check
 Track: What fires, and what stays silent
 Depends on: 1938 (physical coordinates, which remove the point-dependence this WP reports on)
 Priority: P1 2026-10-11 — was P2: 1938 landed (#883), its last blocker, so the reporting rule and the floor diagnostic can start on physical coordinates under the LM default
@@ -363,12 +363,15 @@ continuations of 400 evaluations.
       its code. (The stationary angle's row went in `references/magnetic.md`
       beside `MOMENT_PAIR_DEGENERATE`: `judging.md` has no code table and
       26 B of budget.)
-- [ ] An angle driven by a named variable is tested too.
+- [x] An angle driven by a named variable is tested too.
       `least_squares._moment_angle_columns` picks candidates by the free
       path's name, so a `vars.X` driving two sites' azimuths, or a modulus
       driven by one, is never tested, and its column stays in the covariance
       silently. Root CLAUDE.md's flatness rule (WP-1342) says to read C's
       `column_reach` for this. Found by the 2026-10-12 review.
+      **Done 2026-10-12** (fifth session): candidates are read off what each
+      column moves. The siblings in the flat hold and the moment rung went to
+      1327 and 1343 as Inherited items.
 
 ## Acceptance
 
