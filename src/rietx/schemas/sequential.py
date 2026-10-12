@@ -19,6 +19,7 @@ of each pattern stays reachable in memory on the
 
 from __future__ import annotations
 
+import math
 from typing import ClassVar, Literal
 
 from pydantic import Field
@@ -649,6 +650,20 @@ def locate_onset(traj: MagneticTrajectory) -> MagneticOnset:
     return onset
 
 
+def _arc_spread(angles: list[float]) -> float:
+    """The shortest arc, in radians, covering every angle in ``angles``.
+
+    A turn less the widest empty gap between neighbours on the circle — the
+    spread :meth:`SeriesResult.moved_paths` takes of an angle path, for the
+    reason ``sequential._angle_difference`` takes a step modulo a turn (#604).
+    """
+    turn = 2.0 * math.pi
+    points = sorted(a % turn for a in angles)
+    gaps = [b - a for a, b in zip(points, points[1:])]
+    gaps.append(points[0] + turn - points[-1])
+    return turn - max(gaps)
+
+
 class SeriesResult(Base):
     """The result of a sequential refinement over an ordered set of patterns.
 
@@ -681,6 +696,18 @@ class SeriesResult(Base):
     #: never "no step".  Written by ``SequentialRefinement.fit``; ``[]`` on a
     #: series that flagged nothing.
     discontinuities: list[SeriesStep] | None = None
+    #: The paths whose values are **steps, not positions** (WP-1317): a
+    #: coordinate DOF measured from where its fit began, a rigid body's
+    #: rotation DOF (``sequential._relative_paths``, WP-1333).  Nothing in an
+    #: entry says which a path is, and the run knows from its models, so it
+    #: writes them here for every judgement across patterns made outside it
+    #: (:meth:`moved_paths`).  ``None`` in a document written before the field
+    #: — "not recorded", never "none"; ``[]`` on a series that has none.
+    relative_paths: list[str] | None = None
+    #: The moment angle DOFs, whose differences are taken modulo a turn
+    #: (``sequential._angle_paths``, #604).  Written and read as
+    #: :attr:`relative_paths` is.
+    angle_paths: list[str] | None = None
     #: every pattern on which every rung of the ladder raised, so the chain
     #: has no entry for it — see :class:`SeriesFailure`.  Populated under the
     #: default ``on_error="carry"`` and under ``"skip"``; under ``"raise"``
@@ -970,6 +997,86 @@ class SeriesResult(Base):
                 if row.name not in out:
                     out.append(row.name)
         return out
+
+    def moved_paths(self, n: int = 6, min_sigma: float = 3.0) -> list[str]:
+        """The paths that moved most across the series, against their own esds.
+
+        Returns at most ``n`` display paths, largest movement first, each one a
+        name :meth:`resolve_trajectory` and ``plot_trajectory`` take, so
+        ``series.plot(series.moved_paths())`` answers "what is this series
+        doing" in one line (issue #218).
+
+        **Movement** is a path's peak-to-peak spread over the series divided by
+        the median of its esds, both over the points that are measurements: a
+        point with an esd, on a pattern that did not diverge (a quarantined fit,
+        ``SEQUENTIAL_UNRECOVERED``, is not a measurement).  Measured in its own
+        esd, a cell edge moving 0.002 Å on 1e-4 Å (20σ) ranks above a scale
+        moving 2 % on an esd of 0.2 % (10σ), whatever their units.  A path
+        ranks only if it moved at least ``min_sigma`` esds.
+
+        Candidates are every refined parameter path (:meth:`paths`) and each
+        phase's weight fraction (``qpa.<phase>``, which carries a propagated
+        esd).  Three are never ranked, each for a stated reason rather than a
+        silent zero:
+
+        - a path with **no esd** at any measured point has no scale to be
+          ranked on — an agreement index (``r_bragg.``/``r_f.``, every
+          ``stderr`` ``None`` by construction) is not a candidate at all;
+        - a **step** path (:attr:`relative_paths`) is a fit's displacement from
+          where it began, so its spread is not a movement; the coordinate rows
+          it drives are candidates instead (WP-1333's "chart a coordinate,
+          never its DOF");
+        - a tied path whose measured values and esds repeat an earlier
+          candidate's exactly (a cubic ``cell.b`` beside ``cell.a``) is the
+          same curve, and ``n`` is for different ones.
+
+        An angle path (:attr:`angle_paths`) is spread over the shortest arc
+        that covers its values, so a moment at +3.13 then −3.14 rad moved
+        0.01 rad (#604).  On a document from before those two fields
+        (``None``) no path is treated as a step or an angle.
+        """
+        if n < 1:
+            raise ValueError(f"n must be at least 1, got {n}")
+        if not min_sigma >= 0.0:
+            raise ValueError(f"min_sigma must be ≥ 0, got {min_sigma}")
+        relative = set(self.relative_paths or ())
+        angles = set(self.angle_paths or ())
+        phases: list[str] = []
+        for e in self.entries:
+            for row in (e.qpa.phases if e.qpa is not None else []):
+                if row.name not in phases:
+                    phases.append(row.name)
+        candidates = [p for p in self.paths() if p not in relative]
+        candidates += [f"qpa.{name}" for name in phases]
+
+        ranked: list[tuple[float, str]] = []
+        curves: set[tuple] = set()
+        for path in candidates:
+            traj = self.resolve_trajectory(path)
+            points = [(v, s) for v, s, i in zip(traj.value, traj.stderr,
+                                                 traj.positions, strict=True)
+                      if s is not None and math.isfinite(s) and s > 0.0
+                      and math.isfinite(v)
+                      and self.entries[i].status != "diverged"]
+            if not points:
+                continue
+            curve = tuple(points)
+            if curve in curves:
+                continue
+            curves.add(curve)
+            values = [v for v, _ in points]
+            spread = (_arc_spread(values) if path in angles
+                      else max(values) - min(values))
+            esds = sorted(s for _, s in points)
+            mid = len(esds) // 2
+            median = (esds[mid] if len(esds) % 2
+                      else 0.5 * (esds[mid - 1] + esds[mid]))
+            score = spread / median
+            if score >= min_sigma:
+                ranked.append((score, path))
+        # stable: equal movements keep first-seen order
+        ranked.sort(key=lambda row: -row[0])
+        return [path for _, path in ranked[:n]]
 
     # -- tabular export ------------------------------------------------
     def to_table(self, *, paths: list[str] | None = None
