@@ -1,6 +1,6 @@
 # WP-1953 — a large Pawley stage converges under the default driver
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — the FCJ limit (its traced column fixed for CI's jax job) and the projected-CG Pawley step in PR #918; the held column scale waits on a rule for a column that is noise from a stage's start
+Milestone: unscheduled · Status: 🔄 2026-10-12 — the FCJ limit and the projected-CG Pawley step in PR #918; the held column scale and a measured curvature for a column Gauss-Newton cannot see on branch `wp1953-noise-column`
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-12 — was P1: PR #918 fixes the Windows gate's `test_e8` (measured on Windows, Linux and macOS runners); what remains is LM's crawl beside a vanishing or noise column, which reports `converged` far from a minimum on magnetic fits
@@ -234,6 +234,90 @@ land at 0.0802-0.0803. CG and a 1e-12 ridge follow them, and both land at
 worse than TRF, the exact step's cut did. The same cut serves every table
 fit up to 128 columns, which the basin task should keep in mind.
 
+### The column small from a stage's start, measured (2026-10-12)
+
+macOS arm64, `[dev]`, Python 3.12.10, branch `wp1953-noise-column` cut from
+PR #918's head `61d79988`. Another session's suite ran beside two of the
+fast-suite runs, so no wall clock here is quotable.
+
+**The interval row's column is not rounding noise.** On the first profile
+refit of `test_stationary_moment_angle`'s interval row, the polar angle sits
+3.2e-8 rad from π/2 and its column is 2.0e-8 of the largest. Its central
+difference is 4.737e-3 at every step from 1e-9 to 1e-1, so the column is
+real: r'' = 1.48e5 along the angle, times the 3.2e-8 offset. Gauss-Newton's
+curvature is ‖J_i‖² = 2.2e-5, against ½∂²S/∂θ² ≈ 3.4e5. Scaled to unit norm,
+the λ = 0 step moves the angle −483 rad. Only at λ = 1e10 is the step short
+enough to accept, and then it promises less than fp64 resolves, so the refit
+ends `exhausted_fp64` where it started. That is the stall the earlier entry
+called a noise column, and it is on `main` too.
+
+**The parked branch's column is rounding noise, at a saddle.** On the
+moment-frame arms with central angle columns, the azimuth starts exactly on
+m_b = 0. Its column, 1.7e-13 to 4e-13 of the largest, scales as 1/h. ½∂²S
+there is −85 to −90 on the 101.x arms, so m_b = 0 is a maximum along the
+azimuth and the true minimum has m_b ≈ ±0.095. On the 103.0 arm it is +2588
+when the stage starts and −155 once β has moved. At a saddle, the λ = 0 step
+along the noise column (2.2e7 rad on the 101.5 arm) is accepted, because
+almost any azimuth is lower, before any crawl begins.
+
+**Candidates, measured on three sets**: the interval row over ten start
+nudges 1e-14 apart; the four moment-frame arms; and the named tests plus every
+fast-suite failure the candidates produced (224 tests).
+
+| rule | interval nudges | frame arms | tests |
+|---|---|---|---|
+| held scale alone, forward columns | 8 of 10 pass; last stage 104-133 evaluations | their tests pass | the 224 green |
+| held scale alone, central columns | 2 of 6 | 0.978236-1.352919 | fast suite: the four arms fail |
+| probe each column under 1e-6 of the largest at stage start, central columns | 6 of 6 | 0.978226, with a negative-curvature descent and an end check | 1241 of 3811 fast-suite solves start with such a column, 5634 columns |
+| **held scale + probe once λ ≥ 100, positive curvature only, forward columns** | **10 of 10, one interval [−0.03568, 0.03569]** | **0.978226** | **fast suite green; 162 measurements in 75 of 3662 solves** |
+| the same with central columns | 10 of 10 | 0.978236-1.352919 | the four arms fail |
+
+The stage-start probe's cost is its flag count: two evaluations for each of
+5634 columns is about 11 300, against the 34 032 trial evaluations the whole
+fast suite makes. Its own fast-suite run is no evidence beyond that, because
+the probe then carried a sign error. It chose the central or one-sided formula
+by testing `(x − h) − x == −h`, which rounding rarely satisfies.
+
+The last two rows decide the parked branch. With central columns, only the
+stage-start probe left the saddle. With forward columns, the I''·h/2 bias the
+parked branch removes is what lets both drivers leave the saddle, TRF
+included. The parked branch stays parked.
+
+Three things the measurement turned up on the way:
+- A relative-norm flag reaches far more than stationary points. A third of all
+  fast-suite solves start with a column under 1e-6 of the largest, from units
+  and from weak or absent phases.
+- A crawl-triggered probe must compare the curvature with λ. On the
+  dead-channel fit λ passes 100 for other reasons, and the columns probed
+  there are only 0.75-41× blind. Installing that curvature cost the fit its
+  convergence. The rule takes it only above ``A_ii + λ·d_i²``.
+- The probes must stay off the trial budget. `test_magnetic_series`'s
+  three-iteration ascent from a moment at its floor lost four of its twelve
+  evaluations to them and stopped at 0.85 μ_B, where it reaches 2.05 μ_B
+  without them. scipy keeps its finite-difference Jacobian calls out of `nfev`
+  the same way.
+
+The negative curvature at a floor is left to Gauss-Newton. The ascent's S
+falls from 1.17e6 at 1e-3 μ_B to 4.1e4 near 4 μ_B, with ½S'' ≈ −1.3e5 at the
+floor. Its long steps are what climb out, and a curvature held there would
+cap each step at doubling the offset.
+
+Prior art: Transtrum & Sethna (2012, arXiv:1201.5885, §2.2) name the case.
+MINPACK's running maximum "is still more prone to parameter evaporation …
+because initial parameter guesses may lie in regions that do not produce
+enough damping", and they floor DᵀD at a value the caller supplies (geodesiclm
+seeds its running max with the caller's `dtd`). Ceres floors the damping
+diagonal at `min_lm_diagonal` (1e-6) and scales columns by 1/(1 + ‖J_i‖). An
+absolute floor fails here on units: the angle needs a damping diagonal near 10
+to step 1e-3 rad, where background columns carry norms of 4. The measured
+curvature needs no unit.
+
+The two-site Pnma set, `solve_magnetic` with the `moduli` stage dropped
+(`moment` then `all`): the released start reaches 3.4981 and 0.6996 μ_B at
+χ²_red 1.057446 under this branch, with the held scale alone 1.057447. On
+`v1.8.0` the class-0 winner is the flat start's swapped minimum, 0.7011 and
+3.4986 μ_B at 1.057720.
+
 ## Non-goals
 
 - When a stage that is improving little should stop and say so: WP-1334.
@@ -298,9 +382,11 @@ fit up to 128 columns, which the basin task should keep in mind.
       two-variable system where Coelho's BCCG ends at model value +44 070 and
       the projected CG on the exact minimiser; six random bounded problems
       pin it to BVLS's answer at 1e-9.
-- [ ] The vanishing-column crawl: measure the three remedies on e8's verify
+- [x] The vanishing-column crawl: measure the three remedies on e8's verify
       stage, the two-site Pnma set and `_LM_FALSE_CONVERGENCE`; decide.
-      **Measured 2026-10-12, not landed.** Keeping each column's largest norm
+      **Landed 2026-10-12 in `ef5bbe12`** (branch `wp1953-noise-column`),
+      together with the next task's rule. Both strict xfails now pass.
+      **Measured 2026-10-12, not landed then.** Keeping each column's largest norm
       this stage as its scale (Moré 1978, MINPACK's `mode=1`) fixes every
       case named: e8's verify stage converges in 22 evaluations at λ 0.42
       where it ran 400 at λ ≈ 1e3; `_LM_FALSE_CONVERGENCE` passes; the
@@ -326,8 +412,23 @@ fit up to 128 columns, which the basin task should keep in mind.
       wandered 193 evaluations, so Δχ² there rises from 5.8 at φ 0.028 to
       11.2 beside the fit, and the interval's upper end lands on the value.
       So the held scale lands together with the rule below.
-- [ ] **A column that is rounding noise from a stage's first iteration.**
-      The held scale cannot help it: a running maximum of noise is noise,
+- [x] **A column that is rounding noise from a stage's first iteration.**
+      **Decided 2026-10-12:** the column is not noise. It is real and small,
+      a parameter a hair from a point where its column vanishes, and
+      Gauss-Newton cannot see its curvature (§ The column small from a
+      stage's start, measured). So once rejected trials raise λ to 100, LM
+      measures ½∂²S/∂θ_i² by a central second difference along the coordinate
+      the rejected trial moved furthest for its size, once a stage. A
+      positive curvature above `A_ii + λ·d_i²` becomes that coordinate's
+      diagonal for the stage (`lm._measured_curvature`, `_furthest_moved`,
+      `_CURVATURE_GATE`). Not a floor from the column's own difference noise:
+      that would zero the case-B column, which is real. Not a fixed floor:
+      units defeat any one value. Not a stage-start probe: a third of all
+      solves start with a column under 1e-6 of the largest. The parked
+      branch stays parked, and that part of this task is declined: with exact
+      zero columns the moment-frame arms sit on a saddle that only the
+      stage-start probe left.
+      *As filed:* The held scale cannot help it: a running maximum of noise is noise,
       and noise normalised to unit norm is a random direction with a huge
       physical step. Two measured cases. The parked exact angle column
       (`wp1953-central-angle-columns`, cherry-picked over the held scale):
@@ -351,7 +452,9 @@ fit up to 128 columns, which the basin task should keep in mind.
       validation-matrix row for the new FAP Pawley test, since added. No
       golden moved.
 - [ ] Re-measure the goldens and the acceptance grid again when the held
-      scale lands, and the Linux arm64 two-site winner with it.
+      scale lands, and the Linux arm64 two-site winner with it. The fast
+      suite's goldens pass on `ef5bbe12` (macOS arm64, `[dev]`); the full
+      suite and the arm64 winner are open.
 - [x] The basin: five starts 1e-14 apart per fixture under both drivers.
       Write down whether LM's and TRF's answers differ by start or by driver.
       Measured 2026-10-12 on the shipped tree (macOS arm64, `[dev]`), cell a
