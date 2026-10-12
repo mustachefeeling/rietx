@@ -261,7 +261,11 @@ fit up to 128 columns, which the basin task should keep in mind.
       reverse, the exchange symmetry `test_one_zero_aperture_is_the_limit_…`
       pins. `test_high_correlation_dedup`'s row passes on the macOS runner.
       `test_stationary_moment_angle`'s still fails there, 0.004349 against
-      0.003091, so it is the vanishing-column task's.
+      0.003091, so it is the vanishing-column task's. Run 38280327011 on the
+      shipped tree (`243863de`, FCJ limit and projected CG): Windows and
+      Ubuntu pass all 35 rows, `test_e8` ends at χ²_red 51.2997726156772 on
+      macOS, and the macOS runner fails only that row, with `main`'s digits.
+      Its cause is the stalled profile refits of the noise-column task.
 - [x] Measure before deciding: every Pawley fixture above 128 columns the
       suite or the examples can build (FAP.XRA at least, and a wider range of
       NAC or a round-robin pattern if one crosses 128), under TRF, LM as
@@ -337,8 +341,18 @@ fit up to 128 columns, which the basin task should keep in mind.
 - [ ] Re-measure the goldens and the acceptance grid under the FCJ limit
       and the projected-CG step (this PR), and again when the held scale
       lands; the Linux arm64 two-site winner with it.
-- [ ] The basin: five starts 1e-14 apart per fixture under both drivers.
+- [x] The basin: five starts 1e-14 apart per fixture under both drivers.
       Write down whether LM's and TRF's answers differ by start or by driver.
+      Measured 2026-10-12 on the shipped tree (macOS arm64, `[dev]`), cell a
+      nudged by −2…+2 × 1e-14 relative, default plan, `mode="pawley"`.
+      FAP.XRA: LM gives Rwp 0.07824432 on all five starts; TRF gives
+      0.07826556, 0.07826736, 0.07833952, 0.07838295 and 0.07992336, a
+      spread of 1.7e-3, every stage converged under both. **So the
+      difference is the driver's, and LM's answer sits below TRF's whole
+      spread**; TRF's lands by start. 11-BM NAC: LM gives 0.12620721 on all
+      five; TRF's one start gives 0.13483346 (five would cost about an hour
+      at 750 s each, not run). The WP-1938 finding that LM settles above TRF
+      on FAP was the exact step's eigenvalue cut, and does not survive.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for each fit whose answer
       moves.
 - [x] Skill: `references/surprises.md` §8.31 says a large Pawley stage can
