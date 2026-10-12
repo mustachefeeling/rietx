@@ -201,8 +201,18 @@ arm64's winner only 0.11 above macOS's, so the pattern itself may differ.
       verify stage lands on 0. Re-measure what frees one aperture from 0
       (QPA sample 1 and cpd-2, Stephens brucite, the `rietx compare`
       standards). Stage the note in `docs/releases/1.9.0.md`.
-- [ ] Windows: re-run `test_e8` on `windows-latest` after the fix, and the
-      two macOS-nightly rows, before diagnosing either alone.
+- [x] Windows: re-run `test_e8` on `windows-latest` after the fix, and the
+      two macOS-nightly rows, before diagnosing either alone. Throwaway run
+      38272975913 on the FCJ commit `5ba19a83` alone (Python 3.13, `[dev]`):
+      `test_e8` passes on Windows, Linux and macOS runners, the episode ending
+      at χ²_red 51.29977261567037, 51.29977261521287 and 51.2997726156772.
+      The verify stage still stops on `max_nfev` on all three, at χ² 92 224,
+      92 083 and 92 233, and the refit converges from each to 92 031.79.
+      Windows and Linux land S/L on 0 with H/L 0.0413309, and macOS the
+      reverse, the exchange symmetry `test_one_zero_aperture_is_the_limit_…`
+      pins. `test_high_correlation_dedup`'s row passes on the macOS runner.
+      `test_stationary_moment_angle`'s still fails there, 0.004349 against
+      0.003091, so it is the vanishing-column task's.
 - [ ] Measure before deciding: every Pawley fixture above 128 columns the
       suite or the examples can build (FAP.XRA at least, and a wider range of
       NAC or a round-robin pattern if one crosses 128), under TRF, LM as
