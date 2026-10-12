@@ -1,9 +1,9 @@
 # WP-1953 — a large Pawley stage converges under the default driver
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-12 — the FCJ limit and the projected-CG Pawley step in PR #918; the held column scale waits on a rule for a column that is noise from a stage's start
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P1 2026-10-12 — was P2: WP-1954 found the Windows release gate red on `test_e8` from a platform-dependent LM stop, every Windows run since that day, so each cut ships it as a known issue until this lands
+Priority: P2 2026-10-12 — was P1: PR #918 fixes the Windows gate's `test_e8` (measured on Windows, Linux and macOS runners); what remains is LM's crawl beside a vanishing or noise column, which reports `converged` far from a minimum on magnetic fits
 
 ## Goal
 
@@ -394,6 +394,100 @@ written down as a property of the fixture. `test_e8` passes on Windows.
   **27**, 892-900 (the axial model `model/profiles/fcj.py` implements).
 
 ## Handover log
+
+### 2026-10-12 — the Windows gate fixed and the large Pawley step replaced; the held column scale measured and left out
+
+The Windows release gate's failing test was a crawl, not a platform bug. The
+axial-divergence profile jumped at a zero aperture, LM's exact step landed
+on that zero, and the stage ran out its 400 evaluations wherever rounding
+left it. The profile now takes its physical limit there, and the test ends
+at the same χ²_red on Windows, Linux and macOS runners, TRF's own. A Pawley
+fit above 128 columns now converges under LM: the old approximate step was
+wrong in sign, and the projected conjugate-gradient step that replaces it
+reaches TRF's basin on FAP.XRA and a lower Rwp than TRF on 11-BM NAC, the
+same from five starts. The third crawl, beside a column that vanishes at its
+minimum, has a measured remedy (keep each column's largest norm as its
+scale), but it moved a flat angle's stop and exposed a fourth defect, a
+column that is rounding noise from a stage's first iteration, so it did not
+land.
+
+*Inherited pruned on arrival:* all six notes folded into Context (the
+Windows `test_e8` section, the vanishing-column section) and Tasks; none
+was stale. The 1.8.0 notes' bullet became the staged 1.9.0 note.
+
+*Done* (branch `wp1953-lm-step`, PR #918):
+- `5ba19a83` FCJ at a zero aperture: one ratio at 0 is the h → 0⁺ limit,
+  a uniform weight over [0, s]; only both at 0 is off. `fcj.fcj_live` is the
+  one off-state test, read by the weights, the node count, the compile
+  sizing, the axial columns, the indexing peak fit and its window, and (the
+  review) `indexing.diagnostics.undeclared_instrument`. Manual Part 2's FCJ
+  section, `help.py`'s `axial_hl` entry and the staged note follow.
+- `33f93e55` → `243863de` `bccg.projected_cg`, the LM step above
+  `BVLS_MAX_COLUMNS`; Coelho's `bccg.solve` stays as the paper's method with
+  no caller in the driver. The held column scale went in with it and came
+  back out in `243863de`.
+- `test_acceptance_fap::test_a_pawley_fit_past_the_bvls_cut_converges_every_stage`
+  and its validation-matrix row; skill §8.31 removed; three review fixes.
+
+*Measured* (macOS arm64, `[dev]`, Python 3.12.10 unless named):
+- Throwaway probe workflows, branch deleted after: run 38272975913 (FCJ
+  alone) and 38280327011 (shipped tree), Python 3.13 `[dev]` on
+  windows-latest, ubuntu-latest and macos-latest. `test_e8` passes on all
+  three; the episode ends at χ²_red 51.2997726156772 on macOS and agrees to
+  ~1e-11 elsewhere. The macOS runner still fails the stationary-angle
+  interval row with `main`'s digits (0.004349 against 0.003091).
+- FAP.XRA and NAC Pawley under every candidate step, offline per-solve
+  timings on 37 captured systems, and five-start basins: the tables are in
+  § The step above 128 columns, measured, and the basin task.
+- Fast suite on this branch merged with `main` `a7e71bf7`: 9278 passed,
+  179 skipped, 3 xfailed, 0 failed, 11 m 17 s with another session's suite
+  holding load averages at 145-158. No local `main` baseline was taken
+  (`tests/CLAUDE.md`, the ladder's rung 4), so the delta is stated as tests
+  added: `test_bccg.py` +3 tests (8 cases), `test_lab_instrument.py` +2 (3
+  cases, and the singular-integral test parametrised 1 → 3), `test_lm_solver.py`
+  +1 renamed and +1 strict xfail, `test_cross_backend.py`'s `axial_one_zero`
+  config (its jax and torch rows skip on `[dev]`), and the slow FAP row.
+  The added fast tests cost 0.21 s together on that run.
+- Full suite on `243863de` before the review and the merge: 9553 passed,
+  186 skipped, 3 xfailed, 1 failed (the missing matrix row, since added),
+  26 m 41 s under load. Every acceptance suite passed, the QPA, Stephens
+  and SRM 660c protocols included, and no golden moved. The full selection
+  on the merged tree: see the PR, run after this entry once the other
+  session's suite has finished.
+
+*Review* (`/code-review high --fix`): four fixed. The traced backends
+differentiated a constant weight at one zero aperture (about 245 against
+the true 0.01), now the trapezoid's one-sided weight with unchanged values,
+and a new `axial_one_zero` cross-backend config covers it. The batched
+bases' reference loop and the undeclared-instrument check now read
+`fcj_live`. Three declined: `projected_cg` makes no eigenvalue cut at λ = 0
+(FAP and NAC measured fine; a ±inf-bounded near-null direction could take
+a long first step that LM then rejects); it ends on a zero-curvature
+direction without trying a release; and a fixed zero ratio is floored to
+0.02 for sizing beside a positive one, which is #774's rule.
+
+*Gotchas:*
+- The held scale cannot help a column that is small from a stage's first
+  iteration. Its cut-off cannot be a relative norm alone: the noise column
+  sat at 1.3e-7 of the largest beside a real background column at 1.6e-5.
+- `test_stationary_moment_angle`'s interval row reproduces its runner
+  failure on this Mac under a +1e-14 nudge of the start tilt
+  (`_fit(0.0, two=False, seed=2, start_tilt=0.04 * (1 + 1e-14))`), but only
+  once the azimuth's stop moves, which the held scale does.
+- WP-1937's "NAC Pawley, 142 columns" is not the default plan's NAC Pawley,
+  which solves 1 492-1 499.
+
+*Next*, in order: (1) a rule for a column that is rounding noise from a
+stage's first iteration, measured on the nudged interval row, the parked
+exact angle column's four moment-frame arms and the acceptance grid; a
+floor from the column's response to a finite step is the first candidate.
+(2) Land the held scale with it and the parked branch
+`wp1953-central-angle-columns`, re-measure the goldens and the grid, and
+check whether `solve_magnetic`'s moduli-first stage is still needed (freed
+together, the held scale found the two-site truth). (3) The Linux arm64
+two-site winner. Whether to delete Coelho's `bccg.solve`, now unused by
+the driver, along with the manual's §Coelho (2005) source line, is the
+maintainer's call.
 
 - **2026-10-11** — Filed from WP-1938's last open task when #883 merged
   without a fix. No open WP owns the step above `BVLS_MAX_COLUMNS`. WP-1334
