@@ -512,9 +512,3 @@ plus each histogram's `BACKGROUND_ABSORPTION`, on both lists: count it once.
 `DATA_SUPPORT_LOW` never fires on a joint fit. Histogram h's radiation is
 `MultiHistogramRefinement.fitted_instruments[h].source.kind`.
 (Measured: WP-1312, WP-1344.)
-
-**8.31 A Pawley fit past 128 free columns can stop a stage on budget.**
-LM's inexact step there can stall at `max_iter`.
-Refit with `solver="trf"` and compare: on FAP.XRA's 343 columns LM stopped
-at Rwp 0.0804, TRF converged at 0.0784.
-(Measured: WP-1938; WP-1953 owns the fix.)

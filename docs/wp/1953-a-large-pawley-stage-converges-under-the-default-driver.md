@@ -323,8 +323,9 @@ fit up to 128 columns, which the basin task should keep in mind.
       Write down whether LM's and TRF's answers differ by start or by driver.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for each fit whose answer
       moves.
-- [ ] Skill: `references/surprises.md` §8.31 says a large Pawley stage can
+- [x] Skill: `references/surprises.md` §8.31 says a large Pawley stage can
       stop on its budget under LM. Remove it, or restate it, once this lands.
+      Removed: LM now converges FAP.XRA and NAC Pawley at or below TRF's Rwp.
 
 ## Acceptance
 
