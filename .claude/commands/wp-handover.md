@@ -126,7 +126,7 @@ re-reading its own diff.
    joins the fast tier's slow tail says why it is not marked `slow`
    (`tests/CLAUDE.md` § Budgets in tests).
 
-   **Check nothing else is mid-suite before the full selection** — one `pgrep`,
+   **Check nothing else is mid-suite before the full selection** — the `ps` check,
    `tests/CLAUDE.md` § Running. A `/pr-review` or another WP session may be
    running one, and a count measured beside it is not a count this handover can
    quote. Found one, the honest entry says the full selection did not run —
