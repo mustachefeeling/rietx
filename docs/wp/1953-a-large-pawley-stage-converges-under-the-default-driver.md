@@ -182,7 +182,9 @@ and Mn2 at 3.49821 μ_B, χ²_red 1.0574924. `ubuntu-latest` has Mn1 at 3.49778,
 `test_the_two_site_winner_finds_each_site_its_own_moment` would fail on arm64
 Linux, which no CI job runs slow. Not diagnosed: whether the simulated
 pattern is bit-identical across the three, and which start reached which
-minimum. The swapped point sits 0.66 higher in χ² by the test's docstring and
+minimum. *Superseded 2026-10-13:* under the held scale and the measured
+curvature every runner picks the truth, and the Linux pattern is not
+macOS's (the task below). The swapped point sits 0.66 higher in χ² by the test's docstring and
 arm64's winner only 0.11 above macOS's, so the pattern itself may differ.
 
 ### The step above 128 columns, measured (2026-10-12)
@@ -464,10 +466,22 @@ The two-site Pnma set, `solve_magnetic` with the `moduli` stage dropped
       rows moved and were answered (the 2026-10-13 handover entry).
       FAP.XRA and 11-BM NAC Pawley keep one answer from starts 1e-14 apart,
       0.07824432 (five) and 0.12620721 (three).
-- [ ] The Linux arm64 two-site winner (§ The crawl beside a vanishing column,
+- [x] The Linux arm64 two-site winner (§ The crawl beside a vanishing column,
       its last paragraph), now under the held scale and the measured
       curvature. No CI job runs the slow suite on arm64 Linux, so it needs a
-      throwaway workflow on `ubuntu-24.04-arm`.
+      throwaway workflow on `ubuntu-24.04-arm`. **Measured 2026-10-13**,
+      throwaway run 38323275436 on `8d2fb489`, Python 3.13 `[dev]`, numpy
+      2.5.4, scipy 1.18.1, branch deleted after. The test passes on
+      `ubuntu-24.04-arm` (Neoverse-N2), `ubuntu-latest` (AMD EPYC 7763) and
+      `macos-latest`. On all three the class-0 winner is the `Mn1 only, then
+      released` start at Mn1 3.49806 and Mn2 0.69959 μ_B, χ² 2555.84814
+      within 5e-6. The `Mn2 only, then released` start reaches the swapped
+      point at 2555.95013 on all three. Only the flat start differs: the
+      swapped minimum at 2556.510 on arm64 Linux and macOS, and Mn1 3.4984 at
+      2556.405 on x86-64 Linux. The simulated pattern is bit-identical across
+      the two Linux runners and differs from macOS's in the last digits of its
+      sum, so the pattern did not cause the old arm64 swap. The solve path
+      did, and the held scale with the measured curvature removed it.
 - [x] The basin: five starts 1e-14 apart per fixture under both drivers.
       Write down whether LM's and TRF's answers differ by start or by driver.
       Measured 2026-10-12 on the shipped tree (macOS arm64, `[dev]`), cell a
