@@ -11,9 +11,8 @@ appears on `result.diagnostics`. The criterion that separates them is
 **whose file you are reading**: another program's project or recipe file — a TOPAS `.inp`,
 a FullProf `.pcr`, a PowderLine recipe — against your own data and structure
 files, which every fit reads whether or not another program was ever involved.
-Those own-file codes were in §7 when this was written and are now §7i,
-[`diagnostics-reading.md`](diagnostics-reading.md), moved on a second
-criterion rather than this one: how often you meet one (WP-1415).
+Those own-file codes are in §7i,
+[`diagnostics-reading.md`](diagnostics-reading.md) (WP-1415).
 A project reader emits its codes at *import*, into a list you pass in
 (`read_topas_inp(..., diagnostics=[])`,
 `rietx.io.projects.fullprof.to_structure(..., diagnostics=[])`); the recipe
@@ -32,11 +31,9 @@ criterion.
 
 The TOPAS `.inp` reader's magnetic rows (`TOPAS_MAGNETIC_GROUP_READ`, `TOPAS_MOMENT_CONVENTION`,
 `TOPAS_MOMENT_ION_UNCHARGED`) and the FullProf `.pcr` reader's
-`FULLPROF_MAGNETIC_PHASE_OMITTED` moved out to §7j,
-[`references/magnetic.md`](magnetic.md) (issue #286), beside the rest of the
-magnetic family rather than split across three files by which channel each
-happened to fire on; the channel itself is unchanged (still at import, still
-not on `result.diagnostics`).
+`FULLPROF_MAGNETIC_PHASE_OMITTED` are in §7j,
+[`references/magnetic.md`](magnetic.md), beside the rest of the magnetic
+family. They fire at import and never reach `result.diagnostics`.
 
 Each row states, as the others do, what you must *not* assume once it fires.
 Two conventions run across the family. A reader **repairs and reports** where

@@ -23,7 +23,7 @@ Run the session-start ritual. The SessionStart hook's report
 2. **Identify the WP**: the one the user names, else ROADMAP "Current
    focus" — read the two sections, not the file
    (`sed -n '/^## Session protocol/,/^## Milestones/p' docs/ROADMAP.md`, one
-   contiguous block): ~1.3k tokens against the file's ~12k, and a WP file is
+   contiguous block): about a sixth of the file, and a WP file is
    self-contained. **§ Session protocol is read for its step 3**, which is
    the only statement of the handover trigger that stays in context after
    this command scrolls away; narrowing this read to Current focus alone
@@ -235,7 +235,7 @@ Run the session-start ritual. The SessionStart hook's report
      command running past about 8 minutes kills the lane, so background it.
      Give the acceptance as the fast selection for the touched area, never the
      full suite. Tell it to leave git and the WP file alone, and to end with a
-     report under 300 words: files changed, tests run with their counts, and
+     short report: files changed, tests run with their counts, and
      anything unresolved with `file:line`.
    - **Check it, then commit it.** Read the diff by file, re-run the lane's
      tests and fix small things here. If the lane got the item wrong, dispatch
