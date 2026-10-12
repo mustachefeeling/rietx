@@ -112,7 +112,14 @@ from .structure import Cell
 #: ``reduce.reduce_cell`` returns the exact image of its input under its own
 #: change of basis, where a near-zero entry inside ε could take the opposite
 #: sign (issue #797), so a dedup χ² can move by that sign's ε.
-INDEXING_THRESHOLDS_VERSION = "1.8"
+#: 1.9: the Kα2 alias screen allows one sampling step beyond its
+#: ``PEAK_ALIAS_TOL_FWHM_FRAC`` of a FWHM (``indexing.peaks._alias_tolerance``),
+#: so ``pick_peaks(...).usable()`` drops a Kα2 maximum the 1.8 screen kept
+#: wherever a FWHM spans fewer than about 3.3 channels: ``cpd-4`` offers 76
+#: usable lines where 1.8 offered 77, and the corundum list loses one
+#: ``no_intensity`` component (2 → 1).  A Cu Kα rock salt at a 0.02° step went
+#: from 7 of 9 lines indexed to all of them.
+INDEXING_THRESHOLDS_VERSION = "1.9"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
@@ -202,7 +209,10 @@ PEAK_DETECT_SEPARATION_FWHM_FRAC = 0.25
 #: group is fitted independently, with its own full doublet — comes back as a
 #: real line with real intensity.  Measured on a synthetic Cu Kα pattern: one
 #: spurious line per resolved doublet.  Stripping is not the alternative (see
-#: :mod:`rietx.indexing.peakfit`); recognising the alias is.
+#: :mod:`rietx.indexing.peakfit`); recognising the alias is.  The screen adds
+#: one sampling step on top (``indexing.peaks._alias_tolerance``): both positions
+#: it compares are channel maxima, and on an undersampled profile the step, not
+#: the FWHM, bounds their disagreement.
 PEAK_ALIAS_TOL_FWHM_FRAC = 0.3
 #: Observed height ratio, as multiples of the emission line's own ``weight``,
 #: inside which an alias is accepted as such.  Wide on purpose: the ratio equals
