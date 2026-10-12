@@ -300,9 +300,30 @@ continuations of 400 evaluations.
       `ftol_runs` stop at large λ beside a stationary angle, and
       `_LM_FALSE_CONVERGENCE`'s xfail) moves to WP-1953 (maintainer,
       2026-10-12): same seam in `lm.py`, same grid to re-measure.
+      **Deferred by the maintainer, 2026-10-12, after this measurement**
+      (macOS arm64, `[dev]`). The rule tried was one Newton step on each
+      angle's own column toward where it vanishes, then
+      `MOMENT_DIRECTION_SUPPORT` on the column there. It does not separate
+      the cases. Angles beside a stationary direction read 1.7e-3 and 4.2e-3
+      (two-site polar), 8.6e-5 and 8.8e-5 (two-site azimuth), and 3.4e-6 to
+      8.2e-6 (one site). Determined angles read 0.65 at 45°, 0.49 at 30°,
+      1.4e-2 at 0.2 rad and 2.1e-4 at 0.05 rad. One step leaves an error of
+      order δ³, and the two sites' angle columns are coupled. A joint Newton
+      step over every free angle reaches ≤ 1.3e-12 at each class-0 stop, but
+      it also finds the symmetry direction beside a determined angle. The
+      stops sit 0.4-3.5σ from the direction, and a moment tilted 0.05 rad
+      sits 100σ away. Two rules were put to the maintainer. The recommended
+      one evaluates χ² at the joint-Newton direction with everything else
+      fixed and zeroes those columns when Δχ² ≤ 3.84·χ²_red·f², the cut
+      `profile_interval` uses. Fixing the others makes the test err toward
+      keeping a column. The other rule is a distance in esds. With every
+      angle column left out, the moduli esds at all three class-0 stops are
+      0.00150-0.00151 and 0.00111-0.00112, ρ −0.24. In full they are 0.031
+      and 0.159, and with the exact column (WP-1953's branch) 0.0043 and
+      0.024, so this half is needed either way.
 - [x] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
       says so); WP-1915's indexing propagation reads the same covariance.
-- [ ] The analytic azimuth column at φ = π: check it against an exact oracle
+- [x] (moved to WP-1953, 2026-10-12) The analytic azimuth column at φ = π: check it against an exact oracle
       and add the config to `tests/test_cross_backend.py` if no row covers a
       moment at a stationary direction.
 - [ ] Tests, and the acceptance suites' esds before and after, every row that

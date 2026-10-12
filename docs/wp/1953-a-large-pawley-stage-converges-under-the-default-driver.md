@@ -98,6 +98,22 @@ promises less could fall back to it. That is a candidate, not a decision.
   largest norm so far) is the documented form of the second. Either moves
   every default fit's iterates, so the goldens and the acceptance grid are
   re-measured. WP-1929 keeps the esd half of the stationary angle.
+- **2026-10-12, from WP-1929: the exact angle column, parked on branch
+  `wp1953-central-angle-columns` (`87c6d6de`, cut from `main`, no PR).** The
+  analytic azimuth column at a direction the symmetry fixes was not zero.
+  `optimize/least_squares._peak_chain_column` forward-differences each
+  reflection's scalars with h = 1e-6·max(1, |φ|), and at a stationary point
+  that quotient is I''·h/2: 0.009801 (Mn1) and 0.001328 (Mn2) on the two-site
+  Pnma set, issue #831's numbers, and 0.1038 / 0.0042 on the polar angles at
+  θ = π/2. Central differences at h = 1e-2…1e-8 give ≤ 2e-12. The branch
+  differences moment angles centrally and adds a `magnetic_stationary`
+  cross-backend config plus an exact-zero test; both fail before (rel-L2
+  7.79e-3 against the 5e-3 bar) and pass after. It is parked because the
+  exact zero column sets off the crawl above: under LM,
+  `test_magnetic_moment_frame` [103.0] goes from χ²_red 0.978 to 5.861,
+  still `converged`, and [101.1] from 0.978226 to 0.979134. Under TRF all six
+  arms keep 0.978226. Land it with the driver fix and re-measure those four
+  tests (macOS arm64, `[dev]`, WP-1929's lane).
 
 ## Non-goals
 
