@@ -184,9 +184,12 @@ bits at the last nightly's tree (56427c4a). That nightly's Linux plot reads Rwp
       fix it where the covariance is built. *A flat direction's eigenvalue
       came back at either sign and `pinv` inverted a negative one with it;
       `statistics._psd_pinv` inverts by magnitude (2026-10-12).*
-- [ ] The macOS nightly's `test_high_correlation_dedup.py` silence over the
+- [x] The macOS nightly's `test_high_correlation_dedup.py` silence over the
       same runs, red on CI and green locally: name the cause or the next
-      measurement.
+      measurement. *Before #918 the axial pair started on its floor with a
+      zero column, and rounding chose where later stages took it: a 1e-14
+      nudge at 56427c4a reproduced the failure here. WP-1953's #918 gives
+      that column its one-sided slope; the next macOS nightly confirms.*
 
 ## Acceptance
 
