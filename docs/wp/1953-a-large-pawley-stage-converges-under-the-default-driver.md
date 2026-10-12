@@ -77,6 +77,13 @@ promises less could fall back to it. That is a candidate, not a decision.
 
 ### Inherited
 
+- **2026-10-12, from WP-1929: the esd half of the stationary angle has
+  landed.** `least_squares.stationary_angle_test` zeroes a passing angle's
+  column for the covariance, with its own central differences, so the parked
+  exact-column fix no longer moves the esds of an angle it zeroes. It still
+  decides the column the driver steps on (the forward quotient's I''·h/2),
+  and the esds of an angle the test keeps. When the branch lands, re-measure
+  the two-site Pnma winner: its moduli esds should stay 0.00150 / 0.00111 μ_B.
 - **2026-10-12, from WP-1929 (maintainer's call that day): LM also stops
   early beside a vanishing column.** A second crawl in the same seam, moved
   here because it is the same `lm.py` step and stop and the same grid to
