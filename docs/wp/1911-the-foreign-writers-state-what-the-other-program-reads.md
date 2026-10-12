@@ -1,6 +1,6 @@
 # WP-1911 — the foreign writers state what the other program reads: the setting, the scale, the free set
 
-Milestone: unscheduled · Status: 🔄 2026-10-08 — PRs #720, #731, #710, #733, #713, #771, #782, #770 (Part B's TOPAS writer), #755 (C1's `Zero`) and #815 (#732's whole TOPAS input) and #839 (its X-ray extinction) merged from outside; #721's decision is due
+Milestone: unscheduled · Status: 🔄 2026-10-12 — PRs #720, #731, #710, #733, #713, #771, #782, #770 (Part B's TOPAS writer), #755 (C1's `Zero`) and #815 (#732's whole TOPAS input) and #839 (its X-ray extinction) and #912 (#721's item 3 on the P1 route) merged from outside; the decision on the rest of #721 is due
 Track: Coming from another code
 Depends on: — (#713 soft: the P1 restatement Part D builds on)
 Priority: P3 2026-10-06 — was P2 for #716, which PR #733 fixed; the remaining issues cost a user hand edits
@@ -455,6 +455,38 @@ land alone before the transform exists.
   keywords (specification only, per ATTRIBUTION.md).
 
 ## Handover log
+
+- **2026-10-12** — a P 1 file now refines as the model does. PR #912 (head
+  `2c31b2c5`) merged as `a8960f79` after two rounds. It is #721's proposed
+  item 3 for the P 1 route, entry 4 of #732, and the showcase rows M1, M2, M5
+  and M10.
+  *Done.* `write_topas_inp(p1_expand=True)` beside `free=`, `scale=`,
+  `instrument=` or `pattern=` writes every copy of a site as an equation over
+  the parameter it copies. That lifts #815's refusal of the combination.
+  `p1_expand="auto"` restates only a phase whose magnetic group TOPAS cannot
+  name (a k ≠ 0 supercell, an untabulated family group, a non-standard
+  setting), and reports `TOPAS_PHASE_RESTATED_IN_P1`. A bare `"auto"` with no
+  such phase writes the plain form. `p1_expand` accepts only `False`, `True`
+  and `"auto"`. A whole input with `instrument=` writes a magnetic-only width
+  as two `str`, the nuclear part and a `mag_only` magnetic part. That lifts
+  #815's other refusal.
+  *Gotchas.* The two-`str` split is refused when extinction is non-zero or
+  free. rietx applies one Sabine factor, from the summed |F|², to both
+  components, and TOPAS computes `scale_pks` from one `str`'s own A01..B11.
+  `_GroupIdentityRefusal` separates the refusals P 1 answers from the two it
+  does not: a magnetic group with no site moment, and a phase's own
+  propagation vector. The P 1 expansion now exists twice, in `topas_input.py`
+  (`_image_maps`, `_aniso_image_matrix`) and in
+  `crystallography/magnetic/p1.py`. Labels were the first drift between them,
+  fixed by `_p1_labels` copying `_unique`'s rule. One shared expansion is a
+  follow-up on the PR. This entry also corrects the PR's 1.9.0 note, which
+  compared against 1.7.0 where 1.8.0 is the base.
+  *Gate:* stacked with #903 on `main` `a7e71bf7` as `d41a7932`, macOS arm64,
+  `[dev,jax]`, nothing else running: fast 9357 passed, 113 skipped, 2 xfailed;
+  `-m slow` 306 passed, 14 skipped. `main` after both merges (`a8960f79`) is
+  content-identical to that tree.
+  *Next:* the maintainer decision on the rest of #721: item 2's setting
+  transform, and item 4 against what #771 landed.
 
 - **2026-10-08 (2nd session)** — the whole TOPAS input now writes an X-ray
   extinction. PR #839 (head `fb34a211`) merged as `3b9aad52`.
