@@ -1,6 +1,6 @@
 # WP-1341 — a joint fit has no report
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-12 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: — (1312 soft: it exercises and audits the joint fit; 1335 soft: the
 report path this one gains should already be cheap; 1344 soft: it sorts each
