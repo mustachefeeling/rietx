@@ -298,14 +298,42 @@ def test_fcj_zero_apertures_reduce_to_symmetric():
     x = np.arange(24.0, 26.0, 0.001)
     comp = _fcj_composite(x, 25.0, 0.08, 0.4, 0.0, 0.0, 16)
     np.testing.assert_allclose(comp, pseudo_voigt(x - 25.0, 0.08, 0.4), rtol=1e-12)
-    assert fcj_node_count(25.0, 0.08, 0.0, 0.03) == 0  # one zero aperture: off
+    assert fcj_node_count(25.0, 0.08, 0.0, 0.0) == 0
+    # one zero aperture still smears the peak (WP-1953): only both is off
+    assert fcj_node_count(25.0, 0.08, 0.0, 0.03) > 0
+    assert fcj_node_count(25.0, 0.08, 0.03, 0.0) > 0
 
 
-def test_fcj_quadrature_matches_direct_singular_integral():
+@pytest.mark.parametrize("sl", [0.035, 0.0])
+def test_one_zero_aperture_is_the_limit_of_a_vanishing_one(sl):
+    """WP-1953: the profile at H/L = 0 is its H/L → 0⁺ limit, and S/L and H/L
+    trade places.  Until then one zero aperture gave the symmetric peak, a
+    jump at the bound LM's exact step lands on: χ² 92 250 → 793 600 on
+    ``test_e8``'s axial stage, and a 400-evaluation crawl beside it."""
+    x = np.arange(21.0, 22.5, 0.002)
+    other = 0.035 if sl == 0.0 else 0.0
+    at_zero = _fcj_composite(x, 22.0, 0.07, 0.4, sl, other, 24)
+    swapped = _fcj_composite(x, 22.0, 0.07, 0.4, other, sl, 24)
+    np.testing.assert_allclose(swapped, at_zero, rtol=0, atol=1e-14 * at_zero.max())
+    gaps = []
+    for h in (1e-4, 1e-6, 1e-8):
+        near = (_fcj_composite(x, 22.0, 0.07, 0.4, sl + h, other, 24) if sl == 0.0
+                else _fcj_composite(x, 22.0, 0.07, 0.4, sl, h, 24))
+        gaps.append(np.max(np.abs(near - at_zero)) / at_zero.max())
+    assert gaps[-1] < 1e-7
+    assert gaps[0] > gaps[1] > gaps[2]
+    sym = pseudo_voigt(x - 22.0, 0.07, 0.4)
+    assert np.max(np.abs(at_zero - sym)) > 0.05 * sym.max()
+
+
+@pytest.mark.parametrize("sl, hl", [(0.035, 0.025), (0.035, 0.0), (0.0, 0.035)])
+def test_fcj_quadrature_matches_direct_singular_integral(sl, hl):
     """Independent check of the singularity-removing transform: integrate the
     FCJ density in 2φ-space (with its 1/√(2θ−2φ) endpoint singularity) on a
-    dense grid and compare with the fixed-node ξ-quadrature."""
-    two_theta, gamma, eta, sl, hl = 22.0, 0.07, 0.4, 0.035, 0.025
+    dense grid and compare with the fixed-node ξ-quadrature.  With one
+    aperture at zero the weight is the trapezoid's limit, uniform over
+    [0, s + h] (WP-1953)."""
+    two_theta, gamma, eta = 22.0, 0.07, 0.4
     tt = np.radians(two_theta)
 
     # dense direct integral in 2φ: D(2φ) = W(ξ(2φ)) · dξ/d2φ
@@ -314,7 +342,8 @@ def test_fcj_quadrature_matches_direct_singular_integral():
     phi = np.radians(phi_deg)
     xi = np.sqrt(np.maximum(np.cos(phi) ** 2 / np.cos(tt) ** 2 - 1.0, 0.0))
     dxi_dphi = np.abs(np.cos(phi) * np.sin(phi)) / (np.cos(tt) ** 2 * np.maximum(xi, 1e-30))
-    w_overlap = np.clip(sl + hl - xi, 0.0, 2.0 * min(sl, hl))
+    w_overlap = (np.clip(sl + hl - xi, 0.0, 2.0 * min(sl, hl)) if min(sl, hl) > 0.0
+                 else (xi < sl + hl).astype(float))
     density = w_overlap * dxi_dphi
 
     x = np.arange(two_theta - 1.5, two_theta + 1.0, 0.005)
@@ -360,6 +389,26 @@ def test_fcj_windows_and_nodes_allocated_when_axial_free():
                          moving_paths={"instrument.geometry.axial_sl",
                                      "instrument.geometry.axial_hl"})
     assert int(live.phases[0].fcj_n.max()) > 0
+
+
+def test_one_aperture_pinned_at_zero_still_sizes_nodes():
+    """WP-1953: S/L positive beside H/L = 0, neither free, is a live
+    aberration and compiles nodes, as does S/L freed alone beside H/L = 0
+    (the QPA protocol's ``lines_axial``).  Both at zero and fixed compiles
+    none."""
+    structure = rx.Structure(phases=[_lab6_phase()])
+    pattern = _flat_pattern()
+    instrument = _lab_instrument()
+    instrument.geometry.axial_sl.value = 0.03
+    instrument.geometry.axial_hl.value = 0.0
+    assert int(compile_model(structure, instrument, pattern,
+                             moving_paths=set()).phases[0].fcj_n.max()) > 0
+    instrument.geometry.axial_sl.value = 0.0
+    assert int(compile_model(structure, instrument, pattern,
+                             moving_paths=set()).phases[0].fcj_n.max()) == 0
+    assert int(compile_model(
+        structure, instrument, pattern,
+        moving_paths={"instrument.geometry.axial_sl"}).phases[0].fcj_n.max()) > 0
 
 
 def _rutile_axial(axial: float, free: bool) -> rx.Refinement:

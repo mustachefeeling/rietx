@@ -193,14 +193,15 @@ def test_batched_node_generation_matches_the_scalar_authority():
         phi_s, om_s = fcj_offsets_weights(float(tt), 0.025, 0.030, 12)
         assert _rel(phi_b[j], phi_s) < 1e-15
         assert _rel(om_b[j], om_s) < 1e-15
-    # the branchless fallback: a zero aperture turns every row one-hot, and
-    # the batch must serve the scalar's exact select per row
-    phi0, om0 = fcj_offsets_weights_batch(np.array([12.0, 45.0]),
-                                          0.025, 0.0, 12)
-    for j, tt in enumerate((12.0, 45.0)):
-        phi_s, om_s = fcj_offsets_weights(float(tt), 0.025, 0.0, 12)
-        assert np.array_equal(phi0[j], phi_s)
-        assert np.array_equal(om0[j], om_s)
+    # one zero aperture is the uniform limit (WP-1953), and both at zero is
+    # the branchless fallback that turns every row one-hot; the batch must
+    # serve the scalar's exact select per row in both
+    for sl, hl in ((0.025, 0.0), (0.0, 0.0)):
+        phi0, om0 = fcj_offsets_weights_batch(np.array([12.0, 45.0]), sl, hl, 12)
+        for j, tt in enumerate((12.0, 45.0)):
+            phi_s, om_s = fcj_offsets_weights(float(tt), sl, hl, 12)
+            assert np.array_equal(phi0[j], phi_s)
+            assert np.array_equal(om0[j], om_s)
     assert om0[0, 0] == 1.0 and float(om0[0, 1:].sum()) == 0.0
     assert np.all(phi0[0] == 12.0)
 
