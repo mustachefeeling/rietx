@@ -310,3 +310,27 @@ def test_a_zero_displacement_leaves_the_ticks_at_bragg_plus_zero():
     ticks = stage_ticks(model, values, max_per_phase=10**9)["phase 0"]["two_theta"]
     expected = np.sort(bragg[np.isfinite(bragg)] + 0.03)
     assert np.allclose(ticks, expected, atol=1e-5, rtol=0.0)
+
+
+def test_the_satellite_arms_lattice_follows_the_ticks_geometry():
+    """``report.satellites`` places its own positions and owes the ticks' answer.
+
+    The reciprocal lattice contains every allowed reflection, so each tick must
+    lie on a lattice position.  The arm added the zero alone, which left every
+    lattice and satellite position 0.14-0.26 deg from the peak a displaced
+    specimen drew, and the residual peak it was matched against.
+    """
+    from rietx.report.satellites import _lattice_positions
+
+    ins = _flat_plate(displacement=0.5)
+    structure = _rutile()
+    data = _simulate(ins, structure)
+    model = compile_model(structure, ins, data, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    values = table.decode(table.x0())
+    ticks = np.asarray(
+        stage_ticks(model, values, max_per_phase=10**9)["phase 0"]["two_theta"])
+    lattice = np.sort(_lattice_positions(model, values, 0))
+    nearest = np.min(np.abs(ticks[:, None] - lattice[None, :]), axis=1)
+    assert nearest.max() < 1e-4, (
+        f"a tick sits {nearest.max():.4f} deg from the nearest lattice position")
