@@ -1,6 +1,6 @@
 # WP-1953 — a large Pawley stage converges under the default driver
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — the FCJ limit and the projected-CG Pawley step in PR #918; the held column scale waits on a rule for a column that is noise from a stage's start
+Milestone: unscheduled · Status: 🔄 2026-10-12 — the FCJ limit (its traced column fixed for CI's jax job) and the projected-CG Pawley step in PR #918; the held column scale waits on a rule for a column that is noise from a stage's start
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-12 — was P1: PR #918 fixes the Windows gate's `test_e8` (measured on Windows, Linux and macOS runners); what remains is LM's crawl beside a vanishing or noise column, which reports `converged` far from a minimum on magnetic fits
@@ -394,6 +394,77 @@ written down as a property of the fixture. `test_e8` passes on Windows.
   **27**, 892-900 (the axial model `model/profiles/fcj.py` implements).
 
 ## Handover log
+
+### 2026-10-12 (second session) — CI's jax job caught the traced column at one zero aperture
+
+The last entry said the `axial_one_zero` config covered the traced backends
+at a zero aperture. Its jax and torch rows skip on `[dev]`, and CI's jax job
+failed on them. At one zero aperture the FCJ kink sat on a tie between two
+equal expressions. jax and torch give each side of a tie half its derivative,
+so the traced axial column came out 3360 where the feasible side's is 0.047.
+The kink is now capped by the tangent alone. That removes the tie and changes
+no value, so no fit on the default numpy path moves.
+
+*Done* (branch `wp1953-lm-step`, PR #918):
+- `a5885a61` `fcj_offsets_weights` caps ξ_kink by |tan 2θ| alone, through
+  `_tan_cap` split out of `_xi_max`. The batched twin follows, so the two
+  keep one expression. Values are bit-identical. For s, h ≥ 0,
+  fl(|s − h|) ≤ fl(s + h), so the dropped cap was never the smaller.
+- `test_cross_backend.py::test_a_zero_aperture_column_meets_its_one_sided_difference`,
+  one row each for jax and torch. It compares the `axial_hl` column at
+  H/L = 0 with the one-sided central difference at the column's own scale.
+  The agreement matrix cannot hold it: the column's norm is 0.047 against a
+  largest column of 1.82e6, under `DEAD_COL_FRAC` (1e-6).
+- `feec41cb` merged `main` `29b884d5` (#922) cleanly. No conflict remained
+  at this session's start: `git merge-tree` was clean and GitHub read the
+  PR as mergeable.
+- `tests/CLAUDE.md` § Quoting numbers: a change to a traced path is checked
+  with `[jax,torch]` installed.
+
+*Review* (`/code-review high --fix d4318d68..a5885a61`): six findings. Two
+fixed in `WP-1953: review`: the kink comment's claim holds only for
+apertures ≥ 0, and the new test goes through `_assert_columns`, which adds
+the cosine check. The docstring now names torch too. Three declined. The
+numpy analytic column at H/L = 0 sits 0.240 rel-L2 off the same reference
+and no test checks it; fixing it changes how `forward.py` differences the
+FCJ nodes at a bound and moves every fit that frees the ratio. The matrix
+treats a column as dead relative to its largest, so any small-scale column
+escapes every backend row; changing that needs its own measurement. The
+batched routine still writes out the tangent cap, because `_tan_cap` reads
+the active backend and the batch is numpy-only.
+
+*Measured* (macOS arm64, `[dev,jax,torch]`, Python 3.12.10):
+- CI run 38290626822 on `d4318d68`: `fast jax 1/2` failed
+  `test_jacobian_matches_analytic[jax-axial_one_zero]` and
+  `[jax+fp32-axial_one_zero]`, `axial_hl` at rel-L2 1.000.
+- The `axial_hl` column at H/L = 0 on that config: numpy analytic norm
+  0.0486, one-sided central difference 0.04696, jax 3360 before the fix and
+  0.04696 after (rel-L2 1.49e-3, torch the same). With the tie restored, the
+  new test fails at rel-L2 7.156e4 on jax and on torch. The nightly
+  `[torch]` job would have failed too.
+- Fast suite on the tree merged with `main` `29b884d5`, no other suite
+  running: 9482 passed, 33 skipped, 3 xfailed, 0 failed, 6 m 23 s, before
+  the review. After it, 9481 passed and 1 failed, 6 m 29 s. The failure was
+  `tests/CLAUDE.md` two lines over its cap from this session's rule, since
+  folded into the bullet's own three lines, and `test_docs_consistency.py`
+  passes 25 of 25. No `[dev,jax,torch]` baseline from before this session
+  exists, so the count check is the added tests: +1 test, 2 cases, which
+  skip on `[dev]`. They cost 0.56 s together on that run, the state shared
+  with the `xb-axial_one_zero` group.
+
+*Gotchas:*
+- Not generalised: `caglioti.py`'s `xp.maximum(g2, _MIN_GAMMA_G2)` ties when
+  U and V are both zero beside W on its floor. It is the only other
+  `minimum` or `maximum` on the traced path found to sit on a bound LM lands
+  on. `sharp_widths` covers W on its floor with U and V nonzero. Not probed.
+
+*Next*, unchanged in order from the entry below: (1) a rule for a column
+that is rounding noise from a stage's first iteration; (2) the held scale
+and the parked branch with it, then the goldens and the grid; (3) the Linux
+arm64 two-site winner. Two of this review's declines join (1), since both
+are about a column tiny beside the largest. The numpy `axial_hl` column at
+a zero aperture is 0.240 off its one-sided difference, and the matrix's
+dead-column cut hides any such column from every backend row.
 
 ### 2026-10-12 — the Windows gate fixed and the large Pawley step replaced; the held column scale measured and left out
 
