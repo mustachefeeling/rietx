@@ -1,6 +1,6 @@
 # WP-1317 — scrub the series along its own trace
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-12 — #218's `forward_` and `moved_paths` merged from outside as #903; the scrubber is unstarted
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-09-23 — a view over what the series already knows
@@ -194,6 +194,31 @@ still open, since its surviving residual lands here.
 - `gui/CLAUDE.md` — the panel, route and manual-partition rules.
 
 ## Handover log
+
+- **2026-10-12** — #218's two asks merged from outside. PR #903 (head
+  `0afe61b6`) merged as `75b9ee88` after four rounds, and #218 is closed.
+  *Done.* `SequentialRefinement.forward_` is the forward chain's
+  `SeriesResult` under `direction="both"`. It is set at WP-1333's
+  early-publication point, before the backward walk starts. It carries the
+  forward chain's diagnostics and none of the comparison's, and it is `None`
+  on a one-direction run. `SeriesResult.moved_paths(n, min_sigma)` ranks paths
+  by peak-to-peak movement over the median esd. It never ranks a path with no
+  esd, a coordinate DOF (its coordinate rows are ranked instead) or a tied
+  path whose curve repeats an earlier one. Angles are spread over the shortest
+  covering arc. Schema 0.51 records which paths are steps and which are angles
+  as `SeriesResult.relative_paths` and `.angle_paths`; `None` means "not
+  recorded".
+  *What it makes possible.* A live scrubber can read `forward_` from the
+  runner mid-fit, and `moved_paths` chooses which trajectories to draw. A
+  script reaches `forward_` from its `events=` callback, on the first event
+  stamped `series_pass="backward"`. The PR chose the attribute over #218's
+  callback alternative, because `backward_` and `result_` are already
+  attributes published at that point.
+  *Not done.* None of the five tasks. The scrubber is unstarted.
+  *Gate:* stacked with #912 on `main` `a7e71bf7` as `d41a7932`, macOS arm64,
+  `[dev,jax]`, nothing else running: fast 9357 passed, 113 skipped, 2 xfailed;
+  `-m slow` 306 passed, 14 skipped. `main` after both merges (`a8960f79`) is
+  content-identical to that tree.
 
 - **2026-09-01** — created, from issue #133 with #141's residual
   (2026-09-01 triage). Settled: one vocabulary read from the result; first
