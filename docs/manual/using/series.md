@@ -74,6 +74,16 @@ Both return a `SeriesResult`. The class keeps more: after a fit,
 with its curves, `SequentialRefinement.trees_` holds the per-pattern histories,
 `SequentialRefinement.result_` is the `SeriesResult` that was returned, and
 `SequentialRefinement.backward_` is the backward chain when one was run.
+`SequentialRefinement.forward_` is the forward chain's `SeriesResult` under
+`direction="both"`, set once that chain is complete and before the backward
+walk starts, so a caller watching the run can judge the trajectory at the
+halfway point instead of after both passes. An `events=` callback reads it
+when the first event stamped `series_pass="backward"` arrives. Its `direction`
+is `"forward"` and its `backward` is `None`: it carries every diagnostic of the
+forward chain and none of the path-dependence comparison's, which does not
+exist yet, so it never claims a comparison passed. It is not rewritten when
+the run finishes, and it is `None` on a one-direction run, which has no
+halfway point.
 `SequentialRefinement.fitted_structures` and
 `SequentialRefinement.fitted_instruments` are each pattern's refined models in
 series order, one per pattern, because nothing here is shared.
@@ -380,6 +390,31 @@ present anywhere in the series in first-seen order. Its `varied_only` argument
 drops the tied paths; the default keeps them, because a hexagonal `cell.b` is
 not free but is every bit as measured as `cell.a`. On the round-robin series
 that is 49 paths, 41 of them varied.
+
+`SeriesResult.moved_paths` answers "which of those should I plot". It returns
+at most `n` display paths (default 6), largest movement first, where movement is
+a path's peak-to-peak spread divided by the median of its own esds, so a cell
+edge does not outrank a weight fraction for being larger in its units. Only
+paths that moved at least `min_sigma` esds (default 3) are returned. The list
+goes straight to `SeriesResult.plot`:
+
+<!-- api-doc: no-exec — reads the series a chain above returned -->
+```python
+series.plot(series.moved_paths(), path="moved.png")
+```
+
+The spread is taken over points that are measurements: a point with an esd on
+a pattern that did not diverge. Three kinds of path are never ranked. A path
+with no esd has no scale to rank on, and an agreement index (`r_bragg.`, `r_f.`)
+has none by construction, so it is not a candidate. A path whose value is a
+step from where each fit began, a coordinate DOF or a rigid body's rotation, is
+skipped in favour of the coordinate rows it drives. A tied path that repeats an
+earlier candidate's values exactly, such as a cubic `cell.b`, is the same curve.
+An angle path is spread over the shortest arc that covers its values. Which
+paths are steps and which are angles is something only the run knows, from its
+models, so it records them: `SeriesResult.relative_paths` and
+`SeriesResult.angle_paths`. Both are `None` on a document written before they
+existed, and `moved_paths` then treats no path as either.
 
 `SeriesResult.to_table` returns `(header, rows)` in the wide form, one row per
 pattern with a value and an esd per parameter, and `SeriesResult.write_csv`
