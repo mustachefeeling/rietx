@@ -118,7 +118,7 @@ MOMENT_DOF_PATH = re.compile(r"^phases\.\d+\.atoms\.\d+\.moment\.dof\d+$")
 #: the symmetry fixes, the pattern is even in the angle.  The angle's column is
 #: zero there while its curvature is not.  The test moves the free angles, with
 #: everything else fixed, until every angle column is below this fraction of
-#: its site's modulus column, and then decides by Δχ² whether the fit stopped
+#: its sites' largest modulus column, and then decides by Δχ² whether the fit stopped
 #: at that direction.  An angle that passes stays free and keeps its value.
 #: Only its column leaves the covariance.
 #:

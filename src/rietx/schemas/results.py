@@ -784,7 +784,9 @@ class MomentAngleTest(Base):
     a direction a column's direction is set by where the solver stopped, and
     so were the other esds.  The test moves ``paths`` together,
     everything else fixed, until every column is below
-    ``MOMENT_DIRECTION_SUPPORT`` of its site's modulus column.  It then refits
+    ``MOMENT_DIRECTION_SUPPORT`` of the largest of its sites' modulus columns.
+    ``paths`` are free columns, so a caller's ``vars.X`` driving only moment
+    angles is one of them, and its tied angles share its verdict.  It then refits
     the other columns by one linear step at the stop and at that point.
     ``statistic`` is the difference in data χ² over χ²_red·f².  The angles pass
     when it is at most ``cut``, the 95 % point of the χ̄² mixture for

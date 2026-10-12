@@ -281,3 +281,76 @@ def test_the_joint_path_runs_the_same_test():
     assert "MOMENT_ANGLE_STATIONARY" in {d.code for d in along_a.diagnostics}
     _j, general = _joint("P m m m", (1.5, 2.0, 3.0), (1.0, 1.0, 2.5))
     assert not any(t.zeroed for t in general.stages[-1].moment_angle_tests)
+
+
+def test_an_angle_column_is_read_off_what_it_moves():
+    """Candidates come from C's reach, never from a column's name.
+
+    A ``vars.X`` driving two sites' azimuths moves only angles, so it is
+    tested, and a variable driving a modulus is that site's reference.  A
+    column that also moves a non-angle path is not tested.  Nor is one whose
+    site's modulus no column moves, since it has no reference.  The period is
+    2π over the coefficient the angles share, and absent where they share none.
+    Keys carry the table, so a joint fit's two copies of one path are two sites.
+    """
+    from rietx.optimize.least_squares import _moment_angle_columns
+
+    mn3 = "phases.0.atoms.2.moment"
+    entries = [
+        {(0, f"{MN1}.dof0"): 1.0, (1, f"{MN1}.dof0"): 1.0},
+        {(0, "vars.m"): 1.0, (0, f"{MN2}.dof0"): 1.0},
+        {(0, f"{MN1}.dof1"): 1.0},
+        {(0, "vars.phi"): 1.0, (0, f"{MN1}.dof2"): 1.0, (0, f"{MN2}.dof2"): -1.0},
+        {(0, "vars.half"): 1.0, (0, f"{MN2}.dof1"): 2.0},
+        {(0, "vars.mixed"): 1.0, (0, f"{MN1}.dof2"): 1.0, (0, f"{MN2}.dof1"): 2.0},
+        {(0, "vars.wide"): 1.0, (0, f"{MN1}.dof1"): 1.0,
+         (0, "phases.0.atoms.0.biso"): 1.0},
+        {(0, f"{mn3}.dof1"): 1.0},
+        {(1, f"{MN1}.dof2"): 1.0},
+        {(1, f"{MN2}.dof2"): 1.0},
+    ]
+    two_pi = 2.0 * math.pi
+    assert _moment_angle_columns(entries) == [
+        (2, [0], two_pi), (3, [0, 1], two_pi), (4, [1], math.pi),
+        (5, [0, 1], None), (8, [0], two_pi)]
+
+
+def test_an_angle_a_named_variable_drives_leaves_the_covariance():
+    """The untilted set, ``vars.phi`` as both azimuths, ``vars.m1`` as Mn1's modulus.
+
+    Picked by name, the test saw Mn2's polar angle alone and did not reach the
+    direction.  The moduli read 0.0021 and 0.0040 μ_B and the polar angles
+    115 and 499 rad (macOS arm64).  Read off C, the three columns pass
+    together, and the moduli match the set without variables.
+    """
+    from rietx.strategy.magnetic import SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS
+
+    T = _solve()
+    mag = _magnetic()
+    instrument = T.neutron()
+    data = T.simulate(T.two_site(
+        m1=Moment.from_values(_vec(3.5, 0.0), "Mn3+"),
+        m2=Moment.from_values((0.7, 0.0, 0.0), "Mn3+"), magnetic=mag),
+        instrument, seed=4)
+    ref = rx.Refinement(rx.Structure(phases=[T.two_site(
+        m1=Moment.from_values(_vec(3.3, 0.04, 0.03), "Mn3+", vary=True),
+        m2=Moment.from_values(_vec(0.75, 0.03, 0.03), "Mn3+", vary=True),
+        magnetic=mag)]), instrument)
+    start = {r.path: r.value for r in ref.parameters()}
+    ref.add_variable("phi", start[f"{MN1}.dof2"])
+    ref.tie_equal([f"{MN1}.dof2", f"{MN2}.dof2"], source="vars.phi")
+    ref.add_variable("m1", start[f"{MN1}.dof0"])
+    ref.tie(f"{MN1}.dof0", "vars.m1")
+    extra = (("vars.m1",), ("vars.m1", "vars.phi"), ("vars.m1", "vars.phi"))
+    result = ref.fit(data, telemetry=False, plan=rx.RefinementPlan(stages=[
+        rx.Stage(name, [*paths, *more]) for name, paths, more in zip(
+            SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS, extra, strict=True)]))
+    (only,) = result.stages[-1].moment_angle_tests
+    assert only.paths == [f"{MN1}.dof1", f"{MN2}.dof1", "vars.phi"]
+    assert only.reached and only.zeroed and abs(only.statistic) < 1.0
+    rows = _rows(result)
+    assert abs(only.stationary_at["vars.phi"] - rows["vars.phi"].value) < 0.1
+    assert all(rows[p].stderr is None for p in [*ANGLES, "vars.phi"])
+    assert rows[f"{MN1}.dof0"].stderr == pytest.approx(0.00152, rel=0.05)
+    assert rows[f"{MN2}.dof0"].stderr == pytest.approx(0.00112, rel=0.05)
+    assert rows["vars.m1"].stderr == rows[f"{MN1}.dof0"].stderr

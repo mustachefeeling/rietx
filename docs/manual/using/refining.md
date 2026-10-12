@@ -440,7 +440,7 @@ the test:
 
 | Field | Holds |
 |---|---|
-| `MomentAngleTest.paths` | the angles this round tested together |
+| `MomentAngleTest.paths` | the free columns this round tested together: angles, or a named variable that drives only angles |
 | `MomentAngleTest.reached` | whether moving them, everything else fixed, drove every column below the floor |
 | `MomentAngleTest.statistic` | Δχ² from where the fit stopped to that direction, the other parameters refitted, over χ²_red·f²; `None` where the direction was not reached |
 | `MomentAngleTest.cut` | the 95 % point the statistic is held against, 2.71 for one angle and 6.50 for four |
@@ -1083,7 +1083,7 @@ for stage in result.stages:
 | `StageResult.unknown_paths` | the literal `turn_on` paths that name no parameter of this model; `None` on a result stored before the check existed |
 | `StageResult.unreached_histograms` | joint fits: per histogram, the globs that freed rows of another histogram and matched none of this one; `{}` on a single histogram, `None` on a result stored before the check existed |
 | `StageResult.seeded` | each row this stage lifted before solving, with the value it started from; `None` on a result stored before the field existed |
-| `StageResult.moment_angle_tests` | each round of the test that left moment angles at a direction the symmetry fixes out of the covariance, one `MomentAngleTest` per round; `None` when no moment angle was free beside its free modulus |
+| `StageResult.moment_angle_tests` | each round of the test that left moment angles at a direction the symmetry fixes out of the covariance, one `MomentAngleTest` per round; `None` when no free column moved only moment angles beside a free modulus |
 
 `StageResult.freed` is the field to read when a stage did nothing. A glob that
 matches no path is not an error, because that is how the shipped plans reach a

@@ -554,28 +554,69 @@ class _StationaryPoint:
     curvature_diag: np.ndarray   # ∂²r/∂α_a² at ``theta``, (n, k)
 
 
-def _moment_angle_columns(free_paths: list[str]) -> list[tuple[int, int]]:
-    """``(angle column, modulus column)`` for every free moment angle.
+def _column_entries(tables: list[ParameterTable], col_maps: list[np.ndarray],
+                   n_cols: int) -> list[dict[tuple[int, str], float]]:
+    """Per column of θ, every entry it moves: ``{(table, path): coefficient}``.
 
-    An angle whose site's modulus is not a free column has no reference for
-    the floor.  It is no candidate, and keeps its column.  A joint fit scopes a
-    per-histogram path as ``hist.h.…``, so the pattern is matched on the bare
-    path and the modulus is looked up scoped first, then bare.
+    :meth:`~rietx.params.vector.ParameterTable.column_reach` composed over a
+    joint fit's tables, keyed by table because two histograms' copies of one
+    path are two entries.  ``col_maps[h]`` sends table ``h``'s free columns
+    to θ's, as ``MultiParameterTable.col_map`` does; a single fit passes its
+    one table and ``arange``.  The pattern is read off ``reach_block`` and the
+    coefficient off C, ``_column_identities``' split (#801), so a derived row
+    carries 0.0.  A column no table owns (a Pawley intensity) reaches nothing.
     """
-    from ..params.multi import _unscoped
+    out: list[dict[tuple[int, str], float]] = [{} for _ in range(n_cols)]
+    for h, (table, cmap) in enumerate(zip(tables, col_maps, strict=True)):
+        csc = table.reach_block().tocsc()
+        coef = table.constraint_block()[0].tocsc()
+        for c, k in enumerate(cmap):
+            sl = slice(csc.indptr[c], csc.indptr[c + 1])
+            for r in csc.indices[sl][csc.data[sl] != 0.0]:
+                out[int(k)][h, table.entries[r].path] = float(coef[r, c])
+    return out
 
-    index = {p: i for i, p in enumerate(free_paths)}
+
+def _moment_angle_columns(entries: list[dict[tuple[int, str], float]]
+                          ) -> list[tuple[int, list[int], float | None]]:
+    """``(angle column, modulus columns, period)`` for every free moment angle.
+
+    Read off what each column **moves** (:func:`_column_entries`), never off its
+    name, the flatness rule of WP-1342: a caller's ``vars.X`` driving two
+    sites' azimuths is a column whose name matches nothing.  A column is an
+    angle when every model path it moves is a moment angle, all and never any,
+    since one non-angle path breaks the evenness the test rests on.  A
+    variable is dropped before that test (``is_variable_path``).  The modulus
+    columns are every column moving the ``dof0`` of a site the angle moves.
+    One of those sites without a modulus column leaves the angle without a
+    reference for the floor, so it is no candidate and keeps its column.
+
+    ``period`` is 2π over the coefficient C gives the angles, when they share
+    one magnitude, so a Newton step landing on another image is read back to
+    the nearest one.  ``None`` where they do not, or a derived row carries no
+    coefficient, and the distance is then read as it lands.
+    """
+    def site(path: str) -> str:
+        return path.rsplit(".dof", 1)[0]
+
+    moduli: dict[tuple[int, str], list[int]] = {}
+    for c, reached in enumerate(entries):
+        for h, p in reached:
+            if MOMENT_DOF_PATH.match(p) and p.endswith(".dof0"):
+                moduli.setdefault((h, site(p)), []).append(c)
     out = []
-    for i, p in enumerate(free_paths):
-        bare = _unscoped(p)
-        if not MOMENT_DOF_PATH.match(bare) or bare.endswith(".dof0"):
+    for c, reached in enumerate(entries):
+        moved = {k: v for k, v in reached.items() if not is_variable_path(k[1])}
+        if not moved or not all(MOMENT_DOF_PATH.match(p) and not p.endswith(".dof0")
+                                for _, p in moved):
             continue
-        modulus = p.rsplit(".dof", 1)[0] + ".dof0"
-        j = index.get(modulus)
-        if j is None:
-            j = index.get(_unscoped(modulus))
-        if j is not None:
-            out.append((i, j))
+        sites = {(h, site(p)) for h, p in moved}
+        if not all(s in moduli for s in sites):
+            continue
+        scale = {abs(v) for v in moved.values()}
+        period = (2.0 * math.pi / scale.pop()
+                  if len(scale) == 1 and 0.0 not in scale else None)
+        out.append((c, sorted({j for s in sites for j in moduli[s]}), period))
     return out
 
 
@@ -706,7 +747,9 @@ def _half_widths(curvature_diag: np.ndarray, resid: np.ndarray,
 
 
 def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
-                          free_paths: list[str], n_free: int
+                          free_paths: list[str],
+                          entries: list[dict[tuple[int, str], float]],
+                          n_free: int
                           ) -> tuple[list[MomentAngleTest] | None, list[int]]:
     """Which free moment angles sit at a direction the symmetry fixes (WP-1929).
 
@@ -718,14 +761,15 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
     Pnma set's moduli read 0.031 and 0.159 μ_B in full, against 0.00151 and
     0.00111 (ρ −0.24) with the angle columns left out.
 
-    Every free angle beside a free modulus is a candidate
-    (:func:`_moment_angle_columns`).  A round drives the set to where its
-    columns vanish (:func:`_joint_newton`), reads Δχ² there with the other
-    columns refitted (:func:`_refitted_increase`) over χ²_red·f², and passes
-    the set when that is within the χ̄² cut for its size at
+    Every column moving only moment angles, beside a column moving each of
+    their sites' moduli, is a candidate (:func:`_moment_angle_columns`, read
+    off ``entries``, :func:`_column_entries`' answer).  A round drives the set
+    to where its columns vanish (:func:`_joint_newton`), reads Δχ² there with
+    the other columns refitted (:func:`_refitted_increase`) over χ²_red·f²,
+    and passes the set when that is within the χ̄² cut for its size at
     :data:`STATIONARY_ANGLE_LEVEL`.  The set has reached the direction when
-    every column is at most ``MOMENT_DIRECTION_SUPPORT`` of its site's modulus
-    column.  A failing set of several drops one angle and is tested again, at
+    every column is at most ``MOMENT_DIRECTION_SUPPORT`` of the largest of its
+    sites' modulus columns.  A failing set of several drops one angle and is tested again, at
     most once per angle: the one with the largest ½‖∂²r/∂α²‖·δ², or the
     largest column where the Newton step did not reach the floor.  A moment
     tilted 0.05 rad fails jointly beside two azimuths that pass alone, and this
@@ -743,8 +787,8 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
         column_norms,
     )
 
-    pairs = _moment_angle_columns(free_paths)
-    if not pairs:
+    candidates = _moment_angle_columns(entries)
+    if not candidates:
         return None, []
     x = np.asarray(x, dtype=np.float64)
     jac_data = to_host_fp64(jac)[:n_data]
@@ -758,10 +802,14 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
     scale = chi2_red * f * f
     if not (np.isfinite(scale) and scale > 0.0):
         return None, []
-    modulus = column_norms(jac_data[:, [j for _, j in pairs]])
-    reference = {i: float(m) for (i, _), m in zip(pairs, modulus, strict=True)
-                 if np.isfinite(m) and m > 0.0}
-    tested = [i for i, _ in pairs if i in reference]
+    reference: dict[int, float] = {}
+    period: dict[int, float | None] = {}
+    for i, moduli, p in candidates:
+        m = column_norms(jac_data[:, moduli])
+        m = m[np.isfinite(m)]
+        if m.size and m.max() > 0.0:
+            reference[i], period[i] = float(m.max()), p
+    tested = [i for i, _, _ in candidates if i in reference]
     if not tested:
         return None, []
 
@@ -787,8 +835,10 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
             break
         # An angle is 2π-periodic and a Newton step can land on another image
         # of the same direction (87π from a stop at 3.121 on Cr₂WO₆ at 4 K),
-        # so every distance from the stop is read to the nearest image
-        shift = np.array([math.remainder(point.theta[i] - x[i], 2.0 * math.pi)
+        # so every distance from the stop is read to the nearest image, in the
+        # column's own period (2π/c for a variable driving angles by c)
+        shift = np.array([point.theta[i] - x[i] if period[i] is None
+                          else math.remainder(point.theta[i] - x[i], period[i])
                           for i in tested])
         # where the columns vanish, so a reader can see how far the stop was
         stationary_at = ({p: float(x[i] + s)
@@ -2248,7 +2298,9 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         # a moment angle at a direction the symmetry fixes leaves the
         # covariance, and only the covariance (WP-1929)
         moment_angle_tests, stationary = stationary_angle_test(
-            probe, res.x, res.jac, len(model.tt), table.free_paths, len(res.x))
+            probe, res.x, res.jac, len(model.tt), table.free_paths,
+            _column_entries([table], [np.arange(n_table)], len(res.x)),
+            len(res.x))
         stderr_full, corr_full, covariance_error = _guarded_covariance(
             _without_columns(res.jac, stationary), res.fun, len(res.x),
             n_data=len(model.tt))
@@ -2433,6 +2485,9 @@ def run_multi_least_squares(models: list[CompiledModel],
         # angle is stationary only where the joint χ² says so
         moment_angle_tests, stationary = stationary_angle_test(
             residual, res.x, res.jac, n_data_total, mtable.free_paths,
+            _column_entries(mtable.tables,
+                           [mtable.col_map(h) for h in range(len(mtable.tables))],
+                           len(res.x)),
             len(res.x))
         stderr, corr, covariance_error = _guarded_covariance(
             _without_columns(res.jac, stationary), res.fun, len(res.x),
