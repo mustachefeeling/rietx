@@ -866,6 +866,12 @@ class MultiHistogramRefinement:
                 raise ValueError(
                     f"unknown plan preset {plan!r}; available: {sorted(PLAN_PRESETS)}"
                 ) from None
+        if not plan.stages:
+            # refused before an event is emitted or a run recorded, as
+            # ``Refinement.fit`` refuses it (WP-1110 item 6)
+            raise ValueError("a plan with no stages refines nothing: every "
+                             "stage is a group of parameters to free, so an "
+                             "empty list frees none")
         limits = _normalize_limits(two_theta_limits, n)
         weights = [1.0] * n if weights is None else list(weights)
         if len(weights) != n or any(w <= 0 for w in weights):
@@ -900,7 +906,9 @@ class MultiHistogramRefinement:
                 if stream is not None:
                     stream.emit("fit_end", status="cancelled", stage=exc.stage,
                                 completed=[s.name for s in exc.completed_stages],
-                                node_id=None, n_histograms=n)
+                                node_id=None, n_histograms=n,
+                                histograms=[{"histogram_index": h}
+                                            for h in range(n)])
                     if stream is not events:
                         stream.close()
                 raise
@@ -974,9 +982,9 @@ class MultiHistogramRefinement:
         if isinstance(plan, str):
             plan = PLAN_PRESETS[plan]()
         table = self.mtable.tables[histogram]
-        held = [_unscoped(p) for p in
+        held = [q for p in
                 (self.result_.stages[-1].held if self.result_.stages else [])
-                if not p.startswith("hist.") or p.startswith(f"hist.{histogram}.")]
+                if (q := self.mtable._unscope(histogram, p)) is not None]
         held_set = set(held)
         return build_report(
             self.result_.for_histogram(histogram),
@@ -1009,8 +1017,12 @@ class MultiHistogramRefinement:
             exc.completed_stages = list(completed)
             exc.node_id = None
             if stream is not None:
+                # no costs and no Rwp, as on a single fit, but the rows the
+                # docstring promises on every ``stage_end``
                 stream.emit("stage_end", stage=exc.stage, status="cancelled",
-                            n_histograms=self.n_histograms)
+                            n_histograms=self.n_histograms,
+                            histograms=[{"histogram_index": h}
+                                        for h in range(self.n_histograms)])
             raise
 
     def _stage_end_rows(self, models, theta) -> tuple[float, list[dict]]:

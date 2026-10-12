@@ -1874,16 +1874,61 @@ def _free_values(table: ParameterTable, theta: np.ndarray) -> list[float]:
     That is where the joint result reads a shared row's value too.
     """
     if not isinstance(table, ParameterTable):
-        from ..params.multi import _unscoped
-
         decoded = table.decode(np.asarray(theta, dtype=np.float64))
-        owner = [int(p.split(".", 2)[1]) if p.startswith("hist.") else 0
-                 for p in table.free_paths]
-        return [float(decoded[h][_unscoped(p)])
-                for h, p in zip(owner, table.free_paths, strict=True)]
+        owners = [table._owner(p) or 0 for p in table.free_paths]
+        return [float(decoded[h][table._unscope(h, p)])
+                for h, p in zip(owners, table.free_paths, strict=True)]
     values = table.decode(np.asarray(theta[:len(table.free_paths)],
                                      dtype=np.float64))
     return [float(values[p]) for p in table.free_paths]
+
+
+def _cancellable(residual, cancel, stage: str):
+    """``residual`` behind a read of ``cancel`` at each evaluation boundary.
+
+    One wrapper for :func:`run_least_squares` and
+    :func:`run_multi_least_squares`.  ``__wrapped__`` lets ``inspect.unwrap``
+    reach the closure underneath.
+    """
+    def checked(theta: np.ndarray):
+        if cancel.is_set():
+            raise RefinementCancelled(
+                f"cancelled during stage {stage!r}" if stage else "cancelled",
+                stage=stage)
+        return residual(theta)
+
+    checked.__wrapped__ = residual
+    return checked
+
+
+def _tracked(residual, tracker: _StepTracker, events, stage: str, table):
+    """``residual`` as the TRF path's accepted-point hook.
+
+    Two jobs in a fixed order per call: emit the ``eval`` event measured
+    against the incumbent, then let ``tracker`` accept.  ``table`` is what
+    :func:`_free_values` reads the event's ``values`` off.  One wrapper for
+    :func:`run_least_squares` and :func:`run_multi_least_squares`, and
+    ``__wrapped__`` lets ``inspect.unwrap`` reach the guard underneath.
+    """
+    counter = {"n": 0}
+
+    def tracked(theta: np.ndarray):
+        r = residual(theta)
+        cost = 0.5 * float(r @ r)
+        if events is not None:
+            counter["n"] += 1
+            data = {"stage": stage, "n_eval": counter["n"], "cost": cost,
+                    "accepted": bool(cost < tracker.best_cost)}
+            if tracker.best is not None:
+                data["step_norm"] = float(np.linalg.norm(
+                    np.asarray(theta, dtype=np.float64) - tracker.best))
+            data["values"] = _free_values(table, theta)
+            events.emit("eval", **data)
+        tracker.accept(theta, cost)
+        return r
+
+    tracked.__wrapped__ = residual
+    return tracked
 
 
 def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_nfev, ftol,
@@ -2248,14 +2293,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         # reaches into the frozen discreteness.  This is deliberately not the LM
         # driver's callback, which fires only on *accepted* points: an inner
         # loop that never accepts a step would never see the token.
-        inner_c = residual
-
-        def residual(theta: np.ndarray):
-            if cancel.is_set():
-                raise RefinementCancelled(
-                    f"cancelled during stage {stage!r}" if stage else "cancelled",
-                    stage=stage)
-            return inner_c(theta)
+        residual = _cancellable(residual, cancel, stage)
 
     # the closure the stationary-angle test probes after the solve: below the
     # TRF event wrapper, so a probe neither emits an ``eval`` nor moves the
@@ -2274,23 +2312,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         # exceeds the radius, and rejections shrink it (WP-1113).  The LM
         # driver reports its trials through a real callback instead
         # (``_lm_outcome``), so it does not wrap the residual.
-        inner_t = residual
-        counter = {"n": 0}
-
-        def residual(theta: np.ndarray):
-            r = inner_t(theta)
-            cost = 0.5 * float(r @ r)
-            if events is not None:
-                counter["n"] += 1
-                data = {"stage": stage, "n_eval": counter["n"], "cost": cost,
-                        "accepted": bool(cost < tracker.best_cost)}
-                if tracker.best is not None:
-                    data["step_norm"] = float(np.linalg.norm(
-                        np.asarray(theta, dtype=np.float64) - tracker.best))
-                data["values"] = _free_values(table, theta)
-                events.emit("eval", **data)
-            tracker.accept(theta, cost)
-            return r
+        residual = _tracked(residual, tracker, events, stage, table)
     n_table = len(table.free_paths)
     x0 = table.x0()
     lo, hi = table.bounds()
@@ -2507,16 +2529,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     if cancel is not None:
         # read at an evaluation boundary, below the event wrapper, as in
         # :func:`run_least_squares`
-        inner_c = residual
-
-        def residual(theta: np.ndarray):
-            if cancel.is_set():
-                raise RefinementCancelled(
-                    f"cancelled during stage {stage!r}" if stage else "cancelled",
-                    stage=stage)
-            return inner_c(theta)
-
-        residual.__wrapped__ = inner_c
+        residual = _cancellable(residual, cancel, stage)
 
     # the closure the stationary-angle test probes after the solve, taken
     # below the TRF wrapper for :func:`run_least_squares`' reason: a probe
@@ -2527,27 +2540,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     if solver == "trf":
         # scipy TRF has no accepted-point hook, so the residual closure is
         # the hook, as in :func:`run_least_squares`
-        inner_t = residual
-        counter = {"n": 0}
-
-        def residual(theta: np.ndarray):
-            r = inner_t(theta)
-            cost = 0.5 * float(r @ r)
-            if events is not None:
-                counter["n"] += 1
-                data = {"stage": stage, "n_eval": counter["n"], "cost": cost,
-                        "accepted": bool(cost < tracker.best_cost)}
-                if tracker.best is not None:
-                    data["step_norm"] = float(np.linalg.norm(
-                        np.asarray(theta, dtype=np.float64) - tracker.best))
-                data["values"] = _free_values(mtable, theta)
-                events.emit("eval", **data)
-            tracker.accept(theta, cost)
-            return r
-
-        # ``inspect.unwrap`` reaches the guard underneath, so a check that the
-        # driver was handed the guarded closure still can ask
-        residual.__wrapped__ = inner_t
+        residual = _tracked(residual, tracker, events, stage, mtable)
 
     # sample caps first: ``_freeze_cell_windows_multi`` ends in
     # ``refresh_bounds``, which is what pushes *all three* freezes into the

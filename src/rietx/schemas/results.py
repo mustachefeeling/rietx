@@ -316,9 +316,11 @@ class Identifiability(Base):
     A joint multi-histogram fit (WP-1341) screens each histogram's own rows,
     so its ``background_absorption`` keys are ``hist.<h>.``-scoped, shared
     paths included, and :meth:`RefinementResult.for_histogram` hands one
-    histogram's view its own rows, unscoped.  The joint path runs none of the
-    parameter-space screens, so the other tables stay empty there: not
-    measured, the same reading as ``None``.
+    histogram's view its own rows, unscoped.  The joint path runs neither
+    the declared-peak screen nor the parameter-space screens, so
+    ``extra_peak_absorption`` and the three tables below it stay empty there,
+    a declared and freed peak included: not measured, the same reading as
+    ``None``.
     """
 
     background_absorption: dict[str, float] = Field(default_factory=dict)
