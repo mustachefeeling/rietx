@@ -1,6 +1,6 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-12 — flag, FLOOR_HIT and profile_interval landed; the stationary-angle rule awaits a choice
 Track: What fires, and what stays silent
 Depends on: 1938 (physical coordinates, which remove the point-dependence this WP reports on)
 Priority: P1 2026-10-11 — was P2: 1938 landed (#883), its last blocker, so the reporting rule and the floor diagnostic can start on physical coordinates under the LM default
@@ -360,6 +360,150 @@ its floor moves by more than 1 % without a line in the handover saying why.
   doi:10.2307/2347496 (profile-likelihood interval).
 
 ## Handover log
+
+### 2026-10-12 — the bound flag, a floor's own code and the profile interval; the stationary angle deferred
+
+A fit now flags a parameter as on its bound only where the solver actually
+held it there. So a parameter the data barely measure is no longer flagged at
+a limit it is nowhere near. A scale, width or displacement that refines to
+zero gets its own warning, with advice that fits it, and keeps its value and
+uncertainty. A caller who wants a number for such a row can now ask for a
+one-sided profile interval. On the issue's neutron fit, the uncertainty that
+differed between two machines is now one number at every start. The other
+machine's figure turns out to be what holding the zero-width row fixed gives.
+Not done: a magnetic moment along a direction the symmetry fixes. The
+derivative behind its uncertainty was wrong, and the fix waits for the
+driver work in WP-1953. The rule for leaving such an angle out did not
+separate its cases, and the maintainer deferred it.
+
+- *Done.*
+  - `006142f0`: all four Inherited entries folded into Context and Tasks.
+    The floor-seed entry was dropped, because `FLOOR_SEEDS` now only sizes
+    the FD step (WP-1936).
+  - `ec636a15` and `d5333b8b`: the BT-1 fixture
+    (`test_a_width_on_its_floor_leaves_one_esd_at_every_start`) and its
+    matrix row. It fails on the tree before WP-1938 with 0.00322, Linux's
+    figure, and passes now.
+  - `1609cb96` and `315ec67a`: the marginal rule, in `normal_covariance`'s
+    docstring and in root CLAUDE.md's equilibration clause.
+    - Consumers of `live`/`unmeasured_rows`: no floor makes a column dead any
+      more. Three things still do: a zero upstream (a scale of 0, a moment of
+      0), the Γ_G² clamp, and a rigid body turned about a symmetric axis. The
+      QPA and rigid-body consumers already say so.
+    - `report/magnetic.py`'s `MAGNETIC_WIDTH_UNMEASURED` "sits on its zero
+      floor" branch (`_MAGNETIC_WIDTH_FLOOR_DEG`) is probably unreachable
+      now. That is reasoned, not measured.
+  - `1f6dfb85`: `normal_factors(condition=)` removed. It had no caller, and
+    a refit holding the row gives the same reading.
+  - `49b3d870`: siblings checked, no change.
+  - `0f18db8c` (lane): `bound_findings(active=)`.
+    - It reads LM's active set where the set is exact (`_exact_active_bounds`:
+      LM up to `BVLS_MAX_COLUMNS`). Elsewhere it keeps the conjunction.
+    - A lower limit of 0, or W's floor, is `FLOOR_HIT` with
+      `_ZERO_FLOOR_SUGGESTION`. `GuardFinding.at_bound` picks the code, so
+      `test_capabilities`' finding/diagnostic code equality holds.
+    - `FLOOR_HIT` is in `_REVISABLE_CODES`, and `at_bound` projects both
+      codes.
+  - `1ea964c8`: `FLOOR_HIT` in the manual (`model.md`'s `at_bound` section
+    still described the pre-WP-1434 1e-10 test), the skill, root CLAUDE.md,
+    and tutorials 01 and 02, with both notebooks rebuilt.
+  - `52f013d1` (lane): `Refinement.profile_interval` → `ParameterInterval`.
+    `strategy/parameter_interval.py` holds the method, `est-interval` is in
+    Part 2, and `SCHEMA_VERSION` is 0.47.
+  - `da99c9e0`: the `FLOOR_HIT` skill row quotes `profile_interval`.
+  - `d2259da7`: staged in `releases/1.8.0.md`.
+  - `d64ea15b` and `09be2543`: the driver half and the angle-column fix
+    went to WP-1953's Inherited. The fix is parked on branch
+    `wp1953-central-angle-columns` (`87c6d6de`, from `main`, no PR).
+  - `6d5645ef`: review fixes.
+- *Measured* (macOS arm64, `[dev]`).
+  - **BT-1 nudges.** At eight starts nudged by k·1e-14, `profile.x` is
+    0.0098437 with a spread of 4e-8 relative. `profile.y` is 0 ± 0.018101,
+    `at_bound`.
+  - **The held reading.** Holding `y` and refitting gives `x` 0.0032202.
+    σ√(1−ρ²) from the marginal fit gives 0.0032208, with ρ(x, y) = −0.945.
+    The gap is the one fewer free parameter in χ²_red.
+  - **`profile_interval` on BT-1.**
+    - `y` gives 0 to 0.0166098 in 19 refits, about 3 s. That is 0.558 of
+      the quadratic 0.0298, because χ² rises from the floor with a slope:
+      with all else fixed it rises by about 1e-3 between `y` = 0 and 1e-6.
+    - `x` gives 0.025493 to 0.045302 in 44 refits.
+    - A single pinned refit is not enough, because a stage keeps the windows
+      it sized at its start. So each value is refitted until χ² stops
+      falling, at most 4 times.
+  - **The moment-angle lane** (numbers in the moment task above and in
+    WP-1953's Inherited).
+    - A: the forward quotient gives I''·h/2 at a stationary point, 0.009801
+      and 0.001328, #831's numbers. Central differences give ≤ 2e-12.
+    - B: the per-angle Newton rule does not separate the cases.
+  - **Tests.**
+    - Fast selection, alone, after `/code-review`: 9179 passed, 175 skipped,
+      2 xfailed in 4:12.
+    - The session added 18 fast cases (11 in `test_parameter_interval.py`,
+      7 in `test_bound_hit_at_convergence.py`) and removed 2 in
+      `test_covariance_scaling.py`. One existing case gained an `lm`/`trf`
+      parametrisation, so passed+skipped should move by +17 against `main`.
+      No local baseline was taken, so CI confirms it.
+    - `added_test_times`: 3.76 s over the added tests, 3.75 s of them in
+      `test_parameter_interval.py`.
+    - The two added acceptance tests are slow and in `test_acceptance_wavelength.py`.
+    - Full selection, alone, on the final tree (`main` had not moved since
+      the merge at `e161e934`): 9478 passed, 186 skipped, 2 xfailed in
+      21:47.
+  - **Lanes** (`session_usage.py lanes`): 3 lanes, kept 1 (the fixture,
+    `lanes: keep` at 113K).
+
+    | lane | est | requests | main at dispatch | lane $ | saved $ |
+    |---|---|---|---|---|---|
+    | flag | 25 | 117 | 184K | 5.99 | +4.78 |
+    | profile_interval | 35 | 146 | 345K | 9.72 | +9.36 |
+    | moment-angle | 40 | 99 | 384K | 7.18 | +7.14 |
+
+    Re-read median 13K, 8 main requests per lane, actual/estimated 4.17,
+    +21.28 saved (+35 %). Baseline replay, selective policy: 133 sessions,
+    −15 %. The trial row is in `process.md`.
+- *Review* (`/code-review high --fix`, 7 findings).
+  - Four fixed in `6d5645ef`.
+    - `profile_interval` took a one-sided interval's bounded side from the
+      entry's declared limits. A stage cap or cell window never reaches
+      those, so it now reads the side off the result's own finding.
+    - A refused probe value now ends its side with `"error"`.
+    - A path gone from the model is refused by name.
+    - The active path now checks that θ still sits on the limit, because the
+      cell-runaway clamp and a chart change move θ after the solve. There is
+      one test for this.
+  - Three declined.
+    - The active path reads no angle floor, so a row exactly on its bound
+      with a rounding-size outward gradient is flagged with ρ +0.000. That
+      is the design: the row is on its bound.
+    - `SEQUENTIAL_PERSISTENT_FINDING` counts per code, so a path at its
+      floor in some patterns and at its cap in others is split. That is
+      narrow.
+    - `bound_findings` taking the outcome itself would be a cleaner API,
+      but it reshapes two callers and their tests.
+- *Gotchas.*
+  - A plan freeing nothing divides χ²_red by N, not N − P. Comparing its
+    χ²_red with a fit's then reads 0.7 % (BT-1) as a model change.
+  - Committed tutorial notebook 02 was already stale against `main` before
+    this branch (stage evaluation counts, the next-parameter suggestion).
+    That was measured by running it on a snapshot of HEAD.
+  - The worktree guard refuses heredoc python and `PYTHONPATH=` prefixes, so
+    write probes as scratchpad scripts. To run a commit's tree, `git archive`
+    it into the scratchpad and run it with this venv.
+- *Next.*
+  1. Choose B's rule.
+     - Recommended: evaluate χ² at the joint-Newton direction with
+       everything else fixed, and zero those angle columns when
+       Δχ² ≤ 3.84·χ²_red·f², the cut `profile_interval` uses.
+     - The alternative is a distance in esds.
+     - Then build it and restore the two-site test's no-pair and esd
+       assertions (expect 0.00150 / 0.00111, ρ −0.24).
+  2. That unlocks the acceptance clause on #831's class-0 esds across
+     platforms. The reporter offered to run Linux.
+  3. The "acceptance suites' esds before and after" task waits on B.
+     Nothing landed here moves an esd: the flag and the interval report,
+     and the condition mask had no caller.
+  4. WP-1953 lands the parked angle-column fix with its driver fix.
 
 ### 2026-10-09 (2nd session) — physical coordinates decided, filed as 1936-1938
 
