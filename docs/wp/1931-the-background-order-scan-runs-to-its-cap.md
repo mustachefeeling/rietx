@@ -1,6 +1,6 @@
 # WP-1931 — the background order scan runs to its cap
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-12 — task 1 landed from outside (PR #871); the REML selector and the rest remain
 Track: What fires, and what stays silent
 Depends on: — (1542 soft: the same `auto_background` call and its seed default)
 Priority: P3 2026-10-08 — the selector returns its cap on both shipped 11-BM standards and says nothing; measured harmless there (bias ≤ 0.7 % of a background ≤ 0.4 % of the peak), so the cost is a choice that reads as made and was not
@@ -132,7 +132,7 @@ claim the proposal makes and has not measured.
 
 ## Tasks
 
-- [ ] `BACKGROUND_ORDER_AT_CAP` from `select_chebyshev_order` (and through
+- [x] `BACKGROUND_ORDER_AT_CAP` from `select_chebyshev_order` (and through
       `auto_background(kind="chebyshev")`), naming the cap and the last d.
       Independently landable.
 - [ ] Measure REML's λ on Si640c, LaB₆ 660a and WP-1055's fixture before
@@ -178,6 +178,30 @@ emits `BACKGROUND_ORDER_AT_CAP`.
 - Craven, P. & Wahba, G. (1979). *Numer. Math.* 31, 377-403.
 
 ## Handover log
+
+- **2026-10-12** — PR #871 merged from outside as `6010b3fa`. When the
+  Chebyshev order scan stops only because it reached `max_order`, it now says
+  so. `select_chebyshev_order` puts `BACKGROUND_ORDER_AT_CAP` on
+  `BackgroundSelection.diagnostics`, naming the cap and the last
+  Durbin-Watson d, and `auto_background(kind="chebyshev")` passes it on as a
+  `UserWarning`. The agent who follows the skill's worked default meets it,
+  since FAP.XRA returns 16 of 16. Issue #833 stays open for the P-spline
+  selector.
+  - *Done.* Task 1. `SCHEMA_VERSION` is 0.47, for the new
+    `BackgroundSelection.diagnostics` field. `docs/manual/background.md` §
+    "Choosing the flexibility" now states both scans' rules, calls their knob
+    the smoothing strength (never λ), and says `auto_background` fixes the
+    P-spline's at 1.0.
+  - *Gated* on the same four-PR stack as WP-1322's entry of today (stack
+    `0e4b7e25` on main `f22e9a7c`; main `f47c728e` content-identical after the
+    merges).
+  - *Gotchas.* The code's skill row is in `references/abstention.md`, as the
+    review decided on 2026-10-11. Task 6 names `judging.md`, and still owes
+    the REML selector's row. The row says to read `BACKGROUND_ABSORPTION` first,
+    and to switch to `kind="pspline"` only if that fires. Three open PRs (#888,
+    #903, #911) also claimed 0.47 and now take the next numbers.
+  - *Next:* task 2, measuring REML's smoothing strength on Si640c, LaB₆ 660a
+    and WP-1055's fixture.
 
 - **2026-10-11** — PR #871 (task 1, `mustachefeeling`) reviewed and held for
   three items: a `SCHEMA_VERSION` bump for `BackgroundSelection.diagnostics`, a

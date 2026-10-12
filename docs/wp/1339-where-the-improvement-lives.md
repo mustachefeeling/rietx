@@ -1,6 +1,6 @@
 # WP-1339 — where the improvement lives
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-12 — asks (1) and (2) landed from outside (PR #904); the NiO acceptance and the `judging.md` row remain
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-09-23 — a statistic compare already computes, reached as a function
@@ -227,25 +227,25 @@ and (2) is accepted.
 
 ## Tasks
 
-- [ ] Write the library function over two results on one pattern (the
+- [x] Write the library function over two results on one pattern (the
       cumulative Σ(δ²_b − δ²_a) and its quantile breakdown); `run` and the
       page's JavaScript both consume it, so there is one authority and the UI
       is a consumer.
-- [ ] The NiO pattern: obtain it from the contributor with permission to ship
+- [x] The NiO pattern: obtain it from the contributor with permission to ship
       it under `tests/data/` and a provenance row in `tests/data/README.md`
       (data carries its own fence, per file — root CLAUDE.md § Licensing), or
       build the acceptance on a constructed nested pair and keep NiO as an
       external check quoted from the issue.
-- [ ] The split-family enumerator and the windowed Δχ² share, for two nested
+- [x] The split-family enumerator and the windowed Δχ² share, for two nested
       models.
-- [ ] The disagreement case as report-only output (decided 2026-09-03: a
+- [x] The disagreement case as report-only output (decided 2026-09-03: a
       number the reader judges, never a `Diagnostic` with a threshold); write
       the reason where the number lives.
 - [ ] Acceptance on the NiO pair: the localisation test must return the
       negative share (~−28 % on 6.2 % of points) that reversed the answer, and
       the check must be able to fail — a genuinely localised improvement on a
       constructed case must score positive.
-- [ ] Tests: `tests/test_compare_ui.py` keeps asserting the UI field by field;
+- [x] Tests: `tests/test_compare_ui.py` keeps asserting the UI field by field;
       the new function is tested on results, not on the UI's standards.
 - [ ] Skill: `references/judging.md` — the routing row for "two candidate
       space groups, which one", pointing at the localisation share and saying
@@ -273,6 +273,45 @@ The pattern is not in the repo today.
 - Search the local paper corpus before requesting any of these.
 
 ## Handover log
+
+- **2026-10-12** — PR #904 merged from outside as `9669796d`. Two fits of one
+  pattern can now say *where* the richer one gained, which ΔBIC cannot.
+  `report.cumulative_delta_chi2` gives the running Σ(δ²_b − δ²_a) and its
+  equal-count quantiles. `report.split_localisation(higher, lower)` shares the
+  Δχ² among the windows of the reflections a symmetry-lowering splits, those it
+  leaves whole, and the rest. A genuine distortion puts its gain on the split
+  reflections, and an absorbed one does not. Issue #219 stays open for ask (3).
+  - *Done.* Tasks 1, 3, 4 and 6, and task 2 by its second branch. The
+    acceptance rests on a constructed nested pair in `tests/test_localisation.py`:
+    a tetragonal Cu specimen gives ΔBIC +190 at N/f² and +68 % of the gain on
+    3.2 % of the points, and a cubic one with a reflection-dependent shift
+    gives ΔBIC +25 and −30 % on 4.9 %. `viz.compare.run` stores
+    `report.cumulative_chi2`, so the page and the report share one authority.
+    `THRESHOLDS_VERSION` is 1.12.
+  - *Gated* on the same four-PR stack as WP-1322's entry of today (stack
+    `0e4b7e25` on main `f22e9a7c`; main `f47c728e` content-identical after the
+    merges).
+  - *Gotchas.*
+    - Children match parents **within one emission line**. A tick's line is
+      its rank among the ticks sharing its `tick_hkl`, since `ticks` carries no
+      line index. A line whose image falls off the axis for one reflection
+      shifts that reflection's later ranks, and the docstring says so.
+    - Coincident parents (333 and 511) are one `SplitFamily` carrying `hkls`.
+    - Both functions refuse two fits whose `sig()` differ, since a measured
+      background widens σ at compile (WP-1309).
+    - No #219 value is in the tree. The pattern is not cleared to ship, so
+      the manual and the skill quote the synthetic pair and cite #219 by
+      number.
+  - *Not done.*
+    - Task 5, the NiO acceptance, waits on the pattern.
+    - Task 7's row is in `references/numbers.md`, tagged `(Measured: …)`,
+      because `judging.md` sat 41 B under its budget. Whether that placement
+      discharges the task is the maintainer's call.
+    - Two follow-ups from the review: `SplitFamily.emission_line` defaults to
+      0, and a child whose nearest parent lies just outside the fitted range is
+      counted nowhere.
+    - `docs/releases/1.8.0.md` has no line for the two functions.
+  - *Next:* decide task 7's placement. Task 5 waits on the NiO pattern.
 
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issue #219).
   Re-checked the same day against the tree: there is no function to lift —

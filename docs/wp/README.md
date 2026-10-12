@@ -14,9 +14,11 @@ names hard dependencies, and *soft* marks a preferred order.
 | WP | Title | Since | Priority | Section |
 |---|---|---|---|---|
 | [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 2026-10-01 | P2 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
+| [1322](1322-events-aggregator.md) | The run is instrumentable, and nothing says so | 2026-10-12 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1326](1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | 2026-09-26 | P2 | [magnetic](#magnetic) |
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-10-07 | P2 | [magnetic](#magnetic) |
 | [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 2026-10-01 | P3 | [magnetic](#magnetic) |
+| [1339](1339-where-the-improvement-lives.md) | Where the improvement lives | 2026-10-12 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-10-06 | P2 | [magnetic](#magnetic) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-11 | P2 | [magnetic](#magnetic) |
 | [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 2026-10-08 | P3 | [magnetic](#magnetic) |
@@ -33,7 +35,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1804](1804-the-derived-block.md) | The derived block: a nonlinear map applied after the affine one | 2026-10-07 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1805](1805-the-rigid-body.md) | `RigidBody`: schema, collector, anchored rotation, the body's own rows | 2026-10-08 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 2026-10-08 | P2 | [rigid-bodies](#rigid-bodies) |
-| [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 2026-10-07 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 2026-10-12 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 2026-10-07 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-08 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1912](1912-a-polar-axis-has-no-origin.md) | A polar axis has no origin, and the fit walks along it | 2026-10-08 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -41,6 +43,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | 2026-10-09 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1922](1922-a-rigid-body-the-data-reject-is-named.md) | A rigid body the data reject is named | 2026-10-11 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | 2026-10-09 | P1 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 2026-10-12 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1954](1954-cut-1-8-0.md) | Cut 1.8.0 from what main holds | 2026-10-12 | — | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
@@ -495,7 +498,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 🔄 2026-10-03 | P4 | — |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | 🔄 2026-10-08 | P2 | — |
 | [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | ⬜ | P2 | — |
-| [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 🔄 2026-10-07 | P2 | — |
+| [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 🔄 2026-10-12 | P2 | — |
 | [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 🔄 2026-10-07 | P2 | — |
 | [1912](1912-a-polar-axis-has-no-origin.md) | A polar axis has no origin, and the fit walks along it | 🔄 2026-10-08 | P2 | — |
 | [1914](1914-a-size-read-off-a-coefficient-at-its-floor.md) | A size read off a coefficient at its floor | ⬜ | P3 | — |
@@ -504,7 +507,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1923](1923-a-candidate-in-its-conventional-setting.md) | A candidate is reported as a lattice in its conventional setting, and the reduction is an exact change of basis | ✅ 2026-10-11 | — | — ([1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) |
 | [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) | An esd follows where the solver stopped beside a flat column | ✅ 2026-10-12 | — | [1938](1938-every-parameter-refined-in-its-own-units.md) |
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | 🔄 2026-10-09 | P1 | — |
-| [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | ⬜ | P3 | — ([1542](1542-a-le-bail-background-left-at-its-seed.md) soft) |
+| [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 🔄 2026-10-12 | P3 | — ([1542](1542-a-le-bail-background-left-at-its-seed.md) soft) |
 | [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | ⬜ | P2 | — ([1923](1923-a-candidate-in-its-conventional-setting.md), [1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) |
 | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md) | A forward-difference step sized by its parameter | ✅ 2026-10-09 | — | — |
 | [1937](1937-a-bounded-step-solved-exactly.md) | A bounded step solved exactly | ✅ 2026-10-10 | — | — ([1936](1936-a-forward-difference-step-sized-by-its-parameter.md) soft) |
@@ -554,8 +557,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 |---|---|---|---|---|
 | [1317](1317-series-scrubber.md) | Scrub the series along its own trace | ⬜ | P3 | — |
 | [1318](1318-strain-surface.md) | The Stephens strain surface, rendered | ⬜ | P3 | — |
-| [1322](1322-events-aggregator.md) | The run is instrumentable, and nothing says so | ⬜ | P3 | — |
-| [1339](1339-where-the-improvement-lives.md) | Where the improvement lives | ⬜ | P3 | — |
+| [1322](1322-events-aggregator.md) | The run is instrumentable, and nothing says so | 🔄 2026-10-12 | P3 | — |
+| [1339](1339-where-the-improvement-lives.md) | Where the improvement lives | 🔄 2026-10-12 | P3 | — |
 | [1340](1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | P3 | — ([1320](1320-qpa-multimodal-fraction.md) soft) |
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) |
 | [1444](1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | ✅ 2026-09-29 | — | — |

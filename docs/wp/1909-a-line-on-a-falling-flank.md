@@ -1,6 +1,6 @@
 # WP-1909 — a line on a falling flank, at a third of its own esd
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — the 1σ floor landed from outside (PR #741); the threshold history, the census and the PNGs remain
+Milestone: unscheduled · Status: 🔄 2026-10-12 — the 1σ floor (PR #741) and #878's alias step (PR #880) landed from outside; the 1σ floor's dossier line, the census and the PNGs remain
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — a defect that fires wrongly: three unflagged false lines cost the indexer the true cell, and cropping the range is the workaround; indexing is a path few fits run
@@ -156,6 +156,29 @@ round-robin table shows which real lines, if any, the repair removed.
   WP-1110 item 14 (`no_intensity`); WP-1510 (`duplicate_line`).
 
 ## Handover log
+
+- **2026-10-12** — PR #880 merged from outside as `f47c728e` and closed #878.
+  This WP's census baseline has moved under it. `pick_peaks` now drops a
+  resolved Kα2 maximum it used to keep as a line wherever a FWHM spans fewer
+  than about 3.3 channels. The Kα2 alias screen compares two channel maxima,
+  so it now allows one sampling step beyond its 0.3 FWHM
+  (`indexing.peaks._alias_tolerance`).
+  - *Measured, by the PR.* cpd-4 offers 76 usable lines where it offered 77.
+    The corundum list loses one `no_intensity` component (2 → 1). A Cu Kα rock
+    salt at a 0.02° step goes from 7 of 9 lines indexed to all 9.
+    `INDEXING_THRESHOLDS_VERSION` is 1.9, since #907 (WP-1923) took 1.8 the
+    same day.
+  - *Gated* on the same four-PR stack as WP-1322's entry of today (stack
+    `0e4b7e25` on main `f22e9a7c`; main `f47c728e` content-identical after the
+    merges). The slow suite included `tests/test_acceptance_indexing.py`, with
+    #907's indexing changes in place.
+  - *Gotchas.* The census task's baseline is now main `f47c728e` or later.
+    Any count taken before it includes the aliases #880 removes.
+  - *Not done.* The 1σ floor's threshold clause landed ("Also in 1.7" in
+    `schemas/indexing.py`). Its line in `indexing/CLAUDE.md`, which the
+    2026-10-07 entry named, has not: that file never mentions
+    `PEAK_NO_INTENSITY_SIGMA`.
+  - *Next:* the dossier line, then the census and the PNGs.
 
 - **2026-10-07** — PR #741 merged from outside as `ccd2e298` and closed #718.
   Gated together on a nine-PR stack replayed onto `main` at `f99fab05` (stack
