@@ -1171,9 +1171,11 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
     is held.  The screen alone frees a phase whose scale was fitted to noise
     whenever its conditional z passes while the marginal one does not, and
     the stage then chases the noise, collapses it, restores it and solves
-    again.  That answer's values are the ones this stage starts from, and a
-    plan's free set only grows, so the marginal z here is no larger to first
-    order.
+    again.  That answer's values are the ones this stage starts from, unless
+    the stage seeds a row (``Stage.seed``, ``Stage.strain_seed``).  A plan's
+    free set only grows, so the marginal z here is no larger to first order.
+    A stale reading errs only towards holding, since the minimum is taken,
+    and the scale stays free for the release at the answer.
 
     Measured on seed 107 of #481's blank frame under ``mccusker_structural``:
     18 solves for 11 stages with the screen alone, 11 with the prior read.
@@ -1185,10 +1187,9 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
     """
     support = None
     if prior is not None:
-        screen = np.asarray(model.phase_support(table.decode(table.x0())),
-                            dtype=np.float64)
-        if len(prior) == len(screen):
-            support = np.minimum(screen, prior)
+        # one plan, one structure: the two vectors index the same phases
+        support = np.minimum(model.phase_support(table.decode(table.x0())),
+                             prior)
     held = _unsupported_phase_paths(model, table, support)
     reach = _reach_beyond_self(table, held)
     if held:
@@ -3698,8 +3699,9 @@ class Refinement:
 
         ``prior_significance`` is the previous stage's answer significance in
         a plan (WP-1523), which the support hold reads beside the screen
-        (:func:`_hold_unsupported_phases`).  ``None`` for a plan's first stage
-        and for :meth:`run_stage`, which has no previous stage of its own: a
+        (:func:`_hold_unsupported_phases`).  ``None`` for a plan's first stage,
+        outside Rietveld mode (``_StageHold.significance`` is), and for
+        :meth:`run_stage`, which has no previous stage of its own: a
         reading kept across verbs would outlive a ``set_values`` or a
         checkout that moved the values it was taken at.
         """
@@ -3825,8 +3827,8 @@ class Refinement:
         # values the stage starts from, and all go into ``StageResult.held``
         # so the report can say which and why.  The phase hold also reads the
         # previous answer's significance where a plan hands one in (WP-1523).
-        held, held_reach = _hold_unsupported_phases(
-            model, table, prior_significance if mode == "rietveld" else None)
+        held, held_reach = _hold_unsupported_phases(model, table,
+                                                    prior_significance)
         # kept apart, because the release below judges each hold by its own
         # question: a moment DOF the *phase* hold took (every free structural
         # path of an invisible phase, ``moment.dof0`` included) stays with the
