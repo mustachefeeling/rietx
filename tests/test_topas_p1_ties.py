@@ -147,14 +147,14 @@ def test_bare_auto_writes_the_plain_form_when_no_phase_needs_p1(tmp_path):
     s = ref.fitted_structure
     rx.write_topas_inp(s, tmp_path / "auto.inp", p1_expand="auto")
     rx.write_topas_inp(s, tmp_path / "false.inp", p1_expand=False)
-    assert (tmp_path / "auto.inp").read_text() == (tmp_path / "false.inp").read_text()
+    assert (tmp_path / "auto.inp").read_text(encoding="utf-8") == (tmp_path / "false.inp").read_text(encoding="utf-8")
 
 
 def test_bare_auto_restates_the_phase_that_needs_it(tmp_path):
     diags = []
     rx.write_topas_inp(_child_structure(), tmp_path / "x.inp", p1_expand="auto",
                        diagnostics=diags)
-    text = (tmp_path / "x.inp").read_text()
+    text = (tmp_path / "x.inp").read_text(encoding="utf-8")
     assert "mag_space_group 1.1" in text
     assert any(d.code == "TOPAS_PHASE_RESTATED_IN_P1" for d in diags)
 
@@ -187,7 +187,7 @@ def test_p1_copy_labels_are_unique(tmp_path):
         "atoms": [site("Fe", (0.1, 0.2, 0.3)), site("Fe_1", (0.0, 0.0, 0.0))]})
     rx.write_topas_inp(rx.Structure(phases=[phase]), tmp_path / "x.inp",
                        p1_expand=True, scale="rietx")
-    labels = re.findall(r"^  site (\S+)", (tmp_path / "x.inp").read_text(), re.M)
+    labels = re.findall(r"^  site (\S+)", (tmp_path / "x.inp").read_text(encoding="utf-8"), re.M)
     assert len(labels) == 3 and len(set(labels)) == 3, labels
 
 
@@ -206,6 +206,6 @@ def test_run_control_needs_a_pattern_as_well_as_an_instrument(tmp_path):
     ref, pattern = case_child_magnetic()
     kw = dict(free=ref, instrument=ref.fitted_instrument, scale="topas", p1_expand="auto")
     rx.write_topas_inp(ref.fitted_structure, tmp_path / "i.inp", **kw)
-    assert "r_wp 0" not in (tmp_path / "i.inp").read_text()
+    assert "r_wp 0" not in (tmp_path / "i.inp").read_text(encoding="utf-8")
     rx.write_topas_inp(ref.fitted_structure, tmp_path / "p.inp", pattern=pattern, **kw)
-    assert "r_wp 0" in (tmp_path / "p.inp").read_text()
+    assert "r_wp 0" in (tmp_path / "p.inp").read_text(encoding="utf-8")
