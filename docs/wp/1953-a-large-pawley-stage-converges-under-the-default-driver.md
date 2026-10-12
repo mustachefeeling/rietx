@@ -1,6 +1,6 @@
 # WP-1953 — a large Pawley stage converges under the default driver
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-12 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P1 2026-10-12 — was P2: WP-1954 found the Windows release gate red on `test_e8` from a platform-dependent LM stop, every Windows run since that day, so each cut ships it as a known issue until this lands
