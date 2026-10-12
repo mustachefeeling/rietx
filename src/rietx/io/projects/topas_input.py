@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -196,6 +196,23 @@ def _image_maps(phase, atom):
     return out
 
 
+def _p1_labels(label: str, n: int, taken: set[str]) -> list[str]:
+    """The ``site`` labels of one atom's ``n`` images: ``label`` alone for one,
+    else ``<label>_<k>`` made unique against every other label of the phase and
+    each other (``taken`` grows; ``magnetic.p1._unique``'s rule, an underscore appended), since a
+    repeated label is read back as one site."""
+    if n == 1:
+        return [label]
+    out = []
+    for k in range(n):
+        cand = f"{label}_{k + 1}"
+        while cand in taken:
+            cand += "_"
+        taken.add(cand)
+        out.append(cand)
+    return out
+
+
 def _aniso_image_matrix(rot, cell):
     """The 6×6 linear map U^ij → U^ij of the image under ``rot`` (U* → R·U*·Rᵀ)."""
     from ...crystallography.adp import reciprocal_axis_lengths, tensor_from_voigt, voigt_from_tensor
@@ -236,6 +253,7 @@ def phase_items(structure, ip, phase, refined: RefinedSet, *, scale_factor: floa
     sg = get_spacegroup(phase.space_group)
     cell6 = phase.cell.lengths_angles()
     with_moment = part != "nuclear"
+    taken = {a.label for a in phase.atoms}
     for ia, atom in enumerate(phase.atoms):
         if part == "magnetic" and atom.moment is None:
             continue
@@ -261,6 +279,7 @@ def phase_items(structure, ip, phase, refined: RefinedSet, *, scale_factor: floa
                    for k in ("x", "y", "z")]
         aniso = _aniso_affines(refined, ip, ia, atom)
         maps = _image_maps(phase, atom)
+        labels = _p1_labels(atom.label, len(maps), taken)
         for k, (rot, tran, shift, axial) in enumerate(maps):
             img = [sum((xyz_aff[j] * rot[i, j] for j in range(3)), Affine({}, 0.0))
                    + float(tran[i] + shift[i]) for i in range(3)]
@@ -273,7 +292,7 @@ def phase_items(structure, ip, phase, refined: RefinedSet, *, scale_factor: floa
                 for r in range(6):
                     aff = sum((aniso[c][0] * mat[r, c] for c in range(6)), Affine({}, 0.0))
                     img_aniso.append((aff, float(mat[r] @ np.array([v for _, v in aniso]))))
-            label = atom.label if len(maps) == 1 else f"{atom.label}_{k + 1}"
+            label = labels[k]
             items += _site_items(
                 phase, ip, ia, atom, refined, label=label, species=species,
                 xyz_aff=img, xyz_now=now,
@@ -728,6 +747,16 @@ def whole_input(structure, *, refined: RefinedSet, scale: str, instrument=None,
             refined.affine(_p(ip, n), getattr(phase, n).value).terms
             or getattr(phase, n).value != 0.0
             for n in ("magnetic_lor_size", "magnetic_lor_strain"))
+        if mag_width and (phase.extinction.value != 0.0
+                          or refined.is_free(_p(ip, "extinction"))):
+            raise ValueError(
+                f"phase {phase.name!r} cannot be written to a TOPAS `.inp`: it has a "
+                f"magnetic-only width and extinction, and rietx applies one Sabine "
+                f"factor, from |F|² of the nuclear and magnetic parts together, to both "
+                f"components. TOPAS computes a `scale_pks` from one `str`'s own A01..B11, "
+                f"so the split would scale each part by a different factor and the "
+                f"magnetic peaks would come out too strong. Hold extinction at zero, or "
+                f"drop the magnetic-only width")
         if mag_width:
             refined.named.update({_p(ip, "magnetic_lor_size"), _p(ip, "magnetic_lor_strain")})
 
@@ -768,7 +797,7 @@ def whole_input(structure, *, refined: RefinedSet, scale: str, instrument=None,
     text = "".join(str(i) for i in body)
     head = [f"' Written by {provenance}"]
     head += [f"' {n}" for n in notes]
-    if instrument is not None:
+    if instrument is not None and pattern is not None:
         head += ["r_wp 0 r_exp 0 r_p 0 gof 0", "iters 100000",
                  "chi2_convergence_criteria 1e-07", "do_errors"]
     head += declarations
@@ -782,13 +811,45 @@ def write_data_file(path: Path, columns: dict) -> None:
                             for a, b, c in rows), encoding="utf-8")
 
 
+def check_p1_expand(p1_expand) -> None:
+    """``p1_expand`` is ``False``, ``True`` or ``"auto"`` and nothing else: the
+    callers dispatch on identity, so a truthy ``1`` or ``np.True_`` would take
+    the refined route with no P 1 and no error."""
+    if not (p1_expand is True or p1_expand is False
+            or (isinstance(p1_expand, str) and p1_expand == "auto")):
+        raise ValueError(f"p1_expand must be False, True or 'auto', not {p1_expand!r}")
+
+
+def any_phase_needs_p1(structure) -> bool:
+    """Whether ``p1_expand="auto"`` would restate any phase: a magnetic group
+    TOPAS cannot name (the group-identity refusals of ``_magnetic_group_line``)."""
+    from .topas import _GroupIdentityRefusal, _magnetic_group_line
+
+    for phase in structure.phases:
+        try:
+            _magnetic_group_line(phase, ion_species_ok=True)
+        except _GroupIdentityRefusal:
+            if phase.magnetic_symmetry is not None:
+                return True
+        except ValueError:
+            pass     # not a restatement's to fix; the writer raises it
+    return False
+
+
 def from_structure_refined(structure, *, free: Any = None, scale: str | None = None,
                            instrument=None, pattern=None, data_name: str | None = None,
-                           p1_expand: bool | str = False, diagnostics=None,
+                           p1_expand: bool | Literal["auto"] = False, diagnostics=None,
                            names: dict | None = None) -> tuple[str, dict | None]:
     """The new path of :func:`~rietx.io.projects.topas.from_structure`."""
+    check_p1_expand(p1_expand)
     from ..._about import DIST_NAME
-    from .topas import _magnetic_group_line, _sign_first, refuse_operation_list, topas_species
+    from .topas import (
+        _GroupIdentityRefusal,
+        _magnetic_group_line,
+        _sign_first,
+        refuse_operation_list,
+        topas_species,
+    )
 
     if scale is None:
         scale = "topas" if instrument is not None else "rietx"
@@ -797,7 +858,6 @@ def from_structure_refined(structure, *, free: Any = None, scale: str | None = N
     neutron = instrument is not None and instrument.source.kind == "neutron_cw"
     p1: dict[int, bool] = {}
     magnetic_numbers: dict[int, str | None] = {}
-    phases = []
     for ip, phase in enumerate(structure.phases):
         if '"' in phase.name or "\n" in phase.name or "\r" in phase.name:
             raise ValueError(f"phase name {phase.name!r} cannot be written to a TOPAS "
@@ -815,7 +875,7 @@ def from_structure_refined(structure, *, free: Any = None, scale: str | None = N
             try:
                 # the group's verdict alone; the species is species_of's below
                 number_ = _magnetic_group_line(phase, ion_species_ok=True)
-            except ValueError:
+            except _GroupIdentityRefusal:
                 if p1_expand != "auto" or phase.magnetic_symmetry is None:
                     raise
                 want_p1 = True
@@ -836,7 +896,6 @@ def from_structure_refined(structure, *, free: Any = None, scale: str | None = N
             magnetic_numbers[ip] = "1.1" if phase.magnetic_symmetry is not None else None
         else:
             magnetic_numbers[ip] = number_
-        phases.append(phase)
     stored = free is None
     refined = RefinedSet(stored_free_paths(structure) if stored else free, structure)
     refined.from_stored_flags = stored

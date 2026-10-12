@@ -816,8 +816,13 @@ exactly what it wrote before. A `RefinementResult` lists a tied copy beside the
 free parameters but not the equation: a symmetry tie (a cubic cell's `b` and
 `c`, a special position's coordinates) is rederived from the structure and
 written from its source, while a copy made by `Refinement.tie` is written as its
-own refined parameter. `p1_expand=True` cannot be combined with `free=`,
-`scale=` or `instrument=`.
+own refined parameter. `p1_expand=True` beside `free=`,
+`scale=`, `instrument=` or `pattern=` writes each copy of a site as an equation
+over the parameter it copies. `p1_expand` is `False`, `True` or `"auto"`, and
+anything else (`1`, `np.True_`) raises. `"auto"` restates only a phase whose
+magnetic group TOPAS cannot name; a bare `"auto"` with no such phase writes the
+plain form `p1_expand=False` writes, and with one it takes the refined route
+(every parameter stated as stored), the other phases in their own groups.
 
 All three write space groups from `get_spacegroup(...).xhm()`, never a
 phase's own stored spelling, so a setting this build already resolved is not
@@ -943,8 +948,11 @@ file. Common to all three: the emission profile and instrument geometry
 (`Instrument` is not part of what any of these readers returns), and cell and
 site bound windows. A TOPAS `str` leaves out a phase's magnetic-only widths,
 extinction and preferred orientation, and `write_topas_inp(..., diagnostics=[])`
-names each, `TOPAS_FIELD_NOT_WRITTEN`; a whole input writes the extinction and
-refuses a magnetic-only width, so it names the preferred orientation alone. FullProf-specific: the fitted 2θ range, the background and
+names each, `TOPAS_FIELD_NOT_WRITTEN`; a whole input with `instrument=` writes the extinction and a
+magnetic-only width (as a nuclear `str` and a `mag_only` one), so it names the
+preferred orientation alone. It refuses a phase that has both a magnetic-only
+width and extinction, since rietx's one Sabine factor on the summed |F|² has no
+two-`str` statement in TOPAS; without `instrument=` the width is named as above. FullProf-specific: the fitted 2θ range, the background and
 every control/output switch on a `.pcr` are protocol `to_structure` never
 reads into a `Structure`. `write_fullprof_pcr` fills them with safe, inert
 placeholders purely to keep the file complete, since a `.pcr` is positional
