@@ -66,7 +66,7 @@ from ..schemas.interval import (
     ParameterIntervalPoint,
 )
 from .fraction_profile import data_chi2, head_restored
-from .staged import Stage
+from .staged import BOUND_HIT_ESD_FRAC, Stage
 
 
 def interval_quantile(level: float, one_sided: bool) -> float:
@@ -120,6 +120,35 @@ def _refined_row(refinement, result, path: str):
                      "minimum along it to profile from; free it and fit again")
 
 
+def _bounded_end(result, row, lo: float, hi: float) -> tuple[int, float]:
+    """The side a flagged row's bound is on (−1 lower, +1 upper), and its end.
+
+    Read off the finding that flagged the row, because the limit the stage
+    solved against need not be the entry's declared one: a cell window, a
+    strain or size cap and a tie window are frozen onto the stage's table and
+    never reach ``Entry.lo``/``hi``.  ``FLOOR_HIT`` is a lower limit, and a
+    ``BOUND_HIT``'s value is the residual cosine, positive where the solver
+    still pushes the row down.  The end is the declared limit where the row
+    sits on it, and the row's own value where the limit was the stage's.
+    """
+    side = None
+    for d in result.diagnostics:
+        if row.path not in (d.where or ()):
+            continue
+        if d.code == "FLOOR_HIT":
+            side = -1
+        elif d.code == "BOUND_HIT" and d.value:
+            side = -1 if d.value > 0.0 else 1
+        if side is not None:
+            break
+    if side is None:                    # an unsigned finding: the nearer limit
+        side = 1 if hi - row.value < row.value - lo else -1
+    declared = lo if side < 0 else hi
+    on_it = (math.isfinite(declared)
+             and abs(row.value - declared) <= BOUND_HIT_ESD_FRAC * row.stderr)
+    return side, (declared if on_it else row.value)
+
+
 def _walk(refinement, data, path: str, start: float, sign: int, limit: float,
           step: float, cut: float, chi2_fit: float, budget: int,
           points: list[ParameterIntervalPoint]) -> tuple[float | None, IntervalStop]:
@@ -140,7 +169,11 @@ def _walk(refinement, data, path: str, start: float, sign: int, limit: float,
             return measured[v]
         if spent >= budget:
             raise _SideStopped("refits")
-        trial.set_values({path: v})
+        try:
+            trial.set_values({path: v})
+        except Exception as exc:  # a value the model refuses ends the side too
+            points.append(ParameterIntervalPoint(value=v, runs=0, error=str(exc)))
+            raise _SideStopped("error") from exc
         best, last, runs, error = None, None, 0, None
         # refit until χ² stops falling: a refit ends on the peak windows its
         # start compiled (PARAMETER_INTERVAL_SETTLE_RUNS has the measurement)
@@ -215,7 +248,11 @@ def profile_interval(refinement, data, path: str, *,
             f"{path!r} has no esd from the last fit, so there is no scale to step "
             "the profile in: the residual does not move along it, and a "
             "direction the data does not see has no interval")
-    entry = next(e for e in refinement._working_table().entries if e.path == path)
+    entry = next((e for e in refinement._working_table().entries
+                  if e.path == path), None)
+    if entry is None:
+        raise ValueError(f"{path!r} was in the last fit and is not in the model "
+                         "now; fit again before profiling it")
     lo, hi = float(entry.lo), float(entry.hi)
 
     one_sided = row.at_bound is True
@@ -224,15 +261,15 @@ def profile_interval(refinement, data, path: str, *,
     inflation = stats.esd_inflation if stats.esd_inflation is not None else 1.0
     cut = quantile * stats.chi2 * inflation ** 2
     chi2_fit = data_chi2(stats)
-    # the bound a flagged row sits on: under TRF its value only comes close
-    on_upper = hi - row.value < row.value - lo
 
     points: list[ParameterIntervalPoint] = []
     ends: dict[int, tuple[float | None, IntervalStop]] = {}
+    if one_sided:
+        side, end = _bounded_end(result, row, lo, hi)
+        ends[side] = (end, "bound")
     with head_restored(refinement):
         for sign, limit in ((-1, lo), (1, hi)):
-            if one_sided and (sign > 0) == on_upper:
-                ends[sign] = (limit, "bound")
+            if sign in ends:
                 continue
             ends[sign] = _walk(refinement, data, path, row.value, sign, limit,
                                row.stderr, cut, chi2_fit, max_refits, points)

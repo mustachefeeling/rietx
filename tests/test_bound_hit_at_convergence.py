@@ -437,6 +437,18 @@ def test_an_exact_active_set_flags_a_row_the_conjunction_would_decline():
     assert found.detail == " (ρ=+0.000)"
 
 
+def test_an_active_set_does_not_outlive_a_value_moved_off_its_limit():
+    """The set describes the point the driver returned.  A writer that moves
+    θ after the solve (the cell-runaway clamp, a chart change) leaves it
+    naming a limit the value no longer sits on, and that row is not flagged
+    (WP-1929's review)."""
+    lo, hi = np.array([0.0]), np.array([1.0])
+    active = np.array([-1], dtype=np.int8)
+
+    assert bound_findings((lo, hi), ["y"], np.array([0.0]), active=active)
+    assert bound_findings((lo, hi), ["y"], np.array([0.3]), active=active) == []
+
+
 def test_an_exact_active_set_declines_what_the_esd_window_reaches():
     """Brucite's ``profile.u``, the row that kept the window to TRF alone.
 

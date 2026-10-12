@@ -1698,10 +1698,13 @@ def bound_findings(bounds, free: list[str], theta, *,
     holds a row only while the gradient there points outward (WP-1937), so
     the set is the multiplier test itself.  :func:`_exact_active_bounds` is
     the one place that decides where it is exact, and it passes ``None``
-    elsewhere.  A row is at its bound iff ``active[k]`` is nonzero, and the
-    sign names the limit: −1 the lower, +1 the upper.  No distance or angle
-    threshold is read on this path.  The finding still carries ``cos[k]`` as
-    its evidence, and no esd gap, since the row sits on the limit.
+    elsewhere.  A row is at its bound iff ``active[k]`` is nonzero and
+    ``theta[k]`` still sits on that limit, and the sign names the limit: −1
+    the lower, +1 the upper.  The second clause is no threshold: it asks only
+    whether a writer moved θ after the solve (a chart change, the
+    cell-runaway clamp), to :data:`BOUND_HIT_RTOL`.  No esd window or angle
+    is read on this path.  The finding still carries ``cos[k]`` as its
+    evidence, and no esd gap, since the row sits on the limit.
 
     **Elsewhere the test is a conjunction**: under TRF, and under LM above
     ``lm.BVLS_MAX_COLUMNS``.  TRF keeps its iterates strictly feasible, so
@@ -1763,6 +1766,11 @@ def bound_findings(bounds, free: list[str], theta, *,
             # a set read in another chart (``rechart_outcome`` carries it
             # unchanged) could name a side the table leaves unbounded
             if not np.isfinite(limit):
+                continue
+            # the set describes the point the driver returned; a writer that
+            # moved θ after the solve (a chart change, the cell-runaway clamp)
+            # leaves it describing a value the row no longer holds
+            if abs(theta[k] - limit) > BOUND_HIT_RTOL * max(1.0, abs(limit)):
                 continue
             c = None if cos is None else float(cos[k])
             out.append(GuardFinding.at_bound(path, c,
