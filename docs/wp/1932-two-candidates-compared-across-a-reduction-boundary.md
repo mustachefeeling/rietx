@@ -60,6 +60,21 @@ equal to `equal_reduced_many` on every pair.
 
 ### Inherited
 
+- **2026-10-11, from WP-1923 (closed): the reduction is now an exact change of
+  basis, so the sign boundary moved under the count below.** `reduce_cell`
+  builds the cell from M·G·Mᵀ wherever an entry's sign disagrees with it,
+  where gemmi had given a near-zero ξ, η or ζ the sign of a value it treats as
+  zero. Two descriptions straddling a right angle now reduce to the sign of
+  their own metric, and Δ is their true difference rather than zero or 2ε.
+  Over 27 300 reductions of `test_acceptance_indexing.py`'s searches, 792 had
+  a sign to correct, 440 of the 447 distinct cells by under 1e-14 of the
+  metric's scale and none near #797's 1.7e-7. So the 1 670 bethanechol splits
+  "at g4/g5/g6 = 0" were counted on a reduction this tree no longer runs:
+  recount before building on them. Also new: candidates are *reported* in the
+  conventional monoclinic setting (`CellCandidate.engine_cell`,
+  `.change_of_basis`), but dedup still runs on engine candidates before that
+  re-set, so the grouping key is untouched.
+
 - **2026-10-11, from the issue triage (#834): the first task's count is in,
   and it finds splits.** The reporter measured it on `9219e886` (comment of
   2026-10-09). They wrapped `equal_reduced`, `equal_reduced_many` and

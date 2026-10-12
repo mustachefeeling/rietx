@@ -196,7 +196,23 @@ def lattice_vectors(cell: tuple[float, ...]) -> np.ndarray:
 
 def reduce_cell(cell: tuple[float, ...], centring: str = "P", *,
                 kind: str = "niggli") -> ReducedCell:
-    """Niggli (default) or Delaunay reduction, with the change of basis kept."""
+    """Niggli (default) or Delaunay reduction, with the change of basis kept.
+
+    **The reduced cell is the exact image of the input under that change of
+    basis** (WP-1923).  Inside ε a reduction step treats a near-zero ξ, η or ζ
+    as zero and may hand it either sign, and gemmi records no basis change for
+    it.  Flipping one sign is not a change of basis, so the reduced metric then
+    sat one ε from the input's.  Measured on the cell of issue #797, (3, 11,
+    14.1972, 65°, 65°, 65°): η = −1.753e-5 out of ``niggli_reduce`` against
+    +1.753e-5 in M·G·Mᵀ, the other five parameters agreeing to 1.7e-16.  So
+    where any entry's sign disagrees with M·G·Mᵀ, the cell is built from
+    M·G·Mᵀ; elsewhere gemmi's cell is kept as it was, to the bit.  The image
+    differs from gemmi's vector by under ε, which is all the reduction promised.
+    Over 27 300 reductions of ``tests/test_acceptance_indexing.py``'s searches,
+    792 had a sign to correct: 440 of the 447 distinct cells by under 1e-14
+    of the metric's scale (a right angle's rounding), seven by up to 1e-10,
+    and none near #797's 1.7e-7.
+    """
     import gemmi
 
     uc = gemmi.UnitCell(*cell)
@@ -211,10 +227,38 @@ def reduce_cell(cell: tuple[float, ...], centring: str = "P", *,
         raise ValueError(f"kind must be 'niggli' or 'delaunay', not {kind!r}")
     gv.normalize(epsilon=eps)
     out = gv.get_cell()
+    triplet = gv.change_of_basis.triplet()
+    reduced = (out.a, out.b, out.c, out.alpha, out.beta, out.gamma)
+    image = _metric_image(cell, triplet)
+    if np.any(image * _metric_of_g6(gv.parameters) < 0.0):
+        reduced = _cell_from_metric(image)
     return ReducedCell(
-        cell=(out.a, out.b, out.c, out.alpha, out.beta, out.gamma),
-        change_of_basis=gv.change_of_basis.triplet(), centring=centring,
+        cell=reduced, change_of_basis=triplet, centring=centring,
         kind=kind, already_reduced=already)
+
+
+def _metric_of_g6(g6: Sequence[float]) -> np.ndarray:
+    """The direct metric of gemmi's G6 vector (A, B, C, ξ, η, ζ)."""
+    a, b, c, xi, eta, zeta = g6
+    return np.array([[a, zeta / 2, eta / 2], [zeta / 2, b, xi / 2],
+                     [eta / 2, xi / 2, c]])
+
+
+def _metric_image(cell: tuple[float, ...], triplet: str) -> np.ndarray:
+    """M·G·Mᵀ, the input's direct metric under the reduction's change of basis."""
+    from ..crystallography.lattice import direct_metric_tensor
+    m = _basis_change(triplet)
+    return m @ np.asarray(direct_metric_tensor(*cell), dtype=np.float64) @ m.T
+
+
+def _cell_from_metric(g: np.ndarray
+                      ) -> tuple[float, float, float, float, float, float]:
+    """Cell parameters from a direct metric tensor."""
+    a, b, c = (float(np.sqrt(g[i, i])) for i in range(3))
+    ang = [float(np.degrees(np.arccos(np.clip(g[m, n] / (l1 * l2), -1.0, 1.0))))
+           for (m, n), (l1, l2) in (((1, 2), (b, c)), ((0, 2), (a, c)),
+                                    ((0, 1), (a, b)))]
+    return a, b, c, ang[0], ang[1], ang[2]
 
 
 def _system_from_number(number: int) -> str:
@@ -291,12 +335,7 @@ def cell_from_vectors(lattice: np.ndarray
                       ) -> tuple[float, float, float, float, float, float]:
     """Cell parameters from row-vector lattice vectors — spglib's output form."""
     lat = np.asarray(lattice, dtype=np.float64)
-    g = lat @ lat.T
-    a, b, c = (float(np.sqrt(g[i, i])) for i in range(3))
-    ang = [float(np.degrees(np.arccos(np.clip(g[m, n] / (l1 * l2), -1.0, 1.0))))
-           for (m, n), (l1, l2) in (((1, 2), (b, c)), ((0, 2), (a, c)),
-                                    ((0, 1), (a, b)))]
-    return a, b, c, ang[0], ang[1], ang[2]
+    return _cell_from_metric(lat @ lat.T)
 
 
 def conventional_cell(cell: tuple[float, ...], *, symprec: float = 1e-3
@@ -341,26 +380,20 @@ def reduction(af: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
     """(A..F) of the Niggli-reduced form, and the 6×6 map T that took ``af`` there.
 
     red = T·af, so a covariance of ``af`` is T·cov·Tᵀ in the reduced frame
-    (:func:`reduced_covariance`).  T is ``None`` when red = af component for
-    component, which is what keeps a pair already in its reduced setting
+    (:func:`reduced_covariance`).  T is ``None`` when the change of basis is
+    the identity, which is what keeps a pair already in its reduced setting
     bit-identical to the test before WP-1518.
 
-    **The triplet alone is not the whole map.**  Within the reduction's ε,
-    gemmi's normalisation can flip the sign of a near-zero D, E or F without
-    recording it in the change of basis.  Measured on 2000 cells with an angle
-    within 1e-3° of 90°, 909 disagreed with the triplet's map, every one by the
-    sign of one or two components.  Those rows of T are flipped, so the
-    covariance's cross terms keep the sign of the vector they describe.
+    **T is the whole map** because :func:`reduce_cell` returns the exact image
+    of its input under the triplet (WP-1923), so T·af equals red to rounding.
+    Until then the reduction could give a near-zero D, E or F the sign of a
+    value it treats as zero, and this function flipped those rows of T to
+    agree.  Flipping one sign is not a change of basis: the 797 cell's red sat
+    1.2e-5 off T·af in E and 4e-8 in A..C, one ε from the input's metric.
     """
     from .qspace import af_from_cell, cell_from_af
     reduced = reduce_cell(cell_from_af(af))
-    red = af_from_cell(reduced.cell)
-    t = _af_map(reduced.change_of_basis)
-    mapped = np.asarray(af, dtype=np.float64) if t is None else t @ af
-    flip = mapped * red < 0.0
-    if flip.any():
-        t = (np.eye(6) if t is None else t) * np.where(flip, -1.0, 1.0)[:, None]
-    return red, t
+    return af_from_cell(reduced.cell), _af_map(reduced.change_of_basis)
 
 
 def _basis_change(triplet: str) -> np.ndarray:
@@ -395,12 +428,129 @@ def _af_map(change_of_basis: str) -> np.ndarray | None:
     """
     if change_of_basis == "x,y,z":
         return None
+    return _af_map_of_inverse(np.rint(np.linalg.inv(
+        _basis_change(change_of_basis))).T)
+
+
+def _af_map_of_inverse(m: np.ndarray) -> np.ndarray:
+    """T from M⁻ᵀ: column p is M⁻ᵀ·G*(e_p)·M⁻¹ read back as A..F."""
     from .qspace import af_from_gstar, gstar_from_af
-    m = np.rint(np.linalg.inv(_basis_change(change_of_basis))).T
     t = np.column_stack([af_from_gstar(m @ gstar_from_af(e) @ m.T)
                          for e in np.eye(6)])
     t.setflags(write=False)
     return t
+
+
+@lru_cache(maxsize=256)
+def _af_map_of_rows(rows: tuple[tuple[int, int, int], ...]) -> np.ndarray:
+    return _af_map_of_inverse(np.rint(np.linalg.inv(
+        np.asarray(rows, dtype=np.float64))).T)
+
+
+def af_map(change: Sequence[Sequence[int]]) -> np.ndarray:
+    """The linear map on A..F of an integer change of basis.
+
+    ``change`` is M with (new basis rows) = M · (old basis rows), unimodular,
+    the convention of :func:`_basis_change` and of
+    :attr:`~rietx.schemas.indexing.CellCandidate.change_of_basis`.  The new
+    A..F is T·af, and a covariance goes to T·cov·Tᵀ, exactly as for
+    :func:`reduction`'s map.
+    """
+    return _af_map_of_rows(tuple(tuple(int(v) for v in row) for row in change))
+
+
+#: Gauss steps a monoclinic re-set may take before it is declared stuck.  One
+#: step at least halves |a·c| or shortens a vector, so a cell needing more
+#: than this is not a metric any engine returns.
+_SETTING_STEPS = 200
+
+#: Relative size below which a·c, or a² − c², is rounding rather than a
+#: choice: a right angle or an a = c tie re-set on its last bit flips a and b
+#: (or swaps a and c) and records a change of basis nothing asked for, and
+#: the re-set is then not idempotent.
+_SETTING_TIE = 1e-12
+
+
+def _gauss_step(ratio: float) -> int:
+    """The nearest integer to ``ratio``, and 0 on a ±½ tie within
+    :data:`_SETTING_TIE`: both sides of a tie are reduced, and rounding must
+    not be what picks one."""
+    if abs(ratio) <= 0.5 + _SETTING_TIE:
+        return 0
+    return int(np.rint(ratio))
+
+
+def conventional_setting(af: np.ndarray, system: str, centring: str = "P"
+                         ) -> tuple[tuple[int, int, int], ...] | None:
+    """The change of basis to the conventional setting, or ``None`` if none is
+    needed (WP-1923).
+
+    Only a **monoclinic** lattice has a setting to choose here: every other
+    system's metric subspace fixes its axes up to labels, and a triclinic
+    cell is reported as found (the reduced form is :func:`reduce_cell`'s).
+    An engine's monoclinic metric is always b-unique (``qspace.metric_basis``),
+    so the choice is a basis (a, c) of the net perpendicular to b, and the
+    IUCr one (*ITA* A § 9.3; Mighell & Santoro 1975 for why it is needed) is
+    taken: the two shortest translations, β non-acute.
+
+    * **P**: a Lagrange-Gauss reduction of (a, c), then a ≤ c.
+    * **C**: the centring (a + b)/2 must survive, so a' = p·a + q·c needs q
+      even, and a and c cannot be swapped.  The same alternation runs inside
+      that group: c reduced against a, a against 2c.
+
+    Then β is made obtuse by a → −a, and b → ±b keeps the basis
+    right-handed.  Both rules reproduce spglib's ``std_lattice``
+    (:func:`conventional_cell`) on the cells ``tests/test_indexing_reduce.py``
+    draws.  Returns M with (new basis rows) = M · (old basis rows).
+    ``None`` too where ``af`` is not a lattice's metric (non-finite or not
+    positive definite): there is no setting to choose, and a caller reporting
+    a candidate must not be stopped by one.
+    """
+    if system != "monoclinic" or centring not in ("P", "C"):
+        return None
+    from .qspace import gstar_from_af
+    af = np.asarray(af, dtype=np.float64)
+    if not np.all(np.isfinite(af)):
+        return None
+    gstar = gstar_from_af(af)
+    if np.linalg.eigvalsh(gstar)[0] <= 0.0:
+        return None                                  # not a lattice
+    g = np.linalg.inv(gstar)
+    scale = float(np.max(np.abs(np.diag(g))))
+    if abs(g[0, 1]) > 1e-9 * scale or abs(g[1, 2]) > 1e-9 * scale:
+        return None                                  # not b-unique: leave it
+    plane = np.array([[g[0, 0], g[0, 2]], [g[0, 2], g[2, 2]]])
+    n = np.eye(2, dtype=np.int64)
+
+    def apply(step: np.ndarray) -> None:
+        nonlocal n, plane
+        n = step @ n
+        plane = step @ plane @ step.T
+
+    for _ in range(_SETTING_STEPS):
+        k = _gauss_step(plane[0, 1] / plane[0, 0])
+        if k:
+            apply(np.array([[1, 0], [-k, 1]]))       # c ← c − k·a
+        if centring == "P":
+            if plane[1, 1] < plane[0, 0] * (1.0 - _SETTING_TIE):
+                apply(np.array([[0, 1], [1, 0]]))    # swap a and c
+                continue
+        else:
+            m = _gauss_step(plane[0, 1] / (2.0 * plane[1, 1]))
+            if m:
+                apply(np.array([[1, -2 * m], [0, 1]]))   # a ← a − 2m·c
+                continue
+        if not k:
+            break
+    else:
+        raise RuntimeError(f"no monoclinic setting reached for af = "
+                           f"{np.asarray(af).tolist()} in {_SETTING_STEPS} steps")
+    if plane[0, 1] > _SETTING_TIE * np.sqrt(plane[0, 0] * plane[1, 1]):  # β acute
+        apply(np.array([[-1, 0], [0, 1]]))
+    sb = int(round(np.linalg.det(n)))
+    rows = ((int(n[0, 0]), 0, int(n[0, 1])), (0, sb, 0),
+            (int(n[1, 0]), 0, int(n[1, 1])))
+    return None if rows == ((1, 0, 0), (0, 1, 0), (0, 0, 1)) else rows
 
 
 def reduced_covariance(cov: np.ndarray | None, t: np.ndarray | None
@@ -523,7 +673,7 @@ def same_lattice(af_a: np.ndarray, af_b: np.ndarray, *,
 
 __all__ = ["BRAVAIS_OBLIQUITIES", "BRAVAIS_SYMPREC_SIGMAS",
            "CELL_EQUALITY_CHI2", "CELL_EQUALITY_RELATIVE", "SYSTEM_RANK",
-           "BravaisScreen", "ReducedCell", "bravais_screen", "cell_from_vectors",
-           "conventional_cell", "equal_reduced", "lattice_vectors",
+           "BravaisScreen", "ReducedCell", "af_map", "bravais_screen",
+           "cell_from_vectors", "conventional_cell", "conventional_setting", "equal_reduced", "lattice_vectors",
            "reduce_cell", "reduced_af", "reduced_covariance", "reduction",
            "same_lattice"]

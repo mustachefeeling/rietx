@@ -202,7 +202,7 @@ if klass is not None:
         cell, space_group=klass.space_groups[0])
 ```
 
-Five things about that sequence are load-bearing:
+Six things about that sequence are load-bearing:
 
 1. **Pass the pattern, not only the peaks.** It is what turns whole-profile
    validation on, and validation is what catches the oversized cell no figure of
@@ -210,15 +210,13 @@ Five things about that sequence are load-bearing:
    abstains.
 2. **`best_or_none()` returning `None` is the normal first outcome.** With no
    measured systematic shift it is currently unreachable to get `high` on real
-   lab data at all — both engines widen their matching window by an *assumed*
+   lab data at all — the engines widen their matching window by an *assumed*
    allowance and say so — and the fix is evidence (an internal standard, a
    calibrated `shift_allowance_deg`), not a bigger constant.
 3. **Go through `structure_from_candidate`.** It supplies the mandatory dummy
    atom and, more importantly, defaults the space group to the **absence-free
    lattice group**. A plausible-looking space group would hide exactly the
-   reflections whose absence is not yet established — which is also why the
-   indexing gate's `predicted_but_absent` test must keep running against the
-   lattice group even after the screen has named a class.
+   reflections whose absence is not yet established.
 4. **The extinction screen answers the next question, and answers it as a
    class.** `determine_extinction_symbol` ranks the classes the lattice admits,
    each listing its space groups; the powder observable *is* the extinction
@@ -229,6 +227,8 @@ Five things about that sequence are load-bearing:
    follows — they predict the same reflections at the same positions. What
    separates them is what you know about the compound, or which one a structure
    solution works in.
+6. **`cell` is the conventional setting** (monoclinic: b unique, β obtuse);
+   the search's own is `engine_cell`. One lattice? `same_lattice` on `af`.
 
 The reverse direction closes too. When a refinement's Layer 2 emits
 `reindex_or_recheck_cell` — peak offsets beyond the linearisation radius in most
