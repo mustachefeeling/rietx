@@ -1,6 +1,6 @@
 # WP-1322 — the run is instrumentable, and nothing says so
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-12 — every task landed from outside (PR #902); closing waits on the maintainer
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-09-23 — a view over events already written
@@ -211,15 +211,15 @@ From **WP-1403** (2026-09-15), which removed this WP's Task 2 premise:
 
 ## Tasks
 
-- [ ] The aggregator: a plain function in `rietx.history` + the
+- [x] The aggregator: a plain function in `rietx.history` + the
       `rietx events <log.jsonl> [--json]` subcommand over it; fixture logs
       from the package's own emitters, never hand-written JSONL.
 - [x] ~~The defaults decision on `SequentialRefinement.history`~~ —
       **discharged 2026-09-15 by WP-1406**, premise removed by WP-1403. Nothing
       flipped, nothing to release-note. See Task 2 above.
-- [ ] The skill `series.md` instrumentation line (all committed copies
+- [x] The skill `series.md` instrumentation line (all committed copies
       re-synced via `rietx skill --install . --copy`).
-- [ ] CLI docs/manual coverage per the standing partition gates
+- [x] CLI docs/manual coverage per the standing partition gates
       (`tests/test_manual_api.py`, the CLI chapter) + tests per item.
 
 ## Acceptance
@@ -248,6 +248,34 @@ The shipping PR carries `Closes #207`.
   consumer.
 
 ## Handover log
+
+- **2026-10-12** — PR #902 merged from outside as `daca33e5` and closed #207
+  and #223. An `events.jsonl` can now be read per run without a GUI:
+  `rietx.history.summarize_events` and `rietx events <log | run dir> [--json]`
+  print each run's fits, stages, evaluations, Rwp, terminations and most-held
+  paths. A log that several runs appended to splits on a header line every
+  opened stream now writes, so no duration crosses from one run into the next.
+  - *Done.* All three open tasks, each checked against its wording. The
+    acceptance bar holds: the fixtures come from the package's own emitters,
+    `--json` round-trips (`test_rietx_events_prints_per_run_and_json_round_trips`),
+    the skill line is in all three copies, `cli.md` has the chapter, and the PR
+    carried `Closes #207`.
+  - *Gated* on a four-PR stack, #902, #904, #871 and #880, replayed onto main
+    `f22e9a7c` (stack `0e4b7e25`, macOS arm64, `[dev,jax]`). Fast suite: 9274
+    passed, 113 skipped, 2 xfailed. Whole slow suite: 306 passed, 12 skipped.
+    Sphinx `-W` clean. After the four merges, main `f47c728e` is
+    content-identical to the gated tree.
+  - *Gotchas.* `EVENT_SCHEMA_VERSION` is 3: a v2 `EventRecord` reader refuses
+    the header line, which `compatibility.md` says. The header carries
+    `EventStream.header_id`, a fresh id per opened stream. It is **not** the id
+    `rietx watch` lists a run directory under (`runs.run_id_for`), and `cli.md`
+    says so. A callback-only stream and each `_SeriesStream` have
+    `header_id = None`. The split assumes one writer per file.
+  - *Not done.* The stage-timing rule lives twice, in `history.aggregate` and
+    `events.progress_writer`, and the second copy still keeps a dead stage's
+    start across a `fit_start`. `docs/releases/1.8.0.md` has no line for
+    `rietx events` or the schema bump.
+  - *Next:* the maintainer closes the WP, or files the shared timing helper.
 
 - **2026-09-01** — created, from issue #207 (2026-09-01 triage, second
   batch). Settled: CLI subcommand thin over a `rietx.history` function;
