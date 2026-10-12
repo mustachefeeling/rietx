@@ -300,3 +300,96 @@ def test_the_declaration_is_in_the_model_so_it_travels_with_it():
                for t in joint.tables)
     freed = joint.set_vary(["phases.*.atoms.*.dof.*"], True)
     assert "phases.0.atoms.0.dof.0" not in freed
+
+
+# ------------------------------------------- the WP's zincite, fitted (WP-1912)
+#: The WP's fixture: synthetic Cu Kα ZnO at Kihara & Donnay's z(O), anomalous
+#: dispersion declared, 20-140° in 0.02°, Poisson seed 3, and a start with O
+#: displaced by +0.02 along c.  Fitted under ``mccusker_structural``, which
+#: frees every coordinate DOF.
+Z_O = 0.3826
+
+
+def _zincite(z_o: float, origin=None):
+    P = rx.Parameter
+
+    def atom(label, species, z):
+        return rx.Atom(label=label, species=species, x=P(value=1 / 3),
+                       y=P(value=2 / 3), z=P(value=z), biso=P(value=0.55))
+
+    return rx.Phase(
+        name="zincite", space_group="P 63 m c", floating_origin=origin,
+        cell=_cell(3.2499, 3.2499, 5.2066, gamma=120.0), scale=P(value=0.01),
+        atoms=[atom("Zn", "Zn", 0.0), atom("O", "O", z_o)])
+
+
+def _zincite_instrument():
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ins.source.dispersion = rx.Dispersion()
+    return ins
+
+
+@pytest.fixture(scope="module")
+def zincite_fits():
+    grid = np.arange(20.0, 140.0, 0.02)
+    truth = rx.Refinement(rx.Structure(phases=[_zincite(Z_O)]),
+                          _zincite_instrument(), history=False)
+    y = np.asarray(truth.predict(grid)) + 50.0
+    y = np.maximum(y + np.random.default_rng(3).normal(
+        scale=np.sqrt(np.maximum(y, 1.0))), 0)
+    data = rx.PatternData(two_theta=grid.tolist(), intensity=y.tolist())
+    fits = {}
+    for solver, origin in (("lm", None), ("lm", "hold"), ("trf", "hold")):
+        ins = _zincite_instrument()
+        ins.background = rx.auto_background(data)
+        ref = rx.Refinement(rx.Structure(phases=[_zincite(Z_O + 0.02, origin)]),
+                            ins, history=False, solver=solver)
+        fits[solver, origin] = (ref, ref.fit(data, plan="mccusker_structural",
+                                             telemetry=False))
+    return fits
+
+
+@pytest.mark.xdist_group("floating-origin-zincite")
+def test_the_fit_says_once_which_atom_holds_the_origin(zincite_fits):
+    _, result = zincite_fits["lm", "hold"]
+    origin = [d for d in result.diagnostics
+              if d.code == "ORIGIN_FIXED_ON_POLAR_AXIS"]
+    assert len(origin) == 1 and origin[0].level == "info"
+    assert origin[0].where == ["phases.0.atoms.0.dof.0"]
+    for part in ("phase 0", "P 63 m c", "[0, 0, 1]", "(Zn)"):
+        assert part in origin[0].message
+    codes = {d.code for d in result.diagnostics}
+    # the hold's own report replaces the generic one, and the pair is not flat
+    assert not codes & {"HOLD_BLOCKED_PLAN", "ORIGIN_NOT_FIXED", "FLAT_DIRECTION"}
+    # the record still says a hold blocked the glob
+    assert any("phases.0.atoms.0.dof.0" in sr.blocked_by_hold
+               for sr in result.stages)
+
+
+@pytest.mark.xdist_group("floating-origin-zincite")
+@pytest.mark.parametrize("solver", ["lm", "trf"])
+def test_zincite_stays_in_the_cell_and_quotes_the_honest_esd(zincite_fits,
+                                                             solver, tmp_path):
+    ref, result = zincite_fits[solver, "hold"]
+    zn, o = ref.fitted_structure.phases[0].atoms
+    assert 0.0 <= zn.z.value < 1.0 and 0.0 <= o.z.value < 1.0
+    assert zn.z.value == 0.0 and zn.z.stderr is None   # held, so not measured
+    assert abs((o.z.value - zn.z.value) - Z_O) < 2 * o.z.stderr
+    free = {p.path for p in result.parameters if p.vary}
+    assert "phases.0.atoms.1.dof.0" in free
+    assert "phases.0.atoms.0.dof.0" not in free
+    # unheld, each z of the flat pair is quoted at half the uncertainty of
+    # their difference, which is what the held O carries
+    loose_ref, loose = zincite_fits["lm", None]
+    assert "FLAT_DIRECTION" in {d.code for d in loose.diagnostics}
+    half = loose_ref.fitted_structure.phases[0].atoms[1].z.stderr
+    assert o.z.stderr == pytest.approx(2 * half, rel=0.05)
+    # and the CIF quotes Zn without an esd and O with the honest one
+    path = tmp_path / "zincite.cif"
+    ref.write_cif(path)
+    sites = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        # the _atom_site rows come first; a bond row also starts "Zn Zn"
+        if line.split()[:2] in (["Zn", "Zn"], ["O", "O"]):
+            sites.setdefault(line.split()[0], line.split()[4])
+    assert "(" not in sites["Zn"] and "(" in sites["O"]

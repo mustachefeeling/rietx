@@ -4472,7 +4472,9 @@ class Refinement:
             diagnostics.extend(_constraint_diagnostics(plan.stages[-1].name, outcome))
             diagnostics.extend(_degenerate_cell_diagnostics(
                 [(sr.name, sr.n_degenerate_cell_probes) for sr in stage_results]))
-            diagnostics.extend(_hold_diagnostics(stage_results))
+            diagnostics.extend(_hold_diagnostics(stage_results,
+                                                 table.origin_holds))
+            diagnostics.extend(_origin_diagnostics(table, stage_results))
             diagnostics.extend(_unknown_path_diagnostics(
                 stage_results, [e.path for e in table.entries]))
 
@@ -4929,7 +4931,9 @@ class Refinement:
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
-            diagnostics.extend(_hold_diagnostics([stage_result]))
+            diagnostics.extend(_hold_diagnostics([stage_result],
+                                                 table.origin_holds))
+            diagnostics.extend(_origin_diagnostics(table, [stage_result]))
             diagnostics.extend(_unknown_path_diagnostics(
                 [stage_result], [e.path for e in table.entries]))
 
@@ -6107,7 +6111,8 @@ def _origin_diagnostics(table: ParameterTable,
     return out
 
 
-def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
+def _hold_diagnostics(stage_results: list[StageResult],
+                      origin: Iterable[str] = ()) -> list[Diagnostic]:
     """``HOLD_BLOCKED_PLAN`` — which declaration won, and over what.
 
     A stage's ``turn_on`` glob and a caller's ``Refinement.hold`` can name the
@@ -6135,11 +6140,19 @@ def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
     named 8 of 16 paths on an ordinary LaB6 fit; a hold is only ever
     deliberate, so the set here is the caller's own declarations and nothing
     else.
+
+    ``origin`` names the paths the table holds to fix a floating origin
+    (``ParameterTable.origin_holds``, WP-1912).  They stay on
+    ``StageResult.blocked_by_hold``, being holds that blocked a glob, and are
+    left out here: :func:`_origin_diagnostics` reports them, with the
+    direction and the atom, and its advice differs from this one's.
     """
+    skip = set(origin)
     by_path: dict[str, list[str]] = {}
     for sr in stage_results:
         for path in sr.blocked_by_hold:
-            by_path.setdefault(path, []).append(sr.name)
+            if path not in skip:
+                by_path.setdefault(path, []).append(sr.name)
     if not by_path:
         return []
     where = sorted(by_path)

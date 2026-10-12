@@ -135,9 +135,19 @@ Licensing: SHELXL is closed. Use the paper only.
       the row its own `held_because`. `hold_floating_origin()` now sets the
       field, and `unhold` on a held DOF sets it back to `None`. A joint
       fit's per-histogram tables hold the same atom.*
-- [ ] The diagnostic naming the phase, the direction and the atom(s), and
+- [x] The diagnostic naming the phase, the direction and the atom(s), and
       the ZnO regression: coordinates stay in [0, 1), CIF quotes an honest
       esd, no `FLAT_DIRECTION` on the coordinate pair.
+      *Done 2026-10-12: `refine._origin_diagnostics` words what the table
+      holds, on `fit` and `run_stage` results. `ORIGIN_FIXED_ON_POLAR_AXIS`
+      (info) fires only where a stage's glob met the hold, and names the
+      phase, the space group, the direction and the atom label.
+      `ORIGIN_NOT_FIXED` (warning) fires only where a stage freed a DOF of a
+      phase with an unfixed direction. `HOLD_BLOCKED_PLAN` leaves the origin
+      hold out, so one fact gets one diagnostic. On the zincite fixture under
+      `mccusker_structural` (LM and TRF), Zn stays at 0 with no esd and O
+      refines to 0.38231(57), while the unheld pair quotes ±0.00029 on each
+      z.*
 - [ ] `help.py` entry for any new field; Manual Part 2 (the constraint with a
       *Source* line beside the Wyckoff DOFs) and Part 1 (one paragraph).
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for the ZnO case.
