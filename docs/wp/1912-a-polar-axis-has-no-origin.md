@@ -41,6 +41,12 @@ seed 3; scripts in the 2026-10-05 triage scratch, rebuilt in a minute):
   0.3807(22), no flat-direction rows, and `HOLD_BLOCKED_PLAN` (info). The
   ±0.0011 on each free z was half of the honest 0.0022 on the difference.
 
+*Superseded in part, 2026-10-12 (at `e1d19359`).* The walk now depends on
+the driver. On the same fixture under `mccusker_structural` the default LM
+driver moves the pair together by 0.010 (z(Zn) = 0.0101, z(O) = 0.3925),
+while TRF still walks it to z ≈ 150. Both quote ±0.00029 on each z and fire
+`FLAT_DIRECTION`. The half-the-honest-esd finding holds on both drivers.
+
 **The floating-origin directions are already computable.** The same
 `wyckoff.coordinate_basis`, given the rotation parts of *every* operation of
 the group instead of a site's stabilizer, returns the subspace of translations
