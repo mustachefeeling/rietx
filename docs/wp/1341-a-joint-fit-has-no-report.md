@@ -161,7 +161,11 @@ against the tree at e1d19359 on arrival.
       evaluation, because the joint solve is one solve; the index rides in a
       `histograms` row per histogram (`history/events.py` says why it is not
       the series' per-event stamp).
-- [ ] `stage_reports=`, or a written reason it is not offered here.
+- [x] `stage_reports=`, or a written reason it is not offered here.
+      Not offered (2026-10-12). One rung is a report per histogram per
+      stage at ~0.36 s each (#245), so it would multiply the solo tax WP-1335
+      owns. The reason is in `MultiHistogramRefinement.fit`'s docstring and
+      in `using/series.md`.
 - [ ] Whichever part of the report path is histogram-agnostic, reachable from
       a joint result; per-histogram where the quantity is per-histogram, and
       once where WP-1131 says the specimen has one of them.

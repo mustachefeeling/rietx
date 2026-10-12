@@ -1225,6 +1225,12 @@ A joint run writes no `snapshot.json`, so `rietx watch` lists it and follows its
 status with no picture. The live view draws one pattern, and a joint fit has
 several.
 
+`MultiHistogramRefinement.fit` takes no `stage_reports=`. A rung there would be
+one report per histogram per stage. A report build costs about 0.36 s however
+fast the fit is (issue #245), so the trajectory would multiply that cost by
+the histogram count. WP-1335 owns that cost. Until it lands, a joint fit's stage
+trajectory is its event log, with each histogram's Rwp on every `stage_end`.
+
 ### What the joint fit bought
 
 On those two LaB₆ patterns the shared cell came back identical in both entries
