@@ -386,7 +386,8 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     as a moment angle at a direction the symmetry fixes, took the largest
     step, and λ grew to hold it until every parameter crawled.  Three tiny
     decreases then ended the stage on ``ftol_runs`` far from a minimum
-    (χ²_red 11.03 at λ ≈ 1e11 on a one-site moment fit, WP-1938 D12), or the
+    (χ²_red 11.03 at λ ≈ 1e11 on a one-site moment fit, WP-1938 D12; 35.5
+    from the same start on the tag v1.8.0), or the
     budget ran out (``test_e8``'s axial stage, 400 evaluations at λ ≈ 1e3,
     WP-1953).  With the scale held, both converge, the second in 22
     evaluations.  The scale resets with each call, so a stage starts from its
@@ -409,7 +410,8 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     is not taken, since the model must stay positive semidefinite, and
     Gauss-Newton's long steps are what leave a maximum.  So at a would-be stop
     each held curvature is measured again, and one that has turned negative is
-    dropped and the stage goes on.  Held there, it made a maximum read as a
+    dropped, with the scale it lent its column and the λ that climbed against
+    it, and the stage goes on.  Held there, it made a maximum read as a
     minimum: the first pattern of ``test_moment_angle_chart``'s series stopped
     with the azimuth on −a at χ²_red 0.994003, where the twin minimum beside
     it reads 0.992763.  A measurement's two evaluations are
@@ -456,6 +458,9 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     n_outer = 0
     termination = "max_nfev"
     scale = None
+    # the largest norm each column of J has had this stage, apart from any
+    # curvature held for it, so a dropped curvature leaves its scale too
+    col_max = None
     # ½∂²S/∂θ_i² measured this stage where Gauss-Newton under-reads it, and
     # which coordinates have been measured (each at most once)
     curvature = np.zeros(len(x))
@@ -476,10 +481,11 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
         # taking the largest step and dragging λ up for every parameter.  A
         # curvature measured this stage stays its column's diagonal where it
         # is the larger.
+        col = np.sqrt(np.maximum(np.diag(A), 0.0))
+        col_max = col if col_max is None else np.maximum(col_max, col)
         if np.any(curvature > 0.0):
             A[np.diag_indices(len(x))] = np.maximum(np.diag(A), curvature)
-        col = np.sqrt(np.maximum(np.diag(A), 0.0))
-        scale = col if scale is None else np.maximum(scale, col)
+        scale = np.maximum(col_max, np.sqrt(curvature))
         lam_start = lam
 
         accepted = False
@@ -563,7 +569,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                 i = _furthest_moved(step, x, measured)
                 if i is not None:
                     measured[i] = True
-                    c = _measured_curvature(residual, x, s, i, lo, hi)
+                    c = _measured_curvature(residual, x, s, i, lo, hi, ineqs)
                     if c is not None and c > A[i, i] + lam * scale[i] ** 2:
                         curvature[i] = c
                         A[i, i] = c
@@ -575,11 +581,15 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
             # a would-be stop: a held curvature that has turned negative made
             # a maximum read as a minimum, so it is dropped and the stage goes on
             turned = [i for i in np.flatnonzero(curvature > 0.0)
-                      if (c := _measured_curvature(residual, x, s, int(i), lo, hi))
+                      if (c := _measured_curvature(residual, x, s, int(i), lo, hi, ineqs))
                       is not None and c < 0.0]
             if turned:
+                # λ climbed against the dropped diagonal: left there, the
+                # next iteration's first trial is too short to measure and
+                # the stage stops where it would have
                 curvature[turned] = 0.0
                 small_runs = 0
+                lam = min(lam, lam_start)
                 continue
         if not accepted:
             # No downhill step exists that the cost can resolve.  That is
@@ -641,13 +651,16 @@ def _furthest_moved(step: np.ndarray, x: np.ndarray,
 
 def _measured_curvature(residual: Callable[[np.ndarray], np.ndarray],
                         x: np.ndarray, s: float, i: int,
-                        lo: np.ndarray, hi: np.ndarray) -> float | None:
+                        lo: np.ndarray, hi: np.ndarray,
+                        inequalities: list[LinearInequality] | None = None
+                        ) -> float | None:
     """½∂²S/∂θ_i² at ``x``, by a central second difference of ``S = rᵀr``.
 
     The step is ``h = ε^¼·max(|θ_i|, 1)``.  The difference's truncation error
     is ``h²·S⁗/12`` and its rounding error about ``4u·S/h²`` (u = ε/2), so
     their sum is least for h near ``u^¼`` in the coordinate's own size.
-    Returns ``None`` when either point leaves the box, or when the difference
+    Returns ``None`` when either point leaves the box or crosses a row of
+    ``inequalities``, where the model is clamped, or when the difference
     is under what fp64 resolves against S (:data:`_PREDICTED_FLOOR`), or not
     finite.  It may be negative.
     """
@@ -656,6 +669,8 @@ def _measured_curvature(residual: Callable[[np.ndarray], np.ndarray],
         return None
     e = np.zeros_like(x)
     e[i] = h
+    if any(iq.crossed(x, e) or iq.crossed(x, -e) for iq in inequalities or ()):
+        return None
     r_plus, r_minus = residual(x + e), residual(x - e)
     diff = float(r_plus @ r_plus) + float(r_minus @ r_minus) - 2.0 * s
     if not np.isfinite(diff) or abs(diff) <= _PREDICTED_FLOOR * max(abs(s), 1.0):

@@ -747,6 +747,9 @@ def test_the_measured_curvature_is_the_gauss_newton_one_on_a_linear_column():
     c = lm._measured_curvature(residual, x, s, 0, -inf, inf)
     assert c == pytest.approx(float(col @ col), rel=1e-6)
     assert lm._measured_curvature(residual, x, s, 0, np.array([2.0]), inf) is None
+    # nor one whose second difference would cross an inequality row (θ ≤ 2)
+    row = lm.LinearInequality(T=np.array([[-1.0]]), c=np.array([2.0 + 1e-6]))
+    assert lm._measured_curvature(residual, x, s, 0, -inf, inf, [row]) is None
 
 
 def test_a_budget_under_one_evaluation_is_refused_as_trf_refuses_it():
