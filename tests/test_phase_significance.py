@@ -250,6 +250,36 @@ def test_a_held_phase_that_appears_is_released(issue_481, monkeypatch):
     _assert_seen(result)
 
 
+def test_a_phase_the_prior_holds_is_released_when_the_answer_sees_it(
+        monkeypatch):
+    """The prior can only hold, and its hold is asked again at the answer.
+
+    The prior is forced to zero here for a phase the data plainly shows, so
+    the stage holds the cell from its start although the screen passes.  At
+    the answer the held cell is freed for the measurement, the phase passes,
+    and the stage solves again with the cell free: the release path the
+    previous test takes from a screen hold.
+    """
+    from rietx.schemas.plan import PlanSpec, StageSpec
+
+    inner = _refine._hold_unsupported_phases
+    monkeypatch.setattr(_refine, "_hold_unsupported_phases",
+                        lambda model, table, prior=None:
+                        inner(model, table, np.zeros(1)))
+    structure = rx.Structure(phases=[_lab6(A0, 2.5e-7)])
+    instrument = _instrument(0.008, 2.5e-4, (40.0, -6.0, 1.5))
+    pattern = _draw(_lab6(A0, 2.5e-7), np.random.default_rng(200))
+    plan = PlanSpec(stages=[StageSpec(
+        name="all", turn_on=["phases.*.scale", "instrument.background.*",
+                             "phases.*.cell.*"])])
+    result, record = _fit(structure, instrument, pattern, monkeypatch, plan=plan)
+    (stage,) = result.stages
+    assert stage.released == ["phases.0.cell.a"] and not stage.held
+    assert record[0][0] >= PHASE_SUPPORT_SIGMA
+    assert record[0][1] >= PHASE_SUPPORT_SIGMA
+    _assert_seen(result)
+
+
 def test_the_threshold_is_the_indexing_presence_test():
     """One number means one thing: a phase and a line are present at 3σ."""
     assert PHASE_SUPPORT_SIGMA == ABSENT_SIGMA
