@@ -166,9 +166,14 @@ against the tree at e1d19359 on arrival.
       stage at ~0.36 s each (#245), so it would multiply the solo tax WP-1335
       owns. The reason is in `MultiHistogramRefinement.fit`'s docstring and
       in `using/series.md`.
-- [ ] Whichever part of the report path is histogram-agnostic, reachable from
+- [x] Whichever part of the report path is histogram-agnostic, reachable from
       a joint result; per-histogram where the quantity is per-histogram, and
       once where WP-1131 says the specimen has one of them.
+      `MultiHistogramRefinement.report(h)` (2026-10-12): Layers 0-2 per
+      histogram, the background section off that histogram's own screen
+      (the joint result now carries every screen, `hist.<h>.`-scoped), and
+      the specimen's one microstructure block in every report. It inherits
+      the joint path's missing #272 recompile (handover).
 - [ ] `STAGE_PATH_NOT_FREE` on a joint plan (#803, folded 2026-10-12): the
       helper reads each histogram's table under the joint matching rule, one
       finding per path names the histograms whose table holds it fixed, and

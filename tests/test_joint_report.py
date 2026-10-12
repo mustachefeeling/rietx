@@ -12,14 +12,21 @@ from pathlib import Path
 
 import pytest
 
-from rietx import MultiHistogramRefinement, Stage, runs
+from rietx import MultiHistogramRefinement, Refinement, Stage, runs
 from rietx.history.events import read_events
 from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from rietx.optimize.statistics import MAX_SHIFT_CONVERGED
 from rietx.strategy.staged import RefinementPlan
-from tests.test_multi_histogram import perturbed_inputs, synthesize
+from tests.test_multi_histogram import (
+    _broadened,
+    _width_plan,
+    _width_start,
+    perturbed_inputs,
+    synthesize,
+)
 
 OUT = Path(__file__).parent / "output"
+LAMS = (0.41390, 0.71070)
 
 TURN_ON = ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
            "instrument.zero_shift"]
@@ -210,3 +217,72 @@ def test_a_recorded_joint_fit_is_one_run(two_patterns, tmp_path):
     assert summary == str(result)
     # the live view draws one pattern, so a joint run writes no picture
     assert not (run.path / runs.SNAPSHOT_FILE).exists()
+
+
+# ---------------------------------------------------------------- the report --
+def test_each_histogram_gets_its_own_report(two_patterns):
+    """Layers 0-2 per histogram, off that histogram's model and curves."""
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(structure, instruments)
+    with pytest.raises(RuntimeError, match="fit"):
+        ref.report(0)
+    result = ref.fit(two_patterns, plan="mccusker_default")
+    _plot(result, "joint_report_layers")
+    with pytest.raises(IndexError):
+        ref.report(2)
+    for h in (0, 1):
+        report = ref.report(h, plan="mccusker_default")
+        assert report.layer1_available
+        assert report.unmatched == []       # one phase, every peak ticked
+        assert f"Rwp={result.histograms[h].statistics.rwp:.4f}" in report.summary
+        # the background section reads this histogram's own screen, which
+        # the joint result carries ``hist.<h>.``-scoped
+        mine = {k.split(".", 2)[2]: v for k, v in
+                result.identifiability.background_absorption.items()
+                if k.startswith(f"hist.{h}.")}
+        assert mine
+        assert (result.for_histogram(h).identifiability.background_absorption
+                == mine)
+        assert report.background.worst_absorption == max(mine.values())
+
+
+@pytest.fixture(scope="module")
+def size_patterns():
+    """test_multi_histogram's WP-1131 pair: one 400 Å specimen, two λ."""
+    return [_broadened("lor_size", LAMS[0], 3.0, 24.0, seed=1)[0],
+            _broadened("lor_size", LAMS[1], 5.0, 42.0, seed=2)[0]]
+
+
+def _size(block) -> float:
+    (term,) = [t for t in block.terms if t.path.endswith("lor_size")]
+    return term.value
+
+
+def test_the_specimen_size_is_reported_once(size_patterns):
+    """One specimen, one size: the same block in every histogram's report.
+
+    Measured 2026-10-12: the joint fit reads 408.82(4.86) Å; the two solo
+    arms read 408.71(8.05) and 409.20(6.43) Å.  The joint block is read off
+    the shared column at histogram 0's λ, so both reports quote its
+    coefficient, never histogram 1's λ-scaled copy.
+    """
+    structure, _ = _width_start(LAMS[0])
+    instruments = [_width_start(lam)[1] for lam in LAMS]
+    ref = MultiHistogramRefinement(structure, instruments)
+    result = ref.fit(size_patterns, plan=_width_plan("lor_size"))
+    _plot(result, "joint_report_size")
+    joint = result.microstructure[0]
+    reports = [ref.report(h) for h in (0, 1)]
+    for report in reports:
+        (block,) = report.microstructure
+        assert [t.coefficient for t in block.terms] == [
+            t.coefficient for t in joint.terms]
+        assert _size(block) == _size(joint)
+
+    for h, (pattern, lam) in enumerate(zip(size_patterns, LAMS, strict=True)):
+        s, ins = _width_start(lam)
+        solo = Refinement(s, ins, history=False).fit(
+            pattern, plan=_width_plan("lor_size"))
+        solo.plot(OUT / f"joint_report_size_solo_h{h}.png")
+        assert _size(joint) == pytest.approx(_size(solo.microstructure[0]),
+                                             rel=0.005)

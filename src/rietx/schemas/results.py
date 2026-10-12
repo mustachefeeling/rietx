@@ -310,10 +310,15 @@ class Identifiability(Base):
     residual's θ carries the intensity block and the fitted span the scan
     projects onto is not the table's — see the scan's docstring).  Absent
     (``None`` on the result) ⇔ nothing measured it — a ``replay`` of a
-    history node (evaluate-only, no solve) or a joint multi-histogram fit,
-    which screens per histogram and reports through each histogram's own
-    diagnostics.  Read ``None`` as "not measured here", never as "no
-    degeneracy".
+    history node (evaluate-only, no solve).  Read ``None`` as "not measured
+    here", never as "no degeneracy".
+
+    A joint multi-histogram fit (WP-1341) screens each histogram's own rows,
+    so its ``background_absorption`` keys are ``hist.<h>.``-scoped, shared
+    paths included, and :meth:`RefinementResult.for_histogram` hands one
+    histogram's view its own rows, unscoped.  The joint path runs none of the
+    parameter-space screens, so the other tables stay empty there: not
+    measured, the same reading as ``None``.
     """
 
     background_absorption: dict[str, float] = Field(default_factory=dict)
@@ -1516,6 +1521,15 @@ class RefinementResult(Base):
         view.restraints = (hr.restraints.model_copy(deep=True)
                            if hr.restraints is not None else None)
         view.diagnostics = list(hr.diagnostics)
+        if view.identifiability is not None:
+            # this histogram's background screen, as a single fit spells it
+            # (WP-1341): the joint result scopes every row ``hist.<h>.``
+            prefix = f"hist.{h}."
+            mine = {k[len(prefix):]: v for k, v in
+                    view.identifiability.background_absorption.items()
+                    if k.startswith(prefix)}
+            view.identifiability = view.identifiability.model_copy(
+                update={"background_absorption": mine})
         view.histograms = []
         return view
 

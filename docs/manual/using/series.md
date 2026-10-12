@@ -1231,6 +1231,45 @@ fast the fit is (issue #245), so the trajectory would multiply that cost by
 the histogram count. WP-1335 owns that cost. Until it lands, a joint fit's stage
 trajectory is its event log, with each histogram's Rwp on every `stage_end`.
 
+`RefinementResult.statistics` carries the joint solve's
+`Statistics.max_shift_over_esd`: one shift per column of the joint parameter
+vector against the esd the joint result reports for it. On the two LaB₆
+patterns a converged fit reads between 5 × 10⁻⁷ and 2.2 × 10⁻³ across both
+solvers, and a stage starved to one iteration reads 4.0 under LM and 17.9 under
+TRF. `RefinementResult.for_histogram` carries the same figure onto each view.
+
+### A report per histogram
+
+`MultiHistogramRefinement.report` builds the `FitReport` for one histogram of
+the last fit, at Layers 0 to 2.
+
+<!-- api-doc: no-exec — needs a fitted joint refinement, tens of seconds of solver time -->
+```python
+report = joint.report(1, plan="mccusker_default")
+```
+
+Each report reads that histogram's curves and statistics through
+`RefinementResult.for_histogram`, and its compiled model for Layers 1 and 2.
+The background section reads that histogram's own absorption screen, which the
+joint result keeps in `Identifiability.background_absorption` under
+`hist.<h>.` keys. The joint path runs no correlation, soft-mode or
+exchangeability screen, so those tables are empty.
+
+The specimen has one crystallite size, so every histogram's report carries the
+joint result's microstructure block. It is read off the shared column at
+histogram 0's wavelength. On the two-wavelength size pair in
+`tests/test_multi_histogram.py` both reports quote 408.82(4.86) Å, and the two
+patterns refined alone give 408.71(8.05) Å and 409.20(6.43) Å. The
+separability caveat beside the size is each report's own, from that histogram's
+2θ range.
+
+A joint result's curves come from the last stage's compile, sized at the values
+the stage started from. A single fit recompiles at its answer and a joint fit
+does not yet. If the last stage broadened the peaks, their tails stop at the old
+windows and Layer 0 reports the cut as unmatched peaks. On that size pair the
+reports find 44 and 27 unmatched peaks where a compile at the answer finds none.
+Read Layer 0 there against the plot.
+
 ### What the joint fit bought
 
 On those two LaB₆ patterns the shared cell came back identical in both entries

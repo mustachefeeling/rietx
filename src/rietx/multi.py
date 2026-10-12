@@ -112,6 +112,7 @@ from .schemas.instrument import Instrument
 from .schemas.pattern import PatternData
 from .schemas.results import (
     HistogramResult,
+    Identifiability,
     RefinedParameter,
     RefinementResult,
     StageResult,
@@ -927,6 +928,61 @@ class MultiHistogramRefinement:
             if recorder is not None:
                 recorder.close()
 
+    def report(self, histogram: int, *, plan: RefinementPlan | str | None = None,
+               **kw):
+        """The :class:`~rietx.report.FitReport` for one histogram of the last fit.
+
+        One report per histogram (WP-1341).  Every Layer 0-2 statement is
+        about one pattern's residual against one compiled model, so each is
+        asked of histogram ``histogram``: its curves and statistics through
+        :meth:`RefinementResult.for_histogram`, its compiled model and values
+        for Layers 1-2, exactly as :meth:`Refinement.report
+        <rietx.refine.Refinement.report>` asks them of a single fit.  ``plan``
+        supplies the Layer-2 strategy veto.
+
+        The specimen has one crystallite size (WP-1131), and the report says
+        it once.  Its microstructure block is the joint result's, read off the
+        shared column at histogram 0's wavelength, so every histogram's report
+        quotes the same size.  The separability caveat beside it is the
+        report's own, from this histogram's 2θ range.
+
+        The background section reads this histogram's own absorption screen.
+        The identifiability section has no correlation, soft-mode or
+        exchangeability table, because the joint path does not run those
+        screens.
+
+        The report reads the result's curves, and a joint result's curves come
+        from the last stage's compile, sized at the values that stage started
+        from.  The single fit recompiles at its answer (#272) and the joint
+        path does not yet.  So a last stage that broadened the peaks leaves
+        their tails cut at the old windows, and Layer 0 reads the cut as
+        unmatched peaks.  On test_multi_histogram's WP-1131 size pair that is
+        44 and 27, where a compile at the answer gives 0 and 0 (WP-1341's
+        handover has the numbers).
+        """
+        from .report import build_report
+
+        if self._models is None or self.result_ is None:
+            raise RuntimeError("call fit() first")
+        n = self.n_histograms
+        if not 0 <= histogram < n:
+            raise IndexError(f"histogram {histogram} of a {n}-histogram fit")
+        if isinstance(plan, str):
+            plan = PLAN_PRESETS[plan]()
+        table = self.mtable.tables[histogram]
+        held = [_unscoped(p) for p in
+                (self.result_.stages[-1].held if self.result_.stages else [])
+                if not p.startswith("hist.") or p.startswith(f"hist.{histogram}.")]
+        held_set = set(held)
+        return build_report(
+            self.result_.for_histogram(histogram),
+            model=self._models[histogram], values=table.decode(table.x0()),
+            plan=plan, structure=self.mtable.structures[histogram], held=held,
+            # what ``Refinement._record_free_paths`` records: free, or held
+            # by the last stage
+            free_paths=[e.path for e in table.entries
+                        if e.vary or e.path in held_set], **kw)
+
     @contextmanager
     def _abandon_on_cancel(self, cancel, stage_name: str, completed: list, stream):
         """Make "the in-flight stage is abandoned" true of a joint fit.
@@ -1269,6 +1325,7 @@ class MultiHistogramRefinement:
         per_values, per_ycalc, per_ybkg, per_esds = [], [], [], []
         histograms: list[HistogramResult] = []
         top_bg: list[GuardFinding] = []
+        absorption_table: dict[str, float] = {}
         for h in range(n):
             table = mt.tables[h]
             model = models[h]
@@ -1301,10 +1358,13 @@ class MultiHistogramRefinement:
             j0, j1 = data_off[h], data_off[h] + n_data[h]
             if outcome.jac is not None and len(table.free_paths) > 1:
                 jh = np.asarray(outcome.jac)[j0:j1][:, cm]
-                for path, r2 in sorted(background_absorption(
-                        jh, table.free_paths,
-                        model.peak_component_prefixes()).items(),
-                                       key=lambda kv: -kv[1]):
+                screened = background_absorption(
+                    jh, table.free_paths, model.peak_component_prefixes())
+                # every screened pair, kept as evidence beside the verdicts
+                # below (``Identifiability``'s rule), scoped like them
+                absorption_table.update(
+                    {f"hist.{h}.{p}": r2 for p, r2 in screened.items()})
+                for path, r2 in sorted(screened.items(), key=lambda kv: -kv[1]):
                     if r2 > BACKGROUND_ABSORPTION_GUARD:
                         # ``hist.h.<path>`` is this surface's own addressing —
                         # the same prefix ``RefinedParameter.path`` uses for a
@@ -1536,6 +1596,11 @@ class MultiHistogramRefinement:
                 mt.structures[0], per_values[0],
                 wavelength=_longest_line_wavelength(models[0]),
                 esds=esd_hist0),
+            # each histogram's background screen, ``hist.<h>.``-scoped, so
+            # ``for_histogram`` hands a report its own (WP-1341); ``None``
+            # where nothing was screened, the single fit's empty state
+            identifiability=(Identifiability(background_absorption=absorption_table)
+                             if absorption_table else None),
             histograms=histograms)
 
     def _parameters(self, thetas, stderr, corr, at_bounds, esd0,
