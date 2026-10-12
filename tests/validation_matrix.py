@@ -416,6 +416,18 @@ CLAIMS: tuple[Claim, ...] = (
                  "degenerate plan",
     ),
     Claim(
+        "test_acceptance_lab6_cbn", "test_the_flat_widths_are_flagged_whatever_rounding_does",
+        "lab6_cbn", ("characterisation", "ceiling"),
+        "the degenerate fit's flat broadening directions raise "
+        "HIGH_CORRELATION and give no width an esd of 0, whichever sign "
+        "rounding gives their eigenvalues (WP-1930)",
+        reference="the Linux nightly from 0f30d584 on: no HIGH_CORRELATION on "
+                  "this fit, reproduced on macOS arm64 by these two 1e-14 "
+                  "nudges to w's start (six widths at an esd of 0)",
+        measured="macOS arm64, k in {0, +-1, +-3, +-7, +-20, 50}: "
+                 "HIGH_CORRELATION in all ten, widths' esds 82 to 2730",
+    ),
+    Claim(
         "test_acceptance_lab6_cbn", "test_the_shared_fit_reaches_one_minimum_on_every_platform",
         "lab6_cbn", ("characterisation", "ceiling"),
         "the shared-broadening fit reaches one minimum whatever the "

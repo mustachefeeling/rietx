@@ -378,6 +378,9 @@ def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
     rounding choose between two minima (issue #832).  Holding the triple, the
     protocol change this docstring once declined to smuggle into a bounds fix,
     is now the protocol, and nothing on the shared fit is flagged.
+
+    **The degenerate fit's half went silent on Linux after WP-1938** and is
+    the subject of the test below this one.
     """
     def corr(result):
         return [d for d in result.diagnostics if d.code == "HIGH_CORRELATION"]
@@ -396,6 +399,46 @@ def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
     assert any(set(d.where or []) & set(finding) for d in flagged), (
         "the degenerate fit's broadening split is not flagged: "
         f"{[(d.where, d.message) for d in flagged]}")
+
+
+#: Relative nudges to ``w``'s start, (1 + k·1e-14), that reproduced the Linux
+#: nightly's silence on macOS arm64 before WP-1930's covariance fix.
+FLAT_NUDGES = (1, 7)
+
+
+@pytest.mark.parametrize("k", FLAT_NUDGES)
+def test_the_flat_widths_are_flagged_whatever_rounding_does(k):
+    """The degenerate fit's five Lorentzian widths span two exactly flat
+    directions, and rounding must not decide whether anyone is told.
+
+    From WP-1938 on, those directions reached the covariance at eigenvalues of
+    either sign between 1e-16 and 4e-15 of the largest, against a cut of
+    1e-15.  ``pinv`` inverted a negative one with its sign, the six widths'
+    variances came out negative and were floored to an esd of exactly 0, and
+    ``HIGH_CORRELATION`` fell silent.  Linux nightlies from 0f30d584 on hit
+    it, and on macOS arm64 these two nudges did (zero HIGH_CORRELATION, six
+    "± 0" esds) while k = 0 did not.  Since WP-1930 a kept eigenvalue is
+    inverted by its magnitude (``statistics._psd_pinv``), so each nudge
+    reports the split and no width claims a precision.  Measured on macOS
+    arm64 over k in {0, ±1, ±3, ±7, ±20, 50}: HIGH_CORRELATION fired in all
+    ten, with the widths' esds at 82-2730.
+    """
+    if not PATTERN.exists():
+        pytest.skip("11-BM LaB6+cBN dataset not present")
+    data = rx.read_pattern(PATTERN)
+    structure, ins = _inputs()
+    ins.profile.w.value *= 1.0 + k * 1e-14
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(data, plan=PLAN_DEGENERATE, two_theta_limits=LIMITS)
+
+    widths = ("phases.0.lor_size", "phases.0.lor_strain",
+              "phases.1.lor_size", "phases.1.lor_strain",
+              "instrument.profile.x", "instrument.profile.y")
+    flagged = [d for d in result.diagnostics if d.code == "HIGH_CORRELATION"
+               and set(d.where or []) & set(widths)]
+    assert flagged, f"k = {k}: the broadening split raised no HIGH_CORRELATION"
+    zero = [p for p in widths if result.parameter(p).stderr == 0.0]
+    assert not zero, f"k = {k}: undetermined widths report an esd of 0: {zero}"
 
 
 def test_rwp_is_worse_than_topas_and_the_reason_is_the_peak_shape(shared):

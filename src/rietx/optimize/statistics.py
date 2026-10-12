@@ -140,11 +140,45 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     d = np.sqrt(np.diag(JTJ))
     live = d > 0.0
     inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
-    k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), rcond=PINV_RCOND,
-                       hermitian=True) * scale
+    k = _psd_pinv(JTJ * np.outer(inv_d, inv_d), PINV_RCOND) * scale
     if s is not None:
         inv_d = inv_d * s
     return k, inv_d, chi2_red
+
+
+def _psd_pinv(a: np.ndarray, rcond: float) -> np.ndarray:
+    """``np.linalg.pinv(a, rcond=rcond, hermitian=True)`` with every kept
+    eigenvalue inverted by its magnitude, so the inverse is PSD (WP-1930).
+
+    A normal matrix is PSD, but ``eigh`` returns an exactly flat direction at
+    a rounding-level eigenvalue of either sign: measured at −3.5e-15 to
+    +3.7e-15 of the largest on the LaB₆ + cBN fit whose five Lorentzian widths
+    are one quantity, against a cut of 1e-15.  ``pinv`` keeps any of them
+    above the cut and inverts it with its sign.  A positive one gives the flat
+    direction a huge variance and ρ = ±1, which is the honest answer.  A
+    negative one gives every column on it a negative variance, which
+    :func:`~rietx.optimize.least_squares.covariance_estimates` floors to an esd
+    of exactly 0 and a correlation of 0: six undetermined widths read
+    "± 0.000" and ``HIGH_CORRELATION`` fell silent.  Which of the two happened
+    was decided by rounding, so it split by platform.  Inverting the magnitude
+    gives the negative case the positive case's answer.
+
+    numpy's own steps are kept one for one, with only the sign left out of
+    ``vt``, so the result is bit-identical to ``pinv`` whenever no kept
+    eigenvalue is negative (``tests/test_covariance_scaling.py``).
+    """
+    lam, u = np.linalg.eigh(a)
+    s = np.abs(lam)
+    order = np.argsort(s)[..., ::-1]
+    s = np.take_along_axis(s, order, axis=-1)
+    u = np.take_along_axis(u, order[..., None, :], axis=-1)
+    # numpy moves sign(λ) into ``vt`` here; a PSD matrix has none to move
+    vt = np.transpose(u).conjugate()
+    cutoff = rcond * np.amax(s, axis=-1, keepdims=True)
+    large = s > cutoff
+    s = np.divide(1, s, where=large, out=s)
+    s[~large] = 0
+    return np.matmul(np.transpose(vt), np.multiply(s[..., None], np.transpose(u)))
 
 
 def discarded_directions(jac: np.ndarray) -> tuple[int, np.ndarray]:
@@ -192,7 +226,8 @@ def discarded_directions(jac: np.ndarray) -> tuple[int, np.ndarray]:
     n_gone = int(gone.sum()) - int((~live).sum())
     if n_gone < 1:
         return none
-    kept_var = (vec[:, ~gone] ** 2 / lam[~gone]).sum(axis=1)
+    # by magnitude, as :func:`_psd_pinv` inverts a kept eigenvalue
+    kept_var = (vec[:, ~gone] ** 2 / np.abs(lam[~gone])).sum(axis=1)
     lost_var = (vec[:, gone] ** 2).sum(axis=1) / cut
     touched = np.flatnonzero(live & (lost_var >= kept_var))
     return (n_gone, touched) if len(touched) >= 1 else none
@@ -225,6 +260,13 @@ def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     log "the correlation guard is undermined wherever conditioning is poor".
     ``hermitian=True`` routes through ``eigh``, which cannot break the symmetry,
     and caps the same cases at 1 + 4 ulp.
+
+    Symmetric is not PSD, though.  An exactly flat direction comes back at a
+    rounding-level eigenvalue of either sign, and ``pinv`` inverts a kept
+    negative one with its sign, giving negative variances.  So the solve is
+    :func:`_psd_pinv`, which is ``pinv`` with each kept eigenvalue inverted by
+    its magnitude (WP-1930).  Where no kept eigenvalue is negative, it returns
+    ``pinv``'s bits.
 
     The solve is fp64 unconditionally (architecture invariant 2): cond(JᵀJ) =
     cond(J)², so forming and inverting the normal matrix is the step reduced

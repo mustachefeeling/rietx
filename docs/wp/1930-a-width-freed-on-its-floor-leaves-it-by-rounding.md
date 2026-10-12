@@ -175,6 +175,14 @@ bits at the last nightly's tree (56427c4a). That nightly's Linux plot reads Rwp
       protocol is a rule an agent applies by hand, SKILL.md §2's seed rule.
       *The row went to `diagnostics.md`, beside the stage codes, paid for by
       two cuts; no hand rule, since the package now seeds.*
+- [x] The degenerate fit's `HIGH_CORRELATION` fell silent on every Linux
+      nightly from 0f30d584 (WP-1938's merge) on. Find why by measurement and
+      fix it where the covariance is built. *A flat direction's eigenvalue
+      came back at either sign and `pinv` inverted a negative one with it;
+      `statistics._psd_pinv` inverts by magnitude (2026-10-12).*
+- [ ] The macOS nightly's `test_high_correlation_dedup.py` silence over the
+      same runs, red on CI and green locally: name the cause or the next
+      measurement.
 
 ## Acceptance
 

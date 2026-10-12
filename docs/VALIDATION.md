@@ -244,6 +244,16 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Measured:** 0 findings on the shared-broadening plan, 15 on the degenerate plan
 
+#### `test_the_flat_widths_are_flagged_whatever_rounding_does`
+
+`characterisation` `ceiling` · dataset `lab6_cbn`
+
+**Claims:** the degenerate fit's flat broadening directions raise HIGH_CORRELATION and give no width an esd of 0, whichever sign rounding gives their eigenvalues (WP-1930)
+
+**Referenced to:** the Linux nightly from 0f30d584 on: no HIGH_CORRELATION on this fit, reproduced on macOS arm64 by these two 1e-14 nudges to w's start (six widths at an esd of 0)
+
+**Measured:** macOS arm64, k in {0, +-1, +-3, +-7, +-20, 50}: HIGH_CORRELATION in all ten, widths' esds 82 to 2730
+
 #### `test_the_shared_fit_reaches_one_minimum_on_every_platform`
 
 `characterisation` `ceiling` · dataset `lab6_cbn`
