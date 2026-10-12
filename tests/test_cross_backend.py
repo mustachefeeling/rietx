@@ -1049,16 +1049,18 @@ def test_a_zero_aperture_column_meets_its_one_sided_difference(name):
     largest column of 1.8e6, so it falls under ``DEAD_COL_FRAC`` once right.
     Wrong, it was 3360 on jax, because the FCJ kink was capped by ξ_max and the
     two tie at one zero aperture, where jax gives each side half the
-    derivative.  Fixed, jax meets the one-sided central difference to 1.5e-3;
-    the bar leaves 13× room for that difference's own truncation.
+    derivative.  Fixed, jax and torch meet the one-sided central difference to
+    1.5e-3; the bar leaves 13× room for that difference's own truncation.
     """
     model, table = _state("axial_one_zero")
     theta = _theta(model, table)
-    c = _labels(model, table).index("instrument.geometry.axial_hl")
-    ref = _central_fd_jacobian("axial_one_zero", model, table)(theta)[:, c]
-    col = _backend_jacobian(name)("axial_one_zero", model, table)(theta)[:, c]
-    err = np.linalg.norm(col - ref) / np.linalg.norm(ref)
-    assert err < 2e-2, f"{name} axial_hl at 0: rel-L2 {err:.3e} against central FD"
+    path = "instrument.geometry.axial_hl"
+    c = _labels(model, table).index(path)
+    ref = _central_fd_jacobian("axial_one_zero", model, table)(theta)[:, [c]]
+    col = _backend_jacobian(name)("axial_one_zero", model, table)(theta)[:, [c]]
+    # alone in its own slice, the column is the largest, so it is live
+    _assert_columns(ref, col, [path], rel_max=KINK_REL_L2_MAX,
+                    cos_min=KINK_COSINE_MIN, what=f"{name} at 0: ")
 
 
 @pytest.mark.parametrize("config", CONFIG_PARAMS)

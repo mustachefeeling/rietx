@@ -166,8 +166,9 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
     xi_max = xp.minimum(sl + hl, cap)
     ok = (xi_max > 0.0) & (sl >= 0.0) & (hl >= 0.0)
 
-    # capped by the tangent alone: |s − h| ≤ s + h, so capping by ξ_max too
-    # changes no value, but ties the two at one zero aperture, where a traced
+    # capped by the tangent alone: |s − h| ≤ s + h for apertures ≥ 0 (a
+    # negative one is masked by ``ok``), so capping by ξ_max too changes no
+    # selected value, but ties the two at one zero aperture, where a traced
     # backend splits the tie's derivative in half and the kink stops moving
     # with the zero aperture (WP-1953)
     xi_kink = xp.minimum(xp.abs(sl - hl), cap)
