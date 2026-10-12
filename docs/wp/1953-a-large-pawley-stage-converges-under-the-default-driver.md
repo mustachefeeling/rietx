@@ -77,6 +77,13 @@ promises less could fall back to it. That is a candidate, not a decision.
 
 ### Inherited
 
+- **2026-10-12, from WP-1954 (the 1.8.0 cut): the notes state this as a
+  known limit, and the cut does not wait.** The maintainer decided on
+  2026-10-12 that 1.8.0 ships without this WP. `docs/releases/1.8.0.md`
+  § Numbers that move carries a bullet quoting the FAP.XRA figures above and
+  naming this WP. If the fix merges before 1.8.0 is tagged, rewrite that
+  bullet to say what the fix changed, and the framing paragraph's sentence
+  that names the 128-column limit.
 - **2026-10-12, from WP-1929 (fifth session): on Linux arm64 the two-site
   class 0 winner is the swapped minimum.** A throwaway workflow ran
   `solve_magnetic` on the two-site Pnma set at `main` `869b6cf8` (run

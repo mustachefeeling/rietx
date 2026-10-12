@@ -88,8 +88,8 @@ was built from. Then start with [](quickstart.md).
 | `scipy` ≥ 1.11 | the bounded linear solves inside the default driver, and the `trf` driver |
 | `pydantic` ≥ 2.6 | the schemas: validation, defaults, JSON round-trip |
 | `gemmi` ≥ 0.6.5 | CIF reading, space groups, symmetry operations |
-| `spglib` ≥ 2.4 | site symmetry, Wyckoff positions, cell reduction |
-| `rietx-kernels` ≥ 1, < 2 | the compiled peak kernels, one wheel per platform ({ref}`the-compiled-kernels`) |
+| `spglib` ≥ 2.8 | site symmetry, Wyckoff positions, cell reduction |
+| `rietx-kernels` ≥ 1.1, < 2 | the compiled peak kernels, one wheel per platform ({ref}`the-compiled-kernels`) |
 | `matplotlib` ≥ 3.10 (≥ 3.10.5 on Python 3.14) | figures: `RefinementResult.plot`, `PatternData.plot` and the report figures |
 
 Those seven are the whole install, and nothing in that list is optional.
@@ -190,15 +190,17 @@ caps.features["compiled_kernels_active"]
 caps.compiled_kernels_unavailable
 ```
 
-The compiled and numpy paths agree to within one or two units in the last place,
-everywhere and on every platform. The accumulation is bit-for-bit identical,
-being multiplication and addition in a fixed order with no library function in
-it. The peak shapes call `exp`, whose last bit belongs to whichever library
-provides it, so they land on the same doubles on some platforms and one part in
-3e-17 away on others; peaks carrying the axial-divergence correction differ by
-about 1e-16 on all of them, a different summation order for the same quadrature.
-None of this is visible in a refined parameter or its esd. The structure figure
-calls no library function, so both paths draw the same picture to the bit.
+The accumulation is bit-for-bit identical on both paths, being multiplication
+and addition in a fixed order with no library function in it. The peak shapes
+call `exp`, whose last bit belongs to whichever library provides it, so they
+land on the same doubles on some platforms and one part in 3e-17 away on
+others. Peaks carrying the axial-divergence correction differ by about 1e-16, a
+different summation order for the same quadrature. From `rietx-kernels` 1.2.0,
+on x86-64, those peaks use a port of SLEEF's `exp`, held to 1.0 ulp. The arm64
+wheels keep the C library's. A slow test holds a whole fit on the kernels
+within 5 esd of the numpy path's, and on Linux x86-64 the gap measured
+0.42 esd. The structure figure calls no library function, so both paths draw
+the same picture to the bit.
 
 ## Checking an install
 

@@ -160,10 +160,11 @@ to move are declared rather than left to be inferred:
   the phase field that holds them, the parameter row's field that names a
   row's body, and the builders in
   `rietx.crystallography.bodies` shipped in 1.7.0 as the first piece of a
-  milestone that is still open. Torsions inside a body, riding hydrogens and a
-  fragment library are still to come, and each may add fields or change what
-  a body refines. A document that carries a body needs schema 0.43, and a build
-  older than 1.7.0 refuses it.
+  milestone that is still open. Torsions inside a body and
+  `Refinement.check_rigid_bodies` joined them in 1.8.0. Riding hydrogens and a fragment library are still to come, and each
+  may add fields or change what a body refines. A document that carries a body
+  needs schema 0.45, and a build older than 1.8.0 refuses it, even for a body
+  with no torsions.
 - The foreign-refinement readers are provisional as a subsystem.
   `read_project_model`, `identify_project_format`, `read_topas_inp`,
   `read_fullprof_pcr`, `read_gsas_exp` and the per-format models they answer
@@ -206,9 +207,11 @@ new major is an interface break, and it arrives with a rietx release that moves
 the pin. A new kernel is a minor release, and the rietx release that first calls
 it raises the floor. 1.1 added the structure figure's two kernels.
 
-The move from `numba` to the wheel changed no number a fit returns. The Rust
-kernels match the `numba` ones bit for bit on all five platforms the wheel
-ships for. Two things you could observe did change. `numba` is no longer
+The move from `numba` to the wheel changed no number a fit returns. Up to
+1.1.0 the Rust kernels matched the `numba` ones bit for bit on all five
+platforms the wheel ships for. From 1.2.0, on x86-64, the kernels for
+asymmetric peaks hold `exp` to 1.0 ulp, so a fit there can move within its
+esds. Two other things you could observe did change. `numba` is no longer
 installed with rietx. An install without the kernels now warns once per
 process, where an install without `numba` ran the numpy path in silence.
 

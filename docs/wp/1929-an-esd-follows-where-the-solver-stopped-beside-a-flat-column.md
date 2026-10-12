@@ -255,6 +255,16 @@ nothing or its esds, which under LM are 0.031 and 0.159 μ_B with the pair
 named. The 150 K Cr₂WO₆ class at k = (0, ½, ½) crawls under TRF too, ten
 continuations of 400 evaluations.
 
+**The 1.8.0 cut waits for this WP's last work** (WP-1954, the maintainer's
+call on 2026-10-12). After #909 merged, the maintainer asked for 1.8.0 to be
+cut once the remaining work here lands: the #831 Linux check and the
+named-variable task. Write each user-facing change into
+`docs/releases/1.8.0.md`'s sections as it lands. Its handover's list of esds
+moving by more than 1 % is the cut's re-measure list. WP-1954 re-measured
+#909's list into Part 1, the skill and `VALIDATION.md`. One test docstring
+it left: `test_magnetic_solve_acceptance.py`'s 150 K test still gives class
+3's moments esds of 2.3 and 0.5 μ_B, and on the merged tree they have none.
+
 ## Non-goals
 
 - A minimum that differs between platforms (LaB₆ + cBN): WP-1930.

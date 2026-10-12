@@ -42,6 +42,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1922](1922-a-rigid-body-the-data-reject-is-named.md) | A rigid body the data reject is named | 2026-10-11 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | 2026-10-09 | P1 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
+| [1954](1954-cut-1-8-0.md) | Cut 1.8.0 from what main holds | 2026-10-12 | — | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
 
@@ -620,6 +621,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1920](1920-the-api-index-splits-by-shape.md) | The API index splits by shape: another program's files go to `api-io.md` | ✅ 2026-10-11 | — | — |
 | [1928](1928-the-toy-anomalous-golden-reads-a-frozen-y-obs.md) | The toy_anomalous golden reads a frozen y_obs | ✅ 2026-10-08 | — | — |
 | [1941](1941-a-release-note-is-a-file-per-change.md) | A release note is a file per change | ⬜ | P3 | — |
+| [1954](1954-cut-1-8-0.md) | Cut 1.8.0 from what main holds | 🔄 2026-10-12 | — | [1546](1546-cut-1-7-0.md), [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 
