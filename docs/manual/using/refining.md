@@ -458,14 +458,14 @@ way to reduce χ² is to remove the magnetic intensity. Where it lands depends
 on the rest of the model: on the Cr₂WO₆ tutorial pattern at 150 K (GSAS-II
 tutorial *Magnetic-II*, HB-2A) the acceptance protocol this package ships
 (`tests/test_acceptance_magnetic.py`: u, v, w, x free in the width stage, from
-the ideal trirutile positions) leaves it at 0.067 μ_B with an esd of 0.83,
-twelve times larger, and the same stages from the tutorial's own starting
+the ideal trirutile positions) leaves it at 0.017 μ_B with an esd of 1.29,
+75 times larger, and the same stages from the tutorial's own starting
 structure drive it to the floor with an esd three orders of magnitude above
 it. Neither is a measurement. So
 `MomentEvidence.supported` is false when the modulus is below its floor or
 below three of its own esds, and the note quotes which. A modulus with no
 esd has no ratio to take, and `supported` is then `None`, not an answer. At 4 K the same model
-gives 2.124 ± 0.048, a ratio of 44, and the answer flips. That is the
+gives 2.124 ± 0.043, a ratio of 50, and the answer flips. That is the
 deliverable; a small moment with a small esd would not be.
 
 A peak on a forbidden lattice point is forbidden under the group the fit
@@ -587,10 +587,10 @@ back with no esd at all. That message names a cause only where it checked one:
 a magnetic component with no intensity (a zero moment), or the term on its
 zero floor. On the Cr₂WO₆ tutorial pattern at 4 K
 (k = 0, with magnetic-only intensity on the parent's absences) the size term
-comes back 0.034 ± 0.013°, 2.6 esds and so unmeasured, the strain term on its
-floor with no esd (also unmeasured), and the moment moves 2.124 ± 0.048 → 2.171 ± 0.043 μ_B. On
-the 150 K pattern, which has no order, both terms come back with esds tens to thousands
-of times their values.
+comes back 0.034 ± 0.024°, 1.4 esds and so unmeasured, the strain term on its
+floor at 0.000 ± 0.059° (also unmeasured), and the moment moves 2.124 ± 0.043 → 2.171 ± 0.035 μ_B. On
+the 150 K pattern, which has no order, both terms end on their floors with esds of
+101° and 223°.
 
 "Unmeasured" is not the same statement as "droppable". The plan fits the
 moment twice, at the off state in step 1 and with the widths free in step 3, and

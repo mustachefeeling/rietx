@@ -1488,7 +1488,7 @@ A magnetic moment on real neutron data, and the refusal of one. The pair is one 
 
 **Referenced to:** no certified moment exists; the band 1.9-2.3 mu_B is an envelope around GSAS-II's own 2.121 +/- 0.019 on the tutorial's steps (a black-box run, protocol NOT adopted) and the 2026-09-23 re-run's 2.078 +/- 0.066 from the tutorial's ICSD start -- never a cross-code bar
 
-**Measured:** |m| 2.124 +/- 0.048 mu_B (44 sigma, bar 10), a-component 0.9998 of |m|; Rwp 0.1042 against 0.2035 nuclear-only (bar 0.65x)
+**Measured:** |m| 2.124 +/- 0.043 mu_B (50 sigma, bar 10), a-component 0.9998 of |m|; Rwp 0.1042 against 0.2035 nuclear-only (bar 0.65x)
 
 #### `test_the_4k_moment_does_not_depend_on_its_in_plane_seed`
 
@@ -1498,7 +1498,7 @@ A magnetic moment on real neutron data, and the refusal of one. The pair is one 
 
 **Referenced to:** the same protocol from the other in-plane seed
 
-**Measured:** |m| agrees to 2.4e-8 mu_B (5e-7 esd; bar 0.1 esd); Rwp to 3e-11 relative
+**Measured:** |m| agrees to 2.4e-8 mu_B (6e-7 esd; bar 0.1 esd); Rwp to 3e-11 relative
 
 #### `test_the_150k_null_finds_no_moment`
 
@@ -1508,7 +1508,7 @@ A magnetic moment on real neutron data, and the refusal of one. The pair is one 
 
 **Referenced to:** the nuclear-only fit to the same 150 K pattern; the claim is inadmissibility (supported is False), not a value
 
-**Measured:** |m| 0.017 +/- 3.24 mu_B (0.005 sigma, bar 3); Rwp 0.099242 against 0.099242 nuclear-only, 1.8e-6 relative (bar 1e-3 relative). The esd grows as the modulus shrinks, since the moment's column vanishes at zero: TRF stopped at 0.067 +/- 0.83
+**Measured:** |m| 0.017 +/- 1.29 mu_B (0.013 sigma, bar 3); Rwp 0.099242 against 0.099242 nuclear-only, 1.8e-6 relative (bar 1e-3 relative). The esd grows as the modulus shrinks, since the moment's column vanishes at zero: TRF stopped at 0.067 +/- 0.83, and LM read 3.24 before WP-1929 left the stationary polar angle out of the covariance
 
 ### `tests/test_acceptance_magnetic_lamno3.py`
 
@@ -1522,7 +1522,7 @@ The second moment dataset, and the k = 0 case: LaMnO3 at 50 K on BT-1, from the 
 
 **Referenced to:** no reference magnitude: the tutorial quotes none.  The band's ceiling is Mn3+'s spin-only gS = 4 mu_B; its floor of 3.3 mu_B sits under every protocol variant measured (3.54-3.56 mu_B with the axial or Lorentzian widths freed or held) -- never a literature value
 
-**Measured:** |m| 3.558 +/- 0.048 mu_B (73 sigma, bar 10; 9.1 esd under 4 mu_B, bar 3), m = (3.543, 0, 0.325) mu_B: a-component 0.996 of |m| (bar 0.98), polar angle 1.5 esd from 90 deg (bar 3); Rwp 0.0631 against 0.1381 nuclear-only (bar 0.6x)
+**Measured:** |m| 3.558 +/- 0.044 mu_B (82 sigma, bar 10; 10.2 esd under 4 mu_B, bar 3), m = (3.543, 0, 0.325) mu_B: a-component 0.996 of |m| (bar 0.98); the polar angle ends 0.091 rad from 90 deg, where the symmetry fixes it, and has no esd (MOMENT_ANGLE_STATIONARY; it read 1.5 esd from 90 deg before WP-1929); Rwp 0.0631 against 0.1381 nuclear-only (bar 0.6x)
 
 #### `test_pn_ma_beats_pnma_at_the_tutorials_pair`
 
@@ -1532,7 +1532,7 @@ The second moment dataset, and the k = 0 case: LaMnO3 at 50 K on BT-1, from the 
 
 **Referenced to:** the Pnma fit on the same protocol.  The tutorial reads the same pair and reports Rwp ~8.7 % against ~10 % at its Step 7, a protocol not adopted here
 
-**Measured:** Rwp 0.0631 against 0.0844 (ratio 0.75, bar 0.85); chi2 over 32.8-35.0 deg 67 against 2711 (ratio 0.025, bar 0.1); Pnma |m| 3.335 +/- 0.079 mu_B, c-component 0.996 of |m| (bar 0.98)
+**Measured:** Rwp 0.0631 against 0.0844 (ratio 0.75, bar 0.85); chi2 over 32.8-35.0 deg 67 against 2711 (ratio 0.025, bar 0.1); Pnma |m| 3.335 +/- 0.069 mu_B, c-component 0.996 of |m| (bar 0.98)
 
 ## The one default this matrix decided
 
