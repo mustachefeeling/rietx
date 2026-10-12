@@ -1,9 +1,9 @@
 # WP-1953 — a large Pawley stage converges under the default driver
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — the FCJ limit and the projected-CG Pawley step in PR #918, the held column scale and a measured curvature in PR #923; the Linux arm64 two-site winner open
+Milestone: unscheduled · Status: 🔄 2026-10-12 — the FCJ limit and the projected-CG Pawley step in PR #918, the held column scale and a measured curvature in PR #923; the Linux arm64 two-site winner measured 2026-10-13, the truth on all three runners
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-12 — was P1: PR #918 fixes the Windows gate's `test_e8`, and PR #923 ends LM's crawl beside a vanishing column, which reported `converged` far from a minimum on magnetic fits; what remains is one measurement on Linux arm64
+Priority: P2 2026-10-12 — was P1: PR #918 fixes the Windows gate's `test_e8`, and PR #923 ends LM's crawl beside a vanishing column, which reported `converged` far from a minimum on magnetic fits; the one Linux arm64 measurement left was taken 2026-10-13
 
 ## Goal
 
@@ -182,10 +182,11 @@ and Mn2 at 3.49821 μ_B, χ²_red 1.0574924. `ubuntu-latest` has Mn1 at 3.49778,
 `test_the_two_site_winner_finds_each_site_its_own_moment` would fail on arm64
 Linux, which no CI job runs slow. Not diagnosed: whether the simulated
 pattern is bit-identical across the three, and which start reached which
-minimum. *Superseded 2026-10-13:* under the held scale and the measured
-curvature every runner picks the truth, and the Linux pattern is not
-macOS's (the task below). The swapped point sits 0.66 higher in χ² by the test's docstring and
+minimum. The swapped point sits 0.66 higher in χ² by the test's docstring and
 arm64's winner only 0.11 above macOS's, so the pattern itself may differ.
+*Superseded 2026-10-13:* under the held scale and the measured curvature
+every runner picks the truth. The Linux pattern does differ from macOS's, but
+it did not cause the swap (the task below).
 
 ### The step above 128 columns, measured (2026-10-12)
 

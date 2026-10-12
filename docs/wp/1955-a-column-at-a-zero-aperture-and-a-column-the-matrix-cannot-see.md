@@ -39,7 +39,8 @@ measured.
 **The matrix's cut.** `test_cross_backend.py` treats a column as dead when its
 norm is under `DEAD_COL_FRAC` (1e-6) of the largest column. The axial column at
 H/L = 0 is 0.047 against a largest of 1.82e6, so every backend row skips it.
-That is why the traced columns' error (3360 on jax, a tie at the FCJ kink) went
+That is why the traced columns' error (a jax column of norm 3360 against the
+reference's 0.047, from a tie at the FCJ kink) went
 unseen until CI's jax job hit a different config, and why #918 added a
 dedicated test. Any column small beside the largest escapes the same way: a
 moment angle near a fixed direction, a weak phase, a parameter in small units.
