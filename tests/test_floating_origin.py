@@ -393,3 +393,68 @@ def test_zincite_stays_in_the_cell_and_quotes_the_honest_esd(zincite_fits,
         if line.split()[:2] in (["Zn", "Zn"], ["O", "O"]):
             sites.setdefault(line.split()[0], line.split()[4])
     assert "(" not in sites["Zn"] and "(" in sites["O"]
+
+
+OUT = __import__("pathlib").Path(__file__).parent / "output"
+
+
+def _save_fit_png(result, name: str, **kw) -> None:
+    """obs/calc/diff to ``tests/output/`` (gitignored), for looking at."""
+    import matplotlib.pyplot as plt
+
+    from rietx.viz.plots import plot_result
+
+    OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(OUT / f"{name}.png"), **kw)
+    plt.close("all")
+    assert (OUT / f"{name}.png").stat().st_size > 0
+
+
+@pytest.mark.xdist_group("floating-origin-zincite")
+def test_zincite_fit_pictures(zincite_fits):
+    """Whole range and the 30-40° triplet, held and unheld: the pictures agree
+    because the hold changes no intensity, only what the coordinates mean."""
+    for (solver, origin), (_, result) in zincite_fits.items():
+        name = f"floating_origin_zincite_{solver}_{origin or 'free'}"
+        _save_fit_png(result, name)
+        _save_fit_png(result, f"{name}_zoom", two_theta_range=(30.0, 40.0))
+    held = zincite_fits["lm", "hold"][1].statistics.rwp
+    free = zincite_fits["lm", None][1].statistics.rwp
+    assert held == pytest.approx(free, rel=1e-6)
+
+
+# ------------------------------------------ a non-polar group: nothing fires
+@pytest.mark.parametrize("phase", [
+    rx.Phase(name="p212121", space_group="P 21 21 21", cell=_cell(5.1, 6.3, 7.4),
+             scale=rx.Parameter(value=0.01),
+             atoms=[_atom("Si", "Si", 0.11, 0.23, 0.37),
+                    _atom("O", "O", 0.41, 0.07, 0.19)]),
+    rx.Phase(name="pnma", space_group="P n m a", cell=_cell(5.7, 7.7, 5.5),
+             scale=rx.Parameter(value=0.01),
+             atoms=[_atom("La", "La", 0.05, 0.25, 0.99),
+                    _atom("O", "O", 0.21, 0.04, 0.29)]),
+], ids=["P212121", "Pnma"])
+def test_a_non_polar_phase_fits_the_same_declared_or_not(phase):
+    """The declaration is a no-op off a polar group: same free set, same
+    numbers bit for bit, and no origin diagnostic."""
+    grid = np.arange(15.0, 90.0, 0.03)
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    truth = rx.Refinement(rx.Structure(phases=[phase]), ins, history=False)
+    y = np.asarray(truth.predict(grid)) + 40.0
+    y = np.maximum(y + np.random.default_rng(5).normal(
+        scale=np.sqrt(np.maximum(y, 1.0))), 0)
+    data = rx.PatternData(two_theta=grid.tolist(), intensity=y.tolist())
+    results = {}
+    for origin in (None, "hold"):
+        start = phase.model_copy(deep=True)
+        start.floating_origin = origin
+        start.atoms[0].x.value += 0.01
+        ref = rx.Refinement(rx.Structure(phases=[start]), ins, history=False)
+        results[origin] = ref.fit(data, plan=PLAN, telemetry=False)
+    off, on = results[None], results["hold"]
+    assert ({p.path for p in on.parameters if p.vary}
+            == {p.path for p in off.parameters if p.vary})
+    assert [p.value for p in on.parameters] == [p.value for p in off.parameters]
+    assert not {d.code for d in on.diagnostics} & {
+        "ORIGIN_FIXED_ON_POLAR_AXIS", "ORIGIN_NOT_FIXED"}
+    _save_fit_png(on, f"floating_origin_nonpolar_{phase.name}")

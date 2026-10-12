@@ -156,7 +156,12 @@ Licensing: SHELXL is closed. Use the paper only.
       `par-origin`. Part 1 rewrites the `concepts.md` paragraph around the
       field and adds the origin hold to `model.md`'s held-reasons table. The
       1.9.0 staged notes carry the addition.*
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/` for the ZnO case.
+- [x] Tests + obs/calc/diff PNGs to `tests/output/` for the ZnO case.
+      *Done 2026-10-12: `tests/test_floating_origin.py` writes the three
+      zincite fits (LM unheld, LM and TRF held), whole range and 30-40°, and
+      checked by eye they are the same picture at Rwp 0.0993. A P 2₁2₁2₁
+      and a Pnma fixture fit to the same free set and the same values bit
+      for bit, declared or not, and raise no origin code.*
 - [ ] Skill: a row keyed by the new code. `references/diagnostics.md` is closed
       to growth (`tests/skill_caps.py`), so pay for it with a cut, or let
       the diagnostic's own `suggestion` carry it.
