@@ -1,6 +1,6 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — flag, FLOOR_HIT and profile_interval landed; the stationary-angle rule awaits a choice
+Milestone: unscheduled · Status: 🔄 2026-10-12 — flag, FLOOR_HIT and profile_interval landed; the Δχ² rule chosen for the stationary angle, its cut measured next
 Track: What fires, and what stays silent
 Depends on: 1938 (physical coordinates, which remove the point-dependence this WP reports on)
 Priority: P1 2026-10-11 — was P2: 1938 landed (#883), its last blocker, so the reporting rule and the floor diagnostic can start on physical coordinates under the LM default
@@ -321,6 +321,16 @@ continuations of 400 evaluations.
       0.00150-0.00151 and 0.00111-0.00112, ρ −0.24. In full they are 0.031
       and 0.159, and with the exact column (WP-1953's branch) 0.0043 and
       0.024, so this half is needed either way.
+      **Decided 2026-10-12 (maintainer, fourth session): the Δχ² rule.**
+      For one angle at its own minimum a distance δ from the stationary
+      direction, Δχ²/(χ²_red·f²) = (δ/σ)²/4, so a Δχ² cut of 3.84 is a
+      distance of 3.92σ. The two rules differ only where angles couple, and
+      there the distance rule reads σ off the covariance it is repairing.
+      The cut is still open. The pattern is even in δ, so "on the direction"
+      is the boundary of δ² ≥ 0 and Self & Liang's mixture gives 2.71
+      (3.29σ), the cut `profile_interval` uses on a bound. The cut is fixed
+      after Δχ² is measured at the three class-0 stops and the four
+      determined tilts.
 - [x] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
       says so); WP-1915's indexing propagation reads the same covariance.
 - [x] (moved to WP-1953, 2026-10-12) The analytic azimuth column at φ = π: check it against an exact oracle
