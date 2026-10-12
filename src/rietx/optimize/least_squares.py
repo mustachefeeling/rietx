@@ -332,12 +332,15 @@ def covariance_jacobian(outcome: LSQOutcome, free_paths: list[str]):
 
 
 def rechart_outcome(outcome: LSQOutcome, theta: np.ndarray,
-                    signs: np.ndarray | None) -> LSQOutcome:
+                    signs: np.ndarray | None,
+                    free_paths: list[str] | None = None) -> LSQOutcome:
     """``outcome`` restated in the chart the table committed it in.
 
     ``theta`` is the committed table's ``x0()``; ``signs`` is what
     ``ParameterTable.commit`` returned.  ``None`` (nothing moved) returns
-    ``outcome``.  Two shapes:
+    ``outcome``.  ``free_paths`` names the columns, so that each
+    :attr:`LSQOutcome.moment_angle_tests` round's ``stationary_at`` moves with
+    its angle (:func:`_rechart_stationary`).  Two shapes:
 
     * a vector of ±1 per free column (#604): a moment block moved into its
       principal chart, the same moment in different numbers.  A Jacobian
@@ -358,8 +361,11 @@ def rechart_outcome(outcome: LSQOutcome, theta: np.ndarray,
     if signs is None:
         return outcome
     s = np.asarray(signs, dtype=np.float64)
+    tests = _rechart_stationary(outcome, theta,
+                                np.diag(s) if s.ndim == 2 else s, free_paths)
     if s.ndim == 2:
-        return _rechart_matrix(outcome, theta, s)
+        return replace(_rechart_matrix(outcome, theta, s),
+                       moment_angle_tests=tests)
 
     def padded(n: int) -> np.ndarray:
         # a Pawley block rides after the table columns and never moves
@@ -376,7 +382,34 @@ def rechart_outcome(outcome: LSQOutcome, theta: np.ndarray,
     if cosine is not None:
         cosine = np.asarray(cosine) * padded(len(cosine))
     return replace(outcome, theta=np.asarray(theta, dtype=np.float64), jac=jac,
-                   correlation=corr, residual_cosine=cosine)
+                   correlation=corr, residual_cosine=cosine,
+                   moment_angle_tests=tests)
+
+
+def _rechart_stationary(outcome: LSQOutcome, theta: np.ndarray,
+                        slope: np.ndarray, free_paths: list[str] | None
+                        ) -> list[MomentAngleTest] | None:
+    """``outcome.moment_angle_tests`` with ``stationary_at`` in the new chart.
+
+    A chart move is affine per angle with slope ±1 (a whole turn, or a
+    reflection that negates and shifts), so a point ``d`` from the old value
+    lands ``slope·d`` from the new one.  Unchanged without ``free_paths``.
+    """
+    tests = outcome.moment_angle_tests
+    if not tests or free_paths is None:
+        return tests
+    index = {p: i for i, p in enumerate(free_paths)}
+    old = np.asarray(outcome.theta, dtype=np.float64)
+    new = np.asarray(theta, dtype=np.float64)
+
+    def moved(p: str, v: float) -> float:
+        i = index.get(p)
+        if i is None or i >= len(slope):
+            return v
+        return float(new[i] + slope[i] * (v - old[i]))
+
+    return [t.model_copy(update={"stationary_at": {
+        p: moved(p, v) for p, v in t.stationary_at.items()}}) for t in tests]
 
 
 def _rechart_matrix(outcome: LSQOutcome, theta: np.ndarray,
@@ -737,21 +770,29 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
         k = len(tested)
         paths = [free_paths[i] for i in tested]
         cut = chi_bar_squared_quantile(STATIONARY_ANGLE_LEVEL, k)
-        point = _joint_newton(r, x, r_stop, tested,
-                              np.array([reference[i] for i in tested]))
-        statistic = None
-        if point.reached:
-            statistic = _refitted_increase(jac_data, tested, r_stop,
-                                           point.resid) / scale
-            if not np.isfinite(statistic):
-                statistic = None
-        # where the columns vanish, so a reader can see how far the stop was.
+        try:
+            point = _joint_newton(r, x, r_stop, tested,
+                                  np.array([reference[i] for i in tested]))
+            statistic = None
+            if point.reached:
+                statistic = _refitted_increase(jac_data, tested, r_stop,
+                                               point.resid) / scale
+                if not np.isfinite(statistic):
+                    statistic = None
+        except np.linalg.LinAlgError:
+            # ``_guarded_covariance``'s rule (#225): a least-squares solve that
+            # does not converge must not discard the answer the solver already
+            # returned.  The columns stay in the covariance, as before WP-1929,
+            # and the rounds that completed are the record
+            break
         # An angle is 2π-periodic and a Newton step can land on another image
         # of the same direction (87π from a stop at 3.121 on Cr₂WO₆ at 4 K),
-        # so the image nearest the fitted value is the one recorded
-        stationary_at = ({p: float(x[i] + math.remainder(point.theta[i] - x[i],
-                                                         2.0 * math.pi))
-                          for p, i in zip(paths, tested, strict=True)}
+        # so every distance from the stop is read to the nearest image
+        shift = np.array([math.remainder(point.theta[i] - x[i], 2.0 * math.pi)
+                          for i in tested])
+        # where the columns vanish, so a reader can see how far the stop was
+        stationary_at = ({p: float(x[i] + s)
+                          for p, i, s in zip(paths, tested, shift, strict=True)}
                          if point.reached else {})
         if statistic is not None and statistic <= cut:
             half = _half_widths(point.curvature_diag, point.resid, scale)
@@ -761,7 +802,7 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
                 half_widths={p: w for p, w in zip(
                     paths, half, strict=True) if w is not None}))
             return rounds, list(tested)
-        rounds.append(MomentAngleTest(paths=paths, reached=statistic is not None,
+        rounds.append(MomentAngleTest(paths=paths, reached=point.reached,
                                       statistic=statistic, cut=cut, zeroed=False,
                                       stationary_at=stationary_at))
         if k == 1:
@@ -770,12 +811,11 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
             drop = int(np.argmax(np.where(np.isfinite(point.ratios),
                                           point.ratios, np.inf)))
         else:
-            delta = point.theta[tested] - x[tested]
             drop = int(np.argmax([
                 0.5 * float(np.linalg.norm(point.curvature_stop[:, a, a]))
-                * delta[a] ** 2 for a in range(k)]))
+                * shift[a] ** 2 for a in range(k)]))
         tested = tested[:drop] + tested[drop + 1:]
-    return rounds, []
+    return rounds or None, []
 
 
 def _without_columns(jac, columns: list[int]):

@@ -233,6 +233,8 @@ def moment_angle_stationary_diagnostics(stage) -> list[Diagnostic]:
     round passed, including where no test ran.  ``value`` is the passing
     round's statistic, and ``where`` its angles.
     """
+    from ..optimize.least_squares import STATIONARY_ANGLE_LEVEL
+
     tests = getattr(stage, "moment_angle_tests", None) or []
     passed = next((t for t in tests if t.zeroed), None)
     if passed is None:
@@ -247,7 +249,8 @@ def moment_angle_stationary_diagnostics(stage) -> list[Diagnostic]:
         f"onto that direction, the other parameters refitted, changes the data "
         f"chi2 by {passed.statistic:.3g} x chi2_red x f^2, within the cut of "
         f"{passed.cut:.3g} for {k} one-sided "
-        f"{'direction' if k == 1 else 'directions'} at 95 %. "
+        f"{'direction' if k == 1 else 'directions'} at "
+        f"{100 * STATIONARY_ANGLE_LEVEL:g} %. "
         f"{'Its column' if k == 1 else 'Their columns'} left the covariance, "
         f"so {'it carries' if k == 1 else 'they carry'} no esd and the other "
         f"esds no longer depend on where the solver stopped beside "

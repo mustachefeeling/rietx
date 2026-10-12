@@ -3840,7 +3840,8 @@ class Refinement:
         # outcome is restated in that chart so every later reader of its
         # theta, Jacobian and correlations describes the values committed
         signs = table.commit(outcome.theta)
-        outcome = rechart_outcome(outcome, table.x0(), signs)
+        outcome = rechart_outcome(outcome, table.x0(), signs,
+                                  table.free_paths)
         # A phase can stay comfortably significant (PHASE_SUPPORT_SIGMA) the
         # whole time and its cell still walk to nonsense — a joint
         # degeneracy with another free phase's cell, invisible to the
@@ -4023,7 +4024,8 @@ class Refinement:
                 stage=stage.name, backend=self._backend,
                 solver=self._solver, cancel=cancel, **stage_ftol)
             signs = table.commit(second.theta)
-            second = rechart_outcome(second, table.x0(), signs)
+            second = rechart_outcome(second, table.x0(), signs,
+                                     table.free_paths)
             second_runaway = clamp_cell_runaway(table, start_values)
             if second_runaway:
                 table.refresh_ties()
