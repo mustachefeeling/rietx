@@ -75,6 +75,53 @@ argument (Nocedal & Wright 2006, *Numerical Optimization*, §4.1-4.2). The
 projected-gradient step along −b is cheap at any size, so a step that
 promises less could fall back to it. That is a candidate, not a decision.
 
+### Inherited
+
+- **2026-10-12, from WP-1929: the esd half of the stationary angle has
+  landed.** `least_squares.stationary_angle_test` zeroes a passing angle's
+  column for the covariance, with its own central differences, so the parked
+  exact-column fix no longer moves the esds of an angle it zeroes. It still
+  decides the column the driver steps on (the forward quotient's I''·h/2),
+  and the esds of an angle the test keeps. When the branch lands, re-measure
+  the two-site Pnma winner: its moduli esds should stay 0.00150 / 0.00111 μ_B.
+- **2026-10-12, from WP-1929 (maintainer's call that day): LM also stops
+  early beside a vanishing column.** A second crawl in the same seam, moved
+  here because it is the same `lm.py` step and stop and the same grid to
+  re-measure. A moment angle's column scales with its modulus and vanishes at
+  a direction the symmetry fixes. `_solve_step` scales every column to unit
+  norm, so that angle takes the largest step, and λ grows until every
+  parameter crawls. `ftol_runs` then fires on three tiny decreases in a row
+  and reports `converged`. Measured in WP-1938 D12 (macOS arm64, `[dev,jax]`):
+  the two-site Pnma set (`tests/test_pair_diagnostic_class.py`) released
+  stopped at χ² 454 660 with λ 5e7-7e9, against 2555.8 under TRF.
+  `solve_magnetic` frees the moduli first (`magnetic.SOLVE_STAGE_NAMES`) and
+  reaches 2556.06, but a plan a user builds gets no such stage.
+  `tests/test_magnetic.py`'s `_LM_FALSE_CONVERGENCE` row is the same stop on
+  one site (λ ≈ 1e11, χ²_red 11.03; a fresh LM solve from there reaches
+  χ² 4e-16 in 17 evaluations) and stays a strict xfail until this lands. Two
+  remedies were named and not measured: count a decrease toward `ftol_runs`
+  only while λ is small, and give an angle column a scale floor from its
+  finite-rotation response. MINPACK's `mode=1` scaling (each column's
+  largest norm so far) is the documented form of the second. Either moves
+  every default fit's iterates, so the goldens and the acceptance grid are
+  re-measured. WP-1929 keeps the esd half of the stationary angle.
+- **2026-10-12, from WP-1929: the exact angle column, parked on branch
+  `wp1953-central-angle-columns` (`87c6d6de`, cut from `main`, no PR).** The
+  analytic azimuth column at a direction the symmetry fixes was not zero.
+  `optimize/least_squares._peak_chain_column` forward-differences each
+  reflection's scalars with h = 1e-6·max(1, |φ|), and at a stationary point
+  that quotient is I''·h/2: 0.009801 (Mn1) and 0.001328 (Mn2) on the two-site
+  Pnma set, issue #831's numbers, and 0.1038 / 0.0042 on the polar angles at
+  θ = π/2. Central differences at h = 1e-2…1e-8 give ≤ 2e-12. The branch
+  differences moment angles centrally and adds a `magnetic_stationary`
+  cross-backend config plus an exact-zero test; both fail before (rel-L2
+  7.79e-3 against the 5e-3 bar) and pass after. It is parked because the
+  exact zero column sets off the crawl above: under LM,
+  `test_magnetic_moment_frame` [103.0] goes from χ²_red 0.978 to 5.861,
+  still `converged`, and [101.1] from 0.978226 to 0.979134. Under TRF all six
+  arms keep 0.978226. Land it with the driver fix and re-measure those four
+  tests (macOS arm64, `[dev]`, WP-1929's lane).
+
 ## Non-goals
 
 - When a stage that is improving little should stop and say so: WP-1334.

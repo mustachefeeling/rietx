@@ -543,7 +543,7 @@ That is what `at_bound` is for, and it has three states rather than two:
 
 | Value | Meaning |
 |---|---|
-| `True` | the fit stopped against a bound; the same rows the `BOUND_HIT` diagnostic names |
+| `True` | the fit stopped against a bound; the same rows the `BOUND_HIT` and `FLOOR_HIT` diagnostics name |
 | `False` | tested, and interior |
 | `None` | not tested, so no answer either way |
 
@@ -554,18 +554,24 @@ behind it has nothing to report: [`replay`](history.md) recomputes a recorded
 node's curves without running the guard, so every one of its rows is `None`.
 A free scale or width on its floor of 0 is tested like any other bound. An
 absent phase's scale is the usual case, and it reads `True` when the data push
-it onto that floor.
+it onto that floor. It keeps its value and its esd, and so does every other
+row: no esd is computed as if the floored row were fixed. A floor reports as
+`FLOOR_HIT` (a lower bound of 0, or W's floor) and any other bound as
+`BOUND_HIT`, because only the second can be widened. The number to quote for
+such a row is its profile interval, which [](#an-interval-for-a-row-on-its-bound)
+describes.
 
-What counts as being on a bound is the solver's own test rather than a second
-one. A value is on a bound when it sits within 1e-10 of that bound's own
-magnitude, floored at 1, which is the rule `scipy.optimize.least_squares` uses
-to fill its `active_mask`. The test is relative to the bound it is near and
-never to the gap between the two, so writing `min=1e-14, max=1e14` to mean
-"leave this alone" does not make every value in between read as pinned.
+What counts as being on a bound depends on the solver. Under the default
+`solver="lm"` a row is on its bound when the step landed it exactly there and
+the data still push it outward. Under `solver="trf"` the value only ever comes
+close, so a row is on its bound when it sits within a hundredth of its own esd
+of the limit and the residual still pushes it outward. LM takes the second
+test too when a stage frees more than 128 columns. Neither test reads distance alone, so writing `min=1e-14, max=1e14` to
+mean "leave this alone" does not make a value in between read as pinned.
 
 Both channels carry the same fact, and by construction rather than by agreement.
-The flag is the `BOUND_HIT` findings projected onto the rows, from one bound
-test. Read whichever suits the shape of your code: the diagnostic when you want
+The flag is the `BOUND_HIT` and `FLOOR_HIT` findings projected onto the rows,
+from one bound test. Read whichever suits the shape of your code: the diagnostic when you want
 the list, the flag when you are already iterating rows.
 
 The two views differ in size, and the difference is the point. A single-phase
@@ -604,3 +610,97 @@ having to try it and read the error.
 {doc}`the agent skill <skill>`
 §2 has the order to free them in.
 :::
+
+(an-interval-for-a-row-on-its-bound)=
+### An interval for a row on its bound
+
+An esd read as value ± esd is symmetric. On a bound that interval reaches into
+values the range forbids, and the estimate there has no symmetric sampling
+distribution to give it meaning. `Refinement.profile_interval` gives such a row
+a range to quote. It is a profile interval:
+
+1. It pins the parameter at a value and refits everything the last fit freed.
+2. It reads the data's χ² there.
+3. It finds where that χ² has risen by a threshold, on each side that is open.
+
+<!-- api-doc: no-exec — needs a fitted refinement; tests/test_parameter_interval.py runs this call -->
+```python
+interval = ref.profile_interval(data, "instrument.profile.y")
+print(interval.lower, interval.upper, interval.one_sided)
+```
+
+A row whose `RefinedParameter.at_bound` is true gets a one-sided interval. The
+bound is one end. The other is where χ² has risen by 2.71 × χ²_red × f², with f
+the fit's `Statistics.esd_inflation`. Any other row gets a two-sided interval,
+at 3.84 × χ²_red × f² on each side. Both numbers are 95 % points, and `level`
+moves them. The two factors put the threshold on the scale of the esds, so on a
+quadratic profile a two-sided interval is the value ± 1.96 esd.
+
+The BT-1 neutron fit in the test suite shows what the esd cannot. Its
+`instrument.profile.y` refines to 0 ± 0.018. The interval runs from 0 to
+0.0166. A parabola with the esd's curvature would reach 0.0298 (1.645 esd), so
+the profile ends at about half that. The data push y below
+0, so χ² climbs from the floor faster than a parabola. Its neighbour
+`instrument.profile.x` sits at 0.0386 ± 0.0098 and gets 0.0255 to 0.0453, 1.34
+esd below and 0.68 above. The two trade against each other with a correlation
+of −0.95. Raising x would need y to fall below 0. The floor forbids that, so
+the upper side is short.
+
+Each side steps out by 1, 2, 4, … esd until χ² passes the threshold. It then
+solves for the end to a thousandth of an esd. A side that reaches the
+parameter's own limit first reports the limit as its end. Every pinned value is
+refitted until its χ² stops falling, because a stage keeps the peak windows it
+sized when it started. On BT-1 those windows also make the profile step by up to
+a tenth of the threshold between nearby values, so an end there is good to a few
+per cent whatever its tolerance. The two BT-1 intervals took 19 and 44 refits,
+3 s and 7 s. `max_refits` caps each side at {{ PARAMETER_INTERVAL_MAX_REFITS }}
+by default. Every refit runs on a branch, so the working state,
+`Refinement.result_` and the history's HEAD are left as they were. A fit must
+have run, and the path must have been free in it. A tied, locked or fixed path
+is refused with the reason.
+
+`ParameterInterval` is the answer.
+
+| Field | Holds |
+|---|---|
+| `ParameterInterval.path` | the parameter profiled |
+| `ParameterInterval.value` | the fit's value, copied from its result row |
+| `ParameterInterval.stderr` | the fit's esd for it |
+| `ParameterInterval.at_bound` | the row's `at_bound`, copied |
+| `ParameterInterval.level` | the confidence level |
+| `ParameterInterval.one_sided` | whether the bound is one end |
+| `ParameterInterval.quantile` | the χ²₁ point the threshold is built from, 3.84 or 2.71 at 95 % |
+| `ParameterInterval.delta_chi2_cut` | the threshold in χ², the quantile × χ²_red × f² |
+| `ParameterInterval.lower` | the lower end, or `None` where that side found none |
+| `ParameterInterval.upper` | the upper end, or `None` where that side found none |
+| `ParameterInterval.lower_stop` | why the lower side stopped |
+| `ParameterInterval.upper_stop` | why the upper side stopped |
+| `ParameterInterval.chi2_fit` | the fit's own data χ², not reduced |
+| `ParameterInterval.chi2_lowest` | the lowest data χ² found, the fit's included |
+| `ParameterInterval.fit_is_minimum` | whether every refit stayed at or above the fit's χ² |
+| `ParameterInterval.points` | one `ParameterIntervalPoint` per pinned value, in the order they ran |
+| `ParameterInterval.n_refits` | the refits those points took |
+
+| Field | Holds |
+|---|---|
+| `ParameterIntervalPoint.value` | the pinned value |
+| `ParameterIntervalPoint.runs` | how many refits it took to settle |
+| `ParameterIntervalPoint.chi2` | the lowest data χ² those refits reached |
+| `ParameterIntervalPoint.delta_chi2` | its distance above `ParameterInterval.chi2_fit`, negative below it |
+| `ParameterIntervalPoint.status` | how that refit's stage ended |
+| `ParameterIntervalPoint.error` | why a refit raised |
+| `ParameterIntervalPoint.node_id` | the history node that refit recorded |
+
+A side stops for one of four reasons.
+
+| Stop | Meaning |
+|---|---|
+| `"threshold"` | χ² rose by the threshold, and the end is that point |
+| `"bound"` | the side reached the parameter's own limit first, and the end is the limit; a one-sided interval's bounded end reads this |
+| `"refits"` | the side ran out of refits, and has no end |
+| `"error"` | a refit raised, and the side has no end |
+
+When `ParameterInterval.fit_is_minimum` is `False`, a refit found χ² below the
+fit's by more than 1 % of the threshold. The fit did not reach the minimum along
+this parameter. The ends are measured from the fit, so they are too wide. Refit
+before quoting them.

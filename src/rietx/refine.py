@@ -23,6 +23,7 @@ import numpy as np
 if TYPE_CHECKING:
     from .io.exporters import ReflectionRow
     from .schemas.fraction import FractionProfile
+    from .schemas.interval import ParameterInterval
     from .schemas.results import QuantitativePhaseAnalysis
     from .schemas.suggest import SuggestionResult
 
@@ -35,6 +36,12 @@ from .background.diagnostics import (
     _dead_interval,
     dead_channels,
     sampling_steps_per_fwhm,
+)
+from .crystallography.magnetic.moments import (
+    MOMENT_DIRECTION_SUPPORT,
+)
+from .crystallography.magnetic.moments import (
+    MOMENT_DOF_PATH as _MOMENT_DOF,
 )
 from .crystallography.magnetic.scattering import check_group_is_structure_symmetry
 from .crystallography.symmetry import reflection_label, reflection_label_row
@@ -59,7 +66,6 @@ from .model.forward import (
 from .model.geometry import cell_volumes, geometry_table
 from .model.microstructure import microstructure_table
 from .model.profiles.caglioti import (
-    _MIN_GAMMA_G2,
     SCHERRER_K,
     apparent_size_from_size_coefficient,
     gaussian_fwhm,
@@ -76,6 +82,7 @@ from .optimize.least_squares import (
     covariance_estimates,
     rechart_outcome,
     run_least_squares,
+    stationary_columns,
 )
 from .optimize.qpa import (
     LINEAR_ATTENUATION_BY_SOURCE,
@@ -108,7 +115,10 @@ from .params.vector import (
     is_variable_path,
     retired_spelling,
 )
-from .report.magnetic import magnetic_width_findings
+from .report.magnetic import (
+    magnetic_width_findings,
+    moment_angle_stationary_diagnostics,
+)
 from .report.schemas import (
     MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA,
     THRESHOLDS_VERSION,
@@ -118,6 +128,7 @@ from .report.schemas import (
 from .schemas.common import Diagnostic, Parameter, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
 from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
+from .schemas.interval import PARAMETER_INTERVAL_LEVEL, PARAMETER_INTERVAL_MAX_REFITS
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.pattern import PatternData
 from .schemas.results import (
@@ -443,10 +454,6 @@ def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
     return [(path, scale * coeff) for path, coeff in seen.items()]
 
 
-#: ``phases.i.atoms.j.moment.dof<k>`` — the moment block's own DOF paths.
-_MOMENT_DOF = re.compile(r"^phases\.\d+\.atoms\.\d+\.moment\.dof\d+$")
-
-
 def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
                              support: np.ndarray | None = None) -> list[str]:
     """The free columns that move nothing but phases the data cannot see.
@@ -716,25 +723,11 @@ def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable,
     return held, held_reach, ridged
 
 
-#: A moment direction whose calculated-pattern response is this far below the
-#: modulus's measures nothing, and is held (WP-1327).
-#:
-#: **Measured, not chosen.**  On the cubic collinear test structure — where the
-#: orbit-averaged intensity is provably independent of the moment direction —
-#: the two angle DOFs respond at ~1e-15 of the modulus's response for the
-#: finite rotation below, which is roundoff.  On Cr₂WO₆ at 4 K under BNS
-#: 58.395, where the in-plane angle *is* determined, the same probe reads
-#: ~1e0.  Fifteen orders of magnitude separate the two, so the floor sits in
-#: the middle of the gap rather than at the edge of either.
-#:
-#: This exists because the package's other "measured nothing" mechanism
-#: (:meth:`ParameterTable.unmeasured_free`, through
-#: ``optimize.statistics.normal_covariance``) fires only on a column with **no
-#: gradient at all** — ``d > 0.0`` — and an analytically flat direction is not
-#: bitwise flat.  Widening that test to a relative one would change the esd of
-#: every fit in the package; holding the moment block's own flat directions
-#: changes nothing outside it.
-MOMENT_DIRECTION_SUPPORT = 1e-6
+# ``MOMENT_DIRECTION_SUPPORT`` is defined in
+# :mod:`rietx.crystallography.magnetic.moments` (imported at the top of this
+# module), because the solver's stationary-angle test reads it as well and
+# ``optimize`` may not import ``refine``.  Its comment there says how the
+# hold below and that test relate.
 
 #: **A finite rotation, and that is the whole point.**  0.1 rad ≈ 5.7°.
 #:
@@ -834,8 +827,8 @@ def _flat_rotation_axis(model: CompiledModel, values: dict[str, float],
 
     **The SVD proposes, the finite rotation decides.**  The smallest right
     singular vector is a candidate only; it is held only when turning the
-    moment about it by :data:`MOMENT_PROBE_ANGLE_RAD`, at every one of those
-    directions, moves the pattern by no more than
+    moment about it by :data:`MOMENT_PROBE_ANGLE_RAD` each way, at every one
+    of those directions, moves the pattern by no more than
     :data:`MOMENT_DIRECTION_SUPPORT` of what the same tip displacement of the
     modulus does — the per-column test's own floor and step, so a direction
     is held by one rule whichever way the frame happens to lie.
@@ -873,10 +866,15 @@ def _flat_rotation_axis(model: CompiledModel, values: dict[str, float],
         scale = float(np.linalg.norm(
             evaluate(s, signed + math.copysign(MOMENT_PROBE_ANGLE_RAD * mu,
                                                signed)) - y))
-        turned = float(np.linalg.norm(
-            evaluate(_rotate(s, axis, MOMENT_PROBE_ANGLE_RAD)) - y))
-        if scale <= 0.0 or turned > MOMENT_DIRECTION_SUPPORT * scale:
+        if scale <= 0.0:
             return None
+        # both senses of the turn, for the per-column probe's reason: a
+        # one-sided turn can land on a mirror image of ``s`` and read flat
+        for sign in (1.0, -1.0):
+            turned = float(np.linalg.norm(
+                evaluate(_rotate(s, axis, sign * MOMENT_PROBE_ANGLE_RAD)) - y))
+            if turned > MOMENT_DIRECTION_SUPPORT * scale:
+                return None
     return axis
 
 
@@ -963,8 +961,14 @@ def _flat_moment_scan(model: CompiledModel, table: ParameterTable,
         # the same tip displacement both ways: a rotation by δφ moves the
         # moment by |μ|·δφ, so the modulus is probed by exactly that much
         scale = response(modulus, MOMENT_PROBE_ANGLE_RAD * max(mu, 1e-6))
-        return scale <= 0.0 or response(path, MOMENT_PROBE_ANGLE_RAD) <= (
-            MOMENT_DIRECTION_SUPPORT * scale)
+        # **Both signs** (WP-1929).  The pattern is even about every direction
+        # the symmetry fixes, so from a start 0.05 rad off one a +0.1 rad turn
+        # lands on the start's mirror image and moves nothing.  That held a
+        # determined angle, and the fit ended at χ² 20614.  A direction is flat
+        # only when neither turn moves the pattern.
+        return scale <= 0.0 or all(
+            response(path, sign * MOMENT_PROBE_ANGLE_RAD)
+            <= MOMENT_DIRECTION_SUPPORT * scale for sign in (1.0, -1.0))
 
     flat = [p for p in paths if column_flat(p)]
     # The combination (#599): a site whose two angles are both live — free,
@@ -1647,6 +1651,10 @@ def _answer_significance(model: CompiledModel, table: ParameterTable,
     held_of = {ip: [c for c in held if ip in _phases_reached([c], reach)]
                for ip in seen}
     free = list(table.free_paths)
+    # the moment angles the solve's covariance left out at a stationary
+    # direction (WP-1929) leave this marginal too, or the significance would
+    # be read off the matrix the reported esds were not
+    stationary = {free[i] for i in stationary_columns(outcome, free)}
     extra = list(dict.fromkeys(c for cs in held_of.values() for c in cs))
     freed = table.set_vary(extra, True) if extra else []
     try:
@@ -1658,8 +1666,9 @@ def _answer_significance(model: CompiledModel, table: ParameterTable,
             jac = np.asarray(outcome.jac, dtype=np.float64)
         column_reach = table.column_reach()
         for ip in seen:
-            columns = _significance_columns(
+            columns = [c for c in _significance_columns(
                 free, [c for c in held_of[ip] if c in freed], column_reach)
+                if c not in stationary]
             try:
                 # never above the screen it is bounded by: a direction the
                 # pinv cut discards reads zero variance, which would inflate z
@@ -3416,6 +3425,55 @@ class Refinement:
 
         return profile_fraction(self, data, phase, axes=axes, fwhm=fwhm)
 
+    def profile_interval(self, data: PatternData, path: str, *,
+                         level: float = PARAMETER_INTERVAL_LEVEL,
+                         max_refits: int = PARAMETER_INTERVAL_MAX_REFITS
+                         ) -> "ParameterInterval":
+        """The profile-likelihood interval for one parameter of the last fit.
+
+        An esd read as an interval is symmetric, and on a bound it is not an
+        interval at all: an estimate there has no symmetric sampling
+        distribution (Self & Liang, 1987).  A row the fit left on its bound
+        keeps its value and its marginal esd and reads
+        ``RefinedParameter.at_bound`` (``FLOOR_HIT`` on a floor of 0), and
+        this is the number to quote for it.  It pins ``path`` at a value,
+        refits everything the last fit freed, and reads the data's χ² there;
+        the ends are where that χ² has risen by a threshold (Venzon &
+        Moolgavkar, 1988).
+
+        A row on its bound gets a **one-sided** interval: the bound is one
+        end, and the other is at Δχ² = 2.71 × χ²_red × f² at 95 %.  Any other
+        row gets a two-sided one at Δχ² = 3.84 × χ²_red × f², f the fit's
+        ``esd_inflation``, so on a quadratic profile its ends are the value ±
+        1.96 esd.  ``level`` sets both quantiles.  Each side steps outward by
+        1, 2, 4, … esd to bracket its end and solves it to a thousandth of an
+        esd, refitting each pinned value until its χ² stops falling; a side
+        that reaches the parameter's own limit first reports the limit as its
+        end.  ``max_refits`` caps each side, and a side that runs
+        out says so rather than guessing.  The answer
+        (:class:`~rietx.schemas.interval.ParameterInterval`) carries every
+        refit, and ``fit_is_minimum`` is ``False`` when one found χ² below the
+        fit's.
+
+        A moment angle the fit's covariance left out at a direction the
+        symmetry fixes (``MOMENT_ANGLE_STATIONARY``, WP-1929) has no esd and
+        still has an interval.  It is two-sided, and it steps from the
+        angle's half-width in ``StageResult.moment_angle_tests``: the distance
+        either side at which χ², everything else held, rises by χ²_red·f².
+
+        Opt-in and read-only: 6-30 refits a side as measured, all on a branch
+        with ``telemetry=False``, so the working
+        state and ``result_`` are untouched and the history's HEAD is put back
+        where it stood.  A fit must have run, and ``path`` must have been free
+        in it; a tied, locked or fixed path is refused with the reason.  Why
+        the bound changes the threshold is
+        :mod:`rietx.strategy.parameter_interval`'s docstring (WP-1929).
+        """
+        from .strategy.parameter_interval import profile_interval
+
+        return profile_interval(self, data, path, level=level,
+                                max_refits=max_refits)
+
     @classmethod
     def from_node(cls, tree: RefinementTree, node_id: str, *,
                   backend: str = "numpy", solver: str = DEFAULT_SOLVER) -> "Refinement":
@@ -3782,7 +3840,8 @@ class Refinement:
         # outcome is restated in that chart so every later reader of its
         # theta, Jacobian and correlations describes the values committed
         signs = table.commit(outcome.theta)
-        outcome = rechart_outcome(outcome, table.x0(), signs)
+        outcome = rechart_outcome(outcome, table.x0(), signs,
+                                  table.free_paths)
         # A phase can stay comfortably significant (PHASE_SUPPORT_SIGMA) the
         # whole time and its cell still walk to nonsense — a joint
         # degeneracy with another free phase's cell, invisible to the
@@ -3965,7 +4024,8 @@ class Refinement:
                 stage=stage.name, backend=self._backend,
                 solver=self._solver, cancel=cancel, **stage_ftol)
             signs = table.commit(second.theta)
-            second = rechart_outcome(second, table.x0(), signs)
+            second = rechart_outcome(second, table.x0(), signs,
+                                     table.free_paths)
             second_runaway = clamp_cell_runaway(table, start_values)
             if second_runaway:
                 table.refresh_ties()
@@ -4499,7 +4559,8 @@ class Refinement:
         describe *that stage's* guard run, not the fit's final summary.
 
         ``BOUND_HIT`` is held back for a different reason (WP-1310, issue
-        #231): it is not deduplicated but **discarded and re-taken**, because
+        #231), and so is ``FLOOR_HIT``, its twin on a floor (WP-1929): it is
+        not deduplicated but **discarded and re-taken**, because
         a bound hit is a statement about a *vector* rather than about a run.
         A staged plan exists to let an early stage absorb an error a later one
         corrects, so a parameter pressed onto its limit in stage 1 and back in
@@ -4615,6 +4676,7 @@ class Refinement:
                 seeded=hold.seeded,
                 # checked, trivially: one histogram has no elsewhere
                 unreached_histograms={},
+                moment_angle_tests=outcome.moment_angle_tests,
             ))
             if stage_reports:
                 self.stage_reports_.append(self._stage_report(
@@ -4865,7 +4927,8 @@ class Refinement:
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths, unreached_histograms={},
-                seeded=hold.seeded)
+                seeded=hold.seeded,
+                moment_angle_tests=outcome.moment_angle_tests)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
@@ -5369,6 +5432,11 @@ class Refinement:
 #: finding on the final result is a claim about a fit that no longer holds.
 #: Every stage's own copy stays on its ``StageReport`` and its history node.
 #:
+#: ``FLOOR_HIT`` is ``BOUND_HIT`` on a floor (WP-1929), the same claim about
+#: the same vector, so it is re-taken the same way.  Left out, a scale pressed
+#: onto 0 in stage 1 and back in the interior at convergence keeps its stage-1
+#: warning on the final result, which is WP-1310's defect come back.
+#:
 #: ``RESOLUTION_UNCONSTRAINED`` belongs here on a second fact and not only on
 #: that one: it also reads *which* terms the stage freed, and staging is
 #: **cumulative** (``Refinement`` § stages), so a plan that frees U, V, W once
@@ -5382,35 +5450,25 @@ class Refinement:
 #: intermediate stage's cut is a different matrix (cumulative staging adds
 #: columns), and unkeyed it was appended once per stage, so one persistent
 #: combination printed as many copies as the plan has stages.
-_REVISABLE_CODES = ("BOUND_HIT", "RESOLUTION_NOT_POSITIVE",
+_REVISABLE_CODES = ("BOUND_HIT", "FLOOR_HIT", "RESOLUTION_NOT_POSITIVE",
                     "RESOLUTION_UNCONSTRAINED",
                     "BISO_UNUSUALLY_LARGE", "BISO_NEGATIVE",
                     "COVARIANCE_DIRECTION_DISCARDED")
 
 
-#: ``BOUND_HIT``'s advice when the limit that carried load is a lower bound of
-#: exactly 0 (WP-1938).  A scale or a width cannot go negative, so "widen the
-#: bound" is wrong there.  A caller's ``min=0`` on a displacement parameter
-#: reaches this too: the 11-BM NAC acceptance fit declares one, and its Biso
-#: stops there.  So the reasons name what a negative B stands in for
-#: (``BISO_NEGATIVE``'s list) beside the scale's and the width's.
+#: ``FLOOR_HIT``'s advice: the limit that carried load is a lower bound of
+#: exactly 0, or W's Γ_G² clamp (``staged._at_zero_floor``, WP-1938).  A scale
+#: or a width cannot go negative, so ``BOUND_HIT``'s "widen the bound" is wrong
+#: there, and WP-1929 gave the floor its own code to carry this instead.  A
+#: caller's ``min=0`` on a displacement parameter reaches it too: the 11-BM NAC
+#: acceptance fit declares one, and its Biso stops there.  So the reasons name
+#: what a negative B stands in for (``BISO_NEGATIVE``'s list) beside the
+#: scale's and the width's.
 _ZERO_FLOOR_SUGGESTION = (
     "the data push this parameter below zero, where it cannot go. The usual "
     "reasons are a phase or term the data do not support, a width the "
     "instrument already supplies, or, for a displacement parameter, "
     "absorption or a wrong species or occupancy. Fix it at 0")
-
-
-def _at_zero_floor(limit: tuple[str, float] | None) -> bool:
-    """Whether a ``BOUND_HIT`` limit is a floor no wider bound can lower.
-
-    A lower limit of exactly 0, and Caglioti W's floor at the Γ_G² clamp
-    (``caglioti._MIN_GAMMA_G2``, WP-1938 D7): ``ProfileTCHZ`` raises any W
-    bound under the clamp back to it, so "widen the bound" cannot be acted on
-    there either.
-    """
-    return (limit is not None and limit[0] == "lower"
-            and 0.0 <= limit[1] <= _MIN_GAMMA_G2)
 
 
 def _guard_diagnostics(guard) -> list[Diagnostic]:
@@ -5433,15 +5491,22 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
         ))
     for finding in guard.at_bounds:
         path = str(finding)
+        # the finding carries its code (``GuardFinding.at_bound``): a lower
+        # limit of 0, or W's clamp, is a scale or width that cannot go
+        # negative, which no wider bound can help (WP-1938, WP-1929)
+        if finding.code == "FLOOR_HIT":
+            out.append(Diagnostic(
+                level="warning", code="FLOOR_HIT", where=list(finding.paths),
+                value=finding.value,
+                message=f"{path} refined to its floor{finding.detail}",
+                suggestion=_ZERO_FLOOR_SUGGESTION,
+            ))
+            continue
         out.append(Diagnostic(
             level="warning", code="BOUND_HIT", where=list(finding.paths),
             value=finding.value,
             message=f"{path} refined to its bound{finding.detail}",
-            # a lower limit of 0, or W's clamp, is a scale or width, which no
-            # wider bound can help (WP-1938); WP-1929 owns a floor's own code
-            suggestion=(_ZERO_FLOOR_SUGGESTION
-                        if _at_zero_floor(finding.limit)
-                        else "widen the bound or fix the parameter"),
+            suggestion="widen the bound or fix the parameter",
         ))
     for finding in guard.nonpositive_adps:
         msg = str(finding)
@@ -6569,11 +6634,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
 
     stderr_phys = (table.stderr_physical(theta, stderr_internal, correlation)
                    if stderr_internal is not None else {})
-    # at_bound is the BOUND_HIT findings projected onto the rows, never a
-    # second bound test (WP-1076).  Only the free set was tested, so a tied
-    # row — in `parameters`, absent from the free vector — reports None, and
-    # so does every row when no guard ran at all (`replay`).  A free row on
-    # a floor of 0 is tested like any other bound (WP-1938).
+    # at_bound is the BOUND_HIT and FLOOR_HIT findings projected onto the
+    # rows, never a second bound test (WP-1076).  Only the free set was
+    # tested, so a tied row — in `parameters`, absent from the free vector —
+    # reports None, and so does every row when no guard ran at all
+    # (`replay`).  A free row on a floor of 0 is tested like any other bound
+    # (WP-1938), and reads True under either code (WP-1929).
     tested = set(table.free_paths) if guard is not None else set()
     on_bound = {p for f in guard.at_bounds for p in f.paths} if guard is not None else set()
     # A CELL_RUNAWAY finding's own message says the named cell's value is
@@ -6586,7 +6652,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # that stage's finding; ``None`` reads it off ``diagnostics``, which is
     # right for every caller whose list is one stage's (``run_stage``, a stage
     # report, ``replay``).  The flag stays the finding's own ``where``, as
-    # ``at_bound`` is a projection of ``BOUND_HIT``, and a tie inherits it.
+    # ``at_bound`` is a projection of ``BOUND_HIT`` and ``FLOOR_HIT``, and a
+    # tie inherits it.
     withheld = _cell_runaway_withheld(table, (
         p for d in (diagnostics if cell_runaway is None else cell_runaway)
         if d.code == "CELL_RUNAWAY" for p in d.where))
@@ -6755,6 +6822,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         moved={q for d in diagnostics
                if d.code == "MAGNETIC_WIDTH_MOVED_MOMENT"
                for q in d.where if "magnetic_lor" in q})
+
+    # WP-1929: the moment angles the answer stage's covariance left out at a
+    # stationary direction, read off its own record
+    if stage_results:
+        diagnostics = diagnostics + moment_angle_stationary_diagnostics(
+            stage_results[-1])
 
     # Specimen absorption: report what was applied and, crucially, the Biso
     # bias it removed — for a capillary Rwp is provably unchanged by it, so
@@ -7806,9 +7879,11 @@ def _extra_peak_diagnostics(model: CompiledModel, values: dict,
     item 13, one rank down, and the position it reports is a walk rather than a
     measurement.  Said in the vocabulary the peak list already chose for this
     fact (``no_intensity`` in ``PEAK_UNUSABLE_FLAGS``) rather than in a second
-    one, and tested with ``BOUND_HIT_RTOL``, the distance half of the
-    refinement's own bound test (``staged.bound_findings``, a conjunction
-    since WP-1434) rather than a second constant.
+    one, and tested with ``BOUND_HIT_RTOL``, the distance of the
+    refinement's own bound test where no solve stands behind it
+    (``staged.bound_findings``, which reads the driver's exact active set or
+    a conjunction where it has a solve, WP-1434 and WP-1929) rather than a
+    second constant.
 
     This is the honest evidence for "the peak was not needed", and it is not an
     Rwp comparison — which the package forbids as a correction's evidence for
@@ -7848,11 +7923,11 @@ def _extra_peak_diagnostics(model: CompiledModel, values: dict,
         entry = (table.entries[table._paths[area_path]]
                  if area_path in table._paths else None)
         lo = entry.lo if entry is not None else 0.0
-        # ``BOUND_HIT_RTOL`` is scipy's own test, imported rather than
-        # restated so this and ``BOUND_HIT`` cannot drift apart on what
-        # counts as *at* a limit.  The ``<= 0`` clause beside it covers an
-        # area whose stated lower bound is below zero, which is off at its
-        # identity without being "at" that bound.
+        # ``BOUND_HIT_RTOL`` is scipy's own test and ``bound_findings``'
+        # fallback, imported rather than restated so the two cannot drift
+        # apart on what counts as *at* a limit.  The ``<= 0`` clause beside
+        # it covers an area whose stated lower bound is below zero, which is
+        # off at its identity without being "at" that bound.
         at_zero = (area <= 0.0
                    or (np.isfinite(lo)
                        and abs(area - lo) <= BOUND_HIT_RTOL * max(1.0, abs(lo))))

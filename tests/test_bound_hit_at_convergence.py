@@ -31,6 +31,13 @@ tell a bound that carried load from a stage that stopped early while still
 travelling towards one (both push outward, 6.6e-2 against a binding range of
 1.5e-2 … 2.1e-1), and the distance alone cannot tell either of them from a free
 optimum that happens to sit nearby.
+
+**WP-1929** reads the LM driver's active set where it is exact, so under the
+default driver a row is at its bound iff the driver holds it on the limit with
+the gradient pointing out.  The conjunction stays where no driver gives an
+exact set, under TRF and above ``lm.BVLS_MAX_COLUMNS``, and its rows below run
+under TRF where they need it.  A floor no wider bound can lower is its own
+code, ``FLOOR_HIT``.
 """
 
 from __future__ import annotations
@@ -116,9 +123,10 @@ def test_a_parameter_still_at_its_bound_at_convergence_reports(data):
     assert zero.value == pytest.approx(ZERO_BOUND, abs=1e-12)
     assert zero.at_bound is True
     (hit,) = _codes(result, "BOUND_HIT")
-    # the sentence is unchanged; WP-1434 appends the evidence for it
-    assert hit.message.startswith(f"{ZERO} refined to its bound (\u03c1=")
-    assert "esd from the limit" in hit.message
+    # the sentence is unchanged; WP-1434 appends the evidence for it.  The LM
+    # driver's exact active set holds the row on its limit, so the evidence is
+    # the angle alone, with no distance in esds (WP-1929)
+    assert hit.message == f"{ZERO} refined to its bound (\u03c1={hit.value:+.3f})"
     # at an upper limit the solver would still be raising the value, so the
     # residual keeps a negative angle with that column
     assert hit.value < 0.0
@@ -282,14 +290,18 @@ def test_a_stage_that_stopped_early_is_not_a_bound_hit(data):
     assert _codes(result, "BOUND_HIT") == []
 
 
-def test_the_finding_carries_the_evidence_for_its_claim(data):
+@pytest.mark.parametrize("solver", ["lm", "trf"])
+def test_the_finding_carries_the_evidence_for_its_claim(data, solver):
     """``value`` is the test statistic, and the sentence says it in words.
 
     A reader who cannot re-run the fit still has to be able to tell a bound
     that carried load from one the solver stopped beside, which is the whole
-    content of this guard after WP-1434.
+    content of this guard after WP-1434.  Under TRF the conjunction found it,
+    so the sentence carries how far inside the limit the value stopped, in
+    esds.  Under LM the driver's exact active set found it, the row sits on
+    the limit, and there is no distance to quote (WP-1929).
     """
-    result = _fit_at(data, 1e-4, _SCALE_BKG, _ZERO)
+    result = _fit_at(data, 1e-4, _SCALE_BKG, _ZERO, solver=solver)
     (hit,) = _codes(result, "BOUND_HIT")
 
     # ρ is signed: at an *upper* limit the solver would still be raising the
@@ -297,7 +309,7 @@ def test_the_finding_carries_the_evidence_for_its_claim(data):
     assert hit.value is not None and hit.value < -BOUND_HIT_COS_MIN
     assert hit.where == [ZERO]
     assert hit.message.startswith(f"{ZERO} refined to its bound (\u03c1=")
-    assert "esd from the limit" in hit.message
+    assert ("esd from the limit" in hit.message) is (solver == "trf")
 
 
 def test_the_fallback_is_the_pre_1434_test_and_needs_no_solve():
@@ -372,8 +384,9 @@ def test_a_width_on_its_floor_is_read_against_its_floor():
     0.07, so the esd window admitted a far limit and ``BOUND_HIT`` fired on
     ``instrument.profile.y`` pressing on its upper bound (WP-1463).  In its own
     units the esd is the physical one, and the finding names which limit held
-    it.  That is what ``BOUND_HIT``'s advice reads, and the rendered text is
-    unchanged by it.
+    it.  That limit picks the code: a floor is ``FLOOR_HIT`` with its own
+    advice, and every other limit stays ``BOUND_HIT`` (WP-1929).  The
+    finding's rendered text is unchanged by it.
     """
     from rietx.refine import _ZERO_FLOOR_SUGGESTION, _guard_diagnostics
     from rietx.strategy.staged import GuardReport, bound_findings
@@ -394,8 +407,131 @@ def test_a_width_on_its_floor_is_read_against_its_floor():
     (upper,) = bound_findings(floor, free, np.array([1.0]),
                               cos=np.array([-0.03]), esd=esd)
     assert shifted.limit == ("lower", 1e-6) and upper.limit == ("upper", 1.0)
-    advice = [d.suggestion for d in _guard_diagnostics(
-        GuardReport(at_bounds=[found, shifted, upper]))]
-    assert advice == [_ZERO_FLOOR_SUGGESTION,
-                      "widen the bound or fix the parameter",
-                      "widen the bound or fix the parameter"]
+    diags = _guard_diagnostics(GuardReport(at_bounds=[found, shifted, upper]))
+    assert [d.code for d in diags] == ["FLOOR_HIT", "BOUND_HIT", "BOUND_HIT"]
+    assert [d.suggestion for d in diags] == [
+        _ZERO_FLOOR_SUGGESTION,
+        "widen the bound or fix the parameter",
+        "widen the bound or fix the parameter"]
+
+
+# --- WP-1929: the driver's exact active set, and a floor's own code ---------
+
+def test_an_exact_active_set_flags_a_row_the_conjunction_would_decline():
+    """On its floor with a tiny angle: the set holds it, so it is at its bound.
+
+    The angle is under ``BOUND_HIT_COS_MIN``, so the conjunction calls it a
+    free optimum.  The LM driver keeps a row in its set only while the value
+    sits exactly on the limit and the gradient there points out, which is the
+    multiplier test itself, so no threshold is read on this path.
+    """
+    lo, hi = np.array([0.0]), np.array([1.0])
+    theta, cos, esd = np.array([0.0]), np.array([1e-9]), np.array([0.07])
+
+    assert bound_findings((lo, hi), ["y"], theta, cos=cos, esd=esd) == []
+    (found,) = bound_findings((lo, hi), ["y"], theta, cos=cos, esd=esd,
+                              active=np.array([-1], dtype=np.int8))
+    assert found.limit == ("lower", 0.0) and found.code == "FLOOR_HIT"
+    # the angle is still the evidence; the row is on the limit, so no gap
+    assert found.value == pytest.approx(1e-9)
+    assert found.detail == " (ρ=+0.000)"
+
+
+def test_an_active_set_does_not_outlive_a_value_moved_off_its_limit():
+    """The set describes the point the driver returned.  A writer that moves
+    θ after the solve (the cell-runaway clamp, a chart change) leaves it
+    naming a limit the value no longer sits on, and that row is not flagged
+    (WP-1929's review)."""
+    lo, hi = np.array([0.0]), np.array([1.0])
+    active = np.array([-1], dtype=np.int8)
+
+    assert bound_findings((lo, hi), ["y"], np.array([0.0]), active=active)
+    assert bound_findings((lo, hi), ["y"], np.array([0.3]), active=active) == []
+
+
+def test_an_exact_active_set_declines_what_the_esd_window_reaches():
+    """Brucite's ``profile.u``, the row that kept the window to TRF alone.
+
+    −0.0016 ± 2359 is 2e-5 esd from its bound of −0.05, so the window admits
+    the limit and the angle pushes into it.  The value sits 0.048 inside, so
+    no exact set holds it there.
+    """
+    lo, hi = np.array([-0.05]), np.array([np.inf])
+    theta, cos, esd = np.array([-0.0016]), np.array([0.3]), np.array([2359.0])
+
+    (window,) = bound_findings((lo, hi), ["u"], theta, cos=cos, esd=esd)
+    assert window.limit == ("lower", -0.05) and window.code == "BOUND_HIT"
+    assert bound_findings((lo, hi), ["u"], theta, cos=cos, esd=esd,
+                          active=np.array([0], dtype=np.int8)) == []
+
+
+def test_the_sign_of_the_active_set_names_the_limit():
+    """−1 is the lower limit and +1 the upper, read off the set, not off θ."""
+    lo, hi = np.array([0.5, 0.0, 1e-8]), np.array([2.0, 3.0, 1.0])
+    theta = np.array([0.5, 3.0, 1e-8])
+    found = bound_findings((lo, hi), ["a", "b", "w"], theta,
+                           cos=np.array([0.2, -0.2, 0.2]),
+                           active=np.array([-1, 1, -1], dtype=np.int8))
+    assert [f.limit for f in found] == [("lower", 0.5), ("upper", 3.0),
+                                        ("lower", 1e-8)]
+    # a nonzero lower limit and an upper one are bounds; W's clamp is a floor
+    assert [f.code for f in found] == ["BOUND_HIT", "BOUND_HIT", "FLOOR_HIT"]
+    assert [f.value for f in found] == pytest.approx([0.2, -0.2, 0.2])
+
+
+def _outcome(solver: str, n_table: int, n_aux: int = 0):
+    from rietx.optimize.least_squares import LSQOutcome
+
+    return LSQOutcome(theta=np.zeros(n_table), cost_initial=1.0, cost_final=1.0,
+                      n_iterations=1, status="converged", jac=None,
+                      stderr_internal=None, correlation=None, n_aux=n_aux,
+                      solver=solver,
+                      active_bounds=np.zeros(n_table, dtype=np.int8))
+
+
+def test_the_active_set_is_read_only_where_it_is_exact():
+    """LM up to ``BVLS_MAX_COLUMNS`` solved columns; never TRF's mask.
+
+    A Pawley block counts, because the driver solves it beside the table and
+    the step past the cut is BCCG's, which can stop a row just off its bound.
+    """
+    from rietx.optimize.lm import BVLS_MAX_COLUMNS
+    from rietx.strategy.staged import _exact_active_bounds
+
+    exact = _outcome("lm", BVLS_MAX_COLUMNS)
+    assert _exact_active_bounds(exact) is exact.active_bounds
+    assert _exact_active_bounds(_outcome("trf", 3)) is None
+    assert _exact_active_bounds(_outcome("lm", BVLS_MAX_COLUMNS + 1)) is None
+    assert _exact_active_bounds(_outcome("lm", 3, n_aux=BVLS_MAX_COLUMNS)) is None
+    # the zero-parameter early return carries no set
+    bare = dataclasses.replace(_outcome("lm", 0), active_bounds=None)
+    assert _exact_active_bounds(bare) is None
+
+
+@pytest.mark.parametrize("limit", [("lower", 0.0), ("lower", 1e-8)],
+                         ids=["zero", "w_clamp"])
+def test_a_floor_is_floor_hit_with_its_own_advice(limit):
+    """A width refined to zero is not told to widen its bound (WP-1929).
+
+    A lower limit of 0, and Caglioti W's floor at the Γ_G² clamp, which
+    ``ProfileTCHZ`` raises any lower W bound back to.  The finding carries the
+    code the diagnostic does, so the two stay one vocabulary.
+    """
+    from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
+    from rietx.refine import _ZERO_FLOOR_SUGGESTION, _guard_diagnostics
+    from rietx.strategy.staged import GuardFinding, GuardReport
+
+    assert _MIN_GAMMA_G2 == 1e-8  # the clamp the second case names
+    floor = GuardFinding.at_bound("instrument.profile.w", 0.04, limit=limit)
+    bound = GuardFinding.at_bound("phases.0.cell.a", -0.04,
+                                  limit=("upper", 10.25))
+    report = GuardReport(at_bounds=[floor, bound])
+    diags = _guard_diagnostics(report)
+
+    assert [d.code for d in diags] == ["FLOOR_HIT", "BOUND_HIT"]
+    assert [f.code for f in report.findings()] == [d.code for d in diags]
+    assert diags[0].message == "instrument.profile.w refined to its floor (ρ=+0.040)"
+    assert diags[0].suggestion == _ZERO_FLOOR_SUGGESTION
+    assert diags[0].level == diags[1].level == "warning"
+    assert diags[1].message == "phases.0.cell.a refined to its bound (ρ=-0.040)"
+    assert diags[1].suggestion == "widen the bound or fix the parameter"

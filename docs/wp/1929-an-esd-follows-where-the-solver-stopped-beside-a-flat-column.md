@@ -1,6 +1,6 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — decided: physical coordinates (1936-1938), then marginal esds with a bound flag here
+Milestone: unscheduled · Status: 🔄 2026-10-12 — flag, FLOOR_HIT, profile_interval and the stationary-angle rule landed; awaits the #831 Linux check and the named-variable task
 Track: What fires, and what stays silent
 Depends on: 1938 (physical coordinates, which remove the point-dependence this WP reports on)
 Priority: P1 2026-10-11 — was P2: 1938 landed (#883), its last blocker, so the reporting rule and the floor diagnostic can start on physical coordinates under the LM default
@@ -217,61 +217,44 @@ silently stop acting (WP-1938).
   `BOUND_HIT`'s "widen the bound or fix the parameter" would fire on every
   width that refines to zero.
 
-### Inherited
+**Superseded in part, 2026-10-11: the base has landed.** WP-1936, 1937 and
+1938 are on `main` (1938 as #883, tree `0f30d584`). Every entry refines in
+its own units, so a floor is an ordinary bound of 0, and `staged.bound_untested`
+and its `None` third state are gone. A scale or width on 0 is answered by
+`staged.bound_findings`, reads `at_bound=True` and keeps a finite marginal esd.
+An absent phase's scale is 0 ± σ, and its QPA esd is computable.
+`GuardFinding.limit` names the limit that bound (`("lower", 0.0)`). `BOUND_HIT`
+on a lower limit of 0, or on W's Γ_G² clamp, carries the interim
+`refine._ZERO_FLOOR_SUGGESTION`. The NAC acceptance fit's Biso at a caller's
+`min=0` reaches it too, so a zero floor is not always a scale or width. The
+default driver is LM (`DEFAULT_SOLVER`). `LSQOutcome.active_bounds` carries
+each driver's set (−1 lower, +1 upper, 0 neither), and nothing reads it past
+the outcome yet. LM's is exact up to `lm.BVLS_MAX_COLUMNS` (128): the value
+sits on the bound and the gradient there points outward. Above that, BCCG can
+stop a row just off its bound, so the set can miss one. TRF's is scipy's mask,
+set within `XTOL` of a bound whatever the gradient. `params.vector.FLOOR_SEEDS`
+now sizes the FD step only (WP-1936), and only the roughness stage still seeds.
+The line numbers above moved: `live = d > 0.0` is at `optimize/statistics.py:153`
+and `:217`, `inv_d > 0.0` at `:329`, `MOMENT_DIRECTION_SUPPORT` at
+`refine.py:737`.
 
-- **2026-10-11, from WP-1938 D12 (fourth session): the stationary azimuth
-  also stalls the default driver.** A moment angle's column scales with its
-  modulus and vanishes at a direction the symmetry fixes. LM scales every
-  column to unit norm, so that angle takes the largest step, and λ grows
-  until every parameter crawls. LM's `ftol_runs` then fires on three tiny
-  decreases in a row and reports `converged`. Measured on the two-site Pnma
-  set (`tests/test_pair_diagnostic_class.py`, macOS arm64, `[dev,jax]`): a
-  released start stopped at χ² 454 660 with λ 5e7-7e9, against 2555.8 under
-  TRF. `solve_magnetic` now frees the moduli first (`SOLVE_STAGE_NAMES`),
-  which reaches 2556.06. A magnetic plan a user builds gets no such stage,
-  so the task here owns the driver side as well as the esd side. Two
-  remedies were named and not measured: count a decrease toward `ftol_runs`
-  only while λ is small, and damp an angle column at least by its
-  finite-rotation response (the curvature `MOMENT_PROBE_ANGLE_RAD` reads).
-  The two-site test no longer asserts that the winner pairs nothing or its
-  esds: under LM they are 0.031 and 0.159 μ_B and the pair is named. Restore
-  both assertions when this WP lands. The 150 K Cr₂WO₆ class at k = (0, ½, ½)
-  with unsupported moments crawls under TRF too, ten continuations of 400
-  evaluations, and is listed as stopped short.
-- **2026-10-11, from WP-1938 (in flight, branch `wp1938-physical-units`,
-  PR #883): a floor is now an ordinary bound, and LM is the default.** Every
-  entry is refined in physical units, so `staged.bound_untested` and its
-  `None` third state are gone: a scale or width on 0 is answered by
-  `bound_findings`, reads `at_bound=True` and keeps a finite marginal esd (an
-  absent phase's scale is 0 ± σ, and its QPA esd is computable).
-  `GuardFinding.limit` (`("lower", 0.0)` / `("upper", hi)`, written only in
-  `bound_findings`) carries which limit bound, and `BOUND_HIT` on a lower limit
-  of exactly 0 gives an interim suggestion (`refine._ZERO_FLOOR_SUGGESTION`)
-  rather than "widen the bound". The NAC acceptance fit's Biso at a caller's
-  `min=0` reaches that branch too, so a zero floor is not always a scale or
-  width. This WP's own code and suggestion for a floor replace that interim
-  text. The default driver is LM (`DEFAULT_SOLVER`), so the flag task can read
-  LM's exact active set by default once 1938 merges.
-
-- **2026-10-10, from WP-1937: the active set exists.**
-  `LSQOutcome.active_bounds` carries each driver's set over the table
-  columns (−1 lower, +1 upper, 0 neither). The LM driver's is exact: the
-  value sits on the bound and the gradient there points outward. TRF's is
-  scipy's `active_mask`, set within `XTOL` of a bound whatever the gradient,
-  so it misses brucite's `gauss_strain` parked 7.6e-6 above its floor. Nothing
-  copies it past the outcome yet; the flag task reads it there. The
-  default-driver flip moved from 1937 to WP-1938, so until 1938 lands the
-  default's set is TRF's.
-
-- **2026-10-09, from WP-1930 (PR #849).** The floor seed this WP soft-depended
-  on has landed: a stage now starts a freed softplus row sitting on its floor
-  at 1e-3 of its unit (`params.vector.FLOOR_SEEDS`), and records it in
-  `StageResult.seeded`. It moves the minimum, never the esds, so this WP's
-  question stands. Three cases it surfaced, all at one χ² with the parameter
-  values apart: brucite's `instrument.profile.y` lands between 0.08 and 0.14
-  under rounding-level start changes (χ²_red 8.313117 throughout); corundum's
-  `lor_strain` reads 1e-4 seeded against 1.4e-3 unseeded (χ²_red 2.65601 both);
-  BT-1's `y` goes back to its floor from every seed, at values from 0 to 3e-10.
+**The stationary azimuth also stalls the default driver** (WP-1938 D12, macOS
+arm64, `[dev,jax]`). A moment angle's column scales with its modulus and
+vanishes at a direction the symmetry fixes. LM scales every column to unit
+norm, so that angle takes the largest step, and λ grows until every parameter
+crawls. `ftol_runs` then fires on three tiny decreases in a row and reports
+`converged`. On the two-site Pnma set a released start stopped at χ² 454 660
+with λ 5e7-7e9, against 2555.8 under TRF. `solve_magnetic` now frees the
+moduli first (`magnetic.SOLVE_STAGE_NAMES`) and reaches 2556.06, but a plan a
+user builds gets no such stage. `tests/test_magnetic.py`'s
+`_LM_FALSE_CONVERGENCE` row is the same stop on one site (λ ≈ 1e11, χ²_red
+11.03, a strict xfail). Two remedies were named and not measured: count a
+decrease toward `ftol_runs` only while λ is small, and damp an angle column at
+least by its finite-rotation response. The two-site test
+(`test_pair_diagnostic_class.py`) no longer asserts that the winner pairs
+nothing or its esds, which under LM are 0.031 and 0.159 μ_B with the pair
+named. The 150 K Cr₂WO₆ class at k = (0, ½, ½) crawls under TRF too, ten
+continuations of 400 evaluations.
 
 ## Non-goals
 
@@ -288,38 +271,104 @@ silently stop acting (WP-1938).
       scale), and record the before and after here.
 - [x] Probe the options and take the decision (2026-10-09: physical
       coordinates in WP-1936-1938; marginal esds with a flag here).
-- [ ] A fixture that reproduces the platform split on one machine, nudging
-      BT-1's start by 1e-14 as the grid did. It fails on today's softplus and
-      passes after WP-1938, with one `profile.x` esd.
-- [ ] The flag: `RefinedParameter.at_bound` and `BOUND_HIT` read the driver's
-      active set (WP-1937), with `bound_findings`' esd window kept only where
-      a driver gives none. A physical floor gets its own code and
-      `Diagnostic.suggestion`, so a width refined to zero is not told to
-      widen its bound.
-- [ ] `statistics.normal_covariance`'s docstring and root CLAUDE.md's
+- [x] A fixture that reproduces the platform split on one machine, nudging
+      BT-1's start by 1e-14 as the grid did, with one `profile.x` esd at
+      every nudge. WP-1938 has landed, so it pins the fix rather than
+      failing first.
+- [x] The flag: `RefinedParameter.at_bound` and `BOUND_HIT` read the driver's
+      active set where it is exact (LM up to `BVLS_MAX_COLUMNS`), with
+      `bound_findings`' esd window kept only where a driver gives none. A
+      physical floor gets its own code and `Diagnostic.suggestion`, replacing
+      `refine._ZERO_FLOOR_SUGGESTION`, so a width refined to zero is not told
+      to widen its bound. Audit every reader of `BOUND_HIT` for the split.
+- [x] `statistics.normal_covariance`'s docstring and root CLAUDE.md's
       equilibration clause state the marginal rule. Find every consumer of
       `live` and `unmeasured_rows`, and say which still apply once no column
       is a softplus floor.
-- [ ] The held-fixed esd as a tool: expose `normal_factors(condition=)`
+- [x] The held-fixed esd as a tool: expose `normal_factors(condition=)`
       through a public call, or remove it if `profile_interval` covers the
       need. Settle χ²_red's degrees of freedom and `discarded_directions`
       under it.
-- [ ] `profile_interval(path)`, the one-sided interval for a row on its
+- [x] `profile_interval(path)`, the one-sided interval for a row on its
       bound (Venzon & Moolgavkar 1988). `strategy/fraction_profile.py` has the
       pinned-refit and Δχ² machinery.
-- [ ] Moment angles at a stationary direction: leave the normal matrix (or
+- [x] Moment angles at a stationary direction: leave the normal matrix (or
       extend `MOMENT_DIRECTION_SUPPORT`'s hold to them, whichever keeps one
       authority), and rewrite that constant's comment. Physical coordinates do
-      not touch this half: the azimuth is already identity.
-- [ ] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
+      not touch this half: the azimuth is already identity. Then restore the
+      two-site test's no-pair and esd assertions. The driver side (LM's
+      `ftol_runs` stop at large λ beside a stationary angle, and
+      `_LM_FALSE_CONVERGENCE`'s xfail) moves to WP-1953 (maintainer,
+      2026-10-12): same seam in `lm.py`, same grid to re-measure.
+      **Deferred by the maintainer, 2026-10-12, after this measurement**
+      (macOS arm64, `[dev]`). The rule tried was one Newton step on each
+      angle's own column toward where it vanishes, then
+      `MOMENT_DIRECTION_SUPPORT` on the column there. It does not separate
+      the cases. Angles beside a stationary direction read 1.7e-3 and 4.2e-3
+      (two-site polar), 8.6e-5 and 8.8e-5 (two-site azimuth), and 3.4e-6 to
+      8.2e-6 (one site). Determined angles read 0.65 at 45°, 0.49 at 30°,
+      1.4e-2 at 0.2 rad and 2.1e-4 at 0.05 rad. One step leaves an error of
+      order δ³, and the two sites' angle columns are coupled. A joint Newton
+      step over every free angle reaches ≤ 1.3e-12 at each class-0 stop, but
+      it also finds the symmetry direction beside a determined angle. The
+      stops sit 0.4-3.5σ from the direction, and a moment tilted 0.05 rad
+      sits 100σ away. Two rules were put to the maintainer. The recommended
+      one evaluates χ² at the joint-Newton direction with everything else
+      fixed and zeroes those columns when Δχ² ≤ 3.84·χ²_red·f², the cut
+      `profile_interval` uses. Fixing the others makes the test err toward
+      keeping a column. The other rule is a distance in esds. With every
+      angle column left out, the moduli esds at all three class-0 stops are
+      0.00150-0.00151 and 0.00111-0.00112, ρ −0.24. In full they are 0.031
+      and 0.159, and with the exact column (WP-1953's branch) 0.0043 and
+      0.024, so this half is needed either way.
+      **Decided 2026-10-12 (maintainer, fourth session): the Δχ² rule.**
+      For one angle at its own minimum a distance δ from the stationary
+      direction, Δχ²/(χ²_red·f²) = (δ/σ)²/4, so a Δχ² cut of 3.84 is a
+      distance of 3.92σ. The two rules differ only where angles couple, and
+      there the distance rule reads σ off the covariance it is repairing.
+      The cut is still open. The pattern is even in δ, so "on the direction"
+      is the boundary of δ² ≥ 0 and Self & Liang's mixture gives 2.71
+      (3.29σ), the cut `profile_interval` uses on a bound. The cut is fixed
+      after Δχ² is measured at the three class-0 stops and the four
+      determined tilts.
+      **Superseded in part the same day: the other parameters are refitted
+      by one linear step.** Measured (macOS arm64, `[dev]`, scratchpad
+      `case_d_seeds.py` and `case_e_linear.py`) on fits simulated with every
+      moment along **a**, so a keep is a false alarm. With the others fixed,
+      two-site LM fits kept the columns in 17 of 48 at 3.84 and 13 at 6.50,
+      because the moduli cannot absorb what moving the angles changes. With
+      the others refitted it was 8 and 3. A linearised refit (one
+      least-squares step on the other columns of the stop's own Jacobian)
+      gave the full refit's verdict on all 96 fits, its statistic at most 1.5
+      away. The cut is the χ̄² mixture's 95 % point for the k angles tested
+      (2.71, 4.23, 6.50 for k = 1, 2, 4). At 6.50 the false keeps were 3/48
+      (LM), 2/16 (TRF) and 2/16 one-site at 4.23. Every tilt of 0.01 rad
+      scored at least 12.2 and every tilt of 0.05 rad about 2500. Zeroing
+      gave moduli esds of 0.00108-0.00157 at all 48 null stops, against a
+      median of 0.0157 and a maximum of 31.5 in full. The class-0 stops read
+      1.8-2.1. **Decided (maintainer, 2026-10-12):** the linearised refit,
+      χ̄² at 95 %, and for a mixed set the angle contributing most dropped
+      and the rest retested, at most k times. In the same change,
+      `_flat_moment_scan` probes both signs: a +0.1 rad probe from a start
+      0.05 rad off a symmetry direction lands on its mirror image, and held a
+      determined angle (χ² 20614 at the end).
+- [x] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
       says so); WP-1915's indexing propagation reads the same covariance.
-- [ ] The analytic azimuth column at φ = π: check it against an exact oracle
+- [x] (moved to WP-1953, 2026-10-12) The analytic azimuth column at φ = π: check it against an exact oracle
       and add the config to `tests/test_cross_backend.py` if no row covers a
       moment at a stationary direction.
-- [ ] Tests, and the acceptance suites' esds before and after, every row that
+- [x] Tests, and the acceptance suites' esds before and after, every row that
       moves by more than 1 % listed in the handover.
-- [ ] Skill: a `references/judging.md` row for the new diagnostic, keyed by
-      its code.
+- [x] Skill: a `references/judging.md` row for the new diagnostic, keyed by
+      its code. (The stationary angle's row went in `references/magnetic.md`
+      beside `MOMENT_PAIR_DEGENERATE`: `judging.md` has no code table and
+      26 B of budget.)
+- [ ] An angle driven by a named variable is tested too.
+      `least_squares._moment_angle_columns` picks candidates by the free
+      path's name, so a `vars.X` driving two sites' azimuths, or a modulus
+      driven by one, is never tested, and its column stays in the covariance
+      silently. Root CLAUDE.md's flatness rule (WP-1342) says to read C's
+      `column_reach` for this. Found by the 2026-10-12 review.
 
 ## Acceptance
 
@@ -350,6 +399,299 @@ its floor moves by more than 1 % without a line in the handover saying why.
   doi:10.2307/2347496 (profile-likelihood interval).
 
 ## Handover log
+
+### 2026-10-12 (2nd session) — a moment angle at a stationary direction leaves the covariance
+
+A magnetic moment lying along a direction its symmetry fixes no longer decides
+the other uncertainties. There the pattern barely changes when the moment
+turns, so the angle's derivative is close to zero. The covariance rescaled
+that near-zero column to full weight, and where the solver stopped then set
+the moduli esds, which is why one fit gave different numbers on two machines.
+After each solve the fit now tests whether the data can tell the stop from
+the symmetry direction. When they cannot, the angle keeps its value, loses
+its esd and leaves the covariance. On the issue's two-site structure the
+moduli esds are 0.00150 and 0.00111 μ_B at every stop, where they were 0.031
+and 0.159 with a degenerate pair named. The test refits the other parameters:
+holding them fixed, as first chosen, raised a false alarm on a third of the
+fits that had no tilt.
+
+- *Done.*
+  - `9d4e5894`: the maintainer chose the Δχ² rule over a distance in esds.
+    For one angle at its own minimum, Δχ²/(χ²_red·f²) = (δ/σ)²/4, so the two
+    agree to leading order. The distance rule reads σ off the covariance it is
+    repairing.
+  - `a127902e`: the second decision, after the margins lane. The other
+    columns are refitted by one linear step, and the cut is the χ̄² mixture's
+    95 % point for the k angles tested. Numbers below.
+  - `e07624b6` (lane): `least_squares.stationary_angle_test` (joint Newton,
+    linearised refit, cut, drop-and-retest), zeroing for the covariance alone.
+    `MomentAngleTest` and `StageResult.moment_angle_tests`, the
+    `MOMENT_ANGLE_STATIONARY` diagnostic, `chi_bar_squared_quantile`, which
+    `interval_quantile` calls at k = 1. `profile_interval` steps a stationary
+    angle from its half-width. `MOMENT_DOF_PATH` and `MOMENT_DIRECTION_SUPPORT`
+    moved to `crystallography/magnetic/moments.py` with the rewritten
+    comment. The flat-direction hold probes both signs. The joint fit runs
+    the same test. The two-site test's no-pair and esd assertions are back.
+    Manual Part 2 equation, Part 1 fields, a skill row in `magnetic.md`, the
+    staged notes.
+  - `6f51ebf9`: root CLAUDE.md, one rule in the equilibration clause. Two
+    short-wrapped lines were rejoined to stay at the 978-line cap.
+  - `252834e0`: `MomentAngleTest.stationary_at`, wrapped to the 2π image
+    nearest the fitted value.
+  - `66803eeb`: four review fixes (below).
+  - `30d30380`: the series jump check read a missing esd as 0, so an angle
+    without one flagged its powder-twin flip as a 59× step. A missing esd is
+    now infinite there. The GUI's path-dependence twin now masks a pattern
+    one chain did not measure, as the fence it mirrors already did.
+  - `3b5c6922`: forward references into WP-1418 and WP-1953.
+  - `e16a2491`: `main` merged in. WP-1931 had taken schema 0.47, so
+    `ParameterInterval` is 0.48 and `moment_angle_tests` 0.49.
+- *Measured* (macOS arm64, `[dev]`).
+  - **Margins lane** (`case_a_class0.py`, `case_b_tilts.py`,
+    `case_d_seeds.py`). The three class-0 stops read 1.88, 1.87 and 5.43
+    with the others fixed, against 1.81, 1.79 and 2.11 refitted. Tilts of
+    0.05, 0.2, 0.52 and 0.79 rad read about 2.7e3 to 2.5e6.
+  - **Null sweep**, every moment simulated along **a**, so a keep is a false
+    alarm. Others fixed / full refit / linearised refit:
+
+    | fits | cut | fixed | full | linearised |
+    |---|---|---|---|---|
+    | two-site LM, 48 | 3.84 | 17 | 8 | 8 |
+    | two-site LM, 48 | χ̄²₄ 6.50 | 13 | 3 | 3 |
+    | two-site TRF, 16 | 6.50 | 3 | 2 | 2 |
+    | one site LM, 16 | χ̄²₂ 4.23 | 3 | 2 | 2 |
+
+    The linearised refit gave the full refit's verdict on all 96 fits, at
+    most 1.5 away. Every tilt of 0.01 rad read at least 12.2. Zeroed moduli
+    esds were 0.00108-0.00157 at all 48 two-site null stops, against a median
+    of 0.0157 and a maximum of 31.5 in full. Seeds 0 and 1 read 10.4 and 11.6,
+    the noise keeps a 95 % cut makes.
+  - **Cost.** About 75 residual evaluations a stage on the null two-site
+    fixture, 0.05 s against a 0.4 s fit. 190-235 a stage tilted.
+  - **Acceptance esds, before (`a127902e`) and after (`252834e0`)**: every
+    `Refinement.fit` in the three magnetic acceptance files, recorded by a
+    pytest plugin (`wp1929_record.py`, `run_record.py`, `compare_record.py`).
+    28 fits, 21 unchanged, 7 moved, and no value moved anywhere. Each moved
+    fit had an angle zeroed, so its esds are now marginal over every other
+    parameter and conditional on those angles. Every row past 1 %:
+
+    | fit | row | before | after |
+    |---|---|---|---|
+    | Cr₂WO₆ 4 K, seeds a and b | `atoms.1.moment.dof0` | 0.04802 | 0.04263 (−11.2 %) |
+    | | `atoms.1.moment.dof1` (3.121) | 0.637 | none |
+    | | Biso atoms 0, 1 | 0.662, 0.428 | −5.5 %, −4.9 % |
+    | | O coordinates (atoms 2, 3) | | −2.3 % to −2.6 % |
+    | Cr₂WO₆ 150 K null | `atoms.1.moment.dof0` (0.017) | 3.237 | 1.291 (−60.1 %) |
+    | | `atoms.1.moment.dof1` | 597 011 | none |
+    | | Biso atoms 0, 1; coordinates | | −3.4 %, −2.9 %; −1.2 % to −2.6 % |
+    | LaMnO₃ 50 K, Pn′ma′ | `atoms.1.moment.dof0` | 0.04848 | 0.04352 (−10.2 %) |
+    | | `atoms.1.moment.dof1` (1.479; statistic 0.57) | 0.0608 | none |
+    | LaMnO₃ 50 K, Pnma | `atoms.1.moment.dof0` | 0.07865 | 0.06914 (−12.1 %) |
+    | | `atoms.1.moment.dof1` (0.085) | 0.119 | none |
+    | `solve_magnetic` 4 K, a candidate | `atoms.1.moment.dof0` | 0.05707 | 0.04820 (−15.5 %) |
+    | | `dof1`; `profile.x`, `lor_size` | 15 197 | none; −1.8 % |
+    | `solve_magnetic` 4 K, another | `atoms.1.moment.dof0` (1.00) | 0.2899 | 0.1976 (−31.8 %) |
+    | | `dof1` (1.161, stationary at π/2, statistic 0.19) | 0.522 | none |
+    | | Biso atom 2, scale | | −1.2 %, −1.1 % |
+
+    A fit without a free moment angle is bit-identical by construction: no
+    candidate, and the Jacobian passes through untouched.
+  - **Tests.** Fast selection on the merged tree, alone: 9238 passed,
+    175 skipped, 2 xfailed in 3:50. The session added 8 fast tests
+    (`test_stationary_moment_angle.py`) and no slow ones. No local baseline
+    on `main`, so CI confirms the count. `added_test_times`: 11.05 s over the
+    8. The profile-interval case takes 5.57 s, one of about 72 fast tests
+    over 5 s. It stays fast as the one fast case on the path the diagnostic's
+    suggestion names. Full selection on the merged tree, alone: 9538 passed,
+    186 skipped, 2 xfailed in 22:01.
+  - **Lanes** (`session_usage.py lanes`): 2 lanes, none kept.
+
+    | lane | est | requests | main at dispatch | lane $ | saved $ |
+    |---|---|---|---|---|---|
+    | margins | 30 | 89 | 156K | 5.55 | +2.31 |
+    | stationary-rule build | 45 | 196 | 231K | 16.92 | +9.34 |
+
+    Re-read median 22K, 18 main requests per lane, actual/estimated 3.66,
+    +11.65 saved (+27 %). Baseline replay, selective policy: 136 items
+    laned, +7 %. The trial row is in `process.md`.
+- *Review* (`/code-review high --fix 5257102e..HEAD`, 9 findings).
+  - Fixed in `66803eeb`. The drop rule read the raw Newton displacement,
+    which a 2π image inflates. `stationary_at` now follows a chart move
+    (`rechart_outcome`). A `LinAlgError` inside the test leaves the columns
+    in, where it would have thrown away a converged stage (#225's class).
+    `reached` and the message's level now read their sources.
+  - Fixed in `30d30380`: the slow series test the branch broke (above).
+  - Declined, three. `soft_modes` reads the solve's Jacobian, because the
+    guards describe the fit as solved (`_without_columns`' docstring). The
+    test runs in every stage: intermediate esds feed guards, and the
+    measured cost is 0.05 s a stage. Candidates are picked by name, so a
+    `vars.X` driving an angle is never tested; that is now a task.
+- *Gotchas.*
+  - The Newton step can land on another 2π image of the direction: 87π from
+    a stop at 3.121 on Cr₂WO₆. The statistic is unaffected, and the record
+    wraps it.
+  - The margins lane left a `tail -F` monitor running; check for one after
+    any lane that watched files.
+  - A stationary angle's profile interval uses the two-sided 3.84 cut. The
+    one-sided 2.71 is arguable, because the pattern is even about the
+    direction.
+  - On one one-site seed the polar angle stops exactly at π/2 and the
+    profile finds χ² below the fit's there: the stop is a saddle.
+  - `MAGNETIC_WIDTH_MOVED_MOMENT`'s unit is the moduli esds, which are now
+    smaller, so it may fire more.
+  - Root CLAUDE.md sits at its line cap. A new rule there means rejoining
+    short-wrapped lines, never deleting a fact.
+- *Next.*
+  1. Ask the #831 reporter to run the two-site class-0 fit on Linux. The
+     acceptance needs those moduli esds to agree across the two platforms
+     to 1 %. It is a public comment, so it is the maintainer's to send.
+  2. The open task: test an angle a named variable drives, by C's
+     `column_reach`.
+  3. Then close: the narrative moves to the v1.8 record.
+
+### 2026-10-12 — the bound flag, a floor's own code and the profile interval; the stationary angle deferred
+
+A fit now flags a parameter as on its bound only where the solver actually
+held it there. So a parameter the data barely measure is no longer flagged at
+a limit it is nowhere near. A scale, width or displacement that refines to
+zero gets its own warning, with advice that fits it, and keeps its value and
+uncertainty. A caller who wants a number for such a row can now ask for a
+one-sided profile interval. On the issue's neutron fit, the uncertainty that
+differed between two machines is now one number at every start. The other
+machine's figure turns out to be what holding the zero-width row fixed gives.
+Not done: a magnetic moment along a direction the symmetry fixes. The
+derivative behind its uncertainty was wrong, and the fix waits for the
+driver work in WP-1953. The rule for leaving such an angle out did not
+separate its cases, and the maintainer deferred it.
+
+- *Done.*
+  - `006142f0`: all four Inherited entries folded into Context and Tasks.
+    The floor-seed entry was dropped, because `FLOOR_SEEDS` now only sizes
+    the FD step (WP-1936).
+  - `ec636a15` and `d5333b8b`: the BT-1 fixture
+    (`test_a_width_on_its_floor_leaves_one_esd_at_every_start`) and its
+    matrix row. It fails on the tree before WP-1938 with 0.00322, Linux's
+    figure, and passes now.
+  - `1609cb96` and `315ec67a`: the marginal rule, in `normal_covariance`'s
+    docstring and in root CLAUDE.md's equilibration clause.
+    - Consumers of `live`/`unmeasured_rows`: no floor makes a column dead any
+      more. Three things still do: a zero upstream (a scale of 0, a moment of
+      0), the Γ_G² clamp, and a rigid body turned about a symmetric axis. The
+      QPA and rigid-body consumers already say so.
+    - `report/magnetic.py`'s `MAGNETIC_WIDTH_UNMEASURED` "sits on its zero
+      floor" branch (`_MAGNETIC_WIDTH_FLOOR_DEG`) is probably unreachable
+      now. That is reasoned, not measured.
+  - `1f6dfb85`: `normal_factors(condition=)` removed. It had no caller, and
+    a refit holding the row gives the same reading.
+  - `49b3d870`: siblings checked, no change.
+  - `0f18db8c` (lane): `bound_findings(active=)`.
+    - It reads LM's active set where the set is exact (`_exact_active_bounds`:
+      LM up to `BVLS_MAX_COLUMNS`). Elsewhere it keeps the conjunction.
+    - A lower limit of 0, or W's floor, is `FLOOR_HIT` with
+      `_ZERO_FLOOR_SUGGESTION`. `GuardFinding.at_bound` picks the code, so
+      `test_capabilities`' finding/diagnostic code equality holds.
+    - `FLOOR_HIT` is in `_REVISABLE_CODES`, and `at_bound` projects both
+      codes.
+  - `1ea964c8`: `FLOOR_HIT` in the manual (`model.md`'s `at_bound` section
+    still described the pre-WP-1434 1e-10 test), the skill, root CLAUDE.md,
+    and tutorials 01 and 02, with both notebooks rebuilt.
+  - `52f013d1` (lane): `Refinement.profile_interval` → `ParameterInterval`.
+    `strategy/parameter_interval.py` holds the method, `est-interval` is in
+    Part 2, and `SCHEMA_VERSION` is 0.47.
+  - `da99c9e0`: the `FLOOR_HIT` skill row quotes `profile_interval`.
+  - `d2259da7`: staged in `releases/1.8.0.md`.
+  - `d64ea15b` and `09be2543`: the driver half and the angle-column fix
+    went to WP-1953's Inherited. The fix is parked on branch
+    `wp1953-central-angle-columns` (`87c6d6de`, from `main`, no PR).
+  - `6d5645ef`: review fixes.
+- *Measured* (macOS arm64, `[dev]`).
+  - **BT-1 nudges.** At eight starts nudged by k·1e-14, `profile.x` is
+    0.0098437 with a spread of 4e-8 relative. `profile.y` is 0 ± 0.018101,
+    `at_bound`.
+  - **The held reading.** Holding `y` and refitting gives `x` 0.0032202.
+    σ√(1−ρ²) from the marginal fit gives 0.0032208, with ρ(x, y) = −0.945.
+    The gap is the one fewer free parameter in χ²_red.
+  - **`profile_interval` on BT-1.**
+    - `y` gives 0 to 0.0166098 in 19 refits, about 3 s. That is 0.558 of
+      the quadratic 0.0298, because χ² rises from the floor with a slope:
+      with all else fixed it rises by about 1e-3 between `y` = 0 and 1e-6.
+    - `x` gives 0.025493 to 0.045302 in 44 refits.
+    - A single pinned refit is not enough, because a stage keeps the windows
+      it sized at its start. So each value is refitted until χ² stops
+      falling, at most 4 times.
+  - **The moment-angle lane** (numbers in the moment task above and in
+    WP-1953's Inherited).
+    - A: the forward quotient gives I''·h/2 at a stationary point, 0.009801
+      and 0.001328, #831's numbers. Central differences give ≤ 2e-12.
+    - B: the per-angle Newton rule does not separate the cases.
+  - **Tests.**
+    - Fast selection, alone, after `/code-review`: 9179 passed, 175 skipped,
+      2 xfailed in 4:12.
+    - The session added 18 fast cases (11 in `test_parameter_interval.py`,
+      7 in `test_bound_hit_at_convergence.py`) and removed 2 in
+      `test_covariance_scaling.py`. One existing case gained an `lm`/`trf`
+      parametrisation, so passed+skipped should move by +17 against `main`.
+      No local baseline was taken, so CI confirms it.
+    - `added_test_times`: 3.76 s over the added tests, 3.75 s of them in
+      `test_parameter_interval.py`.
+    - The two added acceptance tests are slow and in `test_acceptance_wavelength.py`.
+    - Full selection, alone, on the final tree (`main` had not moved since
+      the merge at `e161e934`): 9478 passed, 186 skipped, 2 xfailed in
+      21:47.
+  - **Lanes** (`session_usage.py lanes`): 3 lanes, kept 1 (the fixture,
+    `lanes: keep` at 113K).
+
+    | lane | est | requests | main at dispatch | lane $ | saved $ |
+    |---|---|---|---|---|---|
+    | flag | 25 | 117 | 184K | 5.99 | +4.78 |
+    | profile_interval | 35 | 146 | 345K | 9.72 | +9.36 |
+    | moment-angle | 40 | 99 | 384K | 7.18 | +7.14 |
+
+    Re-read median 13K, 8 main requests per lane, actual/estimated 4.17,
+    +21.28 saved (+35 %). Baseline replay, selective policy: 133 sessions,
+    −15 %. The trial row is in `process.md`.
+- *Review* (`/code-review high --fix`, 7 findings).
+  - Four fixed in `6d5645ef`.
+    - `profile_interval` took a one-sided interval's bounded side from the
+      entry's declared limits. A stage cap or cell window never reaches
+      those, so it now reads the side off the result's own finding.
+    - A refused probe value now ends its side with `"error"`.
+    - A path gone from the model is refused by name.
+    - The active path now checks that θ still sits on the limit, because the
+      cell-runaway clamp and a chart change move θ after the solve. There is
+      one test for this.
+  - Three declined.
+    - The active path reads no angle floor, so a row exactly on its bound
+      with a rounding-size outward gradient is flagged with ρ +0.000. That
+      is the design: the row is on its bound.
+    - `SEQUENTIAL_PERSISTENT_FINDING` counts per code, so a path at its
+      floor in some patterns and at its cap in others is split. That is
+      narrow.
+    - `bound_findings` taking the outcome itself would be a cleaner API,
+      but it reshapes two callers and their tests.
+- *Gotchas.*
+  - A plan freeing nothing divides χ²_red by N, not N − P. Comparing its
+    χ²_red with a fit's then reads 0.7 % (BT-1) as a model change.
+  - Committed tutorial notebook 02 was already stale against `main` before
+    this branch (stage evaluation counts, the next-parameter suggestion).
+    That was measured by running it on a snapshot of HEAD.
+  - The worktree guard refuses heredoc python and `PYTHONPATH=` prefixes, so
+    write probes as scratchpad scripts. To run a commit's tree, `git archive`
+    it into the scratchpad and run it with this venv.
+- *Next.*
+  1. Choose B's rule.
+     - Recommended: evaluate χ² at the joint-Newton direction with
+       everything else fixed, and zero those angle columns when
+       Δχ² ≤ 3.84·χ²_red·f², the cut `profile_interval` uses.
+     - The alternative is a distance in esds.
+     - Then build it and restore the two-site test's no-pair and esd
+       assertions (expect 0.00150 / 0.00111, ρ −0.24).
+  2. That unlocks the acceptance clause on #831's class-0 esds across
+     platforms. The reporter offered to run Linux.
+  3. The "acceptance suites' esds before and after" task waits on B.
+     Nothing landed here moves an esd: the flag and the interval report,
+     and the condition mask had no caller.
+  4. WP-1953 lands the parked angle-column fix with its driver fix.
 
 ### 2026-10-09 (2nd session) — physical coordinates decided, filed as 1936-1938
 

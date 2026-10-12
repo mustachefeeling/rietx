@@ -2130,10 +2130,12 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # ``PlanSpec.lebail_passes`` 0.41, #788's ``RefinementState.free_declared``
     # 0.42, WP-1805's ``Phase.rigid_bodies`` 0.43, WP-1930's
     # ``StageResult.seeded`` and ``.floor_unseeded`` 0.44, WP-1808's
-    # ``RigidBody.torsions`` 0.45, and WP-1938's removal of
-    # ``Parameter.transform`` and ``StageResult.floor_unseeded`` 0.46, and
-    # WP-1931's ``BackgroundSelection.diagnostics`` 0.47.
-    assert caps.schema_version == "0.47"
+    # ``RigidBody.torsions`` 0.45, WP-1938's removal of
+    # ``Parameter.transform`` and ``StageResult.floor_unseeded`` 0.46,
+    # WP-1931's ``BackgroundSelection.diagnostics`` 0.47, and WP-1929's
+    # ``ParameterInterval``, a new answer type, 0.48, and its
+    # ``StageResult.moment_angle_tests`` 0.49.
+    assert caps.schema_version == "0.49"
 
 
 def test_every_moment_dof_has_a_help_entry():
@@ -2216,14 +2218,25 @@ def test_the_flat_direction_probe_reads_curvature_and_not_only_a_gradient():
 
 
 def test_a_determined_in_plane_angle_at_its_own_optimum_is_not_held():
-    """The same statement through the refinement, which is where it matters."""
+    """The same statement through the refinement, which is where it matters.
+
+    The angle stays free and refines.  Along **a** it sits at a direction the
+    symmetry fixes, so its column vanishes there, and since WP-1929 the
+    covariance leaves that column out: the row has a value and no esd, and
+    the stage's own record says why.  Before, the row carried an esd set by
+    how far from **a** the solver stopped.
+    """
     ref, result = _fit(_trirutile((3.0, 0.0, 0.0)), _trirutile((2.5, 0.0, 0.0)))
     held = set(result.stages[-1].held)
-    assert "phases.0.atoms.0.moment.dof1" not in held, held
+    angle = "phases.0.atoms.0.moment.dof1"
+    assert angle not in held, held
     report = ref.report()
     assert report.magnetic[0].unmeasured_directions == []
     rows = {p.path: p for p in result.parameters}
-    assert rows["phases.0.atoms.0.moment.dof1"].stderr is not None
+    assert rows[angle].vary and rows[angle].stderr is None
+    (passed,) = [t for t in result.stages[-1].moment_angle_tests if t.zeroed]
+    assert passed.paths == [angle]
+    assert rows["phases.0.atoms.0.moment.dof0"].stderr is not None
 
 
 def test_the_structure_factor_against_an_independent_expression():

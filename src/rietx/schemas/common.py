@@ -407,7 +407,21 @@ from .._nearmiss import did_you_mean
 #: 0.46 → 0.47 (WP-1931): ``BackgroundSelection.diagnostics``, the findings a
 #: selector carries beside its scan (``BACKGROUND_ORDER_AT_CAP``).  Additive and
 #: defaulted to empty, the reading every earlier selection had.
-SCHEMA_VERSION = "0.47"
+#: 0.47 → 0.48 (WP-1929): ``ParameterInterval`` and ``ParameterIntervalPoint``
+#: (``schemas/interval.py``), the answer ``Refinement.profile_interval``
+#: returns — the profile-likelihood interval for one refined parameter,
+#: one-sided for a row on its bound.  Additive, the 0.32 → 0.33 shape: no
+#: existing model gains or loses a field, but a new answer type is a new shape
+#: a consumer parses.
+#: 0.48 → 0.49 (WP-1929): ``StageResult.moment_angle_tests``, a list of
+#: ``MomentAngleTest``, each round of the stationary-angle test the stage's
+#: covariance ran.  Additive and defaulted to ``None``, the 0.25 → 0.26 rule:
+#: a stored result from before ran no test, so an empty list would claim one.
+#: ``ParameterInterval.stderr`` becomes ``float | None``: an angle the test
+#: left out of the covariance has a profile interval and no esd.  Every
+#: earlier document opens unchanged; an older build refuses one carrying the
+#: new field, or an interval whose ``stderr`` is ``None``.
+SCHEMA_VERSION = "0.49"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

@@ -125,6 +125,23 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-12, from WP-1929: a moment angle at a stationary direction
+  leaves the covariance.** After each solve, a joint Newton step finds where
+  the free angles' columns vanish, and the columns are zeroed for the
+  covariance alone when Δχ² to there, the other columns refitted linearly, is
+  within the χ̄² mixture's 95 % point (`least_squares.stationary_angle_test`,
+  `StageResult.moment_angle_tests`, `MOMENT_ANGLE_STATIONARY`). The angle
+  keeps its value and has no esd. On the two-site Pnma set the class-0 moduli
+  esds are 0.00150 / 0.00111 μ_B, ρ −0.24, and no pair is named, so the
+  2026-10-08 #831 entry below is answered for macOS arm64. Its last clause is
+  answered too: `MOMENT_DIRECTION_SUPPORT`'s hold keeps its scope and now
+  probes both signs (a one-sided turn landed on a start's mirror image and
+  held a determined angle). Measured on the magnetic acceptance fits (macOS
+  arm64, `[dev]`): no value moved; modulus esds fell 10-12 % (LaMnO₃,
+  Cr₂WO₆ 4 K), 15.5 % and 31.8 % (two `solve_magnetic` candidates) and 60 %
+  on the 150 K null. So a `MOMENT_PAIR_DEGENERATE` count or a test pinning a
+  modulus esd may move, and `MAGNETIC_WIDTH_MOVED_MOMENT`, whose unit is the
+  moduli esds, may fire more.
 - **2026-10-09, from WP-1547.** The 230-group sweeps in
   `test_magnetic_isotropy.py` (the Γ sweep, the real-amplitude count) and
   `test_magnetic_irreps.py` (Burnside, Frobenius-Schur, the spgrep tables)

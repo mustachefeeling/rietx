@@ -152,7 +152,7 @@ The package declines rather than return a confident wrong singleton, and the ref
 19. **Adopt a cell from `IndexingResult.best_or_none()`, not from a rank.** `None` is the usual first outcome: act on each candidate's refuting `confidence_caveats` first (§7c). Adopting an ungated cell is your stated decision, and a refinement checks it (§7d).
 20. **A failed gate names no cause.** With `region.gates_passed` false, read `region.gate_failures`; its coefficients are display only.
 21. **Report collinear answers as unresolved.** A non-separable trend, `PAWLEY_OVERLAP_UNRESOLVED`, `INDEX_GEOMETRIC_AMBIGUITY`, `EXTINCTION_GROUPS_NOT_SEPARABLE`: extend the range, report both, or carry the list forward. A group's sum is the datum.
-22. **Quote no held or unquotable value as measured.** `PHASE_UNCONSTRAINED`, `STEPHENS_STRAIN_NOT_POSITIVE`, `BOUND_HIT`, `HARMONIC_HELD`: the number did not come from the data, whatever its esd or the Rwp.
+22. **Quote no held or unquotable value as measured.** `PHASE_UNCONSTRAINED`, `STEPHENS_STRAIN_NOT_POSITIVE`, `BOUND_HIT`, `FLOOR_HIT`, `HARMONIC_HELD`: the data did not set the number, whatever its esd.
 
 ---
 

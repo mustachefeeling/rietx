@@ -113,7 +113,6 @@ def _column_in_range(col: np.ndarray) -> np.ndarray:
 
 def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
                    chi2_floor: bool = False,
-                   condition: np.ndarray | None = None,
                    what: str = "residual entering the covariance solve",
                    ) -> tuple[np.ndarray, np.ndarray, float]:
     """The equilibrated inverse ``K`` and the column scales ``1/d``.
@@ -125,17 +124,6 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     caller wanting the esd forms ``(1/d)·√K`` and never the variance.
     ``1/d`` is 0 on a gradient-free column, and ``chi2_red`` is the raw
     Σr²/(N−P).  See :func:`normal_covariance` for everything else.
-
-    ``condition`` is a boolean mask of columns held fixed (WP-1929): every
-    other column's covariance is the inverse of the normal matrix without
-    them, and their own rows and columns of ``K`` are exactly zero (Self &
-    Liang, 1987, *J. Am. Stat. Assoc.* **82**, 605, eq. 2.2: once a
-    parameter sits on its bound, the others are Gaussian conditional on
-    it).  A
-    conditioned column is therefore a *constant* to anything propagated
-    through the result, never an unmeasured one, so its ``1/d`` is kept
-    nonzero even where its gradient is.  Nothing conditioned, or ``None``,
-    is the unconditioned arithmetic bit for bit.
     """
     require_fp64(resid, what)
     jac = to_host_fp64(jac)
@@ -152,32 +140,10 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     d = np.sqrt(np.diag(JTJ))
     live = d > 0.0
     inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
-    held = (np.zeros(len(d), dtype=bool) if condition is None
-            else np.asarray(condition, dtype=bool))
-    if held.shape != d.shape:
-        raise ValueError(f"condition must be a boolean mask of {len(d)} "
-                         f"columns, got shape {held.shape}")
-    if not held.any():
-        k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), rcond=PINV_RCOND,
-                           hermitian=True) * scale
-    else:
-        # the submatrix, not the full one with zeroed rows: the same numbers
-        # on the kept block whatever the held columns contained
-        keep = np.flatnonzero(~held)
-        sub = np.ix_(keep, keep)
-        k = np.zeros_like(JTJ)
-        if len(keep):
-            k[sub] = np.linalg.pinv(JTJ[sub] * np.outer(inv_d[keep], inv_d[keep]),
-                                    rcond=PINV_RCOND, hermitian=True) * scale
+    k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), rcond=PINV_RCOND,
+                       hermitian=True) * scale
     if s is not None:
         inv_d = inv_d * s
-    if held.any():
-        # a held column is a constant, so it must not read as gradient-free
-        # (``covariance_from_factors`` turns 1/d = 0 into infinite variance).
-        # Its K row is zero, so 1/d multiplies nothing, and it is set to 1
-        # after the rescale: a tiny column's 1/d·s squares past the double
-        # range, and 0 × inf would put a NaN on its diagonal
-        inv_d = np.where(held, 1.0, inv_d)
     return k, inv_d, chi2_red
 
 
@@ -309,6 +275,34 @@ def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     takes :func:`normal_factors` and never forms the variance, as
     :func:`~rietx.optimize.least_squares.covariance_estimates` does.
 
+    **A row on its bound stays in the matrix** (WP-1929).  Since WP-1938 a
+    floor is an ordinary bound of 0, and a width or scale resting on it has a
+    live column, so its own esd and every neighbour's are *marginal*.  That is
+    TOPAS's reading, and the row is tagged instead
+    (:attr:`~rietx.schemas.results.RefinedParameter.at_bound`).  The other
+    reading conditions on the row: it leaves the matrix, and each correlated
+    neighbour's esd shrinks by √(1 − ρ²).  A caller wanting it refits with
+    the row held (BT-1: ``profile.x`` 0.0032202 held against 0.0098437
+    marginal, ρ = −0.945 with ``profile.y`` on 0; the held fit also counts
+    one free parameter fewer in χ²_red).  Two things decided it.  The marginal
+    esd is the larger, and it moves continuously as a row approaches its
+    bound, while the conditional one jumps when the at-bound test fires.
+    Self & Liang (1987, *J. Am. Stat. Assoc.* **82**, 605) put the sampling
+    distribution of a neighbour between the two.  Before WP-1938 the choice
+    looked like one between a number that depended on where the solver
+    stopped and one that did not.  It was neither: the floor row's column was
+    differenced below rounding, and the column taken in physical units gives
+    one marginal esd at every stopping point (BT-1's ``profile.x``, 0.0098437
+    at internal coordinates −25.5 and −514).
+
+    No floor makes a column dead after WP-1938.  What ``1/d = 0`` and
+    :meth:`~rietx.params.vector.ParameterTable.unmeasured_rows` still catch
+    is a column the model is exactly flat in.  The cases named in the package
+    are a zero upstream (a phase scale of 0 empties its phase's structural
+    columns, a moment of 0 its angles and widths), a clamp (every Gaussian
+    width column under ``caglioti._MIN_GAMMA_G2``), and a body turned about an
+    axis its template is symmetric under.
+
     This lives here, rather than inside :func:`covariance_estimates`, because
     two surfaces now need it — the whole-pattern fit and the per-peak profile
     fits of :mod:`rietx.indexing.peakfit` — and they must not be able to
@@ -399,6 +393,52 @@ def berar_lelann_factor(delta: np.ndarray) -> float:
     cs = np.concatenate([[0.0], np.cumsum(z * d)])
     lin = cs[edges[1::2]] - cs[edges[::2]]
     return max(float(np.sqrt((quad + lin @ lin) / chi2)), 1.0)
+
+
+def chi_bar_squared_quantile(level: float, k: int) -> float:
+    """The ``level`` point of the χ̄² mixture of ``k`` one-sided directions.
+
+    A likelihood-ratio statistic for k parameters that each sit on the boundary
+    of their range under the null follows Σⱼ C(k, j)/2ᵏ · χ²ⱼ, with χ²₀ the
+    point mass at 0 (Self, S. G. & Liang, K.-Y., 1987, *J. Am. Statist. Assoc.*
+    **82**, 605; the χ̄² family: Shapiro, A., 1985, *Biometrika* **72**, 133).
+    The weights are binomial because the k directions are taken as
+    independent.  Each half of a direction's sampling distribution lands on the
+    boundary with probability ½.  Returns the c with P(T > c) = 1 − ``level``:
+    2.706, 4.231 and 6.497 at 95 % for k = 1, 2 and 4.
+
+    k = 1 is ½χ²₀ + ½χ²₁, whose point is χ²₁'s at 2·``level`` − 1, in closed
+    form.  :func:`rietx.strategy.parameter_interval.interval_quantile` returns
+    it for a row on its bound by calling this.  k > 1 is solved by Brent's
+    method on the tail.  The tail is at most P(χ²ₖ > c) · (1 − 2⁻ᵏ), so χ²ₖ's
+    own point brackets the root from above.
+    """
+    from math import comb
+
+    from scipy.optimize import brentq
+    from scipy.stats import chi2
+
+    if isinstance(k, bool) or int(k) != k or k < 1:
+        raise ValueError(f"the mixture needs at least one direction, not k={k!r}")
+    k = int(k)
+    if not 0.0 < level < 1.0:
+        raise ValueError(f"a confidence level lies strictly between 0 and 1, "
+                         f"not {level!r}")
+    alpha = 1.0 - level
+    # the point mass at 0 carries 2⁻ᵏ, so a level at or below it needs no cut
+    if alpha >= 1.0 - 0.5 ** k:
+        raise ValueError(
+            f"at level {level:g} the mixture of {k} one-sided directions puts "
+            f"its {0.5 ** k:g} point mass at 0 above the level, so no positive "
+            "cut exists")
+    if k == 1:
+        return float(chi2.ppf(2.0 * level - 1.0, 1))
+    weights = [comb(k, j) / 2.0 ** k for j in range(k + 1)]
+
+    def excess(c: float) -> float:
+        return sum(w * chi2.sf(c, j) for j, w in enumerate(weights) if j) - alpha
+
+    return float(brentq(excess, 1e-12, float(chi2.isf(alpha, k)), xtol=1e-12))
 
 
 def _chi2_absolute(stats) -> float:

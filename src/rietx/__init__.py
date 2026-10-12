@@ -94,6 +94,7 @@ from .schemas.indexing import (
     LeBailValidation,
     PeakList,
 )
+from .schemas.interval import ParameterInterval, ParameterIntervalPoint
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
 from .schemas.project import DataRef, ProjectDoc
@@ -153,6 +154,8 @@ __all__ = [
     "MomentRow",
     "Parameter",
     "ParameterCandidate",
+    "ParameterInterval",
+    "ParameterIntervalPoint",
     "ParameterRow",
     "PatternData",
     "PeakList",

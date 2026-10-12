@@ -1257,7 +1257,7 @@ class BackgroundFixedPlusChebyshev(_InheritsDeclaredDefaults):
     #: It keeps the curve from being subtracted by a solver that found a
     #: negative multiplier cheaper than the physics.  Since WP-1938 it is an
     #: ordinary bound, so a scale driven to zero can come back as a
-    #: ``BOUND_HIT``.  What makes a double-counted curve visible is the refined
+    #: ``FLOOR_HIT`` (WP-1929).  What makes a double-counted curve visible is the refined
     #: scale itself, which lands a whole unit from where the caller declared
     #: it.
     scale: Parameter = Field(
