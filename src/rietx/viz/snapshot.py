@@ -142,8 +142,10 @@ def stage_ticks(model, values: dict, *,
     for ip, cp in enumerate(model.phases):
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        rows = [cp.reflections.two_theta(cell, lam)
-                + values["instrument.zero_shift"]
+        # the forward model's own position: Bragg angle + zero + the
+        # geometry's shift, from the method it draws its peaks with (WP-1908)
+        rows = [model.apparent_two_theta(cp.reflections.two_theta(cell, lam),
+                                         values)
                 for lam in model.line_wavelengths]
         pos = np.concatenate(rows) if rows else np.zeros(0)
         # one reflection list per emission line, in the same order each time,

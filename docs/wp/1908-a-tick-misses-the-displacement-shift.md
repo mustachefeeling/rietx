@@ -52,12 +52,26 @@ mount, moves a peak by about 0.1° at mid-angle. Whether that crosses Layer
       25–33° fits −1.000 mm and +0.5° (both bounds, Rwp 0.1215) and they sit
       0.65° low. The −0.69/−0.78 mm and 0.4° in § Context did not reproduce on
       this tree. The sign and the size of the offset did.
-- [ ] Build the tick positions from the same position corrections the
+- [x] Build the tick positions from the same position corrections the
       forward model applies, through one function both read (two
       derivations of one position is the class root CLAUDE.md warns about
-      for `tick_hkl`).
-- [ ] Check `stage_ticks`, the joint runner's own tick builder (`multi.py`
-      keeps one) and the GUI's tick rows against the same rule.
+      for `tick_hkl`). `CompiledModel.apparent_two_theta(tt_bragg, values)`
+      is Bragg angle plus `_position_shift_deg`; the forward model's
+      position memo and `refine._build_result` both call it, so `forward.py`
+      gained the method and one call site and no arithmetic moved.
+      `tick_hkl` and `tick_support` ride the unchanged filter, sort and cap.
+- [x] Check `stage_ticks`, the joint runner's own tick builder (`multi.py`
+      keeps one) and the GUI's tick rows against the same rule. Three
+      builders, not two: `viz.snapshot.stage_ticks` (the live viewer, the
+      comparison UI and `plot_pattern(model=)`), `multi._ticks` (the joint
+      runner's) and `refine._build_result`'s. The first two had the same
+      defect and now call the same method. The GUI draws what the API sends
+      (`result.ticks`, `tick_hkl`) and computes no position of its own. The
+      one other builder, `gui/session.py`'s `index_ticks`, places an indexing
+      candidate on the observed axis through the candidate's shift template
+      and adds no instrument shift by design, so it is a different object.
+      `tests/test_tick_positions.py` holds each of the three builders to the
+      calculated curve's apex.
 - [ ] Measure whether Layer 0's unindexed-peak finding changes on the
       acceptance fixtures with a refined displacement.
 
