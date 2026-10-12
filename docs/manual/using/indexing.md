@@ -1168,6 +1168,15 @@ and the same cell scaled by 1.0012 gives `R - - -`, whose members exclude
 `refine_cell=True`, which frees it inside the shared fit (after the shift,
 before the widths); the classes still differ only in their reflection sets.
 
+A container halo has to be declared too. A capillary's amorphous halo is about
+1° wide and can sit on a forbidden position, and the screen's background (a
+P-spline is stiff by design) cannot take it, so an undeclared halo there reads
+as intensity the class forbids and refutes it. Declare it as a `HumpComponent`
+in `Instrument.extra_components` and fit it with the Le Bail pre-fit. The screen
+refits every declared hump per class, alongside the background, with its width
+floored at four instrument widths (`HUMP_MIN_WIDTH_MULT`), so a hump cannot
+narrow onto a forbidden line and explain a real violation away.
+
 The candidate's `CellCandidate.system` is taken as given rather than
 re-screened, because when the Bravais screen reported an ambiguity that field
 is the conservative reading, and enumerating classes in a higher symmetry would
