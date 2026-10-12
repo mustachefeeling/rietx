@@ -103,7 +103,7 @@ whether a maintainer has commented — **and the reason for its rank**:
    A claim that merges leaves `Status:` reading "claimed" on main, so the step 9
    handover entry is what rewrites it.
 3. **`DIRTY`** — not a review: post a one-line rebase request and move on.
-   A conflict on the index alone is the exception: step 4 syncs it, and the
+   A conflict on bookkeeping alone is the exception: step 4 syncs it, and the
    PR keeps its place. GitHub computes the field lazily; once main has moved
    since the call, `git -c merge.wpindex.driver='git merge-file %A %O %B' merge-tree --write-tree
    --name-only --no-messages origin/main refs/pr/N`, run in the bench, is the authority. Nonzero
@@ -129,12 +129,13 @@ files, not difficulty. The user overrules with arguments.
 Triage, then work the queue. Every disposition step 9 already calls clear-cut
 is made as it is reached; everything else is **deferred to one batch at the
 end**, never asked mid-run. `all` authorises step 9's merges and step 4's
-index syncs, and nothing beyond them.
+bookkeeping syncs, and nothing beyond them.
 
 **Pass A — no checkout**, straight off the triage call:
 
-- `DIRTY` → rebase request; out of the queue. On the index alone (rank 3's
-  `merge-tree`) → stays in the queue, and step 4 syncs it.
+- `DIRTY` → rebase request; out of the queue. On step 4's bookkeeping files
+  alone (rank 3's `merge-tree`) → stays in the queue, and step 4 syncs it or,
+  finding an edit in a hunk, asks for the rebase then.
 - Maintainer's own → one line (gated by `/wp-handover`); out.
 - Touches an in-flight WP → **batch, do not review** (a live session's files
   are that person's call). The batch item carries the evidence: what the 🔄
@@ -264,7 +265,7 @@ line if the checkpoint ended it. Close with
    `docs/manual/_generated`, `tests/output/`, any `*.rex/` and the venv. **The
    merged tree is the tree under test**: branch protection is `strict: false`,
    so nothing else ever tests it; a conflict here *is* the finding — report,
-   ask for a rebase, stop. A conflict on the index alone is the exception,
+   ask for a rebase, stop. A conflict on bookkeeping alone is the exception,
    synced below. Venv:
    `uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev,jax]"`
    (on an arm64 Mac `--python cpython-3.12-macos-aarch64-none`; `session_start.python_request`),
@@ -272,20 +273,50 @@ line if the checkpoint ended it. Close with
    `nightly.yml`'s full job so counts compare and cross-backend rows pass
    rather than skip.
 
-   **Sync an index-only conflict yourself.** GitHub refuses that merge too,
-   but regenerating the index fixes it, and a rebase request costs the
-   contributor a round trip. Sync when `git diff --name-only
-   --diff-filter=U` lists only `docs/wp/README.md` and `gh pr view N --json
-   maintainerCanModify` is true (9 of 9 open fork PRs on 2026-10-01).
-   Otherwise ask for a rebase.
+   **Sync a bookkeeping conflict yourself.** Three things take one entry per
+   merged PR: the WP index, the schema number and the release staging file.
+   Two PRs that each add an entry conflict however unrelated they are.
+   GitHub refuses that merge too, but each resolves without judgement. A rebase
+   request costs the contributor a round trip: on 2026-10-12 #888, #903 and
+   #911 were rebased eight times, and every stated conflict was the schema
+   number or a release note. Sync when `git diff --name-only
+   --diff-filter=U` lists only the files below, every hunk in them is the
+   kind described, and `gh pr view N --json maintainerCanModify` is true (9
+   of 9 open fork PRs on 2026-10-01). Otherwise ask for a rebase.
+
+   - **`docs/wp/README.md`**: regenerate it with `wp_index.py`.
+   - **The schema number**, `src/rietx/schemas/common.py` and the pin in
+     `tests/test_magnetic.py`. Both sides took main's number N for different
+     changes, so the PR's change moves to M, the next number after N. Keep
+     main's ladder note, then the PR's with its transition rewritten to
+     `N → M`. Drop a sentence in it that only coordinated the number with
+     other open PRs, and say so in the review. In the pin's comment keep
+     main's sentence and append the PR's item at M. **Then set
+     `SCHEMA_VERSION = "M"` and the pin's `assert` by hand.** Both lines sit
+     outside the conflict and merge clean at N, because both sides wrote N.
+     (That is git's default conflict style. `--conflict=diff3` draws them
+     inside the hunk.) A sync that resolves only the marked hunks leaves two
+     schema changes under one number. In a dry run of #911 onto `edad5b5a`
+     (2026-10-12) the pin test passed and `git diff --check` was clean that
+     way, and only the grep below showed 0.50. A release note on the branch
+     that names N for this change names M.
+   - **`docs/releases/<next>.md`**, the staging file: keep both sides when
+     every hunk only adds, main's lines first. `git checkout --conflict=diff3
+     -- <file>` shows each hunk's base. An empty `|||||||` section is an
+     append on both sides, as two notes under `## New` gave (2026-10-12).
+     Anything in it is an edit, and an edit asks for a rebase.
 
    ```sh
    git merge --abort
    git checkout --detach refs/pr/N
-   git -c merge.wpindex.driver='git merge-file %A %O %B' merge --no-edit origin/main     # conflicts on the index alone
-   python3 .claude/hooks/wp_index.py
-   git add docs/wp/README.md
-   git commit -m "Merge main and regenerate docs/wp/README.md" \
+   git -c merge.wpindex.driver='git merge-file %A %O %B' merge --no-edit origin/main     # conflicts on bookkeeping alone
+   python3 .claude/hooks/wp_index.py              # when the index conflicts
+   # resolve the schema number and the staging file as above, then:
+   grep -n 'SCHEMA_VERSION = "' src/rietx/schemas/common.py     # must print M
+   git diff --check                               # no conflict markers left
+   .venv/bin/python -m pytest tests/test_magnetic.py -k capability_flag_is_derived
+   git add -u
+   git commit -m "Merge main; <what was synced, e.g. renumber SCHEMA_VERSION to M>" \
      -m "Synced with Claude Code on behalf of @yue-here."
    gh pr view N --json headRepositoryOwner,headRepository,headRefName
    git push https://github.com/OWNER/REPO.git HEAD:refs/heads/BRANCH
@@ -296,9 +327,10 @@ line if the checkpoint ended it. Close with
    fast-forward, so it never needs `--force`. A rejected push means the
    contributor pushed in the meantime: fetch and start again. The push
    reruns CI, and step 9 waits for it to go green. Name the sync commit in the
-   review. Measured on #585 (2026-10-01): the synced head had no conflict
-   markers, passed `wp_index.py --check` and merged clean onto main. Against
-   main it changed only the PR's own 18 files.
+   review, and say what it renumbered. Measured on #585 (2026-10-01): the
+   synced head had no conflict markers, passed `wp_index.py --check` and
+   merged clean onto main. Against main it changed only the PR's own 18
+   files.
 5. **Run the ladder the touched paths select**, every pytest with
    `-n auto --dist loadgroup`, from the bench:
    - **docs/manual only** → `test_docs_consistency.py`, `test_manual.py`,
@@ -392,11 +424,14 @@ line if the checkpoint ended it. Close with
    question with the bench's text merge. This is a merge queue built by hand,
    and like one it decides membership by the merged result, not by which
    files the PRs share.
-   - **A conflict on the index alone stays in the stack.** Regenerate the
-     index, `git add` it and commit, as step 4's sync does. On GitHub, sync
-     that PR once the PR before it has merged. Replayed on #578, #579 and
-     #580, this path built the same tree as syncing each head and merging
-     them in turn (2026-10-01).
+   - **A conflict step 4 would sync stays in the stack.** Resolve it as step
+     4 does, with the stack's lines standing for main's, then `git add` and
+     commit. On GitHub, sync that PR once the PR before it has merged. Two
+     schema changes in one stack take consecutive numbers in merge order.
+     Replayed on #578, #579 and #580, the index path built the same tree as
+     syncing each head and merging them in turn (2026-10-01). The final
+     `git diff <stack-sha> origin/main` below is what shows a hand-resolved
+     schema sync reproduced the replay's.
    - **Any other conflict drops the PR** (`git merge --abort`)
      with a rebase request.
    - **Before the gate, read every hand-written file that two stacked PRs
