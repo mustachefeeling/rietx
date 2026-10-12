@@ -2131,10 +2131,11 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # 0.42, WP-1805's ``Phase.rigid_bodies`` 0.43, WP-1930's
     # ``StageResult.seeded`` and ``.floor_unseeded`` 0.44, WP-1808's
     # ``RigidBody.torsions`` 0.45, WP-1938's removal of
-    # ``Parameter.transform`` and ``StageResult.floor_unseeded`` 0.46, and
-    # WP-1929's ``ParameterInterval``, a new answer type, 0.47, and its
-    # ``StageResult.moment_angle_tests`` 0.48.
-    assert caps.schema_version == "0.48"
+    # ``Parameter.transform`` and ``StageResult.floor_unseeded`` 0.46,
+    # WP-1931's ``BackgroundSelection.diagnostics`` 0.47, and WP-1929's
+    # ``ParameterInterval``, a new answer type, 0.48, and its
+    # ``StageResult.moment_angle_tests`` 0.49.
+    assert caps.schema_version == "0.49"
 
 
 def test_every_moment_dof_has_a_help_entry():

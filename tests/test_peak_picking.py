@@ -398,6 +398,33 @@ def test_resolved_doublet_does_not_manufacture_lines():
         assert np.min(np.abs(pred - tt)) < 0.05
 
 
+def test_undersampled_resolved_doublet_does_not_manufacture_lines():
+    """Defect 1 again, where a FWHM spans under 1/0.3 ≈ 3.3 channels.
+
+    The alias screen compares two **channel maxima** — the candidate, and Bragg's
+    law applied to its parent — so their disagreement is up to one step on top
+    of any physical one.  The preset's own profile (FWHM ≈ 0.032°, not
+    ``LAB_UVWXY``) at this file's 0.02° step puts the 0.3-FWHM tolerance at
+    0.0097°, under that step: measured, one Kα2 alias per pattern (84.11°, and
+    108.15° on one seed) slipped past and came back as a line, which is what
+    took a clean Cu Kα rock salt to ``indexed_fraction_low`` (7 of 9 lines).
+    """
+    instrument = Instrument.bragg_brentano(radiation="CuKa")
+    instrument.background = BackgroundChebyshev(
+        coefficients=[Parameter(value=v) for v in (200.0, -20.0, 5.0)])
+    y_true, grid, truth = _forward(instrument, tt_lo=20.0, tt_hi=130.0)
+    for seed in range(5):
+        usable = pick_peaks(_noisy(y_true, grid, seed), instrument).usable()
+        found = np.array([p.two_theta for p in usable])
+        stray = [round(float(t), 3) for t in found
+                 if np.min(np.abs(truth - t)) > 0.01]
+        assert not stray, f"seed {seed}: Kα2 aliases kept as lines: {stray}"
+        # and the positive arm: every reflection is still found, once
+        assert len(found) == len(truth)
+        assert np.max(np.min(np.abs(found[:, None] - truth[None, :]),
+                             axis=0)) < 0.01
+
+
 def test_unresolved_kalpha2_shoulder_is_not_a_line():
     """Defect 5: the *unresolved* half of defect 1, and it is worse.
 
@@ -859,6 +886,12 @@ def test_the_phantom_components_of_a_real_pattern_are_flagged_and_excluded():
     The assertion is that they are *in* the list and *out* of ``usable``, which
     is the whole point of flagging rather than dropping — a report can still say
     why each line went.
+
+    One of the two is gone since the alias screen allowed for the sampling
+    step: the 5.5e-19 component at 124.91° lived in a group seeded at the
+    124.57° line's Kα2 maximum (125.12°, 0.3 FWHM plus a step from its predicted
+    position), and that group no longer forms.  The 2.1e-49 one at 116.71° is a
+    phantom of a genuine group and still has to be flagged.
     """
     import rietx as rx
     from tests.test_acceptance_qpa_roundrobin import DATA as QARR
@@ -871,12 +904,12 @@ def test_the_phantom_components_of_a_real_pattern_are_flagged_and_excluded():
     peaks = pick_peaks(data, qarr_instrument())
 
     flagged = [p for p in peaks.peaks if "no_intensity" in p.flags]
-    assert len(flagged) == 2, [(p.two_theta, p.intensity) for p in flagged]
+    assert len(flagged) == 1, [(p.two_theta, p.intensity) for p in flagged]
     assert all(p.intensity < 1e-15 for p in flagged)
     assert not any("no_intensity" in p.flags for p in peaks.usable())
     # they are the *only* thing this flag removed — the other components that
     # are unusable here are so for reasons of their own.  Both flags come off,
-    # because since WP-1442 these two carry ``position_unmeasured`` as well:
+    # because since WP-1442 these carry ``position_unmeasured`` as well:
     # their esds are 1e+49 and 1e+17 degrees, and a component that refined to
     # no intensity has no identifiable position, which is the sentence
     # ``no_intensity``'s own docstring already made.  The two screens agree
@@ -888,7 +921,7 @@ def test_the_phantom_components_of_a_real_pattern_are_flagged_and_excluded():
         p for p in peaks.peaks
         if not (set(p.flags) - {"no_intensity", "position_unmeasured"})
         & PEAK_UNUSABLE_FLAGS]
-    assert len(keeps_without_the_flag) == len(peaks.usable()) + 2
+    assert len(keeps_without_the_flag) == len(peaks.usable()) + 1
 
     # and the point of removing them: every line offered to an engine now has a
     # position esd a lattice search can use.  The worst was 3.9e+49 degrees.
@@ -1241,8 +1274,11 @@ def test_the_editor_marks_only_what_it_just_refitted():
 def test_no_two_usable_lines_share_a_position_on_a_crowded_lab_pattern():
     """``cpd-4`` offered 113 usable lines, 26 of them within 0.02° of another
     (a re-seed pass in one group's window had refitted its neighbour's line);
-    35 components now carry ``duplicate_line`` and none of the 77 left does (78 before the
-    intensity floor of ``PEAK_NO_INTENSITY_SIGMA``)."""
+    34 components now carry ``duplicate_line`` and none of the 76 left does (78 before the
+    intensity floor of ``PEAK_NO_INTENSITY_SIGMA``, 77 before the alias screen allowed
+    for the sampling step: the line it removed, 146.13°, is the Kα2 of corundum's
+    145.21° line at 0.47 of its intensity, and no phase has a Kα1 line within
+    0.6° of it)."""
     import rietx as rx
     from tests.test_acceptance_qpa_roundrobin import DATA as QARR
     from tests.test_acceptance_qpa_roundrobin import qarr_instrument
@@ -1253,7 +1289,10 @@ def test_no_two_usable_lines_share_a_position_on_a_crowded_lab_pattern():
     peaks = pick_peaks(rx.read_pattern(path), qarr_instrument())
     usable = np.sort([p.two_theta for p in peaks.usable()])
     assert not np.any(np.diff(usable) < 0.02)
-    assert sum("duplicate_line" in p.flags for p in peaks.peaks) == 35
-    # 77 since the 1-sigma intensity floor (PEAK_NO_INTENSITY_SIGMA) flags one
-    # more component here, a line of intensity 0.42 of its own esd
-    assert len(usable) == 77
+    assert sum("duplicate_line" in p.flags for p in peaks.peaks) == 34
+    # 77 once the 1-sigma intensity floor (PEAK_NO_INTENSITY_SIGMA) flagged one
+    # more component here, a line of intensity 0.42 of its own esd; 76 since the
+    # alias screen allowed for the step, which removes the 146.13° alias and
+    # also the group that 0.42-sigma component lived in (it sat at 136.76°, a
+    # Kα2 residual beside the newly recognised 136.86° alias)
+    assert len(usable) == 76

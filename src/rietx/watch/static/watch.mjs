@@ -840,8 +840,9 @@ async function pumpTail(id) {
       `${k}=${typeof v === 'number' ? +v.toPrecision(6)
               : Array.isArray(v) ? `[${v.length}]` : JSON.stringify(v)}`
     ).join(' ');
+    // a run header (WP-1322) is a record with no kind: it shows as `run`
     return `<div class="line"><span class="ev">${t}</span> <span class="k">${esc(
-      String(e.kind).padEnd(11))}</span> ${esc(data)}</div>`;
+      String(e.kind ?? e.record).padEnd(11))}</span> ${esc(data)}</div>`;
   }).join('');
   // append, never re-serialize: `innerHTML +=` reparses every line already
   // there, so a fit emitting an event per residual evaluation would pay for

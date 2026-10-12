@@ -775,7 +775,8 @@ lives in that candidate's own `CellCandidate.diagnostics` and
 
 | Field | Holds |
 |---|---|
-| `CellCandidate.cell`, `CellCandidate.cell_esd` | a, b, c (Å) and α, β, γ (°), with esds |
+| `CellCandidate.cell`, `CellCandidate.cell_esd` | a, b, c (Å) and α, β, γ (°), with esds, in the conventional setting |
+| `CellCandidate.engine_cell`, `CellCandidate.change_of_basis` | the cell in the setting the engine found, and the integer M taking it to `cell` |
 | `CellCandidate.a`, `CellCandidate.b`, `CellCandidate.c`, `CellCandidate.alpha`, `CellCandidate.beta`, `CellCandidate.gamma` | the members of `cell` by name |
 | `CellCandidate.to_cell` | `cell` as a `Cell`, every parameter fixed; the esds stay on `cell_esd` |
 | `CellCandidate.system`, `CellCandidate.centring` | crystal system, and Bravais centring letter |
@@ -798,6 +799,17 @@ lives in that candidate's own `CellCandidate.diagnostics` and
 `CellCandidate.fom_value` reads one panel member by name and returns `None`
 rather than raising, because which members exist depends on what the list
 could support.
+
+A candidate is reported in its conventional setting, whatever setting the
+engine reached. Only a monoclinic lattice has one to choose: b is the unique
+axis, a and c are the shortest translations normal to it, and β is obtuse
+(*ITA* A § 9.3). An engine may arrive at β = 81.78° for a lattice whose
+conventional β is 98.22°, or at any of the C cell's many settings, and
+`af`, `cell` and `cell_esd` are all re-set through one exact map. The engine's
+own cell stays in `engine_cell`, and `change_of_basis` is M with (reported
+axes) = M · (engine axes), the identity where nothing moved. Two cells are one
+lattice when `same_lattice` says so on their `af`, never when the tuples
+match.
 
 `CellCandidate.lattice_group` is the absence-free group, never a plausible space
 group, and the distinction is load-bearing. A group carrying reflection

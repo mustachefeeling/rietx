@@ -102,3 +102,14 @@ before the fit and returns `ORIGIN_FIXED_ON_POLAR_AXIS` (info; `where` names the
 held DOF, `unhold` takes it back): read the other atoms' z as relative to it.
 `ORIGIN_NOT_FIXED` (warning) says a direction had no atom to hold, so the flat
 direction is still there. Nothing is held unless you call it.
+
+**A symmetry-lowering can win ΔBIC and gain nothing where it splits.** Two fits
+of one pattern, a model and its lowering (cubic, tetragonal): ΔBIC says it paid
+for itself, not where. `rx.report.split_localisation(higher, lower)` shares the
+Δχ² among the windows of the reflections the lowering splits, the unsplit ones
+and the rest; read `split_share` against `split_point_share`. (Measured:
+synthetic Cu, tetragonal against cubic. A truly tetragonal specimen gave ΔBIC
++190 at N/f² and +68 % of the Δχ² on 3.2 % of the points. A cubic specimen with
+a {hhh}/{h00} peak shift gave ΔBIC +25 and −30 % on 4.9 %. Issue #219 is the
+laboratory case.) Both fits must share channels, intensities and σ, or it
+raises.

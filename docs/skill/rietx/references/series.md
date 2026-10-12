@@ -209,11 +209,10 @@ What an operator must know, all measured:
   cold refits plus 244 minority-geometry fits plus 2 reference fits, **57 minutes
   single-threaded**.  Sample the chain cold; it is the only check here that
   catches a cheap wrong basin.
-- **One batch row applies to a chain and lives in §9c**, which a series
-  operator never loads: the shared `EventStream` opens its file in append mode,
-  so a re-run of a ramp writes into the previous run's log unless the path is
-  rotated ([`references/batch-operating.md`](batch-operating.md) § 9c.13) —
-  measured on chains.
+- **Pass `events=EventStream(path)` when you need a run record**: one log for
+  the chain, its `stage_end` events carrying Rwp and `termination`.
+  `rietx events <path>` reads it per run, re-runs into one path included
+  ([`references/batch-operating.md`](batch-operating.md) § 9c.13).
   The companion rule — a phase that switches fully in and fully out along the
   ramp is a degenerate split rather than a coexistence, and whether its
   fraction is an observable at all depends on the transition's order — is this

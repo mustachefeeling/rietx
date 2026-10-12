@@ -658,6 +658,68 @@ one does not, or nothing added. `report.predict_then_verify` fills
 `VerificationOutcome.comparison` with the same record for its trial, beside the
 χ² rule its `VerificationOutcome.accepted` applies.
 
+### Where the improvement lives
+
+ΔBIC says whether a richer model paid for itself, not *where* it did. Two
+functions in `rietx.report` answer that from two results on one pattern, fitted
+over the same limits and exclusions. Neither runs a fit, and neither has a
+threshold or a verdict field (WP-1339).
+
+<!-- api-doc: no-exec — it needs two results that have run -->
+```python
+from rietx.report import cumulative_delta_chi2, split_localisation
+
+prof = cumulative_delta_chi2(cubic_result, tetragonal_result)
+print(prof.total, [(q.two_theta_min, q.share) for q in prof.quantiles])
+
+loc = split_localisation(cubic_result, tetragonal_result)
+print(loc.split_share, loc.split_point_share)
+for f in loc.families:
+    print(f.hkls, f.splits, f.delta_chi2)
+```
+
+`cumulative_delta_chi2(a, b)` is Σ(δ²_b − δ²_a) up to each channel, the curve
+`rietx compare` draws with `a` as its reference, so a falling stretch is `b`
+fitting better there. `report.cumulative_chi2` is one fit's half, and it is
+what each `rietx compare` record stores.
+
+`split_localisation(higher, lower)` takes a fit and a symmetry-lowering of it.
+It assigns each of `lower`'s reflection ticks to the nearest of `higher`'s of
+the same emission line, so the two may be in different settings and need no
+transformation matrix. Reflections of `higher` at one 2θ (333 and 511 of a
+cubic parent) are one family carrying every hkl there. A
+`higher` reflection is split when its assigned ticks sit at more than one
+position. Each family is windowed from its lowest tick to its highest, widened
+by `higher`'s own local FWHM (or `half_width=`). The Δχ² is then shared out
+among the split windows, the unsplit windows and the rest.
+
+A distortion the data holds puts its gain where it splits reflections, so
+`split_share` runs well above `split_point_share`. Issue #219 is the case that
+made it a function: a laboratory pattern where the lower-symmetry model won
+every global statistic and the reflections it splits carried none of the gain.
+The synthetic pairs of `tests/test_localisation.py` reproduce the contrast with
+numbers anyone can rerun, `compare_freed`'s `delta_bic` being positive when the
+richer (tetragonal) model wins. On a tetragonal Cu pattern, ΔBIC is +190 at
+N/f² and the split reflections carry +68 % of the gain on 3.2 % of the points.
+On a cubic one with a reflection-dependent peak shift, ΔBIC is still +25 at
+N/f², and the split reflections carry −30 % on 4.9 %.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `DeltaChi2Profile.cumulative` | Σ(δ²_b − δ²_a) at every fitted channel | negative-going where `b` fits better |
+| `DeltaChi2Profile.total` | its last value, the raw χ² difference | |
+| `DeltaChi2Profile.quantiles` | equal-count runs of channels in 2θ order | each with its `delta_chi2` and `share` of the total |
+| `SplitLocalisation.split_share` | the split windows' Δχ² over the total | null when `lower` splits nothing in range |
+| `SplitLocalisation.split_point_share` | the fraction of channels in a split window | what the share is read against |
+| `SplitLocalisation.unsplit_share`, `.elsewhere_share` | the other two classes | the three shares sum to one |
+| `SplitLocalisation.families` | one `SplitFamily` per `higher` position and emission line | every hkl there, spread, window, Δχ² and share |
+| `SplitLocalisation.n_unmatched` | `lower` ticks with no `higher` reflection within two widths | superstructure reflections, counted and not windowed |
+
+Two results on different grids, intensities or σ (a measured background widens σ) raise `ValueError`, as does a
+result with more than one indexed phase unless `higher_phase=`/`lower_phase=`
+names it. The coexistence case, a second phase on the parent, transfers weakly
+and is not what this measures.
+
 ## Reports at every stage
 
 A converged report is routinely the least informative one in the run. A plan

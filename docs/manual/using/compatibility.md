@@ -55,7 +55,9 @@ answer the same kind of question:
   provisional for a different reason; see below.
 - The streaming event ladder (`Capabilities.event_schema_version`). An event's
   `data` dict is declared open on both sides, so a new key in it is the contract
-  working rather than a change to it. A new event kind bumps.
+  working rather than a change to it. A new event kind bumps, and so did the run
+  header line (version 3), which a reader validating every line as an event
+  would refuse.
 - The report gates and thresholds (`Capabilities.report_thresholds_version`) and
   the indexing gates (`Capabilities.indexing_thresholds_version`).
 

@@ -200,8 +200,9 @@ is available as an independent alternative.
 
 ## Choosing the flexibility
 
-Two knobs are selected with the same two ingredients: the Chebyshev order (or
-P-spline λ), and the estimator's λ.
+Two knobs are selected with the same two ingredients: the Chebyshev order and
+the estimator's smoothing strength. (The P-spline's smoothing strength is not
+selected: `auto_background` fixes it at 1.0.)
 
 - BIC on peak-masked channels {cite}`schwarz1978`. Background flexibility has to
   be justified by the background channels alone, so Bragg-peak channels (net
@@ -213,6 +214,21 @@ P-spline λ), and the estimator's λ.
   threshold, extra flexibility chases noise. Masked channels are treated as
   contiguous, which makes the test slightly conservative, in the safe
   direction.
+
+The two scans combine them differently. The order scan steps from 2 terms to
+`max_order` (16 by default) and stops at the first $d \ge 1.8$. It returns the
+lowest BIC among the orders it tried, so $d$ only ends the scan and never picks
+the order. The arPLS scan steps from stiff to flexible and returns the first
+smoothing strength with $d \ge 1.2$; its BIC is reported and decides nothing.
+
+A scan can end at its cap without either ingredient deciding: BIC still
+falling at `max_order` and $d$ short of the stop. The order returned is then
+the cap and not a choice, and the selection says so with
+`BACKGROUND_ORDER_AT_CAP`, naming the cap and the last $d$. On the 11-BM
+Si 640c pattern this is the default's outcome, and a higher cap returns the
+higher cap: each term gains 50-800 in BIC against a penalty $\ln m \approx 10$,
+and the masked residual's serial correlation comes from profile misfit, which
+no polynomial removes (issue #833).
 
 {source}`rietx.background.select`
 

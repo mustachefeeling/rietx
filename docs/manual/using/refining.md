@@ -1402,6 +1402,14 @@ than by unpacking a fixed shape, because fields are added to a kind without a
 version bump. And a cancelled run's `fit_end` omits the statistics entirely,
 because there is no fitted result to report.
 
+A path is opened for appending, so a second fit given the same path adds to the
+same file. Each stream marks where it starts: the first line it writes is a run
+header, `{"record": "run", "run": <id>, "t": …}`, which is not an event and
+never reaches a callback. `read_events` returns the events and skips the
+headers. `rietx events` ([](cli.md)) prints a log run by run, and
+`rietx.history.aggregate.summarize_events` is the same summary as an object.
+A reader that branches on `kind` should first check that `record` is `"event"`.
+
 `Capabilities.event_schema_version` reports the version a build emits;
 [](compatibility.md) says what that version promises.
 

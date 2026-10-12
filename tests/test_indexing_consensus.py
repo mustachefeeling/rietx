@@ -927,3 +927,65 @@ def test_a_restricted_search_is_not_a_verdict_about_the_specimen():
     assert found.candidates, "the orthorhombic truth must be reachable"
     axes = sorted(found.candidates[0].cell[:3])
     assert axes == pytest.approx([7.0, 8.0, 9.0], abs=2e-3)
+
+
+def _monoclinic_engine_candidate(engine_cell, centring="P"):
+    """A candidate fitted, as an engine would, in the setting it arrived at."""
+    from rietx.indexing.engines import EngineCandidate
+    from rietx.indexing.qspace import refine_candidate
+
+    group = f"{centring} 1 2/m 1"
+    refl = generate_reflections(group, engine_cell, LAM, 100.0)
+    order = np.argsort(np.asarray(refl.d))[::-1]
+    tt = np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d)[order])))
+    peaks = PeakList.from_positions(tt, LAM, two_theta_esd=0.005)
+    hkl = np.asarray(refl.hkl, dtype=np.float64)[order]
+    fit = refine_candidate(peaks.q(), peaks.q_esd(), hkl, system="monoclinic")
+    cand = EngineCandidate(fit=fit, system="monoclinic", centring=centring,
+                           engine="svd", hkl=hkl, line_index=np.arange(len(tt)),
+                           n_lines=len(tt))
+    return cand, peaks
+
+
+def test_a_monoclinic_candidate_is_reported_in_its_conventional_setting():
+    """WP-1923 (issue #779): the engine's β = 81.78° is reported as the
+    conventional 98.22°, af and the esds re-set with it, and the engine's own
+    cell and the change of basis kept beside it."""
+    from rietx.indexing.engines import provisional_payload, to_cell_candidate
+    from rietx.indexing.qspace import cell_esds
+    from rietx.indexing.reduce import af_map
+
+    cand, peaks = _monoclinic_engine_candidate(
+        (4.541, 4.884, 10.198, 90.0, 81.78, 90.0))
+    out = to_cell_candidate(cand, peaks)
+    assert out.cell == pytest.approx((4.541, 4.884, 10.198, 90.0, 98.22, 90.0),
+                                     abs=1e-6)
+    assert out.engine_cell == pytest.approx(tuple(cand.fit.cell), rel=1e-12)
+    assert out.change_of_basis == ((-1, 0, 0), (0, -1, 0), (0, 0, 1))
+    assert np.allclose(out.af, af_map(out.change_of_basis) @ cand.fit.af,
+                       rtol=1e-12)
+    # a sign flip of a and b moves no esd
+    assert np.allclose(out.cell_esd, cand.fit.cell_esd, rtol=1e-9)
+    assert out.lattice_group == "P 1 2/m 1"
+    assert out.volume == pytest.approx(cand.fit.volume, rel=1e-12)
+    assert provisional_payload([cand])[0]["cell"] == pytest.approx(
+        list(out.cell), abs=1e-6)
+
+    # a C cell keeps its centring, and a mixing step re-derives the esds
+    cand, peaks = _monoclinic_engine_candidate(
+        (9.0, 5.0, 12.0, 90.0, 140.0, 90.0), centring="C")
+    out = to_cell_candidate(cand, peaks)
+    assert out.centring == "C" and out.lattice_group == "C 1 2/m 1"
+    assert out.cell == pytest.approx((9.0, 5.0, 7.7159, 90.0, 91.4298, 90.0),
+                                     abs=1e-4)
+    assert out.change_of_basis == ((1, 0, 0), (0, 1, 0), (1, 0, 1))
+    t = af_map(out.change_of_basis)
+    assert np.allclose(out.cell_esd, cell_esds(t @ cand.fit.af,
+                                               t @ cand.fit.cov_af @ t.T))
+
+    # already conventional: the identity, recorded rather than left unasked
+    cand, peaks = _monoclinic_engine_candidate(
+        (4.541, 4.884, 10.198, 90.0, 98.22, 90.0))
+    out = to_cell_candidate(cand, peaks)
+    assert out.change_of_basis == ((1, 0, 0), (0, 1, 0), (0, 0, 1))
+    assert out.engine_cell == out.cell
