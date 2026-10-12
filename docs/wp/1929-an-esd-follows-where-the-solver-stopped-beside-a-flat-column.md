@@ -1,6 +1,6 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — flag, FLOOR_HIT and profile_interval landed; the Δχ² rule chosen for the stationary angle, its cut measured next
+Milestone: unscheduled · Status: 🔄 2026-10-12 — flag, FLOOR_HIT and profile_interval landed; the stationary-angle rule decided (linearised refit, χ̄² cut), being built
 Track: What fires, and what stays silent
 Depends on: 1938 (physical coordinates, which remove the point-dependence this WP reports on)
 Priority: P1 2026-10-11 — was P2: 1938 landed (#883), its last blocker, so the reporting rule and the floor diagnostic can start on physical coordinates under the LM default
@@ -331,6 +331,27 @@ continuations of 400 evaluations.
       (3.29σ), the cut `profile_interval` uses on a bound. The cut is fixed
       after Δχ² is measured at the three class-0 stops and the four
       determined tilts.
+      **Superseded in part the same day: the other parameters are refitted
+      by one linear step.** Measured (macOS arm64, `[dev]`, scratchpad
+      `case_d_seeds.py` and `case_e_linear.py`) on fits simulated with every
+      moment along **a**, so a keep is a false alarm. With the others fixed,
+      two-site LM fits kept the columns in 17 of 48 at 3.84 and 13 at 6.50,
+      because the moduli cannot absorb what moving the angles changes. With
+      the others refitted it was 8 and 3. A linearised refit (one
+      least-squares step on the other columns of the stop's own Jacobian)
+      gave the full refit's verdict on all 96 fits, its statistic at most 1.5
+      away. The cut is the χ̄² mixture's 95 % point for the k angles tested
+      (2.71, 4.23, 6.50 for k = 1, 2, 4). At 6.50 the false keeps were 3/48
+      (LM), 2/16 (TRF) and 2/16 one-site at 4.23. Every tilt of 0.01 rad
+      scored at least 12.2 and every tilt of 0.05 rad about 2500. Zeroing
+      gave moduli esds of 0.00108-0.00157 at all 48 null stops, against a
+      median of 0.0157 and a maximum of 31.5 in full. The class-0 stops read
+      1.8-2.1. **Decided (maintainer, 2026-10-12):** the linearised refit,
+      χ̄² at 95 %, and for a mixed set the angle contributing most dropped
+      and the rest retested, at most k times. In the same change,
+      `_flat_moment_scan` probes both signs: a +0.1 rad probe from a start
+      0.05 rad off a symmetry direction lands on its mirror image, and held a
+      determined angle (χ² 20614 at the end).
 - [x] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
       says so); WP-1915's indexing propagation reads the same covariance.
 - [x] (moved to WP-1953, 2026-10-12) The analytic azimuth column at φ = π: check it against an exact oracle
