@@ -439,8 +439,7 @@ from .._nearmiss import did_you_mean
 #: ``PatternData.axis``.  Every stored document loads unchanged — each has a
 #: ``two_theta`` — and a 2θ pattern serializes apart from the new nulls, and
 #: refines, exactly as before.  A ``neutron_tof`` source is read and never
-#: refined in this build.  Open pull requests #871, #888 and #903 also claim
-#: 0.50; whichever lands later renumbers.
+#: refined in this build.
 SCHEMA_VERSION = "0.52"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
