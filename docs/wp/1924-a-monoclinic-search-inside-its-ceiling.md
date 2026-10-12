@@ -31,40 +31,9 @@ Dichotomy reaches about 2 GB inside 15 s and then holds: a fast allocation, not 
 
 Not yet established: what dichotomy holds at 2 GB; whether the 9 GB is that allocation scaling with the 900 s budget or the candidate harvest `dedup_groups` describes (thousands of raw candidates per unit); whether svd's overrun is search, post-processing (supercell checks, Bravais opinion) or a deadline read at too coarse a boundary. The reporter's claim that published dichotomy implementations take seconds (Boultif & Louër 2004) is for a different algorithm's box budget and is not evidence about this one. `indexing/CLAUDE.md` already says the package is silent rather than slow, and "buy responsiveness with ordering and reporting, never by shrinking the box".
 
-### Inherited
+**The table predates WP-1940** (2026-10-10, PR #864). The dichotomy traversal now runs on numpy alone, its numba twin deleted. On WP-1508's synthetic monoclinic list the numpy loop takes about 200 s where the compiled one took 10 s, so a box-bound monoclinic search spends far more of its ceiling in the traversal. Re-measure before building on the table. A compiled port would go into the `rietx-kernels` crate, held to the numpy loop leaf by leaf (`indexing/CLAUDE.md`).
 
-- **2026-10-11, from the issue triage (#895): one candidate's ambiguity
-  sweep reads no clock, so Stop waits up to about 5 s a candidate.** An
-  application reports that Stop takes effect only between cells in
-  `index_pattern`'s last pass. Checked at `d80ca5f4`:
-  `consensus.enumerate_ambiguity` (`indexing/consensus.py:535-556`) reads
-  `cancel` once per candidate, and `cancel` is the run's `Deadline`, which
-  wraps the caller's token (`workflow.py:937`). The work between reads is
-  `ambiguity.ambiguity_partners` (`ambiguity.py:212-290`), a loop over 55
-  `derivative_cells` with `predicted_lines` per child, and it takes no
-  `cancel`. Measured on synthetic 40-line lists (Cu Kα, `[dev]`, macOS
-  arm64): one candidate's sweep takes 0.19 s cubic, 1.5 s tetragonal, 3.0 s
-  orthorhombic and 3.8-4.9 s monoclinic or triclinic. The slowest single
-  child is 8-233 ms. The docstring already names the class: "one candidate's
-  55-lattice sweep uninterruptible", 45 s on ceiling-bound corundum.
-  `consensus.supercell_checks` (`:174-236`) takes no `cancel` at all
-  (inferred, not timed). These are one cause the Context lists ("a deadline
-  read at too coarse a boundary"), so task 2's profile should time them
-  first. A read per derivative cell bounds the wait at the slowest child.
-  `Deadline.expired` is a monotonic-clock read. One rule: a sweep the token
-  stops must leave its candidate out of `ambiguity_checked` and return no
-  partial list, since an empty list reads as "no partners", a clean answer.
-  No test calls `enumerate_ambiguity` directly. Run
-  `tests/test_acceptance_indexing.py` after touching it.
-
-- **2026-10-10, from WP-1940 (4th session, PR #864).** The dichotomy traversal now
-  runs on numpy alone: its numba twin is deleted. § Context's measurements
-  were taken with numba on. On WP-1508's synthetic monoclinic list the numpy
-  loop takes ~200 s where the compiled one took 10 s, so a box-bound monoclinic
-  search spends far more of its ceiling in the traversal. Re-measure before
-  building on those numbers. A compiled port would go into the
-  `rietx-kernels` crate, held to the numpy loop leaf by leaf
-  (`indexing/CLAUDE.md`).
+**Issue #895 (2026-10-11): Stop waits up to about 5 s a candidate in the ambiguity sweep.** It is one form of "a deadline read at too coarse a boundary". Checked at `d80ca5f4` and again at `e1d19359`: `consensus.enumerate_ambiguity` reads `cancel` once per candidate, and `cancel` is the run's `Deadline`, which wraps the caller's token (`workflow.py`). The work between reads is `ambiguity.ambiguity_partners`, a loop over 55 `derivative_cells` with `predicted_lines` per child, and it takes no `cancel`. Measured on synthetic 40-line lists (Cu Kα, `[dev]`, macOS arm64): one candidate's sweep takes 0.19 s cubic, 1.5 s tetragonal, 3.0 s orthorhombic and 3.8-4.9 s monoclinic or triclinic. The slowest single child is 8-233 ms. `consensus.supercell_checks` takes no `cancel` at all. A read per derivative cell bounds the wait at the slowest child, and `Deadline.expired` is a monotonic-clock read. One rule: a sweep the token stops leaves its candidate out of `ambiguity_checked` and returns no partial list, since an empty list reads as "no partners", a clean answer. No test called `enumerate_ambiguity` directly before this WP.
 
 ## Non-goals
 
@@ -77,6 +46,7 @@ Not yet established: what dichotomy holds at 2 GB; whether the 9 GB is that allo
 - [ ] Profile one dichotomy unit for memory with a sampling tool, not `tracemalloc`, on the monoclinic fixture above. Name the allocation, its size as a function of box count and of `max_volume`, and whether it is released.
 - [ ] Do the same for svd's 0.2-2.5 GB spread, and find where the 11-50 s past the ceiling is spent.
 - [ ] Fix what the profile names, keeping every finished search bit-identical (`python -m tests.unit_replay`, digests per platform; 1519's harness).
+- [ ] #895: read `cancel` at the child boundary in `ambiguity_partners` and `supercell_checks`, with a test that a cancelled token stops a sweep within one child's work and leaves the candidate unchecked.
 - [ ] Add a peak-RSS figure to `estimate_ceiling` or to the result's budget diagnostic if the profile shows it is predictable from the spec, so a caller can see it before a run.
 - [ ] Tests: a bounded-memory guard that fails on the allocation, declared with its measured spread (a pass margin under 10× is a load sensor). Quote platform and extras with every count.
 - [ ] Skill: the indexing reference row for a monoclinic or hexagonal search with a large volume bound (cap the volume, search one system at a time, read `INDEX_SEARCH_INCOMPLETE` per engine), tagged Measured or Hypothesis.
