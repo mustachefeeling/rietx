@@ -338,7 +338,10 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "PowderLine's four tables, for a pipeline that dispatched the job here. "
                 "`rx.read_gsas_prm` reads a GSAS-I `.prm` instrument-parameter file "
                 "(one constant-wavelength bank, profile type 3, `profile_set=` "
-                "choosing among several; time-of-flight is refused by name). A "
+                "choosing among several; time-of-flight is refused by name: a "
+                "time-of-flight `.iparm` is `rx.read_gsas_tof_iparm`'s, one frozen "
+                "`Instrument` per bank, and a GSAS-II `Type: PNT` file reads the same "
+                "way. This build refines no bank, so every fit refuses one by name). A "
                 "Kα1/Kα2 doublet there comes back as two "
                 "emission lines, the second weighted by the file's own `KRATIO`, so "
                 "do not add a Kα2 line yourself after reading one "
@@ -355,7 +358,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "constant-wavelength files in GSAS-II's own tutorial corpus trip "
                 "(Measured: WP-1118).",
                 ("rx.read_recipe", "rx.write_recipe_tables",
-                 "rx.read_gsas_prm", "rx.write_gsas_prm",
+                 "rx.read_gsas_prm", "rx.write_gsas_prm", "rx.read_gsas_tof_iparm",
                  "rx.read_gsas2_instprm", "rx.write_gsas2_instprm"),
             ),
             (
