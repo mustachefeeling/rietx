@@ -1039,6 +1039,28 @@ def test_the_magnetic_config_declines_the_traced_backends_by_name(config):
         pytest.skip("no autodiff backend installed")
 
 
+@pytest.mark.xdist_group("xb-axial_one_zero")
+@pytest.mark.parametrize("name", ["jax", "torch"])
+def test_a_zero_aperture_column_meets_its_one_sided_difference(name):
+    """WP-1953: a traced backend's ``axial_hl`` column at H/L = 0 is the
+    feasible side's, measured at its own scale.
+
+    The matrix row above cannot hold it: the column's norm is 0.047 against a
+    largest column of 1.8e6, so it falls under ``DEAD_COL_FRAC`` once right.
+    Wrong, it was 3360 on jax, because the FCJ kink was capped by ξ_max and the
+    two tie at one zero aperture, where jax gives each side half the
+    derivative.  Fixed, jax meets the one-sided central difference to 1.5e-3;
+    the bar leaves 13× room for that difference's own truncation.
+    """
+    model, table = _state("axial_one_zero")
+    theta = _theta(model, table)
+    c = _labels(model, table).index("instrument.geometry.axial_hl")
+    ref = _central_fd_jacobian("axial_one_zero", model, table)(theta)[:, c]
+    col = _backend_jacobian(name)("axial_one_zero", model, table)(theta)[:, c]
+    err = np.linalg.norm(col - ref) / np.linalg.norm(ref)
+    assert err < 2e-2, f"{name} axial_hl at 0: rel-L2 {err:.3e} against central FD"
+
+
 @pytest.mark.parametrize("config", CONFIG_PARAMS)
 def test_axial_columns_are_not_silently_fd_routed(config):
     """``axial_ok`` False sends the axial columns to plain FD, and autodiff *at*

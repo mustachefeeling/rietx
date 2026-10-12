@@ -87,13 +87,17 @@ def fcj_live(sl: float, hl: float) -> bool:
     return sl >= 0.0 and hl >= 0.0 and sl + hl > 0.0
 
 
-def _xi_max(two_theta_rad: np.ndarray, sl: float, hl: float) -> np.ndarray:
-    # shared by the runtime quadrature and the compile-time sizing below
+def _tan_cap(two_theta_rad: np.ndarray) -> np.ndarray:
+    # |tan 2θ| bounds ξ; infinite at 2θ = 90°
     xp = get_backend()
     with np.errstate(divide="ignore"):
         cap = xp.abs(xp.tan(two_theta_rad))
-    cap = xp.where(xp.isfinite(cap), cap, np.inf)
-    return xp.minimum(sl + hl, cap)
+    return xp.where(xp.isfinite(cap), cap, np.inf)
+
+
+def _xi_max(two_theta_rad: np.ndarray, sl: float, hl: float) -> np.ndarray:
+    # shared by the runtime quadrature and the compile-time sizing below
+    return get_backend().minimum(sl + hl, _tan_cap(two_theta_rad))
 
 
 def fcj_extent_deg(two_theta_deg: np.ndarray, sl: float, hl: float) -> np.ndarray:
@@ -158,10 +162,15 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
     tau = xp.asarray(tau_np, dtype=np.float64)
     glw = xp.asarray(glw_np, dtype=np.float64)
     tt = xp.radians(two_theta_deg)
-    xi_max = _xi_max(tt, sl, hl)
+    cap = _tan_cap(tt)
+    xi_max = xp.minimum(sl + hl, cap)
     ok = (xi_max > 0.0) & (sl >= 0.0) & (hl >= 0.0)
 
-    xi_kink = xp.minimum(xp.abs(sl - hl), xi_max)
+    # capped by the tangent alone: |s − h| ≤ s + h, so capping by ξ_max too
+    # changes no value, but ties the two at one zero aperture, where a traced
+    # backend splits the tie's derivative in half and the kink stops moving
+    # with the zero aperture (WP-1953)
+    xi_kink = xp.minimum(xp.abs(sl - hl), cap)
     # segment A: [0, ξ_kink], W ≡ 2·min(s,h); segment B: [ξ_kink, ξ_max]
     xi = xp.concatenate([tau * xi_kink, xi_kink + tau * (xi_max - xi_kink)])
     seg_len = xp.concatenate([xp.full_like(glw, xi_kink),
@@ -216,7 +225,7 @@ def fcj_offsets_weights_batch(two_theta_deg: np.ndarray, sl: float, hl: float,
     xi_max = np.minimum(sl + hl, cap)
     ok = (xi_max > 0.0) & (sl >= 0.0) & (hl >= 0.0)
 
-    xi_kink = np.minimum(abs(sl - hl), xi_max)
+    xi_kink = np.minimum(abs(sl - hl), cap)
     xi = np.concatenate([tau * xi_kink, xi_kink + tau * (xi_max - xi_kink)],
                         axis=1)
     seg_len = np.concatenate([np.broadcast_to(xi_kink, (b, m)),
