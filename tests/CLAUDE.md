@@ -237,8 +237,8 @@ CI leg by 3-4×**, so it reads CI's `junit-*` file when the branch has one (WP-1
 - **A worktree needs its own venv, and quote which one you used.** The main
   checkout's `.venv` resolves `rietx` to the *main checkout's* `src`, so a
   worktree session running it measures the wrong tree — green, and about code
-  it did not change. Build one per worktree (`uv venv --python 3.12 && uv pip
-  install -e ".[dev]"`), and say `[dev]` vs `[dev,jax,torch]` with every figure.
+  it did not change. Build one per worktree (root `CLAUDE.md` § Commands has the
+  command, `--python` included), and say `[dev]` vs `[dev,jax,torch]` with every figure.
   **Name the interpreter when you build it**: `uv pip install` prefers an
   inherited `VIRTUAL_ENV` over the `.venv` in the working directory, so that
   command run inside a fresh worktree can install *the worktree's source into
@@ -261,14 +261,11 @@ CI leg by 3-4×**, so it reads CI's `junit-*` file when the branch has one (WP-1
 - **`--collect-only` undercounts by one per module-level `importorskip` that
   fires** (resolved 2026-07-31, WP-1031, by diffing junitxml nodeids against
   the collection list): a module skipped at import is **one skipped test**
-  in the run summary and **zero items** under `--collect-only`. Three
-  modules can fire (`test_backend_jax`, `test_backend_torch`,
-  `test_manual`'s sphinx), so on a numpy-only `[dev]` venv the historical
-  figures were two short of passed+skipped in both selections
-  (1385 vs 1383, 1306 vs 1304) and on `[dev,jax,torch]` the gap is zero. So
+  in the run summary and **zero items** under `--collect-only`. Which
+  modules fire depends on the venv (jax, torch, the playwright browser files
+  and the rest `conftest.pytest_make_collect_report` names). So
   `collected = passed + skipped − (module-level skips that fired)` — quote
-  whichever you measured, and say which. (The "1378 collected" the docs
-  once carried was a sum, not a measurement — that part stands.)
+  whichever you measured, and say which.
 
 ## CI
 

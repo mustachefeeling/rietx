@@ -188,8 +188,9 @@ bare `Infinity`**, which `json.dumps` writes by default and every parameter row
 carries: `gui/server.py` spells non-finite floats as the schemas do
 (`ser_json_inf_nan="strings"`) on responses *and* SSE frames, and the client reads
 them back with `lib/table.ts`'s `num()`. jsdom lacks `ResizeObserver` (which
-`bind:clientHeight` compiles to, so its absence throws *during mount*) and
-`DragEvent`; `gui/src/test-setup.ts` is the one place that gap is filled. It
+`bind:clientHeight` compiles to, so its absence throws *during mount*);
+`gui/src/test-setup.ts` is the one place that gap is filled. jsdom lacks
+`DragEvent` too, so a drag test dispatches a plain `Event` (`App.test.ts`). It
 has no canvas either, and uPlot draws in its constructor, so `test-setup.ts`
 mocks `uplot` with `test-uplot.ts`'s `StubPlot`: uPlot's state, the chart
 module's hooks fired, and every stroke recorded with the style it was made in,
@@ -205,8 +206,8 @@ a contract; the mapping onto verbs changes when a verb arrives). Four rules.
 nothing, so applying a suggestion travels the path the per-stage Run button
 travels — one `run_stage`, one history node, the same 409 — and *undo is a
 `checkout`*, not an inverse verb. **The action's own `parameter_paths` are the
-globs**; `RECIPES` declares only how each of the sixteen `ActionKind`s is carried
-out (11 `stage`, 1 `index`, 4 `advice`, pinned complete against `get_args`), and
+globs**; `RECIPES` declares only how each `ActionKind` is carried
+out (`stage`, `index` or `advice`, pinned complete against `get_args`), and
 the four advice notes *are* the deliverable — the background-flexibility pair is
 advice because it changes what the background can absorb rather than which
 parameters move, and the statistic that catches the cost (the block projection R²
@@ -228,8 +229,7 @@ while `Plot` still holds it, so the panel redraws from the curves route, which
 then sends the pattern alone.
 
 The **text pane** (WP-1013, `gui/src/panels/Text.svelte`, `gui/src/lib/`) is the
-`.rxt` document in CodeMirror 6, and it is a **mode over the whole window rather
-than a sixth tab** — five tabs already fill the sidebar, and this is the one panel
+`.rxt` document in CodeMirror 6, a tab of the one column (WP-1034), and the one panel
 whose content is line-oriented, the format's columns being aligned precisely so a
 rectangular selection can hit one field. It stays mounted while hidden (a typed
 buffer survives a look at the parameter table) and builds its editor on first
@@ -396,7 +396,7 @@ level and the multiplier separately or the picture claims a surface it is not
 drawing — and **a stick knows which mode it is drawn in**: `stickRadius` returns
 half the smallest semi-axis in ellipsoid mode (0.080 Å ball → 0.065 at p = 0.5 →
 0.032 at p = 0.1, where the fixed stick had been *wider than the atom*), which
-turns `unitCylinder`'s uncapped justification into a proof. The theme is
+turns the bond cylinder's uncapped ray-cast (`gl3d.ts`, open at the ends) into a proof. The theme is
 three-way and resolved **once**, stamped as `data-theme` on the root, because
 "follow the system" is a choice and not the absence of one; CodeMirror's chrome
 must be an `EditorView.theme` rather than a stylesheet rule, since CM injects
@@ -467,14 +467,14 @@ drag to the chart's select mode (x only, zooming nothing), *suspends* the peak
 verbs, and disarms after one selection. `viz/` deliberately does not shade (grounds in the WP): a result
 cannot say what was excluded, so the exported figure shows it as absence.
 
-**One column, eight panels** (WP-1034, `App.svelte`, `Model.svelte`,
+**One column, nine panels** (WP-1034, `App.svelte`, `Model.svelte`,
 `lib/resize.ts`) is where the panels live: Model and Text stopped being modes
 over the window and became tabs beside the plot, and the full-window surface
 they had is now **the column expanding, tab strip and all** — one hatch for
-eight panels instead of two, with the header's `Split | Full` the only control
+every panel instead of two, with the header's `Split | Full` the only control
 for it (session-local: a layout is a view choice, not a setting). Five rules,
 each a measurement in the WP. **A panel's minimum width is measured, not
-chosen** — the atom table's `min-content` is 448 px (+24 padding), the `.rxt`
+chosen** — the atom table's `min-content` lives in `MODEL_MIN` (`lib/resize.ts`), the `.rxt`
 document's *editable* columns end at 546 px with the gutter and its trailing
 comments at 756, against a sidebar that clamps at 340–560 and drags to 72 %: so
 WP-1013's "a narrow sidebar undoes the alignment" is true at the floor and false
@@ -747,9 +747,7 @@ the route), the extinction table's badge follows the served `best` the same
 way, and the screen itself is **not** gated on the adopt verdict — it is a
 read-only measurement and `best_or_none() is None` is the normal real-data
 state — while adoption stays gated, and a space-group chip acts only when the
-adopt arm allows and its class is unrefuted. A right-click refit prompts via
-`window.prompt`, which a headless driver must answer (`page.on("dialog")`) or
-the verb silently never fires — round 1's false "missing echo".
+adopt arm allows and its class is unrefuted.
 
 Its second pass (2026-07-31) added three browser facts; the one about plotly's
 screen-relative `lightposition` left with plotly (WP-1462), whose renderer lights

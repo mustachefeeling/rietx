@@ -60,7 +60,7 @@ a separate vocabulary with no rows here, so a code met outside
 | `LOW_ANGLE_UNMODELLED` | (warning) Trust the background below the first reflection because `air_scatter_gain` did not fire — it tests the envelope over the *whole* range, which a narrow tail barely moves (Ba₂FeSbSe₅ 1.5 K: 0.019 vs 0.3). This code reads the fit's own residual over `[two_theta_min, first_tick − 2·FWHM)` — every phase, emission line and declared peak, so no peak's low-angle flank is counted, with `first_tick` the lowest image (any line) of a reflection whose window norm ‖y/σ‖ reaches 3σ, so an empty tick (phase at vanishing scale, zero-area peak, zero-|F| reflection) never moves it — and fires when its mean weighted-squared residual exceeds 3× the whole-pattern reduced χ² (`value`). Silent under ten channels in the region. The message names both remedies, raising the lower limit to where the residual falls under 2σ or adding the air term, and picks neither: only someone looking can tell a beam edge from a wrong background |
 | `AIR_SCATTER_UNDECLARED` | (warning) Read a P-spline fit's χ² as the background's best without the 1/(2θ) term `auto_background`'s envelope test declines on humped, line-dense data. One-sided score test on the fit's residual: `value` = share of χ² a background refit with the column removes, Bragg held (fires ≥ 0.5 %, ≥ 25× χ²_red). Fires where `LOW_ANGLE_UNMODELLED` can be silent. Remedy: the suggestion |
 | `RESTRAINT_TENSION` | Silently accept the averaged compromise — the data and your prior disagree by >3σ |
-| `SEQUENTIAL_*`, `SERIES_PATTERN_FAILED` | Look for them in this table. The eight series codes arrive on a `SeriesResult`, never on one fit. Seven have their rows in §9b, [`references/series.md`](series.md). `SEQUENTIAL_PERSISTENT_FINDING`'s row is in §6, [`references/abstention.md`](abstention.md) |
+| `SEQUENTIAL_*`, `SERIES_PATTERN_FAILED` | Look for them in this table. The series codes arrive on a `SeriesResult`, never on one fit. All but one have their rows in §9b, [`references/series.md`](series.md). `SEQUENTIAL_PERSISTENT_FINDING`'s row is in §6, [`references/abstention.md`](abstention.md) |
 | `CONSTRAINT_ACTIVE` | (info, the default `lm` driver only; never `trf` or a joint fit) Read the constrained coefficients as free-fit measurements. The driver held steps on a linear-inequality constraint (the message names it: the Stephens cone or the Γ_G² floor) in the answer-producing stage, so the optimum sits on or near its face: admissible, not measured. Vary the start before quoting. It is the *only* signal a declared constraint was active |
 | `CELL_DEGENERATE_PROBE` | (info) Read this as anything about the reported values — it is not. `Cell`'s six parameters declare no bounds of their own, so an underdetermined cell stage can drive a trial into a zero- or negative-volume metric; each such trial is refused and answered with a penalised residual, and never enters the reported parameters. `value` counts them over every completed stage, and the message names the stages. Nonzero is ordinary on a poorly-constrained cell |
 | `COVARIANCE_UNAVAILABLE` | (warning) Read an absent esd on this result as "that parameter was not refined", or refit to make the warning go away and quote the first fit's values with the second fit's esds. The solve returned; what raised afterwards was the eigensolve behind the esds, so the values are the solver's and every esd, correlation and propagated uncertainty is `None`. `where` names the stage: on the answer-producing one the message says every esd is absent; on an intermediate one only that stage's correlation guard did not run, and a `HIGH_CORRELATION` it would have raised is unknown rather than absent. Refit from these values — fixing or restraining the most correlated block is the usual cure — and quote values and esds from that one fit |
@@ -84,14 +84,12 @@ the question they answer comes before a fit exists: *is the model I just
 imported the model that file describes?* Load that one if a TOPAS `.inp` or a
 FullProf `.pcr` import handed you a diagnostic.
 
-The reader's own family is **not here** any more either: the `PATTERN_*`,
-`CIF_*` and vendor-attenuator rows moved to §7i,
-[`references/diagnostics-reading.md`](diagnostics-reading.md). The criterion
-is how often you will meet one. Each is conditional on a quirk your file
-happens to have, so eleven of them sat in the table an agent loads to look up
-what its *fit* just said. Load that one if a reader handed you a diagnostic.
+The reader's own family — the `PATTERN_*`, `CIF_*` and vendor-attenuator
+rows — is in §7i, [`references/diagnostics-reading.md`](diagnostics-reading.md).
+Each fires on a quirk of one file, so load it when a reader handed you a
+diagnostic.
 
-The `RECIPE_*` family is **not here** either: it belongs to the PowderLine
+The `RECIPE_*` family belongs to the PowderLine
 recipe reader (`read_recipe`, `Recipe.diagnostics`) rather than
 `result.diagnostics`, and it answers a question the others do not: *how does
 the fit I am about to run differ from the one the recipe describes?* It has
