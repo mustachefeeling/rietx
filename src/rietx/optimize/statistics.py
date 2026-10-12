@@ -41,10 +41,10 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 #: cell, profile, background and scale are outside it.
 STRUCTURAL_PARAMETER_GLOB = "phases.*.atoms.*"
 
-#: The relative cut :func:`normal_factors` hands ``pinv``: every eigenvalue of
-#: the equilibrated normal matrix below ``PINV_RCOND × λmax`` is discarded, and
-#: the direction it spans comes back at **zero** variance.  numpy's own default,
-#: so passing it is bit-identical to leaving it out; named because a second
+#: The relative cut :func:`normal_factors` hands :func:`_psd_pinv`: every
+#: eigenvalue of the equilibrated normal matrix whose magnitude is at most
+#: ``PINV_RCOND × |λ|max`` is discarded, and the direction it spans comes back
+#: at **zero** variance.  numpy's own ``pinv`` default; named because a second
 #: consumer derives a threshold from it — the scale–B hold's
 #: ``refine.SCALE_B_SEPARATION_FLOOR`` is the column separation below which a
 #: phase's scale and displacement pair falls under this cut (WP-1534), so the
@@ -152,7 +152,7 @@ def _psd_pinv(a: np.ndarray, rcond: float) -> np.ndarray:
 
     A normal matrix is PSD, but ``eigh`` returns an exactly flat direction at
     a rounding-level eigenvalue of either sign: measured at −3.5e-15 to
-    +3.7e-15 of the largest on the LaB₆ + cBN fit whose five Lorentzian widths
+    +3.7e-15 of the largest on the LaB₆ + cBN fit whose six Lorentzian widths
     are one quantity, against a cut of 1e-15.  ``pinv`` keeps any of them
     above the cut and inverts it with its sign.  A positive one gives the flat
     direction a huge variance and ρ = ±1, which is the honest answer.  A
@@ -165,8 +165,11 @@ def _psd_pinv(a: np.ndarray, rcond: float) -> np.ndarray:
 
     numpy's own steps are kept one for one, with only the sign left out of
     ``vt``, so the result is bit-identical to ``pinv`` whenever no kept
-    eigenvalue is negative (``tests/test_covariance_scaling.py``).
+    eigenvalue is negative (``tests/test_covariance_scaling.py``).  That
+    includes ``pinv``'s answer to an empty matrix, its empty transpose.
     """
+    if a.size == 0:
+        return np.empty(a.shape[::-1], dtype=a.dtype)
     lam, u = np.linalg.eigh(a)
     s = np.abs(lam)
     order = np.argsort(s)[..., ::-1]
@@ -200,7 +203,7 @@ def discarded_directions(jac: np.ndarray) -> tuple[int, np.ndarray]:
     ``PINV_RCOND·|λ|max``, so the discarded subspace adds *at least*
     ``Σ_gone v_i²/cut`` to column *i*'s equilibrated variance.  Column *i* is
     touched when that is at least the variance the solve reports,
-    ``Σ_kept v_i²/λ``: its esd is then at least √2 short.  The sum over the
+    ``Σ_kept v_i²/|λ|``: its esd is then at least √2 short.  The sum over the
     subspace, never one eigenvector, because two discarded directions are
     defined only up to a rotation inside it and the projector is not.  Jacobi
     scaling is shared with :func:`normal_factors`, so a column's units do not

@@ -454,9 +454,10 @@ has no negative eigenvalue, but `eigh` returns an exactly flat direction at a
 rounding-level eigenvalue of either sign. Inverted with its sign, a negative one
 gives every column on that direction a negative variance, and the esd floors to
 0. So the pseudo-inverse inverts each kept eigenvalue by its magnitude. On the
-LaB₆ + cBN fit with five Lorentzian widths free, the two flat directions came
-back between 1e-16 and 4e-15 of the largest, and before the change six widths
-read ± 0 on Linux.
+LaB₆ + cBN fit with six Lorentzian widths free, the two flat directions came
+back between 1e-16 and 4e-15 of the largest. Before the change Linux raised no
+`HIGH_CORRELATION` there. On macOS a 1e-14 change to one start value left six
+widths at ± 0.
 
 `COVARIANCE_DIRECTION_DISCARDED` names the touched parameters and leaves their
 esds as they are. A touched set that is exactly a pair `FLAT_DIRECTION` already

@@ -408,7 +408,7 @@ FLAT_NUDGES = (1, 7)
 
 @pytest.mark.parametrize("k", FLAT_NUDGES)
 def test_the_flat_widths_are_flagged_whatever_rounding_does(k):
-    """The degenerate fit's five Lorentzian widths span two exactly flat
+    """The degenerate fit's six Lorentzian widths span two exactly flat
     directions, and rounding must not decide whether anyone is told.
 
     From WP-1938 on, those directions reached the covariance at eigenvalues of

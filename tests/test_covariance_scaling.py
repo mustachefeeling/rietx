@@ -552,13 +552,25 @@ def test_a_flat_pair_is_undetermined_whichever_sign_rounding_gives(
     assert np.array_equal(corr, corr_pos)
 
 
+def _near_pair(seed: int, n: int = 300):
+    """Four columns, the last two 3e-7 apart: a small eigenvalue that is kept."""
+    rng = np.random.default_rng(seed)
+    jac = rng.normal(size=(n, 4))
+    jac[:, 3] = jac[:, 2] + 3e-7 * rng.normal(size=n)
+    return jac, rng.normal(size=n) * 0.01
+
+
 def test_a_psd_matrix_keeps_numpys_bits():
     """With no negative eigenvalue kept, ``_psd_pinv`` is ``pinv`` to the bit,
-    so every fit whose normal matrix rounds positive is unchanged."""
+    so every fit whose normal matrix rounds positive is unchanged.  The three
+    families cover a well-conditioned spectrum, a discarded direction and a
+    small one above the cut."""
     from rietx.optimize.statistics import PINV_RCOND, _psd_pinv
 
-    for seed in range(20):
-        jac, _ = _flat_pair(seed) if seed % 2 else _problem(seed)
+    empty = np.zeros((0, 0))
+    assert _psd_pinv(empty, PINV_RCOND).shape == np.linalg.pinv(empty).shape
+    for seed in range(30):
+        jac, _ = (_problem, _flat_pair, _near_pair)[seed % 3](seed)
         e = jac.T @ jac
         e = 0.5 * (e + e.T)
         d = 1.0 / np.sqrt(np.diag(e))
