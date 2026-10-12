@@ -186,9 +186,12 @@ against the tree at e1d19359 on arrival.
       size (WP-1131's 408.8/408.8 Å shape); `STAGE_PATH_NOT_FREE` fires on a
       joint plan and #789's silence cases stay silent. All in
       `tests/test_joint_report.py`, each landed with its feature.
-- [ ] Skill: the generated API index follows (`make_api_index.py`); the body
+- [x] Skill: the generated API index follows (`make_api_index.py`); the body
       or a reference row says what a joint fit does and does not report, since
-      an agent today gets silence and no explanation.
+      an agent today gets silence and no explanation. 2026-10-12: `api.md`
+      lists `MultiHistogramRefinement.report` and `refine_multi`'s telemetry
+      keywords; `watching.md` 9d.10 and `surprises.md` 8.30 carry the rows.
+      The body is unchanged.
 
 ## Acceptance
 

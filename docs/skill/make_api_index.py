@@ -169,7 +169,8 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "(§9); a `Project` owns a `.rex` directory; a `CancelToken` cancels "
         "cooperatively, between residual evaluations.",
         ("rx.refine_sequential", "rx.SequentialRefinement", "rx.refine_multi",
-         "rx.MultiHistogramRefinement", "rx.Refinement.checkout",
+         "rx.MultiHistogramRefinement", "rx.MultiHistogramRefinement.report",
+         "rx.Refinement.checkout",
          "rx.Refinement.branch", "rx.Refinement.merge",
          "rx.Refinement.cherry_pick", "rx.replay", "rx.Project",
          "rx.Project.create", "rx.Project.open", "rx.Project.save",

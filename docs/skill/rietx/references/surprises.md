@@ -511,4 +511,6 @@ neutron one. `result.diagnostics` holds the shared structure, solve and plan,
 plus each histogram's `BACKGROUND_ABSORPTION`, on both lists: count it once.
 `DATA_SUPPORT_LOW` never fires on a joint fit. Histogram h's radiation is
 `MultiHistogramRefinement.fitted_instruments[h].source.kind`.
-(Measured: WP-1312, WP-1344.)
+`ref.report(h)` is histogram h's report. If the last stage broadened peaks, its
+curves cut their tails and Layer 0 lists the cuts as unmatched.
+(Measured: WP-1312, WP-1344, WP-1341.)

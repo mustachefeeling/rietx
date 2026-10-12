@@ -1860,10 +1860,15 @@ def refine_multi(data: list[PatternData], structure: Structure,
                  sharing: SharingMap | None = None,
                  two_theta_limits=None,
                  weights: list[float] | None = None,
-                 backend: str = "numpy", solver: str = DEFAULT_SOLVER) -> RefinementResult:
+                 backend: str = "numpy", solver: str = DEFAULT_SOLVER,
+                 events=None, cancel=None, telemetry=None,
+                 label: str | None = None, progress=None) -> RefinementResult:
     """One-shot joint refinement of ``structure`` against several ``data``/
     ``instruments`` pairs.  Functional wrapper over
-    :class:`MultiHistogramRefinement`."""
+    :class:`MultiHistogramRefinement`; ``events``, ``cancel``, ``telemetry``,
+    ``label`` and ``progress`` are its ``fit``'s."""
     ref = MultiHistogramRefinement(structure, instruments, sharing=sharing,
                                    backend=backend, solver=solver)
-    return ref.fit(data, plan=plan, two_theta_limits=two_theta_limits, weights=weights)
+    return ref.fit(data, plan=plan, two_theta_limits=two_theta_limits, weights=weights,
+                   events=events, cancel=cancel, telemetry=telemetry, label=label,
+                   progress=progress)
