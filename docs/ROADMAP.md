@@ -101,9 +101,8 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**1.8.0 is cut** (`pyproject.version` `1.8.0`) from what `main` held on
-2026-10-12, on WP-1929's merge ([record](milestones/v1.8.md), [notes](releases/1.8.0.md)).
-1.7.0 shipped 2026-10-08, the first weekly cut ([notes](releases/1.7.0.md)).
+**The next release is 1.9** (`pyproject.version` `1.9.0.dev0`), cut from what `main` holds
+([record](milestones/v1.9.md), [staged notes](releases/1.9.0.md)). 1.8.0 shipped 2026-10-12 ([notes](releases/1.8.0.md)).
 
 **One milestone is open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
 opened 2026-09-18 as v1.6; rietview, rigid-bodies and structure-solution were
@@ -149,6 +148,7 @@ covers (1119 § Gotchas).
 | v1.6 | The first release numbered at its cut: what `main` held on 2026-10-03, completing no milestone | ✅ **shipped 2026-10-03** ([record](milestones/v1.6.md), [notes](releases/1.6.0.md)) | 217 pull requests since v1.5.0, every user-facing change named in the notes or dispositioned in WP-1541's handover; the magnetic rungs ship unfinished and say what is missing; the Windows pre-upload gate, red every night since 2026-09-28, green on the release commit; VALIDATION.md's measured column re-run on the release tree; suite counts in the record's ship appendix |
 | v1.7 | The first weekly cut: what `main` held on 2026-10-08, completing no milestone | ✅ **shipped 2026-10-08** ([record](milestones/v1.7.md), [notes](releases/1.7.0.md)) | 89 pull requests since v1.6.0, every user-facing change named in the notes or dispositioned in WP-1546's handover; rigid bodies ship as a provisional first piece; the Windows pre-upload gate, red since 2026-10-05, green on the release commit; VALIDATION.md's measured column, Part 1 and the skill re-run on the release tree; suite counts in the record's ship appendix |
 | v1.8 | Every parameter in its own units: what `main` held on 2026-10-12, completing no milestone | ✅ **shipped 2026-10-12** ([record](milestones/v1.8.md), [notes](releases/1.8.0.md)) | 47 pull requests since v1.7.0, every user-facing change named in the notes or dispositioned in WP-1954's handover; cut on the merge of WP-1929, a P1 fix for esds that followed where the solver stopped; WP-1953's large Pawley stage ships as a stated limit; VALIDATION.md's moved rows, Part 1 and the skill re-run on the release tree; suite counts in the record's ship appendix |
+| v1.9 | The next release: what `main` carries when it is cut, and the milestones complete by then | 🔄 **accumulating since 2026-10-12** ([record](milestones/v1.9.md)) | written at the cut |
 | magnetic | The magnetic structure (was v1.6): the satellite, the moment, the determination, the mode amplitude — [§ magnetic](#magnetic--the-magnetic-structure) | 🔄 **opened 2026-09-18** ([record](milestones/magnetic.md)) | eleven rows written at the open, the record's § Acceptance; the measured half is still to come |
 | rietview | rietview (was v1.7): the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ rietview](#rietview--the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
 | rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1813, the seam decided by 1803 and the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
