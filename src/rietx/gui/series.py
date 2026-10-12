@@ -392,13 +392,16 @@ def _disagreement(forward, backward, *, angle: bool = False) -> float | None:
     """
     _, vf, sf = forward.arrays()
     _, vb, sb = backward.arrays()
+    # the fence judges a pattern only where both chains measured an esd
+    comparable = np.isfinite(sf) & np.isfinite(sb)
     combined = np.sqrt(np.nan_to_num(sf) ** 2 + np.nan_to_num(sb) ** 2)
-    if not np.any(combined > 0.0):
+    if not np.any(comparable & (combined > 0.0)):
         return None
     gap = np.abs(_angle_difference(vf - vb) if angle else vf - vb)
     with np.errstate(divide="ignore", invalid="ignore"):
         n_sigma = gap / np.where(combined > 0.0, combined, np.nan)
     n_sigma = np.where(gap > _noise_floor(vf, vb), n_sigma, 0.0)
+    n_sigma = np.where(comparable, n_sigma, 0.0)
     value = float(np.nanmax(n_sigma))
     return value if np.isfinite(value) else None
 

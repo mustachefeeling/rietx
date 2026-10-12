@@ -451,12 +451,28 @@ def test_a_series_on_the_cut_gives_no_finding_from_the_cut_and_every_angle_in_th
     moment = [d for d in series.diagnostics
               if d.code.startswith("SEQUENTIAL_") and any(".moment." in w
                                                            for w in d.where)]
-    assert all(d.code == "SEQUENTIAL_PATH_DEPENDENT" and d.where == [AZIMUTH_2D]
-               for d in moment), [d.message for d in moment]
+    # allowed: the twin path dependence, and since WP-1929 the series-level
+    # count of the azimuth sitting at the stationary direction, which is a
+    # fact about the symmetry and not about the cut
+    assert all(d.where == [AZIMUTH_2D] and (
+        d.code == "SEQUENTIAL_PATH_DEPENDENT"
+        or (d.code == "SEQUENTIAL_PERSISTENT_FINDING"
+            and d.message.startswith("MOMENT_ANGLE_STATIONARY")))
+        for d in moment), [d.message for d in moment]
     back = {e.label: e for e in series.backward.entries}
     for entry in series.entries:
         f = next(p for p in entry.parameters if p.path == AZIMUTH_2D)
         b = next(p for p in back[entry.label].parameters if p.path == AZIMUTH_2D)
+        # since WP-1929 an azimuth at the stationary direction has no esd, and
+        # the pattern's own diagnostic says why; a twin gap is judged in σ
+        # only where both chains measured one
+        missing = [e for p, e in ((f, entry), (b, back[entry.label]))
+                   if p.stderr is None]
+        for e in missing:
+            assert any(d.code == "MOMENT_ANGLE_STATIONARY" and AZIMUTH_2D in d.where
+                       for d in e.diagnostics), (e.label, [d.code for d in e.diagnostics])
+        if missing:
+            continue
         gap = min(abs(float(_angle_difference(f.value - twin(b.value))))
                   for twin in _POWDER_TWINS)
         assert gap <= 3.0 * np.hypot(f.stderr, b.stderr), (entry.label, f, b)
