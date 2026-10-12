@@ -109,9 +109,17 @@ Licensing: SHELXL is closed. Use the paper only.
       table is not decided. The centroid restraint (Flack & Schwarzenbach
       1988, SHELXL's default) may come later as a second mode, because it
       keeps an esd on every atom and does not depend on which atom is held.*
-- [ ] `crystallography.wyckoff`: the group-level free-origin basis, tested on
+- [x] `crystallography.wyckoff`: the group-level free-origin basis, tested on
       the ten groups above and on every gemmi setting, asserting **which**
       directions, not how many (root CLAUDE.md, the cell-ties rule).
+      *Done 2026-10-12: `floating_origin_basis` landed with #749; the tests
+      now name all ten groups, and every one of gemmi's 564 settings is held
+      to a physics oracle (a site moved along each row and re-expanded leaves
+      40 intensities unchanged, a shift off the span changes them, and the
+      dimension matches the point-group symbol's polar class). A basis with
+      its axes permuted fails at `P 1 2 1`. A basis built from transposed
+      rotations gives the same answer on all 564, so the Rᵀ trap does not
+      bite here.*
 - [ ] `ParameterTable`: the fix applied in the table, never at call sites;
       skipped where user ties or variables already fix the origin; the
       `ParameterRow` held-reason or tie, with its `held_because` text and its
