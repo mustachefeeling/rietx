@@ -321,8 +321,9 @@ columns that move only moment angles, where some free column also moves each of
 those sites' moduli. A column is read by what it moves, so a named variable
 driving two sites' azimuths is one angle of $S$. The fit moves them, with every
 other parameter fixed, until each angle column is at most
-{{ MOMENT_DIRECTION_SUPPORT }} of the largest of its sites' modulus columns. The move is Gauss-Newton on the stacked columns, with first and
-second derivatives by central differences, and it ends at $\theta_N$. With
+{{ MOMENT_DIRECTION_SUPPORT }} of the largest of its sites' modulus columns.
+The move is Gauss-Newton on the stacked columns, with first and second
+derivatives by central differences, and it ends at $\theta_N$. With
 $J_o$ the solve's Jacobian at the stop $\hat\theta$ without the columns of $S$,
 the columns stay in the covariance when
 

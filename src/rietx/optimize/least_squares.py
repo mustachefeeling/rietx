@@ -562,18 +562,18 @@ def _column_entries(tables: list[ParameterTable], col_maps: list[np.ndarray],
     joint fit's tables, keyed by table because two histograms' copies of one
     path are two entries.  ``col_maps[h]`` sends table ``h``'s free columns
     to θ's, as ``MultiParameterTable.col_map`` does; a single fit passes its
-    one table and ``arange``.  The pattern is read off ``reach_block`` and the
-    coefficient off C, ``_column_identities``' split (#801), so a derived row
-    carries 0.0.  A column no table owns (a Pawley intensity) reaches nothing.
+    one table and ``arange``.  The pattern is ``column_reach``'s and the
+    coefficient is read off C, ``_column_identities``' split (#801), so a
+    derived row carries 0.0.  A column no table owns (a Pawley intensity)
+    reaches nothing.
     """
     out: list[dict[tuple[int, str], float]] = [{} for _ in range(n_cols)]
     for h, (table, cmap) in enumerate(zip(tables, col_maps, strict=True)):
-        csc = table.reach_block().tocsc()
         coef = table.constraint_block()[0].tocsc()
-        for c, k in enumerate(cmap):
-            sl = slice(csc.indptr[c], csc.indptr[c + 1])
-            for r in csc.indices[sl][csc.data[sl] != 0.0]:
-                out[int(k)][h, table.entries[r].path] = float(coef[r, c])
+        for (c, reached), k in zip(enumerate(table.column_reach().values()), cmap,
+                                   strict=True):
+            for p in reached:
+                out[int(k)][h, p] = float(coef[table._paths[p], c])
     return out
 
 
@@ -769,11 +769,11 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
     and passes the set when that is within the χ̄² cut for its size at
     :data:`STATIONARY_ANGLE_LEVEL`.  The set has reached the direction when
     every column is at most ``MOMENT_DIRECTION_SUPPORT`` of the largest of its
-    sites' modulus columns.  A failing set of several drops one angle and is tested again, at
-    most once per angle: the one with the largest ½‖∂²r/∂α²‖·δ², or the
-    largest column where the Newton step did not reach the floor.  A moment
-    tilted 0.05 rad fails jointly beside two azimuths that pass alone, and this
-    is how they are separated.
+    sites' modulus columns.  A failing set of several drops one angle and is
+    tested again, at most once per angle: the one with the largest
+    ½‖∂²r/∂α²‖·δ², or the largest column where the Newton step did not reach
+    the floor.  A moment tilted 0.05 rad fails jointly beside two azimuths that
+    pass alone, and this is how they are separated.
 
     ``resid`` is the solve's residual; only its first ``n_data`` rows are read.
     ``jac`` is the solve's own Jacobian at ``x``, and ``n_free`` is P in

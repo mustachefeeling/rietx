@@ -785,14 +785,15 @@ class MomentAngleTest(Base):
     so were the other esds.  The test moves ``paths`` together,
     everything else fixed, until every column is below
     ``MOMENT_DIRECTION_SUPPORT`` of the largest of its sites' modulus columns.
-    ``paths`` are free columns, so a caller's ``vars.X`` driving only moment
-    angles is one of them, and its tied angles share its verdict.  It then refits
-    the other columns by one linear step at the stop and at that point.
-    ``statistic`` is the difference in data χ² over χ²_red·f².  The angles pass
-    when it is at most ``cut``, the 95 % point of the χ̄² mixture for
-    ``len(paths)`` one-sided directions (Self & Liang, 1987; Shapiro, 1985).
-    Their columns then leave the covariance, so each has no esd, and their
-    values stand.
+    The test then refits the other columns by one linear step at the stop and
+    at that point.  ``statistic`` is the difference in data χ² over
+    χ²_red·f².  The angles pass when it is at most ``cut``, the 95 % point of
+    the χ̄² mixture for ``len(paths)`` one-sided directions (Self & Liang,
+    1987; Shapiro, 1985).  Their columns then leave the covariance, so each
+    has no esd, and their values stand.
+
+    ``paths`` are free columns.  A caller's ``vars.X`` driving only moment
+    angles is one of them.  The angles it drives share its verdict.
 
     A set that fails and has more than one angle drops one and is tested
     again.  The dropped angle contributes most to the second-order change, or
