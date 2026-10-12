@@ -1,6 +1,6 @@
 # WP-1908 — a tick misses the displacement shift
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-12 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-04 — a result's reflection positions sit off its own fitted peaks by the displacement shift, and Layer 0 reads them
