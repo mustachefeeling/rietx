@@ -1,4 +1,4 @@
-# 8. Thirty things that will surprise you, all measured
+# 8. Things that will surprise you, all measured
 
 Load it when something the fit did makes no sense. Every entry is a measured result that contradicts an intuition.
 
