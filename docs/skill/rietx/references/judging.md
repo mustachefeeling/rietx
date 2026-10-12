@@ -211,7 +211,10 @@ None reaches 2σ, and both statistics call all four decisive. Charged at
 N/f², with f the fit's own `esd_inflation`, all four turn negative. For one
 parameter that count makes ΔBIC close to t² − ln N_eff, so the verdict and the
 esd agree. Over 27 last-freed parameters across the acceptance fixtures, N/f²
-refused every |t| < 2.3 and admitted every |t| ≥ 2.6 (also pre-1.6, not re-measured).
+refused every |t| < 2.3 and admitted every |t| ≥ 2.6 (also pre-1.6, not re-measured). The rule this replaced
+was measured on a 7251-channel corundum pattern, where Hamilton's test at raw N
+blessed an inert Stephens block's 0.16 % χ² gain. At N/f² both tests refuse
+it.
 
 `suggest()` predicts ΔBIC at N/f² before you free anything. After the fit,
 compare the two fits:
@@ -223,22 +226,17 @@ c = rx.report.compare_freed(ref, trial)
 [(p.path, p.t_ratio) for p in c.freed], c.delta_bic, c.delta_bic_raw_n
 ```
 
-Read the t-ratios first; disagreement between the pair is information. A
+Read the t-ratios first. A disagreement between the pair is information. A
 block of several parameters can carry a positive joint ΔBIC while no member's
 |t| reaches 2, which says the block moves the fit and no single member is
 measured. A ΔBIC far from t² − ln N_eff for one parameter means f moved between
 the two fits. `predict_then_verify` carries the same record on
 `VerificationOutcome.comparison`, beside its 1 % χ² rule.
 
-By hand, for a pair `compare_freed` refuses, `statistics.chi2` is
-reduced: multiply each by its own N − P before `rx.report.delta_bic`, and pass
-`n_effective=` (reduced costs ~1 ΔBIC per parameter).
-
-## §4 — two candidate space groups
-
-ΔBIC does not settle a symmetry-lowering (#219: ΔBIC −1029, yet −28 % of the
-Δχ² on the split reflections, 6 % of points). Read `split_share` against
-`split_point_share` from `rx.report.split_localisation(higher, lower)`.
+By hand, for a pair `compare_freed` refuses as not nested, remember that
+`result.statistics.chi2` is reduced. Multiply each by its own N − P before
+`rx.report.delta_bic`, and pass `n_effective=`. The reduced pair costs about
+one unit of raw-N ΔBIC per added parameter.
 
 ## §4 — comparing against another code
 

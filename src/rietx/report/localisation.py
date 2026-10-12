@@ -18,11 +18,9 @@ The principle is ``viz.compare``'s: a correction that improves Rwp by rising
 sharply somewhere and falling elsewhere is absorbing something, not
 modelling it.  A real distortion concentrates its advantage on the split
 reflections, because that is the only place the added degree of freedom acts
-on the profile directly.  Issue #219's laboratory pattern is the case that
-made it a function: cubic against rhombohedral, ΔBIC −1029 and a nested
-F-test at p = 1.35×10⁻⁵³ for the lower symmetry, while the six
-largest-multiplicity split families (6.2 % of the points) carried −28 % of
-the total Δχ².  No global statistic sees that.
+on the profile directly.  Issue #219 (a laboratory pattern fitted cubic and rhombohedral, the richer
+model winning every global statistic) is the case that made it a function: no
+global statistic sees where the gain landed.
 
 **No threshold and no** ``Diagnostic`` (decided 2026-09-03, WP-1339).  How
 concentrated is concentrated enough depends on the profile, the range and the
@@ -62,7 +60,14 @@ def cumulative_chi2(result: RefinementResult) -> np.ndarray:
 
 
 def _same_pattern(a: RefinementResult, b: RefinementResult) -> None:
-    """Refuse two results that are not two models of one pattern's channels."""
+    """Refuse two results that are not two models of one pattern's channels.
+
+    Same grid, same intensities **and the same σ**: each δ is divided by its
+    own fit's :meth:`~RefinementResult.sig`, which depends on the declared
+    model (a measured background widens it at compile, WP-1309).
+    """
+    if not a.two_theta:
+        raise ValueError("the results carry no curves")
     if len(a.two_theta) != len(b.two_theta) or not np.array_equal(
             np.asarray(a.two_theta), np.asarray(b.two_theta)):
         raise ValueError(
@@ -73,8 +78,11 @@ def _same_pattern(a: RefinementResult, b: RefinementResult) -> None:
         raise ValueError(
             "the fits saw different intensities; a Δχ² by channel compares two "
             "models of one pattern")
-    if not a.two_theta:
-        raise ValueError("the results carry no curves")
+    if not np.array_equal(np.asarray(a.sig()), np.asarray(b.sig())):
+        raise ValueError(
+            "the fits weight the channels differently (σ depends on the declared "
+            "model, a measured background widening it at compile); a Δχ² by "
+            "channel would then carry 1/σ_b² − 1/σ_a² no model change produced")
 
 
 def cumulative_delta_chi2(result_a: RefinementResult, result_b: RefinementResult,
@@ -152,6 +160,47 @@ def _local_fwhm(tt: np.ndarray, bragg: np.ndarray, at: float) -> float | None:
     return width if width > 0.0 else None
 
 
+def _emission_rank(hkl: list[list[int]]) -> list[int]:
+    """Which emission line each tick is, as its rank among the ticks of one hkl.
+
+    ``ticks`` holds every emission line's image of a reflection, sorted by
+    position, and ``tick_hkl`` names the same orbit representative once per
+    line, so the *k*-th tick of one hkl in position order is the *k*-th
+    shortest wavelength's image of it (a longer wavelength diffracts at a
+    higher 2θ).  Two fits of one pattern share their emission lines, so
+    the rank is the line's identity across them.  A single line gives all
+    zeros.  A line whose image falls off the 2θ axis for one reflection
+    shifts the ranks of that reflection's later lines, which is the one case
+    this cannot see.
+    """
+    seen: dict[tuple[int, ...], int] = {}
+    out = []
+    for h in hkl:
+        key = tuple(h)
+        out.append(seen.get(key, 0))
+        seen[key] = out[-1] + 1
+    return out
+
+
+def _position_groups(tt: np.ndarray, line: list[int]) -> list[list[int]]:
+    """Indices of ticks sharing one emission line and one 2θ, one group per position.
+
+    A position is not a key (333 and 511 of a cubic parent coincide), so
+    coincident reflections form one group rather than the first of them
+    claiming every child tick.
+    """
+    groups: list[list[int]] = []
+    for ln in sorted(set(line)):
+        idx = [i for i in np.argsort(tt, kind="stable") if line[i] == ln]
+        for i in idx:
+            if groups and line[groups[-1][0]] == ln and (
+                    tt[i] - tt[groups[-1][0]] <= SPLIT_TOLERANCE_DEG):
+                groups[-1].append(int(i))
+            else:
+                groups.append([int(i)])
+    return groups
+
+
 def split_localisation(higher: RefinementResult, lower: RefinementResult, *,
                        higher_phase: str | None = None,
                        lower_phase: str | None = None,
@@ -161,7 +210,7 @@ def split_localisation(higher: RefinementResult, lower: RefinementResult, *,
     ``higher`` and ``lower`` are two fits of one pattern, the second a
     symmetry-lowering of the first (cubic and rhombohedral, say), each given
     the same treatment otherwise.  Each of ``lower``'s reflection ticks is
-    assigned to the nearest of ``higher``'s, so the pair needs no
+    assigned to the nearest of ``higher``'s (same line), so the pair needs no
     transformation matrix and the two may be in different settings.  A
     ``higher`` reflection is **split** when the ticks assigned to it sit at
     more than one position (:data:`SPLIT_TOLERANCE_DEG`) at ``lower``'s
@@ -182,8 +231,12 @@ def split_localisation(higher: RefinementResult, lower: RefinementResult, *,
     acts, and a split share at or below zero while the total favours
     ``lower`` is the absorption issue #219 measured.
 
-    One family row per ``higher`` tick, and ticks are per emission line, so a
-    doublet's reflection appears once per line.
+    Matching is **within one emission line** (the *k*-th line's children to
+    the *k*-th line's parents, :func:`_emission_rank`), and reflections of
+    ``higher`` at one 2θ (333 and 511 of a cubic parent) share **one family**
+    carrying every hkl there, so no reflection is reported as unsplit for want
+    of a child nobody could assign to it.  One family row per position and
+    emission line, so a doublet's reflection appears once per line.
 
     Raises :class:`ValueError` when the two results are not one pattern
     (:func:`cumulative_delta_chi2`'s rule) or a phase is ambiguous.
@@ -199,22 +252,31 @@ def split_localisation(higher: RefinementResult, lower: RefinementResult, *,
              if higher.y_background else np.asarray(higher.y_calc, dtype=np.float64))
 
     parent_tt = np.asarray(higher.ticks[kh], dtype=np.float64)
-    parent_hkl = higher.tick_hkl[kh]
     child_tt = np.asarray(lower.ticks[kl], dtype=np.float64)
-    inside = (parent_tt >= tt[0]) & (parent_tt <= tt[-1])
+    parent_line = _emission_rank(higher.tick_hkl[kh])
+    child_line = _emission_rank(lower.tick_hkl[kl])
+    groups = _position_groups(parent_tt, parent_line)
+    g_tt = np.array([parent_tt[g[0]] for g in groups], dtype=np.float64)
+    g_line = np.array([parent_line[g[0]] for g in groups], dtype=int)
+    inside = (g_tt >= tt[0]) & (g_tt <= tt[-1])
     widths = np.array([(_local_fwhm(tt, bragg, p) if ok else None) or np.nan
-                       for p, ok in zip(parent_tt, inside)], dtype=np.float64)
+                       for p, ok in zip(g_tt, inside)], dtype=np.float64)
     fallback = float(np.nanmedian(widths)) if np.isfinite(widths).any() else 0.0
     widths = np.where(np.isfinite(widths), widths, fallback)
 
-    order = np.argsort(parent_tt)
     assigned: dict[int, list[float]] = {}
     n_unmatched = 0
-    for c in child_tt:
+    for c, line in zip(child_tt, child_line):
         if c < tt[0] or c > tt[-1]:
             continue
-        j = int(order[np.argmin(np.abs(parent_tt[order] - c))])
-        if abs(c - parent_tt[j]) > 2.0 * max(widths[j], SPLIT_TOLERANCE_DEG):
+        # one emission line against the same line: a Kα2 child belongs to a
+        # Kα2 parent, never to the Kα1 tick 0.1° away
+        same = np.flatnonzero(g_line == line)
+        if not len(same):
+            n_unmatched += 1
+            continue
+        j = int(same[np.argmin(np.abs(g_tt[same] - c))])
+        if abs(c - g_tt[j]) > 2.0 * max(widths[j], SPLIT_TOLERANCE_DEG):
             n_unmatched += 1
             continue
         assigned.setdefault(j, []).append(float(c))
@@ -222,20 +284,21 @@ def split_localisation(higher: RefinementResult, lower: RefinementResult, *,
     split_mask = np.zeros(len(tt), dtype=bool)
     unsplit_mask = np.zeros(len(tt), dtype=bool)
     families = []
-    for j in order:
+    for j in np.argsort(g_tt, kind="stable"):
         if not inside[j]:
             continue
         kids = sorted(assigned.get(int(j), []))
         spread = (kids[-1] - kids[0]) if kids else 0.0
         splits = spread > SPLIT_TOLERANCE_DEG
         pad = widths[j] if half_width is None else float(half_width)
-        lo = (kids[0] if kids else parent_tt[j]) - pad
-        hi = (kids[-1] if kids else parent_tt[j]) + pad
+        lo = (kids[0] if kids else g_tt[j]) - pad
+        hi = (kids[-1] if kids else g_tt[j]) + pad
         w = (tt >= lo) & (tt <= hi)
         (split_mask if splits else unsplit_mask)[w] = True
         d = float(step[w].sum())
         families.append(SplitFamily(
-            hkl=list(parent_hkl[j]), two_theta=float(parent_tt[j]),
+            hkls=[list(higher.tick_hkl[kh][i]) for i in groups[j]],
+            emission_line=int(g_line[j]), two_theta=float(g_tt[j]),
             n_assigned=len(kids), spread=float(spread), splits=bool(splits),
             window=(float(lo), float(hi)), n_points=int(w.sum()), delta_chi2=d,
             share=d / total if total != 0.0 else None))

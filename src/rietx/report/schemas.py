@@ -1254,11 +1254,15 @@ class DeltaChi2Profile(Base):
 
 
 class SplitFamily(Base):
-    """One reflection of the higher-symmetry fit, and whether the lower one splits it."""
+    """One position of the higher-symmetry fit, and whether the lower one splits it."""
 
-    #: the higher-symmetry fit's index for it (``tick_hkl``)
-    hkl: list[int]
-    #: its tick in the higher-symmetry fit, deg 2θ, one row per emission line
+    #: every higher-symmetry reflection at this position (``tick_hkl``): more
+    #: than one where they coincide, as 333 and 511 do in a cubic parent
+    hkls: list[list[int]]
+    #: which emission line's image, 0 the shortest wavelength; children are
+    #: assigned within one line
+    emission_line: int = 0
+    #: its tick in the higher-symmetry fit, deg 2θ
     two_theta: float
     #: how many of the lower fit's ticks were assigned to it
     n_assigned: int
@@ -1285,8 +1289,8 @@ class SplitLocalisation(Base):
     Read ``split_share`` against ``split_point_share``.  A distortion the data
     holds puts its advantage where it splits reflections, so its share there
     runs well above the share of points.  Issue #219's cubic/rhombohedral pair
-    won by ΔBIC −1029 and carried −28 % of its Δχ² on 6.2 % of the points,
-    the six largest split families: the improvement lived elsewhere.
+    won every global statistic while the reflections it splits carried none of
+    its gain: the improvement lived elsewhere.
 
     **Report-only, no threshold** (decided 2026-09-03): how far above the
     point share is far enough depends on the profile, the range and the

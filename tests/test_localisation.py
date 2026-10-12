@@ -39,7 +39,6 @@ from rietx.report import (
     cumulative_chi2,
     cumulative_delta_chi2,
     split_localisation,
-    weighted_residual,
 )
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import BackgroundChebyshev
@@ -220,22 +219,48 @@ def test_two_patterns_are_refused(genuine, absorbed):
         split_localisation(cubic, cut)
 
 
-def test_compare_run_stores_the_package_cumulative():
-    """``rietx compare``'s records are unchanged by the move: ``run`` now calls
-    the package, and the package gives the arrays ``run`` used to compute."""
-    import inspect
+def test_different_sigma_is_refused_like_different_intensities(genuine):
+    """σ depends on the declared model (a measured background widens it at
+    compile, WP-1309), so two fits of one pattern can disagree at every channel
+    by 1/σ_b² − 1/σ_a² with no model change behind it."""
+    (_, cubic), (_, tetra) = genuine
+    wider = tetra.model_copy(update={"sigma": [1.3 * v for v in tetra.sigma]})
+    with pytest.raises(ValueError, match="weight the channels differently"):
+        cumulative_delta_chi2(cubic, wider)
+    with pytest.raises(ValueError, match="weight the channels differently"):
+        split_localisation(cubic, wider)
 
+
+@pytest.mark.slow
+def test_compare_run_stores_the_package_cumulative(monkeypatch):
+    """``rietx compare``'s record is what the package computes for the run's own
+    result, and equals the lines ``run`` used to hold wherever σ > 0 (``sig()``
+    floors σ ≤ 0 at a thousandth of the median, the old line at 1.0)."""
+    import rietx.report.localisation as loc
     from rietx.viz import compare as cmp
 
-    src = inspect.getsource(cmp.run)
-    assert "cumulative_chi2(result)" in src and "weighted_residual(result)" in src
-    data, scale = _specimen(_cubic(1.0, vary=False))
-    _, result = _fit(_cubic(0.9 * scale), data, "compare_record")
+    from .test_compare_ui import DATA_DIR, QARR_DATA
+
+    if not QARR_DATA.exists():
+        pytest.skip("IUCr QPA round-robin dataset not present")
+    seen = {}
+    real = loc.cumulative_chi2
+
+    def tap(result):
+        seen["result"] = result
+        return real(result)
+
+    monkeypatch.setattr(loc, "cumulative_chi2", tap)
+    record = cmp.run("zincite", "baseline", data_dir=DATA_DIR)
+    result = seen["result"]
+    assert record.n_points == len(record.two_theta) == len(result.two_theta)
     y_obs, y_calc = np.asarray(result.y_obs), np.asarray(result.y_calc)
+    expect = (y_obs - y_calc) / result.sig()
+    assert np.array_equal(record.delta, expect)
+    assert np.array_equal(record.cumulative_chi2, np.cumsum(expect ** 2))
     sigma = np.asarray(result.sigma)
-    before = (y_obs - y_calc) / np.where(sigma > 0.0, sigma, 1.0)   # run's own lines until WP-1339
-    assert np.array_equal(weighted_residual(result), before)
-    assert np.array_equal(cumulative_chi2(result), np.cumsum(before ** 2))
+    assert (sigma > 0.0).all()
+    assert np.array_equal(record.delta, (y_obs - y_calc) / sigma)
 
 
 # ----------------------------------------------------------------------
@@ -247,8 +272,8 @@ def test_a_genuine_split_puts_its_improvement_on_the_split_reflections(genuine):
     loc = split_localisation(cubic, tetra)
     assert loc.higher_phase == "cubic" and loc.lower_phase == "tetragonal"
     # {200}, {220}, {311}, {400}… split under fcc → bct; {111}, {222} do not
-    split = {tuple(f.hkl) for f in loc.families if f.splits}
-    unsplit = {tuple(f.hkl) for f in loc.families if not f.splits}
+    split = {tuple(h) for f in loc.families if f.splits for h in f.hkls}
+    unsplit = {tuple(h) for f in loc.families if not f.splits for h in f.hkls}
     assert (2, 0, 0) in split and (2, 2, 0) in split
     assert (1, 1, 1) in unsplit and (2, 2, 2) in unsplit
     assert loc.n_unmatched == 0
@@ -277,7 +302,7 @@ def test_an_absorbed_improvement_wins_on_delta_bic_and_loses_on_the_split_reflec
     assert loc.split_share < 0.0                      # and worse where it splits
     assert loc.unsplit_share > 1.0                    # the gain lives on {hhh}
     # (111) alone gains more than the whole pattern does
-    (f111,) = [f for f in loc.families if f.hkl == [1, 1, 1]]
+    (f111,) = [f for f in loc.families if [1, 1, 1] in f.hkls]
     assert not f111.splits and f111.delta_chi2 < loc.total
 
 
@@ -300,3 +325,40 @@ def test_an_ambiguous_phase_is_refused_by_name(genuine):
     with pytest.raises(ValueError, match="lower_phase="):
         split_localisation(cubic, two)
     assert split_localisation(cubic, two, lower_phase="other").n_split_families > 0
+
+
+# ----------------------------------------------------------------------
+# review of #904: doublets and coincident reflections (hand-built ticks)
+# ----------------------------------------------------------------------
+def _with_ticks(result, ticks, hkl):
+    return result.model_copy(update={"ticks": {"p": ticks}, "tick_hkl": {"p": hkl}})
+
+
+def test_a_doublet_is_matched_within_one_emission_line(genuine):
+    """A child tick belongs to the parent's image in the *same* line.  At 20°
+    the two lines of a parent reflection sit 0.1° apart, so Kα1's upper child
+    (+0.06) is nearer the parent's Kα2 tick (+0.10) than its own (0.00)."""
+    (_, cubic), (_, tetra) = genuine
+    t0 = _two_theta(2, 0, 0)        # on a real peak, so the local width is measured
+    parent = _with_ticks(cubic, [t0, t0 + 0.1], [[2, 0, 0], [2, 0, 0]])
+    child = _with_ticks(tetra, [t0 - 0.04, t0 + 0.06, t0 + 0.06, t0 + 0.16],
+                        [[2, 0, 0], [0, 0, 2], [2, 0, 0], [0, 0, 2]])
+    loc = split_localisation(parent, child)
+    assert [f.emission_line for f in loc.families] == [0, 1]
+    for f in loc.families:
+        assert f.n_assigned == 2 and f.splits
+        assert f.spread == pytest.approx(0.10, abs=1e-9)
+    assert loc.n_split_families == 2 and loc.n_unmatched == 0
+
+
+def test_coincident_parent_reflections_are_one_family(genuine):
+    """333 and 511 of a cubic parent sit at one 2θ: one family carrying both,
+    never a second row reporting ``splits=False`` for want of a child."""
+    (_, cubic), (_, tetra) = genuine
+    t0 = _two_theta(2, 0, 0)
+    parent = _with_ticks(cubic, [t0, t0], [[3, 3, 3], [5, 1, 1]])
+    child = _with_ticks(tetra, [t0 - 0.03, t0 + 0.03], [[3, 3, 3], [5, 1, 1]])
+    loc = split_localisation(parent, child)
+    (fam,) = loc.families
+    assert sorted(map(tuple, fam.hkls)) == [(3, 3, 3), (5, 1, 1)]
+    assert fam.n_assigned == 2 and fam.splits and loc.n_split_families == 1
