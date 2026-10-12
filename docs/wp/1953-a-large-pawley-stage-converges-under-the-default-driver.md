@@ -454,7 +454,11 @@ was stale. The 1.8.0 notes' bullet became the staged 1.9.0 note.
   and SRM 660c protocols included, and no golden moved. Full suite on the
   merged tree (`5c82a90b` plus this entry), run alone once the other
   session's suite had finished: 9579 passed, 190 skipped, 3 xfailed, 0
-  failed, 23 m 22 s.
+  failed, 23 m 22 s. `main` then moved 13 commits (the TOPAS P1 export,
+  WP-1317's series forward pass), touching none of this branch's code; on
+  the re-merge with `a8960f79` the fast suite gives 9304 passed, 179
+  skipped, 3 xfailed, 0 failed, 4 m 57 s alone. The full suite was not
+  re-run on that tree.
 
 *Review* (`/code-review high --fix`): four fixed. The traced backends
 differentiated a constant weight at one zero aperture (about 245 against
