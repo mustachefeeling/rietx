@@ -1,9 +1,9 @@
 # WP-1953 — a large Pawley stage converges under the default driver
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — the FCJ limit and the projected-CG Pawley step in PR #918; the held column scale and a measured curvature for a column Gauss-Newton cannot see on branch `wp1953-noise-column`
+Milestone: unscheduled · Status: 🔄 2026-10-12 — the FCJ limit and the projected-CG Pawley step in PR #918, the held column scale and a measured curvature in PR #923; the Linux arm64 two-site winner open
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-12 — was P1: PR #918 fixes the Windows gate's `test_e8` (measured on Windows, Linux and macOS runners); what remains is LM's crawl beside a vanishing or noise column, which reports `converged` far from a minimum on magnetic fits
+Priority: P2 2026-10-12 — was P1: PR #918 fixes the Windows gate's `test_e8`, and PR #923 ends LM's crawl beside a vanishing column, which reported `converged` far from a minimum on magnetic fits; what remains is one measurement on Linux arm64
 
 ## Goal
 
@@ -458,10 +458,16 @@ The two-site Pnma set, `solve_magnetic` with the `moduli` stage dropped
       passed, 186 skipped, 3 xfailed, 1 failed, the failure the missing
       validation-matrix row for the new FAP Pawley test, since added. No
       golden moved.
-- [ ] Re-measure the goldens and the acceptance grid again when the held
-      scale lands, and the Linux arm64 two-site winner with it. The fast
-      suite's goldens pass on `ef5bbe12` (macOS arm64, `[dev]`); the full
-      suite and the arm64 winner are open.
+- [x] Re-measure the goldens and the acceptance grid again when the held
+      scale lands. Full suite on the branch's final tree, macOS arm64,
+      `[dev]`: no golden moved, every acceptance suite passed, and two slow
+      rows moved and were answered (the handover entry of the third session).
+      FAP.XRA and 11-BM NAC Pawley keep one answer from starts 1e-14 apart,
+      0.07824432 (five) and 0.12620721 (three).
+- [ ] The Linux arm64 two-site winner (§ The crawl beside a vanishing column,
+      its last paragraph), now under the held scale and the measured
+      curvature. No CI job runs the slow suite on arm64 Linux, so it needs a
+      throwaway workflow on `ubuntu-24.04-arm`.
 - [x] The basin: five starts 1e-14 apart per fixture under both drivers.
       Write down whether LM's and TRF's answers differ by start or by driver.
       Measured 2026-10-12 on the shipped tree (macOS arm64, `[dev]`), cell a
@@ -504,6 +510,128 @@ written down as a property of the fixture. `test_e8` passes on Windows.
   **27**, 892-900 (the axial model `model/profiles/fcj.py` implements).
 
 ## Handover log
+
+### 2026-10-12 (third session) — the crawl beside a vanishing column ends: a held scale and a measured curvature
+
+LM no longer crawls to a false `converged` beside a parameter whose column
+vanishes, such as a moment angle at a direction the symmetry fixes. The
+column the last entry called rounding noise was real. It belonged to a
+parameter a hair from such a direction, and Gauss-Newton under-read its
+curvature by ten orders of magnitude. LM now keeps each column's largest
+scale for the stage. Once a crawl begins, it measures the curvature along the
+parameter it suspects and puts that into the model. The stationary-angle
+interval is now the same from every start, the moment-frame arms keep TRF's
+answer, and the two-site moment set reaches the truth with every DOF freed at
+once. The parked exact-angle-column branch stays parked: with it, the
+moment-frame arms sit on a saddle this rule does not leave.
+
+*Inherited pruned on arrival:* none; the second session left the section
+empty.
+
+*Done* (branch `wp1953-noise-column`, cut from #918's head `61d79988`, draft
+PR #923):
+- `ef5bbe12` The held column scale (Moré 1978) back in. The curvature
+  measurement: once a rejection leaves λ ≥ 100 (`lm._CURVATURE_GATE`),
+  `_measured_curvature` takes ½∂²S/∂θ_i² by a central second difference at
+  h = ε^¼·max(|θ_i|, 1), along the coordinate `_furthest_moved` picks. A
+  positive curvature above `A_ii + λ·d_i²` becomes the diagonal for the
+  stage. Off `max_nfev`. Four new `test_lm_solver.py` cases; the interval row
+  gains a 1e-14 start nudge; the toy and the magnetic LM row leave strict
+  xfail.
+- `3d8df1ed` The manual's solver section: D is the held scale; the step above
+  128 columns is projected CG (it still said BCCG after #918); the curvature
+  rule; four bib entries. The 1.9.0 note. The skill's magnetic row restated.
+- `f9eef6f3` § The column small from a stage's start, measured; two tasks
+  ticked, the parked branch declined.
+- `d54136f9` A held curvature that turns negative is dropped at a would-be
+  stop. The Le Bail wander row reads its pass Rwps off the stop message.
+- `90d35619`, `20467936` The review's fixes and three documentation
+  reconciliations, below.
+
+*Measured* (macOS arm64, `[dev]`, Python 3.12.10):
+- The candidate table is in § The column small from a stage's start,
+  measured. Its headline: with the rule, the interval row passes on ten starts
+  1e-14 apart, all at [−0.03568, 0.03569], where the held scale alone failed
+  two. `v1.8.0` gives [−0.02874, 0.02873] from both starts, its refits mostly
+  stopped at their start. The moment-frame arms reach 0.978226. The one-site
+  LM row reaches χ²_red 2e-18, where `v1.8.0` reports `converged` at 35.53.
+- The two-site Pnma set through `solve_magnetic` without its `moduli` stage:
+  the released start reaches 3.4981 and 0.6996 μ_B, χ²_red 1.057446. On
+  `v1.8.0` the class-0 winner is the swapped minimum, 1.057720.
+- Pawley basins kept: FAP.XRA 0.07824432 from five starts, 11-BM NAC
+  0.12620721 from three.
+- Fast suite on `ef5bbe12`, a counting plugin attached: the curvature was
+  measured 162 times, in 75 of the 3662 LM solves the plugin saw (it cannot
+  see subprocess kernels). The solves made 31 866 trial evaluations.
+- Fast suite on `20467936`, the final tree, another session's fast suite
+  running beside it for part of the time: 9489 passed, 33 skipped,
+  1 xfailed, 0 failed. Against the second session's 9482 / 33 / 3 on the same
+  `main`: five new cases (four in `test_lm_solver.py`, one interval nudge),
+  and two strict xfails now passing. The four `test_lm_solver.py` additions
+  cost 0.05 s together (`tests.added_test_times`, that run); the nudge case
+  took 1.47 s in an earlier local run, the same as its unnudged sibling.
+- Full suite on `ef5bbe12`, alone at its start: 9799 passed, 36 skipped,
+  1 xfailed, 2 failed, both slow rows that pass on #918's head.
+  `test_moment_angle_chart`'s series: a held curvature went stale at a saddle,
+  so the first forward pattern stopped on −a at χ²_red 0.994003 against the
+  twin's 0.992763. That is why `d54136f9` drops it. The Le Bail +2 % wander:
+  the held scale makes its endpoint start-dependent, 155.22 % from the exact
+  start and 177.80 % from 1e-14 either side, where #918 gives 175.09 % from
+  all three. The row's claim, that the next fit is the loop's pass 4, holds
+  from every start, so it now asserts that. Full suite on `d54136f9`, alone
+  at its start: 9801 passed, 36 skipped, 1 xfailed, 0 failed, 23 m 00 s.
+  Both runs total 9838, so the full selection moved by the fast one's cases.
+- Full suite on `20467936`, the final tree: **not quotable**. Another
+  session's suite was still running when it started, three were by its end,
+  and it took 57 m 43 s. It reported 9797 passed, 38 skipped, 1 xfailed,
+  2 failed. Both failures are `test_indexing_engines.py`'s monoclinic rows,
+  whose budgets `tests/CLAUDE.md` names as a load sensor. They passed in both
+  earlier full runs here, and nothing this session changed reaches the
+  indexing searches. A rerun of the two alone was stopped at 20 minutes, with
+  other sessions' suites holding the load average at 200. So the last clean
+  full selection is `d54136f9`'s. The review's fixes after it change only a
+  stage that drops a held curvature or whose probe would cross an inequality
+  row, and the fast suite on the final tree is green.
+
+*Review* (`/code-review high --fix 61d79988..HEAD`): nine findings. Two fixed
+in `90d35619`. A dropped curvature had left its column the scale √c and λ
+where it climbed, so the stage stopped anyway; the scale is now max(largest
+norm, √held curvature) each iteration, and a drop returns λ to the
+iteration's start. The second difference now refuses a point across an
+inequality row. Three were reconciled in `20467936`: `_lm_outcome` said an
+`eval` is one residual evaluation on both drivers; the one-site row's 11.03
+(WP-1938) and 35.5 (`v1.8.0`) now say which is which; the manual's D names
+the held curvature. Four declined:
+- The probe's step and the culprit ranking size a coordinate by
+  max(|θ|, 1), not `_fd_typicals`' width sizes. Passing those in would move
+  every fit with a width column. The inequality-row refusal covers the Γ_G²
+  floor the finding's scenario crossed.
+- Each hold restarts λ, and the climb comes out of `_INNER_MAX`'s 18 trials.
+  Five or six holds in one outer iteration would end it on `no_descent`.
+  Not seen: 162 measurements over 75 solves.
+- The hold test reads λ after the rejection multiplied it. A curvature λ
+  already damps needs no hold, so that is the intended comparison.
+- The Le Bail row no longer pins the wander's Rwp. The value moves with the
+  start in the 14th digit, so a pin would sense the platform.
+
+*Gotchas:*
+- The prototype's probe chose central or one-sided differences by testing
+  `(x − h) − x == −h`, which rounding rarely satisfies. Its fast-suite run of
+  the stage-start variant is no evidence beyond the flag count, and the WP
+  section says so.
+- The worktree guard refuses a command that sets `PYTHONPATH` from a shell
+  variable. Snapshot runs went through a script file.
+
+*Next*, in order: (1) the Linux arm64 two-site winner, on a throwaway
+`ubuntu-24.04-arm` workflow, the last open task. (2) Whether
+`solve_magnetic` still needs its `moduli` stage: on the two-site set the
+released start reaches the truth without it. Decide over the magnetic suite,
+since dropping it moves every solve. (3) The parked branch
+`wp1953-central-angle-columns`: its exact-zero columns need a saddle escape
+this rule lacks, so delete it or keep it parked; that is the maintainer's
+call. (4) Still open from the second session: the numpy `axial_hl` column at
+a zero aperture, and the matrix's dead-column cut. The WP closes once #918
+and #923 merge and (1) is measured.
 
 ### 2026-10-12 (second session) — CI's jax job caught the traced column at one zero aperture
 
