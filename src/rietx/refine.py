@@ -5113,6 +5113,8 @@ class Refinement:
         """
         from .report.body_misfit import rigid_body_misfit
 
+        require_two_theta(data, "Refinement.check_rigid_bodies()",
+                          instrument=self.instrument)
         return rigid_body_misfit(self, data, **kw)
 
     def summary(self, *, deliverable: str | None = None, plot: str | None = None,

@@ -1156,6 +1156,8 @@ def _remaining_entries(tof_pattern, structure, instrument):
     """
     from rietx.background import select_arpls_lambda, select_chebyshev_order
     from rietx.indexing import detect_peaks, validate_by_lebail
+    from rietx.io.exporters import refinement_cif_doc
+    from rietx.report.body_misfit import rigid_body_misfit
     from rietx.schemas.indexing import CellCandidate
 
     ref = rx.Refinement(structure, instrument, history=False)
@@ -1178,6 +1180,15 @@ def _remaining_entries(tof_pattern, structure, instrument):
          lambda: validate_by_lebail(candidate, tof_pattern, instrument)),
         ("select_arpls_lambda()", lambda: select_arpls_lambda(tof_pattern)),
         ("select_chebyshev_order()", lambda: select_chebyshev_order(tof_pattern)),
+        ("Refinement.check_rigid_bodies()",
+         lambda: ref.check_rigid_bodies(tof_pattern)),
+        ("rigid_body_misfit()", lambda: rigid_body_misfit(ref, tof_pattern)),
+        ("write_refinement_cif()",
+         lambda: rx.write_refinement_cif(None, structure, instrument, "never.cif",
+                                         pattern=tof_pattern)),
+        ("refinement_cif_doc()",
+         lambda: refinement_cif_doc(None, structure, instrument,
+                                    pattern=tof_pattern)),
     ]
 
 
