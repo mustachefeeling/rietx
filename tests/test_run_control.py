@@ -117,15 +117,20 @@ def test_a_new_kind_is_what_the_version_is_for():
     ``EventKind`` is a closed Literal, and WP-1006 deliberately did *not* add an
     ``"index"`` kind in advance — a kind nothing emits is an untested guess about
     a loop that does not exist.  WP-1024 built the loop (``index_pattern``) and
-    added the pair, so the constant is ``"2"``.  Pinning both here means a future
-    session cannot add a kind without deciding about the version, which is the
-    failure the note in ``history/events.py`` was written against.
+    added the pair, so the constant went to ``"2"``.  Pinning both here means a
+    future session cannot add a kind without deciding about the version, which
+    is the failure the note in ``history/events.py`` was written against.
+
+    ``"3"`` is WP-1322's run header, which is *not* a kind — the kind set is
+    unchanged — but a line a version-2 ``EventRecord`` reader refuses, so it
+    moved the constant on the same rule.
     """
     from typing import get_args
 
     kinds = set(get_args(EventKind))
     assert {"index_start", "index_end"} <= kinds
-    assert EVENT_SCHEMA_VERSION == "2"
+    assert "run" not in kinds
+    assert EVENT_SCHEMA_VERSION == "3"
 
 
 def test_readers_validate_the_envelope_not_the_payload(tmp_path):

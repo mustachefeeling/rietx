@@ -116,7 +116,10 @@ def test_event_stream_hot_loop_is_plain_json(tmp_path):
     stream = EventStream(path=tmp_path / "e.jsonl")
     stream.emit("eval", stage="s", n_eval=1, cost=1.5)
     stream.close()
-    line = (tmp_path / "e.jsonl").read_text(encoding="utf-8").strip()
+    # the run header is the first line (WP-1322), the event the second
+    header, line = (tmp_path / "e.jsonl").read_text(
+        encoding="utf-8").strip().splitlines()
+    assert json.loads(header)["record"] == "run"
     parsed = json.loads(line)
     assert parsed["record"] == "event"
     assert parsed["data"] == {"stage": "s", "n_eval": 1, "cost": 1.5}

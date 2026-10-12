@@ -1334,6 +1334,10 @@ class RunRecorder(EventStream):
             # format's and not the platform's (WP-1439).
             self._fh = open(self.path, "a", encoding="utf-8",
                             newline="\n")
+            # the run header, as ``EventStream`` writes one for a path it
+            # opens (WP-1322); one run directory is one run, but a
+            # ``LiveSession``-style directory reused by name is not
+            self._write_header()
             self._take_lock()
             self._clear_stale_cancel()
             self._write_meta(label, command)
