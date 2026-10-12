@@ -60,8 +60,11 @@ Conventions, which must match :mod:`.least_squares` exactly or λ is meaningless
   objective ``S = rᵀr`` is our χ² and ``LSQOutcome.cost_*`` is scipy's ½·rᵀr;
 * ``A = JᵀJ``, ``b = −Jᵀr`` — exactly Coelho's equation (6), whose ``b`` is
   ``−½∇S``;
-* λ is added after the diagonal pre-conditioner ``A_ii = 1``, which is what
-  makes it dimensionless and lets the published constants transfer.
+* λ is added after the diagonal pre-conditioner, which is what makes it
+  dimensionless and lets the published constants transfer.  The
+  pre-conditioner is each column's largest norm this stage (:func:`minimize`),
+  so ``A_ii = 1`` for a column at its largest and under 1 for one that has
+  shrunk since (WP-1953).
 
 **The sign of ΔS_t.**  The paper's equation (9) defines ``r_u = ΔS_t/ΔS`` with
 ``ΔS_t = Δpᵀb``.  Taken literally with its own ``b`` that is positive for a
@@ -137,6 +140,14 @@ _CONVERGED_RUNS = 3
 #: stall costs the full inner budget — measured on the SRM 660c protocol, λ
 #: ramping to 3.6e27 while every trial step underflowed the cost difference.
 _PREDICTED_FLOOR = 1e-12
+#: λ at which a rejected trial sends the driver to measure the curvature of the
+#: coordinate it moved furthest (:func:`minimize`, WP-1953).  Three rejections
+#: in a row from λ ≤ 0.1 reach it.  Measured on the fast suite, 3762 of 3831
+#: LM solves never raise λ past 10, and the crawls this catches pass 1e8.
+_CURVATURE_GATE = 100.0
+#: the second difference's step in :func:`_measured_curvature`, relative to the
+#: coordinate's size: ε^¼, where its truncation and rounding errors balance
+_CURVATURE_STEP = float(np.finfo(np.float64).eps) ** 0.25
 
 #: a row whose slack is under 0 by less than this fraction of its block's
 #: largest |slack| is on its face, not violated (:meth:`LinearInequality.violated`):
@@ -368,16 +379,37 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     first outer iteration: a stage that starts at its minimum has nothing
     downhill to find.
 
-    The first can also end a crawl.  A column that vanishes at the current
-    point, such as a moment angle at a direction the symmetry fixes, is scaled
-    to unit norm like every other, so its step is the largest and λ grows to
-    hold it.  At λ near 1e8 every step is tiny, three in a row fall under
-    ``ftol``, and the stage reports convergence far from a minimum: χ² 454 660
-    where 2556 was reachable, on a two-site moment fit (WP-1938 D12).  A
-    column that is rounding noise from a stage's first iteration does the
-    same, and a refit can then stop where it started, at λ ≈ 1e10.  WP-1953
-    owns the remedy: keeping each column's largest norm as its scale fixed
-    the first case and left the second.
+    **Each column keeps the largest norm it has had this stage** as its
+    scale (Moré, J. J. (1978). *Lecture Notes in Mathematics* **630**,
+    105-116, the scaling MINPACK calls ``mode=1``).  Scaled afresh at every
+    iteration instead, a column that shrinks towards a stationary point, such
+    as a moment angle at a direction the symmetry fixes, took the largest
+    step, and λ grew to hold it until every parameter crawled.  Three tiny
+    decreases then ended the stage on ``ftol_runs`` far from a minimum
+    (χ²_red 11.03 at λ ≈ 1e11 on a one-site moment fit, WP-1938 D12), or the
+    budget ran out (``test_e8``'s axial stage, 400 evaluations at λ ≈ 1e3,
+    WP-1953).  With the scale held, both converge, the second in 22
+    evaluations.  The scale resets with each call, so a stage starts from its
+    own columns.
+
+    **A column that is small from a stage's first iteration** has no larger
+    norm to keep.  Its Gauss-Newton curvature ‖J_i‖² can sit orders of
+    magnitude under the curvature of S, so the model's step along it is far
+    too long, and λ climbs to hold it.  A moment angle 3e-8 rad from the
+    direction the symmetry fixes carried ‖J_i‖² = 2.2e-5 where ½∂²S/∂θ_i² was
+    3.4e5, and a profile refit started there stopped at λ ≈ 1e10 without
+    moving (WP-1953).  So when a rejected trial leaves λ at
+    :data:`_CURVATURE_GATE` or above, the driver measures ½∂²S/∂θ_i²
+    (:func:`_measured_curvature`) along the coordinate that trial moved
+    furthest for its size (:func:`_furthest_moved`).  Where that curvature is
+    positive and exceeds what the damped model gives the coordinate,
+    ``A_ii + λ·d_i²``, it becomes the coordinate's diagonal for the rest of the
+    stage, and λ restarts from its value at the start of the iteration.  Each
+    coordinate is measured at most once a stage.  A negative curvature is not
+    taken, since the model must stay positive semidefinite, and Gauss-Newton's
+    long steps are what leave a maximum.  A measurement's two evaluations are
+    derivative information, like scipy's finite-difference Jacobian calls, so
+    ``max_nfev`` does not count them.
 
     Each step solves the damped model over the box (:func:`_solve_step`).
     When that step crosses a row of ``inequalities``, the step is solved again
@@ -418,6 +450,11 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     status = 0
     n_outer = 0
     termination = "max_nfev"
+    scale = None
+    # ½∂²S/∂θ_i² measured this stage where Gauss-Newton under-reads it, and
+    # which coordinates have been measured (each at most once)
+    curvature = np.zeros(len(x))
+    measured = np.zeros(len(x), dtype=bool)
 
     while n_fev < max_nfev:
         n_outer += 1
@@ -428,12 +465,23 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
         Jh = to_host_fp64(J)
         A = Jh.T @ Jh
         b = -(Jh.T @ r)
+        # each column keeps the largest norm it has had this stage (Moré
+        # 1978, MINPACK's ``mode=1``): a column that shrinks towards a
+        # stationary point keeps the damping its scale earned, rather than
+        # taking the largest step and dragging λ up for every parameter.  A
+        # curvature measured this stage stays its column's diagonal where it
+        # is the larger.
+        if np.any(curvature > 0.0):
+            A[np.diag_indices(len(x))] = np.maximum(np.diag(A), curvature)
+        col = np.sqrt(np.maximum(np.diag(A), 0.0))
+        scale = col if scale is None else np.maximum(scale, col)
+        lam_start = lam
 
         accepted = False
         exhausted = False
         spent = False
         for _inner in range(_INNER_MAX):
-            step, side = _solve_step(A, b, lam, x, lo, hi, n_rows=len(r))
+            step, side = _solve_step(A, b, lam, x, lo, hi, n_rows=len(r), scale=scale)
             crossed = [iq.label for iq in ineqs if iq.crossed(x, step)]
             if crossed:
                 # the box-only step leaves the feasible set: solve the same
@@ -443,7 +491,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                     truncated_by[label] = truncated_by.get(label, 0) + 1
                 try:
                     step, side = _solve_constrained_step(A, b, lam, x, lo, hi, ineqs,
-                                                         n_rows=len(r))
+                                                         n_rows=len(r), scale=scale)
                 except _NoConstrainedStep:
                     # nnls ran out of iterations: shorten the box-only step to
                     # the first row it reaches, the pre-D8 rule without the
@@ -504,6 +552,18 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                 small_runs = small_runs + 1 if rel < ftol else 0
                 break
             lam = _next_lambda(lam, None, 0.0)
+            if lam >= _CURVATURE_GATE:
+                # a crawl has begun: the coordinate the rejected trial moved
+                # furthest may be one Gauss-Newton cannot see curve
+                i = _furthest_moved(step, x, measured)
+                if i is not None:
+                    measured[i] = True
+                    c = _measured_curvature(residual, x, s, i, lo, hi)
+                    if c is not None and c > A[i, i] + lam * scale[i] ** 2:
+                        curvature[i] = c
+                        A[i, i] = c
+                        scale[i] = max(scale[i], np.sqrt(c))
+                        lam = lam_start
         if spent:
             break
         if not accepted:
@@ -547,8 +607,50 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                      active_mask=active)
 
 
+def _furthest_moved(step: np.ndarray, x: np.ndarray,
+                    measured: np.ndarray) -> int | None:
+    """The coordinate a rejected step moved furthest for its size, among those
+    not yet measured this stage.
+
+    The size is ``max(|θ_i|, 1)``, the reading
+    :func:`.least_squares.fd_step` gives a coordinate of typical size 1.
+    Returns ``None`` when the step moved no unmeasured coordinate.
+    """
+    moved = np.abs(step) / np.maximum(np.abs(x), 1.0)
+    moved[measured] = 0.0
+    if not moved.size:
+        return None
+    i = int(np.argmax(moved))
+    return i if moved[i] > 0.0 else None
+
+
+def _measured_curvature(residual: Callable[[np.ndarray], np.ndarray],
+                        x: np.ndarray, s: float, i: int,
+                        lo: np.ndarray, hi: np.ndarray) -> float | None:
+    """½∂²S/∂θ_i² at ``x``, by a central second difference of ``S = rᵀr``.
+
+    The step is ``h = ε^¼·max(|θ_i|, 1)``.  The difference's truncation error
+    is ``h²·S⁗/12`` and its rounding error about ``4u·S/h²`` (u = ε/2), so
+    their sum is least for h near ``u^¼`` in the coordinate's own size.
+    Returns ``None`` when either point leaves the box, or when the difference
+    is under what fp64 resolves against S (:data:`_PREDICTED_FLOOR`), or not
+    finite.  It may be negative.
+    """
+    h = _CURVATURE_STEP * max(abs(float(x[i])), 1.0)
+    if x[i] - h < lo[i] or x[i] + h > hi[i]:
+        return None
+    e = np.zeros_like(x)
+    e[i] = h
+    r_plus, r_minus = residual(x + e), residual(x - e)
+    diff = float(r_plus @ r_plus) + float(r_minus @ r_minus) - 2.0 * s
+    if not np.isfinite(diff) or abs(diff) <= _PREDICTED_FLOOR * max(abs(s), 1.0):
+        return None
+    return 0.5 * diff / h**2
+
+
 def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
-                lo: np.ndarray, hi: np.ndarray, *, n_rows: int
+                lo: np.ndarray, hi: np.ndarray, *, n_rows: int,
+                scale: np.ndarray | None = None
                 ) -> tuple[np.ndarray, np.ndarray]:
     """One damped Gauss-Newton step, solved exactly inside the box (WP-1937).
 
@@ -590,7 +692,7 @@ def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
     the bound the solve chose.
     """
     n = len(b)
-    d = np.sqrt(np.maximum(np.diag(A), 0.0))
+    d = np.sqrt(np.maximum(np.diag(A), 0.0)) if scale is None else scale
     d = np.where(d > 0.0, d, 1.0)
     inv_d = 1.0 / d
     A_s = A * np.outer(inv_d, inv_d)
@@ -623,7 +725,8 @@ class _NoConstrainedStep(RuntimeError):
 
 def _solve_constrained_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
                             lo: np.ndarray, hi: np.ndarray,
-                            inequalities: list[LinearInequality], *, n_rows: int
+                            inequalities: list[LinearInequality], *, n_rows: int,
+                            scale: np.ndarray | None = None
                             ) -> tuple[np.ndarray, np.ndarray]:
     """The damped step over the box *and* the linear-inequality rows (WP-1938 D8).
 
@@ -661,7 +764,7 @@ def _solve_constrained_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndar
     """
     n = len(b)
     eps = float(np.finfo(np.float64).eps)
-    d = np.sqrt(np.maximum(np.diag(A), 0.0))
+    d = np.sqrt(np.maximum(np.diag(A), 0.0)) if scale is None else scale
     d = np.where(d > 0.0, d, 1.0)
     inv_d = 1.0 / d
     H = A * np.outer(inv_d, inv_d)
