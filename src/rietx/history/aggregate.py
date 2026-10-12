@@ -92,9 +92,7 @@ class RunSummary(Base):
     def __str__(self) -> str:
         lines = []
         if self.header is None:
-            lines.append("  no run header: this log was written before runs "
-                         "were marked, so it is read as one run, and if it "
-                         "holds re-runs its durations mix them")
+            lines.append("  header: none")
         fit = (f", {self.fit_seconds:.2f} s fit_start→fit_end"
                if self.n_fits_ended else "")
         lines.append(f"  fits {self.n_fits} ({self.n_fits_ended} ended{fit})"
@@ -139,7 +137,7 @@ class EventsSummary(Base):
             if run.header is not None:
                 opened = time.strftime("%Y-%m-%d %H:%M:%S",
                                        time.localtime(run.header.t))
-                head = f"run {i}  {run.header.run}  opened {opened}"
+                head = f"run {i}  header {run.header.run}  opened {opened}"
             else:
                 head = f"run {i}"
             out.append(f"{head}   wall {run.wall_seconds:.2f} s")
@@ -156,8 +154,10 @@ def _read_lines(path: Path) -> tuple[list[dict], int]:
     offset = 0
     while True:
         tail = tail_events(path, offset, max_bytes=_CHUNK_BYTES)
-        records.extend(tail.events)
-        bad += tail.bad_lines
+        # a line that is JSON but not an object is as unreadable as torn text
+        records.extend(e for e in tail.events if isinstance(e, dict))
+        bad += tail.bad_lines + sum(not isinstance(e, dict)
+                                    for e in tail.events)
         if tail.offset <= offset:
             return records, bad
         offset = tail.offset
@@ -182,7 +182,7 @@ def _summarize_run(header: dict | None, events: list[dict]) -> RunSummary:
     n_fits = n_fits_ended = n_starts = n_ends = n_evals = 0
     fit_seconds = 0.0
     fit_open: float | None = None
-    stage_open: dict[str, float] = {}
+    stage_open: dict[str, float] = {}  # cleared at each fit_start
     stage_count: Counter = Counter()
     stage_seconds: dict[str, float] = {}
     stage_evals: Counter = Counter()
@@ -201,6 +201,9 @@ def _summarize_run(header: dict | None, events: list[dict]) -> RunSummary:
         if kind == "fit_start":
             n_fits += 1
             fit_open = t
+            # a stage that raised emitted no stage_end; its start must not
+            # carry into the next fit's stage of the same name
+            stage_open.clear()
         elif kind == "fit_end":
             n_fits_ended += 1
             if fit_open is not None and t is not None:

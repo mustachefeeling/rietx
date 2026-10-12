@@ -397,7 +397,7 @@ solve, and the paths the data could not see (`held`), most often held first.
 ```console
 $ rietx events run/events.jsonl
 run/events.jsonl: 2 runs
-run 1  61a9c98fcd5f  opened 2026-10-11 17:23:44   wall 0.21 s
+run 1  header 61a9c98fcd5f  opened 2026-10-11 17:23:44   wall 0.21 s
   fits 1 (1 ended, 0.20 s fit_start→fit_end)   stages 5 ended (5 started)   evals 70
   Rwp first 0.9517   last 0.0414
   stage            n    seconds   evals
@@ -408,7 +408,7 @@ run 1  61a9c98fcd5f  opened 2026-10-11 17:23:44   wall 0.21 s
   profile          1       0.04      10
   termination: ftol 5
   most held: phases.1.cell.a (3)
-run 2  1376ba1cb926  opened 2026-10-11 17:23:44   wall 0.20 s
+run 2  header 1376ba1cb926  opened 2026-10-11 17:23:44   wall 0.20 s
   ...
 ```
 
@@ -429,9 +429,17 @@ writes one header line when it opens its file, and this command splits on it.
 No duration crosses from one run into the next. Before the header, a merged
 log once reported a 10.3 s fit as 459.0 s.
 
+The id after `header` is the header's own, fresh for each opened stream. It is
+not the id `rietx watch` lists a run directory under, which is derived from the
+directory's path, and the two never match.
+
 A log written before the header has none. It is read as one run, and the
-summary says so rather than assuming it. If such a log holds re-runs, its
-durations mix them.
+summary prints `header: none` rather than assuming one. If such a log holds
+re-runs, its durations mix them.
+
+The split assumes one writer at a time. Events carry no run id, so if two
+processes append to one path at once, every line after the second header counts
+in the second run.
 
 Two readings to keep straight. A stage's seconds run from the first
 `stage_start` of that name to its `stage_end`, so a stage that releases a held

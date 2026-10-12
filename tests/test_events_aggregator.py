@@ -67,7 +67,7 @@ def test_an_opened_stream_writes_one_header_and_never_emits_it(tmp_path, pattern
 
     lines = _lines(path)
     assert lines[0]["record"] == RUN_RECORD
-    assert lines[0]["run"] == stream.run_id
+    assert lines[0]["run"] == stream.header_id
     assert [r for r in lines if r["record"] == RUN_RECORD] == lines[:1]
     assert all(r["record"] == "event" for r in lines[1:])
     # the callback saw exactly the events, and the header is not one of them
@@ -130,7 +130,7 @@ def test_a_headerless_log_reads_as_one_run_and_says_so(tmp_path, pattern,
     # cannot split them
     assert run.n_fits == 2
     text = str(summary)
-    assert "no run header" in text
+    assert "header: none" in text
     assert len(read_events(path)) == len(_lines(path))
 
 
@@ -273,3 +273,63 @@ def test_a_recorded_run_directory_starts_with_its_header(tmp_path, pattern):
     assert lines[0]["record"] == RUN_RECORD
     assert [r["record"] for r in lines[1:]] == ["event"] * (len(lines) - 1)
     assert summarize_events(log).runs[0].n_fits_ended == 1
+
+
+# ------------------------------------------------------------- review of #902
+def _stamped(monkeypatch):
+    """Emit with a clock the test sets, so durations are exact."""
+    now = [0.0]
+    monkeypatch.setattr("rietx.history.events.time.time", lambda: now[0])
+    return now
+
+
+def test_a_stage_that_raised_does_not_lend_its_start_to_the_next_fit(
+        tmp_path, monkeypatch):
+    """A failed stage emits no ``stage_end``; the next fit's same-named stage
+    must be timed from its own start, not the dead one's."""
+    now = _stamped(monkeypatch)
+    path = tmp_path / "events.jsonl"
+    with EventStream(path=path) as stream:
+        for t, kind, data in [
+                (0.0, "fit_start", {}),
+                (1.0, "stage_start", {"stage": "cell"}),    # raises: no end
+                (100.0, "fit_start", {}),
+                (101.0, "stage_start", {"stage": "cell"}),
+                (103.0, "stage_end", {"stage": "cell"}),
+                (103.0, "fit_end", {})]:
+            now[0] = t
+            stream.emit(kind, **data)
+    (run,) = summarize_events(path).runs
+    (cell,) = run.stages
+    assert cell.seconds == pytest.approx(2.0)
+
+    # the positive arm: within one fit a release's second start keeps the span
+    path2 = tmp_path / "second.jsonl"
+    with EventStream(path=path2) as stream:
+        for t, kind in [(0.0, "fit_start"), (1.0, "stage_start"),
+                        (2.0, "stage_start"), (4.0, "stage_end")]:
+            now[0] = t
+            stream.emit(kind, stage="cell")
+    assert summarize_events(path2).runs[0].stages[0].seconds == \
+        pytest.approx(3.0)
+
+
+def test_header_id_exists_only_where_a_header_was_written(tmp_path):
+    assert EventStream(callback=lambda e: None).header_id is None
+    path = tmp_path / "events.jsonl"
+    with EventStream(path=path) as stream:
+        pass
+    assert stream.header_id == _lines(path)[0]["run"]
+    assert not hasattr(stream, "run_id")
+
+
+def test_json_that_is_not_an_object_is_a_bad_line_not_a_crash(tmp_path,
+                                                              pattern):
+    path = tmp_path / "events.jsonl"
+    with EventStream(path=path) as stream:
+        _fit(pattern, stream)
+    with path.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write("[]\nnull\n3\n")
+    summary = summarize_events(path)
+    assert summary.bad_lines == 3
+    assert summary.runs[0].n_fits_ended == 1

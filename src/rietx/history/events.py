@@ -211,8 +211,10 @@ class EventStream:
         self._fh = (open(self.path, "a", encoding="utf-8", newline="\n")
                     if self.path else None)
         self.n_written = 0
-        #: This stream's run, the id its header carries.
-        self.run_id = new_run_id()
+        #: The id this stream's header carries; ``None`` until a header is
+        #: written, so a callback-only stream has none.  Not the id
+        #: ``rietx watch`` lists a run directory under (``runs.run_id_for``).
+        self.header_id: str | None = None
         if self._fh is not None:
             self._write_header()
 
@@ -222,7 +224,8 @@ class EventStream:
         Written straight to the file, never through :meth:`emit`: it is not an
         event, ``n_written`` does not count it, and no callback sees it.
         """
-        self._fh.write(json.dumps(run_header(self.run_id)) + "\n")
+        self.header_id = new_run_id()
+        self._fh.write(json.dumps(run_header(self.header_id)) + "\n")
         self._fh.flush()
 
     def emit(self, kind: str, **data: Any) -> None:
