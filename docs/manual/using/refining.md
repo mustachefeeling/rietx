@@ -1170,7 +1170,10 @@ hold exists to remove, and holding it would freeze a cell the data can measure.
 A phase appearing while the stage solves lifts the hold the same way.
 
 A hold is decided per stage, at the values that stage starts from, so a phase
-that appears later refines normally from the stage where it appears. If it
+that appears later refines normally from the stage where it appears. Each stage
+of a plan after the first also reads the previous stage's answer. A phase that
+answer could not see is held again from the start, so its cell does not chase
+the noise once per stage. If it
 appears while a stage solves, that stage lifts the hold and solves a second
 time, once and never a third, and lists those paths in `StageResult.released`
 instead. Both solves are counted in `n_iterations`; `cost_initial` is still the

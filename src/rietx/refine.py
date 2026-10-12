@@ -406,8 +406,9 @@ class _StageHold:
     #: ``PHASE_UNCONSTRAINED`` reads the number the hold was decided on: a
     #: phase the support hold still holds keeps that reading, taken with its
     #: held columns free, which the result's own covariance cannot do.  A
-    #: phase that refined is read off the last solve.  ``None`` outside
-    #: Rietveld mode, where the result reads the screen itself.
+    #: phase that refined is read off the last solve.  The next stage of a
+    #: plan starts its support hold from it too.  ``None`` outside Rietveld
+    #: mode, where the result reads the screen itself.
     significance: np.ndarray | None = None
 
 
@@ -472,7 +473,9 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     Jacobian, so it is ``CompiledModel.phase_support``, the screen the default
     cell window also reads.  The screen bounds the full test from above, so a
     phase it holds is one :func:`_answer_significance` would call unseen too.
-    At the answer the caller passes :func:`_answer_significance` instead.
+    A plan's later stage reads the previous answer's significance beside it
+    (:func:`_hold_unsupported_phases`).  At the answer the caller passes
+    :func:`_answer_significance` instead.
 
     **The phase's own scale is never held.**  Every structural parameter of a
     phase reaches the pattern only through ``scale × |F|² × profile``, so with
@@ -1155,14 +1158,38 @@ def _reach_beyond_self(table: ParameterTable, columns: list[str],
     return out
 
 
-def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable
+def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
+                             prior: np.ndarray | None = None,
                              ) -> tuple[list[str], dict[str, list[str]]]:
     """Apply :func:`_unsupported_phase_paths`; returns what it held and its reach.
 
     Both halves, because the reach is only readable while the columns are
     still free — see :func:`_reach_beyond_self`.
+
+    ``prior`` is the previous stage's :func:`_answer_significance` in a plan
+    (WP-1523), read beside the screen: a phase under the threshold by either
+    is held.  The screen alone frees a phase whose scale was fitted to noise
+    whenever its conditional z passes while the marginal one does not, and
+    the stage then chases the noise, collapses it, restores it and solves
+    again.  That answer's values are the ones this stage starts from, and a
+    plan's free set only grows, so the marginal z here is no larger to first
+    order.
+
+    Measured on seed 107 of #481's blank frame under ``mccusker_structural``:
+    18 solves for 11 stages with the screen alone, 11 with the prior read.
+    The scale stays free either way, so a phase that appears while this
+    stage solves is released at its answer as before.  What it gives up is a
+    second look with the phase's columns refining: a held phase is judged at
+    its held values.  Over the WP's sweep that moved one weak real phase of
+    64 fits from refined to held, at 2.46σ.
     """
-    held = _unsupported_phase_paths(model, table)
+    support = None
+    if prior is not None:
+        screen = np.asarray(model.phase_support(table.decode(table.x0())),
+                            dtype=np.float64)
+        if len(prior) == len(screen):
+            support = np.minimum(screen, prior)
+    held = _unsupported_phase_paths(model, table, support)
     reach = _reach_beyond_self(table, held)
     if held:
         table.set_vary(held, False)
@@ -3661,12 +3688,20 @@ class Refinement:
                    two_theta_limits: tuple[float, float] | None,
                    correlation_guard: float, events=None, cancel=None,
                    stage_index: int = 1, n_stages: int = 1,
-                   ftol: float | None = None):
+                   ftol: float | None = None,
+                   prior_significance: np.ndarray | None = None):
         """One stage: free params, recompile, solve, commit, guard.
 
         The recompile is what keeps the residual smooth *within* the stage —
         the hkl list, symmetry-op subsets, FCJ node counts and windows are
         frozen here and never move until the next stage.
+
+        ``prior_significance`` is the previous stage's answer significance in
+        a plan (WP-1523), which the support hold reads beside the screen
+        (:func:`_hold_unsupported_phases`).  ``None`` for a plan's first stage
+        and for :meth:`run_stage`, which has no previous stage of its own: a
+        reading kept across verbs would outlive a ``set_values`` or a
+        checkout that moved the values it was taken at.
         """
         freed = table.set_vary(stage.turn_on, True)
         # What the glob matched and the hold refused (WP-1435).  Read off the
@@ -3788,8 +3823,10 @@ class Refinement:
         # displacement the fitted range cannot tell from its scale (WP-1534).
         # All are flat directions, all are taken after the compile at the
         # values the stage starts from, and all go into ``StageResult.held``
-        # so the report can say which and why.
-        held, held_reach = _hold_unsupported_phases(model, table)
+        # so the report can say which and why.  The phase hold also reads the
+        # previous answer's significance where a plan hands one in (WP-1523).
+        held, held_reach = _hold_unsupported_phases(
+            model, table, prior_significance if mode == "rietveld" else None)
         # kept apart, because the release below judges each hold by its own
         # question: a moment DOF the *phase* hold took (every free structural
         # path of an invisible phase, ``moment.dof0`` included) stays with the
@@ -4614,7 +4651,10 @@ class Refinement:
                 model, outcome, guard, freed, hold = self._run_stage(
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
-                    stage_index=k, n_stages=len(plan.stages), ftol=ftol)
+                    stage_index=k, n_stages=len(plan.stages), ftol=ftol,
+                    # still the previous stage's here: the support hold
+                    # starts from that answer as well as the screen (WP-1523)
+                    prior_significance=answer_significance)
             # WP-1343: the moment's rung at this boundary, and the shift the
             # moment took when the widths were released.  Gated on what the
             # stage actually freed, so an ordinary fit never pays for the

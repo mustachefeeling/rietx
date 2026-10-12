@@ -161,23 +161,48 @@ def test_a_blank_frame_past_the_screen_is_judged_by_its_marginal_z(
         issue_481, monkeypatch):
     """Seed 107 of the WP's sweep: noise alone lifts the screen past 3σ.
 
-    Each stage's answer, as ``(screen, significance)``, measured 2026-10-04
+    Each stage's answer, as ``(screen, significance)``, measured 2026-10-12
     (macOS arm64, ``[dev]``): (2.24, 2.24), (2.50, 2.50), (2.50, 2.50),
-    (3.25, 2.61), (3.64, 1.51), (3.64, 1.72).
+    (3.25, 2.61), (3.64, 1.44).
 
-    Two paths run here.  At the ``profile_w`` answer the cell is held and the
-    screen passes, so the held cell is freed for the measurement (2.61).  The
-    screen passed at the ``profile`` start, so the cell refined there; at the
-    answer its scale reads 1.51σ, so the cell is put back where the stage
-    found it and held, and the stage solves again.  The finding quotes 1.51,
-    the reading the hold was decided on; the second solve's own, with the
-    cell held, is the 1.72.
+    At the ``profile_w`` answer the cell is held and the screen passes, so
+    the held cell is freed for the measurement (2.61).  The ``profile`` stage
+    starts from that reading as well as the screen, so it holds the cell from
+    its start, frees it again for the measurement at its answer (1.44), and
+    solves once.  With the screen alone the cell refined from the
+    ``profile`` start, its scale read 1.44σ at the answer, and the stage put
+    the cell back and solved a second time: 41 iterations against 18.
     """
     _, starts = issue_481
     pattern = _draw(_lab6(A0, 0.0), np.random.default_rng(107))
     result, record = _fit(*starts["unfitted"](), pattern, monkeypatch)
     assert any(s >= PHASE_SUPPORT_SIGMA for s, _ in record), record
     _assert_unseen(result, record)
+    assert len(record) == len(result.stages), "a stage solved twice"
+
+
+def test_a_later_stage_starts_from_the_answer_before_it(issue_481, monkeypatch):
+    """The stage-start hold reads the previous answer, not the screen alone.
+
+    The same blank under ``mccusker_structural``.  From ``profile_w`` on the
+    screen reads 3.25σ to 3.64σ at each answer while the marginal z stays
+    between 0.62σ and 2.61σ.  With
+    the screen alone each of the seven stages from ``profile`` on freed the
+    cell, chased the noise, put the cell back and solved again: 18 solves
+    for 11 stages and 233 iterations, measured 2026-10-12 (macOS arm64,
+    ``[dev]``).  Read beside the previous answer, each of those stages holds
+    the cell from its start: 11 solves and 59 iterations, and the finding
+    reads 0.62σ either way.
+    """
+    _, starts = issue_481
+    pattern = _draw(_lab6(A0, 0.0), np.random.default_rng(107))
+    result, record = _fit(*starts["unfitted"](), pattern, monkeypatch,
+                          plan="mccusker_structural")
+    _assert_unseen(result, record)
+    assert len(record) == len(result.stages), "a stage solved twice"
+    names = [st.name for st in result.stages]
+    for st in result.stages[names.index("profile"):]:
+        assert "phases.0.cell.a" in st.held and not st.released, st.name
 
 
 @pytest.mark.parametrize("start", ["fitted", "unfitted"])

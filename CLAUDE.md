@@ -314,7 +314,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   not flat — and `StageResult.held` records it. **Support is a fact about the values and a stage
   moves them** → re-measured at the answer: a phase that appeared is *released*; one that
   **collapsed** while solving is restored to where the stage found it and held (one extra solve,
-  never a third). **A value that is not a measurement is the caller's**: held paths leave
+  never a third). A plan's next stage starts from that answer's reading beside the screen, or a
+  noise phase pays the extra solve every stage (WP-1523). **A value that is not a measurement is the caller's**: held paths leave
   `RefinementResult.parameters`, a trajectory starts at the onset. Which phases: a scale under 3σ
   of its counting-noise esd (`refine._answer_significance`, WP-1523), never the fitted curve an
   absent phase's cell fits to noise; zero limit `phase_line_counts`. Both feed `PHASE_UNCONSTRAINED`,
