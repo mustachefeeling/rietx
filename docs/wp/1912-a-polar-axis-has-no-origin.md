@@ -162,9 +162,15 @@ Licensing: SHELXL is closed. Use the paper only.
       checked by eye they are the same picture at Rwp 0.0993. A P 2₁2₁2₁
       and a Pnma fixture fit to the same free set and the same values bit
       for bit, declared or not, and raise no origin code.*
-- [ ] Skill: a row keyed by the new code. `references/diagnostics.md` is closed
+- [x] Skill: a row keyed by the new code. `references/diagnostics.md` is closed
       to growth (`tests/skill_caps.py`), so pay for it with a cut, or let
       the diagnostic's own `suggestion` carry it.
+      *Done 2026-10-12, without a `diagnostics.md` row: it has 7 B left under
+      its budget, and both codes now carry a `suggestion` saying what to do.
+      The `references/numbers.md` paragraph #749 wrote, which names both
+      codes, now describes the field, the quote rule for the held atom and
+      the measured esds (+315 B, 23 766 B left). `api.md` regenerated for
+      the two new fields, and the two committed copies re-synced.*
 
 ## Acceptance
 
