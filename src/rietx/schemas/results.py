@@ -91,8 +91,14 @@ class Statistics(Base):
     ``STAGE_MAX_ITER`` reports how far it was still moving, in esd units.
     ``run_least_squares`` computes it, ``refine`` copies it, nothing else
     derives it (WP-1076).  ``None`` wherever it cannot be measured: no
-    accepted step, no esds, an evaluate-only ``replay``, or the joint
-    multi-pattern residual, which carries no writer yet.
+    accepted step, no esds, or an evaluate-only ``replay``.  A joint
+    multi-histogram fit has it too (WP-1341): one shift per column of the
+    joint θ against the esd the joint covariance gives that column, so the
+    histogram weights change the number and leave its meaning alone
+    (``run_multi_least_squares`` computes it).  It is whole-fit, so a
+    :class:`HistogramResult`'s own statistics leave it ``None`` and
+    :meth:`RefinementResult.for_histogram` carries the joint figure onto
+    its view, beside the joint stages it prints.
 
     ``identifiability_clause`` is the report's identifiability sentence,
     verbatim — the same string ``build_report`` appends to
@@ -1497,6 +1503,9 @@ class RefinementResult(Base):
         hr = self.histograms[h]
         view = self.model_copy(deep=True)
         view.statistics = hr.statistics.model_copy(deep=True)
+        # the joint solve's convergence figure belongs to the stages the view
+        # keeps, so it travels with them (WP-1341)
+        view.statistics.max_shift_over_esd = self.statistics.max_shift_over_esd
         view.two_theta = list(hr.two_theta)
         view.y_obs = list(hr.y_obs)
         view.y_calc = list(hr.y_calc)

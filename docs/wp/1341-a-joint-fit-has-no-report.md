@@ -148,9 +148,12 @@ against the tree at e1d19359 on arrival.
 
 ## Tasks
 
-- [ ] Decided 2026-09-03: none of the three gaps is an intended limit. Define
+- [x] Decided 2026-09-03: none of the three gaps is an intended limit. Define
       `max_shift_over_esd` across weighted histograms; if no definition holds,
       say so where the field is declared rather than leaving `None`.
+      Defined 2026-10-12: one shift and one esd per column of the joint θ
+      (`least_squares._final_shift_over_esd_multi`), copied onto the joint
+      result's statistics.
 - [ ] `events=` (and `cancel=`) on `MultiHistogramRefinement.fit`, carrying
       the histogram index in `data` the way `sequential.py` carries the series
       index — no new `EventKind`.

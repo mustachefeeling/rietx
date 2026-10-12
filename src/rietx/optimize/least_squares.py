@@ -1970,6 +1970,39 @@ def _final_shift_over_esd(table: ParameterTable,
     return max(ratios) if ratios else None
 
 
+def _final_shift_over_esd_multi(mtable: "MultiParameterTable",
+                                step: tuple[np.ndarray, np.ndarray] | None,
+                                stderr: np.ndarray | None,
+                                correlation: np.ndarray | None) -> float | None:
+    """:func:`_final_shift_over_esd` for the joint solve (WP-1341).
+
+    The definition carries over unchanged.  Every free column of the joint θ
+    has one shift, the joint solve's final accepted step, and one esd, read
+    off the covariance of the weighted stacked residual.  That esd is the one
+    the joint result reports, because each histogram's slice is decoded here
+    exactly as ``MultiHistogramRefinement._build_result`` decodes it.  The
+    histogram weights enter both the step and the covariance, so they change
+    the number and leave its meaning alone.
+
+    A shared column sits in every histogram's table.  Its ratio is the same in
+    each, because each table decodes it affinely, and the WP-1131 λ factor
+    scales the shift and the esd alike.  So the maximum over histograms is
+    the maximum over columns.
+    """
+    if step is None or stderr is None:
+        return None
+    x_prev, x_final = step
+    ratios = []
+    for h, table in enumerate(mtable.tables):
+        cm = mtable.col_map(h)
+        corr_h = correlation[np.ix_(cm, cm)] if correlation is not None else None
+        r = _final_shift_over_esd(table, (x_prev[cm], x_final[cm]), stderr[cm],
+                                  corr_h, len(cm))
+        if r is not None:
+            ratios.append(r)
+    return max(ratios) if ratios else None
+
+
 def _freeze_cell_windows(model: CompiledModel, table: ParameterTable) -> None:
     """Declare which phases' cells take the default window for this stage.
 
@@ -2451,6 +2484,21 @@ def run_multi_least_squares(models: list[CompiledModel],
     jacobian = _DegenerateCellJacobianGuard(jacobian, cell_guard)
     n_cols = len(mtable.free_paths)
 
+    # the closure the stationary-angle test probes after the solve, taken
+    # below the TRF wrapper for :func:`run_least_squares`' reason: a probe
+    # must not move the step tracker ``max_shift_over_esd`` is read from
+    probe = residual
+    tracker = _StepTracker()
+    if solver == "trf":
+        # scipy TRF has no accepted-point hook, so the residual closure is
+        # the hook, as in :func:`run_least_squares`
+        inner_t = residual
+
+        def residual(theta: np.ndarray):
+            r = inner_t(theta)
+            tracker.accept(theta, 0.5 * float(r @ r))
+            return r
+
     # sample caps first: ``_freeze_cell_windows_multi`` ends in
     # ``refresh_bounds``, which is what pushes *all three* freezes into the
     # combined bound vectors
@@ -2463,6 +2511,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     r0 = residual(x0)
     require_fp64(r0, "least-squares residual")
     cost0 = 0.5 * float(r0 @ r0)
+    tracker.accept(x0, cost0)  # the LM path's seed; a no-op after the TRF wrapper
     if n_cols == 0:
         return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None,
                           solver=solver,
@@ -2471,7 +2520,8 @@ def run_multi_least_squares(models: list[CompiledModel],
     max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
-                          ftol=ftol, inequalities=[], events=None, stage="")
+                          ftol=ftol, inequalities=[], events=None, stage="",
+                          track=tracker)
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
                             ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
@@ -2485,7 +2535,7 @@ def run_multi_least_squares(models: list[CompiledModel],
         # moment angle's column is every histogram's rows of it, and a shared
         # angle is stationary only where the joint χ² says so
         moment_angle_tests, stationary = stationary_angle_test(
-            residual, res.x, res.jac, n_data_total, mtable.free_paths,
+            probe, res.x, res.jac, n_data_total, mtable.free_paths,
             _column_entries(mtable.tables,
                            [mtable.col_map(h) for h in range(len(mtable.tables))],
                            len(res.x)),
@@ -2500,6 +2550,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                       jac_data, stderr, corr, solver=solver,
                       residual_cosine=_residual_cosine(res.jac, res.fun),
                       active_bounds=_active_bounds(res, len(res.x)),
+                      max_shift_over_esd=_final_shift_over_esd_multi(
+                          mtable, tracker.step(), stderr, corr),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
                       covariance_error=covariance_error,

@@ -1234,6 +1234,9 @@ class MultiHistogramRefinement:
             np.concatenate([m.sigma for m in models]),
             n_free=len(mt.free_paths),
             y_background=np.concatenate(per_ybkg))
+        # the joint solve's convergence figure, copied and never derived
+        # (WP-1341; ``_final_shift_over_esd_multi`` says why it is defined)
+        combined.max_shift_over_esd = outcome.max_shift_over_esd
 
         # one bound test, two consumers: the rows' at_bound flag and the
         # BOUND_HIT/FLOOR_HIT diagnostics (WP-1076, WP-1929)
