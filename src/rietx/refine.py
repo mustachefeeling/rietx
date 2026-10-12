@@ -2328,6 +2328,7 @@ class Refinement:
         # would invite the caller to free what the next stage fixes again.
         reach = table.entry_reach()
         owned = table.body_rows()
+        origin = table.origin_holds
         rows = []
         for e in table.entries:
             rows.append(ParameterRow(
@@ -2342,6 +2343,7 @@ class Refinement:
                             else mode_fixed_path(e.path, mode)),
                 needs_held_cell=e.path in blocked,
                 body=owned.get(e.path),
+                origin_axis=origin[e.path][1] if e.path in origin else None,
                 help_key=help_key_for(e.path),
             ))
         return rows
@@ -2990,82 +2992,52 @@ class Refinement:
         return new
 
     def hold_floating_origin(self) -> list[Diagnostic]:
-        """Hold one coordinate along every direction the origin floats in.
+        """Fix the origin of every phase whose space group lets it float.
 
         In a polar group (P 6₃ m c, P 4 m m, Pna2₁, Cc, P 1, …) every atom has
         a free coordinate along the polar axis, and shifting the whole structure
         along it changes no intensity, so a fit that frees them all has a flat
         direction it walks and quotes an esd along (``FLAT_DIRECTION``, ρ = −1).
-        :func:`~rietx.crystallography.wyckoff.floating_origin_basis` gives those
-        directions; for each, this holds the first atom's displacement DOF whose
-        direction is that axis, with :meth:`hold`, so a plan that frees
-        ``phases.*.atoms.*.dof.*`` leaves it where it is and the other atoms'
-        coordinates are quoted relative to it.  Opt-in: nothing is held unless
-        this is called, and :meth:`unhold` takes the hold back.  The
-        alternative is a least-squares restraint on the mean coordinate along
-        the axis, which keeps an esd on every atom (Flack & Schwarzenbach, 1988,
-        Acta Cryst. A44, 499); it is not implemented here.
+        This sets ``Phase.floating_origin = "hold"`` on each phase whose group
+        floats (:func:`~rietx.crystallography.wyckoff.floating_origin_basis`)
+        and records one ``edit_model`` node.  The parameter table then holds,
+        per floating direction, the first atom's displacement DOF running
+        exactly along it, so a plan that frees ``phases.*.atoms.*.dof.*``
+        leaves that atom where it is and the other atoms' coordinates are
+        quoted relative to it.  The same as setting the field yourself: since
+        WP-1912 the table does the holding, so a series pattern, a joint
+        histogram and a history replay hold the same atom.
 
-        Returns one ``ORIGIN_FIXED_ON_POLAR_AXIS`` (info) per phase that needed
-        a hold, naming the held parameters in ``where``, and an
-        ``ORIGIN_NOT_FIXED`` (warning) where a direction has no atom whose free
-        DOF runs along it (every atom then sits off that axis, or the basis
-        direction is a combination such as ``[1, 1, 0]``), so the flat
-        direction is still there.  A non-polar group returns ``[]``.
+        Opt-in: nothing is held unless this is called or the field is set.
+        :meth:`unhold` on a held DOF takes it back, with the rest of that
+        phase's fix.  A direction the caller's own ties or holds already fix
+        gets no second hold.  The alternative is a least-squares restraint on
+        the mean coordinate along the axis, which keeps an esd on every atom
+        (Flack & Schwarzenbach, 1988, Acta Cryst. A44, 499); it is not
+        implemented here.
+
+        Returns what the table now holds: one ``ORIGIN_FIXED_ON_POLAR_AXIS``
+        (info) per phase that needed a hold, naming the held parameters in
+        ``where``, and an ``ORIGIN_NOT_FIXED`` (warning) where a direction has
+        no atom whose untied DOF runs along it, so the flat direction is still
+        there.  A structure with no polar phase returns ``[]`` and records
+        nothing.
         """
         from .crystallography.symmetry import resolve_group
-        from .crystallography.wyckoff import (
-            coordinate_basis,
-            floating_origin_basis,
-            stabilizer_rotations,
-        )
+        from .crystallography.wyckoff import floating_origin_basis
 
-        out: list[Diagnostic] = []
-        for ip, phase in enumerate(self.structure.phases):
-            sg = resolve_group(phase.space_group, phase.symmetry_operations)
-            floating = floating_origin_basis(sg)
-            if len(floating) == 0:
+        structure = self.structure.model_copy(deep=True)
+        changed = False
+        for phase in structure.phases:
+            if phase.floating_origin is not None:
                 continue
-            held: list[str] = []
-            unmatched: list[str] = []
-            for f in floating:
-                f = [int(v) for v in f]
-                path = None
-                for ia, atom in enumerate(phase.atoms):
-                    xyz = [atom.x.value, atom.y.value, atom.z.value]
-                    basis = coordinate_basis(stabilizer_rotations(sg, xyz))
-                    for k, row in enumerate(basis):
-                        row = [int(v) for v in row]
-                        if row == f or row == [-v for v in f]:
-                            path = f"phases.{ip}.atoms.{ia}.dof.{k}"
-                            break
-                    if path:
-                        break
-                if path is None:
-                    unmatched.append(str(f))
-                else:
-                    held.append(path)
-            if held:
-                self.hold(held)
-                out.append(Diagnostic(
-                    level="info", code="ORIGIN_FIXED_ON_POLAR_AXIS",
-                    message=(f"phase {ip} ({phase.space_group}) has a floating "
-                             f"origin: the whole structure can shift along "
-                             f"{[list(map(int, f)) for f in floating]} without "
-                             f"changing any intensity, so {', '.join(held)} "
-                             f"is held; the other coordinates along it are "
-                             f"relative to that atom"),
-                    where=held))
-            if unmatched:
-                out.append(Diagnostic(
-                    level="warning", code="ORIGIN_NOT_FIXED",
-                    message=(f"phase {ip} ({phase.space_group}) floats along "
-                             f"{', '.join(unmatched)} and no atom has a free "
-                             f"coordinate running exactly along it, so nothing "
-                             f"was held there and the fit keeps a flat "
-                             f"direction"),
-                    where=[f"phases.{ip}"]))
-        return out
+            sg = resolve_group(phase.space_group, phase.symmetry_operations)
+            if len(floating_origin_basis(sg)) > 0:
+                phase.floating_origin = "hold"
+                changed = True
+        if changed:
+            self.edit(structure=structure, label="hold_floating_origin")
+        return _origin_diagnostics(self._working_table())
 
     def unhold(self, path_globs: list[str] | str) -> list[str]:
         """Take back a hold.  Returns the paths released, sorted.
@@ -3081,25 +3053,50 @@ class Refinement:
         free.  Withdrawing a declaration that something must not move is not a
         decision to move it, and :meth:`set_vary` is where that decision is
         spelled.
+
+        A DOF the table holds to fix a floating origin (``Phase.floating_origin``,
+        WP-1912) is released by setting that field back to ``None``, recorded
+        as an ``edit_model`` node.  That takes back the phase's whole fix, so
+        unholding one of P 1's three held DOFs releases all three, and all three
+        are returned.
         """
         globs = [path_globs] if isinstance(path_globs, str) else list(path_globs)
         hits = sorted(p for p in self._user_holds
                       if any(fnmatch.fnmatchcase(p, g) for g in globs))
+        # A floating-origin hold is the table's, from the phase's own
+        # declaration (WP-1912), so it is lifted by taking that declaration
+        # back: per phase, since the table re-derives the whole fix at the next
+        # build and a register of exceptions would be a second authority.
+        released: set[int] = set()
+        origin_hits: list[str] = []
+        if any(ph.floating_origin is not None for ph in self.structure.phases):
+            holds = self._working_table().origin_holds
+            released = {ip for p, (ip, _) in holds.items()
+                        if any(fnmatch.fnmatchcase(p, g) for g in globs)}
+            origin_hits = sorted(p for p, (ip, _) in holds.items()
+                                 if ip in released)
         literals = [g for g in globs
-                    if is_literal_path(g) and g not in hits]
+                    if is_literal_path(g) and g not in hits
+                    and g not in origin_hits]
         if literals:
             known = {e.path for e in self._working_table().entries}
             glob = literals[0]
             raise ValueError(
                 f"{glob!r} is not held by this refinement" if glob in known
                 else f"unknown parameter path: {glob!r}")
-        if not hits:
+        if not hits and not origin_hits:
             return []
-        # the register first, so the table this rebuilds comes back without
-        # them: ``_working_table`` re-applies whatever ``_user_holds`` holds
-        self._user_holds.difference_update(hits)
-        self._commit_hold_edit(self._working_table(), held=[], unheld=hits)
-        return hits
+        if hits:
+            # the register first, so the table this rebuilds comes back without
+            # them: ``_working_table`` re-applies whatever ``_user_holds`` holds
+            self._user_holds.difference_update(hits)
+            self._commit_hold_edit(self._working_table(), held=[], unheld=hits)
+        if origin_hits:
+            structure = self.structure.model_copy(deep=True)
+            for ip in released:
+                structure.phases[ip].floating_origin = None
+            self.edit(structure=structure, label="unhold: floating origin")
+        return sorted(set(hits) | set(origin_hits))
 
     def _commit_hold_edit(self, table: ParameterTable, *,
                           held: list[str], unheld: list[str]) -> None:
@@ -6042,6 +6039,72 @@ def _degenerate_cell_diagnostics(rows: list[tuple[str, int]]) -> list[Diagnostic
                  "values were never a degenerate point"),
         where=where, value=float(total),
     )]
+
+
+def _origin_diagnostics(table: ParameterTable,
+                        stage_results: list[StageResult] | None = None
+                        ) -> list[Diagnostic]:
+    """``ORIGIN_FIXED_ON_POLAR_AXIS`` and ``ORIGIN_NOT_FIXED``, read off the table.
+
+    The table is the authority for what it holds and why
+    (``ParameterTable.origin_holds``/``origin_unfixed``, WP-1912), so this
+    only words it: per phase, the space group, each floating direction, and
+    the atom whose DOF holds it.
+
+    With ``stage_results`` (a fit) a phase is reported only where its fix
+    mattered.  A hold is reported where some stage's ``turn_on`` matched it
+    (``StageResult.blocked_by_hold``), since a fit that never freed a
+    coordinate held nothing it would otherwise have moved.  An unfixed
+    direction is reported where a stage freed a displacement DOF of the
+    phase, the only case in which the flat direction is in the fit.  Without
+    them (:meth:`Refinement.hold_floating_origin`) every declaring phase that
+    holds or cannot hold is reported, that being the question the verb asks.
+    """
+    phases = table.origin_phases
+    if not phases:
+        return []
+    holds = table.origin_holds
+    unfixed = table.origin_unfixed
+    blocked = freed = None
+    if stage_results is not None:
+        blocked = {p for sr in stage_results for p in sr.blocked_by_hold}
+        freed = {p for sr in stage_results for p in sr.freed}
+    out: list[Diagnostic] = []
+    for ip, rec in sorted(phases.items()):
+        held = [p for f in rec.directions for p, (jp, g) in holds.items()
+                if jp == ip and g == f]
+        if held and (blocked is None or any(p in blocked for p in held)):
+            axes = ", ".join(str(list(holds[p][1])) for p in held)
+            named = ", ".join(f"{p} ({rec.labels[p]})" for p in held)
+            out.append(Diagnostic(
+                level="info", code="ORIGIN_FIXED_ON_POLAR_AXIS",
+                message=(f"phase {ip} ({rec.space_group}) has a floating "
+                         f"origin along {axes}: shifting every atom that way "
+                         f"changes no intensity, so {named} "
+                         f"{'is' if len(held) == 1 else 'are'} held and the "
+                         f"other coordinates along it are read relative to "
+                         f"{'that atom' if len(held) == 1 else 'those'}"),
+                where=held,
+                suggestion=("this is Phase.floating_origin working, and the "
+                            "held coordinate has no esd because it was not "
+                            "refined. unhold() it to let the whole structure "
+                            "slide again; the fit then has a flat direction "
+                            "(FLAT_DIRECTION)")))
+        lost = unfixed.get(ip, [])
+        if lost and (freed is None or any(p in rec.labels for p in freed)):
+            axes = ", ".join(str(list(f)) for f in lost)
+            out.append(Diagnostic(
+                level="warning", code="ORIGIN_NOT_FIXED",
+                message=(f"phase {ip} ({rec.space_group}) floats along {axes} "
+                         f"and no atom has an untied coordinate DOF running "
+                         f"exactly along it, so nothing was held there and "
+                         f"the fit keeps a flat direction"),
+                where=[f"phases.{ip}"],
+                suggestion=("hold one atom's coordinate along that direction "
+                            "with hold(), or tie one to a constant; its "
+                            "coordinates along it are otherwise not "
+                            "measurements")))
+    return out
 
 
 def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:

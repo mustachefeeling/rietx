@@ -51,7 +51,12 @@ from ..crystallography.symmetry import (
     resolve_group,
     rotation_matrices,
 )
-from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
+from ..crystallography.wyckoff import (
+    adp_basis,
+    coordinate_basis,
+    floating_origin_basis,
+    stabilizer_rotations,
+)
 from ..schemas.common import Parameter
 from ..schemas.instrument import (
     CAPILLARY_OFFSETS,
@@ -1023,6 +1028,29 @@ def _magnetic_component_drawn(phase, instrument) -> bool:
 FLOOR_SEEDS: dict[str, float] = {"deg": 1e-3, "deg^2": 1e-3 ** 2, "um^2": 1e-3}
 
 
+@dataclass(frozen=True)
+class _OriginPhase:
+    """One phase's floating origin, as the table found it at collection (WP-1912).
+
+    Built by :meth:`ParameterTable._declare_origin` from the space group and
+    the displacement DOFs the table has just built, and read by
+    :meth:`ParameterTable._fix_origin` at every build, tie and hold.
+    """
+
+    space_group: str
+    #: the directions the origin floats in: ``floating_origin_basis``'s rows
+    directions: tuple[tuple[int, int, int], ...]
+    #: direction → the displacement DOF paths whose basis row is exactly that
+    #: direction (or its negative), atoms in phase order and body origins
+    #: after them: the order the fix walks to choose what it holds
+    candidates: dict[tuple[int, int, int], tuple[str, ...]]
+    #: DOF path → the label of the atom (or the name of the body) it moves
+    labels: dict[str, str]
+    #: every coordinate row a DOF of this phase drives: the rows a shift of
+    #: the whole phase moves, and the targets :meth:`_origin_floats` solves for
+    coords: tuple[str, ...]
+
+
 class ParameterTable:
     """The tree-to-flat-θ machinery behind a fit — internal, not the agent surface.
 
@@ -1126,8 +1154,25 @@ class ParameterTable:
         self._precommit_anchor: dict[str, tuple] = {}
         #: body base path → φ₀ as the last :meth:`commit` found it (WP-1808)
         self._precommit_torsions: dict[str, np.ndarray] = {}
+        #: phase index → its floating-origin declaration (WP-1912), for every
+        #: phase with ``Phase.floating_origin`` set and a group whose origin
+        #: floats.  Empty for every other table, and then nothing below runs:
+        #: the table is the one every earlier version built.
+        self._origin: dict[int, _OriginPhase] = {}
+        #: path → (phase index, direction) of every entry the floating-origin
+        #: fix holds (:meth:`_fix_origin`), the one authority for
+        #: :attr:`origin_holds`.  Kept beside :class:`Entry`, whose ``held``
+        #: it sets, because ``Entry`` mirrors ``ParameterRow`` field for field.
+        self._origin_held: dict[str, tuple[int, tuple[int, int, int]]] = {}
+        #: phase index → the floating directions no entry could be held for
+        self._origin_unfixed: dict[int, list[tuple[int, int, int]]] = {}
+        #: the paths a caller marked through :meth:`set_held`, so that moving
+        #: the origin fix off an entry leaves the caller's own hold on it
+        self._caller_held: set[str] = set()
         self._collect(structure, instrument)
         self._rebuild()
+        if self._origin:
+            self._fix_origin()
         if self._bodies:
             # the stored atoms are checked against their bodies before the
             # blocks write them, so an edit of a body atom is refused rather
@@ -1218,6 +1263,8 @@ class ParameterTable:
                 self._collect_atom_moment(f"{base}.atoms.{j}", phase, atom)
             for b, body in enumerate(phase.rigid_bodies):
                 self._collect_body(base, sg, phase, b, body)
+            if phase.floating_origin is not None:
+                self._declare_origin(ip, sg, phase)
 
         self._add("instrument.zero_shift", instrument.zero_shift)
         self._collect_instrument(instrument)
@@ -1328,6 +1375,52 @@ class ParameterTable:
             self._anchored_dofs[path] = tuple(
                 (f"{base}.{c}", float(basis[k][c_idx]))
                 for c_idx, c in enumerate(("x", "y", "z")) if basis[k][c_idx] != 0)
+
+    def _declare_origin(self, ip: int, sg, phase) -> None:
+        """Record where phase ``ip``'s origin floats and what could hold it (WP-1912).
+
+        Called once per phase that sets ``Phase.floating_origin``, after its
+        atoms and bodies are collected, so the displacement DOFs exist.  The
+        directions are the translations that commute with every rotation of the
+        group (:func:`~rietx.crystallography.wyckoff.floating_origin_basis`):
+        a polar axis, a plane (Cc), or all three axes (P 1).  A non-polar group
+        floats nowhere and records nothing.
+
+        The candidates for each direction are the DOFs whose basis row *is*
+        that direction, read off ``_anchored_dofs``, which is where the row's
+        construction is recorded, rather than re-derived from the site.  Every
+        site of a polar group can move along its polar axis (the axis is fixed
+        by every rotation, so by every stabilizer), but the basis can state
+        that motion as a combination of rows; no candidate then exists and
+        :meth:`_fix_origin` reports the direction as unfixed.
+        """
+        floating = floating_origin_basis(sg)
+        if len(floating) == 0:
+            return
+        prefix = f"phases.{ip}."
+        dofs = [d for d in self._anchored_dofs if d.startswith(prefix)]
+        labels: dict[str, str] = {}
+        for d in dofs:
+            kind, index = d.split(".")[2:4]
+            labels[d] = (phase.atoms[int(index)].label if kind == "atoms"
+                         else phase.rigid_bodies[int(index)].name)
+        directions = tuple(tuple(int(v) for v in f) for f in floating)
+        candidates: dict[tuple[int, int, int], tuple[str, ...]] = {}
+        for f in directions:
+            neg = tuple(-v for v in f)
+            hits = []
+            for d in dofs:
+                row = [0, 0, 0]
+                for coord, coeff in self._anchored_dofs[d]:
+                    row["xyz".index(coord[-1])] = int(round(coeff))
+                if tuple(row) in (f, neg):
+                    hits.append(d)
+            candidates[f] = tuple(hits)
+        coords = tuple(dict.fromkeys(c for d in dofs
+                                     for c, _ in self._anchored_dofs[d]))
+        self._origin[ip] = _OriginPhase(
+            space_group=phase.space_group, directions=directions,
+            candidates=candidates, labels=labels, coords=coords)
 
     def _collect_body_atom_coords(self, base: str, atom, body: str) -> None:
         """A body atom's x, y, z: locked rows its body's block writes (WP-1805).
@@ -2330,6 +2423,9 @@ class ParameterTable:
         if tie is not None:
             e.vary = False
         self._rebuild()
+        if self._origin:
+            # a tie can fix the origin itself, or tie away the entry holding it
+            self._fix_origin()
 
     def _body_increment_kind(self, path: str) -> str | None:
         """``"rotation"``/``"torsion"``/``"origin"`` for a body increment, else ``None``.
@@ -2402,9 +2498,167 @@ class ParameterTable:
             e.held = held
             if held:
                 e.vary = False
+                self._caller_held.add(path)
+            else:
+                self._caller_held.discard(path)
             hits.append(path)
         self._rebuild()
+        if self._origin:
+            # a caller's hold can fix the origin, making the table's redundant
+            self._fix_origin()
         return hits
+
+    # -- the floating origin of a polar group (WP-1912) -----------------
+    def _fix_origin(self) -> None:
+        """Hold one entry per direction the origin can still float in.
+
+        For each phase declaring ``Phase.floating_origin = "hold"`` and each
+        direction its origin floats in, the question is whether the columns
+        that *could* be freed can shift every position of the phase along it
+        and move nothing else (:meth:`_origin_floats`).  Where they can, the
+        first candidate DOF (atom order, then body origins) that is a column
+        is held: ``Entry.held``, which :meth:`set_vary` already refuses to
+        free, so every plan and every caller of the table gets the same answer
+        and no call site has to remember it.  Where they cannot, a tie or a
+        hold of the caller's has fixed the origin already, and holding
+        another coordinate would remove a real degree of freedom, so nothing
+        is added.  A direction that floats with no candidate a column is
+        recorded in :attr:`origin_unfixed`.
+
+        Re-run on every build, tie and hold, because each can change the
+        answer, and from scratch: the previous choice is taken back first,
+        leaving a caller's own hold on the same entry (``_caller_held``) in
+        place.  A taken-back entry keeps ``vary=False``; the next stage's
+        ``turn_on`` decides whether it is free, as for any other fixed row.
+
+        Which atom is held is the decision recorded on WP-1912 (2026-10-06):
+        the first whose DOF runs exactly along the direction, the common
+        powder practice.  Flack & Schwarzenbach (1988), Acta Cryst. A44,
+        499-506, give the alternative SHELXL uses, a restraint on a weighted
+        centroid, which keeps an esd on every atom; it is not implemented.
+        """
+        for path in self._origin_held:
+            i = self._paths.get(path)
+            if i is not None:
+                self.entries[i].held = path in self._caller_held
+        self._origin_held = {}
+        self._origin_unfixed = {}
+        for ip, rec in self._origin.items():
+            for f in rec.directions:
+                if not self._origin_floats(rec, f):
+                    continue
+                path = next((p for p in rec.candidates[f]
+                             if self._holdable(p)), None)
+                if path is None:
+                    self._origin_unfixed.setdefault(ip, []).append(f)
+                    continue
+                e = self.entries[self._paths[path]]
+                e.held = True
+                e.vary = False
+                self._origin_held[path] = (ip, f)
+        self._rebuild()
+
+    def _holdable(self, path: str) -> bool:
+        """Is ``path`` a column the origin fix may hold: untied, unlocked, not held?"""
+        i = self._paths.get(path)
+        if i is None:
+            return False
+        e = self.entries[i]
+        return e.tie is None and not e.locked and not e.held
+
+    def _origin_floats(self, rec: _OriginPhase, f: tuple[int, int, int]) -> bool:
+        """Can the columns a stage could free shift the phase along ``f`` alone?
+
+        Exact linear algebra on the affine block, never a reading of names
+        (WP-1342's rule): find Δθ over the columns that could be freed with
+        every coordinate row of the phase moving by ``f`` and every other row
+        the forward model reads not moving at all.  Only a displacement DOF
+        or a named variable can take a nonzero step in such a Δθ, because
+        every other column's own row is a model parameter that must stay
+        still; so those are the unknowns, and the tied rows are the equations
+        (a DOF's and a variable's own rows are left out, the forward model
+        reading neither).  A held, locked or tied DOF is no column, so an atom
+        the caller holds, or ties to a constant, makes a shift impossible and
+        this returns ``False``: the origin is fixed already.
+
+        Solved per connected component of the row-column graph, so a
+        structure with no cross ties is one small block per atom and a large
+        cell costs what its atoms do.
+        """
+        from scipy.sparse.csgraph import connected_components
+
+        cols = [i for i, e in enumerate(self.entries)
+                if e.tie is None and not e.locked and not e.held
+                and (e.path in self._anchored_dofs or is_variable_path(e.path))]
+        col = {i: k for k, i in enumerate(cols)}
+        targets = {c: float(f["xyz".index(c[-1])]) for c in rec.coords}
+        r_idx: list[int] = []
+        c_idx: list[int] = []
+        vals: list[float] = []
+        rhs: list[float] = []
+        for i, e in enumerate(self.entries):
+            if (e.tie is None or e.path in self._anchored_dofs
+                    or is_variable_path(e.path)):
+                continue
+            terms, _ = self._flatten(e.tie, (e.path,))
+            row = {}
+            for j, coeff in terms:
+                k = col.get(j)
+                if k is not None and coeff != 0.0:
+                    row[k] = row.get(k, 0.0) + coeff
+            t = targets.get(e.path, 0.0)
+            if not row and t == 0.0:
+                continue
+            for k, v in row.items():
+                r_idx.append(len(rhs))
+                c_idx.append(k)
+                vals.append(v)
+            rhs.append(t)
+        b = np.array(rhs, dtype=np.float64)
+        if not b.any() or not cols:
+            # no position of this phase to shift, or nothing that could shift it
+            return False
+        n_r, n_c = len(rhs), len(cols)
+        a = sparse.csr_matrix((vals, (r_idx, c_idx)), shape=(n_r, n_c))
+        graph = sparse.bmat([[None, a], [a.T, None]], format="csr")
+        _, label = connected_components(graph, directed=False)
+        for comp in np.unique(label[:n_r][b != 0.0]):
+            rows = np.flatnonzero(label[:n_r] == comp)
+            cs = np.flatnonzero(label[n_r:] == comp)
+            if cs.size == 0:
+                return False
+            block = a[rows][:, cs].toarray()
+            step, *_ = np.linalg.lstsq(block, b[rows], rcond=None)
+            if float(np.abs(block @ step - b[rows]).max()) > 1e-9:
+                return False
+        return True
+
+    @property
+    def origin_holds(self) -> dict[str, tuple[int, tuple[int, int, int]]]:
+        """Path → (phase index, direction) of every entry held to fix an origin.
+
+        Empty unless a phase declares ``Phase.floating_origin``.  The one
+        authority for ``ParameterRow.origin_axis`` and for the
+        ``ORIGIN_FIXED_ON_POLAR_AXIS`` diagnostic (WP-1912).
+        """
+        return dict(self._origin_held)
+
+    @property
+    def origin_unfixed(self) -> dict[int, list[tuple[int, int, int]]]:
+        """Phase index → the floating directions no candidate could be held for.
+
+        A direction lands here when the columns can still walk it and no DOF
+        running exactly along it is a column: every candidate tied (to a
+        variable, say), or the site bases state the axis only as a
+        combination.  The fit then keeps a flat direction, which
+        ``ORIGIN_NOT_FIXED`` says.
+        """
+        return {ip: list(fs) for ip, fs in self._origin_unfixed.items()}
+
+    @property
+    def origin_phases(self) -> dict[int, _OriginPhase]:
+        """Phase index → its floating-origin record, for every declaring phase."""
+        return dict(self._origin)
 
     def refresh_ties(self) -> None:
         """Recompute every tied entry's value from its sources.

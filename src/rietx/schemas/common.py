@@ -430,7 +430,13 @@ from .._nearmiss import did_you_mean
 #: wraps what the fences do.  Additive and defaulted to ``None``, "not
 #: recorded", the 0.25 → 0.26 rule; ``SequentialRefinement.fit`` writes both
 #: on every result, the backward chain's included.
-SCHEMA_VERSION = "0.51"
+#: 0.51 → 0.52 (WP-1912): ``Phase.floating_origin``, ``"hold"`` making the
+#: parameter table hold one coordinate DOF along each direction a polar
+#: group's origin floats in, and ``ParameterRow.origin_axis``, the direction a
+#: row so held fixes.  Additive and defaulted to ``None``: exactly off, the
+#: table every earlier document built.  An older build refuses a document
+#: carrying either key.
+SCHEMA_VERSION = "0.52"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

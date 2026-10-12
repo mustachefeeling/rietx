@@ -120,10 +120,21 @@ Licensing: SHELXL is closed. Use the paper only.
       its axes permuted fails at `P 1 2 1`. A basis built from transposed
       rotations gives the same answer on all 564, so the Rᵀ trap does not
       bite here.*
-- [ ] `ParameterTable`: the fix applied in the table, never at call sites;
+- [x] `ParameterTable`: the fix applied in the table, never at call sites;
       skipped where user ties or variables already fix the origin; the
       `ParameterRow` held-reason or tie, with its `held_because` text and its
       writer named (WP-1076).
+      *Done 2026-10-12, behind a switch that is off by default:
+      `Phase.floating_origin = "hold"` (schema 0.52). `ParameterTable`
+      holds the first DOF running exactly along each floating direction
+      through `Entry.held`, re-decided at every build, tie and hold. It adds
+      nothing where an exact solve on the affine block finds the caller's
+      ties or holds have fixed the origin already
+      (`ParameterTable._origin_floats`). `ParameterRow.origin_axis`, written
+      by `Refinement.parameters` from `ParameterTable.origin_holds`, gives
+      the row its own `held_because`. `hold_floating_origin()` now sets the
+      field, and `unhold` on a held DOF sets it back to `None`. A joint
+      fit's per-histogram tables hold the same atom.*
 - [ ] The diagnostic naming the phase, the direction and the atom(s), and
       the ZnO regression: coordinates stay in [0, 1), CIF quotes an honest
       esd, no `FLAT_DIRECTION` on the coordinate pair.

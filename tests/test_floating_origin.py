@@ -1,4 +1,5 @@
-"""The floating origin of a polar group, and ``Refinement.hold_floating_origin()`` (#727, opt-in)."""
+"""The floating origin of a polar group: the basis, the table's hold behind
+``Phase.floating_origin`` and ``Refinement.hold_floating_origin()`` (#727, WP-1912, opt-in)."""
 
 from __future__ import annotations
 
@@ -7,6 +8,7 @@ import pytest
 
 import rietx as rx
 from rietx.crystallography.wyckoff import floating_origin_basis
+from rietx.params.vector import AffineTie, ParameterTable
 
 
 @pytest.mark.parametrize("group, rows", [
@@ -167,3 +169,134 @@ def test_a_non_polar_group_holds_nothing():
                        z=P(value=0.99), biso=P(value=0.5))])
     ref = rx.Refinement(rx.Structure(phases=[pnma]), ins, history=False)
     assert ref.hold_floating_origin() == [] and not ref._user_holds
+
+
+# ------------------------------------------------- the hold in the table (WP-1912)
+def _declared(phase):
+    phase.floating_origin = "hold"
+    return phase
+
+
+def _cell(a, b, c, gamma=90.0):
+    P = rx.Parameter
+    return rx.Cell(a=P(value=a), b=P(value=b), c=P(value=c), alpha=P(value=90.0),
+                   beta=P(value=90.0), gamma=P(value=gamma))
+
+
+def _atom(label, species, x, y, z):
+    P = rx.Parameter
+    return rx.Atom(label=label, species=species, x=P(value=x), y=P(value=y),
+                   z=P(value=z), biso=P(value=0.5))
+
+
+def _table(*phases):
+    return ParameterTable(rx.Structure(phases=list(phases)),
+                          rx.Instrument.bragg_brentano(radiation="CuKa"))
+
+
+def test_the_table_holds_the_first_atom_along_the_axis_and_a_glob_skips_it():
+    table = _table(_declared(_zno()))
+    assert table.origin_holds == {"phases.0.atoms.0.dof.0": (0, (0, 0, 1))}
+    assert table.set_vary(["phases.*.atoms.*.dof.*"], True) == [
+        "phases.0.atoms.1.dof.0"]
+
+
+def test_undeclared_the_table_is_the_one_it_always_was():
+    off, on = _table(_zno()), _table(_declared(_zno()))
+    assert not off.origin_holds and not off.origin_phases
+    assert not any(e.held for e in off.entries)
+    # the declaration changes one row, and only by holding it
+    changed = [a.path for a, b in zip(off.entries, on.entries, strict=True)
+               if a != b]
+    assert changed == ["phases.0.atoms.0.dof.0"]
+
+
+@pytest.mark.parametrize("phase, holds", [
+    (rx.Phase(name="p1", space_group="P 1", cell=_cell(5.0, 6.0, 7.0),
+              atoms=[_atom("A", "Si", 0.1, 0.2, 0.3), _atom("B", "O", 0.4, 0.5, 0.6)]),
+     {"phases.0.atoms.0.dof.0": (0, (1, 0, 0)),
+      "phases.0.atoms.0.dof.1": (0, (0, 1, 0)),
+      "phases.0.atoms.0.dof.2": (0, (0, 0, 1))}),
+    (rx.Phase(name="cc", space_group="C 1 c 1", cell=_cell(5.0, 6.0, 7.0),
+              atoms=[_atom("A", "Si", 0.1, 0.2, 0.3)]),
+     {"phases.0.atoms.0.dof.0": (0, (1, 0, 0)),
+      "phases.0.atoms.0.dof.2": (0, (0, 0, 1))}),
+    # BaTiO3: Ti on 1b (½ ½ z) is atom 0, so it is the one held
+    (rx.Phase(name="bto", space_group="P 4 m m", cell=_cell(4.0, 4.0, 4.04),
+              atoms=[_atom("Ti", "Ti", 0.5, 0.5, 0.48), _atom("Ba", "Ba", 0, 0, 0),
+                     _atom("O1", "O", 0.5, 0.5, 0.02),
+                     _atom("O2", "O", 0.5, 0.0, 0.51)]),
+     {"phases.0.atoms.0.dof.0": (0, (0, 0, 1))}),
+    (rx.Phase(name="pnma", space_group="P n m a", cell=_cell(5.7, 7.7, 5.5),
+              atoms=[_atom("La", "La", 0.05, 0.25, 0.99)]), {}),
+    (rx.Phase(name="p212121", space_group="P 21 21 21", cell=_cell(5.0, 6.0, 7.0),
+              atoms=[_atom("A", "C", 0.1, 0.2, 0.3)]), {}),
+])
+def test_each_floating_direction_gets_one_hold_and_a_fixed_origin_none(phase, holds):
+    table = _table(_declared(phase))
+    assert table.origin_holds == holds
+    assert table.origin_unfixed == {}
+
+
+def test_a_hold_or_tie_of_the_callers_that_fixes_the_origin_adds_nothing():
+    """Skipped where the caller has fixed the origin already, or it over-constrains."""
+    table = _table(_declared(_zno()))
+    table.set_held(["phases.0.atoms.1.dof.0"], True)   # the caller holds O
+    assert table.origin_holds == {}
+    assert [e.path for e in table.entries if e.held] == ["phases.0.atoms.1.dof.0"]
+    table.set_held(["phases.0.atoms.1.dof.0"], False)  # and lets it go
+    assert table.origin_holds == {"phases.0.atoms.0.dof.0": (0, (0, 0, 1))}
+    table.set_tie("phases.0.atoms.1.dof.0", AffineTie(terms=(), const=0.0))
+    assert table.origin_holds == {} and table.origin_unfixed == {}
+
+
+def test_a_tie_that_leaves_it_floating_moves_the_hold_or_reports_it():
+    table = _table(_declared(_zno()))
+    table.add_parameter("vars.u", 0.0)
+    # Zn follows a variable, which can still shift it: O is held instead
+    table.set_tie("phases.0.atoms.0.dof.0", AffineTie(terms=(("vars.u", 1.0),)))
+    assert table.origin_holds == {"phases.0.atoms.1.dof.0": (0, (0, 0, 1))}
+    # both follow the one variable: it *is* the origin, and no DOF is a column
+    table.set_tie("phases.0.atoms.1.dof.0", AffineTie(terms=(("vars.u", 1.0),)))
+    assert table.origin_holds == {} and table.origin_unfixed == {0: [(0, 0, 1)]}
+
+
+def test_the_row_says_why_and_unhold_takes_the_declaration_back():
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ref = rx.Refinement(rx.Structure(phases=[_declared(_zno())]), ins,
+                        history=False)
+    rows = {r.path: r for r in ref.parameters()}
+    zn, o = rows["phases.0.atoms.0.dof.0"], rows["phases.0.atoms.1.dof.0"]
+    assert zn.held and zn.origin_axis == (0, 0, 1) and not zn.refinable
+    assert "floating origin along [0, 0, 1]" in zn.held_because
+    assert o.origin_axis is None and o.refinable
+    assert ref.unhold("phases.0.atoms.0.dof.0") == ["phases.0.atoms.0.dof.0"]
+    assert ref.structure.phases[0].floating_origin is None
+    assert not any(r.held for r in ref.parameters())
+    with pytest.raises(ValueError, match="not held"):
+        ref.unhold("phases.0.atoms.0.dof.0")
+
+
+def test_unholding_one_of_p1s_three_releases_the_phase():
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    phase = rx.Phase(name="p1", space_group="P 1", cell=_cell(5.0, 6.0, 7.0),
+                     atoms=[_atom("A", "Si", 0.1, 0.2, 0.3)])
+    ref = rx.Refinement(rx.Structure(phases=[phase]), ins, history=False)
+    assert len(ref.hold_floating_origin()[0].where) == 3
+    assert ref.unhold("phases.0.atoms.0.dof.1") == [
+        f"phases.0.atoms.0.dof.{k}" for k in range(3)]
+
+
+def test_the_declaration_is_in_the_model_so_it_travels_with_it():
+    """JSON, a joint table's per-histogram copies, and history all carry it."""
+    from rietx.params.multi import MultiParameterTable
+
+    structure = rx.Structure(phases=[_declared(_zno())])
+    again = rx.Structure.model_validate_json(structure.model_dump_json())
+    assert again.phases[0].floating_origin == "hold"
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    joint = MultiParameterTable(structure, [ins, ins.model_copy(deep=True)])
+    assert all(t.origin_holds == {"phases.0.atoms.0.dof.0": (0, (0, 0, 1))}
+               for t in joint.tables)
+    freed = joint.set_vary(["phases.*.atoms.*.dof.*"], True)
+    assert "phases.0.atoms.0.dof.0" not in freed
