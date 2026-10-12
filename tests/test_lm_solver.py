@@ -702,9 +702,12 @@ def test_a_column_small_from_the_first_iteration_has_its_curvature_measured(
     Gauss-Newton's curvature for φ is ‖φ·bump‖², while ½∂²S/∂φ² adds
     r·bump, which does not vanish with φ.  So the model's step along φ is
     long, and λ climbs.  Measured, the curvature takes the diagonal and the
-    run converges in ten evaluations.  Unmeasured, it stops where it started:
-    χ² 9.571 at λ 1e12 with a and k unmoved from φ = 3e-8, and 0.746097 from
-    φ = 0, short of the minimum 0.744854."""
+    run converges in ten evaluations.  Unmeasured, λ climbs past 1e10 and the
+    run stops short of the minimum 0.744854.  From φ = 3e-8 it stops where it
+    started, χ² 9.571 with a and k unmoved.  From φ = 0 the column is exactly
+    zero, so where the crawl stops is rounding's: χ² 0.746097 on macOS arm64
+    from seven start nudges 1e-14 apart, and 0.744872 on a Linux x86-64 CI
+    runner (#923's run 38322068261).  Only the climb is asserted there."""
     residual, jacobian = _vanishing_column()
     x0 = np.array([1.0, 0.2, phi0])
     free = np.full(3, -np.inf), np.full(3, np.inf)
@@ -715,7 +718,8 @@ def test_a_column_small_from_the_first_iteration_has_its_curvature_measured(
     monkeypatch.setattr(lm, "_CURVATURE_GATE", np.inf)
     blind = lm.minimize(residual, jacobian, x0, lo=free[0], hi=free[1])
     assert blind.lambda_final > 1e10
-    assert 2.0 * blind.cost > 2.0 * out.cost + 1e-3
+    if phi0:
+        assert 2.0 * blind.cost > 2.0 * out.cost + 1e-3
 
 
 def test_a_run_that_never_crawls_never_measures_a_curvature(monkeypatch):
