@@ -3092,6 +3092,10 @@ class Refinement:
             self._user_holds.difference_update(hits)
             self._commit_hold_edit(self._working_table(), held=[], unheld=hits)
         if origin_hits:
+            # released fixed, as a user hold is: a DOF free before the field was
+            # set must not come back free when the next table restores the set
+            self._free_paths = [p for p in self._free_paths
+                                if p not in origin_hits]
             structure = self.structure.model_copy(deep=True)
             for ip in released:
                 structure.phases[ip].floating_origin = None
@@ -3581,8 +3585,12 @@ class Refinement:
         # time would otherwise be reported as a vanished parameter
         self._apply_holds(table)
         if restore and self._free_paths:
+            # the table's own floating-origin hold (WP-1912) declines a path
+            # as a user hold does, so it is not a vanished parameter either
+            origin = table.origin_holds
             missing = [p for p in self._free_paths
                        if p not in self._ties and p not in self._user_holds
+                       and p not in origin
                        and not table.set_vary([p], True)]
             if missing:
                 # set_vary reports no hits for a path that no longer exists

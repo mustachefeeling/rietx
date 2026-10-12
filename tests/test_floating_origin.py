@@ -458,3 +458,23 @@ def test_a_non_polar_phase_fits_the_same_declared_or_not(phase):
     assert not {d.code for d in on.diagnostics} & {
         "ORIGIN_FIXED_ON_POLAR_AXIS", "ORIGIN_NOT_FIXED"}
     _save_fit_png(on, f"floating_origin_nonpolar_{phase.name}")
+
+
+def test_a_declared_hold_over_a_free_set_is_neither_vanished_nor_refreed():
+    """The restore of a declared free set skips the table's hold, as it skips
+    a user hold, and a released DOF comes back fixed."""
+    import warnings
+
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ref = rx.Refinement(rx.Structure(phases=[_zno()]), ins, history=False)
+    ref.set_vary("phases.*.atoms.*.dof.*")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")   # no "no longer exist" warning
+        ref.hold_floating_origin()
+        rows = {r.path: r for r in ref.parameters()}
+    assert rows["phases.0.atoms.0.dof.0"].held
+    assert not rows["phases.0.atoms.0.dof.0"].vary
+    assert rows["phases.0.atoms.1.dof.0"].vary
+    ref.unhold("phases.0.atoms.0.dof.0")
+    zn = {r.path: r for r in ref.parameters()}["phases.0.atoms.0.dof.0"]
+    assert not zn.held and not zn.vary
