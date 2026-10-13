@@ -90,6 +90,7 @@ from .schemas.history import HistoryNode, NodeAction, RefinementState
 from .schemas.indexing import (
     CellCandidate,
     ExtinctionCandidate,
+    ExtinctionPrior,
     ExtinctionScreen,
     IndexingResult,
     LeBailValidation,
@@ -150,6 +151,7 @@ __all__ = [
     "HistoryNode",
     "Instrument",
     "ExtinctionCandidate",
+    "ExtinctionPrior",
     "ExtinctionScreen",
     "IndexingResult",
     "MultiHistogramRefinement",
