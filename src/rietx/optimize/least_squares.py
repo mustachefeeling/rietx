@@ -1529,6 +1529,10 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
     typicals = _fd_typicals(table, identities)
 
     fixed_intens = _lebail_snapshot(model)
+    # the origin rows are linear in the coordinates, so their physical
+    # partials are a constant of the solve: scattered once, never per call
+    o_phys = (None if model.origin is None or not n_table
+              else origin_partials(model.origin, table))
 
     def jacobian(theta: np.ndarray) -> np.ndarray:
         if model.pawley is not None:
@@ -1628,6 +1632,15 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
             _pawley_intensity_columns(model, get_bases(), values, sqrt_w, J,
                                       n_table, pawley_blk.start)
 
+        # ∂p/∂p_free at θ: C, with each derived row (a body atom's
+        # coordinates) the block's local Jacobian chained through C
+        # (WP-1804).  C small: dense is fine.  Built once for both blocks
+        # below that chain through it
+        cmat = (table.local_jacobian(
+                    np.asarray(theta_t, dtype=np.float64)).toarray()
+                if n_table and (model.restraints is not None
+                                or o_phys is not None) else None)
+
         if model.restraints is not None and n_table:
             # One unconditional matrix block below the data/penalty/Pawley rows:
             # ∂row/∂θ_c = (R_phys @ C)[i,c], since decode gives
@@ -1644,24 +1657,16 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                 # comment).  √ matches restraint_residual: c_w weights S_G, the
                 # sum of these rows squared.
                 r_phys = r_phys * math.sqrt(model.restraint_weight_scale)
-            # ∂p/∂p_free at θ: C, with each derived row (a body atom's
-            # coordinates) the block's local Jacobian chained through C
-            # (WP-1804).  C small: dense is fine
-            cmat = table.local_jacobian(
-                np.asarray(theta_t, dtype=np.float64)).toarray()
             J[restr0:restr0 + n_restraint, :n_table] = r_phys @ cmat
 
-        if model.origin is not None and n_table:
+        if o_phys is not None:
             # The origin restraint (WP-1912, Flack & Schwarzenbach 1988 eq 9):
             # linear in the coordinates, so its physical partials are the
             # frozen aₙ·Δ_p matrix, chained through C (and a body's derived
             # rows) as the soft-restraint block's are.  Never ×√c_w: the
             # origin is not a restraint the caller declared (CompiledModel's
             # field comment), so c_w = 0 must leave it in place.
-            o_phys = origin_partials(model.origin, table)
-            omat = table.local_jacobian(
-                np.asarray(theta_t, dtype=np.float64)).toarray()
-            J[origin_blk.rows, :n_table] = o_phys @ omat
+            J[origin_blk.rows, :n_table] = o_phys @ cmat
         return J
 
     return jacobian

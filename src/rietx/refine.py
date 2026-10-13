@@ -6320,9 +6320,10 @@ def _centroid_finding(rec, stages: list[str], rows: OriginPhaseRows,
     aₙ/Σa in the last of them (Flack & Schwarzenbach 1988, eq 9's weights,
     from eq 21), plus the clip where (A5) had no solution.  ``where`` is the
     DOFs a shift along the directions moves, the coordinates the restraint
-    ties together.  Each stage restrains the centroid to where it began, and
-    the restrained solve keeps eq 9 (eq 11), so it stands where the first
-    began.
+    ties together.  Each stage restrains its own weighted centroid to where
+    that stage began, and the restrained solve keeps eq 9 (eq 11); the weights
+    are re-measured per stage, so the origin is fixed within each solve, not
+    pinned to where the first stage began.
     """
     axes = ", ".join(str(list(f)) for f in rows.axes)
     share = rows.a / rows.a.sum()

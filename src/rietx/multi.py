@@ -759,9 +759,14 @@ def _refuse_centroid_origin(structure: Structure) -> None:
     own row blocks, so built here it would land once per histogram, weighted
     by one pattern's curvature each, and nothing is built to place it once.
     ``"hold"`` works in a joint fit, every histogram holding the same atom.
+    A non-polar phase declaring it is not refused: nothing floats there, so
+    the declaration builds nothing in a single fit either.
     """
+    from .crystallography.wyckoff import floating_origin_basis
+
     for ip, phase in enumerate(structure.phases):
-        if phase.floating_origin == "centroid":
+        if (phase.floating_origin == "centroid"
+                and len(floating_origin_basis(phase.space_group))):
             raise ValueError(
                 f"phase {ip} ({phase.name!r}) declares floating_origin="
                 "'centroid', which a joint fit does not build yet: the "

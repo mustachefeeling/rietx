@@ -688,6 +688,23 @@ def test_an_a5_failure_clips_the_dominant_site_toward_a_hold():
     assert lop.clipped == 0 and np.all(np.isfinite(lop.a)) and lop.a.min() > 0
 
 
+@pytest.mark.parametrize("b", [[5.0, 5.0, 1e-3], [6724.0, 6724.0, 1.0],
+                               [5.0, 5.0, 1e-9], [1e-12, 1.0, 1.0],
+                               [1e-30, 1.0, 1.0]])
+def test_eq_21_is_met_where_a5_holds_by_a_hair(b):
+    """Two heavy sites beside a light one: (A5) holds without the clip, and
+    (A6) stalls at its cap (eq 21 met to 25 % on Pb, Pb, H) or divides by a
+    margin that rounds to zero.  The sum-based solve meets it instead."""
+    from rietx.model.origin import centroid_coefficients
+
+    b = np.asarray(b)
+    solve = centroid_coefficients(b)
+    a = solve.a
+    assert solve.converged and np.all(np.isfinite(a))
+    if solve.clipped is None:
+        np.testing.assert_allclose(a * (a.sum() - a), b, rtol=1e-6)
+
+
 def test_the_directions_are_orthonormal_and_keep_their_span():
     from rietx.model.origin import orthonormal_directions
 
@@ -961,3 +978,15 @@ def test_a_joint_fit_refuses_the_centroid_by_name(zincite_data):
                         rx.Structure(phases=[_zincite(Z_O, "centroid")]),
                         [ins, ins.model_copy(deep=True)], plan=PLAN)
 
+
+
+def test_a_joint_fit_accepts_a_centroid_where_nothing_floats():
+    """Off a polar group the declaration builds nothing, so the joint fit,
+    which refuses it on a polar phase, has nothing to refuse."""
+    phase = rx.Phase(name="p212121", space_group="P 21 21 21",
+                     cell=_cell(5.1, 6.3, 7.4), scale=rx.Parameter(value=0.01),
+                     atoms=[_atom("Si", "Si", 0.11, 0.23, 0.37)],
+                     floating_origin="centroid")
+    ins = _zincite_instrument()
+    rx.MultiHistogramRefinement(rx.Structure(phases=[phase]),
+                                [ins, ins.model_copy(deep=True)])

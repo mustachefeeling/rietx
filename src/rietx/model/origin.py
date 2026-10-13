@@ -39,6 +39,7 @@ A44, 499-506 (eqs 1, 9, 11, 20, 21 and the Appendix's A1, A5, A6, A7).
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -102,6 +103,11 @@ def centroid_coefficients(b) -> CentroidSolve:
       remaining sites are themselves lopsided that can fall below L, the lower
       edge every other (A5) row needs, and the clip is then
       Σ_{n≠r} bₙ − ε·(Σ_{n≠r} bₙ − L), inside both.
+
+    Where (A6) ends short of :data:`A6_RTOL` (it stalls when (A5) holds by a
+    margin far below the clip's, two heavy sites beside a light one) the
+    same equations are solved through their sum instead
+    (:func:`_solve_by_sum`), and the better of the two is kept.
     """
     b = np.maximum(np.asarray(b, dtype=np.float64), 0.0)
     a = np.zeros_like(b)
@@ -127,18 +133,88 @@ def centroid_coefficients(b) -> CentroidSolve:
     v = np.zeros(n)
     ap = np.zeros(n)
     k = 0
-    for k in range(1, A6_MAX_ITER + 1):
-        nxt = np.sqrt((n - 2) * bp ** 2 / ((n - 1) * (total - 2.0 * bp + v)))
-        s, q = nxt.sum(), float(nxt @ nxt)
-        mean = (s - nxt) / (n - 1)
-        v = np.maximum((q - nxt * nxt) - (n - 1) * mean * mean, 0.0)
-        step = float(np.max(np.abs(nxt - ap) / nxt))
-        ap = nxt
-        if step < A6_STEP_RTOL:
-            break
+    # a margin Σb − 2bₘ that rounds to zero divides by it; the NaN that
+    # leaves is caught below, so numpy is not asked to warn about it
+    with np.errstate(divide="ignore", invalid="ignore"):
+        for k in range(1, A6_MAX_ITER + 1):
+            nxt = np.sqrt((n - 2) * bp ** 2
+                          / ((n - 1) * (total - 2.0 * bp + v)))
+            s, q = nxt.sum(), float(nxt @ nxt)
+            mean = (s - nxt) / (n - 1)
+            v = np.maximum((q - nxt * nxt) - (n - 1) * mean * mean, 0.0)
+            step = float(np.max(np.abs(nxt - ap) / nxt))
+            ap = nxt
+            if not step >= A6_STEP_RTOL:  # converged, or NaN: stop either way
+                break
+    resid = _eq21_residual(ap, bp)
+    if not resid < A6_RTOL:
+        # (A6) stalls where (A5) holds by a hair without failing — two
+        # dominant sites beside a light one, [5, 5, 1e-3] met eq 21 to 32 %
+        # after the cap — and returns NaN where Σb − 2bₘ rounds to zero.
+        # The same equations solved through their one shared unknown instead
+        polished = _solve_by_sum(bp)
+        if polished is not None:
+            fit = _eq21_residual(polished, bp)
+            if np.isfinite(fit) and not resid <= fit:
+                ap, resid = polished, fit
     a[pos] = ap
-    resid = np.abs(ap * (ap.sum() - ap) - bp) / bp
-    return CentroidSolve(a, clipped, bool(np.max(resid) < A6_RTOL), k)
+    return CentroidSolve(a, clipped, bool(resid < A6_RTOL), k)
+
+
+def _eq21_residual(a: np.ndarray, b: np.ndarray) -> float:
+    """max |aₘ·Σ_{n≠m} aₙ − bₘ| / bₘ, NaN where ``a`` is not finite."""
+    with np.errstate(invalid="ignore"):
+        return float(np.max(np.abs(a * (a.sum() - a) - b) / b))
+
+
+def _solve_by_sum(b: np.ndarray) -> np.ndarray | None:
+    """Eq 21 as one equation in S = Σa: aₘ(S − aₘ) = bₘ makes each aₘ a root
+    of t² − S·t + bₘ, so a given S fixes every aₘ up to the branch.
+
+    The small root 2bₘ/(S + √(S² − 4bₘ)) is taken by every site, or by every
+    site but the largest bᵣ, which may take the large one, S minus it; S ≥
+    2√bᵣ either way.  All-small is strictly decreasing in S, so it has one
+    root if it starts non-negative at 2√bᵣ; else the large branch's sum
+    rises from below zero to (Σ_{n≠r}bₙ − bᵣ)/S > 0, which is (A5).  Either
+    root is bracketed and found by Brent's method.  ``None`` where no bracket
+    is found (never, while (A5) holds).
+    """
+    from scipy.optimize import brentq
+
+    r = int(np.argmax(b))
+    s0 = 2.0 * math.sqrt(float(b[r]))
+
+    def small(s, bb):
+        # S² − 4b as (S − 2√b)(S + 2√b): exactly zero at S = 2√b, where the
+        # unfactored form leaves a rounding residue whose root outweighs a
+        # light site's whole term and moves the bracket
+        root = 2.0 * np.sqrt(bb)
+        disc = np.maximum((s - root) * (s + root), 0.0)
+        return 2.0 * bb / (s + np.sqrt(disc))
+
+    def every_small(s):
+        return float(small(s, b).sum()) - s
+
+    def one_large(s):
+        return float(np.delete(small(s, b), r).sum() - small(s, b[r]))
+
+    if every_small(s0) >= 0.0:
+        h, hi = every_small, max(s0, math.sqrt(2.0 * float(b.sum()))) * 1.01
+    else:
+        h, hi = one_large, s0 * 2.0
+        for _ in range(200):
+            if h(hi) > 0.0:
+                break
+            hi *= 2.0
+        else:
+            return None
+    if not h(hi) * h(s0) <= 0.0:
+        return None
+    s = brentq(h, s0, hi, xtol=1e-300, rtol=4 * np.finfo(float).eps)
+    out = small(s, b)
+    if h is one_large:
+        out[r] = s - out[r]
+    return out
 
 
 def orthonormal_directions(axes) -> np.ndarray:
