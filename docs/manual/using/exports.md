@@ -28,7 +28,10 @@ floats. `DataRef.has_sigma` is the fact that survives, and it is what a plot
 axis and the text document are labelled from ([](files.md)).
 
 `RefinementResult.ticks` maps a phase name to its reflection positions in
-degrees 2θ. It covers every emission line, not only the primary one. The
+degrees 2θ. Each sits where the calculated curve draws its peak, so the zero
+shift and the geometry's own shift (sample displacement, transparency or
+capillary offset) are in it. It covers every emission line, not only the
+primary one. The
 calculated pattern really does have a peak at each Kα₂ position, and a tick list
 that omitted them would make the report flag every Kα₂ peak as an unindexed
 impurity, which it once did.

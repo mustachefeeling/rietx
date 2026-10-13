@@ -1934,8 +1934,11 @@ def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_nfev, ftol,
     (WP-1113): a rejected step arrives with ``accepted: false`` and the λ that
     produced it, which is exactly the trajectory the evaluation-count
     mechanism analysis reads.  Trials the driver's linear model discards
-    without evaluating the residual emit nothing — ``eval`` means one residual
-    evaluation on both drivers.
+    without evaluating the residual emit nothing — ``eval`` means one trial
+    evaluation on both drivers.  LM's curvature measurements
+    (:func:`.lm._measured_curvature`) evaluate the residual too, but as
+    derivative information, like scipy's finite-difference Jacobian calls, so
+    they emit nothing and ``nfev`` leaves them out (WP-1953).
     """
     from . import lm as lm_mod
 

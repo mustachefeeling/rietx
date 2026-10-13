@@ -1320,7 +1320,8 @@ class MultiHistogramRefinement:
         for ip, cp in enumerate(model.phases):
             name = structure.phases[ip].name
             cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in _CELL_KEYS)
-            rows = [cp.reflections.two_theta(cell, lam) + values["instrument.zero_shift"]
+            rows = [model.apparent_two_theta(
+                        cp.reflections.two_theta(cell, lam), values)
                     for lam in model.line_wavelengths]
             pos = np.concatenate(rows) if rows else np.array([])
             # one reflection list per emission line, in the same order each
