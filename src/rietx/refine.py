@@ -75,6 +75,7 @@ from .model.restraints import summarise_restraints
 from .model.rows import layout as row_layout
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import (
+    _SCALE_PATH,
     DEFAULT_SOLVER,
     SOLVERS,
     _jacobian_for,
@@ -406,8 +407,9 @@ class _StageHold:
     #: ``PHASE_UNCONSTRAINED`` reads the number the hold was decided on: a
     #: phase the support hold still holds keeps that reading, taken with its
     #: held columns free, which the result's own covariance cannot do.  A
-    #: phase that refined is read off the last solve.  ``None`` outside
-    #: Rietveld mode, where the result reads the screen itself.
+    #: phase that refined is read off the last solve.  The next stage of a
+    #: plan starts its support hold from it too.  ``None`` outside Rietveld
+    #: mode, where the result reads the screen itself.
     significance: np.ndarray | None = None
 
 
@@ -472,7 +474,9 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     Jacobian, so it is ``CompiledModel.phase_support``, the screen the default
     cell window also reads.  The screen bounds the full test from above, so a
     phase it holds is one :func:`_answer_significance` would call unseen too.
-    At the answer the caller passes :func:`_answer_significance` instead.
+    A plan's later stage reads the previous answer's significance beside it
+    (:func:`_hold_unsupported_phases`).  At the answer the caller passes
+    :func:`_answer_significance` instead.
 
     **The phase's own scale is never held.**  Every structural parameter of a
     phase reaches the pattern only through ``scale × |F|² × profile``, so with
@@ -1155,14 +1159,52 @@ def _reach_beyond_self(table: ParameterTable, columns: list[str],
     return out
 
 
-def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable
+def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
+                             prior: np.ndarray | None = None,
+                             seeded_phases: Iterable[int] = (),
                              ) -> tuple[list[str], dict[str, list[str]]]:
     """Apply :func:`_unsupported_phase_paths`; returns what it held and its reach.
 
     Both halves, because the reach is only readable while the columns are
     still free — see :func:`_reach_beyond_self`.
+
+    ``prior`` is the previous stage's :func:`_answer_significance` in a plan
+    (WP-1523), read beside the screen: a phase under the threshold by either
+    is held.  The screen alone frees a phase whose scale was fitted to noise
+    whenever its conditional z passes while the marginal one does not, and
+    the stage then chases the noise, collapses it, restores it and solves
+    again.  A plan's free set only grows, so the marginal z here is no larger
+    to first order.
+
+    The reading was taken where the previous answer stood, and three things
+    can move a phase off it before this stage starts.  A stage seed writes a
+    row (``Stage.seed``, ``Stage.strain_seed``), so the caller names the
+    phases a seed reached in ``seeded_phases`` and their prior is dropped:
+    a seeded scale would otherwise stay held on a reading from before the
+    seed and pay the second solve this exists to remove.  A collapse puts
+    the phase back where its stage started, after the reading was taken.
+    ``clamp_cell_runaway`` moves a cell after the solve whose Jacobian the
+    reading used.  In the last two cases the phase stays held by a reading
+    that the stage's own measurement called unseen, and a stale reading errs
+    only towards holding, since the minimum is taken and the scale stays
+    free for the release at the answer.
+
+    Measured on seed 107 of #481's blank frame under ``mccusker_structural``:
+    18 solves for 11 stages with the screen alone, 11 with the prior read.
+    The scale stays free either way, so a phase that appears while this
+    stage solves is released at its answer as before.  What it gives up is a
+    second look with the phase's columns refining: a held phase is judged at
+    its held values.  Over the WP's sweep that moved one weak real phase of
+    64 fits from refined to held, at 2.46σ.
     """
-    held = _unsupported_phase_paths(model, table)
+    support = np.asarray(model.phase_support(table.decode(table.x0())),
+                         dtype=np.float64)
+    if prior is not None:
+        # one plan, one structure: the two vectors index the same phases
+        prior = np.array(prior, dtype=np.float64)
+        prior[list(seeded_phases)] = np.inf
+        support = np.minimum(support, prior)
+    held = _unsupported_phase_paths(model, table, support)
     reach = _reach_beyond_self(table, held)
     if held:
         table.set_vary(held, False)
@@ -1544,8 +1586,9 @@ def _phases_reached(columns: list[str], reach: dict[str, list[str]]) -> set[int]
 #: An occupancy path.  With :data:`_DISPLACEMENT_PATH` (an anisotropic ADP
 #: column reaches the U^ij components it drives, so ``biso|adp`` alone would
 #: keep it), the paths a column may move and still be left out of the
-#: significance (:func:`_significance_columns`): they rescale a phase's
-#: intensities and move no peak.
+#: significance (:func:`_significance_columns`), beside another phase's
+#: scale (``_SCALE_PATH``): they rescale a phase's intensities and move no
+#: peak.
 _OCCUPANCY_PATH = re.compile(r"^phases\.\d+\.atoms\.\d+\.occ$")
 
 
@@ -1554,27 +1597,50 @@ def _intensity_only_path(path: str) -> bool:
 
 
 def _significance_columns(free: list[str], held: list[str],
-                          reach: dict[str, list[str]]) -> list[str]:
-    """The columns a phase's scale significance is marginal over (WP-1523).
+                          reach: dict[str, list[str]], ip: int) -> list[str]:
+    """The columns phase ``ip``'s scale significance is marginal over (WP-1523).
 
     Every free column, and the phase's own held columns, except a column that
-    moves only displacements or occupancies.  The freedom that inflates a fit
-    to noise is where the peaks sit: a cell, a width, a zero shift (Davies,
-    R. B., 1977, *Biometrika* 64, 247-254, a nuisance parameter present only
-    under the alternative).  A column that only rescales intensities, B or an
-    occupancy, says how the intensity splits between it and the scale, not
-    whether the phase is there.  Marginal over B, a phase whose scale and B
-    nearly share a direction reads as absent: measured on
-    ``tests/test_scale_b_ridge.py``'s fluorite, 153.7σ on the screen and
-    0.02σ marginal.  "Moves only" is read off the column's reach, a variable
-    dropped first, so a ``vars.B`` driving two displacements is left out too
-    (WP-1342).
+    moves only displacements, occupancies and other phases' scales.
+    The freedom that inflates a fit to noise is where the peaks sit: a cell, a
+    width, a zero shift (Davies, R. B., 1977, *Biometrika* 64, 247-254, a
+    nuisance parameter present only under the alternative).  A column that
+    only rescales intensities, B or an occupancy, says how the intensity
+    splits between it and the scale, not whether the phase is there.
+    Marginal over B, a phase whose scale and B nearly share a direction reads
+    as absent: measured on ``tests/test_scale_b_ridge.py``'s fluorite, 153.7σ
+    on the screen and 0.02σ marginal.
+
+    **Another phase's scale is the same split one rank up**: it says which
+    phase carries an intensity, not whether the intensity is there.  Marginal
+    over it, two phases able to draw the same pattern each read under 3σ, and
+    the hold landed on whichever the start left weaker, the specimen's only
+    phase included: issue #219's cubic Cu modelled with an absent ``I 4/m m m``
+    subgroup, scales at ρ −1.000, held the parent from 9 of 15 split seeds.
+    Conditional on the partner's scale the parent reads 45-90σ there, while
+    a phase fitted to noise still reads low, its inflation coming from its
+    own cell and widths; on the suite's multi-phase fixtures the two readings
+    differ by at most 9 %.  The ambiguity between the pair is
+    ``HIGH_CORRELATION``'s to report, which fires on the two scales.
+
+    "Moves only" is read off the column's reach, a variable dropped first, so
+    a ``vars.B`` driving two displacements is left out too (WP-1342), and a
+    ``vars.S`` tying this phase's scale to another's stays in.
     """
     def moved(column: str) -> list[str]:
         return [p for p in reach.get(column, [column]) if not is_variable_path(p)]
 
+    def other_scale(path: str) -> bool:
+        m = _SCALE_PATH.match(path)
+        return bool(m) and int(m.group(1)) != ip
+
+    def left_out(column: str) -> bool:
+        paths = moved(column)
+        return bool(paths) and all(_intensity_only_path(p) or other_scale(p)
+                                   for p in paths)
+
     return [c for c in [*free, *(h for h in held if h not in free)]
-            if not (moved(c) and all(_intensity_only_path(p) for p in moved(c)))]
+            if not left_out(c)]
 
 
 def _scale_significance(table: ParameterTable, theta: np.ndarray,
@@ -1667,7 +1733,7 @@ def _answer_significance(model: CompiledModel, table: ParameterTable,
         column_reach = table.column_reach()
         for ip in seen:
             columns = [c for c in _significance_columns(
-                free, [c for c in held_of[ip] if c in freed], column_reach)
+                free, [c for c in held_of[ip] if c in freed], column_reach, ip)
                 if c not in stationary]
             try:
                 # never above the screen it is bounded by: a direction the
@@ -3661,12 +3727,21 @@ class Refinement:
                    two_theta_limits: tuple[float, float] | None,
                    correlation_guard: float, events=None, cancel=None,
                    stage_index: int = 1, n_stages: int = 1,
-                   ftol: float | None = None):
+                   ftol: float | None = None,
+                   prior_significance: np.ndarray | None = None):
         """One stage: free params, recompile, solve, commit, guard.
 
         The recompile is what keeps the residual smooth *within* the stage —
         the hkl list, symmetry-op subsets, FCJ node counts and windows are
         frozen here and never move until the next stage.
+
+        ``prior_significance`` is the previous stage's answer significance in
+        a plan (WP-1523), which the support hold reads beside the screen
+        (:func:`_hold_unsupported_phases`).  ``None`` for a plan's first stage,
+        outside Rietveld mode (``_StageHold.significance`` is), and for
+        :meth:`run_stage`, which has no previous stage of its own: a
+        reading kept across verbs would outlive a ``set_values`` or a
+        checkout that moved the values it was taken at.
         """
         freed = table.set_vary(stage.turn_on, True)
         # What the glob matched and the hold refused (WP-1435).  Read off the
@@ -3716,10 +3791,17 @@ class Refinement:
             # the band the data can see (WP-1938)
             seeded = dict.fromkeys(table.seed_floored(freed, stage.seed),
                                    stage.seed)
+        strain_seeded: list[str] = []
         if stage.strain_seed:
             # the Stephens DOFs are unbounded below, so the seed above never
             # sees them; put an all-zero block on the isotropic ray
-            table.seed_stephens(freed, stage.strain_seed)
+            strain_seeded = table.seed_stephens(freed, stage.strain_seed)
+        # a seed moved these phases off the values the previous answer's
+        # significance was read at, so the support hold drops that reading
+        # for them (WP-1523)
+        seeded_phases = (_phases_reached([*seeded, *strain_seeded],
+                                         table.column_reach())
+                         if seeded or strain_seeded else set())
 
         # regenerate reflection list/windows/FCJ nodes with current values
         # (between-stage refresh; frozen within the stage); the free-path
@@ -3788,8 +3870,10 @@ class Refinement:
         # displacement the fitted range cannot tell from its scale (WP-1534).
         # All are flat directions, all are taken after the compile at the
         # values the stage starts from, and all go into ``StageResult.held``
-        # so the report can say which and why.
-        held, held_reach = _hold_unsupported_phases(model, table)
+        # so the report can say which and why.  The phase hold also reads the
+        # previous answer's significance where a plan hands one in (WP-1523).
+        held, held_reach = _hold_unsupported_phases(
+            model, table, prior_significance, seeded_phases)
         # kept apart, because the release below judges each hold by its own
         # question: a moment DOF the *phase* hold took (every free structural
         # path of an invisible phase, ``moment.dof0`` included) stays with the
@@ -4614,7 +4698,10 @@ class Refinement:
                 model, outcome, guard, freed, hold = self._run_stage(
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
-                    stage_index=k, n_stages=len(plan.stages), ftol=ftol)
+                    stage_index=k, n_stages=len(plan.stages), ftol=ftol,
+                    # still the previous stage's here: the support hold
+                    # starts from that answer as well as the screen (WP-1523)
+                    prior_significance=answer_significance)
             # WP-1343: the moment's rung at this boundary, and the shift the
             # moment took when the widths were released.  Gated on what the
             # stage actually freed, so an ordinary fit never pays for the
@@ -8619,10 +8706,13 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
     and the line weights, since rescaling one rescales the scale and its esd
     alike.  ``basis`` names how the σ was taken, for the message: a joint fit
     reads the screen in the histogram that shows the phase best.
-    ``decided`` says whether a held phase's reading is the one its hold was
-    decided on (a single Rietveld fit's stage vector) or one taken at the
-    answer (a joint fit, Le Bail, Pawley, a replay), so the message claims
-    only what is true of the number.
+    ``decided`` says whether a held phase's reading is the one the last
+    stage's answer kept its hold on (a single Rietveld fit's stage vector,
+    measured with the held columns freed) or one the result took at the
+    final values (a joint fit, Le Bail, Pawley, a replay), so the message
+    claims only what is true of the number.  A hold taken at a stage start
+    read min(screen, prior) instead (WP-1523), and the message quotes the
+    answer's reading because the answer is what kept it.
 
     ``params.vector.cell_window`` bounds the *symptom* — it stops the cell
     running away — but a windowed cell re-anchors on every stage, so it walks
@@ -8670,12 +8760,15 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                      f"range {tt_range[0]:.4g}-{tt_range[1]:.4g}°, so nothing "
                      f"about it is measurable here")
         elif held and decided:
-            # a held phase quotes the reading its hold was decided on, which
-            # a second solve at the restored values can since have moved
+            # a held phase quotes the reading the last stage's answer kept or
+            # took its hold on, which a second solve at the restored values
+            # can since have moved; a hold taken at a stage start read
+            # min(screen, prior) instead, and the answer is what kept it
             cause = (f"phase {ip} ({name})'s scale was at most {support:.2g}σ "
-                     f"from zero {basis} when its hold was decided, under the "
-                     f"{PHASE_SUPPORT_SIGMA:g}σ a phase needs to count as "
-                     f"seen, so the stage could not distinguish it from absent")
+                     f"from zero {basis} at the last stage's answer, which "
+                     f"kept it held, under the {PHASE_SUPPORT_SIGMA:g}σ a "
+                     f"phase needs to count as seen, so the stage could not "
+                     f"distinguish it from absent")
         else:
             cause = (f"phase {ip} ({name})'s scale is at most {support:.2g}σ "
                      f"from zero {basis}, under the {PHASE_SUPPORT_SIGMA:g}σ "

@@ -11,9 +11,9 @@ one has two halves:
   above, and a phase under ``PHASE_SUPPORT_SIGMA`` there is unseen.
 * ``refine._answer_significance`` takes scale / esd(scale) where the screen
   passes: the esd from (JᵀWJ)⁻¹ with no χ²_red or Bérar-Lelann factor,
-  marginal over every column that moves the peaks (displacements and
-  occupancies left out), with a held phase's columns freed for the
-  measurement.
+  marginal over every column that moves the peaks (displacements,
+  occupancies and other phases' scales left out), with a held phase's
+  columns freed for the measurement.
 
 The frame is rebuilt here from the issue script's RNG stream (seed 11,
 patterns 0-7 drawn in order), and both starts are the issue's: pattern 0's
@@ -33,6 +33,7 @@ from rietx.indexing.workflow import ABSENT_SIGMA
 from rietx.model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from rietx.params.vector import ParameterTable
 from rietx.schemas.instrument import Dispersion
+from rietx.schemas.structure import StephensStrain
 
 pytestmark = pytest.mark.xdist_group("phase-significance")
 
@@ -93,12 +94,13 @@ def issue_481():
     return patterns, starts
 
 
-def _fit(structure, instrument, pattern, monkeypatch, plan="mccusker_default"):
+def _fit(structure, instrument, pattern, monkeypatch, plan="mccusker_default",
+         events=None):
     """Fit, recording ``(screen, significance)`` at every stage's answer.
 
     A stage that releases or collapses a phase solves twice and records twice.
-    The fit's obs/calc/diff plot goes to ``tests/output/``, named for the
-    calling test.
+    ``events``, a list, collects the fit's event stream.  The fit's
+    obs/calc/diff plot goes to ``tests/output/``, named for the calling test.
     """
     from rietx.viz.plots import plot_result
     record: list[tuple[float, float]] = []
@@ -112,7 +114,8 @@ def _fit(structure, instrument, pattern, monkeypatch, plan="mccusker_default"):
 
     monkeypatch.setattr(_refine, "_answer_significance", spy)
     result = rx.Refinement(structure, instrument, history=False).fit(
-        pattern, plan=plan)
+        pattern, plan=plan,
+        events=None if events is None else events.append)
     OUT.mkdir(exist_ok=True)
     name = (os.environ["PYTEST_CURRENT_TEST"].split("::")[-1]
             .split(" ")[0].split("@")[0])
@@ -126,6 +129,31 @@ def _assert_unseen(result, record):
     assert finding.value < PHASE_SUPPORT_SIGMA
     assert any("phases.0.cell.a" in st.held for st in result.stages)
     assert record and all(z < PHASE_SUPPORT_SIGMA for _, z in record), record
+
+
+def _assert_prior_holds(result, events, path="phases.0.cell.a"):
+    """Each stage after one that ended with ``path`` held starts with it held.
+
+    Such a stage then solves once, or twice if its answer releases the path.
+    The check is conditional on where each answer landed, so it asserts what
+    the code does with a reading and not which side of 3σ a solver endpoint
+    falls on, which can differ between platforms.  These plans seed no row
+    of the phase, which would drop its prior.  Returns how many stages it
+    checked.
+    """
+    starts: dict[int, list[dict]] = {}
+    for event in events:
+        if event["kind"] == "stage_start":
+            starts.setdefault(event["data"]["index"], []).append(event["data"])
+    checked = 0
+    for k in range(2, len(result.stages) + 1):
+        if path not in result.stages[k - 2].held:
+            continue
+        stage = result.stages[k - 1]
+        assert path in starts[k][0]["held"], stage.name
+        assert len(starts[k]) == (2 if path in stage.released else 1), stage.name
+        checked += 1
+    return checked
 
 
 def _assert_seen(result):
@@ -161,23 +189,51 @@ def test_a_blank_frame_past_the_screen_is_judged_by_its_marginal_z(
         issue_481, monkeypatch):
     """Seed 107 of the WP's sweep: noise alone lifts the screen past 3σ.
 
-    Each stage's answer, as ``(screen, significance)``, measured 2026-10-04
+    Each stage's answer, as ``(screen, significance)``, measured 2026-10-12
     (macOS arm64, ``[dev]``): (2.24, 2.24), (2.50, 2.50), (2.50, 2.50),
-    (3.25, 2.61), (3.64, 1.51), (3.64, 1.72).
+    (3.25, 2.61), (3.64, 1.44).
 
-    Two paths run here.  At the ``profile_w`` answer the cell is held and the
-    screen passes, so the held cell is freed for the measurement (2.61).  The
-    screen passed at the ``profile`` start, so the cell refined there; at the
-    answer its scale reads 1.51σ, so the cell is put back where the stage
-    found it and held, and the stage solves again.  The finding quotes 1.51,
-    the reading the hold was decided on; the second solve's own, with the
-    cell held, is the 1.72.
+    At the ``profile_w`` answer the cell is held and the screen passes, so
+    the held cell is freed for the measurement (2.61).  The ``profile`` stage
+    starts from that reading as well as the screen, so it holds the cell from
+    its start, frees it again for the measurement at its answer (1.44), and
+    solves once.  With the screen alone the cell refined from the
+    ``profile`` start, its scale read 1.44σ at the answer, and the stage put
+    the cell back and solved a second time: 41 iterations against 18.
     """
     _, starts = issue_481
     pattern = _draw(_lab6(A0, 0.0), np.random.default_rng(107))
-    result, record = _fit(*starts["unfitted"](), pattern, monkeypatch)
+    events: list[dict] = []
+    result, record = _fit(*starts["unfitted"](), pattern, monkeypatch,
+                          events=events)
     assert any(s >= PHASE_SUPPORT_SIGMA for s, _ in record), record
     _assert_unseen(result, record)
+    _assert_prior_holds(result, events)
+
+
+def test_a_later_stage_starts_from_the_answer_before_it(issue_481, monkeypatch):
+    """The stage-start hold reads the previous answer, not the screen alone.
+
+    The same blank under ``mccusker_structural``.  From ``profile_w`` on the
+    screen reads 3.25σ to 3.64σ at each answer while the marginal z stays
+    between 0.62σ and 2.61σ.  With
+    the screen alone each of the seven stages from ``profile`` on freed the
+    cell, chased the noise, put the cell back and solved again: 18 solves
+    for 11 stages and 233 iterations, measured 2026-10-12 (macOS arm64,
+    ``[dev]``).  Read beside the previous answer, each of those stages holds
+    the cell from its start: 11 solves and 59 iterations, and the finding
+    reads 0.62σ either way.
+
+    The assertions read the mechanism (:func:`_assert_prior_holds`), since
+    the readings sit 0.39σ to 2.4σ under the threshold on one platform.
+    """
+    _, starts = issue_481
+    pattern = _draw(_lab6(A0, 0.0), np.random.default_rng(107))
+    events: list[dict] = []
+    result, record = _fit(*starts["unfitted"](), pattern, monkeypatch,
+                          plan="mccusker_structural", events=events)
+    _assert_unseen(result, record)
+    assert _assert_prior_holds(result, events) >= 1
 
 
 @pytest.mark.parametrize("start", ["fitted", "unfitted"])
@@ -225,9 +281,197 @@ def test_a_held_phase_that_appears_is_released(issue_481, monkeypatch):
     _assert_seen(result)
 
 
+def test_a_phase_the_prior_holds_is_released_when_the_answer_sees_it(
+        monkeypatch):
+    """The prior can only hold, and its hold is asked again at the answer.
+
+    The prior is forced to zero here for a phase the data plainly shows, so
+    the stage holds the cell from its start although the screen passes.  At
+    the answer the held cell is freed for the measurement, the phase passes,
+    and the stage solves again with the cell free: the release path the
+    previous test takes from a screen hold.
+    """
+    from rietx.schemas.plan import PlanSpec, StageSpec
+
+    inner = _refine._hold_unsupported_phases
+    monkeypatch.setattr(_refine, "_hold_unsupported_phases",
+                        lambda model, table, prior=None, seeded_phases=():
+                        inner(model, table, np.zeros(1)))
+    structure = rx.Structure(phases=[_lab6(A0, 2.5e-7)])
+    instrument = _instrument(0.008, 2.5e-4, (40.0, -6.0, 1.5))
+    pattern = _draw(_lab6(A0, 2.5e-7), np.random.default_rng(200))
+    plan = PlanSpec(stages=[StageSpec(
+        name="all", turn_on=["phases.*.scale", "instrument.background.*",
+                             "phases.*.cell.*"])])
+    result, record = _fit(structure, instrument, pattern, monkeypatch, plan=plan)
+    (stage,) = result.stages
+    assert stage.released == ["phases.0.cell.a"] and not stage.held
+    assert record[0][0] >= PHASE_SUPPORT_SIGMA
+    assert record[0][1] >= PHASE_SUPPORT_SIGMA
+    _assert_seen(result)
+
+
+def test_a_phase_both_readings_pass_that_collapses_is_put_back(monkeypatch):
+    """The collapse branch, reached with a prior that passed.
+
+    Two stages on a phase the data plainly shows, its cell started 5e-4
+    relative off.  The first stage frees scale and background, the second
+    the cell too.  The previous answer and the screen both read far over 3σ,
+    so the cell is free at the second stage's start.  Its first answer is
+    then made to read 0σ: a collapse.  The cell goes back to the value the
+    stage started from, is held, and the stage solves once more.  Forced, so
+    the restore is exercised whatever a platform's solver does.
+    """
+    from rietx.schemas.plan import PlanSpec, StageSpec
+    from rietx.viz.plots import plot_result
+
+    cell = "phases.0.cell.a"
+    answers: list[float] = []
+    entering: list[float] = []
+    significance = _refine._answer_significance
+    solve = _refine.run_least_squares
+
+    def collapse_once(model, table, outcome, held, reach, backend):
+        out = significance(model, table, outcome, held, reach, backend)
+        answers.append(table.decode(outcome.theta)[cell])
+        if len(answers) == 2:
+            out = np.array(out, dtype=np.float64)
+            out[0] = 0.0
+        return out
+
+    def recording(model, table, *args, **kwargs):
+        entering.append(table.decode(table.x0())[cell])
+        return solve(model, table, *args, **kwargs)
+
+    monkeypatch.setattr(_refine, "_answer_significance", collapse_once)
+    monkeypatch.setattr(_refine, "run_least_squares", recording)
+    base = ["phases.*.scale", "instrument.background.*"]
+    plan = PlanSpec(stages=[StageSpec(name="scale", turn_on=base),
+                            StageSpec(name="cell",
+                                      turn_on=[*base, "phases.*.cell.*"])])
+    ref = rx.Refinement(rx.Structure(phases=[_lab6(A0 * 1.0005, 2.5e-7)]),
+                        _instrument(0.008, 2.5e-4, (40.0, -6.0, 1.5)),
+                        history=False)
+    events: list[dict] = []
+    result = ref.fit(_draw(_lab6(A0, 2.5e-7), np.random.default_rng(200)),
+                     plan=plan, events=events.append)
+    OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(OUT / "phase_significance_collapse.png"))
+
+    starts = [e["data"] for e in events
+              if e["kind"] == "stage_start" and e["data"]["index"] == 2]
+    assert len(starts) == 2 and cell not in starts[0]["held"]
+    assert len(entering) == 3
+    start = entering[1]
+    assert abs(answers[1] - start) > 1e-4, "the first solve left the cell"
+    assert entering[2] == start, "put back before the second solve"
+    assert ref.structure.phases[0].cell.a.value == start
+    stage = result.stages[1]
+    assert stage.held == [cell] and not stage.released
+    assert cell not in stage.freed
+
+
 def test_the_threshold_is_the_indexing_presence_test():
     """One number means one thing: a phase and a line are present at 3σ."""
     assert PHASE_SUPPORT_SIGMA == ABSENT_SIGMA
+
+
+# Issue #219's ridge, compacted: cubic Cu at 0.4139 Å, modelled as the parent
+# plus an ``I 4/m m m`` subgroup the specimen does not contain, its cell split
+# off the group-subgroup identity by a seed.  The two scales are collinear.
+CU_A, CU_TT = 3.615, np.arange(4.0, 32.0 + 1e-9, 0.02)
+
+
+def _cu_phase(name, space_group, a, c, scale, *, vary):
+    cell = rx.Cell(a=rx.Parameter(value=a, vary=vary, min=0.95 * a, max=1.05 * a),
+                   b=rx.Parameter(value=a),
+                   c=rx.Parameter(value=c, vary=vary, min=0.95 * c, max=1.05 * c),
+                   alpha=rx.Parameter(value=90.0), beta=rx.Parameter(value=90.0),
+                   gamma=rx.Parameter(value=90.0))
+    atom = rx.Atom(label="Cu", species="Cu", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                   biso=rx.Parameter(value=0.5, min=0.0, max=10.0))
+    phase = rx.Phase(name=name, space_group=space_group, cell=cell, atoms=[atom],
+                     scale=rx.Parameter(value=scale, min=0.0),
+                     lor_strain=rx.Parameter(value=1e-4 if vary else 0.0, min=0.0,
+                                             max=0.5, vary=vary))
+    if not vary:  # the specimen: 3000 ppm of isotropic Stephens strain
+        phase.microstrain = StephensStrain.isotropic(3000.0, phase.cell, vary=False)
+    return phase
+
+
+def _cu_instrument():
+    ins = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    ins.source.dispersion = Dispersion()  # declared: the sweep ran with it on
+    ins.profile.w.value, ins.profile.x.value = 2.0e-3, 5.0e-3
+    for c, v in zip(ins.background.coefficients, (400.0, -60.0, 20.0), strict=False):
+        c.value = v
+    return ins
+
+
+def _ridge(seed: int, delta: float = 1e-3):
+    """A cubic Cu pattern and the two-phase model of it, split by ``delta``."""
+    truth = _cu_phase("Cu", "F m -3 m", CU_A, CU_A, 1.0, vary=False)
+    y = rx.Refinement(rx.Structure(phases=[truth]), _cu_instrument(),
+                      history=False).predict(CU_TT)
+    scale = 4.0e4 / float(np.max(y) - np.min(y))
+    truth.scale.value = scale
+    y = rx.Refinement(rx.Structure(phases=[truth]), _cu_instrument(),
+                      history=False).predict(CU_TT)
+    counts = np.random.default_rng(seed).poisson(np.maximum(y, 0.0)).astype(float)
+    pattern = rx.PatternData(two_theta=CU_TT.tolist(), intensity=counts.tolist(),
+                             sigma=np.sqrt(np.maximum(counts, 1.0)).tolist())
+    a_t = CU_A * (1.0 - delta / 2.0) / np.sqrt(2.0)
+    model = rx.Structure(phases=[
+        _cu_phase("parent", "F m -3 m", CU_A, CU_A, 0.9 * scale, vary=True),
+        _cu_phase("subgroup", "I 4/m m m", a_t, CU_A * (1.0 + delta), 0.3 * scale,
+                  vary=True)])
+    return model, pattern
+
+
+RIDGE_PLAN = rx.RefinementPlan(stages=[
+    rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+    rx.Stage("cell", ["phases.*.cell.*"]),
+    rx.Stage("strain", ["phases.*.lor_strain"])])
+
+
+@pytest.mark.parametrize("seed", [2002, 2003])
+def test_a_collinear_partner_does_not_hold_the_only_real_phase(seed):
+    """Two phases that draw one pattern are exchangeable, not absent.
+
+    Marginal over the partner's scale (ρ −1.000) each reads under 3σ, so the
+    hold took whichever the start left weaker.  On these seeds that was the
+    parent, the specimen's only phase: its cell and strain held, and
+    ``PHASE_UNCONSTRAINED`` called it unseen (seeds 2000-2011 here: these two;
+    9 of 15 fits under #219's own two-pass protocol).  Conditional on the
+    partner's scale it reads tens of σ, and ``HIGH_CORRELATION`` names the
+    pair.  All twelve seeds pass under the rule.
+    """
+    model, pattern = _ridge(seed)
+    result = rx.Refinement(model, _cu_instrument(), history=False).fit(
+        pattern, plan=RIDGE_PLAN)
+    held = {p for st in result.stages for p in st.held}
+    assert not {p for p in held if p.startswith("phases.0.")}, held
+    unseen = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert not any(w.startswith("phases.0.") for d in unseen for w in d.where)
+    assert "phases.0.cell.a" in {p.path for p in result.parameters}
+    assert any(d.code == "HIGH_CORRELATION"
+               and {"phases.0.scale", "phases.1.scale"} <= set(d.where)
+               for d in result.diagnostics)
+
+
+def test_only_the_partner_scales_leave_the_marginal():
+    """A column moving only another phase's scale is left out, a displacement
+    beside it or not; one moving this phase's scale too stays, and so does
+    every other kind of column."""
+    free = ["phases.0.scale", "phases.1.scale", "phases.1.cell.a", "vars.s",
+            "phases.0.atoms.0.biso", "vars.k"]
+    reach = {"vars.s": ["phases.0.scale", "phases.1.scale"],
+             "vars.k": ["phases.0.atoms.0.biso", "phases.2.scale"]}
+    assert _refine._significance_columns(free, [], reach, 0) == [
+        "phases.0.scale", "phases.1.cell.a", "vars.s"]
+    assert _refine._significance_columns(free, [], reach, 1) == [
+        "phases.1.scale", "phases.1.cell.a", "vars.s"]
 
 
 @pytest.fixture(scope="module")

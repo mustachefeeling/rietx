@@ -94,6 +94,12 @@ so dropping the "until 1.7" lines needs no manual edit.
   not at all, and adds a ~200 KB manylinux wheel. JupyterLite stays out of
   reach for a new reason: Pyodide has no `rietx-kernels` wheel, so pip refuses
   rietx there.
+- **2026-10-13, from WP-1957.** A sixth notebook, `06_your_own_data`, joins
+  the glob, so the page gains a row by itself at the next tag. Every notebook
+  figure now declares its CSS width alone, which is the likely fix for
+  figures stretched in Colab. The Colab re-run left in Tasks can check both
+  at once: open 02 at a narrow window and see whether the figures keep their
+  shape. WP-1957 waits on that observation.
 
 ## Non-goals
 

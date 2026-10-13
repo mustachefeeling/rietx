@@ -273,7 +273,7 @@ the cut was measured and ruled out: neither numpy's n·eps nor marking the
 in-band columns unmeasured improves an answer, and both remove warnings from
 fits that pass today. The indexing side of the change replays bit for bit.
 
-*Done.* `origin/main` merged (7cf614e). The separation test reads one set of
+*Done.* `origin/main` merged (7cf614e, and again at the handover, at 2f53610). On that second merge a WP-1523 note arrived in this WP's Inherited: the separation test fails on Linux at `908c481`. 543062f discharges it, and the note is not kept, since a closing WP has no Inherited. The separation test reads one set of
 flat-direction codes on both halves (543062f, tightened in review). Review
 items 3, 4's acceptance, 7 and 8 are closed. Item 3 is written up under
 § "PINV_RCOND alternatives, measured" in Context, and `PINV_RCOND` stays
