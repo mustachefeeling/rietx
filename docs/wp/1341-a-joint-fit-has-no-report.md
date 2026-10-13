@@ -1,6 +1,6 @@
 # WP-1341 — a joint fit has no report
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-13 — every task landed (PR #926); three inherited questions stay open in Context, and the joint fresh compile went to WP-1421
 Track: Render what the fit already knows
 Depends on: — (1312 soft: it exercises and audits the joint fit; 1335 soft: the
 report path this one gains should already be cheap; 1344 soft: it sorts each
@@ -73,9 +73,10 @@ is the same move, and `EventKind` stays closed.
 
 Some constraints that shape (1) and (3):
 
-- **`bound_findings` is already multi-histogram-aware** — `multi.py:477` calls
-  it with a `MultiParameterTable`'s bounds — so the guard path is not the
-  obstacle; the report builder is.
+- **`bound_findings` is already multi-histogram-aware.** `_build_result` calls
+  it with a `MultiParameterTable`'s bounds, and since WP-1434 with `cos=` and
+  `esd=` too. So the guard path is not the obstacle; the report builder is.
+  (Superseded in part 2026-10-12: the call has moved off `multi.py:477`.)
 - **Sample broadening is shared and the size coefficient is not** (WP-1131):
   `MultiParameterTable` hands histogram h the factor λ_h/λ_0 for the size
   terms, so a microstructure report on a joint fit reads one specimen size
@@ -86,90 +87,53 @@ Some constraints that shape (1) and (3):
   report has to have an answer for, even if that answer is "report it per
   histogram".
 
-### Inherited
+### What later work changed (folded from Inherited, 2026-10-12)
 
-- **2026-10-08, from the issue triage (issue #803): `STAGE_PATH_NOT_FREE` is
-  not reported for a joint fit.** PR #789 added the finding for a single
-  histogram (`refine._fixed_literal_diagnostics`, fed one `ParameterTable`).
+Each entry below arrived in this WP's Inherited section and was checked
+against the tree at e1d19359 on arrival.
+
+- **`STAGE_PATH_NOT_FREE` is not reported for a joint fit** (issue #803,
+  triage 2026-10-08). PR #789 added the finding for a single histogram
+  (`refine._fixed_literal_diagnostics`, fed one `ParameterTable`).
   `multi.DIAGNOSTIC_SCOPES` declares it `ABSENT`, so a joint plan naming
   `phases.0.atoms.2.x` on a special position, or `phases.0.cell.b` on a
-  tetragonal phase, frees nothing and says nothing. Wiring it needs: the
-  helper to read a `MultiParameterTable` (one table per histogram, a phase
-  path scoped to one histogram or shared); a finding that names which
-  histogram's table holds the path fixed; and agreement with
-  `_unreached_histogram_diagnostics` about what a literal path matches, so one
-  literal does not give two disagreeing findings. The row moves to `FIT` and
-  its reason changes. Done when a locked or tied literal reports once per
-  path naming its stages, and the four silence cases #789 tests (a free dof
-  glob, a pattern, a user tie, a tied path beside its own source) stay silent
-  in a joint fit. It sits here because the joint report is where a
-  per-histogram finding gets rendered; it is a diagnostic wiring and not
-  reporting, so it can land before the report does.
-  Checked against the tree at 5d1f5f67: reproduced. Two rutile histograms
-  through `refine_multi`, one stage naming `phases.0.cell.b` (a tetragonal
-  tie) and then `phases.0.atoms.0.x` (Ti on 2a): `Refinement.fit` returns
-  `STAGE_PATH_NOT_FREE` for each, `refine_multi` returns none, and the path is
-  absent from `stages[0].freed` in both. `DIAGNOSTIC_SCOPES` carries
-  `_fixed_literal_diagnostics: (ABSENT,)` with the reason the issue quotes
-  (`multi.py:252`). The effect is a stage that does nothing for the path, not
-  a wrong number.
-
-- **From WP-1523, 2026-10-04: the joint fit judges support on the screen
-  alone.** A single fit calls a phase seen when its scale is 3σ from zero by a
-  marginal esd against counting noise (`refine._answer_significance`). A joint
-  fit (`multi.py`) still reads only `phase_support`, which is now ‖y_p/σ‖₂ per
-  histogram at 3σ. On issue #481's blank frame that norm reached 3.1-4.4σ once
-  a released cell had chased the noise. So a joint fit can still call a
-  noise-fitted phase seen. Its report should decide whether to take the
-  marginal test, and whether histograms combine in quadrature. Today a phase
-  any one histogram sees is seen.
-- **From WP-1534, 2026-10-04: the joint runner now runs the scale–B probe**
-  (this replaces WP-1534's 2026-10-02 note that it did not). A phase's scales
-  are per histogram and its displacement parameters shared, so
-  `multi._scale_b_probe_multi` reads the smallest angle between the span of
-  its scales and the span of its displacement columns, stacked over every
-  histogram. `StageResult.scale_b_held` is written, `SCALE_B_INSEPARABLE`
-  fires, and `DIAGNOSTIC_SCOPES` lists it as FIT. Nothing is left for this
-  WP but to include it in the joint report. It became necessary because
-  `Atom.biso` lost its default bound the same day.
-- **From WP-1344, 2026-10-01 (closed): the census of what `multi.py` re-derives
-  is wider than its diagnostics.** WP-1344 classified every `_*_diagnostics`
-  helper for the joint path under a meta-test. It did not audit the other
-  `MultiHistogramRefinement` members that re-derive something `Refinement`
-  derives. `_ticks` is the known case: WP-1103 found it reporting every declared
-  peak as an unindexed impurity, and fixed it by making
-  `CompiledModel.extra_peak_tick_positions` the one authority both builders call.
-  A joint-fit report renders those members' output, so the audit belongs here.
-  The rule WP-1103 settled still holds: a declared peak belongs to every
-  histogram that sees it, and a radiation-keyed diagnostic to one histogram.
-- **From WP-1434, 2026-09-18: `bound_findings` grew two keyword arguments,
-  and `multi.py` already passes both.** It takes `cos=outcome.residual_cosine`
-  and `esd=outcome.stderr_internal`, so the joint path inherits the new
-  conjunction with no work here. The Context claim that the guard path is
-  already multi-histogram-aware still holds and is now carrying more; the
-  call has moved off `multi.py:477`.
-- **From WP-1414, 2026-09-22: the joint fit has its first finding that only a
-  joint fit can raise, and this WP is where it gets rendered.**
-  `STAGE_FREED_NOTHING` (info) sits on the **top-level**
-  `RefinementResult.diagnostics`, one per histogram, with `value` the
-  histogram index and `where` the globs. The record behind it is
-  `StageResult.unreached_histograms` (histogram → globs, `{}` on a single
-  histogram, `None` on a result stored before schema 0.26). A report for a
-  joint fit should put it beside the histogram it names rather than in a
-  pooled list, since "histogram 1 kept its starting profile" is the one line
-  a reader of that histogram's panel needs. `STAGE_PATH_UNKNOWN` also fires on
-  joint fits, with its suggestion naming the `mtable` listing because
-  `MultiHistogramRefinement` has no `parameters()`, and that absence is this
-  WP's to close.
-- **From WP-1465, 2026-09-27: `worst_absorption` has an honest empty state
-  now, and a joint report should use it.** `BackgroundEvidence.worst_absorption`
-  is `float | None`. It and `absorption` read `None` wherever the screen had
-  nothing to screen: Le Bail, Pawley, or an answer stage freeing no scale,
-  Biso, occupancy or ADP, or no background term (`THRESHOLDS_VERSION` 1.9).
-  They read 0.0 there before, which every reader took for "clean". A
-  per-histogram background section built here should carry `None` for a
-  histogram whose screen found no target, never 0.0, and
-  `report/background.py`'s `assess_background` is the one builder to reuse.
+  tetragonal phase, frees nothing and says nothing. Wiring it needs the
+  helper to read each histogram's table, a finding that names which
+  histogram's table holds the path fixed, and agreement with
+  `_unreached_histogram_diagnostics` about what a literal matches. Done when
+  a locked or tied literal reports once per path naming its stages, and
+  #789's silence cases stay silent. Still true on arrival
+  (`multi.py:255`). It is the task added below.
+- **The joint fit judges support on the screen alone** (from WP-1523,
+  2026-10-04). A single fit calls a phase seen when its scale is 3σ from zero
+  (`refine._answer_significance`). A joint fit reads only `phase_support`,
+  which on issue #481's blank frame reached 3.1-4.4σ once a released cell
+  chased the noise. Whether the joint report takes the marginal test, and
+  whether histograms combine in quadrature, is open. Still true on arrival
+  (`multi.py:1297`). Not taken this session.
+- **The joint runner runs the scale-B probe** (from WP-1534, 2026-10-04).
+  `SCALE_B_INSEPARABLE` fires at top level and `DIAGNOSTIC_SCOPES` lists it
+  as FIT. Nothing is left here but to render it.
+- **The census of what `multi.py` re-derives is wider than its diagnostics**
+  (from WP-1344, 2026-10-01). WP-1344 did not audit the other members that
+  re-derive something `Refinement` derives. `_ticks` is the known case. The
+  rule WP-1103 settled holds: a declared peak belongs to every histogram that
+  sees it. WP-1908 is editing the tick builders in parallel, so the audit is
+  left to a later pass.
+- **`STAGE_FREED_NOTHING` sits on the top-level diagnostics, one per
+  histogram** (from WP-1414, 2026-09-22), `value` the histogram index. A
+  report for a joint fit should put it beside the histogram it names.
+  `STAGE_PATH_UNKNOWN` also fires on joint fits, with its suggestion naming
+  the `mtable` listing, because `MultiHistogramRefinement` has no
+  `parameters()`.
+- **`worst_absorption` has an honest empty state** (from WP-1465,
+  2026-09-27). `BackgroundEvidence.worst_absorption` is `float | None`, and a
+  per-histogram background section built here carries `None` for a histogram
+  whose screen found no target. `report/background.py`'s `assess_background`
+  is the builder to reuse.
+- **Deleted on arrival:** WP-1434's note that `bound_findings` grew `cos=` and
+  `esd=`, which `multi.py` already passes. It is folded into the Context
+  bullet above.
 
 ## Non-goals
 
@@ -184,22 +148,50 @@ Some constraints that shape (1) and (3):
 
 ## Tasks
 
-- [ ] Decided 2026-09-03: none of the three gaps is an intended limit. Define
+- [x] Decided 2026-09-03: none of the three gaps is an intended limit. Define
       `max_shift_over_esd` across weighted histograms; if no definition holds,
       say so where the field is declared rather than leaving `None`.
-- [ ] `events=` (and `cancel=`) on `MultiHistogramRefinement.fit`, carrying
+      Defined 2026-10-12: one shift and one esd per column of the joint θ
+      (`least_squares._final_shift_over_esd_multi`), copied onto the joint
+      result's statistics.
+- [x] `events=` (and `cancel=`) on `MultiHistogramRefinement.fit`, carrying
       the histogram index in `data` the way `sequential.py` carries the series
-      index — no new `EventKind`.
-- [ ] `stage_reports=`, or a written reason it is not offered here.
-- [ ] Whichever part of the report path is histogram-agnostic, reachable from
+      index — no new `EventKind`. Landed 2026-10-12 with `telemetry=`,
+      `label=` and `progress=`. Each kind is emitted once per fit, stage or
+      evaluation, because the joint solve is one solve; the index rides in a
+      `histograms` row per histogram (`history/events.py` says why it is not
+      the series' per-event stamp).
+- [x] `stage_reports=`, or a written reason it is not offered here.
+      Not offered (2026-10-12). One rung is a report per histogram per
+      stage at ~0.36 s each (#245), so it would multiply the solo tax WP-1335
+      owns. The reason is in `MultiHistogramRefinement.fit`'s docstring and
+      in `using/series.md`.
+- [x] Whichever part of the report path is histogram-agnostic, reachable from
       a joint result; per-histogram where the quantity is per-histogram, and
       once where WP-1131 says the specimen has one of them.
-- [ ] Tests: a joint fit produces an event log a reader can partition by
+      `MultiHistogramRefinement.report(h)` (2026-10-12): Layers 0-2 per
+      histogram, the background section off that histogram's own screen
+      (the joint result now carries every screen, `hist.<h>.`-scoped), and
+      the specimen's one microstructure block in every report. It inherits
+      the joint path's missing #272 recompile (handover).
+- [x] `STAGE_PATH_NOT_FREE` on a joint plan (#803, folded 2026-10-12): the
+      helper reads each histogram's table under the joint matching rule, one
+      finding per path names the histograms whose table holds it fixed, and
+      the `DIAGNOSTIC_SCOPES` row moves from `ABSENT` to `FIT`. Landed
+      2026-10-12 as `multi._joint_fixed_literals` over
+      `refine._fixed_literal_diagnostics(canonical=)`; single-fit output is
+      unchanged.
+- [x] Tests: a joint fit produces an event log a reader can partition by
       histogram; the microstructure reading agrees with the solo arms' shared
-      size (WP-1131's 408.8/408.8 Å shape).
-- [ ] Skill: `references/api.md` is generated and follows; the body or
-      `references/judging.md` needs the row saying what a joint fit does and
-      does not report, since an agent today gets silence and no explanation.
+      size (WP-1131's 408.8/408.8 Å shape); `STAGE_PATH_NOT_FREE` fires on a
+      joint plan and #789's silence cases stay silent. All in
+      `tests/test_joint_report.py`, each landed with its feature.
+- [x] Skill: the generated API index follows (`make_api_index.py`); the body
+      or a reference row says what a joint fit does and does not report, since
+      an agent today gets silence and no explanation. 2026-10-12: `api.md`
+      lists `MultiHistogramRefinement.report` and `refine_multi`'s telemetry
+      keywords; `watching.md` 9d.10 and `surprises.md` 8.30 carry the rows.
+      The body is unchanged.
 
 ## Acceptance
 
@@ -219,6 +211,142 @@ stated reason it cannot, and reports what the WP decided it reports.
 - WP-1016 (per-member events in a series), WP-1131 (what a joint fit shares).
 
 ## Handover log
+
+### 2026-10-13 — six tasks landed: events, a convergence figure, a report per histogram, and #803
+
+A joint refinement can now be watched, stopped and inspected the way a single
+fit can. It writes an event log and one run directory, it can be cancelled
+mid-stage, its result carries a convergence figure, and each histogram gets a
+full three-layer report. A joint plan that names a locked or tied literal path
+now says so (#803). Building the report exposed a defect the joint path
+already had: its curves come from the last stage's compile and were never
+recompiled at the answer. A last stage that broadens the peaks leaves cut
+tails, which Layer 0 then reads as unmatched peaks. That was not fixed here,
+because it moves joint-fit numbers and this WP promised none would move.
+
+**Decided.**
+
+- `max_shift_over_esd` has a definition across weighted histograms, so it is
+  measured rather than `None`. Each column of the joint θ has one shift (the
+  joint solve's last accepted step) and one esd (the weighted stacked
+  covariance's), and a shared column reads the same ratio in every table
+  (`least_squares._final_shift_over_esd_multi`). The weights change the
+  number and leave its meaning alone.
+- The histogram index rides in a `histograms` row per histogram on
+  `fit_start`, `stage_start`, `stage_end` and `fit_end`, beside
+  `n_histograms`. The series stamps every event because each event there is
+  about one pattern; a joint event is about all of them, so a per-event
+  stamp would either pick one or duplicate events. No new `EventKind`, no
+  `EVENT_SCHEMA_VERSION` bump (`history/events.py` docstring).
+- `stage_reports=` is not offered. One rung is a report per histogram per
+  stage at ~0.36 s each (#245), multiplying the tax WP-1335 owns. The reason
+  is in `MultiHistogramRefinement.fit`'s docstring and `using/series.md`.
+- The report is per histogram (`MultiHistogramRefinement.report(h)`): Layer 0
+  to 2 off that histogram's view, compiled model and values. The specimen's
+  one microstructure block, read at histogram 0's λ, is the same object in
+  every report. The joint result now writes `Identifiability` with each
+  histogram's background screen under `hist.<h>.` keys, and `for_histogram`
+  hands each view its own rows.
+- #803: `refine._fixed_literal_diagnostics(canonical=)` matches a literal as
+  `MultiParameterTable.set_vary` does; `multi._joint_fixed_literals` merges a
+  shared row into one finding naming its histograms. On one histogram a
+  literal gets this finding or `STAGE_FREED_NOTHING`, never both.
+- #442 does not fold in: the maintainer's 2026-09-24 reply ties it to the TOF
+  design, and nothing here touched `unreached_histograms`.
+
+**Done.** Commits `917f4f74` (prune) to `6e096c0f`, all `WP-1341:`. The stage
+loop moved from `fit` into `MultiHistogramRefinement._run_plan`, re-indented
+under a per-stage `_abandon_on_cancel` that deep-copies `self.mtable`
+(2.7 ms on the LaB6 pair). `refine_multi` passes the telemetry keywords
+through. `multi.py`'s `_ticks` was not touched (WP-1908 edits the tick
+builders). Inherited pruned on arrival: every entry still held at `e1d19359`
+except WP-1434's note, folded into the Context bullet it corrected. #803
+became a checklist item; the rest moved to Context § What later work
+changed, three of them still open (below).
+
+**Measured** (`[dev]` venv, macOS arm64, synthetic fixtures from
+`tests/test_multi_histogram.py`).
+
+- Bit-identity: a dump of every parameter value and esd, `at_bound`, both
+  statistics blocks, stage costs and iterations, diagnostic codes and the
+  microstructure block, for the LaB6 pair under LM and TRF and for the
+  WP-1131 size pair, is identical before and after the work except for the
+  new `max_shift_over_esd`. The fast selection's joint tests
+  (`test_multi_histogram.py`, `test_joint_xray_neutron.py`,
+  `test_multi_diagnostics.py`) pass unchanged.
+- `max_shift_over_esd`, LaB6 pair: converged 1.95e-3 (LM), 5.0e-7 (TRF),
+  2.2e-3 and 7.4e-7 at 1:4 weights, 2.3e-5 and 1.2e-3 on one stage; starved
+  to one iteration, 4.03 (LM) and 17.9 (TRF). Both sides clear the 0.1 band
+  by 40× or more.
+- Event log, LaB6 pair, `mccusker_default` under LM: 1 `fit_start`, 5
+  `stage_start`, 38 `eval`, 5 `stage_end`, 1 `fit_end`; the last
+  `stage_end` rows equal the result's histogram Rwp exactly (0.04113,
+  0.06127) and its pooled `rwp` equals `fit_end`'s.
+- Size: the joint block reads 408.82(4.86) Å; the two solo arms 408.71(8.05)
+  and 409.20(6.43) Å.
+- The #272 sibling, size pair: the result's stage-start compile gives Rwp
+  0.10242 and 0.13345 with 44 and 27 unmatched peaks; a compile at the
+  answer gives 0.10478 and 0.11981 with 0 and 0. On the LaB6 pair both
+  reports find 0 unmatched.
+- Fast selection, final tree, `[dev]` venv, macOS arm64: 9321 passed, 181
+  skipped, 3 xfailed, 0 failed, in 28:39 at a load average near 130 with
+  other sessions' suites running (an earlier run on the pre-review tree took
+  19:19 at ~150). Count check by collection, since main was not re-run:
+  9497 collected here against 9480 on an `origin/main` snapshot (`e1d19359`),
+  +17, the 17 cases of `tests/test_joint_report.py`. The darwin/arm64
+  goldens pass, after the review moved the single fit's wrappers.
+- Added-test cost, that same loaded run's junit: 54.1 s over the file; the
+  two report tests 15.2 s and 14.2 s, the shift pair 11.5 s, every other
+  test under 4 s. Not `slow`: they are synthetic, the report pair fits two
+  and four times in seconds when the machine is quiet, and the size test's
+  solo fits are the comparison it asserts.
+- Full selection: not run. No measured number moves (the dump above, and
+  the goldens), so the ladder's third rung does not fire.
+
+**Review** (`/code-review high --fix`, nine findings, six taken in
+`6e096c0f`): the two solver wrappers are one pair, `_cancellable` and
+`_tracked`, shared with `run_least_squares`; a cancelled `stage_end` and
+`fit_end` carry the `histograms` rows; an empty plan is refused before any
+event; scoped paths go through `MultiParameterTable._owner`/`_unscope`; and
+`Identifiability` says a joint fit leaves `extra_peak_absorption` unrun.
+Declined: a `free_values` method on both table types (it reaches
+`ParameterTable`); the per-stage deep copy of the table under a cancel token
+(2.7 ms on the LaB6 pair, unmeasured at size, wants a measurement before a
+narrower copy); `_stage_end_rows` re-deriving the Rwp `_build_result` also
+computes (events only, one evaluation per histogram per stage); and
+`report(h)` after a cancelled second fit mixing that fit's table with the
+first fit's models, which `Refinement.report` does too.
+
+**Gotchas.**
+
+- `MultiParameterTable.x0()` is cached. After a commit that re-charts
+  nothing it still holds the stage's start, so anything reading the answer
+  decodes `outcome.theta` (as `_build_result` does and `_stage_end_rows` now
+  does). The first draft of the stage-end rows read `x0()` and reported the
+  stage's starting Rwp.
+- An `intermediate_ftol` schedule makes a plan's prefix solve differently
+  from the same stages run as a whole plan; the cancel test pins
+  `intermediate_ftol=None` on both.
+- Issue #283's seat test asserted the TRF driver got the cell guard itself.
+  The tracker closure now sits on top, as on the single path, and each joint
+  wrapper sets `__wrapped__`.
+
+**Still open in this WP** (Context § What later work changed): whether the
+joint fit takes WP-1523's marginal significance test and how histograms
+combine; the audit of what else `multi.py` re-derives (WP-1344's note, left
+while WP-1908 edits the tick builders); and putting `STAGE_FREED_NOTHING`
+beside its histogram. `summary()` is not offered: `print(result)` is the joint
+termination view.
+
+**For the issue threads** (to batch, none posted): #252 and #803 close with
+this PR; #245 gets a line that the joint fit declines `stage_reports=` until
+WP-1335 lands. Texts are in the session's final report.
+
+Next: (1) the missing #272 recompile on the joint path, forwarded to
+WP-1421's Inherited, because it decides whether the joint report's Layer 0
+can be trusted after a width stage; (2) the WP-1523 significance question,
+which changes `PHASE_UNCONSTRAINED` on joint fits; (3) the `multi.py` census
+once WP-1908 merges.
 
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issue #252).
   Checked on the tree: the four-member public surface is as reported, and

@@ -2220,8 +2220,10 @@ class GuiSession:
         to be compared with if it goes the other way.
 
         **No instrument zero shift.**  ``RefinementResult.ticks`` adds
-        ``instrument.zero_shift`` because a compiled model's Bragg positions
-        live in the corrected frame.  A candidate's do not: indexing fits the
+        ``instrument.zero_shift`` and the geometry's own position shift
+        (``CompiledModel.apparent_two_theta``, WP-1908) because a compiled
+        model's Bragg positions live in the corrected frame.  A candidate's
+        do not: indexing fits the
         metric to the peak list's *raw* 2θ, so the cell already reproduces
         observed positions and adding the instrument's shift would count it
         twice.

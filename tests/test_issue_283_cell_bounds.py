@@ -9,6 +9,7 @@ an infinite stored bound as *no claim made*; see the PR discussion on #283),
 so this file has no test asserting ``Cell`` carries bounds.
 """
 
+import inspect
 import warnings
 from types import SimpleNamespace
 
@@ -433,7 +434,10 @@ def test_run_multi_least_squares_guards_both_closures_and_reports_the_count(
     for LM, the default since WP-1938) is replaced by a stand-in that
     exercises the two callables it is handed, which is what
     ``run_multi_least_squares`` actually promises about them.  The ``_inner``
-    swap is the same trick the two guard unit tests above use."""
+    swap is the same trick the two guard unit tests above use.  Under TRF the
+    driver gets the step tracker's closure over the guard, as
+    ``run_least_squares`` hands it (WP-1341), so the guard is found by
+    ``inspect.unwrap``."""
     structure = _rhombohedral_boundary_cell()
     structure.phases[0].cell.alpha.value = 120.0
     models, mtable = _joint_alpha_only(structure)
@@ -447,7 +451,7 @@ def test_run_multi_least_squares_guards_both_closures_and_reports_the_count(
         seen["fun"], seen["jac"] = fun, jac
         r = fun(np.asarray(x0))      # seeds both fallbacks from a good point
         J = jac(np.asarray(x0))
-        fun._inner = boom
+        inspect.unwrap(fun)._inner = boom
         jac._inner = boom
         assert np.array_equal(fun(np.asarray(x0)), r * 10.0)  # penalised
         assert np.array_equal(jac(np.asarray(x0)), J)         # last good one
@@ -465,9 +469,10 @@ def test_run_multi_least_squares_guards_both_closures_and_reports_the_count(
                                       backend="numpy", solver=solver,
                                       compute_uncertainties=False)
 
-    assert isinstance(seen["fun"], _DegenerateCellGuard)
+    guard = inspect.unwrap(seen["fun"])
+    assert isinstance(guard, _DegenerateCellGuard)
     assert isinstance(seen["jac"], _DegenerateCellJacobianGuard)
-    assert seen["jac"]._residual_guard is seen["fun"]  # one counter, not two
+    assert seen["jac"]._residual_guard is guard  # one counter, not two
     assert outcome.n_degenerate_cell_probes == 2  # one off each path
 
 

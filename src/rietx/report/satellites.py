@@ -124,11 +124,29 @@ def _radius(tt: np.ndarray, pos: np.ndarray, fwhm: np.ndarray) -> np.ndarray:
     return VALIDITY_RADIUS_FWHM * local
 
 
+def _generation_window(model, values) -> tuple[float, float]:
+    """The Bragg-angle range whose apparent 2θ can land in the fitted range.
+
+    ``model.apparent_two_theta`` adds the zero and the geometry's own shift
+    (WP-1908), and the geometry's varies with angle, so the range is widened by
+    the largest and smallest shift the fitted range sees.  Generation over a
+    superset is harmless, since each caller filters on the apparent position.
+    """
+    grid = np.linspace(model.tt_min, model.tt_max, 33)
+    shift = np.asarray(model.apparent_two_theta(grid, values)) - grid
+    shift = shift[np.isfinite(shift)]
+    lo_shift = float(shift.min()) if shift.size else 0.0
+    hi_shift = float(shift.max()) if shift.size else 0.0
+    return (max(model.tt_min - hi_shift, 0.05),
+            min(model.tt_max - lo_shift, 179.0))
+
+
 def _satellite_positions(model, values, ip: int, ks) -> list[np.ndarray]:
     """Every emission line's apparent 2θ for the satellites of each k in ``ks``.
 
-    Generated at the *current* cell, over the fitted range, and shifted by the
-    same zero the tick list carries, so a position here is comparable with a
+    Generated at the *current* cell, over the fitted range, and placed by the
+    same ``CompiledModel.apparent_two_theta`` the tick list uses (zero and the
+    geometry's own shift, WP-1908), so a position here is comparable with a
     peak found in the residual.  One parent grid serves every candidate
     (:func:`~rietx.crystallography.satellites.satellite_d_spacings`), so the
     arm enumerates the reciprocal lattice once per phase rather than once per
@@ -139,9 +157,7 @@ def _satellite_positions(model, values, ip: int, ks) -> list[np.ndarray]:
     cell = tuple(values[f"phases.{ip}.cell.{key}"]
                  for key in ("a", "b", "c", "alpha", "beta", "gamma"))
     lams = [float(v) for v in model.line_lambdas(values)]
-    zero = float(values.get("instrument.zero_shift", 0.0))
-    lo = max(model.tt_min - zero, 0.05)
-    hi = min(model.tt_max - zero, 179.0)
+    lo, hi = _generation_window(model, values)
     if hi <= lo:
         return [np.zeros(0) for _ in ks]
     ds = satellite_d_spacings(
@@ -151,7 +167,8 @@ def _satellite_positions(model, values, ip: int, ks) -> list[np.ndarray]:
     for d in ds:
         out: list[np.ndarray] = []
         for lam in lams:
-            tt = np.asarray(two_theta_deg(d, lam), dtype=np.float64) + zero
+            tt = model.apparent_two_theta(
+                np.asarray(two_theta_deg(d, lam), dtype=np.float64), values)
             tt = tt[np.isfinite(tt)]
             out.append(tt[(tt >= model.tt_min) & (tt <= model.tt_max)])
         positions.append(np.concatenate(out) if out else np.zeros(0))
@@ -273,9 +290,7 @@ def _lattice_positions(model, values, ip: int) -> np.ndarray:
     cell = tuple(values[f"phases.{ip}.cell.{key}"]
                  for key in ("a", "b", "c", "alpha", "beta", "gamma"))
     lams = [float(v) for v in model.line_lambdas(values)]
-    zero = float(values.get("instrument.zero_shift", 0.0))
-    lo = max(model.tt_min - zero, 0.05)
-    hi = min(model.tt_max - zero, 179.0)
+    lo, hi = _generation_window(model, values)
     if hi <= lo:
         return np.zeros(0)
     ref = lattice_two_theta(
@@ -289,7 +304,8 @@ def _lattice_positions(model, values, ip: int) -> np.ndarray:
     out = []
     for lam in lams:
         s = lam / (2.0 * d)
-        tt = np.degrees(2.0 * np.arcsin(np.clip(s, -1.0, 1.0))) + zero
+        tt = model.apparent_two_theta(
+            np.degrees(2.0 * np.arcsin(np.clip(s, -1.0, 1.0))), values)
         out.append(tt[(tt >= model.tt_min) & (tt <= model.tt_max)])
     return np.concatenate(out) if out else np.zeros(0)
 
