@@ -33,6 +33,7 @@ import argparse
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -143,8 +144,11 @@ def execute(path: Path):
     # A client handed its manager shuts the kernel down only when told to.
     km = AsyncKernelManager(kernel_name="python3",
                             kernel_spec_manager=KernelSpecManager(kernel_dirs=[]))
-    NotebookClient(nb, km=km, timeout=900, record_timing=False,
-                   resources={"metadata": {"path": str(HERE)}}).execute(env=env, cleanup_kc=True)
+    # A scratch working directory, so a file a notebook writes beside itself
+    # (06's results) never lands in the repository (WP-1957).
+    with tempfile.TemporaryDirectory() as cwd:
+        NotebookClient(nb, km=km, timeout=900, record_timing=False,
+                       resources={"metadata": {"path": cwd}}).execute(env=env, cleanup_kc=True)
     nb.metadata.get("language_info", {}).pop("version", None)  # the builder's Python patch release
     for i in sorted(held):
         nb.cells.insert(i, held[i])        # unexecuted: no count, no output
