@@ -4,7 +4,7 @@ Why this module exists
 ----------------------
 The least-squares residual is not just the data: it is
 
-    [ data | background-penalty | Pawley-restraint | soft-restraint ]
+    [ data | background-penalty | Pawley-restraint | soft-restraint | origin ]
 
 and until this module existed that ordering was written out **four** times —
 the numpy residual closure, the numpy Jacobian's row offsets, and the jax and
@@ -50,6 +50,7 @@ BLOCK_ORDER: tuple[str, ...] = (
     "background_penalty",
     "pawley_restraint",
     "soft_restraint",
+    "origin_restraint",
 )
 
 
@@ -85,6 +86,8 @@ def block_sizes(model) -> dict[str, int]:
                              else model.pawley.restraint.shape[0]),
         "soft_restraint": (0 if model.restraints is None
                            else model.restraints.n_rows),
+        "origin_restraint": (0 if model.origin is None
+                             else model.origin.n_rows),
     }
 
 
@@ -150,6 +153,10 @@ def _soft_restraint_rows(model, ctx: ResidualInputs):
     return model.restraint_residual(ctx.values)
 
 
+def _origin_restraint_rows(model, ctx: ResidualInputs):
+    return model.origin_residual(ctx.values)
+
+
 #: name → producer, returning that block's rows or ``None`` when it has none.
 #: Keys must match :data:`BLOCK_ORDER` exactly (asserted below and in tests).
 _PRODUCERS = {
@@ -157,6 +164,7 @@ _PRODUCERS = {
     "background_penalty": _background_penalty_rows,
     "pawley_restraint": _pawley_restraint_rows,
     "soft_restraint": _soft_restraint_rows,
+    "origin_restraint": _origin_restraint_rows,
 }
 
 assert tuple(_PRODUCERS) == BLOCK_ORDER, "producers must cover BLOCK_ORDER in order"

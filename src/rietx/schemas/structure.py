@@ -1102,9 +1102,14 @@ class Phase(_InheritsDeclaredDefaults):
     # along it moves (``ParameterTable`` does it, so
     # every fit, series pattern and joint histogram builds the same hold), and
     # skips a direction the caller's own ties or holds already fix.
-    # ``Refinement.unhold`` on that DOF sets this back to ``None``.  ``None``
-    # (the default) is exactly off: the table every earlier version built.
-    floating_origin: Literal["hold"] | None = None
+    # ``Refinement.unhold`` on that DOF sets this back to ``None``.
+    # ``"centroid"`` holds nothing: each stage whose free set can slide the
+    # phase gets one restraint row per such direction on a weighted centroid
+    # of every site, Flack & Schwarzenbach (1988) (``model.origin``, written
+    # by the stage runner), so every coordinate keeps an esd; a direction only
+    # one site can move along is held as ``"hold"`` holds it.  ``None`` (the
+    # default) is exactly off: the table every earlier version built.
+    floating_origin: Literal["hold", "centroid"] | None = None
 
     @model_validator(mode="after")
     def _bodies_name_their_atoms(self) -> "Phase":

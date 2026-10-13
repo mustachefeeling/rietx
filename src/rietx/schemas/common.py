@@ -446,7 +446,11 @@ from .._nearmiss import did_you_mean
 #: ``two_theta`` — and a 2θ pattern serializes apart from the new nulls, and
 #: refines, exactly as before.  A ``neutron_tof`` source is read and never
 #: refined in this build.
-SCHEMA_VERSION = "0.53"
+#: 0.53 → 0.54 (WP-1912): ``Phase.floating_origin`` gains ``"centroid"``, the
+#: restraint of Flack & Schwarzenbach (1988) on a weighted centroid of the
+#: phase's sites in place of a hold on one.  Additive: no existing document
+#: carries the value, and an older build refuses one that does.
+SCHEMA_VERSION = "0.54"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated
