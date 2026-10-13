@@ -7,10 +7,9 @@ Load it when one fit is not the answer: reading the trajectory rather than the l
 ## Read the run, not just its last state
 
 **The first thing to do with a fit is read the report at every stage it passed
-through, and that costs you one flag.** `task="refine"` returns `trajectory[]`
-when the request sets `"report_trajectory": true` — off by default since
-WP-1003, because WP-1064 measured that rungs handed over unasked bought no
-better decisions at more calls — and in python:
+through, and that costs you one flag.** `fit(stage_reports=True)` fills
+`ref.stage_reports_`. It is off by default, because WP-1064 measured that rungs
+handed over unasked bought no better decisions at more calls:
 
 ```python
 ref.fit(data, plan="mccusker_default", stage_reports=True)
@@ -58,9 +57,8 @@ What to look for, in order:
    already the right one.
 
 The rungs deliberately carry no regions, curves or per-region attribution: a
-rung is a pointer to a state worth asking about, and `ref.report()` (or the
-`report` arm) is where you ask. There is **no `task="diagnose"`** and no
-declared bootstrap ladder to invoke, because the states are already there —
+rung is a pointer to a state worth asking about, and `ref.report()` is where
+you ask. There is no declared bootstrap ladder to invoke, because the states are already there —
 every preset opens on a background+scale stage, which is that ladder's first
 rung (WP-1058). A hand-rolled one-stage plan is the one case with nothing to
 report but its end: the turn-on order is what makes a trajectory informative.
@@ -111,7 +109,7 @@ recovery, stopping behaviour and rollback hygiene against the
 `mccusker_default` preset (WP-1052).
 
 The same shape answers the other question the report asks and does not
-settle — **which of an exchangeable pair is physical** (§4 step 6):
+settle — **which of an exchangeable pair is physical** (§4 rule 14):
 
 ```python
 finding = next(e for e in report.identifiability.exchanges if e.exchangeable)
@@ -128,12 +126,12 @@ rival. The free set is otherwise unchanged, so `n_free` matches across the two
 and raw χ² is comparable without an information criterion. And there is **no
 `decisive` field**: the package states the reading rule and never applies it,
 the same fence `predict_then_verify` respects by reporting
-`observed_delta_chi2` beside its own threshold. The reading rule is §4 step
-6's band, orientation-neutral because `chi2_ratio` is directional: take **the
+`observed_delta_chi2` beside its own threshold. The reading rule is §4 rule
+14's band, orientation-neutral because `chi2_ratio` is directional: take **the
 winning rival**'s side whichever index it is — the losing χ² over the winning
 χ², i.e. max(ratio, 1/ratio) — and compare that against
 `RIVAL_DECISIVE_MIN_CHI2_RATIO`. At or above it, the winner's fit is the
-answer, quoted without caveat (the 0.86 above is 1/0.86 = 1.17, decisive);
+answer, quoted without caveat (a `chi2_ratio` of 0.86 is 1/0.86 = 1.17, decisive);
 below it the pair has tied and the resolution is protocol. A pair with no
 null (a cell edge, a scale) is refused by name — that one is resolved by
 protocol, not by measurement.
