@@ -998,6 +998,25 @@ class CompiledModel:
                 self.radius_mm)
         return shift
 
+    def apparent_two_theta(self, tt_bragg: np.ndarray,
+                           values: dict[str, float]) -> np.ndarray:
+        """Where a reflection at Bragg angle ``tt_bragg`` is drawn, in °2θ.
+
+        The Bragg angle plus :meth:`_position_shift_deg`.  Pass one emission
+        line's angles at a time: each line has its own θ, so a Kα2 image takes
+        a different shift from its Kα1 partner.
+
+        It is one function because the forward model and the tick builders
+        owe each other the same answer to *where is the peak*.  The builders
+        are ``refine._build_result``, ``multi.MultiHistogramRefinement._ticks``
+        and ``viz.snapshot.stage_ticks``.  They added the zero shift alone
+        until WP-1908, so a fit with a refined displacement drew its ticks off
+        its own peaks by 2·s·cosθ/R (0.26° at 27° for s = 0.5 mm on a
+        217.5 mm circle) while the calculated curve sat on the data.
+        """
+        return tt_bragg + self._position_shift_deg(0.5 * tt_bragg, tt_bragg,
+                                                   values)
+
     def _absorption(self, tt_bragg: np.ndarray) -> np.ndarray | float:
         """Specimen absorption transmission A(θ) for this geometry, or exactly 1.0.
 
@@ -1689,7 +1708,7 @@ class CompiledModel:
         # perturbation is compared against.
         positions = self._memo(
             cp, "pos", lambda: (cell_key(), self._shift_key(values)),
-            lambda: [tt + self._position_shift_deg(0.5 * tt, tt, values)
+            lambda: [self.apparent_two_theta(tt, values)
                      for tt in tt_bragg_lines])
 
         def width_key():

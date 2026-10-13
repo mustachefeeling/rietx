@@ -6712,8 +6712,11 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         name = structure.phases[ip].name
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        rows = [cp.reflections.two_theta(cell, lam)
-                + values["instrument.zero_shift"]
+        # where the forward model puts the peak: Bragg angle, zero shift and
+        # the geometry's own shift (sample displacement, transparency,
+        # capillary offset), by the one method both read (WP-1908)
+        rows = [model.apparent_two_theta(cp.reflections.two_theta(cell, lam),
+                                         values)
                 for lam in model.line_wavelengths]
         pos = np.concatenate(rows) if rows else np.array([])
         # one reflection list per emission line, in the same order each time,
