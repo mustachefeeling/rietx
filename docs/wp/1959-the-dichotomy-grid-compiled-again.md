@@ -1,6 +1,6 @@
 # WP-1959 — the dichotomy grid compiled again, so a ceiling reaches svd
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-13 — claimed by @yue-here
 Track: A long run is not one fit
 Depends on: —
 Priority: P2 2026-10-13 — a defect that fires wrongly: on #780's monoclinic case a whole-run ceiling under ~157 s of CPU returns no candidate, although svd alone finds the cell in 27 s; the workaround is a longer ceiling or `engines=("svd",)`
