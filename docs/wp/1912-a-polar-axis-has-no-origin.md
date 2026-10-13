@@ -1,6 +1,6 @@
 # WP-1912 — a polar axis has no origin, and the fit walks along it
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-13 — the hold lives in the table behind `Phase.floating_origin`, off by default; whether to turn it on is the maintainer's call on #727
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — the default structural preset reaches it on every polar space group with a free coordinate, and the CIF it writes carries an absolute coordinate hundreds of cells out with an esd; flagged only by `FLAT_DIRECTION` on the result, so not P1
@@ -205,6 +205,100 @@ with each moved number named.
   WP-0302, WP-1432, WP-1435; `schemas/params.py` (`needs_held_cell`).
 
 ## Handover log
+
+### 2026-10-13 — the hold moves into the table, and the default is measured
+
+The floating-origin hold is now something the parameter table does, behind a
+switch on the phase. With it set, every fit, series pattern, joint histogram
+and history replay holds the same atom. A tie or hold of the caller's that
+already fixes the origin gets no second one. The switch is off by default, so
+nothing moves for a caller who does not set it. Whether to turn it on is the
+maintainer's decision on #727, and the numbers for that decision are below.
+
+*Done.* Tasks 2-7, one commit each, on PR #929. Schema 0.52 adds
+`Phase.floating_origin` and `ParameterRow.origin_axis`.
+`ParameterTable._fix_origin` holds the first DOF that runs exactly along each
+floating direction, through `Entry.held`, and re-decides at every build, tie
+and hold. `_origin_floats` decides "already fixed" by an exact solve on the
+affine block. `hold_floating_origin()` is now a wrapper that sets the field,
+and `unhold` on a held DOF sets it back to `None`. `ORIGIN_FIXED_ON_POLAR_AXIS`
+joins `fit` and `run_stage` results where a stage's glob met the hold, and
+`HOLD_BLOCKED_PLAN` leaves that DOF out. `refine.py` was touched only in
+`parameters`, `hold_floating_origin`, `unhold`, `_prepare_table`'s restore, the
+two diagnostic call sites and `_hold_diagnostics`.
+
+*Review.* My own pass found the free-set restore warning "no longer exists"
+for a DOF the table held. `/code-review high --fix` found eight things and
+fixed three: `unhold` asks the table again after removing a caller's hold, and
+`set_tie`/`set_held` rebuild once. It left five, and so do I. A cross-phase tie
+between two declaring phases makes the solve report "fixed" while the joint
+shift is flat; no shipped fixture has one. One `unhold` matching both a user
+hold and the origin hold records two nodes. A taken-back origin hold keeps
+`vary=False`, as documented. A joint fit raises neither origin code
+(`multi.DIAGNOSTIC_SCOPES`). `edit(floating_origin=None)` restores a DOF that
+was free before, where `unhold` leaves it fixed.
+
+*Measured* (`[dev]` venv, darwin arm64; the machine ran 5-6 other sessions'
+suites at load 100-150 throughout). Fast selection on `f691115a`, this branch
+with main merged after the review: 9 364 passed, 181 skipped, 1 xfailed and 1
+failed, in 19 min 43 s. The failure was
+`test_structure_extent.py::test_three_cells_a_side_build_in_no_more_than_a_moment`,
+a wall-clock test, and it passed alone. The branch adds 24 test cases, all in
+`test_floating_origin.py` (15 to 39). They cost 20.2 s in that run, 8.9 s of it
+the module fixture's three zincite fits, which is the WP's acceptance fixture
+and so stays in the fast tier. With the default off,
+every golden is bit-identical:
+`test_numpy_path_bit_identical_to_golden` on all ten states (`srm660c` and
+`nac` included) and `test_the_compiled_path_holds_the_goldens_to_its_own_bar`
+on its three. The full selection did not run, because the default moves no
+number. With the default flipped to `"hold"` in a snapshot of `cc7ad7fc`, the
+fast selection moves four tests: the `toy_anomalous` golden (zincite with
+`phases.0.atoms.*.dof.*` free), two tests in `test_floating_origin.py` that pin
+the default, and the generated `api.md`, which prints the default. Eleven
+other failures and 16 errors there fail identically on an unflipped snapshot,
+because a `git archive` tree is not a repository. No slow test frees a
+coordinate on a polar phase. No shipped CIF is in a polar group. The shipped
+polar fixtures are `compare.py`'s zincite and test-built phases.
+
+Real data, the IUCr CPD round-robin `qarr/zincite.prn` with `compare.py`'s
+zincite standard:
+
+| protocol | off | `"hold"` |
+|---|---|---|
+| QPA (the acceptance protocol, frees no coordinate) | Rwp 0.109274 | bit-identical values |
+| `mccusker_structural`, LM | Zn −0.00011(76), O 0.38271(76); `FLAT_DIRECTION`, `HIGH_CORRELATION`; 20 free | Zn 0, O 0.38283(152); neither code; 19 free |
+| `mccusker_structural`, TRF | Zn 140.12849(76), O 140.51132(76) | as LM |
+| QPA + a coordinate stage, LM | each z ±0.0092; the pair in `COVARIANCE_DIRECTION_DISCARDED` | O 0.38213(136); the pair out of it |
+
+Rwp agrees to six figures in every pair. Coordinate rows in
+`RefinementResult.parameters` go from 4 to 3 (Zn's DOF leaves, its z stays
+with no esd), and rows with an esd from 4 to 2. On the WP's synthetic fixture
+O comes to 0.38231(57) held, against ±0.00029 on each z unheld.
+
+*Decision menu for #727.*
+
+1. Keep the default off. Nothing moves. A polar fit that frees coordinates
+   keeps `FLAT_DIRECTION` and esds half the honest size, and walks under TRF.
+2. Default `"hold"` with a read-time pin. Documents written before 0.52 read
+   as `None`, so old projects and histories replay unchanged. Moves the
+   `toy_anomalous` golden (declare `None` in its state or re-capture it), the
+   two default-pinning tests and `api.md`, plus the real-data rows above.
+3. Default `"hold"` with no pin. As 2, and every older document reopens holding
+   its first atom, so a replayed history node refits with one fewer free
+   parameter.
+4. A centroid mode (`"centroid"`), which @mustachefeeling asked for on #727 on
+   2026-10-12 in place of the hold default. Not built. It needs the weights
+   from Flack & Schwarzenbach (1988) and an affine tie over every atom along
+   the axis, which widens one column's reach through `_column_extras`. It could
+   become the default instead of `"hold"`.
+
+*Not generalised.* No `diagnostics.md` row: it is 7 B under its budget, both
+codes carry a `suggestion`, and `numbers.md` names them. A rigid body's origin
+is a candidate after the atoms, untested on a fixture.
+
+*Next.* The maintainer picks from the menu on #727. Option 2 is a small change:
+the default, a `mode="before"` pin on `Phase` for documents older than 0.52, and
+`toy_anomalous` declaring `None`. Option 4 is its own task on this WP.
 
 - **2026-10-08** — a caller can now hold a polar group's floating origin in one
   call, and the fit then stops walking the structure along the polar axis. Nothing
