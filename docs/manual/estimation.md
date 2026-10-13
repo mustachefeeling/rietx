@@ -592,8 +592,14 @@ Region Reflective solve at `ftol` $10^{-9}$ satisfies the criterion a fortiori
 information is on the other branch: a stage stopped on its iteration budget
 reports how far it was still moving in esd units, and the same stage starved to
 one iteration measures $\approx 14$. The value is withheld wherever it cannot
-be measured: with no accepted step, no esds, an evaluate-only replay, or the
-joint multi-pattern residual.
+be measured: with no accepted step, no esds, or an evaluate-only replay.
+
+A joint multi-histogram fit has the same quantity over its joint $\theta$. Each
+column has one shift, the joint solve's last accepted step. It has one esd,
+from the covariance of the weighted stacked residual. The histogram weights
+enter both, so they change the number and leave the criterion as it is. A
+shared column appears in every histogram's table with the same ratio, because
+each table decodes it affinely.
 
 ## The fp64 floor
 

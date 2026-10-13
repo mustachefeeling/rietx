@@ -6109,8 +6109,8 @@ def _stage_list(names: list[str]) -> str:
             f"stages {', '.join(repr(s) for s in names)}")
 
 
-def _fixed_literal_diagnostics(stages, table: ParameterTable,
-                               user_ties) -> list[Diagnostic]:
+def _fixed_literal_diagnostics(stages, table: ParameterTable, user_ties, *,
+                               canonical=None) -> list[Diagnostic]:
     """``STAGE_PATH_NOT_FREE`` — a literal phase path the model will not free.
 
     ``STAGE_PATH_UNKNOWN``'s other half.  A literal names one parameter, and
@@ -6135,53 +6135,70 @@ def _fixed_literal_diagnostics(stages, table: ParameterTable,
     A plan read, decided before the first stage like
     :func:`_stage_order_diagnostics`, and one diagnostic per path naming its
     stages, for :func:`_unknown_path_diagnostics`' reason.
+
+    ``canonical`` is a joint fit's (#803, WP-1341): the second name a row
+    answers to in a :class:`~rietx.params.multi.MultiParameterTable`, bare
+    when shared and ``hist.<h>.``-scoped when not.  A literal then matches a
+    row exactly when ``MultiParameterTable.set_vary`` would match it, and
+    ``where`` and the suggestion name rows as the joint result spells them.
+    A single fit's row has one name and passes nothing.
     """
+    name_of = canonical or (lambda p: p)
     by_path = {e.path: e for e in table.entries}
-    asked: dict[str, list[str]] = {}
+    by_name = dict(by_path)
+    by_name.update({name_of(e.path): e for e in table.entries})
+    asked: dict[str, tuple[str, list[str]]] = {}
     for stage in stages:
         for glob in stage.turn_on:
-            entry = by_path.get(glob)
+            entry = by_name.get(glob)
             if (entry is None or not is_literal_path(glob)
-                    or not glob.startswith("phases.") or glob in user_ties
+                    or not entry.path.startswith("phases.")
+                    or entry.path in user_ties
                     or not (entry.locked or entry.tie is not None)):
                 continue
             if entry.tie is not None and all(
-                    any(fnmatch.fnmatchcase(src, g) for g in stage.turn_on)
+                    any(fnmatch.fnmatchcase(src, g)
+                        or fnmatch.fnmatchcase(name_of(src), g)
+                        for g in stage.turn_on)
                     for src, _ in entry.tie.terms):
                 # the same stage frees every source it follows, so it did
                 # get what it named: ``cell.a`` and ``cell.b`` side by side
                 continue
-            names = asked.setdefault(glob, [])
+            _, names = asked.setdefault(entry.path, (glob, []))
             if stage.name not in names:
                 names.append(stage.name)
     out = []
-    for path, names in asked.items():
+    for row, (path, names) in asked.items():
         which = _stage_list(names)
-        entry = by_path[path]
+        entry = by_path[row]
         sources = ([] if entry.tie is None else
-                   [src for src, _ in entry.tie.terms])
+                   [name_of(src) for src, _ in entry.tie.terms])
         why = ("is fixed by symmetry or by the model" if entry.locked else
                f"follows {', '.join(sources)}")
-        site = _COORDINATE_PATH.match(path)
-        dofs = ([p for p in by_path if p.startswith(f"{site.group(1)}.dof.")]
-                if site else [])
+        site = _COORDINATE_PATH.match(row)
+        dofs = ([name_of(p) for p in by_path
+                 if p.startswith(f"{site.group(1)}.dof.")] if site else [])
         if site and dofs:
-            fix = (f"free {site.group(1)}.dof.* ({', '.join(dofs)}): a site's "
-                   "coordinates are refined along the directions its site "
-                   "symmetry allows, and x, y and z follow them")
+            fix = (f"free {name_of(site.group(1))}.dof.* ({', '.join(dofs)}): "
+                   "a site's coordinates are refined along the directions its "
+                   "site symmetry allows, and x, y and z follow them")
         elif site:
             fix = ("nothing to free: every coordinate of this site is fixed by "
                    "its site symmetry")
         elif sources:
-            fix = f"free {', '.join(sources)} instead; {path} moves with it"
-        else:
+            fix = (f"free {', '.join(sources)} instead; {name_of(row)} moves "
+                   "with it")
+        elif canonical is None:
             fix = ("nothing to free: ref.parameters() gives the row's "
                    "held_because")
+        else:
+            # a joint fit has no parameters() to point at
+            fix = "nothing to free: the model holds this row fixed"
         out.append(Diagnostic(
             level="warning", code="STAGE_PATH_NOT_FREE",
             message=(f"{which} asked for {path}, which {why}, so nothing was "
                      "freed for it"),
-            where=[path], suggestion=fix))
+            where=[name_of(row)], suggestion=fix))
     return out
 
 
