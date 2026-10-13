@@ -2,7 +2,7 @@
 
 Executed notebooks that build a working picture of what rietx does with a powder pattern.
 They are written for people who drive rietx through an agent and need to judge its work, and they serve anyone learning the package.
-Each notebook ends with a list of checks to make on an agent's fit.
+Each tutorial ends with a list of checks to make on an agent's fit; notebook 06, a template, ends by saving the results.
 
 *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 
@@ -18,7 +18,7 @@ The data ships inside the package, so no download is needed.
 | [`05_sequential_fits.ipynb`](05_sequential_fits.ipynb) | Fitting a heating ramp pattern by pattern, the warm start and `carry`, a parameter's trajectory against the truth, running the chain both ways, and what the series reports when one frame jumps or cannot be fitted | Synthetic LaB₆, built in the notebook | under 30 s |
 | [`06_your_own_data.ipynb`](06_your_own_data.ipynb) | A template, not a tutorial: change the marked cells to your pattern, CIFs and anode, then run it to check the data, check the model, fit Le Bail then Rietveld, read the summary, draw the structure and save a CIF and a project | The fluorapatite files until you change them | about 15 s on the example, measured in a Linux cloud container |
 
-Runtimes were measured on an Apple M-series laptop, kernel start included.
+Runtimes were measured on an Apple M-series laptop, kernel start included, unless a row says otherwise.
 
 ## Not covered yet
 

@@ -217,7 +217,7 @@ for bond in final.geometry.bonds:
 rx.viz.render_structure(ref.structure, view="c")
 
 # %% [markdown]
-# Atoms further from you are drawn darker, so one element shows in two shades.
+# Atoms outside the cell, drawn to complete a polyhedron or a bond, are shaded darker, so one element shows in two shades.
 # The orange tetrahedra are the phosphate groups.
 #
 # Down an axis the picture is flat.

@@ -83,8 +83,9 @@ blind reviewers (a crystallographer, a newcomer and a figure designer) ranked
 the third. `auto` picked about [2 0 1] (`hidden` 0.024), and all three called
 it "a tangle". They also agreed on four readings, none of which `FigureReport`
 counts:
-- depth shading makes one element read as two species, since Ca1 and Ca2 each
-  show in two shades;
+- the darker shade on images outside the cell (`scene.DIM_BOUNDARY`) makes one
+  element read as two species, and all three reviewers took it for a depth
+  cue;
 - `atom_labels=True` prints a stacked pair twice (`F4 F4` at one corner);
 - the a and b letters sit under atoms or bonds down c;
 - at the default probability, `mode="ellipsoid"` draws the atoms as

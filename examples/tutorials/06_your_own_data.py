@@ -25,7 +25,7 @@ from rietx.examples import examples_dir
 PATTERN = examples_dir() / "FAP.XRA"            # ✏️ your pattern
 CIFS = [examples_dir() / "fluorapatite.cif"]    # ✏️ one CIF per crystalline phase
 RADIATION = "CuKa"                              # ✏️ the anode: "CuKa", "CoKa", "MoKa", ...
-TWO_THETA_LIMITS = (15, 130)                    # ✏️ the range to fit, in degrees 2θ
+TWO_THETA_LIMITS = (15, 130)                    # ✏️ the range to fit, in degrees 2θ; None fits all of it
 OUTPUT = Path("rietx_output")                   # where the last cell writes
 
 # %% [markdown]
@@ -62,7 +62,7 @@ instrument.background = rx.BackgroundChebyshev.with_terms(6)
 instrument.background.coefficients[0].value = float(np.percentile(data.intensity, 5))
 
 ref = rx.Refinement(structure, instrument)
-low = TWO_THETA_LIMITS[0]
+low = TWO_THETA_LIMITS[0] if TWO_THETA_LIMITS else min(data.two_theta)
 data.plot(model=ref, two_theta_range=(low, low + 10))  # ✏️ any 10° with strong peaks
 
 # %% [markdown]
@@ -84,6 +84,7 @@ lebail.plot()
 # %% [markdown]
 # A flat difference curve here means the cell and the peak shapes are right.
 # Keep its Rwp: a Rietveld Rwp well above it points at the structure model rather than the cell or the peaks.
+# It is not a floor: this Le Bail plan frees fewer instrument terms than the Rietveld one, so a Rietveld Rwp a little below it is normal.
 #
 # ## Rietveld
 #
@@ -119,7 +120,8 @@ rx.viz.render_structure(ref.structure)  # ✏️ view=, turn=, phase=1 for a sec
 # ## Save the results
 #
 # The CIF carries the refined structure with its esds, the R factors and the pattern.
-# The project directory keeps the whole refinement, and `rietx gui` opens it.
+# The project directory starts from the refined model with these settings, and `rietx gui` opens it.
+# It does not hold this fit's stages: a fit run through `rx.Project` would record them.
 
 # %%
 OUTPUT.mkdir(exist_ok=True)

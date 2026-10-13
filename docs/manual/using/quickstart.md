@@ -7,8 +7,8 @@ Read a notebook here with its outputs, or download it and run it yourself.
 Its first code cell installs `rietx`.
 
 The notebooks are written for people who drive `rietx` through an agent and need
-to judge its work, so each one ends with a list of checks to make on an agent's
-fit.
+to judge its work, so each tutorial ends with a list of checks to make on an
+agent's fit.
 [](first-refinement.md) covers the same ground as a script, on a synchrotron
 pattern with an impurity phase.
 
