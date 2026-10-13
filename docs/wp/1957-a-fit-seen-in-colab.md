@@ -70,7 +70,7 @@ full-colour RGBA, about 185–200 kB a view, and 02 grew from 99 kB to 688 kB.
 It is now palette-quantised at the fit figure's 256 colours (74 kB a view,
 no visible banding; 64 colours bands the shaded balls). A transparent figure
 keeps its alpha. Committed sizes now: 01 150 kB, 02 378 kB, 03 159 kB,
-04 101 kB, 05 44 kB, 06 334 kB.
+04 101 kB, 05 44 kB, 06 9 kB (committed without outputs).
 
 **4. The structure view, chosen by agents.** `render_structure`'s controls
 are `view` (`"a"`/`"b"`/`"c"`, `[u, v, w]`, `{"hkl": (h, k, l)}`,
@@ -105,7 +105,12 @@ range. It runs top to bottom:
    `rietx_output/`.
 
 It ships running on the fluorapatite files, so `tests/test_tutorials.py`
-executes it like the tutorials, and the landing page and manual list it. The
+executes it like the tutorials, and the landing page and manual list it.
+Its title is "Rietveld refinement of your own data". It is committed
+**without outputs** (maintainer, 2026-10-13), because output from the
+example files would read as the reader's own. `build.py`'s `UNEXECUTED`
+names it: the build still executes it and refuses one that fails, then
+writes the cells alone, and `--check` reports a template carrying outputs. The
 build now executes every notebook in a scratch directory, so the files 06
 writes never land in the repository.
 Measured on the example: Le Bail Rwp 0.0982 and Rietveld Rwp 0.0936. Le Bail
@@ -226,6 +231,11 @@ the change is display encoding, notebooks and docs.
   - Sharing one palette encoder between the fit and structure figures. Its
     home would have to sit inside WP-1505's boundary, and only the colour
     count is held equal.
+
+*After the PR opened* (maintainer): 06 was retitled and is now committed
+without outputs, 334 kB to 9 kB. Two tests were added: the committed
+template has no outputs, and `check` reports one that has. The tutorial,
+landing, docs-consistency and manual files pass.
 
 Next:
 1. The maintainer opens 02 in Colab at a narrow window and records whether
