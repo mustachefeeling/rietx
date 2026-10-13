@@ -149,6 +149,16 @@ choice.
   first (`report/strain.py:301`), and `references/series.md` in the skill
   already gives 6.5×.
 
+- **From WP-1341 (2026-10-12): the joint fit waits on this WP for
+  `stage_reports=`.** `MultiHistogramRefinement.fit` declines it, because one
+  rung there is a report per histogram per stage, so the joint trajectory
+  would cost this WP's fixed ~0.36 s times the histogram count. The reason
+  is written in that method's docstring and in `using/series.md`. Once the
+  per-report cost is cut, offering it there is a small change on top:
+  `MultiHistogramRefinement.report(h)` already builds one histogram's report,
+  and `_run_plan` has the stage boundary. Those two sentences go when it is
+  offered.
+
 ## Non-goals
 
 - The solver's own cost, and the exhausted-budget stop rule — 1334.

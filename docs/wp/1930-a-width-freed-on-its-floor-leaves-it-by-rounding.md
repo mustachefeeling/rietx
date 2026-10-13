@@ -306,7 +306,8 @@ printed digit on both.
   rule lives in `normal_covariance`'s docstring and its tests.
 
   *Forwarded.* WP-1946: #832's brucite split. WP-1542: #832's indexing Le Bail
-  split. WP-1953: #918 fixes the macOS dedup test. WP-1932: `equal_reduced`'s
+  split. WP-1953 closed during this handover, so its note was dropped and
+  the dedup finding stays here. WP-1932: `equal_reduced`'s
   sign and the reduce counterexample. #865's moment question is a Non-goal here
   and has no owner.
 

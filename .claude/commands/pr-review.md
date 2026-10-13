@@ -8,7 +8,7 @@ backlog), or empty (triage, print the ranked backlog, stop — never start on th
 top row unasked).
 
 Other people's PRs only. The maintainer's own are gated by `/wp-handover`
-steps 6 and 9; a number naming one is still re-gated, but the governance
+steps 6 and 10; a number naming one is still re-gated, but the governance
 signal (rank 2) and the public review (step 8) do not apply, and you say so in
 one line. Most outside PRs are one recurring contributor's: write the public
 review to a colleague who knows the codebase. That is a register and moves no
@@ -247,7 +247,7 @@ line if the checkpoint ended it. Close with
      `no_top_level_cd.py` refuses a bare `cd`.
    - **One `/pr-review` at a time**: the session-start hook names a live
      session already in the bench; a second one stops.
-   - **The suite is shared with every WP session**: `pgrep -f "[p]ytest"`
+   - **The suite is shared with every WP session**: `ps aux | grep -c '[p]ython -m pytest'`
      before step 5 and again before step 9 (`tests/CLAUDE.md` § Running).
      Another mid-suite is a stop: wait.
 
@@ -394,7 +394,7 @@ line if the checkpoint ended it. Close with
    name the level (unnamed, it reuses whatever was typed last). **Never while a
    suite holds the bench**: the review forks into the session's working
    directory and checks the PR head out there. On 2026-09-29 that swapped the
-   tree under a running full suite and voided it (`pgrep -f "[p]ytest"` first,
+   tree under a running full suite and voided it (the `ps` check of `tests/CLAUDE.md` § Running first,
    and `git log -1` after, back to the tree step 5 wants). Run it
    before step 5 starts, or between suites. Verify its findings as you do the
    agents', by reading the code and, where it is cheap, by running it.
