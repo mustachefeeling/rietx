@@ -65,6 +65,7 @@ from .engines import (
     EngineCandidate,
     EngineResult,
     SearchSpec,
+    absence_window,
     candidates_truncated_diagnostic,
     dedup_groups,
     match_window,
@@ -515,7 +516,10 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     # data support sits above it (WP-1510).  Here, on the engines' list, so
     # every streamed per-system list orders the same way as the final one; a
     # prior-only tail is appended after and never asked
-    supercell_checks(out.candidates, peaks, q_match=q_match,
+    # an absence test reads the assumed bound, never the widths' window: a
+    # narrow window gives it power the unmeasured shift does not (#951)
+    supercell_checks(out.candidates, peaks,
+                     q_match=absence_window(peaks, spec, quality),
                      k_sigma=spec.k_sigma)
     out.candidates = above_supported_parents(
         below_refuting_parents(out.candidates))

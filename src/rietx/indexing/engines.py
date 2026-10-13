@@ -1466,6 +1466,29 @@ def match_window(peaks: PeakList, spec=None, quality=None) -> np.ndarray:
                            allowance)
 
 
+def absence_window(peaks: PeakList, spec=None, quality=None) -> np.ndarray:
+    """The σ(Q) a test of **absence** reads: :func:`match_window` without the
+    widths' window (:func:`width_allowance`).
+
+    A declared or measured allowance is used as the search used it; with
+    neither, the assumed :data:`DEFAULT_UNKNOWN_SHIFT_DEG`.  The widths size
+    what a search may *accept*, where a narrow window is the conservative
+    side.  A test that demotes a cell because its lines are missing
+    (``consensus.supercell_checks``) gains power as the window narrows: its
+    chance rate p₀ falls, so fewer unseen extras reach a refutation.  The
+    shift is still unmeasured, so that power is not the data's.  Measured
+    (#951 baseline): a picked synchrotron list at 0.010° FWHM put p₀ at 0.034
+    against 0.166, and "0 of 2 extras seen" refuted a true superstructure
+    whose two extras a weak-line filter had removed.
+    """
+    from .qspace import sigma_effective
+
+    allowance, _assumed = effective_shift_allowance(spec or SearchSpec(),
+                                                    quality)
+    return sigma_effective(peaks.q_esd(), peaks.two_theta(), peaks.wavelength,
+                           allowance)
+
+
 def scored_positions(peaks: PeakList, fit) -> tuple[np.ndarray, np.ndarray]:
     """(Q, 2θ) a candidate is **scored against** — corrected by its own shift.
 
@@ -2471,7 +2494,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "search_line_order", "search_volume_ceiling",
            "shift_allowance_diagnostic",
            "shift_from_pairs_diagnostic", "inlier_retry_diagnostic",
-           "width_allowance",
+           "width_allowance", "absence_window",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "solution_key",
            "to_cell_candidate", "trial_hkl"]

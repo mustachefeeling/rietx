@@ -138,3 +138,39 @@ def test_a_synchrotron_twin_is_indexed_in_its_own_window(tmp_path,
     best = res.candidates[0]
     assert best.centring == "F" and abs(best.cell[0] - 5.4311) < 0.01, (
         [(c.centring, c.cell[0]) for c in res.candidates[:3]])
+
+
+def test_a_narrow_window_does_not_refute_a_superstructure_the_list_cannot_see():
+    """The supercell check's chance rate is the search's assumed bound, never
+    the widths' window (#951's baseline).  An F-centred cubic list a
+    superstructure leaves after a weak-line filter: six all-even lines and one
+    all-odd (331), FWHM 0.010°.  Its a/2 P cell indexes six of seven; the true
+    a cell's two uncancellable extras over it, (531) and (731), are below the
+    filter.  At the widths' window p₀ ≈ 0.03 and "0 of 2 seen" read *refuted*,
+    which sank the true cell under its subcell; at the assumed 0.05° the test
+    has no power (p₀² ≥ α) and the pair stays *undecided*, as on main."""
+    from rietx.indexing import index_pattern
+
+    lam, a = 0.40, 10.0
+    hkl = [(2, 2, 2), (4, 0, 0), (3, 3, 1), (4, 4, 0), (6, 2, 2), (4, 4, 4),
+           (8, 0, 0)]
+    tt = [float(np.degrees(2 * np.arcsin(lam * np.sqrt(sum(h * h for h in x))
+                                         / (2 * a)))) for x in hkl]
+    inten = [100.0, 32.0, 4.5, 54.0, 51.0, 13.0, 9.0]
+    plain = PeakList.from_positions(tt, lam, intensity=inten,
+                                    two_theta_esd=0.0005)
+    peaks = plain.model_copy(update={
+        "peaks": [p.model_copy(update={"fwhm": 0.010, "flags": []})
+                  for p in plain.peaks], "source": "fitted"})
+    assert effective_shift_allowance(SearchSpec(), None, peaks)[0] < 0.011
+
+    res = index_pattern(peaks, spec=SearchSpec(systems=("cubic",)),
+                        preset="quick")
+    rank = {(c.centring, round(c.cell[0], 1)): i
+            for i, c in enumerate(res.candidates)}
+    assert ("F", 10.0) in rank and ("P", 5.0) in rank, sorted(rank)
+    truth = res.candidates[rank[("F", 10.0)]]
+    verdicts = {(k.parent_centring, round(k.parent_cell[0], 1)): k.verdict
+                for k in truth.supercell_checks or []}
+    assert verdicts.get(("P", 5.0)) == "undecided", verdicts
+    assert rank[("F", 10.0)] < rank[("P", 5.0)], sorted(rank, key=rank.get)
