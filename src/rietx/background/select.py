@@ -122,6 +122,9 @@ def select_chebyshev_order(data: PatternData, *, max_order: int = 16,
     (issue #833).  An interior BIC minimum and a scan the stop ended carry no
     code.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(data, "select_chebyshev_order()")
     mask = data.in_range_mask()
     tt, y, sigma = data.tt()[mask], data.y()[mask], data.sig()[mask]
     keep = peak_mask(tt, y, sigma, baseline_lambda=baseline_lambda)
@@ -189,6 +192,9 @@ def select_arpls_lambda(data: PatternData, *,
     is reported for the evidence table but whiteness decides, because the
     baseline is not a parametric fit with a countable k.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(data, "select_arpls_lambda()")
     mask = data.in_range_mask()
     tt, y, sigma = data.tt()[mask], data.y()[mask], data.sig()[mask]
     keep = peak_mask(tt, y, sigma)

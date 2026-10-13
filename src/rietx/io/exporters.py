@@ -44,7 +44,7 @@ from ..schemas.instrument import (
     BackgroundPSpline,
     Instrument,
 )
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from ..schemas.results import (
     PhaseAgreement,
     QuantitativePhaseAnalysis,
@@ -770,6 +770,7 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
                        reflections: list[ReflectionRow] | None = None
                        ) -> gemmi.cif.Document:
     """Build the refinement CIF as a gemmi document (see :func:`write_refinement_cif`)."""
+    require_two_theta(pattern, "refinement_cif_doc()", instrument=instrument)
     doc = gemmi.cif.Document()
     agreement = {row.name: row for row in result.phase_agreement}
     probe = "neutron" if instrument.source.kind == "neutron_cw" else "xray"
@@ -834,5 +835,6 @@ def write_refinement_cif(result: RefinementResult, structure: Structure,
     the reflection table only a fit's compiled model can build
     (:func:`refinement_cif_doc`'s ``reflections``).
     """
+    require_two_theta(pattern, "write_refinement_cif()", instrument=instrument)
     write_document(refinement_cif_doc(result, structure, instrument,
                                       pattern=pattern), path)

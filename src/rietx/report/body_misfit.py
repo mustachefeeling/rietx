@@ -59,6 +59,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..schemas.common import Diagnostic
+from ..schemas.pattern import require_two_theta
 from ..schemas.structure import AngleRestraint, BondRestraint, Structure
 
 #: the default significance of the Hamilton test (the conjunction's first half)
@@ -206,6 +207,7 @@ def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
     that the data can say which bond it disagrees with.  Returns a row per
     body and a ``RIGID_BODY_MISFIT`` warning per body that fails.
     """
+    require_two_theta(data, "rigid_body_misfit()", instrument=ref.instrument)
     if ref.result_ is None:
         raise ValueError(
             "rigid_body_misfit needs a fitted Refinement: both arms start from "
