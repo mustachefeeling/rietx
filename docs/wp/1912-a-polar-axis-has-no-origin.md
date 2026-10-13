@@ -104,9 +104,9 @@ day disagree (07:38 "the hold becomes the default now"; 15:16, after #929
 merged off by default, "the default is still to decide"). Resolved in session
 the same day: **the aim is to move quickly to the centroid**, so the hold
 stays opt-in and the default is not flipped twice. The centroid lands as a
-second value of `Phase.floating_origin`, built as an **exact constraint** (an
-affine tie in C, which needs nothing from WP-1942's unbuilt restraint item),
-is measured against the hold on ZnO, Cc and P1, and becomes the candidate
+second value of `Phase.floating_origin`, built as the paper's restraint in
+a row block of its own (task below; it needs nothing from WP-1942's unbuilt
+user-declared restraint), is measured against the hold on ZnO, Cc and P1, and becomes the candidate
 default. A default change moves the reported origin and the spread of esds,
 never the structure, Rwp or any interatomic distance, and goes in the release
 notes.
@@ -203,15 +203,43 @@ notes.
       (`hold_floating_origin()` declines where nothing is holdable); and the
       "runs exactly along" wording in `using/concepts.md`, the 1.9.0 note and
       the skill paragraph.
-- [ ] `floating_origin="centroid"`: Σᵢ wᵢ·δᵢ = 0 along each floating
-      direction as an exact affine tie in C, weights **from the paper**
-      (Flack & Schwarzenbach 1988; not reachable from a cloud session, so the
-      maintainer supplies them). The tied DOF's column reaches every atom on
-      the axis, so `_column_extras` and `test_cross_backend.py`'s
-      `families_tied` row must see it; `rebase_anchored_dofs` and
-      `anchored_dof_paths` cover it; caller ties or variables that already
-      fix the origin add nothing. Diagnostic and `held_because`/tie text
-      name the mode.
+- [ ] `floating_origin="centroid"`, the restraint of Flack &
+      Schwarzenbach (1988), read 2026-10-13 from the copy the maintainer
+      supplied. *Superseded in part, 2026-10-13: the "exact affine tie in C"
+      this task first named is the paper's infinite-weight limit, which it
+      shows does not give the near-diagonal matrix the method exists for
+      (§ Concluding remarks), so it is a restraint after all — but an
+      internal one, not WP-1942's.* What the paper fixes:
+      one pseudo-observation per floating direction p,
+      Z_p = Σₙ aₙ·Δ_pᵀ(xₙ − xₙ⁰) = 0 (eq 9), Δ_p orthonormal in fractional
+      components, x⁰ the values at the start of the cycle so the row adds
+      nothing to the gradient; the solve then satisfies it **exactly at any
+      weight** (eq 11 and the paragraph after), and only the covariance
+      depends on aₙ. The aₙ are not ∝ Z² by fiat (that is the mean-matrix
+      answer, and imposed as a constraint it is not diagonal): they solve
+      aₘ·Σ_{n≠m} aₙ = bₘ (eq 21, A1), bₘ = Σ_{ij} A_{im,jm}Ω_ij / Σᵢ Ω_ii
+      from the **unrestrained** normal matrix, by the (A6) iteration; this
+      zeroes each column's Ω-collapsed off-diagonal sum (eq 20), handles
+      special positions and multiplicity by itself, and exists iff
+      Σb − 2b_r > 0 for every r (A5). In this package's terms
+      bₘ = Σ_p ‖J·αₘ,ₚ‖²/P, αₘ,ₚ the θ step moving atom m alone by Δ_p
+      (the paper's [111] example, z alone refined, gives A_zz/3 either
+      way). Three cases the paper leaves open: N = 2 has b₁ = b₂ identically
+      (rows of A sum to zero, eq 8), so aₘ·aₙ = b fixes only the product —
+      take a₁ = a₂ = √b, which makes A′ diagonal and gives each z the
+      difference's esd over √2, uncorrelated; (A5) failing is the limit of a
+      hold on the dominant atom, so fall back to that and say so; and the
+      row is added **only where the stage's free set realises the uniform
+      shift** (`_origin_floats`), since on a fixed origin the same row is a
+      structural restraint and biases the answer. Where it lives: a row
+      block of its own in `model/rows.BLOCK_ORDER`, never `soft_restraint`,
+      whose √c_w would silence it at c_w = 0 and free the origin; aₙ and x⁰
+      frozen at stage compile (one J·α product per atom, 2N residual
+      evaluations); partials constant, chained through C like
+      `restraint_partials`; rows excluded from the observation count; the
+      covariance read **with** them, that being the point. Every backend
+      through `rows.assemble`, a `test_cross_backend.py` config, Part 2
+      equation with *Source* lines (eqs 9, 21, A6).
 - [ ] Measure hold against centroid on the ZnO, Cc and P1 fixtures and the
       round-robin zincite (origin, esds, Rwp, free count), then propose the
       default with a read-time pin for documents older than the schema that
@@ -236,8 +264,9 @@ with each moved number named.
 
 - Issue #727.
 - Flack, H. D. & Schwarzenbach, D. (1988). *Acta Cryst.* A**44**, 499–506.
-  Least-squares restraints for origin fixing in polar space groups. **Check
-  the paper before quoting a weight scheme**; it is cited here from memory.
+  On the use of least-squares restraints for origin fixing in polar space
+  groups. Read 2026-10-13 (the maintainer's copy); the centroid task quotes
+  its eqs 9, 11, 20, 21, A1, A5 and A6.
 - Hahn, T., ed. (2005). *International Tables for Crystallography, Vol. A*,
   Part 15 (normalizers of space groups) for the continuous translations.
 - `crystallography/wyckoff.py` (`coordinate_basis`, `_nullspace_int`); WP-0301,
