@@ -853,7 +853,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "with the `phases.*.atoms.*.dof.*` glob. In a polar space group, "
             "`Phase.floating_origin = \"hold\"` holds, per direction the origin "
             "floats in, the first atom DOF a shift along it moves, and the row "
-            "says so."
+            "says so; `\"centroid\"` holds nothing and restrains a "
+            "data-weighted centroid of the sites instead, so every DOF keeps "
+            "an esd."
         ),
         unit=None, default=None,
         typical="0 to 1, in the same units as the coordinate it drives",

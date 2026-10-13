@@ -214,7 +214,7 @@ notes.
       and `help.py`, and `ORIGIN_NOT_FIXED`'s suggestion now names what the
       tied coordinates follow. A joint result's `blocked_by_hold` was always
       empty and now is not.*
-- [ ] `floating_origin="centroid"`, the restraint of Flack &
+- [x] `floating_origin="centroid"`, the restraint of Flack &
       Schwarzenbach (1988), read 2026-10-13 from the copy the maintainer
       supplied. *Superseded in part, 2026-10-13: the "exact affine tie in C"
       this task first named is the paper's infinite-weight limit, which it
@@ -251,6 +251,23 @@ notes.
       covariance read **with** them, that being the point. Every backend
       through `rows.assemble`, a `test_cross_backend.py` config, Part 2
       equation with *Source* lines (eqs 9, 21, A6).
+      *Done 2026-10-13 (schema 0.53): `model/origin.py` (the eq 21 solve,
+      Δ by QR, bₘ by central difference, the frozen block), an
+      `origin_restraint` block last in `BLOCK_ORDER`, its analytic rows in
+      `least_squares`, `ParameterTable.origin_slides` sharing
+      `_origin_floats`' solve over the free set, compiled before each solve
+      in `_run_stage` (a release re-solves) and in `suggest`'s probe;
+      `ORIGIN_FIXED_ON_POLAR_AXIS` names each site's aₙ/Σa; a joint fit
+      refuses it by name; a direction one site can move along is held as
+      `"hold"` holds it. Zincite, LM and TRF: Rwp equal to the hold's to
+      1.4e-14, z(O) − z(Zn) = 0.382313 the held z(O), each z ±0.000394
+      against the hold's 0.000574/√2 = 0.000406, neither flat-direction
+      code. Three P 4 m m sites meet eq 21 to 1e-3 and eq 20 to 1e-6 on the
+      fit's own Jacobian; P 1 gets three rows and C c two. Part 2
+      `par-origin-centroid` and `par-origin-weights`, Part 1 `concepts.md`,
+      `help.py`, `numbers.md`, the 1.9.0 note. `replay` is evaluate-only
+      and quotes no esd, so it needs no rows. Untested: a rigid body's
+      origin as a site.*
 - [ ] Measure hold against centroid on the ZnO, Cc and P1 fixtures and the
       round-robin zincite (origin, esds, Rwp, free count), then propose the
       default with a read-time pin for documents older than the schema that

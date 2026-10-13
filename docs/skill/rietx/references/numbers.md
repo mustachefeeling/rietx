@@ -104,8 +104,11 @@ one atom DOF a shift along it moves, and the fit reports `ORIGIN_FIXED_ON_POLAR_
 no esd, and read the other atoms' z as relative to it. `unhold` on the held DOF
 sets the field back to `None`. `ORIGIN_NOT_FIXED` (warning) says every DOF the
 shift moves was tied or held, so the flat direction is still there. Nothing is held
-unless you ask. (Measured: synthetic zincite under `mccusker_structural`, O at
-0.38231(57) held, against ±0.00029 on each z unheld; WP-1912.)
+unless you ask. `"centroid"` instead restrains a data-weighted centroid
+(Flack & Schwarzenbach 1988): every z keeps an esd quotable alone, and the
+diagnostic lists each site's weight; a joint fit refuses it. (Measured:
+synthetic zincite under `mccusker_structural`, O at 0.38231(57) held, each z
+±0.00039 under the centroid, against ±0.00029 on each z unheld; WP-1912.)
 
 **A symmetry-lowering can win ΔBIC and gain nothing where it splits.** Two fits
 of one pattern, a model and its lowering (cubic, tetragonal): ΔBIC says it paid

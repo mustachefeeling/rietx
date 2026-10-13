@@ -118,10 +118,54 @@ DOF is the first one, in atom order, with a nonzero coefficient:
 
 The other atoms' coordinates along $\mathbf{f}$ are then measured relative to
 atom $j^\ast$. Their esds are the esds of those differences, and atom $j^\ast$
-has none. A restraint on the mean coordinate would instead give every atom an
-esd {cite}`flack1988`. Where a caller's tie or hold already leaves
+has none. Where a caller's tie or hold already leaves
 {eq}`par-origin-floats` without a solution, the table holds nothing more,
 because a second hold would remove a real degree of freedom.
+
+With `Phase.floating_origin = "centroid"` nothing is held. Each stage whose
+*free* columns solve {eq}`par-origin-floats` instead gains one
+pseudo-observation per floating direction, restraining a weighted centroid
+of the phase's sites to where the stage found it {cite}`flack1988` (eq 9):
+
+```{math}
+:label: par-origin-centroid
+
+Z_p = \sum_n a_n\,\boldsymbol{\Delta}_p^\top(\mathbf{x}_n - \mathbf{x}_n^0) = 0
+```
+
+{source}`rietx.model.origin.origin_residual`
+
+The $\boldsymbol{\Delta}_p$ are the rows of {eq}`par-origin`, orthonormal in
+fractional components, and $\mathbf{x}_n^0$ the coordinates at the start of
+the solve. The data are flat along the shift, so the solve satisfies
+{eq}`par-origin-centroid` exactly whatever the $a_n$. The weights change only
+the covariance. They solve the paper's eq 21,
+
+```{math}
+:label: par-origin-weights
+
+a_m \sum_{n \neq m} a_n = b_m,
+\qquad b_m = \frac{1}{P}\sum_p \bigl\lVert \sqrt{w} \odot
+\partial \mathbf{y} / \partial(\text{site } m \text{ moved by } \boldsymbol{\Delta}_p) \bigr\rVert^2
+```
+
+{source}`rietx.model.origin.centroid_coefficients`
+
+with $b_m$ the curvature of the data rows when site $m$ moves alone along the
+floating directions, measured once per stage by central difference
+(`rietx.model.origin.site_curvatures`), and the system solved by the
+paper's (A6) iteration. These weights make the restrained normal matrix as
+nearly diagonal as it can be along the floating directions (the paper's
+eq 20). Each coordinate then keeps an esd that can be quoted without its
+covariances, and on average the weights are proportional to $Z_n^2$. Two sites give
+$b_1 = b_2$ identically, so the equation fixes only the product and
+$a_1 = a_2 = \sqrt{b}$. The restrained matrix is then diagonal, and each
+site's esd is that of their difference over $\sqrt{2}$. A direction only one
+site can move along is held as `"hold"` holds it. Where (A5) has no solution,
+because one site's curvature exceeds the others' combined, that curvature is
+clipped just below the bound, close to a hold on that site, and the
+diagnostic says so. The rows form a block of their own, so a stage's
+restraint weight $c_w$ never scales them.
 
 The $U^{ij}$ tensor transforms as $U \to R\,U
 R^\top$ under a rotation acting on fractional coordinates, so the allowed

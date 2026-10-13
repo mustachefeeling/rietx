@@ -348,6 +348,17 @@ A tie or hold of your own that already fixes the origin gets no second hold.
 default, so nothing is held unless you ask. The directions themselves come from
 `rietx.crystallography.wyckoff.floating_origin_basis(space_group)`.
 
+`Phase.floating_origin = "centroid"` holds nothing. Instead each stage that
+can slide the phase restrains a weighted centroid of its sites to where the
+stage found it, as Flack & Schwarzenbach (1988) do. The weights come from the
+data, so every coordinate along the axis is refined and keeps an esd you can
+quote on its own. The same zincite fit gives z(O) − z(Zn) = 0.38231, the held
+fit's answer at the same Rwp, with each z quoted at ±0.00039: two sites share
+the difference's esd equally and uncorrelated. `ORIGIN_FIXED_ON_POLAR_AXIS`
+then names the sites with their weights. A joint fit refuses `"centroid"` by
+name and accepts `"hold"`. The restraint is the theory part's
+{eq}`par-origin-centroid`.
+
 The stage that wanted the parameter says so. `StageResult.blocked_by_hold`
 names what its glob matched and could not free, and the fit raises
 `HOLD_BLOCKED_PLAN` at `info` naming the paths and the stages. Nothing is
