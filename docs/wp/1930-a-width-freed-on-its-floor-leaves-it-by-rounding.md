@@ -359,6 +359,26 @@ printed digit on both.
   10. `statistics.py:156` and the test docstrings hard-coded "a cut of
       1e-15". **Fixed**: they say `PINV_RCOND`.
 
+  *Progress, 2026-10-13 afternoon* (a second session, `[dev]`, Linux
+  x86-64, Intel Xeon, 4 cores; paused for quota at 11:35 UTC, not a
+  handover). `origin/main` merged at bbd14164. Item 4's acceptance: done.
+  `tests/test_acceptance_indexing.py` gave 44 passed, 0 failed, in 24:29,
+  run alone. `unit_replay` captured 22 units and replayed them under main's
+  signed `pinv` and under `_psd_pinv`: every digest was identical and every
+  unit complete. Item 7: the three nudge PNGs read Rwp 0.1289, GoF 2.44 and
+  look right. **A new failure, fixed at 543062f.** On Linux, at both
+  `main` 7cf614e and the branch,
+  `test_the_correlation_diagnostic_separates_the_two` raised no
+  `HIGH_CORRELATION`, because at k = 0 both flat directions fall under the
+  cut and `COVARIANCE_DIRECTION_DISCARDED` names the six widths. It now
+  accepts either code, as the nudge test does. The LaB₆ file passes on Linux
+  at the branch. Item 3: a lane measured the band-eigenvalue spy, variant A
+  (cut n·eps) and variant B (in-band columns unmeasured) over the fast
+  selection and the slow acceptance files, minus indexing. It was stopped
+  before it reported, and its logs sit in this session's scratch `lane3/`
+  (`var_A.log`, `var_B.log`, `diff_A.txt`, `diff_B.txt`, `fast_spy.log`,
+  `acc_spy.log`), lost if the container goes. Item 8: still pending.
+
   Next command, after merging `origin/main`:
   `.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup`
   in the background, then item 3's measurement, then the fast selection
