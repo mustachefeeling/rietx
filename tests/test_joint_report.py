@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from rietx import MultiHistogramRefinement, Refinement, Stage, runs
-from rietx.history.events import read_events
+from rietx.history.events import as_event_stream, read_events
 from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from rietx.optimize.statistics import MAX_SHIFT_CONVERGED
 from rietx.params.multi import SharingMap
@@ -158,6 +158,33 @@ def test_a_monitoring_hook_that_raises_is_the_callers_to_see(two_patterns):
     ref = MultiHistogramRefinement(structure, instruments)
     with pytest.raises(RuntimeError, match="the caller's own bug"):
         ref.fit(two_patterns, plan="mccusker_default", events=hook)
+
+
+def test_a_raised_joint_fit_closes_the_stream_it_built(two_patterns, tmp_path,
+                                                       monkeypatch):
+    """A stream built from a path is the fit's to close, on every exit."""
+    import rietx.multi as multi_mod
+
+    built = []
+
+    def capture(events):
+        stream = as_event_stream(events)
+        built.append(stream)
+        return stream
+
+    def fail(*_args, **_kw):
+        raise RuntimeError("after the last stage")
+
+    monkeypatch.setattr(multi_mod, "as_event_stream", capture)
+    monkeypatch.setattr(MultiHistogramRefinement, "_build_result", fail)
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(structure, instruments)
+    with pytest.raises(RuntimeError, match="after the last stage"):
+        ref.fit(two_patterns, plan=RefinementPlan(stages=[
+            Stage("scale+bkg", ["phases.*.scale", "instrument.background.*"])]),
+            events=tmp_path / "joint.jsonl")
+    (stream,) = built
+    assert stream._fh is None
 
 
 def test_a_cancelled_joint_stage_is_abandoned(two_patterns):

@@ -909,8 +909,6 @@ class MultiHistogramRefinement:
                                 node_id=None, n_histograms=n,
                                 histograms=[{"histogram_index": h}
                                             for h in range(n)])
-                    if stream is not events:
-                        stream.close()
                 raise
             self._models = models
             self.result_ = self._build_result(models, outcome, weights,
@@ -925,8 +923,6 @@ class MultiHistogramRefinement:
                                          "rwp": hr.statistics.rwp,
                                          "gof": hr.statistics.gof}
                                         for h, hr in enumerate(self.result_.histograms)])
-                if stream is not events:  # we created it from a path/callable
-                    stream.close()
             if recorder is not None:
                 recorder.write_summary(self.result_)
             return self.result_
@@ -937,6 +933,10 @@ class MultiHistogramRefinement:
                 recorder.close("failed")
             raise
         finally:
+            # on every exit, a raised fit included, as
+            # ``Refinement._fit_lebail_alternation`` closes its own
+            if stream is not None and stream is not events:
+                stream.close()        # built here from a path or a callable
             if recorder is not None:
                 recorder.close()
 
