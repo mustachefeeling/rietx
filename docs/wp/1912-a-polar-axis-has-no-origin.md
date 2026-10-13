@@ -194,7 +194,7 @@ notes.
       codes, now describes the field, the quote rule for the held atom and
       the measured esds (+315 B, 23 766 B left). `api.md` regenerated for
       the two new fields, and the two committed copies re-synced.*
-- [ ] #929's open review items (handoff of 2026-10-13, below): item 5,
+- [x] #929's open review items (handoff of 2026-10-13, below): item 5,
       `magnetic/supercell.py` copies `floating_origin` to the child phase
       (and any other `Phase(...)` builder copying field by field); item 8,
       a joint fit raises the origin codes; the pending tests for items 2
@@ -203,6 +203,17 @@ notes.
       (`hold_floating_origin()` declines where nothing is holdable); and the
       "runs exactly along" wording in `using/concepts.md`, the 1.9.0 note and
       the skill paragraph.
+      *Done 2026-10-13: `magnetic_supercell` copies the field (no other
+      builder copies a phase field by field); a joint stage records
+      `blocked_by_hold` (`MultiParameterTable.blocked_by_hold`) and
+      `multi._joint_origin_findings` asks `_origin_diagnostics` of each
+      histogram's table, a shared coordinate told once, so the
+      `DIAGNOSTIC_SCOPES` row moves from ABSENT to SPECIMEN; four tests in
+      `test_floating_origin.py` and one in `test_magnetic_supercell.py`; the
+      candidate wording fixed in `concepts.md`, the 1.9.0 note, `numbers.md`
+      and `help.py`, and `ORIGIN_NOT_FIXED`'s suggestion now names what the
+      tied coordinates follow. A joint result's `blocked_by_hold` was always
+      empty and now is not.*
 - [ ] `floating_origin="centroid"`, the restraint of Flack &
       Schwarzenbach (1988), read 2026-10-13 from the copy the maintainer
       supplied. *Superseded in part, 2026-10-13: the "exact affine tie in C"

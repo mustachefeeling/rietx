@@ -6180,8 +6180,8 @@ def _degenerate_cell_diagnostics(rows: list[tuple[str, int]]) -> list[Diagnostic
 
 
 def _origin_diagnostics(table: ParameterTable,
-                        stage_results: list[StageResult] | None = None
-                        ) -> list[Diagnostic]:
+                        stage_results: list[StageResult] | None = None, *,
+                        canonical=None) -> list[Diagnostic]:
     """``ORIGIN_FIXED_ON_POLAR_AXIS`` and ``ORIGIN_NOT_FIXED``, read off the table.
 
     The table is the authority for what it holds and why
@@ -6200,7 +6200,11 @@ def _origin_diagnostics(table: ParameterTable,
     unfixed direction wherever such a stage ran.  Without stage results
     (:meth:`Refinement.hold_floating_origin`) every declaring phase that holds
     or cannot hold is reported, that being the question the verb asks.
+
+    ``canonical`` is a joint fit's (``multi._joint_origin_findings``): the
+    name a held row carries in the joint fit, for ``where`` and the message.
     """
+    name = canonical or (lambda p: p)
     phases = table.origin_phases
     if not phases:
         return []
@@ -6221,7 +6225,7 @@ def _origin_diagnostics(table: ParameterTable,
             report_lost = bool(moving)
         if held and report_held:
             axes = ", ".join(str(list(holds[p][1])) for p in held)
-            named = ", ".join(f"{p} ({rec.labels[p]})" for p in held)
+            named = ", ".join(f"{name(p)} ({rec.labels[p]})" for p in held)
             out.append(Diagnostic(
                 level="info", code="ORIGIN_FIXED_ON_POLAR_AXIS",
                 message=(f"phase {ip} ({rec.space_group}) has a floating "
@@ -6230,7 +6234,7 @@ def _origin_diagnostics(table: ParameterTable,
                          f"{'is' if len(held) == 1 else 'are'} held and the "
                          f"other coordinates along it are read relative to "
                          f"{'that atom' if len(held) == 1 else 'those'}"),
-                where=held,
+                where=[name(p) for p in held],
                 suggestion=("this is Phase.floating_origin working, and the "
                             "held coordinate has no esd because it was not "
                             "refined. unhold() it to let the whole structure "
@@ -6246,10 +6250,10 @@ def _origin_diagnostics(table: ParameterTable,
                          f"that a shift along it moves, so nothing was held "
                          f"there and the fit keeps a flat direction"),
                 where=[f"phases.{ip}"],
-                suggestion=("hold one atom's coordinate along that direction "
-                            "with hold(), or tie one to a constant; its "
-                            "coordinates along it are otherwise not "
-                            "measurements")))
+                suggestion=("hold() what the tied coordinates follow (a "
+                            "variable, say), or tie one of them to a "
+                            "constant; its coordinates along that direction "
+                            "are otherwise not measurements")))
     return out
 
 

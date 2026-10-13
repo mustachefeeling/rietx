@@ -293,6 +293,26 @@ class MultiParameterTable:
         self._rebuild_columns()
         return freed
 
+    def blocked_by_hold(self, path_globs: list[str]) -> list[str]:
+        """The held rows ``path_globs`` matched, scoped, sorted (WP-1435).
+
+        ``StageResult.blocked_by_hold`` for a joint stage: the rows
+        :meth:`set_vary` would have freed but for ``Entry.held``, under its
+        matching rule (bare or scoped name), a shared row named once.  A
+        joint fit has no hold verb, so every such row is a floating-origin
+        hold its tables derive from the structure (WP-1912).
+        """
+        blocked: dict[str, None] = {}
+        for h, table in enumerate(self.tables):
+            for e in table.entries:
+                if not e.held or e.tie is not None or e.locked:
+                    continue
+                canon = self._canonical(h, e.path)
+                if any(fnmatch.fnmatchcase(canon, g)
+                       or fnmatch.fnmatchcase(e.path, g) for g in path_globs):
+                    blocked[canon] = None
+        return sorted(blocked)
+
     def _names(self, h: int) -> set[str]:
         """Every name a glob can match in histogram ``h``: bare and scoped."""
         names: set[str] = set()

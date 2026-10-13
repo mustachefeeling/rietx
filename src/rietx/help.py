@@ -851,8 +851,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "rather than approximately. A site with no allowed direction "
             "produces no `dof` entry and its coordinates are locked. Free them "
             "with the `phases.*.atoms.*.dof.*` glob. In a polar space group, "
-            "`Phase.floating_origin = \"hold\"` holds the first atom's DOF along "
-            "each direction the origin floats in, and the row says so."
+            "`Phase.floating_origin = \"hold\"` holds, per direction the origin "
+            "floats in, the first atom DOF a shift along it moves, and the row "
+            "says so."
         ),
         unit=None, default=None,
         typical="0 to 1, in the same units as the coordinate it drives",

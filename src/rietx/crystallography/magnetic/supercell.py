@@ -1447,6 +1447,9 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             propagation_vector_parent=(None if k is None
                                        else tuple(str(c) for c in k))),
         scale=Parameter(value=parent.scale.value),
+        # the declaration, not a hold: the child's table derives which DOF
+        # fixes the child group's origin (WP-1912)
+        floating_origin=parent.floating_origin,
     )
     # the builder's own statement is judged here, once; a refined copy of it
     # is not (``check_group_is_structure_symmetry``)

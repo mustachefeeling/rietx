@@ -376,14 +376,19 @@ def _zincite_instrument():
 
 
 @pytest.fixture(scope="module")
-def zincite_fits():
+def zincite_data():
     grid = np.arange(20.0, 140.0, 0.02)
     truth = rx.Refinement(rx.Structure(phases=[_zincite(Z_O)]),
                           _zincite_instrument(), history=False)
     y = np.asarray(truth.predict(grid)) + 50.0
     y = np.maximum(y + np.random.default_rng(3).normal(
         scale=np.sqrt(np.maximum(y, 1.0))), 0)
-    data = rx.PatternData(two_theta=grid.tolist(), intensity=y.tolist())
+    return rx.PatternData(two_theta=grid.tolist(), intensity=y.tolist())
+
+
+@pytest.fixture(scope="module")
+def zincite_fits(zincite_data):
+    data = zincite_data
     fits = {}
     for solver, origin in (("lm", None), ("lm", "hold"), ("trf", "hold")):
         ins = _zincite_instrument()
@@ -467,6 +472,94 @@ def test_zincite_fit_pictures(zincite_fits):
     held = zincite_fits["lm", "hold"][1].statistics.rwp
     free = zincite_fits["lm", None][1].statistics.rwp
     assert held == pytest.approx(free, rel=1e-6)
+
+
+def _zincite_refinement(data, origin="hold"):
+    ins = _zincite_instrument()
+    ins.background = rx.auto_background(data)
+    return rx.Refinement(rx.Structure(phases=[_zincite(Z_O, origin)]), ins,
+                         history=False)
+
+
+def _tied_to_one_variable(ref):
+    """Both z DOFs follow ``vars.u``: the variable *is* the origin."""
+    ref.add_variable("u", 0.0)
+    ref.tie("phases.0.atoms.0.dof.0", "vars.u")
+    ref.tie("phases.0.atoms.1.dof.0", "vars.u")
+    return ref
+
+
+def test_a_freed_variable_driving_every_candidate_is_reported(zincite_data):
+    """Review of #929, item 2: no DOF of the phase is freed by name, but the
+    variable both follow walks the flat direction, so the fit says so."""
+    ref = _tied_to_one_variable(_zincite_refinement(zincite_data))
+    assert ref._working_table().origin_unfixed == {0: [(0, 0, 1)]}
+    plan = rx.RefinementPlan(stages=[rx.Stage(
+        "u", ["phases.*.scale", "instrument.background.c*", "vars.*"])])
+    result = ref.fit(zincite_data, plan=plan, telemetry=False)
+    assert "vars.u" in result.stages[0].freed
+    assert not any(".dof." in p for p in result.stages[0].freed)
+    lost = [d for d in result.diagnostics if d.code == "ORIGIN_NOT_FIXED"]
+    assert len(lost) == 1 and lost[0].level == "warning"
+    assert lost[0].where == ["phases.0"]
+    assert "ORIGIN_FIXED_ON_POLAR_AXIS" not in {d.code for d in result.diagnostics}
+
+
+def test_a_le_bail_fit_reports_no_origin_hold(zincite_data):
+    """Review of #929, item 9: the glob matched the held DOF, but Le Bail
+    force-fixes every coordinate, so no stage moved one and nothing is said."""
+    ref = _zincite_refinement(zincite_data)
+    plan = rx.RefinementPlan(stages=[rx.Stage(
+        "lebail", ["instrument.background.c*", "phases.*.cell.*",
+                   "phases.*.atoms.*.dof.*"])])
+    result = ref.fit(zincite_data, mode="lebail", plan=plan, telemetry=False)
+    # the case the name-gated arm fired on: the hold blocked a matching glob
+    assert result.stages[0].blocked_by_hold == ["phases.0.atoms.0.dof.0"]
+    assert not any(".atoms." in p for p in result.stages[0].freed)
+    assert not {d.code for d in result.diagnostics} & {
+        "ORIGIN_FIXED_ON_POLAR_AXIS", "ORIGIN_NOT_FIXED", "HOLD_BLOCKED_PLAN"}
+
+
+def test_hold_floating_origin_declines_where_nothing_is_holdable(zincite_data):
+    """Review of #929, item 11: every candidate tied to one variable, so the
+    table would hold nothing.  The phase stays undeclared (nothing for unhold
+    to name later) and the verb says the direction is still flat."""
+    ref = _tied_to_one_variable(_zincite_refinement(zincite_data, origin=None))
+    diagnostics = ref.hold_floating_origin()
+    assert [(d.code, d.where) for d in diagnostics] == [
+        ("ORIGIN_NOT_FIXED", ["phases.0"])]
+    assert ref.structure.phases[0].floating_origin is None
+    assert not ref._working_table().origin_phases
+    # and where the caller's own hold fixes it already: nothing, undeclared
+    held = _zincite_refinement(zincite_data, origin=None)
+    held.hold("phases.0.atoms.1.dof.0")
+    assert held.hold_floating_origin() == []
+    assert held.structure.phases[0].floating_origin is None
+
+
+def test_a_joint_fit_says_once_which_atom_holds_the_origin(zincite_data):
+    """Review of #929, item 8: two histograms, one structure, one hold, one
+    ``ORIGIN_FIXED_ON_POLAR_AXIS`` at top level and none per histogram."""
+    instruments = []
+    for _ in range(2):
+        ins = _zincite_instrument()
+        ins.background = rx.auto_background(zincite_data)
+        instruments.append(ins)
+    result = rx.refine_multi(
+        [zincite_data, zincite_data],
+        rx.Structure(phases=[_zincite(Z_O + 0.02, "hold")]), instruments,
+        plan=PLAN)
+    origin = [d for d in result.diagnostics
+              if d.code == "ORIGIN_FIXED_ON_POLAR_AXIS"]
+    assert len(origin) == 1 and origin[0].where == ["phases.0.atoms.0.dof.0"]
+    assert "(Zn)" in origin[0].message
+    assert [sr.blocked_by_hold for sr in result.stages] == [
+        [], ["phases.0.atoms.0.dof.0"]]
+    codes = {d.code for d in result.diagnostics}
+    assert not codes & {"HOLD_BLOCKED_PLAN", "ORIGIN_NOT_FIXED"}
+    for h in result.histograms:
+        assert not {d.code for d in h.diagnostics} & {
+            "ORIGIN_FIXED_ON_POLAR_AXIS", "ORIGIN_NOT_FIXED"}
 
 
 # ------------------------------------------ a non-polar group: nothing fires
