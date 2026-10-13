@@ -365,16 +365,29 @@ because it was not downloaded. Bunge's tables are published numbers.
 
 ## References
 
-- Von Dreele, R. B. (1997). *J. Appl. Cryst.* 30, 517-525. Not in the local
-  corpus; citation from memory, check it.
-- Bunge, H.-J. (1982). *Texture Analysis in Materials Science*. Butterworths
-  (GSAS-II cites the 1993 Cuvillier reprint). Not held.
-- Järvinen, M. (1993). *J. Appl. Cryst.* 26, 525-531, symmetrised harmonics
-  as a Rietveld correction. Not held; citation from memory.
-- Popa, N. C. (1992). *J. Appl. Cryst.* 25, 611-616. Not held; citation from
-  memory.
-- Whitfield, P. S. (2009). *J. Appl. Cryst.* 42, 134-136, on order choice
-  and its cost. Not held; citation from memory.
+The five journal entries were checked against Crossref on 2026-10-14. None
+is in the local corpus yet.
+
+- Von Dreele, R. B. (1997). Quantitative texture analysis by Rietveld
+  refinement. *J. Appl. Cryst.* 30(4), 517-525.
+  doi:10.1107/S0021889897005918.
+- Bunge, H.-J. (1982). *Texture Analysis in Materials Science: Mathematical
+  Methods*. London: Butterworths. ISBN 0-408-10642-5. The symmetric
+  harmonics are §14.5-14.7 (cubic in §14.7.2 and §14.7.7), the cubic tables
+  §15.4-15.5. GSAS-II's `BOH` cites "Table 15.2.1 … Cuvillier Verlag,
+  Gottingen, 1993, p 501", the reprint, whose numbering may differ.
+- Järvinen, M. (1993). Application of symmetrized harmonics expansion to
+  correction of the preferred orientation effect. *J. Appl. Cryst.* 26(4),
+  525-531. doi:10.1107/S0021889893001219.
+- Whitfield, P. S. (2009). Spherical harmonics preferential orientation
+  corrections and structure solution from powder diffraction data – a
+  possible avenue of last resort. *J. Appl. Cryst.* 42(1), 134-136.
+  doi:10.1107/S0021889808041149.
+- Popa, N. C. (1992). Texture in Rietveld refinement. *J. Appl. Cryst.*
+  25(5), 611-616. doi:10.1107/S0021889892004795.
+- Ahtee, M., Nurmela, M., Suortti, P. & Järvinen, M. (1989). Correction for
+  preferred orientation in Rietveld refinement. *J. Appl. Cryst.* 22(3),
+  261-268. doi:10.1107/S0021889889000725.
 - Dollase, W. A. (1986). *J. Appl. Cryst.* 19, 267; March, A. (1932).
   *Z. Kristallogr.* 81, 285. The single-axis model kept beside it.
 - Toby, B. H. & Von Dreele, R. B. (2013). *J. Appl. Cryst.* 46, 544-549
@@ -383,7 +396,9 @@ because it was not downloaded. Bunge's tables are published numbers.
   and `GenSHCoeffT` (2792-2857), `CrsAng` (2859), `SamAng` (2929), `BOH`,
   `Lnorm`, `GetKcl`, `GetKsl` (2995-3106), `textureIndex` (3467).
 - Coelho, A. A., TOPAS 5 Technical Reference, `PO_Spherical_Harmonics` and
-  `spherical_harmonics_hkl`.
+  `spherical_harmonics_hkl`. Edition not checked: the local copy is
+  `TOPAS-5 Technical_Reference.pdf` on the maintainer's OneDrive, dated
+  2013-01-31 on disk.
 
 ## Handover log
 
