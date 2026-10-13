@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..model import compiled
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import PeakList
 from .engines import (
@@ -326,7 +327,8 @@ def _centred_replay(m_full: np.ndarray, rows: np.ndarray, member: np.ndarray,
                     lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
                     q_hi: float, det_band: tuple[float, float],
                     swaps: list[tuple[int, int]], lo_search: np.ndarray,
-                    hi_search: np.ndarray, n_unindexed: int) -> bool:
+                    hi_search: np.ndarray, n_unindexed: int,
+                    box_test=None) -> bool:
     """Would one centring's own search have reached this leaf?
 
     ``_test_box`` over that centring's whole search set (``m_full[member]``)
@@ -347,15 +349,22 @@ def _centred_replay(m_full: np.ndarray, rows: np.ndarray, member: np.ndarray,
 
     ``tests/test_indexing_kernels.py`` holds this equal to the whole-set test
     at every leaf of the synthetic searches.
+
+    ``box_test(ids, lo, hi)`` is the compiled test over ``m_full[ids]`` when
+    the search runs it (WP-1959); ``None`` runs :func:`_test_box`.
     """
+    def survives(ids: np.ndarray) -> bool:
+        if box_test is not None:
+            return box_test(ids, lo, hi) is not None
+        return _test_box(m_full[ids], lo, hi, basis, q_hi, det_band, swaps,
+                         lo_search, hi_search, n_unindexed) is not None
+
     sub = rows[member[rows]]
     if len(sub):
-        return _test_box(m_full[sub], lo, hi, basis, q_hi, det_band, swaps,
-                         lo_search, hi_search, n_unindexed) is not None
+        return survives(sub)
     if len(lo_search) > n_unindexed:
         return False
-    return _test_box(m_full[member], lo, hi, basis, q_hi, det_band, swaps,
-                     lo_search, hi_search, n_unindexed) is not None
+    return survives(np.flatnonzero(member))
 
 
 def _assignment_possible(hit: np.ndarray, n_reachable: int, counts: np.ndarray,
@@ -431,6 +440,30 @@ def _push_children(stack: list, children: list, m: np.ndarray, ids: np.ndarray,
         if int(np.count_nonzero(hit.any(axis=0))) < len(hi_search) - n_unindexed:
             continue
         scored.append((misses, int(hit.sum()), child_lo, child_hi))
+    _push_scored(stack, scored, m, ids, depth)
+
+
+def _push_children_compiled(stack: list, children: list, ids: np.ndarray,
+                            child_key, n_lines: int, n_unindexed: int,
+                            depth: int) -> None:
+    """:func:`_push_children` with each child scored by the compiled
+    ``child_key(ids, lo, hi) -> (misses, pairs, rows reaching a line)``.
+
+    The stack then holds no rows, only ids, since the compiled test reads
+    ``m_full`` through them.
+    """
+    scored = []
+    for child_lo, child_hi in children:
+        misses, pairs, n_rows_hit = child_key(ids, child_lo, child_hi)
+        if misses > n_unindexed or n_rows_hit < n_lines - n_unindexed:
+            continue
+        scored.append((misses, pairs, child_lo, child_hi))
+    _push_scored(stack, scored, None, ids, depth)
+
+
+def _push_scored(stack: list, scored: list, m: np.ndarray | None,
+                 ids: np.ndarray, depth: int) -> None:
+    """Push scored children **best last**, the left child first on a tie."""
     scored.sort(key=lambda entry: (entry[0], entry[1]), reverse=True)
     for _misses, _pairs, child_lo, child_hi in scored:
         stack.append((child_lo, child_hi, m, ids, depth))
@@ -965,9 +998,10 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
                if len(q_search) > 1 else 0.0)
     tol_accept = max(float(np.min(tol_search)), ACCEPT_SPACING_FRAC * spacing)
 
-    # the stack holds the box's *surviving trial rows* beside their ids, not the
-    # ids alone: a child that filters nothing then reuses its parent's array
-    # instead of paying a fancy-index copy, and the copy was 30 % of the loop
+    # on the numpy loop the stack holds the box's *surviving trial rows* beside
+    # their ids, not the ids alone: a child that filters nothing then reuses its
+    # parent's array instead of paying a fancy-index copy, and the copy was 30 %
+    # of the loop
     lo_search = q_search - tol_search
     hi_search = q_search + tol_search
     swaps = [(_pivot_of(basis, i), _pivot_of(basis, j))
@@ -975,6 +1009,28 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     swaps = [(a, b) for a, b in swaps if a is not None and b is not None]
     found: list[EngineCandidate] = []
     seen: set[tuple[int, ...]] = set()
+
+    # **The compiled box test, when the wheel has it** (WP-1959).  It reads
+    # ``m_full`` through a box's ids, so no box gathers rows, and it returns
+    # what ``_test_box`` returns on the same bits.  ``None`` runs the numpy
+    # loop, which is its oracle (``tests/test_indexing_kernels.py``).
+    kernels = compiled.dichotomy_kernels()
+    box_test = child_key = None
+    if kernels is not None:
+        box_test_k, child_key_k = kernels
+        basis_t = np.ascontiguousarray(basis.T)
+        swaps_k = np.asarray(swaps, dtype=np.int64).reshape(-1)
+        band_lo, band_hi = det_band
+        cos_max = float(MAX_ANGLE_COSINE)
+
+        def box_test(ids, lo, hi, col_max=False):
+            return box_test_k(m_full, ids, lo, hi, basis_t, q_hi, band_lo,
+                              band_hi, swaps_k, lo_search, hi_search,
+                              spec.n_unindexed, cos_max, col_max)
+
+        def child_key(ids, lo, hi):
+            return child_key_k(m_full, ids, lo, hi, basis_t, lo_search,
+                               hi_search)
 
     def leaf(lo: np.ndarray, hi: np.ndarray, width: float,
              rows: np.ndarray) -> None:
@@ -1004,7 +1060,8 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
             # centred search would have reached here".
             if not _centred_replay(m_full, rows, in_search[centring], lo, hi,
                                    basis, q_hi, det_band, swaps, lo_search,
-                                   hi_search, spec.n_unindexed):
+                                   hi_search, spec.n_unindexed,
+                                   box_test=box_test):
                 continue
             cand = _accept(basis, system, centring, spec, theta,
                            hkl_c, dm_c, indices[centring], q_all, sigma,
@@ -1020,6 +1077,9 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     gathered: list = [None, None]
 
     def grid_test(ids: np.ndarray, lo: np.ndarray, hi: np.ndarray):
+        if box_test is not None:
+            kept = box_test(ids, lo, hi)
+            return None if kept is None else kept[0]
         if gathered[0] is not ids:
             gathered[0], gathered[1] = ids, m_full[ids]
         kept = _test_box(gathered[1], lo, hi, basis, q_hi, det_band, swaps,
@@ -1068,15 +1128,21 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         if budget.expired():
             return found, (n_boxes, n_rows), False
         lo, hi, m, ids, depth = stack.pop()
-        if m is None:
-            m = m_full[ids]
         n_boxes += 1
-        n_rows += len(m)
-        kept = _test_box(m, lo, hi, basis, q_hi, det_band, swaps, lo_search,
-                         hi_search, spec.n_unindexed, ids=ids)
-        if kept is None:
-            continue
-        m, width, unique, ids = kept
+        n_rows += len(ids)
+        if box_test is not None:
+            kept = box_test(ids, lo, hi, True)
+            if kept is None:
+                continue
+            ids, width, unique, col_max = kept
+        else:
+            if m is None:
+                m = m_full[ids]
+            kept = _test_box(m, lo, hi, basis, q_hi, det_band, swaps,
+                             lo_search, hi_search, spec.n_unindexed, ids=ids)
+            if kept is None:
+                continue
+            m, width, unique, ids = kept
 
         if unique or width <= tol_accept or depth >= MAX_DEPTH:
             leaf(lo, hi, width, ids)
@@ -1086,16 +1152,23 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         # the largest coefficient any surviving reflection gives it, dominates the
         # box's Q extent.  Splitting the widest *parameter* instead would spend
         # levels on a direction the data cannot see.
-        if not len(m):
+        if not len(ids):
             continue
-        span = (hi - lo) * np.max(np.abs(m), axis=0)
+        if box_test is None:
+            col_max = np.max(np.abs(m), axis=0)
+        span = (hi - lo) * col_max
         j = int(np.argmax(span))
         mid = 0.5 * (lo[j] + hi[j])
         left_hi, right_lo = hi.copy(), lo.copy()
         left_hi[j] = mid
         right_lo[j] = mid
-        _push_children(stack, [(lo, left_hi), (right_lo, hi)], m, ids,
-                       lo_search, hi_search, spec.n_unindexed, depth + 1)
+        children = [(lo, left_hi), (right_lo, hi)]
+        if child_key is not None:
+            _push_children_compiled(stack, children, ids, child_key,
+                                    len(hi_search), spec.n_unindexed, depth + 1)
+        else:
+            _push_children(stack, children, m, ids, lo_search, hi_search,
+                           spec.n_unindexed, depth + 1)
     return found, (n_boxes, n_rows), complete and complete_union
 
 

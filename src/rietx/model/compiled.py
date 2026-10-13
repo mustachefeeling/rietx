@@ -15,6 +15,14 @@ off with the model's five, so a process takes one path for both, and
 :func:`_pool`.  They call no library function, so their bar against the numpy
 oracle is the bit on every platform (``tests/test_raster_kernels.py``).
 
+From 1.3.0 it carries the dichotomy indexer's box test as well
+(``dichotomy_box_test`` and ``dichotomy_child_key``, WP-1959).  Its oracle is
+``indexing/dichotomy.py``'s numpy loop, on the bit, box by box and leaf by leaf
+(``tests/test_indexing_kernels.py``).  It is one call per box and never
+splits, since a box is tens of microseconds of work.  Until the pin's floor
+reaches 1.3 a wheel without it still loads, and :func:`dichotomy_kernels`
+declines for the indexer alone.
+
 Why a compiled tier at all
 --------------------------
 WP-1112 and WP-1120 removed the two costs a numpy-level loop is usually blamed
@@ -144,6 +152,12 @@ KERNEL_FLOOR = "1.1"
 KERNEL_NAMES = ("accum", "omega_sym", "omega_fcj", "bases_sym", "bases_fcj",
                 "render_rows", "id_plane")
 
+#: The dichotomy indexer's box test and child key, from 1.3.0 (WP-1959).  They
+#: are looked up beside :data:`KERNEL_NAMES` until the pin's floor reaches the
+#: release that added them: a wheel without them still serves the model and the
+#: figure, and indexing runs its numpy loop (:func:`dichotomy_kernels`).
+DICHOTOMY_NAMES = ("dichotomy_box_test", "dichotomy_child_key")
+
 #: Ω spelled as :func:`~rietx.model.profiles.pseudovoigt.pseudo_voigt` — the
 #: forward model's own arithmetic.
 SPELL_FORWARD = 0
@@ -180,6 +194,7 @@ _KERNELS: dict | None = None
 _UNAVAILABLE: str | None = None
 _ENABLED: bool | None = None
 _WARNED = False
+_DICHOTOMY_WARNED = False
 _POOL: ThreadPoolExecutor | None = None
 #: worker count the pool was actually built with — read once, from the
 #: environment, and the number ``_spread`` splits by thereafter
@@ -228,7 +243,8 @@ def _load() -> tuple[dict | None, str | None]:
     if missing:
         return None, (f"rietx_kernels {version} lacks the kernel"
                       f"{'s' if len(missing) > 1 else ''} {', '.join(missing)}")
-    return {n: getattr(wheel, n) for n in KERNEL_NAMES}, None
+    return {n: getattr(wheel, n) for n in KERNEL_NAMES + DICHOTOMY_NAMES
+            if callable(getattr(wheel, n, None))}, None
 
 
 def _kernels() -> dict | None:
@@ -322,6 +338,36 @@ def set_enabled(flag: bool | None) -> bool | None:
     global _ENABLED
     was, _ENABLED = _ENABLED, flag
     return was
+
+
+def dichotomy_kernels() -> tuple | None:
+    """The dichotomy's ``(box_test, child_key)`` when the compiled path is on.
+
+    ``None`` sends the caller to its numpy loop: the tier is off, the wheel did
+    not load, or it predates the two kernels.  The last warns once a process,
+    because the switch was on and the caller expected them.  The answer is
+    fixed for the process, like :func:`enabled`'s.
+    """
+    global _DICHOTOMY_WARNED
+    if not enabled():
+        return None
+    kernels = _kernels()
+    if kernels is None:          # forced on where the wheel did not load
+        return None
+    if all(n in kernels for n in DICHOTOMY_NAMES):
+        return tuple(kernels[n] for n in DICHOTOMY_NAMES)
+    with _LOCK:
+        warn, _DICHOTOMY_WARNED = not _DICHOTOMY_WARNED, True
+    if warn:
+        import rietx_kernels as wheel
+
+        warnings.warn(
+            f"rietx_kernels {getattr(wheel, '__version__', '')} lacks the"
+            f" dichotomy kernels, so the indexer's dichotomy runs its numpy loop,"
+            f' which is slower. Install them with pip install'
+            f' "rietx-kernels>=1.3,<{KERNEL_ABI + 1}".', RuntimeWarning,
+            stacklevel=2)
+    return None
 
 
 def _pool() -> ThreadPoolExecutor:

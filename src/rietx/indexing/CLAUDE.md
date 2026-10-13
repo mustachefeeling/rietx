@@ -222,11 +222,18 @@ roughly the shift (+1400 ppm).
   fired `INDEX_DOMINANT_ZONE` for two years on a fixture the base table could solve
   (WP-1041); the peak list blocked the certified pattern twice the same way (fitted
   satellites, then `_box_key` skipping unrefined leaves).
-- **The dichotomy traversal runs on numpy alone, and that loop is the oracle for any
-  compiled port** (WP-1940). Its numba twin left with numba. The numpy loop costs
-  1.03-1.09× on real patterns, and 10 s → ~200 s only on a synthetic box-bound
-  monoclinic list. A port goes into the `rietx-kernels` crate (`kernels/`), held to
-  the numpy loop on the bit and *leaf by leaf*, since box counts cannot see the order.
+- **The dichotomy's box test runs compiled, and the numpy loop is its oracle**
+  (WP-1959; `kernels/src/dichotomy.rs`, `rietx-kernels` ≥ 1.3). It is held to
+  `_test_box` on the bit and *leaf by leaf* (`tests/test_indexing_kernels.py`),
+  since box counts cannot see the order. So **a prune added to `_test_box` is
+  transcribed into the kernel in the same change**, and a refusal costs nothing
+  but order: run the row-free prunes before any row is read.
+- **A box wholly outside the declared domain is refused, and a clip is not a
+  refusal** (WP-1959). `_rho_interval` clipped ρ to ±cos 30° and turned an
+  out-of-domain interval into an inverted one, and the expanded determinant's
+  bound carries B twice, so neither refused; one #780 cell at |ρ₁₃| ≈ 1.003 cost
+  5.1 M boxes without a leaf. An interval bound that repeats a variable is
+  loose exactly where the metric degenerates.
 - **An exact restriction keeps a superset of the rows in the set's own order, and
   rounds them as the whole computation did** (WP-1509). Equivalent reflections tie
   in Q and position breaks the tie, so a restriction is a mask, never a sort

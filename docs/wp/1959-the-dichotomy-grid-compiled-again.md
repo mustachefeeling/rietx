@@ -49,7 +49,11 @@ Near a singular metric Q is dense, so every line keeps matching and the subtree 
 
 **A prune on the unclipped ρ interval finds #780's lattice.** The experiment refuses a box when the ρ interval of any off-diagonal lies wholly outside ±cos 30°. It is monotone under bisection, like every other prune. On synthmono it refused 21 689 boxes, kept the digest `30473892` and took 38.6 s against 69.4 s. On #780 under a 600 s ceiling dichotomy returned 60 candidates, led by the true lattice in a non-reduced setting (4.541, 4.884, 11.742 Å, β = 120.73°, 61 of 61 lines). It did not finish the unit: 3.8 M boxes at 567 rows on average. In a second run its first accepted leaf came 132 s after the search started, and its first 61-line leaf at 144 s (the same lattice, c + a = 10.554 Å).
 
+**On the kernel path #780's lattice comes at 6.5-7.5 s.** The grid takes 3.6-4.5 s of CPU, against 57 s at the start of the session. That is 13-16×, and the range is load: the acceptance file was running beside the second measurement. Phase 2 then costs 94-110 µs a box, and `_accept` is 82 % of it (46.3 s of 56.4 s over 26 419 leaves). The two kernels are 10 % and the Python loop about 9 %. So a whole-traversal kernel would save at most that 9 %, and the leaves are WP-1520's.
+
 **The kernel matches numpy.** `kernels/src/dichotomy.rs` (`dichotomy_box_test`, `dichotomy_child_key`) agreed with numpy on 788 450 boxes of #780 (the grid and ~627 000 of phase 2) and on 1.17 M child keys. Its line test is a `u64` mask per row from two rank lookups, so the dense hit matrix never forms. Inside the calls it took 4.3 s against numpy's 40.5 s, Python call overhead included.
+
+**The decision (maintainer, 2026-10-14).** The obliquity prune lands in this WP, before the kernel. It changes which boxes phase 2 visits, so it is held to the digests it cannot move, `tests/test_acceptance_indexing.py` and the bethanechol benchmark. The kernel then transcribes the pruned loop, and the bit-identity bar applies to that step.
 
 ## Non-goals
 
@@ -59,16 +63,18 @@ Near a singular metric Q is dense, so every line keeps matching and the subtree 
 
 ## Tasks
 
-- [ ] Profile one grid on #780's case: the share of `_test_box` against the loop around it. Decide between a box-test kernel and a whole-traversal kernel, and write the measurement here.
-- [ ] The kernel in `kernels/src/`, with its `compiled.py` entry point and the numpy fallback. Bit-identical to `_test_box` box by box on #780's case and the seven WP-1924 replay digests.
-- [ ] Wire it into the grid and phase 2. Leaf-by-leaf agreement with the numpy loop under `RIETX_COMPILED=0` in a test.
+- [x] Run the row-free prunes before the Q bounds (`a7ba2bbb`): the grid 4.4× cheaper, every box's answer unchanged, the seven digests replayed.
+- [ ] The obliquity prune in `_test_box`: refuse a box whose unclipped ρ interval lies wholly outside ±cos 30° for some off-diagonal. A test on #780's out-of-domain box. The seven digests (only synthmono has an off-diagonal free), `tests/test_acceptance_indexing.py`, and the bethanechol benchmark alone in default mode against −6.
+- [x] Profile one grid on #780's case: the share of `_test_box` against the loop around it. Decide between a box-test kernel and a whole-traversal kernel, and write the measurement here. The box test alone (§ Findings): `_test_box` was 99.2 % of the grid, and once the kernel runs, phase 2 is 82 % leaves.
+- [x] The kernel in `kernels/src/`, with its `compiled.py` entry point and the numpy fallback. Bit-identical to `_test_box` box by box on #780's case and the seven WP-1924 replay digests. `kernels/src/dichotomy.rs`; `compiled.dichotomy_kernels` declines for the indexer alone on a wheel without it.
+- [x] Wire it into the grid and phase 2. Leaf-by-leaf agreement with the numpy loop under `RIETX_COMPILED=0` in a test. `tests/test_indexing_kernels.py`, which `kernels.yml` runs against the wheel a pull request builds.
 - [ ] `rietx-kernels` 1.3.0 and rietx's floor raised (`docs/RELEASING.md`'s kernel route).
 - [ ] Measure: #780's grid CPU before and after, and the largest whole-run ceiling under which #780's case still returns no candidate. Then `tests/test_acceptance_indexing.py`, and the bethanechol benchmark run alone in default mode against −6.
 - [ ] Skill: `references/abstention.md`'s `INDEX_BUDGET_EXHAUSTED` row if the advice on a ceiling for large volumes moves, else "none" and why.
 
 ## Acceptance
 
-Every finished search bit-identical, with the numpy loop as the oracle. #780's grid at least an order of magnitude cheaper in CPU. The starving ceiling stated.
+The obliquity prune no worse on the acceptance file and the benchmark. Every finished search bit-identical to the pruned numpy loop, which is the kernel's oracle. #780's grid at least an order of magnitude cheaper in CPU. The starving ceiling stated.
 
 ```sh
 .venv/bin/python -m pytest tests/test_compiled_kernels.py tests/test_indexing_engines.py -n auto --dist loadgroup

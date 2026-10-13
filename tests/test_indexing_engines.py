@@ -791,10 +791,13 @@ def test_dichotomy_holds_its_frontier_as_indices_until_a_cell_is_popped(
     tracing the grid tripled the test's time and the bound reads only what
     phase 2 allocates.  It is not marked slow: it costs about 5 s, and the
     only other check on this allocation is ``tests/repro_780.py``, run by hand.
+    It runs the numpy loop, because the compiled box test (WP-1959) reads rows
+    through the ids and gathers none.
     """
     import tracemalloc
 
     from rietx.indexing import dichotomy
+    from rietx.model import compiled
     from tests.repro_780 import peaks as peaks_780
 
     class _FirstPop(Exception):
@@ -824,11 +827,13 @@ def test_dichotomy_holds_its_frontier_as_indices_until_a_cell_is_popped(
     spec = SearchSpec(systems=("monoclinic",), min_d_axis=4.0, max_d_axis=11.0,
                       max_volume=300.0, shift_allowance_deg=1e-9,
                       budget_seconds=600.0)
+    was = compiled.set_enabled(False)
     try:
         with pytest.raises(_FirstPop):
             search_dichotomy(peaks_780(), spec=spec)
     finally:
         tracemalloc.stop()
+        compiled.set_enabled(was)
     assert seen["indices"] > 100_000, "the domain no longer builds a frontier"
     assert seen["list_bytes"] <= 4 * seen["indices"]
     gather_all = 8 * seen["n_dof"] * seen["indices"]
