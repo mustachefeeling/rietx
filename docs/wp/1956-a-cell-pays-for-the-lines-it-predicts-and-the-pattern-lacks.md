@@ -54,11 +54,45 @@ the peak list's measured width), and the bound a repaired detector meets there:
 `predicted_but_absent` count in the tree and "should be scheduled deliberately,
 not folded into a passing WP" (1043's tasks and its last handover).
 
-**The question the issue asks** (from #916, open): should a cell pay at the
-grade, and with which inputs: one background shared by all candidates, the
-measured width, line-set containment rather than lattice containment for
-`supercell_chance`? The reporter is working the options through and will post a
-measured proposal on the issue. Read it before designing.
+**The question the issue asks** (from #916): should a cell pay at the grade,
+and with which inputs: one background shared by all candidates, the measured
+width, line-set containment rather than lattice containment for
+`supercell_chance`?
+
+**The reporter's measured proposal** (#916, 2026-10-13 06:56Z; a spike outside
+the tree, on the issue's own seeds, not re-run here). Three findings and a
+fourth from the public lab patterns in `tests/data/qarr`:
+1. *The inputs were the whole of the sign problem.* Fed the picker's background
+   envelope and the peak list's widths and shapes (no Le Bail),
+   `absent_reflections` reads 24/40 on cI √2·a₀, 21/36 on cP a₀, 107/140 on
+   cP 2a₀ and 9/35 on the hR cell, against 3/15 on the truth (its d-glide);
+   the candidates' own fits read 0, 0, 0, 0 and 3. A resolved split reads only
+   7/77, its partners sitting in real lines' tails.
+2. *The reversed questions are asked in the search window* (3 × σ_eff with the
+   allowance folded in, ±0.15° on a 0.023° FWHM). At one FWHM (floored by 3σ)
+   after the candidate's common shift is estimated from its forward matches, the
+   hR cell's seen fraction falls 0.77 → 0.34 (truth 0.73) and the resolved
+   split's 0.99 → 0.56; the unresolved split stays at 1.00 like the truth. An
+   allowance bounds a common offset and should widen the forward match only.
+3. *WP-1449's chance test reaches every one of these cells* once the parent
+   relation is "every observed line the parent indexes, the child indexes"
+   rather than a volume ratio of 2-4, keeping its uncancellable-extras guard and
+   null: all refuted (0 of 12, 8, 85, 2, 7, 14, 12 extras seen), the unresolved
+   split undecided, and the truth as a child of anything never refuted. In the
+   search window the hR cell and the resolved split read *supported*.
+4. *No absolute absent count can refute*: corundum's own cell reads 5 over the
+   full range on real lab data. Inside de Wolff's window (Q of the 20th line)
+   the truths read 0 (corundum) and 2 (magnetite) and the wrong cells 7 or
+   more, so the count can cap. "Refuted" should mean seen no more often than
+   chance (k ≤ n·p₀), not "not significant at α".
+
+The proposal, for the maintainer: (a) a candidate-independent line screen (peak
+list + envelope + the existing overlap and quiet rules) supplies the reversed
+member at the resolution and the `predicted_but_absent` count; (b)
+`supercell_checks` asks indexed-set containment with a three-band verdict; (c)
+`predicted_but_absent` caps rather than refutes, and the extinction screen
+separates the glide from the oversized cell. The Le Bail validation keeps the
+forward question with a shared frozen profile.
 
 **Rules that bind it** (`src/rietx/indexing/CLAUDE.md`): never a confident
 singleton; a new indexing rule lands in that file; run
@@ -76,8 +110,8 @@ engine or the ranking. Indexing is provisional by declaration
 
 ## Tasks
 
-- [ ] Read the reporter's proposal on #916 when it lands, and record the design
-      as `Decided YYYY-MM-DD:` here.
+- [ ] **Decision (maintainer):** the reporter's (a)-(c) above, whole or in
+      part, recorded as `Decided YYYY-MM-DD:` here and answered on #916.
 - [ ] Rebuild the issue's synthetic Si arms as a test fixture: the truth, cI
       √2·a₀, cF +0.6 %, cP a₀, cP 2a₀, the steeper-background arm, and a
       tetragonal descent of the true lattice; exact and picked lines.
@@ -117,5 +151,6 @@ absences; Si, corundum and magnetite keep their correct cells.
   WP owns it: WP-1043 recorded the repair as unowned and asked for it to be
   scheduled on its own, WP-1449 (✅) shipped the index 2–4 refutation only,
   WP-1511 fences the blind search, and WP-1542 is the opposite sign in a
-  refinement. *Next:* wait for the reporter's measured proposal on #916, then
-  task 2.
+  refinement. The reporter's measured proposal landed on #916 the same
+  morning and is in § Context. *Next:* the maintainer's decision on its
+  (a)-(c), then task 2.
