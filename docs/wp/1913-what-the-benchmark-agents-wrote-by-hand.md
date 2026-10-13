@@ -86,6 +86,17 @@ schema change across every result reader.
   Stephens only, and the summary at `:235` prints the "without leverage"
   count with no seed named. No WP mentions it. Take it here as a task, or
   give it its own WP.
+- **2026-10-13, from the issue triage (#728 items 3-5): the reporter's
+  picks.** Posted 2026-10-12 08:29Z. Item 4: refuse at construction, and name
+  every atom on a fully fixed special position, not only the first. Item 3: a
+  one-call mixed-site helper that derives the occupancy, Biso and coordinate
+  ties, with an info finding where the data cannot separate the pair; they
+  named `Phase.mix_sites`, but ties live on `Refinement` (WP-1070), so the
+  verb is likely a `Refinement` one. Item 5: the pointer names `stderr`, with
+  no alias. Checked against the tree at c3d0367: NaCl with both x free still
+  constructs, `parameters()` raises naming only `phases.0.atoms.0` and not
+  Cl, and `.esd`'s message lists the fields without naming `stderr`. The
+  issue's unnumbered seed ask had no answer in the thread.
 
 ## Non-goals
 

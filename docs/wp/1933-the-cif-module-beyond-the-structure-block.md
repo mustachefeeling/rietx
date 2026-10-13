@@ -174,6 +174,31 @@ and alert lists are in 1319's Context.
   refused or written without it. This binds the msCIF writer (#678's N-W9)
   and C-g's registry. Checked against the tree at 7d9be3cb: nothing under
   `io/cif` or `crystallography/cif.py` writes a superspace number.
+- **2026-10-13, from the issue triage (#913): an operator loop that
+  contradicts the H-M symbol is obeyed in silence.** Checked against the tree
+  at c3d0367 on gemmi 0.7.5, every case in the issue's table reproduces.
+  `structure_from_cif` builds whichever group gemmi resolves
+  (`crystallography/cif.py:694-698`) and names no contradiction. A P6₁ loop
+  under `P 61 2 2` builds P 6₁, a P2/m loop under `C 1 2/m 1` builds
+  P 1 2/m 1, and `-x,-y,-z` under `P 1 21 1` builds P -1. The only signal
+  anywhere is `CIF_SITE_MULTIPLICITY_DISAGREES`, which blames a site. A loop
+  that is no group, or one gemmi does not tabulate, is dropped for the
+  symbol, also silently. So C-e widens from choosing a setting to naming the
+  contradiction: one reconciling function in `symmetry.py` beside
+  `setting_from_operators`, which magCIF (1918) and the refdb adapter (1921,
+  which keeps its own "read `.` as 0") would call too. The Context paragraph
+  above saying gemmi "ignores a `_space_group_symop_operation_xyz` loop" is
+  stale on 0.7.5: there the loop wins, so a bare `F d -3 m` over origin-2
+  operations already reads as `F d -3 m:2`. Two reader defects travel with
+  it. A coordinate written `.` or `?` raises an anonymous
+  `value nan lies outside bounds` ValidationError, naming neither file, site
+  nor tag, because `_number_fault` (`:304`) skips both. An occupancy written
+  `.` or `?` reads as 1.0 with no diagnostic (not in the issue; found by the
+  triage). Separately, and able to land before C-e: `pyproject.toml` declares
+  `gemmi>=0.6.5`, and under 0.6.5 every `structure_from_cif` call raises
+  `AttributeError: 'gemmi.SmallStructure' object has no attribute
+  'spacegroup'`, so the floor is stale. The proprietary-database counts the
+  issue quotes (3 C2/m entries, 97, 5, 135, 7) cannot be checked here.
 
 ## Non-goals
 
