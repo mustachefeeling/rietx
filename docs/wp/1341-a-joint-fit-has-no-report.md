@@ -1,6 +1,6 @@
 # WP-1341 — a joint fit has no report
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — every task landed (PR #926); three inherited questions stay open in Context, and the joint fresh compile went to WP-1421
+Milestone: unscheduled · Status: 🔄 2026-10-13 — every task landed (PR #926, PR-review fixes on `wp1341-review-fixes`); three inherited questions stay open in Context, and the joint fresh compile went to WP-1421
 Track: Render what the fit already knows
 Depends on: — (1312 soft: it exercises and audits the joint fit; 1335 soft: the
 report path this one gains should already be cheap; 1344 soft: it sorts each
@@ -291,10 +291,13 @@ changed, three of them still open (below).
 - Fast selection, final tree, `[dev]` venv, macOS arm64: 9321 passed, 181
   skipped, 3 xfailed, 0 failed, in 28:39 at a load average near 130 with
   other sessions' suites running (an earlier run on the pre-review tree took
-  19:19 at ~150). Count check by collection, since main was not re-run:
-  9497 collected here against 9480 on an `origin/main` snapshot (`e1d19359`),
-  +17, the 17 cases of `tests/test_joint_report.py`. The darwin/arm64
-  goldens pass, after the review moved the single fit's wrappers.
+  19:19 at ~150). The darwin/arm64 goldens pass, after the review moved the
+  single fit's wrappers.
+- The count against a base run, from CI's py3.14 leg (Linux, `[dev]`, both
+  shards' junit): `main` at `be6c3ffd` (run 38322641475) 9293 passed and 195
+  skipped, 9488; #926's head `3475b2b2`, which is that commit plus this
+  branch (run 38323923594), 9310 passed and 195 skipped, 9505. So +17, every
+  one a pass, the 17 cases of `tests/test_joint_report.py`.
 - Added-test cost, that same loaded run's junit: 54.1 s over the file; the
   two report tests 15.2 s and 14.2 s, the shift pair 11.5 s, every other
   test under 4 s. Not `slow`: they are synthetic, the report pair fits two
@@ -309,13 +312,48 @@ changed, three of them still open (below).
 `fit_end` carry the `histograms` rows; an empty plan is refused before any
 event; scoped paths go through `MultiParameterTable._owner`/`_unscope`; and
 `Identifiability` says a joint fit leaves `extra_peak_absorption` unrun.
-Declined: a `free_values` method on both table types (it reaches
-`ParameterTable`); the per-stage deep copy of the table under a cancel token
-(2.7 ms on the LaB6 pair, unmeasured at size, wants a measurement before a
-narrower copy); `_stage_end_rows` re-deriving the Rwp `_build_result` also
-computes (events only, one evaluation per histogram per stage); and
-`report(h)` after a cancelled second fit mixing that fit's table with the
-first fit's models, which `Refinement.report` does too.
+Declined then, and taken in the PR round below: a `free_values` method on
+both table types, and `report(h)` after a cancelled second fit. Declined:
+`_stage_end_rows` re-deriving the Rwp `_build_result` also computes (events
+only, one evaluation per histogram per stage).
+
+**PR review** (`/code-review medium` on #926, ten findings). #926 merged at
+`a3987d6a` before this round landed, so the fixes ride a follow-up PR from
+branch `wp1341-review-fixes`. Fixed, each with a test that fails without it:
+
+1. `for_histogram(h)` kept every parameter row `hist.<h>.`-scoped, so the
+   report's lookups by bare path missed a per-histogram structural row and
+   the view carried other histograms' rows. It now keeps histogram h's rows
+   unscoped and drops the rest, as the background screen already was.
+2. A negative `h` built a prefix from the raw index; it now counts from the
+   end, and an out-of-range one is refused.
+3. `fit()` closed a stream it built only on success or a cancel; it now
+   closes it in `finally`.
+4. `tests/test_joint_report.py` joins one `xdist_group`, its module
+   fixtures being shared.
+5. `watching.md` 9d.10's evidence line is two sentences, in all three
+   copies.
+6. The count above is passed+skipped against a base run, where it was a
+   collection count.
+8. `ParameterTable.free_values` and `MultiParameterTable.free_values` hold
+   the layout knowledge, and `least_squares._free_values` delegates.
+9. `report(h)` reads values, structure, held and free paths frozen with the
+   result (`_freeze_answer`), so a cancelled second fit cannot pair its
+   restored table with the first fit's models. `Refinement.report` reads its
+   live table the same way, left to its own change.
+
+Declined:
+
+7. The per-stage deep copy of the table under a cancel token stays. On a
+   quiet machine (load ~3.5) it costs 1.0 ms at 3 atoms, 7.9 ms at 64 and
+   34 ms at 256 atoms over two histograms, and 76 ms over four, linear and
+   small against stages that run for seconds. A hand-listed snapshot
+   (`_commit_state()` and vary flags) would also have to carry holds,
+   frozen windows, moment frames and the combined columns; a missed one is
+   a silent wrong restore, which a whole-table copy cannot make.
+10. The stream, recorder and cancel attach ritual is not factored. A helper
+    only `multi.py` used would remove no copy, and sharing one means editing
+    `refine.py`'s three call sites, which is outside this WP.
 
 **Gotchas.**
 
