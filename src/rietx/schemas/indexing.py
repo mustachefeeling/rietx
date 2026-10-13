@@ -154,8 +154,7 @@ from .structure import Cell
 #: ``n_seen ≤ n_extra·p0``); ``LeBailValidation.predicted_but_absent`` is the
 #: screen's count against the picker's envelope, with the uncancellable and
 #: windowed-uncancellable counts beside it, and the ``predicted_but_absent``
-#: caveat fires on the windowed count and **caps** rather than refutes.  The
-#: validation's Le Bail freezes the profile at the peak list's width law.
+#: caveat fires on the windowed count and **caps** rather than refutes.
 INDEXING_THRESHOLDS_VERSION = "1.12"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is

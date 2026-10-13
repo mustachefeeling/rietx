@@ -36,12 +36,12 @@ forward matches imply.  No fit.  Three consumers read it:
 **Why the count is windowed and capping, and the pairwise test is neither.**
 On real lab data a true cell carries uncancellable absences over the full
 range through general reflections below the picker's detection: corundum 5,
-magnetite 2, PbSO₄ 11–14 on a neutron pattern, most above 70°.  So any
-absolute full-range count refutes a truth somewhere.  Restricted to de
-Wolff's window — positions up to the Q of the 20th usable line, where a
-truth's lines are strong enough to be detected (de Wolff 1968, *J. Appl.
-Cryst.* **1**, 108) — the truths read 0 (Si, the tetragonal set, corundum)
-or 2 (magnetite, PbSO₄) and the wrong cells 7–79.  The pairwise test keeps
+magnetite 2, and more on a neutron pattern read to high angle, most of them
+above 70°.  So any absolute full-range count refutes a truth somewhere.
+Restricted to de Wolff's window — positions up to the Q of the 20th usable
+line, where a truth's lines are strong enough to be detected (de Wolff 1968,
+*J. Appl. Cryst.* **1**, 108) — the truths read 0 (Si, the tetragonal set,
+corundum) or 2 (magnetite) and the wrong cells 7–79.  The pairwise test keeps
 the full range because its discriminating extras can sit above the window
 (the resolved split, corundum's index-3 descriptions) and its null, p₀,
 already discounts unseen high-angle lines.  And a non-significant result does

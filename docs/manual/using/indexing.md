@@ -982,12 +982,10 @@ test, as a `LeBailValidation`.
 
 The fit holds the cell. The candidate is the hypothesis under test, and letting
 it walk would validate a different cell from the one reported. What it frees is
-the background and exactly one peak-position parameter chosen from the
-candidate's own shift template. The profile is frozen at the peak list's
-measured width, shared by every candidate, so a wrong cell cannot broaden a
-neighbour to cover a line it does not explain. It is single-phase, which is a
-measured constraint rather than a simplification: Le Bail partitioning has
-nothing to arbitrate two phases claiming the same channel.
+the background, exactly one peak-position parameter chosen from the
+candidate's own shift template, and then the widths. It is single-phase,
+which is a measured constraint rather than a simplification: Le Bail
+partitioning has nothing to arbitrate two phases claiming the same channel.
 
 The absent count is not this fit's. A cell that needs intensity under many
 reflections can buy it from its own background: on a laboratory magnetite
@@ -1065,11 +1063,11 @@ alone, and still not it.
 
 On the corundum run above, the certified trigonal *R* lattice comes back at
 rank 1, found by two of the three engines, with a Le Bail fit that converged,
-and grades `low` on five caveats, so `best_or_none` returns `None`. Two of the
-five carry the reading. `predicted_but_absent` counts 12 reflections, the shape
-a space-group extinction takes when read from a lattice group that does not know
-about it, and the extinction screen below is what separates that from an
-oversized cell. `search_incomplete` is there because the ceiling cut the
+and grades `low`, so `best_or_none` returns `None`. `LeBailValidation.predicted_but_absent`
+counts the c-glide's reflections, the shape a space-group extinction takes
+when read from a lattice group that does not know about it; none of them is
+uncancellable, so the caveat is silent and the extinction screen below is what
+names the glide. `search_incomplete` is there because the ceiling cut the
 trailing systems. Neither says the cell is wrong. They say what has not been
 established, which is the whole difference between this answer and a confident
 one.

@@ -267,8 +267,13 @@ def validation_plan(candidate: CellCandidate, instrument: Instrument,
     unmatched observed line by broadening its neighbour.  The absent count no
     longer reads this fit at all (the line screen does), so what the fit
     keeps is the forward question — is there a reflection under every
-    observed peak — and an Rwp for a reader.  ``validate_by_lebail`` freezes
-    whenever it was given a peak list.
+    observed peak — and an Rwp for a reader.  **Off by default, measured**:
+    frozen at the *declared* profile, SRM 660c's own cell validates at Rwp
+    0.57 against 0.10 with the widths free, and the rival/truth Rwp ratio the
+    acceptance rows read falls from above 2 to 1.78, while nothing the fit
+    reports gates any more.  The shared pre-fit F1 asked for needs a
+    cell-free width law fitted to the peak list; until that lands,
+    ``validate_by_lebail(freeze_profile=True)`` is the caller's choice.
 
     **The cell is held.**  ``profile_only`` — the ordinary Le Bail plan — frees
     ``phases.*.cell.*``, and it must not here: the candidate *is* the hypothesis
@@ -356,7 +361,8 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
                        k_sigma: float = ABSENT_SIGMA,
                        with_result: bool = False,
                        cancel=None, screen=None,
-                       pattern_screen=None) -> LeBailValidation:
+                       pattern_screen=None,
+                       freeze_profile: bool = False) -> LeBailValidation:
     """Fit ``candidate`` to the whole pattern by Le Bail and report the three
     detectors.
 
@@ -365,9 +371,9 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     and the peak list's widths and shapes (``indexing/screen.py``), inputs it
     cannot buy, and ``predicted_but_absent`` is that count with the
     uncancellable and windowed-uncancellable counts beside it
-    (``absent_source="line_screen"``); the fit then runs with the profile
-    **frozen** at the shared width law (:func:`validation_plan`) and keeps the
-    forward question and an Rwp for a reader.  ``screen`` is a ready
+    (``absent_source="line_screen"``); the fit keeps the forward question and
+    an Rwp for a reader, with the widths free unless ``freeze_profile``
+    (:func:`validation_plan` says why the default is free).  ``screen`` is a ready
     :class:`~rietx.indexing.screen.LineScreen` for this candidate and
     ``pattern_screen`` the run's :class:`~rietx.indexing.screen.PatternScreen`,
     both optional; ``index_pattern`` passes the second so the pattern is
@@ -466,7 +472,7 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     if two_theta_limits is not None:
         tt_max = min(tt_max, float(two_theta_limits[1]))
     plan = validation_plan(candidate, ins, two_theta_max=tt_max,
-                           freeze_profile=peaks is not None)
+                           freeze_profile=freeze_profile)
 
     ref = Refinement(structure, ins, history=False)
     try:
