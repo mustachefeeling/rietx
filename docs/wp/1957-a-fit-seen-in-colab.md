@@ -106,7 +106,7 @@ range. It runs top to bottom:
 
 It ships running on the fluorapatite files, so `tests/test_tutorials.py`
 executes it like the tutorials, and the landing page and manual list it.
-Its title is "Rietveld refinement of your own data". It is committed
+Its title is "A Rietveld refinement on your own data" (you refine a model, not the data). It is committed
 **without outputs** (maintainer, 2026-10-13), because output from the
 example files would read as the reader's own. `build.py`'s `UNEXECUTED`
 names it: the build still executes it and refuses one that fails, then
