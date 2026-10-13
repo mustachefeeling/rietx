@@ -1,6 +1,6 @@
 # WP-1912 — a polar axis has no origin, and the fit walks along it
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — claimed by @yue-here: #929's open review items, then the centroid as an exact constraint
+Milestone: unscheduled · Status: 🔄 2026-10-13 — hold and centroid both built, default off; the default (centroid proposed) is the maintainer's call on #727
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — the default structural preset reaches it on every polar space group with a free coordinate, and the CIF it writes carries an absolute coordinate hundreds of cells out with an esd; flagged only by `FLAT_DIRECTION` on the result, so not P1
@@ -321,6 +321,84 @@ with each moved number named.
   WP-0302, WP-1432, WP-1435; `schemas/params.py` (`needs_held_cell`).
 
 ## Handover log
+
+### 2026-10-13 (2nd session) — the centroid, built from the paper
+
+A polar-group fit can now fix its origin the way single-crystal codes do. It
+restrains a data-weighted centroid of the atoms instead of freezing one of
+them, so every coordinate along the axis is refined and keeps an esd that can
+be quoted on its own. On the round-robin zincite it gives the same structure
+and Rwp as the hold, and each z's esd is the hold's divided by √2. It also
+stops the TRF driver's walk to z ≈ 21 000. Reading the paper changed the plan:
+an exact constraint gives the same values but loses the near-diagonal
+covariance the method exists for, so it is a restraint. That restraint needs
+nothing from WP-1942. Both modes stay off by default. A joint fit refuses the
+centroid on a polar phase. Whether either mode becomes the default is the
+maintainer's call on #727.
+
+*Inherited, pruned.* The 2026-10-13 decision note moved into Context as
+"Where the default stands". The two #727 comments that day disagree (hold now,
+against still to decide). The maintainer settled it in this session: aim for
+the centroid quickly and flip no default twice.
+
+*Done.* Three tasks.
+1. #929's review items, laned. The supercell copy, joint-fit origin codes
+   (`blocked_by_hold` on joint stages), four tests and the candidate wording.
+2. `"centroid"`, laned, schema 0.53. The mechanics are in the task's done
+   note. In this session I added the origin rows to `suggest`'s probe.
+   `replay` is evaluate-only, so it needs none.
+3. The real-data measurement, in the task's table.
+
+The paper (the maintainer's copy, read in full) is cited by equation in
+`model/origin.py` and Part 2 `par-origin-centroid`/`par-origin-weights`.
+
+*Review.* `/code-review high --fix` found eight issues and fixed three:
+- (A6) stalls where (A5) holds by a hair (b = [6724, 6724, 1] missed eq 21 by
+  27×; a 1e-30 site gave NaN). eq 21 is now also solved through S = Σa with
+  Brent, and the better answer kept, and a test pins it.
+- The origin partials are built once per solve and one C serves both blocks.
+- A docstring claimed one origin across stages. Each stage restrains its own
+  start.
+
+I fixed a fourth: a joint fit refused a non-polar phase declaring centroid,
+and now refuses only a polar one (with a test). Four I leave, as findings for
+the next session:
+- `site_curvatures` costs 2·N·P full evaluations per compile (a 60-site P1 is
+  360). The derivative bases could give them analytically.
+- A stage whose second solve cannot slide the phase records only that solve,
+  so the first solve's restraint goes unreported.
+- `hold_floating_origin()` returns `[]` for a phase already declaring
+  centroid.
+- A centroid phase whose sites scatter nothing gets no row and no
+  `ORIGIN_NOT_FIXED`.
+
+*Measured.* Real data: the task's table (`[dev,jax]`, Linux). Lanes: two, plus
+one item kept. The tool's table:
+
+| lane | est | requests | main at dispatch | lane $ | saved $ |
+|---|---|---|---|---|---|
+| review-items | 30 | 65 | 153K | 3.14 | +0.32 |
+| centroid | 60 | 130 | 227K | 10.55 | +2.19 |
+
+Kept: measure, est 15, 6 requests, at 288K. The selective policy's replay row
+is +12% for this session (+2.52, +10% of the session in the trial row). The
+estimates ran 2.17× short. FAST_RESULTS
+
+*Gotchas.*
+- The venv in this worktree has `[dev,jax]`: the centroid lane installed jax.
+  Every count above is for that venv.
+- The goldens are pinned to darwin/arm64 and skip on Linux. Default-off
+  bit-identity here rests on the P 2₁2₁2₁/Pnma bit-for-bit tests and on
+  `compile_origin` returning `None` before anything else.
+- The rigid-body site path (a body origin as one site) has no test.
+
+*Next.*
+1. The maintainer decides the default on #727. The proposal is `"centroid"`
+   with a read-time pin, and the task gives the conditions.
+2. If the centroid is to become the default, a joint fit must take it first:
+   one origin row per structure in `multi.py`, or a fallback to `"hold"`.
+3. Then the four review findings above, the analytic curvatures first,
+   because they are the cost a default would impose on every polar fit.
 
 ### 2026-10-13 — the hold moves into the table, and the default is measured
 
