@@ -39,7 +39,8 @@ from rietx.indexing.reduce import (
     same_lattice,
 )
 
-PAIRS = json.loads((Path(__file__).parent / "data" / "wp1932_boundary_pairs.json").read_text())
+PAIRS = json.loads((Path(__file__).parent / "data" / "wp1932_boundary_pairs.json")
+                   .read_text(encoding="utf-8"))
 
 
 def _arrays(p):
