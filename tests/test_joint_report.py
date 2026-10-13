@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from rietx import MultiHistogramRefinement, Refinement, Stage, runs
-from rietx.history.events import read_events
+from rietx.history.events import as_event_stream, read_events
 from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from rietx.optimize.statistics import MAX_SHIFT_CONVERGED
 from rietx.params.multi import SharingMap
@@ -28,6 +28,10 @@ from tests.test_multi_histogram import (
 
 OUT = Path(__file__).parent / "output"
 LAMS = (0.41390, 0.71070)
+
+# the module fixtures below are shared, so the module stays on one worker
+# (tests/CLAUDE.md § Shared fixtures and xdist groups)
+pytestmark = pytest.mark.xdist_group("joint-report")
 
 TURN_ON = ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
            "instrument.zero_shift"]
@@ -156,6 +160,33 @@ def test_a_monitoring_hook_that_raises_is_the_callers_to_see(two_patterns):
         ref.fit(two_patterns, plan="mccusker_default", events=hook)
 
 
+def test_a_raised_joint_fit_closes_the_stream_it_built(two_patterns, tmp_path,
+                                                       monkeypatch):
+    """A stream built from a path is the fit's to close, on every exit."""
+    import rietx.multi as multi_mod
+
+    built = []
+
+    def capture(events):
+        stream = as_event_stream(events)
+        built.append(stream)
+        return stream
+
+    def fail(*_args, **_kw):
+        raise RuntimeError("after the last stage")
+
+    monkeypatch.setattr(multi_mod, "as_event_stream", capture)
+    monkeypatch.setattr(MultiHistogramRefinement, "_build_result", fail)
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(structure, instruments)
+    with pytest.raises(RuntimeError, match="after the last stage"):
+        ref.fit(two_patterns, plan=RefinementPlan(stages=[
+            Stage("scale+bkg", ["phases.*.scale", "instrument.background.*"])]),
+            events=tmp_path / "joint.jsonl")
+    (stream,) = built
+    assert stream._fh is None
+
+
 def test_a_cancelled_joint_stage_is_abandoned(two_patterns):
     """The cooperative cancel, one rank out: the stage in flight leaves no
     trace, and the working state is the last completed stage's."""
@@ -245,6 +276,67 @@ def test_each_histogram_gets_its_own_report(two_patterns):
         assert (result.for_histogram(h).identifiability.background_absorption
                 == mine)
         assert report.background.worst_absorption == max(mine.values())
+
+
+def test_a_cancelled_second_fit_leaves_the_first_report_alone(two_patterns):
+    """The report reads what its own fit left, never the working table.
+
+    A cancelled fit puts the table back where its stage found it and keeps
+    the previous result, so a report reading the live table paired the
+    second fit's values with the first fit's models.
+    """
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(structure, instruments)
+    ref.fit(two_patterns, plan="mccusker_default")
+    before = ref.report(0).model_dump()
+
+    token = CancelToken()
+
+    def hook(event):
+        data = event["data"]
+        if event["kind"] == "stage_start" and data["stage"] == "zero":
+            token.cancel()       # read at the second stage's first evaluation
+
+    with pytest.raises(RefinementCancelled):
+        ref.fit(two_patterns, plan="mccusker_default", weights=[1.0, 4.0],
+                events=hook, cancel=token)
+    assert ref.report(0).model_dump() == before
+
+
+def test_a_view_spells_its_own_rows_as_a_single_fit_does(two_patterns):
+    """A per-histogram structural row reaches the report under its bare name.
+
+    ``build_report`` looks parameters up by bare path (the moment arm's esds,
+    Layer 2's freed-parameter rows), so a view carrying ``hist.1.…`` missed
+    them, and carried histogram 0's rows beside its own.
+    """
+    biso = "phases.0.atoms.0.biso"
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(
+        structure, instruments,
+        sharing=SharingMap(per_histogram=["phases.*.atoms.*.biso"]))
+    result = ref.fit(two_patterns, plan=RefinementPlan(stages=[
+        Stage("scale+bkg", ["phases.*.scale", "instrument.background.*"]),
+        Stage("zero", ["instrument.zero_shift"]),
+        Stage("cell", ["phases.*.cell.*"]),
+        Stage("width", ["instrument.profile.w"]),
+        Stage("b", [biso])]))
+    assert result.status == "converged"
+    assert all(hr.statistics.rwp < 0.12 for hr in result.histograms)
+    _plot(result, "joint_report_view_rows")
+    rows = {p.path: p for p in result.parameters}
+    assert {f"hist.0.{biso}", f"hist.1.{biso}"} <= set(rows)
+    for h in (0, 1):
+        view = {p.path: p for p in result.for_histogram(h).parameters}
+        assert view[biso] == rows[f"hist.{h}.{biso}"].model_copy(
+            update={"path": biso})
+        assert not [p for p in view if p.startswith("hist.")]
+        assert "phases.0.cell.b" in view          # a shared (tied) row stays bare
+    # a negative index counts from the end, and past either end is refused
+    assert result.for_histogram(-1).parameters == result.for_histogram(1).parameters
+    for bad in (2, -3):
+        with pytest.raises(IndexError):
+            result.for_histogram(bad)
 
 
 @pytest.fixture(scope="module")

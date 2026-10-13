@@ -22,7 +22,9 @@ reasons make a row un-refinable and they are distinguishable on purpose:
 * ``mode_fixed`` — refinable in principle, but force-fixed by the intensity
   mode currently in force;
 * ``held`` — the caller declared it does not move, with ``Refinement.hold``
-  (WP-1435).  The only one a caller both created and can lift;
+  (WP-1435), or through ``Phase.floating_origin``, which holds one
+  coordinate per floating-origin direction (WP-1912; ``origin_axis`` says
+  which).  The only one a caller both created and can lift;
 * ``needs_held_cell`` — a wavelength this histogram's free cell makes
   degenerate.  The only *dynamic* one: another parameter's state decides it.
 
@@ -147,6 +149,15 @@ class ParameterRow(Base):
     #: this says which of the two holds it: the remedy differs (refine the
     #: body's origin and rotation), so ``held_because`` names it first.
     body: str | None = None
+    #: The direction this row holds a polar group's floating origin along
+    #: (WP-1912), as the integer axis ``wyckoff.floating_origin_basis``
+    #: returns, or ``None``.  Set only beside ``held``: the hold is
+    #: ``ParameterTable``'s, derived from ``Phase.floating_origin``, so this
+    #: says which of the two holds a ``held`` row and ``held_because`` gives
+    #: that reason.  Written by ``Refinement.parameters`` from
+    #: ``ParameterTable.origin_holds`` for every row, so ``None`` means "not
+    #: holding an origin", never "not checked".
+    origin_axis: tuple[int, int, int] | None = None
     #: The :data:`rietx.help.PARAMETER_HELP` glob whose entry describes this
     #: path, or ``None`` when no family claims it.  The only extra that is not
     #: a held-reason: it says what the parameter *is*, and it is a key rather
@@ -193,6 +204,11 @@ class ParameterRow(Base):
             return f"tied: = {self.tie.describe()}"
         if self.mode_fixed:
             return "force-fixed by the intensity mode (lebail/pawley)"
+        if self.held and self.origin_axis is not None:
+            return (f"holds the phase's floating origin along "
+                    f"{list(self.origin_axis)}: shifting every atom that way "
+                    "changes no intensity, so one coordinate is held "
+                    "(Phase.floating_origin); unhold() releases it")
         if self.held:
             return ("held by this refinement: declared with hold(), so no "
                     "stage's turn_on frees it until unhold()")

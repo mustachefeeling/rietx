@@ -80,6 +80,18 @@ published value, never this package's own.
 **Not claimed: esd calibration.** Hill's √ℜ comes from one dataset refined
 many ways, not from replicate measurements (his footnote, p. 606).
 
+### Inherited
+
+- **2026-10-13, from the issue triage (#875): the reporter's answer to task
+  1.** Posted 2026-10-12: a `.gpx` entry in `PATTERN_FORMATS`, with `scan=`
+  picking the histogram. It is the only form a `.rex` project can point at,
+  it puts the histogram under the shared reader rules (axis, σ,
+  diagnostics), and `read_gsas2_gpx` would call the same histogram read. The
+  constraints it carries: share `gsas2.ALLOWED_GLOBALS`, sit in the
+  binary-first dispatch position, and declare `fmt.scans` (the
+  biconditional). The choice is still the maintainer's, and Hill (1992) is
+  still to be obtained.
+
 ## Non-goals
 
 - Esd calibration from the round robin (above).
@@ -92,7 +104,11 @@ many ways, not from replicate measurements (his footnote, p. 606).
 
 - [ ] Choose the surface (above), and expose each histogram's observed 2θ,
       y and σ. Show the weight's scale against GSAS-II's stored Rwp and
-      channel count before any fit reads it.
+      channel count before any fit reads it. *Decided 2026-10-13 (the
+      maintainer, through the issue triage; #875):* the surface is a `.gpx`
+      entry in `PATTERN_FORMATS` with `scan=` picking the histogram, under
+      the constraints in § Inherited; `read_gsas2_gpx` calls the same
+      histogram read.
 - [ ] Obtain Hill (1992) from the maintainer. Transcribe Table 7 and Table 9
       into a fixture with the page and table cited per row.
 - [ ] `tests/test_acceptance_pbso4_round_robin.py`, slow-marked: neutron,

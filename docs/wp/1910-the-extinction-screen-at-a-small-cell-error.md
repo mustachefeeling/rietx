@@ -156,6 +156,25 @@ and is not proposed here. No code is ported.
   bisect script is `m_bisect.py` in WP-1546's session scratchpad, which is not
   kept. Its method was the suite's `corundum_inputs` and
   `determine_extinction_symbol` over `T.CORUNDUM_RANGE` on each commit's `src`.
+- **2026-10-13, from the issue triage (#931, in PR #932, from outside): a
+  declared container halo is held at the caller's pre-fit, and the true class
+  is refuted under it.** Checked against the tree at c3d0367: `_screen_plan`
+  (`indexing/extinction.py:625`) frees only `instrument.background.*`, and the
+  shared fit's `validation_plan` frees no `extra_components`, so a declared
+  `HumpComponent` is never refit. The reporter's synthetic pyrochlore
+  reproduces on all 21 runs. With the halo declared on (200), the hump comes
+  back at 51-53 counts and 1.33-1.35° against a true 90 counts and 1.0°, and
+  `F d - -` is refuted at (2,0,0) on 3 of 3 seeds, with no screen-level
+  caution beyond `EXTINCTION_GROUPS_NOT_SEPARABLE`. PR #932 frees each
+  background-aggregate component per class, with its FWHM floored at
+  `HUMP_MIN_WIDTH_MULT` × the instrument FWHM inside the screen only. Applied
+  in-process on the same tree, it returns `F d - -` on 3 of 3 seeds, and both
+  positive controls still refute. The width floor is load-bearing at lab
+  resolution: without it the freed hump absorbs a real 0.1° line and accepts
+  `F d - -`. The PR's claim and the issue agree. Its CI was green and it
+  carried a merge conflict on 2026-10-13. The undeclared-halo half (a changed
+  null model for the absence test) stays open under the PR and sits inside
+  this WP's Non-goal on loosening the absence test (WP-1077).
 
 ## Non-goals
 

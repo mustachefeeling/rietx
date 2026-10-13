@@ -1093,6 +1093,18 @@ class Phase(_InheritsDeclaredDefaults):
     # Rigid bodies over this phase's own atoms (WP-1805).  Empty default ⇒
     # exactly off: a phase declaring none builds the table it always built.
     rigid_bodies: list[RigidBody] = Field(default_factory=list)
+    # What fixes the origin of a polar group (WP-1912, issue #727).  In
+    # P 6₃ m c, P 4 m m, Cc or P 1 the whole structure can shift along the
+    # polar axis without changing any intensity
+    # (``crystallography.wyckoff.floating_origin_basis``), so a fit that frees
+    # every coordinate along it has a flat direction.  ``"hold"`` makes the
+    # parameter table hold, per such direction, the first atom DOF a shift
+    # along it moves (``ParameterTable`` does it, so
+    # every fit, series pattern and joint histogram builds the same hold), and
+    # skips a direction the caller's own ties or holds already fix.
+    # ``Refinement.unhold`` on that DOF sets this back to ``None``.  ``None``
+    # (the default) is exactly off: the table every earlier version built.
+    floating_origin: Literal["hold"] | None = None
 
     @model_validator(mode="after")
     def _bodies_name_their_atoms(self) -> "Phase":

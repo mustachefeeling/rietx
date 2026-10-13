@@ -124,6 +124,24 @@ and (2) is accepted.
 
 ### Inherited
 
+- **2026-10-13 (2nd), from WP-1523's close: the hold no longer picks a side
+  on a collinear pair, and the wrong-sign start is yours.** A phase's scale
+  significance is now conditional on the other phases' scales
+  (`refine._significance_columns`). On #219's ridge neither phase is held
+  from a split seed: the real parent was held in 9 of 15 before, 0 now. The
+  phantom at the identity point is still held. The only report is
+  `HIGH_CORRELATION` on the two scales. TWO-PHASE-TRUTH from the degenerate
+  seed lands at −1.0e-3 against +3.0e-3 with no hold at all (5 of 5 seeds).
+  So ± seeds off the identity point and a comparison, ask (3), is the only
+  remedy. Table: WP-1523 § Decided 2026-10-13. The entry below is settled by
+  this one.
+- **2026-10-13, from WP-1523: the ridge's hold decision is WP-1523's task 7,
+  so nothing here waits on it.** WP-1523 first kept the support hold on a
+  collinear pair (§ Decided 2026-10-12) without the #219 script. The
+  triage's re-run of that script, which the 2026-10-13 entry below points
+  to, reopened the choice there as task 7. The candidate statistic is the
+  scale's z marginal over every column except the other phases' scales.
+  #904's localisation does not answer it, as the entry below says.
 - **2026-10-11, from the issue triage (#219, in PR #904; and a re-run of the
   ridge case): asks (1) and (2) are open as the reporter's PR, and the ridge
   now holds the wrong phase.** PR #904 (opened 2026-10-11, fork) adds
@@ -215,6 +233,19 @@ and (2) is accepted.
   instead of whether the value stopped near one, so the `lor_strain` floor
   observation was taken under a test that no longer exists. Re-run before
   building on the list of what fired.
+- **2026-10-13, from the issue triage (#219, after PR #904 merged
+  2026-10-12): two loose ends for the close.** First, the reporter's
+  two-phase script is now in the thread (2026-10-12 00:11Z), so the 2026-10-11
+  entry's "not re-run here, since the script is not in the thread" is stale.
+  It was re-run at c3d0367, and the result is in WP-1523's Inherited, which
+  owns the hold. PR #904's localisation does not answer it, by its own
+  docstring (coexistence "is not what this measures"). Second, this file says
+  two things about #219's ask (3): task 4 is ticked as decided report-only on
+  2026-09-03, while the 2026-10-12 handover says "Issue #219 stays open for
+  ask (3)", and #904's body says "Ask (3) is not here". Settle which, and say
+  on #219 what is left. Tasks 5 (the NiO acceptance, waiting on permission to
+  ship the pattern) and 7 (the skill's routing row, which went into
+  `numbers.md` rather than `judging.md`) are what remains here.
 
 ## Non-goals
 

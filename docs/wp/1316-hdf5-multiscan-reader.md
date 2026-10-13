@@ -66,6 +66,16 @@ standard's own examples with licence checked per file. Real-file facts
 (block shapes `(3134, 2051)`, `(27, 3590)`; the discriminators; the
 counts-vs-synthetic check) go in `tests/data/README.md` without the files.
 
+### Inherited
+
+- **2026-10-13, from the issue triage (#135): the reporter's answer on the
+  extra's name is `hdf5`.** Posted 2026-10-12: the extra names the dependency
+  (h5py), not the application definition, and the reader also takes
+  attribute-less I11-style HDF5 through axis discovery, so `nexus` would
+  describe less than it reads. That answers the first open item of the
+  2026-09-01 handover from the reporter's side; the `_about.py` format token
+  is still this WP's to spell, and no date is asked for.
+
 ## Non-goals
 
 - **Not detector-image HDF** — an `NXdetector` frame stack is not a profile

@@ -145,6 +145,16 @@ screenshots come from `docs/manual/make_screenshots.py`.
   alone or with `moved_paths`, and asks which, and whether to prefer the
   callback. Checked against the tree at 7d9be3cb: no `forward_`,
   `moved_paths` or `on_pass_complete` under `src/`.
+- **2026-10-13, from the issue triage (#141): the 248-pattern table will not
+  come, and a synthetic series is offered instead.** Posted 2026-10-12: the
+  table is from a private series. The reporter offers a series of the same
+  length and shape built with rietx's own forward model, a temperature ramp
+  with smooth cell expansion and four planted events (a phase transition, a
+  background step, a second phase appearing, one bad pattern), with its
+  `refine_sequential` result and `to_table()` output, built when this WP
+  starts. Ask on #141 when it does. It is § Acceptance's series fixture with a
+  known transition; ask for the seeded generator beside the outputs, so the
+  fast suite can regenerate a shorter series.
 
 ## Non-goals
 
