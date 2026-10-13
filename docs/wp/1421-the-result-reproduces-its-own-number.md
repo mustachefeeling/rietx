@@ -180,6 +180,21 @@ comparing them can say they agree.
   that case is recorded. Checked against the tree at 7d9be3cb: the lines
   above; the zero case not re-run.
 
+- **From WP-1341 (2026-10-12): the joint fit's missing fresh compile now
+  reaches a report.** This WP's landed note says a joint fit gets no fresh
+  compile and reports the frozen figures. WP-1341 gave a joint fit a
+  per-histogram `FitReport` (`MultiHistogramRefinement.report(h)`), and its
+  Layer 0 reads those frozen curves. On `test_multi_histogram`'s WP-1131 size
+  pair, whose last stage frees `lor_size`, the peaks outgrow the windows
+  sized at the stage start: the result reports histogram Rwp 0.10242 and
+  0.13345, and Layer 0 lists 44 and 27 unmatched peaks, every one a cut
+  tail, with `add_impurity_phase` among the actions. A compile at the answer
+  gives Rwp 0.10478 and 0.11981 and 0 unmatched peaks on each. So the joint
+  path now owes the fresh compile for the report's sake, not only the
+  statistics'. It moves joint-fit numbers, which WP-1341 promised not to do,
+  and `multi.MultiHistogramRefinement._build_result` is where it would go.
+  The report's docstring and `using/series.md` state the gap until then.
+
 ## Non-goals
 
 - Window sizing (`WINDOW_AREA_TOL`, `WINDOW_MIN_DEG`) and the frozen-per-stage

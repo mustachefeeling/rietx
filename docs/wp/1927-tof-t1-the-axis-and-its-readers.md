@@ -82,6 +82,18 @@ the files) sits beside the fence and is not part of T-1.
   7d9be3cb: `crystallography/superspace/` holds `generation.py`,
   `operators.py` and `symbols.py` only.
 
+- **2026-10-13, from WP-1908 (PR #927): a tick's drawn angle is one function,
+  and a time-of-flight axis owes it a twin.** `CompiledModel.apparent_two_theta`
+  is where the forward model and the three tick builders read the angle at
+  which a peak is drawn: `refine._build_result`, `multi._ticks` and
+  `viz.snapshot.stage_ticks`. A flight-time axis draws a peak at a time, so
+  none of the three can call it. The TOF position map needs one function the
+  forward model and those builders all read, as WP-1908 made for angles, or
+  ticks drift from the peaks they label again. WP-1908's edits sit at
+  `forward.py` near the position memo in `phase_peaks`, the tick loops in
+  `refine.py` and `multi.py`, and `viz/snapshot.py`. Checked against #911's
+  hunks: none touches those lines.
+
 ## Non-goals
 
 - The TOF profile, spectrum and forward model (T-2/T-3), multi-bank (T-5).
