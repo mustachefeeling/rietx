@@ -1187,6 +1187,7 @@ lanes, the ten trial sessions first:
 | 2026-10-11 | bdba13b6 | 2 | 0 | 4K | 24 | 35K | 1.73 | 2 / 0 | +15.00 | +25% |
 | 2026-10-11 | 1b6f1d28 | 3 | 1 | 13K | 8 | 10K | 4.17 | 3 / 0 | +21.28 | +35% |
 | 2026-10-12 | 34ea5c63 | 2 | 0 | 22K | 18 | 56K | 3.66 | 1 / 0 | +11.65 | +27% |
+| 2026-10-13 | fe19ab09 | 2 | 1 | 0K | 20 | 56K | 2.17 | 1 / 0 | +2.52 | +10% |
 
 Session 38257a74 (WP-1523) resumed its one lane by `SendMessage` with a
 revised design after the first report. The tool counts that as no redo, and the
@@ -1206,6 +1207,11 @@ kept the BT-1 fixture under a written `lanes: keep` line at 113K. Its third
 lane, the moment angle, landed nothing on the branch: it found a real defect
 whose fix waits on WP-1953, parked on a branch of its own, and a detection
 rule that did not separate its cases. Its 99 requests still count.
+
+Session fe19ab09 (WP-1912) is entered as fixed 1 where the tool printed 0. After
+the centroid lane it wired the origin rows into `suggest`'s probe, which the
+lane had reported as unresolved. It kept one item, the real-data measurement,
+under a written `lanes: keep` line at 288K.
 
 **The decision: adopted** (2026-10-08,
 [WP-1903](../wp/1903-the-lane-trial-decides.md)). The rule is now `/wp-start`
