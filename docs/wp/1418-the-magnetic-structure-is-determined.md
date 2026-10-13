@@ -707,6 +707,19 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   side. This follows `tests/CLAUDE.md` § Budgets in tests: an assertion
   within its measured cross-platform spread of a threshold senses where the
   solver stopped.
+- **2026-10-13, from the issue triage (#724): the reporter's answers match
+  the 2026-10-06 decision except where the cell is held.** Posted 2026-10-12:
+  refine the child cell on 1419's metric subspace once it exists, and until
+  then hold it only on the fallback route (`nuclear_group="magnetic"`), never
+  on `"parent"`; tie Biso per parent site on both routes, and give the
+  reference the same treatment. Checked against the tree at c3d0367:
+  `solve_magnetic(tie_to_parent=True)` holds the cell whenever
+  `_parent_site_ties` is non-empty (`strategy/magnetic.py:1483`, `:2290`,
+  `:2343`), whatever the route. On `test_solve_tie_to_parent.py`'s fixture
+  (P 4/m m m, k = (0, 0, ½)) with `nuclear_group="parent"` the child carries
+  3 atoms against the parent's 2 and one tie, so the cell is held on the
+  parent route too. Gating the hold on the route is the maintainer's call,
+  beside the open question of the default.
 
 ## Non-goals
 
