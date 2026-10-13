@@ -215,6 +215,11 @@ CI leg by 3-4×**, so it reads CI's `junit-*` file when the branch has one (WP-1
   That 12:40 is the same tree as the 5:44, so **say whether another session was
   running** — and check first (§ Running), which makes "alone" a fact rather
   than an assumption.
+- **Memory on macOS is the physical footprint, never the resident set**: compressed
+  pages leave RSS, so on this shared machine RSS read 57 MB against 1.9 GB of
+  footprint (WP-1924; `tests/repro_780.memory_bytes` reads both platforms' honest
+  figure). And a ceiling counts wall clock, so a loaded run searches less and
+  peaks lower: compare peaks at equal work (`--cpu-clock` there).
 - **Quote the extras with any count**: `[jax,torch]` turns most skips into
   passes, so a count needs its venv, and a traced-path change needs them
   installed or its cross-backend rows skip green (WP-1953, red on CI's jax).
