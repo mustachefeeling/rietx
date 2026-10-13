@@ -339,6 +339,28 @@ a `tests/data/README.md` row.
   no refine flags at all (`io/projects/gsas2.py:1750`, `:1988`), so #761's
   freeing applies to the `.pcr` writer alone and needs the free set to reach
   it (#722's Part B, unlanded for FullProf).
+- **2026-10-13, from the issue triage (#723, #761, #732, after PR #912
+  merged 2026-10-12).** Three replies and one gap. **#723** (2026-10-12): the
+  reporter's answer to the decision's second half is yes: sample
+  transparency, both capillary offsets, absorption, surface roughness and
+  extra components join Part C after the eight, under the same rule (each a
+  FullProf sign-and-unit measurement before it is code, refused by name
+  until then), and partial `Occ` is one task with reader and writer halves,
+  as C1 says. The decision is still the maintainer's; taken, it adds a C5
+  task. **#761** (2026-10-12): yes to both readings of the 2026-10-11 entry.
+  Free the restated hexagonal a and c in the `.pcr` writer only, once Part B
+  gives it `free=`; the GSAS-II half is a rewording of
+  `GSAS2_CIF_RHOMBOHEDRAL_RESTATED`; with a_r free and α_r held, hold a_h
+  and c_h and name the fixed c/a in `FULLPROF_RHOMBOHEDRAL_RESTATED`;
+  coordinates stay held. It wants a Part B task line. **#732**: PR #912
+  carries the whole input to magnetic P1 phases, but besides steps 2 and 4
+  (the 2026-10-11 entry), the issue's item 7 (the hkl table) and item 9
+  (March-Dollase named but not written) have no TOPAS task line either.
+  **#721**: #912 lands item 3 for the P 1 route. Items 2 (a structure-level
+  setting transform), 4 (the reader does not read `mlx = …;` back,
+  `tests/test_topas_refined.py:345` is a strict xfail, and no test reads the
+  P1 equations back) and 5 stay with Part D, whose "ties in the TOPAS writer"
+  task is half landed by #912.
 
 ## Non-goals
 
