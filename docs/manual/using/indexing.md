@@ -1174,7 +1174,7 @@ P-spline is stiff by design) cannot take it, so an undeclared halo there reads
 as intensity the class forbids and refutes it. Declare it as a `HumpComponent`
 in `Instrument.extra_components` and fit it with the Le Bail pre-fit. The screen
 refits every declared hump per class, alongside the background, with its width
-floored at four instrument widths (`HUMP_MIN_WIDTH_MULT`), so a hump cannot
+floored at {{ HUMP_MIN_WIDTH_MULT }} instrument widths (`HUMP_MIN_WIDTH_MULT`), so a hump cannot
 narrow onto a forbidden line and explain a real violation away.
 
 The candidate's `CellCandidate.system` is taken as given rather than
