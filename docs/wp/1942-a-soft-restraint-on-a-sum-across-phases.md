@@ -111,6 +111,19 @@ form here follows WP-1119's decision 4, which kept strings out of storage.
   field on a result, which records measurements only. The same rule binds
   the ratio helper here: the declared ratio is an input, and no result
   field stores it as if measured.
+- **2026-10-13, from the issue triage (#212): the reporter's answers to task
+  1's two questions.** Posted 2026-10-12. (1) The row lives on
+  `Structure.restraints`: a row over several phases has no single owner, and
+  in one phase's list it dangles when phases are removed or reordered or the
+  phase is copied into a structure where its paths do not resolve; the
+  per-phase union stays for rows inside one phase. (2) It is an item inside
+  the `soft_restraint` block, not a new `BLOCK_ORDER` entry:
+  r = (Σ aᵢ·pᵢ − t)/σ is `ValueRestraint`'s form generalised to (path,
+  coefficient) pairs, with the same χ² term and `RESTRAINT_TENSION`
+  reporting. Checked against the tree at c3d0367: `_Value`
+  (`model/restraints.py:100`) holds one `path` and the block makes one row
+  per item (`CompiledRestraints.n_rows`), so the item shape fits without a
+  new block. Task 1 still records the maintainer's decision.
 
 ## Non-goals
 
