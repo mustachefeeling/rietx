@@ -474,16 +474,16 @@ refinement across patterns {cite}`stinton2007` is out of scope.
 The default driver is a bounded Levenberg-Marquardt. scipy's Trust Region
 Reflective, the previous default, stays available as `solver="trf"`. The
 Levenberg-Marquardt driver implements Coelho's adaptive Marquardt
-constant {cite}`coelho2018`, with the system diagonally pre-conditioned to
-$A_{ii} = 1$. That pre-conditioning makes λ dimensionless and lets the published
-constants transfer. Each damped step solves
+constant {cite}`coelho2018`, with the system diagonally pre-conditioned. That
+pre-conditioning makes λ dimensionless and lets the published constants
+transfer. Each damped step solves
 
 ```{math}
 :label: est-lm-step
 
 \begin{aligned}
 \Delta \;=\; &\mathop{\mathrm{arg\,min}}_{\Delta}\;
-  \tfrac12\,\Delta^\top \bigl(A + \lambda\,\mathrm{diag}\,A\bigr)\,\Delta
+  \tfrac12\,\Delta^\top \bigl(A + \lambda D^2\bigr)\,\Delta
   - b^\top\Delta \\
 &\text{subject to}\quad \ell \le \theta + \Delta \le u
   \quad\text{and}\quad T(\theta + \Delta) + c \ge 0,
@@ -493,13 +493,37 @@ constants transfer. Each damped step solves
 {source}`rietx.optimize.lm._solve_constrained_step`
 
 with $\ell$ and $u$ the declared limits and the rows $T\theta + c \ge 0$
-described below. Without a row binding, the step is solved by bounded-variable
-least squares {cite}`stark1995`, so a parameter the step puts on a bound lands
-on it. Above 128 parameters, a size only a Pawley block reaches, that solve
-grows too slow, and the step is the bound-constrained conjugate gradient of
+described below. $D$ is diagonal, and $D_{ii}$ is the largest norm column $i$
+of $J$ has had in the stage, the scaling of MINPACK {cite}`more1978`, or the
+square root of a curvature held for the parameter where that is larger (below).
+Without
+a row binding, the step is solved by bounded-variable least squares
+{cite}`stark1995`, so a parameter the step puts on a bound lands on it. Above
+128 parameters, a size only a Pawley block reaches, that solve grows too slow.
+There the step is projected conjugate gradients from the Cauchy point
+{cite}`more1991,lin1999`, every segment of which lowers the model. The step
+there until 1.9 was the bound-constrained conjugate gradient of
 {cite}`coelho2005` (conjugate gradients per {cite}`hestenes1952,polak1971`).
-Conventions: $A = J^\top J$, $b = -J^\top r$, and the paper's objective
-$S = r^\top r$ is $\chi^2$.
+On the Pawley fits measured, it raised the model at most damped steps and
+stopped the fit on its evaluation cap. Conventions: $A = J^\top J$,
+$b = -J^\top r$, and the paper's objective $S = r^\top r$ is $\chi^2$.
+
+$D$ keeps each column's largest norm because a column can shrink towards a
+point where it vanishes, as a moment angle does at a direction the symmetry
+fixes. Scaled to unit norm there, that column took the longest step, and λ
+rose to hold it until every parameter crawled. A column that is small from the
+start of a stage has no larger norm to keep {cite}`transtrum2012`. Its
+Gauss-Newton curvature $A_{ii}$ can lie orders of magnitude under the
+curvature of $S$: $2.2\times10^{-5}$ against $3.4\times10^{5}$ for a moment
+angle $3\times10^{-8}$ rad from such a direction. So once rejected steps have
+raised λ to 100, the driver measures $\tfrac12\,\partial^2 S/\partial\theta_i^2$
+by a central second difference along the parameter the last rejected step
+moved furthest for its size. Where that curvature is positive and larger than
+$A_{ii} + \lambda D_{ii}^2$, it replaces $A_{ii}$ for the rest of the stage, and
+λ starts again. Each parameter is measured at most once a stage this way. A
+held curvature is measured again before the stage may stop, and dropped if it
+has turned negative. Held at a maximum, it would make the maximum read as a
+minimum.
 
 It is the default because it settles where TRF crawls. Every parameter refines
 in its own units, with its declared limits as box bounds, and TRF's strictly

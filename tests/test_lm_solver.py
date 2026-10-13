@@ -297,11 +297,11 @@ def _collinear_pair():
     return (lambda t: X @ t - y), (lambda t: X), X, y
 
 
-def _truncated_step(A, b, lam, x, lo, hi, inequalities, *, n_rows):
+def _truncated_step(A, b, lam, x, lo, hi, inequalities, *, n_rows, scale=None):
     """The rule before WP-1938 D8, kept here as the counterfactual: the
     box-only step, projected off rows already on their face and shortened to
     99.5 % of the way to the first row it reaches."""
-    step, _ = lm._solve_step(A, b, lam, x, lo, hi, n_rows=n_rows)
+    step, _ = lm._solve_step(A, b, lam, x, lo, hi, n_rows=n_rows, scale=scale)
     for iq in inequalities:
         g0 = iq.slack(x)
         rows = iq.T[g0 <= 1e-9 * max(float(np.max(np.abs(g0))), 1.0)]
@@ -377,8 +377,8 @@ def test_a_step_that_crosses_no_row_is_the_box_step_bit_for_bit(monkeypatch):
     for blocks in ([], [far]):
         steps, trials = [], []
 
-        def spy(A, b, lam, x, lo_, hi_, *, n_rows):
-            step, side = real(A, b, lam, x, lo_, hi_, n_rows=n_rows)
+        def spy(A, b, lam, x, lo_, hi_, *, n_rows, scale=None):
+            step, side = real(A, b, lam, x, lo_, hi_, n_rows=n_rows, scale=scale)
             landed = np.where(side < 0, lo_, np.where(side > 0, hi_,
                                                       np.clip(x + step, lo_, hi_)))
             steps.append(landed)
@@ -669,22 +669,91 @@ def _vanishing_column():
     return residual, jacobian
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "WP-1953: re-scaled to unit norm every iteration, φ's vanishing column "
-    "drives λ to 1.7e10 and the run ends on ftol_runs at χ² 1.891"))
-def test_a_column_that_vanishes_at_its_minimum_does_not_stop_the_fit():
-    """WP-1953's open half.  Each column is scaled to unit norm afresh at
-    every iteration, so φ's shrinking column takes the largest step, λ climbs
-    to hold it, and three tiny decreases end the run on ``ftol_runs`` with a
-    and k far from their answer.  Keeping each column's largest norm as its
-    scale (Moré 1978) reaches χ² 0.744854, scipy's TRF on a and k alone, but
-    made a refit stall beside a column that is noise from its first
-    iteration, so it waits for a rule for that column too."""
+def test_a_column_that_vanishes_at_its_minimum_keeps_its_scale(monkeypatch):
+    """WP-1953: each column is scaled by the largest norm it has had this
+    stage (Moré 1978).  Re-scaled to unit norm at every iteration instead,
+    φ's shrinking column took the largest step, λ climbed to 1.7e10 to hold
+    it, and three tiny decreases ended the run on ``ftol_runs`` at χ² 1.891
+    with a and k far from their answer.  Held, it converges to the minimum
+    with φ at 0, χ² 0.744854 (scipy's TRF on a and k alone agrees)."""
     residual, jacobian = _vanishing_column()
     x0 = np.array([1.0, 0.2, 0.8])
-    out = lm.minimize(residual, jacobian, x0,
-                      lo=np.full(3, -np.inf), hi=np.full(3, np.inf))
+    free = np.full(3, -np.inf), np.full(3, np.inf)
+    held = lm.minimize(residual, jacobian, x0, lo=free[0], hi=free[1])
+    assert held.termination == "ftol_runs" and held.lambda_final < 1.0
+    assert 2.0 * held.cost == pytest.approx(0.7448542326231441, rel=1e-8)
+    assert abs(held.x[2]) < 1e-4
+
+    # the crawl itself, with the curvature measurement off as well: it would
+    # catch this crawl too, by the other route
+    real = lm._solve_step
+    monkeypatch.setattr(lm, "_solve_step", lambda *a, scale=None, **k: real(*a, **k))
+    monkeypatch.setattr(lm, "_CURVATURE_GATE", np.inf)
+    fresh = lm.minimize(residual, jacobian, x0, lo=free[0], hi=free[1])
+    assert fresh.termination == "ftol_runs" and fresh.lambda_final > 1e8
+    assert 2.0 * fresh.cost > 2.0 * held.cost * 2.0
+
+
+@pytest.mark.parametrize("phi0", [3e-8, 0.0])
+def test_a_column_small_from_the_first_iteration_has_its_curvature_measured(
+        monkeypatch, phi0):
+    """WP-1953: φ starts a hair from its minimum, so its column is tiny from
+    the first iteration and the held scale has no larger norm to keep.
+    Gauss-Newton's curvature for φ is ‖φ·bump‖², while ½∂²S/∂φ² adds
+    r·bump, which does not vanish with φ.  So the model's step along φ is
+    long, and λ climbs.  Measured, the curvature takes the diagonal and the
+    run converges in ten evaluations.  Unmeasured, λ climbs past 1e10 and the
+    run stops short of the minimum 0.744854.  From φ = 3e-8 it stops where it
+    started, χ² 9.571 with a and k unmoved.  From φ = 0 the column is exactly
+    zero, so where the crawl stops is rounding's: χ² 0.746097 on macOS arm64
+    from seven start nudges 1e-14 apart, and 0.744872 on a Linux x86-64 CI
+    runner (#923's run 38322068261).  Only the climb is asserted there."""
+    residual, jacobian = _vanishing_column()
+    x0 = np.array([1.0, 0.2, phi0])
+    free = np.full(3, -np.inf), np.full(3, np.inf)
+    out = lm.minimize(residual, jacobian, x0, lo=free[0], hi=free[1])
     assert 2.0 * out.cost == pytest.approx(0.7448542326231441, rel=1e-8)
+    assert out.nfev <= 12 and abs(out.x[2]) < 1e-6
+
+    monkeypatch.setattr(lm, "_CURVATURE_GATE", np.inf)
+    blind = lm.minimize(residual, jacobian, x0, lo=free[0], hi=free[1])
+    assert blind.lambda_final > 1e10
+    if phi0:
+        assert 2.0 * blind.cost > 2.0 * out.cost + 1e-3
+
+
+def test_a_run_that_never_crawls_never_measures_a_curvature(monkeypatch):
+    """From φ = 0.8 λ never reaches the gate, so the run is bit-identical with
+    the measurement switched off: it costs an ordinary fit nothing."""
+    residual, jacobian = _vanishing_column()
+    x0 = np.array([1.0, 0.2, 0.8])
+    free = np.full(3, -np.inf), np.full(3, np.inf)
+    on = lm.minimize(residual, jacobian, x0, lo=free[0], hi=free[1])
+    monkeypatch.setattr(lm, "_CURVATURE_GATE", np.inf)
+    off = lm.minimize(residual, jacobian, x0, lo=free[0], hi=free[1])
+    assert on.nfev == off.nfev
+    np.testing.assert_array_equal(on.x, off.x)
+
+
+def test_the_measured_curvature_is_the_gauss_newton_one_on_a_linear_column():
+    """½∂²S/∂θ² of a residual linear in θ is ‖J‖² exactly, the measurement
+    reads it to the difference's rounding, and a point whose second difference
+    would leave the box is not measured."""
+    t = np.linspace(0.0, 1.0, 50)
+    col = np.exp(-t)
+
+    def residual(th):
+        return 3.0 - th[0] * col
+
+    x = np.array([2.0])
+    s = float(residual(x) @ residual(x))
+    inf = np.full(1, np.inf)
+    c = lm._measured_curvature(residual, x, s, 0, -inf, inf)
+    assert c == pytest.approx(float(col @ col), rel=1e-6)
+    assert lm._measured_curvature(residual, x, s, 0, np.array([2.0]), inf) is None
+    # nor one whose second difference would cross an inequality row (θ ≤ 2)
+    row = lm.LinearInequality(T=np.array([[-1.0]]), c=np.array([2.0 + 1e-6]))
+    assert lm._measured_curvature(residual, x, s, 0, -inf, inf, [row]) is None
 
 
 def test_a_budget_under_one_evaluation_is_refused_as_trf_refuses_it():
