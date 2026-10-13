@@ -853,7 +853,7 @@ def test_index_pattern_recovers_the_cell_and_refutes_its_supercells(lab6_pattern
     # it misses the 321 line and predicts three lines P has none at (M = 7,
     # 15, 23), so neither direction of the containment check is asked and
     # the screen's two windowed absences cap it at medium — what a true
-    # cell reads on lab data (C3: magnetite 2, PbSO₄ 2) and so never a
+    # cell reads on lab data (C3: magnetite 2) and so never a
     # refutation.  It ranks below the truth and cannot reach ``high``.
     (root2,) = [c for c in supercells if c.centring == "I"
                 and c.cell[0] == pytest.approx(np.sqrt(2) * TRUE_A, rel=1e-3)]
