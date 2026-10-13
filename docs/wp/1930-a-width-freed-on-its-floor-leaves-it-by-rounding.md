@@ -137,6 +137,53 @@ bits at the last nightly's tree (56427c4a). That nightly's Linux plot reads Rwp
 2.44 on both (χ²_red 5.934160 on macOS), so #832's split (a), 5.470 against
 6.001, is gone.
 
+### PINV_RCOND alternatives, measured
+
+2026-10-13, `[dev]`, Linux x86-64 (Intel Xeon), at 543062f. Review item 3
+asked whether `PINV_RCOND = 1e-15`, which sits inside eigh's rounding band at
+n ≈ 30, should become numpy's array-API cut `max(M, N)·eps` (**A**), or stay
+and mark every column touched by a kept direction under `n·eps` as
+unmeasured (**B**). Both move an answer only through an eigenvalue of the
+equilibrated normal matrix in (1e-15, n·eps]·|λ|max. So a spy logged every
+`normal_factors` call's spectrum, and then the files with fits in that band
+ran under the shipped cut, under A and under B.
+
+- **Goldens: neither can move one.** Of the ten captured golden fits, none
+  has an eigenvalue in the band (srm660c and toy_anomalous each have one
+  under 1e-15 already). The goldens skip on Linux, so this is the whole
+  Linux answer.
+- **Where the band is reached.** In the fast selection, one call does it,
+  in `test_peak_picking.py::test_unmodelled_axial_asymmetry_is_flagged`
+  (n = 8, 1.4e-15). In the slow files (indexing excluded), the CPD-1a
+  three-phase fits reach it in `test_acceptance_dispersion`,
+  `_qpa_roundrobin` and `_sequential`, where all twelve phase widths and
+  u, w, x, y load one direction at 1.7-1.8e-15. So do two brucite fits in
+  `_stephens`, at 1.25e-15 and 2.2e-15. Those five files pass 98 of 98
+  under the shipped cut, A and B alike.
+- **A** moves 17 CPD-1a fits. The widths' esds fall from 54-5540 to
+  0.0006-0.08, a direction the data does not measure reading as a tight
+  value. 458 `HIGH_CORRELATION` and 392 `FLAT_DIRECTION` findings go, against
+  125 and 303 new ones. QPA values are unchanged and their esds move by at
+  most 0.2 % relative (corundum 0.005979 → 0.005968). Stephens and peak
+  picking move nothing quoted.
+- **B**, as monkeypatched, moves 14 CPD-1a fits. Twelve to sixteen width
+  esds go from 17-5590 to `None`, and 736 `HIGH_CORRELATION` and 629
+  `FLAT_DIRECTION` findings go with no code replacing them.
+- **The LaB₆ degenerate plan on this machine**, at the shipped cut and at
+  seven nudges k ∈ {−20, −7, −3, −1, 3, 20, 50}: every one discards both flat
+  directions, `COVARIANCE_DIRECTION_DISCARDED` names all six widths, the
+  widths read 5.8e-5 to 3.4e-3, and LaB₆ reads 16.850 ± 0.192 wt %. macOS
+  kept them at nine of ten nudges. Which side of the cut a flat direction
+  lands on is still platform-dependent, and the two codes between them
+  cover both sides.
+
+**Reading.** A trades an honest huge esd plus a ρ = ±1 finding for a small
+esd that only `COVARIANCE_DIRECTION_DISCARDED` qualifies, on fits that
+already pass. B silences the correlation findings on exactly the columns it
+blanks. Neither earns its change, so `PINV_RCOND` stays at 1e-15. The
+lane's spy, variants and per-fit diffs were session scratch and are not
+kept.
+
 ## Non-goals
 
 - Which esds a floor row's neighbours report: WP-1929.
