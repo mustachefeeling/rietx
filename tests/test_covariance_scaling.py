@@ -580,7 +580,9 @@ def test_a_psd_matrix_keeps_numpys_bits():
         e = 0.5 * (e + e.T)
         d = 1.0 / np.sqrt(np.diag(e))
         e = e * np.outer(d, d)
-        lam = np.linalg.eigvalsh(e)
+        # ``eigh``, not ``eigvalsh``: the two disagree in the last bits, and
+        # this is a precondition on the eigenvalues ``_psd_pinv`` inverts
+        lam = np.linalg.eigh(e)[0]
         assert not np.any((lam < 0) & (-lam > PINV_RCOND * np.abs(lam).max()))
         assert np.array_equal(_psd_pinv(e, PINV_RCOND),
                               np.linalg.pinv(e, rcond=PINV_RCOND, hermitian=True))

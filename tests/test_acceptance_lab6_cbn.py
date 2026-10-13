@@ -232,11 +232,18 @@ PLAN_DEGENERATE = rx.RefinementPlan(stages=[
 ])
 
 
-def _fit(plan):
+def _fit(plan, w_factor=1.0):
     data = rx.read_pattern(PATTERN)
     structure, ins = _inputs()
+    ins.profile.w.value *= w_factor
     ref = rx.Refinement(structure, ins, history=False)
     return ref.fit(data, plan=plan, two_theta_limits=LIMITS)
+
+
+#: The two codes a flat direction is reported under: ``HIGH_CORRELATION``
+#: when its eigenvalue is kept and inverted, ``COVARIANCE_DIRECTION_DISCARDED``
+#: when it falls under ``statistics.PINV_RCOND`` (WP-1930).
+FLAT_CODES = ("HIGH_CORRELATION", "COVARIANCE_DIRECTION_DISCARDED")
 
 
 @pytest.fixture(scope="module")
@@ -387,20 +394,21 @@ def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
     after WP-1953's #923, both fall under the cut and ``HIGH_CORRELATION`` is
     silent, so asserting it alone was a bar on rounding.
     """
-    def corr(result):
-        return [d for d in result.diagnostics if d.code == "HIGH_CORRELATION"]
+    def flat(result):
+        return [d for d in result.diagnostics if d.code in FLAT_CODES]
 
     # ``where`` rather than ``message``: the paths are a structured field and
-    # the message is prose that may be reworded.
-    assert corr(shared) == [], (
-        "HIGH_CORRELATION on the identifiable fit: "
-        f"{[(d.where, d.message) for d in corr(shared)]}")
+    # the message is prose that may be reworded.  Both codes on both halves:
+    # a separation read with one code on one side and two on the other is
+    # not a separation.
+    assert flat(shared) == [], (
+        "a flat-direction finding on the identifiable fit: "
+        f"{[(d.code, d.where, d.message) for d in flat(shared)]}")
 
     finding = ("phases.0.lor_size", "phases.0.lor_strain",
                "phases.1.lor_size", "phases.1.lor_strain",
                "instrument.profile.y")
-    flagged = [d for d in degenerate.diagnostics
-               if d.code in ("HIGH_CORRELATION", "COVARIANCE_DIRECTION_DISCARDED")]
+    flagged = flat(degenerate)
     assert flagged, ("the degenerate fit raised neither HIGH_CORRELATION nor "
                      "COVARIANCE_DIRECTION_DISCARDED")
     assert any(set(d.where or []) & set(finding) for d in flagged), (
@@ -416,7 +424,7 @@ FLAT_NUDGES = (0, 1, 7)
 
 
 @pytest.mark.parametrize("k", FLAT_NUDGES)
-def test_the_flat_widths_are_flagged_whatever_rounding_does(k):
+def test_the_flat_widths_are_flagged_whatever_rounding_does(k, request):
     """The degenerate fit's six Lorentzian widths span two exactly flat
     directions, and rounding must not decide whether anyone is told.
 
@@ -439,11 +447,9 @@ def test_the_flat_widths_are_flagged_whatever_rounding_does(k):
     """
     if not PATTERN.exists():
         pytest.skip("11-BM LaB6+cBN dataset not present")
-    data = rx.read_pattern(PATTERN)
-    structure, ins = _inputs()
-    ins.profile.w.value *= 1.0 + k * 1e-14
-    ref = rx.Refinement(structure, ins, history=False)
-    result = ref.fit(data, plan=PLAN_DEGENERATE, two_theta_limits=LIMITS)
+    # k = 0 is the module fixture's own fit (w × 1.0 is exact), so reuse it
+    result = (request.getfixturevalue("degenerate") if k == 0
+              else _fit(PLAN_DEGENERATE, 1.0 + k * 1e-14))
 
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
@@ -456,7 +462,7 @@ def test_the_flat_widths_are_flagged_whatever_rounding_does(k):
               "instrument.profile.x", "instrument.profile.y")
     named = set()
     for d in result.diagnostics:
-        if d.code in ("HIGH_CORRELATION", "COVARIANCE_DIRECTION_DISCARDED"):
+        if d.code in FLAT_CODES:
             named |= set(d.where or [])
     unnamed = [p for p in widths if p not in named]
     assert not unnamed, (

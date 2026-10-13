@@ -238,11 +238,11 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 `characterisation` `ceiling` · dataset `lab6_cbn`
 
-**Claims:** HIGH_CORRELATION is silent on the identifiable fit, and the degenerate one's broadening split is named by HIGH_CORRELATION or COVARIANCE_DIRECTION_DISCARDED, without being told which is which
+**Claims:** neither HIGH_CORRELATION nor COVARIANCE_DIRECTION_DISCARDED fires on the identifiable fit, and the degenerate one's broadening split is named by one of them, without being told which is which
 
 **Referenced to:** the diagnostic channel must separate an identifiable parameterisation from a flat one on its own evidence
 
-**Measured:** 0 HIGH_CORRELATION findings on the shared-broadening plan; on the degenerate plan COVARIANCE_DIRECTION_DISCARDED names all six widths on Linux x86-64 (WP-1930)
+**Measured:** 0 HIGH_CORRELATION or COVARIANCE_DIRECTION_DISCARDED findings on the shared-broadening plan; on the degenerate plan COVARIANCE_DIRECTION_DISCARDED names all six widths on Linux x86-64 (WP-1930)
 
 #### `test_the_flat_widths_are_flagged_whatever_rounding_does`
 

@@ -183,17 +183,20 @@ def _psd_pinv(a: np.ndarray, rcond: float) -> np.ndarray:
     large = s > cutoff
     s = np.divide(1, s, where=large, out=s)
     s[~large] = 0
-    return np.matmul(u, np.multiply(s[..., None], np.swapaxes(u, -1, -2)))
+    uh = np.swapaxes(u, -1, -2)
+    if np.iscomplexobj(uh):    # Hermitian: u·s·uᴴ, as numpy's own pinv
+        uh = uh.conj()
+    return np.matmul(u, np.multiply(s[..., None], uh))
 
 
 def discarded_directions(jac: np.ndarray) -> tuple[int, np.ndarray]:
-    """How many directions of the equilibrated normal matrix ``pinv`` discards
+    """How many directions of the equilibrated normal matrix ``_psd_pinv`` discards
     beyond dead columns, and which columns they *touch* (WP-1535).
 
     One touched column is enough: a discarded direction needs two loaded
     columns to exist, but only the columns that pass the test below are named.
 
-    :func:`normal_factors` hands ``pinv`` a cut, and a direction under it comes
+    :func:`normal_factors` hands :func:`_psd_pinv` a cut, and a direction under it comes
     back at **zero** variance: every parameter loading on it reports only the
     variance of the directions the data did measure.  A column with no gradient
     is handled (infinite variance, ``_cov_free``) and so is a pair whose

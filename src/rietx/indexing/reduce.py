@@ -596,7 +596,7 @@ def equal_reduced_many(red_a: np.ndarray, reds_b: Sequence[np.ndarray], *,
     one stacked solve (WP-1519).  Covariances are required on both sides.
 
     Each pair's Δ, Σ and final product are :func:`equal_reduced`'s own
-    expressions, and only ``pinv`` runs over the (k, 6, 6) stack, so each
+    expressions, and only the pseudo-inverse runs over the (k, 6, 6) stack, so each
     answer is the pair's own **where** :func:`stacked_pinv_exact` **says so**.
     A caller asks it first.  One Σ that makes the stack raise raises for all
     of them, so a caller that catches it re-asks the pairs one at a time.
@@ -621,7 +621,7 @@ def stacked_pinv_exact() -> bool:
     own χ², bit for bit, on this machine?  Asked once a process.
 
     It should.  numpy sends a stack through the same gufunc loop, one LAPACK
-    ``syevd`` per matrix, and the rest of ``pinv`` is elementwise or one 6×6
+    ``syevd`` per matrix, and the rest of ``_psd_pinv`` is elementwise or one 6×6
     product per matrix.  Measured on OpenBLAS 0.3.34 (numpy 2.5.3, Linux
     x86-64), every one of the 573 605 χ² tests on corundum's tetragonal unit
     came back the same double, stacked per candidate (WP-1519).  But nothing promises this of every
