@@ -435,6 +435,27 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 ("rx.solve_magnetic", "rx.MagneticSolution", "rx.MagneticTrial",
                  "rx.MomentRow"),
             ),
+            (
+                "Displacive modes of a stated child",
+                "`mode_amplitudes(parent, child, (P, p))` from "
+                "`rietx.crystallography.representation.distortion` decomposes a "
+                "distorted child `Phase` (r_parent = P·r_child + p) into its "
+                "parent's irreps, in Å: AMPLIMODES's unit, Σ mult·|ε|² = 1 over "
+                "the child's primitive cell, in the unstrained reference metric "
+                "Pᵀ·G_parent·P (`reference=\"average\"` takes the "
+                "parent-symmetric part of the child's cell, `\"parent\"` the "
+                "parent's own). Every irrep the child admits is returned, "
+                "secondary and Γ-point ones included, with the uniform "
+                "translation removed, so Σ A_τ² is the field's squared norm and "
+                "Σ `n_modes` its free coordinates. `irrep` is this package's "
+                "small-irrep label: compare a published table on "
+                "`isotropy_group`. `distortion_basis` returns the modes alone, "
+                "per irrep. Provisional: refining them is a later WP-1419 chunk.",
+                ("rietx.crystallography.representation.distortion.mode_amplitudes",
+                 "rietx.crystallography.representation.distortion.ModeDecomposition",
+                 "rietx.crystallography.representation.distortion.ModeAmplitude",
+                 "rietx.crystallography.representation.distortion.distortion_basis"),
+            ),
         ),
     ),
 }
