@@ -20,6 +20,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-10-07 | P2 | [magnetic](#magnetic) |
 | [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 2026-10-01 | P3 | [magnetic](#magnetic) |
 | [1339](1339-where-the-improvement-lives.md) | Where the improvement lives | 2026-10-12 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
+| [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | 2026-10-13 | P2 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-10-06 | P2 | [magnetic](#magnetic) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-11 | P2 | [magnetic](#magnetic) |
 | [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 2026-10-08 | P3 | [magnetic](#magnetic) |
@@ -46,7 +47,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | 2026-10-09 | P1 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 2026-10-12 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
-| [1953](1953-a-large-pawley-stage-converges-under-the-default-driver.md) | A large Pawley stage converges under the default driver | 2026-10-12 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## Next, by priority
 
@@ -54,12 +54,10 @@ Not started and rated P1 or P2. The rest are in the tables below.
 
 | WP | Title | Priority | Depends on | Section |
 |---|---|---|---|---|
-| [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | P2 | — ([1333](1333-a-series-survives-one-pattern.md), [1342](1342-a-freeze-that-reads-names.md), [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | P2 | — ([1318](1318-strain-surface.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
-| [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1918](1918-a-magcif-read-in-its-own-cell-and-validated.md) | A magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out | P2 | — ([1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) soft) | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | P2 | — ([1520](1520-a-search-refines-each-assignment-once.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1927](1927-tof-t1-the-axis-and-its-readers.md) | TOF T-1: the time-of-flight axis and its readers | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
@@ -497,7 +495,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1535](1535-a-discarded-direction-reads-as-measured.md) | A direction the covariance discards reads as measured | ✅ 2026-10-02 | — | — |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 🔄 2026-10-03 | P4 | — |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | 🔄 2026-10-08 | P2 | — |
-| [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | ⬜ | P2 | — |
+| [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | ✅ 2026-10-13 | — | — |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 🔄 2026-10-12 | P2 | — |
 | [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 🔄 2026-10-07 | P2 | — |
 | [1912](1912-a-polar-axis-has-no-origin.md) | A polar axis has no origin, and the fit walks along it | 🔄 2026-10-08 | P2 | — |
@@ -516,7 +514,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1946](1946-a-strain-block-that-cannot-leave-its-cone.md) | A strain block that cannot leave its cone | ⬜ | P3 | [1938](1938-every-parameter-refined-in-its-own-units.md) ([1467](1467-a-stephens-block-on-a-frozen-floor.md) soft) |
 | [1951](1951-a-glob-that-names-a-site-and-frees-nothing.md) | A glob that names a site and frees nothing | ⬜ | P3 | — |
 | [1952](1952-the-xy-reader-says-what-it-skipped.md) | The xy reader says what it skipped | ⬜ | P3 | — |
-| [1953](1953-a-large-pawley-stage-converges-under-the-default-driver.md) | A large Pawley stage converges under the default driver | 🔄 2026-10-12 | P2 | — |
+| [1953](1953-a-large-pawley-stage-converges-under-the-default-driver.md) | A large Pawley stage converges under the default driver | ✅ 2026-10-13 | — | — |
+| [1955](1955-a-column-at-a-zero-aperture-and-a-column-the-matrix-cannot-see.md) | A column at a zero aperture, and a column the agreement matrix cannot see | ⬜ | P3 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
@@ -560,7 +559,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1322](1322-events-aggregator.md) | The run is instrumentable, and nothing says so | 🔄 2026-10-12 | P3 | — |
 | [1339](1339-where-the-improvement-lives.md) | Where the improvement lives | 🔄 2026-10-12 | P3 | — |
 | [1340](1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | P3 | — ([1320](1320-qpa-multimodal-fraction.md) soft) |
-| [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) |
+| [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | 🔄 2026-10-13 | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) |
 | [1444](1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | ✅ 2026-09-29 | — | — |
 | [1461](1461-every-browser-chart-draws-with-uplot.md) | Every browser chart draws with uPlot | ✅ 2026-09-26 | — | — |
 | [1462](1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) | The structure viewer draws with its own WebGL2 renderer | ✅ 2026-09-26 | — | — ([1461](1461-every-browser-chart-draws-with-uplot.md) soft) |

@@ -247,14 +247,26 @@ def test_a_start_beside_its_mirror_image_refines_the_tilt():
         math.pi / 2 - 0.01, abs=0.003)
 
 
-def test_an_angle_without_an_esd_still_has_a_profile_interval():
+@pytest.mark.parametrize("nudge", [0.0, 1e-14])
+def test_an_angle_without_an_esd_still_has_a_profile_interval(nudge):
     """The diagnostic's suggestion, taken: the profile steps from the half-width.
 
     The azimuth's profile is even about the direction (φ = 0), so the interval
     is symmetric about 0 rather than about the value the solver stopped at.
-    Measured: ±0.0287 rad around a stop at 0.011, 30 refits.
+    Measured: ±0.0357 rad around a stop at 0.0155, 24 refits, the same to
+    five digits from every start ten 1e-14 nudges apart (WP-1953).
+
+    The nudge is the start tilt's, relative.  Each refit starts with the polar
+    angle 3e-8 rad from the direction the symmetry fixes, a column
+    Gauss-Newton cannot see curve.  Before LM measured that curvature, most
+    refits stopped where they started, and the interval was ±0.0287 rad.
+    Under the held column scale alone, the fit's last stage crept for 104-133
+    evaluations, and where it stopped decided the interval: this row failed
+    on two of ten nudges here, at +1e-14 among them, and on the Linux and
+    macOS runners unnudged.
     """
-    ref, data, result = _fit(0.0, two=False, seed=2)
+    ref, data, result = _fit(0.0, two=False, seed=2,
+                             start_tilt=0.04 * (1.0 + nudge))
     azimuth = f"{MN1}.dof2"
     (passed,) = [t for t in result.stages[-1].moment_angle_tests if t.zeroed]
     assert azimuth in passed.paths and _rows(result)[azimuth].stderr is None

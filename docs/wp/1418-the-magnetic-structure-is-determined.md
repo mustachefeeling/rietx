@@ -125,6 +125,17 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-13, from WP-1953: whether `solve_magnetic` still needs its
+  `moduli` stage.** `SOLVE_STAGE_NAMES` frees the moduli before the angles
+  because LM crawled when both were freed together (WP-1938 D12: χ² 454 660
+  against TRF's 2555.8 on the two-site Pnma set). WP-1953 (#923) ended that
+  crawl: LM holds each column's largest scale, and measures the curvature of
+  a column Gauss-Newton cannot see. With the `moduli` stage dropped, the
+  released start now reaches the truth, 3.4981 and 0.6996 μ_B at χ²_red
+  1.057446 (macOS arm64). With the stage kept, the class-0 winner is the
+  truth on `ubuntu-24.04-arm`, `ubuntu-latest` and `macos-latest` alike
+  (throwaway run 38323275436). Dropping the stage moves every solve, so decide
+  it over the magnetic suite, not this one set.
 - **2026-10-12, from WP-1929: a moment angle at a stationary direction
   leaves the covariance.** After each solve, a joint Newton step finds where
   the free angles' columns vanish, and the columns are zeroed for the

@@ -1145,6 +1145,15 @@ purpose. Nor is a row that exists and is force-fixed, since it was reached. A
 component declared on one histogram only, such as a hump, *is* reported,
 because it is a true account of what the stage did.
 
+A joint fit reports `STAGE_PATH_NOT_FREE` too, at the top level. A literal
+matches a row as the stage would: a bare path matches it in every histogram
+that has it, and `hist.<h>.…` matches histogram h's own row. A shared row such
+as a cubic cell's `b` is one finding, ending "in every histogram". A row made
+per-histogram with a `SharingMap` is one finding per histogram, named
+`hist.<h>.…`. On a histogram, a literal gets this finding when it matched a
+fixed row and `STAGE_FREED_NOTHING` when it matched none, so the two never
+describe one literal on one histogram.
+
 `StageResult.held` is the field to read when a parameter did nothing. A phase
 reaches the pattern only through `scale × |F|² × profile`, so a phase whose
 scale sits at its floor has no measurable structural parameter at all. Freeing
