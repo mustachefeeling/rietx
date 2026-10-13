@@ -145,8 +145,10 @@ def execute(path: Path):
     km = AsyncKernelManager(kernel_name="python3",
                             kernel_spec_manager=KernelSpecManager(kernel_dirs=[]))
     # A scratch working directory, so a file a notebook writes beside itself
-    # (06's results) never lands in the repository (WP-1957).
-    with tempfile.TemporaryDirectory() as cwd:
+    # (06's results) never lands in the repository (WP-1957).  Its removal
+    # must not fail a build: on Windows a kernel that has not quite exited
+    # still holds its working directory.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as cwd:
         NotebookClient(nb, km=km, timeout=900, record_timing=False,
                        resources={"metadata": {"path": cwd}}).execute(env=env, cleanup_kc=True)
     nb.metadata.get("language_info", {}).pop("version", None)  # the builder's Python patch release
