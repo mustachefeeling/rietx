@@ -1,6 +1,6 @@
 # WP-1957 — a fit seen in Colab: figures at their own shape, the structure beside them, a template for your own data
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — width-only figures, notebook 02's fit and structure, template 06 landed; the Colab check and the PNG-size decision remain
+Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: —
 Priority: P2 2026-10-13 — a defect with a named user: the Colab quickstart (1917) is live, every figure in it draws distorted, and the maintainer asked
