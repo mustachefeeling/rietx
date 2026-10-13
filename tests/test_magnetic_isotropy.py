@@ -2355,7 +2355,12 @@ def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatc
     copy: withholding S1(rank 1)#1 ↔ S3 no longer opens the pair, because
     S1(rank 1)#1 ≅ S1(rank 1)#2 and S1(rank 1)#2 ⊄ S3 by absence, so the
     proof is carried (``propagated``) and S3 stays apart — the second
-    arm below.
+    arm below.  Since part 5 the first arm is the consistency rule's
+    shape: the merged class holds S1 ⊄ S3 proofs, so the sampled
+    S1(a,b) ~ S3 edge is redrawn once (3 + 3 draws each way, all stubbed
+    reproduced), then dropped with ``refuted_by`` naming the smallest-pair
+    proof between S1 and S3, and ``classes`` puts S3 on its own while
+    ``merged_classes`` keeps the join; the table prints the dropped edge.
     """
     from dataclasses import replace
 
@@ -2374,7 +2379,8 @@ def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatc
     monkeypatch.setattr(isotropy, "_certify", withheld)
     classes, relations = isotropy._classify(subset, reflections, draws=3,
                                             seed=20260906, rtol=1e-4, restarts=1)
-    assert classes == ((0, 1, 2, 3, 4, 5),)
+    assert classes == ((0, 1, 2, 3, 4), (5,))
+    assert isotropy._partitions(relations, len(subset)) == (classes, ((0, 1, 2, 3, 4, 5),))
     pairs = _pairs(relations, len(subset))
     for (i, j), pair in pairs.items():
         if 5 in (i, j) and 2 not in (i, j):
@@ -2385,6 +2391,20 @@ def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatc
     assert joined
     assert all(v.draws == 0 and v.status == "unresolved" for v in joined)
     assert all(5 not in (v.a, v.b) for v in joined)
+    verdicts = {(v.a, v.b): v for v in relations}
+    for key in ((2, 5), (5, 2)):          # the dropped edge: redrawn once, still sampled, named
+        assert (verdicts[key].status, verdicts[key].draws, verdicts[key].refuted_by) == \
+            ("sampled-contained", 6, (0, 5)), verdicts[key]
+    assert verdicts[(0, 5)].certificate == "absence"
+    assert all(v.refuted_by is None for v in relations if {v.a, v.b} != {2, 5})
+    from dataclasses import replace as _replace
+
+    text = str(_replace(subset, classes=classes, relations=relations,
+                        merged_classes=isotropy._partitions(relations, len(subset))[1]))
+    assert "sampled edges refuted by transfer (dropped from the split, which rests on their sampled ⊆ halves), n = draws a → b, b → a:" in text
+    assert "  S1(a,b) ~ S3(rank 1)#1  n = 6, 6  by S1(rank 1)#1 ⊄ S3(rank 1)#1 (absence)" in text
+    assert "merged classes (union-find over every equivalence edge, the refuted ones included), as unions of the classes above: 0 = 0 ∪ 1" in text
+    assert "holding a proved separation" not in text
 
     def withheld_copy(a, b, *args):
         return None if {a, b} == {0, 5} else real(a, b, *args)
@@ -2393,6 +2413,8 @@ def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatc
     classes, relations = isotropy._classify(subset, reflections, draws=3,
                                             seed=20260906, rtol=1e-4, restarts=1)
     assert classes == ((0, 1, 2, 3, 4), (5,))
+    assert isotropy._partitions(relations, len(subset)) == (classes, classes)
+    assert all(v.refuted_by is None for v in relations)
     verdicts = {(v.a, v.b): v for v in relations}
     carried = verdicts[(0, 5)]
     assert (carried.status, carried.certificate, carried.via, carried.draws) == \
@@ -2799,8 +2821,12 @@ def test_a_proved_separation_inside_a_joined_class_is_reported(monkeypatch, know
     narrower still: S1(rank 1)#1 ⊆ S1(a,b) is proved (``span``), so the
     witness is carried to S1(a,b) ⊄ S2(rank 1)#1 (``containment``, issue
     #565 item 5, the first rule) over the stubbed draws that had joined
-    that direction, which keep their count; the class is held by the two
-    remaining sampled directions and is still marked S.
+    that direction, which keep their count.  Since part 5 that join is
+    gone: the pair is contained one way only, so it is no equivalence
+    edge, and both partitions put S2(rank 1)#1 on its own (the join the
+    loop made rested on an edge a proof refuted, and nothing was skipped
+    on its account); nothing is "refuted by transfer", since no sampled
+    edge is left for the irrep rule to drop, and the S2 class is marked P.
     """
     from dataclasses import replace
 
@@ -2823,14 +2849,16 @@ def test_a_proved_separation_inside_a_joined_class_is_reported(monkeypatch, know
     monkeypatch.setattr(isotropy, "_normalised_draw", logging)
     monkeypatch.setattr(isotropy, "_certify_draw", selective)
     result = isotropy.analyse(subset, d_min=1.5, restarts=4)
-    assert result.classes == ((0, 1, 2),)
-    assert _table_marks(result) == ["S"] * 3
+    assert result.classes == result.merged_classes == ((0, 1), (2,))
+    assert _table_marks(result) == ["S", "S", "P"]
     there = next(v for v in result.relations if (v.a, v.b) == (0, 2))
     assert (there.status, there.certificate, there.draws) == ("proved-not", "farkas", 4)
     lo, hi = there.d
     text = str(result)
     assert f"S1(rank 1)#1 ⊄ S2(rank 1)#1  d ∈ [{lo:.2g}, {hi:.2g}]  draw 4" in text
-    assert "classes holding a proved separation (part 5 of issue #565 splits them): 0" in text
+    assert "holding a proved separation" not in text and "refuted by transfer" not in text
+    assert "merged classes" not in text
+    assert all(v.refuted_by is None for v in result.relations)
     assert ("proved 2 (absence 0, subspace 0, isometry 0, farkas 1, propagated 0, span 0, "
             "containment 1, transfer 0)") in text
     verdicts = {(v.a, v.b): v for v in result.relations}
@@ -3609,8 +3637,13 @@ def test_the_containment_transfers_carry_the_f43m_witness_to_every_s4_family(f43
     again.  Nineteen of the 28 pairs are proved from one draw; the
     reverse directions that were drawn (the containing S4 families and
     S5(rank 1)#3 back to S4(rank 1)#1, the two S5(rank 2) copies back to
-    S4(rank 2)#2) stay sampled, the class is one and marked S, and no fit
-    transfer is made.
+    S4(rank 2)#2) stay sampled, and no fit transfer is made.  Since part 5
+    every S4 → S5 direction being proved leaves no S4 ~ S5 edge, so the
+    join the loop made is gone on evidence: the consistency rule draws
+    the within-S5 pair the loop had skipped as joined through S4
+    (S5(rank 2)#1 → S5(rank 1)#3, reproduced), nothing is refuted, and
+    both partitions are S4 | S5, each marked S on its own sampled
+    within-irrep directions.
     """
     from dataclasses import replace
 
@@ -3618,7 +3651,9 @@ def test_the_containment_transfers_carry_the_f43m_witness_to_every_s4_family(f43
     names = F43M_ARM
     classes, relations = isotropy._classify(subset, reflections, draws=None, seed=20260906,
                                             rtol=1e-4, restarts=4)
-    assert state["injected"] == 1 and classes == ((0, 1, 2, 3, 4, 5, 6, 7),)
+    assert state["injected"] == 1 and classes == ((0, 1, 2, 3, 4), (5, 6, 7))
+    assert isotropy._partitions(relations, 8) == (classes, classes)
+    assert all(r.refuted_by is None for r in relations)
     v = {(names[r.a], names[r.b]): r for r in relations}
     found = v[("S4(rank 1)#1", "S5(rank 2)#1")]
     assert (found.status, found.certificate, found.draws) == ("proved-not", "farkas", 1)
@@ -3650,8 +3685,10 @@ def test_the_containment_transfers_carry_the_f43m_witness_to_every_s4_family(f43
     sampled = sorted((names[r.a], names[r.b]) for r in relations if r.status.startswith("sampled"))
     assert sampled == [("S4(a,b,c)", "S4(rank 1)#1"), ("S4(rank 2)#2", "S4(rank 1)#1"),
                        ("S5(rank 1)#3", "S4(rank 1)#1"), ("S5(rank 2)#1", "S4(rank 2)#2"),
+                       ("S5(rank 2)#1", "S5(rank 1)#3"),       # drawn by the consistency rule
                        ("S5(rank 2)#2", "S4(rank 2)#2")]
-    result = replace(subset, classes=classes, relations=relations)
+    assert v[("S5(rank 2)#1", "S5(rank 1)#3")].draws == isotropy.WITHIN_IRREP_DRAWS
+    result = replace(subset, classes=classes, relations=relations, merged_classes=classes)
     text = str(result)
     assert _table_marks(result) == ["S"] * 8
     assert ("proved 19 (absence 0, subspace 0, isometry 4, farkas 1, propagated 9, span 0, "
@@ -3660,7 +3697,7 @@ def test_the_containment_transfers_carry_the_f43m_witness_to_every_s4_family(f43
     assert (f"  S4(rank 2)#2 ⊄ S5(rank 2)#1  via S4(rank 1)#1 ⊄ S5(rank 2)#1"
             f"  d ∈ [{found.d[0]:.2g}, {found.d[1]:.2g}]") in text
     assert f"  S4(rank 1)#1 ⊄ S5(rank 1)#3  via S4(rank 1)#1 ⊄ S5(rank 2)#1  d ∈ [{found.d[0]:.2g}, 1]" in text
-    assert "classes holding a proved separation (part 5 of issue #565 splits them): 0" in text
+    assert "holding a proved separation" not in text and "refuted by transfer" not in text
 
 
 @pytest.mark.slow
@@ -3676,8 +3713,10 @@ def test_the_fit_transfer_reaches_the_families_the_containments_would_have(f43m_
     witness pair with the bracket moved by δ, carried on to S5(rank 2)#2
     by isometry.  S5(rank 1)#3 also reproduced S4(rank 1)#1's draws, is
     fitted to the witness, does not reach it, and its direction to
-    S5(rank 2)#1 stays what the loop left it (joined, not drawn): a fit
-    that fails decides nothing.  No ``containment`` verdict exists.
+    S5(rank 2)#1 is left to the draws: a fit that fails decides nothing.
+    The loop had skipped that pair as joined through S4; with every S4 →
+    S5 direction proved the consistency rule draws it (part 5), and the
+    stub reproduces it.  No ``containment`` verdict exists.
     """
     from dataclasses import replace
 
@@ -3707,8 +3746,9 @@ def test_the_fit_transfer_reaches_the_families_the_containments_would_have(f43m_
     for c_name in ("S4(a,b,c)", "S4(rank 2)#2"):
         copy = v[(c_name, "S5(rank 2)#2")]
         assert (copy.certificate, copy.via) == ("propagated", (names.index(c_name), 6))
-    assert v[("S5(rank 1)#3", "S5(rank 2)#1")].status == "unresolved"
+    assert v[("S5(rank 1)#3", "S5(rank 2)#1")].status == "sampled-contained"
     assert v[("S4(rank 1)#1", "S5(rank 1)#3")].status == "sampled-contained"
+    assert classes == ((0, 1, 2, 3, 4), (5, 6, 7))
     assert not [r for r in relations if r.certificate in ("span", "containment")]
     text = str(replace(subset, classes=classes, relations=relations))
     assert "proved separations by fit transfer (transfer), cos(ŷ, I_c) < μ − ρ:" in text
@@ -3941,3 +3981,546 @@ def test_the_witness_interior_is_the_duals_maximiser():
     assert parts["margin"] == pytest.approx(mu) and 0.0 < mu < 1.0
     quoted = np.array(parts["y"]) / np.linalg.norm(parts["y"])
     assert mu >= 100.0 * isotropy._cone_margin(stack, quoted)[2]
+
+
+# --------------------------------------------------------------------------
+# the consistency rule and the split (issue #565, part 5)
+
+def _verdict_grid(irrep, edges, proofs, **kw):
+    """Hand-built relations over ``len(irrep)`` families: ``edges`` sampled-contained both ways, ``proofs`` proved-not one way, the rest unresolved."""
+    n = len(irrep)
+    verdicts = {(i, j): isotropy.PairVerdict(i, j, "unresolved", None, reason="joined")
+                for i in range(n) for j in range(n) if i != j}
+    for i, j in edges:
+        for key in ((i, j), (j, i)):
+            verdicts[key] = isotropy.PairVerdict(*key, "sampled-contained", None, 12, 0)
+    for (i, j), certificate in proofs.items():
+        verdicts[(i, j)] = isotropy.PairVerdict(i, j, "proved-not", certificate, **kw)
+    return verdicts
+
+
+def test_the_split_drops_only_sampled_edges_between_two_irreps_that_hold_a_proof():
+    """:func:`isotropy._split` on hand-built relations: what the consistency rule drops, what it keeps, and what it cannot reach.
+
+    Five families, S7 #1 and #2, S8 #1 and #2, S10, all joined by sampled
+    edges, with S7#1 ⊄ S8#1 proved: the one S7 ~ S8 sampled edge is
+    dropped and names that proof (``refuted_by``), its status stays
+    ``sampled-contained``, and the within-irrep and the S8 ~ S10 and
+    S7 ~ S10 edges stay — so the class is still one, held through S10,
+    and ``_partitions`` says so by returning it whole (the table names
+    it as still holding a proved separation).  A second proof on another
+    pair, S10 ⊄ S8#1, makes S8 ~ S10 a hot pair too: the S8#2 ~ S10 edge
+    is dropped naming it, and the class splits into S7 ∪ S10 and S8 while
+    ``merged_classes`` keeps the five together.  **Negative
+    arms:** a ``sampled-not`` separation (no proof) drops nothing and the
+    two partitions agree; a proved edge (isometry both ways) between two
+    irreps holding a proof is kept; a proof inside one irrep drops only
+    that irrep's sampled edges, so a class joined through another irrep
+    stays whole.
+    """
+    irrep = ["S7", "S7", "S8", "S8", "S10"]
+    edges = [(0, 1), (1, 2), (2, 3), (3, 4), (1, 4)]
+    verdicts = _verdict_grid(irrep, edges, {(0, 2): "farkas"}, d=(0.1, 0.2))
+    isotropy._split(verdicts, irrep, 5)
+    relations = tuple(verdicts[k] for k in sorted(verdicts))
+    dropped = {(v.a, v.b): v.refuted_by for v in relations if v.refuted_by is not None}
+    assert dropped == {(1, 2): (0, 2), (2, 1): (0, 2)}
+    assert all(v.status == "sampled-contained" and v.draws == 12 for v in relations
+               if v.refuted_by is not None)
+    assert isotropy._partitions(relations, 5) == (((0, 1, 2, 3, 4),), ((0, 1, 2, 3, 4),))
+
+    verdicts = _verdict_grid(irrep, edges, {(0, 2): "farkas", (4, 2): "transfer"}, d=(0.1, 0.2))
+    isotropy._split(verdicts, irrep, 5)
+    relations = tuple(verdicts[k] for k in sorted(verdicts))
+    dropped = {(v.a, v.b): v.refuted_by for v in relations if v.refuted_by is not None}
+    assert dropped == {(1, 2): (0, 2), (2, 1): (0, 2), (3, 4): (4, 2), (4, 3): (4, 2)}
+    assert isotropy._partitions(relations, 5) == (((0, 1, 4), (2, 3)), ((0, 1, 2, 3, 4),))
+
+    # a sampled separation is no proof: nothing is dropped, the partitions agree
+    verdicts = _verdict_grid(irrep, edges, {})
+    verdicts[(0, 2)] = isotropy.PairVerdict(0, 2, "sampled-not", None, 5, 1)
+    isotropy._split(verdicts, irrep, 5)
+    relations = tuple(verdicts[k] for k in sorted(verdicts))
+    assert all(v.refuted_by is None for v in relations)
+    assert isotropy._partitions(relations, 5) == (((0, 1, 2, 3, 4),), ((0, 1, 2, 3, 4),))
+
+    # a proved edge between two irreps holding a proof is never dropped: the class stays
+    # whole and still holds the proof; the same edge sampled is dropped
+    for proved in (True, False):
+        verdicts = _verdict_grid(["A", "B", "B"], [(1, 2)] + ([] if proved else [(0, 2)]),
+                                 {(0, 1): "subspace"})
+        if proved:
+            for key in ((0, 2), (2, 0)):
+                verdicts[key] = isotropy.PairVerdict(*key, "proved-contained", "isometry")
+        isotropy._split(verdicts, ["A", "B", "B"], 3)
+        relations = tuple(verdicts[k] for k in sorted(verdicts))
+        dropped = {(v.a, v.b) for v in relations if v.refuted_by is not None}
+        if proved:
+            assert dropped == set()
+            assert isotropy._partitions(relations, 3) == (((0, 1, 2),), ((0, 1, 2),))
+        else:
+            assert dropped == {(0, 2), (2, 0)}
+            assert isotropy._partitions(relations, 3) == (((0,), (1, 2)), ((0, 1, 2),))
+
+    # a proof inside one irrep reaches only that irrep's sampled edges
+    verdicts = _verdict_grid(["A", "A", "B"], [(0, 2), (1, 2)], {(0, 1): "farkas"})
+    isotropy._split(verdicts, ["A", "A", "B"], 3)
+    relations = tuple(verdicts[k] for k in sorted(verdicts))
+    assert all(v.refuted_by is None for v in relations)
+    assert isotropy._partitions(relations, 3) == (((0, 1, 2),), ((0, 1, 2),))
+
+
+def _six_known_answer_families(found, order=None):
+    from dataclasses import replace
+
+    labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S1(a,b)", "S2(rank 1)#1", "S2(rank 1)#2",
+              "S3(rank 1)#1"]
+    labels = labels if order is None else [labels[i] for i in order]
+    pick = {c.label: c for c in found}
+    return replace(found, candidates=tuple(pick[name] for name in labels)), labels
+
+
+def test_a_redraw_that_decides_the_contradicted_edge_splits_on_its_own_evidence(monkeypatch):
+    """The consistency rule's redraw: a direction that stops reproducing on the extra round removes the edge itself, so nothing is "refuted by transfer".
+
+    The withheld-certificate arm (six known-answer families, every fit
+    stubbed reproduced, the S1(a,b) ↔ S3 certificates withheld, so that
+    sampled edge joins S3 to the S1 ∪ S2 class holding S1 ⊄ S3 proofs).
+    Here the stub certifies the S1(a,b) → S3 direction on its first
+    *redraw* (the fourth draw of that direction, a synthetic witness) and
+    reproduces every other draw, including the S3 → S1(a,b) redraw.
+    **Positive arm:** the direction ends ``proved-not``/``farkas`` at draw
+    4, the edge is gone on that evidence, ``classes`` and
+    ``merged_classes`` both put S3 on its own, no verdict carries
+    ``refuted_by``, and the table prints the proof with its draw index.
+    **Negative arm, the same stub with the certificate withheld on the
+    redraw too:** the edge survives the redraw at 6 + 6 draws and is
+    dropped by the irrep rule instead, with ``refuted_by`` set (the
+    withheld-certificate test pins that shape in full).  **Scope:** in
+    both arms every sampled direction outside the hot irrep pair keeps
+    its 3 draws: the redraw touches only the edges a proof contradicts.
+    """
+    found = isotropy.candidates(*KNOWN_ANSWER)
+    subset, labels = _six_known_answer_families(found)
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    real = isotropy._certify
+
+    def withheld(a, b, *args):
+        return None if {a, b} == {2, 5} else real(a, b, *args)
+
+    monkeypatch.setattr(isotropy, "_certify", withheld)
+    _, parts = isotropy._farkas_certificate(SYNTHETIC_STACK, SYNTHETIC_OUT)
+    # a stand-in record on this set's 21 shells: the transfer loop reads its t and finds
+    # no live shell to match, so it carries it along the containments and fits nothing
+    synthetic = isotropy.Witness(
+        draw=4, t=(0.0,) * len(reflections.shells), live=(), y=(), weights=None,
+        kernel_dim=0, kernel_residual=0.0, kernel_amplitude_ratio=float("inf"),
+        ratio=parts["ratio"], rounding_bound=parts["rounding_bound"], exact=True,
+        d=(0.01, 0.1), interior=(), margin=parts["margin"])
+    canonical = [isotropy._canonical_basis(c) for c in subset]
+    target = isotropy.gram(isotropy.structure_factors(canonical[5], reflections), reflections.shells)
+    drawn, calls, amplitudes = [], {"S1(a,b)->S3": 0}, []
+    real_draw = isotropy._normalised_draw
+
+    def logging(candidate, lattice, rng):
+        drawn.append(candidate.label)
+        x = real_draw(candidate, lattice, rng)
+        amplitudes.append((candidate.label, x))
+        return x
+
+    def certify_on_the_redraw(t, grams_b, *args, **kwargs):
+        if drawn[-1] == "S1(a,b)" and np.array_equal(grams_b, target):
+            calls["S1(a,b)->S3"] += 1
+            if calls["S1(a,b)->S3"] == 4 and state["certify"]:
+                return False, True, synthetic, 1e-3
+        return True, False, None, None
+
+    monkeypatch.setattr(isotropy, "_normalised_draw", logging)
+    monkeypatch.setattr(isotropy, "_certify_draw", certify_on_the_redraw)
+    for state in ({"certify": True}, {"certify": False}):
+        drawn.clear()
+        amplitudes.clear()
+        calls["S1(a,b)->S3"] = 0
+        classes, relations = isotropy._classify(subset, reflections, draws=3, seed=20260906,
+                                                rtol=1e-4, restarts=1)
+        verdicts = {(v.a, v.b): v for v in relations}
+        assert classes == ((0, 1, 2, 3, 4), (5,))
+        # the redraw is a fresh stream, (seed, 1), not the loop's: S1(a,b) is drawn three
+        # times against S1(rank 1)#1 (after that family's three), three times against S3 on
+        # that pair's own stream (the generator's first outputs), and once on the redraw
+        s1ab = [x for name, x in amplitudes if name == "S1(a,b)"]
+        assert len(s1ab) == 7 if state["certify"] else len(s1ab) == 9
+        loop = real_draw(canonical[2], reflections.lattice, np.random.default_rng(20260906))
+        fresh = real_draw(canonical[2], reflections.lattice, np.random.default_rng([20260906, 1]))
+        assert np.allclose(s1ab[3], loop) and np.allclose(s1ab[6], fresh)
+        assert not np.allclose(s1ab[6], s1ab[3]) and not np.allclose(s1ab[6], s1ab[0])
+        outside = [v for v in relations if v.status == "sampled-contained" and {v.a, v.b} != {2, 5}]
+        assert outside and all(v.draws == 3 for v in outside)
+        if state["certify"]:
+            assert (verdicts[(2, 5)].status, verdicts[(2, 5)].certificate, verdicts[(2, 5)].draws) \
+                == ("proved-not", "farkas", 4)
+            assert verdicts[(2, 5)].witness is synthetic
+            assert (verdicts[(5, 2)].status, verdicts[(5, 2)].draws) == ("sampled-contained", 6)
+            assert isotropy._partitions(relations, 6) == (classes, classes)
+            assert all(v.refuted_by is None for v in relations)
+            assert drawn.count("S1(a,b)") == 3 + 3 + 1       # 3 to S1(rank 1)#1, 3 to S3, 1 redraw
+        else:
+            assert (verdicts[(2, 5)].status, verdicts[(2, 5)].draws, verdicts[(2, 5)].refuted_by) \
+                == ("sampled-contained", 6, (0, 5))
+            assert isotropy._partitions(relations, 6) == (classes, ((0, 1, 2, 3, 4, 5),))
+            assert drawn.count("S1(a,b)") == 3 + 3 + 3
+    from dataclasses import replace
+
+    text = str(replace(subset, classes=classes, relations=relations,
+                       merged_classes=isotropy._partitions(relations, 6)[1]))
+    assert "  S1(a,b) ~ S3(rank 1)#1  n = 6, 6  by S1(rank 1)#1 ⊄ S3(rank 1)#1 (absence)" in text
+
+
+def test_the_partition_does_not_depend_on_the_order_the_candidates_come_in(monkeypatch):
+    """The same six families in reverse order give the same classes, merged classes and refuted edges, mapped back.
+
+    The withheld-certificate arm again, with the stub and the withheld
+    pair keyed by label so the permutation changes only the indices: the
+    pair loop then visits the pairs in another order and skips a
+    different set as joined (so *which* directions carry draws is the
+    loop's and does move), the redraw's generator is seeded per
+    direction and not per index, and the split is a set computation, so
+    neither partition nor the refuted edges may move.  Which of the
+    proofs between the two irreps a dropped edge *names* is the one with
+    the smallest pair, so that family pair follows the order; the irrep
+    pair it stands for does not.  The reversed order is also the one that
+    puts the S3 family first, where a split keyed on the smallest index
+    would have put it in class 0.
+    """
+    found = isotropy.candidates(*KNOWN_ANSWER)
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    monkeypatch.setattr(isotropy, "_certify_draw",
+                        lambda *args, **kwargs: (True, False, None, None))
+    real = isotropy._certify
+    results = {}
+    for order in (None, [5, 4, 3, 2, 1, 0], [2, 5, 0, 3, 1, 4]):
+        subset, labels = _six_known_answer_families(found, order)
+        withheld_pair = {labels.index("S1(a,b)"), labels.index("S3(rank 1)#1")}
+
+        def withheld(a, b, *args, pair=withheld_pair):
+            return None if {a, b} == pair else real(a, b, *args)
+
+        monkeypatch.setattr(isotropy, "_certify", withheld)
+        classes, relations = isotropy._classify(subset, reflections, draws=3, seed=20260906,
+                                                rtol=1e-4, restarts=1)
+        merged = isotropy._partitions(relations, 6)[1]
+        name = lambda members: frozenset(labels[i] for i in members)  # noqa: E731
+        irrep = lambda i: labels[i].split("(")[0]  # noqa: E731
+        results[str(order)] = (
+            frozenset(name(c) for c in classes), frozenset(name(c) for c in merged),
+            frozenset((labels[v.a], labels[v.b], frozenset((irrep(v.refuted_by[0]), irrep(v.refuted_by[1]))))
+                      for v in relations if v.refuted_by is not None))
+        for v in relations:
+            if v.refuted_by is not None:
+                proof = next(p for p in relations if (p.a, p.b) == v.refuted_by)
+                assert proof.status == "proved-not" and proof.certificate == "absence"
+    first, *rest = results.values()
+    assert all(r == first for r in rest), results
+    assert len(first[0]) == 2 and len(first[1]) == 1
+    assert first[2] == {("S1(a,b)", "S3(rank 1)#1", frozenset({"S1", "S3"})),
+                        ("S3(rank 1)#1", "S1(a,b)", frozenset({"S1", "S3"}))}
+
+
+def test_the_fit_transfer_is_seeded_by_the_witness_origin_whatever_the_iteration_order():
+    """Yue's follow-up 3 on #853: the generator fitting ``c`` to a witness is seeded by the ``farkas`` pair that holds it, not by the first verdict met.
+
+    Four synthetic families, the witness found on (3, 1) and propagated
+    to (0, 1), which sorts first; ``c`` = 2 reproduces 0 and 3 by the
+    draws.  The stubbed fit records the generator it is handed: it is
+    ``default_rng([seed, 3, 1, 2])`` on both calls' worth of verdicts (one
+    fit per witness and ``c``), and ``[seed, 0, 1, 2]`` when no ``farkas``
+    verdict holds the witness (a hand-built ``transfer`` record), the
+    carrying pair's seed as before.
+    """
+    _, parts = isotropy._farkas_certificate(SYNTHETIC_STACK, SYNTHETIC_OUT)
+    witness = isotropy.Witness(
+        draw=1, t=tuple(SYNTHETIC_OUT), live=(0, 1, 2), y=tuple(parts["y"]), weights=None,
+        kernel_dim=0, kernel_residual=0.0, kernel_amplitude_ratio=float("inf"),
+        ratio=parts["ratio"], rounding_bound=parts["rounding_bound"], exact=True,
+        d=(0.01, 0.1), interior=tuple(parts["interior"]), margin=parts["margin"])
+    n = 4
+    seen = []
+    original = isotropy._transfer_fit
+    isotropy._transfer_fit = lambda t, g, rng, **kw: seen.append(rng.bit_generator.state) or None
+    try:
+        for root in ("farkas", "transfer"):
+            seen.clear()
+            verdicts = {(i, j): isotropy.PairVerdict(i, j, "unresolved", None, reason="joined")
+                        for i in range(n) for j in range(n) if i != j}
+            verdicts[(3, 1)] = isotropy.PairVerdict(3, 1, "proved-not", root, d=(0.01, 0.1),
+                                                    witness=witness, via=(2, 1) if root == "transfer" else None)
+            verdicts[(0, 1)] = isotropy.PairVerdict(0, 1, "proved-not", "propagated", d=(0.01, 0.1),
+                                                    witness=witness, via=(3, 1))
+            for a in (0, 3):
+                verdicts[(a, 2)] = isotropy.PairVerdict(a, 2, "sampled-contained", None, 12, 0)
+            isotropy._transfers(verdicts, list(range(n)), [SYNTHETIC_STACK] * n,
+                                [np.zeros(3, dtype=bool)] * n, [False] * n, n=n, seed=7, rtol=1e-4,
+                                restarts=2)
+            expected = np.random.default_rng([7, 3, 1, 2] if root == "farkas" else [7, 0, 1, 2])
+            assert len(seen) == 1 and seen[0] == expected.bit_generator.state, root
+    finally:
+        isotropy._transfer_fit = original
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("magnetic-f43m")
+def test_the_f43m_set_splits_s4_from_s5_on_the_stored_witness(f43m_stack, monkeypatch):
+    """Issue #565's second moving case, ``F -4 3 m`` Γ at seed 2: three classes by union-find, four once the S4 ∪ S5 class is split.
+
+    All 17 families, every draw stubbed reproduced except the stored
+    seed-2 witness, injected on the first draw of S4(rank 1)#2 against
+    S5(rank 2)#1; the two are put first in the candidate order because the
+    loop joins S4 ∪ S5 on the first S4 → S5 pair it meets and skips the
+    rest as joined (in ``candidates()``'s order the witness's pair is one
+    of the skipped, which is why rietx's own stream never finds it at
+    this seed).  The proof travels as part 4 showed: to the isometric
+    copies, up the span containments of S4, down those of S5.  What it
+    cannot reach is S5(a,b,c), which contains S5(rank 2)#1 (the rules
+    carry a separation to the families *inside* ``b``, not around it),
+    so the pipeline leaves S4(rank 1)#2 ~ S5(a,b,c) a sampled edge and
+    S4 ∪ S5 one merged class.  The consistency rule: the rejoin draws the
+    S5 ↔ S4 pairs the loop had skipped and whose join the proofs undid
+    (all stubbed reproduced, so the join stands on them), the redraw
+    gives the contradicted S4(rank 1)#2 ↔ S5(a,b,c) edge 12 more draws
+    each way (24 on the verdict), and the split drops it naming the
+    stored witness's pair; that cuts S5(a,b,c) loose from S4, so the next
+    round draws the other five S4 ↔ S5(a,b,c) pairs the loop had skipped
+    through it, each reproduced, redrawn and dropped in turn, until every
+    join between the two irreps has been tested.  ``classes`` is S1 ∪ S2
+    | S3 | S4 | S5 (four) and ``merged_classes`` three, the S5 class
+    marked S (its ⊆ halves are sampled) and the table printing the dropped
+    edges and the merged class as 0 ∪ 1.  **Negative arm:** the same run
+    without the witness is three and three, nothing refuted, nothing
+    redrawn.
+    """
+    from dataclasses import replace
+
+    found, reflections, canonical, grams, dark, labels = f43m_stack
+    first = ["S4(rank 1)#2", "S5(rank 2)#1"]
+    order = first + [name for name in labels if name not in first]
+    subset = replace(found, candidates=tuple(found[labels.index(name)] for name in order))
+    witness = _f43m_witness()
+    target = grams[labels.index("S5(rank 2)#1")]
+    state = {"armed": False, "injected": 0, "inject": True}
+    real_draw = isotropy._normalised_draw
+
+    def arming(candidate, lattice, rng):
+        state["armed"] = candidate.label == "S4(rank 1)#2"
+        return real_draw(candidate, lattice, rng)
+
+    def inject(t, grams_b, *args, **kwargs):
+        if state["inject"] and state["armed"] and np.array_equal(grams_b, target):
+            state["armed"] = False
+            state["injected"] += 1
+            return False, True, witness, 2.3e-6
+        return True, False, None, None
+
+    monkeypatch.setattr(isotropy, "_normalised_draw", arming)
+    monkeypatch.setattr(isotropy, "_certify_draw", inject)
+    by_irrep = {}
+    for i, name in enumerate(order):
+        by_irrep.setdefault(name.split("(")[0], []).append(i)
+    s4, s5 = tuple(by_irrep["S4"]), tuple(by_irrep["S5"])
+    a, b, c = order.index("S4(rank 1)#2"), order.index("S5(rank 2)#1"), order.index("S5(a,b,c)")
+
+    classes, relations = isotropy._classify(subset, reflections, draws=None, seed=20260906,
+                                            rtol=1e-4, restarts=4)
+    assert state["injected"] == 1
+    split, merged = isotropy._partitions(relations, len(order))
+    assert classes == split == (s4, s5, tuple(by_irrep["S1"] + by_irrep["S2"]), tuple(by_irrep["S3"]))
+    assert merged == (tuple(sorted(s4 + s5)), tuple(by_irrep["S1"] + by_irrep["S2"]),
+                      tuple(by_irrep["S3"]))
+    v = {(r.a, r.b): r for r in relations}
+    assert (v[(a, b)].status, v[(a, b)].certificate, v[(a, b)].draws) == ("proved-not", "farkas", 1)
+    assert v[(a, b)].witness is witness
+    # every S4 family's join to S5(a,b,c) was tested, not assumed: the one the loop drew, and
+    # the five it had skipped as joined, each drawn by a rejoin round once the previous drop
+    # cut it loose, redrawn once, and dropped naming the stored witness's pair
+    refuted = {(r.a, r.b): (r.draws, r.refuted_by) for r in relations if r.refuted_by is not None}
+    assert refuted == {key: (2 * isotropy.CROSS_IRREP_DRAWS, (a, b))
+                       for x in s4 for key in ((x, c), (c, x))}
+    assert all(v[key].status == "sampled-contained" for key in refuted)
+    # the rejoin drew the skipped S5 → S4 directions the proofs had cut loose (all reproduced),
+    # and the redraw gave each of them, a sampled direction between the hot irreps, its
+    # second round
+    rejoined = [r for r in relations if r.a in s5 and r.b in s4 and r.status == "sampled-contained"]
+    assert len(rejoined) > len(s4)
+    assert all(r.draws == 2 * isotropy.CROSS_IRREP_DRAWS for r in rejoined)
+    assert all(v[(i, j)].status == "proved-not" for i in s4 for j in s5 if j != c)
+    assert all(v[(j, i)].status in ("sampled-contained", "unresolved") for i in s4 for j in s5)
+    result = replace(subset, classes=classes, relations=relations, merged_classes=merged)
+    text = str(result)
+    assert _table_marks(result)[:len(s4) + len(s5)] == ["S"] * (len(s4) + len(s5))
+    assert (f"  S4(rank 1)#2 ~ S5(a,b,c)  n = {2 * isotropy.CROSS_IRREP_DRAWS}, "
+            f"{2 * isotropy.CROSS_IRREP_DRAWS}  by S4(rank 1)#2 ⊄ S5(rank 2)#1 (farkas)") in text
+    assert "as unions of the classes above: 0 = 0 ∪ 1" in text
+    assert "still holding a proved separation" not in text
+
+    state.update(inject=False, injected=0)
+    classes, relations = isotropy._classify(subset, reflections, draws=None, seed=20260906,
+                                            rtol=1e-4, restarts=4)
+    assert state["injected"] == 0
+    assert isotropy._partitions(relations, len(order)) == (classes, classes) and len(classes) == 3
+    assert all(r.refuted_by is None and r.draws <= isotropy.CROSS_IRREP_DRAWS for r in relations)
+
+
+#: ``F m -3 m`` Γ at the general site: 34 candidates in ten irreps, the set issue
+#: #565 measured its consistency rule on (S7 ∪ S8 ∪ S10 one union-find class holding
+#: proved S7 ⊄ S8 and S10 ⊄ S8 separations, S8 ⊆ S7 and S8 ⊆ S10 only sampled).
+FM3M_GAMMA = ("F m -3 m", (0.11, 0.13, 0.17), GAMMA)
+
+
+@pytest.fixture(scope="module")
+def fm3m_stack():
+    """``FM3M_GAMMA``'s candidates, canonical bases, Gram stacks and dark shells, built once (about 25 s)."""
+    return _stack(FM3M_GAMMA)
+
+
+def _fm3m_witnesses():
+    """The stored witnesses of ``tests/data/fm3m_gamma_witnesses.json`` as {(a label, b label): (Witness, dual)}."""
+    import json
+    from pathlib import Path
+
+    doc = json.loads((Path(__file__).parent / "data" / "fm3m_gamma_witnesses.json")
+                     .read_text(encoding="utf-8"))
+    out = {}
+    for w in doc["witnesses"]:
+        fields = {k: (tuple(v) if isinstance(v, list) else v) for k, v in w.items()
+                  if k not in ("a", "b", "dual")}
+        out[(w["a"], w["b"])] = (isotropy.Witness(weights=None, **fields), w["dual"])
+    return out
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("magnetic-fm3m")
+def test_the_fm3m_set_splits_s8_and_s9_from_the_stored_witnesses(fm3m_stack, monkeypatch):
+    """Issue #565's part-5 acceptance row, ``F m -3 m`` Γ: six classes, with the union-find count beside them, from stored witnesses.
+
+    Every draw is stubbed reproduced except the stored witnesses, each
+    injected on the first draw of its own direction, in the pair loop or
+    in the consistency rule's rejoin pass (nine of the fourteen were found
+    there in the run that stored them: the loop had skipped every S8 ↔ S9
+    pair as joined through S7, and the transfers then refuted the S7
+    edges that join stood on).  Each witness is first rebuilt from its
+    literals and re-verified against the stack this module builds (the
+    projected ratio at :data:`isotropy.FARKAS_QUOTE`, exact-PSD, y·t̂ = −1
+    to 1e-9, its live shells the target's).  **With every root** the
+    proofs reach every S7/S10 → S8 and → S9 direction and every S8 → S9
+    one: ``classes`` and ``merged_classes`` are both six, S1 ∪ S2 | S3 ∪
+    S4 | S5 ∪ S6 | S7 ∪ S10 | S8 | S9, nothing is refuted by transfer, and
+    the two counts agree with the run on real draws that stored the
+    witnesses (02:2x, 129 s, 6 and 6).  **With the S7(rank 1)#1 → S8(a,b,c)
+    root withheld** the rules cannot reach S8(rank 2) and S8(a,b,c) from
+    the S8(rank 1)#1 witness (a separation travels up ``a``'s containments
+    and down ``b``'s, not up ``b``'s), so sampled S7/S10 ~ S8(rank 2),
+    S8(a,b,c) edges survive, S8 stays inside S7 ∪ S10 by union-find, and
+    the split cuts it out at the hot irrep pairs {S7, S8} and {S10, S8}:
+    six classes with five beside them, the issue's row.  Every one of the
+    36 S7/S10 ↔ S8(rank 2), S8(a,b,c) joins is tested on the way (the
+    loop drew one, each drop cuts the next loose for a rejoin round) and
+    dropped, named by a proof between those irreps, its sampled halves
+    counted at 24 draws (one redraw round each way); S8(a,b,c) stays
+    with S8 on its own drawn edges.  **Negative arm:**
+    no witness at all gives four and four, S8 and S9 inside S7 ∪ S10 on
+    sampled edges, nothing refuted.  About 2 min an arm (the fit
+    transfers), hence slow.
+    """
+    from dataclasses import replace
+
+    found, reflections, canonical, grams, dark, labels = fm3m_stack
+    assert len(found) == 34 and len(reflections.shells) == 10
+    stored = _fm3m_witnesses()
+    assert len(stored) == 14
+    for (a, b), (w, dual) in stored.items():
+        gb = grams[labels.index(b)]
+        t = np.asarray(w.t)
+        assert tuple(np.flatnonzero(isotropy._fit_rows(t, gb) & ~dark[labels.index(b)])) == w.live
+        holds, ratio, off = isotropy._verify_witness(gb, w)
+        assert holds and ratio >= isotropy.FARKAS_QUOTE * 0.5 and off <= 1e-9, (a, b, ratio, off)
+        assert w.exact and dual >= isotropy.FARKAS_FLOOR and w.d[0] <= w.d[1]
+    by_irrep = {}
+    for i, name in enumerate(labels):
+        by_irrep.setdefault(name.split("(")[0], []).append(i)
+    irrep = [name.split("(")[0] for name in labels]
+    expected_six = (tuple(by_irrep["S1"] + by_irrep["S2"]), tuple(by_irrep["S3"] + by_irrep["S4"]),
+                    tuple(by_irrep["S5"] + by_irrep["S6"]), tuple(by_irrep["S7"] + by_irrep["S10"]),
+                    tuple(by_irrep["S8"]), tuple(by_irrep["S9"]))
+    state = {"last": None, "injected": [], "roots": {}}
+    real_draw = isotropy._normalised_draw
+
+    def arming(candidate, lattice, rng):
+        state["last"] = candidate.label
+        return real_draw(candidate, lattice, rng)
+
+    def inject(t, grams_b, *args, **kwargs):
+        for (a, b), (w, dual) in state["roots"].items():
+            if state["last"] == a and (a, b) not in state["injected"] \
+                    and np.array_equal(grams_b, grams[labels.index(b)]):
+                state["injected"].append((a, b))
+                return False, True, w, dual
+        return True, False, None, None
+
+    monkeypatch.setattr(isotropy, "_normalised_draw", arming)
+    monkeypatch.setattr(isotropy, "_certify_draw", inject)
+
+    def run(roots):
+        state.update(injected=[], roots=roots)
+        classes, relations = isotropy._classify(found, reflections, draws=None, seed=20260906,
+                                                rtol=1e-4, restarts=4)
+        split, merged = isotropy._partitions(relations, len(found))
+        assert split == classes
+        return classes, merged, relations
+
+    # every stored root: six and six, S8 and S9 apart on proofs
+    classes, merged, relations = run(stored)
+    assert len(state["injected"]) == 14
+    assert classes == merged == expected_six
+    assert all(v.refuted_by is None for v in relations)
+    v = {(r.a, r.b): r for r in relations}
+    for x in by_irrep["S7"] + by_irrep["S10"]:
+        assert all(v[(x, y)].status == "proved-not" for y in by_irrep["S8"] + by_irrep["S9"])
+    for x in by_irrep["S8"]:
+        assert all(v[(x, y)].status == "proved-not" for y in by_irrep["S9"])
+    assert sum(1 for r in relations if r.certificate == "farkas") == 14
+    text = str(replace(found, classes=classes, relations=relations, merged_classes=merged))
+    assert "refuted by transfer" not in text and "merged classes" not in text
+
+    # the S8(a,b,c) root withheld: six with five beside them, the dropped edges named
+    withheld = dict(stored)
+    del withheld[("S7(rank 1)#1", "S8(a,b,c)")]
+    classes, merged, relations = run(withheld)
+    # fewer directions are ever drawn here (S8(rank 2) and S8(a,b,c) stay joined to S7 ∪ S10, so
+    # their S9 pairs are never cut loose), so fewer roots are met; the S8(rank 1)#1 one is
+    assert ("S7(rank 1)#1", "S8(rank 1)#1") in state["injected"]
+    assert set(state["injected"]) <= set(withheld) and 7 <= len(state["injected"]) <= 13
+    assert classes == expected_six
+    assert merged == (expected_six[0], expected_six[1], expected_six[2],
+                      tuple(sorted(expected_six[3] + expected_six[4])), expected_six[5])
+    refuted = [r for r in relations if r.refuted_by is not None]
+    assert refuted
+    for r in refuted:
+        proof = v2 = {(p.a, p.b): p for p in relations}[r.refuted_by]
+        assert r.status == "sampled-contained" and r.draws == 2 * isotropy.CROSS_IRREP_DRAWS
+        assert proof.status == "proved-not" and {irrep[r.a], irrep[r.b]} == {irrep[proof.a], irrep[proof.b]}
+        assert irrep[r.b] == "S8" or irrep[r.a] == "S8"
+        del v2
+    dropped = {tuple(sorted((irrep[r.a], irrep[r.b]))) for r in refuted}
+    assert dropped == {("S7", "S8"), ("S10", "S8")}
+    assert {labels[r.a] for r in refuted if irrep[r.a] == "S8"} <= {
+        "S8(rank 2)#1", "S8(rank 2)#2", "S8(a,b,c)"}
+    result = replace(found, classes=classes, relations=relations, merged_classes=merged)
+    text = str(result)
+    assert "sampled edges refuted by transfer (dropped from the split, which rests on their sampled ⊆ halves)" in text
+    assert "as unions of the classes above: 3 = 3 ∪ 4" in text
+    assert "still holding a proved separation" not in text
+    assert _table_marks(result)[by_irrep["S8"][0]] == "S"
+
+    # no witness: four and four, nothing refuted
+    classes, merged, relations = run({})
+    assert classes == merged and len(classes) == 4
+    assert all(r.refuted_by is None for r in relations)
