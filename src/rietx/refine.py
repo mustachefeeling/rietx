@@ -1160,6 +1160,7 @@ def _reach_beyond_self(table: ParameterTable, columns: list[str],
 
 def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
                              prior: np.ndarray | None = None,
+                             seeded_phases: Iterable[int] = (),
                              ) -> tuple[list[str], dict[str, list[str]]]:
     """Apply :func:`_unsupported_phase_paths`; returns what it held and its reach.
 
@@ -1171,11 +1172,21 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
     is held.  The screen alone frees a phase whose scale was fitted to noise
     whenever its conditional z passes while the marginal one does not, and
     the stage then chases the noise, collapses it, restores it and solves
-    again.  That answer's values are the ones this stage starts from, unless
-    the stage seeds a row (``Stage.seed``, ``Stage.strain_seed``).  A plan's
-    free set only grows, so the marginal z here is no larger to first order.
-    A stale reading errs only towards holding, since the minimum is taken,
-    and the scale stays free for the release at the answer.
+    again.  A plan's free set only grows, so the marginal z here is no larger
+    to first order.
+
+    The reading was taken where the previous answer stood, and three things
+    can move a phase off it before this stage starts.  A stage seed writes a
+    row (``Stage.seed``, ``Stage.strain_seed``), so the caller names the
+    phases a seed reached in ``seeded_phases`` and their prior is dropped:
+    a seeded scale would otherwise stay held on a reading from before the
+    seed and pay the second solve this exists to remove.  A collapse puts
+    the phase back where its stage started, after the reading was taken.
+    ``clamp_cell_runaway`` moves a cell after the solve whose Jacobian the
+    reading used.  In the last two cases the phase stays held by a reading
+    that the stage's own measurement called unseen, and a stale reading errs
+    only towards holding, since the minimum is taken and the scale stays
+    free for the release at the answer.
 
     Measured on seed 107 of #481's blank frame under ``mccusker_structural``:
     18 solves for 11 stages with the screen alone, 11 with the prior read.
@@ -1185,11 +1196,13 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
     its held values.  Over the WP's sweep that moved one weak real phase of
     64 fits from refined to held, at 2.46σ.
     """
-    support = None
+    support = np.asarray(model.phase_support(table.decode(table.x0())),
+                         dtype=np.float64)
     if prior is not None:
         # one plan, one structure: the two vectors index the same phases
-        support = np.minimum(model.phase_support(table.decode(table.x0())),
-                             prior)
+        prior = np.array(prior, dtype=np.float64)
+        prior[list(seeded_phases)] = np.inf
+        support = np.minimum(support, prior)
     held = _unsupported_phase_paths(model, table, support)
     reach = _reach_beyond_self(table, held)
     if held:
@@ -3753,10 +3766,17 @@ class Refinement:
             # the band the data can see (WP-1938)
             seeded = dict.fromkeys(table.seed_floored(freed, stage.seed),
                                    stage.seed)
+        strain_seeded: list[str] = []
         if stage.strain_seed:
             # the Stephens DOFs are unbounded below, so the seed above never
             # sees them; put an all-zero block on the isotropic ray
-            table.seed_stephens(freed, stage.strain_seed)
+            strain_seeded = table.seed_stephens(freed, stage.strain_seed)
+        # a seed moved these phases off the values the previous answer's
+        # significance was read at, so the support hold drops that reading
+        # for them (WP-1523)
+        seeded_phases = (_phases_reached([*seeded, *strain_seeded],
+                                         table.column_reach())
+                         if seeded or strain_seeded else set())
 
         # regenerate reflection list/windows/FCJ nodes with current values
         # (between-stage refresh; frozen within the stage); the free-path
@@ -3827,8 +3847,8 @@ class Refinement:
         # values the stage starts from, and all go into ``StageResult.held``
         # so the report can say which and why.  The phase hold also reads the
         # previous answer's significance where a plan hands one in (WP-1523).
-        held, held_reach = _hold_unsupported_phases(model, table,
-                                                    prior_significance)
+        held, held_reach = _hold_unsupported_phases(
+            model, table, prior_significance, seeded_phases)
         # kept apart, because the release below judges each hold by its own
         # question: a moment DOF the *phase* hold took (every free structural
         # path of an invisible phase, ``moment.dof0`` included) stays with the
@@ -8661,10 +8681,13 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
     and the line weights, since rescaling one rescales the scale and its esd
     alike.  ``basis`` names how the σ was taken, for the message: a joint fit
     reads the screen in the histogram that shows the phase best.
-    ``decided`` says whether a held phase's reading is the one its hold was
-    decided on (a single Rietveld fit's stage vector) or one taken at the
-    answer (a joint fit, Le Bail, Pawley, a replay), so the message claims
-    only what is true of the number.
+    ``decided`` says whether a held phase's reading is the one the last
+    stage's answer kept its hold on (a single Rietveld fit's stage vector,
+    measured with the held columns freed) or one the result took at the
+    final values (a joint fit, Le Bail, Pawley, a replay), so the message
+    claims only what is true of the number.  A hold taken at a stage start
+    read min(screen, prior) instead (WP-1523), and the message quotes the
+    answer's reading because the answer is what kept it.
 
     ``params.vector.cell_window`` bounds the *symptom* — it stops the cell
     running away — but a windowed cell re-anchors on every stage, so it walks
@@ -8712,12 +8735,15 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                      f"range {tt_range[0]:.4g}-{tt_range[1]:.4g}°, so nothing "
                      f"about it is measurable here")
         elif held and decided:
-            # a held phase quotes the reading its hold was decided on, which
-            # a second solve at the restored values can since have moved
+            # a held phase quotes the reading the last stage's answer kept or
+            # took its hold on, which a second solve at the restored values
+            # can since have moved; a hold taken at a stage start read
+            # min(screen, prior) instead, and the answer is what kept it
             cause = (f"phase {ip} ({name})'s scale was at most {support:.2g}σ "
-                     f"from zero {basis} when its hold was decided, under the "
-                     f"{PHASE_SUPPORT_SIGMA:g}σ a phase needs to count as "
-                     f"seen, so the stage could not distinguish it from absent")
+                     f"from zero {basis} at the last stage's answer, which "
+                     f"kept it held, under the {PHASE_SUPPORT_SIGMA:g}σ a "
+                     f"phase needs to count as seen, so the stage could not "
+                     f"distinguish it from absent")
         else:
             cause = (f"phase {ip} ({name})'s scale is at most {support:.2g}σ "
                      f"from zero {basis}, under the {PHASE_SUPPORT_SIGMA:g}σ "
