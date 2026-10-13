@@ -62,8 +62,8 @@ the `.ipynb`:
 So the PNG is the smallest form that carries the picture. Drawing the
 picture from data in the page costs more, and only the text view is smaller.
 The one real saving that keeps a picture is 1× density, at 62 % smaller, and
-it costs sharpness on a HiDPI screen. That is the maintainer's call, so this
-WP does not decide it.
+it costs sharpness on a HiDPI screen. **Decided by the maintainer
+2026-10-14: keep 2×**, so `_NOTEBOOK_DENSITY` stays 2.
 
 The structure figure was the actual space problem. Its `_repr_png_` wrote
 full-colour RGBA, about 185–200 kB a view, and 02 grew from 99 kB to 688 kB.
@@ -143,9 +143,9 @@ Rwp well above it points at the structure.
 - [ ] The maintainer opens notebook 02 in Colab at a narrow window, once the
       next release carries this, and records whether the figures keep their
       shape.
-- [ ] The maintainer decides the PNG density question (Context 3): keep 2×,
-      or go to 1× and save about 60 %.
-- [ ] Skill: none. The changes are display encoding and notebooks for people.
+- [x] The maintainer decides the PNG density question (Context 3): keep 2×,
+      or go to 1× and save about 60 %. Decided 2026-10-14: keep 2×.
+- [x] Skill: none. The changes are display encoding and notebooks for people.
       An agent reads results rather than notebook outputs, and the figure
       surface it uses did not change.
 
