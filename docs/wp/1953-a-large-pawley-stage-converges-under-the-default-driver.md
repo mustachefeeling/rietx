@@ -1,9 +1,8 @@
 # WP-1953 — a large Pawley stage converges under the default driver
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — the FCJ limit and the projected-CG Pawley step in PR #918, the held column scale and a measured curvature in PR #923; the Linux arm64 two-site winner measured 2026-10-13, the truth on all three runners
+Milestone: unscheduled · Status: ✅ 2026-10-13 — the FCJ limit and the projected-CG Pawley step in #918, the held column scale and a measured curvature in #923; the two-site winner is the truth on arm64 Linux too
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-12 — was P1: PR #918 fixes the Windows gate's `test_e8`, and PR #923 ends LM's crawl beside a vanishing column, which reported `converged` far from a minimum on magnetic fits; the one Linux arm64 measurement left was taken 2026-10-13
 
 ## Goal
 
@@ -525,6 +524,58 @@ written down as a property of the fixture. `test_e8` passes on Windows.
   **27**, 892-900 (the axial model `model/profiles/fcj.py` implements).
 
 ## Handover log
+
+### 2026-10-13 (second session) — closed: arm64 Linux picks the true two-site winner
+
+The last open task is answered. Under the held scale and the measured
+curvature, all three CI runner types pick the true two-site moment solution.
+Before this branch arm64 Linux picked the swapped minimum. The PR's own CI
+then caught one test asserting where a crawl stops. From an exactly zero
+column that endpoint is set by rounding, and it differs between macOS and one
+Linux runner, so the test now asserts the crawl alone. Two declined review
+findings became WP-1955, and the `moduli`-stage question went to WP-1418.
+
+*Inherited pruned on arrival:* none; the section was empty.
+
+*Done* (branch `wp1953-noise-column`, PR #923):
+- `d8484add` The `[0.0]` case of
+  `test_a_column_small_from_the_first_iteration_has_its_curvature_measured`
+  asserts only λ's climb on its blind arm. The χ² margin stays on `[3e-8]`.
+- `08e0896a` The arm64 Linux task measured and ticked.
+- `e59d12a6` WP-1955 filed (no open WP owned it; 1467 is a Stephens clamp).
+  WP-1418's Inherited gains the `moduli`-stage question.
+- `d6e1dccf` The review's three documentation fixes. The close commit sets
+  ✅, deletes Priority and adds the v1.9 record's section.
+
+*Measured:*
+- Throwaway run 38323275436 on `8d2fb489`, Python 3.13 `[dev]`, numpy
+  2.5.4, scipy 1.18.1, branch deleted after. The slow test passes on
+  `ubuntu-24.04-arm` (Neoverse-N2), `ubuntu-latest` (AMD EPYC 7763) and
+  `macos-latest`. Absolute χ² per start: `Mn1 only, then released`
+  2555.84814 (truth) on all three and locally; `Mn2 only, then released`
+  2555.95013 (swapped) on all; flat start 2556.510 (swapped) on arm64 Linux
+  and macOS, 2556.405 (Mn1 3.4984) on x86-64 Linux. The pattern hashes
+  alike on both Linux runners and differently on macOS.
+- PR CI run 38322068261 on `8d2fb489`: `fast jax 1/2` failed the `[0.0]`
+  case, blind χ² 0.744872 against the bar 0.745854. The same code passed on
+  run 38321967654 and on that run's py3.11 and py3.14 jobs. On macOS arm64
+  the blind arm ends at 0.74609683, λ 1e12, `exhausted_fp64`, from seven
+  nudges each of a and k 1e-14 apart.
+- Fast suite on `d6e1dccf`, macOS arm64, `[dev]`, another session's suite
+  running beside it: 9489 passed, 33 skipped, 1 xfailed, 0 failed. Equal to
+  the last entry's final tree, as no test was added. The four
+  `test_lm_solver.py` cases this WP added cost 0.05 s on that run.
+- Full suite not run: this session's change is test-only and the machine
+  held 92 suite processes (load average 141).
+
+*Review* (`/code-review high --fix 8d2fb489..HEAD`): no correctness finding.
+Three documentation fixes landed in `d6e1dccf`. Declined: a χ² assertion on
+the `[0.0]` blind arm, since its endpoint is rounding's.
+
+*Next*: none on this WP; it closes when #923 merges. For the maintainer:
+delete or keep the parked branch `wp1953-central-angle-columns`. WP-1955
+holds the numpy axial column and the dead-column cut, WP-1418 the `moduli`
+stage.
 
 ### 2026-10-13 — the crawl beside a vanishing column ends: a held scale and a measured curvature
 
