@@ -150,6 +150,14 @@ here (2026-10-03, at the maintainer's request).
   (the 2026-10-11 entry from #726 above), not TCHZ terms reaching their bounds,
   so it is a fixture for task 4 and not a reproduction of that run.
 
+- **2026-10-12, from WP-1930 (#832's sweep of 2026-10-08): five indexing
+  Le Bail validation fits split by platform after #741.** The short-wavelength
+  P candidate left `profile.y` on its floor on Linux, χ²_red 32.27 against
+  29.38 on macOS. A Le Bail fit left where its start put it is this WP's
+  subject, and `validate_by_lebail` is its unmeasured path. Since WP-1938 a
+  width's floor is an ordinary bound of 0 with its physical column, which
+  ended the LaB₆ + cBN split, so this one may be gone too; unmeasured.
+
 ## Non-goals
 
 - The alternation's stop rule and keep-best (WP-1323, shipped).

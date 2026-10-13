@@ -1,6 +1,6 @@
 # WP-1419 — a child structure refined on its mode amplitudes
 
-Milestone: magnetic · Status: 🔄 2026-10-08 — the move #418 decided (C0a, PR #842) landed from outside; C0b and the entry point are open
+Milestone: magnetic · Status: 🔄 2026-10-13 — the move #418 decided landed whole from outside (C0a PR #842, C0b PR #889); the entry point is open
 Depends on: 1418 (the mode vectors: irreps, projection, isotropy subgroups);
 1327 soft (the operator-list phase both would share)
 Priority: P3 2026-09-23 — waits on 1418's mode vectors; P2 when they land
@@ -571,6 +571,58 @@ every shipped fixture are bit-identical.
   `operator-list-basis`, as a reference implementation only.
 
 ## Handover log
+
+### 2026-10-13 — C0b landed from outside: PR #889
+
+The move #418 decided is now whole. The kind-neutral half of the isotropy
+machinery (the order-parameter space of one irrep and its isotropy directions)
+lives in `crystallography/representation/order_parameter.py`, beside `irreps`
+and `modes`. A displacive caller can reach it without importing anything
+magnetic. What builds magnetic space groups stays in `magnetic/isotropy.py`.
+The entry point (`Phase.distortion_modes`, `displacive_statement`) is still
+open, and no Task is ticked: the move is a sequencing step, not one of them.
+
+*Done.* PR #889 (@mustachefeeling, head `ac81cadf`) merged as `411040d8`,
+right after #932 (`4b173550`). The moved code is byte-identical apart from docstring cross-references and one
+renumbered convention, and `order_parameter.py` imports nothing from
+`magnetic/`. The PR's one question was answered in its 2026-10-11 review:
+`displacive_statement` may call `magnetic.isotropy.candidates` until a
+displacive caller needs something the magnetic group cannot give.
+
+*Checked here: the release note the 2026-10-11 Inherited entry asks for is not
+owed.* That entry assumed the move breaks code importing the old path. It does
+not: `magnetic/isotropy.py` imports all seven public names back because it uses
+them (`order_parameter_space`, `isotropy_directions`, `OrderParameterSpace`,
+`OrderParameterDirection`, `GreyElement`, `ORDER_PARAMETER_KINDS`,
+`ISOTROPY_ATOL`). Only private helpers leave that namespace, and no manual
+page, skill row or example imports through it. The old paths survive because
+`candidates` uses those names, not because anything re-exports them. A later
+change that stops using one there breaks its old path silently, and that change
+owes the note. The 2026-10-11 and 2026-10-08 Inherited entries about C0b are
+answered and can be pruned on arrival.
+
+*Gate,* run in pieces because `main` moved four times under it (Linux x86_64,
+Python 3.12, `[dev,jax]` venv, 4 cores):
+- **With #932 and #911 on `main` `908c4814`.** Fast selection 9575 passed,
+  125 skipped, 1 xfailed. The slow acceptance files, `test_sequential` and
+  `test_cross_backend` gave 148 passed, 7 skipped and 1 failed:
+  `test_acceptance_lab6_cbn.py::test_the_correlation_diagnostic_separates_the_two`,
+  red on `main` alone and in its nightly.
+- **The same stack on `2f536106`, every other test with the slow ones.** 9511
+  passed, 68 skipped, 1 xfailed, and 5 failed. The five are `test_docs_consistency`
+  rows from `main`'s duplicate WP-1957, which #957 fixed.
+- **With #932 alone on `0679be45`, the targeted set.** Ruff and the `-W`
+  Sphinx build are clean. The magnetic isotropy, irreps, modes, supercell,
+  amplitude-count, solve and satellite files, plus everything #929 and #957
+  touched, gave 1193 passed and 0 failed, slow included.
+- **The final tree.** `main` after both merges equals that tree plus #958's
+  one WP-file line, and `test_docs_consistency` passed there (25).
+
+The maintainer ruled the merge for this run: WP-1419's 🔄 was not a live
+session's claim, and only main's own known failures were allowed to fail.
+
+*Next:* decision 2 (the amplitude unit), then `Phase.distortion_modes` and
+`displacive_statement`, under `representation/`.
 
 - **2026-10-08** — the first step of #418's decision landed from outside. PR #842
   (head `823f39d8`) merged as `5981c23b`.

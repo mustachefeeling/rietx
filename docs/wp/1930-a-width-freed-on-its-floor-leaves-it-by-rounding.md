@@ -1,9 +1,8 @@
 # WP-1930 — a width freed on its floor leaves it by rounding
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — PR #849 ready; the band's Linux run is the nightly after merge
+Milestone: unscheduled · Status: ✅ 2026-10-13 — closes in PR #925; the next Linux and macOS nightlies after merge confirm
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P1 2026-10-08 — a published acceptance number (VALIDATION.md, the landing page) that `main` reproduces on no platform, χ²_red 12.48 on Linux against 9.69 on macOS, every assertion green; `profile.y` defaults to 0.0, its floor, and six preset plans free it there
 
 ## Goal
 
@@ -121,92 +120,68 @@ handover log has the tables).
   reaches 9.661408 at every perturbation, with `w` on its floor and the
   resolution diagnostics firing, so holding the Gaussian still stands.
 
-### Inherited
+**Superseded in part 2026-10-12 (WP-1938, PR #883).** Every parameter
+now refines in its own units, so a width's floor is an ordinary bound of 0
+and its column there is the physical one. WP-1938 deleted the floor seed
+(`seed_floor`, `SOFTPLUS_FLOOR_VALUE`, `SOFTPLUS_FREED_AT_FLOOR`,
+`StageResult.floor_unseeded`) and the finite-softplus-floor probe WP-1929
+proposed with it. `Stage.seed` survives as `seed_floored`, lifting only a
+freed row on a floor at or above 0. The decided protocol for LaB₆ + cBN
+stands: `u, v, w` held, and `profile.y` now leaves 0 by itself, so the
+`profile` stage seeds nothing. Re-measured on arm64 (this worktree's `[dev]`
+venv, Apple M4, numpy 2.5.4): Rwp 0.168656276, χ²_red 10.151815, `y`
+0.036893 ± 0.001239, LaB₆ 17.791 ± 0.319 wt %, every value and esd the same
+bits at the last nightly's tree (56427c4a). That nightly's Linux plot reads Rwp
+0.1687, GoF 3.19 (run 38261107758). The degenerate plan reads Rwp 0.1289, GoF
+2.44 on both (χ²_red 5.934160 on macOS), so #832's split (a), 5.470 against
+6.001, is gone.
 
-- **2026-10-13, from WP-1523's slow run: `lab6_cbn`'s degenerate fit raises
-  no `HIGH_CORRELATION` on Linux.**
-  `test_acceptance_lab6_cbn.py::test_the_correlation_diagnostic_separates_the_two`
-  fails with "the degenerate fit raised no HIGH_CORRELATION at all". That is
-  on `origin/main` `908c481`, Linux x86_64, Python 3.12, `[dev]`, and the
-  test takes 8.5 s alone. It fails identically with WP-1523's change
-  disabled, so it is not that PR's. The nightly on main has failed its last
-  three runs. Its log was not read, so whether this is the nightly's failure
-  is unchecked.
-- **2026-10-11, from WP-1938 (in flight, PR #883): the floor seed is
-  deleted on that branch.** Under physical coordinates the trap it worked
-  around is gone, so `seed_floor`, `SOFTPLUS_FLOOR_VALUE`,
-  `SOFTPLUS_FREED_AT_FLOOR` and `StageResult.floor_unseeded` go (a
-  before-validator drops the stored key). `FLOOR_SEEDS` stays as the FD step
-  table. `Stage.seed` survives as `seed_floored`, lifting only a freed row
-  sitting on a floor at or above 0. LaB₆ + cBN's shared fit then seeds
-  nothing and `profile.y` leaves 0 on its own: 0.0369 at Rwp 0.168656, inside
-  the reporter's 2 % band, and `test_acceptance_lab6_cbn` asserts
-  `seeded == {}`. That figure was measured in a venv later found to run
-  x86_64 under Rosetta, so re-measure it on arm64 before this WP's band task
-  quotes it. The Caglioti W is now floored at 1e-8 deg²
-  (`caglioti._MIN_GAMMA_G2`) and LM holds Γ_G² ≥ 1e-8 at every reflection as
-  a linear inequality (WP-1938's D7/D8), so the free-Gaussian LaB₆ plans
-  reach one answer, χ²_red 9.692771, where they split between 9.661 and 9.840.
+### PINV_RCOND alternatives, measured
 
-- **2026-10-09, from WP-1929: the floor's column is rounding noise, and a
-  finite softplus floor may make the seed unnecessary.** The Jacobian
-  differences each column with h = 1e-6·max(1, |u|) in *internal*
-  coordinates (`optimize/least_squares.py:592`, and `:1061` for the FD
-  fallback). At u ≈ −27.6 that step moves the width by about 3e-17, below
-  its own last digit, so the gradient TRF sees at a freed floor row is noise.
-  This is the mechanism 1930's Context describes as "depends on rounding".
-  On BT-1, differencing the width itself and chaining by dp/du made the esds
-  agree to 1e-8 at u = −25.54, −25.5 and −514. WP-1929's session proposed
-  probing a **finite internal floor** for softplus parameters, at TOPAS's
-  defaults (widths 1e-6, scale 1e-11; TOPAS 5 Technical Reference § 2.5).
-  There dp/du ≈ 1e-6, which is enough for both an accurate column and a usable
-  gradient. If that probe closes the LaB₆ + cBN split, it replaces this WP's
-  seed. Read 1929's 2026-10-09 handover entry and
-  https://claude.ai/artifact/CYGoz3cF63QUJ345z4zKMY before landing the seed.
-- **2026-10-10, from WP-1547: the nightly after #849 is red on this WP's
-  two-site test.** Nightly 38048650490 ran on 32a2b473.
-  `test_pair_diagnostic_class.py::test_the_two_site_set_reaches_one_minimum_and_pairs_nothing`
-  found a pair: "class 2: phases.0.atoms.0.moment.dof0 and
-  phases.0.atoms.1.moment.dof0 are a powder-degenerate moment pair". The
-  job ended 1 failed, 9349 passed, 131 skipped. The nightly before,
-  37928572815 on 9219e886, was green. Eleven merges sit between, among them
-  #849 (this WP), #855 (WP-1936's FD step) and #861 (spglib 2.8). Which one
-  moved it was not checked.
-- **2026-10-11, from the issue triage (#865, in PR #870): the two-site test
-  this WP re-baselined fails by CPU, and its class 2 reading was backwards.**
-  The 2026-10-10 nightly went red at `32a2b473` on
-  `test_the_two_site_set_reaches_one_minimum_and_pairs_nothing` (the entry
-  above). No merge moved it: the runner's CPU did. The reporter
-  ran it twelve times on `ubuntu-latest`: 7 of 7 AMD EPYC 7763 runners fail
-  and 5 of 5 Intel Xeon runners pass, at one sha. Only class 2 moves. Intel
-  and macOS stop at m ≈ 0, where |F_m|² ∝ m² gives the column no gradient; AMD
-  walks past it from two of three starts to χ² lower by 41, with
-  ρ(Mn1, Mn2) = −0.99997. So class 2's m ≈ 0 is itself a stopping point, the
-  same kind as the pairs this WP removed, and the docstring's "collapses to
-  m ≈ 0" names the worse minimum. PR #870 asserts the winner only (8 of 8
-  runners pass). Whether a moment trial should be seeded off m = 0, as this
-  WP seeds a width off its floor, is the open question it leaves. Checked
-  against the tree at 7d9be3cb: `tests/test_pair_diagnostic_class.py:42-73`
-  still asserts no `MOMENT_PAIR_DEGENERATE` from any class.
+2026-10-13, `[dev]`, Linux x86-64 (Intel Xeon), at 543062f. Review item 3
+asked whether `PINV_RCOND = 1e-15`, which sits inside eigh's rounding band at
+n ≈ 30, should become numpy's array-API cut `max(M, N)·eps` (**A**), or stay
+and mark every column touched by a kept direction under `n·eps` as
+unmeasured (**B**). Both move an answer only through an eigenvalue of the
+equilibrated normal matrix in (1e-15, n·eps]·|λ|max. So a spy logged every
+`normal_factors` call's spectrum, and then the files with fits in that band
+ran under the shipped cut, under A and under B.
 
-- **2026-10-11, from the issue triage (#832): the band's Linux run has
-  happened, and the reporter's sweep left three splits in no WP.** The
-  2026-10-10 nightly (run 38048650490, `32a2b473`, containing #849) ran the
-  Linux full suite at 9349 passed, 1 failed, and the failure was the two-site
-  test (#865, above), so `test_the_shared_fit_reaches_one_minimum_on_every_platform`
-  passed on Linux. The reporter's sweep of 2026-10-08 11:55 (19 acceptance
-  files, 222 fits, Linux and macOS) found lab6_cbn's shared plan the only
-  split that started at #700. Three others it found are in no WP: (a) the
-  degenerate LaB₆ plan, χ²_red 5.470 on Linux against 6.001 on macOS, with the
-  quoted "Rwp 0.1294, QPA 16.542" reproduced by neither; (b) Stephens brucite,
-  where TRF stops at `max_iter` on Linux (Rwp 0.18030) and converges on macOS
-  (0.17844), so `docs/VALIDATION.md:765`'s 17.84 % is the macOS value; (c)
-  five indexing Le Bail fits split after #741, the short-wavelength P
-  candidate leaving `profile.y` on its floor on Linux (χ²_red 32.27 against
-  29.38). The Next list's "still stale" Cr₂WO₆ number is done
-  (`docs/VALIDATION.md:1471` reads 0.2035). Checked against the tree at
-  7d9be3cb: the nightly's failure list read from its log, `seed_floor` at
-  `params/vector.py:2901`; (a)-(c) not re-measured.
+- **Goldens: neither can move one.** Of the ten captured golden fits, none
+  has an eigenvalue in the band (srm660c and toy_anomalous each have one
+  under 1e-15 already). The goldens skip on Linux, so this is the whole
+  Linux answer.
+- **Where the band is reached.** In the fast selection, one call does it,
+  in `test_peak_picking.py::test_unmodelled_axial_asymmetry_is_flagged`
+  (n = 8, 1.4e-15). In the slow files (indexing excluded), the CPD-1a
+  three-phase fits reach it in `test_acceptance_dispersion`,
+  `_qpa_roundrobin` and `_sequential`, where all twelve phase widths and
+  u, w, x, y load one direction at 1.7-1.8e-15. So do two brucite fits in
+  `_stephens`, at 1.25e-15 and 2.2e-15. Those five files pass 98 of 98
+  under the shipped cut, A and B alike.
+- **A** moves 17 CPD-1a fits. The widths' esds fall from 54-5540 to
+  0.0006-0.08, a direction the data does not measure reading as a tight
+  value. 458 `HIGH_CORRELATION` and 392 `FLAT_DIRECTION` findings go, against
+  125 and 303 new ones. QPA values are unchanged and their esds move by at
+  most 0.2 % relative (corundum 0.005979 → 0.005968). Stephens and peak
+  picking move nothing quoted.
+- **B**, as monkeypatched, moves 14 CPD-1a fits. Twelve to sixteen width
+  esds go from 17-5590 to `None`, and 736 `HIGH_CORRELATION` and 629
+  `FLAT_DIRECTION` findings go with no code replacing them.
+- **The LaB₆ degenerate plan on this machine**, at the shipped cut and at
+  seven nudges k ∈ {−20, −7, −3, −1, 3, 20, 50}: every one discards both flat
+  directions, `COVARIANCE_DIRECTION_DISCARDED` names all six widths, the
+  widths read 5.8e-5 to 3.4e-3, and LaB₆ reads 16.850 ± 0.192 wt %. macOS
+  kept them at nine of ten nudges. Which side of the cut a flat direction
+  lands on is still platform-dependent, and the two codes between them
+  cover both sides.
+
+**Reading.** A trades an honest huge esd plus a ρ = ±1 finding for a small
+esd that only `COVARIANCE_DIRECTION_DISCARDED` qualifies, on fits that
+already pass. B silences the correlation findings on exactly the columns it
+blanks. Neither earns its change, so `PINV_RCOND` stays at 1e-15. The
+lane's spy, variants and per-fit diffs were session scratch and are not
+kept.
 
 ## Non-goals
 
@@ -214,6 +189,12 @@ handover log has the tables).
 - A coefficient read off its floor after the fit: WP-1914.
 - The PVII/FPA peak-shape gap the suite's own comments name as why Rwp is
   worse than TOPAS's.
+- Two splits from #832's sweep (2026-10-08): Stephens brucite stopping at
+  `max_iter` on Linux, and five indexing Le Bail fits leaving `profile.y` on
+  its floor on Linux after #741. Both unmeasured since WP-1938, and
+  forwarded to WP-1946 and WP-1542 on 2026-10-13.
+- Whether a magnetic moment trial should start off m = 0 (#865's open
+  question, PR #870): a magnetic stopping point, and this WP no longer seeds.
 
 ## Tasks
 
@@ -228,10 +209,14 @@ handover log has the tables).
 - [x] The package side: `Stage` seeds a floor row it frees (#836 item 3),
       through `Stage.seed`'s existing path, with the seed's size and source in
       the docstring. A diagnostic only if a caller can still free one unseeded.
-- [ ] A χ² or Rwp band on `test_acceptance_lab6_cbn.py` tight enough to see
+- [x] A χ² or Rwp band on `test_acceptance_lab6_cbn.py` tight enough to see
       12.5 against 9.7 (the reporter suggests Rwp within 2 % of the
-      re-measured value), run on both nightly platforms. *Landed and green
-      on macOS 2026-10-09; the Linux nightly after merge is the second run.*
+      re-measured value), run on both nightly platforms. *Linux x86-64:
+      green in the nightly full suite at 32a2b473 (WP-1930's form) and at
+      0f30d584, dd20f0fd and 56427c4a (WP-1938's), the last plotting Rwp
+      0.1687, GoF 3.19. macOS arm64: green here 2026-10-12, Rwp 0.168656276,
+      χ²_red 10.151815. The macOS nightly runs only the fast tier, so its
+      macOS runs are local ones.*
 - [x] Re-measure VALIDATION.md's row and the landing page's copy on the
       chosen protocol (`docs/landing/README.md` says how the page's numbers
       are rebuilt).
@@ -240,6 +225,17 @@ handover log has the tables).
       protocol is a rule an agent applies by hand, SKILL.md §2's seed rule.
       *The row went to `diagnostics.md`, beside the stage codes, paid for by
       two cuts; no hand rule, since the package now seeds.*
+- [x] The degenerate fit's `HIGH_CORRELATION` fell silent on every Linux
+      nightly from 0f30d584 (WP-1938's merge) on. Find why by measurement and
+      fix it where the covariance is built. *A flat direction's eigenvalue
+      came back at either sign and `pinv` inverted a negative one with it;
+      `statistics._psd_pinv` inverts by magnitude (2026-10-12).*
+- [x] The macOS nightly's `test_high_correlation_dedup.py` silence over the
+      same runs, red on CI and green locally: name the cause or the next
+      measurement. *Before #918 the axial pair started on its floor with a
+      zero column, and rounding chose where later stages took it: a 1e-14
+      nudge at 56427c4a reproduced the failure here. WP-1953's #918 gives
+      that column its one-sided slope; the next macOS nightly confirms.*
 
 ## Acceptance
 
@@ -263,6 +259,226 @@ printed digit on both.
   iterates).
 
 ## Handover log
+
+### 2026-10-13 (2nd session) — the handoff's open items, measured on Linux; the WP closes
+
+The fix now has a Linux run behind it, and it showed that the platforms still
+disagree about *which* warning a flat direction gets. They no longer disagree
+about whether one is given. On this Linux machine the LaB₆ + cBN degenerate
+fit drops both flat directions under the cut at every start tried, so it
+reports `COVARIANCE_DIRECTION_DISCARDED`, where macOS mostly reports
+`HIGH_CORRELATION`. One acceptance test still demanded the second code, and it
+failed on Linux at both `main` and the branch. It now accepts either. Moving
+the cut was measured and ruled out: neither numpy's n·eps nor marking the
+in-band columns unmeasured improves an answer, and both remove warnings from
+fits that pass today. The indexing side of the change replays bit for bit.
+
+*Done.* `origin/main` merged (7cf614e, and again at the handover, at 2f53610). On that second merge a WP-1523 note arrived in this WP's Inherited: the separation test fails on Linux at `908c481`. 543062f discharges it, and the note is not kept, since a closing WP has no Inherited. The separation test reads one set of
+flat-direction codes on both halves (543062f, tightened in review). Review
+items 3, 4's acceptance, 7 and 8 are closed. Item 3 is written up under
+§ "PINV_RCOND alternatives, measured" in Context, and `PINV_RCOND` stays
+1e-15. WP-1932's Inherited carries the replay result. The v1.9 record's
+section is updated.
+
+*Measured* (`[dev]`, Linux x86-64, Intel Xeon @ 2.80 GHz, 4 cores, Python
+3.12.3, numpy 2.5.4, rietx-kernels 1.2.0).
+- LaB₆ + cBN acceptance with the wavelength file: on `main` 18 passed and
+  1 failed (the separation test); on the branch after the fix, everything
+  passes. Degenerate fit Rwp 0.128940969, LaB₆ 16.850 ± 0.192 wt %.
+- The degenerate plan at k ∈ {−20, −7, −3, −1, 0, 3, 20, 50}: each one
+  discards both flat directions, `COVARIANCE_DIRECTION_DISCARDED` names all six widths,
+  and they read 5.8e-5 to 3.4e-3. No `HIGH_CORRELATION` fires. The nudge
+  PNGs look right.
+- `tests/test_acceptance_indexing.py`: 44 passed, 0 failed, 24:29, run alone.
+  `unit_replay`: 22 units captured, and the digests are identical under the
+  signed `pinv` and under `_psd_pinv`, every unit complete (one BLAS thread).
+- Fast selection, both run alone: `main` 7cf614e gave 9331 passed, 192
+  skipped, 1 xfailed, 0 failed, 20:29. The branch at 9025019 gave 9339
+  passed, 192 skipped, 1 xfailed, 0 failed, 19:58. +8 passed and +0 skipped,
+  exactly the added tests: three covariance cases, and five validation-matrix
+  rows the new claim generates. They take 0.01 s together (one local run).
+  The full selection did not run this session. The previous session's ran on
+  the merge with 1307cb2f.
+- Lanes: one dispatched (`pinv-rcond-measure ~30`). It was stopped at the
+  quota pause before it reported, so its results were read off its scratch
+  logs. `session_usage.py lanes` finds no lane in this session (main 113
+  requests, peak 277K), so no trial row was appended.
+
+*Review* (`/code-review high --fix`, 8 findings, da51a0a). Fixed: the
+separation test asked one code on one half and two on the other; the bit
+test's precondition read `eigvalsh` where `_psd_pinv` reads `eigh`; the
+k = 0 nudge repeated the fixture's fit; `_psd_pinv` ignored the conjugate on
+a complex Hermitian input (no caller, but it claimed numpy's steps); `pinv`
+wording in three docstrings. Declined: making `_psd_pinv` public (it would
+trip the manual's surface gate, for three callers); folding
+`CELL_PINV_RCOND` into `PINV_RCOND` (the separate constant is deliberate); and
+the claim row's `diagnostics` field listing two codes where the test asserts
+either, as other rows already do.
+
+*Gotchas.* A flat direction's esd is still sized by rounding: 8.9-3420 when
+kept, 5e-5 to 3e-3 when discarded. This is the first session's declined
+finding, and the measurement above found no cut that fixes it without
+silencing a warning. No WP owns it. The first worktree of this session left
+a claim commit, d73ea6b, on `claude/keen-dijkstra-126txs`, with no PR. It can
+be deleted.
+
+Next: the maintainer merges #925, and `RELEASING.md` § When owes a release
+for this P1. The first Linux and macOS nightlies after the merge confirm
+the LaB₆ file and the dedup test; a red one there reopens this WP.
+
+- **2026-10-13** — Both nightly silences of `HIGH_CORRELATION` were rounding
+  choosing an answer, and neither platform was wrong on its own. On LaB₆ + cBN
+  the covariance could report six undetermined widths at an esd of exactly 0
+  with no correlation, and the sign of an eigenvalue at the 1e-15 level decided
+  where. The solve now inverts each kept eigenvalue by its magnitude, so a flat
+  direction always reads as undetermined, and a fit with no such eigenvalue is
+  unchanged to the bit. The macOS dedup failure was the axial pair starting on
+  its floor with a zero column, which WP-1953's #918 fixed after the last
+  nightly ran. The band holds on both platforms, and the WP closes.
+
+  *Done.* `statistics._psd_pinv` replaces `np.linalg.pinv` in `normal_factors`,
+  numpy's steps kept one for one with the sign left out of `vt`.
+  `discarded_directions` reads the kept variance by magnitude too. Tests: a
+  flat pair at either eigenvalue sign gives the same esds and ρ = ±1; numpy's
+  bits are kept on PSD input, including a small kept eigenvalue and the empty
+  matrix; the acceptance suite fits the two nudges that failed (a VALIDATION
+  row added). The two eigensolver-failure injections moved from `pinv` to
+  `eigh`, and the scale-B floor test calls `_psd_pinv`. The manual's
+  `est-discarded-touch` reads |λ_k|, with a paragraph on the sign, and a 1.9.0
+  note sits under "Numbers that move". Inherited was folded into Context and
+  Non-goals: WP-1938 superseded the seed and WP-1929's finite-floor probe, and
+  the two nightly notes are discharged.
+
+  *The LaB₆ silence, measured* (`[dev]`, macOS arm64, Apple M4, numpy 2.5.4).
+  The degenerate plan's six Lorentzian widths span two exactly flat
+  directions. At 25-30 free columns their eigenvalues reach the equilibrated
+  normal matrix between 1e-16 and 4e-15 of the largest, of either sign, against
+  a cut of 1e-15. `pinv` inverts a kept negative one with its sign, the widths'
+  variances come out negative, `covariance_estimates` floors them to 0, and ρ
+  reads 0. On `HEAD` before the fix, nudging `w`'s start by (1 + k·1e-14) for
+  k in {0, ±1, ±3, ±7, ±20, 50} raised no `HIGH_CORRELATION` at k = +1, +7
+  and +50, and three of fifteen at k = −3 and −7. The Linux nightly's "raised
+  no HIGH_CORRELATION at all" matches the first three. At 12db370b, before
+  WP-1938, the same eigenvalues sat at 1e-15 to 1.2e-14, mostly positive and
+  kept, so the guard fired. After the fix it fires at all ten nudges (15
+  findings at nine, 6 at k = −7), with the widths' esds at 82-2730. The shared
+  fit keeps all 31 values and esds to the bit, and gives the same bits at the
+  last nightly's tree, 56427c4a. Re-measured after merging `main` (WP-1953's
+  #923 changed LM): the guard still fires at all ten, and the widths' esds run
+  8.9-3420 at nine. At k = 0 both flat directions now fall under the cut, so
+  the esds read 5e-5 to 3e-3 and `COVARIANCE_DIRECTION_DISCARDED` names all
+  six widths. That is WP-1535's reported case, and the review's declined
+  finding below. The shared fit's Rwp moved by 1.2e-15 with the merge.
+
+  *The macOS dedup silence, measured.* The runner (macos-26-arm64, Python
+  3.13.15, numpy 2.5.4, scipy 1.18.1, kernels 1.2.0) differs from this Mac in
+  CPU only, and a local 3.13.15 venv with jax passes. At 56427c4a, before
+  #918, the axial pair's start columns at (0, 0) were exactly zero, so the
+  `axial` stage ended where it began after 2 evaluations and later stages left
+  0 by rounding. A k = +1 nudge sent the pair to `axial_sl` 0 on its floor and
+  `axial_hl` 0.2 on its ceiling with no `HIGH_CORRELATION`, which is the CI
+  failure reproduced. At `HEAD` each start column is 8.81 with cosine −0.60 to
+  the residual, and all ten nudges end at (0.0203, 0.0197) with the pair
+  flagged in all four stages. A sweep of every default row on a bound, 17 on
+  the Debye-Scherrer and Bragg-Brentano presets, found no zero start column at
+  `HEAD`.
+
+  *The band.* `test_the_shared_fit_reaches_one_minimum_on_every_platform` is
+  green on Linux x86-64 in the nightly full suites 38183312796, 38257956064
+  and 38261107758 (WP-1938's form), absent from all three failure lists, and
+  the last one's plot reads Rwp 0.1687, GoF 3.19. On macOS arm64 it is green
+  here at Rwp 0.168656276, χ²_red 10.151815. The nightly prints no χ², so the
+  post-1938 Linux agreement is known to the plot's four digits of Rwp. The
+  reporter's 1e-12 was measured before WP-1938. The macOS nightly runs only
+  the fast tier, so the band's macOS runs are local.
+
+  *Tests* (`[dev]`, macOS arm64, Python 3.12.10). Fast selection on bb5b18cc:
+  9312 passed, 181 skipped, 3 xfailed, 0 failed, 24:22 at a load average of
+  130-175 beside two other sessions' suites. Full selection on c4585932, which
+  is `main` at 1307cb2f merged in: 9645 passed, 194 skipped, 1 xfailed, 3
+  failed, 45:45, started alone. Two failures are the monoclinic dichotomy and
+  trial-and-error searches running out of their wall-clock budget
+  (`search_complete` False); both pass rerun alone (355 s), the load sensor
+  `tests/CLAUDE.md` § Budgets names. The third,
+  `test_the_reduced_cell_is_the_exact_image_of_its_input[F]`, is a hypothesis
+  counterexample that fails the same way on c4607fa0, which lacks this branch's
+  change, and `reduce.py` calls nothing in `statistics`. It went to WP-1932. An
+  earlier full run on aea419b6, before the merge and beside other sessions'
+  suites, failed the same three plus a GUI boot that passed alone. The added
+  tests cost 28.24 s (the two nudged LaB₆ fits, slow tier) and 0.06 s (three
+  covariance cases, fast tier), one loaded run's figures.
+
+  *Review* (`/code-review high --fix`, 9 findings). Fixed: `_psd_pinv` now
+  gives `pinv`'s empty answer for a 0×0 matrix; two stale docstrings; "five
+  widths" was six; the manual claimed ± 0 esds on Linux, which only macOS
+  showed; the scale-B floor test still called `pinv`; the bit test had no
+  small kept eigenvalue. Declined: rounding still sizes a flat direction's esd
+  (82 to 2730), since marking it unmeasured would move `PINV_RCOND` and
+  `SCALE_B_SEPARATION_FLOOR`; `_psd_pinv` is 2-D only, kept line for line with
+  numpy for the bits.
+
+  *Not generalised.* `indexing/reduce.py`'s `equal_reduced` has the same sign
+  inversion in a χ², where a kept negative eigenvalue could merge two cells. It
+  went to WP-1932's Inherited, because WP-1519's replay rule governs any change
+  there. `report/layer1.py` takes the general `pinv` of a small Gram and fails
+  safe, since an esd of 0 reads as not significant. `solve/cost.py` already
+  drops negative eigenvalues. Root `CLAUDE.md` is at its 978-line cap, so the
+  rule lives in `normal_covariance`'s docstring and its tests.
+
+  *Forwarded.* WP-1946: #832's brucite split. WP-1542: #832's indexing Le Bail
+  split. WP-1953 closed during this handover, so its note was dropped and
+  the dedup finding stays here. WP-1932: `equal_reduced`'s
+  sign and the reduce counterexample. #865's moment question is a Non-goal here
+  and has no owner.
+
+  *Handoff, 2026-10-13.* PR #925 was held at the merge gate by a
+  `/code-review medium` pass with ten findings. This session stopped mid-way
+  through them at 7f068054.
+
+  1. `statistics.py:179` `_psd_pinv` was half batch-generic (`np.transpose`
+     reverses every axis; the empty branch returned `a.shape[::-1]`). **Fixed**:
+     `np.swapaxes`, numpy's empty shape, a stacked case in the bit test.
+  2. `tests/test_acceptance_lab6_cbn.py:445` asserted `HIGH_CORRELATION` at
+     two nudges measured on one platform. **Fixed**: k = 0, 1, 7, each width
+     named by `HIGH_CORRELATION` or `COVARIANCE_DIRECTION_DISCARDED`, no esd
+     of 0; the docstring says Linux confirms on the first nightly after merge.
+  3. `statistics.py:52` `PINV_RCOND = 1e-15` sits inside eigh's rounding band
+     for n ≈ 30. Measure the goldens and the esd-quoting acceptance rows at
+     numpy's `max(M, N)·eps`, and separately with kept-but-flat directions
+     marked unmeasured, into a heading "PINV_RCOND alternatives, measured".
+     **Pending: nothing ran.** No numbers exist yet.
+  4. `indexing/reduce.py:578` signed `pinv` in `equal_reduced` and
+     `equal_reduced_many`. **Fixed** with `_psd_pinv` at
+     `reduce.CELL_PINV_RCOND`. `test_indexing_reduce.py` and
+     `test_indexing_consensus.py` pass except the pre-existing hypothesis
+     example. **Pending:** `tests/test_acceptance_indexing.py` was started in
+     the background on 7f068054's code and had not finished
+     (`<scratchpad>/wp1930_acc_indexing.txt`, lost with this session); rerun
+     it. `python -m tests.unit_replay` was not run. WP-1932's note says the
+     sign half is done.
+  5. `statistics.py:179` the `vt` transpose dance. **Fixed**:
+     `matmul(u, s[..., None] * swapaxes(u))`, bit test kept.
+  6. `tests/validation_matrix.py:419` the claim row's `starts` and
+     `diagnostics`. **Fixed**: `starts=10`, both codes declared.
+  7. `tests/test_acceptance_lab6_cbn.py:410` no PNGs for the nudged fits.
+     **Fixed**: `tests/output/lab6_cbn_degenerate_nudge{k}.png`; not yet looked
+     at.
+  8. The handover's test counts should say which numbers moved against a base
+     run (passed+skipped +3 fast, +2 slow, now +3 slow with k = 0).
+     **Pending**: needs a fast run on `origin/main` beside one on the branch.
+  9. `docs/releases/1.9.0.md:35` quoted "± 100 to ± 345", which no
+     measurement records. **Fixed** with the measured ranges.
+  10. `statistics.py:156` and the test docstrings hard-coded "a cut of
+      1e-15". **Fixed**: they say `PINV_RCOND`.
+
+  Next command, after merging `origin/main`:
+  `.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup`
+  in the background, then item 3's measurement, then the fast selection
+  verbatim, then push and check `gh run list --branch wp1930-close`.
+
+  Next: the first nightly after e1d19359 should show the macOS dedup test and
+  the Linux LaB₆ file green; a red one there reopens this. The P1 close owes a
+  release under `RELEASING.md` § When, and that is the maintainer's call.
 
 - **2026-10-09, after the PR's Linux CI** — two fast tests failed on every
   Linux leg and passed on macOS. Both were bars on a number rounding now
