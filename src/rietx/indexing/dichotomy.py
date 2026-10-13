@@ -1008,7 +1008,10 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
              for _v, _i, lo, hi, ids in sorted(
                  ((volumes[i], i, lo, hi, ids)
                   for i, (lo, hi, ids) in enumerate(frontier)), reverse=True)]
+    # the grid's one-entry gather cache would otherwise hold its last list's
+    # rows for the whole of phase 2
     del frontier, volumes
+    gathered[:] = [None, None]
     while stack:
         if budget.expired():
             return found, (n_boxes, n_rows), False

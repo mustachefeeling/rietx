@@ -405,7 +405,8 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     390-line wrong phase above the truth), then the two-opinion Bravais screen and
     the geometrical-ambiguity enumeration on the checked subset.
 
-    ``cancel`` (WP-1037) is read between ambiguity enumerations only — merging,
+    ``cancel`` (WP-1037) is read by the ambiguity enumeration only, between
+    candidates and between one candidate's derivative cells (#895) — merging,
     ranking and the Bravais screen always run, because they are what turns raw
     engine output into an answer at all and they are cheap (the enumeration was
     measured at 45 of a 105 s ceiling-bound corundum run; everything else here

@@ -734,11 +734,14 @@ def test_dichotomy_holds_its_frontier_as_indices_until_a_cell_is_popped(
     gathered up front, four floats an index (5.2 GB), held through phase 2.
     The same 61 lines over a smaller domain build the same shape in about a
     second of grid: 15 760 cells, 1303 lists, 827 976 indices.  Before the
-    fix the lists took 8 bytes an index and phase 2's setup added 28.2 MB;
-    after, 2 bytes and -0.17 MB.  The setup bound is 2.65 MB, a tenth of what
-    gathering every list costs, so the old code fails it 10.6× over.  Both are
-    counts of deterministic allocations, the same to 0.1 % across runs, so the
-    margins are exact rather than load sensors.
+    fix the lists took 8 bytes an index and phase 2's setup gathered every
+    list, 26.5 MB; after, 2 bytes and 1.05 MB, the stack phase 2 builds.  The
+    setup bound is 2.65 MB, a tenth of what gathering every list costs.  Both
+    are counts of deterministic allocations, so the margins are exact rather
+    than load sensors.  Tracing starts when the grid has finished, because
+    tracing the grid tripled the test's time and the bound reads only what
+    phase 2 allocates.  It is not marked slow: it costs about 5 s, and the
+    only other check on this allocation is ``tests/repro_780.py``, run by hand.
     """
     import tracemalloc
 
@@ -752,6 +755,7 @@ def test_dichotomy_holds_its_frontier_as_indices_until_a_cell_is_popped(
     real_volumes, real_test = dichotomy._centre_volumes, dichotomy._test_box
 
     def centre_volumes(basis, boxes):
+        tracemalloc.start()
         lists = {id(ids): ids for _lo, _hi, ids in boxes}
         seen["indices"] = sum(len(ids) for ids in lists.values())
         seen["list_bytes"] = sum(ids.nbytes for ids in lists.values())
@@ -771,7 +775,6 @@ def test_dichotomy_holds_its_frontier_as_indices_until_a_cell_is_popped(
     spec = SearchSpec(systems=("monoclinic",), min_d_axis=4.0, max_d_axis=11.0,
                       max_volume=300.0, shift_allowance_deg=1e-9,
                       budget_seconds=600.0)
-    tracemalloc.start()
     try:
         with pytest.raises(_FirstPop):
             search_dichotomy(peaks_780(), spec=spec)
