@@ -1116,8 +1116,12 @@ def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
     assert abs(dc) < 1.5e-4, f"c = {best.cell[2]:.5f} ({dc*1e6:+.0f} ppm)"
     # 45 of 47 since WP-1510, where it was 50 of 52: the five duplicate copies
     # that left ``usable()`` were all lines this cell indexed, so the count fell
-    # by exactly five and the unindexed two below did not move
-    assert best.n_indexed >= 45, f"{best.n_indexed} of {best.n_lines} lines"
+    # by exactly five and the unindexed two below did not move.  44 of 46 since
+    # the resolvability rule (#934): the component 0.13° below the 214 line, on
+    # its axial-tail side at a quarter of its area and inside Sparrow's limit,
+    # is now that line's ``unresolved_split`` rather than a second line, and it
+    # was a line this cell "indexed" through the 214's own window
+    assert best.n_indexed >= 44, f"{best.n_indexed} of {best.n_lines} lines"
     # the quantity the bar is really about: lines the search could not place.
     # Four before WP-1110 item 14, two after — and two of the four were phantoms
     # rather than misses, so this is asserted beside the fraction below.

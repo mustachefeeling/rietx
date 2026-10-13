@@ -127,6 +127,36 @@ def peak_diagnostics(peaks: PeakList, detection: Detection | None = None,
                         "declared instrument profile rather than the specimen — "
                         "undeclared axial divergence reproduces this exactly")))
 
+    split = [p for p in peaks.peaks if "unresolved_split" in p.flags]
+    if split:
+        out.append(Diagnostic(
+            level="info", code="PEAK_UNRESOLVED_SPLIT",
+            message=(f"{len(split)} component(s) sit closer to a comparable "
+                     "group-mate than two lines of the fitted shape can and "
+                     "still show a dip (Sparrow's limit), so each pair is "
+                     "reported as one line whose σ(2θ) reaches both"),
+            where=[f"{p.two_theta:.4f}°" for p in split],
+            suggestion=("below that separation the split is told only through "
+                        "the profile shape, which the picker models "
+                        "approximately; many of them on one pattern usually "
+                        "mean flat-topped or otherwise non-pseudo-Voigt lines, "
+                        "and a finer step or a declared instrument profile is "
+                        "what resolves real close pairs")))
+
+    capped = [p for p in peaks.peaks if "width_capped" in p.flags]
+    if capped:
+        out.append(Diagnostic(
+            level="info", code="PEAK_WIDTH_CAPPED",
+            message=(f"{len(capped)} component(s) ran into the width bound, "
+                     "five times the pattern's own width law at their angle: "
+                     "humps rather than lines of the phase that set the law, "
+                     "excluded from usable()"),
+            where=[f"{p.two_theta:.4f}°" for p in capped],
+            suggestion=("on a steep or structured background they are usually "
+                        "the background the envelope did not follow; a broad "
+                        "second phase is the other reading, and needs its own "
+                        "pick at its own width")))
+
     tails = [p for p in peaks.peaks if "axial_tail" in p.flags]
     if tails:
         out.append(Diagnostic(

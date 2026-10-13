@@ -141,9 +141,9 @@ mis-indexing a pattern later.
 
 ### The flags
 
-`ObservedPeak.flags` is a closed vocabulary of seventeen. Eight of them take a
+`ObservedPeak.flags` is a closed vocabulary of nineteen. Ten of them take a
 line out of `PeakList.usable`, and the rest are evidence a consumer weighs.
-Sixteen are below; the seventeenth, `unnamed_neighbour`, belongs to `fit_peaks`
+Eighteen are below; the nineteenth, `unnamed_neighbour`, belongs to `fit_peaks`
 and is described there.
 
 | Flag | Means | Usable? |
@@ -156,6 +156,8 @@ and is described there.
 | `no_intensity` | it refined onto its zero intensity bound, or to under its own esd, so it locates nothing | no |
 | `position_unmeasured` | its position esd reached 180°, the whole span a 2θ axis has, so it has no position | no |
 | `duplicate_line` | a better-measured component of another group already fitted this line | no |
+| `unresolved_split` | it sits closer to a comparable group-mate than Sparrow's limit for the fitted shape; the mate reports the pair as one line with a σ that reaches both | no |
+| `width_capped` | the group's width ran into its bound, five times the pattern's width law: a hump, not a line | no |
 | `sigma_assumed` | σ was supplied rather than fitted | yes |
 | `unresolved_shoulder` | it never separated from its neighbour by half a FWHM | yes |
 | `position_at_bound` | the fit pushed to its position bound: detection seeded it in the wrong place | yes |

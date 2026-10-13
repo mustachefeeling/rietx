@@ -12,12 +12,15 @@ peak list must not silently drop:
 * a component whose fitted position never separated from its neighbour by half a
   FWHM is kept, flagged ``unresolved_shoulder``, rather than merged away.  Its σ
   already carries the correlation, and deleting it would hide a line the pattern
-  genuinely contains.
+  genuinely contains.  The exception is a component of **comparable** area
+  closer to its neighbour than Sparrow's limit for the fitted shape
+  (:func:`~rietx.indexing.peakfit.unresolved_mates`): no dip can exist there,
+  so the split is the model's and not the pattern's, and the pair is reported
+  as one line with a σ that reaches both (``unresolved_split``, #934).  Even
+  then nothing is deleted: the merged component stays in ``peaks``.
 """
 
 from __future__ import annotations
-
-import bisect
 
 import numpy as np
 
@@ -319,27 +322,59 @@ def peaks_of_group(fit: GroupFit, group_index: int, wavelength: float
     ordinary measured lines.  ``_max_index`` built from them reached a trial
     index of **3.1e+25** and the search died there.
     """
+    merged = (np.full(fit.n, -1, dtype=np.int64) if fit.merged_into is None
+              else np.asarray(fit.merged_into, dtype=np.int64))
     return [ObservedPeak(
         two_theta=(tt := float(fit.two_theta[j])),
-        two_theta_esd=(esd := float(fit.two_theta_esd[j])),
+        two_theta_esd=(esd := _position_esd(fit, j, merged)),
         intensity=float(fit.intensity[j]),
         intensity_esd=float(fit.intensity_esd[j]),
         q=float(q_of_two_theta(np.array(tt), wavelength)),
         q_esd=float(q_esd_of_two_theta(np.array(tt), np.array(esd), wavelength)),
         fwhm=fit.fwhm, eta=fit.eta, group=group_index, n_in_group=fit.n,
-        chi2_red=fit.chi2_red, flags=_flags_for(fit, j))
+        chi2_red=fit.chi2_red, flags=_flags_for(fit, j, merged))
         for j in range(fit.n)]
 
 
-def _flags_for(fit: GroupFit, j: int) -> list[PeakFlag]:
+def _position_esd(fit: GroupFit, j: int, merged: np.ndarray) -> float:
+    """σ(2θ) of the line component ``j`` reports.
+
+    A component that unresolved split components were merged into
+    (``merged == j``, :func:`~rietx.indexing.peakfit.unresolved_mates`)
+    reports the split as **one line**, at its own fitted position, with σ
+    widened in quadrature by the farthest merged component's distance from it:
+    a ±σ window then covers every position the split proposed, so the esd
+    says what the list cannot resolve instead of quoting two precise positions
+    the data do not support.  Position, area and width stay the component's
+    own, which keeps the stored list redrawable as the fit it came from (the
+    peak editor rebuilds a group from its members).
+    """
+    own = float(fit.two_theta_esd[j])
+    if merged[j] >= 0:
+        return own
+    mates = np.nonzero(merged == j)[0]
+    if not len(mates):
+        return own
+    reach = float(np.max(np.abs(fit.two_theta[mates] - fit.two_theta[j])))
+    return float(np.hypot(own, reach))
+
+
+def _flags_for(fit: GroupFit, j: int,
+               merged: np.ndarray | None = None) -> list[PeakFlag]:
     """Flags implied by one component's converged state."""
+    if merged is None:
+        merged = np.full(fit.n, -1, dtype=np.int64)
     flags: list[PeakFlag] = []
     if not fit.converged:
         flags.append("fit_failed")
     if bool(fit.at_bound[j]):
         flags.append("position_at_bound")
-    if _unresolved(fit, j):
+    if merged[j] >= 0:
+        flags.append("unresolved_split")
+    elif _unresolved(fit, j, merged):
         flags.append("unresolved_shoulder")
+    if fit.width_at_bound:
+        flags.append("width_capped")
     if _not_separable(fit, j):
         flags.append("not_separable")
     if _axial_tail(fit, j):
@@ -439,7 +474,8 @@ def _not_separable(fit: GroupFit, j: int) -> bool:
     return bool(fit.intensity[j] < PEAK_SATELLITE_MAX_RATIO * strongest)
 
 
-def _unresolved(fit: GroupFit, j: int) -> bool:
+def _unresolved(fit: GroupFit, j: int,
+                merged: np.ndarray | None = None) -> bool:
     """Did component ``j`` end within half a FWHM of a group-mate?
 
     The test is on the *fitted* positions, not the seeds: grouping used the same
@@ -451,7 +487,12 @@ def _unresolved(fit: GroupFit, j: int) -> bool:
     if fit.n < 2:
         return False
     gap = PAWLEY_OVERLAP_FWHM_FRAC * fit.fwhm
-    others = np.delete(fit.two_theta, j)
+    # a component merged into a line is that line, not a neighbour of it
+    keep = np.ones(fit.n, dtype=bool) if merged is None else merged < 0
+    keep[j] = False
+    if not keep.any():
+        return False
+    others = fit.two_theta[keep]
     return bool(np.min(np.abs(others - fit.two_theta[j])) < gap)
 
 
@@ -489,22 +530,33 @@ def flag_duplicate_lines(peaks: list[ObservedPeak], *,
     # (``position_unmeasured``), and a NaN key breaks the order of the rest
     usable = [k for k in range(len(peaks))
               if not set(peaks[k].flags) & PEAK_UNUSABLE_FLAGS]
-    # owners: the unflagged usable components judged so far, kept sorted by 2θ
-    owner_tt: list[float] = []
-    owner_group: list[int] = []
+    # a line that unresolved split components were merged into spans them
+    # (``unresolved_split``): another group's copy of the same line may sit on
+    # any of their positions, not only on the one the line reports
+    lo_of = {k: peaks[k].two_theta for k in usable}
+    hi_of = dict(lo_of)
+    for s_ in range(len(peaks)):
+        if "unresolved_split" not in peaks[s_].flags:
+            continue
+        mates = [k for k in usable if peaks[k].group == peaks[s_].group]
+        if not mates:
+            continue
+        k = min(mates, key=lambda k: abs(peaks[k].two_theta - peaks[s_].two_theta))
+        lo_of[k] = min(lo_of[k], peaks[s_].two_theta)
+        hi_of[k] = max(hi_of[k], peaks[s_].two_theta)
+    # owners: the unflagged usable components judged so far, as 2θ extents
+    owners: list[tuple[float, float, int]] = []
     for k in sorted(usable,
                     key=lambda k: (peaks[k].two_theta_esd, peaks[k].group)):
         p = peaks[k]
         tol = PAWLEY_OVERLAP_FWHM_FRAC * p.fwhm
-        lo = bisect.bisect_left(owner_tt, p.two_theta - tol)
-        hi = bisect.bisect_right(owner_tt, p.two_theta + tol)
+        lo, hi = lo_of[k] - tol, hi_of[k] + tol
         if ((only is None or k in only)
-                and any(g != p.group for g in owner_group[lo:hi])):
+                and any(g != p.group and a <= hi and b >= lo
+                        for a, b, g in owners)):
             p.flags = [*p.flags, "duplicate_line"]
             continue
-        at = bisect.bisect_right(owner_tt, p.two_theta)
-        owner_tt.insert(at, p.two_theta)
-        owner_group.insert(at, p.group)
+        owners.append((lo_of[k], hi_of[k], p.group))
 
 
 def flag_weak_lines(peaks: list[ObservedPeak], det: Detection, *,
