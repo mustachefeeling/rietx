@@ -278,6 +278,31 @@ def test_each_histogram_gets_its_own_report(two_patterns):
         assert report.background.worst_absorption == max(mine.values())
 
 
+def test_a_cancelled_second_fit_leaves_the_first_report_alone(two_patterns):
+    """The report reads what its own fit left, never the working table.
+
+    A cancelled fit puts the table back where its stage found it and keeps
+    the previous result, so a report reading the live table paired the
+    second fit's values with the first fit's models.
+    """
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(structure, instruments)
+    ref.fit(two_patterns, plan="mccusker_default")
+    before = ref.report(0).model_dump()
+
+    token = CancelToken()
+
+    def hook(event):
+        data = event["data"]
+        if event["kind"] == "stage_start" and data["stage"] == "zero":
+            token.cancel()       # read at the second stage's first evaluation
+
+    with pytest.raises(RefinementCancelled):
+        ref.fit(two_patterns, plan="mccusker_default", weights=[1.0, 4.0],
+                events=hook, cancel=token)
+    assert ref.report(0).model_dump() == before
+
+
 def test_a_view_spells_its_own_rows_as_a_single_fit_does(two_patterns):
     """A per-histogram structural row reaches the report under its bare name.
 
