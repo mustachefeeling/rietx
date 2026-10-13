@@ -111,6 +111,26 @@ form here follows WP-1119's decision 4, which kept strings out of storage.
   field on a result, which records measurements only. The same rule binds
   the ratio helper here: the declared ratio is an input, and no result
   field stores it as if measured.
+- **2026-10-13, from the issue triage (#212): the reporter's answers to task
+  1's two questions.** Posted 2026-10-12. (1) The row lives on
+  `Structure.restraints`: a row over several phases has no single owner, and
+  in one phase's list it dangles when phases are removed or reordered or the
+  phase is copied into a structure where its paths do not resolve; the
+  per-phase union stays for rows inside one phase. (2) It is an item inside
+  the `soft_restraint` block, not a new `BLOCK_ORDER` entry:
+  r = (Σ aᵢ·pᵢ − t)/σ is `ValueRestraint`'s form generalised to (path,
+  coefficient) pairs, with the same χ² term and `RESTRAINT_TENSION`
+  reporting. Checked against the tree at c3d0367: `_Value`
+  (`model/restraints.py:100`) holds one `path` and the block makes one row
+  per item (`CompiledRestraints.n_rows`), so the item shape fits without a
+  new block. Task 1 still records the maintainer's decision.
+- **2026-10-13, from the issue triage (#727): a second consumer is waiting on
+  this item.** WP-1912's floating-origin fix gains a `"centroid"` mode once
+  this WP's (path, coefficient) item exists: the Flack & Schwarzenbach (1988)
+  restraint is one such row per floating direction, a weighted sum of the
+  coordinates along it held at its starting value. Keep the item general
+  enough for coordinate paths and per-atom weights, not only phase scales and
+  cross-phase composition.
 
 ## Non-goals
 
@@ -124,10 +144,14 @@ form here follows WP-1119's decision 4, which kept strings out of storage.
 
 ## Tasks
 
-- [ ] Decide where the row lives: `Structure.restraints` (the issue's
+- [x] Decide where the row lives: `Structure.restraints` (the issue's
       proposal and 1119's seam note) or a `LinearRestraint` kind in the
       existing per-phase union. Decide whether it is a new `BLOCK_ORDER`
       block or an item kind in `soft_restraint`. Record both in this file.
+      *Decided 2026-10-13 (the maintainer, through the issue triage; #212):*
+      the row lives on `Structure.restraints`, and it is an item kind inside
+      the `soft_restraint` block, not a new `BLOCK_ORDER` entry: the
+      reporter's answers in § Inherited, taken as written.
 - [ ] The schema type, (path, coefficient) pairs plus target, σ and weight,
       with its JSON round-trip and the `SCHEMA_VERSION` or project-format
       bump it needs.

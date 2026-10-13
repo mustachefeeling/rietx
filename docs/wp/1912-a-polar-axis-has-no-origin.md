@@ -94,6 +94,31 @@ bit-identity anywhere.
 
 Licensing: SHELXL is closed. Use the paper only.
 
+### Inherited
+
+- **2026-10-13, from the issue triage (#727): the reporter withdrew the
+  hold-one default and prefers the floating-origin restraint.** Posted
+  2026-10-12: a restraint on a weighted centroid (Flack & Schwarzenbach 1988,
+  *Acta Cryst.* A44, 499-506) chooses no atom, does not depend on atom
+  order, leaves every atom an esd, and is one rule for every case
+  `floating_origin_basis` returns (one axis, Cc's a-c plane, P1's three).
+  They leave the weights, and restraint against exact constraint, to this WP.
+  Draft PR #929 (2026-10-13) moves the existing opt-in hold into the table as
+  `Phase.floating_origin: Literal["hold"] | None = None` and does not mention
+  the withdrawal; a `"centroid"` value can join that `Literal`. Which mode is
+  the default, if any, is still the maintainer's call. *Decided 2026-10-13
+  (the maintainer, through the issue triage): the hold is the default now,
+  and the centroid comes later as a second value.* `Phase.floating_origin`
+  defaults to `"hold"` (#929 flips its `None`), so polar-group fits stop
+  walking in the next release, `ORIGIN_FIXED_ON_POLAR_AXIS` names the held
+  atom, and `unhold` lifts it. Once WP-1942's linear restraint item lands,
+  `"centroid"` joins the `Literal` as an opt-in mode (Flack & Schwarzenbach
+  1988, weights from the paper, not from memory), and both modes are
+  measured on the ZnO, Cc and P1 fixtures before the default is revisited. A
+  second default change, if one comes, moves the reported origin, never the
+  structure, Rwp or any interatomic distance; each change goes in the
+  release notes.
+
 ## Non-goals
 
 - Discrete origin choices of non-polar groups (`:1`/`:2`); nothing floats.

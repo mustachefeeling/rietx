@@ -302,6 +302,18 @@ the cheaper of the two at the time; the skill row is required either way.
   one-line pointer from § 7. `diagnostics.md` has 20 B free on this tree
   and the family never enters it. 1327's Inherited holds the file's shape.
   If this WP lands before 1327 it opens the file with the pinned header.
+- **2026-10-13, from the issue triage (#277): acceptance 4 falls back to a
+  synthetic case.** Posted 2026-10-12: the Ba₂FeSbSe₅ G4.1 patterns cannot be
+  released (the raw data were not published with Phys. Rev. B 103, 054115),
+  so the 4.13(4) μ_B target lapses with them. The reporter will open a
+  tests-only PR against this WP: a seeded k ≠ 0 CW pattern from rietx's
+  forward model with a planted `magnetic_lor_size`, a planted moment and
+  Poisson noise; a nuclear-only control on which `MAGNETIC_WIDTH_UNMODELLED`
+  stays silent; and the acceptance that width and moment are recovered within
+  their esds, with the moment's bias when the term is left out. Data drawn
+  from the model being fitted tests recovery and the diagnostic, not the
+  model, and the acceptance should say so. Asked of them: build the child
+  from a published structure and name it in the test.
 
 ## Non-goals
 
