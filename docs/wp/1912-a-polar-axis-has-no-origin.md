@@ -268,10 +268,30 @@ notes.
       `help.py`, `numbers.md`, the 1.9.0 note. `replay` is evaluate-only
       and quotes no esd, so it needs no rows. Untested: a rigid body's
       origin as a site.*
-- [ ] Measure hold against centroid on the ZnO, Cc and P1 fixtures and the
+- [x] Measure hold against centroid on the ZnO, Cc and P1 fixtures and the
       round-robin zincite (origin, esds, Rwp, free count), then propose the
       default with a read-time pin for documents older than the schema that
       flips it.
+      *Done 2026-10-13 (`[dev,jax]`, Linux). Round-robin
+      `qarr/zincite.prn`, `compare.py`'s zincite standard,
+      `mccusker_structural`:*
+
+      | solver | `None` | `"hold"` | `"centroid"` |
+      |---|---|---|---|
+      | LM | Zn −0.00011(76), O 0.38271(76); `FLAT_DIRECTION`, `HIGH_CORRELATION`; 20 free | Zn 0, O 0.38283(152); 19 free | Zn −0.00011(105), O 0.38271(105); 20 free |
+      | TRF | Zn 21102.46729(76), O 21102.85011(76) | as LM | as LM |
+
+      *Rwp 0.114703 in all six; the difference 0.38283 in all six. The
+      centroid's ±0.00105 is the hold's ±0.00152 over 1.44 (√2 is 1.41),
+      no flat-direction code, and TRF stays in the cell. The synthetic C c
+      (two rows) and P 1 (three) converge with no flat direction
+      (`test_one_row_per_floating_direction`). Proposed default:
+      `"centroid"`, behind a `mode="before"` pin reading documents older
+      than the flipping schema as `None`; it needs the joint fit to stop
+      refusing it first (a default that makes every polar joint fit raise
+      is not one), either one origin row per joint structure or a fallback
+      to `"hold"` there. Cost: 2·N·P extra forward evaluations per stage
+      that slides a phase. The maintainer's call on #727.*
 
 ## Acceptance
 
