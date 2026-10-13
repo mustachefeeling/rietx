@@ -420,8 +420,10 @@ def test_the_flat_widths_are_flagged_whatever_rounding_does(k):
     "± 0" esds) while k = 0 did not.  Since WP-1930 a kept eigenvalue is
     inverted by its magnitude (``statistics._psd_pinv``), so each nudge
     reports the split and no width claims a precision.  Measured on macOS
-    arm64 over k in {0, ±1, ±3, ±7, ±20, 50}: HIGH_CORRELATION fired in all
-    ten, with the widths' esds at 82-2730.
+    arm64 over k in {0, ±1, ±3, ±7, ±20, 50}, with WP-1953's #923 merged:
+    HIGH_CORRELATION fired in all ten, and at nine the widths' esds ran
+    8.9-3420.  At k = 0 both flat directions fell under the cut, the esds read
+    5e-5 to 3e-3, and COVARIANCE_DIRECTION_DISCARDED named all six widths.
     """
     if not PATTERN.exists():
         pytest.skip("11-BM LaB6+cBN dataset not present")

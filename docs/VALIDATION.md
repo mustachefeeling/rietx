@@ -252,7 +252,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** the Linux nightly from 0f30d584 on: no HIGH_CORRELATION on this fit, reproduced on macOS arm64 by these two 1e-14 nudges to w's start (six widths at an esd of 0)
 
-**Measured:** macOS arm64, k in {0, +-1, +-3, +-7, +-20, 50}: HIGH_CORRELATION in all ten, widths' esds 82 to 2730
+**Measured:** macOS arm64, k in {0, +-1, +-3, +-7, +-20, 50}: HIGH_CORRELATION in all ten; widths' esds 8.9 to 3420 at nine, and at k = 0, where both flat directions fall under the cut, 5e-5 to 3e-3 with COVARIANCE_DIRECTION_DISCARDED naming all six
 
 #### `test_the_shared_fit_reaches_one_minimum_on_every_platform`
 

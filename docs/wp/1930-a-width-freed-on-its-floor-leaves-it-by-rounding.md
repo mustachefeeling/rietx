@@ -250,7 +250,12 @@ printed digit on both.
   kept, so the guard fired. After the fix it fires at all ten nudges (15
   findings at nine, 6 at k = −7), with the widths' esds at 82-2730. The shared
   fit keeps all 31 values and esds to the bit, and gives the same bits at the
-  last nightly's tree, 56427c4a.
+  last nightly's tree, 56427c4a. Re-measured after merging `main` (WP-1953's
+  #923 changed LM): the guard still fires at all ten, and the widths' esds run
+  8.9-3420 at nine. At k = 0 both flat directions now fall under the cut, so
+  the esds read 5e-5 to 3e-3 and `COVARIANCE_DIRECTION_DISCARDED` names all
+  six widths. That is WP-1535's reported case, and the review's declined
+  finding below. The shared fit's Rwp moved by 1.2e-15 with the merge.
 
   *The macOS dedup silence, measured.* The runner (macos-26-arm64, Python
   3.13.15, numpy 2.5.4, scipy 1.18.1, kernels 1.2.0) differs from this Mac in
