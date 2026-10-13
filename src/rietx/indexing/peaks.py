@@ -36,6 +36,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.signal import find_peaks, peak_widths, savgol_coeffs, savgol_filter
+from scipy.special import ndtr, ndtri
 
 from ..background import background_envelope
 from ..model.forward import PAWLEY_OVERLAP_FWHM_FRAC, _overlap_groups
@@ -46,12 +47,15 @@ from ..schemas.indexing import (
     PEAK_ALIAS_RATIO_RANGE,
     PEAK_ALIAS_TOL_FWHM_FRAC,
     PEAK_DETECT_SEPARATION_FWHM_FRAC,
+    PEAK_FDR_Q,
     PEAK_MIN_HEIGHT_SIGMA,
     PEAK_MIN_PROMINENCE_SIGMA,
     PEAK_SHOULDER_MIN_SIGMA,
+    PEAK_UNUSABLE_FLAGS,
     PEAK_WIDTH_CENSUS_N,
     PEAK_WIDTH_SCALE_BOUNDS,
     PEAK_WINDOW_FWHM_MULT,
+    ObservedPeak,
 )
 from ..schemas.instrument import Instrument
 from ..schemas.pattern import PatternData
@@ -111,6 +115,33 @@ class Detection:
     #: because in one pattern an alias and a genuine coincident line are
     #: indistinguishable (:data:`~rietx.schemas.indexing.PEAK_ALIAS_RATIO_RANGE`).
     alias_two_theta: np.ndarray
+    #: The number of independent places a line could have been found:
+    #: ∫ d2θ / FWHM(2θ) over the picked range, at the census-scaled width law the
+    #: seeds were sized with.  The look-elsewhere count the false-discovery
+    #: threshold divides by (:func:`fdr_screen`).  ``nan`` on a hand-built
+    #: detection, where :func:`fdr_screen` falls back to the span over the
+    #: census width.
+    n_trials: float = float("nan")
+
+
+@dataclass(frozen=True)
+class FdrScreen:
+    """The per-pattern false-discovery threshold and what it decided.
+
+    ``z_threshold`` is the I/σ_I a component needed (the Benjamini–Hochberg
+    cutoff, or the Bonferroni bar q/m when nothing cleared it);
+    ``expected_false`` is q × ``n_kept``, the bound BH gives on the expected
+    number of noise lines among those kept.  ``weak`` holds the indices (into the
+    list the screen was given) of the tested components that failed.
+    """
+
+    q: float
+    n_trials: float
+    n_tested: int
+    n_kept: int
+    z_threshold: float
+    expected_false: float
+    weak: tuple[int, ...]
 
 
 def predicted_fwhm(two_theta_deg: np.ndarray, instrument: Instrument) -> np.ndarray:
@@ -420,6 +451,7 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
         if ref > 0.0 and fwhm_meas > 0.0:
             scale = float(np.clip(fwhm_meas / ref, *PEAK_WIDTH_SCALE_BOUNDS))
     fwhm_seed_curve = scale * fwhm_pred
+    n_trials = float(np.sum(np.diff(tt) / fwhm_seed_curve[:-1]))
 
     # the Kα2 maximum of a resolved doublet is not a line — drop it before it
     # can become a group of its own with its own doublet
@@ -445,7 +477,7 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
     if not len(all_idx):
         return Detection(tt, y, sigma, env, [], fwhm_meas,
                          float(np.median(fwhm_pred)), scale, 0,
-                         tt[alias_idx])
+                         tt[alias_idx], n_trials)
     order = np.argsort(tt[all_idx])
     all_idx = all_idx[order]
     is_shoulder = np.isin(all_idx, shoulder_idx)
@@ -460,7 +492,7 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
                              from_shoulder=is_shoulder[members]))
     return Detection(tt, y, sigma, env, out, fwhm_meas,
                      float(np.median(fwhm_pred)), scale, int(len(shoulder_idx)),
-                     tt[alias_idx])
+                     tt[alias_idx], n_trials)
 
 
 def _candidates(tt: np.ndarray, y: np.ndarray, sigma: np.ndarray,
@@ -528,7 +560,60 @@ def _group_indices(tt: np.ndarray, fwhm: np.ndarray) -> list[np.ndarray]:
     return groups
 
 
+def fdr_screen(peaks: list[ObservedPeak], det: Detection, *,
+               q: float = PEAK_FDR_Q) -> FdrScreen:
+    """Benjamini–Hochberg on each fitted component's I/σ_I, over the pattern.
+
+    **Which components are tested.**  Every component not already unusable
+    (``weak_line`` is not, so the screen is a pure function of the list and
+    reads the same before and after it has flagged), and not placed by a human (``origin="manual"``: the position is the
+    caller's claim, not detection's proposal).
+
+    **The p-value** is one-sided, Φ̄(I/σ_I): a line has positive intensity, and
+    under "no line here" a fitted intensity is centred on zero with the fit's
+    own esd.  A component with no finite esd has p = 1.
+
+    **The number of tests is the pattern's, not the list's.**  Detection looked
+    for a line at every resolution element of the range, and kept a component
+    only where it found an excess; dividing by the number of components it kept
+    would forget every place it looked and found nothing, which is the
+    look-elsewhere error one rank down.  So m = ``det.n_trials`` (∫ d2θ / FWHM),
+    never less than the number tested; a hand-built detection without it uses
+    the span over the census width.
+
+    Then BH's step-up rule (Benjamini & Hochberg 1995, *J. R. Stat. Soc. B* 57,
+    289): k* = max{k : p₍ₖ₎ ≤ k·q/m}, and the k* smallest p-values are
+    discoveries.  The bound it gives — E[false / kept] ≤ q — is what
+    ``expected_false`` reports as q·k*.
+    """
+    tested: list[int] = []
+    pvals: list[float] = []
+    for k, p in enumerate(peaks):
+        if p.origin == "manual" or set(p.flags) & PEAK_UNUSABLE_FLAGS:
+            continue
+        esd = float(p.intensity_esd)
+        z = float(p.intensity) / esd if np.isfinite(esd) and esd > 0.0 else -np.inf
+        tested.append(k)
+        pvals.append(float(ndtr(-z)) if np.isfinite(z) else 1.0)
+    m = det.n_trials
+    if not (np.isfinite(m) and m > 0.0):
+        span = float(det.two_theta[-1] - det.two_theta[0])
+        m = span / det.fwhm_measured if det.fwhm_measured > 0.0 else 1.0
+    m = max(float(m), float(len(tested)), 1.0)
+    p = np.asarray(pvals, dtype=np.float64)
+    order = np.argsort(p, kind="stable")
+    ranks = np.arange(1, len(p) + 1, dtype=np.float64)
+    passing = np.nonzero(p[order] <= ranks * q / m)[0]
+    n_kept = int(passing[-1]) + 1 if len(passing) else 0
+    kept = set(order[:n_kept].tolist())
+    weak = tuple(tested[i] for i in range(len(tested)) if i not in kept)
+    cut = max(n_kept, 1) * q / m
+    return FdrScreen(q=float(q), n_trials=float(m), n_tested=len(tested),
+                     n_kept=n_kept, z_threshold=float(-ndtri(cut)),
+                     expected_false=float(q * n_kept), weak=weak)
+
+
 #: re-exported so a caller can see which constant set the grouping
-__all__ = ["Detection", "MIN_GROUP_POINTS", "PeakGroup",
-           "PAWLEY_OVERLAP_FWHM_FRAC", "detect_peaks", "group_at",
+__all__ = ["Detection", "FdrScreen", "MIN_GROUP_POINTS", "PeakGroup",
+           "PAWLEY_OVERLAP_FWHM_FRAC", "detect_peaks", "fdr_screen", "group_at",
            "predicted_fwhm", "window_indices"]

@@ -1465,6 +1465,19 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "line twice makes the second copy a line no candidate explains."
         ),
     ),
+    "weak_line": HelpEntry(
+        title="Below the pattern's false-discovery bar",
+        label="weak",
+        description=(
+            "The component's fitted intensity over its esd is under the bar "
+            "the pattern's own false-discovery rate sets (Benjamini-Hochberg "
+            "at q = 0.01 over the pattern's resolution elements), so the list "
+            "cannot tell it from noise at the rate it promises for every "
+            "other line. It stays usable: on real lab data many such lines "
+            "are weak reflections the true cell indexes, so the flag is "
+            "evidence, not a verdict. A line a person placed is never tested."
+        ),
+    ),
 }
 
 #: One entry per value of :attr:`~rietx.schemas.indexing.ObservedPeak.origin`
@@ -1540,6 +1553,16 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Components improved their group's fit but did not survive the "
             "nested comparison against a fit without them. They stay in the "
             "model and are withheld from indexing."
+        ),
+    ),
+    "PEAK_EXPECTED_FALSE_LINES": HelpEntry(
+        title="How many kept lines are expected to be noise",
+        description=(
+            "The pattern's own false-discovery bar on each component's "
+            "intensity over its esd, and the expected number of noise lines "
+            "among those kept. Components under the bar are flagged weak and "
+            "stay usable. A component that absorbs a shape or "
+            "background misfit carries real intensity and is not reached."
         ),
     ),
     "PEAK_ASYMMETRY_UNMODELLED": HelpEntry(

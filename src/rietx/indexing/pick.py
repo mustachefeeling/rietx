@@ -43,7 +43,7 @@ from ..schemas.pattern import PatternData, require_two_theta
 from ..strategy.staged import BOUND_HIT_RTOL
 from .diagnostics import peak_diagnostics
 from .peakfit import GroupFit, fit_group, fit_group_at, reseed_candidate
-from .peaks import Detection, PeakGroup, detect_peaks, group_at
+from .peaks import Detection, FdrScreen, PeakGroup, detect_peaks, fdr_screen, group_at
 
 
 def pick_peaks(data: PatternData, instrument: Instrument, *,
@@ -95,6 +95,7 @@ def pick_peaks_with_state(data: PatternData, instrument: Instrument, *,
         flag_kalpha2_residuals(peaks, instrument.source.lines)
     _flag_extrapolated_background(peaks, det.two_theta)
     flag_duplicate_lines(peaks)
+    flag_weak_lines(peaks, det)
 
     pl = PeakList(
         peaks=peaks, wavelength=lam0,
@@ -190,10 +191,13 @@ def fit_peaks(data: PatternData, instrument: Instrument,
         two_theta_min=float(det.two_theta[0]),
         two_theta_max=float(det.two_theta[-1]),
         source="fitted")
-    # PEAK_LIST_TOO_SHORT is a statement about indexing a pattern; here the
-    # count is the caller's own argument rather than anything the pattern said
+    # PEAK_LIST_TOO_SHORT is a statement about indexing a pattern, and
+    # PEAK_EXPECTED_FALSE_LINES one about detecting in it; here the count and
+    # the positions are the caller's own argument rather than anything the
+    # pattern said
     diags = [d for d in peak_diagnostics(pl, det)
-             if d.code != "PEAK_LIST_TOO_SHORT"]
+             if d.code not in ("PEAK_LIST_TOO_SHORT",
+                               "PEAK_EXPECTED_FALSE_LINES")]
     return pl.model_copy(update={"diagnostics": diags})
 
 
@@ -503,6 +507,37 @@ def flag_duplicate_lines(peaks: list[ObservedPeak], *,
         owner_group.insert(at, p.group)
 
 
+def flag_weak_lines(peaks: list[ObservedPeak], det: Detection, *,
+                    only: set[int] | None = None) -> FdrScreen:
+    """Mark components the pattern's false-discovery threshold rejects as
+    ``weak_line``, and return the screen.
+
+    The threshold is :func:`~rietx.indexing.peaks.fdr_screen`'s:
+    Benjamini–Hochberg at :data:`~rietx.schemas.indexing.PEAK_FDR_Q` on each
+    component's I/σ_I over the pattern's resolution elements.  It is computed
+    from the **whole** list every time — a false-discovery threshold is a
+    property of the pattern, not of a line — and ``only`` restricts which
+    components may be *marked*, for the one-group refit of the peak editor, as
+    :func:`flag_ghosts`' does.
+
+    **Reported, not refused** — the flag is absent from ``PEAK_UNUSABLE_FLAGS``,
+    for ``axial_tail``'s reason: it is evidence, not proof.  Measured both ways:
+    on synthetic silicon it marks the steep-flank and tail junk and no silicon
+    line, while on the certified lab patterns a component under the bar is
+    often a real weak line the certified cell indexes (refusing them moved five
+    indexing-acceptance rows, corundum's truth from 45 indexed lines to 44).
+    Whether a flagged component is a weak line or noise is a question a longer
+    count answers.
+    """
+    screen = fdr_screen(peaks, det)
+    for k in screen.weak:
+        if only is not None and k not in only:
+            continue
+        if "weak_line" not in peaks[k].flags:
+            peaks[k].flags = [*peaks[k].flags, "weak_line"]
+    return screen
+
+
 def flag_kalpha2_residuals(peaks: list[ObservedPeak], lines, *,
                            only: set[int] | None = None) -> None:
     """Mark components sitting at a strong group-mate's **Kα2 maximum**.
@@ -587,5 +622,5 @@ def flag_ghosts(peaks: list[ObservedPeak], wavelength: float,
 
 
 __all__ = ["fit_peaks", "flag_duplicate_lines", "flag_ghosts",
-           "flag_kalpha2_residuals",
+           "flag_kalpha2_residuals", "flag_weak_lines",
            "peaks_of_group", "pick_peaks", "pick_peaks_with_state"]
