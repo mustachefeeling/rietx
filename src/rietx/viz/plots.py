@@ -378,8 +378,12 @@ def _register_notebook_png(cls) -> None:
 def _notebook_png(fig) -> tuple[bytes, dict]:
     """``fig`` as a notebook shows it: a PNG at :data:`_NOTEBOOK_DENSITY` times
     :data:`_NOTEBOOK_DPI`, palette-quantised without dithering, with its width
-    and height in CSS pixels so the frontend draws it at its designed size.
-    ``(data, metadata)``, the pair an IPython formatter may return."""
+    in CSS pixels so the frontend draws it at its designed size.
+    ``(data, metadata)``, the pair an IPython formatter may return.
+
+    The width alone (WP-1957): a frontend that narrows an image to its output
+    column and keeps a declared height squashes a figure declaring both in any
+    column narrower than the figure.  With only a width it scales whole."""
     import io
 
     from PIL import Image
@@ -393,9 +397,7 @@ def _notebook_png(fig) -> tuple[bytes, dict]:
                              dither=Image.Dither.NONE)
     out = io.BytesIO()
     palette.save(out, format="PNG", optimize=True)
-    width, height = image.size
-    return out.getvalue(), {"width": width // _NOTEBOOK_DENSITY,
-                            "height": height // _NOTEBOOK_DENSITY}
+    return out.getvalue(), {"width": image.size[0] // _NOTEBOOK_DENSITY}
 
 
 def _handed_back(fig):

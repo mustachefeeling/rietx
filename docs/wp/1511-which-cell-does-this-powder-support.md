@@ -97,6 +97,18 @@ accepted cell is tested as the explanation of the leftovers.
   benchmark's own protocol cannot ask this: neither mode's volume window
   admits the truth beside a supercell of it. Untested is a *real* low-symmetry
   superstructure, where the truth is the child; no dataset here has one.
+- **2026-10-13, from the issue triage (#728 item 1): the reporter's public
+  repro does not reproduce the 4× cell.** Posted 2026-10-12 11:36Z, script in
+  that comment: synthetic Si (a = 5.4311 Å, λ = 0.8257 Å, 12.1-60°, `quick`,
+  at `869b6cf8`). No arm returns a 4× cell at any rank. With a steep
+  background and flat-topped lines (62 usable lines) junk hexagonal cells rank
+  first, the true cell is absent, and an unvalidated 2a₀ cubic sits at #12
+  with no sub-cell beside it; the 11 true lines alone put the true cell
+  first. They read the original ~100 lines as picker artefacts (#718's
+  background mechanism, 2-3 components per line). This file's "the ~100-line
+  case was not rebuilt" now has a public stand-in, and the proposed sub-cell
+  reduction would still catch the #12 cell. The absent-line side of the same
+  ranking is WP-1956's (#916).
 
 ## Non-goals
 

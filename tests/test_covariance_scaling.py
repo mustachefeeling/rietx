@@ -221,7 +221,7 @@ def test_a_failed_eigensolve_leaves_the_esds_absent_not_raised(monkeypatch):
     jac, resid = _problem()
     assert least_squares._guarded_covariance(jac, resid, 4, 400)[2] is None
 
-    monkeypatch.setattr(statistics.np.linalg, "pinv", _eigh_fails)
+    monkeypatch.setattr(statistics.np.linalg, "eigh", _eigh_fails)
     stderr, corr, error = least_squares._guarded_covariance(jac, resid, 4, 400)
     assert stderr is None and corr is None
     assert "Eigenvalues did not converge" in error
@@ -234,7 +234,7 @@ def test_only_an_eigensolver_failure_is_caught(monkeypatch):
     def broken(*args, **kwargs):
         raise TypeError("a bug, not a spectrum")
 
-    monkeypatch.setattr(statistics.np.linalg, "pinv", broken)
+    monkeypatch.setattr(statistics.np.linalg, "eigh", broken)
     jac, resid = _problem()
     with pytest.raises(TypeError, match="a bug"):
         least_squares._guarded_covariance(jac, resid, 4, 400)
@@ -494,3 +494,95 @@ def test_an_esd_whose_variance_has_no_double_is_absent_not_infinite():
         esd = table.stderr_physical(theta, stderr, corr)
         assert not {"phases.0.cell.a", "phases.0.cell.b"} & set(esd)
         assert np.isfinite(esd["phases.0.scale"])
+
+
+# ----------------------------------------------------------------------
+# A flat direction's eigenvalue has either sign (WP-1930)
+# ----------------------------------------------------------------------
+# An exactly flat direction of the equilibrated normal matrix comes back from
+# ``eigh`` at a rounding-level eigenvalue, and rounding picks its sign.  Above
+# the ``PINV_RCOND`` cut, ``pinv`` inverted a negative one with its sign, so every
+# column on that direction got a negative variance, floored to an esd of 0.
+# These tests set the eigenvalue rather than hoping a platform rounds into it.
+
+def _flat_pair(seed: int = 3, n: int = 300):
+    """Four columns, the last two identical: one exactly flat direction."""
+    rng = np.random.default_rng(seed)
+    jac = rng.normal(size=(n, 4))
+    jac[:, 3] = jac[:, 2]
+    return jac, rng.normal(size=n) * 0.01
+
+
+def _flat_eigenvalue_at(monkeypatch, value):
+    """``eigh`` with its smallest eigenvalue set to ``value·|λ|max``."""
+    from rietx.optimize import statistics
+
+    real = np.linalg.eigh
+
+    def eigh(a):
+        lam, u = real(a)
+        lam = lam.copy()
+        lam[np.argmin(np.abs(lam))] = value * np.abs(lam).max()
+        return lam, u
+
+    monkeypatch.setattr(statistics.np.linalg, "eigh", eigh)
+
+
+@pytest.mark.parametrize("value", [-3e-15, 3e-15])
+def test_a_flat_pair_is_undetermined_whichever_sign_rounding_gives(
+        monkeypatch, value):
+    """Either sign gives the same huge esds and ρ = ±1, never an esd of 0.
+
+    Before WP-1930 the negative case returned esds of exactly 0 and a
+    correlation of 0 for the pair, which silenced ``HIGH_CORRELATION`` on the
+    LaB₆ + cBN degenerate fit on Linux.
+    """
+    jac, resid = _flat_pair()
+    _flat_eigenvalue_at(monkeypatch, value)
+    stderr, corr = covariance_estimates(jac, resid, 4)
+    monkeypatch.undo()
+    _flat_eigenvalue_at(monkeypatch, abs(value))
+    stderr_pos, corr_pos = covariance_estimates(jac, resid, 4)
+
+    assert np.all(stderr > 0.0), stderr
+    assert abs(corr[2, 3]) == pytest.approx(1.0, abs=1e-9)
+    # the pair's esds are the flat direction's, ~1e7 of the measured ones
+    assert min(stderr[2:]) > 1e5 * max(stderr[:2])
+    assert np.array_equal(stderr, stderr_pos)
+    assert np.array_equal(corr, corr_pos)
+
+
+def _near_pair(seed: int, n: int = 300):
+    """Four columns, the last two 3e-7 apart: a small eigenvalue that is kept."""
+    rng = np.random.default_rng(seed)
+    jac = rng.normal(size=(n, 4))
+    jac[:, 3] = jac[:, 2] + 3e-7 * rng.normal(size=n)
+    return jac, rng.normal(size=n) * 0.01
+
+
+def test_a_psd_matrix_keeps_numpys_bits():
+    """With no negative eigenvalue kept, ``_psd_pinv`` is ``pinv`` to the bit,
+    so every fit whose normal matrix rounds positive is unchanged.  The three
+    families cover a well-conditioned spectrum, a discarded direction and a
+    small one above the cut."""
+    from rietx.optimize.statistics import PINV_RCOND, _psd_pinv
+
+    for empty in (np.zeros((0, 0)), np.zeros((3, 0, 0))):
+        assert _psd_pinv(empty, PINV_RCOND).shape == np.linalg.pinv(empty).shape
+    # a (k, n, n) stack, as indexing's dedup passes one (WP-1519)
+    rng = np.random.default_rng(1519)
+    stack = np.stack([g @ g.T for g in rng.normal(size=(8, 6, 4))])
+    assert np.array_equal(_psd_pinv(stack, PINV_RCOND),
+                          np.linalg.pinv(stack, rcond=PINV_RCOND, hermitian=True))
+    for seed in range(30):
+        jac, _ = (_problem, _flat_pair, _near_pair)[seed % 3](seed)
+        e = jac.T @ jac
+        e = 0.5 * (e + e.T)
+        d = 1.0 / np.sqrt(np.diag(e))
+        e = e * np.outer(d, d)
+        # ``eigh``, not ``eigvalsh``: the two disagree in the last bits, and
+        # this is a precondition on the eigenvalues ``_psd_pinv`` inverts
+        lam = np.linalg.eigh(e)[0]
+        assert not np.any((lam < 0) & (-lam > PINV_RCOND * np.abs(lam).max()))
+        assert np.array_equal(_psd_pinv(e, PINV_RCOND),
+                              np.linalg.pinv(e, rcond=PINV_RCOND, hermitian=True))

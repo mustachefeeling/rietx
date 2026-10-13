@@ -2008,7 +2008,8 @@ class CompiledModel:
         inherits the choice.  Measured on issue #481's frame redrawn over 20
         blank fits, this norm reached 3.1 to 4.4 once a released cell had
         chased the noise.  The full test is marginal over every column but
-        those that only rescale intensities, which counts that freedom to
+        those that only rescale intensities (another phase's scale among
+        them), which counts that freedom to
         first order, and called 1 of the 20 seen.
 
         Measured on the **modelled contribution** rather than on ``scale``,

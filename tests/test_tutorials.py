@@ -91,10 +91,11 @@ def test_tutorial_executes_clean(path):
     one is a cell that discards it, such as a trailing `;` (WP-1544)."""
     nb = build.execute(path)
     assert build.problems(nb) == []
-    plots = [c for c in nb.cells
-             if c.cell_type == "code" and ".plot(" in c.source.splitlines()[-1]]
+    last = [(c, c.source.splitlines()[-1]) for c in nb.cells if c.cell_type == "code"]
+    plots = [c for c, line in last if ".plot(" in line]
     assert plots, f"{path.stem} ends no cell on a plot, so this test checks no figure"
-    for cell in plots:
+    # a structure figure shows through its own display hook too (WP-1957)
+    for cell in plots + [c for c, line in last if "render_structure(" in line]:
         kinds = {k for out in cell.outputs for k in out.get("data", {})}
         assert "image/png" in kinds, f"{path.stem}: {cell.source.splitlines()[-1]!r} showed no image"
     if path.stem == LANDING_TUTORIAL:
@@ -179,6 +180,28 @@ def test_check_sees_a_stale_notebook(tmp_path):
                     encoding="utf-8", newline="\n")
     assert build.check(tmp_path) == [f"{source.stem}.ipynb: cells differ from {source.name}"]
 
+
+
+@pytest.mark.parametrize("stem", build.UNEXECUTED)
+def test_a_template_is_committed_without_outputs(stem):
+    """Its reader runs it on their own data, so the committed copy carries no
+    output from the example files (WP-1957).  The suite still executes it,
+    in test_tutorial_executes_clean."""
+    code = [c for c in _committed(TUTORIALS / f"{stem}.py").cells if c.cell_type == "code"]
+    assert code and all(c.outputs == [] and c.execution_count is None for c in code)
+
+
+def test_check_sees_a_template_with_outputs(tmp_path):
+    """The guard can fail: a template committed executed is reported."""
+    import nbformat
+    stem = build.UNEXECUTED[0]
+    shutil.copy(TUTORIALS / f"{stem}.py", tmp_path / f"{stem}.py")
+    nb = _committed(TUTORIALS / f"{stem}.py")
+    assert build.check(tmp_path) == [f"{stem}.ipynb: missing"]
+    cell = next(c for c in nb.cells if c.cell_type == "code" and not c.source.startswith("%pip"))
+    cell.outputs = [nbformat.v4.new_output("stream", name="stdout", text="from the example\n")]
+    (tmp_path / f"{stem}.ipynb").write_text(nbformat.writes(nb), encoding="utf-8")
+    assert build.check(tmp_path) == [f"{stem}.ipynb: a template is committed without outputs"]
 
 def test_problems_sees_stderr_and_a_home_path():
     v4 = nbformat.v4

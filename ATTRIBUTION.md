@@ -209,7 +209,8 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   that could not be obtained, so they cannot be verified against a source.
 - Stokes, H. T. & Hatch, D. M. (1988). *Isotropy Subgroups of the 230
   Crystallographic Space Groups*, World Scientific — isotropy subgroups
-  (`crystallography/magnetic/isotropy.py`).
+  (`crystallography/representation/order_parameter.py`,
+  `crystallography/magnetic/isotropy.py`).
 - Campbell, B. J., Stokes, H. T., Tanner, D. E. & Hatch, D. M. (2006).
   *J. Appl. Cryst.* 39, 607–614 (ISODISPLACE) — the mode view of a distorted
   structure, and displacements as polar vectors
@@ -264,7 +265,7 @@ output or reproduce their tables.
 
 | Program | What rietx took, and from where |
 |---|---|
-| ISOTROPY Software Suite: ISODISTORT, FINDSYM (Stokes, Hatch & Campbell) | The method, from Stokes & Hatch (1988) and Campbell et al. (2006). The isotropy direction labels are rietx's own (`isotropy.py`). Compare with an ISODISTORT table through the subgroup's BNS number. |
+| ISOTROPY Software Suite: ISODISTORT, FINDSYM (Stokes, Hatch & Campbell) | The method, from Stokes & Hatch (1988) and Campbell et al. (2006). The isotropy direction labels are rietx's own (`order_parameter.py`). Compare with an ISODISTORT table through the subgroup's BNS number. |
 | SARAh (Wills) | The method, from Wills (2000). |
 | BasIreps (FullProf suite) | The method, from Rodríguez-Carvajal (1993). The irrep labels and their order are rietx's own and are not CDML labels (`irreps.py`). The CDML mapping is deferred. |
 | Bilbao Crystallographic Server: MAXMAGN, MAGNEXT, k-SUBGROUPSMAG | The method, from Perez-Mato et al. (2015) and Gallego et al. (2012). MAXMAGN and MAGNEXT were unreachable on 2026-09-06 (404 and HTTP 500), and no number in this repository comes from either (`tests/test_magnetic_isotropy.py`). |

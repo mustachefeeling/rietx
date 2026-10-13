@@ -124,6 +124,42 @@ down.
 
 ### Inherited
 
+- **2026-10-13 (2nd), from WP-1523's close: a subgroup at its parent's
+  identity point is held only while its scale is near zero.** The scale
+  significance is now conditional on every other phase's scale. So a phantom
+  subgroup that picked up real scale at the identity point reads as seen,
+  is not held, and gets no `PHASE_UNCONSTRAINED`. That happened in one of
+  five #219 ISO-TRUTH degenerate seeds. Your Goal's "the case the hold
+  cannot judge" is now reported only by `HIGH_CORRELATION` on the two
+  scales. WP-1523 § Decided 2026-10-13.
+- **2026-10-13, from WP-1523's review (PR #928): `cherry_pick` and
+  `run_stage` replay a plan stage without the reading that held it.** The
+  stage-start hold reads the previous stage's answer, and no `NodeAction`
+  records that reading. So `cherry_pick`, `run_stage` and the GUI's
+  stage-by-stage path decide from the screen alone, free a cell the original
+  stage held, and pay the second solve the prior removes. Reproduction: issue
+  #481's blank, seed 107 (`tests/test_phase_significance.py`'s `_draw`), the
+  unfitted start, `mccusker_default` with history. Check out the `profile_w`
+  node and cherry-pick the `profile` node. The fit's `profile` stage solved
+  once in 15 iterations with the cell held from its start. The replay solves
+  twice in 43, and ends with the cell held all the same. WP-1523 declined to
+  record the reading on the node. `cherry_pick` exists to replay an action on
+  another branch or sample, where a reading of the source state is the wrong
+  input, and the field would move the schema. A replay that measured the
+  marginal z at its own start would cost one Jacobian per replayed stage. This
+  is the same hold crossing a verb boundary rather than a pattern boundary,
+  which is why it is folded here; choose with the chain case.
+- **2026-10-12, from WP-1523: within one fit the stage-start hold now reads
+  the previous stage's answer too.** A phase that one stage's answer called
+  unseen is held from the next stage's start, even where its screen passes
+  3σ, and is released only if a later answer sees it. Each pattern's fit
+  starts with no prior, so a chain's first stage still reads the screen
+  alone. Carrying the last pattern's reading across the boundary would be a
+  `RefinementState` fact, which crosses no pattern boundary until someone
+  builds it (root CLAUDE.md, WP-1441); that is this WP's choice to make. On
+  issue #481's sweep the change moved 1 of 64 weak real fits from refined to
+  held (planted 1.2e-7, `mccusker_structural`, 2.46σ), so a re-entry count
+  taken before 2026-10-12 can move by that much.
 - **2026-10-04, from WP-1523: the hold's threshold moved, so re-measure
   before quoting.** A phase is now seen when its scale is 3σ from zero by its
   marginal esd against counting noise (`refine._answer_significance`). The old

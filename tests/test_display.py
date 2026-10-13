@@ -127,7 +127,19 @@ def test_a_tree_prints_its_summary(fap):
 
 def test_a_structure_figure_shows_its_picture(fap):
     fig = rx.viz.render_structure(fap["structure"], size=120)
-    assert fig._repr_png_().startswith(b"\x89PNG\r\n\x1a\n")
+    data, md = fig._repr_png_()
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    # the width alone, or a column narrower than the figure squashes it (WP-1957)
+    assert md == {"width": fig.image.shape[1] // 2}
+    import io
+
+    from PIL import Image
+    assert Image.open(io.BytesIO(data)).mode == "P"  # a notebook palette, like a fit figure
+    from rietx.viz import plots
+    from rietx.viz.figure3d import render
+    assert render.NOTEBOOK_COLOURS == plots._NOTEBOOK_COLOURS  # restated across the boundary
+    clear = rx.viz.render_structure(fap["structure"], size=120, background=None)
+    assert Image.open(io.BytesIO(clear._repr_png_()[0])).mode == "RGBA"  # its alpha kept
     assert len(repr(fig)) < 100
 
 
@@ -240,7 +252,8 @@ def test_a_notebook_figure_is_encoded_for_a_screen_and_files_are_not(fap, tmp_pa
     data, md = fig._repr_png_()
     image = Image.open(io.BytesIO(data))
     assert image.mode == "P"
-    assert md == {"width": image.size[0] // 2, "height": image.size[1] // 2}
+    # the width alone, or a column narrower than the figure squashes it (WP-1957)
+    assert md == {"width": image.size[0] // 2}
     fig.savefig(tmp_path / "file.png")
     saved = Image.open(tmp_path / "file.png")
     assert saved.mode == "RGBA"

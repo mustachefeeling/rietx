@@ -825,7 +825,10 @@ def extinction_class_diagnostics(cand) -> list[Diagnostic]:
                         "leave over.  A single flagged position can also be an "
                         "impurity line — check it against "
                         "IndexingResult's unmatched_observed before dropping the "
-                        "class")))
+                        "class.  Or a container halo: an excess about a degree "
+                        "wide is not a line — declare it as a HumpComponent "
+                        "(fit it in the Le Bail pre-fit), which the screen "
+                        "refits per class")))
     if cand.n_absent and cand.n_testable == 0:
         out.append(Diagnostic(
             level="info", code="EXTINCTION_SYMBOL_AMBIGUOUS",

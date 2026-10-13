@@ -206,7 +206,7 @@ $\ker(D(h) - I)$; the pointwise stabiliser of a direction $V$ is
 S(V) \;=\; \{\, h \;:\; D(h)\,\mathbf{v} = \mathbf{v} \ \ \forall\, \mathbf{v} \in V \,\},
 ```
 
-{source}`rietx.crystallography.magnetic.isotropy.isotropy_directions`
+{source}`rietx.crystallography.representation.order_parameter.isotropy_directions`
 
 {cite}`stokeshatch1988`, and the isotropy subgroups of one irrep are the
 distinct subgroups this construction returns, one per direction with a

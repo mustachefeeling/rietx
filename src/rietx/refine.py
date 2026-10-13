@@ -75,6 +75,7 @@ from .model.restraints import summarise_restraints
 from .model.rows import layout as row_layout
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import (
+    _SCALE_PATH,
     DEFAULT_SOLVER,
     SOLVERS,
     _jacobian_for,
@@ -406,8 +407,9 @@ class _StageHold:
     #: ``PHASE_UNCONSTRAINED`` reads the number the hold was decided on: a
     #: phase the support hold still holds keeps that reading, taken with its
     #: held columns free, which the result's own covariance cannot do.  A
-    #: phase that refined is read off the last solve.  ``None`` outside
-    #: Rietveld mode, where the result reads the screen itself.
+    #: phase that refined is read off the last solve.  The next stage of a
+    #: plan starts its support hold from it too.  ``None`` outside Rietveld
+    #: mode, where the result reads the screen itself.
     significance: np.ndarray | None = None
 
 
@@ -472,7 +474,9 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     Jacobian, so it is ``CompiledModel.phase_support``, the screen the default
     cell window also reads.  The screen bounds the full test from above, so a
     phase it holds is one :func:`_answer_significance` would call unseen too.
-    At the answer the caller passes :func:`_answer_significance` instead.
+    A plan's later stage reads the previous answer's significance beside it
+    (:func:`_hold_unsupported_phases`).  At the answer the caller passes
+    :func:`_answer_significance` instead.
 
     **The phase's own scale is never held.**  Every structural parameter of a
     phase reaches the pattern only through ``scale × |F|² × profile``, so with
@@ -1155,14 +1159,52 @@ def _reach_beyond_self(table: ParameterTable, columns: list[str],
     return out
 
 
-def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable
+def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
+                             prior: np.ndarray | None = None,
+                             seeded_phases: Iterable[int] = (),
                              ) -> tuple[list[str], dict[str, list[str]]]:
     """Apply :func:`_unsupported_phase_paths`; returns what it held and its reach.
 
     Both halves, because the reach is only readable while the columns are
     still free — see :func:`_reach_beyond_self`.
+
+    ``prior`` is the previous stage's :func:`_answer_significance` in a plan
+    (WP-1523), read beside the screen: a phase under the threshold by either
+    is held.  The screen alone frees a phase whose scale was fitted to noise
+    whenever its conditional z passes while the marginal one does not, and
+    the stage then chases the noise, collapses it, restores it and solves
+    again.  A plan's free set only grows, so the marginal z here is no larger
+    to first order.
+
+    The reading was taken where the previous answer stood, and three things
+    can move a phase off it before this stage starts.  A stage seed writes a
+    row (``Stage.seed``, ``Stage.strain_seed``), so the caller names the
+    phases a seed reached in ``seeded_phases`` and their prior is dropped:
+    a seeded scale would otherwise stay held on a reading from before the
+    seed and pay the second solve this exists to remove.  A collapse puts
+    the phase back where its stage started, after the reading was taken.
+    ``clamp_cell_runaway`` moves a cell after the solve whose Jacobian the
+    reading used.  In the last two cases the phase stays held by a reading
+    that the stage's own measurement called unseen, and a stale reading errs
+    only towards holding, since the minimum is taken and the scale stays
+    free for the release at the answer.
+
+    Measured on seed 107 of #481's blank frame under ``mccusker_structural``:
+    18 solves for 11 stages with the screen alone, 11 with the prior read.
+    The scale stays free either way, so a phase that appears while this
+    stage solves is released at its answer as before.  What it gives up is a
+    second look with the phase's columns refining: a held phase is judged at
+    its held values.  Over the WP's sweep that moved one weak real phase of
+    64 fits from refined to held, at 2.46σ.
     """
-    held = _unsupported_phase_paths(model, table)
+    support = np.asarray(model.phase_support(table.decode(table.x0())),
+                         dtype=np.float64)
+    if prior is not None:
+        # one plan, one structure: the two vectors index the same phases
+        prior = np.array(prior, dtype=np.float64)
+        prior[list(seeded_phases)] = np.inf
+        support = np.minimum(support, prior)
+    held = _unsupported_phase_paths(model, table, support)
     reach = _reach_beyond_self(table, held)
     if held:
         table.set_vary(held, False)
@@ -1544,8 +1586,9 @@ def _phases_reached(columns: list[str], reach: dict[str, list[str]]) -> set[int]
 #: An occupancy path.  With :data:`_DISPLACEMENT_PATH` (an anisotropic ADP
 #: column reaches the U^ij components it drives, so ``biso|adp`` alone would
 #: keep it), the paths a column may move and still be left out of the
-#: significance (:func:`_significance_columns`): they rescale a phase's
-#: intensities and move no peak.
+#: significance (:func:`_significance_columns`), beside another phase's
+#: scale (``_SCALE_PATH``): they rescale a phase's intensities and move no
+#: peak.
 _OCCUPANCY_PATH = re.compile(r"^phases\.\d+\.atoms\.\d+\.occ$")
 
 
@@ -1554,27 +1597,50 @@ def _intensity_only_path(path: str) -> bool:
 
 
 def _significance_columns(free: list[str], held: list[str],
-                          reach: dict[str, list[str]]) -> list[str]:
-    """The columns a phase's scale significance is marginal over (WP-1523).
+                          reach: dict[str, list[str]], ip: int) -> list[str]:
+    """The columns phase ``ip``'s scale significance is marginal over (WP-1523).
 
     Every free column, and the phase's own held columns, except a column that
-    moves only displacements or occupancies.  The freedom that inflates a fit
-    to noise is where the peaks sit: a cell, a width, a zero shift (Davies,
-    R. B., 1977, *Biometrika* 64, 247-254, a nuisance parameter present only
-    under the alternative).  A column that only rescales intensities, B or an
-    occupancy, says how the intensity splits between it and the scale, not
-    whether the phase is there.  Marginal over B, a phase whose scale and B
-    nearly share a direction reads as absent: measured on
-    ``tests/test_scale_b_ridge.py``'s fluorite, 153.7σ on the screen and
-    0.02σ marginal.  "Moves only" is read off the column's reach, a variable
-    dropped first, so a ``vars.B`` driving two displacements is left out too
-    (WP-1342).
+    moves only displacements, occupancies and other phases' scales.
+    The freedom that inflates a fit to noise is where the peaks sit: a cell, a
+    width, a zero shift (Davies, R. B., 1977, *Biometrika* 64, 247-254, a
+    nuisance parameter present only under the alternative).  A column that
+    only rescales intensities, B or an occupancy, says how the intensity
+    splits between it and the scale, not whether the phase is there.
+    Marginal over B, a phase whose scale and B nearly share a direction reads
+    as absent: measured on ``tests/test_scale_b_ridge.py``'s fluorite, 153.7σ
+    on the screen and 0.02σ marginal.
+
+    **Another phase's scale is the same split one rank up**: it says which
+    phase carries an intensity, not whether the intensity is there.  Marginal
+    over it, two phases able to draw the same pattern each read under 3σ, and
+    the hold landed on whichever the start left weaker, the specimen's only
+    phase included: issue #219's cubic Cu modelled with an absent ``I 4/m m m``
+    subgroup, scales at ρ −1.000, held the parent from 9 of 15 split seeds.
+    Conditional on the partner's scale the parent reads 45-90σ there, while
+    a phase fitted to noise still reads low, its inflation coming from its
+    own cell and widths; on the suite's multi-phase fixtures the two readings
+    differ by at most 9 %.  The ambiguity between the pair is
+    ``HIGH_CORRELATION``'s to report, which fires on the two scales.
+
+    "Moves only" is read off the column's reach, a variable dropped first, so
+    a ``vars.B`` driving two displacements is left out too (WP-1342), and a
+    ``vars.S`` tying this phase's scale to another's stays in.
     """
     def moved(column: str) -> list[str]:
         return [p for p in reach.get(column, [column]) if not is_variable_path(p)]
 
+    def other_scale(path: str) -> bool:
+        m = _SCALE_PATH.match(path)
+        return bool(m) and int(m.group(1)) != ip
+
+    def left_out(column: str) -> bool:
+        paths = moved(column)
+        return bool(paths) and all(_intensity_only_path(p) or other_scale(p)
+                                   for p in paths)
+
     return [c for c in [*free, *(h for h in held if h not in free)]
-            if not (moved(c) and all(_intensity_only_path(p) for p in moved(c)))]
+            if not left_out(c)]
 
 
 def _scale_significance(table: ParameterTable, theta: np.ndarray,
@@ -1667,7 +1733,7 @@ def _answer_significance(model: CompiledModel, table: ParameterTable,
         column_reach = table.column_reach()
         for ip in seen:
             columns = [c for c in _significance_columns(
-                free, [c for c in held_of[ip] if c in freed], column_reach)
+                free, [c for c in held_of[ip] if c in freed], column_reach, ip)
                 if c not in stationary]
             try:
                 # never above the screen it is bounded by: a direction the
@@ -2339,6 +2405,7 @@ class Refinement:
         # would invite the caller to free what the next stage fixes again.
         reach = table.entry_reach()
         owned = table.body_rows()
+        origin = table.origin_holds
         rows = []
         for e in table.entries:
             rows.append(ParameterRow(
@@ -2353,6 +2420,7 @@ class Refinement:
                             else mode_fixed_path(e.path, mode)),
                 needs_held_cell=e.path in blocked,
                 body=owned.get(e.path),
+                origin_axis=origin[e.path][1] if e.path in origin else None,
                 help_key=help_key_for(e.path),
             ))
         return rows
@@ -2394,11 +2462,20 @@ class Refinement:
             # rows too, and on those the message below would be false advice:
             # ``unhold`` gives them back no freer than they were, so they keep
             # ``set_vary``'s older answer of declining in silence.
+            #
+            # Who holds it is the table's answer (``held_by``), so the table's
+            # own floating-origin hold is refused exactly as the caller's is.
             by_path = {e.path: e for e in table.entries}
             blocked = [g for g in globs
-                       if is_literal_path(g) and g in self._user_holds
-                       and g in by_path and by_path[g].tie is None
-                       and not by_path[g].locked]
+                       if is_literal_path(g) and g in by_path
+                       and by_path[g].tie is None and not by_path[g].locked
+                       and table.held_by(g) is not None]
+            if blocked and table.held_by(blocked[0]) == "origin":
+                raise ValueError(
+                    f"{blocked[0]!r} is held to fix its phase's floating origin "
+                    "(Phase.floating_origin) and cannot be freed; unhold it "
+                    "first if you mean to refine it, which withdraws that "
+                    "phase's declaration")
             if blocked:
                 raise ValueError(
                     f"{blocked[0]!r} is held by this refinement and cannot be "
@@ -3001,82 +3078,78 @@ class Refinement:
         return new
 
     def hold_floating_origin(self) -> list[Diagnostic]:
-        """Hold one coordinate along every direction the origin floats in.
+        """Fix the origin of every phase whose space group lets it float.
 
         In a polar group (P 6₃ m c, P 4 m m, Pna2₁, Cc, P 1, …) every atom has
         a free coordinate along the polar axis, and shifting the whole structure
         along it changes no intensity, so a fit that frees them all has a flat
         direction it walks and quotes an esd along (``FLAT_DIRECTION``, ρ = −1).
-        :func:`~rietx.crystallography.wyckoff.floating_origin_basis` gives those
-        directions; for each, this holds the first atom's displacement DOF whose
-        direction is that axis, with :meth:`hold`, so a plan that frees
-        ``phases.*.atoms.*.dof.*`` leaves it where it is and the other atoms'
-        coordinates are quoted relative to it.  Opt-in: nothing is held unless
-        this is called, and :meth:`unhold` takes the hold back.  The
-        alternative is a least-squares restraint on the mean coordinate along
-        the axis, which keeps an esd on every atom (Flack & Schwarzenbach, 1988,
-        Acta Cryst. A44, 499); it is not implemented here.
+        This sets ``Phase.floating_origin = "hold"`` on each phase whose group
+        floats (:func:`~rietx.crystallography.wyckoff.floating_origin_basis`)
+        and records one ``edit_model`` node.  The parameter table then holds,
+        per floating direction, the first atom's displacement DOF that a shift
+        along it moves, so a plan that frees ``phases.*.atoms.*.dof.*``
+        leaves that atom where it is and the other atoms' coordinates are
+        quoted relative to it.  The same as setting the field yourself: since
+        WP-1912 the table does the holding, so a series pattern, a joint
+        histogram and a history replay hold the same atom.
 
-        Returns one ``ORIGIN_FIXED_ON_POLAR_AXIS`` (info) per phase that needed
-        a hold, naming the held parameters in ``where``, and an
-        ``ORIGIN_NOT_FIXED`` (warning) where a direction has no atom whose free
-        DOF runs along it (every atom then sits off that axis, or the basis
-        direction is a combination such as ``[1, 1, 0]``), so the flat
-        direction is still there.  A non-polar group returns ``[]``.
+        Opt-in: nothing is held unless this is called or the field is set.
+        :meth:`unhold` on a held DOF takes it back, with the rest of that
+        phase's fix.  A direction the caller's own ties or holds already fix
+        gets no second hold.  The alternative is a least-squares restraint on
+        the mean coordinate along the axis, which keeps an esd on every atom
+        (Flack & Schwarzenbach, 1988, Acta Cryst. A44, 499); it is not
+        implemented here.
+
+        A phase where the table would hold nothing is left undeclared: its
+        origin is fixed already by the caller's own ties or holds, or no DOF
+        the shift moves is free to hold.  So every declaration this sets holds
+        something :meth:`unhold` can name.  A declaration set by hand that
+        holds nothing is withdrawn with :meth:`edit`.
+
+        Returns what the table holds: one ``ORIGIN_FIXED_ON_POLAR_AXIS``
+        (info) per phase that needed a hold, naming the held parameters in
+        ``where``, and an ``ORIGIN_NOT_FIXED`` (warning) where a direction has
+        no untied DOF to hold, so the flat direction is still there.  A
+        structure with no polar phase returns ``[]`` and records nothing.
         """
         from .crystallography.symmetry import resolve_group
-        from .crystallography.wyckoff import (
-            coordinate_basis,
-            floating_origin_basis,
-            stabilizer_rotations,
-        )
+        from .crystallography.wyckoff import floating_origin_basis
 
-        out: list[Diagnostic] = []
-        for ip, phase in enumerate(self.structure.phases):
-            sg = resolve_group(phase.space_group, phase.symmetry_operations)
-            floating = floating_origin_basis(sg)
-            if len(floating) == 0:
+        structure = self.structure.model_copy(deep=True)
+        declared: list[int] = []
+        for ip, phase in enumerate(structure.phases):
+            if phase.floating_origin is not None:
                 continue
-            held: list[str] = []
-            unmatched: list[str] = []
-            for f in floating:
-                f = [int(v) for v in f]
-                path = None
-                for ia, atom in enumerate(phase.atoms):
-                    xyz = [atom.x.value, atom.y.value, atom.z.value]
-                    basis = coordinate_basis(stabilizer_rotations(sg, xyz))
-                    for k, row in enumerate(basis):
-                        row = [int(v) for v in row]
-                        if row == f or row == [-v for v in f]:
-                            path = f"phases.{ip}.atoms.{ia}.dof.{k}"
-                            break
-                    if path:
-                        break
-                if path is None:
-                    unmatched.append(str(f))
-                else:
-                    held.append(path)
-            if held:
-                self.hold(held)
-                out.append(Diagnostic(
-                    level="info", code="ORIGIN_FIXED_ON_POLAR_AXIS",
-                    message=(f"phase {ip} ({phase.space_group}) has a floating "
-                             f"origin: the whole structure can shift along "
-                             f"{[list(map(int, f)) for f in floating]} without "
-                             f"changing any intensity, so {', '.join(held)} "
-                             f"is held; the other coordinates along it are "
-                             f"relative to that atom"),
-                    where=held))
-            if unmatched:
-                out.append(Diagnostic(
-                    level="warning", code="ORIGIN_NOT_FIXED",
-                    message=(f"phase {ip} ({phase.space_group}) floats along "
-                             f"{', '.join(unmatched)} and no atom has a free "
-                             f"coordinate running exactly along it, so nothing "
-                             f"was held there and the fit keeps a flat "
-                             f"direction"),
-                    where=[f"phases.{ip}"]))
-        return out
+            sg = resolve_group(phase.space_group, phase.symmetry_operations)
+            if len(floating_origin_basis(sg)) > 0:
+                phase.floating_origin = "hold"
+                declared.append(ip)
+        if not declared:
+            return _origin_diagnostics(self._working_table())
+        probe = self._table_for(structure)
+        holding = {ip for ip, _ in probe.origin_holds.values()}
+        for ip in declared:
+            if ip not in holding:
+                structure.phases[ip].floating_origin = None
+        if holding & set(declared):
+            self.edit(structure=structure, label="hold_floating_origin")
+        return _origin_diagnostics(probe)
+
+    def _table_for(self, structure: Structure) -> ParameterTable:
+        """A table over ``structure`` with this refinement's ties and holds.
+
+        What a fresh :meth:`_working_table` would be for a model not yet
+        adopted, for a verb that has to ask the table before it records
+        anything (:meth:`hold_floating_origin`).  :meth:`edit` builds the same
+        one over the model it accepts.
+        """
+        table = ParameterTable(structure, self.instrument)
+        self._declare_variables(table)
+        self._apply_ties(table)
+        self._apply_holds(table)
+        return table
 
     def unhold(self, path_globs: list[str] | str) -> list[str]:
         """Take back a hold.  Returns the paths released, sorted.
@@ -3092,25 +3165,57 @@ class Refinement:
         free.  Withdrawing a declaration that something must not move is not a
         decision to move it, and :meth:`set_vary` is where that decision is
         spelled.
+
+        A DOF the table holds to fix a floating origin (``Phase.floating_origin``,
+        WP-1912) is released by setting that field back to ``None``, recorded
+        as an ``edit_model`` node.  That takes back the phase's whole fix, so
+        unholding one of P 1's three held DOFs releases all three, and all three
+        are returned.  Only the table's own hold does that.  A caller's hold on
+        a DOF the fix would otherwise take is the caller's alone: this lifts it,
+        the declaration stays, and the fix holds that DOF again, which its
+        ``held_because`` then says.  Which of the two holds a path is
+        ``ParameterTable.held_by``'s answer.
         """
         globs = [path_globs] if isinstance(path_globs, str) else list(path_globs)
+        table = self._working_table()
         hits = sorted(p for p in self._user_holds
                       if any(fnmatch.fnmatchcase(p, g) for g in globs))
+        # A floating-origin hold is the table's, from the phase's own
+        # declaration (WP-1912), so it is lifted by taking that declaration
+        # back: per phase, since the table re-derives the whole fix at the next
+        # build and a register of exceptions would be a second authority.
+        origin = table.origin_holds
+        released = {ip for p, (ip, _) in origin.items()
+                    if table.held_by(p) == "origin"
+                    and any(fnmatch.fnmatchcase(p, g) for g in globs)}
+        origin_hits = sorted(p for p, (ip, _) in origin.items() if ip in released)
         literals = [g for g in globs
-                    if is_literal_path(g) and g not in hits]
+                    if is_literal_path(g) and g not in hits
+                    and g not in origin_hits]
         if literals:
-            known = {e.path for e in self._working_table().entries}
             glob = literals[0]
             raise ValueError(
-                f"{glob!r} is not held by this refinement" if glob in known
+                f"{glob!r} is not held by this refinement"
+                if any(e.path == glob for e in table.entries)
                 else f"unknown parameter path: {glob!r}")
-        if not hits:
+        if not hits and not origin_hits:
             return []
-        # the register first, so the table this rebuilds comes back without
-        # them: ``_working_table`` re-applies whatever ``_user_holds`` holds
-        self._user_holds.difference_update(hits)
-        self._commit_hold_edit(self._working_table(), held=[], unheld=hits)
-        return hits
+        if hits:
+            # the register first, then the same table: ``set_held`` re-runs the
+            # origin fix, so a DOF it takes over shows as held in the node
+            self._user_holds.difference_update(hits)
+            table.set_held(hits, False)
+            self._commit_hold_edit(table, held=[], unheld=hits)
+        if origin_hits:
+            # released fixed, as a user hold is: a DOF free before the field was
+            # set must not come back free when the next table restores the set
+            self._free_paths = [p for p in self._free_paths
+                                if p not in origin_hits]
+            structure = self.structure.model_copy(deep=True)
+            for ip in released:
+                structure.phases[ip].floating_origin = None
+            self.edit(structure=structure, label="unhold: floating origin")
+        return sorted(set(hits) | set(origin_hits))
 
     def _commit_hold_edit(self, table: ParameterTable, *,
                           held: list[str], unheld: list[str]) -> None:
@@ -3601,8 +3706,13 @@ class Refinement:
         # time would otherwise be reported as a vanished parameter
         self._apply_holds(table)
         if restore and self._free_paths:
+            # a held path is declined, whoever holds it (``held_by``: the
+            # caller, or the floating-origin fix, WP-1912), so it is not a
+            # vanished parameter; the register is asked too, for a held path
+            # the model no longer has
             missing = [p for p in self._free_paths
                        if p not in self._ties and p not in self._user_holds
+                       and table.held_by(p) is None
                        and not table.set_vary([p], True)]
             if missing:
                 # set_vary reports no hits for a path that no longer exists
@@ -3678,12 +3788,21 @@ class Refinement:
                    two_theta_limits: tuple[float, float] | None,
                    correlation_guard: float, events=None, cancel=None,
                    stage_index: int = 1, n_stages: int = 1,
-                   ftol: float | None = None):
+                   ftol: float | None = None,
+                   prior_significance: np.ndarray | None = None):
         """One stage: free params, recompile, solve, commit, guard.
 
         The recompile is what keeps the residual smooth *within* the stage —
         the hkl list, symmetry-op subsets, FCJ node counts and windows are
         frozen here and never move until the next stage.
+
+        ``prior_significance`` is the previous stage's answer significance in
+        a plan (WP-1523), which the support hold reads beside the screen
+        (:func:`_hold_unsupported_phases`).  ``None`` for a plan's first stage,
+        outside Rietveld mode (``_StageHold.significance`` is), and for
+        :meth:`run_stage`, which has no previous stage of its own: a
+        reading kept across verbs would outlive a ``set_values`` or a
+        checkout that moved the values it was taken at.
         """
         freed = table.set_vary(stage.turn_on, True)
         # What the glob matched and the hold refused (WP-1435).  Read off the
@@ -3733,10 +3852,17 @@ class Refinement:
             # the band the data can see (WP-1938)
             seeded = dict.fromkeys(table.seed_floored(freed, stage.seed),
                                    stage.seed)
+        strain_seeded: list[str] = []
         if stage.strain_seed:
             # the Stephens DOFs are unbounded below, so the seed above never
             # sees them; put an all-zero block on the isotropic ray
-            table.seed_stephens(freed, stage.strain_seed)
+            strain_seeded = table.seed_stephens(freed, stage.strain_seed)
+        # a seed moved these phases off the values the previous answer's
+        # significance was read at, so the support hold drops that reading
+        # for them (WP-1523)
+        seeded_phases = (_phases_reached([*seeded, *strain_seeded],
+                                         table.column_reach())
+                         if seeded or strain_seeded else set())
 
         # regenerate reflection list/windows/FCJ nodes with current values
         # (between-stage refresh; frozen within the stage); the free-path
@@ -3805,8 +3931,10 @@ class Refinement:
         # displacement the fitted range cannot tell from its scale (WP-1534).
         # All are flat directions, all are taken after the compile at the
         # values the stage starts from, and all go into ``StageResult.held``
-        # so the report can say which and why.
-        held, held_reach = _hold_unsupported_phases(model, table)
+        # so the report can say which and why.  The phase hold also reads the
+        # previous answer's significance where a plan hands one in (WP-1523).
+        held, held_reach = _hold_unsupported_phases(
+            model, table, prior_significance, seeded_phases)
         # kept apart, because the release below judges each hold by its own
         # question: a moment DOF the *phase* hold took (every free structural
         # path of an invisible phase, ``moment.dof0`` included) stays with the
@@ -4493,7 +4621,9 @@ class Refinement:
             diagnostics.extend(_constraint_diagnostics(plan.stages[-1].name, outcome))
             diagnostics.extend(_degenerate_cell_diagnostics(
                 [(sr.name, sr.n_degenerate_cell_probes) for sr in stage_results]))
-            diagnostics.extend(_hold_diagnostics(stage_results))
+            diagnostics.extend(_hold_diagnostics(stage_results,
+                                                 table.origin_holds))
+            diagnostics.extend(_origin_diagnostics(table, stage_results))
             diagnostics.extend(_unknown_path_diagnostics(
                 stage_results, [e.path for e in table.entries]))
 
@@ -4632,7 +4762,10 @@ class Refinement:
                 model, outcome, guard, freed, hold = self._run_stage(
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
-                    stage_index=k, n_stages=len(plan.stages), ftol=ftol)
+                    stage_index=k, n_stages=len(plan.stages), ftol=ftol,
+                    # still the previous stage's here: the support hold
+                    # starts from that answer as well as the screen (WP-1523)
+                    prior_significance=answer_significance)
             # WP-1343: the moment's rung at this boundary, and the shift the
             # moment took when the widths were released.  Gated on what the
             # stage actually freed, so an ordinary fit never pays for the
@@ -4952,7 +5085,9 @@ class Refinement:
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
-            diagnostics.extend(_hold_diagnostics([stage_result]))
+            diagnostics.extend(_hold_diagnostics([stage_result],
+                                                 table.origin_holds))
+            diagnostics.extend(_origin_diagnostics(table, [stage_result]))
             diagnostics.extend(_unknown_path_diagnostics(
                 [stage_result], [e.path for e in table.entries]))
 
@@ -6068,7 +6203,82 @@ def _degenerate_cell_diagnostics(rows: list[tuple[str, int]]) -> list[Diagnostic
     )]
 
 
-def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
+def _origin_diagnostics(table: ParameterTable,
+                        stage_results: list[StageResult] | None = None
+                        ) -> list[Diagnostic]:
+    """``ORIGIN_FIXED_ON_POLAR_AXIS`` and ``ORIGIN_NOT_FIXED``, read off the table.
+
+    The table is the authority for what it holds and why
+    (``ParameterTable.origin_holds``/``origin_unfixed``, WP-1912), so this
+    only words it: per phase, the space group, each floating direction, and
+    the atom whose DOF holds it.
+
+    With ``stage_results`` (a fit) a phase is reported only where its fix
+    mattered, which is where a stage freed a column that moves one of the
+    phase's coordinates.  That is read off the table's reach
+    (``ParameterTable.entry_reach``), never off DOF names, so a named variable
+    driving the DOFs counts and a Le Bail stage, whose coordinates the mode
+    force-fixes out of ``freed``, does not (root CLAUDE.md, "a freeze resting on
+    flatness needs the other reading of C").  A hold is reported where such a
+    stage's ``turn_on`` also matched it (``StageResult.blocked_by_hold``), an
+    unfixed direction wherever such a stage ran.  Without stage results
+    (:meth:`Refinement.hold_floating_origin`) every declaring phase that holds
+    or cannot hold is reported, that being the question the verb asks.
+    """
+    phases = table.origin_phases
+    if not phases:
+        return []
+    holds = table.origin_holds
+    unfixed = table.origin_unfixed
+    reach = table.entry_reach() if stage_results is not None else {}
+    out: list[Diagnostic] = []
+    for ip, rec in sorted(phases.items()):
+        held = [p for f in rec.directions for p, (jp, g) in holds.items()
+                if jp == ip and g == f]
+        rows = set(rec.coords) | set(rec.labels)
+        moving = [sr for sr in stage_results or []
+                  if any(rows.intersection(reach.get(p, [p])) for p in sr.freed)]
+        if stage_results is None:
+            report_held, report_lost = bool(held), True
+        else:
+            report_held = any(set(held) & set(sr.blocked_by_hold) for sr in moving)
+            report_lost = bool(moving)
+        if held and report_held:
+            axes = ", ".join(str(list(holds[p][1])) for p in held)
+            named = ", ".join(f"{p} ({rec.labels[p]})" for p in held)
+            out.append(Diagnostic(
+                level="info", code="ORIGIN_FIXED_ON_POLAR_AXIS",
+                message=(f"phase {ip} ({rec.space_group}) has a floating "
+                         f"origin along {axes}: shifting every atom that way "
+                         f"changes no intensity, so {named} "
+                         f"{'is' if len(held) == 1 else 'are'} held and the "
+                         f"other coordinates along it are read relative to "
+                         f"{'that atom' if len(held) == 1 else 'those'}"),
+                where=held,
+                suggestion=("this is Phase.floating_origin working, and the "
+                            "held coordinate has no esd because it was not "
+                            "refined. unhold() it to let the whole structure "
+                            "slide again; the fit then has a flat direction "
+                            "(FLAT_DIRECTION)")))
+        lost = unfixed.get(ip, [])
+        if lost and report_lost:
+            axes = ", ".join(str(list(f)) for f in lost)
+            out.append(Diagnostic(
+                level="warning", code="ORIGIN_NOT_FIXED",
+                message=(f"phase {ip} ({rec.space_group}) floats along {axes} "
+                         f"and no atom has an untied, unheld coordinate DOF "
+                         f"that a shift along it moves, so nothing was held "
+                         f"there and the fit keeps a flat direction"),
+                where=[f"phases.{ip}"],
+                suggestion=("hold one atom's coordinate along that direction "
+                            "with hold(), or tie one to a constant; its "
+                            "coordinates along it are otherwise not "
+                            "measurements")))
+    return out
+
+
+def _hold_diagnostics(stage_results: list[StageResult],
+                      origin: Iterable[str] = ()) -> list[Diagnostic]:
     """``HOLD_BLOCKED_PLAN`` — which declaration won, and over what.
 
     A stage's ``turn_on`` glob and a caller's ``Refinement.hold`` can name the
@@ -6096,11 +6306,19 @@ def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
     named 8 of 16 paths on an ordinary LaB6 fit; a hold is only ever
     deliberate, so the set here is the caller's own declarations and nothing
     else.
+
+    ``origin`` names the paths the table holds to fix a floating origin
+    (``ParameterTable.origin_holds``, WP-1912).  They stay on
+    ``StageResult.blocked_by_hold``, being holds that blocked a glob, and are
+    left out here: :func:`_origin_diagnostics` reports them, with the
+    direction and the atom, and its advice differs from this one's.
     """
+    skip = set(origin)
     by_path: dict[str, list[str]] = {}
     for sr in stage_results:
         for path in sr.blocked_by_hold:
-            by_path.setdefault(path, []).append(sr.name)
+            if path not in skip:
+                by_path.setdefault(path, []).append(sr.name)
     if not by_path:
         return []
     where = sorted(by_path)
@@ -8643,10 +8861,13 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
     and the line weights, since rescaling one rescales the scale and its esd
     alike.  ``basis`` names how the σ was taken, for the message: a joint fit
     reads the screen in the histogram that shows the phase best.
-    ``decided`` says whether a held phase's reading is the one its hold was
-    decided on (a single Rietveld fit's stage vector) or one taken at the
-    answer (a joint fit, Le Bail, Pawley, a replay), so the message claims
-    only what is true of the number.
+    ``decided`` says whether a held phase's reading is the one the last
+    stage's answer kept its hold on (a single Rietveld fit's stage vector,
+    measured with the held columns freed) or one the result took at the
+    final values (a joint fit, Le Bail, Pawley, a replay), so the message
+    claims only what is true of the number.  A hold taken at a stage start
+    read min(screen, prior) instead (WP-1523), and the message quotes the
+    answer's reading because the answer is what kept it.
 
     ``params.vector.cell_window`` bounds the *symptom* — it stops the cell
     running away — but a windowed cell re-anchors on every stage, so it walks
@@ -8694,12 +8915,15 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                      f"range {tt_range[0]:.4g}-{tt_range[1]:.4g}°, so nothing "
                      f"about it is measurable here")
         elif held and decided:
-            # a held phase quotes the reading its hold was decided on, which
-            # a second solve at the restored values can since have moved
+            # a held phase quotes the reading the last stage's answer kept or
+            # took its hold on, which a second solve at the restored values
+            # can since have moved; a hold taken at a stage start read
+            # min(screen, prior) instead, and the answer is what kept it
             cause = (f"phase {ip} ({name})'s scale was at most {support:.2g}σ "
-                     f"from zero {basis} when its hold was decided, under the "
-                     f"{PHASE_SUPPORT_SIGMA:g}σ a phase needs to count as "
-                     f"seen, so the stage could not distinguish it from absent")
+                     f"from zero {basis} at the last stage's answer, which "
+                     f"kept it held, under the {PHASE_SUPPORT_SIGMA:g}σ a "
+                     f"phase needs to count as seen, so the stage could not "
+                     f"distinguish it from absent")
         else:
             cause = (f"phase {ip} ({name})'s scale is at most {support:.2g}σ "
                      f"from zero {basis}, under the {PHASE_SUPPORT_SIGMA:g}σ "

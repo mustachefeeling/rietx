@@ -52,6 +52,14 @@ for d in result.diagnostics:
     print(f"  [{d.level}] {d.code}: {d.message}")
 
 # %% [markdown]
+# Look at the fit before reading any number.
+# The grey curve under the pattern, labelled obs − calc, is the difference.
+# A good fit leaves it flat noise, with no peak-shaped wiggle at any tick.
+
+# %%
+result.plot()
+
+# %% [markdown]
 # Four warnings came back.
 #
 # - `SITE_SNAPPED_TO_SPECIAL_POSITION`: the CIF gives Ca1's x as 0.3333333333, which is 1/3 to ten digits. The reader placed it exactly on the special position.
@@ -198,6 +206,30 @@ for bond in final.geometry.bonds:
 # All four bonds are within 0.04 Å of 1.54 Å.
 # That is chemically sensible, but some differ from it by several esds.
 # An esd counts only the noise in the data, and not errors in the model, so a real structure can sit further from a reference than its esd suggests.
+#
+# ## The refined structure
+#
+# `rx.viz.render_structure` draws a structure the way the GUI's 3D viewer does, from the refined values the model holds now.
+# `view` says where it is seen from: an axis (`"a"`, `"b"`, `"c"`), a direction `[u, v, w]`, the normal to a plane `{"hkl": (h, k, l)}`, or `"auto"`.
+# Looking down c shows what makes this an apatite: fluorine channels at the cell corners, each ringed by Ca2, with the PO₄ tetrahedra and the Ca1 columns between them.
+
+# %%
+rx.viz.render_structure(ref.structure, view="c")
+
+# %% [markdown]
+# Atoms outside the cell, drawn to complete a polyhedron or a bond, are shaded darker, so one element shows in two shades.
+# The orange tetrahedra are the phosphate groups.
+#
+# Down an axis the picture is flat.
+# `turn` adds small rotations after the view, in degrees about the screen's x and y axes.
+# Here the default view is tipped 15° about the screen's x axis, so the cell reads as a box and the tetrahedra show their stacking along c.
+
+# %%
+rx.viz.render_structure(ref.structure, turn="-15x")
+
+# %% [markdown]
+# Each call takes a fraction of a second, so try other views.
+# `mode="ellipsoid"` draws the displacement parameters, `atom_labels=True` names each site, and `path="apatite.png"` writes the picture to a file.
 #
 # ## The history
 #
