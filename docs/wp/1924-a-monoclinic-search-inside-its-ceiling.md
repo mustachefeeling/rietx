@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: 🔄 2026-10-13 — the frontier's memory fixed and #895 landed, acceptance and bethanechol run on the merged tree; the ceiling's scheduling remains
 Track: A long run is not one fit
-Depends on: — (1520 soft, the same units' leaf cost; 1508 closed)
+Depends on: 1959 (the grid compiled, this WP's last task); 1520 soft (the same units' leaf cost)
 Priority: P2 2026-10-08 — a defect that fires wrongly: a declared ceiling overrun and a multi-GB peak on a clean 61-line monoclinic pattern, with the workaround of capping the volume and the systems by hand; the reporter's 9 GB and 25.8 GB are the reason it is not P3
 
 ## Goal
@@ -59,7 +59,7 @@ Measured at `e1d19359`, `[dev]`, macOS arm64, on a machine shared with five othe
 - [x] #895: read `cancel` at the child boundary in `ambiguity_partners` and `supercell_checks`, with a test that a cancelled token stops a sweep within one child's work and leaves the candidate unchecked. Done for `ambiguity_partners`. `supercell_checks` keeps no token: it runs over the reported list (≤ 12 candidates), 10-16 ms of CPU a pair, 0.1 s on #780's run, and the gate has no unasked state for it (2026-10-12 handover).
 - [x] Add a peak-RSS figure to `estimate_ceiling` or to the result's budget diagnostic if the profile shows it is predictable from the spec, so a caller can see it before a run. Not added: the frontier's size is the number of grid boxes the lines let survive, which only running the grid shows. The spec bounds it only through `MAX_GRID_CELLS` and the search set's size, a ceiling of gigabytes that would mislead more than help. After the fix #780's case peaks at 0.72 GB (2026-10-12 handover).
 - [x] Tests: a bounded-memory guard that fails on the allocation, declared with its measured spread (a pass margin under 10× is a load sensor). Quote platform and extras with every count.
-- [ ] Scheduling: under a whole-run ceiling shorter than dichotomy's grid, svd and trial_error never start and the run returns nothing (§ Profile). Decide how the scheduler draws a unit's share of the ceiling, or which engine opens a system, and keep finished searches bit-identical.
+- [ ] Scheduling: under a whole-run ceiling shorter than dichotomy's grid, svd and trial_error never start and the run returns nothing (§ Profile). Decide how the scheduler draws a unit's share of the ceiling, or which engine opens a system, and keep finished searches bit-identical. *Decided 2026-10-13 by the maintainer:* compile the grid again rather than reorder engines; the work is WP-1959, and this box ticks when it lands.
 - [x] Skill: the indexing reference row for a monoclinic or hexagonal search with a large volume bound (cap the volume, search one system at a time, read `INDEX_SEARCH_INCOMPLETE` per engine), tagged Measured or Hypothesis.
 
 ## Acceptance
