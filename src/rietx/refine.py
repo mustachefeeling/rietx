@@ -3067,14 +3067,19 @@ class Refinement:
         # declaration (WP-1912), so it is lifted by taking that declaration
         # back: per phase, since the table re-derives the whole fix at the next
         # build and a register of exceptions would be a second authority.
-        released: set[int] = set()
-        origin_hits: list[str] = []
-        if any(ph.floating_origin is not None for ph in self.structure.phases):
+        declared = any(ph.floating_origin is not None
+                       for ph in self.structure.phases)
+
+        def origin_matches() -> tuple[set[int], list[str]]:
+            if not declared:
+                return set(), []
             holds = self._working_table().origin_holds
-            released = {ip for p, (ip, _) in holds.items()
-                        if any(fnmatch.fnmatchcase(p, g) for g in globs)}
-            origin_hits = sorted(p for p, (ip, _) in holds.items()
-                                 if ip in released)
+            phases = {ip for p, (ip, _) in holds.items()
+                      if any(fnmatch.fnmatchcase(p, g) for g in globs)}
+            return phases, sorted(p for p, (ip, _) in holds.items()
+                                  if ip in phases)
+
+        released, origin_hits = origin_matches()
         literals = [g for g in globs
                     if is_literal_path(g) and g not in hits
                     and g not in origin_hits]
@@ -3091,6 +3096,10 @@ class Refinement:
             # them: ``_working_table`` re-applies whatever ``_user_holds`` holds
             self._user_holds.difference_update(hits)
             self._commit_hold_edit(self._working_table(), held=[], unheld=hits)
+            # a caller's hold on a DOF that fixed the origin left the table
+            # nothing to hold; released, the origin fix takes that DOF over, so
+            # asked again, or a path returned as released would still be held
+            released, origin_hits = origin_matches()
         if origin_hits:
             # released fixed, as a user hold is: a DOF free before the field was
             # set must not come back free when the next table restores the set

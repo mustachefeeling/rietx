@@ -2422,10 +2422,12 @@ class ParameterTable:
         e.tie = tie
         if tie is not None:
             e.vary = False
-        self._rebuild()
         if self._origin:
-            # a tie can fix the origin itself, or tie away the entry holding it
+            # a tie can fix the origin itself, or tie away the entry holding
+            # it; the fix ends in the rebuild, so one is enough
             self._fix_origin()
+        else:
+            self._rebuild()
 
     def _body_increment_kind(self, path: str) -> str | None:
         """``"rotation"``/``"torsion"``/``"origin"`` for a body increment, else ``None``.
@@ -2502,10 +2504,12 @@ class ParameterTable:
             else:
                 self._caller_held.discard(path)
             hits.append(path)
-        self._rebuild()
         if self._origin:
-            # a caller's hold can fix the origin, making the table's redundant
+            # a caller's hold can fix the origin, making the table's
+            # redundant; the fix ends in the rebuild, so one is enough
             self._fix_origin()
+        else:
+            self._rebuild()
         return hits
 
     # -- the floating origin of a polar group (WP-1912) -----------------
@@ -2543,9 +2547,12 @@ class ParameterTable:
                 self.entries[i].held = path in self._caller_held
         self._origin_held = {}
         self._origin_unfixed = {}
+        # the equations are the tied rows, which no hold below changes, so
+        # they are flattened once for every phase and direction
+        rows = self._origin_rows()
         for ip, rec in self._origin.items():
             for f in rec.directions:
-                if not self._origin_floats(rec, f):
+                if not self._origin_floats(rec, f, rows):
                     continue
                 path = next((p for p in rec.candidates[f]
                              if self._holdable(p)), None)
@@ -2566,7 +2573,19 @@ class ParameterTable:
         e = self.entries[i]
         return e.tie is None and not e.locked and not e.held
 
-    def _origin_floats(self, rec: _OriginPhase, f: tuple[int, int, int]) -> bool:
+    def _origin_rows(self) -> list[tuple[str, list[tuple[int, float]]]]:
+        """Every tied row :meth:`_origin_floats` reads, flattened onto untied entries.
+
+        A displacement DOF's and a variable's own rows are left out, the
+        forward model reading neither.
+        """
+        return [(e.path, self._flatten(e.tie, (e.path,))[0])
+                for e in self.entries
+                if e.tie is not None and e.path not in self._anchored_dofs
+                and not is_variable_path(e.path)]
+
+    def _origin_floats(self, rec: _OriginPhase, f: tuple[int, int, int],
+                       tied: list[tuple[str, list[tuple[int, float]]]]) -> bool:
         """Can the columns a stage could free shift the phase along ``f`` alone?
 
         Exact linear algebra on the affine block, never a reading of names
@@ -2596,17 +2615,13 @@ class ParameterTable:
         c_idx: list[int] = []
         vals: list[float] = []
         rhs: list[float] = []
-        for i, e in enumerate(self.entries):
-            if (e.tie is None or e.path in self._anchored_dofs
-                    or is_variable_path(e.path)):
-                continue
-            terms, _ = self._flatten(e.tie, (e.path,))
+        for path, terms in tied:
             row = {}
             for j, coeff in terms:
                 k = col.get(j)
                 if k is not None and coeff != 0.0:
                     row[k] = row.get(k, 0.0) + coeff
-            t = targets.get(e.path, 0.0)
+            t = targets.get(path, 0.0)
             if not row and t == 0.0:
                 continue
             for k, v in row.items():

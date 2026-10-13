@@ -287,6 +287,18 @@ def test_unholding_one_of_p1s_three_releases_the_phase():
         f"phases.0.atoms.0.dof.{k}" for k in range(3)]
 
 
+def test_unholding_a_callers_hold_on_the_origin_dof_leaves_it_free():
+    """The origin fix takes over a DOF the caller released, so unhold asks again."""
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ref = rx.Refinement(rx.Structure(phases=[_declared(_zno())]), ins,
+                        history=False)
+    ref.hold("phases.0.atoms.0.dof.0")      # the caller's hold, on the same DOF
+    assert ref._working_table().origin_holds == {}
+    assert ref.unhold("phases.0.atoms.0.dof.0") == ["phases.0.atoms.0.dof.0"]
+    assert ref.structure.phases[0].floating_origin is None
+    assert not any(r.held for r in ref.parameters())
+
+
 def test_the_declaration_is_in_the_model_so_it_travels_with_it():
     """JSON, a joint table's per-histogram copies, and history all carry it."""
     from rietx.params.multi import MultiParameterTable
