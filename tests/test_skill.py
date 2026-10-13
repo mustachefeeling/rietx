@@ -826,8 +826,25 @@ def _assigned_on_self(cls: type, name: str) -> bool:
     return re.search(rf"self\.{re.escape(name)}\s*[:=]", source) is not None
 
 
+def _union_arms(obj: object, step: str) -> list[type]:
+    """The rietx classes a pydantic field's union annotation admits, in
+    declaration order — more than one only for a discriminated union such as
+    ``Instrument.source``, where a name is real if *any* arm carries it."""
+    import typing
+
+    fields = getattr(obj, "model_fields", None) or {} if isinstance(obj, type) else {}
+    if step not in fields:
+        return []
+    return [a for a in typing.get_args(fields[step].annotation)
+            if isinstance(a, type) and a.__module__.startswith("rietx")]
+
+
 def _first_missing_step(obj: object, steps: list[str]) -> str | None:
-    for step in steps:
+    for i, step in enumerate(steps):
+        arms = _union_arms(obj, step)
+        if len(arms) > 1:
+            rest = [_first_missing_step(arm, steps[i + 1:]) for arm in arms]
+            return None if any(m is None for m in rest) else rest[0]
         ok, nxt = attr_step(obj, step)
         if ok:
             obj = nxt
@@ -1205,7 +1222,7 @@ def test_the_verb_exclusions_are_live_and_reasoned():
 #: share, so its codes fire from either and carry neither suffix.
 FOREIGN_FILE_PREFIXES = ("RECIPE_", "TOPAS_", "FULLPROF_", "GSAS_PRM_",
                           "GSAS_EXP_", "GSAS_FIELD_", "GSAS2_GPX_",
-                          "GSAS2_INSTPRM_", "GSAS2_CIF_")
+                          "GSAS2_INSTPRM_", "GSAS2_CIF_", "GSAS_IPARM_")
 
 _CODE_ROW = re.compile(r"^\| `([A-Z][A-Z0-9_]+)`")
 

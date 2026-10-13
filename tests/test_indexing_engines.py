@@ -724,6 +724,68 @@ def test_dichotomy_recovers_a_monoclinic_cell():
     assert_same_lattice(result.candidates[0].cell, cell)
 
 
+def test_dichotomy_holds_its_frontier_as_indices_until_a_cell_is_popped(
+        monkeypatch):
+    """Phase 2 holds the grid's survivor lists as narrow indices and gathers
+    a cell's rows only when it pops the cell (WP-1924, issue #780).
+
+    #780's monoclinic search reached 6.8 GB of footprint once its grid
+    finished: 22 689 survivor lists of int64 (1.29 GB), plus every list's rows
+    gathered up front, four floats an index (5.2 GB), held through phase 2.
+    The same 61 lines over a smaller domain build the same shape in about a
+    second of grid: 15 760 cells, 1303 lists, 827 976 indices.  Before the
+    fix the lists took 8 bytes an index and phase 2's setup gathered every
+    list, 26.5 MB; after, 2 bytes and 1.05 MB, the stack phase 2 builds.  The
+    setup bound is 2.65 MB, a tenth of what gathering every list costs.  Both
+    are counts of deterministic allocations, so the margins are exact rather
+    than load sensors.  Tracing starts when the grid has finished, because
+    tracing the grid tripled the test's time and the bound reads only what
+    phase 2 allocates.  It is not marked slow: it costs about 5 s, and the
+    only other check on this allocation is ``tests/repro_780.py``, run by hand.
+    """
+    import tracemalloc
+
+    from rietx.indexing import dichotomy
+    from tests.repro_780 import peaks as peaks_780
+
+    class _FirstPop(Exception):
+        pass
+
+    seen: dict = {}
+    real_volumes, real_test = dichotomy._centre_volumes, dichotomy._test_box
+
+    def centre_volumes(basis, boxes):
+        tracemalloc.start()
+        lists = {id(ids): ids for _lo, _hi, ids in boxes}
+        seen["indices"] = sum(len(ids) for ids in lists.values())
+        seen["list_bytes"] = sum(ids.nbytes for ids in lists.values())
+        seen["n_dof"] = basis.shape[0]
+        out = real_volumes(basis, boxes)
+        seen["after_grid"] = tracemalloc.get_traced_memory()[0]
+        return out
+
+    def test_box(*args, **kwargs):
+        if "after_grid" in seen:
+            seen["first_pop"] = tracemalloc.get_traced_memory()[0]
+            raise _FirstPop
+        return real_test(*args, **kwargs)
+
+    monkeypatch.setattr(dichotomy, "_centre_volumes", centre_volumes)
+    monkeypatch.setattr(dichotomy, "_test_box", test_box)
+    spec = SearchSpec(systems=("monoclinic",), min_d_axis=4.0, max_d_axis=11.0,
+                      max_volume=300.0, shift_allowance_deg=1e-9,
+                      budget_seconds=600.0)
+    try:
+        with pytest.raises(_FirstPop):
+            search_dichotomy(peaks_780(), spec=spec)
+    finally:
+        tracemalloc.stop()
+    assert seen["indices"] > 100_000, "the domain no longer builds a frontier"
+    assert seen["list_bytes"] <= 4 * seen["indices"]
+    gather_all = 8 * seen["n_dof"] * seen["indices"]
+    assert seen["first_pop"] - seen["after_grid"] < 0.1 * gather_all
+
+
 def test_dichotomy_finds_a_centred_lattice_with_its_centring():
     """A body- or face-centred lattice is found *as* one.
 

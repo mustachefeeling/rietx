@@ -436,11 +436,21 @@ from .._nearmiss import did_you_mean
 #: row so held fixes.  Additive and defaulted to ``None``: exactly off, the
 #: table every earlier document built.  An older build refuses a document
 #: carrying either key.
-#: 0.52 → 0.53 (WP-1912): ``Phase.floating_origin`` gains ``"centroid"``, the
+#: 0.52 → 0.53 (yue-here/rietx issue #193, the time-of-flight readers and
+#: axis): ``PatternData.two_theta`` becomes ``list[float] | None`` beside a new
+#: ``PatternData.tof`` (µs), exactly one of the two set; ``Instrument.source``
+#: gains a third arm, ``TOFSource`` (``kind="neutron_tof"``: DIFC/DIFA/TZERO/
+#: DIFB, the bank angle, ``ProfileTOF`` and ``IncidentSpectrum``).  Not purely additive: a
+#: consumer that read ``two_theta`` as always present must now ask
+#: ``PatternData.axis``.  Every stored document loads unchanged — each has a
+#: ``two_theta`` — and a 2θ pattern serializes apart from the new nulls, and
+#: refines, exactly as before.  A ``neutron_tof`` source is read and never
+#: refined in this build.
+#: 0.53 → 0.54 (WP-1912): ``Phase.floating_origin`` gains ``"centroid"``, the
 #: restraint of Flack & Schwarzenbach (1988) on a weighted centroid of the
 #: phase's sites in place of a hold on one.  Additive: no existing document
 #: carries the value, and an older build refuses one that does.
-SCHEMA_VERSION = "0.53"
+SCHEMA_VERSION = "0.54"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

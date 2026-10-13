@@ -132,7 +132,7 @@ from .schemas.history import NodeAction, NodeMetrics, RefinementState, Reflectio
 from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from .schemas.interval import PARAMETER_INTERVAL_LEVEL, PARAMETER_INTERVAL_MAX_REFITS
 from .schemas.params import ParameterRow, TieSpec
-from .schemas.pattern import PatternData
+from .schemas.pattern import PatternData, require_two_theta
 from .schemas.results import (
     DELIVERABLES,
     AbsorptionCorrection,
@@ -1881,6 +1881,12 @@ class Refinement:
         if solver not in SOLVERS:
             raise ValueError(f"unknown solver {solver!r}; "
                              f"available: {', '.join(SOLVERS)}")
+        # Before the copies below, because what this constructor goes on to
+        # read (the declared wavelengths, the specimen absorption) is a
+        # wavelength a TOF bank does not carry — so without this the refusal
+        # is an AttributeError about a missing attribute rather than a
+        # statement about the radiation.
+        require_two_theta(None, "Refinement()", instrument=instrument)
         self._backend = backend
         self._solver = solver
         self.structure = structure.model_copy(deep=True)
@@ -2249,6 +2255,11 @@ class Refinement:
         undoing.  It costs one table build on a cold path — the same build the
         next stage compile or ``parameters()`` call performs anyway.
         """
+        # Refused before anything is touched: a bank's table builds without
+        # error, so nothing later stops the edit, and by then the structure,
+        # the ties and the holds have moved (WP-1035's half-applied edit).
+        if instrument is not None:
+            require_two_theta(None, "Refinement.edit()", instrument=instrument)
         candidate = self.structure if structure is None else structure
         # No magnetic-group judgement here: ``edit`` receives refined state
         # plus one change (the GUI's funnel for every model edit), which is the
@@ -3384,6 +3395,8 @@ class Refinement:
         ``action_kind`` (an instrument width, an atom DOF) is an expected
         disagreement, not an inconsistency.
         """
+        require_two_theta(data, "Refinement.suggest()",
+                          instrument=self.instrument)
         from .strategy.suggest import (
             SUGGEST_SEED_ROUGHNESS,
             SUGGEST_SEED_STEPHENS,
@@ -3537,6 +3550,8 @@ class Refinement:
         a fit must have run.  Why the axis is the width and not the scale is
         :mod:`rietx.strategy.fraction_profile`'s docstring.
         """
+        require_two_theta(data, "Refinement.profile_fraction()",
+                          instrument=self.instrument)
         from .strategy.fraction_profile import profile_fraction
 
         return profile_fraction(self, data, phase, axes=axes, fwhm=fwhm)
@@ -3669,6 +3684,8 @@ class Refinement:
         branch (and, in v0.5, on a different sample via
         ``SequentialRefinement``).
         """
+        require_two_theta(data, "Refinement.cherry_pick()",
+                          instrument=self.instrument)
         tree = self._require_history()
         node = tree[node_id]
         if node.action.kind != "stage":
@@ -4505,6 +4522,7 @@ class Refinement:
                 f"({', '.join(sorted(PLAN_PRESETS))}) or list at least one "
                 "stage.")
 
+        require_two_theta(data, "Refinement.fit()", instrument=self.instrument)
         self._mode = mode
         self._two_theta_limits = two_theta_limits
         self._free_paths = []
@@ -4549,7 +4567,7 @@ class Refinement:
                 # authority ``compile_model`` is pinned to (WP-1033)
                 stream.emit("fit_start", mode=mode,
                             stages=[s.name for s in plan.stages],
-                            n_points=len(data.two_theta),
+                            n_points=len(data.x()),
                             n_fitted=int(fitted_mask(data, two_theta_limits).sum()),
                             **stamp)
 
@@ -5010,6 +5028,8 @@ class Refinement:
         one job.
         """
         _refuse_without_phases(self.structure, "run_stage")
+        require_two_theta(data, "Refinement.run_stage()",
+                          instrument=self.instrument)
         mode = mode or self._mode
         ttl = two_theta_limits if two_theta_limits is not None else self._two_theta_limits
         self._mode = mode
@@ -5213,6 +5233,8 @@ class Refinement:
             table.pull_moment_frames(self._model)
             return self._model.evaluate(table.decode(table.x0()))
         if isinstance(two_theta, PatternData):
+            require_two_theta(two_theta, "Refinement.predict()",
+                              instrument=self.instrument)
             two_theta = two_theta.two_theta
         tt = np.asarray(two_theta, dtype=np.float64)
         grid = PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
@@ -5261,6 +5283,8 @@ class Refinement:
         """
         from .report.body_misfit import rigid_body_misfit
 
+        require_two_theta(data, "Refinement.check_rigid_bodies()",
+                          instrument=self.instrument)
         return rigid_body_misfit(self, data, **kw)
 
     def summary(self, *, deliverable: str | None = None, plot: str | None = None,
@@ -9608,10 +9632,11 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     the extracted intensities in place — inspecting a checkpoint must not
     change it.
     """
+    require_two_theta(data, "replay()")
     node = tree[node_id]
     expected = tree.header.data_fingerprint
     if expected:
-        actual = fingerprint(data.two_theta, data.intensity)
+        actual = fingerprint(data.x(), data.intensity)
         if actual != expected:
             raise ValueError(
                 f"pattern does not match this history: fingerprint {actual[:8]} "

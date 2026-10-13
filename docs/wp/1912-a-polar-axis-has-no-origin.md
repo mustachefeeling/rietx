@@ -251,7 +251,7 @@ notes.
       covariance read **with** them, that being the point. Every backend
       through `rows.assemble`, a `test_cross_backend.py` config, Part 2
       equation with *Source* lines (eqs 9, 21, A6).
-      *Done 2026-10-13 (schema 0.53): `model/origin.py` (the eq 21 solve,
+      *Done 2026-10-13 (schema 0.54, renumbered from 0.53 at the merge of main, which took 0.53 for time of flight): `model/origin.py` (the eq 21 solve,
       Δ by QR, bₘ by central difference, the frozen block), an
       `origin_restraint` block last in `BLOCK_ORDER`, its analytic rows in
       `least_squares`, `ParameterTable.origin_slides` sharing
@@ -344,7 +344,7 @@ the centroid quickly and flip no default twice.
 *Done.* Three tasks.
 1. #929's review items, laned. The supercell copy, joint-fit origin codes
    (`blocked_by_hold` on joint stages), four tests and the candidate wording.
-2. `"centroid"`, laned, schema 0.53. The mechanics are in the task's done
+2. `"centroid"`, laned, schema 0.54. The mechanics are in the task's done
    note. In this session I added the origin rows to `suggest`'s probe.
    `replay` is evaluate-only, so it needs none.
 3. The real-data measurement, in the task's table.

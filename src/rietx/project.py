@@ -40,6 +40,7 @@ from typing import Any
 from . import _about
 from .history.store import fingerprint
 from .history.tree import RefinementTree
+from .io.formats.gsas import _first_bank_number
 from .io.readers import identify_format, read_pattern, reader_options_for
 from .optimize.least_squares import DEFAULT_SOLVER
 from .refine import _VERSION, Refinement
@@ -47,7 +48,7 @@ from .schemas.common import Diagnostic, Mode
 from .schemas.history import NodeAction
 from .schemas.instrument import Instrument
 from .schemas.migrate import migrate_document_text
-from .schemas.pattern import PatternData
+from .schemas.pattern import PatternData, require_two_theta
 from .schemas.plan import PlanSpec
 from .schemas.project import PROJECT_FORMAT_VERSION, DataRef, ProjectDoc
 from .schemas.structure import Structure
@@ -168,6 +169,10 @@ class Project:
         notes: list[Diagnostic] = []
         options = reader_options_for(fmt, reader_options or {}, diagnostics=notes)
         data = read_pattern(copied, diagnostics=notes, **options)
+        # A project is a refinement's durable form, so a pattern it cannot
+        # refine has nothing to be one of — and DataRef records a
+        # ``two_theta_range``, which is a 2θ by its name.
+        require_two_theta(data, "Project.create()")
         if excluded_regions:
             data.excluded_regions = [tuple(r) for r in excluded_regions]
 
@@ -257,9 +262,21 @@ class Project:
                 "history was fitted against the recorded bytes")
 
         notes: list[Diagnostic] = []
-        data = read_pattern(pattern_path, diagnostics=notes,
-                            **_reader_options(ref_doc))
-        actual_fp = fingerprint(data.two_theta, data.intensity)
+        options = _reader_options(ref_doc)
+        if ref_doc.reader == "gsas" and "bank" not in options:
+            # A project written before read_gsas refused a multi-bank file
+            # recorded no bank, and that reader answered with the first one.
+            # The recorded fingerprint still vouches for the choice.
+            first = _first_bank_number(pattern_path)
+            if first is not None:
+                options["bank"] = str(first)
+        data = read_pattern(pattern_path, diagnostics=notes, **options)
+        # ``Project.create`` refuses a TOF pattern, so a project on disk should
+        # never point at one — but the file it points at is on disk beside it
+        # and the document is editable, so the reopen asks again rather than
+        # inheriting the create's answer.
+        require_two_theta(data, "Project.open()")
+        actual_fp = fingerprint(data.x(), data.intensity)
         if actual_fp != ref_doc.fingerprint:
             raise ValueError(
                 f"{pattern_path}: the bytes match but this version parses them "
@@ -415,6 +432,7 @@ def fitted_mask(data: PatternData,
     """
     import numpy as np
 
+    require_two_theta(data, "project.fitted_mask()")
     mask = data.in_range_mask()
     if two_theta_limits is not None:
         lo, hi = two_theta_limits
