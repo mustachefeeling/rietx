@@ -137,10 +137,14 @@ form here follows WP-1119's decision 4, which kept strings out of storage.
 
 ## Tasks
 
-- [ ] Decide where the row lives: `Structure.restraints` (the issue's
+- [x] Decide where the row lives: `Structure.restraints` (the issue's
       proposal and 1119's seam note) or a `LinearRestraint` kind in the
       existing per-phase union. Decide whether it is a new `BLOCK_ORDER`
       block or an item kind in `soft_restraint`. Record both in this file.
+      *Decided 2026-10-13 (the maintainer, through the issue triage; #212):*
+      the row lives on `Structure.restraints`, and it is an item kind inside
+      the `soft_restraint` block, not a new `BLOCK_ORDER` entry: the
+      reporter's answers in § Inherited, taken as written.
 - [ ] The schema type, (path, coefficient) pairs plus target, σ and weight,
       with its JSON round-trip and the `SCHEMA_VERSION` or project-format
       bump it needs.

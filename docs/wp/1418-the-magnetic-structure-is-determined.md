@@ -719,7 +719,13 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   (P 4/m m m, k = (0, 0, ½)) with `nuclear_group="parent"` the child carries
   3 atoms against the parent's 2 and one tie, so the cell is held on the
   parent route too. Gating the hold on the route is the maintainer's call,
-  beside the open question of the default.
+  beside the open question of the default. *Decided 2026-10-13 (the
+  maintainer, through the issue triage):* gate it on the route. Under
+  `tie_to_parent=True` the child cell is held only on the fallback route
+  (`nuclear_group="magnetic"`) and refines on `"parent"`, until WP-1419's
+  metric subspace replaces the hold; Biso stays tied per parent site on both
+  routes, and the reference fit takes the same treatment. The default is not
+  decided by this.
 - **2026-10-13, from the issue triage (#820): option (a) is ready on the
   reporter's fork, and main moved under it again.** Posted 2026-10-12 17:11Z:
   on `edad5b5a` there was no pair left to put the bands on (class 1 converged

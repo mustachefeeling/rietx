@@ -411,6 +411,12 @@ land alone before the transform exists.
       `docs/manual/using/files.md`
 - [ ] B: `free=` (a `RefinementResult` or paths) and `scale=` on the writers,
       if decided; a narrower flag merges free and is named
+- [ ] B (#761): the `.pcr` writer frees the restated hexagonal a and c where
+      the rhombohedral cell was free, coordinates held; with a_r free and
+      α_r held, a_h and c_h stay held and `FULLPROF_RHOMBOHEDRAL_RESTATED`
+      names the fixed c/a; `GSAS2_CIF_RHOMBOHEDRAL_RESTATED` is reworded.
+      *Decided 2026-10-13 (the maintainer, through the issue triage),* both
+      readings as the reporter agreed them; it waits on the `free=` task above.
 - [ ] **Decision (maintainer):** #723 as one package in the reporter's order,
       and whether the unlisted refusals join
 - [ ] C1: `Zero`, `SyCos`, `Occ` (reader and writer), each sign and unit
@@ -419,6 +425,12 @@ land alone before the transform exists.
 - [ ] C3: extinction and March–Dollase, FullProf's conventions measured
 - [ ] C4: origin choice 1, through the shared transform (restated as choice
       2), or explicit operators if FullProf's operator input is measured
+- [ ] C5 (#723): sample transparency, both capillary offsets, absorption,
+      surface roughness and extra components, after the eight and under the
+      same rule: each a FullProf sign-and-unit measurement before it is code,
+      refused by name until then. *Decided 2026-10-13 (the maintainer,
+      through the issue triage):* the unlisted refusals join, as the reporter
+      answered; the package's order is still the decision task's.
 - [ ] **Decision (maintainer):** #721's items 2-4, and their order, after
       PR #713 lands
 - [ ] D: `nuclear_group` on rietx's own magCIF: either `to_cif` writes

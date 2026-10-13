@@ -104,7 +104,11 @@ many ways, not from replicate measurements (his footnote, p. 606).
 
 - [ ] Choose the surface (above), and expose each histogram's observed 2θ,
       y and σ. Show the weight's scale against GSAS-II's stored Rwp and
-      channel count before any fit reads it.
+      channel count before any fit reads it. *Decided 2026-10-13 (the
+      maintainer, through the issue triage; #875):* the surface is a `.gpx`
+      entry in `PATTERN_FORMATS` with `scan=` picking the histogram, under
+      the constraints in § Inherited; `read_gsas2_gpx` calls the same
+      histogram read.
 - [ ] Obtain Hill (1992) from the maintainer. Transcribe Table 7 and Table 9
       into a fixture with the page and table cited per row.
 - [ ] `tests/test_acceptance_pbso4_round_robin.py`, slow-marked: neutron,
