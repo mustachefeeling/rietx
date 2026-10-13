@@ -181,6 +181,9 @@ p{margin:0}
   padding:8px 0;border-bottom:1px solid var(--rule);font-size:.92rem;line-height:1.45}
 .nb-title{color:var(--ink)}
 .nb-links{display:flex;gap:14px;font-size:.84rem;white-space:nowrap}
+/* On a phone the links always take their own line, so a short title does not sit beside them
+   while a long one drops them underneath. */
+@media (max-width:600px){.nb-title{flex:1 1 100%}}
 
 /* sections */
 .block{padding:56px 0;border-top:1px solid var(--rule)}
