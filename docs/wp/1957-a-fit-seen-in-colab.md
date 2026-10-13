@@ -184,8 +184,13 @@ Every number on PNG size and the view choice is in Context 3 and 4.
 *Decided by the maintainer:* the live view is deferred, and its design stays
 in Context 2.
 
-*Not run:* the fast suite. The change touches two `_repr_png_` methods,
-notebooks and docs, and the files that test them were run.
+The fast suite (`-m "not slow"`, run alone): 9333 passed, 192 skipped,
+1 xfailed, 1 failed, in 19:31. The failure was
+`test_figure_boundary`: `figure3d/render.py` had imported `viz.plots` for its
+colour count, which crosses the boundary WP-1505's split moves. The count is
+now restated as `render.NOTEBOOK_COLOURS`, and `test_display` holds the two
+equal. That file, the boundary file and the manual-API file then passed (45).
+The suite was not re-run after the fix.
 
 Next: the maintainer's two open tasks, the Colab check and the PNG density.
 

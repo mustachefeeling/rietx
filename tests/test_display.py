@@ -135,6 +135,9 @@ def test_a_structure_figure_shows_its_picture(fap):
 
     from PIL import Image
     assert Image.open(io.BytesIO(data)).mode == "P"  # a notebook palette, like a fit figure
+    from rietx.viz import plots
+    from rietx.viz.figure3d import render
+    assert render.NOTEBOOK_COLOURS == plots._NOTEBOOK_COLOURS  # restated across the boundary
     clear = rx.viz.render_structure(fap["structure"], size=120, background=None)
     assert Image.open(io.BytesIO(clear._repr_png_()[0])).mode == "RGBA"  # its alpha kept
     assert len(repr(fig)) < 100

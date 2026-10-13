@@ -46,6 +46,11 @@ OUTLINE_CSS = 1.0
 #: The default long side: an agent looking at its own picture.
 DEFAULT_SIZE = 1000
 MAX_SUPERSAMPLE = 4
+#: The palette a figure shown in a notebook is quantised to: the fit figure's
+#: ``viz.plots._NOTEBOOK_COLOURS``, restated rather than imported because this
+#: package's imports are the boundary WP-1505's split moves
+#: (``tests/test_figure_boundary.py``); ``tests/test_display.py`` holds them equal.
+NOTEBOOK_COLOURS = 256
 MODES = ("ball", "ellipsoid")
 #: The places tried for a site label, in order, as (right, up) signs: up and
 #: to the right first, which is where every label went before #666.
@@ -120,7 +125,7 @@ class StructureFigure:
         alone, so a narrow output column scales it whole (WP-1957).
 
         An opaque picture is palette-quantised as a fit figure is
-        (``viz.plots._NOTEBOOK_COLOURS``): the FAP view down c is 185 kB in
+        (:data:`NOTEBOOK_COLOURS`): the FAP view down c is 185 kB in
         full colour and 74 kB at 256 colours, with no banding on the shaded
         balls that 64 colours shows.  A transparent one stays in full colour,
         since a palette would cut its antialiased edge.  ``path=`` writes
@@ -132,9 +137,8 @@ class StructureFigure:
 
         from PIL import Image
 
-        from ..plots import _NOTEBOOK_COLOURS
         palette = Image.fromarray(self.image[..., :3]).quantize(
-            colors=_NOTEBOOK_COLOURS, method=Image.Quantize.MEDIANCUT,
+            colors=NOTEBOOK_COLOURS, method=Image.Quantize.MEDIANCUT,
             dither=Image.Dither.NONE)
         out = io.BytesIO()
         palette.save(out, format="PNG", optimize=True)
