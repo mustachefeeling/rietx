@@ -1,9 +1,8 @@
 # WP-1930 — a width freed on its floor leaves it by rounding
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — claimed by @yue-here (Claude session)
+Milestone: unscheduled · Status: ✅ 2026-10-13 — one LaB₆ + cBN minimum on both platforms, and a flat direction's esd no longer rounds to 0
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P1 2026-10-08 — a published acceptance number (VALIDATION.md, the landing page) that `main` reproduces on no platform, χ²_red 12.48 on Linux against 9.69 on macOS, every assertion green; `profile.y` defaults to 0.0, its floor, and six preset plans free it there
 
 ## Goal
 
@@ -145,8 +144,8 @@ bits at the last nightly's tree (56427c4a). That nightly's Linux plot reads Rwp
   worse than TOPAS's.
 - Two splits from #832's sweep (2026-10-08): Stephens brucite stopping at
   `max_iter` on Linux, and five indexing Le Bail fits leaving `profile.y` on
-  its floor on Linux after #741. Both are unowned and unmeasured since
-  WP-1938; the 2026-10-12 handover lists them for filing.
+  its floor on Linux after #741. Both unmeasured since WP-1938, and
+  forwarded to WP-1946 and WP-1542 on 2026-10-13.
 - Whether a magnetic moment trial should start off m = 0 (#865's open
   question, PR #870): a magnetic stopping point, and this WP no longer seeds.
 
@@ -213,6 +212,107 @@ printed digit on both.
   iterates).
 
 ## Handover log
+
+- **2026-10-13** — Both nightly silences of `HIGH_CORRELATION` were rounding
+  choosing an answer, and neither platform was wrong on its own. On LaB₆ + cBN
+  the covariance could report six undetermined widths at an esd of exactly 0
+  with no correlation, and the sign of an eigenvalue at the 1e-15 level decided
+  where. The solve now inverts each kept eigenvalue by its magnitude, so a flat
+  direction always reads as undetermined, and a fit with no such eigenvalue is
+  unchanged to the bit. The macOS dedup failure was the axial pair starting on
+  its floor with a zero column, which WP-1953's #918 fixed after the last
+  nightly ran. The band holds on both platforms, and the WP closes.
+
+  *Done.* `statistics._psd_pinv` replaces `np.linalg.pinv` in `normal_factors`,
+  numpy's steps kept one for one with the sign left out of `vt`.
+  `discarded_directions` reads the kept variance by magnitude too. Tests: a
+  flat pair at either eigenvalue sign gives the same esds and ρ = ±1; numpy's
+  bits are kept on PSD input, including a small kept eigenvalue and the empty
+  matrix; the acceptance suite fits the two nudges that failed (a VALIDATION
+  row added). The two eigensolver-failure injections moved from `pinv` to
+  `eigh`, and the scale-B floor test calls `_psd_pinv`. The manual's
+  `est-discarded-touch` reads |λ_k|, with a paragraph on the sign, and a 1.9.0
+  note sits under "Numbers that move". Inherited was folded into Context and
+  Non-goals: WP-1938 superseded the seed and WP-1929's finite-floor probe, and
+  the two nightly notes are discharged.
+
+  *The LaB₆ silence, measured* (`[dev]`, macOS arm64, Apple M4, numpy 2.5.4).
+  The degenerate plan's six Lorentzian widths span two exactly flat
+  directions. At 25-30 free columns their eigenvalues reach the equilibrated
+  normal matrix between 1e-16 and 4e-15 of the largest, of either sign, against
+  a cut of 1e-15. `pinv` inverts a kept negative one with its sign, the widths'
+  variances come out negative, `covariance_estimates` floors them to 0, and ρ
+  reads 0. On `HEAD` before the fix, nudging `w`'s start by (1 + k·1e-14) for
+  k in {0, ±1, ±3, ±7, ±20, 50} raised no `HIGH_CORRELATION` at k = +1, +7
+  and +50, and three of fifteen at k = −3 and −7. The Linux nightly's "raised
+  no HIGH_CORRELATION at all" matches the first three. At 12db370b, before
+  WP-1938, the same eigenvalues sat at 1e-15 to 1.2e-14, mostly positive and
+  kept, so the guard fired. After the fix it fires at all ten nudges (15
+  findings at nine, 6 at k = −7), with the widths' esds at 82-2730. The shared
+  fit keeps all 31 values and esds to the bit, and gives the same bits at the
+  last nightly's tree, 56427c4a.
+
+  *The macOS dedup silence, measured.* The runner (macos-26-arm64, Python
+  3.13.15, numpy 2.5.4, scipy 1.18.1, kernels 1.2.0) differs from this Mac in
+  CPU only, and a local 3.13.15 venv with jax passes. At 56427c4a, before
+  #918, the axial pair's start columns at (0, 0) were exactly zero, so the
+  `axial` stage ended where it began after 2 evaluations and later stages left
+  0 by rounding. A k = +1 nudge sent the pair to `axial_sl` 0 on its floor and
+  `axial_hl` 0.2 on its ceiling with no `HIGH_CORRELATION`, which is the CI
+  failure reproduced. At `HEAD` each start column is 8.81 with cosine −0.60 to
+  the residual, and all ten nudges end at (0.0203, 0.0197) with the pair
+  flagged in all four stages. A sweep of every default row on a bound, 17 on
+  the Debye-Scherrer and Bragg-Brentano presets, found no zero start column at
+  `HEAD`.
+
+  *The band.* `test_the_shared_fit_reaches_one_minimum_on_every_platform` is
+  green on Linux x86-64 in the nightly full suites 38183312796, 38257956064
+  and 38261107758 (WP-1938's form), absent from all three failure lists, and
+  the last one's plot reads Rwp 0.1687, GoF 3.19. On macOS arm64 it is green
+  here at Rwp 0.168656276, χ²_red 10.151815. The nightly prints no χ², so the
+  post-1938 Linux agreement is known to the plot's four digits of Rwp. The
+  reporter's 1e-12 was measured before WP-1938. The macOS nightly runs only
+  the fast tier, so the band's macOS runs are local.
+
+  *Tests* (`[dev]`, macOS arm64, Python 3.12.10). Fast selection on bb5b18cc:
+  9312 passed, 181 skipped, 3 xfailed, 0 failed, 24:22 at a load average of
+  130-175 beside two other sessions' suites. Full selection on aea419b6, with
+  `main` unmoved since the branch base: 9609 passed, 194 skipped, 3 xfailed, 4
+  failed, 1:18:52. It started alone, and other sessions' fast suites joined it
+  (load 100-175), so the time is not quotable. Three failures passed rerun
+  alone: the dichotomy and trial-and-error monoclinic searches (budget-bound)
+  and the GUI scratch-copy boot. The fourth,
+  `test_the_reduced_cell_is_the_exact_image_of_its_input[F]`, is a hypothesis
+  counterexample that fails the same way on the tree without this branch's
+  change; `reduce.py` calls nothing in `statistics`. It went to WP-1932. The
+  added tests cost 28.24 s (the two nudged LaB₆ fits, slow tier) and 0.06 s
+  (three covariance cases, fast tier), one run's figures under that load.
+
+  *Review* (`/code-review high --fix`, 9 findings). Fixed: `_psd_pinv` now
+  gives `pinv`'s empty answer for a 0×0 matrix; two stale docstrings; "five
+  widths" was six; the manual claimed ± 0 esds on Linux, which only macOS
+  showed; the scale-B floor test still called `pinv`; the bit test had no
+  small kept eigenvalue. Declined: rounding still sizes a flat direction's esd
+  (82 to 2730), since marking it unmeasured would move `PINV_RCOND` and
+  `SCALE_B_SEPARATION_FLOOR`; `_psd_pinv` is 2-D only, kept line for line with
+  numpy for the bits.
+
+  *Not generalised.* `indexing/reduce.py`'s `equal_reduced` has the same sign
+  inversion in a χ², where a kept negative eigenvalue could merge two cells. It
+  went to WP-1932's Inherited, because WP-1519's replay rule governs any change
+  there. `report/layer1.py` takes the general `pinv` of a small Gram and fails
+  safe, since an esd of 0 reads as not significant. `solve/cost.py` already
+  drops negative eigenvalues. Root `CLAUDE.md` is at its 978-line cap, so the
+  rule lives in `normal_covariance`'s docstring and its tests.
+
+  *Forwarded.* WP-1946: #832's brucite split. WP-1542: #832's indexing Le Bail
+  split. WP-1953: #918 fixes the macOS dedup test. WP-1932: `equal_reduced`'s
+  sign and the reduce counterexample. #865's moment question is a Non-goal here
+  and has no owner.
+
+  Next: the first nightly after e1d19359 should show the macOS dedup test and
+  the Linux LaB₆ file green; a red one there reopens this. The P1 close owes a
+  release under `RELEASING.md` § When, and that is the maintainer's call.
 
 - **2026-10-09, after the PR's Linux CI** — two fast tests failed on every
   Linux leg and passed on macOS. Both were bars on a number rounding now

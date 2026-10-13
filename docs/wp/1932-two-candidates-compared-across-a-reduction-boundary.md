@@ -116,6 +116,15 @@ equal to `equal_reduced_many` on every pair.
   two cells. A high-symmetry cell's `cov_af` is rank-deficient, so the case
   is reachable. Not measured: the replay rule of WP-1519 governs any change,
   so it was left here rather than fixed from a refinement WP.
+- **2026-10-13, from WP-1930: hypothesis found a counterexample to
+  `test_the_reduced_cell_is_the_exact_image_of_its_input[F]`.** Centring F,
+  a = 3.2, b = 16.0, c = 23.602486327493914 Å, α = 81°, β = 66°, γ = 65°.
+  The reduced metric's (1, 2) entry is −1.45957512 against −1.45956250 for
+  M·G·Mᵀ, outside the test's 1e-12·max|G| bar. It surfaced in a local full
+  suite (`[dev]`, macOS arm64, at aea419b6) and fails identically on c4607fa0,
+  which lacks WP-1930's change; `reduce.py` calls nothing WP-1930 touched. The
+  example now replays from the local `.hypothesis` database only, so CI will
+  not see it until its own search finds it.
 
 ## Non-goals
 
