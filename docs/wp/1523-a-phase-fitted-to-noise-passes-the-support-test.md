@@ -176,6 +176,26 @@ not measure it there.
   peak-context bands a saving, so +26% and −31% both said lanes cost more at
   your 74K re-read. Both blocks now print a change, negative a saving
   (`2d6e632a`). Nothing in this WP needs to change; delete this on arrival.
+- **2026-10-13, from the issue triage (#219): the script is now in the
+  thread, re-run on c3d0367, and one arm moved the wrong way.** The reporter
+  posted it on 2026-10-12 (00:11Z): fully synthetic, cubic Cu Poisson-sampled
+  from the package's forward model, arms ANISO-TRUTH, ISO-TRUTH and
+  TWO-PHASE-TRUTH, each fitted as parent+iso, parent+Stephens, and parent
+  plus an `I 4/m m m` subgroup from a degenerate seed and from seeds split by
+  δ = 5e-4 to 4e-3. Run unmodified at c3d0367 (17 s of fits), the ISO-TRUTH
+  rows and the pre-split rows reproduce the reporter's e6d5f9ea numbers to
+  the digit: on one cubic phase the degenerate seed holds the phantom
+  subgroup (0.81σ) and every split seed holds the **parent** (0.0 against
+  1095.97, ρ −1.000). One row moved: TWO-PHASE-TRUTH from the degenerate
+  seed, a real 40 % subgroup, now holds the **real parent** (`cell.a`,
+  `lor_strain`) at sup0 8.2 against the subgroup's 741.6σ, with
+  tetragonality −1.04(3)e-3 against a true +3.0e-3 and Rwp 0.0403. The
+  reporter had sup0 203.2, the subgroup at 18.0 and ρ −1.000 there, Rwp
+  0.0405. So the hold lands on whichever phase the seed left weaker, real or
+  not, and on c3d0367 that includes a real phase whose companion then carries
+  a distortion of the wrong sign. The decision this WP's close owes (whether
+  the hold stands down on a collinear pair) has no task line yet; the session
+  that works this WP should add one.
 
 ## Non-goals
 

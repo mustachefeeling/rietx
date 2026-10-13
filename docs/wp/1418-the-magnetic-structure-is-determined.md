@@ -707,6 +707,39 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   side. This follows `tests/CLAUDE.md` § Budgets in tests: an assertion
   within its measured cross-platform spread of a threshold senses where the
   solver stopped.
+- **2026-10-13, from the issue triage (#724): the reporter's answers match
+  the 2026-10-06 decision except where the cell is held.** Posted 2026-10-12:
+  refine the child cell on 1419's metric subspace once it exists, and until
+  then hold it only on the fallback route (`nuclear_group="magnetic"`), never
+  on `"parent"`; tie Biso per parent site on both routes, and give the
+  reference the same treatment. Checked against the tree at c3d0367:
+  `solve_magnetic(tie_to_parent=True)` holds the cell whenever
+  `_parent_site_ties` is non-empty (`strategy/magnetic.py:1483`, `:2290`,
+  `:2343`), whatever the route. On `test_solve_tie_to_parent.py`'s fixture
+  (P 4/m m m, k = (0, 0, ½)) with `nuclear_group="parent"` the child carries
+  3 atoms against the parent's 2 and one tie, so the cell is held on the
+  parent route too. Gating the hold on the route is the maintainer's call,
+  beside the open question of the default. *Decided 2026-10-13 (the
+  maintainer, through the issue triage):* gate it on the route. Under
+  `tie_to_parent=True` the child cell is held only on the fallback route
+  (`nuclear_group="magnetic"`) and refines on `"parent"`, until WP-1419's
+  metric subspace replaces the hold; Biso stays tied per parent site on both
+  routes, and the reference fit takes the same treatment. The default is not
+  decided by this.
+- **2026-10-13, from the issue triage (#820): option (a) is ready on the
+  reporter's fork, and main moved under it again.** Posted 2026-10-12 17:11Z:
+  on `edad5b5a` there was no pair left to put the bands on (class 1 converged
+  to zero moduli with esds ~10⁵, class 3 stopped at `max_iter`), so they
+  asked before opening the PR (fork commit `4505703f`). Checked at c3d0367
+  (Linux x86-64): `test_the_150k_pattern_has_nothing_to_solve` passes (59 s).
+  After the LM merges since `edad5b5a` (#918, #923, WP-1953) class 3
+  converges (ΔBIC −40.8) and folds a pair, `MOMENT_PAIR_DEGENERATE` at
+  0.518 ± 0.250 μ_B (2.1σ), while class 1 converges at zero moduli (esds 873
+  and 2.5e4) with no pair, which the test's docstring has expected since
+  WP-1938; a modulus at zero has no gradient, intensity going as m². The
+  docstring's "class 3 stops short" is stale on Linux. The bands for option
+  (a) should be re-derived from the class-3 pair, whose sum sits 0.018 inside
+  the 0.5 edge, before the PR is taken.
 
 ## Non-goals
 

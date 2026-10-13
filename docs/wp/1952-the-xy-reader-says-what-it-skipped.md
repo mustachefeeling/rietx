@@ -68,6 +68,21 @@ and headers) apart from a separate CSV importer for comma, tab and
 semicolon data (GSAS-II documentation, *Importers*). Read from its
 documentation only.
 
+### Inherited
+
+- **2026-10-13, from the issue triage (#897, JulesOpp's two files of
+  2026-10-12, checked at c3d0367).** Both rebuilt byte for byte and read with
+  `rx.read_pattern(path, diagnostics=[])`. (1) One `10.06 150.3  # …` row
+  among clean rows is dropped in silence (9 of 10 points), its third token
+  being `#`; their reader keeps the point. It is a test case for tasks 1 and
+  4. (2) A third column with one `0` is adopted as σ, and
+  `schemas.pattern._floor_sigma` raises it to a thousandth of the column's
+  median positive esd (0.003 there), so that point weighs about 10⁶× its
+  neighbours, with no diagnostic. That case is in no task: report a
+  non-positive esd by line, beside `PATTERN_SIGMA_CONSTANT`, and decide
+  between floor, drop and refuse (the pdCIF reader drops a weight column with
+  any zero). The reporter checked on 1.5.0; both reproduce on c3d0367.
+
 ## Non-goals
 
 - A CSV reader (a new format entry, if the decision below wants one).
