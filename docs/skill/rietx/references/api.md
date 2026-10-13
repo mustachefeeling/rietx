@@ -45,7 +45,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Structure` — The phases refined against the same pattern(s) — possibly none.
   Fields: `phases: list[Phase]`
 - `rx.Phase` — A crystalline phase: symmetry, cell, atoms, scale, sample broadening.
-  Fields: `name: str`, `space_group: str`, `symmetry_operations: list[str] | None = None`, `cell: Cell`, `atoms: list[Atom]`, `scale: Parameter = Parameter(1.0, min=0.0)`, `extinction: Parameter = Parameter(0.0, min=0.0)`, `preferred_orientation: PreferredOrientation | None = None`, `lor_size: Parameter = Parameter(0.0, min=0.0)`, `lor_strain: Parameter = Parameter(0.0, min=0.0)`, `magnetic_lor_size: Parameter = Parameter(0.0, min=0.0)`, `magnetic_lor_strain: Parameter = Parameter(0.0, min=0.0)`, `gauss_size: Parameter = Parameter(0.0, min=0.0)`, `gauss_strain: Parameter = Parameter(0.0, min=0.0)`, `microstrain: StephensStrain | None = None`, `particle_radius_um: float | None = None`, `propagation_vector: tuple[str, str, str] | None = None`, `magnetic_symmetry: MagneticSymmetry | None = None`, `restraints: list[BondRestraint | AngleRestraint | ValueRestraint] = []`
+  Fields: `name: str`, `space_group: str`, `symmetry_operations: list[str] | None = None`, `cell: Cell`, `atoms: list[Atom]`, `scale: Parameter = Parameter(1.0, min=0.0)`, `extinction: Parameter = Parameter(0.0, min=0.0)`, `preferred_orientation: PreferredOrientation | None = None`, `lor_size: Parameter = Parameter(0.0, min=0.0)`, `lor_strain: Parameter = Parameter(0.0, min=0.0)`, `magnetic_lor_size: Parameter = Parameter(0.0, min=0.0)`, `magnetic_lor_strain: Parameter = Parameter(0.0, min=0.0)`, `gauss_size: Parameter = Parameter(0.0, min=0.0)`, `gauss_strain: Parameter = Parameter(0.0, min=0.0)`, `microstrain: StephensStrain | None = None`, `particle_radius_um: float | None = None`, `propagation_vector: tuple[str, str, str] | None = None`, `magnetic_symmetry: MagneticSymmetry | None = None`, `restraints: list[BondRestraint | AngleRestraint | ValueRestraint] = []`, `floating_origin: Literal['hold'] | None = None`
 - `rx.Atom` — One site in the asymmetric unit.
   Fields: `label: str`, `species: str`, `x: Parameter`, `y: Parameter`, `z: Parameter`, `occ: Parameter = Parameter(1.0, min=0.0, max=1.5)`, `biso: Parameter = Parameter(0.5)`, `aniso: AnisoU | None = None`, `moment: Moment | None = None`, `disorder_assembly: str | None = None`, `disorder_group: str | None = None`
 - `rx.Cell` — Unit-cell lengths (Å) and angles (degrees).
@@ -57,7 +57,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.StephensStrain` — Anisotropic strain broadening coefficients S_HKL (Stephens, 1999).
   Fields: `s400: Parameter = Parameter(0.0)`, `s310: Parameter = Parameter(0.0)`, `s301: Parameter = Parameter(0.0)`, `s220: Parameter = Parameter(0.0)`, `s211: Parameter = Parameter(0.0)`, `s202: Parameter = Parameter(0.0)`, `s130: Parameter = Parameter(0.0)`, `s121: Parameter = Parameter(0.0)`, `s112: Parameter = Parameter(0.0)`, `s103: Parameter = Parameter(0.0)`, `s040: Parameter = Parameter(0.0)`, `s031: Parameter = Parameter(0.0)`, `s022: Parameter = Parameter(0.0)`, `s013: Parameter = Parameter(0.0)`, `s004: Parameter = Parameter(0.0)`
 - `rx.Instrument` — Everything about the measurement except the sample.
-  Fields: `source: Source | NeutronSource`, `geometry: Geometry = Geometry(…)`, `zero_shift: Parameter = Parameter(0.0, min=-0.5, max=0.5)`, `profile: ProfileTCHZ = ProfileTCHZ(…)`, `background: BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline = BackgroundChebyshev(…)`, `extra_components: list[HumpComponent | PeakComponent] = []`
+  Fields: `source: Source | NeutronSource | TOFSource`, `geometry: Geometry = Geometry(…)`, `zero_shift: Parameter = Parameter(0.0, min=-0.5, max=0.5)`, `profile: ProfileTCHZ = ProfileTCHZ(…)`, `background: BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline = BackgroundChebyshev(…)`, `extra_components: list[HumpComponent | PeakComponent] = []`
 - `rx.Source` — Constant-wavelength X-ray source.
   Fields: `kind: Literal['xray_cw'] = 'xray_cw'`, `lines: list[EmissionLine]`, `polarization: Parameter = Parameter(0.5, min=0.0, max=1.0)`, `kbeta: Literal['filter', 'monochromator', 'mirror'] | None = None`, `dispersion: Dispersion | None = Dispersion(…)`, `harmonics: list[Harmonic] = []`
 - `rx.NeutronSource` — Constant-wavelength **neutron** source: one wavelength, nuclear scattering.
@@ -74,8 +74,8 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
   Fields: `kind: Literal['fixed_plus_chebyshev'] = 'fixed_plus_chebyshev'`, `fixed_two_theta: list[float]`, `fixed_intensity: list[float]`, `fixed_sigma: list[float] | None = None`, `fixed_source: str | None = None`, `scale: Parameter = Parameter(1.0, min=0.0)`, `chebyshev: BackgroundChebyshev = BackgroundChebyshev(…)`
 - `rx.Dispersion` — Anomalous scattering corrections f′, f″ at the source wavelengths.
   Fields: `table: Literal['cromer_liberman'] = 'cromer_liberman'`, `overrides: dict[str, tuple[float, float]] = {}`
-- `rx.PatternData` — A 1-D constant-wavelength powder pattern.
-  Fields: `two_theta: list[float]`, `intensity: list[float]`, `sigma: list[float] | None = None`, `excluded_regions: list[tuple[float, float]] = []`, `metadata: dict[str, str] = {}`
+- `rx.PatternData` — A powder pattern.
+  Fields: `two_theta: list[float] | None = None`, `tof: list[float] | None = None`, `intensity: list[float]`, `sigma: list[float] | None = None`, `excluded_regions: list[tuple[float, float]] = []`, `metadata: dict[str, str] = {}`
 
 ## Refining
 
@@ -106,7 +106,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
   Fields: `name: str`, `turn_on: list[str]`, `max_iter: int = 100`, `ftol: float | None = None`, `lebail_cycles: int = 3`, `seed: float = 0.0`, `strain_seed: float = 0.0`, `restraint_weight_scale: float = 1.0`, `window_slack_deg: float | None = None`
 - `rx.PLAN_INFO` — keys: `mccusker_default`, `mccusker_structural`, `lab_bragg_brentano`, `lab_calibrate`, `lab_sample_refine`, `profile_only`, `pawley_default`, `magnetic_width`
 - `rx.ParameterRow` — One row of the parameter table — the mirror of `params.vector.Entry`.
-  Fields: `path: str`, `value: float`, `vary: bool = False`, `lo: float = -inf`, `hi: float = inf`, `tie: TieSpec | None = None`, `locked: bool = False`, `held: bool = False`, `esd: float | None = None`, `mode_fixed: bool = False`, `needs_held_cell: bool = False`, `help_key: str | None = None`
+  Fields: `path: str`, `value: float`, `vary: bool = False`, `lo: float = -inf`, `hi: float = inf`, `tie: TieSpec | None = None`, `locked: bool = False`, `held: bool = False`, `esd: float | None = None`, `mode_fixed: bool = False`, `needs_held_cell: bool = False`, `origin_axis: tuple[int, int, int] | None = None`, `help_key: str | None = None`
 
 ## The four answers are four different types
 

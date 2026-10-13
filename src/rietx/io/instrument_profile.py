@@ -33,6 +33,7 @@ to special-case.
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -125,6 +126,11 @@ def save_instrument_profile(instrument: Instrument, path: str | Path) -> None:
     on the sample's own instrument; it is three lines and it is where the
     centre bounds belong.
     """
+    # A bank would be written and could not be read back (the loader's
+    # ``_iter_parameters`` is a constant-wavelength list), so it is refused here.
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(None, "save_instrument_profile()", instrument=instrument)
     ins = instrument.model_copy(deep=True)
     ins.geometry.sample_displacement.value = 0.0
     ins.geometry.sample_transparency.value = 0.0
@@ -176,6 +182,12 @@ def load_instrument_profile(path: str | Path, *,
         notes = restore_declared_ranges(found, where)
         if diagnostics is not None:
             diagnostics.extend(notes)
+    # A profile file holding a bank (written by a version that did not refuse
+    # one) is refused by name: ``_iter_parameters`` lists constant-wavelength
+    # parameters, and a bank's ``difc`` and ``profile_tof.*`` would stay free.
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(None, "load_instrument_profile()", instrument=ins)
     for p in _iter_parameters(ins):
         p.vary = False
     return ins
@@ -229,10 +241,9 @@ _HTYPE_REFUSALS: dict[str, str] = {
         "moderator terms), not a 2θ Caglioti/TCH resolution function — there "
         "is nowhere in ProfileTCHZ for those numbers to go, and reading them "
         "as if they were GU/GV/GW would be a plausible wrong instrument "
-        "rather than a near miss.  A time-of-flight profile is a different "
-        "correction entirely (see the module docstring's calibrate/freeze "
-        "workflow, written for a constant-wavelength source) and is out of "
-        "scope here."
+        "rather than a near miss.  A time-of-flight bank is read by "
+        "rietx.read_gsas_tof_iparm, which returns one Instrument per bank "
+        "with a neutron_tof source."
     ),
 }
 
@@ -1256,6 +1267,9 @@ def write_gsas_prm(instrument: Instrument, path: str | Path, *,
     ``I HEAD`` record holds whatever the experimenter typed.  See
     :func:`from_instrument` for what carries and what does not.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(None, "write_gsas_prm()", instrument=instrument)
     Path(path).write_bytes(
         from_instrument(instrument, header=header,
                         diagnostics=diagnostics).encode("latin-1"))
@@ -1415,9 +1429,9 @@ def _instprm_instrument(items: dict[str, str], p: Path,
             f"{p.name}: states Type {kind!r}"
             + (f", {what}" if what else "")
             + f", and this reader takes the constant-wavelength types "
-              f"({', '.join(CW_TYPES)}).  A flight-time or energy-dispersive "
-              f"bank puts a different quantity on the x axis than PatternData "
-              f"holds, and its profile coefficients are a different function")
+              f"({', '.join(CW_TYPES)}) and the time-of-flight one (PNT).  An "
+              f"energy-dispersive bank puts a quantity on the x axis that "
+              f"PatternData has no field for")
 
     for key in ("Z", "Azimuth"):
         value = number(key)
@@ -1614,6 +1628,12 @@ def _instprm_reports(items: dict[str, str], read: list[str],
             where=["instrument"]))
 
 
+#: A ``Type`` line stating a time-of-flight histogram — the whole of
+#: :func:`read_gsas2_instprm`'s dispatch.  ``Type`` is the file's own
+#: statement of which quantity it holds, so it is read rather than inferred.
+_TOF_TYPE_LINE = re.compile(r"^\s*Type\s*:\s*PNT", re.M)
+
+
 def read_gsas2_instprm(path: str | Path, *, bank: int | None = None,
                        diagnostics: list[Diagnostic] | None = None
                        ) -> Instrument:
@@ -1641,7 +1661,11 @@ def read_gsas2_instprm(path: str | Path, *, bank: int | None = None,
 
     Read: ``Type``, the wavelengths and the doublet's intensity ratio,
     ``Polariz.``, ``U V W X Y``, ``SH/L``, ``Zero``, ``Diff-type`` and
-    ``Gonio. radius``.  Refused by name: a time-of-flight or energy-dispersive
+    ``Gonio. radius``.  A time-of-flight bank (``Type: PNT``) is read too,
+    into an ``Instrument`` whose source is ``kind="neutron_tof"``
+    (:func:`rietx.io.instrument_tof.read_tof_instprm` lists its keys):
+    one reader dispatching on the file's own ``Type``, since the suffix is the
+    same either way.  Refused by name: an energy-dispersive or unknown
     ``Type``; a non-zero ``Z``, which ``ProfileTCHZ`` has no term for; a
     non-zero ``Azimuth``, which changes what ``Polariz.`` means; a negative
     width; and a multi-bank file with no ``bank=`` to select one.
@@ -1660,6 +1684,18 @@ def read_gsas2_instprm(path: str | Path, *, bank: int | None = None,
             f"{exc}") from exc
     except OSError:
         raise
+    if _TOF_TYPE_LINE.search(text):
+        # Handed over by path, before the grammar below: that parser was
+        # written from GSAS-II's own modules (ATTRIBUTION.md), and the
+        # time-of-flight reader is a literature-only build that keeps its own.
+        if bank is not None:
+            raise ValueError(
+                f"{p.name}: states a time-of-flight bank (Type PNT), which is "
+                f"read as the file's one bank; bank={bank} selects among the "
+                f"banks of a constant-wavelength file")
+        from .instrument_tof import read_tof_instprm
+
+        return read_tof_instprm(p, diagnostics=diagnostics)
     try:
         banks = read_instprm(text)
     except ValueError as exc:
@@ -1857,6 +1893,9 @@ def write_gsas2_instprm(instrument: Instrument, path: str | Path, *,
     decodes.  See :func:`from_instrument_gsas2` for what crosses and what does
     not.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(None, "write_gsas2_instprm()", instrument=instrument)
     Path(path).write_text(
         from_instrument_gsas2(instrument, diagnostics=diagnostics),
         encoding="utf-8")

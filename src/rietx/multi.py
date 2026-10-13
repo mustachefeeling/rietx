@@ -110,7 +110,7 @@ from .report.magnetic import moment_angle_stationary_diagnostics
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
 from .schemas.instrument import Instrument
-from .schemas.pattern import PatternData
+from .schemas.pattern import PatternData, require_two_theta
 from .schemas.results import (
     HistogramResult,
     Identifiability,
@@ -269,6 +269,11 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_hold_diagnostics": (
         (ABSENT,), "a joint fit has no hold verb, so no StageResult here "
                    "carries blocked_by_hold for HOLD_BLOCKED_PLAN to report"),
+    "_origin_diagnostics": (
+        (ABSENT,), "each histogram's table derives the same floating-origin "
+                   "hold from its copy of the structure (WP-1912), so the "
+                   "hold applies; no joint StageResult carries the "
+                   "blocked_by_hold it reports from"),
     "_pawley_unresolved_diagnostics": (
         (ABSENT,), "a joint fit is Rietveld-only (fit refuses pawley)"),
     "_pawley_off_data_diagnostics": (
@@ -772,6 +777,12 @@ class MultiHistogramRefinement:
         if len(instruments) < 1:
             raise ValueError("multi-histogram needs at least one instrument")
         _judge_magnetic_groups(structure)       # a caller's statement (issue #597)
+        for i, ins in enumerate(instruments):
+            # Same reason as ``Refinement.__init__``: MultiParameterTable is
+            # built on the next line and reaches for a wavelength a TOF bank
+            # does not carry.
+            require_two_theta(None, f"MultiHistogramRefinement(), instrument "
+                                    f"{i} of {len(instruments)}", instrument=ins)
         self.mtable = MultiParameterTable(structure, instruments, sharing=sharing)
         # Resolve each histogram's specimen absorption (capillary µR or
         # flat-plate µt) from composition, exactly as the single-histogram path
@@ -857,6 +868,14 @@ class MultiHistogramRefinement:
         n = self.n_histograms
         if len(data) != n:
             raise ValueError(f"{len(data)} patterns for {n} instruments")
+        # Per histogram, and *before* the first compile: a joint fit is where a
+        # TOF bank most plausibly arrives beside CW histograms of the same
+        # specimen, so the refusal has to name which one of several patterns
+        # it is about.
+        for i, (d, ins) in enumerate(zip(data, self.mtable.instruments,
+                                         strict=True)):
+            require_two_theta(d, f"MultiHistogramRefinement.fit(), histogram "
+                                 f"{i} of {n}", instrument=ins)
         if mode != "rietveld":
             raise NotImplementedError(
                 "multi-histogram refinement is Rietveld-only in v0.3; Le Bail / "

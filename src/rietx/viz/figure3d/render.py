@@ -46,6 +46,11 @@ OUTLINE_CSS = 1.0
 #: The default long side: an agent looking at its own picture.
 DEFAULT_SIZE = 1000
 MAX_SUPERSAMPLE = 4
+#: The palette a figure shown in a notebook is quantised to: the fit figure's
+#: ``viz.plots._NOTEBOOK_COLOURS``, restated rather than imported because this
+#: package's imports are the boundary WP-1505's split moves
+#: (``tests/test_figure_boundary.py``); ``tests/test_display.py`` holds them equal.
+NOTEBOOK_COLOURS = 256
 MODES = ("ball", "ellipsoid")
 #: The places tried for a site label, in order, as (right, up) signs: up and
 #: to the right first, which is where every label went before #666.
@@ -112,9 +117,37 @@ class StructureFigure:
         return (f"StructureFigure({w}×{h} px, {len(self.atoms)} atoms drawn, "
                 f"path={self.path!r})")
 
-    def _repr_png_(self) -> bytes:
-        """The picture, so a notebook cell holding a figure shows it (WP-1544)."""
-        return _png_bytes(self.image, None)
+    def _repr_png_(self) -> tuple[bytes, dict]:
+        """The picture, so a notebook cell holding a figure shows it (WP-1544).
+
+        Drawn at half its pixel width, as a fit figure is, so the default
+        1000 px raster is a sharp 500 CSS px on a HiDPI screen.  The width
+        alone, so a narrow output column scales it whole (WP-1957).
+
+        An opaque picture is palette-quantised as a fit figure is
+        (:data:`NOTEBOOK_COLOURS`): the FAP view down c is 185 kB in
+        full colour and 74 kB at 256 colours, with no banding on the shaded
+        balls that 64 colours shows.  A transparent one stays in full colour,
+        since a palette would cut its antialiased edge.  ``path=`` writes
+        full colour either way.  Without pillow (an install made with
+        ``--no-deps``) the picture is shown in full colour too, as this
+        module's own encoder needs nothing."""
+        width = {"width": self.image.shape[1] // 2}
+        if self.image[..., 3].min() < 255:
+            return _png_bytes(self.image, None), width
+        import io
+
+        try:
+            from PIL import Image
+        except ImportError:
+            return _png_bytes(self.image, None), width
+
+        palette = Image.fromarray(self.image[..., :3]).quantize(
+            colors=NOTEBOOK_COLOURS, method=Image.Quantize.MEDIANCUT,
+            dither=Image.Dither.NONE)
+        out = io.BytesIO()
+        palette.save(out, format="PNG", optimize=True)
+        return out.getvalue(), width
 
     def to_px(self, points) -> np.ndarray:
         """Where Cartesian points land in ``image``, in pixels.

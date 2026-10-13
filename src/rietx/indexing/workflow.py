@@ -80,7 +80,7 @@ import numpy as np
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import CellCandidate, LeBailValidation, PeakList
 from ..schemas.instrument import Instrument
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from ..schemas.structure import DUMMY_SPECIES, Structure, lebail_scaffold
 from .fom import lattice_group
 
@@ -411,6 +411,7 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     ``lebail = None``, which reads as ``not_validated`` (capping): the honest
     state, and the same one an unreached candidate was always in.
     """
+    require_two_theta(data, "validate_by_lebail()", instrument=instrument)
     from ..optimize.cancel import RefinementCancelled
     from ..refine import Refinement
     from ..report.layer0 import build_layer0
@@ -421,7 +422,7 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     ins = instrument
     if peaks is not None:
         ins, _seeded = seed_widths(ins, peaks)
-    tt_max = float(np.max(np.asarray(data.two_theta)))
+    tt_max = float(np.max(data.tt()))
     if two_theta_limits is not None:
         tt_max = min(tt_max, float(two_theta_limits[1]))
     plan = validation_plan(candidate, ins, two_theta_max=tt_max)
@@ -712,6 +713,11 @@ def index_pattern(peaks: PeakList | None = None, *,
         from ..crystallography.atomic_volume import formula_unit_volume
 
         formula_unit_volume(formula, temperature)   # a bad formula raises here
+    if data is not None:
+        # Checked whether or not the peaks are picked here: ``data`` also drives
+        # whole-profile validation below, so a TOF pattern handed in beside a
+        # ready-made PeakList would still reach a Le Bail fit.
+        require_two_theta(data, "index_pattern()", instrument=instrument)
     if peaks is None:
         if data is None or instrument is None:
             raise ValueError(

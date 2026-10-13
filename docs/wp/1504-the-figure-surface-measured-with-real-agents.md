@@ -76,6 +76,23 @@ also added `cell=`, `stick=`, `max_atoms=`, `fig.to_px`, the label overlap
 counts and `cut["atoms"]`. A round run after their merge measures a
 different surface from the fixed round.
 
+From **WP-1957** (2026-10-13), evidence for the `auto` question above. Three
+blind reviewers (a crystallographer, a newcomer and a figure designer) ranked
+15 renderings of refined fluorapatite for a notebook. The view down c,
+`hidden` 0.45 and nearly all of it stacking, was first for two and second for
+the third. `auto` picked about [2 0 1] (`hidden` 0.024), and all three called
+it "a tangle". They also agreed on four readings, none of which `FigureReport`
+counts:
+- the darker shade on images outside the cell (`scene.DIM_BOUNDARY`) makes one
+  element read as two species, and all three reviewers took it for a depth
+  cue;
+- `atom_labels=True` prints a stacked pair twice (`F4 F4` at one corner);
+- the a and b letters sit under atoms or bonds down c;
+- at the default probability, `mode="ellipsoid"` draws the atoms as
+  pinpricks, which is physically right at Biso ≈ 1 Å² but reads as a wire
+  model.
+WP-1957's Context 4 records the rankings.
+
 From **WP-1536, 1537 and 1538** (filed 2026-10-02, queued). They add `.svg`,
 `.pov` and `.glb` to `render_structure`'s `path=`, and an
 `ambient_occlusion=` option. None has landed. A round run after any of them

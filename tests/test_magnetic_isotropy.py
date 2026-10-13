@@ -38,7 +38,7 @@ from rietx.crystallography.magnetic.operators import (
     identify,
     in_span,
 )
-from rietx.crystallography.representation import irreps, modes
+from rietx.crystallography.representation import irreps, modes, order_parameter
 from tests.space_group_sample import TRAP_SAMPLE
 
 GAMMA = (Fraction(0), Fraction(0), Fraction(0))
@@ -765,8 +765,8 @@ def test_the_displacive_time_reversal_rule_greys_a_magnetic_order_parameter():
         if basis.multiplicity == 0:
             continue
         for kind, sink in (("magnetic", magnetic), ("displacive", displacive)):
-            space = isotropy.order_parameter_space(basis, kind=kind)
-            for direction in isotropy.isotropy_directions(space):
+            space = order_parameter.order_parameter_space(basis, kind=kind)
+            for direction in order_parameter.isotropy_directions(space):
                 sink.append(isotropy._candidate_group(little, cell, direction.stabilizer,
                                                       kind=kind))
     assert len(magnetic) == len(displacive) == 4
@@ -1170,9 +1170,9 @@ def test_a_one_dimensional_irrep_has_exactly_one_direction():
         basis = modes.basis_vectors(representation, irrep)
         if basis.multiplicity == 0:
             continue
-        space = isotropy.order_parameter_space(basis)
+        space = order_parameter.order_parameter_space(basis)
         assert space.dimension == 1
-        directions = isotropy.isotropy_directions(space)
+        directions = order_parameter.isotropy_directions(space)
         assert len(directions) == 1
         assert directions[0].rank == 1
         assert len(directions[0].stabilizer) == space.little.order
@@ -1188,10 +1188,10 @@ def test_conjugate_directions_are_collapsed_and_counted():
     representation = modes.magnetic_representation("F m -3 m", (0, 0, 0), GAMMA)
     irrep = next(ir for ir in irreps.small_irreps("F m -3 m", GAMMA)
                  if modes.basis_vectors(representation, ir).multiplicity)
-    space = isotropy.order_parameter_space(modes.basis_vectors(representation, irrep))
+    space = order_parameter.order_parameter_space(modes.basis_vectors(representation, irrep))
     assert space.dimension == 3
-    collapsed = isotropy.isotropy_directions(space)
-    every = isotropy.isotropy_directions(space, conjugacy=False)
+    collapsed = order_parameter.isotropy_directions(space)
+    every = order_parameter.isotropy_directions(space, conjugacy=False)
     assert len(collapsed) == 6
     assert len(every) == sum(direction.conjugates for direction in collapsed)
     assert sorted(direction.conjugates for direction in collapsed) == [1, 3, 3, 4, 6, 6]

@@ -408,12 +408,33 @@ CLAIMS: tuple[Claim, ...] = (
     Claim(
         "test_acceptance_lab6_cbn", "test_the_correlation_diagnostic_separates_the_two",
         "lab6_cbn", ("characterisation", "ceiling"),
-        "HIGH_CORRELATION is silent on the identifiable fit and fires on the "
-        "degenerate one, without being told which is which",
+        "neither HIGH_CORRELATION nor COVARIANCE_DIRECTION_DISCARDED fires on "
+        "the identifiable fit, and the degenerate one's broadening split is "
+        "named by one of them, without being told which is which",
         reference="the diagnostic channel must separate an identifiable "
                   "parameterisation from a flat one on its own evidence",
-        measured="0 findings on the shared-broadening plan, 15 on the "
-                 "degenerate plan",
+        measured="0 HIGH_CORRELATION or COVARIANCE_DIRECTION_DISCARDED "
+                 "findings on the shared-broadening plan; "
+                 "on the degenerate plan COVARIANCE_DIRECTION_DISCARDED names "
+                 "all six widths on Linux x86-64 (WP-1930)",
+    ),
+    Claim(
+        "test_acceptance_lab6_cbn", "test_the_flat_widths_are_flagged_whatever_rounding_does",
+        "lab6_cbn", ("characterisation", "ceiling"),
+        "every width on the degenerate fit's flat broadening directions is "
+        "named by HIGH_CORRELATION (kept) or COVARIANCE_DIRECTION_DISCARDED "
+        "(under the cut), and none reports an esd of 0, whichever side of the "
+        "cut and whichever sign rounding gives their eigenvalues (WP-1930)",
+        reference="the Linux nightly from 0f30d584 on: no HIGH_CORRELATION on "
+                  "this fit, reproduced on macOS arm64 by 1e-14 nudges to w's "
+                  "start (six widths at an esd of 0)",
+        measured="macOS arm64, k in {0, +-1, +-3, +-7, +-20, 50}: "
+                 "HIGH_CORRELATION in all ten; widths' esds 8.9 to 3420 at "
+                 "nine, and at k = 0, where both flat directions fall under "
+                 "the cut, 5e-5 to 3e-3 with COVARIANCE_DIRECTION_DISCARDED "
+                 "naming all six; Linux x86-64 passes k = 0, 1, 7",
+        starts=10,
+        diagnostics=("HIGH_CORRELATION", "COVARIANCE_DIRECTION_DISCARDED"),
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_shared_fit_reaches_one_minimum_on_every_platform",
