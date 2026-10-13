@@ -36,10 +36,6 @@ import sys  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 
-import numpy as np  # noqa: E402
-
-#: Cu Kα1, as the engine tests declare it.
-WAVELENGTH = 1.5405929
 SPACE_GROUP = "P 1 2/m 1"
 CELL = (4.541, 4.884, 10.198, 90.0, 98.22, 90.0)
 TWO_THETA_MAX = 55.0
@@ -47,14 +43,13 @@ MAX_VOLUME = 600.0
 
 
 def peaks():
-    """The 61 exact positions to 55° 2θ, σ declared at 0.005°."""
-    from rietx.crystallography.symmetry import generate_reflections
-    from rietx.schemas.indexing import PeakList
+    """The 61 exact positions to 55° 2θ, σ declared at 0.005°, built as the
+    engine tests build theirs (``synthetic_peaks``, Cu Kα1)."""
+    from tests.test_indexing_engines import synthetic_peaks
 
-    refl = generate_reflections(SPACE_GROUP, CELL, WAVELENGTH, TWO_THETA_MAX)
-    tt = np.sort(np.degrees(2.0 * np.arcsin(
-        WAVELENGTH / (2.0 * np.asarray(refl.d)))))
-    return PeakList.from_positions(tt, WAVELENGTH, two_theta_esd=0.005)
+    peak_list, _cell = synthetic_peaks("monoclinic", sg=SPACE_GROUP, cell=CELL,
+                                       two_theta_max=TWO_THETA_MAX)
+    return peak_list
 
 
 def spec(ceiling: float):
@@ -153,7 +148,15 @@ def cpu_clock() -> None:
 
     from rietx.indexing import engines
 
-    engines.time = types.SimpleNamespace(monotonic=time.process_time)
+    class _CpuTime(types.ModuleType):
+        """``time`` itself, with ``monotonic`` read off the CPU clock."""
+
+        monotonic = staticmethod(time.process_time)
+
+        def __getattr__(self, name):
+            return getattr(time, name)
+
+    engines.time = _CpuTime("time")
 
 
 def run(ceiling: float, engines: tuple[str, ...] | None = None) -> dict:
@@ -191,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"lines {out['n_lines']}  ceiling {args.ceiling:g} s"
           f"{' (cpu)' if args.cpu_clock else ''}  wall {out['wall']:.1f} s  "
           f"cpu {out['cpu']:.1f} s  peak memory {out['peak'] / gb:.2f} GB  "
-          f"load {os.getloadavg()[0]:.0f}")
+          f"load {_load()}")
     for key, value in sorted(res.engine_stats.items()):
         print(f"  {key}: {value:g}")
     print("search_complete:", res.search_complete)
@@ -204,6 +207,12 @@ def main(argv: list[str] | None = None) -> int:
         for t, now in out["samples"]:
             print(f"  {t:7.1f} s  {now / gb:6.2f} GB")
     return 0
+
+
+def _load() -> str:
+    """The one-minute load average, or ``n/a`` where the OS has none (Windows)."""
+    getloadavg = getattr(os, "getloadavg", None)
+    return f"{getloadavg()[0]:.0f}" if getloadavg is not None else "n/a"
 
 
 if __name__ == "__main__":
