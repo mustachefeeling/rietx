@@ -1,9 +1,8 @@
 # WP-1523 — A phase fitted to noise passes the support test
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — task 6 landed in PR #928; task 7, whether the hold stands down on a collinear pair, reopened from the 2026-10-13 triage
+Milestone: unscheduled · Status: ✅ 2026-10-13 — a phase is held when its scale cannot be told from zero, conditional on the other phases' scales; PR #928
 Track: What fires, and what stays silent
 Depends on: — (1420 soft: the same hold, in a chain)
-Priority: P2 2026-10-13 — on a collinear pair the hold can land on the real phase, and its companion then carries a distortion of the wrong sign; a path few fits run
 
 ## Goal
 
@@ -302,6 +301,26 @@ tests pass unchanged or with each moved assertion justified here.
   ```
 
 ## Handover log
+
+### 2026-10-13 (2nd session) — closed: the hold stands down on a collinear pair
+
+Two phases that can draw the same pattern are no longer treated as absent. Before, when a model held a phase plus a subgroup of it, the test asked whether each scale was 3σ from zero with the other's scale free to compensate. Both then failed, so the hold took whichever the start left weaker. On issue #219's cubic Cu that was the only real phase in 9 of 15 split starts. Now each scale is judged with the other phases' scales held. A phase fitted to noise still reads low, and a phase another can stand in for reads high. The ambiguity is left to `HIGH_CORRELATION`, which fires on the two scales. The wrong-sign tetragonality the triage found is not the hold's: it comes back with no hold at all, from the degenerate start. Nothing else in the suite moved. With task 7 every task is done, and the WP closes.
+
+**Done.** `refine._significance_columns` takes the phase index and leaves out a column whose every path is a displacement, an occupancy or another phase's scale (`8a1a898` widened "every path one kind" to "every path any of them"). `_SCALE_PATH` is imported from `optimize.least_squares`. Two new tests in `tests/test_phase_significance.py`. `test_a_collinear_partner_does_not_hold_the_only_real_phase` is #219's ridge, compacted to a 0.02° grid and one pass. Under the old rule seeds 2002 and 2003 fail (2 of 2000-2011); all twelve pass under the new one. `test_only_the_partner_scales_leave_the_marginal` covers the column rule, `vars` columns included. The decision and its 60-fit table are § Decided 2026-10-13, which supersedes § Decided 2026-10-12. The skill's `PHASE_UNCONSTRAINED` row and `using/model.md` say the other scales are held; the skill copies were re-synced.
+
+**Measured** (`.venv` `[dev]`, Linux x86_64, Python 3.12, 4 cores, no other session running). #219's script reproduces on this branch's tree before the change, with rows moved from the triage's c3d0367 run by task 6's prior. One example: ISO-TRUTH from a split seed now held both phases. The sweep is in § Decided 2026-10-13. A reading probe logged every `_scale_significance` call under both column sets. Over 44 fast-tier files (2332 tests, 1465 readings, 363 with partner scales) and over the whole slow selection (1944 readings, 762 with partner scales), no hold decision flipped in either direction. In the fast files the conditional reading was at most 1.09× the marginal one. Blank-frame sweep: a single phase, so the two rules are identical by construction there.
+
+Counts on main `908c481` merged into this branch (`ff7a0f3`). Fast selection, verbatim with a junit file: 9337 passed, 192 skipped, 1 xfailed, none failed, total 9530, in 18:35. This session added 3 cases. No pre-session baseline was taken on this platform, and the last quoted total (9524) was macOS on an older main, so the delta is not checked. Added-test cost from that run: the collinear test 5.83 s (2 cases), the column test 0.00 s. The collinear test is the only guard on the ridge, so it stays in the fast tier. Slow selection: 300 passed, 19 skipped, 1 failed, in 35:00. The failure is `test_acceptance_lab6_cbn.py::test_the_correlation_diagnostic_separates_the_two` ("the degenerate fit raised no HIGH_CORRELATION at all"). It fails identically with the new rule disabled, at this branch's pre-merge `8a1a898`, and on `origin/main` `908c481` itself, so it is not this PR's. The nightly on main has failed its last three runs. Sent to 1930's Inherited.
+
+**Review pass.** `/code-review high --fix` found 5 and fixed 4: a column driving both a B and another phase's scale stayed in the marginal; a third copy of the scale regex; and the `phase_support` docstring and `_OCCUPANCY_PATH` comment not naming the partner scale. Declined, finding 5: an absent subgroup with a substantial fitted scale is no longer held, and only `HIGH_CORRELATION` reports it. That is this decision. On #219 the phantom's tetragonality from a split seed comes back −0.01 to +0.30e-3 against a true 0, so the refined cell says nothing false.
+
+**Gotchas.** `HIGH_CORRELATION` is now the only report on a collinear pair, and it lists the worst |ρ| first under `HIGH_CORRELATION_MAX`. A pair whose scales sit just under its threshold gets neither diagnostic. The ISO-TRUTH degenerate seed still holds the phantom, because its scale sits near zero. In one of five seeds the phantom was released at the answer, having picked up scale at the identity point.
+
+**Forward references.** 1339 (ask 3: ± seeds off the identity point is the only remedy for the wrong-sign start, and the hold no longer picks a side). 1420 (its goal names the identity-point subgroup as the case the hold cannot judge; under this rule a phantom with real scale there is not held at all). 1930 (the `lab6_cbn` failure on Linux). New WP-1957 for the `trf` scale walk the previous entry left unfiled: no open WP owns it. 1534 and 1463 are closed, and 1420 is about re-entry in a chain.
+
+**Lanes.** None dispatched; one item kept, `land-ridge` (est 15).
+
+Next: nothing in this WP. For the maintainer: PR #928 is ready for review. The `lab6_cbn` slow failure is red on main on Linux and is 1930's to place.
 
 - **2026-10-13** — A plan no longer frees a phase it has just called unseen. Each stage now reads the previous stage's answer as well as the quick screen. So a phase whose scale was fitted to noise stays held from the stage start. Before, it was freed, chased the noise, collapsed and solved a second time, once per stage. On issue #481's blank frame under the 11-stage structural plan that cost 18 solves and 233 iterations; it now costs 11 and 59. The answers move only at the threshold: of 64 fits of weak real phases, one went from refined to held, at 2.46σ. The WP stays open for one decision the issue triage reopened the same day: whether the hold stands down when two phases' scales are collinear.
 

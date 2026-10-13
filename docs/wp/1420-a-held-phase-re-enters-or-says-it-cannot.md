@@ -124,6 +124,14 @@ down.
 
 ### Inherited
 
+- **2026-10-13 (2nd), from WP-1523's close: a subgroup at its parent's
+  identity point is held only while its scale is near zero.** The scale
+  significance is now conditional on every other phase's scale. So a phantom
+  subgroup that picked up real scale at the identity point reads as seen,
+  is not held, and gets no `PHASE_UNCONSTRAINED`. That happened in one of
+  five #219 ISO-TRUTH degenerate seeds. Your Goal's "the case the hold
+  cannot judge" is now reported only by `HIGH_CORRELATION` on the two
+  scales. WP-1523 § Decided 2026-10-13.
 - **2026-10-13, from WP-1523's review (PR #928): `cherry_pick` and
   `run_stage` replay a plan stage without the reading that held it.** The
   stage-start hold reads the previous stage's answer, and no `NodeAction`
