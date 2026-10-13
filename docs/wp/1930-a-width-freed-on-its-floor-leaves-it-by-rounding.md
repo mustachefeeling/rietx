@@ -123,6 +123,15 @@ handover log has the tables).
 
 ### Inherited
 
+- **2026-10-13, from WP-1523's slow run: `lab6_cbn`'s degenerate fit raises
+  no `HIGH_CORRELATION` on Linux.**
+  `test_acceptance_lab6_cbn.py::test_the_correlation_diagnostic_separates_the_two`
+  fails with "the degenerate fit raised no HIGH_CORRELATION at all". That is
+  on `origin/main` `908c481`, Linux x86_64, Python 3.12, `[dev]`, and the
+  test takes 8.5 s alone. It fails identically with WP-1523's change
+  disabled, so it is not that PR's. The nightly on main has failed its last
+  three runs. Its log was not read, so whether this is the nightly's failure
+  is unchecked.
 - **2026-10-11, from WP-1938 (in flight, PR #883): the floor seed is
   deleted on that branch.** Under physical coordinates the trap it worked
   around is gone, so `seed_floor`, `SOFTPLUS_FLOOR_VALUE`,

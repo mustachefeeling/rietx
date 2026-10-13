@@ -250,6 +250,10 @@ The window bounds the symptom. The cause is reported separately, as
 `PHASE_UNCONSTRAINED`: which phase the data cannot distinguish from absent, and
 what the run did with its parameters. It reads the phase scale's significance:
 the scale over its esd against the counting noise, at least 3σ to count as seen.
+That esd lets the phase's cell and widths move, but holds every other phase's
+scale. Two phases that can draw the same pattern are then not called absent.
+`HIGH_CORRELATION` on their two scales reports that the data cannot say which
+of them carries it.
 The window's measurement is an upper bound on that significance, so a phase with
 a windowed cell is one the diagnostic also calls unseen.
 
