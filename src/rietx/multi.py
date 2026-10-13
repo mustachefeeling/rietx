@@ -795,6 +795,9 @@ class MultiHistogramRefinement:
             _declared_wavelengths(ins) for ins in self.mtable.instruments]
         self.result_: RefinementResult | None = None
         self._models = None
+        #: what :meth:`report` reads besides the models, per histogram, taken
+        #: with the result it reports on (:meth:`_freeze_answer`)
+        self._answer: list[dict] | None = None
 
     @property
     def n_histograms(self) -> int:
@@ -909,14 +912,13 @@ class MultiHistogramRefinement:
                                 node_id=None, n_histograms=n,
                                 histograms=[{"histogram_index": h}
                                             for h in range(n)])
-                    if stream is not events:
-                        stream.close()
                 raise
             self._models = models
             self.result_ = self._build_result(models, outcome, weights,
                                                plan.correlation_guard,
                                                stage_results, cell_runaway_diags,
                                                answer_runaway, opening_diags)
+            self._answer = self._freeze_answer()
             if stream is not None:
                 stream.emit("fit_end", status=self.result_.status,
                             rwp=self.result_.statistics.rwp,
@@ -925,8 +927,6 @@ class MultiHistogramRefinement:
                                          "rwp": hr.statistics.rwp,
                                          "gof": hr.statistics.gof}
                                         for h, hr in enumerate(self.result_.histograms)])
-                if stream is not events:  # we created it from a path/callable
-                    stream.close()
             if recorder is not None:
                 recorder.write_summary(self.result_)
             return self.result_
@@ -937,6 +937,10 @@ class MultiHistogramRefinement:
                 recorder.close("failed")
             raise
         finally:
+            # on every exit, a raised fit included, as
+            # ``Refinement._fit_lebail_alternation`` closes its own
+            if stream is not None and stream is not events:
+                stream.close()        # built here from a path or a callable
             if recorder is not None:
                 recorder.close()
 
@@ -981,19 +985,37 @@ class MultiHistogramRefinement:
             raise IndexError(f"histogram {histogram} of a {n}-histogram fit")
         if isinstance(plan, str):
             plan = PLAN_PRESETS[plan]()
-        table = self.mtable.tables[histogram]
-        held = [q for p in
-                (self.result_.stages[-1].held if self.result_.stages else [])
-                if (q := self.mtable._unscope(histogram, p)) is not None]
-        held_set = set(held)
+        answer = self._answer[histogram]
         return build_report(
             self.result_.for_histogram(histogram),
-            model=self._models[histogram], values=table.decode(table.x0()),
-            plan=plan, structure=self.mtable.structures[histogram], held=held,
-            # what ``Refinement._record_free_paths`` records: free, or held
-            # by the last stage
-            free_paths=[e.path for e in table.entries
-                        if e.vary or e.path in held_set], **kw)
+            model=self._models[histogram], values=answer["values"],
+            plan=plan, structure=answer["structure"], held=answer["held"],
+            free_paths=answer["free_paths"], **kw)
+
+    def _freeze_answer(self) -> list[dict]:
+        """What :meth:`report` reads, per histogram, beside the models.
+
+        Taken when the result is built, because the table is the working
+        state and the result is not: a later fit that is cancelled puts the
+        table back where its own stage found it, and a report that read the
+        live table then would pair those values with this result's models.
+        """
+        held_all = self.result_.stages[-1].held if self.result_.stages else []
+        out = []
+        for h, (table, structure) in enumerate(
+                zip(self.mtable.tables, self.mtable.structures, strict=True)):
+            held = [q for p in held_all
+                    if (q := self.mtable._unscope(h, p)) is not None]
+            held_set = set(held)
+            out.append({
+                "values": table.decode(table.x0()),
+                "structure": structure.model_copy(deep=True),
+                "held": held,
+                # what ``Refinement._record_free_paths`` records: free, or
+                # held by the last stage
+                "free_paths": [e.path for e in table.entries
+                               if e.vary or e.path in held_set]})
+        return out
 
     @contextmanager
     def _abandon_on_cancel(self, cancel, stage_name: str, completed: list, stream):

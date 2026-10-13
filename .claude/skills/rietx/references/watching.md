@@ -178,7 +178,7 @@ events instead: `stage_end` carries a `histograms` list, one row per
 histogram with its `histogram_index` and its Rwp. A cancel raises as in 9d.9,
 with `node_id` `None`, since a joint fit keeps no history.
 
-*(Measured: WP-1341, `[dev]` venv, macOS arm64 — the two-wavelength LaB6 pair
+*(Measured: WP-1341, `[dev]` venv, macOS arm64. The two-wavelength LaB6 pair
 logged one `fit_start`, five `stage_start` and `stage_end`, 38 `eval` and one
 `fit_end`, and the last `stage_end` rows equal each histogram's Rwp in the
 result, 0.0411 and 0.0613.)*

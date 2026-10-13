@@ -545,6 +545,21 @@ class MultiParameterTable:
         thetas = self.split(theta)
         return [self.tables[h].decode(thetas[h]) for h in range(len(self.tables))]
 
+    def free_values(self, theta: np.ndarray) -> list[float]:
+        """Physical values of :attr:`free_paths` at ``theta``, in that order.
+
+        :meth:`ParameterTable.free_values` across the stack (WP-1341).  Each
+        combined path is read from the histogram that owns it, and a shared
+        one from histogram 0, whose value scale is 1 (WP-1131), which is
+        where the joint result reads a shared row's value too.
+        """
+        decoded = self.decode(np.asarray(theta, dtype=np.float64))
+        out = []
+        for p in self.free_paths:
+            h = self._owner(p) or 0
+            out.append(float(decoded[h][self._unscope(h, p)]))
+        return out
+
     def commit(self, theta: np.ndarray) -> np.ndarray | None:
         """Each histogram's table commits its slice; the re-charting
         (``ParameterTable.commit``: moment signs, #604, or a body's composed
