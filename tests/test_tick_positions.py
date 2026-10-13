@@ -29,6 +29,7 @@ import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.crystallography.symmetry import reflection_label_row
 from rietx.model.forward import compile_model
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
@@ -36,7 +37,7 @@ from rietx.schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from rietx.schemas.pattern import PatternData
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from rietx.strategy.staged import RefinementPlan, Stage
-from rietx.viz.snapshot import stage_ticks
+from rietx.viz.snapshot import TWO_THETA_DECIMALS, stage_ticks
 
 OUT = Path(__file__).parent / "output"
 
@@ -125,7 +126,8 @@ def _tick_offsets(tt, y_calc, ticks, *, half=0.25, isolation=0.3,
     for k, c in enumerate(ticks):
         if (lo is not None and c < lo) or (hi is not None and c > hi):
             continue
-        if np.min(np.abs(np.delete(ticks, k) - c)) < isolation:
+        # a phase with one tick has no neighbour to be isolated from
+        if ticks.size > 1 and np.min(np.abs(np.delete(ticks, k) - c)) < isolation:
             continue
         apex = _apex(tt, y_calc, c, half)
         if apex is None:
@@ -138,6 +140,12 @@ def _tick_offsets(tt, y_calc, ticks, *, half=0.25, isolation=0.3,
 
 def _first_phase_ticks(result) -> list[float]:
     return result.ticks["rutile"]
+
+
+def _zoom_about(rows: np.ndarray, half: float = 0.7) -> tuple[float, float]:
+    """A window on the middle judged tick, wide enough to see peak and tick."""
+    centre = float(rows[len(rows) // 2, 0])
+    return centre - half, centre + half
 
 
 def _plot_with_zoom(result, stem: str, zoom: tuple[float, float]) -> None:
@@ -205,6 +213,8 @@ def test_a_kalpha2_tick_takes_its_own_lines_shift():
     assert np.any((gaps > 0.4) & (gaps < 0.5))
     worst = float(np.max(np.abs(rows[:, 1])))
     assert worst < BAR_DEG, f"a tick sits {worst:.4f} deg from its line's peak"
+    # both doublets of the judged range, each line with its own tick
+    _plot_with_zoom(result, "tick_positions_kalpha2", (116.0, 118.4))
 
 
 # ----------------------------------------------------------------------
@@ -240,7 +250,7 @@ def test_the_live_views_ticks_follow_every_geometry(make_instrument):
 
 
 @pytest.mark.parametrize("make_instrument", GEOMETRIES)
-def test_a_result_places_its_ticks_by_every_geometry(make_instrument):
+def test_a_result_places_its_ticks_by_every_geometry(make_instrument, request):
     """The result's builder, on the geometries a plan can leave nonzero.
 
     The fit frees only the scale and background, so the geometry stays at the
@@ -257,6 +267,8 @@ def test_a_result_places_its_ticks_by_every_geometry(make_instrument):
     assert len(rows) >= 10
     worst = float(np.max(np.abs(rows[:, 1])))
     assert worst < BAR_DEG, f"a result tick sits {worst:.4f} deg from its peak"
+    _plot_with_zoom(result, f"tick_positions_{request.node.callspec.id}",
+                    _zoom_about(rows))
 
 
 # ----------------------------------------------------------------------
@@ -284,6 +296,8 @@ def test_the_joint_runners_ticks_follow_each_histograms_displacement():
         worst = float(np.max(np.abs(rows[:, 1])))
         assert worst < BAR_DEG, (
             f"histogram {h}: a tick sits {worst:.4f} deg from its peak")
+        _plot_with_zoom(result.for_histogram(h), f"tick_positions_joint_{h}",
+                        _zoom_about(rows))
 
 
 # ----------------------------------------------------------------------
@@ -305,11 +319,48 @@ def test_a_zero_displacement_leaves_the_ticks_at_bragg_plus_zero():
     cp = model.phases[0]
     cell = tuple(values[f"phases.0.cell.{k}"]
                  for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-    lam = model.line_wavelengths[0]
-    bragg = cp.reflections.two_theta(cell, lam)
+    bragg = cp.reflections.two_theta(cell, model.line_wavelengths[0])
+
+    # the unrounded walk, against an independent sum
+    pos, _ = model.reflection_positions(0, values)
+    assert np.allclose(pos, bragg + 0.03, rtol=0.0, atol=1e-12, equal_nan=True)
+
+    # and what the live view prints is that sum rounded to its own decimals,
+    # so the expectation carries the same half-unit of rounding the builder does
     ticks = stage_ticks(model, values, max_per_phase=10**9)["phase 0"]["two_theta"]
     expected = np.sort(bragg[np.isfinite(bragg)] + 0.03)
-    assert np.allclose(ticks, expected, atol=1e-5, rtol=0.0)
+    half_unit = 0.5 * 10.0 ** -TWO_THETA_DECIMALS
+    assert len(ticks) == len(expected)
+    assert np.allclose(ticks, expected, rtol=0.0, atol=half_unit + 1e-12)
+
+
+def test_the_three_builders_share_one_walk_and_pair_positions_with_indices():
+    """``reflection_positions`` is the walk, and ticks and indices stay paired.
+
+    A doublet puts one reflection list twice, so the Miller indices are that
+    list tiled once per line and a Kα2 image carries its Kα1 partner's index.
+    The live view's rows are the walk's rows filtered, sorted and rounded
+    through one index, and nothing else.
+    """
+    ins = _flat_plate(radiation="CuKa", displacement=0.5)
+    structure = _rutile()
+    data = _simulate(ins, structure)
+    model = compile_model(structure, ins, data, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    values = table.decode(table.x0())
+
+    pos, hklm = model.reflection_positions(0, values)
+    n_reflections = len(model.phases[0].reflections.hklm)
+    assert len(model.line_wavelengths) == 2
+    assert len(pos) == len(hklm) == 2 * n_reflections
+    assert np.array_equal(hklm[:n_reflections], hklm[n_reflections:])
+
+    keep = np.isfinite(pos)
+    order = np.argsort(pos[keep], kind="stable")
+    row = stage_ticks(model, values, max_per_phase=10**9)["phase 0"]
+    assert row["two_theta"] == [round(float(p), TWO_THETA_DECIMALS)
+                                for p in pos[keep][order]]
+    assert row["hkl"] == [reflection_label_row(r) for r in hklm[keep][order]]
 
 
 def test_the_satellite_arms_lattice_follows_the_ticks_geometry():
@@ -334,3 +385,79 @@ def test_the_satellite_arms_lattice_follows_the_ticks_geometry():
     nearest = np.min(np.abs(ticks[:, None] - lattice[None, :]), axis=1)
     assert nearest.max() < 1e-4, (
         f"a tick sits {nearest.max():.4f} deg from the nearest lattice position")
+
+
+def test_the_satellite_arm_places_a_propagation_vectors_satellites_by_the_ticks():
+    """``_satellite_positions`` is the arm's other placement, held beside the lattice.
+
+    A phase carrying a propagation vector draws its satellites in the model, so
+    each of those drawn positions must be one the arm lists for that vector.
+    The arm added the zero alone, so with a 0.5 mm displacement every one of
+    them sat 0.14-0.26 deg from the satellite the model drew.
+    """
+    from rietx.report.satellites import _satellite_positions
+    from tests.test_satellites import _phase as modulated_phase
+
+    k = (0, 0, "1/2")
+    structure = Structure(phases=[modulated_phase(k)])
+    ins = _flat_plate(displacement=0.5)
+    ins.source.dispersion = None
+    data = _simulate(ins, structure)
+    model = compile_model(structure, ins, data, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    values = table.decode(table.x0())
+
+    pos, _ = model.reflection_positions(0, values)
+    n_lines = len(model.line_wavelengths)
+    is_satellite = np.tile(np.asarray(model.phases[0].reflections.is_satellite),
+                           n_lines)
+    drawn = pos[is_satellite & np.isfinite(pos)]
+    drawn = drawn[(drawn >= model.tt_min) & (drawn <= model.tt_max)]
+    assert len(drawn) >= 5, "the case must draw satellites for the claim to mean much"
+
+    listed = _satellite_positions(model, values, 0,
+                                  [structure.phases[0].propagation_vector])[0]
+    nearest = np.min(np.abs(drawn[:, None] - listed[None, :]), axis=1)
+    assert nearest.max() < 1e-4, (
+        f"a drawn satellite sits {nearest.max():.4f} deg from the arm's nearest")
+
+
+# ----------------------------------------------------------------------
+# the window a reflection is generated in
+# ----------------------------------------------------------------------
+def test_a_reflection_the_geometry_pushes_into_the_range_is_still_generated():
+    """The generation window follows the geometry's shift, not a fixed margin.
+
+    ``compile_model`` kept reflections whose Bragg angle fell within 0.5 deg of
+    the range after the zero.  A transparency of 0.04 pulls a 62 deg peak 2 deg
+    down, so rutile (002), at 62.76 deg Bragg, is drawn at 60.72 deg: inside a
+    range ending at 61.5, and outside the old window, which ended at 62.0.  The
+    oracle is the same model over a range that does not strain the window.
+    Without the reflection the live view shows no tick there, Layer 0 calls the
+    peak an impurity, and the curve loses the peak.
+    """
+    ins = _flat_plate(transparency=0.04)
+    structure = _rutile()
+    data = _simulate(ins, structure)
+    table = ParameterTable(structure, ins)
+    values = table.decode(table.x0())
+    hi = 61.5
+    narrow = compile_model(structure, ins, data, mode="rietveld",
+                           two_theta_limits=(20.0, hi))
+    wide = compile_model(structure, ins, data, mode="rietveld",
+                         two_theta_limits=(20.0, 70.0))
+
+    def in_range(model):
+        row = stage_ticks(model, values, max_per_phase=10**9)["phase 0"]
+        return np.asarray([t for t in row["two_theta"] if 20.0 <= t <= hi])
+
+    ticks_narrow, ticks_wide = in_range(narrow), in_range(wide)
+    assert np.any(np.abs(ticks_wide - 60.72) < 0.05), "the case lost its pushed peak"
+    assert len(ticks_narrow) == len(ticks_wide)
+    assert np.allclose(ticks_narrow, ticks_wide, rtol=0.0, atol=1e-5)
+
+    y_narrow = np.asarray(narrow.evaluate(values))
+    y_wide = np.asarray(wide.evaluate(values))[: len(y_narrow)]
+    assert np.allclose(narrow.tt, wide.tt[: len(y_narrow)])
+    worst = float(np.max(np.abs(y_narrow - y_wide)) / np.max(y_wide))
+    assert worst < 1e-3, f"the narrow model's curve is off the wide one's by {worst:.2e}"
