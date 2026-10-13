@@ -49,7 +49,7 @@ read a resolved split as *supported*). The oversized cell is **capped** by the
 line screen (`predicted_but_absent`, the windowed uncancellable count) and
 **refuted** by the generalised supercell check; the whole-profile Le Bail stays
 **mandatory for the forward direction** (`unmatched_observed`, Rwp for a
-reader), profile frozen at the peak list's width law. Layer 0's
+reader; `freeze_profile` is off, measured in `validation_plan`). Layer 0's
 `unmatched_calc` **cannot** serve (Le Bail assigns ~nothing to a phantom, so it
 fires on 68 % of the truth's reflections against 55 % of a doubled cell's), nor
 `unmatched_observed` as a caveat (its level is the *specimen's* — 10-188 across

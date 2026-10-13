@@ -375,17 +375,14 @@ def test_supercell_checks_ask_containment_and_refute_the_root2_cell(si):
     assert grade(caveats_for(root2, **kw), root2.found_by, kw["engines_run"]) == "low"
 
 
-def legacy_free(v: LeBailValidation) -> bool:
-    return v.absent_source == "line_screen" and v.n_stages == 2
-
-
 @pytest.mark.slow
 def test_validation_reads_the_screen_and_freezes_the_profile(si):
     """S1: ``validate_by_lebail`` with a peak list reports the screen's counts
     (``absent_source="line_screen"``), the truth at 0 in the window and the
-    doubled cell at most of its lines, and its plan has no profile stage;
-    without a peak list the fitted-background detector and the four-stage
-    plan are what an older caller gets."""
+    doubled cell at most of its lines; without a peak list the
+    fitted-background detector is what an older caller gets.  The plan keeps
+    its four stages either way, and drops the two width stages only on
+    ``freeze_profile=True`` (off by default, measured in ``validation_plan``)."""
     from rietx.indexing.workflow import validate_by_lebail, validation_plan
 
     data, ins, peaks = si
@@ -396,14 +393,16 @@ def test_validation_reads_the_screen_and_freezes_the_profile(si):
     assert v.predicted_but_absent_uncancellable == 0
     assert v.predicted_but_absent >= 3 and len(v.predicted_but_absent_two_theta) \
         == v.predicted_but_absent
-    assert v.n_stages == 2
+    assert v.n_stages == 4
+    frozen = validate_by_lebail(truth, data, ins, peaks=peaks, freeze_profile=True)
+    assert frozen.n_stages == 2 and frozen.predicted_but_absent == v.predicted_but_absent
     doubled = validate_by_lebail(_candidate(*SI_CELLS["cP 2a0"]), data, ins, peaks=peaks)
     assert doubled.predicted_but_absent_uncancellable_in_window >= 50
     # the screen's share is of merged lines, not of the fit's reflections
     assert doubled.n_lines_screened is not None
     assert doubled.predicted_but_absent > 0.5 * doubled.n_lines_screened
     assert doubled.n_lines_screened < doubled.n_reflections
-    assert v.n_lines_screened == 15 and legacy_free(v)
+    assert v.n_lines_screened == 15
     legacy = validate_by_lebail(truth, data, ins)
     assert legacy.absent_source == "fitted_background"
     assert legacy.predicted_but_absent_uncancellable_in_window is None
