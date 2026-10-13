@@ -631,6 +631,55 @@ def test_the_volume_prune_contains_every_lattice_in_the_box():
                     system, det, (det_lo, det_hi))
 
 
+def test_the_obliquity_prune_refuses_only_boxes_wholly_outside_the_domain():
+    """WP-1959: a box whose ρ interval lies wholly beyond ±cos 30° is refused.
+
+    The first box is from #780's phase 2, at depth ~45 inside a grid cell
+    that took 5.1 M boxes without a leaf.  There |ρ₁₃| ≈ 1.003, so the
+    metric is not even positive definite, yet the volume prune keeps it: B
+    appears twice in A·B·C − B·(E/2)², and the interval bound's upper end
+    stays positive.  Then soundness on random boxes: a refused box holds no
+    sampled point inside the domain, with both verdicts occurring.
+    """
+    from rietx.indexing.dichotomy import (
+        MAX_ANGLE_COSINE,
+        _af_interval,
+        _det_interval,
+        _outside_obliquity,
+    )
+
+    basis = metric_basis("monoclinic")
+    lo = np.array([0.18537583, 0.18122566, 0.17429635, 0.18022815])
+    hi = np.array([0.18539436, 0.18359719, 0.17430561, 0.18023696])
+    af_lo, af_hi = _af_interval(basis, lo, hi)
+    assert _det_interval(af_lo, af_hi)[1] > 0.0, "the volume prune now sees it"
+    assert _outside_obliquity(af_lo, af_hi)
+
+    rng = np.random.default_rng(1959)
+    verdicts = {True: 0, False: 0}
+    for system in ("monoclinic", "triclinic"):
+        basis = metric_basis(system)
+        n = basis.shape[0]
+        for _case in range(200):
+            lo = rng.uniform(0.004, 0.05, size=n)
+            hi = lo + rng.uniform(1e-4, 0.02, size=n)
+            af_lo, af_hi = _af_interval(basis, lo, hi)
+            if np.any(af_lo[:3] <= 0.0):
+                continue
+            refused = _outside_obliquity(af_lo, af_hi)
+            verdicts[refused] += 1
+            if not refused:
+                continue
+            for _trial in range(40):
+                af = basis.T @ (lo + rng.uniform(size=n) * (hi - lo))
+                inside = all(abs(af[p]) <= 2.0 * MAX_ANGLE_COSINE
+                             * np.sqrt(af[i] * af[j])
+                             for p, (i, j) in ((3, (1, 2)), (4, (0, 2)),
+                                               (5, (0, 1))))
+                assert not inside, (system, lo, hi, af)
+    assert verdicts[True] and verdicts[False], verdicts
+
+
 def test_the_duplicate_leaf_hash_resolves_every_axis_equally():
     """A leaf's identity must be relative **per component**, not to the largest one.
 

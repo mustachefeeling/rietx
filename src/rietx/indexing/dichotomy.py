@@ -33,8 +33,9 @@ d-spacing become a bound on θ with no per-system table.
 Three prunes run per box, cheapest first:
 
 1. **the metric cone** — the box's induced interval for det G* must intersect the
-   volume band, and a box whose diagonal A..F interval is entirely non-positive
-   is not a lattice;
+   volume band, a box whose diagonal A..F interval is entirely non-positive
+   is not a lattice, and a box with some reciprocal angle beyond the domain's
+   obliquity bound everywhere holds nothing the search may report (WP-1959);
 2. **line matching** — for each observed line in increasing Q, some trial hkl's
    [Q_min, Q_max] over the box must reach it within k·σ_eff; more than
    ``n_unindexed`` misses and the box is impossible.  Both are *monotone* under
@@ -262,7 +263,7 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
     CPU, with every box's answer unchanged.
     """
     af_lo, af_hi = _af_interval(basis, lo, hi)
-    if np.any(af_hi[:3] <= 0.0):
+    if np.any(af_hi[:3] <= 0.0) or _outside_obliquity(af_lo, af_hi):
         return None
     # A box lying entirely in "A < B" holds no cell this search needs to report:
     # permuting the axes is a setting change, so an equivalent description with
@@ -530,17 +531,61 @@ def _isq(x: tuple[float, float]) -> tuple[float, float]:
     return min(lo * lo, hi * hi), max(lo * lo, hi * hi)
 
 
-def _rho_interval(x_lo: float, x_hi: float, y: tuple[float, float],
-                  z: tuple[float, float]) -> tuple[float, float]:
-    """The off-diagonal as a **correlation**, clipped to the domain's obliquity."""
-    c = float(MAX_ANGLE_COSINE)
+def _rho_bounds(x_lo: float, x_hi: float, y: tuple[float, float],
+                z: tuple[float, float]) -> tuple[float, float] | None:
+    """The off-diagonal as a **correlation** over the box, unclipped.
+
+    ``None`` when a diagonal partner's interval reaches zero, where ρ is
+    unbounded and the box says nothing about it.
+    """
     if y[0] <= 0.0 or z[0] <= 0.0:
-        return -c, c
+        return None
     small = 2.0 * np.sqrt(y[0] * z[0])       # smallest denominator → largest |ρ|
     big = 2.0 * np.sqrt(y[1] * z[1])
     lo = x_lo / small if x_lo < 0.0 else x_lo / big
     hi = x_hi / small if x_hi > 0.0 else x_hi / big
+    return lo, hi
+
+
+def _rho_interval(x_lo: float, x_hi: float, y: tuple[float, float],
+                  z: tuple[float, float]) -> tuple[float, float]:
+    """The off-diagonal as a correlation, clipped to the domain's obliquity.
+
+    The clip is sound only for a box that reaches the domain, which
+    :func:`_outside_obliquity` has already established for every box
+    :func:`_det_interval` sees.
+    """
+    c = float(MAX_ANGLE_COSINE)
+    bounds = _rho_bounds(x_lo, x_hi, y, z)
+    if bounds is None:
+        return -c, c
+    lo, hi = bounds
     return max(lo, -c), min(hi, c)
+
+
+def _outside_obliquity(af_lo: np.ndarray, af_hi: np.ndarray) -> bool:
+    """Does some reciprocal angle lie beyond the domain's obliquity bound
+    everywhere in the box?
+
+    The domain is |ρᵢⱼ| ≤ :data:`MAX_ANGLE_COSINE` for every off-diagonal
+    (:func:`_inside_domain`), so such a box holds no cell the search may
+    report.  Nothing else refuses one (WP-1959).  The clip in
+    :func:`_rho_interval` turned an interval wholly past the bound into an
+    inverted one.  The expanded determinant cannot refuse it either, because
+    A·B·C − B·(E/2)² carries B twice and its interval bound loses the coupling.
+    Near a singular metric Q is dense, so every line keeps matching and the
+    subtree does not converge.  On #780's monoclinic case one grid cell at
+    |ρ₁₃| ≈ 1.003 took 5.1 M boxes without a leaf until this test refused it.
+    The ρ interval only narrows under bisection, so the prune is monotone.
+    """
+    c = float(MAX_ANGLE_COSINE)
+    for p, (i, j) in _OFFDIAG_PARTNERS.items():
+        bounds = _rho_bounds(float(af_lo[p]), float(af_hi[p]),
+                             (float(af_lo[i]), float(af_hi[i])),
+                             (float(af_lo[j]), float(af_hi[j])))
+        if bounds is not None and (bounds[0] > c or bounds[1] < -c):
+            return True
+    return False
 
 
 def _det_interval(af_lo: np.ndarray, af_hi: np.ndarray
@@ -555,8 +600,8 @@ def _det_interval(af_lo: np.ndarray, af_hi: np.ndarray
     and that is what makes the volume window prune at all.**  Writing
     G* = D^½ R D^½ with D the diagonal gives det G* = A·B·C·det R, so the
     off-diagonals enter only as ρᵢⱼ = G*ᵢⱼ/√(G*ᵢᵢG*ⱼⱼ) — which the search domain
-    already bounds by :data:`MAX_ANGLE_COSINE` (``_initial_box``, ``_stage_edges``
-    and ``_inside_domain`` all enforce it, so a box's cone-violating corners hold
+    already bounds by :data:`MAX_ANGLE_COSINE` (``_initial_box``, ``_stage_edges``,
+    ``_outside_obliquity`` and ``_inside_domain`` all enforce it, so a box's cone-violating corners hold
     nothing this search may report).  Interval arithmetic on the *expanded*
     determinant throws that coupling away: it evaluates −B·(E/2)² with E at the
     **domain's** maximum while A and C are at this **box's**, and the term then
