@@ -461,11 +461,13 @@ def test_a_collinear_partner_does_not_hold_the_only_real_phase(seed):
 
 
 def test_only_the_partner_scales_leave_the_marginal():
-    """A column moving only another phase's scale is left out; one moving this
-    phase's scale too stays, and so does every other kind of column."""
+    """A column moving only another phase's scale is left out, a displacement
+    beside it or not; one moving this phase's scale too stays, and so does
+    every other kind of column."""
     free = ["phases.0.scale", "phases.1.scale", "phases.1.cell.a", "vars.s",
-            "phases.0.atoms.0.biso"]
-    reach = {"vars.s": ["phases.0.scale", "phases.1.scale"]}
+            "phases.0.atoms.0.biso", "vars.k"]
+    reach = {"vars.s": ["phases.0.scale", "phases.1.scale"],
+             "vars.k": ["phases.0.atoms.0.biso", "phases.2.scale"]}
     assert _refine._significance_columns(free, [], reach, 0) == [
         "phases.0.scale", "phases.1.cell.a", "vars.s"]
     assert _refine._significance_columns(free, [], reach, 1) == [

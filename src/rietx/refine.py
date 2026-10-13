@@ -75,6 +75,7 @@ from .model.restraints import summarise_restraints
 from .model.rows import layout as row_layout
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import (
+    _SCALE_PATH,
     DEFAULT_SOLVER,
     SOLVERS,
     _jacobian_for,
@@ -1585,8 +1586,9 @@ def _phases_reached(columns: list[str], reach: dict[str, list[str]]) -> set[int]
 #: An occupancy path.  With :data:`_DISPLACEMENT_PATH` (an anisotropic ADP
 #: column reaches the U^ij components it drives, so ``biso|adp`` alone would
 #: keep it), the paths a column may move and still be left out of the
-#: significance (:func:`_significance_columns`): they rescale a phase's
-#: intensities and move no peak.
+#: significance (:func:`_significance_columns`), beside another phase's
+#: scale (``_SCALE_PATH``): they rescale a phase's intensities and move no
+#: peak.
 _OCCUPANCY_PATH = re.compile(r"^phases\.\d+\.atoms\.\d+\.occ$")
 
 
@@ -1594,16 +1596,12 @@ def _intensity_only_path(path: str) -> bool:
     return bool(_DISPLACEMENT_PATH.match(path) or _OCCUPANCY_PATH.match(path))
 
 
-#: A phase's scale path, and the phase it belongs to.
-_SCALE_PATH = re.compile(r"^phases\.(\d+)\.scale$")
-
-
 def _significance_columns(free: list[str], held: list[str],
                           reach: dict[str, list[str]], ip: int) -> list[str]:
     """The columns phase ``ip``'s scale significance is marginal over (WP-1523).
 
     Every free column, and the phase's own held columns, except a column that
-    moves only displacements or occupancies, or only other phases' scales.
+    moves only displacements, occupancies and other phases' scales.
     The freedom that inflates a fit to noise is where the peaks sit: a cell, a
     width, a zero shift (Davies, R. B., 1977, *Biometrika* 64, 247-254, a
     nuisance parameter present only under the alternative).  A column that
@@ -1638,8 +1636,8 @@ def _significance_columns(free: list[str], held: list[str],
 
     def left_out(column: str) -> bool:
         paths = moved(column)
-        return bool(paths) and (all(_intensity_only_path(p) for p in paths)
-                                or all(other_scale(p) for p in paths))
+        return bool(paths) and all(_intensity_only_path(p) or other_scale(p)
+                                   for p in paths)
 
     return [c for c in [*free, *(h for h in held if h not in free)]
             if not left_out(c)]
