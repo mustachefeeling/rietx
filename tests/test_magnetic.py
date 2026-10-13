@@ -2134,8 +2134,10 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # ``ParameterInterval``, a new answer type, 0.48, and its
     # ``StageResult.moment_angle_tests`` 0.49, and WP-1809's one-sided
     # distance restraints (``TetherRestraint``, ``AntiBumpRestraint``) 0.50, and
-    # WP-1317's ``SeriesResult.relative_paths`` and ``.angle_paths`` 0.51.
-    assert caps.schema_version == "0.51"
+    # WP-1317's ``SeriesResult.relative_paths`` and ``.angle_paths`` 0.51, and
+    # indexing C4's ``CellCandidate.n_search_unindexed`` and
+    # ``.unindexed_two_theta`` 0.52.
+    assert caps.schema_version == "0.52"
 
 
 def test_every_moment_dof_has_a_help_entry():

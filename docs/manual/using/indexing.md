@@ -637,7 +637,7 @@ something if they were given identical bounds.
 | `SearchSpecSpec.min_d_axis`, `SearchSpecSpec.max_d_axis` | 2 Å, 25 Å | the principal d-spacing range; raising the top costs exponentially |
 | `SearchSpecSpec.min_volume` | 15 Å³ | volume floor |
 | `SearchSpecSpec.max_volume` | Smith's envelope | volume ceiling, taken verbatim when declared |
-| `SearchSpecSpec.n_unindexed` | 2 | search lines a cell may leave unexplained and still be accepted |
+| `SearchSpecSpec.n_unindexed` | `None` | search lines a cell may leave unexplained: `None` is two, searched again by inlier count when no two engines agree; `"inliers"` that rule from the start; an int that count |
 | `SearchSpecSpec.n_search_lines` | 20 | observed lines the search is driven by, the strongest N |
 | `SearchSpecSpec.k_sigma` | 3 | matching window in units of each line's own σ |
 | `SearchSpecSpec.shift_allowance_deg` | 0 | a systematic allowance you measured |
@@ -673,10 +673,24 @@ vocabulary in the message; an empty centring list raises rather than skipping
 the system, because omitting the key is how a system keeps its full set; and a
 prior cell with a non-positive axis or an angle outside (0, 180)° raises too.
 
-`SearchSpecSpec.n_search_lines` is the one to leave alone. Raising it is neither
-free nor safe. A cell must index all but `n_unindexed` of those lines, an
+`SearchSpecSpec.n_search_lines` is the one to leave alone. Raising it is
+neither free nor safe. A cell must index all but two of those lines, an
 absolute budget, so every extra foreign line admitted can refute the true cell
 instead of merely ranking it lower.
+
+That is why a run that ends with no lattice two engines agree on is searched
+again by a count of inliers, the acceptance RANSAC uses
+{cite}`fischler1981`: a cell indexing 60 % of the search lines, the five
+strongest among them, is accepted, and `INDEX_INLIER_RETRY` says the answer came
+from that second pass. `n_unindexed="inliers"` searches that way from the start,
+and an int forbids the retry. Only such a run retries, because the inlier rule
+changes the set of candidates the panel ranks, and the ranking depends on that
+set. Under every rule, what a cell leaves is reported rather than hidden:
+`CellCandidate.n_search_unindexed` is the number of search lines it left, and
+`CellCandidate.unindexed_two_theta` lists every usable line it left, in 2θ: the
+residue a second phase would explain. A list whose lines carry one intensity,
+such as `PeakList.from_positions` without intensities, has no "strongest" to
+anchor, and keeps the count of two.
 
 A prior steers the search rather than gating it. A declared `prior_cells` entry
 puts its crystal system at the front of the queue, seeds the stochastic engine's

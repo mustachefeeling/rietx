@@ -160,13 +160,64 @@ DEFAULT_SEARCH_LINES = 20
 #: **~12 min against ~25** (against ~6 before this WP): the rule is a correctness
 #: change that is not free, and half its price was avoidable.
 SEARCH_POOL_MULTIPLE = 2
-#: Lines a search may leave unindexed and still accept a cell.  DICVOL06's own
-#: reported gain, and the single most valuable option here: without it one
-#: impurity line prunes the true box and the engine returns nothing, confidently.
-#: **Raising it manufactures cells** — every extra tolerated line is one more
-#: coincidence a wrong metric is allowed to have, so 2 is a default and 4 is a
-#: statement about the specimen, not a knob to turn when nothing is found.
+#: Lines a search may leave unindexed and still accept a cell, on the default
+#: first pass (``SearchSpec.n_unindexed=None``) and on a list with no anchor.
+#: DICVOL06's own reported gain: without a tolerance one impurity line prunes
+#: the true box and the engine returns nothing, confidently.  **Raising the
+#: count manufactures cells** — every extra tolerated line is one more
+#: coincidence a wrong metric is allowed to have — so 2 is a default and 4 is a
+#: statement about the specimen.  When the first pass ends with no lattice two
+#: engines agree on, the run is searched again under :data:`INLIERS`.
 DEFAULT_N_UNINDEXED = 2
+#: ``SearchSpec.n_unindexed`` value that accepts by inlier count
+#: (:data:`INLIER_FRACTION`): what a default run retries under, and what a
+#: caller may declare to search that way from the start.
+INLIERS = "inliers"
+#: **The inlier rule counts inliers, it does not cap outliers** (RANSAC's
+#: acceptance, Fischler & Bolles 1981, *Commun. ACM* 24, 381,
+#: doi:10.1145/358669.358692).  Under :data:`INLIERS` a cell is accepted when it
+#: indexes at least ``max(n_dof + INLIER_DOF_MARGIN, ⌈INLIER_FRACTION · N⌉)`` of
+#: the N lines the search is driven by, *and* the :data:`ANCHOR_LINES` strongest
+#: of them; how many it leaves is an **output** (``CellCandidate.
+#: n_search_unindexed``, ``unindexed_two_theta``) under every rule.
+#:
+#: Why a fraction and not the old absolute 2: an exhaustive search over a list
+#: carrying more off-lattice lines than the cap *completes* and says "no cell".
+#: Measured on a synthetic Si pattern (λ 0.8257 Å, 12.1–60°) with twelve planted
+#: lines at 1–5 % of the strongest, 53 usable: a cubic search at a cap of 2 or 3
+#: returns no candidate within 1 % of the truth (rank 1 is a 15.6 or 7.7 Å P
+#: cell indexing 44–53 of 53); at 8 of 20 driven lines the truth is rank 1, found
+#: by two engines.  0.6 is that measurement's 12 of 20 (0.7 and 0.75 lose the
+#: truth there again, and 8 anchors put a planted line among them); Le Bail
+#: (2004, *Powder Diffr.* 19, 249)'s "under 35 % impurity lines by number the
+#: correct cell is generally first" is the published bound it sits inside.
+#:
+#: **Why a retry and not the default for every run**: it changes the pool the
+#: panel's Borda count ranks, and that ranking is not independent of the pool.
+#: On SRM 660c LaB6 as picked (four systems), the inlier rule's anchors take
+#: the merged pool from 171 lattices to 129 and the certified cubic cell from
+#: rank 1 to rank 3, behind a 0.13 %-distorted tetragonal description and its
+#: isospectral half cell, although it beats both on five of the seven members.
+#: A run whose first pass found a lattice two engines agree on is therefore
+#: left exactly as it was.
+INLIER_FRACTION = 0.6
+#: Inliers beyond the metric's own degrees of freedom: a cell with n_dof free
+#: A..F parameters fits any n_dof lines exactly, so the count only means
+#: something past them, and four spare lines is the minimal-subset-plus-
+#: verification margin RANSAC's acceptance needs.  Binds only on short lists
+#: (N < 17 for triclinic); at N = 20 the fraction decides for every system.
+INLIER_DOF_MARGIN = 4
+#: Strongest driven lines every accepted cell must index.  **What stops a
+#: fraction from manufacturing cells**: an oversized cell explains impurity lines
+#: by having a reflection everywhere, but a cell that misses one of the
+#: pattern's strongest lines is not the pattern's cell whatever it covers
+#: elsewhere.  Ties in intensity fall back to Q order, the rule
+#: :func:`search_line_order` follows; a list whose driven lines all carry one
+#: intensity (a position-only list) has no anchor, and therefore keeps the
+#: absolute :data:`DEFAULT_N_UNINDEXED` (:meth:`SearchSpec.miss_budget`).  The
+#: anchor is also a sound prune for the exhaustive engine — a box none of whose
+#: reflections can reach an anchor line has no sub-box that can.
+ANCHOR_LINES = 5
 #: Systematic 2θ allowance (degrees) added in quadrature to every line's fitted σ
 #: when **no shift has been measured** — which is the normal state at index time,
 #: because a shift is only identifiable against a reference and there is no cell
@@ -277,7 +328,11 @@ class SearchSpec:
     max_d_axis: float = DEFAULT_MAX_D_AXIS
     min_volume: float = DEFAULT_MIN_VOLUME
     max_volume: float | dict[str, float] | None = None
-    n_unindexed: int = DEFAULT_N_UNINDEXED
+    #: ``None`` (the default): :data:`DEFAULT_N_UNINDEXED` driven lines may go
+    #: unindexed, and a run that ends with no lattice two engines agree on is
+    #: searched again under :data:`INLIERS`; ``"inliers"``: the inlier rule
+    #: from the start; an int: that absolute count, the pre-1.9 rule
+    n_unindexed: int | str | None = None
     n_search_lines: int = DEFAULT_SEARCH_LINES
     k_sigma: float = MATCH_SIGMA
     #: systematic 2θ **allowance** the matching window must span (°), the
@@ -317,6 +372,13 @@ class SearchSpec:
     #: what was supplied and what it changed.
     prior_cells: tuple[tuple[float, float, float, float, float, float], ...] = ()
     prior_spacegroups: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        n = self.n_unindexed
+        if isinstance(n, str) and n != INLIERS:
+            raise ValueError(f"n_unindexed={n!r}: an int, {INLIERS!r} or None")
+        if isinstance(n, int) and not isinstance(n, bool) and n < 0:
+            raise ValueError(f"n_unindexed={n} is negative")
 
     @classmethod
     def from_formula(cls, formula: str, *,
@@ -391,6 +453,45 @@ class SearchSpec:
         if self.centrings is not None and system in self.centrings:
             return self.centrings[system]
         return CENTRINGS.get(system, ("P",))
+
+    @property
+    def inliers(self) -> bool:
+        """Is this search accepting by inlier count (:data:`INLIERS`)?"""
+        return self.n_unindexed == INLIERS
+
+    def miss_budget(self, n_search: int, system: str | None = None, *,
+                    anchored: bool = True) -> int:
+        """Driven lines a cell may leave unindexed — the one authority.
+
+        A declared int verbatim; :data:`DEFAULT_N_UNINDEXED` for the default
+        (``None``) and for a list with no anchor (``anchored=False``: its driven
+        lines carry one intensity, see :func:`search_anchors`); else, under
+        :data:`INLIERS`, what the inlier rule leaves: N minus
+        ``max(n_dof + INLIER_DOF_MARGIN, ⌈INLIER_FRACTION·N⌉)``, never below
+        zero.  ``system=None`` drops the n_dof term, which is the
+        figure the FoM panel trims by (:func:`~rietx.indexing.fom.trimmed_mean`:
+        a score must tolerate what the search tolerated, and the panel ranks
+        candidates of every system against one another, so it takes the
+        system-free count — equal to every system's at N ≥ 17).
+
+        **No anchor, no fraction**, and both halves were measured on
+        position-only lists, where every intensity is 1: a tetragonal list
+        cropped below its long axis's lines gained a 20 × 2.7 Å cell the old
+        rule refused (``test_a_dominant_row_is_raised_from_the_engines_own_
+        experience``), and the exhaustive monoclinic search lost its pruning —
+        ~85 s to past its 900 s budget.  The anchor is what makes the fraction
+        safe, so a list that cannot have one keeps the absolute count.
+        """
+        if self.n_unindexed is None or not self.inliers:
+            return (DEFAULT_N_UNINDEXED if self.n_unindexed is None
+                    else int(self.n_unindexed))
+        if not anchored:
+            return DEFAULT_N_UNINDEXED
+        n = max(int(n_search), 0)
+        need = math.ceil(INLIER_FRACTION * n - 1e-9)
+        if system is not None:
+            need = max(need, METRIC_DOF.get(system, 6) + INLIER_DOF_MARGIN)
+        return max(n - min(need, n), 0)
 
     def volume_limit(self, system: str, fallback: float) -> float:
         if self.max_volume is None:
@@ -1119,6 +1220,29 @@ def shift_allowance_diagnostic(allowance_deg: float) -> Diagnostic:
                     "an internal standard"))
 
 
+def inlier_retry_diagnostic(n_first: int) -> Diagnostic:
+    """``INDEX_INLIER_RETRY`` — the default run found no lattice two engines
+    agree on under the absolute count, and searched again under :data:`INLIERS`.
+    Reported because the answer then rests on the second rule, and because
+    each candidate's ``n_search_unindexed`` is the number to read."""
+    return Diagnostic(
+        level="info", code="INDEX_INLIER_RETRY",
+        message=(f"no lattice two engines agree on came back while a cell could "
+                 f"leave at most {DEFAULT_N_UNINDEXED} search lines unindexed "
+                 f"({n_first} candidate(s) from single engines), so the search "
+                 f"ran again accepting a cell that indexes at least "
+                 f"{INLIER_FRACTION:.0%} of the search lines and the "
+                 f"{ANCHOR_LINES} strongest — the reading of a list carrying "
+                 "foreign lines: an impurity, a container halo, unresolved "
+                 "shoulders"),
+        where=[f"n_unindexed = {INLIERS!r} (retry)"],
+        suggestion=("read each candidate's n_search_unindexed and "
+                    "unindexed_two_theta: a cell that leaves the weak lines is "
+                    "the phase and the residue is a second phase or the "
+                    "picker's junk; declare n_unindexed='inliers' to search "
+                    "this way from the start, or an int to forbid the retry"))
+
+
 def shift_from_pairs_diagnostic(shift) -> Diagnostic:
     """``INDEX_SHIFT_FROM_PAIRS`` — a systematic 2θ shift was **measured** from the
     peak list alone, and this is what it says.
@@ -1204,8 +1328,43 @@ def refine_with_shift(fit, spec: SearchSpec, system: str, q_all: np.ndarray,
     return shifted
 
 
+def search_anchors(peaks: PeakList, search: np.ndarray,
+                   spec: SearchSpec) -> np.ndarray:
+    """The driven lines every accepted cell must index (:data:`ANCHOR_LINES`).
+
+    The strongest of ``search``, ties broken by Q exactly as
+    :func:`search_line_order` breaks them; empty unless the search accepts
+    under :data:`INLIERS` — an absolute count has no anchor.
+
+    **Empty too when the driven lines carry one intensity**, which is what a
+    position-only list (:meth:`PeakList.from_positions`) has: "strongest" is
+    then not a measurement, and anchoring the lowest-Q lines in its place would
+    let an assumed intensity refuse a cell — measured, a tetragonal list with
+    one mid-gap impurity at 13.96° lost its truth that way.  Such a list is
+    accepted on the inlier count alone.
+    """
+    if not spec.inliers or not len(search):
+        return np.zeros(0, dtype=np.int64)
+    q = peaks.q()[search]
+    inten = peaks.intensity()[search]
+    if not len(inten) or float(np.ptp(inten)) == 0.0:
+        return np.zeros(0, dtype=np.int64)
+    k = min(ANCHOR_LINES, len(search))
+    return np.sort(np.asarray(search)[np.lexsort((q, -inten))[:k]])
+
+
+def search_acceptance(peaks: PeakList, search: np.ndarray, spec: SearchSpec,
+                      system: str | None = None) -> tuple[int, np.ndarray]:
+    """``(miss budget, anchor lines)`` for one search — what every engine's
+    acceptance and the panel's trim read, so the four cannot disagree."""
+    anchors = search_anchors(peaks, search, spec)
+    return (spec.miss_budget(len(search), system, anchored=bool(len(anchors))),
+            anchors)
+
+
 def indexes_the_search_lines(line_index: np.ndarray, search: np.ndarray,
-                             n_unindexed: int) -> bool:
+                             n_unindexed: int,
+                             anchors: np.ndarray | None = None) -> bool:
     """Did this candidate index the lines the search was **driven by**?
 
     The acceptance bar has to be "all but ``n_unindexed`` of the *search* lines",
@@ -1215,9 +1374,16 @@ def indexes_the_search_lines(line_index: np.ndarray, search: np.ndarray,
     a 4-parameter metric indexes 18 of 75 lines by coincidence without difficulty.
     The first reading is also the honest one — those are the lines whose failure
     the tolerated-unindexed count was chosen against.
+
+    ``n_unindexed`` is :meth:`SearchSpec.miss_budget` — the inlier rule's
+    leftover by default, a declared count otherwise — and ``anchors``
+    (:func:`search_anchors`) must all be among the indexed lines.
     """
     if not len(search):
         return True
+    if anchors is not None and len(anchors) and not bool(
+            np.all(np.isin(anchors, line_index))):
+        return False
     hit = int(np.count_nonzero(np.isin(search, line_index)))
     return hit >= len(search) - n_unindexed
 
@@ -1278,6 +1444,7 @@ def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
                       k_sigma: float = MATCH_SIGMA, n_unindexed: int = 0,
                       diagnostics: Sequence[Diagnostic] = (),
                       q_match: np.ndarray | None = None,
+                      search: np.ndarray | None = None,
                       ) -> CellCandidate:
     """Score a candidate with the whole FoM panel and pack it for reporting.
 
@@ -1286,7 +1453,14 @@ def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
     above the truth (``fom.py``'s module docstring).  This function is where an
     engine's internal answer becomes a comparable one, so it is also where the
     reflection ceiling is checked one last time: ``fom_panel`` enumerates.
+
+    ``search`` is the driven set (:func:`search_line_order`); given it and the
+    engine's assignment, the candidate carries what the inlier rule leaves —
+    ``n_search_unindexed`` and the residue ``unindexed_two_theta``.
     """
+    # a caller handing ``spec.n_unindexed`` straight through hands ``None``
+    # under the inlier rule; the trim is then the panel's own business
+    n_unindexed = int(n_unindexed or 0)
     engine_fit = cand.fit
     fit, change = conventional_fit(engine_fit, cand.system, cand.centring)
     tt_esd = peaks.two_theta_esd()
@@ -1301,6 +1475,13 @@ def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
                           n_unindexed=n_unindexed, q_match=q_match)
     esd = np.asarray(fit.cell_esd, dtype=np.float64)
     vol_esd = _volume_esd(fit)
+    n_left, residue = None, None
+    if search is not None and cand.line_index is not None:
+        assigned = np.asarray(cand.line_index, dtype=np.int64)
+        n_left = int(np.count_nonzero(~np.isin(np.asarray(search), assigned)))
+        tt_raw = peaks.two_theta()
+        residue = [float(v) for v in np.sort(
+            tt_raw[np.setdiff1d(np.arange(len(tt_raw)), assigned)])]
     return CellCandidate(
         cell=tuple(float(v) for v in fit.cell),
         cell_esd=tuple(float(v) for v in esd),
@@ -1311,6 +1492,7 @@ def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
         engine_cell=tuple(float(v) for v in engine_fit.cell),
         change_of_basis=change or IDENTITY_CHANGE,
         n_indexed=cand.n_indexed, n_lines=cand.n_lines,
+        n_search_unindexed=n_left, unindexed_two_theta=residue,
         chi2_red=float(fit.chi2_red),
         shift_template=fit.shift_template,
         shift_coefficient=float(fit.shift_coefficient),
@@ -1708,6 +1890,7 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
     engine assigned lines with, or the panel judges these candidates by a window
     they were never selected under (:func:`~rietx.indexing.fom.fom_panel`).
     """
+    n_unindexed = int(n_unindexed or 0)
     # ``deduped``: the caller's list is exactly what :func:`dedup_candidates`
     # just returned, and a second pass over that is the identity — the survivors
     # come back in the same (stable) order, each meets the same first members in
@@ -2210,6 +2393,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "DEFAULT_MAX_D_AXIS", "DEFAULT_MIN_D_AXIS", "DEFAULT_MIN_VOLUME",
            "DEFAULT_N_UNINDEXED", "DEFAULT_SEARCH_LINES",
+           "ANCHOR_LINES", "INLIERS", "INLIER_DOF_MARGIN", "INLIER_FRACTION",
            "SEARCH_POOL_MULTIPLE",
            "MAX_PREDICTED_REFLECTIONS", "MEASURED_TYPICAL_SECONDS",
            "MEASURED_VALIDATION_SECONDS", "MODELLED_ENGINES",
@@ -2223,9 +2407,10 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "effective_shift_allowance", "engine_descriptions", "engine_names",
            "estimate_ceiling", "indexes_the_search_lines", "match_window",
            "merge_engine_units", "refine_with_shift",
-           "scored_positions", "search_line_order", "search_volume_ceiling",
+           "scored_positions", "search_acceptance", "search_anchors",
+           "search_line_order", "search_volume_ceiling",
            "shift_allowance_diagnostic",
-           "shift_from_pairs_diagnostic",
+           "shift_from_pairs_diagnostic", "inlier_retry_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "solution_key",
            "to_cell_candidate", "trial_hkl"]

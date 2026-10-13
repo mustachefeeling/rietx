@@ -46,6 +46,7 @@ from .engines import (
     effective_shift_allowance,
     indexes_the_search_lines,
     refine_with_shift,
+    search_acceptance,
     search_line_order,
     search_volume_ceiling,
     trial_hkl,
@@ -311,7 +312,9 @@ def _check_one(cell, system: str, centring: str, spec: SearchSpec,
         return None
     if not (spec.min_volume <= fit.volume <= vol_max):
         return None
-    if not indexes_the_search_lines(line_index, search, spec.n_unindexed):
+    if not indexes_the_search_lines(line_index, search,
+                                    *search_acceptance(peaks, search, spec,
+                                                       system)):
         return None
     fit = refine_with_shift(fit, spec, system, q_all, sigma, tt_all,
                             peaks.wavelength, line_index, hkl)

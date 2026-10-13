@@ -430,7 +430,12 @@ from .._nearmiss import did_you_mean
 #: wraps what the fences do.  Additive and defaulted to ``None``, "not
 #: recorded", the 0.25 → 0.26 rule; ``SequentialRefinement.fit`` writes both
 #: on every result, the backward chain's included.
-SCHEMA_VERSION = "0.51"
+#: 0.51 → 0.52 (indexing C4): ``CellCandidate.n_search_unindexed`` and
+#: ``.unindexed_two_theta``, the search's acceptance as an output (the inlier
+#: rule replaces the absolute ``n_unindexed`` cap, which a ``SearchSpecSpec``
+#: still accepts as a declared int, its default now ``None``).  Additive and
+#: defaulted to ``None``, "not computed", the 0.25 → 0.26 rule.
+SCHEMA_VERSION = "0.52"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

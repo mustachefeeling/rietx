@@ -27,7 +27,7 @@ once rather than re-derived by each engine.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 import numpy as np
 from pydantic import Field, field_validator, model_validator
@@ -1100,6 +1100,16 @@ class CellCandidate(Base):
                            tuple[int, int, int]] | None = None
     n_indexed: int = 0
     n_lines: int = 0
+    #: driven lines (``engines.search_line_order``) this cell leaves unindexed:
+    #: since the inlier rule the search's acceptance reports this count rather
+    #: than capping it (``engines.INLIER_FRACTION``).  Written by
+    #: :func:`~rietx.indexing.engines.to_cell_candidate` when it is handed the
+    #: driven set; ``None`` = not computed
+    n_search_unindexed: int | None = None
+    #: 2θ (°) of every usable line this cell leaves unindexed, ascending — the
+    #: residue a second-phase pass would index next.  Same writer and the same
+    #: ``None`` as :attr:`n_search_unindexed`
+    unindexed_two_theta: list[float] | None = None
     chi2_red: float = 0.0
     shift_template: str | None = None
     shift_coefficient: float = 0.0
@@ -1388,18 +1398,26 @@ class SearchSpecSpec(Base):
         "caller's own act. None takes Smith's (1977) per-system envelope from "
         "the data-quality report (which differs by up to 96x across systems), "
         "with the calibration slack the engines apply to a mean line"))
-    n_unindexed: int = Field(2, ge=0, description=(
-        "search lines a cell may leave unindexed and still be accepted. Raising "
-        "it MANUFACTURES cells — every tolerated line is one more coincidence a "
-        "wrong metric is allowed — so 2 is a default and 4 is a statement about "
-        "the specimen"))
+    n_unindexed: Annotated[int, Field(ge=0)] | Literal["inliers"] | None = Field(
+        None, description=(
+            "None (default): a cell may leave 2 search lines unindexed, and a "
+            "run that ends with no lattice two engines agree on is searched "
+            "again under 'inliers' (INDEX_INLIER_RETRY). 'inliers': accept a "
+            "cell indexing at least 60 % of the search lines (and n_dof + 4) "
+            "including the 5 strongest — a list whose lines carry one "
+            "intensity has no 'strongest' and keeps 2. An int: that absolute "
+            "count, no retry; raising it MANUFACTURES cells — every tolerated "
+            "line is one more coincidence a wrong metric is allowed — so it is "
+            "a statement about the specimen. Every rule reports what a cell "
+            "left (CellCandidate.n_search_unindexed)"))
     n_search_lines: int = Field(20, ge=2, description=(
         "observed lines the search is DRIVEN by — the strongest N, scored "
         "afterwards against every usable line. Raising it is not free and not "
-        "safe: a cell must index all but n_unindexed of THESE, an absolute "
-        "budget, so every extra foreign line admitted can refute the true cell "
-        "rather than merely rank it lower (measured: a 68-line list loses its "
-        "certified lattice entirely at 32)"))
+        "safe: under a declared n_unindexed a cell must index all but that "
+        "many of THESE, an absolute budget, so every extra foreign line "
+        "admitted can refute the true cell rather than merely rank it lower "
+        "(measured: a 68-line list loses its certified lattice entirely at "
+        "32); the default inlier rule scales with N instead"))
     k_sigma: float = Field(3.0, gt=0.0, description=(
         "matching window in units of each line's own sigma; 3 is a calibrated "
         "99.7 % window, not a knob"))

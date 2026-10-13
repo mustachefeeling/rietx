@@ -46,11 +46,13 @@ def test_the_centred_replay_on_survivors_is_the_whole_set_replay(
     verdicts = {True: 0, False: 0}
 
     def checking(m_full, rows, member, lo, hi, basis, q_hi, det_band, swaps,
-                 lo_search, hi_search, n_unindexed):
+                 lo_search, hi_search, n_unindexed, anchors=None):
         got = original(m_full, rows, member, lo, hi, basis, q_hi, det_band,
-                       swaps, lo_search, hi_search, n_unindexed)
+                       swaps, lo_search, hi_search, n_unindexed,
+                       anchors=anchors)
         want = _test_box(m_full[member], lo, hi, basis, q_hi, det_band, swaps,
-                         lo_search, hi_search, n_unindexed) is not None
+                         lo_search, hi_search, n_unindexed,
+                         anchors=anchors) is not None
         assert got == want
         verdicts[got] += 1
         return got

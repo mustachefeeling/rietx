@@ -298,6 +298,9 @@ def run_one(bench: dict, name: str, mode: str, *,
     rank = gallery.rank_of_lattice(ranking, truth_cell(bench),
                                    bench["answer"]["centring"], TRUTH_BAND)
     n_unexplained = 20 - best_offset(bench, name)[1]
+    # a position-only list carries one intensity, so it has no anchor and keeps
+    # the absolute count (``SearchSpec.miss_budget``) unless the mode declares one
+    budget = spec.miss_budget(20, anchored=False)
     return {
         "set": name, "mode": mode,
         "elapsed_s": round(elapsed, 1),
@@ -309,10 +312,10 @@ def run_one(bench: dict, name: str, mode: str, *,
         "search_complete": dict(result.search_complete),
         "n_candidates": len(ranking),
         "n_unexplained": n_unexplained,
-        "n_unindexed": spec.n_unindexed,
+        "n_unindexed": budget,
         # a set the mode cannot win: the truth would have to leave more lines
         # unindexed than the protocol tolerates, which no search can fix
-        "reachable": n_unexplained <= spec.n_unindexed,
+        "reachable": n_unexplained <= budget,
         "truth_rank": rank,
         "truth_found_by": (list(result.candidates[rank - 1].found_by)
                            if rank is not None else []),

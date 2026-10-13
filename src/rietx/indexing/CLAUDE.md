@@ -323,6 +323,12 @@ roughly the shift (+1400 ppm).
 - **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
   rule this package cannot have** (WP-1039, `engines.search_line_order`). *Which*
   twenty beats *how many* (NAC: 6 of the truth's lines in 2θ order, 18 by intensity
-  over a `SEARCH_POOL_MULTIPLE` low-Q pool), and raising N *loses* answers, since
-  `indexes_the_search_lines` is an **absolute** budget. Ties fall back to Q, so
-  position-only lists are untouched.
+  over a `SEARCH_POOL_MULTIPLE` low-Q pool), and under a *declared* `n_unindexed`
+  raising N *loses* answers, that count being an **absolute** budget. Ties fall
+  back to Q, so position-only lists are untouched.
+- **No agreement → the whole run again on inliers** (C4, `INDEX_INLIER_RETRY`):
+  `SearchSpec.miss_budget`/`engines.search_acceptance` is the one authority for
+  acceptance, the dichotomy prunes (anchor included) and the panel trim. Never
+  the default for every run — it moves the pool Borda ranks (LaB6 rank 1 → 3);
+  no anchor (one intensity), no fraction. Candidates report
+  `n_search_unindexed`/`unindexed_two_theta` under every rule.

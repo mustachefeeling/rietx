@@ -690,6 +690,7 @@ def index_pattern(peaks: PeakList | None = None, *,
     from .diagnostics import candidate_diagnostics, index_diagnostics
     from .engines import (
         DEFAULT_SEARCH_PRESET,
+        INLIERS,
         SEARCH_PRESETS,
         SYSTEM_ORDER,
         Deadline,
@@ -698,7 +699,10 @@ def index_pattern(peaks: PeakList | None = None, *,
         budget_exhausted_diagnostic,
         engine_names,
         get_engine,
+        inlier_retry_diagnostic,
         merge_engine_units,
+        search_anchors,
+        search_line_order,
         single_engine_diagnostic,
     )
     from .pick import pick_peaks
@@ -825,27 +829,47 @@ def index_pattern(peaks: PeakList | None = None, *,
         # its dominant-zone probe explains a *whole-run* silence, which a
         # per-system unit cannot know — deferred below, asked once
         unit_kwargs["trial_error"]["probe"] = False
-    units: dict[str, list] = {name: [] for name in names}
-    for system in ordered_systems:
-        if search_cancel is not None and bool(search_cancel):
-            break
-        for name in names:
+    def run_units(spec):
+        units: dict[str, list] = {name: [] for name in names}
+        for system in ordered_systems:
             if search_cancel is not None and bool(search_cancel):
                 break
-            unit_spec = replace(spec, systems=(system,))
-            units[name].append(get_engine(name)(
-                peaks, spec=unit_spec, quality=quality, cancel=search_cancel,
-                progress=progress, **unit_kwargs[name]))
-        if stream is not None \
-                and not (search_cancel is not None and bool(search_cancel)):
-            # a *completed* system has been through consensus and streams
-            # graded (WP-1042); a system the token interrupted has not, and
-            # its candidates stay provisional in the log
-            _stream_system_snapshot(progress, system, units, names, peaks,
-                                    spec, quality, top)
+            for name in names:
+                if search_cancel is not None and bool(search_cancel):
+                    break
+                unit_spec = replace(spec, systems=(system,))
+                units[name].append(get_engine(name)(
+                    peaks, spec=unit_spec, quality=quality,
+                    cancel=search_cancel, progress=progress,
+                    **unit_kwargs[name]))
+            if stream is not None \
+                    and not (search_cancel is not None and bool(search_cancel)):
+                # a *completed* system has been through consensus and streams
+                # graded (WP-1042); a system the token interrupted has not,
+                # and its candidates stay provisional in the log
+                _stream_system_snapshot(progress, system, units, names, peaks,
+                                        spec, quality, top)
+        return [merge_engine_units(units[name]) for name in names
+                if units[name]]
 
-    results = [merge_engine_units(units[name]) for name in names
-               if units[name]]
+    results = run_units(spec)
+    retry_spec = replace(spec, n_unindexed=INLIERS)
+    if (spec.n_unindexed is None and _no_agreement(results)
+            and not (search_cancel is not None and bool(search_cancel))
+            # a list of one intensity has no anchor, so its inlier rule *is*
+            # the count of two and a retry would repeat the first pass
+            and len(search_anchors(peaks, search_line_order(peaks, spec),
+                                   retry_spec))):
+        # the inlier retry (indexing C4): the absolute count of two is what a
+        # list with more foreign lines than that cannot pass, so a run that
+        # ends with no lattice two engines agree on is searched again under
+        # the inlier rule — and only such a run, because the rule changes the
+        # pool the panel ranks (``engines.INLIER_FRACTION``)
+        first = sum(len(r.candidates) for r in results)
+        spec = retry_spec
+        results = run_units(spec)
+        if results:
+            results[0].diagnostics.append(inlier_retry_diagnostic(first))
     trial = next((r for r in results if r.engine == "trial_error"), None)
     if (trial is not None and not trial.candidates and trial.systems_searched
             and not (search_cancel is not None and bool(search_cancel))):
@@ -997,6 +1021,20 @@ def _emit_end(stream, result) -> None:
                 validated=result.validated)
 
 
+def _no_agreement(results) -> bool:
+    """No lattice that :data:`~rietx.indexing.engines.MIN_AGREEMENT` engines
+    stand behind — or, with fewer engines than that, no candidate at all.  The
+    inlier retry's trigger: what the absolute count leaves when it is the cap
+    that bound (no cell, or only single-engine cells that explain the foreign
+    lines by having a line everywhere)."""
+    from .consensus import merge_engine_candidates
+    from .engines import MIN_AGREEMENT, corroborated
+
+    if len(results) < MIN_AGREEMENT:
+        return not any(r.candidates for r in results)
+    return not any(corroborated(c) for c in merge_engine_candidates(results))
+
+
 def _spec_notes(spec, names: Sequence[str], quality,
                 preset: str) -> dict[str, str]:
     """The search's own settings, recorded so a run is reproducible from what it
@@ -1011,6 +1049,8 @@ def _spec_notes(spec, names: Sequence[str], quality,
     chairs handing identical controls to this run produce identical notes,
     which is what the WP's acceptance asserts.
     """
+    from .engines import ANCHOR_LINES, DEFAULT_N_UNINDEXED, INLIER_FRACTION
+
     optional = {
         "max_volume": None if spec.max_volume is None else (
             f"{spec.max_volume:g}" if not isinstance(spec.max_volume, dict)
@@ -1035,7 +1075,12 @@ def _spec_notes(spec, names: Sequence[str], quality,
         "systems": ", ".join(spec.systems),
         "d_axis_range_A": f"{spec.min_d_axis:g}-{spec.max_d_axis:g}",
         "min_volume": f"{spec.min_volume:g}",
-        "n_unindexed": str(spec.n_unindexed),
+        "n_unindexed": (
+            f"{DEFAULT_N_UNINDEXED}, then inliers if no two engines agree"
+            if spec.n_unindexed is None
+            else f"inliers >= {INLIER_FRACTION:g}·N and the {ANCHOR_LINES} "
+                 f"strongest ({DEFAULT_N_UNINDEXED} on a list of one "
+                 "intensity)" if spec.inliers else str(spec.n_unindexed)),
         "n_search_lines": str(spec.n_search_lines),
         "k_sigma": f"{spec.k_sigma:g}",
         "shift_allowance_deg": f"{spec.shift_allowance_deg:g}",

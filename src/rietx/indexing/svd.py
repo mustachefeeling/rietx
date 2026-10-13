@@ -177,6 +177,7 @@ from .engines import (
     refine_with_shift,
     reflection_ceiling_ok,
     register_engine,
+    search_acceptance,
     search_line_order,
     search_volume_ceiling,
     shift_allowance_diagnostic,
@@ -727,7 +728,8 @@ def search_svd(peaks: PeakList, *, spec: SearchSpec | None = None,
 
     # the hand-off pool, not the reported cap — see ``SearchSpec.engine_pool``
     result.candidates = rank_candidates(raw, peaks, k_sigma=spec.k_sigma,
-                                        n_unindexed=spec.n_unindexed,
+                                        n_unindexed=search_acceptance(
+                                            peaks, search_lines, spec)[0],
                                         max_candidates=spec.engine_pool(),
                                         q_match=sigma)
     result.stats["candidates.raw"] = float(len(raw))
@@ -891,7 +893,7 @@ def _keep(af, basis, system, centring, spec, peaks, q_all, sigma, tt_all,
     weighting, so it is never the cell reported: this re-assigns with the
     package's per-line window and re-fits on 1/σ(Q) through ``refine_candidate``,
     which is also what supplies the ``cov_af`` consensus dedup needs.  The bar
-    afterwards is ``indexes_the_search_lines`` — the same absolute budget both
+    afterwards is ``indexes_the_search_lines`` — the same acceptance rule both
     other engines are held to, so three engines' candidates mean the same thing.
 
     **``ze`` centres the matching window; it never writes the reported cell.**
@@ -957,7 +959,9 @@ def _keep(af, basis, system, centring, spec, peaks, q_all, sigma, tt_all,
         return -np.inf
     if fit.chi2_red > spec.k_sigma ** 2:
         return -np.inf
-    if not indexes_the_search_lines(line_index, search_lines, spec.n_unindexed):
+    if not indexes_the_search_lines(line_index, search_lines,
+                                    *search_acceptance(peaks, search_lines,
+                                                       spec, system)):
         return -np.inf
     fit = refine_with_shift(fit, spec, system, q_all, sigma, tt_all,
                             peaks.wavelength, line_index, assigned)

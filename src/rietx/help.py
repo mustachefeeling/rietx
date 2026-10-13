@@ -1790,13 +1790,16 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "n_unindexed": HelpEntry(
         title="Unindexed lines allowed",
         description=(
-            "How many search lines a cell may leave unindexed and still be "
-            "accepted. Raising it manufactures cells: every tolerated line is "
-            "one more coincidence a wrong metric is allowed. Two is a "
-            "default; four is a statement about the specimen."
+            "How many search lines a cell may leave unindexed. Empty (the "
+            "default) is two, and a run where no two engines agree on a "
+            "lattice is searched again accepting a cell that indexes 60 % of "
+            "the search lines and the five strongest; 'inliers' searches that "
+            "way from the start. A number forbids the retry. Raising it "
+            "manufactures cells: every tolerated line is one more coincidence "
+            "a wrong metric is allowed, so four is a statement about the "
+            "specimen."
         ),
-        default="2",
-        typical="2, or up to 4 on a pattern with a known impurity",
+        typical="empty; 'inliers' on a pattern with a known impurity",
         anchor="using/indexing.html#the-search-specification",
     ),
     "n_search_lines": HelpEntry(
