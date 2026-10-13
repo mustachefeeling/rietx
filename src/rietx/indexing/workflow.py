@@ -936,7 +936,8 @@ def index_pattern(peaks: PeakList | None = None, *,
         validated = True
 
     # the deferred ambiguity pass, on whatever clock validation left — read
-    # between candidates, so a fired token leaves the question unasked
+    # between candidates and between one candidate's derivative cells (#895),
+    # so a fired token leaves the question unasked
     # (capping) rather than half-answered
     from .consensus import enumerate_ambiguity
 
