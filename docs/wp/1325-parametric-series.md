@@ -62,6 +62,40 @@ assumed.
 
 ### Inherited
 
+- **2026-10-13, from user feedback (an outside lab, by email to the
+  maintainer): the first use case from outside the package, and it is 2-D
+  across many specimens, not 1-D across one.** The lab runs rietx and TOPAS
+  side by side on the same combinatorial-library datasets. They report rietx
+  as strong on simple-to-medium problems. On the hard ones (gradual, broad,
+  interfering peaks) they rely on TOPAS: they parametrise values as
+  **polynomial surfaces** over the library and refine the surface
+  coefficients against all datasets at once, especially for weak or broad
+  features. In their words, it is "the only way" to get consistent, smoothly
+  evolving models across a library, and to decouple measurable quantities
+  from how the diffuse features are modelled. Four things this changes for
+  the design.
+  (1) **The axis is a vector, not a scalar.** A surface over composition
+  (x, y) is still linear in its coefficients, p_k = Σ_j c_j·φ_j(x_k, y_k),
+  so the affine C covers it unchanged. The declaration should therefore take
+  per-pattern basis values (or an n-D axis) rather than one series axis, or
+  a 1-D `SeriesTie` will need reshaping later. The "no library of physical
+  models" non-goal still holds, since the caller supplies the basis.
+  (2) **Many specimens, not one crystal.** `SharingMap`'s default is "one
+  specimen, one crystal", and `MultiParameterTable` copies a single starting
+  `Structure` into every histogram. A library varies in cell, occupancy and
+  broadening from specimen to specimen, so it needs per-pattern starting
+  values, with the surface tie as a third choice between shared and
+  per-histogram.
+  (3) **The targets include per-histogram paths.** Weak or broad features
+  live in `instrument.*` (background, `extra_components`), which the default
+  map already makes per-histogram. So the tie has to reach scoped
+  `hist.{h}.` paths, not only shared ones.
+  (4) **Priority.** The header's "per-pattern fits cover it" is the claim
+  this report disputes for libraries. It is still a use case, not a
+  measurement, so the first task stands; a library dataset, if one can be
+  had, would be the second series to measure on. Re-rating the priority is
+  left to the maintainer. (The same email names spherical-harmonics texture
+  as their other gap. That is the v2 fence, not this WP.)
 - **2026-10-11, from the issue triage: issue #212's restraint row is
   [1942](1942-a-soft-restraint-on-a-sum-across-phases.md), and #349's three
   exports went with it.** The two entries that said nobody had cut it (the
@@ -107,6 +141,42 @@ assumed.
 - [ ] The measurement above, on the ZrMo₂O₈ ramp: trajectory-line coefficient
       and esd against a joint a₀ + a₁·T fit over 10 patterns, and the
       wall-clock ratio. Decide open / close-as-finding on it.
+- [ ] **Survey the prior art for declaring a parametric model, before
+      `SeriesTie` takes a shape.** The goal is a declaration that is easy to
+      write and hard to get wrong, because a **self-driving lab** will write
+      it: an orchestrator or agent, from a composition database, with nobody
+      reading the fit as it runs.
+      Read four families of precedent, concepts only (licensing rule):
+      - **Crystallography:** TOPAS `prm` equations and parametric macros
+        (Stinton & Evans 2007, user docs only); GSAS-II's sequential and
+        parametric fits; FullProf's multi-pattern constraints.
+      - **General fitting:** lmfit's `Parameters` with `expr`.
+      - **Model-formula languages** (Wilkinson & Rogers 1973; patsy and
+        formulaic): how `1 + x + y + x:y + I(x**2)` names a basis, and how a
+        design matrix is built from per-sample metadata.
+      - **Autonomous-experimentation stacks:** how a closed-loop campaign
+        describes samples and their coordinates to an analysis step.
+      Then answer the questions the design owes:
+      1. **Data, not code.** Can the declaration be JSON-round-trippable
+         state (the `extra_components` "state, never code" rule), so an
+         orchestrator can write it, a history node can store it and a replay
+         can rebuild it?
+      2. **Where the axis lives.** How are per-pattern coordinates attached:
+         beside each `PatternData`, or in the declaration?
+      3. **Refusals before a solve.** Which mistakes are refused, each naming
+         its fix?
+         - a design matrix with lower rank than its basis (too few, or
+           collinear, compositions);
+         - a pattern with no coordinate;
+         - a coefficient bound that its dependents violate (the 1119 hazard
+           above);
+         - a target that is held, `mode_fixed` or symmetry-tied.
+      4. **Conditioning.** How are raw compositions centred and scaled, so
+         the coefficients' esds are not an artefact of the units?
+      5. **A growing campaign.** How does the fit behave when patterns arrive
+         one at a time, and when one is quarantined (WP-1051's rule)?
+      Write the comparison and the chosen shape into this WP before the next
+      task builds it.
 - [ ] `SeriesTie` on the series surface, resolved into `multi.py`'s joint
       table as per-pattern affine ties; bit-identical to `refine_multi` when
       the function is a constant.
