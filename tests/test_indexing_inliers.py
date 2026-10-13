@@ -236,3 +236,31 @@ def test_a_list_without_intensities_is_not_searched_twice():
     # the retry is the anchor rule's, not the trigger's
     assert not any(len(c.found_by) >= 2 for c in res.candidates)
     assert not any(d.code == "INDEX_INLIER_RETRY" for d in res.diagnostics)
+
+
+def test_the_retry_adds_to_the_first_pass_and_never_removes_from_it(monkeypatch):
+    """A first pass whose only finder of the truth is one engine has no lattice
+    two engines agree on, so the retry runs, and its answer must still hold that
+    candidate.  Measured on a lab pattern (#951's baseline): main's rank 1, a
+    dichotomy-only true cell, left the list entirely when the retry replaced the
+    first pass, while its a/2 subcell took rank 1.  Here svd finds the truth
+    alone on the first pass and nothing under the inlier rule; the other two
+    engines find nothing either way."""
+    from rietx.indexing import engines, index_pattern
+    from rietx.indexing.engines import EngineResult
+
+    real = engines.get_engine
+
+    def stubbed(name):
+        def run(peaks, *, spec, **kw):
+            if name == "svd" and not spec.inliers:
+                return real(name)(peaks, spec=spec, **kw)
+            return EngineResult(engine=name, systems_searched=(),
+                                search_complete={})
+        return run
+
+    monkeypatch.setattr(engines, "get_engine", stubbed)
+    res = index_pattern(_peaks(impurities=False), spec=_spec(), preset="full")
+    assert any(d.code == "INDEX_INLIER_RETRY" for d in res.diagnostics)
+    assert any(_is_truth(c) for c in res.candidates), (
+        [(c.centring, c.cell[0], c.found_by) for c in res.candidates[:3]])

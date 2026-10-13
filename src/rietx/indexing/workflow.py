@@ -866,8 +866,18 @@ def index_pattern(peaks: PeakList | None = None, *,
         # the inlier rule — and only such a run, because the rule changes the
         # pool the panel ranks (``engines.INLIER_FRACTION``)
         first = sum(len(r.candidates) for r in results)
+        first_pass = {r.engine: r for r in results}
         spec = retry_spec
         results = run_units(spec)
+        # the retry adds and never removes (#951): every first-pass candidate
+        # indexes all but two driven lines, so it passes the inlier rule too,
+        # and a single-engine truth the retry does not reach (a lab pattern's
+        # dichotomy-only cell, replaced by its a/2 subcell) must not leave the
+        # list.  First, so a lattice both passes found keeps the stricter fit
+        for r in results:
+            prev = first_pass.get(r.engine)
+            if prev is not None:
+                r.candidates[:0] = prev.candidates
         if results:
             results[0].diagnostics.append(inlier_retry_diagnostic(first))
     trial = next((r for r in results if r.engine == "trial_error"), None)
