@@ -670,8 +670,7 @@ def equal_reduced_many(red_a: np.ndarray, reds_b: Sequence[np.ndarray], *,
             theirs = [gates[1][k] for k in distinct]
         live = [k for k, t in zip(distinct, theirs) if t is not None]
         if mine is not None and live:
-            stack = [t for t in theirs if t is not None]
-            passed = _selling_gate(mine, tuple(np.stack(x) for x in zip(*stack)))
+            passed = _selling_gate(mine, np.array([t for t in theirs if t is not None]))
             for k in (k for k, ok in zip(live, passed) if ok):
                 across = _equal_across_boundaries(red_a, reds_b[k], cov_a, covs_b[k],
                                                   gated=True)
@@ -813,7 +812,8 @@ def _option_variance(form: _SellingForm, v4: np.ndarray,
                      cov: np.ndarray | None) -> np.ndarray | None:
     if cov is None:
         return None
-    jac = np.column_stack([_selling_scalars(v4, d) for d in form.dg])
+    # ds_p/d(A..F)_e = v_i·dG_e·v_j for each Selling pair p = (i, j)
+    jac = np.einsum("ai,eij,bj->abe", v4, form.dg, v4)[_SELLING_ROWS, _SELLING_COLS]
     return np.clip(np.einsum("ki,ij,kj->k", jac, cov, jac), 0.0, None)
 
 
@@ -859,37 +859,41 @@ def _af_maps(ns: np.ndarray) -> np.ndarray:
 
 
 @lru_cache(maxsize=16384)
-def _gate_inputs_of(red: bytes, cov: bytes | None):
+def _gate_inputs_of(red: bytes, cov: bytes | None) -> np.ndarray | None:
     form = _selling_form(red)
     if form is None:
         return None
     if cov is None:
-        return form.s[form.order], None, form.scale, 0.0
-    var = _selling_variance(red, cov)
-    return form.s[form.order], var[form.order], form.scale, float(var.max())
+        var = np.full(6, np.nan)
+    else:
+        var = _selling_variance(red, cov)[form.order]
+    out = np.concatenate([form.s[form.order], var,
+                          [form.scale, float(np.max(var)) if cov is not None else np.nan]])
+    out.setflags(write=False)
+    return out
 
 
-def _gate_inputs(red, cov):
-    """(sorted scalars, their variances or None, trace, largest variance) of a
-    reduced vector, or ``None`` for a metric that is no lattice."""
+def _gate_inputs(red, cov) -> np.ndarray | None:
+    """One reduced vector's Selling gate inputs, packed so a batch stacks in one
+    call: the six scalars sorted, their variances (NaN without a covariance), the
+    metric's trace, and the largest variance.  ``None`` for a metric that is no
+    lattice."""
     red = np.ascontiguousarray(red, dtype=np.float64).tobytes()
     if cov is None:
         return _gate_inputs_of(red, None)
     return _gate_inputs_of(red, np.ascontiguousarray(cov, dtype=np.float64).tobytes())
 
 
-def _selling_gate(mine: tuple, theirs: tuple) -> np.ndarray:
-    """Step 1 of :func:`_equal_across_boundaries`, for one pair or a stack:
-    does each sorted Selling scalar agree within the gate?  Elementwise only,
-    so a stack's answer is each pair's own."""
-    s_a, v_a, sc_a, _ = mine
-    s_b, v_b, sc_b, _ = theirs
-    big = np.asarray(np.maximum(sc_a, sc_b))[..., None]
-    if v_a is None or v_b is None:
-        tol = SELLING_GATE_RELATIVE * big
-    else:
-        tol = SELLING_GATE_SIGMAS * np.sqrt(v_a + v_b) + 1e-9 * big
-    return np.all(np.abs(s_a - s_b) <= tol, axis=-1)
+def _selling_gate(mine: np.ndarray, theirs: np.ndarray) -> np.ndarray:
+    """Step 1 of :func:`_equal_across_boundaries`, for one pair (``theirs`` of
+    shape (14,)) or a stack ((k, 14)): does each sorted Selling scalar agree
+    within the gate?  Elementwise only, so a stack's answer is each pair's own."""
+    big = np.maximum(mine[12], theirs[..., 12])[..., None]
+    var = mine[6:12] + theirs[..., 6:12]
+    with np.errstate(invalid="ignore"):
+        tol = np.where(np.isnan(var), SELLING_GATE_RELATIVE * big,
+                       SELLING_GATE_SIGMAS * np.sqrt(var) + 1e-9 * big)
+    return np.all(np.abs(mine[:6] - theirs[..., :6]) <= tol, axis=-1)
 
 
 def _equal_across_boundaries(red_a, red_b, cov_a, cov_b, *, gated: bool = False
@@ -939,7 +943,7 @@ def _equal_across_boundaries(red_a, red_b, cov_a, cov_b, *, gated: bool = False
         if with_cov:
             cov_a = np.ascontiguousarray(cov_a, dtype=np.float64)
             cov_b = np.ascontiguousarray(cov_b, dtype=np.float64)
-            near = SELLING_GATE_SIGMAS * float(np.sqrt(mine[3] + theirs[3])) + floor
+            near = SELLING_GATE_SIGMAS * float(np.sqrt(mine[13] + theirs[13])) + floor
         else:
             near = SELLING_GATE_RELATIVE * max(fa.scale, fb.scale)
         ns = []

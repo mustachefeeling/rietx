@@ -1546,7 +1546,7 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
                      np.ndarray | None]] = []
     #: each kept group's Selling gate inputs (WP-1932), held beside ``kept`` so
     #: a stacked solve reads them rather than looking them up per pair
-    kept_gates: list[tuple | None] = []
+    kept_gates: list[np.ndarray | None] = []
     tested: dict[tuple[tuple, int], bool] = {}
     # per (system, centring): finite volumes sorted, their groups beside them,
     # and the groups whose volume is not finite
@@ -1617,7 +1617,7 @@ def _dedup_admits(cand: EngineCandidate, volume: float, entry: tuple) -> bool:
 def _ask_stacked(cand: EngineCandidate, red: np.ndarray, volume: float,
                  key: tuple, cov: np.ndarray, ahead: Iterable[int],
                  kept: list, tested: dict, size: int, *,
-                 gate: tuple | None = None,
+                 gate: np.ndarray | None = None,
                  kept_gates: list | None = None) -> int:
     """Cache the verdicts of the next ``size`` tests dedup's walk would ask
     of ``cand``, from one stacked solve (WP-1519).  Returns the next stack's
