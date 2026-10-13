@@ -94,30 +94,22 @@ bit-identity anywhere.
 
 Licensing: SHELXL is closed. Use the paper only.
 
-### Inherited
-
-- **2026-10-13, from the issue triage (#727): the reporter withdrew the
-  hold-one default and prefers the floating-origin restraint.** Posted
-  2026-10-12: a restraint on a weighted centroid (Flack & Schwarzenbach 1988,
-  *Acta Cryst.* A44, 499-506) chooses no atom, does not depend on atom
-  order, leaves every atom an esd, and is one rule for every case
-  `floating_origin_basis` returns (one axis, Cc's a-c plane, P1's three).
-  They leave the weights, and restraint against exact constraint, to this WP.
-  Draft PR #929 (2026-10-13) moves the existing opt-in hold into the table as
-  `Phase.floating_origin: Literal["hold"] | None = None` and does not mention
-  the withdrawal; a `"centroid"` value can join that `Literal`. Which mode is
-  the default, if any, is still the maintainer's call. *Decided 2026-10-13
-  (the maintainer, through the issue triage): the hold is the default now,
-  and the centroid comes later as a second value.* `Phase.floating_origin`
-  defaults to `"hold"` (#929 flips its `None`), so polar-group fits stop
-  walking in the next release, `ORIGIN_FIXED_ON_POLAR_AXIS` names the held
-  atom, and `unhold` lifts it. Once WP-1942's linear restraint item lands,
-  `"centroid"` joins the `Literal` as an opt-in mode (Flack & Schwarzenbach
-  1988, weights from the paper, not from memory), and both modes are
-  measured on the ZnO, Cc and P1 fixtures before the default is revisited. A
-  second default change, if one comes, moves the reported origin, never the
-  structure, Rwp or any interatomic distance; each change goes in the
-  release notes.
+**Where the default stands (2026-10-13, folded from § Inherited).** The
+reporter withdrew the hold-one default on #727 (2026-10-12) and asked for the
+floating-origin restraint on a weighted centroid (Flack & Schwarzenbach 1988,
+*Acta Cryst.* A44, 499-506): it chooses no atom, does not depend on atom
+order, leaves every atom an esd, and is one rule for every case
+`floating_origin_basis` returns. The maintainer's two comments on #727 that
+day disagree (07:38 "the hold becomes the default now"; 15:16, after #929
+merged off by default, "the default is still to decide"). Resolved in session
+the same day: **the aim is to move quickly to the centroid**, so the hold
+stays opt-in and the default is not flipped twice. The centroid lands as a
+second value of `Phase.floating_origin`, built as an **exact constraint** (an
+affine tie in C, which needs nothing from WP-1942's unbuilt restraint item),
+is measured against the hold on ZnO, Cc and P1, and becomes the candidate
+default. A default change moves the reported origin and the spread of esds,
+never the structure, Rwp or any interatomic distance, and goes in the release
+notes.
 
 ## Non-goals
 
@@ -202,6 +194,28 @@ Licensing: SHELXL is closed. Use the paper only.
       codes, now describes the field, the quote rule for the held atom and
       the measured esds (+315 B, 23 766 B left). `api.md` regenerated for
       the two new fields, and the two committed copies re-synced.*
+- [ ] #929's open review items (handoff of 2026-10-13, below): item 5,
+      `magnetic/supercell.py` copies `floating_origin` to the child phase
+      (and any other `Phase(...)` builder copying field by field); item 8,
+      a joint fit raises the origin codes; the pending tests for items 2
+      (every candidate tied to a freed variable → `ORIGIN_NOT_FIXED`), 9 (a
+      Le Bail fit raises no `ORIGIN_FIXED_ON_POLAR_AXIS`) and 11
+      (`hold_floating_origin()` declines where nothing is holdable); and the
+      "runs exactly along" wording in `using/concepts.md`, the 1.9.0 note and
+      the skill paragraph.
+- [ ] `floating_origin="centroid"`: Σᵢ wᵢ·δᵢ = 0 along each floating
+      direction as an exact affine tie in C, weights **from the paper**
+      (Flack & Schwarzenbach 1988; not reachable from a cloud session, so the
+      maintainer supplies them). The tied DOF's column reaches every atom on
+      the axis, so `_column_extras` and `test_cross_backend.py`'s
+      `families_tied` row must see it; `rebase_anchored_dofs` and
+      `anchored_dof_paths` cover it; caller ties or variables that already
+      fix the origin add nothing. Diagnostic and `held_because`/tie text
+      name the mode.
+- [ ] Measure hold against centroid on the ZnO, Cc and P1 fixtures and the
+      round-robin zincite (origin, esds, Rwp, free count), then propose the
+      default with a read-time pin for documents older than the schema that
+      flips it.
 
 ## Acceptance
 
