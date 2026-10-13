@@ -1594,28 +1594,55 @@ def _intensity_only_path(path: str) -> bool:
     return bool(_DISPLACEMENT_PATH.match(path) or _OCCUPANCY_PATH.match(path))
 
 
+#: A phase's scale path, and the phase it belongs to.
+_SCALE_PATH = re.compile(r"^phases\.(\d+)\.scale$")
+
+
 def _significance_columns(free: list[str], held: list[str],
-                          reach: dict[str, list[str]]) -> list[str]:
-    """The columns a phase's scale significance is marginal over (WP-1523).
+                          reach: dict[str, list[str]], ip: int) -> list[str]:
+    """The columns phase ``ip``'s scale significance is marginal over (WP-1523).
 
     Every free column, and the phase's own held columns, except a column that
-    moves only displacements or occupancies.  The freedom that inflates a fit
-    to noise is where the peaks sit: a cell, a width, a zero shift (Davies,
-    R. B., 1977, *Biometrika* 64, 247-254, a nuisance parameter present only
-    under the alternative).  A column that only rescales intensities, B or an
-    occupancy, says how the intensity splits between it and the scale, not
-    whether the phase is there.  Marginal over B, a phase whose scale and B
-    nearly share a direction reads as absent: measured on
-    ``tests/test_scale_b_ridge.py``'s fluorite, 153.7σ on the screen and
-    0.02σ marginal.  "Moves only" is read off the column's reach, a variable
-    dropped first, so a ``vars.B`` driving two displacements is left out too
-    (WP-1342).
+    moves only displacements or occupancies, or only other phases' scales.
+    The freedom that inflates a fit to noise is where the peaks sit: a cell, a
+    width, a zero shift (Davies, R. B., 1977, *Biometrika* 64, 247-254, a
+    nuisance parameter present only under the alternative).  A column that
+    only rescales intensities, B or an occupancy, says how the intensity
+    splits between it and the scale, not whether the phase is there.
+    Marginal over B, a phase whose scale and B nearly share a direction reads
+    as absent: measured on ``tests/test_scale_b_ridge.py``'s fluorite, 153.7σ
+    on the screen and 0.02σ marginal.
+
+    **Another phase's scale is the same split one rank up**: it says which
+    phase carries an intensity, not whether the intensity is there.  Marginal
+    over it, two phases able to draw the same pattern each read under 3σ, and
+    the hold landed on whichever the start left weaker, the specimen's only
+    phase included: issue #219's cubic Cu modelled with an absent ``I 4/m m m``
+    subgroup, scales at ρ −1.000, held the parent from 9 of 15 split seeds.
+    Conditional on the partner's scale the parent reads 45-90σ there, while
+    a phase fitted to noise still reads low, its inflation coming from its
+    own cell and widths; on the suite's multi-phase fixtures the two readings
+    differ by at most 9 %.  The ambiguity between the pair is
+    ``HIGH_CORRELATION``'s to report, which fires on the two scales.
+
+    "Moves only" is read off the column's reach, a variable dropped first, so
+    a ``vars.B`` driving two displacements is left out too (WP-1342), and a
+    ``vars.S`` tying this phase's scale to another's stays in.
     """
     def moved(column: str) -> list[str]:
         return [p for p in reach.get(column, [column]) if not is_variable_path(p)]
 
+    def other_scale(path: str) -> bool:
+        m = _SCALE_PATH.match(path)
+        return bool(m) and int(m.group(1)) != ip
+
+    def left_out(column: str) -> bool:
+        paths = moved(column)
+        return bool(paths) and (all(_intensity_only_path(p) for p in paths)
+                                or all(other_scale(p) for p in paths))
+
     return [c for c in [*free, *(h for h in held if h not in free)]
-            if not (moved(c) and all(_intensity_only_path(p) for p in moved(c)))]
+            if not left_out(c)]
 
 
 def _scale_significance(table: ParameterTable, theta: np.ndarray,
@@ -1708,7 +1735,7 @@ def _answer_significance(model: CompiledModel, table: ParameterTable,
         column_reach = table.column_reach()
         for ip in seen:
             columns = [c for c in _significance_columns(
-                free, [c for c in held_of[ip] if c in freed], column_reach)
+                free, [c for c in held_of[ip] if c in freed], column_reach, ip)
                 if c not in stationary]
             try:
                 # never above the screen it is bounded by: a direction the

@@ -181,7 +181,51 @@ reporter had sup0 203.2, the subgroup at 18.0 and ρ −1.000 there, at Rwp
 0.0405. So the hold lands on whichever phase the seed left weaker, real or
 not, and that includes a real phase whose companion then carries a
 distortion of the wrong sign. The choice above was made without this
-measurement, so it is reopened as task 7.
+measurement, so it is reopened as task 7, and § Decided 2026-10-13
+supersedes it.
+
+### Decided 2026-10-13: the hold stands down on a collinear pair
+
+**A phase's scale significance is conditional on every other phase's
+scale.** `refine._significance_columns` leaves out a column that moves only
+other phases' scales, as it already left out one that moves only
+displacements or occupancies. A phase is held when its scale cannot be told
+from zero. Being exchangeable with another phase is not a reason to hold it,
+and `HIGH_CORRELATION` on the two scales reports that case, as it already did
+in every arm.
+
+**Why this column set.** On the ridge, the marginal z's inflation comes from
+the partner's scale. Conditional on it, the parent reads 45-90σ where it read
+0.12-3.0σ marginal. On a noise phase the inflation comes from its own cell
+and widths, which stay in the marginal, so the noise case is unchanged. The
+blank frame is a single phase, so there it is identical by construction.
+
+**Measured** on the branch tree after task 6 (`.venv` `[dev]`, Linux x86_64,
+Python 3.12). The tool was #219's script run at the reporter's protocol:
+0.005° grid, two passes of scale/cell/strain. It covered three arms, 5
+Poisson seeds (1000-1004) and four subgroup seeds (δ = 0, 5e-4, 1e-3, 2e-3),
+60 fits under each rule.
+
+| Arm, seed | Fits | Real phase held, before → after | Phantom held | Tetragonality ×1e-3 (truth) |
+|---|---|---|---|---|
+| ISO-TRUTH, split | 15 | 9 → 0 | 15 → 0 | after: −0.01 to +0.30 (0) |
+| ISO-TRUTH, degenerate | 5 | 0 → 0 | 5 → 5, one released at its answer | 0 |
+| TWO-PHASE-TRUTH, degenerate | 5 | 4 → 0 | — | −0.93 to −1.02 both (+3.0) |
+| TWO-PHASE-TRUTH, split | 15 | 1 → 0 | — | 3.4-4.5 both, one 1.21 → 1.04 |
+| ANISO-TRUTH, any | 20 | — | identical | identical |
+
+**The wrong-sign tetragonality is the start's, not the hold's.** TWO-PHASE-TRUTH
+from the degenerate seed lands at −1.0e-3 against +3.0e-3 with no hold at
+all, in all 5 seeds. That is the reporter's 2026-09-04 caution: the identity
+point lands a real split in the wrong sign. Nothing in the hold can fix it.
+The remedy is ± seeds and a comparison, which belongs to WP-1339's ask (3).
+
+**What else moves.** A reading probe ran over 44 fast-tier files touching the
+hold, QPA and multi-phase fits: 2332 tests and 1465 readings, 363 of them
+with two or more scales free. It logged each `_scale_significance` call under
+both column sets. No decision flipped in either direction. The conditional
+reading was at most 1.09× the marginal one there, against about 30× on the
+ridge.
 
 ## Non-goals
 
@@ -221,12 +265,16 @@ measurement, so it is reopened as task 7.
       11, against 6 and 18. The prior changed no stage start of the 184 on
       the three fixture files, so nothing there moved. The sweep and the one
       weak fit it moved are in the 2026-10-13 handover entry.
-- [ ] Decide whether the support hold stands down on a collinear pair,
+- [x] Decide whether the support hold stands down on a collinear pair,
       measured on #219's script (§ Decided 2026-10-12 and its 2026-10-13
       note). The candidate statistic is the scale's z marginal over every
       column except the other phases' scales. Measure it on the script's
       arms and on this WP's blank-frame sweep before choosing, and record
-      the choice with its numbers.
+      the choice with its numbers. It stands down: § Decided 2026-10-13.
+      Landed in `_significance_columns`, guarded by
+      `test_a_collinear_partner_does_not_hold_the_only_real_phase` (seeds
+      2002 and 2003 fail under the old rule) and
+      `test_only_the_partner_scales_leave_the_marginal`.
 
 ## Acceptance
 

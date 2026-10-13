@@ -11,9 +11,9 @@ one has two halves:
   above, and a phase under ``PHASE_SUPPORT_SIGMA`` there is unseen.
 * ``refine._answer_significance`` takes scale / esd(scale) where the screen
   passes: the esd from (JᵀWJ)⁻¹ with no χ²_red or Bérar-Lelann factor,
-  marginal over every column that moves the peaks (displacements and
-  occupancies left out), with a held phase's columns freed for the
-  measurement.
+  marginal over every column that moves the peaks (displacements,
+  occupancies and other phases' scales left out), with a held phase's
+  columns freed for the measurement.
 
 The frame is rebuilt here from the issue script's RNG stream (seed 11,
 patterns 0-7 drawn in order), and both starts are the issue's: pattern 0's
@@ -33,6 +33,7 @@ from rietx.indexing.workflow import ABSENT_SIGMA
 from rietx.model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from rietx.params.vector import ParameterTable
 from rietx.schemas.instrument import Dispersion
+from rietx.schemas.structure import StephensStrain
 
 pytestmark = pytest.mark.xdist_group("phase-significance")
 
@@ -373,6 +374,102 @@ def test_a_phase_both_readings_pass_that_collapses_is_put_back(monkeypatch):
 def test_the_threshold_is_the_indexing_presence_test():
     """One number means one thing: a phase and a line are present at 3σ."""
     assert PHASE_SUPPORT_SIGMA == ABSENT_SIGMA
+
+
+# Issue #219's ridge, compacted: cubic Cu at 0.4139 Å, modelled as the parent
+# plus an ``I 4/m m m`` subgroup the specimen does not contain, its cell split
+# off the group-subgroup identity by a seed.  The two scales are collinear.
+CU_A, CU_TT = 3.615, np.arange(4.0, 32.0 + 1e-9, 0.02)
+
+
+def _cu_phase(name, space_group, a, c, scale, *, vary):
+    cell = rx.Cell(a=rx.Parameter(value=a, vary=vary, min=0.95 * a, max=1.05 * a),
+                   b=rx.Parameter(value=a),
+                   c=rx.Parameter(value=c, vary=vary, min=0.95 * c, max=1.05 * c),
+                   alpha=rx.Parameter(value=90.0), beta=rx.Parameter(value=90.0),
+                   gamma=rx.Parameter(value=90.0))
+    atom = rx.Atom(label="Cu", species="Cu", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                   biso=rx.Parameter(value=0.5, min=0.0, max=10.0))
+    phase = rx.Phase(name=name, space_group=space_group, cell=cell, atoms=[atom],
+                     scale=rx.Parameter(value=scale, min=0.0),
+                     lor_strain=rx.Parameter(value=1e-4 if vary else 0.0, min=0.0,
+                                             max=0.5, vary=vary))
+    if not vary:  # the specimen: 3000 ppm of isotropic Stephens strain
+        phase.microstrain = StephensStrain.isotropic(3000.0, phase.cell, vary=False)
+    return phase
+
+
+def _cu_instrument():
+    ins = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    ins.source.dispersion = Dispersion()  # declared: the sweep ran with it on
+    ins.profile.w.value, ins.profile.x.value = 2.0e-3, 5.0e-3
+    for c, v in zip(ins.background.coefficients, (400.0, -60.0, 20.0), strict=False):
+        c.value = v
+    return ins
+
+
+def _ridge(seed: int, delta: float = 1e-3):
+    """A cubic Cu pattern and the two-phase model of it, split by ``delta``."""
+    truth = _cu_phase("Cu", "F m -3 m", CU_A, CU_A, 1.0, vary=False)
+    y = rx.Refinement(rx.Structure(phases=[truth]), _cu_instrument(),
+                      history=False).predict(CU_TT)
+    scale = 4.0e4 / float(np.max(y) - np.min(y))
+    truth.scale.value = scale
+    y = rx.Refinement(rx.Structure(phases=[truth]), _cu_instrument(),
+                      history=False).predict(CU_TT)
+    counts = np.random.default_rng(seed).poisson(np.maximum(y, 0.0)).astype(float)
+    pattern = rx.PatternData(two_theta=CU_TT.tolist(), intensity=counts.tolist(),
+                             sigma=np.sqrt(np.maximum(counts, 1.0)).tolist())
+    a_t = CU_A * (1.0 - delta / 2.0) / np.sqrt(2.0)
+    model = rx.Structure(phases=[
+        _cu_phase("parent", "F m -3 m", CU_A, CU_A, 0.9 * scale, vary=True),
+        _cu_phase("subgroup", "I 4/m m m", a_t, CU_A * (1.0 + delta), 0.3 * scale,
+                  vary=True)])
+    return model, pattern
+
+
+RIDGE_PLAN = rx.RefinementPlan(stages=[
+    rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+    rx.Stage("cell", ["phases.*.cell.*"]),
+    rx.Stage("strain", ["phases.*.lor_strain"])])
+
+
+@pytest.mark.parametrize("seed", [2002, 2003])
+def test_a_collinear_partner_does_not_hold_the_only_real_phase(seed):
+    """Two phases that draw one pattern are exchangeable, not absent.
+
+    Marginal over the partner's scale (ρ −1.000) each reads under 3σ, so the
+    hold took whichever the start left weaker.  On these seeds that was the
+    parent, the specimen's only phase: its cell and strain held, and
+    ``PHASE_UNCONSTRAINED`` called it unseen (seeds 2000-2011 here: these two;
+    9 of 15 fits under #219's own two-pass protocol).  Conditional on the
+    partner's scale it reads tens of σ, and ``HIGH_CORRELATION`` names the
+    pair.  All twelve seeds pass under the rule.
+    """
+    model, pattern = _ridge(seed)
+    result = rx.Refinement(model, _cu_instrument(), history=False).fit(
+        pattern, plan=RIDGE_PLAN)
+    held = {p for st in result.stages for p in st.held}
+    assert not {p for p in held if p.startswith("phases.0.")}, held
+    unseen = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert not any(w.startswith("phases.0.") for d in unseen for w in d.where)
+    assert "phases.0.cell.a" in {p.path for p in result.parameters}
+    assert any(d.code == "HIGH_CORRELATION"
+               and {"phases.0.scale", "phases.1.scale"} <= set(d.where)
+               for d in result.diagnostics)
+
+
+def test_only_the_partner_scales_leave_the_marginal():
+    """A column moving only another phase's scale is left out; one moving this
+    phase's scale too stays, and so does every other kind of column."""
+    free = ["phases.0.scale", "phases.1.scale", "phases.1.cell.a", "vars.s",
+            "phases.0.atoms.0.biso"]
+    reach = {"vars.s": ["phases.0.scale", "phases.1.scale"]}
+    assert _refine._significance_columns(free, [], reach, 0) == [
+        "phases.0.scale", "phases.1.cell.a", "vars.s"]
+    assert _refine._significance_columns(free, [], reach, 1) == [
+        "phases.1.scale", "phases.1.cell.a", "vars.s"]
 
 
 @pytest.fixture(scope="module")
