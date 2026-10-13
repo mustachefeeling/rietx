@@ -399,9 +399,29 @@ shells it uses); a smaller one is kept and printed, and the fits decide.
 "Proved" for this certificate is of the stored draw, not of every model of
 the family. An optional per-shell `weights` vector (an inverse standard
 deviation, say) changes the norm $d$ is measured in, not what is proved. The
-printed table lists every such separation with its bracket and names any
-class that holds one, which can happen while classes are still joined
-through sampled pairs.
+printed table lists every such separation with its bracket.
+
+A class that union-find joined can hold a proved separation: the join
+rests on a false sampled edge, or on a partial containment, one family
+reproducing every draw of another while a draw of its own is proved out of
+the other's reach. The consistency rule then does three things. Every
+pair the loop had skipped as already joined, whose join the proofs have
+since undone, is drawn as it would have been, so that no join and no
+separation rests on a pair nobody tested. Every sampled direction a proof
+contradicts, between the two irreps holding the proof, is drawn once more
+with the pair's own budget; a draw certified or not reproduced removes the
+edge on that direction's own evidence. What is still joined is split at
+the irreps holding the proof: every edge with a sampled half between them
+is dropped, and the verdict names the proof that refuted it. `classes` is
+that split partition, and `merged_classes` the union-find one beside it;
+they agree exactly when nothing was dropped, and where they differ the
+split rests on sampled "⊆" halves, which the table prints with their draw
+counts. Nothing sampled is upgraded by this, and a proved edge is never
+dropped, so a class can still hold a proved separation inside one irrep, or
+between two irreps joined only through a third no proof reaches; the table
+names it. A wrong split costs one extra trial refinement, a wrong merge
+silently drops a distinguishable model, which is why the split is the
+partition a refinement reads.
 
 Shirane's own example is mechanical here. His criterion is on the
 configurational symmetry (the symmetry of the signed moment arrangement, which
