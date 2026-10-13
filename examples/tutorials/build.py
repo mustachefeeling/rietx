@@ -1,7 +1,8 @@
 """Build the tutorial notebooks from their percent-format sources (WP-1545).
 
 Each tutorial is a script, ``NN_slug.py``, and its notebook ``NN_slug.ipynb``
-is generated from it, executed, and committed beside it.  The script is the
+is generated from it, executed, and committed beside it (a template in
+``UNEXECUTED`` is executed and committed without its outputs).  The script is the
 authority (root CLAUDE.md: a walkthrough has one, and it is ``examples/``), so
 an edit goes to the ``.py`` and this file regenerates the notebook.
 
@@ -38,6 +39,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SOURCES = "[0-9][0-9]_*.py"
+#: Notebooks committed with their cells and no outputs (WP-1957).  A template
+#: is run by its reader on their own data, so an output drawn from the example
+#: files would read as theirs.  Its build still executes it and refuses to
+#: write one that fails, and the suite executes it like any tutorial.
+UNEXECUTED = ("06_your_own_data",)
 _MARKER = re.compile(r"^# %%(?P<markdown> \[markdown\])?\s*$")
 
 
@@ -164,6 +170,8 @@ def build(path: Path) -> Path:
     found = problems(nb)
     if found:
         raise SystemExit(f"{path.name}: not written\n  " + "\n  ".join(found))
+    if path.stem in UNEXECUTED:
+        nb = _notebook(path)
     out = path.with_suffix(".ipynb")
     out.write_text(nbformat.writes(nb) + "\n", encoding="utf-8", newline="\n")
     return out
@@ -182,6 +190,8 @@ def check(directory: Path = HERE) -> list[str]:
         nb = nbformat.reads(nb_path.read_text(encoding="utf-8"), as_version=4)
         if notebook_cells(nb) != parse(path):
             stale.append(f"{nb_path.name}: cells differ from {path.name}")
+        if path.stem in UNEXECUTED and any(c.get("outputs") for c in nb.cells):
+            stale.append(f"{nb_path.name}: a template is committed without outputs")
         stamped = nb.metadata.get("rietx", {}).get("version", "")
         if ".".join(stamped.split(".")[:2]) != major_minor:
             stale.append(f"{nb_path.name}: built by rietx {stamped or '?'}, package is {major_minor}")

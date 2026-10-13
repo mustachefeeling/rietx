@@ -16,7 +16,7 @@ The data ships inside the package, so no download is needed.
 | [`03_peaks_indexing_lebail.ipynb`](03_peaks_indexing_lebail.ipynb) | Picking peaks and reading the peak list, measuring lines you name, indexing with a narrowed search, why the indexer abstains, and checking a candidate cell with Le Bail | Synthetic aragonite from COD entry 9000229 (public domain), built in the notebook | under a minute |
 | [`04_peak_shape_and_microstructure.ipynb`](04_peak_shape_and_microstructure.ipynb) | How instrument and specimen widths combine, calibrating an instrument on a standard, saving and loading it, measuring crystallite size and strain against a known truth, and what skipping the calibration does | Synthetic LaB₆ and CeO₂, built in the notebook | under 30 s |
 | [`05_sequential_fits.ipynb`](05_sequential_fits.ipynb) | Fitting a heating ramp pattern by pattern, the warm start and `carry`, a parameter's trajectory against the truth, running the chain both ways, and what the series reports when one frame jumps or cannot be fitted | Synthetic LaB₆, built in the notebook | under 30 s |
-| [`06_your_own_data.ipynb`](06_your_own_data.ipynb) | A template, not a tutorial: change the marked cells to your pattern, CIFs and anode, then run it to check the data, check the model, fit Le Bail then Rietveld, read the summary, draw the structure and save a CIF and a project | The fluorapatite files until you change them | about 15 s on the example, measured in a Linux cloud container |
+| [`06_your_own_data.ipynb`](06_your_own_data.ipynb) | A template, not a tutorial, committed without outputs: change the marked cells to your pattern, CIFs and anode, then run it to check the data, check the model, fit Le Bail then Rietveld, read the summary, draw the structure and save a CIF and a project | The fluorapatite files until you change them | about 15 s on the example, measured in a Linux cloud container |
 
 Runtimes were measured on an Apple M-series laptop, kernel start included, unless a row says otherwise.
 
@@ -44,6 +44,8 @@ Edit the `.py`, never the `.ipynb`.
 
 Keep each notebook to a minute or less.
 The test suite executes every notebook on every push.
+
+A template is listed in `build.py`'s `UNEXECUTED`: its build executes it and commits it without outputs, so nothing from the example files reads as the reader's own.
 
 Rebuild every notebook with `python examples/tutorials/build.py` when the package version changes.
 `build.py --check` reports a notebook whose cells or version stamp have fallen behind its source.

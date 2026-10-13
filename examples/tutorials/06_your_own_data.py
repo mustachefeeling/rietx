@@ -1,5 +1,5 @@
 # %% [markdown]
-# # A Rietveld refinement of your own data
+# # Rietveld refinement of your own data
 #
 # A template: change the cells marked ✏️ and run the notebook top to bottom.
 # As shipped it runs on the fluorapatite example from notebooks 01 and 02, so you can see every output before you change anything.

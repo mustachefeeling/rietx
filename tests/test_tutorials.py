@@ -181,6 +181,28 @@ def test_check_sees_a_stale_notebook(tmp_path):
     assert build.check(tmp_path) == [f"{source.stem}.ipynb: cells differ from {source.name}"]
 
 
+
+@pytest.mark.parametrize("stem", build.UNEXECUTED)
+def test_a_template_is_committed_without_outputs(stem):
+    """Its reader runs it on their own data, so the committed copy carries no
+    output from the example files (WP-1957).  The suite still executes it,
+    in test_tutorial_executes_clean."""
+    code = [c for c in _committed(TUTORIALS / f"{stem}.py").cells if c.cell_type == "code"]
+    assert code and all(c.outputs == [] and c.execution_count is None for c in code)
+
+
+def test_check_sees_a_template_with_outputs(tmp_path):
+    """The guard can fail: a template committed executed is reported."""
+    import nbformat
+    stem = build.UNEXECUTED[0]
+    shutil.copy(TUTORIALS / f"{stem}.py", tmp_path / f"{stem}.py")
+    nb = _committed(TUTORIALS / f"{stem}.py")
+    assert build.check(tmp_path) == [f"{stem}.ipynb: missing"]
+    cell = next(c for c in nb.cells if c.cell_type == "code" and not c.source.startswith("%pip"))
+    cell.outputs = [nbformat.v4.new_output("stream", name="stdout", text="from the example\n")]
+    (tmp_path / f"{stem}.ipynb").write_text(nbformat.writes(nb), encoding="utf-8")
+    assert build.check(tmp_path) == [f"{stem}.ipynb: a template is committed without outputs"]
+
 def test_problems_sees_stderr_and_a_home_path():
     v4 = nbformat.v4
     cell = v4.new_code_cell("x", outputs=[
