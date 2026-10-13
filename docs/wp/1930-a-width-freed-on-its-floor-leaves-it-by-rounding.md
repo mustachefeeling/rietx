@@ -1,8 +1,9 @@
 # WP-1930 — a width freed on its floor leaves it by rounding
 
-Milestone: unscheduled · Status: ✅ 2026-10-13 — one LaB₆ + cBN minimum on both platforms, and a flat direction's esd no longer rounds to 0
+Milestone: unscheduled · Status: 🔄 2026-10-13 — fix in PR #925; review items 3 and 8 and the indexing acceptance run are pending (handoff in the log)
 Track: What fires, and what stays silent
 Depends on: —
+Priority: P1 2026-10-13 — the esd-of-0 fix is in PR #925 and owes a release once merged; what remains is review item 3's PINV_RCOND measurement, the indexing acceptance on the reduce.py change, and item 8's counts
 
 ## Goal
 
@@ -317,6 +318,51 @@ printed digit on both.
   the dedup finding stays here. WP-1932: `equal_reduced`'s
   sign and the reduce counterexample. #865's moment question is a Non-goal here
   and has no owner.
+
+  *Handoff, 2026-10-13.* PR #925 was held at the merge gate by a
+  `/code-review medium` pass with ten findings. This session stopped mid-way
+  through them at 7f068054.
+
+  1. `statistics.py:179` `_psd_pinv` was half batch-generic (`np.transpose`
+     reverses every axis; the empty branch returned `a.shape[::-1]`). **Fixed**:
+     `np.swapaxes`, numpy's empty shape, a stacked case in the bit test.
+  2. `tests/test_acceptance_lab6_cbn.py:445` asserted `HIGH_CORRELATION` at
+     two nudges measured on one platform. **Fixed**: k = 0, 1, 7, each width
+     named by `HIGH_CORRELATION` or `COVARIANCE_DIRECTION_DISCARDED`, no esd
+     of 0; the docstring says Linux confirms on the first nightly after merge.
+  3. `statistics.py:52` `PINV_RCOND = 1e-15` sits inside eigh's rounding band
+     for n ≈ 30. Measure the goldens and the esd-quoting acceptance rows at
+     numpy's `max(M, N)·eps`, and separately with kept-but-flat directions
+     marked unmeasured, into a heading "PINV_RCOND alternatives, measured".
+     **Pending: nothing ran.** No numbers exist yet.
+  4. `indexing/reduce.py:578` signed `pinv` in `equal_reduced` and
+     `equal_reduced_many`. **Fixed** with `_psd_pinv` at
+     `reduce.CELL_PINV_RCOND`. `test_indexing_reduce.py` and
+     `test_indexing_consensus.py` pass except the pre-existing hypothesis
+     example. **Pending:** `tests/test_acceptance_indexing.py` was started in
+     the background on 7f068054's code and had not finished
+     (`<scratchpad>/wp1930_acc_indexing.txt`, lost with this session); rerun
+     it. `python -m tests.unit_replay` was not run. WP-1932's note says the
+     sign half is done.
+  5. `statistics.py:179` the `vt` transpose dance. **Fixed**:
+     `matmul(u, s[..., None] * swapaxes(u))`, bit test kept.
+  6. `tests/validation_matrix.py:419` the claim row's `starts` and
+     `diagnostics`. **Fixed**: `starts=10`, both codes declared.
+  7. `tests/test_acceptance_lab6_cbn.py:410` no PNGs for the nudged fits.
+     **Fixed**: `tests/output/lab6_cbn_degenerate_nudge{k}.png`; not yet looked
+     at.
+  8. The handover's test counts should say which numbers moved against a base
+     run (passed+skipped +3 fast, +2 slow, now +3 slow with k = 0).
+     **Pending**: needs a fast run on `origin/main` beside one on the branch.
+  9. `docs/releases/1.9.0.md:35` quoted "± 100 to ± 345", which no
+     measurement records. **Fixed** with the measured ranges.
+  10. `statistics.py:156` and the test docstrings hard-coded "a cut of
+      1e-15". **Fixed**: they say `PINV_RCOND`.
+
+  Next command, after merging `origin/main`:
+  `.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup`
+  in the background, then item 3's measurement, then the fast selection
+  verbatim, then push and check `gh run list --branch wp1930-close`.
 
   Next: the first nightly after e1d19359 should show the macOS dedup test and
   the Linux LaB₆ file green; a red one there reopens this. The P1 close owes a

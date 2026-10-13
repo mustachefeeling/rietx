@@ -114,8 +114,11 @@ equal to `equal_reduced_many` on every pair.
   (`statistics._psd_pinv` now inverts by magnitude). Here a kept negative
   eigenvalue would make χ² negative and pass `CELL_EQUALITY_CHI2`, merging
   two cells. A high-symmetry cell's `cov_af` is rank-deficient, so the case
-  is reachable. Not measured: the replay rule of WP-1519 governs any change,
-  so it was left here rather than fixed from a refinement WP.
+  is reachable. **Update 2026-10-13: the sign half is done in WP-1930**
+  (`reduce.CELL_PINV_RCOND`, `statistics._psd_pinv`, bit-identical to
+  `pinv` wherever no kept eigenvalue is negative; 0 of 20 000 witness pairs
+  had a negative χ² under the old call). The NCDIST/S6 redesign stays here,
+  and `python -m tests.unit_replay` was not run on the change.
 - **2026-10-13, from WP-1930: hypothesis found a counterexample to
   `test_the_reduced_cell_is_the_exact_image_of_its_input[F]`.** Centring F,
   a = 3.2, b = 16.0, c = 23.602486327493914 Å, α = 81°, β = 66°, γ = 65°.
