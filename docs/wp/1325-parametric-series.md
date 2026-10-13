@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of the series axis
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-13 — claimed by @yue-here (Claude session); scoping the declaration first
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P3 2026-09-23 — named on a use case, not on a measurement; per-pattern fits cover it
@@ -206,5 +206,21 @@ assumed.
 
 ## Handover log
 
+- **2026-10-13 (reconstructed post hoc)** — two planning commits landed on
+  `main` this morning without a handover entry, and the session-start hook
+  flagged the WP for repair. Neither one changed code or measured anything.
+  Together they say this WP's first outside user wants a 2-D surface across a
+  combinatorial library rather than a 1-D line through a ramp. They also say
+  the declaration has to be designed for an automated writer (a self-driving
+  lab) before it is built.
+  - `a9a577e` added the 2026-10-13 `### Inherited` entry from the outside
+    lab's email: the axis is a vector, there are many specimens, targets
+    include `hist.{h}.` paths, and the priority claim is disputed.
+  - `b23bb9a` added the prior-art survey task (second in Tasks) with its five
+    design questions.
+  - The diff does not say which session wrote them or why they were not
+    handed over. Both touch only this file.
+
+  Next: the survey task, then the measurement.
 - **2026-09-01** — created as a candidate during the roadmap reorder; carries
   a use case and a seam, no measurement. First task is the measurement.
