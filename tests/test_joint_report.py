@@ -29,6 +29,10 @@ from tests.test_multi_histogram import (
 OUT = Path(__file__).parent / "output"
 LAMS = (0.41390, 0.71070)
 
+# the module fixtures below are shared, so the module stays on one worker
+# (tests/CLAUDE.md § Shared fixtures and xdist groups)
+pytestmark = pytest.mark.xdist_group("joint-report")
+
 TURN_ON = ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
            "instrument.zero_shift"]
 
@@ -245,6 +249,42 @@ def test_each_histogram_gets_its_own_report(two_patterns):
         assert (result.for_histogram(h).identifiability.background_absorption
                 == mine)
         assert report.background.worst_absorption == max(mine.values())
+
+
+def test_a_view_spells_its_own_rows_as_a_single_fit_does(two_patterns):
+    """A per-histogram structural row reaches the report under its bare name.
+
+    ``build_report`` looks parameters up by bare path (the moment arm's esds,
+    Layer 2's freed-parameter rows), so a view carrying ``hist.1.…`` missed
+    them, and carried histogram 0's rows beside its own.
+    """
+    biso = "phases.0.atoms.0.biso"
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(
+        structure, instruments,
+        sharing=SharingMap(per_histogram=["phases.*.atoms.*.biso"]))
+    result = ref.fit(two_patterns, plan=RefinementPlan(stages=[
+        Stage("scale+bkg", ["phases.*.scale", "instrument.background.*"]),
+        Stage("zero", ["instrument.zero_shift"]),
+        Stage("cell", ["phases.*.cell.*"]),
+        Stage("width", ["instrument.profile.w"]),
+        Stage("b", [biso])]))
+    assert result.status == "converged"
+    assert all(hr.statistics.rwp < 0.12 for hr in result.histograms)
+    _plot(result, "joint_report_view_rows")
+    rows = {p.path: p for p in result.parameters}
+    assert {f"hist.0.{biso}", f"hist.1.{biso}"} <= set(rows)
+    for h in (0, 1):
+        view = {p.path: p for p in result.for_histogram(h).parameters}
+        assert view[biso] == rows[f"hist.{h}.{biso}"].model_copy(
+            update={"path": biso})
+        assert not [p for p in view if p.startswith("hist.")]
+        assert "phases.0.cell.b" in view          # a shared (tied) row stays bare
+    # a negative index counts from the end, and past either end is refused
+    assert result.for_histogram(-1).parameters == result.for_histogram(1).parameters
+    for bad in (2, -3):
+        with pytest.raises(IndexError):
+            result.for_histogram(bad)
 
 
 @pytest.fixture(scope="module")

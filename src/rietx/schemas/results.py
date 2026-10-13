@@ -1502,13 +1502,31 @@ class RefinementResult(Base):
         clears ``histograms``, so ``build_report(result.for_histogram(h))`` and
         ``result.for_histogram(h).plot()`` operate per pattern (reports are
         per-histogram — see :class:`HistogramResult`).
+
+        Paths are spelled as a single fit spells them (WP-1341).  The joint
+        result scopes a per-histogram row ``hist.<h>.``; the view keeps
+        histogram ``h``'s rows, unscoped, and drops every other histogram's,
+        in ``parameters`` and in the background screen alike.  A shared row
+        keeps the joint result's value, which for a WP-1131 size term is the
+        coefficient at histogram 0's wavelength.  A negative ``h`` counts from
+        the end, as list indexing does.
         """
         if not self.histograms:
             if h == 0:
                 return self
             raise IndexError("this result has no per-histogram slices")
+        n = len(self.histograms)
+        if not -n <= h < n:
+            raise IndexError(f"histogram {h} of a {n}-histogram result")
+        h %= n
         hr = self.histograms[h]
+        prefix = f"hist.{h}."
         view = self.model_copy(deep=True)
+        view.parameters = [
+            p.model_copy(update={"path": p.path[len(prefix):]})
+            if p.path.startswith(prefix) else p
+            for p in view.parameters
+            if p.path.startswith(prefix) or not p.path.startswith("hist.")]
         view.statistics = hr.statistics.model_copy(deep=True)
         # the joint solve's convergence figure belongs to the stages the view
         # keeps, so it travels with them (WP-1341)
@@ -1526,7 +1544,6 @@ class RefinementResult(Base):
         if view.identifiability is not None:
             # this histogram's background screen, as a single fit spells it
             # (WP-1341): the joint result scopes every row ``hist.<h>.``
-            prefix = f"hist.{h}."
             mine = {k[len(prefix):]: v for k, v in
                     view.identifiability.background_absorption.items()
                     if k.startswith(prefix)}
