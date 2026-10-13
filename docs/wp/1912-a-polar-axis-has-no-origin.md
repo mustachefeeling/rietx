@@ -382,7 +382,14 @@ one item kept. The tool's table:
 
 Kept: measure, est 15, 6 requests, at 288K. The selective policy's replay row
 is +12% for this session (+2.52, +10% of the session in the trial row). The
-estimates ran 2.17× short. FAST_RESULTS
+estimates ran 2.17× short. The fast selection was run on this branch with main merged at
+`4366289` (`[dev,jax]`, Linux, one run, 23 min 15 s). It gave 9 497 passed,
+128 skipped and 1 xfailed, with no failure. There is no main baseline on this
+venv, so the count's move against main was not measured. The 21 added tests
+(22 cases) cost 22.6 s in that run, 22.3 s of it in `test_floating_origin.py`.
+The module fixture's two added centroid fits come on top of that and are not
+attributed to a test. The full selection did not run: the default stays off,
+so no measured number moves.
 
 *Gotchas.*
 - The venv in this worktree has `[dev,jax]`: the centroid lane installed jax.
