@@ -253,16 +253,14 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
     grid pass and the dichotomy so the two phases cannot come to different
     conclusions about the same box — which is the whole reason the prunes live
     in a function rather than inline in each loop.
-    """
-    q_min, q_max = _q_bounds(m, lo, hi)
-    keep = q_min <= q_hi
-    if not keep.all():
-        m, q_min, q_max = m[keep], q_min[keep], q_max[keep]
-        if ids is not None:
-            ids = ids[keep]
-    if not len(q_min):
-        return None
 
+    **The prunes that read no row run first** (WP-1959).  Each prune is a
+    ``return None`` with no side effect, so their order changes only the cost.
+    On #780's monoclinic grid, 135 593 of the last stage's 158 282 boxes die at
+    the cone, axis-swap or volume prune.  Reading ~8300 rows' Q bounds before
+    those tests was 90 % of the grid.  Run first, they cut the grid 4.4× in
+    CPU, with every box's answer unchanged.
+    """
     af_lo, af_hi = _af_interval(basis, lo, hi)
     if np.any(af_hi[:3] <= 0.0):
         return None
@@ -276,6 +274,15 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
             return None
     det_lo, det_hi = _det_interval(af_lo, af_hi)
     if det_hi < det_band[0] or det_lo > det_band[1]:
+        return None
+
+    q_min, q_max = _q_bounds(m, lo, hi)
+    keep = q_min <= q_hi
+    if not keep.all():
+        m, q_min, q_max = m[keep], q_min[keep], q_max[keep]
+        if ids is not None:
+            ids = ids[keep]
+    if not len(q_min):
         return None
 
     # one (lines × reflections) pass answers all three remaining questions: how
