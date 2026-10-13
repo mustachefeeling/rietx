@@ -47,6 +47,7 @@ from ..crystallography.stephens import S_NAMES
 from ..model import rows as row_layout
 from ..model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, DerivativeBases
 from ..model.forward import accumulate_planes as _accumulate
+from ..model.origin import origin_partials
 from ..model.restraints import restraint_partials
 from ..params.vector import (
     FLOOR_SEEDS,
@@ -1489,7 +1490,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
     n_table = len(free)
     # row extents from the one layout authority — the Jacobian writes into the
     # same blocks the residual stacks, so it must not re-derive them
-    data_blk, pen_blk, pawley_blk, restr_blk = row_layout.layout(model)
+    data_blk, pen_blk, pawley_blk, restr_blk, origin_blk = row_layout.layout(model)
     n_data, n_bkg_pen, n_restraint = data_blk.n, pen_blk.n, restr_blk.n
     n_rows = row_layout.n_rows(model)
 
@@ -1649,6 +1650,18 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
             cmat = table.local_jacobian(
                 np.asarray(theta_t, dtype=np.float64)).toarray()
             J[restr0:restr0 + n_restraint, :n_table] = r_phys @ cmat
+
+        if model.origin is not None and n_table:
+            # The origin restraint (WP-1912, Flack & Schwarzenbach 1988 eq 9):
+            # linear in the coordinates, so its physical partials are the
+            # frozen aₙ·Δ_p matrix, chained through C (and a body's derived
+            # rows) as the soft-restraint block's are.  Never ×√c_w: the
+            # origin is not a restraint the caller declared (CompiledModel's
+            # field comment), so c_w = 0 must leave it in place.
+            o_phys = origin_partials(model.origin, table)
+            omat = table.local_jacobian(
+                np.asarray(theta_t, dtype=np.float64)).toarray()
+            J[origin_blk.rows, :n_table] = o_phys @ omat
         return J
 
     return jacobian

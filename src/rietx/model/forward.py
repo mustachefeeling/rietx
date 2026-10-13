@@ -121,6 +121,7 @@ from .corrections import (
     transparency_shift_deg,
 )
 from .extinction import sabine_extinction, sabine_extinction_and_dx
+from .origin import CompiledOrigin, origin_residual
 from .preferred_orientation import (
     march_dollase_and_dr,
     march_dollase_factors,
@@ -810,6 +811,16 @@ class CompiledModel:
     # esd is built from them.  Scaled there, all of them would come back ×√c_w
     # with no test failing that a reader would connect to the change.
     restraint_weight_scale: float = 1.0
+    # The origin restraint of a ``Phase.floating_origin = "centroid"`` phase
+    # (WP-1912, Flack & Schwarzenbach 1988; ``model.origin``): one row per
+    # direction this solve's free set can slide the phase along.  ``None``
+    # everywhere else, and then no row exists.  Written by the stage runner
+    # (``refine._attach_origin``) once the stage's free set is final, since
+    # the rows depend on it and ``compile_model`` sees only what may move; so
+    # frozen per solve, never per evaluation.  Its own block below the soft
+    # restraints, and deliberately NOT scaled by ``restraint_weight_scale``:
+    # c_w = 0 silences the restraints the caller declared, never the origin.
+    origin: "CompiledOrigin | None" = None
     meta: dict = field(default_factory=dict)
 
     # ------------------------------------------------------------------
@@ -2944,6 +2955,17 @@ class CompiledModel:
             return rows
         # scalar on the right: a python float, so no backend routing question
         return rows * math.sqrt(self.restraint_weight_scale)
+
+    def origin_residual(self, values: dict) -> np.ndarray | None:
+        """Σₙ aₙ·Δ_pᵀ(xₙ − xₙ⁰) origin rows (WP-1912), or None when there are none.
+
+        Flack & Schwarzenbach (1988), Acta Cryst. A44, 499-506, eq 9.  Never
+        ×√c_w (the field comment says why); traceable, so the autodiff
+        backends differentiate it through ``rows.assemble`` with the rest.
+        """
+        if self.origin is None:
+            return None
+        return origin_residual(self.origin, values)
 
     def build_pawley_restraint(self, lam: float = PAWLEY_OVERLAP_LAMBDA) -> None:
         """Build the equal-split restraint rows for the current intensities.

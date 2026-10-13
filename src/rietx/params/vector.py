@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Literal
 
 import numpy as np
@@ -1056,6 +1056,20 @@ class _OriginPhase:
     #: every coordinate row a DOF of this phase drives: the rows a shift of
     #: the whole phase moves, and the targets :meth:`_origin_floats` solves for
     coords: tuple[str, ...]
+    #: ``Phase.floating_origin`` as declared: ``"hold"`` or ``"centroid"``
+    mode: str = "hold"
+    #: site base path (``phases.i.atoms.j`` or ``phases.i.rigid_bodies.b.origin``)
+    #: → (label, the atom indices whose coordinates the forward model reads
+    #: and a shift of that site moves), in candidate order.  The centroid
+    #: restraint's sites (``model.origin``): its row reads ``{base}.x/y/z``,
+    #: and its curvature moves the atoms
+    sites: dict[str, tuple[str, tuple[int, ...]]] = field(
+        default_factory=dict)
+
+
+def _candidate_sites(rec: _OriginPhase, f: tuple[int, int, int]) -> set[str]:
+    """The sites (atoms, body origins) whose DOFs a shift along ``f`` moves."""
+    return {d.rsplit(".dof.", 1)[0] for d in rec.candidates[f]}
 
 
 class ParameterTable:
@@ -1407,6 +1421,10 @@ class ParameterTable:
         hexagonal or tetragonal axis a is a single ±1 on the DOF running along
         it.  On rhombohedral axes (R 3 m:R, f = [1, 1, 1]) a general site has
         a = (1, 1, 1), so its x is held, which blocks the shift as well.
+
+        The sites themselves are recorded too (``_OriginPhase.sites``): an
+        atom, or a rigid body's origin with the atoms it places, which is what
+        a ``"centroid"`` declaration weights (``model.origin``).
         """
         floating = floating_origin_basis(sg)
         if len(floating) == 0:
@@ -1438,9 +1456,19 @@ class ParameterTable:
             candidates[f] = tuple(hits)
         coords = tuple(dict.fromkeys(c for d in dofs
                                      for c, _ in self._anchored_dofs[d]))
+        # what each site moves in the forward model: an atom itself, a body
+        # every atom it places (a shift of its origin is a shift of all of them)
+        index = {atom.label: j for j, atom in enumerate(phase.atoms)}
+        site_info: dict[str, tuple[str, tuple[int, ...]]] = {}
+        for base, site_dofs in sites.items():
+            kind, k = base.split(".")[2:4]
+            members = ((int(k),) if kind == "atoms" else tuple(
+                index[label] for label in phase.rigid_bodies[int(k)].atoms))
+            site_info[base] = (labels[site_dofs[0]], members)
         self._origin[ip] = _OriginPhase(
             space_group=phase.space_group, directions=directions,
-            candidates=candidates, labels=labels, coords=coords)
+            candidates=candidates, labels=labels, coords=coords,
+            mode=phase.floating_origin, sites=site_info)
 
     def _collect_body_atom_coords(self, base: str, atom, body: str) -> None:
         """A body atom's x, y, z: locked rows its body's block writes (WP-1805).
@@ -2558,9 +2586,12 @@ class ParameterTable:
 
         Which atom is held is the decision recorded on WP-1912 (2026-10-06):
         the first whose DOF moves it along the direction, the common powder
-        practice.  Flack & Schwarzenbach (1988), Acta Cryst. A44,
-        499-506, give the alternative SHELXL uses, a restraint on a weighted
-        centroid, which keeps an esd on every atom; it is not implemented.
+        practice.  A phase declaring ``"centroid"`` holds nothing here where
+        two or more sites can move along the direction: each stage restrains
+        their weighted centroid instead (Flack & Schwarzenbach 1988, Acta
+        Cryst. A44, 499-506; :meth:`origin_slides`, ``model.origin``).  With
+        one such site there is no centroid to restrain, so that direction is
+        held exactly as ``"hold"`` holds it.
         """
         for path in self._origin_held:
             i = self._paths.get(path)
@@ -2577,6 +2608,8 @@ class ParameterTable:
         rows = self._origin_rows()
         for ip, rec in self._origin.items():
             for f in rec.directions:
+                if rec.mode == "centroid" and len(_candidate_sites(rec, f)) > 1:
+                    continue  # the stage's restraint, never a hold
                 if not self._origin_floats(rec, f, rows):
                     continue
                 path = next((p for p in rec.candidates[f]
@@ -2611,8 +2644,13 @@ class ParameterTable:
                 and not is_variable_path(e.path)]
 
     def _origin_floats(self, rec: _OriginPhase, f: tuple[int, int, int],
-                       tied: list[tuple[str, list[tuple[int, float]]]]) -> bool:
+                       tied: list[tuple[str, list[tuple[int, float]]]], *,
+                       free_only: bool = False) -> bool:
         """Can the columns a stage could free shift the phase along ``f`` alone?
+
+        ``free_only`` asks it of the columns that **are** free now (``vary``
+        and untied, the columns of θ) rather than of those a stage could free:
+        :meth:`origin_slides`'s question, one solve for both callers.
 
         Exact linear algebra on the affine block, never a reading of names
         (WP-1342's rule): find Δθ over the columns that could be freed with
@@ -2634,6 +2672,7 @@ class ParameterTable:
 
         cols = [i for i, e in enumerate(self.entries)
                 if e.tie is None and not e.locked and not e.held
+                and (e.vary or not free_only)
                 and (e.path in self._anchored_dofs or is_variable_path(e.path))]
         col = {i: k for k, i in enumerate(cols)}
         targets = {c: float(f["xyz".index(c[-1])]) for c in rec.coords}
@@ -2713,6 +2752,32 @@ class ParameterTable:
     def origin_phases(self) -> dict[int, _OriginPhase]:
         """Phase index → its floating-origin record, for every declaring phase."""
         return dict(self._origin)
+
+    def origin_slides(self) -> dict[int, list[tuple[int, int, int]]]:
+        """Phase index → the directions the **free** columns slide it along.
+
+        Asked per stage, of every phase declaring ``"centroid"``, by whoever
+        builds that stage's origin restraint (``model.origin``): a direction
+        is listed only where the columns free now can shift every coordinate
+        of the phase along it and move nothing else, the
+        :meth:`_origin_floats` solve over the free set.  Where they cannot (a
+        stage that frees one atom's DOF, the caller's hold, a mode that
+        force-fixes coordinates) the origin is fixed by what stays still, and
+        a restraint row there would be a *structural* restraint, the hybrid
+        Flack & Schwarzenbach (1988) warn against.  A direction this table
+        holds (one site along it) is never free, so never listed.
+        """
+        rows = None
+        out: dict[int, list[tuple[int, int, int]]] = {}
+        for ip, rec in self._origin.items():
+            if rec.mode != "centroid":
+                continue
+            for f in rec.directions:
+                if rows is None:
+                    rows = self._origin_rows()
+                if self._origin_floats(rec, f, rows, free_only=True):
+                    out.setdefault(ip, []).append(f)
+        return out
 
     def refresh_ties(self) -> None:
         """Recompute every tied entry's value from its sources.

@@ -307,6 +307,39 @@ def _state_families_variable():
     return model, table, {}
 
 
+def _state_centroid_origin():
+    """The origin restraint of a ``"centroid"`` polar phase (WP-1912).
+
+    A new **row block** rather than a new column: Flack & Schwarzenbach's
+    (1988) eq 9 below every other row, whose numpy rows are a frozen
+    aₙ·Δ_p matrix chained through C while the traced backends differentiate
+    ``origin_residual`` through ``rows.assemble``.  Synthetic zincite with
+    both z DOFs free, so the shift the rows fix is live, beside the scale, the
+    cell and the two Biso the coordinates trade against.
+    """
+    from rietx import Refinement
+    from rietx.model.origin import compile_origin
+    from rietx.schemas.structure import Structure
+    from tests.test_floating_origin import Z_O, _zincite, _zincite_instrument
+
+    ins = _zincite_instrument()
+    grid = np.arange(20.0, 100.0, 0.03)
+    truth = Refinement(Structure(phases=[_zincite(Z_O)]), ins, history=False)
+    y = np.asarray(truth.predict(grid)) + 50.0
+    pattern = PatternData(two_theta=grid.tolist(), intensity=y.tolist())
+    structure = Structure(phases=[_zincite(Z_O + 0.01, "centroid")])
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for path in ("phases.0.scale", "phases.0.cell.a", "phases.0.cell.c",
+                 "phases.0.atoms.*.dof.*", "phases.0.atoms.*.biso"):
+        assert table.set_vary([path], True), path
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    model.origin = compile_origin(model, table)
+    assert model.origin is not None and model.origin.n_rows == 1
+    return model, table, {}
+
+
 def _state_capillary_offsets():
     """The eq (4) capillary displacement pair, both free (WP-1073).
 
@@ -737,6 +770,7 @@ CONFIGS = {"families": _state_families,
            "sharp_widths": _state_sharp_widths,
            "families_tied": _state_families_tied,
            "families_variable": _state_families_variable,
+           "centroid_origin": _state_centroid_origin,
            "toy_body": _state_toy_body,
            "capillary_offsets": _state_capillary_offsets,
            "extra_components": _state_extra_components,
@@ -769,6 +803,7 @@ CONFIG_PARAMS = [
     _config("sharp_widths"),
     _config("families_tied"),
     _config("families_variable"),
+    _config("centroid_origin"),
     _config("toy_body"),
     _config("capillary_offsets"),
     _config("extra_components"),

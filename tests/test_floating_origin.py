@@ -390,7 +390,8 @@ def zincite_data():
 def zincite_fits(zincite_data):
     data = zincite_data
     fits = {}
-    for solver, origin in (("lm", None), ("lm", "hold"), ("trf", "hold")):
+    for solver, origin in (("lm", None), ("lm", "hold"), ("trf", "hold"),
+                           ("lm", "centroid"), ("trf", "centroid")):
         ins = _zincite_instrument()
         ins.background = rx.auto_background(data)
         ref = rx.Refinement(rx.Structure(phases=[_zincite(Z_O + 0.02, origin)]),
@@ -574,8 +575,8 @@ def test_a_joint_fit_says_once_which_atom_holds_the_origin(zincite_data):
                     _atom("O", "O", 0.21, 0.04, 0.29)]),
 ], ids=["P212121", "Pnma"])
 def test_a_non_polar_phase_fits_the_same_declared_or_not(phase):
-    """The declaration is a no-op off a polar group: same free set, same
-    numbers bit for bit, and no origin diagnostic."""
+    """The declaration is a no-op off a polar group, either mode: same free
+    set, same numbers and esds bit for bit, and no origin diagnostic."""
     grid = np.arange(15.0, 90.0, 0.03)
     ins = rx.Instrument.bragg_brentano(radiation="CuKa")
     truth = rx.Refinement(rx.Structure(phases=[phase]), ins, history=False)
@@ -584,19 +585,23 @@ def test_a_non_polar_phase_fits_the_same_declared_or_not(phase):
         scale=np.sqrt(np.maximum(y, 1.0))), 0)
     data = rx.PatternData(two_theta=grid.tolist(), intensity=y.tolist())
     results = {}
-    for origin in (None, "hold"):
+    for origin in (None, "hold", "centroid"):
         start = phase.model_copy(deep=True)
         start.floating_origin = origin
         start.atoms[0].x.value += 0.01
         ref = rx.Refinement(rx.Structure(phases=[start]), ins, history=False)
         results[origin] = ref.fit(data, plan=PLAN, telemetry=False)
-    off, on = results[None], results["hold"]
-    assert ({p.path for p in on.parameters if p.vary}
-            == {p.path for p in off.parameters if p.vary})
-    assert [p.value for p in on.parameters] == [p.value for p in off.parameters]
-    assert not {d.code for d in on.diagnostics} & {
-        "ORIGIN_FIXED_ON_POLAR_AXIS", "ORIGIN_NOT_FIXED"}
-    _save_fit_png(on, f"floating_origin_nonpolar_{phase.name}")
+    off = results[None]
+    for on in (results["hold"], results["centroid"]):
+        assert ({p.path for p in on.parameters if p.vary}
+                == {p.path for p in off.parameters if p.vary})
+        assert ([p.value for p in on.parameters]
+                == [p.value for p in off.parameters])
+        assert ([p.stderr for p in on.parameters]
+                == [p.stderr for p in off.parameters])
+        assert not {d.code for d in on.diagnostics} & {
+            "ORIGIN_FIXED_ON_POLAR_AXIS", "ORIGIN_NOT_FIXED"}
+    _save_fit_png(results["hold"], f"floating_origin_nonpolar_{phase.name}")
 
 
 def test_a_declared_hold_over_a_free_set_is_neither_vanished_nor_refreed():
@@ -617,3 +622,342 @@ def test_a_declared_hold_over_a_free_set_is_neither_vanished_nor_refreed():
     ref.unhold("phases.0.atoms.0.dof.0")
     zn = {r.path: r for r in ref.parameters()}["phases.0.atoms.0.dof.0"]
     assert not zn.held and not zn.vary
+
+
+# ------------------------------- the centroid restraint (WP-1912, F&S 1988)
+#: Flack & Schwarzenbach (1988), Acta Cryst. A44, 499-506: one restraint row
+#: per floating direction on a weighted centroid of every site (eq 9), with
+#: weights solving eq 21 by the Appendix's (A6) iteration.
+
+
+def test_the_a6_solve_meets_the_a7_closed_form():
+    """b₁ and b₂ = … = b_N, the Appendix's explicit solution (A7)."""
+    from rietx.model.origin import centroid_coefficients
+
+    n, b1, b2 = 5, 10.0, 3.0
+    solve = centroid_coefficients([b1] + [b2] * (n - 1))
+    assert solve.converged and solve.clipped is None
+    assert solve.a[0] == pytest.approx(
+        np.sqrt((n - 2) * b1 ** 2 / ((n - 1) ** 2 * b2 - (n - 1) * b1)), rel=1e-9)
+    assert solve.a[1:] == pytest.approx(
+        [np.sqrt(((n - 1) * b2 - b1) / ((n - 1) * (n - 2)))] * (n - 1), rel=1e-9)
+
+
+def test_the_a6_solve_meets_eq_21_on_a_random_structure():
+    """Waser's mean-matrix bₘ = Zₘ²(ΣZ² − Zₘ²), perturbed: eq 21 to 1e-9."""
+    from rietx.model.origin import centroid_coefficients
+
+    rng = np.random.default_rng(11)
+    z2 = rng.uniform(1, 30, 9) ** 2
+    b = z2 * (z2.sum() - z2) * rng.uniform(0.8, 1.2, z2.size)
+    solve = centroid_coefficients(b)
+    a = solve.a
+    assert solve.converged and solve.clipped is None
+    np.testing.assert_allclose(a * (a.sum() - a), b, rtol=1e-9)
+
+
+def test_two_sites_share_one_coefficient_and_a_dark_site_none():
+    """N = 2 fixes only a₁·a₂ (b₁ = b₂ by eq 8), so a₁ = a₂ = √b̄; a site
+    that moves no intensity takes no weight and leaves the system."""
+    from rietx.model.origin import centroid_coefficients
+
+    two = centroid_coefficients([4.0, 4.0 * (1 + 1e-9)])
+    assert two.a[0] == two.a[1] == pytest.approx(2.0, rel=1e-9)
+    dark = centroid_coefficients([0.0, 4.0, 4.0])
+    assert dark.a[0] == 0.0 and dark.a[1] == dark.a[2] == pytest.approx(2.0)
+    one = centroid_coefficients([0.0, 9.0])
+    assert list(one.a) == [0.0, 3.0]
+
+
+def test_an_a5_failure_clips_the_dominant_site_toward_a_hold():
+    """(A5): Σb − 2b_r > 0 for every r, or no real solution.  The largest is
+    clipped just under the others' sum, the solve then meets eq 21 for the
+    clipped value, and the dominant weight is the hold's limit."""
+    from rietx.model.origin import A5_CLIP, centroid_coefficients
+
+    b = np.array([10.0, 1.0, 1.5])
+    solve = centroid_coefficients(b)
+    assert solve.clipped == 0 and solve.converged
+    clipped = b.copy()
+    clipped[0] = (1 - A5_CLIP) * (b[1] + b[2])
+    a = solve.a
+    np.testing.assert_allclose(a * (a.sum() - a), clipped, rtol=1e-6)
+    assert a[0] > 20 * max(a[1], a[2])
+    # lopsided below the dominant site too: the clip stays inside every row
+    lop = centroid_coefficients([100.0, 50.0, 1e-3])
+    assert lop.clipped == 0 and np.all(np.isfinite(lop.a)) and lop.a.min() > 0
+
+
+def test_the_directions_are_orthonormal_and_keep_their_span():
+    from rietx.model.origin import orthonormal_directions
+
+    d = orthonormal_directions([(1, 0, 0), (1, 0, 1)])
+    np.testing.assert_allclose(d @ d.T, np.eye(2), atol=1e-15)
+    np.testing.assert_allclose(d, [[1, 0, 0], [0, 0, 1]], atol=1e-15)
+    np.testing.assert_allclose(orthonormal_directions([(1, 1, 1)]),
+                               [np.full(3, 3 ** -0.5)], atol=1e-15)
+
+
+def _centroid(phase):
+    phase.floating_origin = "centroid"
+    return phase
+
+
+def test_centroid_holds_nothing_and_slides_only_on_the_free_set():
+    """Two sites along c: no hold; a restraint direction exactly where the
+    columns free now can slide the phase, and none where one atom is fixed
+    (there the row would be a structural restraint, the paper's hybrid)."""
+    table = _table(_centroid(_zno()))
+    assert table.origin_holds == {} and table.origin_unfixed == {}
+    assert not any(e.held for e in table.entries)
+    assert table.origin_slides() == {}
+    table.set_vary(["phases.*.atoms.*.dof.*"], True)
+    assert table.origin_slides() == {0: [(0, 0, 1)]}
+    table.set_vary(["phases.0.atoms.0.dof.0"], False)
+    assert table.origin_slides() == {}
+    # a caller's hold on one atom fixes it the same way
+    table.set_vary(["phases.*.atoms.*.dof.*"], True)
+    table.set_held(["phases.0.atoms.1.dof.0"], True)
+    assert table.origin_slides() == {}
+
+
+def test_one_site_along_a_direction_is_held_as_hold_holds_it():
+    """N = 1: no centroid to restrain, so the direction is held."""
+    cc = rx.Phase(name="cc", space_group="C 1 c 1", cell=_cell(5.0, 6.0, 7.0),
+                  atoms=[_atom("A", "Si", 0.1, 0.2, 0.3)])
+    table = _table(_centroid(cc))
+    assert table.origin_holds == {"phases.0.atoms.0.dof.0": (0, (1, 0, 0)),
+                                  "phases.0.atoms.0.dof.2": (0, (0, 0, 1))}
+    table.set_vary(["phases.*.atoms.*.dof.*"], True)
+    assert table.origin_slides() == {}
+
+
+@pytest.mark.xdist_group("floating-origin-zincite")
+@pytest.mark.parametrize("solver", ["lm", "trf"])
+def test_the_centroid_keeps_every_esd_and_the_hold_s_answer(zincite_fits,
+                                                            solver):
+    """The WP's zincite under ``mccusker_structural``: the same structure and
+    Rwp as the hold, the centroid where the fit started it, and each z an esd
+    of the difference's over √2 with the pair uncorrelated (N = 2 with
+    a₁ = a₂ makes A′ diagonal)."""
+    ref, result = zincite_fits[solver, "centroid"]
+    held_ref, held = zincite_fits[solver, "hold"]
+    zn, o = ref.fitted_structure.phases[0].atoms
+    held_o = held_ref.fitted_structure.phases[0].atoms[1]
+    assert 0.0 <= zn.z.value < 1.0 and 0.0 <= o.z.value < 1.0
+    assert abs((o.z.value - zn.z.value) - held_o.z.value) < held_o.z.stderr
+    assert result.statistics.rwp == pytest.approx(held.statistics.rwp, rel=1e-6)
+    # every coordinate refined and quoted
+    free = {p.path for p in result.parameters if p.vary}
+    assert {"phases.0.atoms.0.dof.0", "phases.0.atoms.1.dof.0"} <= free
+    rows = ref._model.origin.phases[0]
+    assert rows.labels == ("Zn", "O") and rows.a[0] == rows.a[1]
+    # the centroid did not move: Σ aₙ·δzₙ from the fit's start is ~0
+    start = np.array([0.0, Z_O + 0.02])
+    end = np.array([zn.z.value, o.z.value])
+    assert abs(rows.a @ (end - start)) / rows.a.sum() < 1e-6
+    assert zn.z.stderr == pytest.approx(o.z.stderr, rel=1e-6)
+    assert zn.z.stderr == pytest.approx(held_o.z.stderr / np.sqrt(2), rel=0.05)
+    _, table, _, _, corr = ref._answer_covariance
+    i, j = (table.free_paths.index(f"phases.0.atoms.{k}.dof.0") for k in (0, 1))
+    # the z block of A′ is diagonal; what is left (−0.059 measured, against
+    # −1.000 unrestrained) comes through the other free parameters
+    assert abs(corr[i, j]) < 0.1
+    codes = [d.code for d in result.diagnostics]
+    assert not set(codes) & {"FLAT_DIRECTION", "HIGH_CORRELATION",
+                             "ORIGIN_NOT_FIXED", "HOLD_BLOCKED_PLAN"}
+    origin = [d for d in result.diagnostics
+              if d.code == "ORIGIN_FIXED_ON_POLAR_AXIS"]
+    assert len(origin) == 1 and origin[0].level == "info"
+    assert origin[0].where == ["phases.0.atoms.0.dof.0", "phases.0.atoms.1.dof.0"]
+    for part in ("phase 0", "P 63 m c", "[0, 0, 1]", "Zn 0.500", "O 0.500",
+                 "'coordinates'"):
+        assert part in origin[0].message
+    assert not any(sr.blocked_by_hold for sr in result.stages)
+
+
+def _zincite_solve_state(zincite_data, turn_on, *, origin="centroid"):
+    """A compiled zincite state with ``turn_on`` free and the origin attached."""
+    from rietx.model.forward import compile_model
+    from rietx.model.origin import compile_origin
+
+    ref = _zincite_refinement(zincite_data, origin)
+    table = ref._working_table()
+    table.set_vary(turn_on, True)
+    model = compile_model(ref.structure, ref.instrument, zincite_data,
+                          moving_paths=set(table.moving_paths))
+    model.origin = compile_origin(model, table)
+    return model, table
+
+
+def test_the_origin_rows_are_exact_at_any_step(zincite_data):
+    """The analytic rows are the linear restraint's own: a difference
+    quotient of the assembled residual matches them at a step of 0.1."""
+    from rietx.model import rows as row_layout
+    from rietx.optimize.least_squares import _jacobian_for, _make_residual
+
+    model, table = _zincite_solve_state(
+        zincite_data, ["phases.*.scale", "phases.*.atoms.*.dof.*",
+                       "phases.*.cell.*"])
+    assert model.origin is not None and model.origin.n_rows == 1
+    blk = row_layout.block(model, "origin_restraint")
+    assert blk.stop == row_layout.n_rows(model)
+    theta = table.x0()
+    jac = _jacobian_for(model, table, "numpy")(theta)
+    residual = _make_residual(model, table)
+    r0 = residual(theta)
+    assert np.all(r0[blk.rows] == 0.0)        # at x⁰ the restraint is satisfied
+    for c, path in enumerate(table.free_paths):
+        step = theta.copy()
+        step[c] += 0.1
+        quotient = (residual(step)[blk.rows] - r0[blk.rows]) / 0.1
+        np.testing.assert_allclose(jac[blk.rows, c], quotient, rtol=1e-9,
+                                   atol=1e-9 * np.abs(jac[blk.rows]).max(),
+                                   err_msg=path)
+    a = model.origin.phases[0].a
+    assert jac[blk.rows, table.free_paths.index("phases.0.atoms.0.dof.0")] == (
+        pytest.approx(a[0]))
+
+
+def test_a_restraint_weight_of_zero_leaves_the_origin_fixed(zincite_data):
+    """c_w scales the caller's restraints, never the origin's own block."""
+    ins = _zincite_instrument()
+    ins.background = rx.auto_background(zincite_data)
+    ref = rx.Refinement(rx.Structure(phases=[_zincite(Z_O + 0.02, "centroid")]),
+                        ins, history=False)
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("xyz", ["phases.*.scale", "instrument.background.c*",
+                         "phases.*.atoms.*.dof.*"],
+                 restraint_weight_scale=0.0)])
+    result = ref.fit(zincite_data, plan=plan, telemetry=False)
+    assert ref._model.origin is not None and ref._model.origin.n_rows == 1
+    codes = {d.code for d in result.diagnostics}
+    assert "FLAT_DIRECTION" not in codes
+    assert "ORIGIN_FIXED_ON_POLAR_AXIS" in codes
+    zn, o = ref.fitted_structure.phases[0].atoms
+    assert abs((zn.z.value + o.z.value) - (Z_O + 0.02)) < 1e-6
+    assert zn.z.stderr is not None and o.z.stderr is not None
+
+
+def test_a_stage_that_cannot_slide_the_phase_adds_no_row(zincite_data):
+    """Zn fixed, O free: the origin is fixed by Zn, so the centroid row would
+    be a structural restraint.  None is built, and the fit is the
+    undeclared one bit for bit."""
+    plan = rx.RefinementPlan(stages=[rx.Stage(
+        "o", ["phases.*.scale", "instrument.background.c*",
+              "phases.0.atoms.1.dof.0"])])
+    fits = {}
+    for origin in (None, "centroid"):
+        ref = _zincite_refinement(zincite_data, origin)
+        fits[origin] = (ref, ref.fit(zincite_data, plan=plan, telemetry=False))
+    ref, on = fits["centroid"]
+    off = fits[None][1]
+    assert ref._model.origin is None
+    assert [(p.path, p.value, p.stderr) for p in on.parameters] == [
+        (p.path, p.value, p.stderr) for p in off.parameters]
+    assert "ORIGIN_FIXED_ON_POLAR_AXIS" not in {d.code for d in on.diagnostics}
+
+
+def _synthetic(phase, *, seed: int):
+    grid = np.arange(15.0, 120.0, 0.02)
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    truth = rx.Refinement(rx.Structure(phases=[phase]), ins, history=False)
+    y = np.asarray(truth.predict(grid)) + 40.0
+    y = np.maximum(y + np.random.default_rng(seed).normal(
+        scale=np.sqrt(np.maximum(y, 1.0))), 0)
+    return rx.PatternData(two_theta=grid.tolist(), intensity=y.tolist())
+
+
+def _fit_centroid(phase, data, shift: float):
+    """``phase`` declared ``"centroid"``, each site's DOF k started off the
+    truth by ``±shift·(j + 1)`` (atom j, alternating, so no start is a pure
+    origin shift), fitted under :data:`PLAN`."""
+    start = _centroid(phase.model_copy(deep=True))
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ins.background = rx.auto_background(data)
+    ref = rx.Refinement(rx.Structure(phases=[start]), ins, history=False)
+    paths = {e.path for e in ref._working_table().entries}
+    ref.set_values({f"phases.0.atoms.{j}.dof.{k}": shift * (j + 1) * (-1) ** (j + k)
+                    for j in range(len(start.atoms)) for k in range(3)
+                    if f"phases.0.atoms.{j}.dof.{k}" in paths})
+    return ref, ref.fit(data, plan=PLAN, telemetry=False)
+
+
+def _p4mm():
+    return rx.Phase(
+        name="p4mm", space_group="P 4 m m", cell=_cell(3.9, 3.9, 4.0),
+        scale=rx.Parameter(value=0.01),
+        atoms=[_atom("Fe", "Fe", 0.0, 0.0, 0.0), _atom("Ti", "Ti", 0.5, 0.5, 0.47),
+               _atom("O", "O", 0.5, 0.0, 0.53)])
+
+
+def test_three_sites_solve_eq_21_and_diagonalise_the_z_block():
+    """Three sites along c (1a, 1b, 2c of P 4 m m): the fit's coefficients
+    meet eq 21, and on the fit's own Jacobian the restrained matrix
+    A′ = A + t·tᵀ has each z column's off-diagonal sum at zero (eq 20)."""
+    from rietx.model import rows as row_layout
+    from rietx.model.origin import compile_origin
+    from rietx.optimize.least_squares import _jacobian_for
+
+    phase = _p4mm()
+    ref, result = _fit_centroid(phase, _synthetic(phase, seed=17), 0.004)
+    assert result.status == "converged"
+    rows = ref._model.origin.phases[0]
+    assert rows.labels == ("Fe", "Ti", "O") and rows.clipped is None
+    assert rows.converged
+    a, b = rows.a, rows.b
+    np.testing.assert_allclose(a * (a.sum() - a), b, rtol=1e-3)
+    assert "FLAT_DIRECTION" not in {d.code for d in result.diagnostics}
+    # eq 20 where J is: the restraint re-measured at the answer
+    _, table, _, _, _ = ref._answer_covariance
+    model = ref._model
+    model.origin = compile_origin(model, table)
+    jac = _jacobian_for(model, table, "numpy")(table.x0())
+    cols = [table.free_paths.index(f"phases.0.atoms.{j}.dof.0") for j in range(3)]
+    for j in range(3):   # each DOF is +z itself, so the DOF block is the z block
+        tie = table.entries[table._paths[f"phases.0.atoms.{j}.z"]].tie
+        assert tie.terms == ((f"phases.0.atoms.{j}.dof.0", 1.0),)
+    data = jac[row_layout.block(model, "data").rows][:, cols]
+    t = jac[row_layout.block(model, "origin_restraint").rows][:, cols]
+    np.testing.assert_allclose(t, model.origin.phases[0].a[None, :], rtol=1e-12)
+    restrained = data.T @ data + t.T @ t
+    off = restrained.sum(axis=0) - np.diag(restrained)
+    assert np.abs(off).max() < 1e-6 * np.diag(restrained).min()
+
+
+@pytest.mark.parametrize("phase, n_rows", [
+    (rx.Phase(name="p1", space_group="P 1", cell=_cell(5.1, 6.2, 7.3),
+              scale=rx.Parameter(value=0.01),
+              atoms=[_atom("Si", "Si", 0.11, 0.23, 0.37),
+                     _atom("O1", "O", 0.41, 0.07, 0.19),
+                     _atom("O2", "O", 0.73, 0.58, 0.81)]), 3),
+    (rx.Phase(name="cc", space_group="C 1 c 1", cell=_cell(7.1, 6.2, 5.3),
+              scale=rx.Parameter(value=0.01),
+              atoms=[_atom("Si", "Si", 0.11, 0.23, 0.37),
+                     _atom("O", "O", 0.41, 0.07, 0.19)]), 2),
+], ids=["P1", "Cc"])
+def test_one_row_per_floating_direction(phase, n_rows):
+    """P 1 floats along three axes and Cc along two: that many rows, a fit
+    that converges, every coordinate quoted, and no flat direction."""
+    ref, result = _fit_centroid(phase, _synthetic(phase, seed=23), 0.003)
+    assert result.status == "converged"
+    assert ref._model.origin.n_rows == n_rows
+    assert not ref._working_table().origin_holds
+    codes = [d.code for d in result.diagnostics]
+    assert "FLAT_DIRECTION" not in codes
+    assert codes.count("ORIGIN_FIXED_ON_POLAR_AXIS") == 1
+    for atom in ref.fitted_structure.phases[0].atoms:
+        assert all(c.stderr is not None and c.stderr > 0
+                   for c in (atom.x, atom.y, atom.z))
+    _save_fit_png(result, f"floating_origin_centroid_{phase.name}")
+
+
+def test_a_joint_fit_refuses_the_centroid_by_name(zincite_data):
+    """One restraint per structure is not built for a stacked residual yet."""
+    ins = _zincite_instrument()
+    with pytest.raises(ValueError, match=r"phase 0 \('zincite'\).*'centroid'"):
+        rx.refine_multi([zincite_data, zincite_data],
+                        rx.Structure(phases=[_zincite(Z_O, "centroid")]),
+                        [ins, ins.model_copy(deep=True)], plan=PLAN)
+

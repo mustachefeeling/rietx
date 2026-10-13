@@ -65,6 +65,7 @@ from .model.forward import (
 )
 from .model.geometry import cell_volumes, geometry_table
 from .model.microstructure import microstructure_table
+from .model.origin import CompiledOrigin, OriginPhaseRows, compile_origin
 from .model.profiles.caglioti import (
     SCHERRER_K,
     apparent_size_from_size_coefficient,
@@ -394,6 +395,12 @@ class _StageHold:
     #: stage this package's own suite runs outside this file's own fixture.
     cell_runaway_unresolved: list[tuple[str, list[str]]] = dataclasses.field(
         default_factory=list)
+    #: the origin restraint the stage's last solve ran with (WP-1912,
+    #: ``model.origin``), for ``ORIGIN_FIXED_ON_POLAR_AXIS``: built from the
+    #: free set and the values at the solve's start, neither of which the
+    #: table can give back afterwards.  ``None`` where no ``"centroid"``
+    #: phase could slide, which is every stage of every other fit.
+    origin: CompiledOrigin | None = None
     #: ``StageResult.moment_flat_axes`` and ``.moment_turned`` (#599), decided
     #: inside the stage by :func:`_hold_flat_moments` and the post-solve hold
     moment_flat_axes: dict[str, list[float]] = dataclasses.field(
@@ -3087,9 +3094,10 @@ class Refinement:
         :meth:`unhold` on a held DOF takes it back, with the rest of that
         phase's fix.  A direction the caller's own ties or holds already fix
         gets no second hold.  The alternative is a least-squares restraint on
-        the mean coordinate along the axis, which keeps an esd on every atom
-        (Flack & Schwarzenbach, 1988, Acta Cryst. A44, 499); it is not
-        implemented here.
+        a weighted centroid of the sites along the axis, which keeps an esd on
+        every atom (Flack & Schwarzenbach, 1988, Acta Cryst. A44, 499):
+        ``Phase.floating_origin = "centroid"``, set on the phase rather than
+        through this verb, which leaves a phase already declaring either alone.
 
         A phase where the table would hold nothing is left undeclared: its
         origin is fixed already by the caller's own ties or holds, or no DOF
@@ -3420,6 +3428,9 @@ class Refinement:
             model = compile_model(structure, instrument, data, mode=mode,
                                   two_theta_limits=limits,
                                   moving_paths=set(table.moving_paths))
+            # a "centroid" phase's origin rows, or the probe's covariance
+            # reads the floating origin as a flat direction (WP-1912)
+            model.origin = compile_origin(model, table)
             carried = False
             if (self._model is not None and mode in ("lebail", "pawley")
                     and self._model.mode == mode):
@@ -3960,6 +3971,10 @@ class Refinement:
         stage_ftol = {} if ftol is None else {"ftol": ftol}
         # what the stage starts from, kept for the collapse case below
         start_values = table.decode(table.x0())
+        # A "centroid" phase's origin restraint (WP-1912), built here and not
+        # at the compile: its rows exist only where the *free* set can slide
+        # the phase, and the holds above have just decided that set
+        model.origin = compile_origin(model, table)
         outcome = run_least_squares(model, table, max_iter=stage.max_iter,
                                     events=events, stage=stage.name,
                                     backend=self._backend, solver=self._solver,
@@ -4145,6 +4160,10 @@ class Refinement:
                             unknown_paths=list(unknown_paths),
                             n_points=len(model.tt),
                             index=stage_index, n_stages=n_stages)
+            # the origin restraint follows the free set, which the release or
+            # the collapse has just changed: asked again, at the values this
+            # solve starts from, and frozen for it (WP-1912)
+            model.origin = compile_origin(model, table)
             # Once — never a third solve, whichever way the measurement moved,
             # so the cost of a wrong hold is bounded at one stage's budget.
             second = run_least_squares(
@@ -4240,6 +4259,7 @@ class Refinement:
             seeded=seeded,
             cell_runaway=list(cell_runaway),
             cell_runaway_unresolved=[(d, list(e)) for d, e in cell_runaway_unresolved],
+            origin=model.origin,
             # Le Bail and Pawley read the screen alone, which the result
             # measures on its own compile as it always has
             significance=support if mode == "rietveld" else None)
@@ -4573,7 +4593,7 @@ class Refinement:
 
             try:
                 (model, outcome, guard, stage_results, diagnostics,
-                 answer_runaway, answer_significance) = self._run_plan(
+                 answer_runaway, answer_significance, origins) = self._run_plan(
                     plan, data, mode, table, two_theta_limits, tree, stream, cancel,
                     stage_results, diagnostics, sinks=sinks,
                     stage_reports=stage_reports)
@@ -4605,7 +4625,8 @@ class Refinement:
                 [(sr.name, sr.n_degenerate_cell_probes) for sr in stage_results]))
             diagnostics.extend(_hold_diagnostics(stage_results,
                                                  table.origin_holds))
-            diagnostics.extend(_origin_diagnostics(table, stage_results))
+            diagnostics.extend(_origin_diagnostics(table, stage_results,
+                                                   origins=origins))
             diagnostics.extend(_unknown_path_diagnostics(
                 stage_results, [e.path for e in table.entries]))
 
@@ -4661,7 +4682,7 @@ class Refinement:
         """The stage loop of :meth:`fit`, split out so cancellation has one exit.
 
         Returns ``(model, outcome, guard, stage_results, diagnostics,
-        answer_runaway, answer_significance)``; raises
+        answer_runaway, answer_significance, origins)``; raises
         :class:`RefinementCancelled` with the completed stages attached.  The guard returned is the **last** stage's,
         for the same reason :func:`_constraint_diagnostics` reads only that
         stage: earlier stages measured an intermediate state, and it is the
@@ -4671,7 +4692,9 @@ class Refinement:
         what :func:`_build_result` withholds esds on, while ``diagnostics``
         carries every stage's.  ``answer_significance`` is that stage's
         :func:`_answer_significance` too (WP-1523), the vector its hold was
-        decided on, which ``PHASE_UNCONSTRAINED`` quotes.
+        decided on, which ``PHASE_UNCONSTRAINED`` quotes.  ``origins`` is
+        ``(stage name, _StageHold.origin)`` per stage, the origin restraint
+        each ran with (WP-1912), which ``ORIGIN_FIXED_ON_POLAR_AXIS`` words.
 
         ``stage_reports`` appends one :class:`~rietx.report.StageReport` per
         completed stage to :attr:`stage_reports_`.  A cancelled run keeps the
@@ -4738,6 +4761,8 @@ class Refinement:
         #: magnetic width free — the released state the off state is compared
         #: against, once, after the loop
         moment_released: tuple | None = None
+        #: (stage name, origin restraint) per stage (WP-1912)
+        origins: list[tuple[str, CompiledOrigin | None]] = []
         for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
                                           start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
@@ -4790,6 +4815,7 @@ class Refinement:
             # clamp is re-measured by every later one (staging is cumulative)
             answer_runaway = [] if runaway_diag is None else [runaway_diag]
             answer_significance = hold.significance
+            origins.append((stage.name, hold.origin))
             if runaway_diag is not None:
                 diagnostics.append(runaway_diag)
                 stage_diagnostics = stage_diagnostics + [runaway_diag]
@@ -4842,7 +4868,7 @@ class Refinement:
             diagnostics.extend(_moved_moment_diagnostics(
                 name, moment_off_state, rung, widths))
         return (model, outcome, guard, stage_results, diagnostics,
-                answer_runaway, answer_significance)
+                answer_runaway, answer_significance, origins)
 
     def _final_compile(self, model: CompiledModel, table: ParameterTable,
                        outcome, data: PatternData, mode: Mode,
@@ -4896,6 +4922,10 @@ class Refinement:
         # stage that moved that scale would re-weight here, and the result
         # would divide by a σ its χ², esds and solve never used
         fresh.sigma = model.sigma
+        # and the solve's origin rows (WP-1912), for the same reason: the
+        # reported covariance was read with them, so the model reported from
+        # carries the block it was read with
+        fresh.origin = model.origin
         if mode == "lebail":
             _carry_lebail(model, fresh)
         values = table.decode(outcome.theta)
@@ -5067,7 +5097,8 @@ class Refinement:
             # before the node, so the node carries what the result carries
             diagnostics.extend(_hold_diagnostics([stage_result],
                                                  table.origin_holds))
-            diagnostics.extend(_origin_diagnostics(table, [stage_result]))
+            diagnostics.extend(_origin_diagnostics(
+                table, [stage_result], origins=[(stage.name, hold.origin)]))
             diagnostics.extend(_unknown_path_diagnostics(
                 [stage_result], [e.path for e in table.entries]))
 
@@ -6181,7 +6212,9 @@ def _degenerate_cell_diagnostics(rows: list[tuple[str, int]]) -> list[Diagnostic
 
 def _origin_diagnostics(table: ParameterTable,
                         stage_results: list[StageResult] | None = None, *,
-                        canonical=None) -> list[Diagnostic]:
+                        canonical=None,
+                        origins: Iterable[tuple[str, CompiledOrigin | None]]
+                        | None = None) -> list[Diagnostic]:
     """``ORIGIN_FIXED_ON_POLAR_AXIS`` and ``ORIGIN_NOT_FIXED``, read off the table.
 
     The table is the authority for what it holds and why
@@ -6203,6 +6236,14 @@ def _origin_diagnostics(table: ParameterTable,
 
     ``canonical`` is a joint fit's (``multi._joint_origin_findings``): the
     name a held row carries in the joint fit, for ``where`` and the message.
+
+    ``origins`` is ``(stage name, model.origin)`` per stage, the restraint a
+    ``"centroid"`` phase's stages ran with (Flack & Schwarzenbach 1988).  A
+    phase one of them restrained gets one ``ORIGIN_FIXED_ON_POLAR_AXIS``,
+    worded from the **last** such stage: its weights are the ones the answer's
+    covariance was read with.  A stage that could not slide the phase built
+    no row, so it says nothing, which is the hold's "only where it mattered"
+    read off the restraint itself.
     """
     name = canonical or (lambda p: p)
     phases = table.origin_phases
@@ -6211,8 +6252,16 @@ def _origin_diagnostics(table: ParameterTable,
     holds = table.origin_holds
     unfixed = table.origin_unfixed
     reach = table.entry_reach() if stage_results is not None else {}
+    # phase → (every stage that restrained it, the last one's rows)
+    restrained: dict[int, tuple[list[str], OriginPhaseRows]] = {}
+    for stage_name, block in origins or ():
+        for rows_of in (block.phases if block is not None else ()):
+            stages = restrained.get(rows_of.phase, ([], None))[0]
+            restrained[rows_of.phase] = ([*stages, stage_name], rows_of)
     out: list[Diagnostic] = []
     for ip, rec in sorted(phases.items()):
+        if ip in restrained:
+            out.append(_centroid_finding(rec, *restrained[ip], name))
         held = [p for f in rec.directions for p, (jp, g) in holds.items()
                 if jp == ip and g == f]
         rows = set(rec.coords) | set(rec.labels)
@@ -6255,6 +6304,57 @@ def _origin_diagnostics(table: ParameterTable,
                             "constant; its coordinates along that direction "
                             "are otherwise not measurements")))
     return out
+
+
+#: how many sites ``ORIGIN_FIXED_ON_POLAR_AXIS`` names with their weights
+#: before it counts the rest
+_CENTROID_SITES_NAMED = 12
+
+
+def _centroid_finding(rec, stages: list[str], rows: OriginPhaseRows,
+                      name) -> Diagnostic:
+    """``ORIGIN_FIXED_ON_POLAR_AXIS`` for a phase a centroid restraint fixed.
+
+    Names what the restraint was built from: the phase, the space group, the
+    directions, the stages, and each site with its normalised coefficient
+    aₙ/Σa in the last of them (Flack & Schwarzenbach 1988, eq 9's weights,
+    from eq 21), plus the clip where (A5) had no solution.  ``where`` is the
+    DOFs a shift along the directions moves, the coordinates the restraint
+    ties together.  Each stage restrains the centroid to where it began, and
+    the restrained solve keeps eq 9 (eq 11), so it stands where the first
+    began.
+    """
+    axes = ", ".join(str(list(f)) for f in rows.axes)
+    share = rows.a / rows.a.sum()
+    named = [f"{label} {w:.3f}" for label, w in zip(rows.labels, share,
+                                                      strict=True)]
+    if len(named) > _CENTROID_SITES_NAMED:
+        named = named[:_CENTROID_SITES_NAMED] + [
+            f"and {len(named) - _CENTROID_SITES_NAMED} more"]
+    message = (f"phase {rows.phase} ({rows.space_group}) has a floating origin "
+               f"along {axes}: shifting every atom that way changes no "
+               f"intensity, so {_stage_list(stages)} restrained the weighted "
+               f"centroid of its sites to where it stood (Flack & "
+               f"Schwarzenbach 1988), with weights {', '.join(named)}; every "
+               f"coordinate along it is refined and keeps an esd")
+    if rows.clipped is not None:
+        message += (f". No weighting met eq 21 exactly ((A5) fails: "
+                    f"{rows.clipped}'s curvature exceeds the others' "
+                    f"combined), so it was clipped to just below them and the "
+                    f"restraint is close to a hold on {rows.clipped}")
+    elif not rows.converged:
+        message += (". The weights met eq 21 only approximately, which moves "
+                    "the esds' spread and never the fixed origin")
+    where = list(dict.fromkeys(name(p) for f in rows.axes
+                               for p in rec.candidates[f]))
+    return Diagnostic(
+        level="info", code="ORIGIN_FIXED_ON_POLAR_AXIS",
+        message=message, where=where,
+        suggestion=("this is Phase.floating_origin = 'centroid' working: the "
+                    "coordinates along the axis are quoted against a centroid "
+                    "that does not move. Set it to 'hold' to quote them "
+                    "against one atom instead, or to None to let the "
+                    "structure slide (FLAT_DIRECTION)"))
 
 
 def _hold_diagnostics(stage_results: list[StageResult],

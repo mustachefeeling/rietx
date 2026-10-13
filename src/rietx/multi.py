@@ -750,6 +750,26 @@ def _clamp_cell_runaway_multi(mtable, start_values: list[dict[str, float]]
     return list(seen.values())
 
 
+def _refuse_centroid_origin(structure: Structure) -> None:
+    """A joint fit refuses ``Phase.floating_origin = "centroid"`` (WP-1912).
+
+    The restraint is one row per direction **per structure** (Flack &
+    Schwarzenbach 1988, eq 9), weighted by the curvature of all the data along
+    it.  The joint residual is per-histogram residuals stacked, each with its
+    own row blocks, so built here it would land once per histogram, weighted
+    by one pattern's curvature each, and nothing is built to place it once.
+    ``"hold"`` works in a joint fit, every histogram holding the same atom.
+    """
+    for ip, phase in enumerate(structure.phases):
+        if phase.floating_origin == "centroid":
+            raise ValueError(
+                f"phase {ip} ({phase.name!r}) declares floating_origin="
+                "'centroid', which a joint fit does not build yet: the "
+                "restraint is one row per structure and the joint residual "
+                "would carry it once per histogram. Use floating_origin='hold' "
+                "for a joint fit")
+
+
 class MultiHistogramRefinement:
     """Joint Rietveld refinement of a shared structure against several patterns.
 
@@ -780,6 +800,7 @@ class MultiHistogramRefinement:
         if len(instruments) < 1:
             raise ValueError("multi-histogram needs at least one instrument")
         _judge_magnetic_groups(structure)       # a caller's statement (issue #597)
+        _refuse_centroid_origin(structure)
         self.mtable = MultiParameterTable(structure, instruments, sharing=sharing)
         # Resolve each histogram's specimen absorption (capillary µR or
         # flat-plate µt) from composition, exactly as the single-histogram path

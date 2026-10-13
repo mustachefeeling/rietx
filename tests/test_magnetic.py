@@ -2136,8 +2136,8 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # distance restraints (``TetherRestraint``, ``AntiBumpRestraint``) 0.50, and
     # WP-1317's ``SeriesResult.relative_paths`` and ``.angle_paths`` 0.51,
     # and WP-1912's ``Phase.floating_origin`` and ``ParameterRow.origin_axis``
-    # 0.52.
-    assert caps.schema_version == "0.52"
+    # 0.52, and its ``"centroid"`` member 0.53.
+    assert caps.schema_version == "0.53"
 
 
 def test_every_moment_dof_has_a_help_entry():
