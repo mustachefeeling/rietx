@@ -118,7 +118,11 @@ equal to `equal_reduced_many` on every pair.
   (`reduce.CELL_PINV_RCOND`, `statistics._psd_pinv`, bit-identical to
   `pinv` wherever no kept eigenvalue is negative; 0 of 20 000 witness pairs
   had a negative χ² under the old call). The NCDIST/S6 redesign stays here,
-  and `python -m tests.unit_replay` was not run on the change.
+  and `python -m tests.unit_replay` was not run on the change. **Update
+  later on 2026-10-13 (WP-1930's second session, `[dev]`, Linux x86-64):** it
+  has run now. Twenty-two units were captured and replayed under the signed
+  `pinv` and under `_psd_pinv`. All 22 digests are identical, and every unit
+  completes. `tests/test_acceptance_indexing.py` gives 44 passed, run alone.
 - **2026-10-13, from WP-1930: hypothesis found a counterexample to
   `test_the_reduced_cell_is_the_exact_image_of_its_input[F]`.** Centring F,
   a = 3.2, b = 16.0, c = 23.602486327493914 Å, α = 81°, β = 66°, γ = 65°.

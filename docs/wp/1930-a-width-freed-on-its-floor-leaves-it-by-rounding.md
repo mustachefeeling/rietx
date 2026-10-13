@@ -1,9 +1,8 @@
 # WP-1930 — a width freed on its floor leaves it by rounding
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — fix in PR #925; review items 3 and 8 and the indexing acceptance run are pending (handoff in the log)
+Milestone: unscheduled · Status: ✅ 2026-10-13 — closes in PR #925; the next Linux and macOS nightlies after merge confirm
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P1 2026-10-13 — the esd-of-0 fix is in PR #925 and owes a release once merged; what remains is review item 3's PINV_RCOND measurement, the indexing acceptance on the reduce.py change, and item 8's counts
 
 ## Goal
 
@@ -261,6 +260,72 @@ printed digit on both.
 
 ## Handover log
 
+### 2026-10-13 (2nd session) — the handoff's open items, measured on Linux; the WP closes
+
+The fix now has a Linux run behind it, and it showed that the platforms still
+disagree about *which* warning a flat direction gets. They no longer disagree
+about whether one is given. On this Linux machine the LaB₆ + cBN degenerate
+fit drops both flat directions under the cut at every start tried, so it
+reports `COVARIANCE_DIRECTION_DISCARDED`, where macOS mostly reports
+`HIGH_CORRELATION`. One acceptance test still demanded the second code, and it
+failed on Linux at both `main` and the branch. It now accepts either. Moving
+the cut was measured and ruled out: neither numpy's n·eps nor marking the
+in-band columns unmeasured improves an answer, and both remove warnings from
+fits that pass today. The indexing side of the change replays bit for bit.
+
+*Done.* `origin/main` merged (7cf614e). The separation test reads one set of
+flat-direction codes on both halves (543062f, tightened in review). Review
+items 3, 4's acceptance, 7 and 8 are closed. Item 3 is written up under
+§ "PINV_RCOND alternatives, measured" in Context, and `PINV_RCOND` stays
+1e-15. WP-1932's Inherited carries the replay result. The v1.9 record's
+section is updated.
+
+*Measured* (`[dev]`, Linux x86-64, Intel Xeon @ 2.80 GHz, 4 cores, Python
+3.12.3, numpy 2.5.4, rietx-kernels 1.2.0).
+- LaB₆ + cBN acceptance with the wavelength file: on `main` 18 passed and
+  1 failed (the separation test); on the branch after the fix, everything
+  passes. Degenerate fit Rwp 0.128940969, LaB₆ 16.850 ± 0.192 wt %.
+- The degenerate plan at k ∈ {−20, −7, −3, −1, 0, 3, 20, 50}: each one
+  discards both flat directions, `COVARIANCE_DIRECTION_DISCARDED` names all six widths,
+  and they read 5.8e-5 to 3.4e-3. No `HIGH_CORRELATION` fires. The nudge
+  PNGs look right.
+- `tests/test_acceptance_indexing.py`: 44 passed, 0 failed, 24:29, run alone.
+  `unit_replay`: 22 units captured, and the digests are identical under the
+  signed `pinv` and under `_psd_pinv`, every unit complete (one BLAS thread).
+- Fast selection, both run alone: `main` 7cf614e gave 9331 passed, 192
+  skipped, 1 xfailed, 0 failed, 20:29. The branch at 9025019 gave 9339
+  passed, 192 skipped, 1 xfailed, 0 failed, 19:58. +8 passed and +0 skipped,
+  exactly the added tests: three covariance cases, and five validation-matrix
+  rows the new claim generates. They take 0.01 s together (one local run).
+  The full selection did not run this session. The previous session's ran on
+  the merge with 1307cb2f.
+- Lanes: one dispatched (`pinv-rcond-measure ~30`). It was stopped at the
+  quota pause before it reported, so its results were read off its scratch
+  logs. `session_usage.py lanes` finds no lane in this session (main 113
+  requests, peak 277K), so no trial row was appended.
+
+*Review* (`/code-review high --fix`, 8 findings, da51a0a). Fixed: the
+separation test asked one code on one half and two on the other; the bit
+test's precondition read `eigvalsh` where `_psd_pinv` reads `eigh`; the
+k = 0 nudge repeated the fixture's fit; `_psd_pinv` ignored the conjugate on
+a complex Hermitian input (no caller, but it claimed numpy's steps); `pinv`
+wording in three docstrings. Declined: making `_psd_pinv` public (it would
+trip the manual's surface gate, for three callers); folding
+`CELL_PINV_RCOND` into `PINV_RCOND` (the separate constant is deliberate); and
+the claim row's `diagnostics` field listing two codes where the test asserts
+either, as other rows already do.
+
+*Gotchas.* A flat direction's esd is still sized by rounding: 8.9-3420 when
+kept, 5e-5 to 3e-3 when discarded. This is the first session's declined
+finding, and the measurement above found no cut that fixes it without
+silencing a warning. No WP owns it. The first worktree of this session left
+a claim commit, d73ea6b, on `claude/keen-dijkstra-126txs`, with no PR. It can
+be deleted.
+
+Next: the maintainer merges #925, and `RELEASING.md` § When owes a release
+for this P1. The first Linux and macOS nightlies after the merge confirm
+the LaB₆ file and the dedup test; a red one there reopens this WP.
+
 - **2026-10-13** — Both nightly silences of `HIGH_CORRELATION` were rounding
   choosing an answer, and neither platform was wrong on its own. On LaB₆ + cBN
   the covariance could report six undetermined widths at an esd of exactly 0
@@ -405,26 +470,6 @@ printed digit on both.
      measurement records. **Fixed** with the measured ranges.
   10. `statistics.py:156` and the test docstrings hard-coded "a cut of
       1e-15". **Fixed**: they say `PINV_RCOND`.
-
-  *Progress, 2026-10-13 afternoon* (a second session, `[dev]`, Linux
-  x86-64, Intel Xeon, 4 cores; paused for quota at 11:35 UTC, not a
-  handover). `origin/main` merged at bbd14164. Item 4's acceptance: done.
-  `tests/test_acceptance_indexing.py` gave 44 passed, 0 failed, in 24:29,
-  run alone. `unit_replay` captured 22 units and replayed them under main's
-  signed `pinv` and under `_psd_pinv`: every digest was identical and every
-  unit complete. Item 7: the three nudge PNGs read Rwp 0.1289, GoF 2.44 and
-  look right. **A new failure, fixed at 543062f.** On Linux, at both
-  `main` 7cf614e and the branch,
-  `test_the_correlation_diagnostic_separates_the_two` raised no
-  `HIGH_CORRELATION`, because at k = 0 both flat directions fall under the
-  cut and `COVARIANCE_DIRECTION_DISCARDED` names the six widths. It now
-  accepts either code, as the nudge test does. The LaB₆ file passes on Linux
-  at the branch. Item 3: a lane measured the band-eigenvalue spy, variant A
-  (cut n·eps) and variant B (in-band columns unmeasured) over the fast
-  selection and the slow acceptance files, minus indexing. It was stopped
-  before it reported, and its logs sit in this session's scratch `lane3/`
-  (`var_A.log`, `var_B.log`, `diff_A.txt`, `diff_B.txt`, `fast_spy.log`,
-  `acc_spy.log`), lost if the container goes. Item 8: still pending.
 
   Next command, after merging `origin/main`:
   `.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup`
