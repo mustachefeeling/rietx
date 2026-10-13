@@ -1867,10 +1867,68 @@ def _free_values(table: ParameterTable, theta: np.ndarray) -> list[float]:
     The slice drops the appended Pawley intensity tail: it refines outside
     the table, and its per-hkl values are serialized per history node
     (``ReflectionState``), not per evaluation.
+
+    A joint fit hands its :class:`~rietx.params.multi.MultiParameterTable`
+    (WP-1341).  Each combined path is then read from the histogram that owns
+    it, and a shared one from histogram 0, whose value scale is 1 (WP-1131).
+    That is where the joint result reads a shared row's value too.
     """
+    if not isinstance(table, ParameterTable):
+        decoded = table.decode(np.asarray(theta, dtype=np.float64))
+        owners = [table._owner(p) or 0 for p in table.free_paths]
+        return [float(decoded[h][table._unscope(h, p)])
+                for h, p in zip(owners, table.free_paths, strict=True)]
     values = table.decode(np.asarray(theta[:len(table.free_paths)],
                                      dtype=np.float64))
     return [float(values[p]) for p in table.free_paths]
+
+
+def _cancellable(residual, cancel, stage: str):
+    """``residual`` behind a read of ``cancel`` at each evaluation boundary.
+
+    One wrapper for :func:`run_least_squares` and
+    :func:`run_multi_least_squares`.  ``__wrapped__`` lets ``inspect.unwrap``
+    reach the closure underneath.
+    """
+    def checked(theta: np.ndarray):
+        if cancel.is_set():
+            raise RefinementCancelled(
+                f"cancelled during stage {stage!r}" if stage else "cancelled",
+                stage=stage)
+        return residual(theta)
+
+    checked.__wrapped__ = residual
+    return checked
+
+
+def _tracked(residual, tracker: _StepTracker, events, stage: str, table):
+    """``residual`` as the TRF path's accepted-point hook.
+
+    Two jobs in a fixed order per call: emit the ``eval`` event measured
+    against the incumbent, then let ``tracker`` accept.  ``table`` is what
+    :func:`_free_values` reads the event's ``values`` off.  One wrapper for
+    :func:`run_least_squares` and :func:`run_multi_least_squares`, and
+    ``__wrapped__`` lets ``inspect.unwrap`` reach the guard underneath.
+    """
+    counter = {"n": 0}
+
+    def tracked(theta: np.ndarray):
+        r = residual(theta)
+        cost = 0.5 * float(r @ r)
+        if events is not None:
+            counter["n"] += 1
+            data = {"stage": stage, "n_eval": counter["n"], "cost": cost,
+                    "accepted": bool(cost < tracker.best_cost)}
+            if tracker.best is not None:
+                data["step_norm"] = float(np.linalg.norm(
+                    np.asarray(theta, dtype=np.float64) - tracker.best))
+            data["values"] = _free_values(table, theta)
+            events.emit("eval", **data)
+        tracker.accept(theta, cost)
+        return r
+
+    tracked.__wrapped__ = residual
+    return tracked
 
 
 def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_nfev, ftol,
@@ -1887,8 +1945,11 @@ def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_nfev, ftol,
     (WP-1113): a rejected step arrives with ``accepted: false`` and the λ that
     produced it, which is exactly the trajectory the evaluation-count
     mechanism analysis reads.  Trials the driver's linear model discards
-    without evaluating the residual emit nothing — ``eval`` means one residual
-    evaluation on both drivers.
+    without evaluating the residual emit nothing — ``eval`` means one trial
+    evaluation on both drivers.  LM's curvature measurements
+    (:func:`.lm._measured_curvature`) evaluate the residual too, but as
+    derivative information, like scipy's finite-difference Jacobian calls, so
+    they emit nothing and ``nfev`` leaves them out (WP-1953).
     """
     from . import lm as lm_mod
 
@@ -1967,6 +2028,39 @@ def _final_shift_over_esd(table: ParameterTable,
     ratios += [abs(float(x_final[i]) - float(x_prev[i])) / float(stderr_full[i])
                for i in range(n_table, len(x_final))
                if np.isfinite(stderr_full[i]) and stderr_full[i] > 0.0]
+    return max(ratios) if ratios else None
+
+
+def _final_shift_over_esd_multi(mtable: "MultiParameterTable",
+                                step: tuple[np.ndarray, np.ndarray] | None,
+                                stderr: np.ndarray | None,
+                                correlation: np.ndarray | None) -> float | None:
+    """:func:`_final_shift_over_esd` for the joint solve (WP-1341).
+
+    The definition carries over unchanged.  Every free column of the joint θ
+    has one shift, the joint solve's final accepted step, and one esd, read
+    off the covariance of the weighted stacked residual.  That esd is the one
+    the joint result reports, because each histogram's slice is decoded here
+    exactly as ``MultiHistogramRefinement._build_result`` decodes it.  The
+    histogram weights enter both the step and the covariance, so they change
+    the number and leave its meaning alone.
+
+    A shared column sits in every histogram's table.  Its ratio is the same in
+    each, because each table decodes it affinely, and the WP-1131 λ factor
+    scales the shift and the esd alike.  So the maximum over histograms is
+    the maximum over columns.
+    """
+    if step is None or stderr is None:
+        return None
+    x_prev, x_final = step
+    ratios = []
+    for h, table in enumerate(mtable.tables):
+        cm = mtable.col_map(h)
+        corr_h = correlation[np.ix_(cm, cm)] if correlation is not None else None
+        r = _final_shift_over_esd(table, (x_prev[cm], x_final[cm]), stderr[cm],
+                                  corr_h, len(cm))
+        if r is not None:
+            ratios.append(r)
     return max(ratios) if ratios else None
 
 
@@ -2202,14 +2296,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         # reaches into the frozen discreteness.  This is deliberately not the LM
         # driver's callback, which fires only on *accepted* points: an inner
         # loop that never accepts a step would never see the token.
-        inner_c = residual
-
-        def residual(theta: np.ndarray):
-            if cancel.is_set():
-                raise RefinementCancelled(
-                    f"cancelled during stage {stage!r}" if stage else "cancelled",
-                    stage=stage)
-            return inner_c(theta)
+        residual = _cancellable(residual, cancel, stage)
 
     # the closure the stationary-angle test probes after the solve: below the
     # TRF event wrapper, so a probe neither emits an ``eval`` nor moves the
@@ -2228,23 +2315,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         # exceeds the radius, and rejections shrink it (WP-1113).  The LM
         # driver reports its trials through a real callback instead
         # (``_lm_outcome``), so it does not wrap the residual.
-        inner_t = residual
-        counter = {"n": 0}
-
-        def residual(theta: np.ndarray):
-            r = inner_t(theta)
-            cost = 0.5 * float(r @ r)
-            if events is not None:
-                counter["n"] += 1
-                data = {"stage": stage, "n_eval": counter["n"], "cost": cost,
-                        "accepted": bool(cost < tracker.best_cost)}
-                if tracker.best is not None:
-                    data["step_norm"] = float(np.linalg.norm(
-                        np.asarray(theta, dtype=np.float64) - tracker.best))
-                data["values"] = _free_values(table, theta)
-                events.emit("eval", **data)
-            tracker.accept(theta, cost)
-            return r
+        residual = _tracked(residual, tracker, events, stage, table)
     n_table = len(table.free_paths)
     x0 = table.x0()
     lo, hi = table.bounds()
@@ -2399,7 +2470,9 @@ def run_multi_least_squares(models: list[CompiledModel],
                             max_iter: int = 100, ftol: float = 1e-9,
                             compute_uncertainties: bool = True,
                             backend: str = "numpy",
-                            solver: str = DEFAULT_SOLVER) -> LSQOutcome:
+                            solver: str = DEFAULT_SOLVER,
+                            events=None, stage: str = "",
+                            cancel=None) -> LSQOutcome:
     """Joint solve of several histograms stacked into one residual (WP-0308).
 
     Each histogram keeps its own compiled model (⇒ its own frozen hkl list,
@@ -2433,6 +2506,11 @@ def run_multi_least_squares(models: list[CompiledModel],
     per-model and the stacked column map would have to scatter each phase's T
     into the joint vector.  Deferred rather than half-done — a joint refinement
     with `solver="lm"` gets the bounded driver, not the cone.
+
+    ``events``, ``stage`` and ``cancel`` are :func:`run_least_squares`' own
+    (WP-1341).  An ``eval`` is one evaluation of the *stacked* residual, so
+    its ``cost`` and its ``values`` are the joint solve's, aligned with
+    ``mtable.free_paths``.
     """
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
@@ -2451,6 +2529,22 @@ def run_multi_least_squares(models: list[CompiledModel],
     jacobian = _DegenerateCellJacobianGuard(jacobian, cell_guard)
     n_cols = len(mtable.free_paths)
 
+    if cancel is not None:
+        # read at an evaluation boundary, below the event wrapper, as in
+        # :func:`run_least_squares`
+        residual = _cancellable(residual, cancel, stage)
+
+    # the closure the stationary-angle test probes after the solve, taken
+    # below the TRF wrapper for :func:`run_least_squares`' reason: a probe
+    # must not emit an ``eval`` or move the step tracker
+    # ``max_shift_over_esd`` is read from
+    probe = residual
+    tracker = _StepTracker()
+    if solver == "trf":
+        # scipy TRF has no accepted-point hook, so the residual closure is
+        # the hook, as in :func:`run_least_squares`
+        residual = _tracked(residual, tracker, events, stage, mtable)
+
     # sample caps first: ``_freeze_cell_windows_multi`` ends in
     # ``refresh_bounds``, which is what pushes *all three* freezes into the
     # combined bound vectors
@@ -2463,6 +2557,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     r0 = residual(x0)
     require_fp64(r0, "least-squares residual")
     cost0 = 0.5 * float(r0 @ r0)
+    tracker.accept(x0, cost0)  # the LM path's seed; a no-op after the TRF wrapper
     if n_cols == 0:
         return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None,
                           solver=solver,
@@ -2471,7 +2566,8 @@ def run_multi_least_squares(models: list[CompiledModel],
     max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
-                          ftol=ftol, inequalities=[], events=None, stage="")
+                          ftol=ftol, inequalities=[], events=events, stage=stage,
+                          track=tracker, table=mtable)
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
                             ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
@@ -2485,7 +2581,7 @@ def run_multi_least_squares(models: list[CompiledModel],
         # moment angle's column is every histogram's rows of it, and a shared
         # angle is stationary only where the joint χ² says so
         moment_angle_tests, stationary = stationary_angle_test(
-            residual, res.x, res.jac, n_data_total, mtable.free_paths,
+            probe, res.x, res.jac, n_data_total, mtable.free_paths,
             _column_entries(mtable.tables,
                            [mtable.col_map(h) for h in range(len(mtable.tables))],
                            len(res.x)),
@@ -2500,6 +2596,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                       jac_data, stderr, corr, solver=solver,
                       residual_cosine=_residual_cosine(res.jac, res.fun),
                       active_bounds=_active_bounds(res, len(res.x)),
+                      max_shift_over_esd=_final_shift_over_esd_multi(
+                          mtable, tracker.step(), stderr, corr),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
                       covariance_error=covariance_error,

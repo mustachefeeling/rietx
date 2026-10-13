@@ -38,7 +38,7 @@ engines → `consensus.py` (merge on the reduced cell, `found_by` union, Borda
 over the panel, two-opinion Bravais, ambiguity) → Le Bail validation → the
 gate. Three load-bearing rules. **`high` requires zero caveats**, and
 `IndexCaveat`/`INDEX_REFUTING_CAVEATS` (`schemas/indexing.py`) are the whole
-gate: five caveats refute a cell to `low`, the rest cap at `medium`, and
+gate: any caveat in the refuting set drops a cell to `low`, the rest cap at `medium`, and
 *count* deliberately separates nothing. **Whole-profile validation is
 mandatory** — the FoM panel sees ≤20 lines, so `validate_by_lebail`'s
 `predicted_but_absent` is what catches an oversized cell (117 of 153 for a
@@ -196,7 +196,7 @@ candidate survives, because the shift's *shape* needs reference positions,
 which a candidate cell supplies — a cell never shift-refined is biased by
 roughly the shift (+1400 ppm).
 
-## Sixteen more rules, each learned the hard way
+## More rules, each learned the hard way
 
 - **A component that refines onto its zero intensity bound is not a line, and
   nothing before WP-1110 could see one.** A peak reaches its window only through

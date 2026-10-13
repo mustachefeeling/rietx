@@ -172,11 +172,9 @@ batch at the end, never asked mid-run. In `all`, a cited issue is re-read
 only for what moved since its placement: a comment newer than the WP's
 citation, a landed reference. The WP's own premise is `/wp-start` step 5's.
 
-**Context checkpoint, between issues only.** Measure the transcript
-(`wc -c ~/.claude/projects/-Users-yue-Code-rietx/<session-id>.jsonl`, the id
-being the scratchpad's directory) before the first issue and at every
-boundary. Stop when the next would carry it past **2 MB** (`/pr-review`'s
-uncalibrated figure). Ending means the batch, the audit, the PR and the
+**Context checkpoint, between issues only.** Measure the context the way
+`/pr-review`'s context checkpoint does, before the first issue and at every
+boundary. Stop when the next would carry it past **500 K tokens**. Ending means the batch, the audit, the PR and the
 resume line: `/issue-review new` after the user's `/clear`. The committed
 files carry the work across.
 

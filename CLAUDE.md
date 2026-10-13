@@ -17,7 +17,7 @@ record the clause names.
 uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"   # setup (once); a WORKTREE needs its own venv, and --python stops an inherited VIRTUAL_ENV retargeting main's; an arm64 Mac names the arch, cpython-3.12-macos-aarch64-none, or a probe's x86_64 interpreter makes it a Rosetta venv (session_start.python_request)
 uv pip install --python .venv/bin/python -e ".[dev,jax,torch]"   # + optional jax/torch backends
 .venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~15-30 min, incl. real-data acceptance (counts: § Numbers)
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance, ~1-3 min
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance, ~3-5 min
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m tests.bethanechol_benchmark        # the graded indexing benchmark (~1 h; run it ALONE — engine budgets are wall-clock)
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
@@ -162,8 +162,8 @@ consequences for a new caller: `set_vary` **can now refuse**, so read its return
 the list you offered it; and `_user_holds` is not `_held`, which is WP-1301's stage-scoped
 reading of what the data can see.
 
-**Plans.** Exactly **one** `StageSpec`/`PlanSpec`, in `schemas/plan.py`; `schemas/history.py`
-and `agent.py` re-export. `PLAN_INFO` (`strategy/staged.py`) carries
+**Plans.** Exactly **one** `StageSpec`/`PlanSpec`, in `schemas/plan.py`; import both from
+there. `PLAN_INFO` (`strategy/staged.py`) carries
 title/description/modes/when-to-use per preset, in bijection with `PLAN_PRESETS` by meta-test.
 **A mirror is crossed at the two authorities that own it, never at a call site** (WP-1110):
 `PlanSpec`/`StageSpec` validate the `RefinementPlan`/`Stage` dataclass inbound, `resolve_plan`
@@ -877,7 +877,7 @@ Planning docs are split so a session loads only what it needs; do not read all:
 - `docs/DESIGN.md` — design record; read only the section a WP links.
 - `docs/milestones/vX.Y.md` — one record per release: the measured ship block, plus (while in
   flight) the running "How vX.Y is getting here" narrative; `<name>.md` holds a named milestone's
-  scope and acceptance (WP-1540). `v1.6.md` is the live one.
+  scope and acceptance (WP-1540). The highest-numbered `vX.Y.md` is the live one.
 - The **paper corpus** (location and unread list) is maintainer-local, outside this repo;
   `AGENTS.md` names the split and the maintainer's memory holds it. **Search it before asking for a
   paper or re-deriving a published constant.**
@@ -942,11 +942,11 @@ before placing it (a close, a comment, a fold into a WP's `### Inherited`, a new
 milestone), docs-only, with every public act batched to the person. The `#N` a WP file cites is the
 whole triage record: the command's table reads it, and so does `wp_claim.py` above.
 
-Shipped: **v0.1 … v1.6**, one record each in `docs/milestones/`; ROADMAP's table carries the
+Every shipped release has one record in `docs/milestones/`; ROADMAP's table carries the
 acceptance one-liners, restated in neither place. Since WP-1117 the compatibility promise
 (`docs/manual/using/compatibility.md`) is a **preview**: anything may change in any release,
 versions bumping per observable change. **1.0.2 was written and never published**, folded into v1.1
-(2026-08-23), so 1.0.1 is what anyone upgrades *from* and `docs/releases/1.0.2.md` describes a
+(2026-08-23), so `docs/releases/1.0.2.md` describes a
 release that never existed. **A milestone is named, a release is numbered at its cut** (WP-1540,
 ROADMAP rule 6), so `pyproject.version` is the next release's `.dev0` except on the tree a tag is
 cut from. Every `RefinementResult.provenance` and history node stamps it; it moves after each cut.
