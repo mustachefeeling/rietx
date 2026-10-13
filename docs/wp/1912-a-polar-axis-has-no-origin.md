@@ -1,6 +1,6 @@
 # WP-1912 — a polar axis has no origin, and the fit walks along it
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — the hold lives in the table behind `Phase.floating_origin`, off by default; whether to turn it on is the maintainer's call on #727
+Milestone: unscheduled · Status: 🔄 2026-10-13 — claimed by @yue-here: #929's open review items, then the centroid as an exact constraint
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — the default structural preset reaches it on every polar space group with a free coordinate, and the CIF it writes carries an absolute coordinate hundreds of cells out with an esd; flagged only by `FLAT_DIRECTION` on the result, so not P1
