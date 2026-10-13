@@ -1,6 +1,6 @@
 # WP-1924 — A monoclinic search stays inside its ceiling and its memory
 
-Milestone: unscheduled · Status: 🔄 2026-10-12 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-13 — the frontier's memory fixed and #895 landed; the ceiling's scheduling and the benchmark remain
 Track: A long run is not one fit
 Depends on: — (1520 soft, the same units' leaf cost; 1508 closed)
 Priority: P2 2026-10-08 — a defect that fires wrongly: a declared ceiling overrun and a multi-GB peak on a clean 61-line monoclinic pattern, with the workaround of capping the volume and the systems by hand; the reporter's 9 GB and 25.8 GB are the reason it is not P3
@@ -77,5 +77,26 @@ Measured at `e1d19359`, `[dev]`, macOS arm64, on a machine shared with five othe
 - WP-1508, WP-1509, WP-1519 (the unit replay harness), WP-1520.
 
 ## Handover log
+
+### 2026-10-13 — the frontier's memory fixed, Stop inside the ambiguity sweep, and a ceiling that starves svd
+
+A monoclinic search no longer needs gigabytes. #780's multi-GB peaks came from one step: once dichotomy's grid finished, phase 2 copied the rows of every surviving grid cell at once and kept them until the search ended. On the issue's 224 Å³ case that was 6.8 GB. The same search now holds about 0.6 GB, and every finished search returns the same candidates bit for bit. Stop now takes effect within one derivative cell of the ambiguity sweep (#895). The profile also found a defect the WP did not know about. Since the dichotomy traversal lost numba, its grid alone costs 157 s of CPU on this case, so a whole-run ceiling shorter than that ends before svd starts and returns nothing, although svd alone finds the cell in 27 s.
+
+*Done.* Tasks 1-6 and #895 are ticked; the scheduling task is new and open. The profile is in § Context. `tests/repro_780.py` rebuilds the case: its peak is the physical footprint on macOS, and `--cpu-clock` counts a ceiling in CPU seconds. Dichotomy now gathers a grid cell's rows when it pops the cell and keeps the survivor lists in the narrowest unsigned type (`_row_index_type`, uint16 here). `ambiguity_partners(cancel=)` reads the token before each derivative cell and returns `None` when stopped; `enumerate_ambiguity` then leaves the candidate out of `ambiguity_checked`. `supercell_checks` keeps no token, because it runs over at most the 12 reported candidates (10-16 ms of CPU a pair, 0.1 s on #780's run) and the gate has no unasked state for it. Task 4 adds no figure: the frontier's size is the number of grid boxes the lines let survive, which only the grid shows. The skill's `INDEX_BUDGET_EXHAUSTED` row (`references/abstention.md`) says to read `engines_run` and gives the large-volume advice. `tests/CLAUDE.md` gained the rule that memory on macOS is the footprint. `/code-review high --fix` found no correctness bug and landed four fixes in `282ac1cd`: the grid's gather cache is released before phase 2, the guard traces phase 2 alone (15 s to 5 s), and two comments described the old sweep. It declined two: one gather per cell is the intended trade, and the guard's "about a second of grid" was measured at lower load.
+
+*Measured* (`[dev]` with memray and py-spy added as dev tooling, macOS arm64, a machine at load 70-225 for the whole session, so CPU seconds wherever a clock matters):
+- #780's case, dichotomy alone. Before: 6.79 GB of footprint once the grid finished, held. After: 0.72 GB peak at 300 s of CPU, 0.58-0.61 GB through phase 2 (1.34 M boxes, no candidate yet).
+- Seven dichotomy units replay to their digests, macOS arm64: brucite hexagonal `af186da4` and trigonal `ceb84493`, corundum cubic `e3b0c442`, hexagonal `05aa58a2`, trigonal `2907adc0` and tetragonal `6471da88`, synthmono `30473892`.
+- The per-cell gather's CPU, two runs each beside each other: synthmono 203.0-219.1 s before, 211.6-225.3 s after; corundum trigonal 180.0-185.4 s before, 183.6-190.3 s after.
+- The acceptance repro at 120 s of wall: 129.2 s wall, 14.0 s of CPU, 0.23 GB, no candidate (load 151). All engines at 120 s of CPU: 131 912 boxes, svd never started, 0.34 GB. svd alone at 120 s of CPU: 11 200 calls, 53 kept, 0.26 GB, 0.2 s over its slice; at 27 s of CPU it had the lattice first.
+- One ambiguity sweep on #780's cell: 0.87 s of CPU over 55 children, the slowest child's lines 47 ms.
+- Fast selection before merging main: 9306 passed, 181 skipped, 3 xfailed, 1 failed, 38:19 at load ~150. The failure was `test_three_cells_a_side_build_in_no_more_than_a_moment`, a timing row that passes alone. The three added tests cost 2.94, 2.65 and 1.54 s locally (junit, `tests.added_test_times`).
+- `tests/test_acceptance_indexing.py`: 41 passed, 3 skipped, 29:47 at load ~120. `test_indexing_scheduler.py` and `test_indexing_engines.py` with the consensus and kernel files: 143 passed, 1 skipped, and the two slow monoclinic recovery rows failed on `search_complete` at load 225. Run alone they passed (265 s and 195 s). trial_error's row is code this branch does not touch.
+
+*Not run.* `tests.bethanechol_benchmark`: an hour of wall that must run alone, and this machine was shared all session. The full suite: the change is bit-identical by replay, and the indexing acceptance ran on its own.
+
+*Gotchas.* Under this machine's load the resident set read 57 MB against 1.9 GB of footprint, so read memory through `memory_bytes`. A wall ceiling under load searches less and peaks lower, so compare peaks with `--cpu-clock`. The 2026-10-08 svd spread and overrun do not reproduce, and nothing measured here says what moved them.
+
+*Next.* (1) The scheduling task. Two answers, and the maintainer's view of the ceiling's fairness rule decides between them. One lets the cheapest engine open each system: results merge in registry order, so finished searches stay bit-identical, but the streamed order and `INDEX_BUDGET_EXHAUSTED`'s wording need checking. The other ports the grid's box test into `rietx-kernels`, held to the numpy loop leaf by leaf. It recovers the grid's speed and shrinks the window in which a ceiling starves svd, without removing it. (2) Run `python -m tests.bethanechol_benchmark` alone before the WP closes. (3) Post the #780 and #895 replies drafted in the session report.
 
 - **2026-10-08** — created, from the 2026-10-08 issue triage (issue #780). Checked against the tree at 5d1f5f67: `git log --since=2026-10-06 -- src/rietx/indexing` shows only #726, #747 and WP-1545 work, none on memory or the deadline; no PR cites #780. Reproduced as a bounded slice only (ceilings 15-120 s; the 900 s run and the 9 GB were not attempted): dichotomy 1.9-2.4 GB inside 15 s, svd up to 2.5 GB and past its ceiling by 11-50 s. No open WP owns it: 1520 is the leaf cost of `refine_candidate` and gated on a count, 1334 and 1335 are refinement stages and reports, 1508 is closed (the traversal compiled, memory never measured).
