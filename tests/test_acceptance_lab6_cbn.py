@@ -379,8 +379,13 @@ def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
     protocol change this docstring once declined to smuggle into a bounds fix,
     is now the protocol, and nothing on the shared fit is flagged.
 
-    **The degenerate fit's half went silent on Linux after WP-1938** and is
-    the subject of the test below this one.
+    **The degenerate fit's half is told by either of two codes**, as in the
+    test below this one: the broadening split spans two exactly flat
+    directions, and rounding decides whether they are kept and inverted
+    (``HIGH_CORRELATION``) or fall under the cut
+    (``COVARIANCE_DIRECTION_DISCARDED``).  At this start on Linux x86-64,
+    after WP-1953's #923, both fall under the cut and ``HIGH_CORRELATION`` is
+    silent, so asserting it alone was a bar on rounding.
     """
     def corr(result):
         return [d for d in result.diagnostics if d.code == "HIGH_CORRELATION"]
@@ -394,11 +399,13 @@ def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
     finding = ("phases.0.lor_size", "phases.0.lor_strain",
                "phases.1.lor_size", "phases.1.lor_strain",
                "instrument.profile.y")
-    flagged = corr(degenerate)
-    assert flagged, "the degenerate fit raised no HIGH_CORRELATION at all"
+    flagged = [d for d in degenerate.diagnostics
+               if d.code in ("HIGH_CORRELATION", "COVARIANCE_DIRECTION_DISCARDED")]
+    assert flagged, ("the degenerate fit raised neither HIGH_CORRELATION nor "
+                     "COVARIANCE_DIRECTION_DISCARDED")
     assert any(set(d.where or []) & set(finding) for d in flagged), (
         "the degenerate fit's broadening split is not flagged: "
-        f"{[(d.where, d.message) for d in flagged]}")
+        f"{[(d.code, d.where) for d in flagged]}")
 
 
 #: Relative nudges to ``w``'s start, (1 + k·1e-14).  On macOS arm64, k = 1
@@ -428,8 +435,7 @@ def test_the_flat_widths_are_flagged_whatever_rounding_does(k):
     #923 merged: HIGH_CORRELATION fired in all ten, and at nine the widths'
     esds ran 8.9-3420.  At k = 0 both flat directions fell under the cut, the
     esds read 5e-5 to 3e-3, and COVARIANCE_DIRECTION_DISCARDED named all six
-    widths.  Linux has not run this test yet; the first nightly after the
-    merge is its confirmation.
+    widths.  Linux x86-64 (Intel Xeon, ``[dev]``) passes all three nudges.
     """
     if not PATTERN.exists():
         pytest.skip("11-BM LaB6+cBN dataset not present")

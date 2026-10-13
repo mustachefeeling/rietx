@@ -408,12 +408,14 @@ CLAIMS: tuple[Claim, ...] = (
     Claim(
         "test_acceptance_lab6_cbn", "test_the_correlation_diagnostic_separates_the_two",
         "lab6_cbn", ("characterisation", "ceiling"),
-        "HIGH_CORRELATION is silent on the identifiable fit and fires on the "
-        "degenerate one, without being told which is which",
+        "HIGH_CORRELATION is silent on the identifiable fit, and the degenerate "
+        "one's broadening split is named by HIGH_CORRELATION or "
+        "COVARIANCE_DIRECTION_DISCARDED, without being told which is which",
         reference="the diagnostic channel must separate an identifiable "
                   "parameterisation from a flat one on its own evidence",
-        measured="0 findings on the shared-broadening plan, 15 on the "
-                 "degenerate plan",
+        measured="0 HIGH_CORRELATION findings on the shared-broadening plan; "
+                 "on the degenerate plan COVARIANCE_DIRECTION_DISCARDED names "
+                 "all six widths on Linux x86-64 (WP-1930)",
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_flat_widths_are_flagged_whatever_rounding_does",
@@ -429,7 +431,7 @@ CLAIMS: tuple[Claim, ...] = (
                  "HIGH_CORRELATION in all ten; widths' esds 8.9 to 3420 at "
                  "nine, and at k = 0, where both flat directions fall under "
                  "the cut, 5e-5 to 3e-3 with COVARIANCE_DIRECTION_DISCARDED "
-                 "naming all six",
+                 "naming all six; Linux x86-64 passes k = 0, 1, 7",
         starts=10,
         diagnostics=("HIGH_CORRELATION", "COVARIANCE_DIRECTION_DISCARDED"),
     ),

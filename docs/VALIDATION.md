@@ -238,11 +238,11 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 `characterisation` `ceiling` · dataset `lab6_cbn`
 
-**Claims:** HIGH_CORRELATION is silent on the identifiable fit and fires on the degenerate one, without being told which is which
+**Claims:** HIGH_CORRELATION is silent on the identifiable fit, and the degenerate one's broadening split is named by HIGH_CORRELATION or COVARIANCE_DIRECTION_DISCARDED, without being told which is which
 
 **Referenced to:** the diagnostic channel must separate an identifiable parameterisation from a flat one on its own evidence
 
-**Measured:** 0 findings on the shared-broadening plan, 15 on the degenerate plan
+**Measured:** 0 HIGH_CORRELATION findings on the shared-broadening plan; on the degenerate plan COVARIANCE_DIRECTION_DISCARDED names all six widths on Linux x86-64 (WP-1930)
 
 #### `test_the_flat_widths_are_flagged_whatever_rounding_does`
 
@@ -252,7 +252,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** the Linux nightly from 0f30d584 on: no HIGH_CORRELATION on this fit, reproduced on macOS arm64 by 1e-14 nudges to w's start (six widths at an esd of 0)
 
-**Measured:** macOS arm64, k in {0, +-1, +-3, +-7, +-20, 50}: HIGH_CORRELATION in all ten; widths' esds 8.9 to 3420 at nine, and at k = 0, where both flat directions fall under the cut, 5e-5 to 3e-3 with COVARIANCE_DIRECTION_DISCARDED naming all six
+**Measured:** macOS arm64, k in {0, +-1, +-3, +-7, +-20, 50}: HIGH_CORRELATION in all ten; widths' esds 8.9 to 3420 at nine, and at k = 0, where both flat directions fall under the cut, 5e-5 to 3e-3 with COVARIANCE_DIRECTION_DISCARDED naming all six; Linux x86-64 passes k = 0, 1, 7
 
 **Diagnostics:** `HIGH_CORRELATION`, `COVARIANCE_DIRECTION_DISCARDED`
 
