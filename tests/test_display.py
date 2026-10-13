@@ -131,6 +131,12 @@ def test_a_structure_figure_shows_its_picture(fap):
     assert data.startswith(b"\x89PNG\r\n\x1a\n")
     # the width alone, or a column narrower than the figure squashes it (WP-1957)
     assert md == {"width": fig.image.shape[1] // 2}
+    import io
+
+    from PIL import Image
+    assert Image.open(io.BytesIO(data)).mode == "P"  # a notebook palette, like a fit figure
+    clear = rx.viz.render_structure(fap["structure"], size=120, background=None)
+    assert Image.open(io.BytesIO(clear._repr_png_()[0])).mode == "RGBA"  # its alpha kept
     assert len(repr(fig)) < 100
 
 

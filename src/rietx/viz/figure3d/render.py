@@ -117,8 +117,28 @@ class StructureFigure:
 
         Drawn at half its pixel width, as a fit figure is, so the default
         1000 px raster is a sharp 500 CSS px on a HiDPI screen.  The width
-        alone, so a narrow output column scales it whole (WP-1957)."""
-        return _png_bytes(self.image, None), {"width": self.image.shape[1] // 2}
+        alone, so a narrow output column scales it whole (WP-1957).
+
+        An opaque picture is palette-quantised as a fit figure is
+        (``viz.plots._NOTEBOOK_COLOURS``): the FAP view down c is 185 kB in
+        full colour and 74 kB at 256 colours, with no banding on the shaded
+        balls that 64 colours shows.  A transparent one stays in full colour,
+        since a palette would cut its antialiased edge.  ``path=`` writes
+        full colour either way."""
+        width = {"width": self.image.shape[1] // 2}
+        if self.image[..., 3].min() < 255:
+            return _png_bytes(self.image, None), width
+        import io
+
+        from PIL import Image
+
+        from ..plots import _NOTEBOOK_COLOURS
+        palette = Image.fromarray(self.image[..., :3]).quantize(
+            colors=_NOTEBOOK_COLOURS, method=Image.Quantize.MEDIANCUT,
+            dither=Image.Dither.NONE)
+        out = io.BytesIO()
+        palette.save(out, format="PNG", optimize=True)
+        return out.getvalue(), width
 
     def to_px(self, points) -> np.ndarray:
         """Where Cartesian points land in ``image``, in pixels.
