@@ -97,11 +97,15 @@ insignificant deviations, and sits on an absolute scale with expectation 1).
 Pna2₁ and the other polar groups the whole structure can slide along the polar
 axis without changing any intensity, so every z a plan frees along it is quoted
 with a small esd for a number the data does not fix (`FLAT_DIRECTION`, ρ = −1).
-`ref.hold_floating_origin()` holds one atom's coordinate along each such axis
-before the fit and returns `ORIGIN_FIXED_ON_POLAR_AXIS` (info; `where` names the
-held DOF, `unhold` takes it back): read the other atoms' z as relative to it.
-`ORIGIN_NOT_FIXED` (warning) says a direction had no atom to hold, so the flat
-direction is still there. Nothing is held unless you call it.
+Set `phase.floating_origin = "hold"`, or call `ref.hold_floating_origin()` for
+every phase, before the fit. The parameter table then holds one atom's
+coordinate along each such axis, and the fit reports `ORIGIN_FIXED_ON_POLAR_AXIS`
+(info; `where` names the held DOF). Quote that atom's coordinate as fixed, with
+no esd, and read the other atoms' z as relative to it. `unhold` on the held DOF
+sets the field back to `None`. `ORIGIN_NOT_FIXED` (warning) says a direction had
+no untied DOF to hold, so the flat direction is still there. Nothing is held
+unless you ask. (Measured: synthetic zincite under `mccusker_structural`, O at
+0.38231(57) held, against ±0.00029 on each z unheld; WP-1912.)
 
 **A symmetry-lowering can win ΔBIC and gain nothing where it splits.** Two fits
 of one pattern, a model and its lowering (cubic, tetragonal): ΔBIC says it paid

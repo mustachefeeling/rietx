@@ -50,7 +50,8 @@ SHORT = rx.RefinementPlan(stages=[
 #: ``help_key`` (WP-1202) is not a held-reason at all: it names the
 #: ``rietx.help`` family that describes the path, which is a fact about the
 #: path's *shape* and so belongs to no single entry.
-DELIBERATE_EXTRAS = {"esd", "mode_fixed", "needs_held_cell", "help_key", "body"}
+DELIBERATE_EXTRAS = {"esd", "mode_fixed", "needs_held_cell", "help_key", "body",
+                     "origin_axis"}
 
 
 @pytest.fixture(scope="module")
