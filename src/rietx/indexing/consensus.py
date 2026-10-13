@@ -547,6 +547,8 @@ def enumerate_ambiguity(outcome: ConsensusOutcome, peaks: PeakList, *,
     than a whole sweep.  A candidate the clock stops before or during its
     sweep stays out of ``ambiguity_checked`` with no partners written, which
     the gate reads as an unasked question (capping), never a clean answer.
+    A sweep that refuses (the parent's own lines cannot be predicted) is the
+    same unasked question, so its candidate stays out too (WP-1924).
     """
     checked = set(checked_indices(outcome.candidates, outcome.engines_run,
                                   top=top))
@@ -555,13 +557,14 @@ def enumerate_ambiguity(outcome: ConsensusOutcome, peaks: PeakList, *,
                 and not (cancel is not None and bool(cancel)):
             partners = _partners(cand, peaks, cancel=cancel)
             if partners is None:
-                break
+                continue
             cand.ambiguity = partners
             outcome.ambiguity_checked.append(i)
 
 
 def _partners(cand: CellCandidate, peaks: PeakList, *, cancel=None):
-    """The candidate's partners, ``[]`` where the sweep refuses, ``None`` if stopped."""
+    """The candidate's partners, or ``None`` where the sweep refused or was
+    stopped: neither has asked the question, and ``[]`` would answer it."""
     from .ambiguity import ambiguity_partners
 
     try:
@@ -571,7 +574,7 @@ def _partners(cand: CellCandidate, peaks: PeakList, *, cancel=None):
                                   two_theta_min=float(peaks.two_theta_min),
                                   cancel=cancel)
     except (ValueError, RuntimeError, np.linalg.LinAlgError):
-        return []
+        return None
 
 
 # ----------------------------------------------------------------------

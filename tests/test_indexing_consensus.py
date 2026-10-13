@@ -526,6 +526,33 @@ def test_a_candidate_whose_sweep_is_stopped_stays_unasked(cubic_peaks):
     assert second.candidates[1].ambiguity == sentinel
 
 
+def test_a_candidate_whose_sweep_refuses_stays_unasked(cubic_peaks,
+                                                       monkeypatch):
+    """A sweep that raises has not asked the question, so its candidate stays
+    out of ``ambiguity_checked`` and the gate caps it.  Before WP-1924 the
+    refusal came back as ``[]``, which reads as "asked, no partners", and the
+    next candidate is still asked."""
+    from rietx.indexing import ambiguity
+    from rietx.indexing.consensus import ConsensusOutcome, enumerate_ambiguity
+
+    real = ambiguity.predicted_lines
+
+    def refusing(cell, system, *args, **kwargs):
+        if system == "cubic" and cell[0] == TRUE_A:
+            raise ValueError("the parent's lines cannot be predicted")
+        return real(cell, system, *args, **kwargs)
+
+    monkeypatch.setattr(ambiguity, "predicted_lines", refusing)
+    outcome = ConsensusOutcome(
+        candidates=[_candidate(TRUE_A), _candidate(TRUE_A * 1.5)],
+        engines_run=sorted(engine_names()))
+    enumerate_ambiguity(outcome, cubic_peaks)
+    assert outcome.ambiguity_checked == [1]
+    caveats, grade_ = _gate(outcome.candidates[0],
+                            checked=0 in outcome.ambiguity_checked)
+    assert "geometric_ambiguity" in caveats and grade_ != "high"
+
+
 # ----------------------------------------------------------------------
 # the supercell re-rank (WP-1449)
 # ----------------------------------------------------------------------
