@@ -93,12 +93,13 @@ def issue_481():
     return patterns, starts
 
 
-def _fit(structure, instrument, pattern, monkeypatch, plan="mccusker_default"):
+def _fit(structure, instrument, pattern, monkeypatch, plan="mccusker_default",
+         events=None):
     """Fit, recording ``(screen, significance)`` at every stage's answer.
 
     A stage that releases or collapses a phase solves twice and records twice.
-    The fit's obs/calc/diff plot goes to ``tests/output/``, named for the
-    calling test.
+    ``events``, a list, collects the fit's event stream.  The fit's
+    obs/calc/diff plot goes to ``tests/output/``, named for the calling test.
     """
     from rietx.viz.plots import plot_result
     record: list[tuple[float, float]] = []
@@ -112,7 +113,8 @@ def _fit(structure, instrument, pattern, monkeypatch, plan="mccusker_default"):
 
     monkeypatch.setattr(_refine, "_answer_significance", spy)
     result = rx.Refinement(structure, instrument, history=False).fit(
-        pattern, plan=plan)
+        pattern, plan=plan,
+        events=None if events is None else events.append)
     OUT.mkdir(exist_ok=True)
     name = (os.environ["PYTEST_CURRENT_TEST"].split("::")[-1]
             .split(" ")[0].split("@")[0])
@@ -126,6 +128,31 @@ def _assert_unseen(result, record):
     assert finding.value < PHASE_SUPPORT_SIGMA
     assert any("phases.0.cell.a" in st.held for st in result.stages)
     assert record and all(z < PHASE_SUPPORT_SIGMA for _, z in record), record
+
+
+def _assert_prior_holds(result, events, path="phases.0.cell.a"):
+    """Each stage after one that ended with ``path`` held starts with it held.
+
+    Such a stage then solves once, or twice if its answer releases the path.
+    The check is conditional on where each answer landed, so it asserts what
+    the code does with a reading and not which side of 3σ a solver endpoint
+    falls on, which can differ between platforms.  These plans seed no row
+    of the phase, which would drop its prior.  Returns how many stages it
+    checked.
+    """
+    starts: dict[int, list[dict]] = {}
+    for event in events:
+        if event["kind"] == "stage_start":
+            starts.setdefault(event["data"]["index"], []).append(event["data"])
+    checked = 0
+    for k in range(2, len(result.stages) + 1):
+        if path not in result.stages[k - 2].held:
+            continue
+        stage = result.stages[k - 1]
+        assert path in starts[k][0]["held"], stage.name
+        assert len(starts[k]) == (2 if path in stage.released else 1), stage.name
+        checked += 1
+    return checked
 
 
 def _assert_seen(result):
@@ -175,10 +202,12 @@ def test_a_blank_frame_past_the_screen_is_judged_by_its_marginal_z(
     """
     _, starts = issue_481
     pattern = _draw(_lab6(A0, 0.0), np.random.default_rng(107))
-    result, record = _fit(*starts["unfitted"](), pattern, monkeypatch)
+    events: list[dict] = []
+    result, record = _fit(*starts["unfitted"](), pattern, monkeypatch,
+                          events=events)
     assert any(s >= PHASE_SUPPORT_SIGMA for s, _ in record), record
     _assert_unseen(result, record)
-    assert len(record) == len(result.stages), "a stage solved twice"
+    _assert_prior_holds(result, events)
 
 
 def test_a_later_stage_starts_from_the_answer_before_it(issue_481, monkeypatch):
@@ -193,16 +222,17 @@ def test_a_later_stage_starts_from_the_answer_before_it(issue_481, monkeypatch):
     ``[dev]``).  Read beside the previous answer, each of those stages holds
     the cell from its start: 11 solves and 59 iterations, and the finding
     reads 0.62σ either way.
+
+    The assertions read the mechanism (:func:`_assert_prior_holds`), since
+    the readings sit 0.39σ to 2.4σ under the threshold on one platform.
     """
     _, starts = issue_481
     pattern = _draw(_lab6(A0, 0.0), np.random.default_rng(107))
+    events: list[dict] = []
     result, record = _fit(*starts["unfitted"](), pattern, monkeypatch,
-                          plan="mccusker_structural")
+                          plan="mccusker_structural", events=events)
     _assert_unseen(result, record)
-    assert len(record) == len(result.stages), "a stage solved twice"
-    names = [st.name for st in result.stages]
-    for st in result.stages[names.index("profile"):]:
-        assert "phases.0.cell.a" in st.held and not st.released, st.name
+    assert _assert_prior_holds(result, events) >= 1
 
 
 @pytest.mark.parametrize("start", ["fitted", "unfitted"])
@@ -264,7 +294,7 @@ def test_a_phase_the_prior_holds_is_released_when_the_answer_sees_it(
 
     inner = _refine._hold_unsupported_phases
     monkeypatch.setattr(_refine, "_hold_unsupported_phases",
-                        lambda model, table, prior=None:
+                        lambda model, table, prior=None, seeded_phases=():
                         inner(model, table, np.zeros(1)))
     structure = rx.Structure(phases=[_lab6(A0, 2.5e-7)])
     instrument = _instrument(0.008, 2.5e-4, (40.0, -6.0, 1.5))
@@ -278,6 +308,66 @@ def test_a_phase_the_prior_holds_is_released_when_the_answer_sees_it(
     assert record[0][0] >= PHASE_SUPPORT_SIGMA
     assert record[0][1] >= PHASE_SUPPORT_SIGMA
     _assert_seen(result)
+
+
+def test_a_phase_both_readings_pass_that_collapses_is_put_back(monkeypatch):
+    """The collapse branch, reached with a prior that passed.
+
+    Two stages on a phase the data plainly shows, its cell started 5e-4
+    relative off.  The first stage frees scale and background, the second
+    the cell too.  The previous answer and the screen both read far over 3σ,
+    so the cell is free at the second stage's start.  Its first answer is
+    then made to read 0σ: a collapse.  The cell goes back to the value the
+    stage started from, is held, and the stage solves once more.  Forced, so
+    the restore is exercised whatever a platform's solver does.
+    """
+    from rietx.schemas.plan import PlanSpec, StageSpec
+    from rietx.viz.plots import plot_result
+
+    cell = "phases.0.cell.a"
+    answers: list[float] = []
+    entering: list[float] = []
+    significance = _refine._answer_significance
+    solve = _refine.run_least_squares
+
+    def collapse_once(model, table, outcome, held, reach, backend):
+        out = significance(model, table, outcome, held, reach, backend)
+        answers.append(table.decode(outcome.theta)[cell])
+        if len(answers) == 2:
+            out = np.array(out, dtype=np.float64)
+            out[0] = 0.0
+        return out
+
+    def recording(model, table, *args, **kwargs):
+        entering.append(table.decode(table.x0())[cell])
+        return solve(model, table, *args, **kwargs)
+
+    monkeypatch.setattr(_refine, "_answer_significance", collapse_once)
+    monkeypatch.setattr(_refine, "run_least_squares", recording)
+    base = ["phases.*.scale", "instrument.background.*"]
+    plan = PlanSpec(stages=[StageSpec(name="scale", turn_on=base),
+                            StageSpec(name="cell",
+                                      turn_on=[*base, "phases.*.cell.*"])])
+    ref = rx.Refinement(rx.Structure(phases=[_lab6(A0 * 1.0005, 2.5e-7)]),
+                        _instrument(0.008, 2.5e-4, (40.0, -6.0, 1.5)),
+                        history=False)
+    events: list[dict] = []
+    result = ref.fit(_draw(_lab6(A0, 2.5e-7), np.random.default_rng(200)),
+                     plan=plan, events=events.append)
+    OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(OUT / "phase_significance_collapse.png"))
+
+    starts = [e["data"] for e in events
+              if e["kind"] == "stage_start" and e["data"]["index"] == 2]
+    assert len(starts) == 2 and cell not in starts[0]["held"]
+    assert len(entering) == 3
+    start = entering[1]
+    assert abs(answers[1] - start) > 1e-4, "the first solve left the cell"
+    assert entering[2] == start, "put back before the second solve"
+    assert ref.structure.phases[0].cell.a.value == start
+    stage = result.stages[1]
+    assert stage.held == [cell] and not stage.released
+    assert cell not in stage.freed
 
 
 def test_the_threshold_is_the_indexing_presence_test():
