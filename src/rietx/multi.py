@@ -139,8 +139,6 @@ from .strategy.staged import (
     check_stephens_positive,
 )
 
-_CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
-
 #: A diagnostic reported **once per histogram**, on
 #: :attr:`HistogramResult.diagnostics`: a fact about one pattern — its
 #: radiation, its instrument, its counts, or the fit's agreement with it.
@@ -1284,30 +1282,26 @@ class MultiHistogramRefinement:
         """Positions per phase, which reflection each of them is, and its
         support in σ.
 
-        All three, from one walk.  This is the second builder CLAUDE.md warns
-        about — ``refine._build_result`` has the other — and a joint fit whose
-        ticks carried no Miller indices would be the one surface where
-        pointing at a tick told the reader nothing (WP-1438).  The support is
-        not a result field: ``_low_angle_diagnostics`` is its one reader, and
-        its rule is ``refine``'s (``_reflection_tick_support``), so the two
-        builders cannot disagree about which tick has anything behind it.
+        All three, from one walk.  The positions and the Miller indices are
+        ``CompiledModel.reflection_positions``, the walk this shares with
+        ``refine._build_result`` and ``viz.snapshot.stage_ticks`` (WP-1908), so
+        a joint fit's ticks are where the model draws each peak and a joint
+        fit whose ticks carried no Miller indices cannot be the one surface
+        where pointing at a tick told the reader nothing (WP-1438).  The
+        support is not a result field: ``_low_angle_diagnostics`` is its one
+        reader, and its rule is ``refine``'s (``_reflection_tick_support``),
+        so the two builders cannot disagree about which tick has anything
+        behind it.
         """
         ticks: dict[str, list[float]] = {}
         tick_hkl: dict[str, list[list[int]]] = {}
         tick_support: dict[str, list[float]] = {}
         for ip, cp in enumerate(model.phases):
             name = structure.phases[ip].name
-            cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in _CELL_KEYS)
-            rows = [model.apparent_two_theta(
-                        cp.reflections.two_theta(cell, lam), values)
-                    for lam in model.line_wavelengths]
-            pos = np.concatenate(rows) if rows else np.array([])
-            # one reflection list per emission line, in the same order each
-            # time, so the index list is that list tiled
             # (H, m), not H: a satellite is labelled by its order (WP-1326)
-            hkl = (np.tile(cp.reflections.hklm, (len(rows), 1)) if rows
-                   else np.zeros((0, 4), dtype=np.int64))
-            sup = _reflection_tick_support(model, ip, values, len(rows))
+            pos, hkl = model.reflection_positions(ip, values)
+            sup = _reflection_tick_support(
+                model, ip, values, len(model.line_wavelengths))
             keep = np.isfinite(pos)
             pos, hkl, sup = pos[keep], hkl[keep], sup[keep]
             order = np.argsort(pos, kind="stable")

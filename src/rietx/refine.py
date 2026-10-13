@@ -6712,20 +6712,15 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         name = structure.phases[ip].name
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        # where the forward model puts the peak: Bragg angle, zero shift and
-        # the geometry's own shift (sample displacement, transparency,
-        # capillary offset), by the one method both read (WP-1908)
-        rows = [model.apparent_two_theta(cp.reflections.two_theta(cell, lam),
-                                         values)
-                for lam in model.line_wavelengths]
-        pos = np.concatenate(rows) if rows else np.array([])
-        # one reflection list per emission line, in the same order each time,
-        # so the index list is that list tiled — the Kα2 image of a peak is
-        # the same hkl and says so.
+        # where the forward model puts each peak, and which reflection each
+        # position is, from the one walk every tick builder shares
+        # (`CompiledModel.reflection_positions`, WP-1908): the zero shift and
+        # the geometry's own shift are in it, and `hkl` is the reflection list
+        # tiled once per emission line, so a Kα2 image says it is the same hkl
         # (H, m), not H: a satellite is labelled by its order (WP-1326)
-        hkl = (np.tile(cp.reflections.hklm, (len(rows), 1)) if rows
-               else np.zeros((0, 4), dtype=np.int64))
-        sup = _reflection_tick_support(model, ip, values, len(rows))
+        pos, hkl = model.reflection_positions(ip, values)
+        n_lines = len(model.line_wavelengths)
+        sup = _reflection_tick_support(model, ip, values, n_lines)
         keep = np.isfinite(pos)
         if cp.magnetic is not None:
             # issue #278: a magnetic phase's reflections are drawn as their
@@ -6733,9 +6728,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
             # cut on the magnetic fraction (MAGNETIC_TICK_PURITY: see its
             # docstring for why the mask on ``CompiledPhase`` is not enough
             # on a k != 0 supercell).  One
-            # fraction per *reflection*, tiled across ``rows`` (one row per
-            # emission line, each already ``cp.reflections``-ordered) before
-            # the positions are concatenated and sorted.
+            # fraction per *reflection*, tiled once per emission line (each
+            # line already ``cp.reflections``-ordered, as ``pos`` is) before
+            # the positions are sorted.
             # ``tick_hkl`` and ``tick_support`` are carried through the same
             # mask and the same sort as the positions, so a split row keeps its
             # Miller indices and its support.
@@ -6748,8 +6743,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
             with np.errstate(invalid="ignore", divide="ignore"):
                 frac = np.where(total > 0.0, f_mag / total, 0.0)
             mag_hkl = frac >= 1.0 - MAGNETIC_TICK_PURITY
-            mag_row = (np.concatenate([mag_hkl for _ in rows])
-                       if rows else np.zeros(0, dtype=bool))
+            mag_row = (np.concatenate([mag_hkl for _ in range(n_lines)])
+                       if n_lines else np.zeros(0, dtype=bool))
             rows_out = ((name, keep & ~mag_row),
                         (f"{name} (magnetic)", keep & mag_row))
         else:

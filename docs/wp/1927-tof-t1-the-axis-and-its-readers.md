@@ -84,15 +84,17 @@ the files) sits beside the fence and is not part of T-1.
 
 - **2026-10-13, from WP-1908 (PR #927): a tick's drawn angle is one function,
   and a time-of-flight axis owes it a twin.** `CompiledModel.apparent_two_theta`
-  is where the forward model and the three tick builders read the angle at
-  which a peak is drawn: `refine._build_result`, `multi._ticks` and
-  `viz.snapshot.stage_ticks`. A flight-time axis draws a peak at a time, so
-  none of the three can call it. The TOF position map needs one function the
-  forward model and those builders all read, as WP-1908 made for angles, or
-  ticks drift from the peaks they label again. WP-1908's edits sit at
-  `forward.py` near the position memo in `phase_peaks`, the tick loops in
-  `refine.py` and `multi.py`, and `viz/snapshot.py`. Checked against #911's
-  hunks: none touches those lines.
+  is where the forward model reads the angle at which a peak is drawn.
+  `CompiledModel.reflection_positions` (WP-1908's post-merge review round)
+  is the walk over a phase's cell and emission lines that
+  `refine._build_result`, `multi._ticks` and `viz.snapshot.stage_ticks` all
+  call, and `report.satellites` calls `apparent_two_theta` itself. A
+  flight-time axis draws a peak at a time, so neither can serve it. The TOF
+  position map needs its own twin of that pair, with the three builders
+  choosing between them in one place, or ticks drift from the peaks they label
+  again. WP-1908's edits sit at `forward.py` near the position memo in
+  `phase_peaks`, the tick loops in `refine.py` and `multi.py`, and
+  `viz/snapshot.py`. Checked against #911's hunks: none touches those lines.
 
 ## Non-goals
 

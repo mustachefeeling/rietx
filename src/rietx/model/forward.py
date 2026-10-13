@@ -228,6 +228,14 @@ def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
 #: frozen zero-node profile
 AXIAL_SIZING_FLOOR = 0.02
 
+#: How far outside the fitted range, in °2θ, a reflection is still generated
+#: (``compile_model``).  A peak centred just outside the range still puts its
+#: tail inside it, and the reflection list is frozen for the stage while the
+#: zero and the geometry move.  The margin is on top of the geometry's own
+#: shift, which the window follows exactly (WP-1908), so it is a tail
+#: allowance and no longer the room a displacement has to fit in.
+REFLECTION_MARGIN_DEG = 0.5
+
 #: WP-1343.  When a magnetic broadening term is about to be *refined* from
 #: zero, the magnetic component's windows and FCJ node counts are sized as if
 #: it were at least this wide (deg 2θ).  The exact twin of
@@ -1006,16 +1014,48 @@ class CompiledModel:
         line's angles at a time: each line has its own θ, so a Kα2 image takes
         a different shift from its Kα1 partner.
 
-        It is one function because the forward model and the tick builders
-        owe each other the same answer to *where is the peak*.  The builders
-        are ``refine._build_result``, ``multi.MultiHistogramRefinement._ticks``
-        and ``viz.snapshot.stage_ticks``.  They added the zero shift alone
-        until WP-1908, so a fit with a refined displacement drew its ticks off
-        its own peaks by 2·s·cosθ/R (0.26° at 27° for s = 0.5 mm on a
-        217.5 mm circle) while the calculated curve sat on the data.
+        It is one function because the forward model and every builder of a
+        position owe each other the same answer to *where is the peak*.  The
+        three tick builders reach it through :meth:`reflection_positions`, and
+        ``report.satellites`` calls it directly for its lattice and satellite
+        positions.  They added the zero shift alone until WP-1908, so a fit
+        with a refined displacement drew its ticks off its own peaks by
+        2·s·cosθ/R (0.26° at 27° for s = 0.5 mm on a 217.5 mm circle) while
+        the calculated curve sat on the data.
         """
         return tt_bragg + self._position_shift_deg(0.5 * tt_bragg, tt_bragg,
                                                    values)
+
+    def reflection_positions(self, ip: int, values: dict[str, float]
+                             ) -> tuple[np.ndarray, np.ndarray]:
+        """Every reflection of phase ``ip``, at each emission line's drawn angle.
+
+        Returns ``(pos, hklm)``: the apparent 2θ of every reflection for line 0,
+        then for line 1, and so on, and the ``(H, m)`` of each row.  The two are
+        the same length and paired by index, because one reflection list serves
+        every line and so its Miller indices are that list tiled once per line
+        (a satellite is labelled by its order, WP-1326).  Callers filter, sort
+        and cap both arrays through one index, never one at a time.
+
+        This is the one place that walks a phase's cell, lines and positions
+        for a tick.  ``refine._build_result``, ``multi.MultiHistogramRefinement
+        ._ticks`` and ``viz.snapshot.stage_ticks`` each carried their own copy
+        until WP-1908's review, and a copy is how a builder forgets the shift.
+        A time-of-flight axis owes a twin here, not a fifth walk.  Positions come
+        from :meth:`apparent_two_theta`, so they are where the model draws each
+        peak.  The satellite report's lattice enumerates differently and calls
+        :meth:`apparent_two_theta` itself.
+        """
+        cp = self.phases[ip]
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        rows = [self.apparent_two_theta(cp.reflections.two_theta(cell, lam),
+                                        values)
+                for lam in self.line_wavelengths]
+        pos = np.concatenate(rows) if rows else np.array([])
+        hklm = (np.tile(cp.reflections.hklm, (len(rows), 1)) if rows
+                else np.zeros((0, 4), dtype=np.int64))
+        return pos, hklm
 
     def _absorption(self, tt_bragg: np.ndarray) -> np.ndarray | float:
         """Specimen absorption transmission A(θ) for this geometry, or exactly 1.0.
@@ -3498,14 +3538,6 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         hl_eff = max(hl_eff, AXIAL_SIZING_FLOOR)
     fcj_on = fcj_live(sl_eff, hl_eff)
 
-    # a reflection is kept if *any* line lands in range: the min-λ line sits
-    # lowest, so generate with λ_min and translate the low-2θ cutoff from the
-    # max-λ line's frame (same d ⇒ sinθ ∝ λ)
-    lo_eff = max(tt_min - zero - 0.5, 0.1)
-    hi_eff = tt_max - zero + 0.5
-    sin_lo = np.sin(np.radians(lo_eff / 2.0)) * lam_gen / max(lams)
-    gen_min = max(2.0 * np.degrees(np.arcsin(min(sin_lo, 1.0))), 0.05)
-
     def _shift_est(theta: np.ndarray, tt_bragg: np.ndarray) -> np.ndarray | float:
         shift = zero
         if geom.kind == "bragg_brentano":
@@ -3522,6 +3554,26 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                 shift = shift + capillary_displacement_shift_deg(
                     tt_bragg, a, b, geom.goniometer_radius_mm)
         return shift
+
+    # a reflection is kept if *any* line lands in range: the min-λ line sits
+    # lowest, so generate with λ_min and translate the low-2θ cutoff from the
+    # max-λ line's frame (same d ⇒ sinθ ∝ λ).  The window is in Bragg angle and
+    # a peak is drawn at the Bragg angle plus the zero and the geometry's shift,
+    # so it is widened by the geometry's shift beyond the zero over the fitted
+    # range: by the largest one at the low edge and by the smallest one at the
+    # high edge, and never narrowed, so a geometry with no shift keeps the
+    # window it always had, bit for bit.  A fixed margin alone left a
+    # reflection whose drawn peak sits inside the range ungenerated once the
+    # shift passed it (WP-1908).
+    _grid = np.linspace(tt_min, tt_max, 33)
+    _extra = np.asarray(_shift_est(0.5 * _grid, _grid), dtype=np.float64) - zero
+    _extra = _extra[np.isfinite(_extra)]
+    widen_lo = max(float(_extra.max()), 0.0) if _extra.size else 0.0
+    widen_hi = max(-float(_extra.min()), 0.0) if _extra.size else 0.0
+    lo_eff = max(tt_min - zero - REFLECTION_MARGIN_DEG - widen_lo, 0.1)
+    hi_eff = tt_max - zero + REFLECTION_MARGIN_DEG + widen_hi
+    sin_lo = np.sin(np.radians(lo_eff / 2.0)) * lam_gen / max(lams)
+    gen_min = max(2.0 * np.degrees(np.arcsin(min(sin_lo, 1.0))), 0.05)
 
     # Anomalous scattering: f′ + i·f″ per species, frozen for the stage.  The
     # source owns it (it is a property of the wavelength, not the structure),
