@@ -237,16 +237,23 @@ def test_the_state_the_loop_keeps_is_the_state_a_hand_loop_would_continue_from(p
     """Restoring the best pass must not hand the next ``fit`` a start the hand
     loop never had.  Seeding the restored intensities does exactly that: the
     +2 % start measured 254.09 % against the loop's 194.56 % on pass 4
-    (194.55 % under LM)."""
+    (194.55 % under LM).  So the next fit's Rwp is the loop's pass 4, read
+    off the stop message.
+
+    The wander's numbers are not pinned.  Since WP-1953's held column scale
+    they depend on the start: the kept pass reads 155.22 % from the exact
+    +2 % and 177.80 % from starts 1e-14 either side, where they read
+    175.09 % from all three before."""
     ref = _refinement(1.02)
     result = _fit(ref, pattern, 8, limits=WIDE_LIMITS)
     stop = _stop(result)
     assert "pass 3 of 4 was kept" in stop.message
-    # 1.75104 and 1.94562 under TRF; under LM identical across starts 1e-14 apart
-    assert result.statistics.rwp == pytest.approx(1.750941, abs=1e-4)
+    per_pass = [float(v) / 100.0 for v in re.search(
+        r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(", ")]
+    assert result.statistics.rwp == pytest.approx(per_pass[2], abs=1e-5)
     nxt = ref.fit(pattern, mode="lebail", plan="profile_only",
                   two_theta_limits=WIDE_LIMITS, telemetry=False)
-    assert nxt.statistics.rwp == pytest.approx(1.945486, abs=1e-4)
+    assert nxt.statistics.rwp == pytest.approx(per_pass[3], abs=1e-5)
     _plot(result, "lebail_alternation_wander_kept.png")
 
 
