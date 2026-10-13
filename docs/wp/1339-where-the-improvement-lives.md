@@ -124,16 +124,13 @@ and (2) is accepted.
 
 ### Inherited
 
-- **2026-10-12, from WP-1523 (closed): the hold stands on the ridge, and the
-  statistic that could stand it down is yours.** WP-1523 § Decided
-  2026-10-12 keeps the support hold as it is on a collinear pair: at ρ −0.99
-  a marginal z under 3σ is true of either phase, and `HIGH_CORRELATION`
-  already names the pair. The candidate that could tell "absent" from
-  "exchangeable with another phase" is the scale's z marginal over every
-  column except the other phases' scales. On a noise phase the inflation
-  comes from its own cell and widths, so that reading would stay low; on the
-  ridge it would come from the partner's scale. It is unbuilt and unmeasured,
-  because the #219 script is not in the thread.
+- **2026-10-13, from WP-1523: the ridge's hold decision is WP-1523's task 7,
+  so nothing here waits on it.** WP-1523 first kept the support hold on a
+  collinear pair (§ Decided 2026-10-12) without the #219 script. The
+  triage's re-run of that script, which the 2026-10-13 entry below points
+  to, reopened the choice there as task 7. The candidate statistic is the
+  scale's z marginal over every column except the other phases' scales.
+  #904's localisation does not answer it, as the entry below says.
 - **2026-10-11, from the issue triage (#219, in PR #904; and a re-run of the
   ridge case): asks (1) and (2) are open as the reporter's PR, and the ridge
   now holds the wrong phase.** PR #904 (opened 2026-10-11, fork) adds
@@ -225,6 +222,19 @@ and (2) is accepted.
   instead of whether the value stopped near one, so the `lor_strain` floor
   observation was taken under a test that no longer exists. Re-run before
   building on the list of what fired.
+- **2026-10-13, from the issue triage (#219, after PR #904 merged
+  2026-10-12): two loose ends for the close.** First, the reporter's
+  two-phase script is now in the thread (2026-10-12 00:11Z), so the 2026-10-11
+  entry's "not re-run here, since the script is not in the thread" is stale.
+  It was re-run at c3d0367, and the result is in WP-1523's Inherited, which
+  owns the hold. PR #904's localisation does not answer it, by its own
+  docstring (coexistence "is not what this measures"). Second, this file says
+  two things about #219's ask (3): task 4 is ticked as decided report-only on
+  2026-09-03, while the 2026-10-12 handover says "Issue #219 stays open for
+  ask (3)", and #904's body says "Ask (3) is not here". Settle which, and say
+  on #219 what is left. Tasks 5 (the NiO acceptance, waiting on permission to
+  ship the pattern) and 7 (the skill's routing row, which went into
+  `numbers.md` rather than `judging.md`) are what remains here.
 
 ## Non-goals
 

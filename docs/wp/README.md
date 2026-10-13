@@ -28,6 +28,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 2026-10-04 | P3 | [rietview](#rietview) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | 2026-10-03 | P2 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
+| [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | 2026-10-13 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 2026-10-03 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | 2026-10-08 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -62,6 +63,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | P2 | — ([1520](1520-a-search-refines-each-assignment-once.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1927](1927-tof-t1-the-axis-and-its-readers.md) | TOF T-1: the time-of-flight axis and its readers | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | P2 | — ([1923](1923-a-candidate-in-its-conventional-setting.md), [1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) | A cell pays for the lines it predicts and the pattern lacks | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1511](1511-which-cell-does-this-powder-support.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -489,7 +491,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | ⬜ | P2 | — ([1318](1318-strain-surface.md) soft) |
 | [1518](1518-dedup-weighs-a-difference-in-its-own-frame.md) | The dedup χ² test weighs a difference in the frame it was taken in | ✅ 2026-09-28 | — | — |
 | [1521](1521-compiled-kernels-active-means-they-ran.md) | `compiled_kernels_active` says the kernels ran, per tier, or says it does not know | 🛑 2026-10-10 | — | — |
-| [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | ✅ 2026-10-13 | — | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
+| [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | 🔄 2026-10-13 | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
 | [1528](1528-the-cell-box-is-declined-where-the-cell-is-declared.md) | The cell box is declined where the cell is declared | ⬜ | P4 | — |
 | [1534](1534-a-scale-and-a-b-the-range-cannot-separate.md) | A scale and a B the fitted range cannot separate | ✅ 2026-10-04 | — | — |
 | [1535](1535-a-discarded-direction-reads-as-measured.md) | A direction the covariance discards reads as measured | ✅ 2026-10-02 | — | — |
@@ -516,6 +518,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1952](1952-the-xy-reader-says-what-it-skipped.md) | The xy reader says what it skipped | ⬜ | P3 | — |
 | [1953](1953-a-large-pawley-stage-converges-under-the-default-driver.md) | A large Pawley stage converges under the default driver | ✅ 2026-10-13 | — | — |
 | [1955](1955-a-column-at-a-zero-aperture-and-a-column-the-matrix-cannot-see.md) | A column at a zero aperture, and a column the agreement matrix cannot see | ⬜ | P3 | — |
+| [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) | A cell pays for the lines it predicts and the pattern lacks | ⬜ | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1511](1511-which-cell-does-this-powder-support.md) soft) |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
