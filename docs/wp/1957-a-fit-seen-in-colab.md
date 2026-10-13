@@ -1,6 +1,6 @@
 # WP-1957 — a fit seen in Colab: figures at their own shape, the structure beside them, a template for your own data
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-14 — every task but the maintainer's Colab check of 02; the template's landing row waits on the v1.9.0 tag
 Track: Render what the fit already knows
 Depends on: —
 Priority: P2 2026-10-13 — a defect with a named user: the Colab quickstart (1917) is live, every figure in it draws distorted, and the maintainer asked
@@ -166,6 +166,50 @@ The maintainer records the Colab check in the handover.
 - anywidget, the interactive tier left out: https://anywidget.dev
 
 ## Handover log
+
+### 2026-10-14 — the density kept, and the template's route to the landing page
+
+The notebook figures stay at 2× density, so they stay sharp on a HiDPI
+screen. The maintainer chose that from the measured sizes in Context 3, and
+that question is closed. The template notebook is not yet on the landing page.
+The page lists notebooks from the newest release tag, and the template merged
+the day after v1.8.0. It appears by itself at the v1.9.0 tag, and the
+maintainer asked for an early cut once WP-1959 lands. The template already
+runs on rietx 1.8.0. Its figures there still carry the old width-and-height
+metadata, though, so only the release brings the shape fix to Colab. One check
+remains, and only the maintainer can make it.
+
+*Done.* The density task is ticked with the decision, and Context 3 says
+`_NOTEBOOK_DENSITY` stays 2. The skill item is ticked. No source changed.
+
+*Measured* (macOS arm64, a scratch Python 3.13 venv holding Colab's
+matplotlib 3.10.0 and numpy 2.1.3, with `rietx==1.8.0` from PyPI):
+- 06's source runs top to bottom on 1.8.0. It took 22.1 s wall with
+  `MPLBACKEND=Agg` and its output directory moved to scratch, and it wrote
+  `fit.png`, `refined.cif` and `refinement.rex`.
+- v1.8.0's `_notebook_png` still returns `{"width", "height"}`
+  (`v1.8.0:src/rietx/viz/plots.py:397`). So 06 opened in Colab today draws
+  through the metadata this WP replaced.
+- A dry run of `rietx==1.8.0` over that set installs `rietx` and
+  `rietx-kernels` 1.2.0 and nothing else. That predicts WP-1917's restart
+  check passes, and the note is in its Inherited.
+- All four PNG outputs in the committed 02 declare `width` alone. Opening 02
+  from `main` in Colab therefore shows the fix without running anything.
+
+No test, fast suite or full suite ran beyond `test_docs_consistency.py`,
+because this branch changes two WP files and the index.
+
+*Gotchas.* The template's row cannot come before its tag without a rule no
+test can hold. A notebook linked at `main` installs the last release, and
+nothing in CI runs `main`'s notebooks against PyPI. That option was offered
+and not taken.
+
+Next:
+1. The maintainer opens 02 from `main` in Colab at a narrow window
+   (`https://colab.research.google.com/github/yue-here/rietx/blob/main/examples/tutorials/02_simple_rietveld.ipynb`)
+   and records whether the figures keep their shape. The WP closes on that.
+2. The 1.9 cut, to be filed as WP-1961, waits for WP-1959. At the tag the
+   template's row appears and the fix reaches `%pip install rietx`.
 
 ### 2026-10-13 (second session) — the figures, notebook 02, the template
 

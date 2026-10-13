@@ -100,6 +100,17 @@ so dropping the "until 1.7" lines needs no manual edit.
   figures stretched in Colab. The Colab re-run left in Tasks can check both
   at once: open 02 at a narrow window and see whether the figures keep their
   shape. WP-1957 waits on that observation.
+- **2026-10-14, from WP-1957.** The last task can run now, because v1.8.0
+  carries both fixes. Its `pyproject.toml` has the matplotlib 3.10 floor below
+  Python 3.14, and its notebooks have no "Until rietx 1.7" line. A dry run
+  predicts no restart. In a Python 3.13 venv holding Colab's matplotlib 3.10.0
+  and numpy 2.1.3, `rietx==1.8.0` installs only `rietx` and `rietx-kernels`
+  1.2.0, and leaves both alone. The run to record is
+  `https://colab.research.google.com/github/yue-here/rietx/blob/v1.8.0/examples/tutorials/01_quickstart.ipynb`.
+  Notebook 06 is still missing from the page, because it merged after the
+  v1.8.0 tag. The maintainer asked for an early 1.9 cut once WP-1959 lands,
+  and the cut is to be filed as WP-1961. Template 06 runs top to bottom on
+  rietx 1.8.0 (22 s), so its row works from the day the tag exists.
 
 ## Non-goals
 
