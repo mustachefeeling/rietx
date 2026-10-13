@@ -1793,11 +1793,13 @@ def _panel_for(cand: EngineCandidate, peaks: PeakList, k_sigma: float,
     tt_max = float(np.max(tt)) if len(tt) else 90.0
     if not reflection_ceiling_ok(cand.cell, peaks.wavelength, tt_max):
         return []
+    # the peak list's widths put the reversed member at the resolution (C3)
+    fwhm = np.array([p.fwhm for p in peaks.usable()], dtype=np.float64)
     try:
         return fom_panel(q, peaks.q_esd(), peaks.intensity(), tt, tt_esd,
                          cand.cell, cand.system, cand.centring, peaks.wavelength,
                          k_sigma=k_sigma, n_unindexed=n_unindexed,
-                         q_match=q_match)
+                         q_match=q_match, fwhm_obs=fwhm)
     except (ValueError, RuntimeError):
         return []
 
