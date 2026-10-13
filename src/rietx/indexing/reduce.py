@@ -57,6 +57,8 @@ from functools import lru_cache
 
 import numpy as np
 
+from ..optimize.statistics import _psd_pinv
+
 #: How spglib declines a cell it cannot solve, in **both** of its error modes.
 #: It returns ``None`` under ``spglib.error.OLD_ERROR_HANDLING = True``, which
 #: is spglib's own (deprecated) default, and **raises** ``SpglibError`` under
@@ -561,6 +563,14 @@ def reduced_covariance(cov: np.ndarray | None, t: np.ndarray | None
     return t @ np.asarray(cov, dtype=np.float64) @ t.T
 
 
+#: The cut :func:`equal_reduced` hands the pseudo-inverse of Σ: numpy's own
+#: ``pinv`` default, which it used until WP-1930.  The inverse is
+#: :func:`~rietx.optimize.statistics._psd_pinv`, because Σ is a sum of
+#: rank-deficient covariances, and a flat direction's rounding-level
+#: eigenvalue taken with its sign makes χ² negative and merges two cells.
+CELL_PINV_RCOND = 1e-15
+
+
 def equal_reduced(red_a: np.ndarray, red_b: np.ndarray, *,
                   cov_a: np.ndarray | None = None,
                   cov_b: np.ndarray | None = None) -> tuple[bool, float]:
@@ -575,7 +585,7 @@ def equal_reduced(red_a: np.ndarray, red_b: np.ndarray, *,
         ok = bool(np.all(np.abs(delta) <= CELL_EQUALITY_RELATIVE * scale))
         return ok, float("nan")
     sigma = np.asarray(cov_a) + np.asarray(cov_b)
-    chi2 = float(delta @ np.linalg.pinv(sigma, hermitian=True) @ delta)
+    chi2 = float(delta @ _psd_pinv(sigma, CELL_PINV_RCOND) @ delta)
     return chi2 <= CELL_EQUALITY_CHI2, chi2
 
 
@@ -586,7 +596,7 @@ def equal_reduced_many(red_a: np.ndarray, reds_b: Sequence[np.ndarray], *,
     one stacked solve (WP-1519).  Covariances are required on both sides.
 
     Each pair's Δ, Σ and final product are :func:`equal_reduced`'s own
-    expressions, and only ``pinv`` runs over the (k, 6, 6) stack, so each
+    expressions, and only the pseudo-inverse runs over the (k, 6, 6) stack, so each
     answer is the pair's own **where** :func:`stacked_pinv_exact` **says so**.
     A caller asks it first.  One Σ that makes the stack raise raises for all
     of them, so a caller that catches it re-asks the pairs one at a time.
@@ -597,7 +607,7 @@ def equal_reduced_many(red_a: np.ndarray, reds_b: Sequence[np.ndarray], *,
     deltas = [red_a - np.asarray(red_b) for red_b in reds_b]
     sigmas = np.stack([cov_a + np.asarray(cov_b) for cov_b in covs_b])
     out = []
-    for delta, inverse in zip(deltas, np.linalg.pinv(sigmas, hermitian=True)):
+    for delta, inverse in zip(deltas, _psd_pinv(sigmas, CELL_PINV_RCOND)):
         chi2 = float(delta @ inverse @ delta)
         out.append((chi2 <= CELL_EQUALITY_CHI2, chi2))
     return out
@@ -611,7 +621,7 @@ def stacked_pinv_exact() -> bool:
     own χ², bit for bit, on this machine?  Asked once a process.
 
     It should.  numpy sends a stack through the same gufunc loop, one LAPACK
-    ``syevd`` per matrix, and the rest of ``pinv`` is elementwise or one 6×6
+    ``syevd`` per matrix, and the rest of ``_psd_pinv`` is elementwise or one 6×6
     product per matrix.  Measured on OpenBLAS 0.3.34 (numpy 2.5.3, Linux
     x86-64), every one of the 573 605 χ² tests on corundum's tetragonal unit
     came back the same double, stacked per candidate (WP-1519).  But nothing promises this of every

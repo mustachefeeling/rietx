@@ -27,7 +27,7 @@ import rietx as rx
 from rietx import PatternData
 from rietx.model.forward import compile_model
 from rietx.optimize.qpa import compute_qpa
-from rietx.optimize.statistics import PINV_RCOND
+from rietx.optimize.statistics import PINV_RCOND, _psd_pinv
 from rietx.params.vector import ParameterTable
 from rietx.refine import SCALE_B_SEPARATION_FLOOR, _scale_b_separation
 from rietx.schemas.instrument import BackgroundChebyshev, Dispersion
@@ -165,8 +165,7 @@ def test_the_floor_is_where_the_covariance_cut_falls():
 
     def variance_of_the_difference(r):
         c = math.sqrt(1.0 - r * r)
-        k = np.linalg.pinv(np.array([[1.0, c], [c, 1.0]]), rcond=PINV_RCOND,
-                           hermitian=True)
+        k = _psd_pinv(np.array([[1.0, c], [c, 1.0]]), PINV_RCOND)
         return float(diff @ k @ diff)
 
     # the true value is 1/(1 − c) ≈ 2/r²: 2e15 at half the floor, 1e14 at twice
