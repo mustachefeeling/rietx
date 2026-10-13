@@ -436,7 +436,17 @@ from .._nearmiss import did_you_mean
 #: row so held fixes.  Additive and defaulted to ``None``: exactly off, the
 #: table every earlier document built.  An older build refuses a document
 #: carrying either key.
-SCHEMA_VERSION = "0.52"
+#: 0.52 → 0.53 (yue-here/rietx issue #193, the time-of-flight readers and
+#: axis): ``PatternData.two_theta`` becomes ``list[float] | None`` beside a new
+#: ``PatternData.tof`` (µs), exactly one of the two set; ``Instrument.source``
+#: gains a third arm, ``TOFSource`` (``kind="neutron_tof"``: DIFC/DIFA/TZERO/
+#: DIFB, the bank angle, ``ProfileTOF`` and ``IncidentSpectrum``).  Not purely additive: a
+#: consumer that read ``two_theta`` as always present must now ask
+#: ``PatternData.axis``.  Every stored document loads unchanged — each has a
+#: ``two_theta`` — and a 2θ pattern serializes apart from the new nulls, and
+#: refines, exactly as before.  A ``neutron_tof`` source is read and never
+#: refined in this build.
+SCHEMA_VERSION = "0.53"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated
