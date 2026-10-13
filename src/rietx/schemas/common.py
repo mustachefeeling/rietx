@@ -545,6 +545,13 @@ from .._nearmiss import did_you_mean
 #: And ``QuantitativePhaseAnalysis.unmeasured_held`` (which of those a stage held
 #: rather than found lineless) and ``NodeMetrics.held_scale_phases`` (the held
 #: scales a node's replay reads), both defaulting to the empty list.
+#: Also in 0.59 (C3, issue #916): ``LeBailValidation.predicted_but_absent_uncancellable``,
+#: ``.predicted_but_absent_uncancellable_in_window``, ``.absent_source`` and
+#: ``.n_lines_screened``,
+#: the line screen's counts beside the one it replaces; ``SupercellCheck.relation``,
+#: whether the parent is a sublattice or only indexes a subset of the lines.
+#: Additive, every new field defaulted to the reading an earlier document had
+#: (``None`` = not counted, ``"fitted_background"``, ``"sublattice"``).
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

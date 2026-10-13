@@ -825,10 +825,20 @@ def test_a_monoclinic_truths_phantom_supercells_are_never_supported():
             verdicts[verdict] += 1
             assert verdict != "supported", (name, child, ev.n_seen, ev.n_extra)
             if verdict == "undecided":
-                # power runs out only where chance fills most windows, and
-                # only for the smallest supercells, which add the fewest extras
-                assert ev.p0 > 0.5 and index == 2, (name, child, ev.p0)
-    assert verdicts["refuted"] >= 0.95 * sum(verdicts.values()), verdicts
+                # two ways in (thresholds 1.10, three bands): power runs out
+                # where chance fills most windows, only for the smallest
+                # supercells, which add the fewest extras; or the extras are
+                # seen above chance but not significantly, which a two-band
+                # rule called refuted and a non-significant test cannot
+                if ev.p_floor >= 0.01:
+                    assert ev.p0 > 0.5 and index == 2, (name, child, ev.p0)
+                else:
+                    assert ev.n_seen > ev.n_extra * ev.p0 and ev.p_value >= 0.01, \
+                        (name, child, ev.n_seen, ev.n_extra, ev.p0)
+    # 544 of 550 refuted under the two-band rule (2026-09-29); the middle band
+    # moves the near-chance pairs, never past half
+    assert verdicts["refuted"] >= 0.5 * sum(verdicts.values()), verdicts
+    assert verdicts["supported"] == 0
 
 
 def test_a_true_superstructures_extras_are_present():
@@ -915,7 +925,13 @@ def test_the_uncancellable_extras_answer_without_the_class():
     assert by_default.n_seen == by_class.n_seen == 9
     assert all(h and k for h, k, _l in by_default.extra_hkl)   # off every zone
     assert by_default.verdict() == "supported"
-    assert by_lattice.verdict() == "refuted"
+    # asked of the whole lattice the true cell is not supported: it read
+    # *refuted* under the two-band rule and reads *undecided* under 1.10's
+    # three (its 9 seen of the lattice's extras sit above chance, not
+    # significantly), which is the right reading of a truth asked the wrong
+    # question
+    assert by_lattice.verdict() != "supported"
+    assert by_lattice.n_seen > by_lattice.n_extra * by_lattice.p0
 
 
 @pytest.mark.parametrize("cell, centring, index", [
