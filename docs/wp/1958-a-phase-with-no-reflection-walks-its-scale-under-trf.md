@@ -66,6 +66,7 @@ Relevant rules, restated:
 
 - WP-1534's fixture, `tests/test_scale_b_ridge.py`; WP-1523's 2026-10-13
   handover entry, Findings.
+- #954, the public report of this defect.
 
 ## Handover log
 

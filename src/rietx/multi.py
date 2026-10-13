@@ -269,6 +269,11 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_hold_diagnostics": (
         (ABSENT,), "a joint fit has no hold verb, so no StageResult here "
                    "carries blocked_by_hold for HOLD_BLOCKED_PLAN to report"),
+    "_origin_diagnostics": (
+        (ABSENT,), "each histogram's table derives the same floating-origin "
+                   "hold from its copy of the structure (WP-1912), so the "
+                   "hold applies; no joint StageResult carries the "
+                   "blocked_by_hold it reports from"),
     "_pawley_unresolved_diagnostics": (
         (ABSENT,), "a joint fit is Rietveld-only (fit refuses pawley)"),
     "_pawley_off_data_diagnostics": (
