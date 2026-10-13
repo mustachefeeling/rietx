@@ -279,7 +279,7 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    allowance, assumed = effective_shift_allowance(spec, quality)
+    allowance, assumed = effective_shift_allowance(spec, quality, peaks)
     sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     tt_max = float(peaks.two_theta_max)
 
@@ -595,7 +595,7 @@ def dominant_zone_probe(peaks: PeakList, *, systems: list[str] | tuple[str, ...]
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    allowance, _assumed = effective_shift_allowance(spec, quality)
+    allowance, _assumed = effective_shift_allowance(spec, quality, peaks)
     sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     return _dominant_zone_probe(peaks, spec, q_all, sigma, tt_all,
                                 float(peaks.two_theta_max), list(systems),

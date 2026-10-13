@@ -119,7 +119,14 @@ from .structure import Cell
 #: usable lines where 1.8 offered 77, and the corundum list loses one
 #: ``no_intensity`` component (2 → 1).  A Cu Kα rock salt at a 0.02° step went
 #: from 7 of 9 lines indexed to all of them.
-INDEXING_THRESHOLDS_VERSION = "1.9"
+#: 1.10 (indexing C4, C6): a search that ends with no lattice two engines agree
+#: on is run again under the inlier rule, so a run that returned no cell, or
+#: single-engine cells, can now return the true one; and a picked list's search
+#: window is its lower-quartile fitted FWHM (capped at the old 0.05 degrees)
+#: where it was the constant, so a high-resolution list now matches within its
+#: own widths.  A run whose first pass finds an agreed lattice, and a lab list
+#: with lines 0.05 degrees or wider, answer as at 1.9.
+INDEXING_THRESHOLDS_VERSION = "1.10"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.

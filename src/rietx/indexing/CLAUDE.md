@@ -189,8 +189,10 @@ a correction** — it finds lines, only `shift_template` moves the cell.
 is the right *weight* and the wrong *matching window*: certified corundum's
 lines sit a median 0.060° from truth (a cos θ displacement) against a median
 fitted σ of 0.0056° — the 11σ — so at 3σ the true cell indexes zero lines.
-Hence `DEFAULT_UNKNOWN_SHIFT_DEG`, 0.05° 2θ, the fallback when the pair screen
-declines, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must
+Hence `DEFAULT_UNKNOWN_SHIFT_DEG`, 0.05° 2θ, the ceiling when the pair screen
+declines (a picked list's window is its lower-quartile FWHM, `width_allowance`,
+C6 — safe only behind the C4 retry, the 0.05° having absorbed picker junk),
+reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must
 never look like a measured one; and `refine_with_shift` runs *after* a
 candidate survives, because the shift's *shape* needs reference positions,
 which a candidate cell supplies — a cell never shift-refined is biased by

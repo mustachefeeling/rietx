@@ -256,6 +256,33 @@ ANCHOR_LINES = 5
 #: them.  Every result records which allowance it used and says so with
 #: ``INDEX_SHIFT_ALLOWANCE``.
 DEFAULT_UNKNOWN_SHIFT_DEG = 0.05
+#: **When the pair screen declines on a picked list, the allowance is the list's
+#: own resolution, capped at** :data:`DEFAULT_UNKNOWN_SHIFT_DEG` (indexing C6).
+#: The lower quartile of the usable lines' fitted FWHM, times this multiple: the
+#: lower quartile because the picker's unresolved and junk components are the
+#: *broad* ones, and a systematic is bounded by the narrowest lines the
+#: instrument draws, not by them.  The cap keeps every lab pattern where it was
+#: (FWHM ≥ 0.05°) and stays below the windows measured to manufacture cells
+#: (SRM 660c returns a cell 293 000 ppm off at ``high`` at 0.060°; corundum
+#: loses its lattice at 0.0767°); the change acts on high-resolution data, where
+#: a 0.05° allowance is two to six FWHM.
+#:
+#: Measured on the synthetic Si twin of F2's T5 arms (λ 0.8257 Å, FWHM 0.021°,
+#: the pair screen declining on every arm: two agreeing pairs of the three Dong
+#: (1999) needs), with the inlier acceptance in place: at 1 FWHM the truth is
+#: rank 1, found by all three engines, with no shift, a +0.03° zero, a 100 µm
+#: displacement (−0.052° at low angle) and both; the 0.05° allowance's −228 ppm
+#: bias on the unshifted truth falls to −7 ppm, and the √2·a₀ cI cell it graded
+#: ``medium`` drops out of ``medium``.  At 0.5 FWHM the displaced truth keeps
+#: one finder of three.  **It needs the inlier rule**: under the absolute count of
+#: two the same 1-FWHM window refuses the unshifted truth, because the 0.05°
+#: window had been absorbing the picker's over-resolved side components into
+#: true lines.  Not a measurement of the shift — the shift is still unmeasured,
+#: so ``INDEX_SHIFT_ALLOWANCE`` still fires and still caps the grade.
+WIDTH_ALLOWANCE_FWHM = 1.0
+#: The quantile of the usable lines' FWHM that :data:`WIDTH_ALLOWANCE_FWHM`
+#: multiplies (the lower quartile, see there).
+WIDTH_ALLOWANCE_QUANTILE = 0.25
 #: Wall-clock seconds a single system may consume before the engine gives up on
 #: it and reports ``search_complete[system] = False``.
 DEFAULT_BUDGET_SECONDS = 30.0
@@ -1133,19 +1160,43 @@ def search_line_order(peaks: PeakList, spec: SearchSpec) -> np.ndarray:
     return order[np.argsort(q[order])]
 
 
-def effective_shift_allowance(spec: SearchSpec,
-                              quality=None) -> tuple[float, bool]:
+def width_allowance(peaks: PeakList | None) -> float | None:
+    """The allowance a picked list's own widths support, or ``None``.
+
+    :data:`WIDTH_ALLOWANCE_FWHM` × the :data:`WIDTH_ALLOWANCE_QUANTILE` of the
+    usable lines' fitted FWHM, capped at :data:`DEFAULT_UNKNOWN_SHIFT_DEG`.
+    ``None`` for a list whose widths were never measured — a
+    :meth:`PeakList.from_positions` list carries one assumed FWHM, and an assumed
+    width may no more size a window than an assumed σ may refuse a cell.
+    """
+    if peaks is None or getattr(peaks, "source", None) == "positions":
+        return None
+    fwhm = np.array([p.fwhm for p in peaks.usable()], dtype=np.float64)
+    fwhm = fwhm[np.isfinite(fwhm) & (fwhm > 0.0)]
+    if not len(fwhm):
+        return None
+    width = WIDTH_ALLOWANCE_FWHM * float(np.quantile(fwhm,
+                                                     WIDTH_ALLOWANCE_QUANTILE))
+    return min(width, DEFAULT_UNKNOWN_SHIFT_DEG)
+
+
+def effective_shift_allowance(spec: SearchSpec, quality=None,
+                              peaks: PeakList | None = None,
+                              ) -> tuple[float, bool]:
     """The systematic allowance to use, and whether it was **assumed**.
 
-    Three cases, in priority order: the caller declared one; the data-quality
+    Four cases, in priority order: the caller declared one; the data-quality
     report measured one, by either of the two roads
     :data:`~rietx.schemas.indexing.TRUSTED_SHIFT_SOURCES` names — against
     supplied references (``"measured"``), or from harmonic reflection pairs with
     no reference at all (``"reflection_pairs"``, WP-1038, which is what made this
-    branch reachable on real data); or neither, in which case
-    :data:`DEFAULT_UNKNOWN_SHIFT_DEG` is assumed and the second return value says
-    so.  An assumed precision must never be reported as a measured one — the same
-    rule ``PeakList.from_positions`` follows.
+    branch reachable on real data); the picked list's own resolution
+    (:func:`width_allowance`, indexing C6) when ``peaks`` carry measured widths;
+    or none of these, in which case :data:`DEFAULT_UNKNOWN_SHIFT_DEG` is assumed.
+    The second return value is True for the last two: a window sized from the
+    widths is still not a measured *shift*, and an assumed precision must never
+    be reported as a measured one — the same rule ``PeakList.from_positions``
+    follows.
 
     **What it reads from the screen is ``allowance_deg``, not ``sigma_sys_deg``,
     and that was a bug for as long as this branch was unreachable.**  ``sigma_sys``
@@ -1165,6 +1216,9 @@ def effective_shift_allowance(spec: SearchSpec,
             and quality.shift.source in TRUSTED_SHIFT_SOURCES
             and quality.shift.allowance_deg > 0.0):
         return float(quality.shift.allowance_deg), False
+    width = width_allowance(peaks)
+    if width is not None:
+        return width, True
     return DEFAULT_UNKNOWN_SHIFT_DEG, True
 
 
@@ -1203,14 +1257,19 @@ def search_volume_ceiling(spec: SearchSpec, quality, system: str) -> float:
 def shift_allowance_diagnostic(allowance_deg: float) -> Diagnostic:
     """``INDEX_SHIFT_ALLOWANCE`` — the search widened its own tolerance, and by how
     much.  Reported because it is the difference between a cell and no cell, and
-    because it biases the cell it finds."""
+    because it biases the cell it finds.  An allowance below
+    :data:`DEFAULT_UNKNOWN_SHIFT_DEG` came from the list's widths
+    (:func:`width_allowance`), and the message says so."""
+    sized = ("the narrowest picked widths (lower-quartile FWHM)"
+             if allowance_deg < DEFAULT_UNKNOWN_SHIFT_DEG
+             else "an assumed bound")
     return Diagnostic(
         level="info", code="INDEX_SHIFT_ALLOWANCE",
         message=(f"no systematic 2θ shift has been measured, so {allowance_deg:.3f}° "
-                 "was added in quadrature to every line's fitted σ.  Measured on "
-                 "a certified pattern, the fitted σ alone is ~11× too tight: the "
-                 "true cell indexed no lines at all and the search returned "
-                 "nothing"),
+                 f"from {sized} was added in quadrature to every line's fitted "
+                 "σ.  Measured on a certified pattern, the fitted σ alone is "
+                 "~11× too tight: the true cell indexed no lines at all and the "
+                 "search returned nothing"),
         where=[f"σ_sys = {allowance_deg:.3f}° 2θ (assumed)"],
         suggestion=("the cell a widened search finds absorbs the shift, so refine "
                     "the winner with a shift template "
@@ -1402,7 +1461,7 @@ def match_window(peaks: PeakList, spec=None, quality=None) -> np.ndarray:
     from .qspace import sigma_effective
 
     allowance, _assumed = effective_shift_allowance(spec or SearchSpec(),
-                                                    quality)
+                                                    quality, peaks)
     return sigma_effective(peaks.q_esd(), peaks.two_theta(), peaks.wavelength,
                            allowance)
 
@@ -2404,6 +2463,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "DEFAULT_UNKNOWN_SHIFT_DEG", "DEFAULT_VOLUME_CEILING",
            "budget_exhausted_diagnostic", "conventional_fit",
            "dedup_candidates", "dedup_groups",
+           "WIDTH_ALLOWANCE_FWHM", "WIDTH_ALLOWANCE_QUANTILE",
            "effective_shift_allowance", "engine_descriptions", "engine_names",
            "estimate_ceiling", "indexes_the_search_lines", "match_window",
            "merge_engine_units", "refine_with_shift",
@@ -2411,6 +2471,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "search_line_order", "search_volume_ceiling",
            "shift_allowance_diagnostic",
            "shift_from_pairs_diagnostic", "inlier_retry_diagnostic",
+           "width_allowance",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "solution_key",
            "to_cell_candidate", "trial_hkl"]

@@ -217,7 +217,7 @@ def build_prior_candidates(peaks: PeakList, spec: SearchSpec, quality
 
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    allowance, _assumed = effective_shift_allowance(spec, quality)
+    allowance, _assumed = effective_shift_allowance(spec, quality, peaks)
     sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     search = search_line_order(peaks, spec)
     q_max = float(q_all.max()) if len(q_all) else 0.0

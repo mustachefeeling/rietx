@@ -692,6 +692,14 @@ residue a second phase would explain. A list whose lines carry one intensity,
 such as `PeakList.from_positions` without intensities, has no "strongest" to
 anchor, and keeps the count of two.
 
+When no shift is declared and the pair screen cannot measure one, the search
+still has to open its window for a shift it has not seen. A picked list sizes
+that window from its own lines: the lower-quartile fitted FWHM, capped at
+0.05° 2θ. A lab pattern with lines that wide keeps 0.05°, and so does a
+position-only list, whose widths were never measured. `INDEX_SHIFT_ALLOWANCE`
+still fires, because the shift itself is still unmeasured, and its message says
+where the window came from.
+
 A prior steers the search rather than gating it. A declared `prior_cells` entry
 puts its crystal system at the front of the queue, seeds the stochastic engine's
 starting basin with its metric, and is checked against the lines the engines'
