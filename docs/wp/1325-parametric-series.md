@@ -62,6 +62,40 @@ assumed.
 
 ### Inherited
 
+- **2026-10-13, from user feedback (an outside lab, by email to the
+  maintainer): the first use case from outside the package, and it is 2-D
+  across many specimens, not 1-D across one.** The lab runs rietx and TOPAS
+  side by side on the same combinatorial-library datasets. They report rietx
+  as strong on simple-to-medium problems. On the hard ones (gradual, broad,
+  interfering peaks) they rely on TOPAS: they parametrise values as
+  **polynomial surfaces** over the library and refine the surface
+  coefficients against all datasets at once, especially for weak or broad
+  features. In their words, it is "the only way" to get consistent, smoothly
+  evolving models across a library, and to decouple measurable quantities
+  from how the diffuse features are modelled. Four things this changes for
+  the design.
+  (1) **The axis is a vector, not a scalar.** A surface over composition
+  (x, y) is still linear in its coefficients, p_k = Σ_j c_j·φ_j(x_k, y_k),
+  so the affine C covers it unchanged. The declaration should therefore take
+  per-pattern basis values (or an n-D axis) rather than one series axis, or
+  a 1-D `SeriesTie` will need reshaping later. The "no library of physical
+  models" non-goal still holds, since the caller supplies the basis.
+  (2) **Many specimens, not one crystal.** `SharingMap`'s default is "one
+  specimen, one crystal", and `MultiParameterTable` copies a single starting
+  `Structure` into every histogram. A library varies in cell, occupancy and
+  broadening from specimen to specimen, so it needs per-pattern starting
+  values, with the surface tie as a third choice between shared and
+  per-histogram.
+  (3) **The targets include per-histogram paths.** Weak or broad features
+  live in `instrument.*` (background, `extra_components`), which the default
+  map already makes per-histogram. So the tie has to reach scoped
+  `hist.{h}.` paths, not only shared ones.
+  (4) **Priority.** The header's "per-pattern fits cover it" is the claim
+  this report disputes for libraries. It is still a use case, not a
+  measurement, so the first task stands; a library dataset, if one can be
+  had, would be the second series to measure on. Re-rating the priority is
+  left to the maintainer. (The same email names spherical-harmonics texture
+  as their other gap. That is the v2 fence, not this WP.)
 - **2026-10-11, from the issue triage: issue #212's restraint row is
   [1942](1942-a-soft-restraint-on-a-sum-across-phases.md), and #349's three
   exports went with it.** The two entries that said nobody had cut it (the
