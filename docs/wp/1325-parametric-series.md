@@ -141,6 +141,42 @@ assumed.
 - [ ] The measurement above, on the ZrMo₂O₈ ramp: trajectory-line coefficient
       and esd against a joint a₀ + a₁·T fit over 10 patterns, and the
       wall-clock ratio. Decide open / close-as-finding on it.
+- [ ] **Survey the prior art for declaring a parametric model, before
+      `SeriesTie` takes a shape.** The goal is a declaration that is easy to
+      write and hard to get wrong, because a **self-driving lab** will write
+      it: an orchestrator or agent, from a composition database, with nobody
+      reading the fit as it runs.
+      Read four families of precedent, concepts only (licensing rule):
+      - **Crystallography:** TOPAS `prm` equations and parametric macros
+        (Stinton & Evans 2007, user docs only); GSAS-II's sequential and
+        parametric fits; FullProf's multi-pattern constraints.
+      - **General fitting:** lmfit's `Parameters` with `expr`.
+      - **Model-formula languages** (Wilkinson & Rogers 1973; patsy and
+        formulaic): how `1 + x + y + x:y + I(x**2)` names a basis, and how a
+        design matrix is built from per-sample metadata.
+      - **Autonomous-experimentation stacks:** how a closed-loop campaign
+        describes samples and their coordinates to an analysis step.
+      Then answer the questions the design owes:
+      1. **Data, not code.** Can the declaration be JSON-round-trippable
+         state (the `extra_components` "state, never code" rule), so an
+         orchestrator can write it, a history node can store it and a replay
+         can rebuild it?
+      2. **Where the axis lives.** How are per-pattern coordinates attached:
+         beside each `PatternData`, or in the declaration?
+      3. **Refusals before a solve.** Which mistakes are refused, each naming
+         its fix?
+         - a design matrix with lower rank than its basis (too few, or
+           collinear, compositions);
+         - a pattern with no coordinate;
+         - a coefficient bound that its dependents violate (the 1119 hazard
+           above);
+         - a target that is held, `mode_fixed` or symmetry-tied.
+      4. **Conditioning.** How are raw compositions centred and scaled, so
+         the coefficients' esds are not an artefact of the units?
+      5. **A growing campaign.** How does the fit behave when patterns arrive
+         one at a time, and when one is quarantined (WP-1051's rule)?
+      Write the comparison and the chosen shape into this WP before the next
+      task builds it.
 - [ ] `SeriesTie` on the series surface, resolved into `multi.py`'s joint
       table as per-pattern affine ties; bit-identical to `refine_multi` when
       the function is a constant.
