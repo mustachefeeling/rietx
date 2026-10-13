@@ -95,7 +95,8 @@ assumed.
   measurement, so the first task stands; a library dataset, if one can be
   had, would be the second series to measure on. Re-rating the priority is
   left to the maintainer. (The same email names spherical-harmonics texture
-  as their other gap. That is the v2 fence, not this WP.)
+  as their other gap. That is not this WP. It left the v2 fence on
+  2026-10-14 as [WP-1960](1960-spherical-harmonics-texture.md).)
 - **2026-10-11, from the issue triage: issue #212's restraint row is
   [1942](1942-a-soft-restraint-on-a-sum-across-phases.md), and #349's three
   exports went with it.** The two entries that said nobody had cut it (the

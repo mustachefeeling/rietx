@@ -169,8 +169,9 @@ The rest stand unless Task 1's reading overturns one.
   (ψ = 90°). k_l(ψ) is then a per-l constant, and the open question is which
   frame the coefficients are quoted in. Recommended: the physical ψ above,
   because J and the sign of C_2^0 then describe the specimen. The cost is
-  that a Bragg-Brentano coefficient differs from GSAS-II's by
-  P_l(1)/P_l(0) = −2, 8/3, −16/5, 128/35 for l = 2, 4, 6, 8 (measurement 1),
+  that a Bragg-Brentano coefficient differs from GSAS-II's. For one P,
+  GSAS-II's C is rietx's times P_l(1)/P_l(0) = −2, 8/3, −16/5, 128/35 for
+  l = 2, 4, 6, 8 (measurement 1),
   and that GSAS-II's default capillary model, with ψ = θ, has no constant
   conversion. The alternative is GSAS-II's ψ, which makes Bragg-Brentano
   coefficients identical and J a number about a fibre axis the plate does
@@ -183,8 +184,13 @@ The rest stand unless Task 1's reading overturns one.
   guard elsewhere.** GSAS-II's practice is a soft penalty
   (`SH-Pref.Ori.`, weight 1/toler², default toler 0.1) at hkls the user
   lists (`GSASIIstrMath.py:847-872`). Here P ≥ 0 at every reflection of the
-  stage's frozen list is linear in θ, so it takes `strain_cone_inequalities`'
-  shape, and the identity start C = 0 is strictly inside. Between
+  stage's frozen list is linear in C, so it takes `strain_cone_inequalities`'
+  shape, and the identity start C = 0 is strictly inside. It is linear in θ
+  only while the cell is held. K_l^n(h) is a function of h's Cartesian
+  direction, which moves with the metric in every class but the cubic ones.
+  Stephens' rows multiply integer hkl monomials and have no such dependence.
+  So the rows are built from K at the stage's starting cell, and a stage
+  freeing the cell beside C holds positivity only to first order. Between
   reflections P can still go negative. `TEXTURE_NOT_POSITIVE` samples P over
   the directions of the Laue class's asymmetric unit at the answer and fires
   under any driver. Zero is on the boundary, so the test is one-sided. Its
@@ -264,9 +270,11 @@ because it was not downloaded. Bunge's tables are published numbers.
       check, one rank up); counts equal the character formula.
 - [ ] **Schema**: `SphericalHarmonicTexture` (`order`, `coefficients`
       as name → `Parameter`, default value 0, `vary=False`) on
-      `Phase.texture`. Validators refuse an odd order, an order with no term
-      (D3), a name outside the allowed set, and a phase declaring both blocks
-      (D5). Names in a bijection with GSAS-II's C(l,n), carrying no bracket
+      `Phase.texture`. Validators refuse an odd order and a phase declaring
+      both blocks (D5). The two refusals that need the Laue class, an order
+      with no term (D3) and a name outside the allowed set, raise in
+      `ParameterTable.__init__` (root CLAUDE.md, "Pydantic knows no
+      crystallography"). Names in a bijection with GSAS-II's C(l,n), carrying no bracket
       or comma; proposed `c4_0`, `c4_4`, `c4_neg4`, never TOPAS's `p`/`m`
       letters, which mark a different split. JSON round trip. Bump
       `SCHEMA_VERSION` (0.54 at e66fb223; re-read it). A `help.py` entry for
@@ -314,9 +322,10 @@ because it was not downloaded. Bunge's tables are published numbers.
       took GSAS-II's ψ. The CIF and FullProf writers state the block or say
       they cannot (`io/exporters.py:464`, `io/projects/fullprof.py:3466`
       show what March-Dollase does).
-- [ ] **`rietx compare`**: a `+ spherical-harmonics texture` variant on the
-      cpd-2 standard (`viz/compare.py`) and its row in
-      `tests/test_compare_ui.py`.
+- [ ] **`rietx compare`**: a `+ spherical-harmonics texture` variant beside
+      `preferred_orientation`, run on the `brucite` standard
+      (`qarr/brucite.prn`; `viz/compare.py` has no cpd-2 standard), and its
+      row in `tests/test_compare_ui.py`.
 - [ ] **Manual**: the equation in Part 2 (`corrections.md`, with its
       `*Source:*` line) replacing the "not implemented yet" sentence; the
       § Scope sentence in `manual.md`; Part 1 prose on declaring a block and
@@ -378,13 +387,50 @@ because it was not downloaded. Bunge's tables are published numbers.
 
 ## Handover log
 
-- **2026-10-14** — created. The fence moved the same day (ROADMAP § v2+,
-  DESIGN.md *Texture fence revised*, root CLAUDE.md, the manual's two
-  "planned for v2" sentences, the TOPAS coverage message). No open WP owns
-  the work: WP-1318 names it as a non-goal and got an inherited note, and
-  WP-1325 only records the request. Measured at e66fb223 (§ Measured while
-  scoping): GSAS-II 5.8.4's ψ, the per-class term counts with the m-3
-  discrepancy, and the Le Bail dead columns for March-Dollase and
-  extinction. Scratchpad probes, not committed: `g2_samang.py`,
-  `sh_counts.py`, `lebail_po_probe.py`. Next: the papers in References, then
-  Task 1.
+### 2026-10-14 — filed, and the fence moved
+
+Spherical-harmonics texture is now scheduled work rather than a v2 line item,
+and the design questions #131 left open are mostly answered before any code.
+Two of its three open questions are settled from prior art: the sample term
+comes from the geometry, and the order is declared. The third, which frame
+the coefficients are quoted in, now has numbers on both sides and waits only
+on reading Von Dreele (1997). Scoping also found that GSAS-II, the code this
+WP takes as its golden, is itself one term short for Laue class m-3, so its
+numbers cannot be copied blind.
+
+- **Done.** This file; the ROADMAP § v2+ entry and table row, root CLAUDE.md's
+  fence list, a DESIGN.md *Texture fence revised* entry, the manual's two
+  "planned for v2" sentences (the § Scope one also said neutron data were not
+  implemented, stale since WP-1134), the TOPAS coverage message, the MAUD
+  attribution row, and WP-1318's inherited note. No open WP owns this work:
+  WP-1318 names it as a non-goal, and WP-1325 only records the request.
+- **Measured** at e66fb223, `[dev]`, darwin/arm64 (§ Measured while scoping
+  has the numbers): GSAS-II 5.8.4's ψ per instrument type, the per-class term
+  counts with the m-3 discrepancy, and the Le Bail dead columns for
+  March-Dollase and extinction. The probes are scratchpad scripts, not
+  committed: `g2_samang.py`, `sh_counts.py`, `lebail_po_probe.py`.
+- **Reviewed.** `/code-review high --fix` made seven fixes, all accepted. D4's
+  rows are linear in C, and in θ only while the cell is held. The
+  Laue-class refusals move to `ParameterTable.__init__`. The compare task
+  names the `brucite` standard, since `viz/compare.py` has no cpd-2 one.
+  D2's conversion states its direction. The manual's texture sentence moved
+  after the TOF exception it had split. The stale fence claims in WP-1325's
+  `### Inherited` and in `model/preferred_orientation.py`'s docstring were
+  corrected. WP-1318's own Non-goals bullet was left, its inherited note
+  saying it is stale.
+- **Suite.** The fast selection passed, 9591 passed, 186 skipped, 1 xfailed,
+  `[dev]`, darwin/arm64, with the review running beside it. No test was
+  added. The full selection was not run, since nothing here moves a
+  measured number.
+- **Not filed.** The Le Bail dead columns for `preferred_orientation.r` and
+  `extinction` have no open owner (1343 and 1418 touch `mode_fixed_path` for
+  magnetic widths only). They were offered to the maintainer as a separate WP
+  under § What fires, and what stays silent, and are not in this one's tasks
+  beyond the texture block's own entry. No skill row was added for them,
+  because the fix makes the workaround moot.
+- **Gotchas.** The TOPAS Technical Reference on the maintainer's OneDrive was
+  a cloud placeholder and could not be read. GSAS-II's harmonic functions
+  return zeros when called directly (measurement 4).
+
+Next: get the papers in References, Von Dreele (1997) first because it decides
+D2. Then Task 1, whose golden every later test compares against.
