@@ -3273,6 +3273,17 @@ class ParameterTable:
             self._apply_derived(p)
         return {e.path: float(p[i]) for i, e in enumerate(self.entries)}
 
+    def free_values(self, theta: np.ndarray) -> list[float]:
+        """Physical values of :attr:`free_paths` at ``theta``, in that order.
+
+        The ``values`` of an ``eval`` event.  A longer ``theta`` is sliced, so
+        an appended Pawley intensity block is dropped: it refines outside the
+        table, and its per-hkl values are serialized per history node.
+        """
+        values = self.decode(np.asarray(theta[:len(self.free_paths)],
+                                        dtype=np.float64))
+        return [float(values[p]) for p in self.free_paths]
+
     def commit(self, theta: np.ndarray) -> np.ndarray | None:
         """Write refined values back into the table (used between stages).
 

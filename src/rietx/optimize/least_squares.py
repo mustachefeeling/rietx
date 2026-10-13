@@ -1859,28 +1859,17 @@ def _pad_inequalities(blocks: list["lm_mod.LinearInequality"], n_aux: int
         b, T=np.hstack([b.T, np.zeros((b.T.shape[0], n_aux))])) for b in blocks]
 
 
-def _free_values(table: ParameterTable, theta: np.ndarray) -> list[float]:
+def _free_values(table, theta: np.ndarray) -> list[float]:
     """Physical values of the table's free paths at ``theta`` — the ``values``
     field of an ``eval`` event, in ``free_paths`` order (which ``stage_start``
     carries as ``free_paths``, so a stream consumer can align them).
 
-    The slice drops the appended Pawley intensity tail: it refines outside
-    the table, and its per-hkl values are serialized per history node
-    (``ReflectionState``), not per evaluation.
-
-    A joint fit hands its :class:`~rietx.params.multi.MultiParameterTable`
-    (WP-1341).  Each combined path is then read from the histogram that owns
-    it, and a shared one from histogram 0, whose value scale is 1 (WP-1131).
-    That is where the joint result reads a shared row's value too.
+    The table answers, because it knows its own layout:
+    :meth:`ParameterTable.free_values` drops an appended Pawley tail, and a
+    joint fit's :meth:`~rietx.params.multi.MultiParameterTable.free_values`
+    reads each combined path from the histogram that owns it (WP-1341).
     """
-    if not isinstance(table, ParameterTable):
-        decoded = table.decode(np.asarray(theta, dtype=np.float64))
-        owners = [table._owner(p) or 0 for p in table.free_paths]
-        return [float(decoded[h][table._unscope(h, p)])
-                for h, p in zip(owners, table.free_paths, strict=True)]
-    values = table.decode(np.asarray(theta[:len(table.free_paths)],
-                                     dtype=np.float64))
-    return [float(values[p]) for p in table.free_paths]
+    return table.free_values(theta)
 
 
 def _cancellable(residual, cancel, stage: str):
