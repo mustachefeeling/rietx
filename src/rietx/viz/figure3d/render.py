@@ -112,9 +112,13 @@ class StructureFigure:
         return (f"StructureFigure({w}×{h} px, {len(self.atoms)} atoms drawn, "
                 f"path={self.path!r})")
 
-    def _repr_png_(self) -> bytes:
-        """The picture, so a notebook cell holding a figure shows it (WP-1544)."""
-        return _png_bytes(self.image, None)
+    def _repr_png_(self) -> tuple[bytes, dict]:
+        """The picture, so a notebook cell holding a figure shows it (WP-1544).
+
+        Drawn at half its pixel width, as a fit figure is, so the default
+        1000 px raster is a sharp 500 CSS px on a HiDPI screen.  The width
+        alone, so a narrow output column scales it whole (WP-1957)."""
+        return _png_bytes(self.image, None), {"width": self.image.shape[1] // 2}
 
     def to_px(self, points) -> np.ndarray:
         """Where Cartesian points land in ``image``, in pixels.
