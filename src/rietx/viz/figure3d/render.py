@@ -129,13 +129,18 @@ class StructureFigure:
         full colour and 74 kB at 256 colours, with no banding on the shaded
         balls that 64 colours shows.  A transparent one stays in full colour,
         since a palette would cut its antialiased edge.  ``path=`` writes
-        full colour either way."""
+        full colour either way.  Without pillow (an install made with
+        ``--no-deps``) the picture is shown in full colour too, as this
+        module's own encoder needs nothing."""
         width = {"width": self.image.shape[1] // 2}
         if self.image[..., 3].min() < 255:
             return _png_bytes(self.image, None), width
         import io
 
-        from PIL import Image
+        try:
+            from PIL import Image
+        except ImportError:
+            return _png_bytes(self.image, None), width
 
         palette = Image.fromarray(self.image[..., :3]).quantize(
             colors=NOTEBOOK_COLOURS, method=Image.Quantize.MEDIANCUT,
