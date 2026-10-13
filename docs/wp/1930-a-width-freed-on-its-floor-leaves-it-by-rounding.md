@@ -281,17 +281,19 @@ printed digit on both.
 
   *Tests* (`[dev]`, macOS arm64, Python 3.12.10). Fast selection on bb5b18cc:
   9312 passed, 181 skipped, 3 xfailed, 0 failed, 24:22 at a load average of
-  130-175 beside two other sessions' suites. Full selection on aea419b6, with
-  `main` unmoved since the branch base: 9609 passed, 194 skipped, 3 xfailed, 4
-  failed, 1:18:52. It started alone, and other sessions' fast suites joined it
-  (load 100-175), so the time is not quotable. Three failures passed rerun
-  alone: the dichotomy and trial-and-error monoclinic searches (budget-bound)
-  and the GUI scratch-copy boot. The fourth,
+  130-175 beside two other sessions' suites. Full selection on c4585932, which
+  is `main` at 1307cb2f merged in: 9645 passed, 194 skipped, 1 xfailed, 3
+  failed, 45:45, started alone. Two failures are the monoclinic dichotomy and
+  trial-and-error searches running out of their wall-clock budget
+  (`search_complete` False); both pass rerun alone (355 s), the load sensor
+  `tests/CLAUDE.md` § Budgets names. The third,
   `test_the_reduced_cell_is_the_exact_image_of_its_input[F]`, is a hypothesis
-  counterexample that fails the same way on the tree without this branch's
-  change; `reduce.py` calls nothing in `statistics`. It went to WP-1932. The
-  added tests cost 28.24 s (the two nudged LaB₆ fits, slow tier) and 0.06 s
-  (three covariance cases, fast tier), one run's figures under that load.
+  counterexample that fails the same way on c4607fa0, which lacks this branch's
+  change, and `reduce.py` calls nothing in `statistics`. It went to WP-1932. An
+  earlier full run on aea419b6, before the merge and beside other sessions'
+  suites, failed the same three plus a GUI boot that passed alone. The added
+  tests cost 28.24 s (the two nudged LaB₆ fits, slow tier) and 0.06 s (three
+  covariance cases, fast tier), one loaded run's figures.
 
   *Review* (`/code-review high --fix`, 9 findings). Fixed: `_psd_pinv` now
   gives `pinv`'s empty answer for a 0×0 matrix; two stale docstrings; "five
