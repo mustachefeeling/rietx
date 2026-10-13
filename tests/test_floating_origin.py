@@ -21,6 +21,9 @@ from rietx.params.vector import AffineTie, ParameterTable
     ("R 3 c:H", [[0, 0, 1]]),
     ("R 3 m:H", [[0, 0, 1]]),
     ("P 1 1 21", [[0, 0, 1]]),
+    ("R 3:R", [[1, 1, 1]]),
+    ("R 3 m:R", [[1, 1, 1]]),
+    ("R 3 c:R", [[1, 1, 1]]),
 ])
 def test_a_polar_group_floats_along_its_polar_directions(group, rows):
     basis = floating_origin_basis(group)
@@ -227,6 +230,14 @@ def test_undeclared_the_table_is_the_one_it_always_was():
                      _atom("O1", "O", 0.5, 0.5, 0.02),
                      _atom("O2", "O", 0.5, 0.0, 0.51)]),
      {"phases.0.atoms.0.dof.0": (0, (0, 0, 1))}),
+    # rhombohedral axes: a general site's x is held, which blocks the
+    # [1 1 1] shift as well (review of #929, item 6)
+    (rx.Phase(name="r3mr", space_group="R 3 m:R",
+              cell=rx.Cell(a=rx.Parameter(value=5.0), b=rx.Parameter(value=5.0),
+                           c=rx.Parameter(value=5.0), alpha=rx.Parameter(value=80.0),
+                           beta=rx.Parameter(value=80.0), gamma=rx.Parameter(value=80.0)),
+              atoms=[_atom("A", "Si", 0.1, 0.2, 0.35)]),
+     {"phases.0.atoms.0.dof.0": (0, (1, 1, 1))}),
     (rx.Phase(name="pnma", space_group="P n m a", cell=_cell(5.7, 7.7, 5.5),
               atoms=[_atom("La", "La", 0.05, 0.25, 0.99)]), {}),
     (rx.Phase(name="p212121", space_group="P 21 21 21", cell=_cell(5.0, 6.0, 7.0),
@@ -287,16 +298,39 @@ def test_unholding_one_of_p1s_three_releases_the_phase():
         f"phases.0.atoms.0.dof.{k}" for k in range(3)]
 
 
-def test_unholding_a_callers_hold_on_the_origin_dof_leaves_it_free():
-    """The origin fix takes over a DOF the caller released, so unhold asks again."""
+def test_unholding_a_callers_hold_leaves_the_declaration_standing():
+    """unhold lifts only what the caller held (review of #929, item 4): a
+    redundant hold() + unhold() on the origin DOF keeps the declaration, and
+    the fix holds that DOF again, saying so."""
     ins = rx.Instrument.bragg_brentano(radiation="CuKa")
     ref = rx.Refinement(rx.Structure(phases=[_declared(_zno())]), ins,
                         history=False)
     ref.hold("phases.0.atoms.0.dof.0")      # the caller's hold, on the same DOF
-    assert ref._working_table().origin_holds == {}
+    assert ref._working_table().held_by("phases.0.atoms.0.dof.0") == "caller"
     assert ref.unhold("phases.0.atoms.0.dof.0") == ["phases.0.atoms.0.dof.0"]
-    assert ref.structure.phases[0].floating_origin is None
-    assert not any(r.held for r in ref.parameters())
+    assert ref.structure.phases[0].floating_origin == "hold"
+    table = ref._working_table()
+    assert table.held_by("phases.0.atoms.0.dof.0") == "origin"
+    row = {r.path: r for r in ref.parameters()}["phases.0.atoms.0.dof.0"]
+    assert row.held and row.origin_axis == (0, 0, 1)
+
+
+def test_a_literal_set_vary_on_the_origin_hold_is_refused():
+    """Review of #929, item 1: refused as a caller's hold is, never a silent []."""
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ref = rx.Refinement(rx.Structure(phases=[_declared(_zno())]), ins,
+                        history=False)
+    with pytest.raises(ValueError, match="floating origin"):
+        ref.set_vary("phases.0.atoms.0.dof.0")
+
+
+def test_a_take_back_restores_the_vary_a_glob_asked_for():
+    """Review of #929, item 3: the fix moving off an atom frees it again."""
+    table = _table(_declared(_zno()))
+    table.set_vary(["phases.*.atoms.*.dof.*"], True)   # Zn declined, O freed
+    table.set_held(["phases.0.atoms.1.dof.0"], True)   # the caller holds O
+    zn = table.entries[table._paths["phases.0.atoms.0.dof.0"]]
+    assert table.origin_holds == {} and zn.vary and not zn.held
 
 
 def test_the_declaration_is_in_the_model_so_it_travels_with_it():

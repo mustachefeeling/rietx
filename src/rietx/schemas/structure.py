@@ -1098,8 +1098,8 @@ class Phase(_InheritsDeclaredDefaults):
     # polar axis without changing any intensity
     # (``crystallography.wyckoff.floating_origin_basis``), so a fit that frees
     # every coordinate along it has a flat direction.  ``"hold"`` makes the
-    # parameter table hold, per such direction, the first atom whose
-    # coordinate DOF runs exactly along it (``ParameterTable`` does it, so
+    # parameter table hold, per such direction, the first atom DOF a shift
+    # along it moves (``ParameterTable`` does it, so
     # every fit, series pattern and joint histogram builds the same hold), and
     # skips a direction the caller's own ties or holds already fix.
     # ``Refinement.unhold`` on that DOF sets this back to ``None``.  ``None``

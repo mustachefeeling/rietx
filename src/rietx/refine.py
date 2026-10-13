@@ -2385,11 +2385,20 @@ class Refinement:
             # rows too, and on those the message below would be false advice:
             # ``unhold`` gives them back no freer than they were, so they keep
             # ``set_vary``'s older answer of declining in silence.
+            #
+            # Who holds it is the table's answer (``held_by``), so the table's
+            # own floating-origin hold is refused exactly as the caller's is.
             by_path = {e.path: e for e in table.entries}
             blocked = [g for g in globs
-                       if is_literal_path(g) and g in self._user_holds
-                       and g in by_path and by_path[g].tie is None
-                       and not by_path[g].locked]
+                       if is_literal_path(g) and g in by_path
+                       and by_path[g].tie is None and not by_path[g].locked
+                       and table.held_by(g) is not None]
+            if blocked and table.held_by(blocked[0]) == "origin":
+                raise ValueError(
+                    f"{blocked[0]!r} is held to fix its phase's floating origin "
+                    "(Phase.floating_origin) and cannot be freed; unhold it "
+                    "first if you mean to refine it, which withdraws that "
+                    "phase's declaration")
             if blocked:
                 raise ValueError(
                     f"{blocked[0]!r} is held by this refinement and cannot be "
@@ -3001,8 +3010,8 @@ class Refinement:
         This sets ``Phase.floating_origin = "hold"`` on each phase whose group
         floats (:func:`~rietx.crystallography.wyckoff.floating_origin_basis`)
         and records one ``edit_model`` node.  The parameter table then holds,
-        per floating direction, the first atom's displacement DOF running
-        exactly along it, so a plan that frees ``phases.*.atoms.*.dof.*``
+        per floating direction, the first atom's displacement DOF that a shift
+        along it moves, so a plan that frees ``phases.*.atoms.*.dof.*``
         leaves that atom where it is and the other atoms' coordinates are
         quoted relative to it.  The same as setting the field yourself: since
         WP-1912 the table does the holding, so a series pattern, a joint
@@ -3016,28 +3025,54 @@ class Refinement:
         (Flack & Schwarzenbach, 1988, Acta Cryst. A44, 499); it is not
         implemented here.
 
-        Returns what the table now holds: one ``ORIGIN_FIXED_ON_POLAR_AXIS``
+        A phase where the table would hold nothing is left undeclared: its
+        origin is fixed already by the caller's own ties or holds, or no DOF
+        the shift moves is free to hold.  So every declaration this sets holds
+        something :meth:`unhold` can name.  A declaration set by hand that
+        holds nothing is withdrawn with :meth:`edit`.
+
+        Returns what the table holds: one ``ORIGIN_FIXED_ON_POLAR_AXIS``
         (info) per phase that needed a hold, naming the held parameters in
         ``where``, and an ``ORIGIN_NOT_FIXED`` (warning) where a direction has
-        no atom whose untied DOF runs along it, so the flat direction is still
-        there.  A structure with no polar phase returns ``[]`` and records
-        nothing.
+        no untied DOF to hold, so the flat direction is still there.  A
+        structure with no polar phase returns ``[]`` and records nothing.
         """
         from .crystallography.symmetry import resolve_group
         from .crystallography.wyckoff import floating_origin_basis
 
         structure = self.structure.model_copy(deep=True)
-        changed = False
-        for phase in structure.phases:
+        declared: list[int] = []
+        for ip, phase in enumerate(structure.phases):
             if phase.floating_origin is not None:
                 continue
             sg = resolve_group(phase.space_group, phase.symmetry_operations)
             if len(floating_origin_basis(sg)) > 0:
                 phase.floating_origin = "hold"
-                changed = True
-        if changed:
+                declared.append(ip)
+        if not declared:
+            return _origin_diagnostics(self._working_table())
+        probe = self._table_for(structure)
+        holding = {ip for ip, _ in probe.origin_holds.values()}
+        for ip in declared:
+            if ip not in holding:
+                structure.phases[ip].floating_origin = None
+        if holding & set(declared):
             self.edit(structure=structure, label="hold_floating_origin")
-        return _origin_diagnostics(self._working_table())
+        return _origin_diagnostics(probe)
+
+    def _table_for(self, structure: Structure) -> ParameterTable:
+        """A table over ``structure`` with this refinement's ties and holds.
+
+        What a fresh :meth:`_working_table` would be for a model not yet
+        adopted, for a verb that has to ask the table before it records
+        anything (:meth:`hold_floating_origin`).  :meth:`edit` builds the same
+        one over the model it accepts.
+        """
+        table = ParameterTable(structure, self.instrument)
+        self._declare_variables(table)
+        self._apply_ties(table)
+        self._apply_holds(table)
+        return table
 
     def unhold(self, path_globs: list[str] | str) -> list[str]:
         """Take back a hold.  Returns the paths released, sorted.
@@ -3058,48 +3093,42 @@ class Refinement:
         WP-1912) is released by setting that field back to ``None``, recorded
         as an ``edit_model`` node.  That takes back the phase's whole fix, so
         unholding one of P 1's three held DOFs releases all three, and all three
-        are returned.
+        are returned.  Only the table's own hold does that.  A caller's hold on
+        a DOF the fix would otherwise take is the caller's alone: this lifts it,
+        the declaration stays, and the fix holds that DOF again, which its
+        ``held_because`` then says.  Which of the two holds a path is
+        ``ParameterTable.held_by``'s answer.
         """
         globs = [path_globs] if isinstance(path_globs, str) else list(path_globs)
+        table = self._working_table()
         hits = sorted(p for p in self._user_holds
                       if any(fnmatch.fnmatchcase(p, g) for g in globs))
         # A floating-origin hold is the table's, from the phase's own
         # declaration (WP-1912), so it is lifted by taking that declaration
         # back: per phase, since the table re-derives the whole fix at the next
         # build and a register of exceptions would be a second authority.
-        declared = any(ph.floating_origin is not None
-                       for ph in self.structure.phases)
-
-        def origin_matches() -> tuple[set[int], list[str]]:
-            if not declared:
-                return set(), []
-            holds = self._working_table().origin_holds
-            phases = {ip for p, (ip, _) in holds.items()
-                      if any(fnmatch.fnmatchcase(p, g) for g in globs)}
-            return phases, sorted(p for p, (ip, _) in holds.items()
-                                  if ip in phases)
-
-        released, origin_hits = origin_matches()
+        origin = table.origin_holds
+        released = {ip for p, (ip, _) in origin.items()
+                    if table.held_by(p) == "origin"
+                    and any(fnmatch.fnmatchcase(p, g) for g in globs)}
+        origin_hits = sorted(p for p, (ip, _) in origin.items() if ip in released)
         literals = [g for g in globs
                     if is_literal_path(g) and g not in hits
                     and g not in origin_hits]
         if literals:
-            known = {e.path for e in self._working_table().entries}
             glob = literals[0]
             raise ValueError(
-                f"{glob!r} is not held by this refinement" if glob in known
+                f"{glob!r} is not held by this refinement"
+                if any(e.path == glob for e in table.entries)
                 else f"unknown parameter path: {glob!r}")
         if not hits and not origin_hits:
             return []
         if hits:
-            # the register first, so the table this rebuilds comes back without
-            # them: ``_working_table`` re-applies whatever ``_user_holds`` holds
+            # the register first, then the same table: ``set_held`` re-runs the
+            # origin fix, so a DOF it takes over shows as held in the node
             self._user_holds.difference_update(hits)
-            self._commit_hold_edit(self._working_table(), held=[], unheld=hits)
-            # a caller's hold on a DOF that fixed the origin left the table
-            # nothing to hold; released, the origin fix takes that DOF over, so
-            # asked again, or a path returned as released would still be held
-            released, origin_hits = origin_matches()
+            table.set_held(hits, False)
+            self._commit_hold_edit(table, held=[], unheld=hits)
         if origin_hits:
             # released fixed, as a user hold is: a DOF free before the field was
             # set must not come back free when the next table restores the set
@@ -3594,12 +3623,13 @@ class Refinement:
         # time would otherwise be reported as a vanished parameter
         self._apply_holds(table)
         if restore and self._free_paths:
-            # the table's own floating-origin hold (WP-1912) declines a path
-            # as a user hold does, so it is not a vanished parameter either
-            origin = table.origin_holds
+            # a held path is declined, whoever holds it (``held_by``: the
+            # caller, or the floating-origin fix, WP-1912), so it is not a
+            # vanished parameter; the register is asked too, for a held path
+            # the model no longer has
             missing = [p for p in self._free_paths
                        if p not in self._ties and p not in self._user_holds
-                       and p not in origin
+                       and table.held_by(p) is None
                        and not table.set_vary([p], True)]
             if missing:
                 # set_vary reports no hits for a path that no longer exists
@@ -6073,28 +6103,36 @@ def _origin_diagnostics(table: ParameterTable,
     the atom whose DOF holds it.
 
     With ``stage_results`` (a fit) a phase is reported only where its fix
-    mattered.  A hold is reported where some stage's ``turn_on`` matched it
-    (``StageResult.blocked_by_hold``), since a fit that never freed a
-    coordinate held nothing it would otherwise have moved.  An unfixed
-    direction is reported where a stage freed a displacement DOF of the
-    phase, the only case in which the flat direction is in the fit.  Without
-    them (:meth:`Refinement.hold_floating_origin`) every declaring phase that
-    holds or cannot hold is reported, that being the question the verb asks.
+    mattered, which is where a stage freed a column that moves one of the
+    phase's coordinates.  That is read off the table's reach
+    (``ParameterTable.entry_reach``), never off DOF names, so a named variable
+    driving the DOFs counts and a Le Bail stage, whose coordinates the mode
+    force-fixes out of ``freed``, does not (root CLAUDE.md, "a freeze resting on
+    flatness needs the other reading of C").  A hold is reported where such a
+    stage's ``turn_on`` also matched it (``StageResult.blocked_by_hold``), an
+    unfixed direction wherever such a stage ran.  Without stage results
+    (:meth:`Refinement.hold_floating_origin`) every declaring phase that holds
+    or cannot hold is reported, that being the question the verb asks.
     """
     phases = table.origin_phases
     if not phases:
         return []
     holds = table.origin_holds
     unfixed = table.origin_unfixed
-    blocked = freed = None
-    if stage_results is not None:
-        blocked = {p for sr in stage_results for p in sr.blocked_by_hold}
-        freed = {p for sr in stage_results for p in sr.freed}
+    reach = table.entry_reach() if stage_results is not None else {}
     out: list[Diagnostic] = []
     for ip, rec in sorted(phases.items()):
         held = [p for f in rec.directions for p, (jp, g) in holds.items()
                 if jp == ip and g == f]
-        if held and (blocked is None or any(p in blocked for p in held)):
+        rows = set(rec.coords) | set(rec.labels)
+        moving = [sr for sr in stage_results or []
+                  if any(rows.intersection(reach.get(p, [p])) for p in sr.freed)]
+        if stage_results is None:
+            report_held, report_lost = bool(held), True
+        else:
+            report_held = any(set(held) & set(sr.blocked_by_hold) for sr in moving)
+            report_lost = bool(moving)
+        if held and report_held:
             axes = ", ".join(str(list(holds[p][1])) for p in held)
             named = ", ".join(f"{p} ({rec.labels[p]})" for p in held)
             out.append(Diagnostic(
@@ -6112,14 +6150,14 @@ def _origin_diagnostics(table: ParameterTable,
                             "slide again; the fit then has a flat direction "
                             "(FLAT_DIRECTION)")))
         lost = unfixed.get(ip, [])
-        if lost and (freed is None or any(p in rec.labels for p in freed)):
+        if lost and report_lost:
             axes = ", ".join(str(list(f)) for f in lost)
             out.append(Diagnostic(
                 level="warning", code="ORIGIN_NOT_FIXED",
                 message=(f"phase {ip} ({rec.space_group}) floats along {axes} "
-                         f"and no atom has an untied coordinate DOF running "
-                         f"exactly along it, so nothing was held there and "
-                         f"the fit keeps a flat direction"),
+                         f"and no atom has an untied, unheld coordinate DOF "
+                         f"that a shift along it moves, so nothing was held "
+                         f"there and the fit keeps a flat direction"),
                 where=[f"phases.{ip}"],
                 suggestion=("hold one atom's coordinate along that direction "
                             "with hold(), or tie one to a constant; its "

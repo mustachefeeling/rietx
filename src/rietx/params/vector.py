@@ -30,6 +30,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
+from typing import Literal
 
 import numpy as np
 from pydantic import ValidationError
@@ -279,15 +280,20 @@ class Entry:
     hi: float
     tie: AffineTie | None = None  # affine dependence on other entries
     locked: bool = False  # structurally fixed: set_vary may never free it
-    #: the caller declared this parameter does not move (WP-1435).  Written by
-    #: ``Refinement._apply_holds`` from its own register on every build, for
-    #: the reason a user tie is: a hold is not a property of the models, and
-    #: nothing the table derives from a structure could rebuild it.
+    #: this parameter does not move, whatever a glob asks (WP-1435).  Two
+    #: writers, and :meth:`ParameterTable.held_by` is the one place that says
+    #: which.  ``Refinement._apply_holds`` writes the caller's own register on
+    #: every build (:meth:`ParameterTable.set_held`), because a caller's hold is
+    #: not a property of the models.  :meth:`ParameterTable._fix_origin` writes
+    #: the floating-origin hold, derived from ``Phase.floating_origin`` (WP-1912),
+    #: which *is* in the models and so is rebuilt with the table.
     #:
     #: Read by :meth:`set_vary` alongside ``locked``, which is the whole
     #: mechanism.  The two differ in who said so and in what can undo it: a
     #: locked entry is the space group's and no caller may free it, a held one
-    #: is the caller's own and ``Refinement.unhold`` takes it back.
+    #: is the caller's own, by either route, and ``Refinement.unhold`` takes it
+    #: back.  A verb that has to tell the routes apart asks ``held_by``, never
+    #: its own register.
     held: bool = False
 
 
@@ -1040,9 +1046,10 @@ class _OriginPhase:
     space_group: str
     #: the directions the origin floats in: ``floating_origin_basis``'s rows
     directions: tuple[tuple[int, int, int], ...]
-    #: direction → the displacement DOF paths whose basis row is exactly that
-    #: direction (or its negative), atoms in phase order and body origins
-    #: after them: the order the fix walks to choose what it holds
+    #: direction → the displacement DOF paths a shift along it moves (a
+    #: nonzero coefficient in the site's own expression of the shift), atoms in
+    #: phase order and body origins after them: the order the fix walks to
+    #: choose what it holds
     candidates: dict[tuple[int, int, int], tuple[str, ...]]
     #: DOF path → the label of the atom (or the name of the body) it moves
     labels: dict[str, str]
@@ -1169,6 +1176,11 @@ class ParameterTable:
         #: the paths a caller marked through :meth:`set_held`, so that moving
         #: the origin fix off an entry leaves the caller's own hold on it
         self._caller_held: set[str] = set()
+        #: origin-held path → the ``vary`` its caller last asked for: the value
+        #: it had when the fix took it, then whatever a glob reaching it set
+        #: (:meth:`set_vary`).  Restored when the fix moves off the entry, so a
+        #: take-back leaves the row as the caller left it, never silently fixed.
+        self._origin_wanted: dict[str, bool] = {}
         self._collect(structure, instrument)
         self._rebuild()
         if self._origin:
@@ -1386,13 +1398,15 @@ class ParameterTable:
         a polar axis, a plane (Cc), or all three axes (P 1).  A non-polar group
         floats nowhere and records nothing.
 
-        The candidates for each direction are the DOFs whose basis row *is*
-        that direction, read off ``_anchored_dofs``, which is where the row's
-        construction is recorded, rather than re-derived from the site.  Every
-        site of a polar group can move along its polar axis (the axis is fixed
-        by every rotation, so by every stabilizer), but the basis can state
-        that motion as a combination of rows; no candidate then exists and
-        :meth:`_fix_origin` reports the direction as unfixed.
+        The candidates for each direction are the DOFs a shift along it
+        moves.  Every site of a polar group can move along its polar axis (the
+        axis is fixed by every rotation, so by every stabilizer), so the
+        site's basis B, read off ``_anchored_dofs`` where its construction is
+        recorded, states the shift as Bᵀa = f; a DOF with aₖ ≠ 0 is one the
+        shift cannot leave still, and holding it fixes the origin.  On a
+        hexagonal or tetragonal axis a is a single ±1 on the DOF running along
+        it.  On rhombohedral axes (R 3 m:R, f = [1, 1, 1]) a general site has
+        a = (1, 1, 1), so its x is held, which blocks the shift as well.
         """
         floating = floating_origin_basis(sg)
         if len(floating) == 0:
@@ -1405,16 +1419,22 @@ class ParameterTable:
             labels[d] = (phase.atoms[int(index)].label if kind == "atoms"
                          else phase.rigid_bodies[int(index)].name)
         directions = tuple(tuple(int(v) for v in f) for f in floating)
+        sites: dict[str, list[str]] = {}
+        for d in dofs:
+            sites.setdefault(d.rsplit(".dof.", 1)[0], []).append(d)
         candidates: dict[tuple[int, int, int], tuple[str, ...]] = {}
         for f in directions:
-            neg = tuple(-v for v in f)
             hits = []
-            for d in dofs:
-                row = [0, 0, 0]
-                for coord, coeff in self._anchored_dofs[d]:
-                    row["xyz".index(coord[-1])] = int(round(coeff))
-                if tuple(row) in (f, neg):
-                    hits.append(d)
+            for site_dofs in sites.values():
+                basis = np.zeros((len(site_dofs), 3))
+                for k, d in enumerate(site_dofs):
+                    for coord, coeff in self._anchored_dofs[d]:
+                        basis[k, "xyz".index(coord[-1])] = coeff
+                a, *_ = np.linalg.lstsq(basis.T, np.asarray(f, float), rcond=None)
+                if np.abs(basis.T @ a - f).max() > 1e-9:
+                    continue  # this site cannot move along f at all
+                hits.extend(d for d, ak in zip(site_dofs, a, strict=True)
+                            if abs(ak) > 1e-9)
             candidates[f] = tuple(hits)
         coords = tuple(dict.fromkeys(c for d in dofs
                                      for c, _ in self._anchored_dofs[d]))
@@ -2532,19 +2552,24 @@ class ParameterTable:
         Re-run on every build, tie and hold, because each can change the
         answer, and from scratch: the previous choice is taken back first,
         leaving a caller's own hold on the same entry (``_caller_held``) in
-        place.  A taken-back entry keeps ``vary=False``; the next stage's
-        ``turn_on`` decides whether it is free, as for any other fixed row.
+        place.  A taken-back entry gets back the ``vary`` its caller asked for
+        while it was held (``_origin_wanted``), so moving the fix off an atom
+        frees it again if a glob had asked for that.
 
         Which atom is held is the decision recorded on WP-1912 (2026-10-06):
-        the first whose DOF runs exactly along the direction, the common
-        powder practice.  Flack & Schwarzenbach (1988), Acta Cryst. A44,
+        the first whose DOF moves it along the direction, the common powder
+        practice.  Flack & Schwarzenbach (1988), Acta Cryst. A44,
         499-506, give the alternative SHELXL uses, a restraint on a weighted
         centroid, which keeps an esd on every atom; it is not implemented.
         """
         for path in self._origin_held:
             i = self._paths.get(path)
-            if i is not None:
-                self.entries[i].held = path in self._caller_held
+            wanted = self._origin_wanted.pop(path, None)
+            if i is None or path in self._caller_held:
+                continue
+            self.entries[i].held = False
+            if wanted is not None:
+                self.entries[i].vary = wanted
         self._origin_held = {}
         self._origin_unfixed = {}
         # the equations are the tied rows, which no hold below changes, so
@@ -2560,6 +2585,7 @@ class ParameterTable:
                     self._origin_unfixed.setdefault(ip, []).append(f)
                     continue
                 e = self.entries[self._paths[path]]
+                self._origin_wanted[path] = e.vary
                 e.held = True
                 e.vary = False
                 self._origin_held[path] = (ip, f)
@@ -2648,6 +2674,20 @@ class ParameterTable:
                 return False
         return True
 
+    def held_by(self, path: str) -> Literal["caller", "origin"] | None:
+        """Who holds ``path`` on this table: the caller, the origin fix, or nobody.
+
+        ``Entry.held`` has two writers (its docstring), and a verb that answers
+        differently for the two reads this rather than its own register, so the
+        answer is the table's, as the hold itself is.  ``"caller"`` wins where
+        both could apply: the origin fix never holds a row the caller holds.
+        """
+        if path in self._caller_held:
+            return "caller"
+        if path in self._origin_held:
+            return "origin"
+        return None
+
     @property
     def origin_holds(self) -> dict[str, tuple[int, tuple[int, int, int]]]:
         """Path → (phase index, direction) of every entry held to fix an origin.
@@ -2663,9 +2703,8 @@ class ParameterTable:
         """Phase index → the floating directions no candidate could be held for.
 
         A direction lands here when the columns can still walk it and no DOF
-        running exactly along it is a column: every candidate tied (to a
-        variable, say), or the site bases state the axis only as a
-        combination.  The fit then keeps a flat direction, which
+        the shift moves is a column: every candidate tied (to a variable, say)
+        or held.  The fit then keeps a flat direction, which
         ``ORIGIN_NOT_FIXED`` says.
         """
         return {ip: list(fs) for ip, fs in self._origin_unfixed.items()}
@@ -3066,6 +3105,16 @@ class ParameterTable:
         # loudly instead — at the solve, by
         # :meth:`check_wavelength_against_cell`.
         lam_paths = self._wavelength_paths()
+        if self._origin_held:
+            # a row the origin fix holds is not freed, but what the glob asked
+            # is kept, for the moment the fix moves off it (``_fix_origin``)
+            import fnmatch
+
+            for path in self._origin_held:
+                e = self.entries[self._paths[path]]
+                if (e.tie is None and not e.locked
+                        and any(fnmatch.fnmatchcase(path, g) for g in path_globs)):
+                    self._origin_wanted[path] = vary
         hits = []
         for e in self.entries:
             if self._glob_reaches(e, path_globs, vary):

@@ -103,14 +103,15 @@ Here $C$ is the block of {eq}`par-affine` over every column that is not held,
 locked or tied. The vector $\mathbf{v}_{\mathbf{f}}$ moves each coordinate row
 of the phase by its component of $\mathbf{f}$ and every other row the forward
 model reads by zero. Where {eq}`par-origin-floats` has a solution, the table
-holds the displacement DOF of the first atom whose basis row is
-$\pm\mathbf{f}$:
+holds the first displacement DOF that the shift moves. Atom $j$ states the
+shift in its own basis as $B_j^\top \mathbf{a}_j = \mathbf{f}$, and the held
+DOF is the first one, in atom order, with a nonzero coefficient:
 
 ```{math}
 :label: par-origin-hold
 
-\Delta\theta_{j^\ast k} = 0,
-\qquad j^\ast = \min\{\, j : B_{jk} = \pm\mathbf{f} \,\}
+\Delta\theta_{j^\ast k^\ast} = 0,
+\qquad (j^\ast, k^\ast) = \min\{\, (j, k) : a_{jk} \neq 0 \,\}
 ```
 
 {source}`rietx.params.vector.ParameterTable._fix_origin`
