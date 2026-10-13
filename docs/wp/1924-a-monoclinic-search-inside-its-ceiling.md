@@ -1,6 +1,6 @@
 # WP-1924 — A monoclinic search stays inside its ceiling and its memory
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — the frontier's memory fixed and #895 landed; the ceiling's scheduling and the benchmark remain
+Milestone: unscheduled · Status: 🔄 2026-10-13 — the frontier's memory fixed and #895 landed, acceptance and bethanechol run on the merged tree; the ceiling's scheduling remains
 Track: A long run is not one fit
 Depends on: — (1520 soft, the same units' leaf cost; 1508 closed)
 Priority: P2 2026-10-08 — a defect that fires wrongly: a declared ceiling overrun and a multi-GB peak on a clean 61-line monoclinic pattern, with the workaround of capping the volume and the systems by hand; the reporter's 9 GB and 25.8 GB are the reason it is not P3
@@ -77,6 +77,25 @@ Measured at `e1d19359`, `[dev]`, macOS arm64, on a machine shared with five othe
 - WP-1508, WP-1509, WP-1519 (the unit replay harness), WP-1520.
 
 ## Handover log
+
+### 2026-10-13 (2nd session) — the handoff's checks run on the merged tree: acceptance green, bethanechol unmoved
+
+The checks the handoff left for this PR all came back clean. Current `main` merges in without a conflict, CI is green on the merged head, and the indexing acceptance passes on it. The bethanechol benchmark, run alone on an idle machine, matches its last record in manual mode set for set. It misses set F in default mode, but `main` misses it identically on the same machine, so the miss belongs to the search budget and not to this branch. What stays open is the scheduling task, which waits on the maintainer's choice of fairness rule.
+
+*Done.* Merged `origin/main` (`f5ffc23`) into the branch as `ed4e9a9`, with no conflict to resolve and the WP index unchanged by `wp_index.py`. No code was written this session, and no checklist item landed. The scheduling task stays open.
+
+*Measured* (`[dev]` with the `rietx_kernels` wheel, no jax or torch, Linux x86_64, 4 cores, a cloud container with nothing else running, load 1.3-2.1):
+- CI on `ed4e9a9`: lint, fast py3.11 1-2/2, py3.14 1-2/2, jax 1-2/2 and `ci-ok` all passed (15:56-16:11 UTC). `docs` was skipped, as on the previous head.
+- `ruff check src tests examples` clean. `test_docs_consistency.py` with `test_indexing_consensus.py`: 67 passed in 200 s.
+- `tests/test_acceptance_indexing.py` on the merged tree: 44 passed, 0 skipped, 24:27 wall. This is the rerun the handoff asked for after finding 1. The macOS run before the review fixes was 41 passed and 3 skipped. Which three skip on macOS was not checked.
+- `python -m tests.bethanechol_benchmark` on the merged tree, run alone: **global −9** over 20 runs (ceiling +8), **manual −3**, **default −6**. Manual matches WP-1518's 2026-09-28 record set for set: Bb, E and F at rank 1, Db at rank 2. Default finds Bb and E at rank 1 and misses the other eight; of those, only Db and F are reachable. One set took 96-111 s in manual mode and 278-565 s in default.
+- Default F, the one reachable set that missed in default mode, run on its own on both trees. `main` (`f5ffc23`) took 561.7 s and the branch 528.9 and 539.8 s. All three missed in the same way: the nearest candidate is the same wrong P orthorhombic cell (7.103, 8.2435, 17.2079 Å) at rank 11, 71 160 ppm off, and orthorhombic, monoclinic and triclinic report `search_complete=False`. The budget runs out before monoclinic finishes, and the branch changes none of it.
+
+*Not done.* `/code-review` was not run again. This session wrote no code, and the merge needed no resolution. The branch's diff had already been through `high --fix` (`282ac1cd`) and `medium`, which found seven issues, all fixed. The full suite was not run: the change replays bit-identically, and CI's fast matrix plus the acceptance file both ran on the merged tree.
+
+*Gotchas.* The Aa default run printed `RuntimeWarning: invalid value encountered in matmul` at `indexing/qspace.py:410` (`cov_af = basis.T @ cov… @ basis`). That module is not in this branch's diff, and the F runs on `main` did not print it. Aa on `main` was not run, so whether `main` prints it too is open. The benchmark's per-run budget is wall clock, so a default-mode score is a statement about the machine. Compare one with a baseline from the same box, as done for F above.
+
+*Next.* (1) The scheduling task: pick between the cheapest engine opening each system and a `rietx-kernels` port of the grid's box test (the previous entry sets out both). The default-mode bethanechol misses above are budget-bound in the same way, so whichever lands should rerun default mode against the −6 above on the same class of machine. (2) Post the #780 and #895 replies; #780 stays open until (1) lands. (3) Once (1) lands, the WP can close.
 
 ### 2026-10-13 — the frontier's memory fixed, Stop inside the ambiguity sweep, and a ceiling that starves svd
 
