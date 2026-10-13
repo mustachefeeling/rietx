@@ -91,10 +91,11 @@ def test_tutorial_executes_clean(path):
     one is a cell that discards it, such as a trailing `;` (WP-1544)."""
     nb = build.execute(path)
     assert build.problems(nb) == []
-    plots = [c for c in nb.cells
-             if c.cell_type == "code" and ".plot(" in c.source.splitlines()[-1]]
+    last = [(c, c.source.splitlines()[-1]) for c in nb.cells if c.cell_type == "code"]
+    plots = [c for c, line in last if ".plot(" in line]
     assert plots, f"{path.stem} ends no cell on a plot, so this test checks no figure"
-    for cell in plots:
+    # a structure figure shows through its own display hook too (WP-1957)
+    for cell in plots + [c for c, line in last if "render_structure(" in line]:
         kinds = {k for out in cell.outputs for k in out.get("data", {})}
         assert "image/png" in kinds, f"{path.stem}: {cell.source.splitlines()[-1]!r} showed no image"
     if path.stem == LANDING_TUTORIAL:
