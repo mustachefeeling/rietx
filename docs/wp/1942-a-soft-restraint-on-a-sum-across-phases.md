@@ -124,6 +124,13 @@ form here follows WP-1119's decision 4, which kept strings out of storage.
   (`model/restraints.py:100`) holds one `path` and the block makes one row
   per item (`CompiledRestraints.n_rows`), so the item shape fits without a
   new block. Task 1 still records the maintainer's decision.
+- **2026-10-13, from the issue triage (#727): a second consumer is waiting on
+  this item.** WP-1912's floating-origin fix gains a `"centroid"` mode once
+  this WP's (path, coefficient) item exists: the Flack & Schwarzenbach (1988)
+  restraint is one such row per floating direction, a weighted sum of the
+  coordinates along it held at its starting value. Keep the item general
+  enough for coordinate paths and per-atom weights, not only phase scales and
+  cross-phase composition.
 
 ## Non-goals
 
