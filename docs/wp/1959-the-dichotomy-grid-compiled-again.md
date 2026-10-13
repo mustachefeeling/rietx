@@ -31,6 +31,26 @@ Priority: P2 2026-10-13 — a defect that fires wrongly: on #780's monoclinic ca
 
 **Measuring.** `tests/repro_780.py` rebuilds #780's case. On macOS read memory as the physical footprint (`memory_bytes`), not RSS. Under load, count a ceiling with `--cpu-clock`. The bethanechol benchmark's limits are wall clock, so run it alone, on the same class of machine as its baseline. Baseline on the merged WP-1924 tree, Linux x86_64 `[dev]`, 2026-10-13: global −9, manual −3, default −6. Set F's default-mode miss reproduced identically on `main` before #930.
 
+## Findings (2026-10-14)
+
+Measured on #780's case, macOS arm64, `[dev]`, load ~3 on 10 cores, CPU seconds from `time.process_time`. Scripts in the session scratchpad; the numbers are what to carry.
+
+**The grid is 57 s of CPU at this load, not 157 s.** The Context's figure was taken at load 110-180. 99.2 % of it is inside `_test_box`. The loop, `_stage_edges` and the children cost 0.45 s together.
+
+**Most of the grid's cost went to boxes a row-free prune refuses.** In the last stage, 135 593 of 158 282 boxes die at the axis-swap or volume prune. `_test_box` computed ~8 300 rows' Q bounds and filtered them before asking either. Q bounds and filter were 90 % of the grid. Moving the row-free prunes first cut the grid from 59.2 s to 13.5 s. All 161 705 boxes returned the same answer under both orders, and the seven WP-1924 units replay to their digests (`a7ba2bbb`).
+
+**Phase 2, not the grid, holds #780's ceiling.** With the grid at 13.6 s, phase 2 ran 387 s over 6.67 M boxes (median 30 rows) and reached no leaf. At that size a box costs 58 µs, 92 % of it in `_test_box` and `_push_children`, which is WP-1508's overhead-bound regime. All of it was spent inside one grid cell. Phase 2 pops cells smallest volume first: the first 518 of 273 871 died at their first test, and the 519th (centre volume 29.5 Å³) took 5.1 M boxes in 281 s without finishing.
+
+**That cell's sub-boxes lie wholly outside the search domain, and nothing refuses them.** A kept box at depth ~45 has A = 0.18538, C = 0.17430 and E = 0.36046, so |ρ₁₃| = E/(2√(AC)) ≈ 1.003. The domain is |ρ| ≤ cos 30° (`_inside_domain`), and this metric is not even positive definite. Two tests could refuse it and neither does:
+- `_rho_interval` clips ρ to ±cos 30°. An interval lying wholly beyond the bound comes out inverted, and nothing reads that as a refusal.
+- The expanded determinant A·B·C − B·(E/2)² carries B twice, so its interval bound loses the coupling. Its upper end stays positive while det G* < 0 at every point of the box.
+
+Near a singular metric Q is dense, so every line keeps matching and the subtree does not converge (1.13 M boxes kept against 44 574 pruned in 75 s, depths up to 48).
+
+**A prune on the unclipped ρ interval finds #780's lattice.** The experiment refuses a box when the ρ interval of any off-diagonal lies wholly outside ±cos 30°. It is monotone under bisection, like every other prune. On synthmono it refused 21 689 boxes, kept the digest `30473892` and took 38.6 s against 69.4 s. On #780 under a 600 s ceiling dichotomy returned 60 candidates, led by the true lattice in a non-reduced setting (4.541, 4.884, 11.742 Å, β = 120.73°, 61 of 61 lines). It did not finish the unit: 3.8 M boxes at 567 rows on average. In a second run its first accepted leaf came 132 s after the search started, and its first 61-line leaf at 144 s (the same lattice, c + a = 10.554 Å).
+
+**The kernel matches numpy.** `kernels/src/dichotomy.rs` (`dichotomy_box_test`, `dichotomy_child_key`) agreed with numpy on 788 450 boxes of #780 (the grid and ~627 000 of phase 2) and on 1.17 M child keys. Its line test is a `u64` mask per row from two rank lookups, so the dense hit matrix never forms. Inside the calls it took 4.3 s against numpy's 40.5 s, Python call overhead included.
+
 ## Non-goals
 
 - Shrinking the metric box to buy speed (`indexing/CLAUDE.md`).
