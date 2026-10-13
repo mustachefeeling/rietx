@@ -184,15 +184,55 @@ Every number on PNG size and the view choice is in Context 3 and 4.
 *Decided by the maintainer:* the live view is deferred, and its design stays
 in Context 2.
 
-The fast suite (`-m "not slow"`, run alone): 9333 passed, 192 skipped,
-1 xfailed, 1 failed, in 19:31. The failure was
-`test_figure_boundary`: `figure3d/render.py` had imported `viz.plots` for its
-colour count, which crosses the boundary WP-1505's split moves. The count is
-now restated as `render.NOTEBOOK_COLOURS`, and `test_display` holds the two
-equal. That file, the boundary file and the manual-API file then passed (45).
-The suite was not re-run after the fix.
+*Fast suite* (`-m "not slow"`, run alone, Linux, `[dev]`):
+- **First run:** 9333 passed, 192 skipped, 1 xfailed, 1 failed. The failure
+  was `test_figure_boundary`, because `figure3d/render.py` imported
+  `viz.plots` for its colour count, crossing the boundary WP-1505's split
+  moves. The count is now restated as `render.NOTEBOOK_COLOURS`, and
+  `test_display` holds the two equal.
+- **On the final tree:** 9334 passed, 192 skipped, 1 xfailed, in 19:39. That
+  is the same total as the first run, which already collected 06.
+- **Against main**, 06 adds three parametrised cases and no new function, so
+  `added_test_times` reports 0. No main baseline was run (tests/CLAUDE.md
+  § Running).
+- **Tutorial execution times** in that run:
+  - 02: 69.7 s
+  - 03: 64.5 s
+  - 06: 43.1 s (14 s run alone)
+  - 01: 10.8 s
+  - 05: 10.8 s
+  - 04: 6.8 s
+  So 06 sits under the two existing tutorials that set the tail.
 
-Next: the maintainer's two open tasks, the Colab check and the PNG density.
+The full suite was not run: nothing here can move a measured number, since
+the change is display encoding, notebooks and docs.
+
+*Review* (`/code-review high --fix`): ten findings, seven fixed.
+- **Fixed, and the notable one:** the darker shade in a structure figure
+  marks images outside the cell (`scene.DIM_BOUNDARY`), not depth. 02's
+  caption and the note this session wrote into WP-1504 had both said depth,
+  and so had all three judges. Both are corrected.
+- **Also fixed:**
+  - 06 no longer says the project keeps the fit's stages.
+  - 06 says the Le Bail Rwp is not a floor.
+  - 06 accepts `TWO_THETA_LIMITS = None`.
+  - The README and quickstart no longer say every notebook ends with checks.
+  - The build ignores scratch-directory cleanup errors on Windows.
+  - A structure figure falls back to full colour without pillow.
+- **Declined:**
+  - Sizing the CSS width from the canvas's design scale rather than half the
+    pixels. It changes the stated rule, and at the default 1000 px the two
+    agree.
+  - Sharing one palette encoder between the fit and structure figures. Its
+    home would have to sit inside WP-1505's boundary, and only the colour
+    count is held equal.
+
+Next:
+1. The maintainer opens 02 in Colab at a narrow window and records whether
+   the figures keep their shape. The committed outputs already carry the
+   width-only metadata, so opening the notebook without running it shows
+   the fix.
+2. The maintainer decides the PNG density.
 
 - **2026-10-13** — created from the maintainer's four Colab asks. Checked for
   an owner first. No open WP owns this work. 1545 (tutorial notebooks, every
