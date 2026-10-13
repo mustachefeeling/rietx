@@ -501,7 +501,7 @@ def test_an_esd_whose_variance_has_no_double_is_absent_not_infinite():
 # ----------------------------------------------------------------------
 # An exactly flat direction of the equilibrated normal matrix comes back from
 # ``eigh`` at a rounding-level eigenvalue, and rounding picks its sign.  Above
-# the 1e-15 cut, ``pinv`` inverted a negative one with its sign, so every
+# the ``PINV_RCOND`` cut, ``pinv`` inverted a negative one with its sign, so every
 # column on that direction got a negative variance, floored to an esd of 0.
 # These tests set the eigenvalue rather than hoping a platform rounds into it.
 
@@ -567,8 +567,13 @@ def test_a_psd_matrix_keeps_numpys_bits():
     small one above the cut."""
     from rietx.optimize.statistics import PINV_RCOND, _psd_pinv
 
-    empty = np.zeros((0, 0))
-    assert _psd_pinv(empty, PINV_RCOND).shape == np.linalg.pinv(empty).shape
+    for empty in (np.zeros((0, 0)), np.zeros((3, 0, 0))):
+        assert _psd_pinv(empty, PINV_RCOND).shape == np.linalg.pinv(empty).shape
+    # a (k, n, n) stack, as indexing's dedup passes one (WP-1519)
+    rng = np.random.default_rng(1519)
+    stack = np.stack([g @ g.T for g in rng.normal(size=(8, 6, 4))])
+    assert np.array_equal(_psd_pinv(stack, PINV_RCOND),
+                          np.linalg.pinv(stack, rcond=PINV_RCOND, hermitian=True))
     for seed in range(30):
         jac, _ = (_problem, _flat_pair, _near_pair)[seed % 3](seed)
         e = jac.T @ jac

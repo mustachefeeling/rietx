@@ -401,9 +401,11 @@ def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
         f"{[(d.where, d.message) for d in flagged]}")
 
 
-#: Relative nudges to ``w``'s start, (1 + k·1e-14), that reproduced the Linux
-#: nightly's silence on macOS arm64 before WP-1930's covariance fix.
-FLAT_NUDGES = (1, 7)
+#: Relative nudges to ``w``'s start, (1 + k·1e-14).  On macOS arm64, k = 1
+#: and 7 reproduced the Linux nightly's silence before WP-1930's covariance
+#: fix, and k = 0 is the start where both flat directions now fall under the
+#: cut.
+FLAT_NUDGES = (0, 1, 7)
 
 
 @pytest.mark.parametrize("k", FLAT_NUDGES)
@@ -411,19 +413,23 @@ def test_the_flat_widths_are_flagged_whatever_rounding_does(k):
     """The degenerate fit's six Lorentzian widths span two exactly flat
     directions, and rounding must not decide whether anyone is told.
 
-    From WP-1938 on, those directions reached the covariance at eigenvalues of
-    either sign between 1e-16 and 4e-15 of the largest, against a cut of
-    1e-15.  ``pinv`` inverted a negative one with its sign, the six widths'
-    variances came out negative and were floored to an esd of exactly 0, and
-    ``HIGH_CORRELATION`` fell silent.  Linux nightlies from 0f30d584 on hit
-    it, and on macOS arm64 these two nudges did (zero HIGH_CORRELATION, six
-    "± 0" esds) while k = 0 did not.  Since WP-1930 a kept eigenvalue is
-    inverted by its magnitude (``statistics._psd_pinv``), so each nudge
-    reports the split and no width claims a precision.  Measured on macOS
-    arm64 over k in {0, ±1, ±3, ±7, ±20, 50}, with WP-1953's #923 merged:
-    HIGH_CORRELATION fired in all ten, and at nine the widths' esds ran
-    8.9-3420.  At k = 0 both flat directions fell under the cut, the esds read
-    5e-5 to 3e-3, and COVARIANCE_DIRECTION_DISCARDED named all six widths.
+    Such a direction reaches the covariance at a rounding-level eigenvalue of
+    either sign, measured between 1e-16 and 4e-15 of the largest against a
+    cut of ``statistics.PINV_RCOND``.  Which side of the cut it lands on, and
+    with which sign, is rounding's choice, and it differs by platform.  So the
+    assertion is on the mechanism.  Each width is named either by
+    ``COVARIANCE_DIRECTION_DISCARDED`` (its direction fell under the cut) or
+    by ``HIGH_CORRELATION`` (it was kept and inverted).  And no width reports
+    an esd of exactly 0, which is what a kept negative eigenvalue inverted
+    with its sign gave before WP-1930: the Linux nightlies from 0f30d584 on,
+    and these nudges on macOS.
+
+    Measured on macOS arm64 over k in {0, ±1, ±3, ±7, ±20, 50}, with WP-1953's
+    #923 merged: HIGH_CORRELATION fired in all ten, and at nine the widths'
+    esds ran 8.9-3420.  At k = 0 both flat directions fell under the cut, the
+    esds read 5e-5 to 3e-3, and COVARIANCE_DIRECTION_DISCARDED named all six
+    widths.  Linux has not run this test yet; the first nightly after the
+    merge is its confirmation.
     """
     if not PATTERN.exists():
         pytest.skip("11-BM LaB6+cBN dataset not present")
@@ -433,12 +439,23 @@ def test_the_flat_widths_are_flagged_whatever_rounding_does(k):
     ref = rx.Refinement(structure, ins, history=False)
     result = ref.fit(data, plan=PLAN_DEGENERATE, two_theta_limits=LIMITS)
 
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    result.plot(path=str(out / f"lab6_cbn_degenerate_nudge{k}.png"))
+    import matplotlib.pyplot as plt
+    plt.close("all")
+
     widths = ("phases.0.lor_size", "phases.0.lor_strain",
               "phases.1.lor_size", "phases.1.lor_strain",
               "instrument.profile.x", "instrument.profile.y")
-    flagged = [d for d in result.diagnostics if d.code == "HIGH_CORRELATION"
-               and set(d.where or []) & set(widths)]
-    assert flagged, f"k = {k}: the broadening split raised no HIGH_CORRELATION"
+    named = set()
+    for d in result.diagnostics:
+        if d.code in ("HIGH_CORRELATION", "COVARIANCE_DIRECTION_DISCARDED"):
+            named |= set(d.where or [])
+    unnamed = [p for p in widths if p not in named]
+    assert not unnamed, (
+        f"k = {k}: flat widths named by neither HIGH_CORRELATION nor "
+        f"COVARIANCE_DIRECTION_DISCARDED: {unnamed}")
     zero = [p for p in widths if result.parameter(p).stderr == 0.0]
     assert not zero, f"k = {k}: undetermined widths report an esd of 0: {zero}"
 

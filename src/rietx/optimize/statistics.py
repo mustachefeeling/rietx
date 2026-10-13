@@ -150,38 +150,40 @@ def _psd_pinv(a: np.ndarray, rcond: float) -> np.ndarray:
     """``np.linalg.pinv(a, rcond=rcond, hermitian=True)`` with every kept
     eigenvalue inverted by its magnitude, so the inverse is PSD (WP-1930).
 
-    A normal matrix is PSD, but ``eigh`` returns an exactly flat direction at
-    a rounding-level eigenvalue of either sign: measured at −3.5e-15 to
-    +3.7e-15 of the largest on the LaB₆ + cBN fit whose six Lorentzian widths
-    are one quantity, against a cut of 1e-15.  ``pinv`` keeps any of them
-    above the cut and inverts it with its sign.  A positive one gives the flat
-    direction a huge variance and ρ = ±1, which is the honest answer.  A
-    negative one gives every column on it a negative variance, which
-    :func:`~rietx.optimize.least_squares.covariance_estimates` floors to an esd
-    of exactly 0 and a correlation of 0: six undetermined widths read
-    "± 0.000" and ``HIGH_CORRELATION`` fell silent.  Which of the two happened
-    was decided by rounding, so it split by platform.  Inverting the magnitude
-    gives the negative case the positive case's answer.
+    A normal matrix or a covariance is PSD, but ``eigh`` returns an exactly
+    flat direction at a rounding-level eigenvalue of either sign: measured at
+    −3.5e-15 to +3.7e-15 of the largest on the LaB₆ + cBN fit whose six
+    Lorentzian widths are one quantity, against a cut of :data:`PINV_RCOND`.
+    ``pinv`` keeps any of them above the cut and inverts it with its sign.  A
+    positive one gives the flat direction a huge variance and ρ = ±1, which is
+    the honest answer.  A negative one gives every column on it a negative
+    variance, which :func:`~rietx.optimize.least_squares.covariance_estimates`
+    floors to an esd of exactly 0 and a correlation of 0: six undetermined
+    widths read "± 0.000" and ``HIGH_CORRELATION`` fell silent.  In a χ² the
+    same eigenvalue makes the quadratic form negative.  Which of the two
+    happened was decided by rounding, so it split by platform.  Inverting the
+    magnitude gives the negative case the positive case's answer.
 
-    numpy's own steps are kept one for one, with only the sign left out of
-    ``vt``, so the result is bit-identical to ``pinv`` whenever no kept
-    eigenvalue is negative (``tests/test_covariance_scaling.py``).  That
-    includes ``pinv``'s answer to an empty matrix, its empty transpose.
+    numpy's own steps are kept, stack axes included, with only the sign left
+    out: numpy multiplies ``u`` by sign(λ) to form ``vt``, and a PSD matrix
+    has none to move.  The result is bit-identical to ``pinv`` whenever no
+    kept eigenvalue is negative, a stacked ``(k, n, n)`` input and an empty
+    matrix included (``tests/test_covariance_scaling.py``).
     """
+    a = np.asarray(a)
     if a.size == 0:
-        return np.empty(a.shape[::-1], dtype=a.dtype)
+        m, n = a.shape[-2:]
+        return np.empty(a.shape[:-2] + (n, m), dtype=a.dtype)
     lam, u = np.linalg.eigh(a)
     s = np.abs(lam)
     order = np.argsort(s)[..., ::-1]
     s = np.take_along_axis(s, order, axis=-1)
     u = np.take_along_axis(u, order[..., None, :], axis=-1)
-    # numpy moves sign(λ) into ``vt`` here; a PSD matrix has none to move
-    vt = np.transpose(u).conjugate()
     cutoff = rcond * np.amax(s, axis=-1, keepdims=True)
     large = s > cutoff
     s = np.divide(1, s, where=large, out=s)
     s[~large] = 0
-    return np.matmul(np.transpose(vt), np.multiply(s[..., None], np.transpose(u)))
+    return np.matmul(u, np.multiply(s[..., None], np.swapaxes(u, -1, -2)))
 
 
 def discarded_directions(jac: np.ndarray) -> tuple[int, np.ndarray]:

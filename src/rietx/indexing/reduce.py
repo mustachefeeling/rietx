@@ -57,6 +57,8 @@ from functools import lru_cache
 
 import numpy as np
 
+from ..optimize.statistics import _psd_pinv
+
 #: How spglib declines a cell it cannot solve, in **both** of its error modes.
 #: It returns ``None`` under ``spglib.error.OLD_ERROR_HANDLING = True``, which
 #: is spglib's own (deprecated) default, and **raises** ``SpglibError`` under
@@ -561,6 +563,14 @@ def reduced_covariance(cov: np.ndarray | None, t: np.ndarray | None
     return t @ np.asarray(cov, dtype=np.float64) @ t.T
 
 
+#: The cut :func:`equal_reduced` hands the pseudo-inverse of Σ: numpy's own
+#: ``pinv`` default, which it used until WP-1930.  The inverse is
+#: :func:`~rietx.optimize.statistics._psd_pinv`, because Σ is a sum of
+#: rank-deficient covariances, and a flat direction's rounding-level
+#: eigenvalue taken with its sign makes χ² negative and merges two cells.
+CELL_PINV_RCOND = 1e-15
+
+
 def equal_reduced(red_a: np.ndarray, red_b: np.ndarray, *,
                   cov_a: np.ndarray | None = None,
                   cov_b: np.ndarray | None = None) -> tuple[bool, float]:
@@ -575,7 +585,7 @@ def equal_reduced(red_a: np.ndarray, red_b: np.ndarray, *,
         ok = bool(np.all(np.abs(delta) <= CELL_EQUALITY_RELATIVE * scale))
         return ok, float("nan")
     sigma = np.asarray(cov_a) + np.asarray(cov_b)
-    chi2 = float(delta @ np.linalg.pinv(sigma, hermitian=True) @ delta)
+    chi2 = float(delta @ _psd_pinv(sigma, CELL_PINV_RCOND) @ delta)
     return chi2 <= CELL_EQUALITY_CHI2, chi2
 
 
@@ -597,7 +607,7 @@ def equal_reduced_many(red_a: np.ndarray, reds_b: Sequence[np.ndarray], *,
     deltas = [red_a - np.asarray(red_b) for red_b in reds_b]
     sigmas = np.stack([cov_a + np.asarray(cov_b) for cov_b in covs_b])
     out = []
-    for delta, inverse in zip(deltas, np.linalg.pinv(sigmas, hermitian=True)):
+    for delta, inverse in zip(deltas, _psd_pinv(sigmas, CELL_PINV_RCOND)):
         chi2 = float(delta @ inverse @ delta)
         out.append((chi2 <= CELL_EQUALITY_CHI2, chi2))
     return out
