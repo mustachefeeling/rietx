@@ -88,6 +88,20 @@ bit-identity anywhere.
 
 Licensing: SHELXL is closed. Use the paper only.
 
+### Inherited
+
+- **2026-10-13, from the issue triage (#727): the reporter withdrew the
+  hold-one default and prefers the floating-origin restraint.** Posted
+  2026-10-12: a restraint on a weighted centroid (Flack & Schwarzenbach 1988,
+  *Acta Cryst.* A44, 499-506) chooses no atom, does not depend on atom
+  order, leaves every atom an esd, and is one rule for every case
+  `floating_origin_basis` returns (one axis, Cc's a-c plane, P1's three).
+  They leave the weights, and restraint against exact constraint, to this WP.
+  Draft PR #929 (2026-10-13) moves the existing opt-in hold into the table as
+  `Phase.floating_origin: Literal["hold"] | None = None` and does not mention
+  the withdrawal; a `"centroid"` value can join that `Literal`. Which mode is
+  the default, if any, is still the maintainer's call.
+
 ## Non-goals
 
 - Discrete origin choices of non-polar groups (`:1`/`:2`); nothing floats.
