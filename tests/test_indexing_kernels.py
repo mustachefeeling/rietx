@@ -45,10 +45,11 @@ def _bits(x) -> bytes:
     return np.asarray(x, dtype=np.float64).tobytes()
 
 
+@pytest.mark.parametrize("compiled_path", (False, True))
 @pytest.mark.parametrize("system", ("cubic", "tetragonal", "trigonal",
                                     "orthorhombic"))
 def test_the_centred_replay_on_survivors_is_the_whole_set_replay(
-        system, monkeypatch):
+        system, compiled_path, monkeypatch):
     """WP-1509: at every leaf, each centring's verdict on the leaf's survivors
     is its verdict on the centring's whole search set, which is what the leaf
     asked before.
@@ -56,8 +57,12 @@ def test_the_centred_replay_on_survivors_is_the_whole_set_replay(
     The replay's only output is that verdict, so this is the whole equivalence
     claim.  The four systems are the ones with more than one centring, and a
     P lattice's list refuses most centred replays, so both verdicts occur —
-    the last assertion is the vacuity guard.
+    the last assertion is the vacuity guard.  Each path is declared, and the
+    whole-set verdict is always the numpy loop's.
     """
+    if compiled_path and not hasattr(rietx_kernels, "dichotomy_box_test"):
+        pytest.skip("this rietx-kernels predates the dichotomy kernels (1.3.0)")
+    monkeypatch.setattr(compiled, "_ENABLED", compiled_path)
     original = dichotomy._centred_replay
     verdicts = {True: 0, False: 0}
 
@@ -347,5 +352,57 @@ def test_the_compiled_search_reaches_the_numpy_loops_leaves(system,
             compiled.set_enabled(was)
         runs.append((list(trace), result.stats[f"{system}.boxes"],
                      [(_bits(c.cell), c.n_indexed) for c in result.candidates]))
+    assert runs[0][0], "no leaf was reached"
+    assert runs[0] == runs[1]
+
+
+@needs_kernel
+@pytest.mark.slow
+def test_the_compiled_search_reaches_the_numpy_loops_leaves_where_boxes_are_oblique(
+        monkeypatch):
+    """The leaf-by-leaf comparison on a monoclinic search, the only kind in
+    the fast set where the obliquity prune fires: #780's 61 lines over a
+    narrow domain, 196 101 boxes and 30 leaves on either path, the prune
+    refusing ~7 300 boxes on the numpy loop.  Slow because the numpy side
+    takes ~10 s; ``kernels.yml`` runs it on every wheel a pull request
+    builds."""
+    from rietx.indexing.engines import SearchSpec
+    from tests.repro_780 import peaks as peaks_780
+
+    real_replay, real_accept = dichotomy._centred_replay, dichotomy._accept
+    real_outside = dichotomy._outside_obliquity
+    trace: list = []
+    oblique = [0]
+
+    def replay(m_full, rows, member, lo, hi, *a, **kw):
+        got = real_replay(m_full, rows, member, lo, hi, *a, **kw)
+        trace.append(("leaf", _bits(lo), _bits(hi), rows.tobytes(), got))
+        return got
+
+    def accept(basis, system_, centring, spec, theta, *a):
+        trace.append(("accept", centring, _bits(theta), _bits(a[-3])))
+        return real_accept(basis, system_, centring, spec, theta, *a)
+
+    def outside(af_lo, af_hi):
+        refused = real_outside(af_lo, af_hi)
+        oblique[0] += refused
+        return refused
+
+    monkeypatch.setattr(dichotomy, "_centred_replay", replay)
+    monkeypatch.setattr(dichotomy, "_accept", accept)
+    monkeypatch.setattr(dichotomy, "_outside_obliquity", outside)
+    spec = SearchSpec(systems=("monoclinic",), min_d_axis=4.0, max_d_axis=11.0,
+                      max_volume=300.0, shift_allowance_deg=1e-9,
+                      budget_seconds=600.0)
+    runs = []
+    for flag in (False, True):
+        trace.clear()
+        monkeypatch.setattr(compiled, "_ENABLED", flag)
+        result = search_dichotomy(peaks_780(), spec=spec)
+        assert result.search_complete["monoclinic"]
+        runs.append((list(trace), result.stats["monoclinic.boxes"],
+                     [(_bits(c.cell), c.n_indexed) for c in result.candidates]))
+        if not flag:
+            assert oblique[0] > 1000, "the domain no longer reaches the bound"
     assert runs[0][0], "no leaf was reached"
     assert runs[0] == runs[1]
