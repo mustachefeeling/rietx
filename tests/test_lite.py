@@ -1,0 +1,77 @@
+"""The browser copy of the tutorials (`docs/lite/`, WP-1963): the projection, not the build.
+
+Building the site needs JupyterLite and two cross-compiled wheels, and running it
+needs a browser, so neither is here (`docs/lite/README.md` has both commands).
+What is here is the part a tutorial edit can break with nothing else going red:
+each notebook must carry exactly one install cell for `build.project` to replace,
+and everything else must reach the browser unchanged.  The mock's version must
+also still satisfy rietx's own `rietx-kernels` requirement, or micropip refuses
+rietx in every notebook at once.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import re
+from pathlib import Path
+
+import pytest
+from packaging.specifiers import SpecifierSet
+
+ROOT = Path(__file__).resolve().parents[1]
+TUTORIALS = ROOT / "examples" / "tutorials"
+
+
+def _load(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+LITE = _load("_test_lite_build", ROOT / "docs" / "lite" / "build.py")
+WHEELS = _load("_test_lite_wheels", ROOT / "docs" / "lite" / "build_wheels.py")
+NOTEBOOKS = sorted(TUTORIALS.glob("[0-9][0-9]_*.ipynb"))
+
+
+def test_there_are_notebooks_to_project():
+    assert NOTEBOOKS, f"no tutorial notebook in {TUTORIALS}"
+
+
+@pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda p: p.stem)
+def test_projection_replaces_the_install_cell_and_nothing_else(path):
+    original = json.loads(path.read_bytes())
+    floor = LITE.kernels_floor()
+    projected = LITE.project(path.read_bytes(), floor)
+
+    assert len(projected["cells"]) == len(original["cells"])
+    changed = [i for i, (a, b) in enumerate(zip(original["cells"], projected["cells"])) if a != b]
+    assert len(changed) == 1, f"{path.name}: cells {changed} changed, expected only the install cell"
+    cell = projected["cells"][changed[0]]
+    assert "".join(cell["source"]) == LITE.INSTALL.format(floor=floor)
+    assert cell["outputs"] == [] and cell["execution_count"] is None
+    assert projected["metadata"]["kernelspec"]["name"] == "python"  # the Pyodide kernel's
+    assert {k: v for k, v in projected["metadata"].items() if k != "kernelspec"} == \
+        {k: v for k, v in original["metadata"].items() if k != "kernelspec"}
+
+
+def test_the_mock_satisfies_rietx_s_own_kernels_requirement():
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    spec = re.search(r'"rietx-kernels([^"]+)"', text)[1]
+    assert LITE.kernels_floor() in SpecifierSet(spec)
+
+
+def test_the_site_serves_only_what_build_wheels_makes():
+    assert set(LITE.SERVED) == set(WHEELS.PACKAGES) == {"gemmi", "spglib"}
+
+
+def test_the_wheel_pins_name_the_kernel_s_pyodide():
+    """build_wheels.PYODIDE must be the Pyodide the pinned kernel loads.
+
+    Asked of the installed kernel when there is one; requirements.txt's pin is
+    what a CI without it would need to read, so that is checked too."""
+    pins = (ROOT / "docs" / "lite" / "requirements.txt").read_text(encoding="utf-8")
+    assert "jupyterlite-pyodide-kernel==" in pins
+    kernel = pytest.importorskip("jupyterlite_pyodide_kernel.constants")
+    assert kernel.PYODIDE_VERSION == WHEELS.PYODIDE
