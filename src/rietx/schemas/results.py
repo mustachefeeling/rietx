@@ -7,6 +7,7 @@ from typing import Any, ClassVar, Literal
 import numpy as np
 from pydantic import Field, model_validator
 
+from .._about import DIST_NAME
 from .common import Base, Diagnostic, Mode, Provenance
 from .parametric import (
     ParametricCoefficient,
@@ -1307,7 +1308,9 @@ def _form_line(t: ParametricFormTest) -> str:
 def _verdict(r: ParametricFormReading) -> str:
     """One reading's verdict, statistic, cut, p-value and directions."""
     if r.statistic is None:
-        return "not tested: no direction to test"
+        # the schema's two reasons, as the one-reading line above tells them
+        return ("not tested: no direction to test" if r.dof == 0 else
+                "not tested: the answer's χ²_red·f² is not a positive finite number")
     verdict = "REJECTED" if r.rejected else "not rejected"
     side = "past" if r.rejected else "within"
     # a tail under 1e-300 is 0.0 in a double, and "p = 0" claims certainty
@@ -1703,7 +1706,7 @@ class RefinementResult(Base):
         if self.parametric_laws is None:
             raise ValueError(
                 "this result carries no parametric law to evaluate: it declared "
-                "none, or was written before rietx 1.10")
+                f"none, or was written before {DIST_NAME} 1.10")
         laws = {law.tie.name: law for law in self.parametric_laws}
         if tie not in laws:
             raise KeyError(f"no parametric law named {tie!r}; this result has "

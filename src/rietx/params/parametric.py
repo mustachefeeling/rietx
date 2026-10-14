@@ -471,8 +471,9 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
     null = None
     readings: list[ParametricFormReading | None] = []
     swaps: list[tuple[list[np.ndarray | None], list[int]] | None] = []
+    gains: dict[int, tuple[float, int]] = {}
     counts = []
-    for r in resolved:
+    for i, r in enumerate(resolved):
         cols = target_columns(r, bj, free_paths, skip.get(r.name, frozenset()))
         counts.append(0 if cols is None else sum(c is not None for c in cols))
         if cols is None:
@@ -483,8 +484,8 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
             null = held_projection(bj, resid, hold)
         drop = [index[p] for p in r.paths]
         swaps.append((cols, drop))
-        readings.append(_reading(*added_columns_gain(bj, resid, cols, drop, hold,
-                                                     null=null), scale))
+        gains[i] = added_columns_gain(bj, resid, cols, drop, hold, null=null)
+        readings.append(_reading(*gains[i], scale))
     # each law again with every other tested law's targets freed: the gain
     # with all of them swapped, less the gain with only the others swapped
     freed: list[ParametricFormReading | None] = [None] * len(resolved)
@@ -493,9 +494,12 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
         every = added_columns_gain(bj, resid, *_stacked(swaps, live, bj.n_blocks),
                                    hold, null=null)
         for i in live:
-            rest = added_columns_gain(bj, resid,
-                                      *_stacked(swaps, [k for k in live if k != i],
-                                                bj.n_blocks), hold, null=null)
+            others = [k for k in live if k != i]
+            # one other law swapped alone is that law's tied alternative,
+            # already projected above
+            rest = (gains[others[0]] if len(others) == 1 else
+                    added_columns_gain(bj, resid, *_stacked(swaps, others, bj.n_blocks),
+                                       hold, null=null))
             freed[i] = _reading(every[0] - rest[0], every[1] - rest[1], scale)
     out = []
     for r, n_patterns, tied, other in zip(resolved, counts, readings, freed,

@@ -357,7 +357,9 @@ class ParametricValue(Base):
     * ``coordinates`` — where it was evaluated; empty for a ``constant`` law
       and for a ``design`` row, which is ``row``.
     * ``value``, ``esd``, ``unit`` — the target there, in its own unit.
-      ``esd`` is ``None`` when a coefficient the point uses has none.
+      ``esd`` is ``None`` when the law has no covariance
+      (:attr:`ParametricLaw.covariance`), even at a point whose term for the
+      coefficient lacking an esd is zero.
     * ``outside`` — the coordinates whose value lies outside the range the
       subset's patterns span, so the value there extrapolates the law.  Empty
       inside every range.  Over two or more coordinates a point can be inside
@@ -429,13 +431,14 @@ class ParametricLaw(Base):
         Σ_j x_j·c_j and √(x·Σ·xᵀ), with c the coefficients in the caller's
         units and x_j the term's product of (z − reference) per coordinate, so
         the value at the reference is the intercept.  ``coefficients`` are
-        this law's, in coefficient order; refuses a coordinate set or a row
-        that does not match the basis.
+        this law's, in coefficient order, and are refused otherwise, as are a
+        coordinate set or a row that does not match the basis.
         """
         tie = self.tie
-        if len(coefficients) != tie.n_coefficients:
-            raise ValueError(f"law {tie.name!r} has {tie.n_coefficients} coefficients, "
-                             f"got {len(coefficients)}")
+        paths = [c.path for c in coefficients]
+        if paths != tie.coefficient_paths():
+            raise ValueError(f"law {tie.name!r} takes its coefficients "
+                             f"{tie.coefficient_paths()} in that order, got {paths}")
         coordinates = dict(coordinates or {})
         if tie.basis == "design":
             if row is None or coordinates:

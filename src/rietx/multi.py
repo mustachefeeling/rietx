@@ -2198,14 +2198,20 @@ def _parametric_unseen_diagnostics(mtable, unseen: dict[str, frozenset[int]]
             continue
         shown = ", ".join(str(h) for h in blind[:10])
         more = f" and {len(blind) - 10} more" if len(blind) > 10 else ""
+        # with every pattern blind there is no seeing pattern to carry the law
+        # from: the coefficients are held where they started (WP-1301)
+        whence = ("carried from the patterns that see the phase" if
+                  len(blind) < len(r.patterns) else
+                  "and no pattern of the subset sees the phase, so the law itself "
+                  "is not measured")
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_TARGET_UNSEEN",
             where=[f"hist.{h}.{r.target}" for h in blind], value=float(len(blind)),
             message=(f"parametric tie {r.name!r} sets {r.target} in {len(blind)} of "
                      f"its {len(r.patterns)} patterns that cannot see its phase "
                      f"(histograms {shown}{more}). There the value and its esd are "
-                     "the law's, carried from the patterns that see the phase, and "
-                     "the form test cannot check the law there"),
+                     f"the law's, {whence}, and the form test cannot check the "
+                     "law there"),
             suggestion=("do not quote the target in those patterns as a "
                         "measurement: quote the law's coefficients, and narrow the "
                         "subset to the patterns that see the phase if the law "
@@ -2230,11 +2236,10 @@ def _parametric_form_tests(models, mtable, at_bounds, weights,
     residual, jacobian, n_data = _multi_closures(models, mtable, weights=weights,
                                                  layout="blocked")
     x = mtable.x0()
-    skip = {r.name: unseen.get(r.name, frozenset()) for r in mtable.parametric}
     index = {p: i for i, p in enumerate(mtable.free_paths)}
     hold = sorted({index[p] for f in at_bounds for p in f.paths if p in index})
     return form_tests(mtable.parametric, jacobian(x), residual(x), n_data,
-                      mtable.free_paths, skip, hold)
+                      mtable.free_paths, unseen, hold)
 
 
 def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None
@@ -2251,9 +2256,12 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None
             continue
         freed = t.others_freed
         r = t.tied if t.tied is not None and t.tied.rejected else freed
+        # tied, the law may have had no direction to test while freed it had
+        # one, so the tied side's statistic can be None
         how = ("" if r is t.tied else
                " once the other laws' targets are freed too (with them tied it "
-               f"read {t.tied.statistic:.1f}, within the cut)")
+               + ("had no direction to test)" if t.tied.statistic is None else
+                  f"read {t.tied.statistic:.1f}, within the cut)"))
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_FORM_REJECTED",
             where=list(paths[t.tie]), value=r.statistic,
