@@ -92,7 +92,8 @@ def test_the_history_store_reads_an_empty_fcntl_as_no_lock(jupyterlite_fcntl, tm
     store = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(store)
     assert store.flock is None
-    with open(tmp_path / "history.jsonl", "w", encoding="utf-8") as handle, store._locked(handle):
+    with (open(tmp_path / "history.jsonl", "w", encoding="utf-8", newline="\n") as handle,
+          store._locked(handle)):
         handle.write("{}\n")
 
 
