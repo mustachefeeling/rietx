@@ -171,6 +171,16 @@ against the tree at e1d19359 on arrival.
     and `RefinementResult.parametric_form` carry a score test of each
     declared form. It leaves out the patterns `multi._unseen` holds, so
     item 4's decision also changes which patterns the form test can see.
+  - **And three more on 2026-10-14 (1325's seventh session, PR #977).**
+    `PARAMETRIC_TARGET_UNSEEN` (FIT) names, per law, the patterns whose
+    phase is unseen where the law sets the target: item 3's per-pattern
+    statement, for parametric targets only. It is top-level, so
+    `for_histogram(h)` does not carry it; the view's rows do carry
+    `RefinedParameter.laws`. Each `ParametricFormTest` now has two
+    readings (`tied`, `others_freed`), and `RefinementResult.parametric_laws`
+    with `parametric_value` evaluates a law anywhere. A joint report placing
+    the warning per pattern, or quoting the law's value beside a row, reads
+    these.
 
 ## Non-goals
 

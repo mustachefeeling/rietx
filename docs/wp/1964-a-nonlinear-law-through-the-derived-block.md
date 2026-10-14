@@ -112,6 +112,19 @@ leaves the exponent to the user, fitted to the trajectory
 - `tests/test_cross_backend.py`: a row for the new derivative path (root
   CLAUDE.md § Backends; WP-1804's own toy-block row is still open).
 
+### Inherited
+
+- **2026-10-14, from [1325](1325-parametric-series.md) (seventh session,
+  PR #977): three readers assume a law linear in its coefficients.**
+  - `ParametricLaw.evaluate` computes Σ x_j·c_j and √(x·Σ·xᵀ) from the
+    user-unit coefficients. A law through the derived block needs its own
+    evaluator, the block's local Jacobian at the coordinate in place of x.
+  - `params.parametric.target_columns` reads a pattern's own target column
+    as J_coef·Φ_kᵀ/‖Φ_k‖², which needs a constant Φ. The form test and its
+    `others_freed` reading both rest on it.
+  - `RefinedParameter.laws` is written from each table's `entry_reach`.
+    Check that a row the derived block reaches is marked.
+
 ## Non-goals
 
 - A general expression language. That is `Parameter.expr`'s design, a

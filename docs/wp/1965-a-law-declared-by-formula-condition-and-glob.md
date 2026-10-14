@@ -85,6 +85,15 @@ one declaration per matched path, each with its own coefficients.
   as a target today. A blocked glob is reported, never silent (root
   CLAUDE.md § A hold), so the expansion skips them and says which.
 
+### Inherited
+
+- **2026-10-14, from [1325](1325-parametric-series.md) (seventh session,
+  PR #977): a result now carries each law as resolved.**
+  `RefinementResult.parametric_laws[k].tie` is the declaration with its
+  reference and scale filled in, the form a refit passes back. A formula,
+  condition or glob spelling should resolve to that same `ParametricTie`,
+  so a result read back can be refitted whichever spelling declared it.
+
 ## Non-goals
 
 - Storing a formula string. It is lowered at construction.

@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here (seventh session: mark law-set values in the output)
+Milestone: unscheduled · Status: 🔄 2026-10-14 — law-set values are marked, a law evaluates anywhere, and each law is tested with the others freed; next the maintainer confirms "either reading rejects", then ZrP₂O₇ and WO₃ out of sample
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -1404,6 +1404,100 @@ directions and 197.9 against 337.1 for 296.
   Schur identity), issue #212.
 
 ## Handover log
+
+### 2026-10-14 (seventh session) — law-set values are marked, a law evaluates anywhere, and each law is also tested with the others freed
+
+A joint parametric fit now says which of its numbers came from a law rather
+than from a pattern's own data. It also warns where a law sets a value in a
+pattern that cannot see the phase. A law can be evaluated at any temperature
+or composition with an esd, because the result now carries the coefficients'
+covariance; at each measured pattern it gives back that pattern's row to the
+bit. Each law is now also tested with the other laws freed, and that reading
+gives the verdict a refit of the law alone gives: on the ZrMo₂O₈ ramp it
+rejects the cubic line the old reading passed. Rejecting a law when either
+reading rejects is this session's call and waits on the maintainer, since it
+raises the false-alarm rate by an amount nobody has measured.
+
+*Done* (branch `wp1325-law-marks` from `main` at 6e793e8, PR #977; schema
+0.56 → 0.57, one bump for all three tasks):
+- **Law-set values marked** (f6b0e83, e720da1). `RefinedParameter.laws`,
+  written by `multi._law_rows` off each table's `entry_reach`, so a cubic
+  cell's b and c and a held coefficient count too. The coefficient rows are
+  **marked, not dropped**: dropping breaks the row contract, and `BOUND_HIT`
+  on a `constant` coefficient would name a path absent from `parameters`.
+  `laws` is `None` for "not recorded" because 1.9.0 shipped parametric fits
+  whose rows carry no field; the single fit writes `[]`. The form line reads
+  "n of N patterns" with a p-value (`p < 0.001` below that, since a tail
+  under 1e-300 is 0.0). `PARAMETRIC_TARGET_UNSEEN` (FIT) names the unseen
+  patterns from `multi._parametric_unseen`, the one reading the form test's
+  skip now takes too.
+- **Covariance and the law anywhere** (07cffad). `RefinementResult.parametric_laws`
+  (`ParametricLaw`: resolved tie, unit, span, covariance) and
+  `RefinementResult.parametric_value` → `ParametricValue`. The covariance is
+  esd_i·esd_j·ρ_ij with ρ_ii = 1, so its diagonal is `esd ** 2` exactly
+  (pinned).
+- **Each law with the others freed** (6d061bf, ceeff20). `ParametricFormTest`
+  reshaped: `rejected` (the verdict) plus two `ParametricFormReading`s, `tied`
+  and `others_freed`. `parametric_form` was unreleased, so nothing shipped
+  breaks. `form_freed.py` records the real-ramp run.
+- Manual (`using/series.md`, `using/model.md`), the skill's diagnostics and
+  series rows (both at or under budget), `api.md` regenerated, the 1.10
+  notes and record staged.
+- **Forward references**: 1341 (third note: the new warning is top-level,
+  the per-pattern placement is its), 1963 (the blind regime is named per
+  law), 1964 (three readers assume linear coefficients), 1965 (a result
+  carries the resolved tie). No `Priority:` moved: nothing waited on this.
+- **`/code-review high --fix`** (91ddadf): nine findings, eight fixed. A
+  crash formatting a tied statistic of `None` in the freed-only warning;
+  the all-blind `PARAMETRIC_TARGET_UNSEEN` claiming a seeing pattern; a
+  hardcoded distribution name; one projection per two-law fit recomputed
+  (now reused, bit for bit); `_verdict`'s "not tested" reason;
+  `ParametricLaw.evaluate` accepting another law's coefficients; two
+  docstrings and the 0.57 log entry. Skipped: `_law_rows` builds a whole
+  `entry_reach()` per table to read the coefficients' keys, unmeasured at
+  300 patterns and needing a new `ParameterTable` method.
+
+*Measured* (macOS arm64, 10 CPUs, `[dev]`, compiled kernels on):
+- `parametric_value` against each pattern's `hist.<h>.` row on the
+  ten-pattern LaB6 line ramp: value and esd identical at all ten (relative
+  difference 0.0). ρ(c₀, c₁) = 0.007 there, the centring's work.
+- `form_freed_results.txt` at 6d061bf, ZrMo₂O₈ ramp, three-law answer
+  (χ²_red 1.878, f 2.511; untied 1.873, 2.503; load 3.3-4.5):
+
+  | law | tied | freed | freed gain / own refit's | per dir, untied denominator / refit's |
+  |---|---|---|---|---|
+  | cubic a | 42.8 for 31, p 0.077 | 48.6, p 0.023 REJECT | 575.3 / 576.1 | 1.58 / 1.58 |
+  | trigonal a | 10.6, p 1 | 20.4, p 0.93 | 241.6 / 181.7 | 0.66 / 0.50 |
+  | trigonal c | 9.0, p 1 | 18.2, p 0.97 | 215.6 / 204.7 | 0.59 / 0.56 |
+
+  Trigonal a's 1.33 ratio is the weak phase whose refits stop in other
+  minima, as § Measured: the form test recorded (1.36 there).
+- Fast selection (alone on the machine): 9709 passed, 186 skipped,
+  1 xfailed in 3:34-3:41 over two runs; the second run's one failure was
+  this session's own Part 2 math wrapping onto a "- " line, fixed and
+  re-run alone. Four tests added, all four passes:
+  `tests.added_test_times` reads 0.03 s for the four, one run.
+- Acceptance (the WP's command, slow rows included): 217 passed; the two
+  slow parametric rows, one of which this session edited, pass. The full
+  suite did not run: nothing here changes a refinement path, only what
+  is read off the answer.
+
+*Gotchas*:
+- `diagnostics.md` sits exactly at its budget (0 B left) and `series.md`
+  has 29 B; the next row added to either pays with a cut.
+- The worktree guard refused a long `python - <<EOF` heredoc; scratchpad
+  scripts run as one plain command worked.
+
+Next, in order:
+1. **The maintainer confirms or overturns "either reading rejects"**
+   (`params.parametric.form_tests`, one line). The alternative is the freed
+   reading alone: 5 % per law, losing two collinear wrong laws.
+2. **ZrP₂O₇ and WO₃ out of sample.** It now settles decision 4 for two
+   readings per law, and whether the one-direction next-term test earns a
+   place.
+3. **The one-direction next-term test**, if 2 leaves room for it.
+4. **The peak-chain deduplication**, then **in-step bounds**, then **start
+   agreement** beyond parameters.
 
 ### 2026-10-14 (sixth session) — the maintainer's rule for laws is recorded, and a review against prior art adds three tasks and two WPs
 

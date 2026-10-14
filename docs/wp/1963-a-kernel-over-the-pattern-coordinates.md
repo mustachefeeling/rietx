@@ -63,6 +63,18 @@ PET kernel method) and lists its costs and scaling; the literature is in
 - Scale: hundreds of patterns, so a dense kernel matrix over the coordinates
   is the first cost to measure against a sparse or state-space form.
 
+### Inherited
+
+- **2026-10-14, from [1325](1325-parametric-series.md) (seventh session,
+  PR #977): the blind regime is now named per law.**
+  `PARAMETRIC_TARGET_UNSEEN` lists, for each law, the patterns where the
+  target's phase is unseen and the value is the law's alone. Its predicate is
+  `multi._parametric_unseen`, which the form test's skip also reads. A kernel
+  prior serves exactly those patterns. `ParametricValue.outside` flags
+  extrapolation by each coordinate's range alone, so a 2-D point inside both
+  ranges and far from every pattern is not flagged. A kernel's posterior
+  variance would see it.
+
 ## Non-goals
 
 - Replacing the hard tie. It earned a measured precision gain in the same

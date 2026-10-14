@@ -584,10 +584,21 @@ at once {cite}`rao1948`, and the test needs no refit. Serially correlated
 residuals inflate a $\chi^2$ difference as they inflate an esd, so the
 denominator carries the same factor.
 
+A fit with several declarations reads each one a second time, with the other
+declarations' targets freed too. Let $J_{\mathrm{a}}$ swap every tested
+declaration's coefficient columns and $J_{\mathrm{o}}$ every one but this. The
+numerator is then the difference
+$\min_\beta \lVert r - J_{\mathrm{o}}\beta \rVert^2 - \min_\beta \lVert r - J_{\mathrm{a}}\beta \rVert^2$,
+and $k$ is the difference of their directions. That reading does not assume the other
+declarations' forms. The declaration is rejected when either reading passes
+its cut.
+
 On the 33-pattern ZrMo₂O₈ ramp the numerator was 0.98-1.04 of the $\chi^2$ a
 full untied refit removed, for the strong phase's laws and for three laws
-together, and the verdict matched the refit's on all five laws tested. A
-pattern that cannot see the target adds nothing to the numerator, so the test
+together, and the verdict matched the refit's on all five laws tested. At the
+three-law answer, the second reading of the cubic law's numerator was 575.3,
+against the 576.1 a refit of that law alone removed. A pattern that cannot see
+the target adds nothing to the numerator, so the test
 cannot check how a form carries through the patterns where the target is
 invisible. On synthetic ramps whose minor phase faded out, or was broad and
 overlapped, a bent truth went unrejected in 20 seeds of 20, as it did under a
