@@ -46,12 +46,11 @@ scattering vector); it is the *interpretation of r* that flips.  Codes disagree
 on the sign convention, so this docstring — not the letter r — is the contract.
 
 This is the single-axis approximation.  Multi-axis and spherical-harmonics
-texture (Von Dreele 1997) are out of scope here and designed in
-https://github.com/yue-here/rietx/issues/131, which would extend this module
-rather than replace it: the harmonic sum runs over the same frozen symmetry
-orbit this file already averages over.  March-Dollase stays either way — one
-refinable parameter against that model's ~5-20, and better conditioned for a
-genuine single fibre texture.
+texture (Von Dreele 1997) are out of scope here.  WP-1960
+(``docs/wp/1960-spherical-harmonics-texture.md``) designs the harmonic block
+beside this one, carrying https://github.com/yue-here/rietx/issues/131 forward.
+March-Dollase stays either way — one refinable parameter against that model's
+2-44, and better conditioned for a genuine single fibre texture.
 
 References
 ----------
