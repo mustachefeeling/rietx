@@ -3470,6 +3470,14 @@ def from_structure(structure: Structure, *,
                 f"orientation (r = {po.r.value!r} along {po.axis}), and this "
                 f"writer writes Pref = 0 with Nor = 0, so the file would state "
                 f"intensities rietx does not compute")
+        texture = phase.texture
+        if texture is not None and any(
+                c.value != 0.0 for c in texture.coefficients.values()):
+            raise ValueError(
+                f"phase {phase.name!r} carries a spherical-harmonics texture "
+                f"(order {texture.order}) away from zero, and this writer "
+                f"writes no texture, so the file would state intensities "
+                f"rietx does not compute")
         if not phase.name.strip():
             raise ValueError(
                 f"phase name {phase.name!r} cannot be written to a FullProf "
