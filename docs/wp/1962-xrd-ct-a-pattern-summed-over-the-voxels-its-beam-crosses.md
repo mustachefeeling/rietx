@@ -146,6 +146,17 @@ usable for the synthetic phantom's reconstruction, as a dev-only dependency.
     § Measured: where one pattern cannot see the parameter). REML on the
     per-pattern trajectory misled badly in the weak-signal regime, which bears
     on how this WP chooses its penalty weight.
+- **2026-10-14 (later), from WP-1325: the per-pattern Jacobian is python-bound,
+  so threads do not parallelise it.**
+  - At 60 patterns the Rust kernels are 1.4 % of the fit. A thread pool
+    across patterns ran at 0.53× on 4 threads, because the work holds the GIL.
+  - 71 % of the Jacobian is the peak chain, re-run once per column. Columns
+    that reach one target share it, which is 1325's new task (1.52× on the
+    Jacobian loop).
+  - For the voxel solver: budget the per-pattern Jacobian at about 2.4 ms of
+    python for 3 000 points of a simple phase. Plan cross-pattern
+    parallelism as processes, never threads (WP-1325 § Measured: where the
+    joint Jacobian's time goes).
 
 ## Non-goals
 

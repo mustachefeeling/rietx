@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the parametric fit, its blocked solver, summaries and docs landed; the real ZrMo₂O₈ ramp, a lack-of-fit check, in-step bounds and start agreement remain
+Milestone: unscheduled · Status: 🔄 2026-10-14 — the parametric fit, its blocked solver, summaries and docs landed, and the joint Jacobian profiled; the real data, a lack-of-fit check, the peak-chain dedup, in-step bounds and start agreement remain
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -1025,6 +1025,63 @@ another Rust kernel would speed the joint fit.
   Schur identity), issue #212.
 
 ## Handover log
+
+### 2026-10-14 (third session) — another Rust kernel is not the lever; a repeated peak chain is
+
+The maintainer asked whether another Rust kernel would speed up the large
+joint fits. Not first. The existing kernels are under 2 % of a 60-pattern fit.
+Each pattern is small, so its Jacobian is about a hundred small python calls
+rather than a loop of arithmetic for a kernel to take over. Spreading the
+patterns over threads made it slower, because python's lock serialises them.
+What does pay is algorithmic: a polynomial's coefficients all move the same
+per-pattern cell, yet each re-runs the peak chain. Doing it once measured
+1.5× on the Jacobian, and is filed as a task. The real-data measurement could
+not run from the cloud container, which reaches neither the maintainer's copy
+nor the Durham tutorials.
+
+*Done* (session started 2026-10-14 at 977ec2a, after #969 merged; a cloud
+session, pushed to `claude/happy-bardeen-b6d4g0`):
+- **The profile.** `1325-measure/jacobian_profile.py` and its results, in
+  § Measured: where the joint Jacobian's time goes.
+- **Tasks.** Ticked "Profile the joint Jacobian" and filed "Compute a
+  target's peak-chain column once per pattern". The real-data task now names
+  the Durham TOPAS surface tutorials, ZrP₂O₇ and WO₃, which the maintainer
+  cleared for local use only.
+- **Forward reference:** 1962 learns the per-pattern Jacobian's cost, and
+  that threads do not parallelise it.
+- **Inherited:** none on arrival. **Findings** are this morning's, and main
+  moved only by #969's merge since, so none went stale.
+
+*Measured* (Linux x86_64, 4 CPUs, 15.7 GiB, `[dev]` venv, nothing else
+running): the numbers are in § Measured: where the joint Jacobian's time
+goes. No source or test changed, so no suite count moved and the fast
+selection was not run. Step 10's checks are below.
+
+*Gotchas*:
+- **`phase_peaks` memoises on the cell.** A profiling loop that reuses one θ
+  times the cache, and a deduplication then reads 6.2× where the honest
+  figure is 1.5×. Move θ every repeat.
+- **A coefficient column reaches `_peak_chain_column` under its target's
+  path** (`phases.0.cell.a`), not under its `vars.` name. A deduplication
+  keyed on `vars.` finds nothing.
+- **This cloud container cannot reach the data.** The maintainer's disk is
+  not mounted, and the network policy denies
+  `topas.webspace.durham.ac.uk`. The maintainer is carrying the WP on
+  locally.
+
+Next, in order:
+1. **The measurement on real data, on the maintainer's machine**, because
+   only a local session reaches it. Use the ZrMo₂O₈ ramp, or the Durham
+   ZrP₂O₇ (37 patterns) and WO₃ (100 patterns) tutorials, stored locally and
+   never committed. It also says whether a larger structure raises the
+   kernels' share.
+2. **A lack-of-fit check on the declared form**, the previous session's
+   first: a wrong form gives confidently wrong esds. Real data is the better
+   test of it.
+3. **The peak-chain deduplication**: about 1.2× on the fit, estimated, and a
+   stated equivalence bar.
+4. **In-step bounds** for the coefficients, then **start agreement** beyond
+   parameters.
 
 ### 2026-10-14 (second session) — the parametric fit is built, measured and scales to hundreds of patterns
 
