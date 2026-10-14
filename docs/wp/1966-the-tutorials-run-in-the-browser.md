@@ -1,6 +1,6 @@
 # WP-1966 — the tutorials run in the browser, in JupyterLite
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the site is live at /lite/ and each landing-page row links to it; the root CLAUDE.md rule waits on a cap decision
+Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-10-14 — Colab covers it; a second door with no Google account and no server
