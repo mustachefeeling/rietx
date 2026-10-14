@@ -438,7 +438,7 @@ def contains(child: LineScreen, parent: LineScreen) -> bool:
     uncancellable lines the picker missed could be refuted against a wrong
     cell that happens to index the same lines.  The denser line set is the
     child, the sparser the parent; at equal density the larger primitive
-    volume is the child.  Every pair measured in the C3 record has the denser
+    volume is the child.  Every pair measured in #941's Acceptance table has the denser
     cell as the one to refute.  The last comparison is **strict**: two cells with
     equal line counts and equal volume contain neither each other nor
     themselves, so the relation stays antisymmetric and
