@@ -37,7 +37,7 @@ WP lands. No tutorial stores one today.
 
 ## Tasks
 
-- [ ] Dark values for the indexing roles, checked against the dark ground
+- [x] Dark values for the indexing roles, checked against the dark ground
   for contrast, and the candidate set checked on both grounds.
 - [x] `style=` on the four functions, passed to `_handed_back`.
 - [x] The pixel test of `tests/test_viz.py` extended to the four figures.
