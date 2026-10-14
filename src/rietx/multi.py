@@ -55,7 +55,12 @@ from .params.multi import (
     _longest_wavelength,
     _unscoped,
 )
-from .params.parametric import FORM_TEST_LEVEL, coefficient_rows, form_tests
+from .params.parametric import (
+    FORM_TEST_LEVEL,
+    coefficient_rows,
+    form_tests,
+    parametric_law,
+)
 from .params.vector import is_variable_path
 from .refine import (
     _PHASE_PREFIX,
@@ -1780,6 +1785,7 @@ class MultiHistogramRefinement:
         # bound test found on a bound (WP-1325, FIT)
         parametric_form = _parametric_form_tests(models, mt, at_bounds, weights,
                                                  unseen)
+        coefficients = self._parametric_rows(esd_hist0)
         diagnostics = diagnostics + _parametric_form_diagnostics(mt, parametric_form)
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
@@ -1885,11 +1891,27 @@ class MultiHistogramRefinement:
                              if absorption_table else None),
             # the declared coefficients in user units at the reference, read
             # off histogram 0's slice of the joint covariance (a coefficient
-            # is shared, so its marginal is the joint one); ``None`` when
-            # nothing was declared (WP-1325)
-            parametric=self._parametric_rows(esd_hist0),
+            # is shared, so its marginal is the joint one), and each law with
+            # their covariance; ``None`` when nothing was declared (WP-1325)
+            parametric=coefficients,
             parametric_form=parametric_form,
+            parametric_laws=self._parametric_laws(coefficients, corr),
             histograms=histograms)
+
+    def _parametric_laws(self, coefficients, corr):
+        """Each declaration as resolved, with its coefficients' covariance.
+
+        ``None`` when nothing was declared.  The covariance pairs the
+        ``coefficients``' own esds by the joint solve's correlation ``corr``,
+        the matrix those esds were read off (:func:`~rietx.params.parametric.parametric_law`).
+        """
+        mt = self.mtable
+        if not mt.parametric:
+            return None
+        index = {p: i for i, p in enumerate(mt.free_paths)}
+        return [parametric_law(r, [c for c in coefficients if c.tie == r.name],
+                               [index.get(p) for p in r.paths], corr)
+                for r in mt.parametric]
 
     def _parametric_rows(self, esd0: dict[str, float]):
         """Every declared coefficient, in user units at the reference.

@@ -1110,7 +1110,7 @@ directions and 197.9 against 337.1 for 296.
     for 8 directions over 10 of 10 patterns", and `p < 0.001` below that.
   - `PARAMETRIC_TARGET_UNSEEN`, from the one `_parametric_unseen` reading the
     form test's skip now takes too.
-- [ ] **The coefficients' covariance, and the law's value at any
+- [x] **The coefficients' covariance, and the law's value at any
   coordinate** (added 2026-10-14, from a review of the API against prior
   art). `ParametricCoefficient` carries an esd and nothing else, and
   `Identifiability.top_correlations` lists only the worst pairs. A value
@@ -1128,6 +1128,20 @@ directions and 197.9 against 337.1 for 296.
     nothing the fit has not stored (root CLAUDE.md § a display reads fields).
   - The value carries the form test's verdict beside it, because its esd
     assumes the form. Beyond the subset's range it says it is extrapolating.
+
+  Landed 2026-10-14 (schema 0.57):
+  - `RefinementResult.parametric_laws`, one `ParametricLaw` per declaration:
+    the resolved tie, the target's unit, each coordinate's span over the
+    subset, and the covariance. Built by `params.parametric.parametric_law`
+    as esd_i·esd_j·ρ_ij from the joint correlation the esds were read off,
+    with ρ_ii = 1, so the diagonal is `esd ** 2` exactly (pinned).
+  - `RefinementResult.parametric_value(name, {coord: z})` (or `row=` for a
+    `design` law) returns a `ParametricValue`: value, esd, unit, the
+    coordinates outside the subset's span, and the form verdict.
+  - On the ten-pattern LaB6 line ramp it reproduced every `hist.<h>.` row's
+    value and esd to the bit; ρ(c₀, c₁) was 0.007 there, the centring's work.
+  - `outside` checks each coordinate's range on its own, so a 2-D point
+    inside both ranges and far from every pattern is not flagged.
 - [ ] **Test each law with the other laws freed** (maintainer, 2026-10-14).
   Beside other laws, a law reads weaker than alone: the cubic line scored
   1.37 per direction at the three-law answer and 1.57 alone.

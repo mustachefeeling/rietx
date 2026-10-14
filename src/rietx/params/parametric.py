@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import linalg
@@ -33,6 +33,7 @@ from ..schemas.parametric import (
     CoordinateTable,
     ParametricCoefficient,
     ParametricFormTest,
+    ParametricLaw,
     ParametricTie,
 )
 
@@ -65,6 +66,8 @@ class ResolvedParametric:
     refit.  ``phi`` is Φ over ``patterns``, row k for ``patterns[k]``;
     ``divisors[j]`` the product of term j's coordinate scales, which turns a
     coefficient in table units into one per unit of the coordinates.
+    ``unit`` is the target's, and ``span`` each polynomial coordinate's lowest
+    and highest value across the subset.
     """
 
     tie: ParametricTie
@@ -73,6 +76,8 @@ class ResolvedParametric:
     labels: list[str]
     divisors: np.ndarray
     units: list[str | None]
+    unit: str | None = None
+    span: dict[str, tuple[float, float]] = field(default_factory=dict)
 
     @property
     def name(self) -> str:
@@ -231,7 +236,9 @@ def resolve_parametric(tie: ParametricTie, coordinates: CoordinateTable | None,
     _refuse_rank_deficient(name, phi, labels, raw, tie)
     return ResolvedParametric(tie=resolved, patterns=patterns, phi=phi, labels=labels,
                               divisors=np.asarray(divisors, dtype=np.float64),
-                              units=units)
+                              units=units, unit=target_unit,
+                              span={c: (float(v.min()), float(v.max()))
+                                    for c, v in raw.items()})
 
 
 def _refuse_centred_mixture(tie: ParametricTie, used: list[str],
@@ -357,6 +364,34 @@ def coefficient_rows(resolved: ResolvedParametric, values: dict[str, float],
             esd=None if esd is None else float(esd) / d,
             vary=bool(vary.get(path, False)), unit=resolved.units[j], reference=ref))
     return out
+
+
+def parametric_law(resolved: ResolvedParametric, rows: list[ParametricCoefficient],
+                   columns: list[int | None], correlation: np.ndarray | None
+                   ) -> ParametricLaw:
+    """One declaration as resolved, with its coefficients' covariance.
+
+    ``rows`` are the declaration's :func:`coefficient_rows`, ``columns`` each
+    coefficient's index in the joint θ (``None`` where it was not free) and
+    ``correlation`` the solve's correlation over θ, which the esds were read
+    off with (``ParameterTable._cov_free``).  Each entry is esd_i·esd_j·ρ_ij
+    with ρ_ii taken as 1, so the diagonal is each row's ``esd`` squared bit
+    for bit, and the correlation carries no unit, so the block is in the
+    rows' units already.  ``None`` when a coefficient has no esd, or when a
+    law of several coefficients has no correlation to pair them with.
+    """
+    esd = [r.esd for r in rows]
+    covariance = None
+    if all(e is not None for e in esd) and all(c is not None for c in columns):
+        m = len(rows)
+        if m == 1:
+            covariance = [[esd[0] * esd[0]]]
+        elif correlation is not None:
+            covariance = [[esd[i] * esd[j] * (1.0 if i == j else
+                                              float(correlation[columns[i], columns[j]]))
+                           for j in range(m)] for i in range(m)]
+    return ParametricLaw(tie=resolved.tie, unit=resolved.unit, span=dict(resolved.span),
+                         covariance=covariance)
 
 
 def target_columns(resolved: ResolvedParametric, bj, free_paths: list[str],

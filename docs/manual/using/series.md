@@ -1714,3 +1714,51 @@ The test has three limits.
   is in doubt, fit it alone.
 - Each declaration is tested at 95 %, so a fit with several rejects a right
   form more often than one time in twenty.
+
+### The law at any coordinate
+
+The coefficients' esds are not enough to evaluate the law between the patterns
+or beyond them, because the coefficients are correlated.
+`RefinementResult.parametric_laws` holds one `ParametricLaw` per declaration,
+with the coefficients' covariance, and is `None` exactly when
+`RefinementResult.parametric` is. `RefinementResult.parametric_value` evaluates
+a law at any coordinate and returns a `ParametricValue`. On the ten-pattern
+LaB6 ramp at 300-1200 K, on its true line:
+
+<!-- api-doc: no-exec — reads a joint fit of the ten-pattern ramp -->
+```python
+print(result.parametric_value("a", {"T": 293.0}))
+```
+
+```text
+a: phases.0.cell.a at T=293 = 4.1564546(18) Å (extrapolating in T; form not rejected)
+```
+
+| Field | Holds |
+|---|---|
+| `ParametricLaw.tie` | the declaration as resolved, with its reference and scale filled in. Pass it back to refit with the same coefficients |
+| `ParametricLaw.unit` | the target's unit, `None` where none is recorded |
+| `ParametricLaw.span` | per coordinate a polynomial uses, the lowest and highest value across the subset |
+| `ParametricLaw.covariance` | the coefficients' covariance in the caller's units, in coefficient order. `None` when a coefficient has no esd |
+
+The diagonal of `ParametricLaw.covariance` is each `ParametricCoefficient.esd`
+squared, exactly. At a pattern's own coordinates the value and esd are that
+pattern's `hist.<h>.` row. On the ramp above the two agreed to the last bit at
+all ten patterns. `ParametricLaw.evaluate` is the same computation, given the
+coefficients and the form test directly.
+
+| Field | Holds |
+|---|---|
+| `ParametricValue.tie`, `ParametricValue.target` | the declaration's name and its target |
+| `ParametricValue.coordinates` | where the law was evaluated, empty for a `constant` law and a design row |
+| `ParametricValue.row` | the design row a `design` law was evaluated at, `None` for the other bases |
+| `ParametricValue.value`, `ParametricValue.esd`, `ParametricValue.unit` | the target there. The esd is `None` when the law has no covariance |
+| `ParametricValue.outside` | the coordinates whose value lies outside the subset's range. `None` for a design row |
+| `ParametricValue.form_rejected` | the declaration's form test verdict, `None` where the form was not tested |
+
+A `design` law has no coordinates. Evaluate it with `row=`, one number per
+coefficient in the units of its design matrix. `ParametricValue.outside` checks
+each coordinate on its own. Over two or more coordinates a point can lie inside
+each range and still be far from every pattern, and the field does not see
+that. The esd assumes the declared form, so read `ParametricValue.form_rejected`
+beside it.

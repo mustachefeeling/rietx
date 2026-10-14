@@ -100,7 +100,9 @@ from .schemas.parametric import (
     CoordinateTable,
     ParametricCoefficient,
     ParametricFormTest,
+    ParametricLaw,
     ParametricTie,
+    ParametricValue,
 )
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
@@ -167,7 +169,9 @@ __all__ = [
     "ParameterRow",
     "ParametricCoefficient",
     "ParametricFormTest",
+    "ParametricLaw",
     "ParametricTie",
+    "ParametricValue",
     "PatternData",
     "PeakList",
     "Phase",

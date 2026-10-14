@@ -24,6 +24,10 @@ round-trip, so a self-driving lab can write one and a result can carry it:
 * :class:`ParametricFormTest` — one declaration's lack-of-fit test on
   :attr:`RefinementResult.parametric_form
   <rietx.schemas.results.RefinementResult.parametric_form>`.
+* :class:`ParametricLaw` — one declaration as resolved, with its
+  coefficients' covariance, on :attr:`RefinementResult.parametric_laws
+  <rietx.schemas.results.RefinementResult.parametric_laws>`; and
+  :class:`ParametricValue`, the law evaluated at a coordinate.
 
 **The reference and scale are stored in the declaration** (patsy's lesson).  A
 polynomial term is evaluated on u = (z − reference)/scale.  Left out, both are
@@ -318,3 +322,134 @@ class ParametricFormTest(Base):
     cut: float | None
     rejected: bool | None
     p_value: float | None
+
+
+class ParametricValue(Base):
+    """One declaration's target evaluated at a coordinate, with its esd.
+
+    :meth:`RefinementResult.parametric_value
+    <rietx.schemas.results.RefinementResult.parametric_value>` builds it from
+    the stored coefficients and their covariance (:class:`ParametricLaw`).
+
+    * ``coordinates`` — where it was evaluated; empty for a ``constant`` law
+      and for a ``design`` row, which is ``row``.
+    * ``value``, ``esd``, ``unit`` — the target there, in its own unit.
+      ``esd`` is ``None`` when a coefficient the point uses has none.
+    * ``outside`` — the coordinates whose value lies outside the range the
+      subset's patterns span, so the value there extrapolates the law.  Empty
+      inside every range.  Over two or more coordinates a point can be inside
+      each range and still far from every pattern, which this does not see.
+      ``None`` for a ``design`` row, whose coordinates the fit never saw.
+    * ``form_rejected`` — the declaration's form test verdict
+      (:class:`ParametricFormTest`), because the esd assumes the form.
+      ``None`` where the form was not tested.
+    """
+
+    tie: str
+    target: str
+    coordinates: dict[str, float]
+    row: list[float] | None
+    value: float
+    esd: float | None
+    unit: str | None
+    outside: list[str] | None
+    form_rejected: bool | None
+
+    def __str__(self) -> str:
+        from .._display import _number
+
+        if self.row is not None:
+            at = f" at row {self.row}"
+        elif self.coordinates:
+            at = " at " + ", ".join(f"{k}={v:g}" for k, v in self.coordinates.items())
+        else:
+            at = ""
+        unit = f" {self.unit}" if self.unit else ""
+        notes = []
+        if self.outside:
+            notes.append(f"extrapolating in {', '.join(self.outside)}")
+        notes.append({True: "form REJECTED", False: "form not rejected",
+                      None: "form not tested"}[self.form_rejected])
+        return (f"{self.tie}: {self.target}{at} = {_number(self.value, self.esd)}"
+                f"{unit} ({'; '.join(notes)})")
+
+
+class ParametricLaw(Base):
+    """One parametric declaration as the fit resolved it, with what a reader
+    needs to evaluate it anywhere (WP-1325).
+
+    * ``tie`` — the declaration with its reference and scale filled in, the
+      form to pass back for a refit or a grown campaign.
+    * ``unit`` — the target's unit, ``None`` where none is recorded.
+    * ``span`` — per coordinate a polynomial uses, the lowest and highest
+      value across the subset; empty for the other bases.
+    * ``covariance`` — the coefficients' covariance in the caller's units at
+      the reference, one row and column per coefficient in
+      ``tie.coefficient_paths()`` order.  It is each pair's correlation from
+      the joint solve times their esds, so its diagonal is each
+      :class:`ParametricCoefficient` ``esd`` squared, bit for bit.  ``None``
+      when a coefficient has no esd, or the solve kept no correlation for a
+      law of several coefficients.
+    """
+
+    tie: ParametricTie
+    unit: str | None
+    span: dict[str, tuple[float, float]]
+    covariance: list[list[float]] | None
+
+    def evaluate(self, coefficients: list[ParametricCoefficient],
+                 form: ParametricFormTest | None = None,
+                 coordinates: dict[str, float] | None = None,
+                 row: list[float] | None = None) -> ParametricValue:
+        """The target at ``coordinates`` (or a ``design`` law's ``row``).
+
+        Σ_j x_j·c_j and √(x·Σ·xᵀ), with c the coefficients in the caller's
+        units and x_j the term's product of (z − reference) per coordinate, so
+        the value at the reference is the intercept.  ``coefficients`` are
+        this law's, in coefficient order; refuses a coordinate set or a row
+        that does not match the basis.
+        """
+        tie = self.tie
+        if len(coefficients) != tie.n_coefficients:
+            raise ValueError(f"law {tie.name!r} has {tie.n_coefficients} coefficients, "
+                             f"got {len(coefficients)}")
+        coordinates = dict(coordinates or {})
+        if tie.basis == "design":
+            if row is None or coordinates:
+                raise ValueError(
+                    f"law {tie.name!r} is a design basis, so it is evaluated at a "
+                    f"design row (row=[…], {tie.n_coefficients} numbers in the "
+                    "units of its design matrix), never at coordinates")
+            if len(row) != tie.n_coefficients:
+                raise ValueError(f"law {tie.name!r} needs a row of "
+                                 f"{tie.n_coefficients} numbers, got {len(row)}")
+            x = [float(v) for v in row]
+            outside = None
+        else:
+            if row is not None:
+                raise ValueError(f"law {tie.name!r} is a {tie.basis} basis: pass "
+                                 "coordinates, never a design row")
+            used = tie.coordinates_used()
+            missing = [c for c in used if c not in coordinates]
+            extra = sorted(set(coordinates) - set(used))
+            if missing or extra:
+                raise ValueError(
+                    f"law {tie.name!r} is evaluated at {used or 'no coordinate'}; "
+                    f"missing {missing}, not used {extra}")
+            for c, v in coordinates.items():
+                _finite(v, f"coordinate {c!r}")
+            ref = tie.reference or {}
+            x = [math.prod(coordinates[c] - ref[c] for c in term)
+                 for term in (tie.terms or [[]])]
+            outside = [c for c in used
+                       if not self.span[c][0] <= coordinates[c] <= self.span[c][1]]
+        value = sum(xj * c.value for xj, c in zip(x, coefficients, strict=True))
+        esd = None
+        if self.covariance is not None:
+            var = sum(x[i] * x[j] * self.covariance[i][j]
+                      for i in range(len(x)) for j in range(len(x)))
+            esd = math.sqrt(max(var, 0.0))
+        return ParametricValue(
+            tie=tie.name, target=tie.target, coordinates=coordinates,
+            row=None if row is None else x, value=value, esd=esd, unit=self.unit,
+            outside=outside, form_rejected=None if form is None else form.rejected)

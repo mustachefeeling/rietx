@@ -65,6 +65,7 @@ from rietx.params.multi import MultiParameterTable, SharingMap
 from rietx.params.parametric import (
     ResolvedParametric,
     coefficient_rows,
+    parametric_law,
     resolve_parametric,
     target_columns,
     term_label,
@@ -457,6 +458,53 @@ def test_coefficients_are_reported_per_unit_of_the_coordinates_at_the_reference(
     assert all(c.esd is None and not c.vary for c in fixed)
 
 
+def test_a_law_evaluates_in_user_units_with_the_covariance_its_esds_came_from():
+    """``parametric_law`` and ``ParametricLaw.evaluate`` without a fit: the
+    table-unit law Φ(u)·c at a coordinate is the user-unit one, and its esd is
+    √(Φ Σ_table Φᵀ) from the correlation the esds were paired by."""
+    r = resolve_parametric(_tie(terms=[[], ["T"], ["T", "T"]]),
+                           _coords(300.0, 500.0, 700.0), 3, target_unit="A")
+    assert (r.unit, r.span) == ("A", {"T": (300.0, 700.0)})
+    table = np.array([4.0, 0.02, 0.004])
+    s = np.array([1e-5, 2e-5, 3e-5])
+    corr = np.array([[1.0, 0.3, -0.6], [0.3, 1.0, 0.1], [-0.6, 0.1, 1.0]])
+    rows = coefficient_rows(r, dict(zip(r.paths, table, strict=True)),
+                            dict(zip(r.paths, s, strict=True)),
+                            dict.fromkeys(r.paths, True))
+    law = parametric_law(r, rows, [0, 1, 2], corr)
+    assert [law.covariance[j][j] for j in range(3)] == [c.esd ** 2 for c in rows]
+    for temp in (300.0, 640.0, 900.0):
+        u = (temp - 500.0) / 200.0
+        phi = np.array([1.0, u, u * u])
+        v = law.evaluate(rows, coordinates={"T": temp})
+        assert v.value == pytest.approx(phi @ table, rel=1e-14)
+        cov = corr * np.outer(s, s)
+        assert v.esd == pytest.approx(np.sqrt(phi @ cov @ phi), rel=1e-12)
+        assert v.outside == ([] if temp <= 700.0 else ["T"])
+        assert v.form_rejected is None and v.unit == "A"
+    # each refusal names what the basis takes
+    with pytest.raises(ValueError, match=r"missing \['T'\]"):
+        law.evaluate(rows, coordinates={})
+    with pytest.raises(ValueError, match="never a design row"):
+        law.evaluate(rows, coordinates={"T": 1.0}, row=[1.0, 0.0, 0.0])
+    # one coefficient without an esd leaves the law with no covariance
+    rows[2] = rows[2].model_copy(update={"esd": None})
+    blind = parametric_law(r, rows, [0, 1, 2], corr)
+    assert blind.covariance is None
+    assert blind.evaluate(rows, coordinates={"T": 500.0}).esd is None
+    # a design law takes its own row, and a single coefficient needs no correlation
+    d = resolve_parametric(_tie(basis="design", terms=None, design=[[1.0], [2.0]]),
+                           None, 2)
+    (dc,) = coefficient_rows(d, {"vars.a_0": 3.0}, {"vars.a_0": 0.5}, {"vars.a_0": True})
+    dlaw = parametric_law(d, [dc], [None], None)
+    assert dlaw.covariance is None              # not free in θ: no column to pair
+    dlaw = parametric_law(d, [dc], [0], None)
+    v = dlaw.evaluate([dc], row=[4.0])
+    assert (v.value, v.esd, v.outside, v.row) == (12.0, 2.0, None, [4.0])
+    with pytest.raises(ValueError, match="evaluated at a design row"):
+        dlaw.evaluate([dc], coordinates={"T": 1.0})
+
+
 # -- the joint fit: a constant declaration is refine_multi -------------------
 
 @pytest.fixture(scope="module")
@@ -527,6 +575,8 @@ def test_a_constant_declaration_is_refine_multi_bit_for_bit(lab6_pair, target, f
     assert all(b[p].laws == ["t"] for p in law_set)
     assert not any(row.laws for row in plain.parameters)
     assert tied.for_histogram(1).parameter(target).laws == ["t"]
+    v = tied.parametric_value("t")
+    assert (v.value, v.esd, v.outside) == (shared.value, shared.stderr, [])
     assert not any(d.code == "PARAMETRIC_TARGET_UNSEEN" for d in tied.diagnostics)
     # the stage that freed the target freed the coefficient in its place
     stage = next(st for st in plain.stages if target in st.freed)
@@ -685,6 +735,29 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
         | {f"hist.{h}.phases.0.cell.{k}" for h in range(10) for k in "abc"})
     assert result.for_histogram(3).parameter("phases.0.cell.a").laws == ["a"]
     assert "<th>laws</th>" in result._repr_html_()
+    # the law's covariance: its diagonal is each esd squared, bit for bit, and
+    # at each pattern's coordinate the law is that pattern's row
+    (law,) = result.parametric_laws
+    intercept, slope = result.parametric
+    assert law.tie == ParametricTie(name="a", target="phases.0.cell.a", basis="polynomial",
+                                    terms=[[], ["T"]], reference={"T": 750.0},
+                                    scale={"T": 450.0})
+    assert law.span == {"T": (300.0, 1200.0)}
+    assert [law.covariance[j][j] for j in range(2)] == [intercept.esd ** 2, slope.esd ** 2]
+    assert law.covariance[0][1] == law.covariance[1][0] != 0.0
+    for h in (0, 4, 9):
+        v = result.parametric_value("a", {"T": float(temps[h])})
+        row = result.parameter(f"hist.{h}.phases.0.cell.a")
+        assert v.value == pytest.approx(row.value, rel=1e-13, abs=0.0)
+        assert v.esd == pytest.approx(row.stderr, rel=1e-9)
+        assert (v.outside, v.form_rejected, v.unit) == ([], rejected, "Å")
+    at_ref = result.parametric_value("a", {"T": 750.0})
+    assert (at_ref.value, at_ref.esd) == (intercept.value, intercept.esd)
+    room = result.parametric_value("a", {"T": 293.0})
+    assert room.outside == ["T"] and room.esd > at_ref.esd
+    assert "extrapolating in T" in str(room)
+    assert rx.RefinementResult.model_validate_json(
+        result.model_dump_json()).parametric_laws == result.parametric_laws
     if not rejected:
         # a single fit records that no law set its rows; a row from before the
         # field reads unrecorded, never "no law"

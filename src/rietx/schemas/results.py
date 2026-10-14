@@ -8,7 +8,12 @@ import numpy as np
 from pydantic import Field, model_validator
 
 from .common import Base, Diagnostic, Mode, Provenance
-from .parametric import ParametricCoefficient, ParametricFormTest
+from .parametric import (
+    ParametricCoefficient,
+    ParametricFormTest,
+    ParametricLaw,
+    ParametricValue,
+)
 from .pattern import _floor_sigma
 
 
@@ -1460,6 +1465,15 @@ class RefinementResult(Base):
     #: ``MultiHistogramRefinement._build_result``.
     parametric_form: list[ParametricFormTest] | None = None
 
+    #: Each parametric declaration as the fit resolved it, with its
+    #: coefficients' covariance in the caller's units, one
+    #: :class:`~rietx.schemas.parametric.ParametricLaw` per declaration in
+    #: declaration order (WP-1325).  :meth:`parametric_value` evaluates one at
+    #: any coordinate.  ``None`` exactly when :attr:`parametric` is, and on a
+    #: result written before schema 0.57.  One writer:
+    #: ``MultiHistogramRefinement._build_result``.
+    parametric_laws: list[ParametricLaw] | None = None
+
     # How many explicit :class:`~rietx.schemas.instrument.HumpComponent` terms
     # this fit declared — the other half of "how flexible was the background":
     # :class:`Identifiability`'s absorption table says what the background could
@@ -1658,6 +1672,31 @@ class RefinementResult(Base):
             if p.path == path:
                 return p
         raise KeyError(path)
+
+    def parametric_value(self, tie: str, coordinates: dict[str, float] | None = None,
+                         *, row: list[float] | None = None) -> ParametricValue:
+        """A parametric law's target at any coordinate, with its esd (WP-1325).
+
+        ``tie`` names the declaration; ``coordinates`` maps each coordinate
+        its polynomial uses to a value, in the coordinate table's units, and a
+        ``design`` law takes a ``row`` instead.  Reads the stored coefficients
+        (:attr:`parametric`), their covariance and the resolved reference
+        (:attr:`parametric_laws`), and the form test (:attr:`parametric_form`),
+        whose verdict rides beside the value because the esd assumes the
+        form.  At a pattern's own coordinates this is that pattern's
+        ``hist.<h>.`` target row, value and esd.
+        """
+        if self.parametric_laws is None:
+            raise ValueError(
+                "this result carries no parametric law to evaluate: it declared "
+                "none, or was written before rietx 1.10")
+        laws = {law.tie.name: law for law in self.parametric_laws}
+        if tie not in laws:
+            raise KeyError(f"no parametric law named {tie!r}; this result has "
+                           f"{sorted(laws)}")
+        coefficients = [c for c in self.parametric or [] if c.tie == tie]
+        form = next((t for t in self.parametric_form or [] if t.tie == tie), None)
+        return laws[tie].evaluate(coefficients, form, coordinates, row)
 
     def _repr_html_(self) -> str:
         """The termination view, then the refined parameters as a table
