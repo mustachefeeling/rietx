@@ -660,7 +660,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # changed where they stood — the pipeline's whole-profile rule, the
     # search-window section (a shift is estimated, never a window) and the
     # ``predicted_but_absent`` bullet (caps; the superset check refutes).
-    # The measurements stayed in the C3 record.  Landed at 361, no headroom.
+    # The measurements stayed in #941's Acceptance table.  Landed at 361, no headroom.
     "src/rietx/indexing/CLAUDE.md": 361,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather
