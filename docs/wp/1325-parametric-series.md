@@ -590,6 +590,39 @@ Where a kernel over measurement coordinates has paid most is in choosing
   parameter): REML on the trajectory fails in the weak regime, and at good
   hyperparameters the kernel bought intervals, not accuracy. Not built.
 
+### Measured: scaling (2026-10-14)
+
+`1325-measure/scaling.py`, output in `1325-measure/scaling_results.txt`.
+
+**Setup.**
+- Synthetic LaB₆ library at 3 000 points per pattern.
+- The cell is a `polynomial` over (x, y), and each pattern has its own zero,
+  profile and background.
+- Linux x86_64, 4 CPUs, 15.7 GiB, no swap, `[dev]`, nothing else running.
+- Each case ran in a subprocess.
+
+| N | layout | columns | fit wall | peak RSS | coefficients vs truth |
+|---|---|---|---|---|---|
+| 10 | dense | 104 | 2.2-2.7 s | 0.24 GiB | |
+| 10 | blocked | 104 | 1.3-1.4 s | 0.17 GiB | \|z\| ≤ 1.05 |
+| 70 | dense | 704 | 63-68 s | 3.09 GiB | |
+| 70 | blocked | 704 | 10.3-10.6 s | 0.29 GiB | \|z\| ≤ 0.83 |
+| 300 | dense | 3004 | not run: J alone 20.1 GiB | | |
+| 300 | blocked | 3004 | 48.2-48.6 s | 1.00 GiB | \|z\| ≤ 0.79 |
+
+**What it says.**
+- **Where dense stops.** J alone passes RAM at N = 265. A dense fit peaks at
+  2.66× J (measured at N = 70), so it fits up to about N ≈ 161 on this
+  machine (extrapolated, not run).
+- **Blocked is the faster path from N = 10 up.** Blocked against dense, its
+  coefficients agree to 6.8e-9 esd at N = 10 and 1.6e-8 esd at N = 70.
+- **The blocked path's own limit is its n×n arrays.** N = 300 peaked at
+  about 11 such arrays, which puts the limit near 1 400 patterns
+  (extrapolated).
+- **The next cost is the serial per-histogram Jacobian loop**, at 45 % of
+  the N = 300 fit. The step is 4 %, normal equations 1.8 s and the
+  covariance 3.3 s.
+
 ### What the code has (survey, 2026-10-14)
 
 - **`multi.py` is the seam: N patterns, one θ** (WP-0308).
@@ -746,7 +779,7 @@ Where a kernel over measurement coordinates has paid most is in choosing
   `refine_multi` when the basis is `constant`. Landed, and bit-identical (θ,
   esds, statistics and y_calc `==`): a coefficient takes its target's column
   slot, box and unit. The release (`_rehold_multi`) reads the reach too.
-- [ ] **Scalable solver, the step.** A block-structured joint Jacobian (per
+- [x] **Scalable solver, the step.** A block-structured joint Jacobian (per
   histogram: its rows against its own columns, plus its rows against the
   shared columns), never assembled dense. Two routes to decide between by
   measurement:
@@ -758,14 +791,34 @@ Where a kernel over measurement coordinates has paid most is in choosing
   Equivalence bar against the dense path at N ≤ 20: the step to WP-1125's
   6.6e-7 relative with no bound active, and the converged answer within
   0.01 esd.
-- [ ] **Scalable solver, the covariance.** The shared coefficients'
+
+  Landed as route (i):
+  - `optimize/blocked.py` `BlockJacobian` holds one block per histogram,
+    against its own columns;
+  - `lm._normal_equations` scatters A and b block by block into a dense n×n
+    A, and the BVLS / projected-CG step is unchanged;
+  - `blocked.choose_layout` picks blocked once the dense J would pass
+    `DENSE_JACOBIAN_MAX_BYTES` (256 MiB), and `set_layout` forces either;
+  - `LSQOutcome.jacobian_layout` records which ran.
+
+  Measured: the step agrees to 2e-12 (BVLS) and 3.8e-8-7.2e-8 (projected CG),
+  and the converged answer to ≤ 6.4e-6 esd. Route (ii) is not needed: at
+  N = 300 the step is 4 % of the fit and the serial Jacobian loop is 45 %
+  (§ Measured: scaling).
+- [x] **Scalable solver, the covariance.** The shared coefficients'
   covariance from the reduced (Schur) matrix, equilibrated first. Each
   histogram's own esds from its diagonal block of the full inverse,
   Σ_LL = H_LL⁻¹ + H_LL⁻¹·H_LG·S⁻¹·H_GL·H_LL⁻¹. Unmeasured rows marked through
-  each table's reach (WP-1110 item 14's rule).
-- [ ] **Scaling measured**: memory and wall clock at N = 10, 70, 300 on a
+  each table's reach (WP-1110 item 14's rule). Landed in `blocked.py`:
+  - equilibrated first;
+  - a PSD pseudo-inverse per own block, then the Schur complement;
+  - the cut is `PINV_RCOND`·λmax of the whole matrix, applied per block.
+
+  Returned dense n×n, because every consumer indexes by θ's columns. Esds
+  agree with the dense covariance to ≤ 3.7e-12 relative at one point.
+- [x] **Scaling measured**: memory and wall clock at N = 10, 70, 300 on a
   synthetic library, dense against blocked. State where dense stops being
-  possible on the measuring machine.
+  possible on the measuring machine. § Measured: scaling.
 - [x] esds of the coefficients in user units at the reference, marked
   unmeasured where no pattern in the subset contributes gradient. Landed as
   `RefinementResult.parametric` (schema 0.55).
@@ -786,10 +839,15 @@ Where a kernel over measurement coordinates has paid most is in choosing
   - `parameterisation.md` § the same, with `{eq}par-parametric` and
     `{eq}par-parametric-units`;
   - the 28 names left `api_surface_deferred.txt`.
-- [ ] Tests: a synthetic ramp with a known a(T) (a₁ within one esd of truth,
+- [x] Tests: a synthetic ramp with a known a(T) (a₁ within one esd of truth,
   and the esd no larger than the trajectory-line's); a synthetic library
   with a known 2-D surface over ≥ 100 patterns, through the blocked solver.
-  obs/calc/diff PNGs to `tests/output/`.
+  obs/calc/diff PNGs to `tests/output/`. Both are `slow` in
+  `tests/test_parametric_series.py`:
+  - the ramp: a₁ at z = 0.30, esd 0.39× the line's with the instrument
+    shared;
+  - a 120-pattern (x, y) library, blocked by the size rule, coefficient z
+    within 1.2.
 - [x] Skill: the series reference's routing row for "a parameter as a
   function of composition or temperature across patterns", or "none" and why.
   Landed as one row in `references/series.md`, with measured tags. No

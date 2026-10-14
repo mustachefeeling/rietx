@@ -64,9 +64,11 @@ TEMPERATURES = [300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0]
 
 
 def _simulate(a: float, *, seed: int, biso: float = 0.4,
-              scale: float = TRUE_SCALE) -> rx.PatternData:
+              scale: float = TRUE_SCALE, tt_max: float = 24.0) -> rx.PatternData:
     """One pattern of the series at cell edge ``a``, with Poisson noise.
-    ``scale=0`` is a blank frame: the background and its noise alone."""
+    ``scale=0`` is a blank frame: the background and its noise alone.
+    ``tt_max`` ends the 0.005° grid begun at 3°: 18.0 gives the 3 000 points a
+    synthetic library uses (WP-1325's solver measurements)."""
     structure = make_lab6()
     for name in ("a", "b", "c"):
         getattr(structure.phases[0].cell, name).value = a
@@ -79,7 +81,7 @@ def _simulate(a: float, *, seed: int, biso: float = 0.4,
     ins.background = BackgroundChebyshev(
         coefficients=[Parameter(value=v) for v in TRUE_BKG])
 
-    tt = np.arange(3.0, 24.0, 0.005)
+    tt = np.arange(3.0, tt_max, 0.005)
     blank = rx.PatternData(two_theta=tt.tolist(),
                            intensity=np.zeros_like(tt).tolist())
     model = compile_model(structure, ins, blank, mode="rietveld")

@@ -59,6 +59,14 @@ PINV_RCOND = 1e-15
 COLUMN_SAFE_EXPONENT = 400
 
 
+def _is_blocked(jac) -> bool:
+    """Whether ``jac`` is a joint fit's :class:`~.blocked.BlockJacobian`, read
+    without importing it here (it imports this module)."""
+    from .blocked import BlockJacobian
+
+    return isinstance(jac, BlockJacobian)
+
+
 def column_rescale(jac: np.ndarray) -> np.ndarray | None:
     """Exact power-of-two factors bringing out-of-range columns back, or ``None``.
 
@@ -76,7 +84,14 @@ def column_rescale(jac: np.ndarray) -> np.ndarray | None:
     brings each far one's largest entry to [0.5, 1), capped at 2¹⁰²³ so that a
     subnormal column is lifted rather than sent to ``inf``.  A zero column has
     no scale to fix and keeps 1.
+
+    A joint fit's :class:`~.blocked.BlockJacobian` takes the same factors,
+    read block by block (WP-1325).
     """
+    if _is_blocked(jac):
+        from .blocked import column_rescale as blocked_rescale
+
+        return blocked_rescale(jac)
     jac = np.asarray(jac)
     if jac.shape[0] == 0:
         return None
@@ -97,8 +112,13 @@ def column_norms(jac: np.ndarray) -> np.ndarray:
 
     Bit-identical to the plain norm whenever :func:`column_rescale` has nothing
     to do.  Otherwise each far column is normed after its power-of-two rescale
-    and divided back, which is exact.
+    and divided back, which is exact.  Block by block for a joint fit's
+    :class:`~.blocked.BlockJacobian` (WP-1325).
     """
+    if _is_blocked(jac):
+        from .blocked import column_norms as blocked_norms
+
+        return blocked_norms(jac)
     s = column_rescale(jac)
     if s is None:
         return np.linalg.norm(jac, axis=0)
@@ -124,7 +144,15 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     caller wanting the esd forms ``(1/d)·√K`` and never the variance.
     ``1/d`` is 0 on a gradient-free column, and ``chi2_red`` is the raw
     Σr²/(N−P).  See :func:`normal_covariance` for everything else.
+
+    A joint fit's :class:`~.blocked.BlockJacobian` takes the same contract
+    through the Schur complement of its arrow (:func:`.blocked.normal_factors`,
+    WP-1325), never one pseudo-inverse of the whole matrix.
     """
+    if _is_blocked(jac):
+        from .blocked import normal_factors as blocked_factors
+
+        return blocked_factors(jac, resid, n_free, chi2_floor=chi2_floor, what=what)
     require_fp64(resid, what)
     jac = to_host_fp64(jac)
     s = column_rescale(jac)
@@ -213,8 +241,14 @@ def discarded_directions(jac: np.ndarray) -> tuple[int, np.ndarray]:
     defined only up to a rotation inside it and the projector is not.  Jacobi
     scaling is shared with :func:`normal_factors`, so a column's units do not
     enter.  The matrix is rebuilt here, not returned by :func:`normal_factors`,
-    whose signature and bits stay as they were: one more ``eigh``.
+    whose signature and bits stay as they were: one more ``eigh``.  A joint
+    fit's :class:`~.blocked.BlockJacobian` is read on its blocked covariance's
+    own discards (:func:`.blocked.discarded_directions`, WP-1325).
     """
+    if _is_blocked(jac):
+        from .blocked import discarded_directions as blocked_discarded
+
+        return blocked_discarded(jac)
     jac = to_host_fp64(jac)
     s = column_rescale(jac)
     if s is not None:

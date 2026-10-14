@@ -32,6 +32,7 @@ from .history.events import _attach_progress, as_event_stream
 from .model.components import EXTRA_TICK_KEY
 from .model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from .model.microstructure import microstructure_table
+from .optimize.blocked import BlockJacobian
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import (
     DEFAULT_SOLVER,
@@ -1581,7 +1582,10 @@ class MultiHistogramRefinement:
             diags: list[Diagnostic] = []
             j0, j1 = data_off[h], data_off[h] + n_data[h]
             if outcome.jac is not None and len(table.free_paths) > 1:
-                jh = np.asarray(outcome.jac)[j0:j1][:, cm]
+                # this histogram's rows against its own columns: a slice of the
+                # dense matrix, or its block where the solve kept them (WP-1325)
+                jh = (outcome.jac.block(h) if isinstance(outcome.jac, BlockJacobian)
+                      else np.asarray(outcome.jac)[j0:j1][:, cm])
                 screened = background_absorption(
                     jh, table.free_paths, model.peak_component_prefixes())
                 # every screened pair, kept as evidence beside the verdicts

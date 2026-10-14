@@ -13,9 +13,17 @@ What is checked here, and on what:
 * the claim that a ``constant`` declaration **is** ``refine_multi`` with the
   target shared, bit for bit, on the two-wavelength LaB6 pair of
   ``test_multi_histogram``;
-* and (slow) a ten-pattern LaB6 ramp with a known a(T), whose parametric
+* (slow) a ten-pattern LaB6 ramp with a known a(T), whose parametric
   slope must land within one esd of the truth with an esd no larger than the
-  weighted trajectory line's.
+  weighted trajectory line's;
+* the blocked joint Jacobian (``optimize/blocked.py``) against the dense one:
+  the matrix entry for entry, the LM step to WP-1125's 6.6e-7 relative with
+  no bound active (both step solvers), the converged answer within 0.01 esd,
+  the Schur covariance against the dense pseudo-inverse (equilibration,
+  gradient-free and far-scaled columns, discarded directions), the moment
+  test's refit, and the layout rule;
+* and (slow) a synthetic library with a known 2-D surface a(x, y) over 120
+  patterns, solved through the blocked path the size rule picks.
 """
 
 from __future__ import annotations
@@ -29,6 +37,7 @@ from pydantic import ValidationError
 
 import rietx as rx
 from rietx.model import compiled
+from rietx.model.forward import compile_model
 from rietx.multi import (
     MultiHistogramRefinement,
     _joint_fixed_literals,
@@ -36,6 +45,17 @@ from rietx.multi import (
     _unsupported_paths_multi,
     refine_multi,
 )
+from rietx.optimize import blocked, lm
+from rietx.optimize.blocked import BlockJacobian
+from rietx.optimize.least_squares import (
+    _multi_closures,
+    _refitted_increase,
+    _residual_cosine,
+    covariance_estimates,
+    rechart_outcome,
+    run_multi_least_squares,
+)
+from rietx.optimize.statistics import column_norms, column_rescale, discarded_directions
 from rietx.params.multi import MultiParameterTable, SharingMap
 from rietx.params.parametric import (
     ResolvedParametric,
@@ -564,3 +584,357 @@ def test_a_parametric_slope_recovers_a_known_expansion_within_its_esd():
     line_cov = np.linalg.inv(x.T @ (w[:, None] * x))
     assert slope.esd <= np.sqrt(line_cov[1, 1]), (slope.esd, np.sqrt(line_cov[1, 1]))
     assert abs(float((line_cov @ x.T @ (w * a))[1]) - truth) < 3 * np.sqrt(line_cov[1, 1])
+
+
+# -- the blocked joint Jacobian (WP-1325's scalable solver) -------------------
+
+#: the synthetic library's known surface: a(x, y) = A0·(1 + Σ p·term), the
+#: terms of :data:`LIBRARY_TERMS`, x and y the position on a [0, 1]² wafer
+LIBRARY_SURFACE = {"x": 2.0e-3, "y": 1.5e-3, "x*y": 1.0e-3}
+LIBRARY_TERMS = [[], ["x"], ["y"], ["x", "y"]]
+#: what ``mccusker_default`` frees, as one stage: each pattern's ten own
+#: columns (scale, three background terms, zero, U, V, W, X, Y) beside the
+#: four shared coefficients
+LIBRARY_GLOBS = ["phases.*.scale", "instrument.background.*", "instrument.zero_shift",
+                 "phases.*.cell.*", "instrument.profile.*"]
+
+
+def library(n: int, *, seed: int = 0, tt_max: float = 18.0):
+    """``n`` LaB6 patterns at random wafer positions, the cell on the known
+    surface: ``(patterns, coordinates, tie)``.  ``tests/test_sequential``'s
+    ``_simulate`` (λ = 0.4139 Å, Poisson noise), 3 000 points at the default
+    ``tt_max``; ``docs/wp/1325-measure/scaling.py`` builds its libraries here.
+    """
+    from tests.test_sequential import A0, _simulate
+
+    rng = np.random.default_rng(seed)
+    x, y = rng.uniform(0.0, 1.0, size=(2, n))
+    p = LIBRARY_SURFACE
+    a = A0 * (1.0 + p["x"] * x + p["y"] * y + p["x*y"] * x * y)
+    patterns = [_simulate(float(a[k]), seed=100_000 * seed + k, tt_max=tt_max)
+                for k in range(n)]
+    coords = CoordinateTable(columns={"x": x.tolist(), "y": y.tolist()})
+    tie = ParametricTie(name="a", target="phases.0.cell.a", basis="polynomial",
+                        terms=LIBRARY_TERMS)
+    return patterns, coords, tie
+
+
+def library_truth(reference: dict[str, float]) -> dict[str, float]:
+    """The surface's coefficients about ``reference``, per unit of x and y —
+    the expansion of :data:`LIBRARY_SURFACE` in (x − x_r), (y − y_r), which is
+    how ``RefinementResult.parametric`` reports them."""
+    from tests.test_sequential import A0
+
+    p, xr, yr = LIBRARY_SURFACE, reference["x"], reference["y"]
+    return {"1": A0 * (1.0 + p["x"] * xr + p["y"] * yr + p["x*y"] * xr * yr),
+            "x": A0 * (p["x"] + p["x*y"] * yr), "y": A0 * (p["y"] + p["x*y"] * xr),
+            "x*y": A0 * p["x*y"]}
+
+
+class _Probe(MultiHistogramRefinement):
+    """Keeps the last stage's solver outcome, which the result does not carry."""
+
+    def _build_result(self, models, outcome, *args, **kwargs):
+        self.outcome_ = outcome
+        return super()._build_result(models, outcome, *args, **kwargs)
+
+
+_PROBLEMS: dict[int, tuple] = {}
+
+
+def _library_problem(n: int):
+    """A compiled ``n``-pattern library with every column of the last stage
+    free: ``(mtable, models)``, 1 400 points a pattern, built once."""
+    if n not in _PROBLEMS:
+        from tests.test_sequential import _start_models
+
+        patterns, coords, tie = library(n, tt_max=10.0)
+        s, ins = _start_models()
+        mt = MultiParameterTable(s, [ins] * n, coordinates=coords, parametric=[tie])
+        mt.set_vary(["*"], False)
+        mt.set_vary(LIBRARY_GLOBS, True)
+        mt.apply_to_models()
+        models = [compile_model(mt.structures[h], mt.instruments[h], patterns[h],
+                                mode="rietveld") for h in range(n)]
+        _PROBLEMS[n] = (mt, models)
+    return _PROBLEMS[n]
+
+
+def _random_arrow(seed: int, *, n_blocks: int = 5, rows: int = 60, n_shared: int = 3,
+                  n_own: int = 4, n_pen=(0, 2, 0, 1, 0)) -> BlockJacobian:
+    """A random joint Jacobian in blocks, columns in units spanning six
+    decades and each block's columns in a shuffled (table) order."""
+    rng = np.random.default_rng(seed)
+    n = n_shared + n_blocks * n_own
+    units = 10.0 ** rng.uniform(-3.0, 3.0, size=n)
+    blocks, maps = [], []
+    for h in range(n_blocks):
+        cm = np.concatenate([np.arange(n_shared), n_shared + h * n_own + np.arange(n_own)])
+        cm = cm[rng.permutation(len(cm))]
+        blocks.append(rng.standard_normal((rows + n_pen[h], len(cm))) * units[cm])
+        maps.append(cm)
+    return BlockJacobian(blocks, maps, [rows] * n_blocks, list(n_pen), n)
+
+
+def _own(bj: BlockJacobian, h: int, n_shared: int = 3) -> np.ndarray:
+    """Block ``h``'s own columns, as positions in that block."""
+    return np.flatnonzero(bj.col_maps[h] >= n_shared)
+
+
+def test_the_layout_follows_the_dense_size_unless_forced():
+    rows = blocked.DENSE_JACOBIAN_MAX_BYTES // (8 * 100)
+    assert blocked.choose_layout(rows, 100, "lm") == "dense"
+    assert blocked.choose_layout(rows + 1, 100, "lm") == "blocked"
+    # TRF factorises the dense matrix itself: past the size it says what it costs
+    with pytest.warns(RuntimeWarning, match="has no blocked path"):
+        assert blocked.choose_layout(rows + 1, 100, "trf") == "dense"
+    was = blocked.set_layout("blocked")
+    try:
+        assert blocked.choose_layout(10, 3, "lm") == "blocked"
+        with pytest.raises(ValueError, match="only by solver='lm'"):
+            blocked.choose_layout(10, 3, "trf")
+        assert blocked.set_layout("dense") == "blocked"
+        assert blocked.choose_layout(rows + 1, 100, "lm") == "dense"
+    finally:
+        blocked.set_layout(was)
+    with pytest.raises(ValueError, match="unknown Jacobian layout"):
+        blocked.set_layout("sparse")
+    with pytest.raises(ValueError, match="unknown Jacobian layout"):
+        _multi_closures([], None, layout="sparse")
+
+
+def test_a_block_jacobian_is_the_dense_one_entry_for_entry():
+    """The same entries, never scattered: every reader of the blocks reads
+    what it read off the dense matrix, to the bit where nothing is summed and
+    to rounding where a sum over rows is taken per block."""
+    mt, models = _library_problem(6)
+    weights = [1.0 + 0.25 * h for h in range(6)]
+    residual, dense, n_data = _multi_closures(models, mt, weights=weights)
+    _, blocks, _ = _multi_closures(models, mt, weights=weights, layout="blocked")
+    x = mt.x0()
+    J, bj = dense(x), blocks(x)
+    assert isinstance(bj, BlockJacobian) and bj.shape == J.shape
+    assert np.array_equal(bj.toarray(), J)
+    assert np.array_equal(bj.data_rows().toarray(), J[:n_data])
+    off = np.concatenate([[0], np.cumsum([len(m.tt) for m in models])])
+    for h in range(6):
+        assert np.array_equal(bj.block(h), J[off[h]:off[h + 1]][:, mt.col_map(h)])
+    r = residual(x)
+    absj = np.abs(J)
+    A, g = lm._normal_equations(bj, r)
+    assert np.all(np.abs(A - J.T @ J) <= 1e-13 * (absj.T @ absj))
+    assert np.all(np.abs(g + J.T @ r) <= 1e-13 * (absj.T @ np.abs(r)))
+    assert np.all(np.abs(bj.rmatvec(r) - J.T @ r) <= 1e-13 * (absj.T @ np.abs(r)))
+    assert column_rescale(bj) is None and column_rescale(J) is None
+    np.testing.assert_allclose(column_norms(bj), np.linalg.norm(J, axis=0), rtol=1e-14)
+    np.testing.assert_allclose(_residual_cosine(bj, r), _residual_cosine(J, r),
+                               rtol=0, atol=1e-13)
+    gone = [0, int(mt.col_map(2)[-1])]
+    assert np.array_equal(bj.without_columns(gone).toarray(),
+                          np.where(np.isin(np.arange(J.shape[1]), gone), 0.0, J))
+
+
+def test_a_chart_moves_a_block_jacobian_as_it_moves_the_dense_one():
+    from rietx.optimize.least_squares import LSQOutcome
+
+    bj = _random_arrow(11)
+    J = bj.toarray()
+    signs = np.where(np.arange(bj.n_cols) % 3 == 0, -1.0, 1.0)
+    assert np.array_equal(bj.scaled_columns(signs).toarray(), J * signs)
+    t = np.eye(bj.n_cols)
+    t[0, 1], t[2, 0] = 0.3, -0.2                 # shared columns among themselves
+    own = bj.col_maps[1][_own(bj, 1)]
+    t[own[0], own[1]] = 0.5                      # one block's own among themselves
+    np.testing.assert_allclose(bj.matmul_chart(t).toarray(), J @ t,
+                               rtol=0, atol=1e-13 * np.abs(J).max())
+    t[own[0], bj.col_maps[2][_own(bj, 2)][0]] = 1.0
+    with pytest.raises(ValueError, match="no block form"):
+        bj.matmul_chart(t)
+    theta = np.zeros(bj.n_cols)
+    out = rechart_outcome(
+        LSQOutcome(theta, 0.0, 0.0, 0, "converged", bj, None, None,
+                   residual_cosine=np.full(bj.n_cols, 0.1)), theta, signs)
+    assert np.array_equal(out.jac.toarray(), J * signs)
+
+
+@pytest.mark.parametrize("n", [6, 14], ids=["bvls", "projected-cg"])
+def test_the_blocked_step_is_the_dense_step(n):
+    """WP-1125's 6.6e-7 relative, on the first accepted points of a real
+    joint fit, with no bound active and on both step solvers: BVLS at 64
+    columns, projected CG at 144 (above ``BVLS_MAX_COLUMNS``).  Measured
+    2e-12 and 7.2e-8: the projected CG stops at 1e-10 of its gradient, so its
+    step carries that tolerance times the conditioning, not A's rounding."""
+    mt, models = _library_problem(n)
+    residual, dense, _ = _multi_closures(models, mt)
+    _, blocks, _ = _multi_closures(models, mt, layout="blocked")
+    assert (len(mt.free_paths) > lm.BVLS_MAX_COLUMNS) == (n == 14)
+    lo, hi = mt.bounds()
+    points: list[np.ndarray] = []
+    lm.minimize(residual, dense, mt.x0(), lo=lo, hi=hi, max_nfev=6,
+                callback=lambda x, cost: points.append(x.copy()))
+    assert len(points) >= 2
+    free = np.full(len(mt.free_paths), np.inf)
+    worst = 0.0
+    for x in [mt.x0(), *points[:3]]:
+        r = residual(x)
+        A_d, b_d = lm._normal_equations(dense(x), r)
+        A_b, b_b = lm._normal_equations(blocks(x), r)
+        for lam in (0.0, 1e-3, 1.0):
+            step_d, side_d = lm._solve_step(A_d, b_d, lam, x, -free, free, n_rows=len(r))
+            step_b, side_b = lm._solve_step(A_b, b_b, lam, x, -free, free, n_rows=len(r))
+            assert not side_d.any() and not side_b.any()
+            worst = max(worst, float(np.linalg.norm(step_b - step_d)
+                                     / np.linalg.norm(step_d)))
+    assert worst <= 6.6e-7, worst
+
+
+@pytest.mark.xdist_group("parametric-series")
+@pytest.mark.parametrize("n", [6, 14], ids=["bvls", "projected-cg"])
+def test_a_blocked_fit_lands_on_the_dense_answer(n):
+    """The item's bar: every free parameter within 0.01 esd of the dense
+    path's answer, forced each way (measured ≤ 6.4e-6 esd at 6-20 patterns).
+    The esds to 1e-3 relative: the two answers are two stopping points, and
+    the esd read at each moved up to 3.8e-5 between them (14 patterns), where
+    at one point the two covariances agree to 4e-12 (the tests below)."""
+    from tests.test_sequential import _start_models
+
+    patterns, coords, tie = library(n, tt_max=10.0)
+    results, layouts = {}, {}
+    for layout in blocked.LAYOUTS:
+        was = blocked.set_layout(layout)
+        try:
+            s, ins = _start_models()
+            ref = _Probe(s, [ins] * n, coordinates=coords, parametric=[tie])
+            results[layout] = ref.fit(patterns, plan="mccusker_default")
+        finally:
+            blocked.set_layout(was)
+        layouts[layout] = ref.outcome_.jacobian_layout
+    assert layouts == {"dense": "dense", "blocked": "blocked"}
+    dense, block = results["dense"], results["blocked"]
+    assert dense.status == block.status == "converged"
+    rows = {p.path: p for p in block.parameters}
+    measured = [p for p in dense.parameters if p.stderr]
+    assert {p.path for p in measured} == {p.path for p in block.parameters if p.stderr}
+    for p in measured:
+        q = rows[p.path]
+        assert abs(q.value - p.value) <= 0.01 * p.stderr, p.path
+        assert q.stderr == pytest.approx(p.stderr, rel=1e-3), p.path
+    for a, b in zip(dense.parametric, block.parametric, strict=True):
+        assert abs(a.value - b.value) <= 0.01 * a.esd
+    assert {d.code for d in block.diagnostics} == {d.code for d in dense.diagnostics}
+    assert block.statistics.rwp == pytest.approx(dense.statistics.rwp, rel=1e-9)
+
+
+@pytest.mark.parametrize("case", ["plain", "gradient-free", "far-scaled"])
+def test_the_schur_covariance_is_the_dense_pseudo_inverse(case):
+    """Equilibrated first, then the Schur form; a gradient-free column comes
+    back at infinite variance and no correlation, a column at 1e-170 at the
+    esd its rescale (WP-1463) gives the dense path, and the esds and
+    correlations agree to 1e-10."""
+    bj = _random_arrow(3)
+    if case == "gradient-free":
+        bj = bj.without_columns([1, int(bj.col_maps[3][_own(bj, 3)][0])])
+    elif case == "far-scaled":
+        f = np.ones(bj.n_cols)
+        f[[2, 9]] = 1e-170
+        bj = bj.scaled_columns(f)
+        np.testing.assert_array_equal(column_rescale(bj), column_rescale(bj.toarray()))
+    r = np.random.default_rng(4).standard_normal(bj.shape[0])
+    n_data = sum(bj.n_data)
+    esd_b, corr_b = covariance_estimates(bj, r, bj.n_cols, n_data=n_data)
+    esd_d, corr_d = covariance_estimates(bj.toarray(), r, bj.n_cols, n_data=n_data)
+    finite = np.isfinite(esd_d)
+    assert np.array_equal(finite, np.isfinite(esd_b))
+    assert finite.sum() == bj.n_cols - (2 if case == "gradient-free" else 0)
+    np.testing.assert_allclose(esd_b[finite], esd_d[finite], rtol=1e-10)
+    np.testing.assert_allclose(corr_b, corr_d, rtol=0, atol=1e-10)
+
+
+def test_a_joint_covariance_at_a_real_point_is_the_dense_one():
+    """The same at the start of a real library fit, χ² and the Bérar-Lelann
+    factor included."""
+    mt, models = _library_problem(6)
+    residual, dense, n_data = _multi_closures(models, mt)
+    _, blocks, _ = _multi_closures(models, mt, layout="blocked")
+    x = mt.x0()
+    r = residual(x)
+    esd_b, corr_b = covariance_estimates(blocks(x), r, len(x), n_data=n_data)
+    esd_d, corr_d = covariance_estimates(dense(x), r, len(x), n_data=n_data)
+    np.testing.assert_allclose(esd_b, esd_d, rtol=1e-10)
+    np.testing.assert_allclose(corr_b, corr_d, rtol=0, atol=1e-10)
+
+
+@pytest.mark.parametrize("where", ["own", "shared"])
+def test_a_flat_direction_is_discarded_where_the_dense_solve_discards_it(where):
+    """Two columns made one, inside one block's own columns or across the
+    border in every block: one discarded direction, touching the same two
+    columns, read on the blocks as on the dense matrix (WP-1535)."""
+    bj = _random_arrow(5)
+    assert discarded_directions(bj)[0] == discarded_directions(bj.toarray())[0] == 0
+    blocks = [b.copy() for b in bj.blocks]
+    if where == "own":
+        a, b = _own(bj, 2)[:2]
+        blocks[2][:, b] = 2.0 * blocks[2][:, a]
+        pair = {int(bj.col_maps[2][a]), int(bj.col_maps[2][b])}
+    else:
+        for h, blk in enumerate(blocks):
+            cm = list(bj.col_maps[h])
+            blk[:, cm.index(1)] = -3.0 * blk[:, cm.index(0)]
+        pair = {0, 1}
+    flat = BlockJacobian(blocks, bj.col_maps, bj.n_data, bj.n_pen, bj.n_cols)
+    n_d, touched_d = discarded_directions(flat.toarray())
+    n_b, touched_b = discarded_directions(flat)
+    assert n_b == n_d == 1
+    assert set(touched_b.tolist()) == set(touched_d.tolist()) == pair
+
+
+def test_the_moment_tests_refit_is_the_dense_refit():
+    """``_refitted_increase`` by eliminating each block's own columns."""
+    bj = _random_arrow(7).data_rows()
+    rng = np.random.default_rng(8)
+    r_stop, r_point = rng.standard_normal((2, bj.shape[0]))
+    for angles in ([0], [2, int(bj.col_maps[1][_own(bj, 1)][0])]):
+        want = _refitted_increase(bj.toarray(), angles, r_stop, r_point)
+        assert _refitted_increase(bj, angles, r_stop, r_point) == pytest.approx(
+            want, rel=1e-9)
+
+
+def test_a_joint_solve_records_which_layout_it_took():
+    """Dense below the size, by default, so every joint golden keeps its bits;
+    forced blocked, the same stage on blocks."""
+    mt, models = _library_problem(6)
+    outcome = run_multi_least_squares(models, mt, max_iter=2)
+    assert outcome.jacobian_layout == "dense" and isinstance(outcome.jac, np.ndarray)
+    was = blocked.set_layout("blocked")
+    try:
+        outcome = run_multi_least_squares(models, mt, max_iter=2)
+    finally:
+        blocked.set_layout(was)
+    assert outcome.jacobian_layout == "blocked"
+    assert isinstance(outcome.jac, BlockJacobian) and outcome.jac.n_pen == [0] * 6
+
+
+@pytest.mark.slow
+def test_a_library_surface_over_a_hundred_patterns_through_the_blocked_solver():
+    """120 patterns, a(x, y) on a known 2-D surface, ten own columns a pattern
+    beside four shared coefficients.  Its dense Jacobian would be 2.9 GB, so
+    the size rule takes the blocked path unasked."""
+    from tests.test_sequential import _start_models
+
+    n = 120
+    patterns, coords, tie = library(n)
+    s, ins = _start_models()
+    ref = _Probe(s, [ins] * n, coordinates=coords, parametric=[tie])
+    result = ref.fit(patterns, plan="mccusker_default")
+    OUT.mkdir(exist_ok=True)
+    for h in (0, n - 1):
+        result.for_histogram(h).plot(OUT / f"parametric_library_h{h}.png")
+    assert ref.outcome_.jacobian_layout == "blocked"
+    assert blocked.dense_jacobian_bytes(3000 * n, 4 + 10 * n) > (
+        blocked.DENSE_JACOBIAN_MAX_BYTES)
+    assert result.status == "converged"
+    assert [c.term for c in result.parametric] == ["1", "x", "y", "x*y"]
+    truth = library_truth(result.parametric[0].reference)
+    for c in result.parametric:
+        assert abs(c.value - truth[c.term]) < 3.0 * c.esd, (c.term, c.value, c.esd,
+                                                            truth[c.term])
