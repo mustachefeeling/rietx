@@ -49,6 +49,12 @@ chain on the same data is reported as a range, never gated.
 
 ### Inherited
 
+- **2026-10-14 (review), from [1325](1325-parametric-series.md): the
+  critical-exponent law has a WP of its own.** m ∝ (1 − T/T_N)^β was fenced
+  with `Parameter.expr` (WP-1119). [1964](1964-a-nonlinear-law-through-the-derived-block.md)
+  now owns laws nonlinear in their coefficients, built on WP-1804's derived
+  block, and names this moment as a use case. Until it lands, the entry below
+  holds: only forms linear in their coefficients are declarable.
 - **2026-10-14 (later), from [1325](1325-parametric-series.md): a joint fit
   never holds a per-pattern moment as flat.** Under
   `SharingMap(per_histogram=["phases.*"])`, the series shape, a moment
