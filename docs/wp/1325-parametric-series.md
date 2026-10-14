@@ -682,6 +682,97 @@ whether another Rust kernel would speed the joint fit.
 - **The case for a kernel grows with the structure.** Synthetic LaB₆ is the
   worst case for this overhead. A phase with many reflections and atoms
   raises the arithmetic share, and the real ramp will say by how much.
+  It did: about 13× (§ Measured on real data).
+
+### Measured on real data: the ZrMo₂O₈ ramp (2026-10-14)
+
+`1325-measure/real_ramp.py`. Output: `real_ramp_results.txt` (linear form,
+`--each`), `real_ramp_quadratic_results.txt` (`--degree=2 --each`) and
+`real_ramp_profile_results.txt` (`--profile`), all beside it.
+
+**Setup.**
+- Durham TOPAS tutorial 9.2, read from the local data root
+  (`tests/local_data.py`). Ranges 36-68 in TOPAS's numbering: 693-991.5 K,
+  33 patterns of 4 168 points, Cu Kα1, Bragg-Brentano.
+- Three phases. Cubic ZrMo₂O₈ is the major one. LT-ZrMo₂O₈ decays across the
+  window. Trigonal ZrMo₂O₈ stays a few wt % throughout.
+- The structures are the tutorial input's, read by `rx.read_project_model`
+  when the script runs. The resolution function and axial term are held at
+  the input's values.
+- Every fit runs `lab_sample_refine`'s scale and background, displacement,
+  cell and sample-broadening stages.
+- Targets: the cubic a, the trigonal a and the trigonal c, each a polynomial
+  in T over all 33 patterns, under `SharingMap(per_histogram=["phases.*"])`.
+  The joint fits start from the chain's per-pattern answers.
+- macOS arm64, 10 CPUs, `[dev]` venv, compiled kernels on. Other sessions
+  shared the machine, at load averages of 3 to 85, so every wall clock is a
+  range over runs.
+
+**The slopes, linear form**, in 10⁻⁶ Å/K. "Point esd" is the chain's mean
+per-pattern esd on the target.
+
+| target | point esd | line | joint | Δ / line esd | joint esd ÷ line esd | line χ²_red |
+|---|---|---|---|---|---|---|
+| cubic a | 0.0007 Å | −17.9(13) | −19.6(14) | −1.29 | 1.09 | 1.63 |
+| trigonal a | 0.022 Å | −97.7(110) | −86.5(80) | +1.01 | 0.72 | 0.80 |
+| trigonal c | 0.050 Å | 282(22) | 319(17) | +1.67 | 0.76 | 1.13 |
+
+**The nested test.** The reference is the same joint fit with no law, at
+χ²_red 1.873 and a Bérar-Lelann factor f of 2.50. F is (Δχ² / Δfree) /
+χ²_red. F/f² also allows for serially correlated residuals, which inflate a
+χ² difference as they inflate the esds.
+
+| law | linear F | linear F/f² | quadratic F | quadratic F/f² |
+|---|---|---|---|---|
+| all three | 4.82 | 0.77 | 3.22, at `max_iter` | 0.51 |
+| cubic a | 9.92 | 1.58 | 5.70 | 0.91 |
+| trigonal a | 3.13 | 0.50 | 3.83 | 0.61 |
+| trigonal c | 3.52 | 0.56 | 0.69 | 0.11 |
+
+**Cost.** With the linear form the joint fit took 0.99-1.89× the chain, and
+the untied fit 1.21-1.44×. The chain itself took 20-83 s. One linear law took
+30-70 s. One quadratic law took 118-225 s, and all three 356 s.
+
+**What it says.**
+- **The joint path runs on real four-phase data.** All 33 patterns,
+  1 029-1 122 free columns, converged in one to two times the chain's wall
+  clock.
+- **For a strong phase the gain is convenience, as on the synthetic ramp.**
+  The cubic slope's esd matches the line's to within 9 %. The two slopes sit
+  1.3 esd apart, but the nested test rejects the straight line for this
+  target, so that gap is two weightings of a wrong form.
+- **For a weak phase the joint esd is a quarter smaller.** The trigonal
+  slopes' esds are 0.72 and 0.76 of the line's. The synthetic weak phase
+  measured 0.72 in scatter. The truth is unknown here, so this measures
+  precision only.
+- **The nested test finds the wrong form once serial correlation is allowed
+  for.** Plain F rejects every linear law, at 3.1-9.9. Divided by f², only the
+  cubic line fails, at 1.58, and its trajectory does curve: the cell rises
+  from 693 K to 723 K, then falls. A quadratic brings it to 0.91. The line's
+  own χ²_red ranks the targets the same way, by a narrower margin. The test
+  costs one joint fit without the law, about one more chain.
+- **Declare only the terms the data carries.** Quadratics on all three
+  targets stopped at `max_iter` after 356 s, with `HIGH_CORRELATION`.
+  - The trigonal a quadratic alone converged 34 above the χ² of the line it
+    nests, so the solver stopped in a different minimum along the weak
+    phase's direction.
+  - The trigonal c quadratic alone fell to 0.11. It bends through the
+    patterns below 838 K, where that cell's esd is 0.05-0.14 Å. This
+    measurement cannot say whether those points are biased.
+- **The compiled kernels are a fifth of a four-phase fit.** `rietx_kernels`
+  took 19.9-20.1 % of the profiled joint fit, against 1.5 % on the synthetic
+  library. `_peak_chain_column` took 34.8-35.2 % of the fit.
+- **Two gaps surfaced.**
+  - The joint support hold decided per phase across every histogram. Under
+    per-histogram phase paths, a pattern's own copy of a vanished phase's
+    cell stayed free wherever another pattern still showed the phase. Fixed
+    in `multi._unseen`, with a two-pattern joint fit as the guard. This
+    window never met it: no phase falls below support in any pattern here.
+  - The chain held the fading LT phase in two patterns (938 K and 956 K) by
+    WP-1523's answer significance. The joint path reads the support screen
+    alone, by design, because its report is WP-1341's. So the chain and the
+    joint free different sets, 14 columns here. That is why the nested test
+    takes the untied joint fit as its reference.
 
 ### What the code has (survey, 2026-10-14)
 
@@ -815,6 +906,13 @@ whether another Rust kernel would speed the joint fit.
 
   A third candidate needs no refit: a score test against a per-pattern
   deviation, built from the coefficient columns at the answer.
+
+  Measured on the ZrMo₂O₈ ramp (§ Measured on real data), the nested test
+  works against the joint fit with no law, at one extra joint fit. It
+  separates the wrong form only once the χ² difference is divided by f², the
+  Bérar-Lelann factor squared: plain F rejected every linear law at 3.1-9.9.
+  The chain is the wrong reference, because it holds by WP-1523's answer
+  significance and the joint path does not.
 - [ ] **Hold each target's own bounds inside the step.** Coefficients are
   unbounded, so a polynomial can step a target through its floor or pole
   mid-solve (March-Dollase r at `MARCH_R_MIN`, the Caglioti W floor, an
@@ -835,9 +933,10 @@ whether another Rust kernel would speed the joint fit.
   sharing one `r` column are not one model with different values. Decide
   which fields must agree and refuse the rest. Declined from the 2026-10-14
   code review as a design decision.
-- [ ] **The measurement on real data**, with the same numbers as the
-  synthetic half. All three sources are Durham TOPAS tutorials. They are
-  public downloads, which the maintainer cleared for local use only
+- [x] **The measurement on real data**, with the same numbers as the
+  synthetic half, on the ZrMo₂O₈ ramp: `1325-measure/real_ramp.py`, in
+  § Measured on real data. All three sources are Durham TOPAS tutorials.
+  They are public downloads, which the maintainer cleared for local use only
   (2026-10-14; never committed):
   - ZrMo₂O₈ on a ramp (tutorial 9.2), the first 68 of the RAW file's 82
     ranges. This is the ramp the Scope calls the maintainer's local copy,
@@ -853,6 +952,12 @@ whether another Rust kernel would speed the joint fit.
   sha256 in `tests/local_data.py`, and `python -m tests.local_data` fetches
   them on a new machine. A cloud container has none of them, because the
   Durham host is outside its network policy.
+- [ ] **The same measurement on ZrP₂O₇ and WO₃.** Both are where the ramp
+  could not reach. ZrP₂O₇ runs to 1173 K and back, so heating and cooling can
+  be tested as one law. WO₃ crosses phase fields, which is the case for one
+  law per field on disjoint subsets. `rx.read_project_model` builds all three
+  WO₃ phases from `d9_02592_3phase_01.inp`. The ZrP₂O₇ input is refused at
+  read, on its `B1(...)` site macros, so its phases need building by hand.
 - [x] **Profile the joint Jacobian**, the maintainer's question of 2026-10-14:
   would another Rust kernel help? It would not, first. § Measured: where the
   joint Jacobian's time goes.
