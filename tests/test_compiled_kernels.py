@@ -680,7 +680,8 @@ def test_a_wheel_before_the_floor_is_declined_whole_and_says_so(monkeypatch):
         "dichotomy_child_key")
     runtime = [str(w.message) for w in seen if issubclass(w.category, RuntimeWarning)]
     assert len(runtime) == 1, runtime
-    assert 'pip install "rietx-kernels>=1.3,<2"' in runtime[0]
+    pin = f"rietx-kernels>={compiled.KERNEL_FLOOR},<{compiled.KERNEL_ABI + 1}"
+    assert f'pip install "{pin}"' in runtime[0]
 
 
 def test_a_decline_warns_once_and_never_when_the_numpy_path_was_chosen(

@@ -292,8 +292,8 @@ def _warn_unavailable() -> None:
     pin = f"rietx-kernels>={KERNEL_FLOOR},<{KERNEL_ABI + 1}"
     warnings.warn(
         f"rietx's compiled kernels did not load, because {_UNAVAILABLE}. Fits"
-        f" and structure figures run the numpy path, which is slower. Install"
-        f' the kernels with pip install "{pin}", or set {COMPILED_ENV}=0 to'
+        f", structure figures and indexing run the numpy path, which is slower."
+        f' Install the kernels with pip install "{pin}", or set {COMPILED_ENV}=0 to'
         f" choose the numpy path and silence this warning.",
         RuntimeWarning, stacklevel=3)
 
@@ -341,8 +341,9 @@ def dichotomy_kernels() -> tuple | None:
     """The dichotomy's ``(box_test, child_key)`` when the compiled path is on.
 
     ``None`` sends the caller to its numpy loop: the tier is off, or the wheel
-    did not load, which :func:`enabled` has already warned about.  The answer
-    is fixed for the process, like :func:`enabled`'s.
+    did not load, which :func:`enabled` has already warned about unless the
+    tier was forced on.  The answer is fixed for the process, like
+    :func:`enabled`'s.
     """
     if not enabled():
         return None
