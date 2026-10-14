@@ -1,9 +1,9 @@
 # WP-1966 — the tutorials run in the browser, in JupyterLite
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the site is live at /lite/ and each landing-page row links to it; the root CLAUDE.md rule waits on a cap decision
+Milestone: unscheduled · Status: ✅ 2026-10-14 — the site is live at /lite/, each landing-page row links it as
+JupyterLite, and its three rules are in the root CLAUDE.md
 Track: Render what the fit already knows
 Depends on: —
-Priority: P3 2026-10-14 — Colab covers it; a second door with no Google account and no server
 
 ## Goal
 
@@ -59,7 +59,8 @@ match that ABI.
   `kernels/` at its own commit. A published `pyemscripten` wheel would be a
   second release artefact for `docs/RELEASING.md`.
 - A dark theme. The site is pinned light because every notebook figure is
-  drawn on white. Dark needs the figures drawn for it first.
+  drawn on white. Dark needs the figures drawn for it first, which WP-1970
+  owns.
 - Upstreaming gemmi and spglib recipes to `pyodide-recipes`, which would put
   them on Pyodide's CDN and retire most of the build script.
 
@@ -77,9 +78,9 @@ match that ABI.
   Chromium; `tests/test_lite.py` holds the projection and the `fcntl` mock.
 - [x] The site at `/lite/` in `pages.yml`, a wheel from the same commit.
 - [x] The maintainer opens the site and decides whether it ships. It
-  does: a "Browser" link per landing-page row, beside Colab.
-- [ ] The two `docs/lite/README.md` rules as a root CLAUDE.md bullet (the
-  file is at its pinned cap, so that is a cap decision).
+  does: a "JupyterLite" link per landing-page row, before Colab.
+- [x] The `docs/lite/README.md` rules as a root CLAUDE.md bullet. There
+  are three now, and the cap went from 978 to 983 lines.
 - [x] Skill: none. An agent driving rietx runs it in a Python with the
   kernels; this is a reader's door.
 
@@ -101,6 +102,75 @@ PW=<playwright> node docs/lite/smoke.mjs docs/lite/site
 - PEP 783 (the `pyemscripten` platform tag).
 
 ## Handover log
+
+### 2026-10-14 (5th session) — "Hands-on", and the dark-figures WP renumbered
+
+The lead's first word now reads "Hands-on", at the maintainer's request.
+Main filed WP-1967 to WP-1969 for issues #933 to #935 while this branch was
+open. This branch had filed the dark-figures WP as WP-1967, so it is now
+WP-1970. Commit e0fa96dc still carries the prefix `WP-1967:`, and that
+commit belongs to WP-1970. The merge with main was clean, because the two
+1967 rows sat in different sections of the generated index.
+
+### 2026-10-14 (4th session) — the panel names JupyterLite, and the rules reach CLAUDE.md
+
+The landing page now offers the browser copy first and calls it by its
+name. Each tutorial row reads Read, JupyterLite, Colab, Download, and the
+panel says both run live in the browser. The old label, Browser, did not say
+how the link differs from Colab, because Colab runs in a browser too. The
+three rules that keep rietx running under Pyodide are now in the root
+CLAUDE.md, so a session changing the package meets them without opening
+`docs/lite/`. That was the last task, and the WP closes. The maintainer's
+question about dark-mode figures became WP-1970.
+
+*Done.* The lead reads "Run them live in your browser with JupyterLite, or
+on Colab." The maintainer gave that sentence and asked for a light polish.
+"With" replaced "on" before JupyterLite, which runs inside the page. The row
+link is `JupyterLite`, placed ahead of Colab in `notebook_rows`, and the
+test, the landing README and the panel comment follow it. The name follows
+scikit-learn's gallery, whose button says "launch lite" beside "launch
+binder". The sentence tells a reader what it is. The CLAUDE.md bullet sits
+after the compiled-tier rule and carries all three README rules. The task
+named two, and the third (no assumed thread) came in the 2nd session. The
+cap rose from 978 to 983 lines, logged in the test's diary and in
+`process.md` § The caps diary. The lite README now says the root CLAUDE.md
+states the same rules.
+
+*Measured.* In Chromium at 375 px and 1280 px, in both themes, the four
+links stay on one line with no horizontal scroll. The layout is the same as
+before the rename. The fast selection gave 9713 passed, 187 skipped and
+1 xfailed (`[dev]` venv, macOS arm64, CPython 3.12.10, no other suite
+running at the start). Those are the 3rd session's counts exactly, as a
+rename should leave them. The wall clock was 22:38 against that session's
+3:38 on the same machine, so the machine was loaded by something else.
+`added_test_times` lists the renamed case at 0.00 s. The full selection did
+not run, because no measured number can move.
+
+*Review* (`/code-review high --fix` over this session's range): no
+correctness bug. It fixed two doc lines. The ticked task still named the
+Browser link, and WP-1970's Priority line offered `style=` to
+`render_structure`, which takes `background=`. It also found the cap
+diary missing its 973 → 978 row of 2026-09-21. That row is restored from
+the `SIZE_CAPS` comment that recorded the raise. Declined: the finding that
+the lead sentence is public copy. The maintainer gave the sentence this
+session.
+
+*Dark mode.* The maintainer asked whether the notebook figures can follow a
+dark theme. They can. A `text/html` output holds a light and a dark image,
+with the dark one hidden by an inline style. A `<style>` keyed on the
+frontend's dark marker swaps them. Where the `<style>` is stripped, as on
+GitHub or in a notebook opened untrusted, the light figure shows. WP-1970
+holds the frontend table read from source, the prior art and the costs,
+about 0.25 s and 27 kB a figure. Its first task decides between drawing the
+dark copy again and recolouring a copy. Today every pattern figure takes
+`style="dark"` and `render_structure` a dark `background=`. The series
+figure has no dark form. The Lite site stays pinned light until WP-1970
+lifts the pin.
+
+*Next.* Nothing remains in this WP. (1) WP-1970, when the maintainer wants
+dark figures. (2) The lead's first sentence, "Hands on", is the
+maintainer's copy and was left as written. As a compound adjective it is
+usually hyphenated. (The 5th session hyphenated it.)
 
 ### 2026-10-14 (3rd session) — the landing page links the browser copy
 

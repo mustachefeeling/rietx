@@ -402,6 +402,14 @@ without the rule carries the defect `replay` carried alone.  The measurement,
 the two controls that bound the class and the two rejected fixes stayed in the
 WP.  Landed 962, +1 headroom.
 
+978 -> 983 for WP-1966 (2026-10-14): the package runs in a browser tab, on
+wasm32 Pyodide, and three rules keep it running there.  A count handed to numpy
+is `intp`.  A POSIX primitive is imported by name.  Nothing assumes a thread can
+start.  Each rule names a bug the browser site found in shipped code.  No CI job
+runs the browser, so a session changing `src/` meets the rules only where it
+already reads.  The README in `docs/lite/` keeps the rules with their causes,
+and the WP keeps the measurements.  Landed 982, +1 headroom.
+
 ### `docs/ROADMAP.md`
 
 400 -> 416 for the agentic-report planning session (2026-08-18): four
