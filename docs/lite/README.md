@@ -28,7 +28,7 @@ site: `uv build --wheel --out-dir dist .` then
 ## Why rietx runs there at all
 
 WP-1917 parked JupyterLite because `pip` refuses rietx in Pyodide. There were
-three gaps, and none of them was a wall.
+four gaps, and none of them was a wall.
 
 1. **`rietx-kernels` has no WebAssembly build.** Its import is soft
    (`model/compiled.py`), so rietx runs the numpy path. Only the resolver
@@ -39,25 +39,44 @@ three gaps, and none of them was a wall.
    beside its package in `PACKAGES`.
 3. **wasm32's index type is 32 bits**, and `np.repeat` refuses int64 counts
    there. One call did this, in `model.preferred_orientation.orbit_layout`,
-   and every `summary()` reached it. The fix reaches PyPI with the next
-   release. Until then, a site built at a tag older than the fix fails at
-   `summary()` in tutorials 02 and 06.
+   and every `summary()` reached it.
+4. **JupyterLite's kernel replaces `fcntl` with an empty module**
+   (`pyodide_kernel/mocks.py`). `import fcntl` succeeds and `fcntl.flock`
+   raises `AttributeError`, so `Project.create` failed. The lock sites now
+   import `flock` by name, which turns the mock into the `ImportError` they
+   already read as Windows.
+
+Gaps 3 and 4 were fixed in rietx (WP-1963), so a release older than that fix
+fails in tutorials 02 and 06. That is why the Pages build serves a wheel built
+from the same commit as its notebooks.
+
+## Two rules for changing the package
+
+Nothing in CI runs the browser, so these hold only if they are kept.
+
+- A count or an index handed to numpy is `intp`, never a fixed int64.
+- A POSIX primitive is imported by name (`from fcntl import flock`), never
+  as a module whose attributes are read later.
+
+`smoke.mjs` is the check. Run it after a change that touches either.
 
 ## The numbers, 2026-10-14
 
-These were measured in a Linux cloud container (4 cores) with headless
-Chromium, Pyodide served locally, rietx served from the site, and nothing else
-running. Every tutorial ran to the end with no error output. The printed
-numbers in 01 match the committed notebook digit for digit.
-
-The full table is in WP-1963's handover entry.
+Measured in a Linux cloud container (4 cores) with headless Chromium. Pyodide
+was served locally, rietx from the site, and nothing else was running. Every
+tutorial ran to the end with no error output. The printed numbers in 01 match
+the committed notebook digit for digit. The table is in WP-1963's handover
+entry.
 
 ## What it is not
 
 - **Not the agent's tool.** An agent driving rietx runs it in a Python
   with the compiled kernels. This is a reader's door.
-- **Not a replacement for Colab on long fits.** The numpy path in WebAssembly
-  is slower than native, and the slowest tutorial (02) feels it most.
+- **Not as fast as Colab.** Tutorial 02 took almost four minutes in the
+  browser against half a minute natively. Most of that is the missing compiled
+  kernels, since the native numpy path took 135 s. WebAssembly itself cost
+  1.7-1.8×.
 - **Files you upload stay in the browser** (IndexedDB), as JupyterLite keeps
-  them. Notebook 06 reads them from the file browser's upload button, where
-  its text says Colab's folder icon.
+  them. Notebook 06's text points at Colab's folder icon. JupyterLite's file
+  browser has an upload button instead, and reading a pattern uploaded that
+  way has not been tried.
