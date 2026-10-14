@@ -438,9 +438,9 @@ def _build_lab6_capillary(data_dir: Path) -> StandardInputs:
     numbers in the UI the same numbers the acceptance asserts.
 
     This is the standard the capillary-absorption variant exists for.  Measured
-    at µR = 0.674 over 2-60° 2θ: Rwp 0.0884883 → 0.0884884 and a moves 8e-12 Å,
-    while **both** displacement parameters move by +0.0166542 Å² — exactly
-    ΔB = c(µR)·λ²/2.  Compare that against ``nac``, where one impurity Biso sits
+    at µR = 0.679 over 2-60° 2θ: Rwp 0.0887609 moves 4e-9 and a moves 2e-11 Å,
+    while **both** displacement parameters move by +0.01687 Å² — ΔB =
+    c(µR)·λ²/2 = 0.016875.  Compare that against ``nac``, where one impurity Biso sits
     on its bound and cannot take its share, leaving a spurious 2.5e-5 in Rwp.
     """
     from ..io.readers import read_pattern
@@ -800,7 +800,7 @@ VARIANTS: tuple[Variant, ...] = (
     Variant("dispersion", "+ anomalous f′, f″",
             "Cromer-Liberman dispersion on every species. Watch the displacement "
             "parameters and (multi-phase) the QPA fractions, not Rwp — measured "
-            "on the round robin this took QPA RMS error 2.26 → 0.64 wt %.",
+            "on the round robin this took QPA RMS error 2.26 → 0.62 wt %.",
             _with_dispersion),
     Variant("voigt", "+ true Voigt peak shape",
             "Exact Gaussian⊗Lorentzian instead of the TCHZ pseudo-Voigt "
