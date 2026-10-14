@@ -110,8 +110,10 @@ engine or the ranking. Indexing is provisional by declaration
 
 ## Tasks
 
-- [ ] **Decision (maintainer):** the reporter's (a)-(c) above, whole or in
+- [x] **Decision (maintainer):** the reporter's (a)-(c) above, whole or in
       part, recorded as `Decided YYYY-MM-DD:` here and answered on #916.
+      *Decided 2026-10-14: (a)-(c) whole, as PR #941 builds them; answered
+      in PR #941's review.*
 - [ ] Rebuild the issue's synthetic Si arms as a test fixture: the truth, cI
       √2·a₀, cF +0.6 %, cP a₀, cP 2a₀, the steeper-background arm, and a
       tetragonal descent of the true lattice; exact and picked lines.
@@ -154,3 +156,13 @@ absences; Si, corundum and magnetite keep their correct cells.
   refinement. The reporter's measured proposal landed on #916 the same
   morning and is in § Context. *Next:* the maintainer's decision on its
   (a)-(c), then task 2.
+- **2026-10-14** — from the PR review (PR #941): @yue-here decided (a)-(c)
+  whole, including `predicted_but_absent` moving from the refuting set to a
+  cap and the matching rewrite of `src/rietx/indexing/CLAUDE.md`'s
+  whole-profile validation clause. Round 1 is at `f5617cb8`. Its
+  before-merge items: `INDEX_ABSTAINED` still calls `predicted_but_absent`
+  refuting, a module fixture with no `xdist_group`, the phantom-supercell bar
+  dropped from 95 % to 50 % without a count, `contains` admitting a mutual
+  containment at equal volume, `to_cell_candidate` scoring on the old seen
+  fraction, and a direct `validate_by_lebail` screening on the peak list's
+  range and per-line σ. *Next:* #941's round 2.

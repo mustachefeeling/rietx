@@ -192,3 +192,12 @@ moves is listed in the handover with its cause.
   the seam and fences dedup's grouping out as a non-goal; 1518 and 1519 are
   closed; 1921 is a consumer. The reporter names this the proposal they
   would take on first.
+- **2026-10-14** — from the PR review (PR #949): the three questions answered
+  by @yue-here. (1) A joined pair reports the χ² of the description that
+  joined it. (2) Dedup's 1.35-1.63× wall clock is accepted, and the boundary
+  search stays on every system. (3) Hand-writing Selling's reduction is within
+  the module's rule, since gemmi's keeps neither the four vectors nor a step
+  through a boundary. Round 1 at `89c5b3e2` asks for a rebase (the 1.9.0
+  notes conflict after #964), `_psd_pinv` in the image path in place of
+  numpy's signed `pinv`, a skip on `stacked_pinv_exact`, and the Part 2 dedup
+  paragraph. *Next:* #949's round 2.
