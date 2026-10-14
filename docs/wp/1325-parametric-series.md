@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the parametric fit, its blocked solver, summaries and docs landed, and the joint Jacobian profiled; the real data, a lack-of-fit check, the peak-chain dedup, in-step bounds and start agreement remain
+Milestone: unscheduled · Status: 🔄 2026-10-14 — the parametric fit, its blocked solver, summaries and docs landed, the joint Jacobian profiled, and the fit measured on the real ZrMo₂O₈ ramp; a lack-of-fit check, ZrP₂O₇ and WO₃, the peak-chain dedup, in-step bounds and start agreement remain
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -734,7 +734,7 @@ the untied fit 1.21-1.44×. The chain itself took 20-83 s. One linear law took
 30-70 s. One quadratic law took 118-225 s, and all three 356 s.
 
 **What it says.**
-- **The joint path runs on real four-phase data.** All 33 patterns,
+- **The joint path runs on real three-phase data.** All 33 patterns,
   1 029-1 122 free columns, converged in one to two times the chain's wall
   clock.
 - **For a strong phase the gain is convenience, as on the synthetic ramp.**
@@ -759,7 +759,7 @@ the untied fit 1.21-1.44×. The chain itself took 20-83 s. One linear law took
   - The trigonal c quadratic alone fell to 0.11. It bends through the
     patterns below 838 K, where that cell's esd is 0.05-0.14 Å. This
     measurement cannot say whether those points are biased.
-- **The compiled kernels are a fifth of a four-phase fit.** `rietx_kernels`
+- **The compiled kernels are a fifth of a three-phase fit.** `rietx_kernels`
   took 19.9-20.1 % of the profiled joint fit, against 1.5 % on the synthetic
   library. `_peak_chain_column` took 34.8-35.2 % of the fit.
 - **Two gaps surfaced.**
@@ -1154,6 +1154,116 @@ the untied fit 1.21-1.44×. The chain itself took 20-83 s. One linear law took
   Schur identity), issue #212.
 
 ## Handover log
+
+### 2026-10-14 (fourth session) — on real data a weak phase's slope tightens by a quarter, and the form check needs the correlation factor
+
+The parametric fit has now been measured on real data: 33 patterns of the
+ZrMo₂O₈ heating ramp, three phases. A law across temperature gave a weak
+phase's expansion slopes esds a quarter smaller than a line drawn through the
+per-pattern fits, and gave the strong phase nothing, as the synthetic ramps
+predicted. Checking the declared form by refitting without it works, but only
+after dividing by the correlated-residual factor. Without that, it rejected
+every straight line, and with it only the one that visibly curves failed. On
+this three-phase structure the compiled kernels are a fifth of the fit, against
+1.5 % on the synthetic library. Along the way the joint fit learned to hold a
+phase's per-pattern cell where that pattern cannot see the phase. Data that
+may not be committed now has one place on disk, outside the repository.
+
+*Done* (session started 2026-10-14 on PR #970's branch at ccc8c7b, on the
+maintainer's machine, because the cloud session could reach neither the data
+nor the Durham host):
+- **Where local-only data lives** (48d30ac), the maintainer's question. It
+  goes in `~/rietx-local-data/<source>/<dataset>/`, or wherever
+  `$RIETX_LOCAL_DATA` points. That is outside every checkout, so all
+  worktrees share one copy and no `git clean` reaches it. The pattern is
+  scikit-learn's, MNE's and nilearn's: a home directory plus an environment
+  override. pooch's registry of URL and sha256 is kept, without the
+  dependency. `tests/local_data.py` registers the three Durham tutorials,
+  fetches them through curl and verifies every hash. `dataset()` returns
+  `None` where they are absent. Three tests. The rule is in the module's
+  docstring and in a pointer at the top of `tests/data/README.md`.
+  `tests/CLAUDE.md` was already at its 302-line cap, so it has no line.
+- **The measurement on real data** (74a5770): `1325-measure/real_ramp.py`
+  and three output files, in § Measured on real data. The task is ticked. A
+  new task carries ZrP₂O₇ and WO₃. The lack-of-fit task records what the
+  nested test needs.
+- **A per-pattern cell is held where its own pattern is blind** (871d38a,
+  `multi._unseen`). The second session had forwarded this to 1341 as an
+  open question. It is fixed here, with a two-pattern joint fit as the guard,
+  which held nothing on the old code. This ramp never met it.
+- **Skill:** the parametric row in `references/series.md` now carries the
+  form check and the real-data esd ratio. It was rewritten to fit the file's
+  budget: 34 598 of 34 600 B. Both committed copies are re-synced.
+- **Forward references:** 1329 learns that a per-pattern moment is never held
+  as flat in a joint fit (by reading, not run). In 1341, Inherited item 3 now
+  says the hold is fixed and its naming is open, and a new item 4 records the
+  WP-1523 divergence.
+- **Inherited:** none on arrival. **Findings:** the "maintainer-local"
+  ZrMo₂O₈ ramp is Durham tutorial 9.2, byte-identical to the maintainer's
+  copy, and the ZrP₂O₇ input reads 37 of its RAW file's 871 ranges. The task
+  text was corrected.
+- **`/code-review high --fix`** over ccc8c7b..HEAD: 10 findings, 6 fixed in
+  one commit.
+  - The new test's imports failed ruff's ordering.
+  - The stage loop's comment still stated the per-phase rule.
+  - This record called the fit four-phase. The model has three.
+  - `fetch()` renamed a download before checking its hash, and read members
+    from a zip it had not verified.
+  - `tests/local_data.py` spelled the brand. Its names now come from
+    `_about.DIST_NAME`, with the same values.
+  - The fit-level test copied `synthesize()`. That function now takes
+    `extra_phases=`.
+
+  Four declined:
+  - the per-pattern moment hold: outside the diff, and forwarded to 1329;
+  - the joint cell window, which still decides per phase: outside the diff,
+    and the hold reaches every such cell before the window would matter;
+  - one predicate shared with `refine._only_moves`: the joint form has to
+    know which histogram owns each entry;
+  - a diagnostic naming a per-pattern hold: 1341's item 3.
+
+*Measured* (macOS arm64, 10 CPUs, `[dev]` venv, compiled kernels on; other
+sessions shared the machine at load averages of 3 to 85):
+- The real-data numbers are in § Measured on real data.
+- Fast selection, the command verbatim, at 08eb61e (this branch, not merged
+  with `main`, which had moved nine merges): 9669 passed, 186 skipped,
+  1 xfailed, in 7 m 22 s. Five tests were added and all pass. In one run
+  they took 0.69 s together, 0.53 s of it the two-pattern joint fit. No base
+  count was taken on this machine, so the +5 comes from
+  `tests.added_test_times`, not from a before-and-after.
+- The full selection was not run. The changed rule moves a fit only where a
+  phase path is per-histogram and the phase is absent from some patterns.
+  No acceptance suite declares that. The slow tests of
+  `test_parametric_series.py`, `test_multi_histogram.py`,
+  `test_held_phase.py` and `test_absent_phase.py` ran: 297 passed.
+
+*Gotchas*:
+- **TOPAS's `TCHZ_Peak_Type` maps by position** (WP-1455): slot 5 is the
+  tanθ Lorentzian term (`profile.y`), slot 6 the 1/cosθ one (`profile.x`).
+  The August transcription of this ramp, outside the repository, swapped
+  them.
+- **`Statistics.chi2` is reduced**, over N − P. A total is that times N − P.
+- **The chain is the wrong reference for a nested test.** It holds a fading
+  phase by WP-1523's answer significance, which the joint path does not read.
+- **Durham's host refuses urllib's user agent with a 403, and urllib stopped
+  at 12.8 of 17.7 MB without raising.** The hash check caught it, and the
+  fetch uses curl.
+- **`read_topas_inp` refuses the ZrP₂O₇ input** on its `B1(...)` site macros.
+  TOPAS numbers a range from 1, and `read_pattern(scan=)` from 0.
+- **Wall clocks swung 4× with other sessions' load.** Quote ranges.
+- **The worktree guard refuses a shell variable in `sed` or a loop.** Write a
+  scratchpad script and run it as one plain command.
+
+Next, in order:
+1. **Build the lack-of-fit check.** It now has evidence behind it: the joint
+   fit with no law as the reference, and F divided by the Bérar-Lelann factor
+   squared. Decide whether it is a result field or a diagnostic beside
+   `PARAMETRIC_OUT_OF_RANGE`, since it costs one more joint fit.
+2. **The same measurement on ZrP₂O₇ and WO₃**, on this machine. WO₃ is the
+   case for one law per phase field.
+3. **The peak-chain deduplication.** The peak chain is 35 % of the real fit.
+4. **In-step bounds** for the coefficients, then **start agreement** beyond
+   parameters.
 
 ### 2026-10-14 (third session) — another Rust kernel is not the lever; a repeated peak chain is
 

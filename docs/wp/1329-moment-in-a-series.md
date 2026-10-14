@@ -49,6 +49,16 @@ chain on the same data is reported as a range, never gated.
 
 ### Inherited
 
+- **2026-10-14 (later), from [1325](1325-parametric-series.md): a joint fit
+  never holds a per-pattern moment as flat.** Under
+  `SharingMap(per_histogram=["phases.*"])`, the series shape, a moment
+  degree of freedom is per-histogram. `multi._flat_moments_multi` compares
+  the scoped free paths (`hist.{h}.…`) against each table's bare entry
+  names, so none matches and nothing is held. `_turn_flat_axes_multi` then
+  writes one turn into every table, as it would for a shared moment. Found by
+  reading the code, never run. 1325 fixed the same class for a phase's cell
+  (`multi._unseen` judges each entry in its own histogram). A joint fit of a
+  moment down a ramp is where this one would surface.
 - **2026-10-14, from [1325](1325-parametric-series.md): a parameter can now
   be refined as a declared function of each pattern's coordinates, jointly,
   and the joint form measured a gain where one pattern cannot see the
