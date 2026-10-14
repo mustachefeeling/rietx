@@ -1477,10 +1477,10 @@ intercept the basis is rank-deficient, since the intercept is the sum of the
 fractions, and the refusal says so and names the Scheffé form, which drops the
 intercept. In the Scheffé form give each fraction reference 0 and scale 1, so
 each coefficient is the target in the pure end member and the law is Vegard's
-between them. Left centred, the coefficients lose that meaning, because each
-fraction is measured from its own mid-range and those points need not lie on
-the simplex. Where the mid-ranges themselves sum to one, the centred columns
-are dependent and the basis is refused again:
+between them. Left centred, the coefficients would lose that meaning, because
+each fraction is measured from its own mid-range and those points need not lie
+on the simplex. So a basis with no intercept over fractions that sum to a
+constant is refused until its reference and scale are stated:
 
 ```python
 import rietx as rx
@@ -1545,6 +1545,7 @@ rest need the patterns:
 | a coordinate taking one value across the subset | drop the term, or give a `scale` if the subset will grow |
 | fewer patterns in the subset than coefficients | drop terms or widen the subset |
 | a basis whose rank is below its number of terms | drop one term of each collinear set the message names; for fractions summing to one, the Scheffé form |
+| fractions summing to a constant in a basis with no intercept, without a stated `reference` and `scale` | state them: 0 and 1 per fraction for the Scheffé form |
 | a target that is not a parameter of a subset pattern's model | a path the model has; the message says how to list them |
 | a target tied to another path | declare the law on the source the message names |
 | a target locked by symmetry, held by the phase's floating origin, a rigid body's increment or a magnetic moment's degree of freedom | another target: none of these moves itself as one quantity across patterns |

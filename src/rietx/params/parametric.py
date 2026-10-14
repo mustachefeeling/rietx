@@ -191,6 +191,7 @@ def resolve_parametric(tie: ParametricTie, coordinates: CoordinateTable | None,
             raw[c] = np.array([column[k] for k in patterns], dtype=np.float64)
         reference = dict(tie.reference or {})
         scale = dict(tie.scale or {})
+        _refuse_centred_mixture(tie, used, raw, reference, scale)
         for c in used:
             lo, hi = float(raw[c].min()), float(raw[c].max())
             if c not in reference:
@@ -225,6 +226,38 @@ def resolve_parametric(tie: ParametricTie, coordinates: CoordinateTable | None,
                               units=units)
 
 
+def _refuse_centred_mixture(tie: ParametricTie, used: list[str],
+                            raw: dict[str, np.ndarray], reference: dict[str, float],
+                            scale: dict[str, float]) -> None:
+    """Refuse default centring of mixture fractions in a basis with no intercept.
+
+    Fractions that sum to a constant span the intercept themselves, so a
+    no-intercept basis over them is full rank either way. But centred at
+    their own mid-ranges, the coefficients stop being the pure components'
+    values (Scheffé's reading) and become combinations of them, with nothing
+    to say so. Either reading is a choice, so the caller states the reference
+    and scale; the default is never applied silently here.
+    """
+    if any(not t for t in tie.terms or []) or len(used) < 2:
+        return
+    total = sum(raw.values())
+    if np.ptp(total) > 1e-9 * max(1.0, float(np.max(np.abs(total)))):
+        return
+    missing = [c for c in used if c not in reference or c not in scale]
+    if not missing:
+        return
+    names = sorted(used)
+    raise ValueError(
+        f"parametric tie {tie.name!r}: the coordinates {names} sum to a constant "
+        "across the subset (mixture fractions), and centring them at their "
+        "mid-ranges would make each coefficient a combination of pure-component "
+        "values. State the reading: reference="
+        f"{{{', '.join(f'{c!r}: 0.0' for c in names)}}} and scale="
+        f"{{{', '.join(f'{c!r}: 1.0' for c in names)}}} for the Scheffé form "
+        "(each coefficient a pure component's value), or give the reference and "
+        "scale you mean")
+
+
 def _refuse_rank_deficient(name: str, phi: np.ndarray, labels: list[str],
                            raw: dict[str, np.ndarray], tie: ParametricTie) -> None:
     """Refuse a Φ whose columns are collinear across the subset, naming them.
@@ -253,12 +286,21 @@ def _refuse_rank_deficient(name: str, phi: np.ndarray, labels: list[str],
         with_ = [labels[keep[k]] for k in np.flatnonzero(np.abs(coef[:, i]) > 1e-8)]
         parts.append(f"{labels[j]} is a combination of {with_}")
     fix = "drop one of each collinear set, or widen the subset"
-    if "1" in labels and raw:
+    if raw:
+        # mixture fractions: with an intercept, the intercept is their sum;
+        # without one, centring each at its own mid-range makes the centred
+        # columns sum to a constant too, so the Scheffé form is uncentred
         total = sum(raw.values())
         if np.ptp(total) <= 1e-9 * max(1.0, float(np.max(np.abs(total)))):
-            fix = (f"the coordinates {sorted(raw)} sum to a constant across the "
-                   "subset, so the intercept is their sum: drop the intercept "
-                   "(Scheffé form)")
+            names = sorted(raw)
+            uncentred = (f"reference={{{', '.join(f'{c!r}: 0.0' for c in names)}}} "
+                         f"and scale={{{', '.join(f'{c!r}: 1.0' for c in names)}}}")
+            fix = (f"the coordinates {names} sum to a constant across the subset, "
+                   + ("so the intercept is their sum: use the Scheffé form — drop "
+                      "the intercept and pass " if "1" in labels else
+                      "so centred at their mid-ranges they are dependent: a "
+                      "mixture (Scheffé) basis is uncentred — pass ")
+                   + f"{uncentred}, so each coefficient is a pure component's value")
     raise ValueError(
         f"parametric tie {name!r}: its basis has rank {rank} for {phi.shape[1]} "
         f"terms over the subset ({'; '.join(parts)}), so the coefficients are "
