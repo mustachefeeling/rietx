@@ -65,6 +65,7 @@ from rietx.params.multi import MultiParameterTable, SharingMap
 from rietx.params.parametric import (
     ResolvedParametric,
     coefficient_rows,
+    form_tests,
     parametric_law,
     resolve_parametric,
     target_columns,
@@ -640,7 +641,7 @@ def test_a_joint_fit_holds_a_coefficient_whose_phase_no_pattern_sees(lab6_pair):
         for k in "abc":
             assert result.parameter(f"hist.{h}.phases.1.cell.{k}").laws == ["b"]
     (form,) = result.parametric_form
-    assert (form.n_patterns, form.n_subset, form.dof, form.p_value) == (0, 2, None, None)
+    assert (form.n_patterns, form.n_subset, form.tied, form.rejected) == (0, 2, None, None)
 
 
 # -- the synthetic ramp (slow): a measured a₁ with its esd ------------------
@@ -689,7 +690,7 @@ def test_a_parametric_slope_recovers_a_known_expansion_within_its_esd():
     assert abs(float((line_cov @ x.T @ (w * a))[1]) - truth) < 3 * np.sqrt(line_cov[1, 1])
     # the truth is the declared line, so its form stands
     (form,) = result.parametric_form
-    assert (form.n_patterns, form.dof, form.rejected) == (10, 8, False), form
+    assert (form.n_patterns, form.tied.dof, form.rejected) == (10, 8, False), form
     assert "REJECTED" not in series.summary(deliverable="series", parametric=result)
 
 
@@ -717,16 +718,18 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
         parametric=[ParametricTie(name="a", target="phases.0.cell.a",
                                   basis="polynomial", terms=[[], ["T"]])])
     (form,) = result.parametric_form
-    assert (form.tie, form.target, form.n_patterns, form.n_subset, form.dof) == (
+    tied = form.tied
+    assert (form.tie, form.target, form.n_patterns, form.n_subset, tied.dof) == (
         "a", "phases.0.cell.a", 10, 10, 8)
-    assert form.cut == pytest.approx(15.507, abs=1e-3)
-    assert form.rejected is rejected, form
+    assert tied.cut == pytest.approx(15.507, abs=1e-3)
+    assert form.rejected is tied.rejected is rejected, form
+    assert form.others_freed is None              # one law: one reading
     from scipy.stats import chi2
-    assert form.p_value == chi2.sf(form.statistic, form.dof)
-    assert (form.p_value < 0.05) is rejected
+    assert tied.p_value == chi2.sf(tied.statistic, tied.dof)
+    assert (tied.p_value < 0.05) is rejected
     found = [d for d in result.diagnostics if d.code == "PARAMETRIC_FORM_REJECTED"]
     text = str(result)
-    p = "p < 0.001" if rejected else f"p = {form.p_value:.2g}"
+    p = "p < 0.001" if rejected else f"p = {tied.p_value:.2g}"
     assert f"({p}) for 8 directions over 10 of 10 patterns" in text
     # every pattern's cell and both coefficients are the law's, in the joint
     # rows, in a histogram's view and in the notebook table
@@ -769,7 +772,7 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
     if rejected:
         (d,) = found
         assert d.level == "warning" and d.where == ["vars.a_0", "vars.a_1"]
-        assert d.value == form.statistic
+        assert d.value == tied.statistic
         assert "form REJECTED" in text
     else:
         assert not found and "form not rejected" in text
@@ -1121,6 +1124,54 @@ def test_the_form_tests_gain_is_the_dense_least_squares_gain():
     gain, rank = blocked.added_columns_gain(bj, r, extra, drop, hold)
     assert rank == e_dense.shape[1] - len(drop) == 2
     assert gain == pytest.approx(want, rel=1e-9)
+
+
+def test_a_law_with_the_others_freed_is_the_difference_of_two_dense_gains():
+    """``ParametricFormTest.others_freed``: two ``constant`` laws on the
+    border's first two columns, each one's per-pattern copies its targets.
+    With B freed too, A's gain is the χ² both swaps remove less what B's swap
+    alone removes, as dense least squares reads them, and so are its
+    directions; a fit with one law gets no second reading."""
+    bj = _random_arrow(11)
+    rng = np.random.default_rng(12)
+    r = rng.standard_normal(bj.shape[0])
+    n, n_data = bj.n_blocks, int(sum(bj.n_data))
+    names = ["vars.A_0", "vars.B_0"] + [f"own{j}" for j in range(2, bj.n_cols)]
+
+    def law(name: str) -> ResolvedParametric:
+        return ResolvedParametric(
+            tie=ParametricTie(name=name, target="phases.0.cell.a", basis="constant"),
+            patterns=list(range(n)), phi=np.ones((n, 1)), labels=["1"],
+            divisors=np.ones(1), units=[None])
+
+    a, b = form_tests([law("A"), law("B")], bj, r, n_data, names, {}, [])
+    dense = bj.toarray()
+
+    def copies(col: int) -> np.ndarray:
+        """Column ``col`` split into one column per block's rows, stacked as
+        the residual is."""
+        own = [blk[:, list(cm).index(col)][:, None]
+               for blk, cm in zip(bj.blocks, bj.col_maps, strict=True)]
+        return BlockJacobian(own, [np.array([h]) for h in range(n)], bj.n_data,
+                             bj.n_pen, n).toarray()
+
+    def left(cols: list[int], extra: list[np.ndarray]) -> float:
+        m = np.hstack([dense[:, np.setdiff1d(np.arange(bj.n_cols), cols)], *extra])
+        res = _resid_after(m, r)
+        return float(res @ res)
+
+    only_b, both = left([1], [copies(1)]), left([0, 1], [copies(0), copies(1)])
+    only_a = left([0], [copies(0)])
+    held = left([], [])
+    assert (a.tied.dof, a.others_freed.dof) == (n - 1, n - 1)
+    assert a.others_freed.statistic / a.tied.statistic == pytest.approx(
+        (only_b - both) / (held - only_a), rel=1e-8)
+    assert b.others_freed.statistic / b.tied.statistic == pytest.approx(
+        (only_a - both) / (held - only_b), rel=1e-8)
+    for law_test in (a, b):
+        assert law_test.rejected is (law_test.tied.rejected or law_test.others_freed.rejected)
+    (alone,) = form_tests([law("A")], bj, r, n_data, names, {}, [])
+    assert alone.others_freed is None and alone.tied == a.tied
 
 
 def test_a_patterns_own_target_column_is_read_off_the_coefficients():

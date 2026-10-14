@@ -283,18 +283,40 @@ class ParametricCoefficient(Base):
     reference: dict[str, float] | None
 
 
+class ParametricFormReading(Base):
+    """One reading of a form test (:class:`ParametricFormTest`).
+
+    The alternative frees the declaration's target in each pattern of the
+    subset, in place of its coefficients, and one linear least-squares step
+    from the answer with every other free column refitted says how much χ²
+    that would remove (``params.parametric.form_tests``).
+
+    * ``dof`` — the directions the alternative adds past the covariance's
+      cut, the patterns tested less the free coefficients when nothing is
+      degenerate; 0 when there was nothing to test.
+    * ``statistic`` — that χ² over χ²_red·f², the answer's reduced χ² and
+      Bérar-Lelann factor, which is ~χ² with ``dof`` degrees of freedom while
+      the form holds.
+    * ``cut`` — the χ² point at ``params.parametric.FORM_TEST_LEVEL``.
+    * ``rejected`` — ``statistic > cut``.
+    * ``p_value`` — χ²'s upper tail at ``statistic``, so a near miss reads as
+      one on either side of the cut.
+
+    The last four are ``None`` unless ``dof`` is positive and the answer's
+    χ²_red·f² is a positive finite number.
+    """
+
+    dof: int
+    statistic: float | None
+    cut: float | None
+    rejected: bool | None
+    p_value: float | None
+
+
 class ParametricFormTest(Base):
     """Whether one :class:`ParametricTie`'s form survives its own data.
 
-    A score test at the answer.  The alternative frees the target in each
-    pattern of the subset, in place of the coefficients, and one linear
-    least-squares step from the answer with every other free column refitted
-    says how much χ² that would remove (``params.parametric.form_tests``).
-    ``statistic`` is that χ² over χ²_red·f², the answer's reduced χ² and
-    Bérar-Lelann factor, which is ~χ² with ``dof`` degrees of freedom while
-    the form holds.  ``rejected`` is ``statistic > cut``, the χ² point at
-    ``params.parametric.FORM_TEST_LEVEL``, and then the coefficients' esds
-    assume a form the data refuses.
+    A score test at the answer, read up to twice (:class:`ParametricFormReading`).
 
     * ``n_patterns`` — the subset patterns whose own target entered the
       alternative.  A pattern that cannot see the target is left out, as an
@@ -303,25 +325,26 @@ class ParametricFormTest(Base):
       ``n_patterns`` is the smaller, the law sets the target in the rest and
       the test cannot check it there; ``PARAMETRIC_TARGET_UNSEEN`` names the
       patterns that cannot see it.
-    * ``dof`` — the directions the alternative adds past the covariance's cut,
-      ``n_patterns`` less the free coefficients when nothing is degenerate.
-      ``None`` when the test did not run: a coefficient was not free at the
-      answer.  0 when there was nothing to test.
-    * ``statistic``, ``cut``, ``rejected``, ``p_value`` — ``None`` unless
-      ``dof`` is positive and the answer's χ²_red·f² is a positive finite
-      number.  ``p_value`` is χ²'s upper tail at ``statistic`` for ``dof``
-      directions, so a near miss reads as one on either side of the cut.
+    * ``tied`` — the reading with every other law still tied.  ``None`` when
+      the test did not run: a coefficient was not free at the answer.
+    * ``others_freed`` — the reading with every other tested law's target
+      freed too, so its verdict does not assume the other laws' forms: the
+      gain with every law's targets freed less the gain with only the others'
+      freed, directions by the same difference.  ``None`` unless two or more
+      laws were tested, since with one the two readings are one test.
+    * ``rejected`` — the verdict: either reading rejecting.  Tied, a law can
+      pass behind another law's misfit; freed, two collinear laws can absorb
+      each other.  Then the coefficients' esds assume a form the data
+      refuses.  ``None`` when no reading has a statistic.
     """
 
     tie: str
     target: str
     n_patterns: int
     n_subset: int
-    dof: int | None
-    statistic: float | None
-    cut: float | None
     rejected: bool | None
-    p_value: float | None
+    tied: ParametricFormReading | None
+    others_freed: ParametricFormReading | None
 
 
 class ParametricValue(Base):

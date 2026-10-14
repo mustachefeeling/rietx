@@ -1671,11 +1671,19 @@ declaration, and is `None` exactly when `RefinementResult.parametric` is.
 | `ParametricFormTest.tie`, `ParametricFormTest.target` | the declaration's name and its target |
 | `ParametricFormTest.n_patterns` | the subset patterns whose own target entered the alternative; a pattern that cannot see the target is left out |
 | `ParametricFormTest.n_subset` | the patterns the subset names. Where it is larger than `n_patterns`, the law sets the target in the rest unchecked |
-| `ParametricFormTest.dof` | the directions the alternative adds, `n_patterns` less the coefficients when nothing is degenerate; `None` when a coefficient was not free at the answer, 0 when there was nothing to test |
-| `ParametricFormTest.statistic` | the χ² the alternative would remove, over χ²_red·f² |
-| `ParametricFormTest.cut` | the 95 % point of χ² for `dof` directions |
-| `ParametricFormTest.rejected` | `statistic > cut` |
-| `ParametricFormTest.p_value` | the upper tail of χ² for `dof` directions at `statistic`, so a near miss shows on either side of the cut |
+| `ParametricFormTest.tied` | the reading with every other law still tied, `None` when a coefficient was not free at the answer |
+| `ParametricFormTest.others_freed` | the reading with every other tested law's target freed too, `None` unless two or more laws were tested |
+| `ParametricFormTest.rejected` | the verdict: true when either reading rejects |
+
+Each reading is a `ParametricFormReading`:
+
+| Field | Holds |
+|---|---|
+| `ParametricFormReading.dof` | the directions the alternative adds, `n_patterns` less the coefficients when nothing is degenerate; 0 when there was nothing to test |
+| `ParametricFormReading.statistic` | the χ² the alternative would remove, over χ²_red·f² |
+| `ParametricFormReading.cut` | the 95 % point of χ² for `dof` directions |
+| `ParametricFormReading.rejected` | `statistic > cut` |
+| `ParametricFormReading.p_value` | the upper tail of χ² for `dof` directions at `statistic`, so a near miss shows on either side of the cut |
 
 The statistic is about χ² with `dof` degrees of freedom while the form holds.
 {ref}`par-parametric-section` has the equation. `str(result)` closes each declaration with its verdict. On the
@@ -1693,7 +1701,8 @@ at mid-ramp, and a straight line declared:
 The same ramp on its true line read 4.8 against the same cut, at p = 0.77. The
 line prints a p-value under 0.001 as `p < 0.001`. A rejected form
 adds `PARAMETRIC_FORM_REJECTED`, a warning on `RefinementResult.diagnostics`
-whose `where` names the coefficients and whose `value` is the statistic. Do
+whose `where` names the coefficients and whose `value` is the statistic of
+the reading that rejected the form. Do
 not quote those coefficients or their esds. Add the next term to the basis and
 refit, or narrow the subset to where the form holds. A chain over the same
 patterns shows where the trajectory bends.
@@ -1708,12 +1717,9 @@ The test has three limits.
   with a minor phase broad and overlapped, a curved truth on its cell went
   unrejected in 20 seeds of 20. A full untied refit rejected none of them
   either.
-- Each declaration is tested with the others still in force. On the ZrMo₂O₈
-  ramp a cubic cell's straight line read 1.37 per direction beside laws on two
-  other cells, under the cut, and 1.57 declared alone, past it. When one law
-  is in doubt, fit it alone.
-- Each declaration is tested at 95 %, so a fit with several rejects a right
-  form more often than one time in twenty.
+- Each reading is a test at 95 %. A fit with several laws reads each law
+  twice and rejects it when either reading does, so it rejects a right form
+  more often than one time in twenty. By how much has not been measured.
 
 ### The law at any coordinate
 

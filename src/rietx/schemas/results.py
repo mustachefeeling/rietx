@@ -10,6 +10,7 @@ from pydantic import Field, model_validator
 from .common import Base, Diagnostic, Mode, Provenance
 from .parametric import (
     ParametricCoefficient,
+    ParametricFormReading,
     ParametricFormTest,
     ParametricLaw,
     ParametricValue,
@@ -1284,22 +1285,35 @@ def _parametric_lines(coefficients: list[ParametricCoefficient] | None,
 
 def _form_line(t: ParametricFormTest) -> str:
     """One declaration's form test, as :func:`_parametric_lines` closes it."""
-    if t.dof is None:
+    over = f"over {t.n_patterns} of {t.n_subset} patterns"
+    tied, freed = t.tied, t.others_freed
+    if tied is None:
         return "      form not tested: a coefficient was not free at the answer"
-    if t.statistic is None and t.dof == 0:
-        return (f"      form not tested: the {t.n_patterns} of its {t.n_subset} "
-                "patterns that see the target add no direction beyond the "
-                "coefficients")
-    if t.statistic is None:
-        return ("      form not tested: the answer's χ²_red·f² is not a positive "
-                "finite number")
-    verdict = "REJECTED" if t.rejected else "not rejected"
-    side = "past" if t.rejected else "within"
+    if freed is None:
+        if tied.statistic is None and tied.dof == 0:
+            return (f"      form not tested: the {t.n_patterns} of its {t.n_subset} "
+                    "patterns that see the target add no direction beyond the "
+                    "coefficients")
+        if tied.statistic is None:
+            return ("      form not tested: the answer's χ²_red·f² is not a "
+                    "positive finite number")
+        return f"      form {_verdict(tied)} {over}"
+    verdict = {True: "REJECTED", False: "not rejected", None: "not tested"}[t.rejected]
+    return (f"      form {verdict} {over}:"
+            f"\n        with the other laws tied, {_verdict(tied)}"
+            f"\n        with the other laws freed, {_verdict(freed)}")
+
+
+def _verdict(r: ParametricFormReading) -> str:
+    """One reading's verdict, statistic, cut, p-value and directions."""
+    if r.statistic is None:
+        return "not tested: no direction to test"
+    verdict = "REJECTED" if r.rejected else "not rejected"
+    side = "past" if r.rejected else "within"
     # a tail under 1e-300 is 0.0 in a double, and "p = 0" claims certainty
-    p = "p < 0.001" if t.p_value < 1e-3 else f"p = {t.p_value:.2g}"
-    return (f"      form {verdict}: {t.statistic:.1f} {side} the cut {t.cut:.1f} "
-            f"({p}) for {t.dof} directions over {t.n_patterns} of {t.n_subset} "
-            "patterns")
+    p = "p < 0.001" if r.p_value < 1e-3 else f"p = {r.p_value:.2g}"
+    return (f"{verdict}: {r.statistic:.1f} {side} the cut {r.cut:.1f} ({p}) "
+            f"for {r.dof} directions")
 
 
 def _provenance_line(provenance: Provenance) -> str:

@@ -32,6 +32,7 @@ from ..schemas.interval import PARAMETER_INTERVAL_LEVEL
 from ..schemas.parametric import (
     CoordinateTable,
     ParametricCoefficient,
+    ParametricFormReading,
     ParametricFormTest,
     ParametricLaw,
     ParametricTie,
@@ -452,35 +453,91 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
     well as, a pattern measures the target: on synthetic ramps whose minor
     phase fades out or overlaps, a bent truth was rejected in 0 of 20 seeds,
     as by a full refit, and a straight one in 0 of 40 (``form_synthetic.py``).
+
+    With two or more laws tested, each is read again with every other tested
+    law's targets freed (``ParametricFormTest.others_freed``), the gain with
+    all swapped less the gain with the others swapped, and either reading
+    rejecting rejects the law.  At the ZrMo₂O₈ ramp's three-law answer the
+    cubic line read 42.8 for 31 directions tied (p 0.077) and 48.6 freed
+    (p 0.023); the freed gain was 575.3 against the 576.1 its own refit
+    removed (``form_freed.py``).  Two readings per law raise the false-alarm
+    rate above 5 %, by an amount not yet measured.
     """
     rd = resid[:n_data]
     chi2_red = float(rd @ rd) / max(n_data - len(free_paths), 1)
     scale = chi2_red * berar_lelann_factor(rd) ** 2
     index = {p: i for i, p in enumerate(free_paths)}
-    # the held side is one projection for every declaration tested here
+    # the held side is one projection for every alternative tested here
     null = None
-    out = []
+    readings: list[ParametricFormReading | None] = []
+    swaps: list[tuple[list[np.ndarray | None], list[int]] | None] = []
+    counts = []
     for r in resolved:
         cols = target_columns(r, bj, free_paths, skip.get(r.name, frozenset()))
-        n_patterns = 0 if cols is None else sum(c is not None for c in cols)
-        dof = statistic = cut = rejected = p_value = None
-        if cols is not None:
-            if null is None:
-                null = held_projection(bj, resid, hold)
-            gain, dof = added_columns_gain(bj, resid, cols,
-                                           [index[p] for p in r.paths], hold, null=null)
-            # fewer patterns than free coefficients: the alternative is smaller,
-            # so there is nothing to test, which the schema spells 0
-            dof = max(dof, 0)
-            if dof > 0 and np.isfinite(scale) and scale > 0.0:
-                from scipy.stats import chi2
-
-                statistic = gain / scale
-                cut = float(chi2.ppf(FORM_TEST_LEVEL, dof))
-                rejected = statistic > cut
-                p_value = float(chi2.sf(statistic, dof))
-        out.append(ParametricFormTest(tie=r.name, target=r.target, n_patterns=n_patterns,
-                                      n_subset=len(r.patterns), dof=dof,
-                                      statistic=statistic, cut=cut, rejected=rejected,
-                                      p_value=p_value))
+        counts.append(0 if cols is None else sum(c is not None for c in cols))
+        if cols is None:
+            readings.append(None)
+            swaps.append(None)
+            continue
+        if null is None:
+            null = held_projection(bj, resid, hold)
+        drop = [index[p] for p in r.paths]
+        swaps.append((cols, drop))
+        readings.append(_reading(*added_columns_gain(bj, resid, cols, drop, hold,
+                                                     null=null), scale))
+    # each law again with every other tested law's targets freed: the gain
+    # with all of them swapped, less the gain with only the others swapped
+    freed: list[ParametricFormReading | None] = [None] * len(resolved)
+    live = [i for i, s in enumerate(swaps) if s is not None]
+    if len(live) >= 2:
+        every = added_columns_gain(bj, resid, *_stacked(swaps, live, bj.n_blocks),
+                                   hold, null=null)
+        for i in live:
+            rest = added_columns_gain(bj, resid,
+                                      *_stacked(swaps, [k for k in live if k != i],
+                                                bj.n_blocks), hold, null=null)
+            freed[i] = _reading(every[0] - rest[0], every[1] - rest[1], scale)
+    out = []
+    for r, n_patterns, tied, other in zip(resolved, counts, readings, freed,
+                                          strict=True):
+        # either reading rejecting is the verdict: tied, a law can pass behind
+        # another's misfit; freed, two collinear laws can absorb each other
+        verdicts = [v.rejected for v in (tied, other)
+                    if v is not None and v.rejected is not None]
+        out.append(ParametricFormTest(
+            tie=r.name, target=r.target, n_patterns=n_patterns, n_subset=len(r.patterns),
+            rejected=any(verdicts) if verdicts else None, tied=tied,
+            others_freed=other))
     return out
+
+
+def _stacked(swaps, which: list[int], n_blocks: int
+             ) -> tuple[list[np.ndarray | None], list[int]]:
+    """The alternative that swaps every law in ``which``: each block's target
+    columns side by side, and every such law's coefficients dropped."""
+    extra: list[list[np.ndarray]] = [[] for _ in range(n_blocks)]
+    drop: list[int] = []
+    for i in which:
+        cols, d = swaps[i]
+        for h, c in enumerate(cols):
+            if c is not None:
+                extra[h].append(c)
+        drop += d
+    return [np.hstack(e) if e else None for e in extra], drop
+
+
+def _reading(gain: float, dof: int, scale: float) -> ParametricFormReading:
+    """One reading from an alternative's gain and directions.  Fewer directions
+    than none is nothing to test, which the schema spells 0, and a gain a
+    difference of projections puts a rounding below zero is none."""
+    dof = max(int(dof), 0)
+    statistic = cut = rejected = p_value = None
+    if dof > 0 and np.isfinite(scale) and scale > 0.0:
+        from scipy.stats import chi2
+
+        statistic = max(float(gain), 0.0) / scale
+        cut = float(chi2.ppf(FORM_TEST_LEVEL, dof))
+        rejected = statistic > cut
+        p_value = float(chi2.sf(statistic, dof))
+    return ParametricFormReading(dof=dof, statistic=statistic, cut=cut,
+                                 rejected=rejected, p_value=p_value)

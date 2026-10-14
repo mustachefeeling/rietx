@@ -99,6 +99,7 @@ from .schemas.interval import ParameterInterval, ParameterIntervalPoint
 from .schemas.parametric import (
     CoordinateTable,
     ParametricCoefficient,
+    ParametricFormReading,
     ParametricFormTest,
     ParametricLaw,
     ParametricTie,
@@ -168,6 +169,7 @@ __all__ = [
     "ParameterIntervalPoint",
     "ParameterRow",
     "ParametricCoefficient",
+    "ParametricFormReading",
     "ParametricFormTest",
     "ParametricLaw",
     "ParametricTie",

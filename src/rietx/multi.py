@@ -2242,21 +2242,27 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None
     """``PARAMETRIC_FORM_REJECTED`` — a declaration whose data refuses its
     form (WP-1325): one warning per rejected
     :class:`~rietx.schemas.parametric.ParametricFormTest`, ``where`` its
-    coefficients, whose esds assume the form, and ``value`` its statistic."""
+    coefficients, whose esds assume the form, and ``value`` the statistic of
+    the reading that rejected it, the tied one where both did."""
     paths = {r.name: r.paths for r in mtable.parametric}
     out: list[Diagnostic] = []
     for t in tests or []:
         if not t.rejected:
             continue
+        freed = t.others_freed
+        r = t.tied if t.tied is not None and t.tied.rejected else freed
+        how = ("" if r is t.tied else
+               " once the other laws' targets are freed too (with them tied it "
+               f"read {t.tied.statistic:.1f}, within the cut)")
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_FORM_REJECTED",
-            where=list(paths[t.tie]), value=t.statistic,
+            where=list(paths[t.tie]), value=r.statistic,
             message=(f"parametric tie {t.tie!r} does not describe {t.target} across "
-                     f"its {t.n_patterns} patterns: freeing the target in each "
-                     f"would remove {t.statistic:.1f} times χ²_red·f² of χ², past "
-                     f"the {100 * FORM_TEST_LEVEL:g} % point {t.cut:.1f} of χ² for "
-                     f"{t.dof} directions. The coefficients' esds assume the form, "
-                     "so they are too small"),
+                     f"{t.n_patterns} of its {t.n_subset} patterns{how}: freeing "
+                     f"the target in each would remove {r.statistic:.1f} times "
+                     f"χ²_red·f² of χ², past the {100 * FORM_TEST_LEVEL:g} % point "
+                     f"{r.cut:.1f} of χ² for {r.dof} directions. The coefficients' "
+                     "esds assume the form, so they are too small"),
             suggestion=("do not quote the coefficients as they stand: add the next "
                         "term to the basis and refit, or narrow the subset to where "
                         "the form holds; the chain's trajectory shows where it "
