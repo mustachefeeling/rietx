@@ -164,5 +164,7 @@ def orbit_layout(orbits: list[np.ndarray]
     if len(orbits) == 0:
         return np.zeros((0, 3), dtype=np.int64), np.zeros(0, dtype=np.int64), counts
     members = np.vstack(orbits).astype(np.int64)
-    seg = np.repeat(np.arange(len(orbits), dtype=np.int64), counts)
+    # ``repeat`` casts its counts to the index type under the 'safe' rule,
+    # which refuses int64 where that type is 32 bits (wasm32, WP-1963).
+    seg = np.repeat(np.arange(len(orbits), dtype=np.int64), counts.astype(np.intp))
     return members, seg, counts
