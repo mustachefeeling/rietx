@@ -398,7 +398,8 @@ def test_the_notebook_html_holds_the_light_image_and_a_hidden_dark_one(fitted, t
 
     import matplotlib.pyplot as plt
 
-    from rietx.viz.plots import _DARK_MARKERS, _notebook_png
+    from rietx.viz._notebook import DARK_MARKERS
+    from rietx.viz.plots import _notebook_png
 
     _, result = fitted
     fig = plot_result(result)
@@ -418,7 +419,7 @@ def test_the_notebook_html_holds_the_light_image_and_a_hidden_dark_one(fitted, t
     for rule in re.findall(r"([^{}]+)\{[^}]*\}", style):
         for selector in rule.split(","):
             assert re.search(r"\.rx-fig-(light|dark)$", selector.strip()), selector
-    for marker in _DARK_MARKERS:
+    for marker in DARK_MARKERS:
         assert f"{marker} .rx-fig-dark" in style
     # a figure with no dark form shows the PNG alone
     for alone in (plot_result(result, style="dark"),

@@ -662,6 +662,9 @@ def _model_fields(cls, skip: frozenset[str] = frozenset()) -> list[str]:
 def _dataclass_fields(cls) -> list[str]:
     out = []
     for f in dataclasses.fields(cls):
+        if f.name.startswith("_"):
+            # private, as a pydantic private attribute is, which model_fields omits
+            continue
         text = f"{f.name}: {_ann(f.type)}"
         if f.default_factory is not dataclasses.MISSING:
             text += f" = {_default(f.default_factory())}"

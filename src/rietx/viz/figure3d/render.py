@@ -52,6 +52,10 @@ MAX_SUPERSAMPLE = 4
 #: package's imports are the boundary WP-1505's split moves
 #: (``tests/test_figure_boundary.py``); ``tests/test_display.py`` holds them equal.
 NOTEBOOK_COLOURS = 256
+#: The ground a notebook's dark copy is drawn on (WP-1970): the fit figure's
+#: ``viz.plots.PALETTES["dark"]["ground"]``, restated for the same reason and
+#: held equal by the same test.
+NOTEBOOK_DARK_GROUND = "#1d1813"
 MODES = ("ball", "ellipsoid")
 #: The places tried for a site label, in order, as (right, up) signs: up and
 #: to the right first, which is where every label went before #666.
@@ -163,20 +167,20 @@ class StructureFigure:
         recoloured, as a fit figure is, because its antialiased edges blend
         each ink into the ground.  A figure on any other ground is the
         caller's choice, and shows alone."""
-        from ..plots import PALETTES, _no_dark_copy, _pair_html, _wants_html
+        from .._notebook import no_dark_copy, pair_html, wants_html
 
         png, meta = self._repr_png_()
         data, metadata = {"image/png": png}, {"image/png": meta}
-        if (self._drawn_from is None or not _wants_html(include, exclude)
+        if (self._drawn_from is None or not wants_html(include, exclude)
                 or _colour(self.recipe.get("background")) != _colour("white")):
             return data, metadata
         try:
             dark = render_structure(self._drawn_from, **{
-                **self.recipe, "background": PALETTES["dark"]["ground"]})
+                **self.recipe, "background": NOTEBOOK_DARK_GROUND})
         except Exception as exc:  # noqa: BLE001 - the light figure still shows
-            _no_dark_copy(exc)
+            no_dark_copy(exc)
             return data, metadata
-        data["text/html"] = _pair_html(png, dark._repr_png_()[0], meta["width"])
+        data["text/html"] = pair_html(png, dark._repr_png_()[0], meta["width"])
         return data, metadata
 
     def to_px(self, points) -> np.ndarray:
