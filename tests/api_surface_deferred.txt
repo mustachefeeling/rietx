@@ -33,6 +33,7 @@ MomentEvidence.paired_magnitude_esd
 MomentEvidence.paired_with
 ParameterRow.body
 Phase.rigid_bodies
+Phase.texture
 RigidBody.atoms
 RigidBody.name
 RigidBody.orientation
@@ -40,6 +41,9 @@ RigidBody.origin
 RigidBody.rotation_vary
 RigidBody.template
 RigidBody.torsions
+SphericalHarmonicTexture
+SphericalHarmonicTexture.coefficients
+SphericalHarmonicTexture.order
 TetherRestraint
 TetherRestraint.atom_i
 TetherRestraint.atom_j

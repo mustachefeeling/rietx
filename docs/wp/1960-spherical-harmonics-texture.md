@@ -384,7 +384,7 @@ because it was not downloaded. Bunge's tables are published numbers.
       `spherical_harmonics` because `tests/test_harmonics.py` already tests
       λ/n monochromator harmonics. This task's first commit overwrote that
       file, and the next commit restored it.
-- [ ] **Schema**: `SphericalHarmonicTexture` (`order`, `coefficients`
+- [x] **Schema**: `SphericalHarmonicTexture` (`order`, `coefficients`
       as name → `Parameter`, default value 0, `vary=False`) on
       `Phase.texture`. Validators refuse an odd order and a phase declaring
       both blocks (D5). The two refusals that need the Laue class, an order
@@ -396,10 +396,18 @@ because it was not downloaded. Bunge's tables are published numbers.
       `SCHEMA_VERSION` (0.54 at e66fb223; re-read it). A `help.py` entry for
       `phases.*.texture.*`, the `gui/src/lib/history.ts` `PLACES` row with a
       rebuilt dist, and a derived `capabilities()` feature flag.
-- [ ] **Parameter table and holds**: one entry per allowed coefficient;
+      *Done 2026-10-14*, schema 0.57. The manual's theory section
+      landed with it, because the help entry's anchor must exist in
+      the built HTML. The four new public names are deferred in
+      `tests/api_surface_deferred.txt` until Task 11 documents them.
+- [x] **Parameter table and holds**: one entry per allowed coefficient;
       `mode_fixed_path` gains `.texture.` (measurement 3); check that the
       absent-phase hold (WP-1301) reaches `phases.i.texture.*` as it reaches
       `preferred_orientation.r`.
+      *Done 2026-10-14.* The hold selects by column reach under
+      `phases.{ip}.` and spares only the scale
+      (`refine._unsupported_phase_paths`), so it covers the texture
+      paths with no change. Task 5's tests check it end to end.
 - [ ] **Forward model**: compile the (l, n) set and the per-l factor
       (4π/(2l+1))·k_l(ψ) onto the compiled phase at stage compile, Rietveld
       only. Evaluate K at the current cell and fold P into `base` beside

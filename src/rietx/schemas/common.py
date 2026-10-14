@@ -462,7 +462,11 @@ from .._nearmiss import did_you_mean
 #: rejects the declared form, by a score test at the answer.  Additive and
 #: defaulted to ``None``, as ``parametric`` is; an older build refuses a
 #: result carrying the field.
-SCHEMA_VERSION = "0.56"
+#: 0.56 → 0.57 (WP-1960): ``Phase.texture``, a ``SphericalHarmonicTexture``
+#: (an even ``order`` and a name → ``Parameter`` map of coefficients).
+#: Additive and defaulted to ``None``, so every stored document loads and
+#: refines as before; an older build refuses a phase carrying the block.
+SCHEMA_VERSION = "0.57"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

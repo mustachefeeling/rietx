@@ -66,7 +66,7 @@ import numpy as np
 
 from ..backend import get_backend
 from .adp import cartesian_basis
-from .symmetry import as_group, rotation_matrices
+from .symmetry import as_group, group_key, rotation_matrices
 
 #: Tolerance on a projector check.  The projector is built by least squares
 #: on exact samples, so a member of its range comes back to about 1e-14.
@@ -423,6 +423,23 @@ def texture_basis(space_group, order: int, cell) -> TextureBasis:
             terms.append(TextureTerm(degree, n, term_name(degree, n)))
             coefs.append(v)
     return TextureBasis(order, rule, tuple(terms), tuple(coefs))
+
+
+_NAMES: dict[tuple, tuple[str, ...]] = {}
+
+
+def texture_names(space_group, order: int, cell) -> tuple[str, ...]:
+    """:attr:`TextureBasis.names`, cached on the group and the order.
+
+    The names do not depend on the cell's free values, and ``ParameterTable``
+    asks for them on every build, so the first cell asked with serves the
+    rest.
+    """
+    group = as_group(space_group)
+    key = (group_key(group), order)
+    if key not in _NAMES:
+        _NAMES[key] = texture_basis(group, order, cell).names
+    return _NAMES[key]
 
 
 def lowest_order(space_group) -> int:
