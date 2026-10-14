@@ -53,6 +53,8 @@ standing concern is a check calibrated on one example.
    would mix the form with the held value.
 4. **A correction for several laws at 95 % each is open.** The ZrP₂O₇ and
    WO₃ measurement decides it, because both declare several laws at once.
+   Since the seventh session each law is read twice and either reading
+   rejects it, so the correction now covers two readings per law.
 5. **A kernel prior for the blind regime is
    [1963](1963-a-kernel-over-the-pattern-coordinates.md)**, a stub.
 
@@ -1142,7 +1144,7 @@ directions and 197.9 against 337.1 for 296.
     value and esd to the bit; ρ(c₀, c₁) was 0.007 there, the centring's work.
   - `outside` checks each coordinate's range on its own, so a 2-D point
     inside both ranges and far from every pattern is not flagged.
-- [ ] **Test each law with the other laws freed** (maintainer, 2026-10-14).
+- [x] **Test each law with the other laws freed** (maintainer, 2026-10-14).
   Beside other laws, a law reads weaker than alone: the cubic line scored
   1.37 per direction at the three-law answer and 1.57 alone.
   - From the answer, the gain with every law's columns swapped, less the
@@ -1153,6 +1155,28 @@ directions and 197.9 against 337.1 for 296.
   - Decide how the two verdicts reach `rejected`, the diagnostic and the
     printed line. Two tests per law raise the false-alarm rate, decision 4's
     question.
+
+  Landed 2026-10-14 (schema 0.57; `1325-measure/form_freed.py`, output in
+  `form_freed_results.txt`):
+  - `ParametricFormTest` holds two `ParametricFormReading`s, `tied` and
+    `others_freed`, the second only when two or more laws are tested.
+    `parametric_form` was unreleased, so its fields moved freely.
+  - On the three-law answer the freed reading reproduced each law's own
+    refit: cubic 575.3 of the refit's 576.1, 1.58 per direction over the
+    untied denominator against 1.58; trigonal a 241.6 (1.33 of the refit's,
+    0.66 against 0.50, the weak phase whose refits stop in other minima);
+    trigonal c 215.6 (1.05, 0.59 against 0.56). Tied, the cubic law read
+    42.8 for 31 (p 0.077) and passed; freed, 48.6 (p 0.023), rejected.
+  - **Decided by the session, for the maintainer to confirm**: either
+    reading rejecting rejects the law. The maintainer's rule is to warn when
+    a law might be wrong. Tied, a law can pass behind another's misfit, as
+    the cubic one did; freed, two collinear wrong laws can absorb each other.
+    The cost is a false-alarm rate above 5 % per law, unmeasured, which
+    joins decision 4. Choosing only the freed reading would keep 5 % and
+    lose the collinear case.
+  - The diagnostic's `value` is the rejecting reading's statistic, the tied
+    one where both rejected, and its message says when only the freed one
+    did. `str(result)` prints both readings under one verdict.
 - [ ] **The same measurement on ZrP₂O₇ and WO₃, run as the form test's
   out-of-sample check.** Its level and its f² divisor were settled on the
   ZrMo₂O₈ ramp alone, the maintainer's concern. So:

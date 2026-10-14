@@ -1707,6 +1707,25 @@ not quote those coefficients or their esds. Add the next term to the basis and
 refit, or narrow the subset to where the form holds. A chain over the same
 patterns shows where the trajectory bends.
 
+A fit with several laws reads each law twice. The first reading keeps the
+other laws tied. The second frees their targets too, so it does not assume
+their forms. Either reading rejecting rejects the law. On the ZrMo₂O₈ ramp
+(33 patterns), a line on the cubic phase's cell beside lines on the trigonal
+phase's a and c read:
+
+```text
+    cubic_a: phases.1.cell.a at T=842.25
+      [1] 9.11157(11) Å
+      [T] -0.0000196(14) Å/K
+      form REJECTED over 33 of 33 patterns:
+        with the other laws tied, not rejected: 42.8 within the cut 45.0 (p = 0.077) for 31 directions
+        with the other laws freed, REJECTED: 48.6 past the cut 45.0 (p = 0.023) for 31 directions
+```
+
+A refit holding only the cubic law, with both trigonal cells free in every
+pattern, rejected it too (p 0.021). The freed reading's gain was 575.3 against
+the 576.1 that refit removed.
+
 The test has three limits.
 
 - It sees the form only where, and as well as, each pattern measures the

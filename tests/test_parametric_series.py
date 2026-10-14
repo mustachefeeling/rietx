@@ -1174,6 +1174,37 @@ def test_a_law_with_the_others_freed_is_the_difference_of_two_dense_gains():
     assert alone.others_freed is None and alone.tied == a.tied
 
 
+def test_a_law_only_the_freed_reading_rejects_is_printed_and_warned_as_such():
+    """The ZrMo₂O₈ cubic law's two readings (``form_freed_results.txt``):
+    passed with the other laws tied, rejected with them freed.  One verdict,
+    both readings printed under it, and a warning that says which rejected."""
+    from types import SimpleNamespace
+
+    from rietx.multi import _parametric_form_diagnostics
+    from rietx.schemas.parametric import ParametricFormReading, ParametricFormTest
+    from rietx.schemas.results import _form_line
+
+    tied = ParametricFormReading(dof=31, statistic=42.8, cut=44.985, rejected=False,
+                                 p_value=0.0771)
+    freed = ParametricFormReading(dof=31, statistic=48.6, cut=44.985, rejected=True,
+                                  p_value=0.0232)
+    t = ParametricFormTest(tie="cubic_a", target="phases.1.cell.a", n_patterns=33,
+                           n_subset=33, rejected=True, tied=tied, others_freed=freed)
+    assert _form_line(t).splitlines() == [
+        "      form REJECTED over 33 of 33 patterns:",
+        "        with the other laws tied, not rejected: 42.8 within the cut 45.0 "
+        "(p = 0.077) for 31 directions",
+        "        with the other laws freed, REJECTED: 48.6 past the cut 45.0 "
+        "(p = 0.023) for 31 directions"]
+    mt = SimpleNamespace(parametric=[SimpleNamespace(name="cubic_a",
+                                                     paths=["vars.cubic_a_0",
+                                                            "vars.cubic_a_1"])])
+    (d,) = _parametric_form_diagnostics(mt, [t])
+    assert d.value == 48.6 and d.where == ["vars.cubic_a_0", "vars.cubic_a_1"]
+    assert "once the other laws' targets are freed too" in d.message
+    assert "it read 42.8, within the cut" in d.message
+
+
 def test_a_patterns_own_target_column_is_read_off_the_coefficients():
     """``target_columns``: in pattern k, J_coef·Φ_kᵀ/‖Φ_k‖² is the target's
     own column, the one an untied table's ``hist.k.`` path carries; a
