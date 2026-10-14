@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here (Claude session); scope decided, synthetic measurement landed, a kernel over the coordinates surveyed; the regime a single pattern cannot see is next
+Milestone: unscheduled · Status: 🔄 2026-10-14 — the parametric fit, its blocked solver, summaries and docs landed; the real ZrMo₂O₈ ramp, a lack-of-fit check, in-step bounds and start agreement remain
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -752,6 +752,29 @@ Where a kernel over measurement coordinates has paid most is in choosing
 
   Either says when to widen the basis. It is cheaper than a kernel, which
   bought only honest intervals.
+
+  A third candidate needs no refit: a score test against a per-pattern
+  deviation, built from the coefficient columns at the answer.
+- [ ] **Hold each target's own bounds inside the step.** Coefficients are
+  unbounded, so a polynomial can step a target through its floor or pole
+  mid-solve (March-Dollase r at `MARCH_R_MIN`, the Caglioti W floor, an
+  occupancy outside [0, 1]). `PARAMETRIC_OUT_OF_RANGE` reports this only
+  afterwards. Root CLAUDE.md's rule is that a bound on a combination is an LM
+  `LinearInequality` held inside the step:
+  - one row lo ≤ Φ_k·c ≤ hi per subset pattern with a finite bound;
+  - the joint driver passes `inequalities=[]` today
+    (`least_squares.run_multi_least_squares`);
+  - TRF keeps the post-fit warning.
+
+  Declined from the 2026-10-14 code review as a design change.
+- [ ] **Per-pattern starting structures agree beyond their parameters.**
+  `_starting_structures` checks the phases, space groups and sites, and
+  `_check_starts_agree` the shared values. Fields that are not parameters
+  can still differ between starts: a preferred-orientation axis, the magnetic
+  symmetry, the extinction model. Two starts with different texture axes
+  sharing one `r` column are not one model with different values. Decide
+  which fields must agree and refuse the rest. Declined from the 2026-10-14
+  code review as a design decision.
 - [ ] **The measurement on real data**: the ZrMo₂O₈ ramp (maintainer-local),
   with the same numbers as the synthetic half.
 - [x] **Survey the prior art for declaring a parametric model**, for a
@@ -931,6 +954,134 @@ Where a kernel over measurement coordinates has paid most is in choosing
   Schur identity), issue #212.
 
 ## Handover log
+
+### 2026-10-14 (second session) — the parametric fit is built, measured and scales to hundreds of patterns
+
+A joint fit can now refine a parameter as a declared function of where each
+pattern sits: a line or polynomial in temperature down a ramp, a surface over
+composition across a library, or one law per phase field. The answer is the
+function's coefficients with esds, in the caller's units. The fit no longer
+runs out of memory with size: a 300-pattern library refines in about a minute
+in 1 GiB, where the old path needed 20 GiB for its Jacobian alone. The
+maintainer asked whether a smooth kernel over the coordinates would serve
+better than a declared form. Surveyed and then measured, it did not: tuned
+from the data it did worse than a plain line exactly where it could have
+helped, and at good settings it bought honest error bars, not accuracy. The
+hard function, on the other hand, measurably helped where single patterns
+cannot see the parameter. Its error bars go confidently wrong when the declared
+form is wrong, which makes a lack-of-fit check the next thing worth building.
+
+*Done* (session started 2026-10-14 at 0b33465, after #968 merged; one new
+draft PR, #969):
+- **The kernel survey.** Three agents covered diffraction, statistics and
+  other sciences; the result is § A kernel over the coordinates.
+- **The measurement where one pattern cannot see the parameter**, with the
+  maintainer's kernel extensions. § Measured: where one pattern cannot see
+  the parameter. A lack-of-fit task was filed from it.
+- **The declaration, per-pattern starts and ties in the joint table**:
+  `schemas/parametric.py`, `params/parametric.py` and `params/multi.py`. A
+  `constant` basis is bit-identical to a shared parameter. The joint support
+  hold and its release read column reach.
+- **Coefficients in user units**: `RefinementResult.parametric`, schema 0.55.
+- **Summaries.** `str(result)` prints the coefficients. `SeriesResult.summary`
+  takes `parametric=`, and the series deliverable gains a "functional form"
+  row.
+- **The blocked solver, step and covariance**, and its scaling measured
+  (§ Measured: scaling).
+- **Docs**: manual Part 1 and Part 2, and the skill's series row.
+- **Found while documenting, and fixed:**
+  - centred mixture fractions are refused until their reading is stated;
+  - one target may take a law per phase field, on disjoint subsets;
+  - the reported unit comes from `rietx.help`, so a cell coefficient reads
+    Å/K.
+- **`/code-review high --fix`: 9 findings, 5 fixed** (d2b8156):
+  - a size target across wavelengths is refused (WP-1131's factor never
+    reached a per-histogram target);
+  - "never refined" became "not free at the answer";
+  - one `entry_reach` per table;
+  - two unused methods removed;
+  - a restated regex now imported.
+
+  Four declined:
+  - in-step bounds on a combination: a design change, filed as a task;
+  - per-pattern starts' non-parameter fields: a design decision, filed as a
+    task;
+  - the joint `CELL_RUNAWAY` vars twin: forwarded to 1341;
+  - three reach walks per stage: cheap per call, and it touches unchanged
+    code.
+- **Forward references:**
+  - 1962 learns the solver's shape and limits; its priority clause was
+    re-dated;
+  - 1329 learns the parametric tie and its measured regime;
+  - 1341 learns three joint guards that cannot see a coefficient-driven or
+    per-histogram cell, and the new diagnostic.
+- **Inherited:** none on arrival.
+
+*Measured* (Linux x86_64, 4 CPUs, 15.7 GiB, `[dev]` venv):
+- The measurement, scaling and equivalence numbers are in § Measured and in
+  the solver tasks' landing notes.
+- Fast suite on the merged tree (main at 0b33465, which had not moved): 9653
+  passed, 197 skipped, 1 xfailed, in 18:54. That is one run, nothing else
+  running.
+  - The session added 32 fast test functions and 2 slow ones.
+    `tests.added_test_times` gives 62.8 s over the added fast tests, 61.9 s of
+    it in `test_parametric_series.py`.
+  - The new tail is `test_a_blocked_fit_lands_on_the_dense_answer` (31.3 s, 2
+    cases). It stays fast because it is the one end-to-end run of the blocked
+    path, which no fast fit reaches by size.
+  - Main's count was not re-measured (`tests/CLAUDE.md` § Running, rung 4),
+    so CI confirms the delta.
+- Slow joint-path files, run instead of the full selection, on the same tree:
+  17 passed in 1:19. The files are `test_absent_phase`,
+  `test_acceptance_wavelength`, `test_held_phase` and
+  `test_parametric_series`, run with `-m slow`. The full selection was not
+  run: these are the only slow files that reach the joint path (torch and
+  cross-backend skip without their backends).
+- Lanes (`session_usage.py lanes`). Main: 164 requests, peak 484K, $18.20.
+  Four lanes: $47.60.
+
+  | lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | lane $ | main $ | saved $ |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | measurement-kernel | 45 | 74 | 270K | 114K | 7K of 67K | 1 | 4K | 0 | 0 | 10.60 | 0.21 | +4.61 |
+  | declaration-ties-starts | 60 | 146 | 274K | 115K | 0K of 62K | 29 | 64K | 0 | 0 | 12.60 | 2.55 | +9.51 |
+  | scalable-solver | 80 | 146 | 340K | 115K | 0K of 110K | 10 | 22K | 2 | 0 | 14.94 | 1.00 | +11.11 |
+  | docs-manual-skill | 40 | 125 | 398K | 113K | 24K of 48K | 6 | 14K | 2 | 0 | 9.47 | 0.67 | +10.39 |
+
+  The trial row went to `docs/milestones/process.md` with fixed 0 where the
+  tool printed 2 for two lanes. Those later edits were my own code changes
+  rippling into the lanes' files, not repairs of their work. Selective
+  policy row: `lane when main > 150K and item >= 20 requests | 4 | -21%`.
+  Estimate against actual was 2.13×.
+
+*Gotchas*:
+- **Lanes ran concurrently**, against `/wp-start`'s one-at-a-time rule.
+  - The measurement lane ran on a frozen copy of `src/` (a `--src` flag that
+    inserts the path before import). A PYTHONPATH prefix is refused by a hook
+    here.
+  - The docs lane ran beside the solver lane, on disjoint files.
+  - Two of my commits touched a file a lane was still editing. Staging only
+    my hunks (`git apply --cached` of one extracted hunk) kept the lane's
+    edits out.
+- **The joint support hold fires only for a phase invisible in every
+  histogram.** A per-histogram cell is flat in a pattern that cannot see its
+  phase, and nothing holds it (forwarded to 1341).
+- **The single-fit 3σ hold keeps noise-chasing fits near threshold.** The
+  kernel measurement's chain kept patterns at support 0.84-1.4 whose cell
+  errors reached 6.5 esd. 1523 is closed and no open WP owns it, so it is
+  recorded in § Measured, not filed.
+- **Blocked is faster than dense from N = 10**, yet dense stays the default
+  below 256 MiB. That keeps every existing joint answer bit-identical.
+  Lowering the threshold would move converged values by ~1e-8 esd.
+
+Next, in order:
+1. **A lack-of-fit check on the declared form.** The measurement says a wrong
+   form gives confidently wrong esds. A score test against per-pattern
+   deviations needs no refit.
+2. **In-step bounds for the coefficients** (`LinearInequality` rows), so a
+   polynomial cannot step a target through its floor.
+3. **The real ZrMo₂O₈ ramp**, when the maintainer supplies it: the
+   measurement on real data.
+4. **Start agreement beyond parameters** (texture axis, magnetic symmetry).
 
 - **2026-10-14** — the parametric fit is scoped, and measured once. The
   maintainer made the combinatorial library a target, which puts a joint
