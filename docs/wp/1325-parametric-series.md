@@ -520,8 +520,12 @@ the 20 seeds.
     the tool printed 1: the two later edits were to this file. Baseline,
     selective policy row: `lane when main > 150K and item >= 20 requests | 2
     | +4%`. Estimate against actual was 2.07×: the lane ran 20 seeds, not 5.
-  - Fast suite: see the PR body. No test was added, so no count delta is
-    owed.
+  - Fast suite: not quoted. A local run was stopped at about 10 %, because
+    merging `main` mid-run changed two `src/` files under it, and a 4-CPU
+    container ran it at that pace. The branch adds no test and touches
+    nothing under `src/`, `tests/` or `examples/`, so CI's run on the ready
+    PR is the record. `test_docs_consistency.py` (25 passed) and ruff are
+    clean on the merged tree.
 
   *Gotchas*:
   - `MultiHistogramRefinement` builds its joint table once (`multi.py:815`),
