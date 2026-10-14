@@ -56,7 +56,7 @@ def test_projection_replaces_the_install_cell_and_nothing_else(path):
     changed = [i for i, (a, b) in enumerate(zip(original["cells"], projected["cells"])) if a != b]
     assert len(changed) == 1, f"{path.name}: cells {changed} changed, expected only the install cell"
     cell = projected["cells"][changed[0]]
-    assert "".join(cell["source"]) == LITE.INSTALL.format(floor=floor)
+    assert "".join(cell["source"]) == LITE.install_source(floor)
     assert cell["outputs"] == [] and cell["execution_count"] is None
     assert projected["metadata"]["kernelspec"]["name"] == "python"  # the Pyodide kernel's
     assert {k: v for k, v in projected["metadata"].items() if k != "kernelspec"} == \
@@ -67,6 +67,11 @@ def test_the_mock_satisfies_rietx_s_own_kernels_requirement():
     text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     spec = re.search(r'"rietx-kernels([^"]+)"', text)[1]
     assert LITE.kernels_floor() in SpecifierSet(spec)
+
+
+def test_the_floor_is_read_from_a_wheel_s_metadata_too():
+    meta = "Metadata-Version: 2.4\nName: rietx\nRequires-Dist: rietx-kernels<2,>=1.3.1\n"
+    assert LITE.kernels_floor(meta) == "1.3.1"
 
 
 def test_the_site_serves_only_what_build_wheels_makes():
@@ -105,9 +110,10 @@ def test_the_run_lock_reads_an_empty_fcntl_as_windows(jupyterlite_fcntl, tmp_pat
 def test_the_wheel_pins_name_the_kernel_s_pyodide():
     """build_wheels.PYODIDE must be the Pyodide the pinned kernel loads.
 
-    Asked of the installed kernel when there is one; requirements.txt's pin is
-    what a CI without it would need to read, so that is checked too."""
+    Asked of the installed kernel when there is one.  Without it, the pin
+    requirements.txt installs must be the one build_wheels names beside
+    PYODIDE, so a kernel bump that leaves PYODIDE behind fails here too."""
     pins = (ROOT / "docs" / "lite" / "requirements.txt").read_text(encoding="utf-8")
-    assert "jupyterlite-pyodide-kernel==" in pins
+    assert WHEELS.KERNEL_PIN in pins.splitlines()
     kernel = pytest.importorskip("jupyterlite_pyodide_kernel.constants")
     assert kernel.PYODIDE_VERSION == WHEELS.PYODIDE

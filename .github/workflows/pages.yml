@@ -76,6 +76,7 @@ jobs:
       - name: Build gemmi and spglib for Pyodide
         if: steps.lite-wheels.outputs.cache-hit != 'true'
         run: |
+          sudo apt-get update -q
           sudo apt-get install -y ninja-build
           python3 docs/lite/build_wheels.py docs/lite/wheels
       - name: Build the JupyterLite site

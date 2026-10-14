@@ -43,7 +43,7 @@ const server = http.createServer((req, res) => {
   const local = pyodideDir && rel.startsWith("/_pyodide/");
   const root = local ? path.resolve(pyodideDir) : site;
   const file = path.join(root, local ? rel.slice("/_pyodide/".length) : rel);
-  if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+  if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     res.writeHead(404).end();
     return;
   }

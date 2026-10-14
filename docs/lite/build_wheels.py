@@ -27,6 +27,8 @@ from pathlib import Path
 
 #: `jupyterlite_pyodide_kernel.constants.PYODIDE_VERSION` for the kernel in requirements.txt.
 PYODIDE = "314.0.6"
+#: The kernel pin that loads it, which requirements.txt must carry verbatim.
+KERNEL_PIN = "jupyterlite-pyodide-kernel==0.8.6"
 #: The host Python must match the Pyodide's CPython to the minor version.
 HOST_PYTHON = "3.14"
 PYODIDE_BUILD = "pyodide-build==0.39.1"

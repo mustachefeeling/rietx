@@ -30,6 +30,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -44,16 +45,35 @@ def _by_path(name: str, path: Path):
 
 
 LANDING = _by_path("_lite_landing", REPO / "docs" / "landing" / "build.py")
+#: The name-bearing literals (`src/rietx/_about.py`), never spelled here.
+ABOUT = LANDING.ABOUT
+KERNELS_DIST = f"{ABOUT.DIST_NAME}-kernels"
 #: The packages the site serves itself, and nothing else from `--wheels`.
 SERVED = tuple(_by_path("_lite_wheels", HERE / "build_wheels.py").PACKAGES)
 
 
-def kernels_floor(pyproject: Path = REPO / "pyproject.toml") -> str:
-    """The lowest `rietx-kernels` rietx accepts, which is the version the mock claims."""
-    m = re.search(r'"rietx-kernels>=(\d+)\.(\d+)', pyproject.read_text(encoding="utf-8"))
+def kernels_floor(requirements: str | None = None) -> str:
+    """The lowest `rietx-kernels` rietx accepts, which is the version the mock claims.
+
+    `requirements` is the text naming that requirement: a `pyproject.toml`, or a
+    wheel's `METADATA`.  The working tree's `pyproject.toml` when omitted."""
+    if requirements is None:
+        requirements = (REPO / "pyproject.toml").read_text(encoding="utf-8")
+    m = re.search(rf'{re.escape(KERNELS_DIST)}[^"\n]*?>=\s*(\d+(?:\.\d+)*)', requirements)
     if not m:
-        raise SystemExit("pyproject.toml names no rietx-kernels floor")
-    return f"{m[1]}.{m[2]}.0"
+        raise SystemExit(f"no {KERNELS_DIST} floor in the requirements read")
+    return m[1]
+
+
+def requirements_of(ref: str, rietx_wheel: Path | None) -> str:
+    """The requirements of the rietx the site installs: the served wheel's own
+    `METADATA`, else `pyproject.toml` at `ref`, the release PyPI serves for it."""
+    if rietx_wheel is not None:
+        with zipfile.ZipFile(rietx_wheel) as whl:
+            meta = next(n for n in whl.namelist() if n.endswith(".dist-info/METADATA"))
+            return whl.read(meta).decode("utf-8")
+    return subprocess.run(["git", "-C", str(REPO), "show", f"{ref}:pyproject.toml"],
+                          capture_output=True, text=True, check=True).stdout
 
 
 #: The browser's install cell.  `rietx-kernels` has no WebAssembly build, so the
@@ -63,16 +83,22 @@ def kernels_floor(pyproject: Path = REPO / "pyproject.toml") -> str:
 #: no `rietx watch` can read a browser tab's run records.
 INSTALL = """\
 # This notebook runs in your browser, on Pyodide (Python compiled to WebAssembly).
-# rietx's compiled kernels have no WebAssembly build, so micropip is told to skip
-# them and rietx runs its numpy path. gemmi and spglib come from this site.
+# {dist}'s compiled kernels have no WebAssembly build, so micropip is told to skip
+# them and {dist} runs its numpy path. gemmi and spglib come from this site.
 import os
 
 import micropip
 
-os.environ["RIETX_COMPILED"] = "0"
-os.environ["RIETX_TELEMETRY"] = "0"
-micropip.add_mock_package("rietx-kernels", "{floor}", modules={{}})
-%pip install rietx"""
+os.environ["{compiled_env}"] = "0"
+os.environ["{telemetry_env}"] = "0"
+micropip.add_mock_package("{kernels}", "{floor}", modules={{}})
+%pip install {dist}"""
+
+
+def install_source(floor: str) -> str:
+    """`INSTALL` for a mock claiming `floor`."""
+    return INSTALL.format(floor=floor, dist=ABOUT.DIST_NAME, kernels=KERNELS_DIST,
+                          compiled_env=ABOUT.COMPILED_ENV, telemetry_env=ABOUT.TELEMETRY_ENV)
 
 KERNELSPEC = {"display_name": "Python (Pyodide)", "language": "python", "name": "python"}
 
@@ -89,7 +115,7 @@ def project(data: bytes, floor: str) -> dict:
     if len(installs) != 1:
         raise SystemExit(f"expected one %pip install cell, found {len(installs)}")
     cell = installs[0]
-    cell["source"] = INSTALL.format(floor=floor).splitlines(keepends=True)
+    cell["source"] = install_source(floor).splitlines(keepends=True)
     cell["outputs"] = []
     cell["execution_count"] = None
     nb["metadata"]["kernelspec"] = dict(KERNELSPEC)
@@ -105,8 +131,12 @@ def build(wheels: Path, out: Path, ref: str, rietx_wheel: Path | None) -> None:
                              f" run build_wheels.py into an empty directory")
         found += matches
     if rietx_wheel is not None:
+        if not rietx_wheel.is_file():
+            raise SystemExit(f"--rietx-wheel {rietx_wheel}: no such file")
         found.append(rietx_wheel)
-    floor = kernels_floor()
+    if out.exists() and not (out / "jupyter-lite.json").is_file():
+        raise SystemExit(f"--out {out} exists and is not a JupyterLite site; refusing to delete it")
+    floor = kernels_floor(requirements_of(ref, rietx_wheel))
     with tempfile.TemporaryDirectory() as tmp:
         contents = Path(tmp) / "contents"
         contents.mkdir()
