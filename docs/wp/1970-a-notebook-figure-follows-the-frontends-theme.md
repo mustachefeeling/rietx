@@ -1,6 +1,6 @@
 # WP-1970 — a notebook figure follows the frontend's theme
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-10-14 — a workaround covers it: every pattern figure takes `style="dark"` and `render_structure` a dark `background=`; the series figure has no dark form
