@@ -1,6 +1,6 @@
 # WP-1972 — the indexing figures take a dark palette
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-15 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-10-14 — no workaround: an indexing figure has no `style=`, so in a dark notebook it is a white rectangle
