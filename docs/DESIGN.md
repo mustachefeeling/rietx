@@ -227,6 +227,21 @@ differentiable from day one.
     **Decided 2026-09-30:** difference Fourier (#197) and charge flipping
     (#198) leave the fence with direct-space solution, in the order map,
     direct space, charge flipping (milestone structure-solution, queued as v1.9).
+  - *Texture fence revised (2026-10-14).* Spherical-harmonics texture (Von
+    Dreele 1997) was a v2+ line item. Its cost is now on the record. A
+    contributor's SRM 1976a sintered-alumina plate was rejected as an
+    acceptance case for want of it (#131), an outside lab that relies on TOPAS
+    names it as its other gap (WP-1325, 2026-10-13), and both the TOPAS and
+    the GSAS-II readers drop the coefficients they meet. The seams it needs
+    exist. It is a per-phase opt-in block over a reflection list frozen per
+    stage, a multiplier linear in its coefficients with the identity at zero,
+    the `LinearInequality` the Stephens cone already uses for positivity, and
+    a basis derived from the operators as `stephens.py` and `adp_basis` derive
+    theirs. GSAS-II runs in rietx-bench, so agreement with it is a
+    measurement rather than a reading. The maintainer decided the move; the
+    work is WP-1960, ROADMAP § Unscheduled. **What stays fenced**: an
+    orientation distribution refined from several sample orientations, any
+    sample symmetry below cylindrical, and odd orders.
 
 ## Architecture invariants
 

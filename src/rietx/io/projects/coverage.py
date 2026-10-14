@@ -259,7 +259,7 @@ FEATURES: tuple[Feature, ...] = (
     _f("preferred orientation", Stance.REPORTED,
        "a texture model", "spherical_harmonics_hkl", "normals_plot",
        "normals_plot_min_d",
-       why="spherical harmonics are a v2 fence, and this reader does not "
+       why="rietx does not model spherical harmonics yet, and this reader does not "
            "translate a March-Dollase correction into rietx's either, so the "
            "texture is dropped and the intensities it explained are not",
        # §19.3.8, with the documented short form.
