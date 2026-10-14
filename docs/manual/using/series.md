@@ -1673,7 +1673,7 @@ declaration, and is `None` exactly when `RefinementResult.parametric` is.
 | `ParametricFormTest.n_subset` | the patterns the subset names. Where it is larger than `n_patterns`, the law sets the target in the rest unchecked |
 | `ParametricFormTest.tied` | the reading with every other law still tied, `None` when a coefficient was not free at the answer |
 | `ParametricFormTest.others_freed` | the reading with every other tested law's target freed too, `None` unless two or more laws were tested |
-| `ParametricFormTest.rejected` | the verdict: true when either reading rejects |
+| `ParametricFormTest.rejected` | the verdict: the `others_freed` reading's where there is one, else the `tied` reading's |
 
 Each reading is a `ParametricFormReading`:
 
@@ -1684,6 +1684,9 @@ Each reading is a `ParametricFormReading`:
 | `ParametricFormReading.cut` | the 95 % point of χ² for `dof` directions |
 | `ParametricFormReading.rejected` | `statistic > cut` |
 | `ParametricFormReading.p_value` | the upper tail of χ² for `dof` directions at `statistic`, so a near miss shows on either side of the cut |
+
+`RefinementResult.parametric_form_joint` is one more `ParametricFormReading`,
+of every tested law at once. It is `None` unless two or more laws were tested.
 
 The statistic is about χ² with `dof` degrees of freedom while the form holds.
 {ref}`par-parametric-section` has the equation. `str(result)` closes each declaration with its verdict. On the
@@ -1701,15 +1704,15 @@ at mid-ramp, and a straight line declared:
 The same ramp on its true line read 4.8 against the same cut, at p = 0.77. The
 line prints a p-value under 0.001 as `p < 0.001`. A rejected form
 adds `PARAMETRIC_FORM_REJECTED`, a warning on `RefinementResult.diagnostics`
-whose `where` names the coefficients and whose `value` is the statistic of
-the reading that rejected the form. Do
+whose `where` names the coefficients and whose `value` is the verdict
+reading's statistic. Do
 not quote those coefficients or their esds. Add the next term to the basis and
 refit, or narrow the subset to where the form holds. A chain over the same
 patterns shows where the trajectory bends.
 
 A fit with several laws reads each law twice. The first reading keeps the
 other laws tied. The second frees their targets too, so it does not assume
-their forms. Either reading rejecting rejects the law. On the ZrMo₂O₈ ramp
+their forms, and it gives the law's verdict. On the ZrMo₂O₈ ramp
 (33 patterns), a line on the cubic phase's cell beside lines on the trigonal
 phase's a and c read:
 
@@ -1718,13 +1721,31 @@ phase's a and c read:
       [1] 9.11157(11) Å
       [T] -0.0000196(14) Å/K
       form REJECTED over 33 of 33 patterns:
-        with the other laws tied, not rejected: 42.8 within the cut 45.0 (p = 0.077) for 31 directions
         with the other laws freed, REJECTED: 48.6 past the cut 45.0 (p = 0.023) for 31 directions
+        with the other laws tied, not rejected: 42.8 within the cut 45.0 (p = 0.077) for 31 directions
 ```
 
 A refit holding only the cubic law, with both trigonal cells free in every
 pattern, rejected it too (p 0.021). The freed reading's gain was 575.3 against
 the 576.1 that refit removed.
+
+Two laws whose targets change the pattern alike can each pass with the other
+freed while both are wrong, because each law's freed targets absorb the other's
+misfit. So the fit is also read once with every tested law's targets freed
+together. That joint reading closes the block. On the same ramp:
+
+```text
+    the 3 tested laws together: form not rejected: 74.1 within the cut 116.5 (p = 0.93) for 93 directions
+```
+
+It kept all three laws while the cubic law failed on its own reading. One wrong
+law among three spreads its misfit over all 93 directions, so the joint reading
+adds to each law's verdict and does not replace it.
+
+When the joint reading rejects and no law's own verdict does,
+`PARAMETRIC_FORM_REJECTED` names every tested law's coefficients. The data
+cannot say which form is wrong. Add the next term to one law at a time and
+refit.
 
 The test has three limits.
 
@@ -1736,9 +1757,10 @@ The test has three limits.
   with a minor phase broad and overlapped, a curved truth on its cell went
   unrejected in 20 seeds of 20. A full untied refit rejected none of them
   either.
-- Each reading is a test at 95 %. A fit with several laws reads each law
-  twice and rejects it when either reading does, so it rejects a right form
-  more often than one time in twenty. By how much has not been measured.
+- Each verdict is a test at 95 %, and so is the joint reading. A fit with K
+  laws therefore flags some right law more often than one time in twenty:
+  1 − 0.95^K of the time if the tests were independent, 14 % for three laws.
+  No correction is applied yet.
 
 ### The law at any coordinate
 

@@ -590,8 +590,13 @@ declaration's coefficient columns and $J_{\mathrm{o}}$ every one but this. The
 numerator is then the difference
 $\min_\beta \lVert r - J_{\mathrm{o}}\beta \rVert^2 - \min_\beta \lVert r - J_{\mathrm{a}}\beta \rVert^2$,
 and $k$ is the difference of their directions. That reading does not assume the other
-declarations' forms. The declaration is rejected when either reading passes
-its cut.
+declarations' forms, and the declaration is rejected when it passes its cut.
+Two declarations whose target columns are nearly collinear can each pass this
+way while both are wrong, because each one's columns absorb the other's
+misfit. So the fit is also read once with $J_{\mathrm{a}}$ in place of
+$J_{\mathrm{u}}$, every tested declaration swapped at once and $k$ their
+directions together. That joint reading rejects the set and names no
+declaration in it.
 
 On the 33-pattern ZrMo₂O₈ ramp the numerator was 0.98-1.04 of the $\chi^2$ a
 full untied refit removed, for the strong phase's laws and for three laws

@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — law-set values are marked, a law evaluates anywhere, and each law is tested with the others freed; next the maintainer confirms "either reading rejects", then ZrP₂O₇ and WO₃ out of sample
+Milestone: unscheduled · Status: 🔄 2026-10-14 — each law's verdict is its others-freed reading and a joint reading covers all laws at once (maintainer: best practice); next ZrP₂O₇ and WO₃ out of sample
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -53,10 +53,20 @@ standing concern is a check calibrated on one example.
    would mix the form with the held value.
 4. **A correction for several laws at 95 % each is open.** The ZrP₂O₇ and
    WO₃ measurement decides it, because both declare several laws at once.
-   Since the seventh session each law is read twice and either reading
-   rejects it, so the correction now covers two readings per law.
+   It covers one verdict per law plus the joint reading (decision 6).
 5. **A kernel prior for the blind regime is
    [1963](1963-a-kernel-over-the-pattern-coordinates.md)**, a stub.
+6. **The verdict follows statistical practice** (the maintainer, 2026-10-14,
+   eighth session, overturning the seventh session's "either reading
+   rejects"). A law's verdict is its others-freed reading, the test of a
+   regression term added last, which assumes nothing of the other laws'
+   forms. The tied reading stays on the record. Two laws whose targets move
+   the pattern alike can each pass freed while both are wrong, so one joint
+   reading swaps every tested law at once, the overall test of the group.
+   It names no law, since the data cannot say which one is wrong. The
+   either rule's per-law false-alarm rate lay between 5 % and 10 % by the
+   union bound, and its tied half could flag a right law beside a wrong
+   one.
 
 ### The general shape, and which part this WP builds
 
@@ -94,7 +104,14 @@ exponent, a Debye σ²(T)) is the `Parameter.expr` fence of WP-1119.
   & Schorr (2011) refined symmetry-mode amplitudes as a Landau power law in T,
   and report better statistics, stability and lower correlation than the
   sequential route. The outside lab's polynomial surfaces are this, over
-  composition.
+  composition. The Durham tutorials (9.3-9.5, read 2026-10-14) check a law
+  by plotting it against independent fits and by Rwp with the law on and
+  off (WO₃: 12.87 % for 184 parameters over 11 patterns; ZrP₂O₇: 31.56 % to
+  31.53 % with its three terms freed). They name no statistical test.
+  WO₃'s nine cell edges share one refined Einstein temperature,
+  a = a₀ + g/(exp(θ/T) − 1), and its angles are quadratic in T.
+  ZrP₂O₇'s law is a cubic temperature calibration, the sample's true
+  temperature from the set one with Si and Al₂O₃ as thermometers.
 - **GSAS-II** fits an equation to its sequential *table* after the fact.
   That is the weaker form `sequential.py` already has.
 - **FullProf's multi-pattern refinements** share a parameter through a
@@ -1167,16 +1184,16 @@ directions and 197.9 against 337.1 for 296.
     0.66 against 0.50, the weak phase whose refits stop in other minima);
     trigonal c 215.6 (1.05, 0.59 against 0.56). Tied, the cubic law read
     42.8 for 31 (p 0.077) and passed; freed, 48.6 (p 0.023), rejected.
-  - **Decided by the session, for the maintainer to confirm**: either
-    reading rejecting rejects the law. The maintainer's rule is to warn when
-    a law might be wrong. Tied, a law can pass behind another's misfit, as
-    the cubic one did; freed, two collinear wrong laws can absorb each other.
-    The cost is a false-alarm rate above 5 % per law, unmeasured, which
-    joins decision 4. Choosing only the freed reading would keep 5 % and
-    lose the collinear case.
-  - The diagnostic's `value` is the rejecting reading's statistic, the tied
-    one where both rejected, and its message says when only the freed one
-    did. `str(result)` prints both readings under one verdict.
+  - The session decided that either reading rejecting rejects the law. The
+    maintainer overturned it the next session for decision 6: the freed
+    reading is the verdict, and `RefinementResult.parametric_form_joint`
+    reads every tested law at once (c5b015e).
+  - The diagnostic's `value` is the verdict reading's statistic, and its
+    message says what the tied one read when that one passed. A joint
+    rejection with no law rejected on its own adds one
+    `PARAMETRIC_FORM_REJECTED` whose `where` is every tested law's
+    coefficients. `str(result)` prints the freed reading first and closes
+    the block on the joint reading.
 - [ ] **The same measurement on ZrP₂O₇ and WO₃, run as the form test's
   out-of-sample check.** Its level and its f² divisor were settled on the
   ZrMo₂O₈ ramp alone, the maintainer's concern. So:
@@ -1193,6 +1210,13 @@ directions and 197.9 against 337.1 for 296.
   `rx.read_project_model` builds all three WO₃ phases from
   `d9_02592_3phase_01.inp`. The ZrP₂O₇ input is refused at read, on its
   `B1(...)` site macros, so its phases need building by hand.
+  - WO₃'s TOPAS law refines its Einstein temperature, which no linear
+    basis expresses ([1964](1964-a-nonlinear-law-through-the-derived-block.md)).
+    Held at TOPAS's 125.4 K it is a `design` law with columns 1 and
+    1/(exp(θ/T) − 1), which is how to declare it here.
+  - ZrP₂O₇'s TOPAS law calibrates the temperature itself, a law on a
+    coordinate this WP does not build. Declare cell laws in the set
+    temperature instead, heating and cooling as one.
 - [ ] **Measure whether a one-direction test for the next term earns a
   place** (added 2026-10-14, from a review of the API against prior art).
   The form test's alternative spends n − m directions, one per pattern
