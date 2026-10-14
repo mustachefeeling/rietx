@@ -1,17 +1,20 @@
-"""Cross-compile gemmi and spglib for the Pyodide the JupyterLite site loads (WP-1963).
+"""Cross-compile what rietx needs and Pyodide lacks, for the Pyodide the site loads (WP-1963).
 
     python docs/lite/build_wheels.py OUT_DIR [--work DIR]
 
-rietx needs both and Pyodide's distribution has neither, nor does PyPI carry a
-WebAssembly wheel of either (checked 2026-10-14).  This builds them from their
-PyPI sdists with `pyodide-build`, in a work directory it creates (a uv venv on
-CPython 3.14, Pyodide's cross-build environment, an Emscripten SDK), and writes
-the two `pyemscripten` wheels to OUT_DIR.  About five minutes on four cores,
-most of it gemmi; it needs `uv`, `git`, `cmake` and `ninja`.
+gemmi and spglib are not in Pyodide's distribution and PyPI carries no
+WebAssembly wheel of either (checked 2026-10-14), so they are built from their
+PyPI sdists.  rietx-kernels publishes no sdist at all, so it is built from this
+checkout's `kernels/`.  Everything goes through `pyodide-build`, in a work
+directory this creates (a uv venv on CPython 3.14, Pyodide's cross-build
+environment, an Emscripten SDK, the Rust target Pyodide names), and the three
+`pyemscripten` wheels land in OUT_DIR.  About six minutes on four cores, most
+of it gemmi.  It needs `uv`, `git`, `cmake`, `ninja` and `rustup`.
 
 The pins move together.  `jupyterlite-pyodide-kernel` (requirements.txt) loads
 one Pyodide, a wheel must match that Pyodide's ABI, and `pyodide-build` builds
-against that Pyodide's cross-build environment, which names its Emscripten.
+against that Pyodide's cross-build environment, which names its Emscripten and
+its Rust toolchain.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ import tarfile
 import urllib.request
 from pathlib import Path
 
+REPO = Path(__file__).resolve().parents[2]
 #: `jupyterlite_pyodide_kernel.constants.PYODIDE_VERSION` for the kernel in requirements.txt.
 PYODIDE = "314.0.6"
 #: The kernel pin that loads it, which requirements.txt must carry verbatim.
@@ -34,8 +38,15 @@ HOST_PYTHON = "3.14"
 PYODIDE_BUILD = "pyodide-build==0.39.1"
 XBUILDENV = f"https://github.com/pyodide/pyodide/releases/download/{PYODIDE}/xbuildenv-{PYODIDE}.tar.bz2"
 
-#: Per package: its version, and what its build needs that a native build does not.
+#: Per package: where its source comes from (a PyPI `version`, or a `path` in
+#: this checkout), and what its build needs that a native build does not.
 PACKAGES = {
+    "rietx-kernels": {
+        # No change at all: no threads of its own (the pool is Python's, and
+        # `compiled.n_threads` answers 1 under Pyodide), and SLEEF is x86-64
+        # only, so wasm32 takes the libm path the arm64 wheel takes.
+        "path": "kernels",
+    },
     "spglib": {
         "version": "2.8.0",
         # Shared, `_spglib.so` links a `libsymspg.so` Pyodide's loader cannot find.
@@ -101,14 +112,28 @@ def main(argv: list[str] | None = None) -> None:
                            env=env, check=True, capture_output=True, text=True).stdout
     env = dict(line.split("=", 1) for line in shown.split("\0") if "=" in line)
     env["CMAKE_BUILD_PARALLEL_LEVEL"] = str(os.cpu_count() or 2)
+    # The Rust toolchain the cross-build environment was made with, and its
+    # stock emscripten target (`rust_emscripten_target_url` is empty for 314).
+    rust = subprocess.run([pyodide, "config", "get", "rust_toolchain"], env=env, check=True,
+                          capture_output=True, text=True).stdout.strip()
+    run("rustup", "toolchain", "install", rust, "--profile", "minimal",
+        "--target", "wasm32-unknown-emscripten")
+    env["RUSTUP_TOOLCHAIN"] = rust
 
+    src_root = work / "src"
+    src_root.mkdir(exist_ok=True)
     for name, spec in PACKAGES.items():
-        for old in out.glob(f"{name}-*.whl"):
+        stem = name.replace("-", "_")  # a wheel's file name normalises the dash
+        for old in out.glob(f"{stem}-*.whl"):
             old.unlink()
-        src_root = work / "src"
-        shutil.rmtree(src_root / f"{name}-{spec['version']}", ignore_errors=True)
-        src_root.mkdir(exist_ok=True)
-        src = sdist(name, spec["version"], src_root)
+        if "path" in spec:
+            # A copy, so the build's target/ never lands in the checkout.
+            src = src_root / name
+            shutil.rmtree(src, ignore_errors=True)
+            shutil.copytree(REPO / spec["path"], src, ignore=shutil.ignore_patterns("target"))
+        else:
+            shutil.rmtree(src_root / f"{name}-{spec['version']}", ignore_errors=True)
+            src = sdist(name, spec["version"], src_root)
         pyproject = src / "pyproject.toml"
         text = pyproject.read_text(encoding="utf-8")
         for old, new in spec.get("pyproject", []):
@@ -116,12 +141,14 @@ def main(argv: list[str] | None = None) -> None:
                 raise SystemExit(f"{name}: pyproject.toml no longer reads {old!r}")
             text = text.replace(old, new)
         pyproject.write_text(text, encoding="utf-8")
-        pkg_env = dict(env, SKBUILD_CMAKE_ARGS=spec["cmake_args"])
+        pkg_env = dict(env)
+        if "cmake_args" in spec:
+            pkg_env["SKBUILD_CMAKE_ARGS"] = spec["cmake_args"]
         if "cxxflags" in spec:
             pkg_env["CXXFLAGS"] = spec["cxxflags"]
         run(pyodide, "build", "-o", str(out), ".", cwd=src, env=pkg_env)
         # pyodide build leaves the pre-repack wheel beside the one Pyodide loads.
-        for stale in out.glob(f"{name}-*-emscripten_*_wasm32.whl"):
+        for stale in out.glob(f"{stem}-*-emscripten_*_wasm32.whl"):
             stale.unlink()
     print("\n".join(sorted(p.name for p in out.glob("*.whl"))))
 

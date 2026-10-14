@@ -1,12 +1,12 @@
 """The browser copy of the tutorials (`docs/lite/`, WP-1963): the projection, not the build.
 
-Building the site needs JupyterLite and two cross-compiled wheels, and running it
-needs a browser, so neither is here (`docs/lite/README.md` has both commands).
+Building the site needs JupyterLite and three cross-compiled wheels, and running
+it needs a browser, so neither is here (`docs/lite/README.md` has both commands).
 What is here is the part a tutorial edit can break with nothing else going red:
 each notebook must carry exactly one install cell for `build.project` to replace,
-and everything else must reach the browser unchanged.  The mock's version must
-also still satisfy rietx's own `rietx-kernels` requirement, or micropip refuses
-rietx in every notebook at once.
+and everything else must reach the browser unchanged.  The kernels the site
+builds from `kernels/` must also satisfy rietx's own `rietx-kernels`
+requirement, or micropip refuses rietx in every notebook at once.
 
 And one fact about the browser's Python that a native run never meets: the
 kernel replaces `fcntl` with an empty module, so every lock site must read a
@@ -18,13 +18,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import re
 import sys
+import tomllib
 import types
 from pathlib import Path
 
 import pytest
-from packaging.specifiers import SpecifierSet
 
 ROOT = Path(__file__).resolve().parents[1]
 TUTORIALS = ROOT / "examples" / "tutorials"
@@ -49,33 +48,42 @@ def test_there_are_notebooks_to_project():
 @pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda p: p.stem)
 def test_projection_replaces_the_install_cell_and_nothing_else(path):
     original = json.loads(path.read_bytes())
-    floor = LITE.kernels_floor()
-    projected = LITE.project(path.read_bytes(), floor)
+    projected = LITE.project(path.read_bytes())
 
     assert len(projected["cells"]) == len(original["cells"])
     changed = [i for i, (a, b) in enumerate(zip(original["cells"], projected["cells"])) if a != b]
     assert len(changed) == 1, f"{path.name}: cells {changed} changed, expected only the install cell"
     cell = projected["cells"][changed[0]]
-    assert "".join(cell["source"]) == LITE.install_source(floor)
+    assert "".join(cell["source"]) == LITE.install_source()
     assert cell["outputs"] == [] and cell["execution_count"] is None
     assert projected["metadata"]["kernelspec"]["name"] == "python"  # the Pyodide kernel's
     assert {k: v for k, v in projected["metadata"].items() if k != "kernelspec"} == \
         {k: v for k, v in original["metadata"].items() if k != "kernelspec"}
 
 
-def test_the_mock_satisfies_rietx_s_own_kernels_requirement():
-    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    spec = re.search(r'"rietx-kernels([^"]+)"', text)[1]
-    assert LITE.kernels_floor() in SpecifierSet(spec)
+def test_the_kernels_built_here_satisfy_rietx_s_own_requirement():
+    """The site builds rietx-kernels from `kernels/`, so the crate's version is
+    the one micropip weighs against rietx's requirement in the browser."""
+    crate = tomllib.loads((ROOT / "kernels" / "Cargo.toml").read_text(encoding="utf-8"))
+    version = crate["package"]["version"]
+    wheel = Path(f"rietx_kernels-{version}-cp311-abi3-pyemscripten_2026_0_wasm32.whl")
+    dependencies = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    LITE.check_kernels(wheel, dependencies["project"]["dependencies"])
 
 
-def test_the_floor_is_read_from_a_wheel_s_metadata_too():
-    meta = "Metadata-Version: 2.4\nName: rietx\nRequires-Dist: rietx-kernels<2,>=1.3.1\n"
-    assert LITE.kernels_floor(meta) == "1.3.1"
+def test_kernels_the_rietx_refuses_stop_the_build():
+    wheel = Path("rietx_kernels-2.0.0-cp311-abi3-pyemscripten_2026_0_wasm32.whl")
+    with pytest.raises(SystemExit, match="does not satisfy"):
+        LITE.check_kernels(wheel, ["numpy>=1.26", "rietx-kernels<2,>=1.3"])
 
 
 def test_the_site_serves_only_what_build_wheels_makes():
-    assert set(LITE.SERVED) == set(WHEELS.PACKAGES) == {"gemmi", "spglib"}
+    assert set(LITE.SERVED) == set(WHEELS.PACKAGES) == {"gemmi", "spglib", "rietx-kernels"}
+
+
+def test_the_site_is_pinned_light():
+    themes = LITE.SETTINGS["@jupyterlab/apputils-extension:themes"]
+    assert themes == {"theme": "JupyterLab Light", "adaptive-theme": False}
 
 
 @pytest.fixture

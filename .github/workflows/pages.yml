@@ -38,7 +38,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 15 until WP-1963: an uncached run adds ~5 min of WebAssembly builds.
+    # 15 until WP-1963: an uncached run adds ~6 min of WebAssembly builds.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -62,9 +62,10 @@ jobs:
         run: |
           mkdir -p site/skill
           cp -R docs/skill/rietx site/skill/rietx
-      # The tutorials in the browser, at /lite/ (WP-1963; docs/lite/README.md).  gemmi
-      # and spglib cross-compiled for Pyodide take ~5 min, so they are cached on the
-      # script that builds them.  The site serves a rietx wheel built from this commit
+      # The tutorials in the browser, at /lite/ (WP-1963; docs/lite/README.md).  gemmi,
+      # spglib and rietx-kernels cross-compiled for Pyodide take ~6 min, so they are
+      # cached on the script that builds them and on the kernels' own source, which it
+      # builds from this checkout.  The site serves a rietx wheel built from this commit
       # with this commit's notebooks: the two match by construction, which is the rule
       # the landing page's tag keeps for Colab (WP-1917), and a fix reaches the browser
       # on merge rather than at the next release.
@@ -72,8 +73,8 @@ jobs:
         id: lite-wheels
         with:
           path: docs/lite/wheels
-          key: lite-wheels-${{ hashFiles('docs/lite/build_wheels.py') }}
-      - name: Build gemmi and spglib for Pyodide
+          key: lite-wheels-${{ hashFiles('docs/lite/build_wheels.py', 'kernels/Cargo.*', 'kernels/src/**') }}
+      - name: Build gemmi, spglib and rietx-kernels for Pyodide
         if: steps.lite-wheels.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update -q
