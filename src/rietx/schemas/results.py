@@ -8,7 +8,7 @@ import numpy as np
 from pydantic import Field, model_validator
 
 from .common import Base, Diagnostic, Mode, Provenance
-from .parametric import ParametricCoefficient
+from .parametric import ParametricCoefficient, ParametricFormTest
 from .pattern import _floor_sigma
 
 
@@ -1219,7 +1219,8 @@ def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
     return lines
 
 
-def _parametric_lines(coefficients: list[ParametricCoefficient] | None) -> list[str]:
+def _parametric_lines(coefficients: list[ParametricCoefficient] | None,
+                      form: list[ParametricFormTest] | None = None) -> list[str]:
     """The coefficients of a joint fit's parametric declarations (WP-1325).
 
     Nothing for ``None``, which is "no declaration": the block is the answer
@@ -1227,29 +1228,46 @@ def _parametric_lines(coefficients: list[ParametricCoefficient] | None) -> list[
     printed empty.  One line per declaration names its target and reference,
     then one line per term in the caller's units, so the intercept reads as
     the target *at the reference* and never as an extrapolation to zero.  A
-    term with no esd says which of the two reasons holds.
+    term with no esd says which of the two reasons holds.  The declaration's
+    form test closes it, when ``form`` has one.
     """
     if coefficients is None:
         return []
     from .._display import _number
 
+    tests = {t.tie: t for t in form or []}
     lines = ["  parametric coefficients (user units, at each reference):"]
-    seen: set[str] = set()
-    for c in coefficients:
-        if c.tie not in seen:
-            seen.add(c.tie)
-            ref = ("" if not c.reference else " at " + ", ".join(
-                f"{k}={v:g}" for k, v in c.reference.items()))
-            lines.append(f"    {c.tie}: {c.target}{ref}")
-        if not c.vary:
-            value = f"{_number(c.value)} (not free at the answer)"
-        elif c.esd is None:
-            value = f"{_number(c.value)} (no esd: unmeasured)"
-        else:
-            value = _number(c.value, c.esd)
-        unit = f" {c.unit}" if c.unit else ""
-        lines.append(f"      [{c.term}] {value}{unit}")
+    ties = list(dict.fromkeys(c.tie for c in coefficients))
+    for tie in ties:
+        terms = [c for c in coefficients if c.tie == tie]
+        ref = ("" if not terms[0].reference else " at " + ", ".join(
+            f"{k}={v:g}" for k, v in terms[0].reference.items()))
+        lines.append(f"    {tie}: {terms[0].target}{ref}")
+        for c in terms:
+            if not c.vary:
+                value = f"{_number(c.value)} (not free at the answer)"
+            elif c.esd is None:
+                value = f"{_number(c.value)} (no esd: unmeasured)"
+            else:
+                value = _number(c.value, c.esd)
+            unit = f" {c.unit}" if c.unit else ""
+            lines.append(f"      [{c.term}] {value}{unit}")
+        if tie in tests:
+            lines.append(_form_line(tests[tie]))
     return lines
+
+
+def _form_line(t: ParametricFormTest) -> str:
+    """One declaration's form test, as :func:`_parametric_lines` closes it."""
+    if t.dof is None:
+        return "      form not tested: a coefficient was not free at the answer"
+    if t.statistic is None:
+        return (f"      form not tested: its {t.n_patterns} patterns add no "
+                "direction beyond the coefficients")
+    verdict = "REJECTED" if t.rejected else "not rejected"
+    side = "past" if t.rejected else "within"
+    return (f"      form {verdict}: {t.statistic:.1f} {side} the cut {t.cut:.1f} "
+            f"for {t.dof} directions over {t.n_patterns} patterns")
 
 
 def _provenance_line(provenance: Provenance) -> str:
@@ -1407,6 +1425,13 @@ class RefinementResult(Base):
     #: which a declaration cannot be.  One writer:
     #: ``MultiHistogramRefinement._build_result``.
     parametric: list[ParametricCoefficient] | None = None
+
+    #: Whether each parametric declaration's form survives the data, one
+    #: :class:`~rietx.schemas.parametric.ParametricFormTest` per declaration,
+    #: in declaration order (WP-1325).  ``None`` exactly when
+    #: :attr:`parametric` is.  One writer:
+    #: ``MultiHistogramRefinement._build_result``.
+    parametric_form: list[ParametricFormTest] | None = None
 
     # How many explicit :class:`~rietx.schemas.instrument.HumpComponent` terms
     # this fit declared — the other half of "how flexible was the background":
@@ -1632,7 +1657,7 @@ class RefinementResult(Base):
         lines = [f"RefinementResult: {self.status} ({self.mode})"]
         lines += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
         lines += _diagnostic_lines(self.diagnostics)
-        lines += _parametric_lines(self.parametric)
+        lines += _parametric_lines(self.parametric, self.parametric_form)
         lines.append(_provenance_line(self.provenance))
         lines.append(_agreement_line(self.statistics))
         return "\n".join(lines)

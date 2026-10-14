@@ -774,6 +774,82 @@ the untied fit 1.21-1.44×. The chain itself took 20-83 s. One linear law took
     joint free different sets, 14 columns here. That is why the nested test
     takes the untied joint fit as its reference.
 
+### Measured: the form test (2026-10-14)
+
+`1325-measure/form_score.py` on the real ramp, `form_synthetic.py` on
+`kernel_ramp.py`'s synthetic ramps. Output beside them:
+`form_score_results.txt` (the shipped form), `form_score_first_results.txt`
+(the first run, with the readings the shipped form dropped) and
+`form_synthetic_results.txt`.
+
+**The test.** At the tied answer, each subset pattern's own target column is
+read off the coefficient columns, J_coef·Φ_kᵀ/‖Φ_k‖². The alternative swaps the
+coefficients for those columns. One linear step from the answer, every other
+column refitted, gives the χ² it would remove: Rao's score statistic for k
+columns, `Refinement.suggest`'s one-column gain generalised. It is divided by
+the tied fit's χ²_red·f² and compared with χ²_k's 95 % point. Three choices
+came from measurement:
+- **The alternative drops the coefficients.** Appending the per-pattern
+  columns beside them counted a tenth direction on a ten-pattern ramp, since
+  finite-difference error leaves a derived column a hair outside the
+  coefficients' span.
+- **A pattern that cannot see the target is left out**, by `multi._unseen`,
+  the support hold's predicate. Counted in, the weak synthetic phase scored
+  rank 8 against the untied refit's 3.
+- **The denominator is the tied fit's**, the textbook score test's
+  restricted estimate. Read off the residual the step predicts, f fell to
+  2.27 against the untied fit's 2.50, since the unbounded step also moves the
+  columns on a bound. That put the cubic law at 2.09 against the refit's 1.58.
+  Columns `bound_findings` names are held out of both sides; that moved the
+  three-law gain from 1.07 to 1.04 of the refit's.
+
+**The ZrMo₂O₈ ramp** (33 patterns, three phases; macOS arm64, 10 CPUs, `[dev]`,
+load 5-30). The refit is the untied joint fit, χ²_red 1.873, f 2.503.
+
+| law | refit Δχ² | score gain | refit F/f² | score F/f² | verdict |
+|---|---|---|---|---|---|
+| all three | 839.3 | 871.7 (1.04) | 0.77 | 0.79 | both keep |
+| cubic a | 576.1 | 572.8 (0.99) | 1.58, p 0.021 | 1.57, p 0.023 | both reject |
+| trigonal a | 181.7 | 246.6 (1.36) | 0.50 | 0.68 | both keep |
+| trigonal c | 204.7 | 182.0 (0.89) | 0.56 | 0.50 | both keep |
+| cubic a, quadratic | 320.3 | 315.0 (0.98) | 0.91 | 0.89 | both keep |
+
+- The score costs one Jacobian, 0.71-0.78 s, plus 0.05 s of algebra. The
+  untied refit took 41 s and each tied fit 47-117 s.
+- At the three-law answer, each law scored with the other two still tied:
+  cubic 1.37 (p 0.08), trigonal a 0.34, trigonal c 0.29. So the cubic law
+  passes beside the others and fails alone; a per-law test at a multi-law
+  answer is the weaker one.
+
+**The synthetic ramps**, 20 seeds a cell, the tie and the untied refit seeded
+from the chain:
+
+| regime, truth | refit rejects | score rejects | score gain ÷ refit Δχ², median [range] |
+|---|---|---|---|
+| W, line | 0 | 0 | 0.96 [0.37, 4.97] |
+| W, curve | 0 | 0 | 0.85 [0.26, 3.32] |
+| W, kink | 0 | 0 | 1.01 [0.38, 3.52] |
+| O, line | 0 | 0 | 1.10 [0.89, 1.38] |
+| O, curve | 0 | 0 | 1.08 [0.89, 1.41] |
+| O, kink | 0 | 0 | 1.10 [0.91, 1.29] |
+
+- **No power on either regime's bent truths, and the refit had none
+  either.** Both regimes were built so that a pattern measures the minor cell
+  poorly (`kernel_ramp.py`'s docstring). In W four to eight patterns saw the
+  phase, by the ranks. The test sees a form only where, and as well as, a
+  pattern measures the target, so it does not answer the 0.03 gap coverage,
+  which lives in the patterns that cannot see the phase. Why the seen
+  patterns carried no power was not measured.
+- **W's gain ratio spreads 0.26-4.97** because the untied refit and the tie
+  hold different patterns' cells; its Δχ² is then not a nested difference (it
+  read −0.24 on one seed).
+- **Size:** 0 of 40 straight truths rejected. f read 1.251-1.274 on these
+  fits, against 1.127 for white noise, so the f² reading is conservative on
+  synthetic data. Without f² the score rejected 1 of 20 W straight truths.
+- **A strong phase is where it works.** On the slow test's LaB6 ramp a bow
+  of 1 % of the line's half-excursion, 9.4 × 10⁻⁵ Å at mid-ramp, scored
+  2 607 against a cut of 15.5, at GoF 1.12; the straight truth scored 4.8.
+
 ### What the code has (survey, 2026-10-14)
 
 - **`multi.py` is the seam: N patterns, one θ** (WP-0308).
@@ -894,7 +970,7 @@ the untied fit 1.21-1.44×. The chain itself took 20-83 s. One linear law took
 
   Landed as `1325-measure/kernel_ramp.py`; the numbers are in § Measured:
   where one pattern cannot see the parameter.
-- [ ] **A lack-of-fit check on the declared form.** The tie's gap coverage
+- [x] **A lack-of-fit check on the declared form.** The tie's gap coverage
   fell to 0.03 under a curved truth (§ Measured: where one pattern cannot see
   the parameter), so a wrong Φ yields a confidently wrong esd. Candidates:
   - χ² of the per-pattern values against the tie's curve, where the
@@ -913,6 +989,16 @@ the untied fit 1.21-1.44×. The chain itself took 20-83 s. One linear law took
   Bérar-Lelann factor squared: plain F rejected every linear law at 3.1-9.9.
   The chain is the wrong reference, because it holds by WP-1523's answer
   significance and the joint path does not.
+
+  Landed as the third candidate, the score test, measured against the nested
+  refit first (§ Measured: the form test):
+  - `params.parametric.form_tests`, run once at the answer by
+    `MultiHistogramRefinement._build_result`, with
+    `optimize.blocked.added_columns_gain` doing the algebra on the arrow;
+  - `RefinementResult.parametric_form`, one `ParametricFormTest` per
+    declaration (schema 0.56), printed after its coefficients;
+  - `PARAMETRIC_FORM_REJECTED`, a warning on the coefficients;
+  - the series deliverable's functional-form row names a rejected law.
 - [ ] **Hold each target's own bounds inside the step.** Coefficients are
   unbounded, so a polynomial can step a target through its floor or pole
   mid-solve (March-Dollase r at `MARCH_R_MIN`, the Caglioti W floor, an

@@ -52,6 +52,7 @@ from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
 from rietx.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
 from rietx.optimize.least_squares import STATIONARY_ANGLE_LEVEL
 from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
+from rietx.params.parametric import FORM_TEST_LEVEL
 from rietx.optimize.statistics import (
     EFFECTIVE_OBS_ALPHA,
     MAX_SHIFT_CONVERGED,
@@ -186,6 +187,8 @@ myst_substitutions = {
     # read, and that test's level (WP-1929)
     "MOMENT_DIRECTION_SUPPORT": f"{MOMENT_DIRECTION_SUPPORT:.0e}",
     "STATIONARY_ANGLE_LEVEL": STATIONARY_ANGLE_LEVEL,
+    # the parametric form test's level (WP-1325)
+    "PARAMETRIC_FORM_LEVEL": FORM_TEST_LEVEL,
     "SCALE_B_SEPARATION_FLOOR": f"{SCALE_B_SEPARATION_FLOOR:.1e}",
     "DEFAULT_N_UNINDEXED": DEFAULT_N_UNINDEXED,
     "DEFAULT_SEARCH_LINES": DEFAULT_SEARCH_LINES,

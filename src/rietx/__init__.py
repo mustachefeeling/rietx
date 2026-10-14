@@ -96,7 +96,12 @@ from .schemas.indexing import (
     PeakList,
 )
 from .schemas.interval import ParameterInterval, ParameterIntervalPoint
-from .schemas.parametric import CoordinateTable, ParametricCoefficient, ParametricTie
+from .schemas.parametric import (
+    CoordinateTable,
+    ParametricCoefficient,
+    ParametricFormTest,
+    ParametricTie,
+)
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
 from .schemas.project import DataRef, ProjectDoc
@@ -161,6 +166,7 @@ __all__ = [
     "ParameterIntervalPoint",
     "ParameterRow",
     "ParametricCoefficient",
+    "ParametricFormTest",
     "ParametricTie",
     "PatternData",
     "PeakList",

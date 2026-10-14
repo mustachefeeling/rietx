@@ -16,6 +16,10 @@ What is checked here, and on what:
 * (slow) a ten-pattern LaB6 ramp with a known a(T), whose parametric
   slope must land within one esd of the truth with an esd no larger than the
   weighted trajectory line's;
+* the form test: its blocked gain against dense least squares, each
+  pattern's target column read off the coefficients against an untied
+  table's, and that ramp's line law kept on its own truth and rejected when
+  the truth bends;
 * the blocked joint Jacobian (``optimize/blocked.py``) against the dense one:
   the matrix entry for entry, the LM step to WP-1125's 6.6e-7 relative with
   no bound active (both step solvers), the converged answer within 0.01 esd,
@@ -61,6 +65,7 @@ from rietx.params.parametric import (
     ResolvedParametric,
     coefficient_rows,
     resolve_parametric,
+    target_columns,
     term_label,
 )
 from rietx.params.vector import AffineTie
@@ -599,6 +604,48 @@ def test_a_parametric_slope_recovers_a_known_expansion_within_its_esd():
     line_cov = np.linalg.inv(x.T @ (w[:, None] * x))
     assert slope.esd <= np.sqrt(line_cov[1, 1]), (slope.esd, np.sqrt(line_cov[1, 1]))
     assert abs(float((line_cov @ x.T @ (w * a))[1]) - truth) < 3 * np.sqrt(line_cov[1, 1])
+    # the truth is the declared line, so its form stands
+    (form,) = result.parametric_form
+    assert (form.n_patterns, form.dof, form.rejected) == (10, 8, False), form
+    assert "REJECTED" not in series.summary(deliverable="series", parametric=result)
+
+
+@pytest.mark.parametrize("bow, rejected", [(0.0, False), (0.01, True)],
+                         ids=["line", "bowed"])
+def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
+    """The form test on the slow test's ten-pattern LaB6 ramp, its truth the
+    line or the line bowed by 1 % of its half-excursion at mid-ramp.  The
+    line reads 4.8 against the cut 15.5 for 8 directions, and the bow 2 607
+    (macOS arm64), so either verdict has a margin of three or more.  Fast,
+    at 1.5 s a joint fit, because the bowed row is the only fit-level check
+    that a wrong form is caught and says so."""
+    from tests.test_sequential import A0, RAMP, _simulate, _start_models
+
+    temps = np.array([300.0 + 100.0 * k for k in range(10)])
+    u = (temps - 750.0) / 450.0
+    a = A0 * (1.0 + RAMP * (temps - 300.0) / 100.0) + bow * A0 * RAMP * 4.5 * (u * u - 1.0)
+    patterns = [_simulate(float(a[k]), seed=k) for k in range(10)]
+    structure, ins = _start_models()
+    result = refine_multi(
+        patterns, structure, [ins] * 10, plan="mccusker_default",
+        sharing=SharingMap(shared=["instrument.zero_shift", "instrument.profile.*"]),
+        coordinates=CoordinateTable(columns={"T": temps.tolist()}, units={"T": "K"}),
+        parametric=[ParametricTie(name="a", target="phases.0.cell.a",
+                                  basis="polynomial", terms=[[], ["T"]])])
+    (form,) = result.parametric_form
+    assert (form.tie, form.target, form.n_patterns, form.dof) == (
+        "a", "phases.0.cell.a", 10, 8)
+    assert form.cut == pytest.approx(15.507, abs=1e-3)
+    assert form.rejected is rejected, form
+    found = [d for d in result.diagnostics if d.code == "PARAMETRIC_FORM_REJECTED"]
+    text = str(result)
+    if rejected:
+        (d,) = found
+        assert d.level == "warning" and d.where == ["vars.a_0", "vars.a_1"]
+        assert d.value == form.statistic
+        assert "form REJECTED" in text
+    else:
+        assert not found and "form not rejected" in text
 
 
 # -- the blocked joint Jacobian (WP-1325's scalable solver) -------------------
@@ -912,6 +959,72 @@ def test_the_moment_tests_refit_is_the_dense_refit():
         want = _refitted_increase(bj.toarray(), angles, r_stop, r_point)
         assert _refitted_increase(bj, angles, r_stop, r_point) == pytest.approx(
             want, rel=1e-9)
+
+
+def _resid_after(m: np.ndarray, r: np.ndarray) -> np.ndarray:
+    """``r`` less its least-squares projection on ``m``'s columns, each
+    scaled to unit norm first, as the blocked arrow equilibrates them."""
+    m = m / np.linalg.norm(m, axis=0)
+    return r - m @ np.linalg.lstsq(m, r, rcond=None)[0]
+
+
+def test_the_form_tests_gain_is_the_dense_least_squares_gain():
+    """``added_columns_gain`` on blocks: min‖r − Jβ‖² with ``hold`` left out,
+    less the same with ``drop`` left out as well and each block's own extra
+    columns in, as dense least squares reads it, penalty rows included."""
+    bj = _random_arrow(9)
+    rng = np.random.default_rng(10)
+    r = rng.standard_normal(bj.shape[0])
+    n_rows = [b.shape[0] for b in bj.blocks]
+    extra = [rng.standard_normal((n, 1)) if h % 2 == 0 else None
+             for h, n in enumerate(n_rows)]
+    # the extra columns stacked as the residual is: a block of their own
+    e_dense = BlockJacobian(
+        [np.zeros((n, 0)) if e is None else e for n, e in zip(n_rows, extra)],
+        [np.zeros(0, dtype=int) if e is None else np.array([j]) for j, e in
+         enumerate(extra)], bj.n_data, bj.n_pen, len(extra)).toarray()
+    e_dense = e_dense[:, np.any(e_dense != 0.0, axis=0)]
+    dense = bj.toarray()
+    hold = [int(bj.col_maps[2][_own(bj, 2)][0])]
+    drop = [1]
+    kept = np.setdiff1d(np.arange(bj.n_cols), hold)
+    alt = np.hstack([dense[:, np.setdiff1d(kept, drop)], e_dense])
+    want = (_resid_after(dense[:, kept], r) @ _resid_after(dense[:, kept], r)
+            - _resid_after(alt, r) @ _resid_after(alt, r))
+    gain, rank = blocked.added_columns_gain(bj, r, extra, drop, hold)
+    assert rank == e_dense.shape[1] - len(drop) == 2
+    assert gain == pytest.approx(want, rel=1e-9)
+
+
+def test_a_patterns_own_target_column_is_read_off_the_coefficients():
+    """``target_columns``: in pattern k, J_coef·Φ_kᵀ/‖Φ_k‖² is the target's
+    own column, the one an untied table's ``hist.k.`` path carries; a
+    skipped pattern has none, and a tie whose coefficient is not free has no
+    columns at all."""
+    from tests.test_sequential import _start_models
+
+    mt, models = _library_problem(6)
+    s, ins = _start_models()
+    untied = MultiParameterTable(s, [ins] * 6,
+                                 sharing=SharingMap(per_histogram=["phases.0.cell.*"]))
+    untied.set_vary(["*"], False)
+    untied.set_vary(LIBRARY_GLOBS, True)
+    _, jac, _ = _multi_closures(models, mt, layout="blocked")
+    cols = target_columns(mt.parametric[0], jac(mt.x0()), mt.free_paths)
+    _, jac_u, _ = _multi_closures(models, untied, layout="blocked")
+    bju = jac_u(untied.x0())
+    for k in range(6):
+        own = list(bju.col_maps[k]).index(
+            untied.free_paths.index(f"hist.{k}.phases.0.cell.a"))
+        want = bju.blocks[k][:, own]
+        # the two are finite differences on different steps, the coefficient's
+        # and the target's: 1.8e-7 to 8.1e-7 of the column measured (macOS
+        # arm64), where a wrong column is off by its own size
+        assert np.max(np.abs(cols[k][:, 0] - want)) <= 1e-5 * np.max(np.abs(want))
+    bj = jac(mt.x0())
+    assert target_columns(mt.parametric[0], bj, mt.free_paths, frozenset({2}))[2] is None
+    free = [p for p in mt.free_paths if p != "vars.a_3"]
+    assert target_columns(mt.parametric[0], bj, free) is None
 
 
 def test_a_joint_solve_records_which_layout_it_took():

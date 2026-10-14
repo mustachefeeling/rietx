@@ -38,6 +38,7 @@ from .optimize.least_squares import (
     DEFAULT_SOLVER,
     SOLVERS,
     _longest_line_wavelength,
+    _multi_closures,
     covariance_jacobian,
     rechart_outcome,
     run_multi_least_squares,
@@ -54,7 +55,7 @@ from .params.multi import (
     _longest_wavelength,
     _unscoped,
 )
-from .params.parametric import coefficient_rows
+from .params.parametric import FORM_TEST_LEVEL, coefficient_rows, form_tests
 from .params.vector import is_variable_path
 from .refine import (
     _PHASE_PREFIX,
@@ -114,7 +115,7 @@ from .report.magnetic import moment_angle_stationary_diagnostics
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
 from .schemas.instrument import Instrument
-from .schemas.parametric import CoordinateTable, ParametricTie
+from .schemas.parametric import CoordinateTable, ParametricFormTest, ParametricTie
 from .schemas.pattern import PatternData, require_two_theta
 from .schemas.results import (
     HistogramResult,
@@ -272,6 +273,9 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
         (FIT,), "joint-only (WP-1325): one declaration spans its subset, so a "
                 "dependent leaving its bounds is told once per declaration, "
                 "naming every pattern"),
+    "_parametric_form_diagnostics": (
+        (FIT,), "joint-only (WP-1325): a declaration's form is tested against "
+                "every pattern of its subset at once"),
     "_fixed_literal_diagnostics": (
         (FIT,), "a plan read (#803, WP-1341), through _joint_fixed_literals: "
                 "each histogram's table is asked under the joint matching rule, "
@@ -1764,6 +1768,10 @@ class MultiHistogramRefinement:
         # what a parametric declaration did to each pattern's dependent that
         # no bound the solve saw could stop (WP-1325, FIT)
         diagnostics = diagnostics + _parametric_range_diagnostics(mt)
+        # whether each declared form survives its data, holding what the one
+        # bound test found on a bound (WP-1325, FIT)
+        parametric_form = _parametric_form_tests(models, mt, at_bounds, weights)
+        diagnostics = diagnostics + _parametric_form_diagnostics(mt, parametric_form)
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
                 stage_results[-1].name, outcome)
@@ -1871,6 +1879,7 @@ class MultiHistogramRefinement:
             # is shared, so its marginal is the joint one); ``None`` when
             # nothing was declared (WP-1325)
             parametric=self._parametric_rows(esd_hist0),
+            parametric_form=parametric_form,
             histograms=histograms)
 
     def _parametric_rows(self, esd0: dict[str, float]):
@@ -2088,6 +2097,59 @@ def _parametric_range_diagnostics(mtable) -> list[Diagnostic]:
                         "narrow the subset to where the form holds, lower the "
                         "polynomial's order, or declare a design basis that "
                         "stays inside the range")))
+    return out
+
+
+def _parametric_form_tests(models, mtable, at_bounds, weights
+                           ) -> list[ParametricFormTest] | None:
+    """Each declaration's lack-of-fit test at the answer (WP-1325).
+
+    ``None`` when nothing was declared.  One Jacobian at the answer, blocked
+    whatever layout the solve took, and :func:`~rietx.params.parametric.form_tests`
+    reads it.  A pattern is left out of a declaration's alternative where
+    :func:`_unseen` holds its own copy of the target, the predicate the
+    stage's support hold uses, so the alternative is the untied fit's.  The
+    columns ``at_bounds`` names stay on their bounds on both sides.
+    """
+    if not mtable.parametric:
+        return None
+    residual, jacobian, n_data = _multi_closures(models, mtable, weights=weights,
+                                                 layout="blocked")
+    x = mtable.x0()
+    absent = _joint_unsupported_phases(models, mtable)
+    skip = {r.name: frozenset(k for k in r.patterns
+                              if _unseen(mtable, f"hist.{k}.{r.target}", absent))
+            for r in mtable.parametric}
+    index = {p: i for i, p in enumerate(mtable.free_paths)}
+    hold = sorted({index[p] for f in at_bounds for p in f.paths if p in index})
+    return form_tests(mtable.parametric, jacobian(x), residual(x), n_data,
+                      mtable.free_paths, skip, hold)
+
+
+def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None
+                                 ) -> list[Diagnostic]:
+    """``PARAMETRIC_FORM_REJECTED`` — a declaration whose data refuses its
+    form (WP-1325): one warning per rejected
+    :class:`~rietx.schemas.parametric.ParametricFormTest`, ``where`` its
+    coefficients, whose esds assume the form, and ``value`` its statistic."""
+    paths = {r.name: r.paths for r in mtable.parametric}
+    out: list[Diagnostic] = []
+    for t in tests or []:
+        if not t.rejected:
+            continue
+        out.append(Diagnostic(
+            level="warning", code="PARAMETRIC_FORM_REJECTED",
+            where=list(paths[t.tie]), value=t.statistic,
+            message=(f"parametric tie {t.tie!r} does not describe {t.target} across "
+                     f"its {t.n_patterns} patterns: freeing the target in each "
+                     f"would remove {t.statistic:.1f} times χ²_red·f² of χ², past "
+                     f"the {100 * FORM_TEST_LEVEL:g} % point {t.cut:.1f} of χ² for "
+                     f"{t.dof} directions. The coefficients' esds assume the form, "
+                     "so they are too small"),
+            suggestion=("do not quote the coefficients as they stand: add the next "
+                        "term to the basis and refit, or narrow the subset to where "
+                        "the form holds; the chain's trajectory shows where it "
+                        "bends")))
     return out
 
 
