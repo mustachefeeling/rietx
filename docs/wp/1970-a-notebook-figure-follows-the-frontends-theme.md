@@ -117,7 +117,7 @@ cannot reach the dark palette's hand-tuned values.
 - [x] `plot_trajectory` takes `style=`, so every figure call has both palettes.
 - [x] Redraw or recolour, decided on one figure, with a caller's
   `ax.set_xlim` as the case that separates them. Recolour (Context).
-- [ ] The notebook formatter emits the pair as `text/html` beside the light
+- [x] The notebook formatter emits the pair as `text/html` beside the light
   `image/png`, keeping the width-only metadata of WP-1957.
 - [ ] `render_structure`'s notebook output emits the same pair.
 - [ ] A browser check: JupyterLab or the Lite site switched from Light to
@@ -127,7 +127,7 @@ cannot reach the dark palette's hand-tuned values.
   in furo's dark theme. GitHub's render checked to show one figure.
 - [ ] The Lite site's light pin lifted (`SETTINGS` in `docs/lite/build.py`),
   with the README sentence that explains it.
-- [ ] Tests: the bundle's shape, the inline fallback on the dark image, the
+- [x] Tests: the bundle's shape, the inline fallback on the dark image, the
   prefixed classes.
 - [ ] Skill: none. An agent reads a figure as a PNG file or through
   `plot_for_vlm`.

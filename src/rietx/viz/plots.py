@@ -350,21 +350,31 @@ def _figure_class():
     """The ``Figure`` every rietx plot draws on: matplotlib's own, with a
     notebook encoding of its own (:data:`_NOTEBOOK_DPI`).
 
-    IPython ranks a PNG formatter registered for a type above any method on
-    the object, and the inline backend registers one for ``Figure``, which a
-    subclass inherits through its MRO. So the encoder is registered for this
-    subclass alone, in a running IPython: the caller's own figures keep the
-    backend's formatter. ``_repr_png_`` answers where no formatter is
-    registered at all. Built on first use, because this module imports
-    matplotlib lazily.
+    IPython builds a figure's output from ``_repr_mimebundle_``
+    (:func:`_notebook_bundle`): the PNG, and the light and dark pair as HTML
+    beside it, from one encode of the light figure (WP-1970).  It then ranks
+    a PNG formatter registered for a type above the bundle's PNG, and the
+    inline backend registers one for ``Figure``, which a subclass inherits
+    through its MRO.  So a PNG formatter returning ``None`` is registered for
+    this subclass alone, in a running IPython, which leaves the bundle's PNG
+    standing; the caller's own figures keep the backend's formatter.
+    ``_repr_png_`` answers a caller outside IPython. Built on first use,
+    because this module imports matplotlib lazily.
     """
     global _FIGURE_CLASS
     if _FIGURE_CLASS is None:
         from matplotlib.figure import Figure
 
         class _NotebookFigure(Figure):
+            #: The palette the figure was drawn in, set by the plot that
+            #: drew it; ``None`` where the figure has no dark form.
+            _rietx_style = None
+
             def _repr_png_(self):
                 return _notebook_png(self)
+
+            def _repr_mimebundle_(self, include=None, exclude=None):
+                return _notebook_bundle(self)
 
         _FIGURE_CLASS = _NotebookFigure
     _register_notebook_png(_FIGURE_CLASS)
@@ -372,8 +382,8 @@ def _figure_class():
 
 
 def _register_notebook_png(cls) -> None:
-    """Point a running IPython's PNG formatter at :func:`_notebook_png` for
-    ``cls``. Nothing happens outside IPython, or once it is done."""
+    """Stop a running IPython's PNG formatter encoding ``cls`` itself, so the
+    bundle's PNG stands. Nothing happens outside IPython, or once it is done."""
     import sys
     if "IPython" not in sys.modules:
         return
@@ -383,7 +393,7 @@ def _register_notebook_png(cls) -> None:
         return
     formatter = shell.display_formatter.formatters["image/png"]
     if cls not in formatter.type_printers:
-        formatter.for_type(cls, _notebook_png)
+        formatter.for_type(cls, lambda fig: None)
 
 
 def _notebook_png(fig) -> tuple[bytes, dict]:
@@ -411,7 +421,126 @@ def _notebook_png(fig) -> tuple[bytes, dict]:
     return out.getvalue(), {"width": image.size[0] // _NOTEBOOK_DENSITY}
 
 
-def _handed_back(fig):
+#: Where each frontend marks a dark theme, read from its source (WP-1970):
+#: JupyterLab 4, Notebook 7 and JupyterLite; VS Code's dark and dark
+#: high-contrast themes; Colab.  A page carrying none of them shows the
+#: light figure.  furo needs none, as its ``only-*`` classes swap the images.
+_DARK_MARKERS = ('body[data-jp-theme-light="false"]', "body.vscode-dark",
+                 "body.vscode-high-contrast:not(.vscode-high-contrast-light)",
+                 'html[theme="dark"]')
+
+
+def _notebook_bundle(fig) -> tuple[dict, dict]:
+    """``fig`` as a notebook output: ``(data, metadata)`` by MIME type.
+
+    ``image/png`` is :func:`_notebook_png`, for a frontend that renders no
+    HTML, such as a PDF export.  A figure drawn light also carries
+    ``text/html`` (WP-1970): a light and a dark image, of which the
+    frontend's theme shows one.  Every frontend measured ranks HTML first.
+
+    The dark image is hidden by an inline style, and a ``<style>`` keyed on
+    :data:`_DARK_MARKERS` swaps the two.  A frontend that strips ``<style>``
+    from an output keeps inline styles, so it shows the light figure: GitHub,
+    and JupyterLab on a notebook opened with its outputs.  The classes take
+    an ``rx-`` prefix because in a Sphinx page the ``<style>`` applies to the
+    whole page.
+
+    The dark image is :func:`_darkened` on a copy, so whatever the caller
+    added to the returned figure shows in both.  The light one is encoded
+    first: its draw creates the tick artists the copy then recolours.  The
+    dark copy is an addition, so a failure in it warns and costs only the
+    pair; the PNG still shows."""
+    light, meta = _notebook_png(fig)
+    data, metadata = {"image/png": light}, {"image/png": meta}
+    if fig._rietx_style != "light":
+        return data, metadata
+    import base64
+    import copy
+
+    try:
+        dark, _ = _notebook_png(_darkened(copy.deepcopy(fig)))
+    except Exception as exc:  # noqa: BLE001 - the light figure still shows
+        import warnings
+        warnings.warn(f"no dark copy of this figure, so it shows light only: {exc!r}",
+                      stacklevel=2)
+        return data, metadata
+
+    def img(png: bytes, role: str, hidden: bool) -> str:
+        style = "max-width:100%;height:auto" + (";display:none" if hidden else "")
+        return (f'<img class="rx-fig-{role} only-{role}" width="{meta["width"]}" '
+                f'style="{style}" alt="" '
+                f'src="data:image/png;base64,{base64.b64encode(png).decode()}">')
+
+    hide = ", ".join(f"{m} .rx-fig-light" for m in _DARK_MARKERS)
+    show = ", ".join(f"{m} .rx-fig-dark" for m in _DARK_MARKERS)
+    data["text/html"] = (f"<div>{img(light, 'light', False)}{img(dark, 'dark', True)}"
+                         f"<style>{hide} {{display:none !important}} "
+                         f"{show} {{display:inline !important}}</style></div>")
+    return data, metadata
+
+
+def _darkened(fig):
+    """``fig``, drawn light, recoloured in place to the dark palette.
+
+    Three maps, which are what :func:`_style_context` changes between the two
+    palettes.  A :data:`PALETTES` role takes the same role's dark colour.
+    Matplotlib's own black takes ``fg`` on text and ``rule`` on every other
+    line, as :func:`_ground_rc` sets them.  White takes ``ground``.  So a rietx
+    figure comes out as the one drawn with ``style="dark"``, pixel for pixel,
+    and a caller's own ink in any other colour is left as drawn.  The
+    redraw it replaces would have dropped what the caller added (WP-1970).
+    """
+    from matplotlib.collections import Collection
+    from matplotlib.colors import to_hex, to_rgba
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    from matplotlib.text import Text
+
+    light, dark = PALETTES["light"], PALETTES["dark"]
+    roles = {light[k].lower(): dark[k] for k, v in light.items()
+             if isinstance(v, str) and k != "ground"}
+    ground, fg, rule = {"#ffffff": dark["ground"]}, {"#000000": dark["fg"]}, {
+        "#000000": dark["rule"]}
+
+    def ink(colour, *maps):
+        if isinstance(colour, str) and colour.lower() in ("none", "auto"):
+            return colour
+        rgba = to_rgba(colour)
+        key = to_hex(rgba[:3])
+        for table in maps:
+            if key in table and rgba[3] > 0:
+                return to_rgba(table[key], rgba[3])
+        return colour
+
+    def patch(p):
+        p.set_facecolor(ink(p.get_facecolor(), roles, ground, rule))
+        p.set_edgecolor(ink(p.get_edgecolor(), roles, rule))
+
+    for artist in fig.findobj():
+        if isinstance(artist, Text):
+            artist.set_color(ink(artist.get_color(), roles, fg))
+            for box in (artist.get_bbox_patch(), getattr(artist, "arrow_patch", None)):
+                if box is not None:
+                    patch(box)
+        elif isinstance(artist, Line2D):
+            artist.set_color(ink(artist.get_color(), roles, rule))
+            artist.set_markerfacecolor(ink(artist.get_markerfacecolor(), roles, rule))
+            artist.set_markeredgecolor(ink(artist.get_markeredgecolor(), roles, rule))
+        elif isinstance(artist, Patch):
+            patch(artist)
+        elif isinstance(artist, Collection):
+            for get, put, maps in ((artist.get_facecolor, artist.set_facecolor,
+                                    (roles, ground, rule)),
+                                   (artist.get_edgecolor, artist.set_edgecolor,
+                                    (roles, rule))):
+                old = get()
+                new = [ink(c, *maps) for c in old]
+                if any(to_rgba(a) != to_rgba(b) for a, b in zip(old, new, strict=True)):
+                    put(new)
+    return fig
+
+
+def _handed_back(fig, style: str | None = None):
     """``fig``, detached from pyplot when the backend is a notebook's inline one.
 
     The inline backend draws every figure pyplot holds when a cell ends, and
@@ -426,6 +555,9 @@ def _handed_back(fig):
     import matplotlib.pyplot as plt
     if "inline" in matplotlib.get_backend():
         plt.close(fig)
+    # the palette it was drawn in, which says whether a notebook may show a
+    # dark copy beside it (WP-1970); None, as for plot_for_vlm, says not
+    fig._rietx_style = style
     return fig
 
 
@@ -855,7 +987,7 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
 
         if path is not None:
             fig.savefig(path)
-    return _handed_back(fig)
+    return _handed_back(fig, style)
 
 
 def _model_ticks(ref, data) -> dict[str, list[float]]:
@@ -1029,7 +1161,7 @@ def plot_pattern(data, *, path: str | None = None,
 
         if path is not None:
             fig.savefig(path)
-    return _handed_back(fig)
+    return _handed_back(fig, style)
 
 
 def plot_for_vlm(result: RefinementResult, report=None, *,
@@ -1265,4 +1397,4 @@ def plot_trajectory(series, paths, *, path: str | None = None,
         fig.tight_layout()
         if path is not None:
             fig.savefig(path)
-    return _handed_back(fig)
+    return _handed_back(fig, style)

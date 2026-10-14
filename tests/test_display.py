@@ -238,6 +238,10 @@ def test_a_plot_in_a_kernel_shows_once_and_leaves_the_backend_alone():
     assert rietx_out["metadata"]["image/png"]["width"] < 800
     plain_out = next(o for o in nb.cells[-1].outputs if "image/png" in o.get("data", {}))
     assert "width" not in plain_out.get("metadata", {}).get("image/png", {})
+    # beside the PNG, the light and dark pair a frontend's theme picks from
+    # (WP-1970), and only for the rietx figure
+    assert rietx_out["data"]["text/html"].count("<img ") == 2
+    assert "text/html" not in plain_out["data"]
 
 
 def test_a_notebook_figure_is_encoded_for_a_screen_and_files_are_not(fap, tmp_path):
