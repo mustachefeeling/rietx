@@ -450,7 +450,14 @@ from .._nearmiss import did_you_mean
 #: restraint of Flack & Schwarzenbach (1988) on a weighted centroid of the
 #: phase's sites in place of a hold on one.  Additive: no existing document
 #: carries the value, and an older build refuses one that does.
-SCHEMA_VERSION = "0.54"
+#: 0.54 → 0.55 (WP-1325): ``RefinementResult.parametric``, a list of
+#: ``ParametricCoefficient`` — the coefficients of a joint fit's parametric
+#: declarations, in user units at each declaration's reference — beside the
+#: two declaration models ``CoordinateTable`` and ``ParametricTie``
+#: (``schemas/parametric.py``) the joint path now takes.  Additive and
+#: defaulted to ``None``, "nothing declared", which every earlier result is;
+#: an older build refuses a result carrying the field.
+SCHEMA_VERSION = "0.55"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

@@ -34,10 +34,14 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..schemas.instrument import Instrument
+from ..schemas.parametric import CoordinateTable, ParametricTie
 from ..schemas.structure import Structure
+from .parametric import ResolvedParametric, least_squares_start, resolve_parametric
 from .vector import (
+    AffineTie,
     ParameterTable,
     _is_wavelength,
+    _tie_text,
     check_wavelength_freedom,
     unknown_paths_among,
 )
@@ -173,19 +177,150 @@ class SharingMap:
         return not (path.startswith("instrument.") or path.endswith(".scale"))
 
 
-class MultiParameterTable:
-    """One :class:`ParameterTable` per histogram + a shared/per-histogram θ map."""
+def _refuse_clashing_declarations(declared: list[ParametricTie]) -> None:
+    """Two declarations may share neither a name nor a target (WP-1325).
 
-    def __init__(self, structure: Structure, instruments: list[Instrument], *,
-                 sharing: SharingMap | None = None):
+    A name is its coefficients' paths, so two of one name would be one set of
+    columns claimed twice; a target is one tie per pattern, so a second
+    declaration on it would silently replace the first.
+    """
+    names: dict[str, int] = {}
+    targets: dict[str, str] = {}
+    for tie in declared:
+        if tie.name in names:
+            raise ValueError(
+                f"two parametric ties are named {tie.name!r}: a name is its "
+                f"coefficients' paths (vars.{tie.name}_0, …), so each needs its own")
+        names[tie.name] = 1
+        if tie.target in targets:
+            raise ValueError(
+                f"parametric ties {targets[tie.target]!r} and {tie.name!r} both "
+                f"drive {tie.target}: a target follows one function. Combine "
+                "them into one declaration, or split the patterns between them")
+        targets[tie.target] = tie.name
+
+
+def _target_refusal(table: ParameterTable, e) -> str | None:
+    """Why ``e`` cannot be a parametric target, in ``held_because``'s order.
+
+    The structural reasons first, because no verb lifts them; a hold next.
+    Then the two kinds of parameter whose value is not one quantity across
+    patterns: a rigid body's increment, which restarts at zero at every commit
+    while its record moves (WP-1805), and a moment DOF, read in a frame rebuilt
+    from the cell at every stage start (#598).  The intensity modes'
+    force-fix does not arise: a joint fit is Rietveld-only.
+    """
+    if e.locked:
+        return ("is structurally fixed by symmetry or by the model (locked), so "
+                "no tie can drive it")
+    if e.tie is not None:
+        sources = ", ".join(src for src, _ in e.tie.terms)
+        return (f"is tied: = {_tie_text(e.tie)}. A target must be a parameter "
+                f"that moves itself; declare the tie on {sources} instead")
+    if e.held:
+        return ("is held (Phase.floating_origin fixes it), so no stage frees it; "
+                "declare the tie on another coordinate of the phase")
+    if table._body_increment_kind(e.path) is not None:
+        return ("is a rigid body's increment, which restarts at zero at every "
+                "commit while the body's record moves, so it is not one "
+                "quantity across patterns")
+    if any(e.path.startswith(f"{base}.moment.") for base in table.moment_frames()):
+        return ("is a moment DOF, read in a frame rebuilt from the cell at every "
+                "stage start, so it is not one quantity across patterns")
+    return None
+
+
+def _starting_structures(structure: Structure | list[Structure],
+                         n: int) -> list[Structure]:
+    """One starting structure per histogram: the one given, or each its own.
+
+    A list is the per-pattern form (WP-1325): a library's specimens start from
+    their own cells, occupancies and widths.  It must describe **one model**,
+    so the topology is checked here (phase count, space groups, atoms); the
+    shared values are checked by :meth:`MultiParameterTable._check_starts_agree`
+    once the tables exist, the table being the authority on which paths a
+    model has.
+    """
+    if isinstance(structure, Structure):
+        return [structure] * n
+    starts = list(structure)
+    if len(starts) != n:
+        raise ValueError(
+            f"{len(starts)} starting structures for {n} instruments: pass one "
+            "Structure for every histogram, or one per histogram")
+    ref = starts[0]
+    for h, s in enumerate(starts[1:], start=1):
+        if len(s.phases) != len(ref.phases):
+            raise ValueError(
+                f"starting structure {h} has {len(s.phases)} phase(s) and "
+                f"structure 0 has {len(ref.phases)}: per-pattern starting "
+                "structures are one model with different values, so their "
+                "phases must match")
+        for ip, (p0, p) in enumerate(zip(ref.phases, s.phases, strict=True)):
+            if p.space_group != p0.space_group:
+                raise ValueError(
+                    f"phase {ip} is {p0.space_group!r} in starting structure 0 "
+                    f"and {p.space_group!r} in structure {h}: per-pattern "
+                    "starting structures must share each phase's space group")
+            a0 = [(a.label, a.species) for a in p0.atoms]
+            a1 = [(a.label, a.species) for a in p.atoms]
+            if a0 != a1:
+                raise ValueError(
+                    f"phase {ip}'s atoms differ between starting structure 0 "
+                    f"{a0} and structure {h} {a1}: per-pattern starting "
+                    "structures must carry the same sites, in the same order")
+    return starts
+
+
+class MultiParameterTable:
+    """One :class:`ParameterTable` per histogram + a shared/per-histogram θ map.
+
+    ``structure`` is one :class:`Structure` deep-copied into every histogram,
+    or a list of one per histogram (WP-1325): the same model with each
+    pattern's own starting values.  A list must agree on every **shared**
+    path's value (a shared column has one starting value) and may differ
+    anywhere a path is per-histogram — instrument, scales, a
+    ``SharingMap.per_histogram`` override, a parametric target.
+
+    ``parametric`` declares targets as functions of ``coordinates``
+    (:class:`~rietx.schemas.parametric.ParametricTie`): each target becomes
+    per-histogram, its coefficients ``vars.{name}_{j}`` are added to every
+    table and fold onto one shared column each, and the target in each
+    pattern of the subset is tied onto Σ_j Φ_kj·``vars.{name}_{j}``.  Every
+    refusal is made here, before any solve.  :attr:`parametric` holds the
+    declarations as resolved.
+    """
+
+    def __init__(self, structure: Structure | list[Structure],
+                 instruments: list[Instrument], *,
+                 sharing: SharingMap | None = None,
+                 parametric: list[ParametricTie] | None = None,
+                 coordinates: CoordinateTable | None = None):
         if len(instruments) < 1:
             raise ValueError("need at least one instrument")
+        starts = _starting_structures(structure, len(instruments))
+        declared = list(parametric or [])
         self.sharing = sharing or SharingMap()
+        if declared:
+            _refuse_clashing_declarations(declared)
+            # a private copy: the targets (and, below, what follows them)
+            # become per-histogram, which is the caller's map plus this fit's
+            # declarations and never an edit of the caller's object
+            self.sharing = SharingMap(
+                per_histogram=[*self.sharing.per_histogram,
+                               *(t.target for t in declared)],
+                shared=list(self.sharing.shared))
+        #: coefficient path → (its target, j + 1): where its column sits in the
+        #: combined order (:meth:`_rebuild_columns`), empty without a
+        #: parametric declaration
+        self._column_anchor: dict[str, tuple[str, int]] = {}
+        #: the parametric declarations as resolved (reference and scale frozen)
+        self.parametric: list[ResolvedParametric] = []
         # a private structure copy per histogram: shared parameters are written
         # identically into every copy at each commit; only the per-histogram
         # scale (and any per-histogram override) diverges.
-        self.structures: list[Structure] = [structure.model_copy(deep=True)
-                                             for _ in instruments]
+        self.structures: list[Structure] = [s.model_copy(deep=True)
+                                             for s in starts]
         self.instruments: list[Instrument] = [ins.model_copy(deep=True)
                                               for ins in instruments]
         # ``joint=True``: a sub-table sees one instrument, so it would always
@@ -197,7 +332,7 @@ class MultiParameterTable:
         # histogram's units and the table is told the factor.  Empty maps
         # everywhere (one histogram, equal wavelengths, or a source with no
         # declared line) leave every table exactly as it was.
-        self.value_scales = size_value_scales(structure, self.instruments,
+        self.value_scales = size_value_scales(starts[0], self.instruments,
                                               self.sharing)
         for struct, scale in zip(self.structures, self.value_scales, strict=True):
             for path, factor in scale.items():
@@ -220,8 +355,198 @@ class MultiParameterTable:
         for table, scale in zip(self.tables, self.value_scales, strict=True):
             if scale:
                 table.apply_value_scale(scale)
+        if declared:
+            self._install_parametric(declared, coordinates)
+        if len({id(s) for s in starts}) > 1:
+            self._check_starts_agree(starts)
         self._check_moment_frames_shared()
         self._rebuild_columns()
+
+    # -- per-pattern starting values and parametric ties (WP-1325) -----
+    def _check_starts_agree(self, starts: list[Structure]) -> None:
+        """Refuse per-pattern starts that disagree on a shared path.
+
+        A shared path is one column, so it has one starting value: the column
+        map writes each histogram's into it and keeps the last, which would
+        hand every other histogram a value it never declared.  Compared on the
+        tables, the authority on which paths a model has, except where WP-1131
+        rescaled a shared size term into a histogram's own units, which is
+        compared as the caller wrote it.
+        """
+        scaled = set().union(*(set(s) for s in self.value_scales))
+        shared0 = {e.path: e.value for e in self.tables[0].entries
+                   if self.sharing.is_shared(e.path)}
+        disagree: dict[str, list[int]] = {}
+        for h, table in enumerate(self.tables[1:], start=1):
+            mine = {e.path: e.value for e in table.entries
+                    if self.sharing.is_shared(e.path)}
+            if set(mine) != set(shared0):
+                odd = sorted(set(mine) ^ set(shared0))
+                raise ValueError(
+                    f"starting structure {h} and structure 0 do not have the same "
+                    f"shared parameters ({odd[0]} is in one only): per-pattern "
+                    "starting structures are one model with different values")
+            for path, v0 in shared0.items():
+                if path in scaled:
+                    _, ip, term = path.split(".")
+                    v0 = getattr(starts[0].phases[int(ip)], term).value
+                    v = getattr(starts[h].phases[int(ip)], term).value
+                else:
+                    v = mine[path]
+                if v != v0:
+                    disagree.setdefault(path, []).append(h)
+        if disagree:
+            path, hs = next(iter(disagree.items()))
+            more = (f" (and {len(disagree) - 1} other shared path"
+                    f"{'' if len(disagree) == 2 else 's'})" if len(disagree) > 1 else "")
+            raise ValueError(
+                f"the starting structures disagree on {path}, which is shared: "
+                f"histogram{'' if len(hs) == 1 else 's'} {', '.join(map(str, hs))} "
+                f"differ from histogram 0{more}. A shared parameter is one column "
+                f"with one starting value; start every structure at one value, "
+                f"make it per-histogram (SharingMap(per_histogram=['{path}'])), "
+                f"or declare it a ParametricTie target")
+
+    def _install_parametric(self, declared: list[ParametricTie],
+                            coordinates: CoordinateTable | None) -> None:
+        """Resolve each declaration, refuse what no table can carry, wire the rest.
+
+        Refusals first, all of them, so a declaration that cannot be built
+        leaves no half-wired table behind: the target must exist in every
+        subset histogram's model and be a parameter a tie may drive — not
+        locked, not already tied (its sources named), not held, not a rigid
+        body's increment or a moment DOF, and not a coordinate DOF whose
+        anchor the subset's starting structures store differently.  A
+        coefficient's path must be new and shared under the caller's map.
+
+        Then, per declaration: what follows the target becomes per-histogram
+        with it (a cubic ``b`` and ``c`` follow ``a`` in every histogram, so a
+        bare row would report histogram 0's value as everyone's); the
+        coefficients are added to **every** table, so they fold onto one
+        shared column each (``_rebuild_columns`` asserts the shared free sets
+        agree), at the least-squares start (:func:`least_squares_start`); and
+        the target in each subset histogram is tied onto Σ_j Φ_kj·c_j.
+        """
+        n = self.n_histograms
+        resolved: list[ResolvedParametric] = []
+        for tie in declared:
+            unit = self.tables[0]._units.get(tie.target)
+            resolved.append(resolve_parametric(tie, coordinates, n, target_unit=unit))
+        for r in resolved:
+            for h in r.patterns:
+                table = self.tables[h]
+                i = table._paths.get(r.target)
+                if i is None:
+                    raise ValueError(
+                        f"parametric tie {r.name!r}: target {r.target!r} is not a "
+                        f"parameter of histogram {h}'s model; list them with "
+                        f"[e.path for e in mtable.tables[{h}].entries]")
+                why = _target_refusal(table, table.entries[i])
+                if why:
+                    raise ValueError(f"parametric tie {r.name!r}: {r.target} in "
+                                     f"histogram {h} {why}")
+            self._refuse_unanchorable(r)
+            for path in r.paths:
+                if not self.sharing.is_shared(path):
+                    raise ValueError(
+                        f"parametric tie {r.name!r}: the sharing map makes {path} "
+                        "per-histogram (a per_histogram glob matches it), but a "
+                        "coefficient is one number across the subset; narrow the "
+                        "glob so vars.* stays shared")
+                if any(path in t._paths for t in self.tables):
+                    raise ValueError(
+                        f"parametric tie {r.name!r}: {path} already exists; "
+                        "rename the declaration")
+        follows: dict[str, None] = {}
+        for r in resolved:
+            for h in r.patterns:
+                for q in self.tables[h].entry_reach()[r.target]:
+                    if q != r.target and self.sharing.is_shared(q):
+                        follows[q] = None
+        self.sharing.per_histogram.extend(follows)
+        touched: set[int] = set()
+        for r in resolved:
+            targets = [self.tables[h].entries[self.tables[h]._paths[r.target]]
+                       for h in r.patterns]
+            start = np.array([e.value for e in targets], dtype=np.float64)
+            coeffs = least_squares_start(r, start)
+            lo, hi, unit = -np.inf, np.inf, None
+            if r.tie.basis == "constant":
+                # the one coefficient *is* the target in every pattern of the
+                # subset, so it carries the target's declared box and unit —
+                # WP-1119's renaming rule, which makes the column the target's
+                # own to the seed (``seed_floored`` reads the row's bounds) and
+                # the FD step.  A sum of terms has no such box, which is what
+                # PARAMETRIC_OUT_OF_RANGE reports after the fit.
+                lo = max(e.lo for e in targets)
+                hi = min(e.hi for e in targets)
+                if lo > hi:
+                    raise ValueError(
+                        f"parametric tie {r.name!r}: the subset's patterns declare "
+                        f"{r.target} bounds with no common value ([{lo:g}, {hi:g}] "
+                        "intersected), so no one value can be every pattern's")
+                coeffs = np.clip(coeffs, lo, hi)
+                unit = self.tables[r.patterns[0]]._units.get(r.target)
+            for table in self.tables:
+                for path, c in zip(r.paths, coeffs, strict=True):
+                    table.add_parameter(path, float(c), vary=False, lo=lo, hi=hi,
+                                        unit=unit)
+            for k, h in enumerate(r.patterns):
+                tie = AffineTie(terms=tuple(
+                    (path, float(r.phi[k, j])) for j, path in enumerate(r.paths)))
+                try:
+                    self.tables[h].set_tie(r.target, tie)
+                except ValueError as exc:
+                    raise ValueError(f"parametric tie {r.name!r}: {exc}") from exc
+                touched.add(h)
+            for j, path in enumerate(r.paths):
+                self._column_anchor[path] = (r.target, j + 1)
+        for h in sorted(touched):
+            self.tables[h].refresh_ties()
+        self.parametric = resolved
+
+    def _refuse_unanchorable(self, r: ResolvedParametric) -> None:
+        """A coordinate DOF is a step from each table's stored coordinate.
+
+        The row is x = x_stored + Σ Bₖ·θₖ (WP-1432), so a function of the DOF
+        across patterns is a function of the *coordinate* only where every
+        pattern of the subset stores the same x.  Per-pattern starting
+        structures that differ there would make c₀ a displacement from
+        different points; refused, naming the coordinate.
+        """
+        t0 = self.tables[r.patterns[0]]
+        anchored = t0._anchored_dofs.get(r.target)
+        if not anchored:
+            return
+        for coord, _ in anchored:
+            values = {h: self.tables[h].entries[self.tables[h]._paths[coord]].value
+                      for h in r.patterns}
+            if len(set(values.values())) > 1:
+                raise ValueError(
+                    f"parametric tie {r.name!r}: {r.target} is a displacement from "
+                    f"each pattern's own stored {coord}, and the subset's starting "
+                    "structures store it differently, so a function of the DOF "
+                    f"would not be a function of the coordinate; start every "
+                    f"pattern at one {coord}")
+
+    def parametric_targets(self, h: int) -> set[str]:
+        """The bare paths histogram ``h``'s parametric ties drive (WP-1325)."""
+        return {r.target for r in self.parametric if h in r.patterns}
+
+    def _parametric_reached(self, path_globs: list[str]) -> set[str]:
+        """The coefficient paths of every declaration a glob reaches.
+
+        A glob reaches a declaration when it matches the target in a subset
+        histogram, bare or scoped (``hist.{h}.<target>``), under
+        :meth:`set_vary`'s matching rule.  The target is a tied row, so the
+        glob alone would free nothing; its coefficients are what carry it.
+        """
+        out: set[str] = set()
+        for r in self.parametric:
+            names = {r.target, *(f"hist.{h}.{r.target}" for h in r.patterns)}
+            if any(fnmatch.fnmatchcase(name, g) for name in names for g in path_globs):
+                out.update(r.paths)
+        return out
 
     def _check_moment_frames_shared(self) -> None:
         """Refuse a shared moment DOF over a per-histogram cell or position.
@@ -272,17 +597,25 @@ class MultiParameterTable:
         histogram's table holds its own copy of the entry and sets it, but the
         record is of what the joint fit freed, and one shared cell listed once
         per histogram claimed twice the parameters a two-histogram fit had.
+
+        A glob reaching a **parametric target** (WP-1325) reaches its
+        coefficients too, in every histogram, since they are shared columns
+        every table carries: the target is a tied row a glob alone would skip,
+        so a plan's ``phases.*.cell.*`` frees a parametric cell as it frees a
+        plain one, and the returned list names the coefficients.
         """
         freed: list[str] = []
         seen: set[str] = set()
+        coupled = self._parametric_reached(path_globs) if self.parametric else set()
         for h, table in enumerate(self.tables):
             matched = []
             for e in table.entries:
                 if e.tie is not None or e.locked:
                     continue
                 canon = self._canonical(h, e.path)
-                if any(fnmatch.fnmatchcase(canon, g)
-                       or fnmatch.fnmatchcase(e.path, g) for g in path_globs):
+                if e.path in coupled or any(
+                        fnmatch.fnmatchcase(canon, g)
+                        or fnmatch.fnmatchcase(e.path, g) for g in path_globs):
                     matched.append(e.path)
             if matched:
                 for p in table.set_vary(matched, vary):
@@ -460,6 +793,16 @@ class MultiParameterTable:
                     f"histogram {h} disagrees on the shared free set "
                     f"(missing {missing[:3]}, extra {extra[:3]}); shared "
                     "parameters must be freed identically in every histogram")
+        if self._column_anchor:
+            # a parametric coefficient takes the column its target would have
+            # had (WP-1325): the order is then the one a plain shared target
+            # gives, which is what makes a ``constant`` declaration the same
+            # solve as ``refine_multi`` bit for bit (a permuted normal matrix
+            # is factorised in another order).  Every other column keeps
+            # histogram 0's entry order, which is the order above.
+            pos = {e.path: i for i, e in enumerate(self.tables[0].entries)}
+            shared_order.sort(key=lambda p: (pos[self._column_anchor.get(p, (p, 0))[0]],
+                                             self._column_anchor.get(p, (p, 0))[1]))
 
         shared_index = {p: k for k, p in enumerate(shared_order)}
         combined_paths = list(shared_order)

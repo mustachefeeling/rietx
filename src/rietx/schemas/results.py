@@ -8,6 +8,7 @@ import numpy as np
 from pydantic import Field, model_validator
 
 from .common import Base, Diagnostic, Mode, Provenance
+from .parametric import ParametricCoefficient
 from .pattern import _floor_sigma
 
 
@@ -1364,6 +1365,15 @@ class RefinementResult(Base):
     # report built from a deserialized result quotes what fit time measured
     # or shows the section absent, and nothing re-derives it from the curves.
     identifiability: Identifiability | None = None
+
+    #: The coefficients of every parametric declaration a joint fit refined
+    #: (WP-1325, :class:`~rietx.schemas.parametric.ParametricTie`), each in the
+    #: caller's units at the declaration's reference, with its esd from the
+    #: joint covariance or ``None`` where that gives it none.  ``None`` means
+    #: no parametric tie was declared — never "declared, and nothing to say",
+    #: which a declaration cannot be.  One writer:
+    #: ``MultiHistogramRefinement._build_result``.
+    parametric: list[ParametricCoefficient] | None = None
 
     # How many explicit :class:`~rietx.schemas.instrument.HumpComponent` terms
     # this fit declared — the other half of "how flexible was the background":

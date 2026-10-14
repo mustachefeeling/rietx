@@ -609,17 +609,24 @@ Where a kernel over measurement coordinates has paid most is in choosing
   question): precedent across fields, its place in this WP's family of
   forms, what it can buy, its costs, and how it scales. Written into Context
   as § A kernel over the coordinates.
-- [ ] **The declaration**: the coordinate table, the closed basis vocabulary,
+- [x] **The declaration**: the coordinate table, the closed basis vocabulary,
   the subset, the reference and scale, with JSON round-trip, and every
-  refusal of § The shape item 3 before any solve.
-- [ ] **Per-pattern starting values in a joint fit**: a `Structure` per
+  refusal of § The shape item 3 before any solve. Landed as
+  `schemas/parametric.py` (`CoordinateTable`, `ParametricTie`,
+  `ParametricCoefficient`) and `params/parametric.py` (`resolve_parametric`,
+  the one authority). Coefficients are unbounded in this cut, so the box
+  refusal became `PARAMETRIC_OUT_OF_RANGE` after the fit.
+- [x] **Per-pattern starting values in a joint fit**: a `Structure` per
   histogram, or per-pattern overrides, in place of the deep copy at
-  `params/multi.py:187`.
-- [ ] **Ties and variables reach the joint table**: a `vars.` coefficient
+  `params/multi.py:187`. Landed as `structure: Structure | list[Structure]`;
+  a list must agree on topology and on every shared value.
+- [x] **Ties and variables reach the joint table**: a `vars.` coefficient
   shared, per-table ties onto `hist.{h}.` targets, and
   `_unsupported_paths_multi` reading `column_reach` per the WP-1342 rule
   before any variable drives a per-histogram cell. Bit-identical to
-  `refine_multi` when the basis is `constant`.
+  `refine_multi` when the basis is `constant`. Landed, and bit-identical (θ,
+  esds, statistics and y_calc `==`): a coefficient takes its target's column
+  slot, box and unit. The release (`_rehold_multi`) reads the reach too.
 - [ ] **Scalable solver, the step.** A block-structured joint Jacobian (per
   histogram: its rows against its own columns, plus its rows against the
   shared columns), never assembled dense. Two routes to decide between by
@@ -640,8 +647,9 @@ Where a kernel over measurement coordinates has paid most is in choosing
 - [ ] **Scaling measured**: memory and wall clock at N = 10, 70, 300 on a
   synthetic library, dense against blocked. State where dense stops being
   possible on the measuring machine.
-- [ ] esds of the coefficients in user units at the reference, marked
-  unmeasured where no pattern in the subset contributes gradient.
+- [x] esds of the coefficients in user units at the reference, marked
+  unmeasured where no pattern in the subset contributes gradient. Landed as
+  `RefinementResult.parametric` (schema 0.55).
 - [ ] `SeriesResult.summary(deliverable="series")` prints the coefficients
   beside the trajectory it already prints. A joint-fit summary prints them
   for a library.
