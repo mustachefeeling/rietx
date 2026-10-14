@@ -300,7 +300,7 @@ class ParametricFormTest(Base):
       ``None`` when the test did not run: a coefficient was not free at the
       answer.  0 when there was nothing to test.
     * ``statistic``, ``cut``, ``rejected`` — ``None`` unless ``dof`` is
-      positive.
+      positive and the answer's χ²_red·f² is a positive finite number.
     """
 
     tie: str

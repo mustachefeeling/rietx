@@ -52,7 +52,6 @@ from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
 from rietx.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
 from rietx.optimize.least_squares import STATIONARY_ANGLE_LEVEL
 from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
-from rietx.params.parametric import FORM_TEST_LEVEL
 from rietx.optimize.statistics import (
     EFFECTIVE_OBS_ALPHA,
     MAX_SHIFT_CONVERGED,
@@ -60,6 +59,7 @@ from rietx.optimize.statistics import (
     OBS_PER_PARAMETER_PREFERRED,
     PINV_RCOND,
 )
+from rietx.params.parametric import FORM_TEST_LEVEL
 from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
 from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
 from rietx.report.layer2 import IMPURITY_SIGMA

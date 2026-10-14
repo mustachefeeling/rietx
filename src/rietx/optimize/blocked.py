@@ -659,8 +659,18 @@ def _edited(bj: BlockJacobian, remove: np.ndarray,
     return BlockJacobian(blocks, maps, bj.n_data, bj.n_pen, n)
 
 
+def held_projection(bj: BlockJacobian, resid: np.ndarray, hold=()) -> tuple[float, int]:
+    """:func:`_projection` with the columns ``hold`` left out: the null side
+    of :func:`added_columns_gain`, the same for every alternative tested
+    from one point."""
+    held = np.zeros(bj.n_cols, dtype=bool)
+    held[list(hold)] = True
+    return _projection(_edited(bj, held, [None] * bj.n_blocks), resid)
+
+
 def added_columns_gain(bj: BlockJacobian, resid: np.ndarray,
-                       extra: list[np.ndarray | None], drop=(), hold=()
+                       extra: list[np.ndarray | None], drop=(), hold=(), *,
+                       null: tuple[float, int] | None = None
                        ) -> tuple[float, int]:
     """The χ² one linear step gains if block ``h`` also had ``extra[h]``.
 
@@ -671,15 +681,16 @@ def added_columns_gain(bj: BlockJacobian, resid: np.ndarray,
     coefficients that tied it.  The columns ``hold`` leave both sides, as a
     column held on its bound would.  Both sides are a least-squares step from
     ``resid`` with every other column refitted (:func:`_projection`), so the
-    gain is the score statistic for the alternative at this point.
+    gain is the score statistic for the alternative at this point.  ``null``
+    is :func:`held_projection` of the same ``bj``, ``resid`` and ``hold``,
+    passed in when several alternatives share it.
 
     Returns ``(gain, rank)``: the gain, and how many more directions than the
     held ``bj`` the alternative has past the cut.
     """
-    held = np.zeros(bj.n_cols, dtype=bool)
-    held[list(hold)] = True
-    gone = held.copy()
+    gone = np.zeros(bj.n_cols, dtype=bool)
+    gone[list(hold)] = True
     gone[list(drop)] = True
-    q0, k0 = _projection(_edited(bj, held, [None] * bj.n_blocks), resid)
+    q0, k0 = held_projection(bj, resid, hold) if null is None else null
     q1, k1 = _projection(_edited(bj, gone, extra), resid)
     return q1 - q0, k1 - k0

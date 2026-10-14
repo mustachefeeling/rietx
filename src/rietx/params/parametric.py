@@ -26,7 +26,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import linalg
 
-from ..optimize.blocked import added_columns_gain
+from ..optimize.blocked import added_columns_gain, held_projection
 from ..optimize.statistics import PINV_RCOND, berar_lelann_factor
 from ..schemas.interval import PARAMETER_INTERVAL_LEVEL
 from ..schemas.parametric import (
@@ -368,7 +368,8 @@ def target_columns(resolved: ResolvedParametric, bj, free_paths: list[str],
     up to a factor constant in k (a value scale).  No residual is evaluated.
     ``bj`` is the solve's :class:`~rietx.optimize.blocked.BlockJacobian`;
     the result is one entry per block, a column over that block's rows or
-    ``None`` outside the subset, in ``skip``, and where Φ_k is zero.  ``skip``
+    ``None`` outside the subset, in ``skip``, and where Φ_k or the column is
+    zero, so a gradient-free pattern is not counted as tested.  ``skip``
     is the patterns where an untied fit would hold the target, because the
     pattern cannot see it (WP-1301).  ``None`` altogether when a coefficient
     is not free, so its column is not in ``bj``.
@@ -383,7 +384,9 @@ def target_columns(resolved: ResolvedParametric, bj, free_paths: list[str],
         if norm == 0.0 or k in skip:
             continue
         local = {int(c): i for i, c in enumerate(bj.col_maps[k])}
-        out[k] = (bj.blocks[k][:, [local[c] for c in cols]] @ (row / norm))[:, None]
+        col = bj.blocks[k][:, [local[c] for c in cols]] @ (row / norm)
+        if np.any(col):
+            out[k] = col[:, None]
     return out
 
 
@@ -419,15 +422,22 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
     chi2_red = float(rd @ rd) / max(n_data - len(free_paths), 1)
     scale = chi2_red * berar_lelann_factor(rd) ** 2
     index = {p: i for i, p in enumerate(free_paths)}
+    # the held side is one projection for every declaration tested here
+    null = None
     out = []
     for r in resolved:
         cols = target_columns(r, bj, free_paths, skip.get(r.name, frozenset()))
         n_patterns = 0 if cols is None else sum(c is not None for c in cols)
         dof = statistic = cut = rejected = None
         if cols is not None:
+            if null is None:
+                null = held_projection(bj, resid, hold)
             gain, dof = added_columns_gain(bj, resid, cols,
-                                           [index[p] for p in r.paths], hold)
-            if dof > 0 and scale > 0.0:
+                                           [index[p] for p in r.paths], hold, null=null)
+            # fewer patterns than free coefficients: the alternative is smaller,
+            # so there is nothing to test, which the schema spells 0
+            dof = max(dof, 0)
+            if dof > 0 and np.isfinite(scale) and scale > 0.0:
                 from scipy.stats import chi2
 
                 statistic = gain / scale

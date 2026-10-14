@@ -1261,9 +1261,12 @@ def _form_line(t: ParametricFormTest) -> str:
     """One declaration's form test, as :func:`_parametric_lines` closes it."""
     if t.dof is None:
         return "      form not tested: a coefficient was not free at the answer"
-    if t.statistic is None:
+    if t.statistic is None and t.dof == 0:
         return (f"      form not tested: its {t.n_patterns} patterns add no "
                 "direction beyond the coefficients")
+    if t.statistic is None:
+        return ("      form not tested: the answer's χ²_red·f² is not a positive "
+                "finite number")
     verdict = "REJECTED" if t.rejected else "not rejected"
     side = "past" if t.rejected else "within"
     return (f"      form {verdict}: {t.statistic:.1f} {side} the cut {t.cut:.1f} "
