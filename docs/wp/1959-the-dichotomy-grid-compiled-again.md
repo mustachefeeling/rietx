@@ -51,6 +51,10 @@ Near a singular metric Q is dense, so every line keeps matching and the subtree 
 
 **On the kernel path #780's lattice comes at 6.5-7.5 s.** The grid takes 3.6-4.5 s of CPU, against 57 s at the start of the session. That is 13-16×, and the range is load: the acceptance file was running beside the second measurement. Phase 2 then costs 94-110 µs a box, and `_accept` is 82 % of it (46.3 s of 56.4 s over 26 419 leaves). The two kernels are 10 % and the Python loop about 9 %. So a whole-traversal kernel would save at most that 9 %, and the leaves are WP-1520's.
 
+**The starving ceiling is 7 s of CPU on the kernel path.** `tests.repro_780 N --cpu-clock` at load 5-6: no candidate at 4, 6 and 7 s, and #780's cell (4.541, 4.884, 10.198 Å, β = 98.22°, found by dichotomy) at 8 and 12 s. On the numpy loop (`RIETX_COMPILED=0`) a 120 s ceiling returns the cell too (242 raw candidates at load 4), where the Context's run returned nothing. svd still never starts under these ceilings: dichotomy holds them, and now finds the cell inside them.
+
+**The acceptance file passes on the pruned loop.** `tests/test_acceptance_indexing.py`: 44 passed in 18:03, `[dev]`, macOS arm64, with this session's measurements running beside it.
+
 **The kernel matches numpy.** `kernels/src/dichotomy.rs` (`dichotomy_box_test`, `dichotomy_child_key`) agreed with numpy on 788 450 boxes of #780 (the grid and ~627 000 of phase 2) and on 1.17 M child keys. Its line test is a `u64` mask per row from two rank lookups, so the dense hit matrix never forms. Inside the calls it took 4.3 s against numpy's 40.5 s, Python call overhead included.
 
 **The decision (maintainer, 2026-10-14).** The obliquity prune lands in this WP, before the kernel. It changes which boxes phase 2 visits, so it is held to the digests it cannot move, `tests/test_acceptance_indexing.py` and the bethanechol benchmark. The kernel then transcribes the pruned loop, and the bit-identity bar applies to that step.
