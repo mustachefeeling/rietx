@@ -60,7 +60,9 @@ the release tags, which the Jupyter quickstart reads (below).
   a Colab link to them could call API that `%pip install rietx` does not
   install. The workflow fetches the `v*` tags for this, and `build.py` refuses
   when it finds none rather than falling back to `main`. The test suite builds
-  at `HEAD`, because CI's shallow checkouts carry no tags.
+  at `HEAD`, because CI's shallow checkouts carry no tags. The Browser links are
+  the one exception: `/lite/` serves the Pages commit's notebooks with a wheel
+  from that commit (WP-1966), and a link matches its row by file name only.
 - `rietx._about.DOCS_URL` stays `https://rietx.org`, and `help.py`'s anchors are
   `page.html#id`, so neither moved.
 
