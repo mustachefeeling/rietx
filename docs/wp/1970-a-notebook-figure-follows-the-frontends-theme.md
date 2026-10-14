@@ -124,13 +124,15 @@ cannot reach the dark palette's hand-tuned values.
 - [x] A browser check: JupyterLab or the Lite site switched from Light to
   Dark swaps the figure without a rerun, and the same notebook opened
   untrusted shows one light figure.
-- [ ] The tutorial notebooks rebuilt. The manual's tutorial pages checked
+- [x] The tutorial notebooks rebuilt. The manual's tutorial pages checked
   in furo's dark theme. GitHub's render checked to show one figure.
-- [ ] The Lite site's light pin lifted (`SETTINGS` in `docs/lite/build.py`),
-  with the README sentence that explains it.
+- [x] The Lite site's light pin lifted (`SETTINGS` in `docs/lite/build.py`),
+  with the README sentence that explains it. Now `settings()`: the site
+  follows the reader once the newest tag's figures all carry the pair, and
+  the build marks the outputs trusted.
 - [x] Tests: the bundle's shape, the inline fallback on the dark image, the
   prefixed classes.
-- [ ] Skill: none. An agent reads a figure as a PNG file or through
+- [x] Skill: none. An agent reads a figure as a PNG file or through
   `plot_for_vlm`.
 
 ## Acceptance
