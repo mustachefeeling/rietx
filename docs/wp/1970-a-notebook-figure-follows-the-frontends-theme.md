@@ -1,7 +1,7 @@
 # WP-1970 — a notebook figure follows the frontend's theme
 
-Milestone: unscheduled · Status: ✅ 2026-10-14 — every rietx figure in a notebook carries a dark copy the
-frontend's theme picks; the Lite site follows the reader once a tag carries the pair
+Milestone: unscheduled · Status: ✅ 2026-10-14 — a pattern, fit, series or structure figure in a notebook
+carries a dark copy the frontend's theme picks; the indexing figures are WP-1972
 Track: Render what the fit already knows
 Depends on: —
 
@@ -154,14 +154,15 @@ pages show dark figures under furo's dark theme.
 
 ### 2026-10-14 (2nd session) — the figures follow the theme, and the WP closes
 
-A rietx figure in a notebook now shows in the reader's light or dark theme,
-and switches when the theme does, with no cell run again. Where a frontend
-cannot switch, the reader sees the light figure as before. The dark image is
-the light figure recoloured, so a note a caller adds to the figure shows in
-both. A redraw would have dropped it. The cost is about twice the encode time
-per figure shown, and about three times the image bytes in a saved notebook.
-Every task is done and the WP closes. Two older defects of the returned
-figure, which this work found, are filed as WP-1971.
+A pattern, fit, series or structure figure in a notebook now shows in the
+reader's light or dark theme, and switches when the theme does, with no cell
+run again. Where a frontend cannot switch, the reader sees the light figure
+as before. The dark image is the light figure recoloured, so a note a caller
+adds to the figure shows in both. A redraw would have dropped it. The cost is
+about twice the encode time per figure shown, and about three times the image
+bytes in a saved notebook. Every task is done and the WP closes. The indexing
+figures have no dark form yet, which is WP-1972. Two older defects of the
+returned figure, which this work found, are WP-1971.
 
 *Renumbered.* This WP was filed as WP-1967 in WP-1966's PR. Main took 1967 to
 1969 for issues the same day, so it is WP-1970. Commit e0fa96dc carries the
@@ -213,6 +214,20 @@ checks in a scratch venv with this tree installed.
   `test_lite.py` and the acceptance pair all pass. The fast-suite count is
   below.
 
+*Review* (`/code-review high --fix` over this WP's range). It found a real
+bug. A deep copy of a figure pyplot still holds registered the copy with
+pyplot, so each display under any backend but inline left a stray figure or
+opened a window. The copy is now made with the canvas manager detached, and
+a test that went red without the fix pins it. A display that drops
+`text/html` no longer draws the dark copy. The manual's frontend sentence
+now separates the frontends seen switching from those read from source. A
+`.jupyterlite.doit.db` cache, written to the tree root by this session's
+JupyterLite probe and committed, is removed and ignored. The indexing
+figures had no dark form, against a status that claimed every figure; the
+claims are narrowed and WP-1972 owns them. Declined: copying the structure
+lazily, which would let a later edit split the two pictures, and caching the
+structure's dark raster, which would hold a second image on every figure.
+
 *Gotchas.* JupyterLite applies a settings override only from inside the
 lite-dir. A path outside it builds with `overrides.json: 0` and no error. The
 build already writes it there. The figure's warm dark ground, `#1d1813`,
@@ -224,8 +239,9 @@ image, and a rietx figure cannot be pickled. Both predate this WP and are
 WP-1971. VS Code and Colab were read from source, not run. VS Code's
 Restricted Mode is still unverified.
 
-*Next.* Nothing remains in this WP. WP-1971 when a zoomed or pickled figure
-matters. At the next cut, check that the Lite site has switched to
+*Next.* Nothing remains in this WP. WP-1972 first, if a tutorial is to
+store an indexing figure, because one such figure holds the Lite site light.
+WP-1971 when a zoomed or pickled figure matters. At the next cut, check that the Lite site has switched to
 `adaptive-theme`: it follows the reader once the newest tag's notebooks
 carry the pair.
 
