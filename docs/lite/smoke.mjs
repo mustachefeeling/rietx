@@ -100,12 +100,19 @@ for (const book of books) {
   const report = await page.evaluate(() => {
     const panel = window.jupyterapp.shell.currentWidget;
     const out = { cells: 0, executed: 0, figures: 0, errors: [], stderr: [] };
+    // A traceback's frames are ANSI-coloured; the last "File" line is where it raised.
+    const plain = (s) => s.replace(/\u001b\[[0-9;]*m/g, "");
     for (const cell of panel.content.model.cells) {
       if (cell.type !== "code") continue;
       out.cells += 1;
       if (cell.executionCount) out.executed += 1;
       for (const o of cell.outputs.toJSON()) {
-        if (o.output_type === "error") out.errors.push(`${o.ename}: ${o.evalue}`);
+        if (o.output_type === "error") {
+          const frames = (o.traceback || []).map(plain).join("\n").split("\n")
+            .filter((l) => /^\s*File "|^\s*Cell In/.test(l));
+          out.errors.push(`code cell ${out.cells}: ${o.ename}: ${o.evalue}`
+            + (frames.length ? `\n      at ${frames[frames.length - 1].trim()}` : ""));
+        }
         if (o.output_type === "stream" && o.name === "stderr") out.stderr.push([].concat(o.text).join(""));
         if (o.data && o.data["image/png"]) out.figures += 1;
       }

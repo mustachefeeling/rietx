@@ -718,7 +718,8 @@ def _probe_lock(path: Path) -> Literal["held", "free", "unavailable"]:
     if not path.is_file():
         return "unavailable"
     try:
-        import fcntl
+        # by name, so JupyterLite's empty fcntl mock reads as Windows (WP-1963)
+        from fcntl import LOCK_NB, LOCK_SH, LOCK_UN, flock
     except ImportError:      # pragma: no cover - Windows
         return "unavailable"
     try:
@@ -729,12 +730,12 @@ def _probe_lock(path: Path) -> Literal["held", "free", "unavailable"]:
         return "unavailable"
     try:
         try:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
+            flock(fh.fileno(), LOCK_SH | LOCK_NB)
         except OSError:
             # somebody holds it exclusively; the kernel releases it however
             # they die
             return "held"
-        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        flock(fh.fileno(), LOCK_UN)
         return "free"
     finally:
         fh.close()
@@ -1377,13 +1378,14 @@ class RunRecorder(EventStream):
         the pid fallback instead, which is weaker and still true.
         """
         try:
-            import fcntl
+            # by name, so JupyterLite's empty fcntl mock reads as Windows (WP-1963)
+            from fcntl import LOCK_EX, LOCK_NB, flock
         except ImportError:      # pragma: no cover - Windows
             return
         fh = open(self.dir / LOCK_FILE, "w", encoding="utf-8",
                   newline="\n")
         try:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            flock(fh.fileno(), LOCK_EX | LOCK_NB)
         except OSError:
             fh.close()
             return

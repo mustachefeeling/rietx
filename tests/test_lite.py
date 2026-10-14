@@ -7,6 +7,11 @@ each notebook must carry exactly one install cell for `build.project` to replace
 and everything else must reach the browser unchanged.  The mock's version must
 also still satisfy rietx's own `rietx-kernels` requirement, or micropip refuses
 rietx in every notebook at once.
+
+And one fact about the browser's Python that a native run never meets: the
+kernel replaces `fcntl` with an empty module, so every lock site must read a
+missing `flock` the way it reads Windows.  Tutorial 02 raised on it at
+`Project.create` until WP-1963.
 """
 
 from __future__ import annotations
@@ -14,6 +19,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -64,6 +71,35 @@ def test_the_mock_satisfies_rietx_s_own_kernels_requirement():
 
 def test_the_site_serves_only_what_build_wheels_makes():
     assert set(LITE.SERVED) == set(WHEELS.PACKAGES) == {"gemmi", "spglib"}
+
+
+@pytest.fixture
+def jupyterlite_fcntl(monkeypatch):
+    """What JupyterLite's Pyodide kernel does at start (`pyodide_kernel/mocks.py`):
+    an empty module named `fcntl`, which `import fcntl` accepts with no `flock`."""
+    monkeypatch.setitem(sys.modules, "fcntl", types.ModuleType("fcntl"))
+
+
+def test_the_history_store_reads_an_empty_fcntl_as_no_lock(jupyterlite_fcntl, tmp_path):
+    # A fresh copy, since the store binds flock at import.
+    spec = importlib.util.spec_from_file_location(
+        "rietx.history._store_under_jupyterlite", ROOT / "src" / "rietx" / "history" / "store.py")
+    store = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(store)
+    assert store.flock is None
+    with open(tmp_path / "history.jsonl", "w", encoding="utf-8") as handle, store._locked(handle):
+        handle.write("{}\n")
+
+
+def test_the_run_lock_reads_an_empty_fcntl_as_windows(jupyterlite_fcntl, tmp_path):
+    from rietx import runs
+
+    lock = tmp_path / runs.LOCK_FILE
+    lock.write_text("", encoding="utf-8")
+    assert runs._probe_lock(lock) == "unavailable"
+    recorder = types.SimpleNamespace(dir=tmp_path)
+    runs.RunRecorder._take_lock(recorder)
+    assert not hasattr(recorder, "_lock_fh")
 
 
 def test_the_wheel_pins_name_the_kernel_s_pyodide():
