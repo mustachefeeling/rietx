@@ -121,7 +121,7 @@ cannot reach the dark palette's hand-tuned values.
   `image/png`, keeping the width-only metadata of WP-1957.
 - [x] `render_structure`'s notebook output emits the same pair. Drawn again
   from the recipe, on a copy of the structure taken at the call.
-- [ ] A browser check: JupyterLab or the Lite site switched from Light to
+- [x] A browser check: JupyterLab or the Lite site switched from Light to
   Dark swaps the figure without a rerun, and the same notebook opened
   untrusted shows one light figure.
 - [ ] The tutorial notebooks rebuilt. The manual's tutorial pages checked
