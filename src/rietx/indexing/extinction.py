@@ -112,6 +112,7 @@ from dataclasses import dataclass, field
 import gemmi
 import numpy as np
 
+from ..optimize.cancel import RefinementCancelled
 from ..optimize.statistics import _chi2_absolute
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
@@ -729,7 +730,7 @@ def _background_unseeded(background) -> bool:
 
 
 def _prefit(data: PatternData, candidate: CellCandidate, instrument: Instrument,
-            symbol: str, two_theta_limits):
+            symbol: str, two_theta_limits, cancel=None):
     """The screen's own cell-free Le Bail of the lattice group (``refine_cell``).
 
     ``profile_only`` — background, zero, **cell**, then the widths — from a
@@ -739,6 +740,15 @@ def _prefit(data: PatternData, candidate: CellCandidate, instrument: Instrument,
     −296, and where that stage plus a seeded background gave a confident wrong
     ``P c - -``.  Returns the fitted instrument, the candidate at the refined
     cell, and the prefit's Rwp.
+
+    The replacement is a seeded **P-spline whatever the kind it replaces**: the
+    all-zero start is the preset's own Chebyshev, which a caller who declared one
+    cannot be told from, and a seeded Chebyshev of the preset's order returned
+    ``R - - -`` on the certified corundum cell and at every offset up to ×1.005
+    where the seeded P-spline returns ``R - c -`` (WP-1910's fixture).  A
+    Chebyshev with any non-zero coefficient is a declaration and is kept.
+    ``cancel`` reaches the fit, which raises
+    :class:`~rietx.optimize.cancel.RefinementCancelled` out of it.
     """
     from ..background.auto import auto_background
     from ..refine import Refinement
@@ -751,7 +761,8 @@ def _prefit(data: PatternData, candidate: CellCandidate, instrument: Instrument,
     ref = Refinement(structure_from_candidate(candidate, space_group=symbol),
                      ins, history=False)
     result = ref.fit(data, mode="lebail", plan="profile_only",
-                     two_theta_limits=two_theta_limits, telemetry=False)
+                     two_theta_limits=two_theta_limits, telemetry=False,
+                     cancel=cancel if hasattr(cancel, "is_set") else None)
     cell = tuple(float(v) for v in
                  ref.fitted_structure.phases[0].cell.lengths_angles())
     return (ref.fitted_instrument, candidate.model_copy(update={"cell": cell}),
@@ -841,7 +852,9 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     synchrotron resolution) lands here rather than on a confident wrong class.
 
     Cost is one refinement per surviving class (~0.1 s each on a 3750-point
-    pattern, after a ~2 s profile fit).  ``max_classes`` caps it; the classes left
+    pattern), after **two** profile Le Bail fits: the cell-free prefit and the
+    shared one (the pair took about 1 s on SRM 676a's 7251 points, numpy, warm
+    Apple-silicon Mac; ``refine_cell=False`` skips the first).  ``max_classes`` caps it; the classes left
     unfitted are reported with ``screened=False`` and, because an unasked question
     must not read as a clean answer, :meth:`ExtinctionScreen.best_or_none` then
     abstains.
@@ -879,7 +892,7 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         if refine_cell:
             which = "cell-free prefit"
             ins, candidate, screen.prefit_rwp = _prefit(
-                data, candidate, ins, symbol, two_theta_limits)
+                data, candidate, ins, symbol, two_theta_limits, cancel)
             screen.cell = candidate.cell
             which = "reference"
         pre = Refinement(structure_from_candidate(candidate, space_group=symbol),
@@ -895,6 +908,11 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         frozen = pre.fitted_instrument
         ref_fit, ref_result = _fit_class(candidate, data, frozen, symbol,
                                          two_theta_limits)
+    except RefinementCancelled:
+        # a stop pressed during the prefit: no class was asked, so the screen
+        # is an unasked question rather than a failure with a reason
+        screen.status = "cancelled"
+        return screen
     except Exception as exc:                          # noqa: BLE001
         screen.status = "failed"
         screen.diagnostics = [Diagnostic(
@@ -1066,7 +1084,10 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
                 f"{entry.forbidden_two_theta[0]:.3f}°")
 
     screen.n_screened = sum(1 for e in entries if e.screened)
-    if cancel is not None and bool(cancel):
+    if cancel is not None and bool(cancel) and screen.status != "unreliable":
+        # the gate's verdict outranks the stop: ``best_or_none`` abstains on
+        # "unreliable" and not on "cancelled", so overwriting it would hand
+        # back the class the gate withheld
         screen.status = "cancelled"
     for entry in entries:
         entry.diagnostics = extinction_class_diagnostics(entry)

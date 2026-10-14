@@ -846,7 +846,7 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
     alive = [c for c in screen.candidates if not c.refuted and c.screened]
     unscreened = [c for c in screen.candidates if not c.refuted and not c.screened]
     if not screen.candidates:
-        return [Diagnostic(
+        return out + [Diagnostic(
             level="warning", code="EXTINCTION_SYMBOL_AMBIGUOUS",
             message=("No extinction class could be screened: the lattice "
                      f"{screen.lattice_group} produced no fittable reflections in "
