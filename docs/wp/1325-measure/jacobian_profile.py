@@ -59,10 +59,24 @@ from tests.test_parametric_series import library  # noqa: E402
 from tests.test_sequential import _start_models  # noqa: E402
 
 # scaling.py runs its workers as children, so it skips only its own pid; this
-# runs in the shell that launched it, whose command line names this file too
+# runs under the shell that launched it, whose command line names this file
+# too, perhaps through a wrapper (``timeout``, ``uv run``): skip every ancestor
 _others = scaling.others_running
+
+
+def _ancestors() -> set[str]:
+    out, pid = set(), os.getppid()
+    while pid > 1:
+        out.add(str(pid))
+        try:
+            pid = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return out
+
+
 scaling.others_running = lambda: [ln for ln in _others()
-                                  if not ln.startswith(str(os.getppid()) + " ")]
+                                  if ln.split(None, 1)[0] not in _ancestors()]
 
 # -- the closures, captured as the joint path builds them ---------------------
 
@@ -156,7 +170,12 @@ def profile_shares(st: pstats.Stats) -> dict:
 class AtAnswer:
     def __init__(self):
         self.mt = captured["mtable"]
-        self.theta = np.asarray(self.mt.x0(), dtype=float)
+        # from each committed sub-table, never ``mt.x0()``: the combined vector
+        # is cached at the stage's start and a commit leaves it there
+        # (``multi.py``'s ``_stage_end_rows`` docstring)
+        self.theta = np.empty(len(self.mt.free_paths), dtype=float)
+        for h, table in enumerate(self.mt.tables):
+            self.theta[self.mt.col_map(h)] = table.x0()
         self.res, self.jac = captured["res"], captured["jac"]
         self.n = len(self.jac)
         self.rep = 0
@@ -230,7 +249,9 @@ def main(n: int, repeats: int) -> None:
           f"Jacobian time goes, N = {n}.\n")
     for line in machine():
         print(line)
-    print(f"kernels   {compiled.n_threads()} pool threads")
+    print(f"kernels   {compiled.n_threads()} pool threads; " + ", ".join(
+        f"{v}={os.environ.get(v, '(unset)')}" for v in (
+            "RIETX_COMPILED_THREADS", "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS")))
     print(f"tree      HEAD {head()} at start, src/ fingerprint {fp}")
     print("library   tests' library(n): 3000 points a pattern, cell = four-term "
           "polynomial over (x, y), 10 own columns a pattern, blocked layout\n")
@@ -245,9 +266,11 @@ def main(n: int, repeats: int) -> None:
     _, pwall = fit(n, prof)
     sh = profile_shares(pstats.Stats(prof))
     print(f"  cProfile   wall {pwall:.2f} s, {sh['total']:.2f} s profiled "
-          "(the profiler inflates python, so read shares, not seconds)")
+          "(the profiler inflates python, not the kernels: a python share is "
+          "read against python, a kernel's against the plain wall)")
     print(f"    rietx_kernels calls: {sh['kernels']:.3f} s = "
-          f"{sh['kernels'] / sh['total']:.1%} of the fit")
+          f"{sh['kernels'] / sh['total']:.1%} of the profiled fit, "
+          f"{sh['kernels'] / wall:.1%} of the plain wall (an upper estimate)")
     for name, nc, tt in sh["kernel_rows"]:
         print(f"      {name:55s} {nc:6d} calls {tt:.3f} s")
     print(f"    joint Jacobian (block_jacobian): {sh['joint_cum']:.2f} s over "

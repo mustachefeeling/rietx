@@ -626,8 +626,10 @@ Where a kernel over measurement coordinates has paid most is in choosing
 ### Measured: where the joint Jacobian's time goes (2026-10-14)
 
 `1325-measure/jacobian_profile.py`, output in
-`1325-measure/jacobian_profile_results.txt`. The maintainer asked whether
-another Rust kernel would speed the joint fit.
+`1325-measure/jacobian_profile_results.txt` and, with openblas, OpenMP and
+the kernel pool held to one thread each,
+`1325-measure/jacobian_profile_one_thread_results.txt`. The maintainer asked
+whether another Rust kernel would speed the joint fit.
 
 **Setup.**
 - `scaling.py`'s library at N = 60, blocked, on the same machine, with
@@ -635,35 +637,46 @@ another Rust kernel would speed the joint fit.
 - Every repeat runs at a new θ, because `phase_peaks` memoises on the cell.
   An early draft that reused one θ timed the cache and read 6.2× where the
   honest figure is 1.5×.
+- Times are ranges over five repeats. A ratio is min against min, and (1) is
+  one fit per run.
 
-| what | measured |
-|---|---|
-| joint Jacobian, share of the plain fit | 48 % (2.69 of 5.58 s) |
-| `rietx_kernels` calls, share of the profiled fit | 1.4 % |
-| `_peak_chain_column`, share of the joint Jacobian | 71 %, 4.0 calls a pattern a Jacobian |
-| one pattern's Jacobian at the answer | 2.39 ms |
-| the per-pattern Jacobian loop over 2 / 4 threads | 0.72× / 0.53× |
-| the per-pattern residual loop over 2 / 4 threads | 0.60× / 0.46× |
-| the four `cell.a` peak-chain columns computed once | 1.52× on the Jacobian loop |
+| what | default threads | one thread each |
+|---|---|---|
+| plain fit wall; joint Jacobian's share | 5.90 s; 48 % | 5.87 s; 49 % |
+| `rietx_kernels` calls: profiled fit / plain wall | 1.5 % / ≤ 2.4 % | 1.5 % / ≤ 2.4 % |
+| `_peak_chain_column`'s share of the joint Jacobian | 75 %, 4.0 calls a pattern a Jacobian | 76 % |
+| one pattern's Jacobian, last stage | 2.40-2.45 ms | 2.42-2.64 ms |
+| the per-pattern Jacobian loop over 2 / 4 threads | 0.68× / 0.49× | 0.70× / 0.49× |
+| the per-pattern residual loop over 2 / 4 threads | 0.56× / 0.44× | 0.57× / 0.40× |
+| the four `cell.a` peak-chain columns computed once | 1.52× on the Jacobian loop | 1.48× |
 
 **What it says.**
-- **Another kernel is not the lever.** The existing kernels are 1.4 % of the
-  fit. A pattern here is 3 000 points of LaB₆, so its Jacobian is about a
-  hundred small python and numpy calls, not a loop of arithmetic. A kernel of
-  WP-1115's kind (a serial loop over a row range) has no loop here to take.
-- **Threads lose.** The per-pattern work holds the GIL, so a pool across
-  patterns ran at 0.53× on 4 threads, with three cores idle. Only a Rust
-  port of the whole per-pattern peak chain would free them: positions,
-  widths, |F|² and the column assembly, with a fallback and an oracle. That
-  is a port of the forward model's per-reflection chain, not a kernel.
+- **Another kernel is not the lever.** The existing kernels are under 3 % of
+  the fit. The profiler inflates python and not Rust, so 1.5 % of the
+  profiled fit is a floor and 2.4 % of the plain wall a ceiling. A pattern
+  here is 3 000 points of LaB₆, so its Jacobian is about a hundred small
+  python and numpy calls, not a loop of arithmetic. A kernel of WP-1115's
+  kind (a serial loop over a row range) has no loop here to take.
+- **Threads lose, and the GIL is why.** A pool across patterns ran at 0.49×
+  on 4 threads. Holding openblas, OpenMP and the kernel pool to one thread
+  each left that unchanged, so it is not oversubscription. The work is short
+  python stretches between short numpy calls, and the threads queue on the
+  lock. Only a Rust port of the whole per-pattern peak chain would free
+  them: positions, widths, |F|² and the column assembly, with a fallback and
+  an oracle. That is a port of the forward model's per-reflection chain, not
+  a kernel.
 - **The repeated peak chain is the cheap win.** Every coefficient of one tie
   reaches `_peak_chain_column` under its target's name. Here that is four
   `phases.0.cell.a` columns beside six instrument columns, and each re-runs
   `phase_peaks` at its own step. Within a pattern each column is
-  Φ_kj · ∂y/∂(target), so one call and a scale serve them all: 1.52× on the
-  last stage's Jacobian loop with four terms, and more with more terms. On
-  the 45 % share at N = 300 that is about 1.2× on the fit (estimated, not
-  run).
+  Φ_kj · ∂y/∂(target), so one call and a scale serve them all. That measured
+  1.48-1.52× on the last stage's Jacobian loop with four terms, over three
+  runs, and grows with the term count.
+  - On the 45 % share at N = 300 that is about 1.2× on the fit (estimated,
+    not run).
+  - The estimate takes the last stage's column mix, 10 peak-chain columns
+    with 4 repeated, for the whole fit, whose stages average 4.0 a pattern a
+    Jacobian. So it can be off in either direction.
 - **Then processes across patterns, not threads**, since the work is
   independent. Not measured.
 - **The case for a kernel grows with the structure.** Synthetic LaB₆ is the
@@ -834,7 +847,7 @@ another Rust kernel would speed the joint fit.
   joint Jacobian's time goes.
 - [ ] **Compute a target's peak-chain column once per pattern.** A tie's
   coefficient columns each re-run `phase_peaks` (§ Measured: where the joint
-  Jacobian's time goes, 1.52× on the Jacobian loop).
+  Jacobian's time goes, 1.48-1.52× on the Jacobian loop).
   - The seam is `_make_jacobian`'s column loop
     (`optimize/least_squares.py:1604`) and `_peak_chain_column` (`:1170`).
     Group the peak-chain columns by the targets they reach, compute each
@@ -1029,15 +1042,16 @@ another Rust kernel would speed the joint fit.
 ### 2026-10-14 (third session) — another Rust kernel is not the lever; a repeated peak chain is
 
 The maintainer asked whether another Rust kernel would speed up the large
-joint fits. Not first. The existing kernels are under 2 % of a 60-pattern fit.
+joint fits. Not first. The existing kernels are under 3 % of a 60-pattern fit.
 Each pattern is small, so its Jacobian is about a hundred small python calls
 rather than a loop of arithmetic for a kernel to take over. Spreading the
 patterns over threads made it slower, because python's lock serialises them.
-What does pay is algorithmic: a polynomial's coefficients all move the same
-per-pattern cell, yet each re-runs the peak chain. Doing it once measured
-1.5× on the Jacobian, and is filed as a task. The real-data measurement could
-not run from the cloud container, which reaches neither the maintainer's copy
-nor the Durham tutorials.
+Holding the maths libraries to one thread did not change that. What does pay
+is algorithmic: a polynomial's coefficients all move the same per-pattern
+cell, yet each re-runs the peak chain. Doing it once measured about 1.5× on
+the Jacobian, and is filed as a task. The real-data measurement could not run
+from the cloud container, which reaches neither the maintainer's copy nor the
+Durham tutorials.
 
 *Done* (session started 2026-10-14 at 977ec2a, after #969 merged; a cloud
 session, pushed to `claude/happy-bardeen-b6d4g0`):
@@ -1051,6 +1065,23 @@ session, pushed to `claude/happy-bardeen-b6d4g0`):
   that threads do not parallelise it.
 - **Inherited:** none on arrival. **Findings** are this morning's, and main
   moved only by #969's merge since, so none went stale.
+- **`/code-review high --fix`: 10 findings, 7 acted on.**
+  - Rows (2)-(4) ran at the last stage's start: fixed, and re-run.
+  - The kernel share was quoted against the profiled time only: both are
+    printed now, floor and ceiling.
+  - The thread loss might have been oversubscription: re-run with openblas,
+    OpenMP and the kernel pool at one thread (the script now prints that
+    environment), and it is the GIL.
+  - Single figures became ranges or min-against-min over runs.
+  - The 1.2× estimate gained its column-mix caveat.
+  - The process filter skips every ancestor.
+
+  Three declined:
+  - one plain fit per run: three runs agree on the share, at 48-49 %;
+  - `fresh()` cannot move an entry at exactly 0: the cache keys on the cell,
+    which is never 0;
+  - `src_fingerprint` does not cover `tests/`: the helper is `scaling.py`'s,
+    which this branch does not touch.
 
 *Measured* (Linux x86_64, 4 CPUs, 15.7 GiB, `[dev]` venv, nothing else
 running): the numbers are in § Measured: where the joint Jacobian's time
@@ -1061,6 +1092,9 @@ selection was not run. Step 10's checks are below.
 - **`phase_peaks` memoises on the cell.** A profiling loop that reuses one θ
   times the cache, and a deduplication then reads 6.2× where the honest
   figure is 1.5×. Move θ every repeat.
+- **`mtable.x0()` is the last stage's start, not its answer.** A commit
+  leaves the combined vector cached. Read each sub-table's `x0()` through
+  `col_map`, as `_stage_end_rows` does.
 - **A coefficient column reaches `_peak_chain_column` under its target's
   path** (`phases.0.cell.a`), not under its `vars.` name. A deduplication
   keyed on `vars.` finds nothing.
