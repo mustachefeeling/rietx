@@ -15,6 +15,14 @@ off with the model's five, so a process takes one path for both, and
 :func:`_pool`.  They call no library function, so their bar against the numpy
 oracle is the bit on every platform (``tests/test_raster_kernels.py``).
 
+From 1.3.0 it carries the dichotomy indexer's box test as well
+(``dichotomy_box_test`` and ``dichotomy_child_key``, WP-1959).  Its oracle is
+``indexing/dichotomy.py``'s numpy loop, on the bit, box by box and leaf by leaf
+(``tests/test_indexing_kernels.py``).  It is one call per box and never
+splits, since a box is tens of microseconds of work.  Until the pin's floor
+reaches 1.3 a wheel without it still loads, and :func:`dichotomy_kernels`
+declines for the indexer alone, silently.
+
 Why a compiled tier at all
 --------------------------
 WP-1112 and WP-1120 removed the two costs a numpy-level loop is usually blamed
@@ -61,7 +69,10 @@ The three rules this module is held to
    Linux, so the contract is the rounding bar (≤ 1e-15) and the bit is
    asserted only where it was measured.  The FCJ kernels sum their nodes in a
    loop where numpy runs a matmul, so their bar was 1e-13 relative from the
-   start (WP-1112's).  From ``rietx-kernels`` 1.2.0, on x86-64, they call
+   start (WP-1112's).  For the bases it is relative to each plane's sum of
+   |terms|, since a derivative plane can be far smaller than its terms
+   (WP-1959; ``bench_aot_kernels.fcj_terms`` computes it).  From
+   ``rietx-kernels`` 1.2.0, on x86-64, they call
    SLEEF's ``exp`` (``kernels/src/sleef.rs``) under WP-1940's relaxed rule:
    **transcendentals to a stated bound, associations as written**.  The bound
    is SLEEF's documented 1.0 ulp, asserted on every wheel, and every sum keeps
@@ -143,6 +154,12 @@ KERNEL_FLOOR = "1.1"
 #: first five are the model's and the last two the structure figure's.
 KERNEL_NAMES = ("accum", "omega_sym", "omega_fcj", "bases_sym", "bases_fcj",
                 "render_rows", "id_plane")
+
+#: The dichotomy indexer's box test and child key, from 1.3.0 (WP-1959).  They
+#: are looked up beside :data:`KERNEL_NAMES` until the pin's floor reaches the
+#: release that added them: a wheel without them still serves the model and the
+#: figure, and indexing runs its numpy loop (:func:`dichotomy_kernels`).
+DICHOTOMY_NAMES = ("dichotomy_box_test", "dichotomy_child_key")
 
 #: Ω spelled as :func:`~rietx.model.profiles.pseudovoigt.pseudo_voigt` — the
 #: forward model's own arithmetic.
@@ -228,7 +245,8 @@ def _load() -> tuple[dict | None, str | None]:
     if missing:
         return None, (f"rietx_kernels {version} lacks the kernel"
                       f"{'s' if len(missing) > 1 else ''} {', '.join(missing)}")
-    return {n: getattr(wheel, n) for n in KERNEL_NAMES}, None
+    return {n: getattr(wheel, n) for n in KERNEL_NAMES + DICHOTOMY_NAMES
+            if callable(getattr(wheel, n, None))}, None
 
 
 def _kernels() -> dict | None:
@@ -322,6 +340,28 @@ def set_enabled(flag: bool | None) -> bool | None:
     global _ENABLED
     was, _ENABLED = _ENABLED, flag
     return was
+
+
+def dichotomy_kernels() -> tuple | None:
+    """The dichotomy's ``(box_test, child_key)`` when the compiled path is on.
+
+    ``None`` sends the caller to its numpy loop: the tier is off, the wheel did
+    not load, or it predates the two kernels.  The last is silent.  It arises
+    only while the pin's floor is below 1.3, when the index serves 1.2.0 and
+    advice to install 1.3 could not be followed.  The numpy loop is then what
+    every rietx before WP-1959 ran.  Once the floor reaches 1.3 the two names
+    join :data:`KERNEL_NAMES`, and a wheel without them declines the whole
+    tier with its warning.  The answer is fixed for the process, like
+    :func:`enabled`'s.
+    """
+    if not enabled():
+        return None
+    kernels = _kernels()
+    if kernels is None:          # forced on where the wheel did not load
+        return None
+    if all(n in kernels for n in DICHOTOMY_NAMES):
+        return tuple(kernels[n] for n in DICHOTOMY_NAMES)
+    return None
 
 
 def _pool() -> ThreadPoolExecutor:

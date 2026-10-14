@@ -106,6 +106,27 @@ R_{ij} = \frac{G^*_{ij}}{\sqrt{G^*_{ii}G^*_{jj}}},
 so that for a monoclinic box $\det R \in [1 - \cos^2\vartheta_{\max}, 1]$ and
 the "this cell is too small" half of the test can fire at all.
 
+The bound on $R_{ij}$ in {eq}`eng-det` holds only at points inside the domain.
+A box can lie wholly outside it, and such a box is refused before either
+determinant is bounded,
+
+```{math}
+:label: eng-oblique
+
+\min_{\text{box}} \frac{\lvert G^*_{ij} \rvert}{\sqrt{G^*_{ii}G^*_{jj}}}
+\;>\; \cos\vartheta_{\max}
+\quad \text{for some } i \ne j,
+```
+
+{source}`rietx.indexing.dichotomy._outside_obliquity`
+
+with the minimum taken at the box's corners: the smallest $\lvert G^*_{ij}
+\rvert$ over the largest diagonals. Clipping $R_{ij}$ to the bound instead
+gives an inverted interval and refuses nothing. The expanded determinant
+cannot refuse such a box either, because it carries $G^*_{22}$ twice and its
+interval bound loses the coupling. Near a singular metric the observed lines
+then keep finding reflections, and the subtree does not converge.
+
 ### Line matching and Hall's condition
 
 For each observed line, some trial $hkl$'s $[Q^-, Q^+]$ must reach it within

@@ -45,6 +45,10 @@ Measured at `e1d19359`, `[dev]`, macOS arm64, on a machine shared with five othe
 
 **The ceiling holds, and it starves the engine that finds the cell.** Since WP-1940 the grid alone costs 157 s of CPU on this case. Dichotomy runs first in each system, so under any ceiling below that it takes the whole run. At 120 s of CPU it reached 131 912 boxes, and svd and trial_error never started. The run returned no candidate. svd alone finds the lattice in 27 s of CPU. This is a scheduling question, left as the last task.
 
+### Inherited
+
+- **2026-10-14, from WP-1959 (PR #964): the grid was not what held the ceiling, and the scheduling task's premise has moved.** At load ~3 the grid cost 57 s of CPU, not 157 s (the Profile's figure was taken at load 110-180). Phase 2 then spent 387 s in one grid cell lying wholly outside the obliquity bound, with no leaf. WP-1959 refuses such a box, and compiles the box test (`rietx-kernels` 1.3). On #780 dichotomy now returns the cell at an 8 s CPU ceiling (none at 7 s), and at 120 s on the numpy loop. svd still never starts under these ceilings: dichotomy holds the whole ceiling until its unit completes, and the leaves are 82 % of phase 2 (WP-1520). So the scheduling task now asks a narrower question. A run returns a candidate, but no second engine corroborates it, so it cannot reach `high`. Re-measure before deciding.
+
 ## Non-goals
 
 - Shrinking the metric box to buy speed (`indexing/CLAUDE.md`).
