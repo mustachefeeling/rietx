@@ -16,7 +16,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 2026-10-01 | P2 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1317](1317-series-scrubber.md) | Scrub the series along its own trace | 2026-10-12 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1322](1322-events-aggregator.md) | The run is instrumentable, and nothing says so | 2026-10-12 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
-| [1325](1325-parametric-series.md) | Parametric series: a parameter as a function of the series axis | 2026-10-13 | P3 | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
+| [1325](1325-parametric-series.md) | Parametric series: a parameter as a function of each pattern's coordinates | 2026-10-14 | P2 | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
 | [1326](1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | 2026-09-26 | P2 | [magnetic](#magnetic) |
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-10-07 | P2 | [magnetic](#magnetic) |
 | [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 2026-10-01 | P3 | [magnetic](#magnetic) |
@@ -636,7 +636,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1325](1325-parametric-series.md) | Parametric series: a parameter as a function of the series axis | 🔄 2026-10-13 | P3 | — ([1119](1119-named-variables.md) soft) |
+| [1325](1325-parametric-series.md) | Parametric series: a parameter as a function of each pattern's coordinates | 🔄 2026-10-14 | P2 | — ([1119](1119-named-variables.md) soft) |
 | [1925](1925-anomalous-scattering-above-70-kev.md) | Anomalous scattering above 70 keV | ⬜ | P3 | — ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) |
 | [1926](1926-the-exact-voigt-is-a-supported-shape.md) | The exact Voigt is a supported shape: its cost, its width, its exports and its bound | ⬜ | P3 | — (#815 soft) |
 | [1939](1939-an-ahead-of-time-kernel-spike.md) | An ahead-of-time kernel spike: Rust, C or Cython against numba | ✅ 2026-10-10 | — | — |
@@ -644,3 +644,4 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1945](1945-the-peak-chain-columns-built-in-one-pass-per-phase.md) | The peak-chain columns of a Jacobian built in one pass per phase | ⬜ | P3 | — ([1938](1938-every-parameter-refined-in-its-own-units.md) soft) |
 | [1948](1948-a-public-objective-for-an-outside-optimiser.md) | A public objective for an outside optimiser | ⬜ | P4 | [1947](1947-the-model-read-at-its-values-without-a-solve.md), [1938](1938-every-parameter-refined-in-its-own-units.md) |
 | [1950](1950-rietx-inside-an-application.md) | Rietx inside an application | ⬜ | P3 | — |
+| [1962](1962-xrd-ct-a-pattern-summed-over-the-voxels-its-beam-crosses.md) | XRD-CT: a pattern summed over the voxels its beam crosses | ⬜ | P3 | [1325](1325-parametric-series.md) |
