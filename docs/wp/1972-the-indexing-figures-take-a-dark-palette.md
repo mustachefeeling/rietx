@@ -108,7 +108,7 @@ WP lands. No tutorial stores one today.
   line carries matplotlib's default `#1f77b4` as an unused line colour, so
   the guard skips a `linestyle="None"` line's line colour.
 
-  Next: nothing in this WP. Two things are left open, neither filed. If
+  Next: nothing in this WP. One thing is left open and not filed. If
   someone wants the candidate rows separable past rank 7, rank 8's hue is the
   one to move. That changes the light figure, so it is a figure-style call
   for the maintainer.
