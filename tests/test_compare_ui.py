@@ -268,6 +268,20 @@ def test_stephens_variant_frees_strain_inside_the_broadening_stage():
     assert inputs.structure.phases[0].microstrain is not None
 
 
+def test_texture_variant_declares_order_four_and_frees_it_last():
+    """WP-1960: no axis to guess, and a stage of its own after the structure,
+    the place the March-Dollase variant frees r."""
+    if not QARR_DATA.exists():
+        pytest.skip("IUCr QPA round-robin dataset not present")
+    inputs = cmp.STANDARD_BY_KEY["brucite"].build(DATA_DIR)
+    cmp.VARIANT_BY_KEY["texture"].apply(inputs)
+    assert inputs.plan.stages[-1].name == "texture"
+    assert inputs.plan.stages[-1].turn_on == ["phases.*.texture.*"]
+    (phase,) = inputs.structure.phases
+    assert phase.texture.order == 4
+    assert phase.preferred_orientation is None
+
+
 # ----------------------------------------------------------------------
 # decimation
 # ----------------------------------------------------------------------

@@ -480,10 +480,14 @@ because it was not downloaded. Bunge's tables are published numbers.
       took GSAS-II's ψ. The CIF and FullProf writers state the block or say
       they cannot (`io/exporters.py:464`, `io/projects/fullprof.py:3466`
       show what March-Dollase does).
-- [ ] **`rietx compare`**: a `+ spherical-harmonics texture` variant beside
+- [x] **`rietx compare`**: a `+ spherical-harmonics texture` variant beside
       `preferred_orientation`, run on the `brucite` standard
       (`qarr/brucite.prn`; `viz/compare.py` has no cpd-2 standard), and its
       row in `tests/test_compare_ui.py`.
+      *Done 2026-10-14.* Order 4 on every phase with no block. On the
+      brucite standard, Rwp 0.469 bare, 0.185 under March-Dollase
+      (r 0.658) and 0.192 under order 4, C2,0 1.34. The variant's text
+      sends the reader to `result.texture` and the guard, not Rwp.
 - [ ] **Manual**: the equation in Part 2 (`corrections.md`, with its
       `*Source:*` line) replacing the "not implemented yet" sentence; the
       § Scope sentence in `manual.md`; Part 1 prose on declaring a block and
