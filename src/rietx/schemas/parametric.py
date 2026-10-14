@@ -295,18 +295,26 @@ class ParametricFormTest(Base):
     * ``n_patterns`` — the subset patterns whose own target entered the
       alternative.  A pattern that cannot see the target is left out, as an
       untied fit would hold it there (WP-1301), and so is one where Φ is zero.
+    * ``n_subset`` — the patterns the declaration's subset names.  Where
+      ``n_patterns`` is the smaller, the law sets the target in the rest and
+      the test cannot check it there; ``PARAMETRIC_TARGET_UNSEEN`` names the
+      patterns that cannot see it.
     * ``dof`` — the directions the alternative adds past the covariance's cut,
       ``n_patterns`` less the free coefficients when nothing is degenerate.
       ``None`` when the test did not run: a coefficient was not free at the
       answer.  0 when there was nothing to test.
-    * ``statistic``, ``cut``, ``rejected`` — ``None`` unless ``dof`` is
-      positive and the answer's χ²_red·f² is a positive finite number.
+    * ``statistic``, ``cut``, ``rejected``, ``p_value`` — ``None`` unless
+      ``dof`` is positive and the answer's χ²_red·f² is a positive finite
+      number.  ``p_value`` is χ²'s upper tail at ``statistic`` for ``dof``
+      directions, so a near miss reads as one on either side of the cut.
     """
 
     tie: str
     target: str
     n_patterns: int
+    n_subset: int
     dof: int | None
     statistic: float | None
     cut: float | None
     rejected: bool | None
+    p_value: float | None

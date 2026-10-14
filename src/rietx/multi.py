@@ -276,6 +276,10 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_parametric_form_diagnostics": (
         (FIT,), "joint-only (WP-1325): a declaration's form is tested against "
                 "every pattern of its subset at once"),
+    "_parametric_unseen_diagnostics": (
+        (FIT,), "joint-only (WP-1325): one law sets its target across its "
+                "subset, so the patterns that cannot see it are told once per "
+                "declaration, naming each"),
     "_fixed_literal_diagnostics": (
         (FIT,), "a plan read (#803, WP-1341), through _joint_fixed_literals: "
                 "each histogram's table is asked under the joint matching rule, "
@@ -1768,9 +1772,14 @@ class MultiHistogramRefinement:
         # what a parametric declaration did to each pattern's dependent that
         # no bound the solve saw could stop (WP-1325, FIT)
         diagnostics = diagnostics + _parametric_range_diagnostics(mt)
+        # the subset patterns that cannot see each law's target: there the
+        # value is the law's alone, and the form test leaves them out (WP-1325)
+        unseen = _parametric_unseen(models, mt)
+        diagnostics = diagnostics + _parametric_unseen_diagnostics(mt, unseen)
         # whether each declared form survives its data, holding what the one
         # bound test found on a bound (WP-1325, FIT)
-        parametric_form = _parametric_form_tests(models, mt, at_bounds, weights)
+        parametric_form = _parametric_form_tests(models, mt, at_bounds, weights,
+                                                 unseen)
         diagnostics = diagnostics + _parametric_form_diagnostics(mt, parametric_form)
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
@@ -1926,6 +1935,8 @@ class MultiHistogramRefinement:
         # on the row path and needs no second naming convention (WP-1076).
         tested = set(mt.free_paths)
         on_bound = {p for f in at_bounds for p in f.paths}
+        # which law set each row, keyed on the same row path (WP-1325)
+        laws = _law_rows(mt)
         # shared parameters reported once, from histogram 0's covariance (its
         # diagonal esd is the true combined marginal — cross-terms with the
         # other histograms' columns do not enter a single path's variance).
@@ -1934,7 +1945,8 @@ class MultiHistogramRefinement:
                 params.append(RefinedParameter(
                     path=e.path, value=e.value, vary=e.vary,
                     stderr=None if e.path in withheld[0] else esd0.get(e.path),
-                    at_bound=(e.path in on_bound) if e.path in tested else None))
+                    at_bound=(e.path in on_bound) if e.path in tested else None,
+                    laws=laws.get(e.path, [])))
         for h, table in enumerate(mt.tables):
             cm = mt.col_map(h)
             esd = (table.stderr_physical(thetas[h], stderr[cm],
@@ -1946,7 +1958,8 @@ class MultiHistogramRefinement:
                     params.append(RefinedParameter(
                         path=row, value=e.value, vary=e.vary,
                         stderr=None if e.path in withheld[h] else esd.get(e.path),
-                        at_bound=(row in on_bound) if row in tested else None))
+                        at_bound=(row in on_bound) if row in tested else None,
+                        laws=laws.get(row, [])))
         return params
 
     def _top_diagnostics(self, outcome, correlation_guard, bg_scoped,
@@ -2100,14 +2113,93 @@ def _parametric_range_diagnostics(mtable) -> list[Diagnostic]:
     return out
 
 
-def _parametric_form_tests(models, mtable, at_bounds, weights
+def _law_rows(mtable) -> dict[str, list[str]]:
+    """Per row of the joint result, the declarations whose coefficients set it.
+
+    A row is a law's when one of the law's coefficients moves it, read off
+    each table's :meth:`~rietx.params.vector.ParameterTable.entry_reach` (the
+    WP-1342 reading of **C**, through the declarations so a held coefficient
+    still counts) and spelled as ``_parameters`` spells the row
+    (``mtable._canonical``).  So: the target in each subset pattern, what
+    follows it there (a cubic cell's b and c), and the coefficient's own
+    ``vars.`` row.  Several laws reach one row only through a caller's tie
+    combining their targets, and then the row names each, in declaration
+    order.  Empty when nothing was declared (WP-1325).
+    """
+    out: dict[str, list[str]] = {}
+    if not mtable.parametric:
+        return out
+    for h, table in enumerate(mtable.tables):
+        reach = table.entry_reach()
+        for r in mtable.parametric:
+            for path in r.paths:
+                for q in reach.get(path, (path,)):
+                    names = out.setdefault(mtable._canonical(h, q), [])
+                    if r.name not in names:
+                        names.append(r.name)
+    return out
+
+
+def _parametric_unseen(models, mtable) -> dict[str, frozenset[int]]:
+    """Per declaration, the subset patterns that cannot see its target.
+
+    :func:`_unseen`, the predicate the stage's support hold uses (WP-1301),
+    asked of each subset pattern's own copy of the target at the answer.
+    Empty when nothing was declared (WP-1325).
+    """
+    if not mtable.parametric:
+        return {}
+    absent = _joint_unsupported_phases(models, mtable)
+    return {r.name: frozenset(k for k in r.patterns
+                              if _unseen(mtable, f"hist.{k}.{r.target}", absent))
+            for r in mtable.parametric}
+
+
+def _parametric_unseen_diagnostics(mtable, unseen: dict[str, frozenset[int]]
+                                   ) -> list[Diagnostic]:
+    """``PARAMETRIC_TARGET_UNSEEN`` — a law setting its target in patterns that
+    cannot see it (WP-1325).
+
+    There the target is the law's value at the pattern's coordinates and
+    nothing that pattern measured, its esd is the law's, and the form test
+    leaves the pattern out (:func:`_parametric_form_tests`), so a wrong law
+    is carried through it unchecked.  On synthetic ramps whose minor phase
+    faded out, the line's interval covered a bent truth in the gaps 0.03 of
+    the time (``docs/wp/1325-parametric-series.md`` § Measured: where one
+    pattern cannot see the parameter).  One warning per declaration with any
+    such pattern; ``where`` names each pattern's row, ``value`` counts them.
+    """
+    out: list[Diagnostic] = []
+    for r in mtable.parametric:
+        blind = sorted(unseen.get(r.name, ()))
+        if not blind:
+            continue
+        shown = ", ".join(str(h) for h in blind[:10])
+        more = f" and {len(blind) - 10} more" if len(blind) > 10 else ""
+        out.append(Diagnostic(
+            level="warning", code="PARAMETRIC_TARGET_UNSEEN",
+            where=[f"hist.{h}.{r.target}" for h in blind], value=float(len(blind)),
+            message=(f"parametric tie {r.name!r} sets {r.target} in {len(blind)} of "
+                     f"its {len(r.patterns)} patterns that cannot see its phase "
+                     f"(histograms {shown}{more}). There the value and its esd are "
+                     "the law's, carried from the patterns that see the phase, and "
+                     "the form test cannot check the law there"),
+            suggestion=("do not quote the target in those patterns as a "
+                        "measurement: quote the law's coefficients, and narrow the "
+                        "subset to the patterns that see the phase if the law "
+                        "should hold only where it is measured")))
+    return out
+
+
+def _parametric_form_tests(models, mtable, at_bounds, weights,
+                           unseen: dict[str, frozenset[int]]
                            ) -> list[ParametricFormTest] | None:
     """Each declaration's lack-of-fit test at the answer (WP-1325).
 
     ``None`` when nothing was declared.  One Jacobian at the answer, blocked
     whatever layout the solve took, and :func:`~rietx.params.parametric.form_tests`
     reads it.  A pattern is left out of a declaration's alternative where
-    :func:`_unseen` holds its own copy of the target, the predicate the
+    ``unseen`` names it (:func:`_parametric_unseen`), the predicate the
     stage's support hold uses, so the alternative is the untied fit's.  The
     columns ``at_bounds`` names stay on their bounds on both sides.
     """
@@ -2116,10 +2208,7 @@ def _parametric_form_tests(models, mtable, at_bounds, weights
     residual, jacobian, n_data = _multi_closures(models, mtable, weights=weights,
                                                  layout="blocked")
     x = mtable.x0()
-    absent = _joint_unsupported_phases(models, mtable)
-    skip = {r.name: frozenset(k for k in r.patterns
-                              if _unseen(mtable, f"hist.{k}.{r.target}", absent))
-            for r in mtable.parametric}
+    skip = {r.name: unseen.get(r.name, frozenset()) for r in mtable.parametric}
     index = {p: i for i, p in enumerate(mtable.free_paths)}
     hold = sorted({index[p] for f in at_bounds for p in f.paths if p in index})
     return form_tests(mtable.parametric, jacobian(x), residual(x), n_data,

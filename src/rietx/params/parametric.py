@@ -428,7 +428,7 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
     for r in resolved:
         cols = target_columns(r, bj, free_paths, skip.get(r.name, frozenset()))
         n_patterns = 0 if cols is None else sum(c is not None for c in cols)
-        dof = statistic = cut = rejected = None
+        dof = statistic = cut = rejected = p_value = None
         if cols is not None:
             if null is None:
                 null = held_projection(bj, resid, hold)
@@ -443,7 +443,9 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
                 statistic = gain / scale
                 cut = float(chi2.ppf(FORM_TEST_LEVEL, dof))
                 rejected = statistic > cut
+                p_value = float(chi2.sf(statistic, dof))
         out.append(ParametricFormTest(tie=r.name, target=r.target, n_patterns=n_patterns,
-                                      dof=dof, statistic=statistic, cut=cut,
-                                      rejected=rejected))
+                                      n_subset=len(r.patterns), dof=dof,
+                                      statistic=statistic, cut=cut, rejected=rejected,
+                                      p_value=p_value))
     return out

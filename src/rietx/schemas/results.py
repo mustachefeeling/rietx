@@ -52,6 +52,21 @@ class RefinedParameter(Base):
     either code and the two can never disagree.  The diagnostics stay the
     reported channel — the flag exists so that an agent iterating
     ``parameters`` does not have to cross-reference ``diagnostics`` by path.
+
+    **``laws`` names the parametric declarations that set the row** (WP-1325),
+    in declaration order, and is empty where none does.  A row is set by a law
+    when one of its coefficients moves it, read off **C** as every hold reads
+    it (WP-1342), so a held coefficient still counts.  Three kinds of row are:
+    the target in each pattern of the subset, what follows the target there (a
+    cubic cell's b and c), and the coefficient's own ``vars.<name>_<j>`` row.
+    On a target row the value and esd are the law's at that pattern's
+    coordinates, which can be far tighter than the pattern measures alone, and
+    where the pattern cannot see the target they are the law's alone
+    (``PARAMETRIC_TARGET_UNSEEN``).  On a coefficient row they are in the
+    table's units, per unit of the *scaled* coordinate, and
+    :attr:`RefinementResult.parametric` holds the same coefficient in the
+    caller's units.  One writer, ``MultiHistogramRefinement._parameters``; a
+    single fit and a chain declare no law, so their rows are empty.
     """
 
     path: str
@@ -59,6 +74,7 @@ class RefinedParameter(Base):
     stderr: float | None = None
     vary: bool = True
     at_bound: bool | None = None
+    laws: list[str] = Field(default_factory=list)
 
 
 class Statistics(Base):
@@ -1262,15 +1278,17 @@ def _form_line(t: ParametricFormTest) -> str:
     if t.dof is None:
         return "      form not tested: a coefficient was not free at the answer"
     if t.statistic is None and t.dof == 0:
-        return (f"      form not tested: its {t.n_patterns} patterns add no "
-                "direction beyond the coefficients")
+        return (f"      form not tested: the {t.n_patterns} of its {t.n_subset} "
+                "patterns that see the target add no direction beyond the "
+                "coefficients")
     if t.statistic is None:
         return ("      form not tested: the answer's χ²_red·f² is not a positive "
                 "finite number")
     verdict = "REJECTED" if t.rejected else "not rejected"
     side = "past" if t.rejected else "within"
     return (f"      form {verdict}: {t.statistic:.1f} {side} the cut {t.cut:.1f} "
-            f"for {t.dof} directions over {t.n_patterns} patterns")
+            f"(p = {t.p_value:.2g}) for {t.dof} directions over {t.n_patterns} "
+            f"of {t.n_subset} patterns")
 
 
 def _provenance_line(provenance: Provenance) -> str:
@@ -1643,7 +1661,14 @@ class RefinementResult(Base):
         rows = [(p.path, _number(p.value, p.stderr),
                  "" if p.at_bound is None else str(p.at_bound).lower())
                 for p in self.parameters]
-        table = table_html(("path", "value", "at_bound"), rows) if rows else ""
+        header = ("path", "value", "at_bound")
+        # a law's column only where a law set a row (WP-1325), so a fit that
+        # declared none keeps its three columns
+        if any(p.laws for p in self.parameters):
+            header += ("laws",)
+            rows = [(*row, ", ".join(p.laws))
+                    for row, p in zip(rows, self.parameters, strict=True)]
+        table = table_html(header, rows) if rows else ""
         return pre_html(str(self)) + table
 
     def __str__(self) -> str:

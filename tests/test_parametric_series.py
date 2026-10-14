@@ -45,6 +45,7 @@ from rietx.model.forward import compile_model
 from rietx.multi import (
     MultiHistogramRefinement,
     _joint_fixed_literals,
+    _law_rows,
     _parametric_range_diagnostics,
     _unsupported_paths_multi,
     refine_multi,
@@ -285,6 +286,22 @@ def test_two_phase_fields_take_a_law_each_on_one_target():
     assert {"vars.lo_0", "vars.hi_0"} <= set(freed)
 
 
+def test_each_row_a_law_sets_names_it_and_no_other_row_does():
+    """``RefinedParameter.laws``' writer, read off C before anything is freed,
+    so a held coefficient counts.  Two phase fields on one target: in each
+    subset pattern the cubic cell's three edges name that field's law, each
+    coefficient row names its own, and the pattern in neither subset names
+    none."""
+    s, _ = perturbed_inputs()
+    lo = _tie(name="lo", basis="constant", terms=None, patterns=[0, 1])
+    hi = _tie(name="hi", basis="constant", terms=None, patterns=[2, 3])
+    mt = MultiParameterTable(s, _lab6_instruments(5), parametric=[lo, hi])
+    want = {"vars.lo_0": ["lo"], "vars.hi_0": ["hi"]}
+    for h, law in [(0, "lo"), (1, "lo"), (2, "hi"), (3, "hi")]:
+        want.update({f"hist.{h}.phases.0.cell.{k}": [law] for k in "abc"})
+    assert _law_rows(mt) == want
+
+
 def test_a_size_target_across_wavelengths_is_refused():
     """A size coefficient goes as λ (WP-1131): shared, it carries the factor
     into each histogram; a parametric target is per-histogram and would not."""
@@ -504,6 +521,13 @@ def test_a_constant_declaration_is_refine_multi_bit_for_bit(lab6_pair, target, f
     assert (coef.value, coef.esd, coef.term, coef.vary) == (
         shared.value, shared.stderr, "1", True)
     assert plain.parametric is None
+    # the law's rows name it, every other row and every plain row nothing
+    law_set = {"vars.t_0"} | {f"hist.{h}.{p}" for h in range(2) for p in (target, *follows)}
+    assert {p for p, row in b.items() if row.laws} == law_set
+    assert all(b[p].laws == ["t"] for p in law_set)
+    assert not any(row.laws for row in plain.parameters)
+    assert tied.for_histogram(1).parameter(target).laws == ["t"]
+    assert not any(d.code == "PARAMETRIC_TARGET_UNSEEN" for d in tied.diagnostics)
     # the stage that freed the target freed the coefficient in its place
     stage = next(st for st in plain.stages if target in st.freed)
     assert [p.replace(target, "vars.t_0") for p in stage.freed] == next(
@@ -558,6 +582,15 @@ def test_a_joint_fit_holds_a_coefficient_whose_phase_no_pattern_sees(lab6_pair):
     unseen = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
     assert unseen and "vars.b_0" in unseen[0].where
     assert result.statistics == plain.statistics
+    # neither pattern sees NaCl, so the law sets its cell in both and says so
+    (blind,) = [d for d in result.diagnostics if d.code == "PARAMETRIC_TARGET_UNSEEN"]
+    assert blind.level == "warning" and blind.value == 2.0
+    assert blind.where == ["hist.0.phases.1.cell.a", "hist.1.phases.1.cell.a"]
+    for h in range(2):
+        for k in "abc":
+            assert result.parameter(f"hist.{h}.phases.1.cell.{k}").laws == ["b"]
+    (form,) = result.parametric_form
+    assert (form.n_patterns, form.n_subset, form.dof, form.p_value) == (0, 2, None, None)
 
 
 # -- the synthetic ramp (slow): a measured a₁ with its esd ------------------
@@ -634,12 +667,23 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
         parametric=[ParametricTie(name="a", target="phases.0.cell.a",
                                   basis="polynomial", terms=[[], ["T"]])])
     (form,) = result.parametric_form
-    assert (form.tie, form.target, form.n_patterns, form.dof) == (
-        "a", "phases.0.cell.a", 10, 8)
+    assert (form.tie, form.target, form.n_patterns, form.n_subset, form.dof) == (
+        "a", "phases.0.cell.a", 10, 10, 8)
     assert form.cut == pytest.approx(15.507, abs=1e-3)
     assert form.rejected is rejected, form
+    from scipy.stats import chi2
+    assert form.p_value == chi2.sf(form.statistic, form.dof)
+    assert (form.p_value < 0.05) is rejected
     found = [d for d in result.diagnostics if d.code == "PARAMETRIC_FORM_REJECTED"]
     text = str(result)
+    assert f"(p = {form.p_value:.2g}) for 8 directions over 10 of 10 patterns" in text
+    # every pattern's cell and both coefficients are the law's, in the joint
+    # rows, in a histogram's view and in the notebook table
+    assert {p.path for p in result.parameters if p.laws} == (
+        {"vars.a_0", "vars.a_1"}
+        | {f"hist.{h}.phases.0.cell.{k}" for h in range(10) for k in "abc"})
+    assert result.for_histogram(3).parameter("phases.0.cell.a").laws == ["a"]
+    assert "<th>laws</th>" in result._repr_html_()
     if rejected:
         (d,) = found
         assert d.level == "warning" and d.where == ["vars.a_0", "vars.a_1"]
