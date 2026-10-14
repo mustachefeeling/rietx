@@ -30,6 +30,10 @@ from rietx.schemas.indexing import (
     LeBailValidation,
 )
 
+# The module fixtures ``si`` and ``tet`` (a synthesis plus ``pick_peaks``) are shared by
+# most tests below, so the module stays on one worker (tests/CLAUDE.md § Shared fixtures).
+pytestmark = pytest.mark.xdist_group("indexing-screen")
+
 A0, LAM, LIM = 5.4311, 0.825739, (12.1, 60.0)
 R2 = float(np.sqrt(2.0))
 AT, CT = 3.90, 3.939
@@ -176,6 +180,20 @@ def test_a_truth_is_never_refuted_and_a_second_description_is_a_tie(si):
             assert ev.n_extra == 0 and ev.verdict() == "undecided"
     # the direction: the denser line set is the child, never the sparser
     assert contains(s["cI sqrt2 a0"], truth) and not contains(truth, s["cI sqrt2 a0"])
+
+
+def test_two_cells_of_equal_density_and_volume_do_not_contain_each_other(si):
+    """``below_refuting_parents`` waits a child on its parent on the ground that
+    a parent is strictly smaller, so the relation must be antisymmetric: two
+    screens with equal line counts and equal volume contain neither way."""
+    from rietx.indexing.screen import contains
+
+    _pattern, s = _screens(*si, SI_CELLS)
+    twin = _screens(*si, {"twin": SI_CELLS["truth cF"]})[1]["twin"]
+    truth = s["truth cF"]
+    assert truth.n_lines == twin.n_lines
+    assert not contains(truth, twin) and not contains(twin, truth)
+    assert not contains(truth, truth)
 
 
 def test_a_resolved_split_is_refuted_and_an_unresolved_one_is_a_tie(tet):
@@ -409,3 +427,44 @@ def test_validation_reads_the_screen_and_freezes_the_profile(si):
     assert legacy.n_stages == 4
     assert [s.name for s in validation_plan(truth, ins, 60.0, freeze_profile=True).stages] \
         == ["bkg", "shift"]
+
+
+def test_a_direct_validation_screens_the_fitted_range_and_the_search_window(si, monkeypatch):
+    """A direct ``validate_by_lebail`` call builds its own screen: over the
+    call's ``two_theta_limits`` (lines the fit never covered are not absent) and
+    with the search's matching window, not each line's own σ."""
+    from rietx.indexing import screen as screen_mod
+    from rietx.indexing.workflow import validate_by_lebail
+
+    data, ins, peaks = si
+    seen = {}
+    real = screen_mod.PatternScreen.from_peaks.__func__
+
+    def spy(cls, *a, **kw):
+        out = real(cls, *a, **kw)
+        seen["screen"] = out
+        return out
+
+    monkeypatch.setattr(screen_mod.PatternScreen, "from_peaks", classmethod(spy))
+    truth = _candidate(*SI_CELLS["truth cF"])
+    full = validate_by_lebail(truth, data, ins, peaks=peaks)
+    assert full.n_lines_screened == 15
+    limits = (LIM[0], 30.0)
+    cut = validate_by_lebail(truth, data, ins, peaks=peaks, two_theta_limits=limits)
+    assert cut.absent_source == "line_screen"
+    assert cut.n_lines_screened < full.n_lines_screened
+    assert all(t <= limits[1] for t in cut.predicted_but_absent_two_theta)
+    pattern = seen["screen"]
+    assert pattern.two_theta_max == limits[1]
+    assert np.allclose(pattern.q_match, match_window(peaks))
+    assert not np.allclose(pattern.q_match, peaks.q_esd())
+
+
+def test_the_screens_pseudo_voigt_is_the_models():
+    from rietx.indexing.screen import _pseudo_voigt
+    from rietx.model.profiles.pseudovoigt import pseudo_voigt
+
+    x = np.linspace(-0.5, 0.5, 41)
+    for eta in (0.0, 0.4, 1.0):
+        assert np.allclose(_pseudo_voigt(x, 0.05, eta), pseudo_voigt(x, 0.05, eta),
+                           rtol=1e-12, atol=0.0)

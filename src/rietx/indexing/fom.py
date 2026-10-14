@@ -482,7 +482,8 @@ def predicted_seen_fraction(q_obs: np.ndarray, q_esd: np.ndarray,
 #: distance of a picked component.  One, not :data:`~rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC`'s
 #: half: 0.5 is where least squares stops apportioning intensity, while a
 #: *picker* separates two equal components only from about one FWHM (the
-#: Rayleigh/Sparrow criteria put "two lines or one" at about a width).  Measured
+#: Rayleigh (1879, Phil. Mag. 8, 261) and Sparrow (1916, Astrophys. J. 44, 76)
+#: criteria put "two lines or one" at about a width).  Measured
 #: on the tetragonal control set: at 0.5 a true cell whose 0.0003 × b split
 #: reaches 0.9 FWHM at 60° was refuted as a resolved split; at 1 every control
 #: passes.  The forward question — does this cell index that observed line —

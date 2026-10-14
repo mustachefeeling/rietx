@@ -467,8 +467,15 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
             from .screen import PatternScreen, screen_for
 
             if pattern_screen is None or not pattern_screen.has_pattern:
+                # the search's matching window and this call's fitted range,
+                # as index_pattern's run-wide screen has them: the per-line
+                # σ is the measurement, not the tolerance a search matched
+                # with, and lines the fit never covered are not absent
+                from .engines import match_window
+
                 pattern_screen = PatternScreen.from_peaks(
-                    peaks, data=data, instrument=instrument)
+                    peaks, q_match=match_window(peaks), data=data,
+                    instrument=instrument, two_theta_limits=two_theta_limits)
             screen = screen_for(pattern_screen, candidate, peaks)
     tt_max = float(np.max(data.tt()))
     if two_theta_limits is not None:

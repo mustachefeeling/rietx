@@ -23,6 +23,7 @@ address a consumer can act on.
 from __future__ import annotations
 
 import math
+from typing import get_args
 
 import numpy as np
 
@@ -30,10 +31,12 @@ from ..crystallography.atomic_volume import VOLUME_SCATTER, formula_unit_volume
 from ..model.profiles.fcj import fcj_live
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
+    INDEX_REFUTING_CAVEATS,
     MAX_RELATIVE_SIGMA_Q,
     PEAK_MIN_USABLE_LINES,
     PEAK_WIDTH_CENSUS_N,
     DataQualityReport,
+    IndexCaveat,
     PeakList,
 )
 from ..schemas.instrument import Instrument, ProfileTCHZ
@@ -655,6 +658,13 @@ def _z_not_integer(cand, formula: str, temperature: float,
                     "then weigh this beside the figures of merit."))
 
 
+def _refuting_caveat_names() -> str:
+    """The refuting caveats, read off :data:`INDEX_REFUTING_CAVEATS` in the
+    vocabulary's own order, so the text cannot name a set the gate no longer
+    uses."""
+    return ", ".join(c for c in get_args(IndexCaveat) if c in INDEX_REFUTING_CAVEATS)
+
+
 def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
     """Result-level ``INDEX_*`` messages: abstention, coverage, validation.
 
@@ -696,11 +706,9 @@ def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
                      "No candidate cell was found in the systems searched."),
             where=[f"searched: {', '.join(result.systems_searched) or 'nothing'}"],
             suggestion=(("Read each candidate's confidence_caveats and act on "
-                         "the refuting ones first (geometric_ambiguity, "
-                         "predicted_but_absent, fom_panel_disagrees, "
-                         "indexed_fraction_low, volume_unphysical, "
-                         "validation_failed, supercell_refuted). The others "
-                         "cap confidence, and better data closes most of them.")
+                         "the refuting ones first "
+                         f"({_refuting_caveat_names()}). The others cap "
+                         "confidence, and better data closes most of them.")
                         if top else
                         "Read search_complete before you treat the absence as "
                         "evidence.")))
