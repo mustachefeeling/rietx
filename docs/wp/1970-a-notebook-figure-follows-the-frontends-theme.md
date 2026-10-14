@@ -1,9 +1,9 @@
 # WP-1970 — a notebook figure follows the frontend's theme
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-14 — every rietx figure in a notebook carries a dark copy the
+frontend's theme picks; the Lite site follows the reader once a tag carries the pair
 Track: Render what the fit already knows
 Depends on: —
-Priority: P3 2026-10-14 — a workaround covers it: every pattern figure takes `style="dark"` and `render_structure` a dark `background=`; the series figure has no dark form
 
 ## Goal
 
@@ -152,8 +152,87 @@ pages show dark figures under furo's dark theme.
 
 ## Handover log
 
-- **2026-10-14** — created from a maintainer question in WP-1966's fourth
-  session: can the notebook figures follow a dark theme? No open WP owns
-  notebook figure theming. The index has no open row on it, and WP-1966
-  fenced a dark theme out as a non-goal. The frontend table comes from a
-  source-reading pass that day.
+### 2026-10-14 (2nd session) — the figures follow the theme, and the WP closes
+
+A rietx figure in a notebook now shows in the reader's light or dark theme,
+and switches when the theme does, with no cell run again. Where a frontend
+cannot switch, the reader sees the light figure as before. The dark image is
+the light figure recoloured, so a note a caller adds to the figure shows in
+both. A redraw would have dropped it. The cost is about twice the encode time
+per figure shown, and about three times the image bytes in a saved notebook.
+Every task is done and the WP closes. Two older defects of the returned
+figure, which this work found, are filed as WP-1971.
+
+*Renumbered.* This WP was filed as WP-1967 in WP-1966's PR. Main took 1967 to
+1969 for issues the same day, so it is WP-1970. Commit e0fa96dc carries the
+old prefix.
+
+*Done.* `plot_trajectory` takes `style=`. Its five mark colours became
+`PALETTES` roles, and the light figure is byte-identical to before. The
+notebook output is `_repr_mimebundle_` (`viz.plots._notebook_bundle`): the
+light PNG, and for a figure drawn light an HTML pair from `_pair_html`. One
+light encode serves both. A PNG formatter returning `None` is registered for
+the figure class, which stops the inline backend's `Figure` formatter
+re-encoding over the bundle's PNG. `_darkened` recolours a deep copy: a
+role to its dark role, matplotlib's black to `fg` on text and `rule` on
+lines, and white to `ground`. It reaches an annotation's arrow, which
+`findobj()` misses. A failure in the dark copy warns and leaves the PNG.
+`StructureFigure` keeps a deep copy of its first argument, taken at the
+call, and redraws from `recipe` on the dark ground. A raster's antialiased
+edges cannot be recoloured. Any ground but the default white shows alone.
+The tutorials are rebuilt. The Lite build marks every code cell trusted and
+picks its theme with `settings()`. The manual's exports chapter and the
+series chapter say what a reader sees, and the 1.10 notes stage it.
+
+*Measured.* All on macOS arm64. Probes ran in the `[dev]` venv, the browser
+checks in a scratch venv with this tree installed.
+- Recolour against a `style="dark"` drawing, tutorial 01's FAP Le Bail fit
+  at 200 dpi: 0 differing pixels of about 1.2 million on `best.plot()`,
+  `data.plot()` and `data.plot(model=ref, two_theta_range=(25, 35))`. The
+  committed test adds a weighted panel, a sqrt axis with two phase rows, and
+  the trajectory, all exact at 100 dpi. The copy took 21-23 ms, the
+  recolour 2-8 ms, a redraw 20-92 ms.
+- One figure's display: PNG alone 244-484 ms, the whole bundle 539-933 ms
+  (FAP `data.plot()`, no other suite running). Before the shared encode the
+  bundle took 980-1584 ms.
+- A structure figure: dark redraw 44-47 ms, snapshot 0.4-2.4 ms, encode
+  88-145 ms (fluorapatite, 1000 px).
+- Tutorials: 828 505 → 2 195 188 bytes over six notebooks. All 12 figure
+  PNGs are byte-identical, and all 12 carry the pair.
+- JupyterLab 4.6.4, Chromium: a figure run in the session swaps light, dark,
+  light with no rerun. The same figure opened from a saved notebook has no
+  `<style>` left and shows the light image in both themes.
+- GitHub's viewer, branch blob of tutorial 01: three outputs, the light
+  image shown and the dark hidden in each, under both colour schemes.
+- The built manual under furo, tutorials 01, 02 and 05: one image per pair,
+  the right one, under the OS scheme and under an explicit choice.
+- JupyterLite 0.8.6, a minimal site: a stored output keeps 0 `<style>`
+  untrusted and 1 with `metadata.trusted`. Trusted, under `adaptive-theme`,
+  the stored figure follows the OS scheme in both the Notebook and Lab views.
+- Tests: `tests/test_viz.py`, `test_display.py`, `test_sequential.py`,
+  `test_lite.py` and the acceptance pair all pass. The fast-suite count is
+  below.
+
+*Gotchas.* JupyterLite applies a settings override only from inside the
+lite-dir. A path outside it builds with `overrides.json: 0` and no error. The
+build already writes it there. The figure's warm dark ground, `#1d1813`,
+shows as a slightly lighter card on JupyterLab Dark's near-black. It matches
+the manual and the landing page.
+
+*Not generalised.* A caller's `set_xlim` makes a 30 076 px wide notebook
+image, and a rietx figure cannot be pickled. Both predate this WP and are
+WP-1971. VS Code and Colab were read from source, not run. VS Code's
+Restricted Mode is still unverified.
+
+*Next.* Nothing remains in this WP. WP-1971 when a zoomed or pickled figure
+matters. At the next cut, check that the Lite site has switched to
+`adaptive-theme`: it follows the reader once the newest tag's notebooks
+carry the pair.
+
+### 2026-10-14 — filed
+
+Created from a maintainer question in WP-1966's fourth session: can the
+notebook figures follow a dark theme? No open WP owns notebook figure
+theming. The index has no open row on it, and WP-1966 fenced a dark theme
+out as a non-goal. The frontend table comes from a source-reading pass that
+day.
