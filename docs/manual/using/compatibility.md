@@ -202,10 +202,11 @@ today opens under whatever the package is called when you open it.
 
 The compiled kernels ship as a second package, `rietx-kernels`, with its own
 version ({ref}`the-compiled-kernels`). Its major version is the kernel
-interface rietx calls, and rietx pins that major: `rietx-kernels>=1.1,<2`. A
+interface rietx calls, and rietx pins that major: `rietx-kernels>=1.3,<2`. A
 new major is an interface break, and it arrives with a rietx release that moves
 the pin. A new kernel is a minor release, and the rietx release that first calls
-it raises the floor. 1.1 added the structure figure's two kernels.
+it raises the floor. 1.1 added the structure figure's two kernels, and 1.3 the
+dichotomy indexing engine's two.
 
 The move from `numba` to the wheel changed no number a fit returns. Up to
 1.1.0 the Rust kernels matched the `numba` ones bit for bit on all five

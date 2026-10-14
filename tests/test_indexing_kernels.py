@@ -10,8 +10,11 @@ The box test runs compiled again since WP-1959 (``rietx-kernels`` 1.3.0,
 ``kernels/src/dichotomy.rs``), and the numpy loop is its oracle in three
 steps: numpy's row sum has the association the kernel copies, every box a
 real search tests gets the same answer from both, and a whole search reaches
-the same leaves in the same order.  Those tests skip where the wheel predates
-the kernel; ``kernels.yml`` runs them against the wheel a pull request builds.
+the same leaves in the same order.  The pin's floor is 1.3, so they run
+wherever the wheel loads, and skip where it was declined: a wheel that
+predates the kernel is one, which an install has to go round the resolver to
+get.  ``kernels.yml`` runs them against the wheel a pull request builds as
+well.
 """
 
 from __future__ import annotations
@@ -37,8 +40,8 @@ except ImportError:            # pragma: no cover - the wheel is a dependency
     rietx_kernels = None
 
 needs_kernel = pytest.mark.skipif(
-    not hasattr(rietx_kernels, "dichotomy_box_test"),
-    reason="this rietx-kernels predates the dichotomy kernels (1.3.0)")
+    not compiled.available(),
+    reason=f"the rietx-kernels wheel did not load: {compiled.unavailable()}")
 
 
 def _bits(x) -> bytes:
@@ -60,8 +63,8 @@ def test_the_centred_replay_on_survivors_is_the_whole_set_replay(
     the last assertion is the vacuity guard.  Each path is declared, and the
     whole-set verdict is always the numpy loop's.
     """
-    if compiled_path and not hasattr(rietx_kernels, "dichotomy_box_test"):
-        pytest.skip("this rietx-kernels predates the dichotomy kernels (1.3.0)")
+    if compiled_path and not compiled.available():
+        pytest.skip(f"the rietx-kernels wheel did not load: {compiled.unavailable()}")
     monkeypatch.setattr(compiled, "_ENABLED", compiled_path)
     original = dichotomy._centred_replay
     verdicts = {True: 0, False: 0}
