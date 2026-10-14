@@ -69,7 +69,10 @@ The three rules this module is held to
    Linux, so the contract is the rounding bar (≤ 1e-15) and the bit is
    asserted only where it was measured.  The FCJ kernels sum their nodes in a
    loop where numpy runs a matmul, so their bar was 1e-13 relative from the
-   start (WP-1112's).  From ``rietx-kernels`` 1.2.0, on x86-64, they call
+   start (WP-1112's).  For the bases it is relative to each plane's sum of
+   |terms|, since a derivative plane can be far smaller than its terms
+   (WP-1959; ``bench_aot_kernels.fcj_terms`` computes it).  From
+   ``rietx-kernels`` 1.2.0, on x86-64, they call
    SLEEF's ``exp`` (``kernels/src/sleef.rs``) under WP-1940's relaxed rule:
    **transcendentals to a stated bound, associations as written**.  The bound
    is SLEEF's documented 1.0 ulp, asserted on every wheel, and every sum keeps
