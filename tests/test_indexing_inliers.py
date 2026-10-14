@@ -207,10 +207,11 @@ def test_the_anchor_prune_is_the_whole_set_replay_at_every_leaf(monkeypatch):
     seen = {"anchored": 0, True: 0, False: 0}
 
     def checking(m_full, rows, member, lo, hi, basis, q_hi, det_band, swaps,
-                 lo_search, hi_search, n_unindexed, anchors=None):
+                 lo_search, hi_search, n_unindexed, anchors=None,
+                 box_test=None):
         got = original(m_full, rows, member, lo, hi, basis, q_hi, det_band,
                        swaps, lo_search, hi_search, n_unindexed,
-                       anchors=anchors)
+                       anchors=anchors, box_test=box_test)
         want = _test_box(m_full[member], lo, hi, basis, q_hi, det_band, swaps,
                          lo_search, hi_search, n_unindexed,
                          anchors=anchors) is not None
