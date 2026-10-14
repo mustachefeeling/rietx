@@ -231,15 +231,33 @@ def test_a_held_target_is_refused():
                             parametric=[tie])
 
 
-def test_two_declarations_may_share_neither_a_target_nor_a_name():
+def test_two_declarations_may_share_neither_a_name_nor_a_pattern_of_one_target():
     s, _ = perturbed_inputs()
     one = _tie(basis="constant", terms=None)
-    with pytest.raises(ValueError, match="both drive phases.0.cell.a"):
+    with pytest.raises(ValueError, match="both drive phases.0.cell.a on patterns 0, 1"):
         MultiParameterTable(s, _lab6_instruments(2),
                             parametric=[one, one.model_copy(update={"name": "b"})])
+    with pytest.raises(ValueError, match="both drive phases.0.cell.a on pattern 1:"):
+        MultiParameterTable(s, _lab6_instruments(3), parametric=[
+            one.model_copy(update={"patterns": [0, 1]}),
+            one.model_copy(update={"name": "b", "patterns": [1, 2]})])
     with pytest.raises(ValueError, match="two parametric ties are named 'a'"):
         MultiParameterTable(s, _lab6_instruments(2), parametric=[
             one, one.model_copy(update={"target": "phases.0.atoms.0.biso"})])
+
+
+def test_two_phase_fields_take_a_law_each_on_one_target():
+    """Disjoint subsets: one law per field, each pattern tied by its own."""
+    s, _ = perturbed_inputs()
+    lo = _tie(name="lo", basis="constant", terms=None, patterns=[0, 1])
+    hi = _tie(name="hi", basis="constant", terms=None, patterns=[2, 3])
+    mt = MultiParameterTable(s, _lab6_instruments(4), parametric=[lo, hi])
+    sources = [mt.tables[h].entries[mt.tables[h]._paths["phases.0.cell.a"]].tie.terms
+               for h in range(4)]
+    assert [src for (src, _), in sources] == ["vars.lo_0", "vars.lo_0",
+                                             "vars.hi_0", "vars.hi_0"]
+    freed = mt.set_vary(["phases.*.cell.*"], True)
+    assert {"vars.lo_0", "vars.hi_0"} <= set(freed)
 
 
 def test_a_sharing_map_that_splits_a_coefficient_is_refused():

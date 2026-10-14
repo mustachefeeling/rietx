@@ -192,27 +192,35 @@ def _display_unit(path: str) -> str | None:
     return None if entry is None else entry.unit
 
 
-def _refuse_clashing_declarations(declared: list[ParametricTie]) -> None:
-    """Two declarations may share neither a name nor a target (WP-1325).
+def _refuse_clashing_declarations(declared: list[ParametricTie], n: int) -> None:
+    """Two declarations may share no name, nor a target on one pattern (WP-1325).
 
     A name is its coefficients' paths, so two of one name would be one set of
-    columns claimed twice; a target is one tie per pattern, so a second
-    declaration on it would silently replace the first.
+    columns claimed twice.  A target is one tie per *pattern*, so two
+    declarations may drive it on disjoint subsets — one law per phase field,
+    a property varying smoothly inside a field and not across its boundary —
+    but a pattern both subsets hold would have its tie silently replaced.
     """
-    names: dict[str, int] = {}
-    targets: dict[str, str] = {}
+    names: set[str] = set()
+    targets: dict[str, list[tuple[str, set[int]]]] = {}
     for tie in declared:
         if tie.name in names:
             raise ValueError(
                 f"two parametric ties are named {tie.name!r}: a name is its "
                 f"coefficients' paths (vars.{tie.name}_0, …), so each needs its own")
-        names[tie.name] = 1
-        if tie.target in targets:
-            raise ValueError(
-                f"parametric ties {targets[tie.target]!r} and {tie.name!r} both "
-                f"drive {tie.target}: a target follows one function. Combine "
-                "them into one declaration, or split the patterns between them")
-        targets[tie.target] = tie.name
+        names.add(tie.name)
+        mine = set(range(n)) if tie.patterns is None else set(tie.patterns)
+        for other, theirs in targets.get(tie.target, []):
+            both = sorted(mine & theirs)
+            if both:
+                raise ValueError(
+                    f"parametric ties {other!r} and {tie.name!r} both drive "
+                    f"{tie.target} on pattern{'' if len(both) == 1 else 's'} "
+                    f"{', '.join(map(str, both[:5]))}{' …' if len(both) > 5 else ''}: "
+                    "a target follows one function per pattern. Give the two "
+                    "declarations disjoint subsets (patterns=…), or combine them "
+                    "into one")
+        targets.setdefault(tie.target, []).append((tie.name, mine))
 
 
 def _target_refusal(table: ParameterTable, e) -> str | None:
@@ -317,7 +325,7 @@ class MultiParameterTable:
         declared = list(parametric or [])
         self.sharing = sharing or SharingMap()
         if declared:
-            _refuse_clashing_declarations(declared)
+            _refuse_clashing_declarations(declared, len(instruments))
             # a private copy: the targets (and, below, what follows them)
             # become per-histogram, which is the caller's map plus this fit's
             # declarations and never an edit of the caller's object

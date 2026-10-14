@@ -1407,9 +1407,9 @@ coefficients are reported as you defined them, with no unit.
 The subset is how a law is kept inside a phase field. A property varies
 smoothly within a field and not across its boundary, so name the patterns the
 law holds over. Outside the subset the target is each pattern's own
-parameter, refined wherever a stage frees it. A target takes one declaration,
-even where two subsets would not overlap, so two fields with a law each are one
-`"design"` declaration whose columns are zero outside their own field.
+parameter, refined wherever a stage frees it. Two fields with a law each are
+two declarations on one target with disjoint subsets, each with its own name
+and its own reference; a pattern both subsets hold is refused.
 
 A thermal-expansion line down a ramp, declared and resolved without a fit:
 
@@ -1550,7 +1550,7 @@ rest need the patterns:
 | a target tied to another path | declare the law on the source the message names |
 | a target locked by symmetry, held by the phase's floating origin, a rigid body's increment or a magnetic moment's degree of freedom | another target: none of these moves itself as one quantity across patterns |
 | a coordinate degree of freedom whose atom the starting structures place differently | start every pattern with the atom in one place |
-| two declarations with one name, or with one target | one declaration per target, and a `"design"` basis for two fields |
+| two declarations with one name, or on one target with overlapping subsets | a name each, and disjoint `patterns` per target |
 | starting structures that disagree on a shared path | one value, a per-histogram override, or a declaration on that path |
 | a `SharingMap` that makes a coefficient per-histogram | keep `vars.*` shared |
 
