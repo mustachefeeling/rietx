@@ -971,7 +971,7 @@ def _equal_across_boundaries(red_a, red_b, cov_a, cov_b, *, gated: bool = False
             return (True, float("nan")) if bool(np.any(ok)) else None
         sigmas = cov_a + ts @ cov_b @ ts.transpose(0, 2, 1)
         chi2 = np.einsum("ki,kij,kj->k", deltas,
-                         np.linalg.pinv(sigmas, hermitian=True), deltas)
+                         _psd_pinv(sigmas, CELL_PINV_RCOND), deltas)
         best = int(np.argmin(chi2))
         return (True, float(chi2[best])) if chi2[best] <= CELL_EQUALITY_CHI2 else None
     except (ValueError, np.linalg.LinAlgError):

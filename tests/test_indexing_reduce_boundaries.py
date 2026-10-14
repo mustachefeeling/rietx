@@ -224,9 +224,15 @@ def test_a_pair_the_old_test_joins_is_answered_as_before(seed):
         assert equal_reduced(red, other, cov_a=cov, cov_b=cov) == before
 
 
-def test_the_stacked_form_answers_each_pair_as_the_pair_form_does():
+def test_the_stacked_form_answers_each_pair_as_the_pair_form_does(monkeypatch):
     """Every fixture pair, stacked against all the others' b sides, gives the
-    pair's own answer, joined or not, and the machine check still holds."""
+    pair's own answer, joined or not, and the machine check still holds.  A
+    LAPACK that rounds a stack differently is a platform fact: dedup keeps its
+    per-pair loop there, so this skips as ``test_indexing_engines`` does."""
+    monkeypatch.setattr(R, "_STACKED_PINV", None)
+    if not R.stacked_pinv_exact():
+        pytest.skip("this LAPACK answers a matrix differently inside a stack, "
+                    "so dedup keeps its per-pair loop")
     pairs = [_arrays(p) for p in PAIRS["lab6"] + PAIRS["bethanechol"] + PAIRS["distinct"]]
     for red_a, _rb, cov_a, _cb in pairs:
         reds = [p[1] for p in pairs]
@@ -234,8 +240,33 @@ def test_the_stacked_form_answers_each_pair_as_the_pair_form_does():
         stacked = equal_reduced_many(red_a, reds, cov_a=cov_a, covs_b=covs)
         assert stacked == [equal_reduced(red_a, r, cov_a=cov_a, cov_b=c)
                            for r, c in zip(reds, covs)]
-    R._STACKED_PINV = None
-    assert R.stacked_pinv_exact()
+
+
+def test_the_image_test_inverts_sigma_as_the_pair_test_does(monkeypatch):
+    """Σ is again a sum of two rank-deficient covariances, so the image test
+    takes ``_psd_pinv`` at ``CELL_PINV_RCOND`` and no inverse of its own: numpy's
+    hermitian ``pinv`` keeps a flat direction's negative rounding-level
+    eigenvalue with its sign, and a negative χ² passes ``<= CELL_EQUALITY_CHI2``.
+    Every logged split still joins through it, so the spy sees the call."""
+    calls = []
+    real = R._psd_pinv
+
+    def spy(a, rcond):
+        calls.append((np.shape(a), rcond))
+        return real(a, rcond)
+
+    def no_pinv(*_a, **_k):
+        raise AssertionError("the image test inverted Σ with numpy's own pinv")
+
+    monkeypatch.setattr(R, "_psd_pinv", spy)
+    monkeypatch.setattr(np.linalg, "pinv", no_pinv)
+    for p in PAIRS["bethanechol"] + PAIRS["lab6"]:
+        red_a, red_b, cov_a, cov_b = _arrays(p)
+        calls.clear()
+        same, _chi2 = equal_reduced(red_a, red_b, cov_a=cov_a, cov_b=cov_b)
+        assert same
+        stacks = [c for c in calls if len(c[0]) == 3]
+        assert stacks and all(rcond == R.CELL_PINV_RCOND for _s, rcond in stacks)
 
 
 # ----------------------------------------------------------------------
