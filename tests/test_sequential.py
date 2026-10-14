@@ -2132,6 +2132,43 @@ def test_plot_trajectory_titles_the_figure_only_when_asked(thermal_series):
     plt.close("all")
 
 
+@pytest.mark.parametrize("style", ["light", "dark"])
+def test_plot_trajectory_draws_every_mark_in_its_styles_role(style):
+    """WP-1970: ``style=`` reaches the series figure, so every figure call has
+    a dark form.  Each mark takes its role from the style's palette, and the
+    ground is the style's, so no light-palette ink is left on a dark page."""
+    import matplotlib.pyplot as plt
+
+    from rietx.viz.plots import PALETTES
+
+    def entry(i, value, **kw):
+        return SeriesEntry(
+            index=i, label=f"p{i}", x=float(i),
+            statistics=Statistics(rwp=0.1, rp=0.1, rexp=0.05, chi2=1.0, gof=1.0,
+                                  n_points=10, n_free_parameters=1),
+            parameters=[RefinedParameter(path="phases.0.cell.a", value=value,
+                                         stderr=1e-3)], **kw)
+
+    series = SeriesResult(entries=[
+        entry(0, 4.00), entry(1, 4.01, reseeded=True, rung="cold"),
+        entry(2, 4.02, status="diverged"), entry(3, 4.03, rwp_fence=0.05)])
+    hue = PALETTES[style]
+    fig = series.plot(["phases.0.cell.a"], style=style)
+    lines = fig.axes[0].lines
+    by_marker = {line.get_marker(): line for line in lines if line.get_marker() in "xs"}
+    rings = [line for line in lines
+             if line.get_marker() == "o" and line.get_markerfacecolor() == "none"]
+    assert lines[0].get_color() == hue["series"]
+    assert [ring.get_markeredgecolor() for ring in rings] == [hue["reseeded"]]
+    assert by_marker["x"].get_color() == hue["unrecovered"]
+    assert by_marker["s"].get_markeredgecolor() == hue["outlier"]
+    from matplotlib.colors import to_hex
+    assert to_hex(fig.get_facecolor()) == hue["ground"]
+    plt.close("all")
+    with pytest.raises(ValueError, match="style must be one of"):
+        series.plot(["phases.0.cell.a"], style="sepia")
+
+
 def test_qpa_trajectory(thermal_series):
     traj = thermal_series.qpa_trajectory("LaB6")
     assert len(traj) == len(thermal_series)

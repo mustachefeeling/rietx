@@ -92,7 +92,7 @@ needs the light role colours to be distinct, or to map to one dark colour:
 
 ## Tasks
 
-- [ ] `plot_trajectory` takes `style=`, so every figure call has both palettes.
+- [x] `plot_trajectory` takes `style=`, so every figure call has both palettes.
 - [ ] Redraw or recolour, decided on one figure, with a caller's
   `ax.set_xlim` as the case that separates them.
 - [ ] The notebook formatter emits the pair as `text/html` beside the light

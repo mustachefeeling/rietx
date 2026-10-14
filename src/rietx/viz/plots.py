@@ -102,6 +102,13 @@ Y_SCALES = ("linear", "sqrt", "log", "asinh")
 #: categorical colour answers "which one of them", so it follows the phase and
 #: nothing else.  ``tick`` — the *single*-phase row — stays a role and stays
 #: per ground.
+#:
+#: The last five roles are :func:`plot_trajectory`'s (WP-1970): the measured
+#: series, a held or verdict-less point, a pattern refitted cold, one the
+#: ladder could not rescue, and an Rwp outlier.  Light's are the GUI's
+#: ``--accent``, ``--muted`` and ``--bad`` and two darker hues, and dark's
+#: are the same tokens' dark values.  ``unrecovered`` sits nearer the type
+#: than ``reseeded`` on both grounds, so the worse verdict carries more ink.
 PALETTES = {
     # `ground` is the page the figure sits on.  Dark's is the manual's and the
     # landing page's warm panel, which is what `_ground_rc` paints; light's is
@@ -110,12 +117,16 @@ PALETTES = {
     "light": {"obs": "#1a1a1a", "calc": "#ff7f0e", "bkg": "#b5793a",
               "diff": "#737373", "zero": "#c9c9c9", "band": "#2a9d2a",
               "tick": "#1a1a1a", "ground": "#ffffff",
-              "phase": list(PHASE_COLOURS)},
+              "phase": list(PHASE_COLOURS),
+              "series": "#1f5fa8", "held": "#6b6b6b", "reseeded": "#c23b22",
+              "unrecovered": "#8b1a1a", "outlier": "#b8860b"},
     "dark": {"obs": "#d2c9bd", "calc": "#ff9d4d", "bkg": "#c99a6a",
              "diff": "#8f8f8f", "zero": "#4a4a4a", "band": "#4fd44f",
              "tick": "#d2c9bd", "fg": "#f1ece5", "rule": "#d2c9bd",
              "ground": "#1d1813",
-             "phase": list(PHASE_COLOURS)},
+             "phase": list(PHASE_COLOURS),
+             "series": "#7fb2ea", "held": "#9a9a94", "reseeded": "#e8776a",
+             "unrecovered": "#ffb0a0", "outlier": "#d9a62e"},
 }
 
 
@@ -432,6 +443,15 @@ def _style_context(plt, style: str, font_size: float):
     hue = PALETTES[style]
     return plt.style.context([_rc(font_size)] if style == "light"
                              else ["dark_background", _rc(font_size), _ground_rc(hue)])
+
+
+def _trajectory_context(plt, style: str):
+    """The trajectory's style context: the page's ground on dark, and on light
+    nothing, since that figure predates the house rc and keeps its own type."""
+    if style == "light":
+        from contextlib import nullcontext
+        return nullcontext()
+    return plt.style.context(["dark_background", _ground_rc(PALETTES[style])])
 
 
 def _title(ax, title: str | None, font_size: float) -> None:
@@ -1108,7 +1128,7 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
 
 def plot_trajectory(series, paths, *, path: str | None = None,
                     dpi: int = 150, mark_diagnostics: bool = True,
-                    title: str | None = None):
+                    title: str | None = None, style: str = "light"):
     """Parameter trajectories across a sequential series (WP-0505).
 
     One stacked panel per requested display path, resolved through
@@ -1141,8 +1161,14 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     ``title`` names the whole figure above its stacked panels, whose own
     left-hand titles stay the parameter each one draws; absent by default,
     and the default figure is unchanged by it.
+
+    ``style="dark"`` draws on the dark page's ground in the dark palette's
+    trajectory roles (WP-1970), as :func:`plot_result`'s does.
     """
+    if style not in PALETTES:
+        raise ValueError(f"style must be one of {sorted(PALETTES)}, not {style!r}")
     plt = _pyplot()
+    hue = PALETTES[style]
 
     if isinstance(paths, str):
         paths = [paths]
@@ -1162,80 +1188,81 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     unrecovered = {e.label for e in series.entries if e.status == "diverged"}
     outliers = {e.label for e in series.entries if e.above_fence}
 
-    fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
-                             dpi=dpi, FigureClass=_figure_class(), sharex=True, squeeze=False)
-    for ax, name in zip(axes[:, 0], paths, strict=True):
-        traj = series.resolve_trajectory(name)
-        x, value, sd = traj.arrays()
-        yerr = np.where(np.isfinite(sd), sd, 0.0)
-        # A magnetic trajectory carries a per-point verdict, and the whole
-        # point of WP-1329 is that a held point must not look like a small
-        # measured moment: it is drawn hollow, with no bar (``stderr`` is
-        # already ``None`` there, so ``arrays()`` handed us NaN), and the onset
-        # bracket is shaded between the two patterns that straddle it.  The
-        # line runs through every point, while the filled marker is drawn only
-        # where the verdict is "supported" — otherwise the hollow square sits
-        # over a filled measurement mark.  Guarded on the attribute rather than
-        # on the type so an ordinary Trajectory takes exactly the path it took
-        # before.
-        supported = getattr(traj, "supported", None)
-        if supported:
-            ax.plot(x, value, "-", lw=1.0, color="#1f5fa8")
-            ax.errorbar(x, np.where(supported, value, np.nan), yerr=yerr,
-                        fmt="o", ms=4, capsize=2, color="#1f5fa8")
-        else:
-            ax.errorbar(x, value, yerr=yerr,
-                        fmt="o-", ms=4, lw=1.0, capsize=2, color="#1f5fa8")
-        if supported:
-            measured = getattr(traj, "measured", None) or [True] * len(supported)
-            held_ix = [i for i, ok in enumerate(supported)
-                       if not ok and measured[i]]
-            blind_ix = [i for i, m in enumerate(measured) if not m]
-            if held_ix:
-                ax.plot(x[held_ix], value[held_ix], "s", ms=7, mfc="none",
-                        mec="#6b6b6b", mew=1.2, ls="none",
-                        label="held (unsupported)")
-            # no verdict at all (no esd, or a diverged fit): not the data
-            # saying "no moment", so it gets its own mark
-            if blind_ix:
-                ax.plot(x[blind_ix], value[blind_ix], "x", ms=7,
-                        color="#6b6b6b", mew=1.2, ls="none",
-                        label="no verdict")
-            if held_ix or blind_ix:
-                ax.legend(fontsize=7, loc="best", frameon=False)
-            onset = getattr(traj, "onset", None)
-            if onset is not None and onset.x is not None:
-                ax.axvspan(onset.bracket[0], onset.bracket[1],
-                           color="#1f5fa8", alpha=0.10, lw=0)
-        if mark_diagnostics:
-            for i, label in enumerate(traj.labels):
-                if label in reseeded:
-                    ax.plot(x[i], value[i], "o", ms=10, mfc="none",
-                            mec="#c23b22", mew=1.2)
-                if label in unrecovered:
-                    ax.plot(x[i], value[i], "x", ms=11, color="#8b1a1a",
-                            mew=2.0)
-                if label in outliers:
-                    ax.plot(x[i], value[i], "s", ms=11, mfc="none",
-                            mec="#b8860b", mew=1.4)
-            if name in flagged:
-                first, last = flagged[name]
-                if first in traj.labels and last in traj.labels:
-                    ax.axvspan(x[traj.labels.index(first)],
-                               x[traj.labels.index(last)],
-                               color="#c23b22", alpha=0.10, lw=0)
-            elif name in jumps and len(x) > 1 and series.discontinuities is None:
-                # a document written before the record: what older versions drew
-                k = int(np.argmax(np.abs(np.diff(value))))
-                ax.axvspan(x[k], x[k + 1], color="#c23b22", alpha=0.10, lw=0)
-        flag = "  [path-dependent]" if name in unstable else ""
-        ax.set_ylabel(name.split(".")[-1] if len(name) > 24 else name, fontsize=8)
-        ax.set_title(f"{name}{flag}", fontsize=9, loc="left")
-        ax.tick_params(labelsize=8)
-    axes[-1, 0].set_xlabel(series.x_label)
-    if title is not None:
-        fig.suptitle(title, fontsize=10)
-    fig.tight_layout()
-    if path is not None:
-        fig.savefig(path)
+    with _trajectory_context(plt, style):
+        fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
+                                 dpi=dpi, FigureClass=_figure_class(), sharex=True, squeeze=False)
+        for ax, name in zip(axes[:, 0], paths, strict=True):
+            traj = series.resolve_trajectory(name)
+            x, value, sd = traj.arrays()
+            yerr = np.where(np.isfinite(sd), sd, 0.0)
+            # A magnetic trajectory carries a per-point verdict, and the whole
+            # point of WP-1329 is that a held point must not look like a small
+            # measured moment: it is drawn hollow, with no bar (``stderr`` is
+            # already ``None`` there, so ``arrays()`` handed us NaN), and the onset
+            # bracket is shaded between the two patterns that straddle it.  The
+            # line runs through every point, while the filled marker is drawn only
+            # where the verdict is "supported" — otherwise the hollow square sits
+            # over a filled measurement mark.  Guarded on the attribute rather than
+            # on the type so an ordinary Trajectory takes exactly the path it took
+            # before.
+            supported = getattr(traj, "supported", None)
+            if supported:
+                ax.plot(x, value, "-", lw=1.0, color=hue["series"])
+                ax.errorbar(x, np.where(supported, value, np.nan), yerr=yerr,
+                            fmt="o", ms=4, capsize=2, color=hue["series"])
+            else:
+                ax.errorbar(x, value, yerr=yerr,
+                            fmt="o-", ms=4, lw=1.0, capsize=2, color=hue["series"])
+            if supported:
+                measured = getattr(traj, "measured", None) or [True] * len(supported)
+                held_ix = [i for i, ok in enumerate(supported)
+                           if not ok and measured[i]]
+                blind_ix = [i for i, m in enumerate(measured) if not m]
+                if held_ix:
+                    ax.plot(x[held_ix], value[held_ix], "s", ms=7, mfc="none",
+                            mec=hue["held"], mew=1.2, ls="none",
+                            label="held (unsupported)")
+                # no verdict at all (no esd, or a diverged fit): not the data
+                # saying "no moment", so it gets its own mark
+                if blind_ix:
+                    ax.plot(x[blind_ix], value[blind_ix], "x", ms=7,
+                            color=hue["held"], mew=1.2, ls="none",
+                            label="no verdict")
+                if held_ix or blind_ix:
+                    ax.legend(fontsize=7, loc="best", frameon=False)
+                onset = getattr(traj, "onset", None)
+                if onset is not None and onset.x is not None:
+                    ax.axvspan(onset.bracket[0], onset.bracket[1],
+                               color=hue["series"], alpha=0.10, lw=0)
+            if mark_diagnostics:
+                for i, label in enumerate(traj.labels):
+                    if label in reseeded:
+                        ax.plot(x[i], value[i], "o", ms=10, mfc="none",
+                                mec=hue["reseeded"], mew=1.2)
+                    if label in unrecovered:
+                        ax.plot(x[i], value[i], "x", ms=11, color=hue["unrecovered"],
+                                mew=2.0)
+                    if label in outliers:
+                        ax.plot(x[i], value[i], "s", ms=11, mfc="none",
+                                mec=hue["outlier"], mew=1.4)
+                if name in flagged:
+                    first, last = flagged[name]
+                    if first in traj.labels and last in traj.labels:
+                        ax.axvspan(x[traj.labels.index(first)],
+                                   x[traj.labels.index(last)],
+                                   color=hue["reseeded"], alpha=0.10, lw=0)
+                elif name in jumps and len(x) > 1 and series.discontinuities is None:
+                    # a document written before the record: what older versions drew
+                    k = int(np.argmax(np.abs(np.diff(value))))
+                    ax.axvspan(x[k], x[k + 1], color=hue["reseeded"], alpha=0.10, lw=0)
+            flag = "  [path-dependent]" if name in unstable else ""
+            ax.set_ylabel(name.split(".")[-1] if len(name) > 24 else name, fontsize=8)
+            ax.set_title(f"{name}{flag}", fontsize=9, loc="left")
+            ax.tick_params(labelsize=8)
+        axes[-1, 0].set_xlabel(series.x_label)
+        if title is not None:
+            fig.suptitle(title, fontsize=10)
+        fig.tight_layout()
+        if path is not None:
+            fig.savefig(path)
     return _handed_back(fig)
