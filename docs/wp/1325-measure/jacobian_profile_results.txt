@@ -1,0 +1,42 @@
+WP-1325, "would another Rust kernel help?": where a blocked joint fit's Jacobian time goes, N = 60.
+
+machine   Linux x86_64, 4 CPUs (Intel(R) Xeon(R) Processor), 15.7 GiB RAM, no swap
+python    3.12.3, numpy 2.5.4 (scipy-openblas)
+rietx     1.9.0.dev0 from /home/user/rietx/.claude/worktrees/wp1325-parametric-series/src/rietx ([dev] venv), compiled kernels on
+load      0.47 0.24 0.18 (1/5/15 min) at start; other measuring or test processes running: 0
+kernels   4 pool threads
+tree      HEAD 977ec2a at start, src/ fingerprint 6e3d84a08da0
+library   tests' library(n): 3000 points a pattern, cell = four-term polynomial over (x, y), 10 own columns a pattern, blocked layout
+
+== (1) the fit: converged, Rwp 0.038988
+  plain      wall 5.58 s; joint Jacobian 2.69 s over 40 calls (48%), joint residual 0.52 s over 43 calls (9%)
+  cProfile   wall 10.85 s, 10.84 s profiled (the profiler inflates python, so read shares, not seconds)
+    rietx_kernels calls: 0.147 s = 1.4% of the fit
+      <built-in method rietx_kernels.rietx_kernels.accum>      15660 calls 0.056 s
+      <built-in method rietx_kernels.rietx_kernels.omega_sym>   3900 calls 0.049 s
+      <built-in method rietx_kernels.rietx_kernels.bases_sym>   2220 calls 0.042 s
+    joint Jacobian (block_jacobian): 5.17 s over 40 calls = 48% of the fit
+    _peak_chain_column: 3.69 s over 9600 calls = 71% of the joint Jacobian, 4.0 a pattern a Jacobian
+
+== (2) at the answer, 60 patterns, last stage's 604 columns; min over 5 repeats, each at a new θ
+  Jacobian  serial       143.1-212.8 ms   (2.39 ms a pattern)
+  Jacobian  2 threads    199.1-233.0 ms   speedup 0.72x
+  Jacobian  4 threads    269.7-281.5 ms   speedup 0.53x
+  residual  serial         18.1-18.7 ms   (0.30 ms a pattern)
+  residual  2 threads      30.4-36.2 ms   speedup 0.60x
+  residual  4 threads      39.2-58.8 ms   speedup 0.46x
+
+== (3) peak-chain columns of one pattern's Jacobian, last stage: 10
+  1 x instrument.zero_shift
+  1 x instrument.profile.u
+  1 x instrument.profile.v
+  1 x instrument.profile.w
+  1 x instrument.profile.x
+  1 x instrument.profile.y
+  4 x phases.0.cell.a
+
+== (4) each repeated peak-chain path once per pattern (timing only)
+  Jacobian loop 143.5-151.4 ms -> 94.1-97.7 ms = 1.52x (min against min)
+
+load      1.03 0.40 0.23 (1/5/15 min) at end; other measuring or test processes running: 0
+tree      HEAD 977ec2a at end; src/ fingerprint 6e3d84a08da0, unchanged during the run

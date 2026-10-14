@@ -623,6 +623,53 @@ Where a kernel over measurement coordinates has paid most is in choosing
   the N = 300 fit. The step is 4 %, normal equations 1.8 s and the
   covariance 3.3 s.
 
+### Measured: where the joint Jacobian's time goes (2026-10-14)
+
+`1325-measure/jacobian_profile.py`, output in
+`1325-measure/jacobian_profile_results.txt`. The maintainer asked whether
+another Rust kernel would speed the joint fit.
+
+**Setup.**
+- `scaling.py`'s library at N = 60, blocked, on the same machine, with
+  nothing else running.
+- Every repeat runs at a new θ, because `phase_peaks` memoises on the cell.
+  An early draft that reused one θ timed the cache and read 6.2× where the
+  honest figure is 1.5×.
+
+| what | measured |
+|---|---|
+| joint Jacobian, share of the plain fit | 48 % (2.69 of 5.58 s) |
+| `rietx_kernels` calls, share of the profiled fit | 1.4 % |
+| `_peak_chain_column`, share of the joint Jacobian | 71 %, 4.0 calls a pattern a Jacobian |
+| one pattern's Jacobian at the answer | 2.39 ms |
+| the per-pattern Jacobian loop over 2 / 4 threads | 0.72× / 0.53× |
+| the per-pattern residual loop over 2 / 4 threads | 0.60× / 0.46× |
+| the four `cell.a` peak-chain columns computed once | 1.52× on the Jacobian loop |
+
+**What it says.**
+- **Another kernel is not the lever.** The existing kernels are 1.4 % of the
+  fit. A pattern here is 3 000 points of LaB₆, so its Jacobian is about a
+  hundred small python and numpy calls, not a loop of arithmetic. A kernel of
+  WP-1115's kind (a serial loop over a row range) has no loop here to take.
+- **Threads lose.** The per-pattern work holds the GIL, so a pool across
+  patterns ran at 0.53× on 4 threads, with three cores idle. Only a Rust
+  port of the whole per-pattern peak chain would free them: positions,
+  widths, |F|² and the column assembly, with a fallback and an oracle. That
+  is a port of the forward model's per-reflection chain, not a kernel.
+- **The repeated peak chain is the cheap win.** Every coefficient of one tie
+  reaches `_peak_chain_column` under its target's name. Here that is four
+  `phases.0.cell.a` columns beside six instrument columns, and each re-runs
+  `phase_peaks` at its own step. Within a pattern each column is
+  Φ_kj · ∂y/∂(target), so one call and a scale serve them all: 1.52× on the
+  last stage's Jacobian loop with four terms, and more with more terms. On
+  the 45 % share at N = 300 that is about 1.2× on the fit (estimated, not
+  run).
+- **Then processes across patterns, not threads**, since the work is
+  independent. Not measured.
+- **The case for a kernel grows with the structure.** Synthetic LaB₆ is the
+  worst case for this overhead. A phase with many reflections and atoms
+  raises the arithmetic share, and the real ramp will say by how much.
+
 ### What the code has (survey, 2026-10-14)
 
 - **`multi.py` is the seam: N patterns, one θ** (WP-0308).
@@ -776,7 +823,31 @@ Where a kernel over measurement coordinates has paid most is in choosing
   which fields must agree and refuse the rest. Declined from the 2026-10-14
   code review as a design decision.
 - [ ] **The measurement on real data**: the ZrMo₂O₈ ramp (maintainer-local),
-  with the same numbers as the synthetic half.
+  with the same numbers as the synthetic half. Two more sources, which the
+  maintainer cleared for local use only (2026-10-14; never committed): the
+  Durham TOPAS surface tutorials, ZrP₂O₇ (37 patterns, three phases, Stinton &
+  Evans 2007) and Tutorial 39 (100 WO₃ patterns through its transitions). A
+  cloud container reaches neither: the maintainer's disk is not mounted there,
+  and the Durham host is outside its network policy.
+- [x] **Profile the joint Jacobian**, the maintainer's question of 2026-10-14:
+  would another Rust kernel help? It would not, first. § Measured: where the
+  joint Jacobian's time goes.
+- [ ] **Compute a target's peak-chain column once per pattern.** A tie's
+  coefficient columns each re-run `phase_peaks` (§ Measured: where the joint
+  Jacobian's time goes, 1.52× on the Jacobian loop).
+  - The seam is `_make_jacobian`'s column loop
+    (`optimize/least_squares.py:1604`) and `_peak_chain_column` (`:1170`).
+    Group the peak-chain columns by the targets they reach, compute each
+    target's column once, and chain through C. The restraint block already
+    does this, as `r_phys @ cmat`.
+  - A coefficient reaching several targets (one law per phase field, a
+    shared cell) takes the general form, J_columns = J_targets · C_sub, and
+    never a per-name shortcut.
+  - The finite-difference step then sits on the target, not the
+    coefficient, so it is not bit-identical. The bar: the converged answer
+    within 0.01 esd of today's, as the blocked solver's was.
+  - It also removes a near-zero effective step: a pattern near the reference
+    has Φ_kj ≈ 0, so today a coefficient's step barely moves its target.
 - [x] **Survey the prior art for declaring a parametric model**, for a
   self-driving lab as the writer. Written into Context: § Prior art, § The
   shape and § What the code has.
