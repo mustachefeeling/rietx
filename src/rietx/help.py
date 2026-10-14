@@ -1075,7 +1075,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "J = 1 + Σ C²/(2l+1) summarises their size, and J = 1 is a random "
             "powder. A Bragg-Brentano coefficient is GSAS-II's multiplied by "
             "P_l(0), because this package measures the sample angle from the "
-            "plate normal."
+            "plate normal. Where the metric makes two inequivalent reflections "
+            "coincide (hkl and khl in -3m1), a term of opposite sign on the "
+            "pair is measured only through their |F|² difference, and its esd "
+            "says so."
         ),
         unit=None, default="0.0",
         typical="|C| under 1 at l = 2 for a lightly textured mount; several "

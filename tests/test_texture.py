@@ -313,3 +313,23 @@ def test_the_structural_plan_frees_a_declared_block_with_march_dollase():
     table = _table(_phase(texture=SphericalHarmonicTexture(order=4)))
     assert table.set_vary(stage.turn_on, True) == [
         "phases.0.texture.c2_0", "phases.0.texture.c4_0", "phases.0.texture.c4_3"]
+
+
+@pytest.mark.parametrize("label", ["-3m1", "mmm"])
+def test_poisson_noise_recovers_the_coefficients_within_three_esd(label):
+    space_group, cell, truth = _RECOVERY[label]
+    ins = Instrument.bragg_brentano()
+    grid = np.arange(10.0, 120.0, 0.02)
+    clean = np.asarray(rx.Refinement(Structure(phases=[_recovery_phase(
+        space_group, cell, truth, vary=False)]), ins).predict(grid)) + 20.0
+    counts = np.random.default_rng(1960).poisson(clean).astype(float)
+    fit = rx.Refinement(Structure(phases=[_recovery_phase(
+        space_group, cell, truth, vary=True)]), ins.model_copy(deep=True))
+    result = fit.fit(rx.PatternData(two_theta=grid.tolist(), intensity=counts.tolist()),
+                     plan=rx.RefinementPlan(stages=[
+                         rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+                         rx.Stage("texture", ["phases.*.scale", "instrument.background.c*",
+                                              "phases.*.texture.*"])]))
+    rows = {r.path.rsplit(".", 1)[1]: r for r in result.parameters if ".texture." in r.path}
+    for name, value in truth.items():
+        assert abs(rows[name].value - value) < 3.0 * rows[name].stderr, name

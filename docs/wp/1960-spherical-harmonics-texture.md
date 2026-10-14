@@ -492,16 +492,24 @@ because it was not downloaded. Bunge's tables are published numbers.
       `*Source:*` line) replacing the "not implemented yet" sentence; the
       § Scope sentence in `manual.md`; Part 1 prose on declaring a block and
       reading J and the guard.
-- [ ] **Tests and acceptance**: the units above; synthetic recovery
+- [x] **Tests and acceptance**: the units above; synthetic recovery
       (noise-free patterns from known C for an m-3m, a 6/mmm, a -3m1, an mmm
       and a 2/m phase, under `bragg_brentano` and `debye_scherrer`, recovered
       from C = 0 to 1e-6 relative; with Poisson noise, within 3 esd); the
       GSAS-II golden; cpd-2 below; obs/calc/diff PNGs to `tests/output/`.
-- [ ] **Skill**: a reference row for `TEXTURE_NOT_POSITIVE` and the
+      *Done 2026-10-14.* `tests/test_texture.py` (43), the golden in
+      `tests/test_spherical_harmonics.py`, Poisson recovery within 3 esd for
+      -3m1 and mmm, and `test_sample2_brucite_spherical_harmonics` at
+      orders 4 and 6 with its validation-matrix claim and its plots.
+- [x] **Skill**: a reference row for `TEXTURE_NOT_POSITIVE` and the
       `phases.*.texture.*` family, and the routing row an agent needs to
       choose between March-Dollase and an order (tagged Hypothesis until the
       cpd-2 numbers exist).
 
+      *Done 2026-10-14.* The code's row is in `abstention.md`. The family
+      is described by its `help.py` entry, which also names the overlap
+      degeneracy. The routing clause sits on `numbers.md`'s
+      `refine_preferred_orientation` row, tagged Measured from CPD-2.
 ## Acceptance
 
 ```sh
