@@ -1,6 +1,8 @@
 # WP-1960 — spherical-harmonics texture: preferred orientation with no single axis
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-15 — every task but 9 landed; its writers
+are done, and GSAS-II's reader and the TOPAS import (blocked on the Technical
+Reference) remain
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (#131 is the design record this WP carries forward)
 Priority: P3 2026-10-14 — a workaround covers the single-fibre case (March-Dollase); two named users want the general one (#131's author, whose SRM 1976a plate was rejected as an acceptance case for want of it, and the outside lab of WP-1325's 2026-10-13 entry); no WP waits on it
@@ -585,6 +587,72 @@ Appendix 3 tables.
   2013-01-31 on disk.
 
 ## Handover log
+
+### 2026-10-15 — every task but the readers landed
+
+A phase can now carry a spherical-harmonics texture, the general preferred-
+orientation correction for a texture with no single axis. It refines from
+zero with exact analytic columns. The default driver keeps the pole density
+non-negative at every reflection, and a guard says when the series goes
+negative between them. On the IUCr round-robin sample 2, the platy brucite's
+composition comes out as well as under March-Dollase: worst error 2.71 wt % at
+order 6, against 2.80. The papers settled the open design question: the sample
+angle is the physical one, so a Bragg-Brentano coefficient is GSAS-II's times
+P_l(0). GSAS-II's own functions turned out wrong in four classes, so it serves
+as a golden only where they are invariant. Reading TOPAS and GSAS-II files that
+carry a texture is the work left.
+
+- **Done.** Tasks 1-8 and 10-13, each ticked with its own note above. The
+  module is `crystallography/spherical_harmonics.py`, not the WP's
+  `harmonics.py`, because "harmonic" already names a λ/n monochromator line
+  here. Schema 0.57. Task 9 is half done: the review's fixes made every
+  writer state the block or say it cannot.
+- **Measured.** All on darwin/arm64, in this worktree's `[dev,jax,torch]` venv
+  (`[dev]` until the jax/torch install part-way through Task 6):
+  - GSAS-II golden: our functions equal GSAS-II's invariant ones to 7.4e-7,
+    its single precision, at ratio 1 or √2 with the signs.
+  - CPD-2 worst weighed error: March-Dollase 2.80 wt %, order 4 3.41, order 6
+    2.71. C2,0 is 1.41(4) and 1.39(5), J 1.46, min P 0.47 and 0.40.
+  - `rietx compare` on brucite: Rwp 0.469 bare, 0.185 under March-Dollase,
+    0.192 under order 4.
+  - March-Dollase r = 0.4 data fitted at order 2: `lm` stops at C2,0 = 2.00
+    on the face; `trf` reaches 2.90 with P = −0.45 and the guard fires.
+  - Fast selection on the tree merged with main at `3be03f2e`: 10592 passed,
+    2 failed, 36 skipped, 1 xfailed, 15:29, beside other sessions' suites.
+    The two failures were registry entries this work owed: the glob fixture
+    and the guard's joint-fit scope. Both are fixed in `b77d5fb4`, and their
+    files pass. The count cannot be squared against the session's first run
+    (10363 passed, 187 skipped, `[dev]`, before the merge): the extras changed
+    and main brought 25 commits. The added tests cost 20.1 s for the
+    564-setting gemmi table and under 3 s for every other test
+    (`tests.added_test_times`). The full selection was not run: texture code
+    runs only under a declared block, and the one shared change,
+    March-Dollase's column chain, moved verbatim under the goldens.
+- **Review.** `/code-review high --fix` found ten defects and all ten are
+  fixed, one commit each: a nearly symmetric cell refused a block; a P 1
+  restatement kept names that change meaning; GUI refusal probes; the Layer-2
+  action told a textured phase to add March-Dollase; the FullProf, TOPAS, CIF
+  and GSAS-II writers; compare's protocol; a wasted decode. Two were declined
+  as harmless: the guard computes P twice when it fires, and write-back adds
+  zero entries mid-walk. Not generalised: a GUI space-group change can keep a
+  name whose function changes meaning (c6_6 from 6/mmm to -3).
+- **Gotchas.** This session's first Write overwrote `tests/test_harmonics.py`,
+  and `0d043849` restored it. GSAS-II's harmonics return zeros until
+  `pytexture.pyqlmninit()` runs. On −3m1 a term like c4_3 is measured only
+  through |F(hkl)|² − |F(khl)|², so a one-atom structure leaves it at
+  0.93 ± 22.7.
+- **Not done.** GSAS-II's defects (§ Pinned by Task 1) are not reported
+  upstream; that is the maintainer's call. The `report/texture.py` follow-up
+  (the order scan in Non-goals) has no open owner: 0307 and 1054 are closed,
+  and 1931 and 1318 are other subjects. It is not filed yet.
+
+Next: Task 9's GSAS-II half first, because it needs nothing outside the
+session. `_hap` reads an SH entry's order and coefficients through § Pinned by
+Task 1's conversion. It refuses the classes the golden marks non-invariant,
+and a `Debye` histogram at default angles. It needs a `.gpx` fixture with an SH
+block, built through GSAS-II's scriptable API in its pixi environment. Then the
+TOPAS half, once the Technical Reference is readable offline. Then file the
+order-scan follow-up and close.
 
 ### 2026-10-14 — filed, and the fence moved
 
