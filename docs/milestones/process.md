@@ -1203,6 +1203,7 @@ lanes, the ten trial sessions first:
 | 2026-10-13 | a2f27ce6 | 1 | 1 | 0K | 5 | 7K | 1.88 | 1 / 0 | +2.76 | +21% |
 | 2026-10-13 | 1e6e1192 | 1 | 0 | 0K | 26 | 40K | 2.07 | 0 / 0 | +0.43 | +3% |
 | 2026-10-14 | 2aa6e19e | 4 | 0 | 4K | 8 | 18K | 2.13 | 0 / 0 | +35.62 | +35% |
+| 2026-10-14 | 8f4b0657 | 1 | 1 | 5K | 11 | 16K | 5.80 | 0 / 0 | +8.77 | +20% |
 
 Session 38257a74 (WP-1523) resumed its one lane by `SendMessage` with a
 revised design after the first report. The tool counts that as no redo, and the
@@ -1231,6 +1232,15 @@ under a written `lanes: keep` line at 288K.
 Session 1e6e1192 (WP-1325) is entered as fixed 0 where the tool printed 1. Its
 two edits after the measurement lane were to the WP file, recording the lane's
 numbers; the lane's script and output were committed as the lane left them.
+
+Session 8f4b0657 (WP-1961) is entered as kept 1 and fixed 0 where the tool
+printed 0 and 1. It kept the version bump, estimated at 8 requests. That
+decision line survives only in the session's compaction summary, and the tool
+does not read one. The ratio column therefore covers the lane alone. The
+session's five edits after the lane went to the release notes and the WP file.
+The lane's files were committed as the lane left them. The lane ran 232
+requests against an estimate of 40. It re-measured 133 figures on two trees.
+It then bisected 16 moves over seven snapshots. The estimate foresaw neither.
 
 **The decision: adopted** (2026-10-08,
 [WP-1903](../wp/1903-the-lane-trial-decides.md)). The rule is now `/wp-start`
