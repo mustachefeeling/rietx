@@ -1186,6 +1186,9 @@ never silent.
 histogram: its curves and statistics moved to the top level and `histograms`
 cleared, so `result.for_histogram(0).plot()` and a report built from it operate
 per pattern. Reports are per-histogram for the same reason the statistics are.
+The view's `parameters` keep the shared rows and that histogram's own rows. Its
+own rows lose their `hist.<h>.` prefix, so they are spelled as a single fit
+spells them. Every other histogram's rows are dropped.
 
 ### Watching and stopping a joint fit
 

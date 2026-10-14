@@ -153,7 +153,7 @@ covers (1119 § Gotchas).
 | rietview | rietview (was v1.7): the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ rietview](#rietview--the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
 | rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1813, the seam decided by 1803 and the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
 | structure-solution | Structure solution (was v1.9): a difference-Fourier map, a cost from the Pawley intensities, direct-space search — [WPs](wp/README.md#structure-solution): 1901-1902, the map then the cost; #197 and #198 left the fence 2026-09-30 | ⬜ **queued 2026-09-30** | written at the open |
-| v2+ | FPA (with the peaks buffer), neutron TOF, texture, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
+| v2+ | FPA (with the peaks buffer), neutron TOF, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
 
@@ -539,9 +539,8 @@ scope creep. Each item names what fenced it.
   never the files) — and issue #362 lists the constant-wavelength reads
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py` and
   23 more sites) a second compiled-model class meets, so the accessor seam it
-  proposes waits for that class rather than preceding it; spherical-harmonics
-  texture (Von Dreele 1997; #131); difference Fourier / maximum-entropy maps
-  (McCusker §6; the partition input exists in `lebail_update`, the consumer is
+  proposes waits for that class rather than preceding it; difference Fourier /
+  maximum-entropy maps (McCusker §6; the partition input exists in `lebail_update`, the consumer is
   structure completion; #197); internal-standard and amorphous QPA; **modulated
   structures** (superspace — 1314 reads Jana's files without them; #258 the shared
   design, #678 its cut, N-W1 landed as PR #682; **decided 2026-10-08:** N-W2's group half and
@@ -549,6 +548,7 @@ scope creep. Each item names what fenced it.
   case, polarised neutrons and magnetic X-rays stay fenced (1327's non-goals).
   **Rigid bodies (#195), direct-space solution and stacking faults left it
   2026-09-28** for scoping in § Unscheduled (1514–1516; DESIGN.md has why).
+  **Spherical-harmonics texture (#131) left it 2026-10-14** as [1960](wp/1960-spherical-harmonics-texture.md).
 - **Solution.** Charge flipping (#198; 1515 decides whether it follows, and
   #197 with it); search-match phase identification (prior art: the 36-cell
   screen at `guillemot-study:studies/guillemot/match_hl2.py`).
