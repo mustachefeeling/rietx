@@ -469,3 +469,85 @@ derived-quantity esds of {eq}`est-derived` at $\sigma = w = 1$; a scale leaking
 that far would multiply every reported bond esd by $\sqrt{c_w}$. And $c_w = 0$
 silences the rows without deleting them, so the row count the agreement
 statistics exclude cannot move part-way through a plan.
+
+(par-parametric-section)=
+## A parameter as a function of each pattern's coordinates
+
+A joint fit stacks $N$ patterns into one residual {cite}`vondreele1997`, each
+pattern with its own parameter table and the shared parameters folded onto one
+column each. Parametric refinement {cite}`stinton2007` holds one parameter to a
+declared function of where each pattern sits. Pattern $k$ carries coordinates
+$z_k$, a temperature down a ramp or a composition across a library, and its
+value of the target is
+
+```{math}
+:label: par-parametric
+
+p_k \;=\; \sum_{j=1}^{m} \Phi_{kj}\, c_j,
+\qquad
+\Phi_{kj} \;=\; \prod_{i \in t_j} u_i(z_k),
+\qquad
+u_i(z) \;=\; \frac{z_i - z_i^{\mathrm{ref}}}{s_i},
+```
+
+{source}`rietx.params.parametric.resolve_parametric`
+
+where the term $t_j$ is a list of coordinate names, a repeated name being a
+power and the empty term the intercept ($\Phi_{kj} = 1$), and the coefficients
+$c_j$ are the refined parameters, shared by every pattern of the declared
+subset. That is the polynomial basis. A design basis supplies $\Phi$ as the
+caller's own matrix, and a constant basis is the single column of ones.
+
+The function is linear in its coefficients, so it is exactly one affine tie of
+{eq}`par-affine` per pattern, with $C_k = \Phi_k$ and $d = 0$. The tie needs no
+derivative of its own: what each coefficient's column moves is read off $C$, as
+for any tie. A function with a coefficient inside a power or an exponential (an
+Arrhenius rate, an order-parameter exponent) is not of this form and cannot be
+declared. A basis whose columns are collinear over the subset is refused before
+any solve: pivoted QR on the column-normalised $\Phi$ names the dependent terms,
+with its cut at $\sqrt{\mathrm{rcond}}$ of the leading diagonal, since an
+eigenvalue of $\Phi^\top\Phi$ below the covariance's own cut would leave a
+declared coefficient with no esd. Mixture fractions summing to one make the
+intercept their sum, so the Scheffé form drops it.
+
+The reference $z^{\mathrm{ref}}$ and scale $s$ are part of the declaration.
+Left out, they are the mid-range and half-range of the subset's coordinates,
+computed once when the declaration is resolved and stored with it, so a pattern
+that joins later rebuilds $\Phi$ from the same numbers and never redefines a
+coefficient. Centring makes the intercept's coefficient the target at
+$z^{\mathrm{ref}}$ rather than an extrapolation to $z = 0$, and removes the intercept-slope correlation an
+off-centre coordinate creates. The equilibration of the normal matrix before
+{eq}`est-cov` fixes a column's scale and not that correlation, which is why the
+declaration centres.
+
+The coefficients are reported per unit of the coordinates themselves, at the
+reference:
+
+```{math}
+:label: par-parametric-units
+
+\tilde c_j \;=\; \frac{c_j}{\prod_{i \in t_j} s_i},
+\qquad
+\sigma(\tilde c_j) \;=\; \frac{\sigma(c_j)}{\prod_{i \in t_j} s_i},
+```
+
+{source}`rietx.params.parametric.coefficient_rows`
+
+with $\sigma(c_j)$ from the joint covariance {eq}`est-cov`. So the intercept is
+the target at the reference and the coefficient of a temperature its slope
+there, in the target's unit per kelvin. A design coefficient is reported as
+$\Phi$ defines it. A constant basis's one coefficient carries the target's own
+bounds, intersected over the subset; a sum of terms has no box that holds every
+pattern's target, so the coefficients are unbounded and a target that leaves
+its range is reported after the fit.
+
+When the coefficients are the only shared parameters and each pattern's own fit
+is linear, profiling out each pattern's private parameters leaves a quadratic in
+$p_k$ whose curvature is that pattern's own information. The joint $c$ is then
+the generalised least-squares fit of {eq}`par-parametric` to the per-pattern
+values, weighted by that information, and the declaration changes no number
+that line through the separate fits' values would give. On a synthetic
+ten-pattern ramp the joint slope sat a mean 0.0012 esd from that line. The joint form changes the
+answer where a pattern's own likelihood is not Gaussian in $p_k$, such as a
+minor phase near its detection limit, or where other parameters are shared as
+well.

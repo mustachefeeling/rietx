@@ -96,6 +96,7 @@ from .schemas.indexing import (
     PeakList,
 )
 from .schemas.interval import ParameterInterval, ParameterIntervalPoint
+from .schemas.parametric import CoordinateTable, ParametricCoefficient, ParametricTie
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
 from .schemas.project import DataRef, ProjectDoc
@@ -131,6 +132,7 @@ __all__ = [
     "CandidateGroup",
     "Cell",
     "CellCandidate",
+    "CoordinateTable",
     "DataRef",
     "FitReport",
     "FractionProfile",
@@ -158,6 +160,8 @@ __all__ = [
     "ParameterInterval",
     "ParameterIntervalPoint",
     "ParameterRow",
+    "ParametricCoefficient",
+    "ParametricTie",
     "PatternData",
     "PeakList",
     "Phase",

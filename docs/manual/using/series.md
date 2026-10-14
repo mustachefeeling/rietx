@@ -10,7 +10,7 @@ stacked together, sharing the parameters that describe the specimen.
 | Residual | N of them, solved one at a time | one, with every pattern's points in it |
 | What crosses a pattern | the starting values | the shared parameters themselves |
 | Answers | a trajectory: a(T), w(t) | one set of numbers, informed by every pattern |
-| Use it for | an in-situ ramp, a parametric sweep, a tray of specimens | one specimen measured twice, at two wavelengths or on two instruments |
+| Use it for | an in-situ ramp, a parametric sweep, a tray of specimens | one specimen measured twice, at two wavelengths or on two instruments; a parameter declared as a function of each pattern's coordinates |
 | Entry point | `SequentialRefinement`, `refine_sequential` | `MultiHistogramRefinement`, `refine_multi` |
 | Modes | any | Rietveld only |
 
@@ -18,6 +18,12 @@ The question that separates them is whether the specimen changed. Eight
 mixtures with different compositions are eight specimens, so their cells are
 eight measurements and a series is the right shape. One powder measured at two
 wavelengths is one specimen, so its cell is one number and a joint fit is.
+
+A third case puts specimens that differ into one joint fit. When a parameter
+follows a law you can write down, such as a cell edge linear in temperature down
+a ramp or smooth across the compositions of a combinatorial library, the law's
+coefficients can be refined against every pattern at once
+({ref}`a-parameter-as-a-function-of-coordinates`).
 
 ## A series is N refinements, chained
 
@@ -295,6 +301,7 @@ chain as `SEQUENTIAL_PERSISTENT_FINDING`, which says the thing no per-pattern
 diagnostic can: 42 of 68. Read R_B beside that and beside the weight with its
 esd.
 
+(a-phase-that-appears-part-way-through)=
 ### A phase that appears part-way through
 
 This is the ordinary shape of an in-situ series: a product phase is in the
@@ -829,10 +836,12 @@ the experiment.
 
 ## Constraining a parameter across the series
 
-Fitting a(T) to a functional form of T across every pattern at once, which is
-parametric refinement {cite}`stinton2007`, is a joint fit over the series, and
-it is deliberately not implemented. The fences above exist partly so
-that a sequential trajectory is never mistaken for one.
+Fitting a(T) to a functional form of T across every pattern at once is
+parametric refinement {cite}`stinton2007`. It puts every pattern in one
+residual, so it is a joint fit rather than a chain, and its declaration is
+described in {ref}`a-parameter-as-a-function-of-coordinates`. A chain cannot do
+it, and the fences above exist partly so that a sequential trajectory, or a line
+drawn through one afterwards, is never mistaken for it.
 
 ## A joint fit shares parameters instead
 
@@ -1186,6 +1195,9 @@ never silent.
 histogram: its curves and statistics moved to the top level and `histograms`
 cleared, so `result.for_histogram(0).plot()` and a report built from it operate
 per pattern. Reports are per-histogram for the same reason the statistics are.
+The view's `parameters` keep the shared rows and that histogram's own rows. Its
+own rows lose their `hist.<h>.` prefix, so they are spelled as a single fit
+spells them. Every other histogram's rows are dropped.
 
 ### Watching and stopping a joint fit
 
@@ -1284,3 +1296,348 @@ either alone, which is the joint fit's whole argument.
 Those numbers come from synthetic patterns with known answers, so the comparison
 is readable. On real data the same machinery has no truth to be checked against,
 and the per-histogram Rwp spread above is what to watch instead.
+
+(a-parameter-as-a-function-of-coordinates)=
+## A parameter as a function of each pattern's coordinates
+
+A chain measures a parameter once per pattern, and a joint fit shares it as one
+number. Between the two is a parameter that differs from pattern to pattern by
+a law you can write down: a cell edge linear in temperature down a ramp, or a
+cell edge that follows the composition across a combinatorial library.
+Declaring the law puts every pattern in one residual with the law's
+coefficients as the refined parameters, which is parametric refinement
+{cite}`stinton2007`. Pattern $k$'s value of the target is
+$p_k = \sum_j \Phi_{kj} c_j$, with $\Phi$ built from each pattern's coordinates
+as {eq}`par-parametric` sets out, and each coefficient comes back with an esd
+from the joint covariance.
+
+It is a joint fit, so the sections above apply unchanged: Rietveld mode only,
+one `MultiHistogramRefinement` or `refine_multi` call, an `Instrument` per
+pattern, and a `SharingMap` deciding what else is shared. The declaration adds
+two keywords to both: `coordinates`, a `CoordinateTable`, and `parametric`, a
+list of `ParametricTie`.
+
+### When it pays
+
+Measured on synthetic LaB₆ ramps of ten patterns at 300-1200 K, each built with
+a known a(T) and fitted over twenty noise seeds (WP-1325):
+
+* While each pattern pins the parameter on its own, the joint slope is the
+  straight line through the chain's trajectory, weighted by each pattern's raw
+  information. It came back a mean 0.0012 esd from that line, with an esd
+  within 2 % of the line's. In this regime the declaration buys convenience:
+  the coefficient and its esd in one result, and one column per coefficient
+  rather than one per pattern. It buys no precision.
+* Sharing the instrument across the patterns does buy precision. With the zero
+  shift and the profile shared, the slope's esd fell 2.6 times and its scatter
+  over the seeds 2.8 times. A joint fit with every pattern's cell left free got
+  the same gain to within 0.001 esd, so the gain is the sharing's and not the
+  declaration's. It holds only while nothing about the mount moves between
+  patterns, which a heating stage can break.
+* Where one pattern cannot see the parameter on its own, the declaration buys
+  precision itself. A minor phase that dissolved on heating was held in the
+  chain's last five patterns ({ref}`a-phase-that-appears-part-way-through`).
+  Against a line through the points the chain kept, the declared line's slope
+  scattered 0.72 times as much over the seeds, about two standard errors from
+  no gain at twenty seeds, and its error at the held patterns was
+  6.8 × 10⁻⁴ Å against 10.1 × 10⁻⁴ Å. The joint fit uses the little each
+  faint pattern carries, which the chain discards, and does not lean on the
+  points just above the hold, whose errors are not Gaussian.
+* The esd is conditional on the declared form being right. Fitted as a line
+  to a cell that in truth curved, the true value at the held patterns lay
+  within two esds of the declared curve in 3 % of cases. Declare the terms the
+  physics needs, and check the declared curve against the chain's trajectory
+  before quoting a coefficient.
+
+There is no soft form: no smoothness penalty and no kernel over the
+coordinates. In the weak-phase regime above, a kernel whose settings were
+estimated from the chain's trajectory extrapolated into the held patterns
+worse than the straight line, and one at hand-set good settings bought
+intervals that covered the truth more often, at no gain in accuracy.
+
+```{admonition} For agents
+:class: agent
+
+Before quoting a coefficient, refine the same patterns as a chain and draw the
+declared curve over `SeriesResult.trajectory`. The coefficient's esd assumes
+the form, and a curve that misses the points is an error the esd does not
+contain.
+```
+
+### Declaring one
+
+`CoordinateTable` holds one row per pattern, in the order the patterns are
+passed. The coordinates live beside the patterns rather than inside each
+declaration, because several declarations can share one table, and not in
+`PatternData.metadata`, which holds strings.
+
+| Member | Holds |
+|---|---|
+| `CoordinateTable.columns` | each coordinate's name, mapped to its value in every pattern. `None` is a pattern with no value for it |
+| `CoordinateTable.units` | a column's unit, from which a coefficient's unit is built |
+| `CoordinateTable.n_patterns` | how many patterns the table describes |
+
+A name must be a single identifier, so that a term can name it, and every
+column needs one value per pattern.
+
+`ParametricTie` declares one target:
+
+| Field | Holds |
+|---|---|
+| `ParametricTie.name` | the declaration's name. Its coefficients are named variables, `vars.<name>_0`, `vars.<name>_1` and so on |
+| `ParametricTie.target` | one bare dot-path under `phases.` or `instrument.`, never a glob and never a `hist.` scope |
+| `ParametricTie.basis` | `"constant"`, `"polynomial"` or `"design"` |
+| `ParametricTie.terms` | a polynomial's terms, each a list of coordinate names: `[]` is the intercept, and a repeated name is a power |
+| `ParametricTie.design` | a design basis's rows, one per pattern of the subset, in subset order |
+| `ParametricTie.patterns` | the subset the law holds over, by index into the patterns as passed. `None` is every pattern |
+| `ParametricTie.reference`, `ParametricTie.scale` | per coordinate, the point a polynomial is centred on and the length it is scaled by |
+
+`ParametricTie.coefficient_paths` lists the coefficients' dot-paths,
+`ParametricTie.n_coefficients` counts them and
+`ParametricTie.coordinates_used` names the coordinates the terms use.
+
+The three bases cover different cases. `"constant"` is one coefficient, the
+same in every pattern of the subset: a parameter shared over part of the fit.
+Over every pattern it reproduces a plain shared parameter bit for bit,
+including its esd. `"polynomial"` is a sum of monomials in the coordinates.
+`"design"` is your own matrix, for a spline, a mixture form or anything else
+linear in its coefficients. Its columns are in units only you know, so its
+coefficients are reported as you defined them, with no unit.
+
+The subset is how a law is kept inside a phase field. A property varies
+smoothly within a field and not across its boundary, so name the patterns the
+law holds over. Outside the subset the target is each pattern's own
+parameter, refined wherever a stage frees it. Two fields with a law each are
+two declarations on one target with disjoint subsets, each with its own name
+and its own reference; a pattern both subsets hold is refused.
+
+A thermal-expansion line down a ramp, declared and resolved without a fit:
+
+```python
+import rietx as rx
+
+lab6 = rx.Structure(phases=[rx.Phase(
+    name="LaB6", space_group="P m -3 m", cell=rx.Cell.cubic(4.15689),
+    atoms=[rx.Atom(label="La", species="La", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))],
+)])
+temperatures = [300.0, 450.0, 600.0, 750.0, 900.0]
+instruments = [rx.Instrument.debye_scherrer(wavelength=0.4139) for _ in temperatures]
+
+coordinates = rx.CoordinateTable(columns={"T": temperatures}, units={"T": "K"})
+expansion = rx.ParametricTie(name="a", target="phases.0.cell.a",
+                             basis="polynomial", terms=[[], ["T"]])
+joint = rx.MultiHistogramRefinement(lab6, instruments, coordinates=coordinates,
+                                    parametric=[expansion])
+
+(resolved,) = joint.parametric
+assert resolved.reference == {"T": 600.0} and resolved.scale == {"T": 300.0}
+assert resolved.coefficient_paths() == ["vars.a_0", "vars.a_1"]
+```
+
+A library is the same declaration over more columns. Here a cell edge over two
+independent substitution fractions is linear in each, carries their product,
+and curves in the first:
+
+```python
+import rietx as rx
+
+library = rx.CoordinateTable(columns={
+    "x": [0.0, 0.0, 0.1, 0.1, 0.2, 0.2, 0.3, 0.3],
+    "y": [0.0, 0.2, 0.0, 0.2, 0.1, 0.3, 0.1, 0.3],
+})
+surface = rx.ParametricTie(name="a", target="phases.0.cell.a", basis="polynomial",
+                           terms=[[], ["x"], ["y"], ["x", "y"], ["x", "x"]])
+assert library.n_patterns == 8
+assert surface.n_coefficients == 5
+assert surface.coordinates_used() == ["x", "y"]
+```
+
+The coordinates need not be compositions. A position on the substrate, a
+time, a pressure or a field are columns like any other.
+
+### The reference and the scale
+
+A polynomial's terms are evaluated on (z − reference)/scale for each
+coordinate. Left out, the reference is the subset's mid-range and the scale its
+half-range, computed once, when the declaration is resolved at construction,
+and stored in the resolved declaration that `MultiHistogramRefinement.parametric`
+returns. Centring is what makes the intercept the target's value at the
+reference rather than an extrapolation to T = 0 K, and it removes the
+correlation between intercept and slope that an off-centre coordinate creates.
+
+Pass that resolved list back for a refit, or for a campaign that has grown.
+Every coefficient then keeps its meaning, because Φ is rebuilt from the stored
+reference and scale. Pass the original declaration instead and a new pattern
+that widens the range moves the reference, so the intercept becomes the value
+at a different temperature.
+
+Fractions that sum to one are the one place the defaults mislead. With an
+intercept the basis is rank-deficient, since the intercept is the sum of the
+fractions, and the refusal says so and names the Scheffé form, which drops the
+intercept. In the Scheffé form give each fraction reference 0 and scale 1, so
+each coefficient is the target in the pure end member and the law is Vegard's
+between them. Left centred, the coefficients would lose that meaning, because
+each fraction is measured from its own mid-range and those points need not lie
+on the simplex. So a basis with no intercept over fractions that sum to a
+constant is refused until its reference and scale are stated:
+
+```python
+import rietx as rx
+
+lab6 = rx.Structure(phases=[rx.Phase(
+    name="LaB6", space_group="P m -3 m", cell=rx.Cell.cubic(4.15689),
+    atoms=[rx.Atom(label="La", species="La", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))],
+)])
+instruments = [rx.Instrument.debye_scherrer(wavelength=0.4139) for _ in range(5)]
+ternary = rx.CoordinateTable(columns={
+    "xa": [0.6, 0.2, 0.2, 0.4, 0.3],
+    "xb": [0.2, 0.6, 0.2, 0.3, 0.3],
+    "xc": [0.2, 0.2, 0.6, 0.3, 0.4],
+})
+
+with_intercept = rx.ParametricTie(name="a", target="phases.0.cell.a",
+                                  basis="polynomial",
+                                  terms=[[], ["xa"], ["xb"], ["xc"]])
+try:
+    rx.MultiHistogramRefinement(lab6, instruments, coordinates=ternary,
+                                parametric=[with_intercept])
+except ValueError as exc:
+    assert "Scheffé" in str(exc)
+else:
+    raise AssertionError("the intercept is the sum of the fractions")
+
+scheffe = rx.ParametricTie(name="a", target="phases.0.cell.a", basis="polynomial",
+                           terms=[["xa"], ["xb"], ["xc"]],
+                           reference={"xa": 0.0, "xb": 0.0, "xc": 0.0},
+                           scale={"xa": 1.0, "xb": 1.0, "xc": 1.0})
+joint = rx.MultiHistogramRefinement(lab6, instruments, coordinates=ternary,
+                                    parametric=[scheffe])
+assert joint.parametric[0].reference == {"xa": 0.0, "xb": 0.0, "xc": 0.0}
+```
+
+### Starting values per pattern
+
+`structure` may be a list, one `Structure` per pattern, wherever the patterns
+should start from different values: a library whose cells span a few per cent,
+or a ramp whose first and last patterns are far apart. The structures are one
+model with different values. They must agree on space group, sites and every
+shared path, and may differ only where a path is per-histogram: the scales,
+anything under `instrument.`, a `SharingMap.per_histogram` override, or a
+parametric target. The coefficients start from the least-squares fit of the
+declared form to the targets' starting values, so starting cells placed on the
+expected line start the coefficients on it. A shared path whose starting values
+differ is refused, naming the path, the histograms and the three ways out.
+
+### What is refused before any solve
+
+Every refusal is a `ValueError`, raised when the declaration or the
+`MultiHistogramRefinement` is constructed, and each names its fix. A malformed
+declaration (a glob or a `hist.` scope as its target, a repeated term, a
+non-positive scale, design rows of unequal length) is refused on its own. The
+rest need the patterns:
+
+| Refused | Fix |
+|---|---|
+| a polynomial with no `coordinates`, or a table whose length is not the pattern count | one row per pattern, in the order passed |
+| a term naming a column the table lacks, or a subset pattern with no value for a coordinate a term uses | give the value, or leave that pattern out of the subset |
+| a coordinate taking one value across the subset | drop the term, or give a `scale` if the subset will grow |
+| fewer patterns in the subset than coefficients | drop terms or widen the subset |
+| a basis whose rank is below its number of terms | drop one term of each collinear set the message names; for fractions summing to one, the Scheffé form |
+| fractions summing to a constant in a basis with no intercept, without a stated `reference` and `scale` | state them: 0 and 1 per fraction for the Scheffé form |
+| a target that is not a parameter of a subset pattern's model | a path the model has; the message says how to list them |
+| a target tied to another path | declare the law on the source the message names |
+| a target locked by symmetry, held by the phase's floating origin, a rigid body's increment or a magnetic moment's degree of freedom | another target: none of these moves itself as one quantity across patterns |
+| a coordinate degree of freedom whose atom the starting structures place differently | start every pattern with the atom in one place |
+| two declarations with one name, or on one target with overlapping subsets | a name each, and disjoint `patterns` per target |
+| starting structures that disagree on a shared path | one value, a per-histogram override, or a declaration on that path |
+| a `SharingMap` that makes a coefficient per-histogram | keep `vars.*` shared |
+
+The coefficients are unbounded, unless the basis is `"constant"`, whose one
+coefficient carries the target's own bounds. A sum of terms has no box that
+holds every pattern's target, so a target can leave its own range on some
+pattern. That is read after the fit, not refused before it: see
+`PARAMETRIC_OUT_OF_RANGE` below.
+
+### Fitting
+
+<!-- api-doc: no-exec — needs the ramp's five measured patterns, and a joint fit is seconds of solver time -->
+```python
+result = rx.refine_multi(patterns, lab6, instruments, plan="mccusker_default",
+                         coordinates=coordinates, parametric=[expansion])
+```
+
+A plan frees the coefficients wherever a stage's glob reaches the target, so
+`mccusker_default`'s cell stage, which frees `phases.*.cell.*`, refines
+`vars.a_0` and `vars.a_1` in the cell's place, and its `StageResult.freed`
+lists them. The target is per-histogram in every pattern, so each pattern
+reports its own value as `hist.<h>.phases.0.cell.a`, with an esd propagated
+from the coefficients, and what the target drives follows it: a cubic cell's
+`b` and `c`. A coefficient that drives a phase no pattern can see is held like
+the cell it drives, and `PHASE_UNCONSTRAINED` names the coefficient.
+
+A library of hundreds of patterns is in reach. Once the stacked Jacobian would
+pass 256 MiB, a joint fit keeps one block per pattern, against that pattern's
+own columns, and never builds the stacked matrix. The step and the esds are
+unchanged in meaning, and `LSQOutcome.jacobian_layout` records which form ran.
+On a synthetic library at 3 000 points a pattern, 300 patterns refined in
+1 GiB, where the stacked Jacobian alone would have needed 20 GiB.
+
+### Reading the coefficients
+
+`RefinementResult.parametric` holds one `ParametricCoefficient` per
+coefficient, and is `None` when nothing was declared.
+
+| Field | Holds |
+|---|---|
+| `ParametricCoefficient.tie`, `ParametricCoefficient.target` | the declaration's name and its target |
+| `ParametricCoefficient.term` | the term: `"1"` for the intercept, then `"T"`, `"x*y"`, `"T^2"`; a design column is `"d0"`, `"d1"` and so on |
+| `ParametricCoefficient.path` | the coefficient's dot-path, `vars.<name>_<j>` |
+| `ParametricCoefficient.value`, `ParametricCoefficient.esd` | the coefficient per unit of the coordinates themselves, at the reference |
+| `ParametricCoefficient.vary` | whether it was refined |
+| `ParametricCoefficient.unit` | the target's unit over the term's coordinate units |
+| `ParametricCoefficient.reference` | the reference point a polynomial was centred on, `None` for the other bases |
+
+Read the coefficients here, never off `RefinementResult.parameters`. The
+`vars.` rows there are in the table's own units, per unit of the scaled
+coordinate: on a five-pattern synthetic ramp at 300-900 K the slope's row read
+0.006235, in Å per 300 K, where its coefficient read 2.0784 × 10⁻⁵ Å/K, the
+same number divided by the scale.
+
+An esd of `None` has one of two causes, and `ParametricCoefficient.vary` says
+which: the coefficient was not free in the last stage, or the joint
+covariance gave it none because no pattern of the subset carried gradient
+for it. A unit of `None` means one of its parts was not recorded. The
+target's unit is its family's in
+the [](glossary.md), so a cell coefficient over a temperature column
+in K reads `Å/K` and a `biso` one `Å²/K`; a coordinate the table gives no unit,
+or a dimensionless target such as an occupancy, leaves the unit `None`.
+
+`str(result)` prints the coefficients after the stages and diagnostics, one
+declaration per heading and one term per line, each with its esd in
+parentheses. On that synthetic ramp:
+
+```text
+  parametric coefficients (user units, at each reference):
+    a: phases.0.cell.a at T=600
+      [1] 4.1628363(23) Å
+      [T] 0.000020784(11) Å/K
+```
+
+A chain has no coefficients of its own. `SeriesResult.summary` takes a joint
+result of the same patterns as `parametric` and prints the same block after
+the trajectory. Under `deliverable="series"` its functional-form row then reads
+"measured jointly", and without one it says the form was not measured:
+
+<!-- api-doc: no-exec — reads a chain and a joint fit of the same patterns -->
+```python
+print(series.summary(deliverable="series", parametric=result))
+```
+
+`PARAMETRIC_OUT_OF_RANGE` is a warning on `RefinementResult.diagnostics`, one
+per declaration, when the fitted coefficients put the target outside its own
+`min`/`max` on some pattern. `where` names each such pattern's
+`hist.<h>.` path and `value` counts them. Do not quote the target there as a
+measurement. Narrow the subset to where the law holds, lower the polynomial's
+order, or declare a design basis that stays inside the range.

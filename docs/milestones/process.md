@@ -1200,6 +1200,9 @@ lanes, the ten trial sessions first:
 | 2026-10-11 | 1b6f1d28 | 3 | 1 | 13K | 8 | 10K | 4.17 | 3 / 0 | +21.28 | +35% |
 | 2026-10-12 | 34ea5c63 | 2 | 0 | 22K | 18 | 56K | 3.66 | 1 / 0 | +11.65 | +27% |
 | 2026-10-13 | fe19ab09 | 2 | 1 | 0K | 20 | 56K | 2.17 | 1 / 0 | +2.52 | +10% |
+| 2026-10-13 | a2f27ce6 | 1 | 1 | 0K | 5 | 7K | 1.88 | 1 / 0 | +2.76 | +21% |
+| 2026-10-13 | 1e6e1192 | 1 | 0 | 0K | 26 | 40K | 2.07 | 0 / 0 | +0.43 | +3% |
+| 2026-10-14 | 2aa6e19e | 4 | 0 | 4K | 8 | 18K | 2.13 | 0 / 0 | +35.62 | +35% |
 
 Session 38257a74 (WP-1523) resumed its one lane by `SendMessage` with a
 revised design after the first report. The tool counts that as no redo, and the
@@ -1224,6 +1227,10 @@ Session fe19ab09 (WP-1912) is entered as fixed 1 where the tool printed 0. After
 the centroid lane it wired the origin rows into `suggest`'s probe, which the
 lane had reported as unresolved. It kept one item, the real-data measurement,
 under a written `lanes: keep` line at 288K.
+
+Session 1e6e1192 (WP-1325) is entered as fixed 0 where the tool printed 1. Its
+two edits after the measurement lane were to the WP file, recording the lane's
+numbers; the lane's script and output were committed as the lane left them.
 
 **The decision: adopted** (2026-10-08,
 [WP-1903](../wp/1903-the-lane-trial-decides.md)). The rule is now `/wp-start`

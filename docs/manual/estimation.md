@@ -476,8 +476,10 @@ frozen within them. A series of related patterns (an in-situ ramp, a parametric
 sweep) is chained by warm starts, and the result is a parameter trajectory,
 path-dependent by construction. The chain can be run in both directions, and
 parameters the two runs disagree on are flagged. That is the one check
-separating a measured trajectory from an ordering artefact. True parametric
-refinement across patterns {cite}`stinton2007` is out of scope.
+separating a measured trajectory from an ordering artefact. Parametric
+refinement {cite}`stinton2007` is the other route: every pattern in one joint
+residual, with a parameter held to a declared function of each pattern's
+coordinates ({ref}`par-parametric-section`).
 
 ## Solvers
 

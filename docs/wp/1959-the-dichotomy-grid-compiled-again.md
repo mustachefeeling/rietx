@@ -31,6 +31,14 @@ Priority: P2 2026-10-13 — a defect that fires wrongly: on #780's monoclinic ca
 
 **Measuring.** `tests/repro_780.py` rebuilds #780's case. On macOS read memory as the physical footprint (`memory_bytes`), not RSS. Under load, count a ceiling with `--cpu-clock`. The bethanechol benchmark's limits are wall clock, so run it alone, on the same class of machine as its baseline. Baseline on the merged WP-1924 tree, Linux x86_64 `[dev]`, 2026-10-13: global −9, manual −3, default −6. Set F's default-mode miss reproduced identically on `main` before #930.
 
+### Inherited
+
+- **2026-10-14, from WP-1961.** The maintainer wants the 1.9.0 cut to follow
+  this WP's merge, ahead of the weekly date. So `rietx-kernels` 1.3.0 is on
+  the cut's path. A rietx 1.9.0 whose floor names a wheel PyPI does not have
+  cannot be installed, and WP-1961 waits for 1.3.0 on the index. Publishing
+  the kernel wheel soon after this merges lets the cut go the same day.
+
 ## Non-goals
 
 - Shrinking the metric box to buy speed (`indexing/CLAUDE.md`).

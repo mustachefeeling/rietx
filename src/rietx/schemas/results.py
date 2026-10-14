@@ -8,6 +8,7 @@ import numpy as np
 from pydantic import Field, model_validator
 
 from .common import Base, Diagnostic, Mode, Provenance
+from .parametric import ParametricCoefficient
 from .pattern import _floor_sigma
 
 
@@ -1218,6 +1219,39 @@ def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
     return lines
 
 
+def _parametric_lines(coefficients: list[ParametricCoefficient] | None) -> list[str]:
+    """The coefficients of a joint fit's parametric declarations (WP-1325).
+
+    Nothing for ``None``, which is "no declaration": the block is the answer
+    of a parametric fit, so it is absent where none was asked for rather than
+    printed empty.  One line per declaration names its target and reference,
+    then one line per term in the caller's units, so the intercept reads as
+    the target *at the reference* and never as an extrapolation to zero.  A
+    term with no esd says which of the two reasons holds.
+    """
+    if coefficients is None:
+        return []
+    from .._display import _number
+
+    lines = ["  parametric coefficients (user units, at each reference):"]
+    seen: set[str] = set()
+    for c in coefficients:
+        if c.tie not in seen:
+            seen.add(c.tie)
+            ref = ("" if not c.reference else " at " + ", ".join(
+                f"{k}={v:g}" for k, v in c.reference.items()))
+            lines.append(f"    {c.tie}: {c.target}{ref}")
+        if not c.vary:
+            value = f"{_number(c.value)} (not free at the answer)"
+        elif c.esd is None:
+            value = f"{_number(c.value)} (no esd: unmeasured)"
+        else:
+            value = _number(c.value, c.esd)
+        unit = f" {c.unit}" if c.unit else ""
+        lines.append(f"      [{c.term}] {value}{unit}")
+    return lines
+
+
 def _provenance_line(provenance: Provenance) -> str:
     """The provenance clause of section 4 — the only part of it a bare
     result can answer (the rest needs the compiled model: held paths, the
@@ -1364,6 +1398,15 @@ class RefinementResult(Base):
     # report built from a deserialized result quotes what fit time measured
     # or shows the section absent, and nothing re-derives it from the curves.
     identifiability: Identifiability | None = None
+
+    #: The coefficients of every parametric declaration a joint fit refined
+    #: (WP-1325, :class:`~rietx.schemas.parametric.ParametricTie`), each in the
+    #: caller's units at the declaration's reference, with its esd from the
+    #: joint covariance or ``None`` where that gives it none.  ``None`` means
+    #: no parametric tie was declared — never "declared, and nothing to say",
+    #: which a declaration cannot be.  One writer:
+    #: ``MultiHistogramRefinement._build_result``.
+    parametric: list[ParametricCoefficient] | None = None
 
     # How many explicit :class:`~rietx.schemas.instrument.HumpComponent` terms
     # this fit declared — the other half of "how flexible was the background":
@@ -1589,6 +1632,7 @@ class RefinementResult(Base):
         lines = [f"RefinementResult: {self.status} ({self.mode})"]
         lines += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
         lines += _diagnostic_lines(self.diagnostics)
+        lines += _parametric_lines(self.parametric)
         lines.append(_provenance_line(self.provenance))
         lines.append(_agreement_line(self.statistics))
         return "\n".join(lines)

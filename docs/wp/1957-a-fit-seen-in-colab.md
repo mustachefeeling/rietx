@@ -1,9 +1,8 @@
 # WP-1957 — a fit seen in Colab: figures at their own shape, the structure beside them, a template for your own data
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — width-only figures, notebook 02's fit and structure, template 06 landed; the Colab check and the PNG-size decision remain
+Milestone: unscheduled · Status: ✅ 2026-10-14 — the maintainer saw 02's figures keep their shape in Colab; the template's landing row arrives with the v1.9.0 tag (WP-1961)
 Track: Render what the fit already knows
 Depends on: —
-Priority: P2 2026-10-13 — a defect with a named user: the Colab quickstart (1917) is live, every figure in it draws distorted, and the maintainer asked
 
 ## Goal
 
@@ -62,8 +61,8 @@ the `.ipynb`:
 So the PNG is the smallest form that carries the picture. Drawing the
 picture from data in the page costs more, and only the text view is smaller.
 The one real saving that keeps a picture is 1× density, at 62 % smaller, and
-it costs sharpness on a HiDPI screen. That is the maintainer's call, so this
-WP does not decide it.
+it costs sharpness on a HiDPI screen. **Decided by the maintainer
+2026-10-14: keep 2×**, so `_NOTEBOOK_DENSITY` stays 2.
 
 The structure figure was the actual space problem. Its `_repr_png_` wrote
 full-colour RGBA, about 185–200 kB a view, and 02 grew from 99 kB to 688 kB.
@@ -140,12 +139,13 @@ Rwp well above it points at the structure.
       that a `render_structure` cell shows an image. Every notebook is rebuilt.
 - [x] Notebook 06, the template, plus its README and manual rows and the
       scratch-directory build.
-- [ ] The maintainer opens notebook 02 in Colab at a narrow window, once the
+- [x] The maintainer opens notebook 02 in Colab at a narrow window, once the
       next release carries this, and records whether the figures keep their
-      shape.
-- [ ] The maintainer decides the PNG density question (Context 3): keep 2×,
-      or go to 1× and save about 60 %.
-- [ ] Skill: none. The changes are display encoding and notebooks for people.
+      shape. Opened from `main` 2026-10-14, whose committed outputs carry the
+      width-only metadata: the figures keep their shape.
+- [x] The maintainer decides the PNG density question (Context 3): keep 2×,
+      or go to 1× and save about 60 %. Decided 2026-10-14: keep 2×.
+- [x] Skill: none. The changes are display encoding and notebooks for people.
       An agent reads results rather than notebook outputs, and the figure
       surface it uses did not change.
 
@@ -166,6 +166,68 @@ The maintainer records the Colab check in the handover.
 - anywidget, the interactive tier left out: https://anywidget.dev
 
 ## Handover log
+
+### 2026-10-14 — closed on the maintainer's Colab check
+
+Notebook figures now keep their shape in Colab. The maintainer opened
+notebook 02 at a narrow window and confirmed it. That settles the hypothesis in
+Context 1: Colab squashed figures that declared a height, and declaring the
+width alone fixes it. Every task is done, and the WP closes. People running
+the notebooks get the fix from the 1.9.0 release, which also puts template 06
+on the landing page.
+
+*Done.* The Colab task is ticked with the observation. The maintainer opened
+02 from `main` without running it. Its committed outputs carry the width-only
+metadata, so the picture tested the fix itself. The narrative is in
+`docs/milestones/v1.9.md`. The live view in Context 2 stays deferred, by the
+maintainer's decision, with no owner.
+
+Next: none here. WP-1961 cuts 1.9.0, after which `%pip install rietx` draws
+width-only figures and the landing page lists 06.
+
+### 2026-10-14 — the density kept, and the template's route to the landing page
+
+The notebook figures stay at 2× density, so they stay sharp on a HiDPI
+screen. The maintainer chose that from the measured sizes in Context 3, and
+that question is closed. The template notebook is not yet on the landing page.
+The page lists notebooks from the newest release tag, and the template merged
+the day after v1.8.0. It appears by itself at the v1.9.0 tag, and the
+maintainer asked for an early cut once WP-1959 lands. The template already
+runs on rietx 1.8.0. Its figures there still carry the old width-and-height
+metadata, though, so only the release brings the shape fix to Colab. One check
+remains, and only the maintainer can make it.
+
+*Done.* The density task is ticked with the decision, and Context 3 says
+`_NOTEBOOK_DENSITY` stays 2. The skill item is ticked. No source changed.
+
+*Measured* (macOS arm64, a scratch Python 3.13 venv holding Colab's
+matplotlib 3.10.0 and numpy 2.1.3, with `rietx==1.8.0` from PyPI):
+- 06's source runs top to bottom on 1.8.0. It took 22.1 s wall with
+  `MPLBACKEND=Agg` and its output directory moved to scratch, and it wrote
+  `fit.png`, `refined.cif` and `refinement.rex`.
+- v1.8.0's `_notebook_png` still returns `{"width", "height"}`
+  (`v1.8.0:src/rietx/viz/plots.py:397`). So 06 opened in Colab today draws
+  through the metadata this WP replaced.
+- A dry run of `rietx==1.8.0` over that set installs `rietx` and
+  `rietx-kernels` 1.2.0 and nothing else. That predicts WP-1917's restart
+  check passes, and the note is in its Inherited.
+- All four PNG outputs in the committed 02 declare `width` alone. Opening 02
+  from `main` in Colab therefore shows the fix without running anything.
+
+No test, fast suite or full suite ran beyond `test_docs_consistency.py`,
+because this branch changes two WP files and the index.
+
+*Gotchas.* The template's row cannot come before its tag without a rule no
+test can hold. A notebook linked at `main` installs the last release, and
+nothing in CI runs `main`'s notebooks against PyPI. That option was offered
+and not taken.
+
+Next:
+1. The maintainer opens 02 from `main` in Colab at a narrow window
+   (`https://colab.research.google.com/github/yue-here/rietx/blob/main/examples/tutorials/02_simple_rietveld.ipynb`)
+   and records whether the figures keep their shape. The WP closes on that.
+2. The 1.9 cut, to be filed as WP-1961, waits for WP-1959. At the tag the
+   template's row appears and the fix reaches `%pip install rietx`.
 
 ### 2026-10-13 (second session) — the figures, notebook 02, the template
 
