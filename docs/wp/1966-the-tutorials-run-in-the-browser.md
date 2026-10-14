@@ -1,6 +1,6 @@
 # WP-1966 — the tutorials run in the browser, in JupyterLite
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — all six tutorials run in JupyterLite in headless Chromium; the site goes to /lite/ on merge, which is the maintainer's call
+Milestone: unscheduled · Status: 🔄 2026-10-14 — the site is live at /lite/ and each landing-page row links to it; the root CLAUDE.md rule waits on a cap decision
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-10-14 — Colab covers it; a second door with no Google account and no server
@@ -76,10 +76,10 @@ match that ABI.
 - [x] `docs/lite/smoke.mjs`: the site's six tutorials run in headless
   Chromium; `tests/test_lite.py` holds the projection and the `fcntl` mock.
 - [x] The site at `/lite/` in `pages.yml`, a wheel from the same commit.
-- [ ] The maintainer opens the site and decides whether it ships. If it
-  does: a "Run in the browser" link per landing-page row, and the two
-  `docs/lite/README.md` rules as a root CLAUDE.md bullet (the file is at
-  its pinned cap, so that is a cap decision).
+- [x] The maintainer opens the site and decides whether it ships. It
+  does: a "Browser" link per landing-page row, beside Colab.
+- [ ] The two `docs/lite/README.md` rules as a root CLAUDE.md bullet (the
+  file is at its pinned cap, so that is a cap decision).
 - [x] Skill: none. An agent driving rietx runs it in a Python with the
   kernels; this is a reader's door.
 
@@ -101,6 +101,48 @@ PW=<playwright> node docs/lite/smoke.mjs docs/lite/site
 - PEP 783 (the `pyemscripten` platform tag).
 
 ## Handover log
+
+### 2026-10-14 (3rd session) — the landing page links the browser copy
+
+A reader of rietx.org can now open any tutorial in the browser site
+straight from the landing page, with no account. Each tutorial row has a
+Browser link beside Colab. The browser copy comes from the latest commit on
+`main` and the other links come from the release, so a tutorial renamed on
+`main` before a release would leave its Browser link pointing at nothing.
+
+*Done.* `build.LITE` is
+`https://rietx.org/lite/notebooks/index.html?path=`, the URL form
+`smoke.mjs` opens. `notebook_rows` puts the Browser link between Colab and
+Download. `tests/test_landing.py` gains one case. It checks one Browser link
+per notebook, `LITE` against `smoke.mjs`'s URL, and `pages.yml` still building
+the site to `site/lite`. The row test now counts three mentions of each
+notebook's file name. The landing README, the panel comment and the CSS
+comment name the Browser link as the one exception to the tag rule.
+
+*Measured.* All six notebooks and `notebooks/index.html?path=01_quickstart.ipynb`
+answered 200 on the live site. In Chromium at 375 px the four links fit on
+their own line under the title, in both themes, with no horizontal scroll. At
+1280 px they fit beside the title. The fast selection gave 9713 passed,
+187 skipped and 1 xfailed in 3:38 (`[dev]` venv, macOS arm64, nothing else
+running). main's baseline was not measured, so the +1 is the new case's own
+count, not a measured delta. `added_test_times` puts the new case at 0.00 s.
+The full selection did not run, because no measured number can move.
+
+*Review* (`/code-review high --fix`): seven findings, four fixed in one
+commit (the three comments and the test above). Three were declined. (1) No
+build check that each Browser link's name still exists at `HEAD`. The landing
+build could check this, since both builds run in one `pages.yml` checkout and
+`notebooks("HEAD")` is available. But the check would have to drop a link
+silently or fail the whole site deploy, for a rename that fixes itself at the
+next tag. (2) The panel's lead sentence is the maintainer's copy, left as
+written. It still says to choose Colab to run the tutorials in the browser.
+(3) `nb.name` goes into the query unencoded. The Colab and Download links are
+unencoded in the same way, and none of today's six names needs encoding.
+
+*Next.* (1) The maintainer rewords the lead sentence if they want it to name
+the Browser option. (2) The two `docs/lite/README.md` rules go into the root
+CLAUDE.md, which is a cap decision. That is the last open task, and it closes
+the WP.
 
 ### 2026-10-14 (2nd session) — the compiled kernels run in the browser too
 

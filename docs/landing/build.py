@@ -44,6 +44,10 @@ TUTORIALS = "examples/tutorials"
 #: The tutorials' own glob, so a sixth notebook gets a row with no edit here.
 SOURCES = _by_path("_landing_tutorials", REPO / TUTORIALS / "build.py").SOURCES
 COLAB = "https://colab.research.google.com/github/"
+# The JupyterLite site `pages.yml` builds to /lite/ (WP-1966), opened at the URL `smoke.mjs`
+# runs.  Its notebooks sit at the site root under their file names, and they are the Pages
+# commit's rather than the tag's, paired with a rietx wheel from that commit.
+LITE = f"{ABOUT.DOCS_URL}/lite/notebooks/index.html?path="
 
 
 # The Jupyter quickstart's notebooks come from the newest release tag, never from `main`
@@ -96,7 +100,7 @@ def notebooks(ref: str, repo: Path = REPO) -> tuple[Notebook, ...]:
 
 
 def notebook_rows(ref: str, books: tuple[Notebook, ...]) -> str:
-    """The Jupyter quickstart's list: each notebook's title, then Read, Colab, Download."""
+    """The Jupyter quickstart's list: each notebook's title, then Read, Colab, Browser, Download."""
     repo = ABOUT.REPO_URL.removeprefix("https://github.com/")
     rows = []
     for nb in books:
@@ -105,6 +109,7 @@ def notebook_rows(ref: str, books: tuple[Notebook, ...]) -> str:
             f'<li><span class="nb-title">{_html.escape(nb.title)}</span><span class="nb-links">'
             f'<a href="{ABOUT.DOCS_URL}/using/tutorials/{stem}.html">Read</a>'
             f'<a href="{COLAB}{repo}/blob/{ref}/{nb.path}">Colab</a>'
+            f'<a href="{LITE}{nb.name}">Browser</a>'
             f'<a href="notebooks/{nb.name}" download>Download</a></span></li>')
     return "\n".join(rows)
 
