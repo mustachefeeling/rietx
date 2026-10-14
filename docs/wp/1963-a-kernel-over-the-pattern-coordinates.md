@@ -63,6 +63,15 @@ PET kernel method) and lists its costs and scaling; the literature is in
 - Scale: hundreds of patterns, so a dense kernel matrix over the coordinates
   is the first cost to measure against a sparse or state-space form.
 
+### Inherited
+
+- **From WP-1966 (2026-10-14): the `WP-1963:` commits of 2026-10-14 are not
+  this WP's.** WP-1966 was filed as 1963 the same afternoon this WP was, and
+  was renumbered at `7f7b44e0`. Every `WP-1963:`-prefixed commit up to that
+  one is the JupyterLite work, so `git log --grep WP-1963` finds it too. The
+  session-start hook read those commits as this WP's work and flagged a
+  repair. This note touches the file after them and clears the flag.
+
 ## Non-goals
 
 - Replacing the hard tie. It earned a measured precision gain in the same
