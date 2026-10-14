@@ -21,8 +21,8 @@ TRF fit stops at max_iter at 18.09 %, and ΔBIC reads +9.2 (+392 at raw N).
 Since WP-1953 the axial stage refines S/L with H/L held at 0, and on 1.9.0 the
 TRF fit converges at 17.88 % from 18.64 %, ΔBIC +21.0 (+578 at raw N).
 It is nonetheless **physically inadmissible**: the refinement drives σ²(M)
-negative on 12 of the 43 fitted reflections, and the fit stops at max_iter
-rather than converging.  σ² is a variance; a negative one is not a large
+negative on 12 of the 43 fitted reflections, and the v0.5 fit stopped at
+max_iter rather than converging.  σ² is a variance; a negative one is not a large
 anisotropy but coefficients outside the cone, and the reflections it touches
 silently get no strain broadening at all.  ``STEPHENS_STRAIN_NOT_POSITIVE``
 fires, which is the whole point of having it.
@@ -294,7 +294,7 @@ def test_brucite_improvement_is_justified_but_leaves_the_physical_cone(
     bic, hamilton = info["eff"]
     assert bic > 0.0 and hamilton
     # …jointly: at most one of the four S_HKL coefficients lies 2σ from zero
-    # (value/esd 0.38, −1.27, 0.37, 2.57), so the data measure the block and
+    # (value/esd 0.37, −1.22, 0.40, 2.29 on 1.9.0), so the data measure the block and
     # not its coefficients.  From zero, because the isotropic fit has no block
     t = [p.value / p.stderr for p in ani.parameters
          if ".microstrain.dof." in p.path and p.stderr]
@@ -324,7 +324,7 @@ def test_corundum_is_reported_isotropic(corundum_plain):
     strain = ref.report().strain[0]
     assert not strain.detected
     assert strain.r2 < 0.5              # nothing directional beyond isotropic
-    # the ratio of an *insignificant* diagnostic fit (r² here is ~1e-5) is
+    # the ratio of an *insignificant* diagnostic fit (r² here is 0.11 on 1.9.0) is
     # noise, and it drifted from ~1.9 to ~2.02 when WP-1112 resized the
     # evaluation windows — the isotropic verdict is carried by ``detected``
     # and ``r2`` above; this bar only keeps the quoted magnitude honest.

@@ -363,7 +363,7 @@ def test_sample1_bias_has_the_dispersion_shape(sample1_results):
     identical protocol takes the overall RMS error from 2.26 to 0.62 wt % and
     the worst |ΔW| from 5.13 to 1.20 (``test_acceptance_dispersion.py``).
 
-    Microabsorption is real and still present in the ~0.7 wt % that remains;
+    Microabsorption is real and still present in the ~0.6 wt % that remains;
     it is no longer the leading term.  Asserting the shape pins the
     explanation; a change that breaks it should fail here and prompt another
     re-derivation."""

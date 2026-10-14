@@ -298,7 +298,9 @@ CLAIMS: tuple[Claim, ...] = (
                   "about a real holder",
         measured="centres within 0.005 deg of 37.4814 and 43.6593 (bar 0.05); "
                  "areas 125.6(37) and 123.4(19) against 120, 1.5 and 1.8 sigma "
-                 "high, which is the on-reflection degeneracy being real",
+                 "high, which is the on-reflection degeneracy being real.  "
+                 "1.8.0 read 37.4420 and 43.6206, areas 123.2(36) and "
+                 "124.5(20), before WP-1908 moved the clean fit's ticks",
     ),
     Claim(
         "test_acceptance_extra_peaks", "test_the_declared_peaks_are_ticks_and_not_background",
