@@ -68,12 +68,12 @@ Near a singular metric Q is dense, so every line keeps matching and the subtree 
 ## Tasks
 
 - [x] Run the row-free prunes before the Q bounds (`a7ba2bbb`): the grid 4.4× cheaper, every box's answer unchanged, the seven digests replayed.
-- [ ] The obliquity prune in `_test_box`: refuse a box whose unclipped ρ interval lies wholly outside ±cos 30° for some off-diagonal. A test on #780's out-of-domain box. The seven digests (only synthmono has an off-diagonal free), `tests/test_acceptance_indexing.py`, and the bethanechol benchmark alone in default mode against −6.
+- [x] The obliquity prune in `_test_box`: refuse a box whose unclipped ρ interval lies wholly outside ±cos 30° for some off-diagonal. A test on #780's out-of-domain box. The seven digests (only synthmono has an off-diagonal free), `tests/test_acceptance_indexing.py`, and the bethanechol benchmark alone in default mode against −6. `56f0cfd9`: synthmono keeps its digest, the acceptance file 44 passed, the benchmark −3 (macOS arm64; the −6 baseline is Linux x86_64).
 - [x] Profile one grid on #780's case: the share of `_test_box` against the loop around it. Decide between a box-test kernel and a whole-traversal kernel, and write the measurement here. The box test alone (§ Findings): `_test_box` was 99.2 % of the grid, and once the kernel runs, phase 2 is 82 % leaves.
 - [x] The kernel in `kernels/src/`, with its `compiled.py` entry point and the numpy fallback. Bit-identical to `_test_box` box by box on #780's case and the seven WP-1924 replay digests. `kernels/src/dichotomy.rs`; `compiled.dichotomy_kernels` declines for the indexer alone on a wheel without it.
 - [x] Wire it into the grid and phase 2. Leaf-by-leaf agreement with the numpy loop under `RIETX_COMPILED=0` in a test. `tests/test_indexing_kernels.py`, which `kernels.yml` runs against the wheel a pull request builds.
 - [ ] `rietx-kernels` 1.3.0 and rietx's floor raised (`docs/RELEASING.md`'s kernel route).
-- [ ] Measure: #780's grid CPU before and after, and the largest whole-run ceiling under which #780's case still returns no candidate. Then `tests/test_acceptance_indexing.py`, and the bethanechol benchmark run alone in default mode against −6.
+- [x] Measure: #780's grid CPU before and after, and the largest whole-run ceiling under which #780's case still returns no candidate. Then `tests/test_acceptance_indexing.py`, and the bethanechol benchmark run alone in default mode against −6. Grid 57 s → 3.6-4.5 s of CPU; starving ceiling 7 s; acceptance 44 passed; benchmark default −3 (Bb, Db and E rank 1, F rank 4), run alone on macOS arm64 `[dev]`.
 - [x] Skill: `references/abstention.md`'s `INDEX_BUDGET_EXHAUSTED` row if the advice on a ceiling for large volumes moves, else "none" and why. Its measured sentence moved: #780's cell now comes 8 s of CPU into the search, where a 120 s ceiling returned nothing; the advice itself stands.
 
 ## Acceptance
