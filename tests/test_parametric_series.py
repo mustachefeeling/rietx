@@ -353,17 +353,20 @@ def test_a_column_is_held_only_when_every_phase_it_moves_is_unseen():
     mt.set_vary(["phases.*.cell.*"], True)
     assert "vars.b_0" in mt.free_paths
     # by name the coefficient carries no phase; by reach it is phase 1's cell
-    assert _unsupported_paths_multi(mt, {1}) == ["vars.b_0"]
-    assert _unsupported_paths_multi(mt, {0}) == ["phases.0.cell.a"]
+    assert _unsupported_paths_multi(mt, [{1}, {1}]) == ["vars.b_0"]
+    assert _unsupported_paths_multi(mt, [{0}, {0}]) == ["phases.0.cell.a"]
+    # it drives phase 1's cell in both histograms, so one that sees the phase
+    # gives it gradient
+    assert _unsupported_paths_multi(mt, [{1}, set()]) == []
     # the same coefficient made to drive phase 0's cell too: one visible
     # phase gives it gradient, so it is held only when both are unseen
     for t in mt.tables:
         t.set_tie("phases.0.cell.a", AffineTie.identity("vars.b_0"))
         t.refresh_ties()
     mt._rebuild_columns()
-    assert _unsupported_paths_multi(mt, {1}) == []
-    assert _unsupported_paths_multi(mt, {0}) == []
-    assert _unsupported_paths_multi(mt, {0, 1}) == ["vars.b_0"]
+    assert _unsupported_paths_multi(mt, [{1}, {1}]) == []
+    assert _unsupported_paths_multi(mt, [{0}, {0}]) == []
+    assert _unsupported_paths_multi(mt, [{0, 1}, {0, 1}]) == ["vars.b_0"]
 
 
 def test_per_pattern_starting_structures_differ_only_where_a_path_is_per_histogram():

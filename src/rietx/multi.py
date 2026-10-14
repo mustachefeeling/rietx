@@ -88,7 +88,6 @@ from .refine import (
     _judge_magnetic_groups,
     _low_angle_diagnostics,
     _max_iter_diagnostics,
-    _only_moves,
     _onto_flat_meridian,
     _origin_diagnostics,
     _phase_agreement,
@@ -360,13 +359,20 @@ def _normalize_limits(ttl, n: int) -> list[tuple[float, float] | None]:
     return ttl
 
 
-def _joint_unsupported_phases(models, mtable) -> set[int]:
-    """Phases below support in **every** histogram (WP-1301).
+def _joint_unsupported_phases(models, mtable) -> list[set[int]]:
+    """Per histogram, the phases below support in it (WP-1301).
 
-    The authority ``_freeze_cell_windows_multi`` uses, for its reason: a phase
-    invisible in one histogram may be plain in another, and if its cell is
-    shared then the data — jointly, which is what a joint refinement fits —
-    can see it.
+    **Per histogram, because a path can be** (WP-1325).  Whether the data sees
+    an entry depends on where it lives, and :func:`_unseen` asks that of each
+    entry a column reaches.  A shared cell lives in every histogram, so it is
+    flat only where its phase is unseen in all of them: a phase invisible in
+    one histogram and plain in another is seen by the joint fit that shares
+    its cell, the reason ``_freeze_cell_windows_multi`` gives.  A cell made
+    per-histogram (``SharingMap.per_histogram``, the series and library case)
+    lives in one pattern, so it is flat wherever its own pattern cannot see
+    the phase.  Decided per phase, a two-pattern joint fit held nothing of a
+    phase absent from one pattern and present in the other
+    (``test_a_joint_series_fit_holds_a_vanished_phase_in_its_own_pattern``).
 
     The screen ``CompiledModel.phase_support`` alone, at the stage start and
     at the answer alike.  The single fit's answer reads the scale's
@@ -375,9 +381,34 @@ def _joint_unsupported_phases(models, mtable) -> set[int]:
     """
     per_model = [m.phase_support(t.decode(t.x0()))
                  for m, t in zip(models, mtable.tables, strict=True)]
-    n_phases = min((len(s) for s in per_model), default=0)
-    return {ip for ip in range(n_phases)
-            if all(s[ip] < PHASE_SUPPORT_SIGMA for s in per_model)}
+    return [{ip for ip, s in enumerate(support) if s < PHASE_SUPPORT_SIGMA}
+            for support in per_model]
+
+
+def _unseen(mtable, name: str, absent: list[set[int]]) -> bool:
+    """Whether ``name``, a reached entry as the joint table spells it, is
+    structure of a phase below support wherever the entry lives.
+
+    A ``hist.{h}.`` entry lives in histogram h, a bare (shared) one in every
+    histogram.  A phase's ``scale`` is never unseen, for
+    :func:`~rietx.refine._only_moves`' reason: it is the one direction that is
+    not flat.
+    """
+    bare = _unscoped(name)
+    m = _PHASE_PREFIX.match(bare)
+    if m is None or bare.endswith(".scale"):
+        return False
+    ip = int(m.group(1))
+    owner = mtable._owner(name)
+    return all(ip in a for a in (absent if owner is None else [absent[owner]]))
+
+
+def _only_unseen(mtable, reached: list[str], absent: list[set[int]]) -> bool:
+    """:func:`~rietx.refine._only_moves` for joint entries: every model entry
+    the column reaches is :func:`_unseen`.  All, never any; a variable is
+    dropped before the test; a column reaching no model entry is not held."""
+    moved = [q for q in reached if not is_variable_path(_unscoped(q))]
+    return bool(moved) and all(_unseen(mtable, q, absent) for q in moved)
 
 
 def _joint_column_reach(mtable) -> dict[str, list[str]]:
@@ -422,24 +453,25 @@ def _joint_phases_reached(columns: list[str], reach: dict[str, list[str]]) -> se
             if (m := _PHASE_PREFIX.match(_unscoped(name)))}
 
 
-def _unsupported_paths_multi(mtable, absent: set[int],
+def _unsupported_paths_multi(mtable, absent: list[set[int]],
                              reach: dict[str, list[str]] | None = None) -> list[str]:
-    """The joint columns that move nothing but structure of the ``absent`` phases.
+    """The joint columns that move nothing the data can see.
 
-    **Columns, never names** (WP-1342), the single fit's
+    ``absent`` is :func:`_joint_unsupported_phases`' answer, one set per
+    histogram.  **Columns, never names** (WP-1342), the single fit's
     :func:`~rietx.refine._unsupported_phase_paths` across the stack: a
     parametric coefficient ``vars.X_j`` (WP-1325) drives a phase's cells in
     every subset histogram while its own name carries no phase, so a name
-    prefix could neither hold it nor see it.  :func:`~rietx.refine._only_moves`
-    decides over what each column reaches in **every** histogram: all, never
-    any, the variable itself dropped first, and the phase's scale never.
+    prefix could neither hold it nor see it.  :func:`_only_unseen` decides
+    over what each column reaches in **every** histogram, each entry judged
+    where it lives: all, never any, the variable itself dropped first, and the
+    phase's scale never.
     """
-    if not absent:
+    if not any(absent):
         return []
     reach = _joint_column_reach(mtable) if reach is None else reach
-    prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
     return [p for p in mtable.free_paths
-            if _only_moves([_unscoped(q) for q in reach.get(p, [p])], prefixes)]
+            if _only_unseen(mtable, reach.get(p, [p]), absent)]
 
 
 def _hold_unsupported_phases_multi(models, mtable,
@@ -581,12 +613,10 @@ def _rehold_multi(models, mtable, held: list[str],
     # one measurement, two questions — the release and the collapse are
     # complementary readings of the same joint support test
     absent = _joint_unsupported_phases(models, mtable)
-    prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
     held_set = set(held)
     held_reach = held_reach or {}
     released = [p for p in held
-                if not (prefixes and _only_moves(
-                    [_unscoped(q) for q in (p, *held_reach.get(p, ()))], prefixes))]
+                if not _only_unseen(mtable, [p, *held_reach.get(p, ())], absent)]
     collapsed = [p for p in _unsupported_paths_multi(mtable, absent, reach)
                  if p not in held_set]
     if collapsed:
@@ -612,7 +642,7 @@ def _flat_moments_multi(models, mtable, candidates: list[str] | None = None
     """Moment directions flat in **every** histogram that carries them (#600).
 
     The joint form of :func:`rietx.refine._flat_moment_paths`, and the
-    intersection for the reason :func:`_joint_unsupported_phases` takes one:
+    intersection for the reason :func:`_unseen` takes one for a shared entry:
     a direction one histogram can see is not flat, because the joint fit
     sees it through that histogram.  An X-ray histogram does not see a moment
     at all — its modulus response is exactly zero, so the per-histogram probe
@@ -1294,11 +1324,11 @@ class MultiHistogramRefinement:
                         self.mtable.tables, strict=True)]
                 self.mtable.push_moment_frames(models)
                 stage_ftol = {} if ftol is None else {"ftol": ftol}
-                # A phase the data cannot see is flat here too, and "the data" is
-                # every histogram (WP-1301): the rule is the one
-                # ``_freeze_cell_windows_multi`` already applies, since a phase
-                # invisible in one pattern and plain in another *is* seen by the
-                # joint fit that shares its cell.
+                # A phase the data cannot see is flat here too (WP-1301), and
+                # each entry is judged where it lives (``_unseen``, WP-1325): a
+                # shared cell only when no histogram sees the phase, the rule
+                # ``_freeze_cell_windows_multi`` applies, and a per-histogram
+                # cell wherever its own pattern cannot.
                 # ``freed`` is derived from this whenever the hold moves, so the
                 # record's ``freed``/``held`` stay disjoint however the stage ends
                 # — the single-histogram runner's rule (``_run_stage``)
@@ -1774,12 +1804,15 @@ class MultiHistogramRefinement:
         # range the union of theirs.  Before this the joint path was the only
         # one that never said it at all.
         #
-        # ``max``, quoting ``_joint_unsupported_phases`` — a phase is one the
-        # joint fit cannot see only when it is below support in *every*
+        # ``max``, because the statement is about the phase: the joint fit
+        # cannot see a phase at all only when it is below support in *every*
         # histogram, and that is exactly ``max(support) < σ``.  The weakest
         # showing would fire this on a phase invisible in one pattern and plain
-        # in another, which is a phase the joint fit measures and never holds:
-        # a warning on a healthy phase teaches a consumer to ignore the code.
+        # in another, which is a phase the joint fit measures: a warning on a
+        # healthy phase teaches a consumer to ignore the code.  Where its cell
+        # is per-histogram, the patterns that cannot see it hold their own copy
+        # (``_unseen``, WP-1325), and that hold is on ``StageResult.held``;
+        # naming it per pattern is the joint report's, WP-1341's.
         #
         # The screen alone, never the single fit's significance (WP-1523): the
         # joint report is WP-1341's, so the message names the screen's basis.

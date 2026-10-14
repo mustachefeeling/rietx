@@ -19,12 +19,14 @@ TRUE_SCALE = 5e-4
 TRUE_BKG = [40.0, -6.0, 1.5]
 
 
-def synthesize(noise_seed: int | None = 7) -> PatternData:
+def synthesize(noise_seed: int | None = 7, extra_phases=()) -> PatternData:
+    """The LaB₆ truth, plus ``extra_phases`` drawn at the values they carry."""
     structure = make_lab6()
     structure.phases[0].cell.a.value = TRUE_A
     structure.phases[0].cell.b.value = TRUE_A
     structure.phases[0].cell.c.value = TRUE_A
     structure.phases[0].scale.value = TRUE_SCALE
+    structure.phases.extend(extra_phases)
     ins = Instrument.debye_scherrer(wavelength=WAVELENGTH)
     ins.zero_shift.value = TRUE_ZERO
     ins.profile.w.value = TRUE_W
