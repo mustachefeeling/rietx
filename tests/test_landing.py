@@ -480,7 +480,7 @@ def test_the_jupyter_quickstart_has_one_row_per_notebook(site_html):
         heading = next(line for line in source.read_text(encoding="utf-8").splitlines()
                        if line.startswith("# # "))
         assert f'<span class="nb-title">{_html.escape(heading[4:].strip())}</span>' in row, source.name
-        assert row.count(f"{source.stem}.ipynb") == 2 and f"/{source.stem}.html" in row, source.name
+        assert row.count(f"{source.stem}.ipynb") == 3 and f"/{source.stem}.html" in row, source.name
 
 
 def test_every_colab_link_opens_the_notebook_at_the_ref(site_html, build):
@@ -495,6 +495,17 @@ def test_every_colab_link_opens_the_notebook_at_the_ref(site_html, build):
         assert link.startswith(prefix), link
         found = subprocess.run(["git", "-C", str(REPO_ROOT), "cat-file", "-e", f"{REF}:{link[len(prefix):]}"])
         assert found.returncode == 0, f"{link} names no file at {REF}"
+
+
+def test_every_browser_link_opens_a_notebook_the_lite_site_serves(site_html, build):
+    """A Browser link opens the JupyterLite copy (WP-1966).  `pages.yml` builds that site
+    to /lite/, and `docs/lite/build.py` puts each notebook at its root under its file name,
+    read through the same `notebooks` as these rows."""
+    links = re.findall(r'href="([^"]+)">Browser</a>', site_html)
+    assert links == [build.LITE + nb.name for nb in build.notebooks(REF)]
+    assert build.LITE.startswith(f"{build.ABOUT.DOCS_URL}/lite/")
+    workflow = (REPO_ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
+    assert "--out site/lite" in workflow, "pages.yml no longer builds the browser site at /lite/"
 
 
 def test_every_read_link_is_a_page_the_manual_builds(site_html):

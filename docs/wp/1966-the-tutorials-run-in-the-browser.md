@@ -1,6 +1,6 @@
 # WP-1966 — the tutorials run in the browser, in JupyterLite
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — all six tutorials run in JupyterLite in headless Chromium; the site goes to /lite/ on merge, which is the maintainer's call
+Milestone: unscheduled · Status: 🔄 2026-10-14 — the site is live at /lite/ and each landing-page row links to it; the root CLAUDE.md rule waits on a cap decision
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-10-14 — Colab covers it; a second door with no Google account and no server
@@ -76,10 +76,10 @@ match that ABI.
 - [x] `docs/lite/smoke.mjs`: the site's six tutorials run in headless
   Chromium; `tests/test_lite.py` holds the projection and the `fcntl` mock.
 - [x] The site at `/lite/` in `pages.yml`, a wheel from the same commit.
-- [ ] The maintainer opens the site and decides whether it ships. If it
-  does: a "Run in the browser" link per landing-page row, and the two
-  `docs/lite/README.md` rules as a root CLAUDE.md bullet (the file is at
-  its pinned cap, so that is a cap decision).
+- [x] The maintainer opens the site and decides whether it ships. It
+  does: a "Browser" link per landing-page row, beside Colab.
+- [ ] The two `docs/lite/README.md` rules as a root CLAUDE.md bullet (the
+  file is at its pinned cap, so that is a cap decision).
 - [x] Skill: none. An agent driving rietx runs it in a Python with the
   kernels; this is a reader's door.
 
@@ -101,6 +101,26 @@ PW=<playwright> node docs/lite/smoke.mjs docs/lite/site
 - PEP 783 (the `pyemscripten` platform tag).
 
 ## Handover log
+
+### 2026-10-14 (3rd session) — the landing page links the browser copy
+
+Each row of the landing page's Jupyter quickstart now has a Browser link,
+between Colab and Download. It opens
+`https://rietx.org/lite/notebooks/index.html?path=<notebook>`, the URL form
+`smoke.mjs` runs. All six notebooks and that page answered 200 on the live
+site. `build.LITE` holds the URL. `tests/test_landing.py` gains one case: one
+Browser link per notebook, and `pages.yml` still building the site to
+`site/lite`. The row test now counts three mentions of each notebook's file
+name. At 375 px the four links fit on their own line, with no horizontal
+scroll, in both themes. Checked in Chromium.
+
+The rows are the newest tag's notebooks, and the browser copies are the Pages
+commit's. A link keys on the file name, so it breaks only if `main` renames or
+drops a tutorial before the next release. Nothing checks that, because the
+landing build cannot see what the lite build serves.
+
+The Jupyter panel's lead sentence is the maintainer's copy, and it still says
+to choose Colab to run the notebooks in a browser. It is left as written.
 
 ### 2026-10-14 (2nd session) — the compiled kernels run in the browser too
 
