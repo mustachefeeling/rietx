@@ -835,13 +835,24 @@ whether another Rust kernel would speed the joint fit.
   sharing one `r` column are not one model with different values. Decide
   which fields must agree and refuse the rest. Declined from the 2026-10-14
   code review as a design decision.
-- [ ] **The measurement on real data**: the ZrMo₂O₈ ramp (maintainer-local),
-  with the same numbers as the synthetic half. Two more sources, which the
-  maintainer cleared for local use only (2026-10-14; never committed): the
-  Durham TOPAS surface tutorials, ZrP₂O₇ (37 patterns, three phases, Stinton &
-  Evans 2007) and Tutorial 39 (100 WO₃ patterns through its transitions). A
-  cloud container reaches neither: the maintainer's disk is not mounted there,
-  and the Durham host is outside its network policy.
+- [ ] **The measurement on real data**, with the same numbers as the
+  synthetic half. All three sources are Durham TOPAS tutorials. They are
+  public downloads, which the maintainer cleared for local use only
+  (2026-10-14; never committed):
+  - ZrMo₂O₈ on a ramp (tutorial 9.2), the first 68 of the RAW file's 82
+    ranges. This is the ramp the Scope calls the maintainer's local copy,
+    byte for byte;
+  - ZrP₂O₇ (tutorial 9.5; Stinton & Evans 2007). Its input reads 37 of the
+    RAW file's 871 ranges, 303 K to 1173 K and back, with three phases:
+    ZrP₂O₇, a silicon standard and Al₂O₃. TOPAS numbers a range from 1 and
+    `read_pattern(scan=)` from 0;
+  - WO₃ (tutorials 9.3 and 9.4, the maintainer's "Tutorial 39"; 100 patterns
+    cooled from 300 to 90 K through its transitions).
+
+  Since 2026-10-14 they sit in the local data root, registered by URL and
+  sha256 in `tests/local_data.py`, and `python -m tests.local_data` fetches
+  them on a new machine. A cloud container has none of them, because the
+  Durham host is outside its network policy.
 - [x] **Profile the joint Jacobian**, the maintainer's question of 2026-10-14:
   would another Rust kernel help? It would not, first. § Measured: where the
   joint Jacobian's time goes.

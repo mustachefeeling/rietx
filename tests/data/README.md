@@ -1,5 +1,11 @@
 # Test data provenance
 
+Every file below is committed. Data a measurement may read but the tree may
+not hold, such as a public download with no licence to redistribute, lives
+outside the checkout in `~/rietx-local-data`. `tests/local_data.py` registers
+each such file by URL and sha256, fetches it, and says where it is; its
+docstring holds the rules.
+
 | File | Contents | Source | License/status |
 |---|---|---|---|
 | `11BM_NAC.fxye` | Na2Ca3Al2F14 (NAC) powder pattern, APS beamline 11-BM, λ = 0.4139090 Å (from the accompanying `.prm`), 54000 points, GSAS ESD (fxye) format | GSAS-II tutorials repo, `TOF-CW Joint Refinement/data/` (github.com/AdvancedPhotonSource/GSAS-II-tutorials) | Argonne/APS tutorial data (U.S. Government work; publicly distributed) |
