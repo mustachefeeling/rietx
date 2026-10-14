@@ -74,13 +74,35 @@ natively, and more in the browser. The dark PNG is 27 kB against the light
 one's 26 kB. The six committed notebooks hold 12 PNGs, 676 kB of base64 in
 829 kB of files, so a pair per figure adds about 680 kB.
 
-**The open question** is how the dark copy is made. It can be drawn again,
-or recoloured. Drawing again needs the call's arguments held on the figure,
-and it loses whatever the caller changed on the returned figure, such as
-`ax.set_xlim` or an annotation. Recolouring maps each light role colour in
-`PALETTES` to its dark one on a copy, and keeps the caller's changes. It
-needs the light role colours to be distinct, or to map to one dark colour:
-`obs` and `tick` share `#1a1a1a` today and both become `#d2c9bd`.
+**The dark copy is recoloured, not drawn again** (decided 2026-10-14). The
+formatter deep-copies the light figure and maps each light ink to its dark
+one. A `PALETTES` role maps to the same role in dark. Matplotlib's own
+black maps by the artist's kind: text to `fg`, and spines, ticks and other
+lines to `rule`. White maps to `ground`, as `_ground_rc` paints it. The map
+must be a function, so two roles sharing a light colour must share a dark
+one: `obs` and `tick` share `#1a1a1a`, and both become `#d2c9bd`.
+
+It was measured on tutorial 01's FAP Le Bail fit, three figures:
+`best.plot()`, `data.plot()`, and `data.plot(model=ref,
+two_theta_range=(25, 35))`. At 200 dpi the recoloured copy matched the
+figure drawn with `style="dark"` in every pixel, 0 differing of about
+1.2 million in each. The copy costs 21-23 ms and the recolour 2-8 ms. A
+redraw costs 20-92 ms. Both are small beside the 220-240 ms encode.
+
+The caller's case separates the two. An annotation added to the returned
+figure stays in the recoloured copy, and its text turns from black to `fg`.
+A redraw drops it. The probe's first recolour missed the annotation's arrow,
+which a walk over `findobj()` does not reach, so the arrow is mapped
+separately. Neither route fixes a caller's `ax.set_xlim(30, 34)`. The light
+figure then encodes at 30 076 × 871 px, because the gutter labels sit in data
+coordinates beyond the new limits and `bbox_inches="tight"` reaches them.
+That issue predates this WP. Recolouring shows the same figure in both
+themes, and a redraw would show a different one.
+
+A CSS `filter: invert(1) hue-rotate(180deg)` on the one light image would
+cost no second image. Its output is a fixed function of each pixel, so the
+ground becomes `#000000` rather than the page's `#1d1813`, and the roles
+cannot reach the dark palette's hand-tuned values.
 
 ## Non-goals
 
@@ -93,8 +115,8 @@ needs the light role colours to be distinct, or to map to one dark colour:
 ## Tasks
 
 - [x] `plot_trajectory` takes `style=`, so every figure call has both palettes.
-- [ ] Redraw or recolour, decided on one figure, with a caller's
-  `ax.set_xlim` as the case that separates them.
+- [x] Redraw or recolour, decided on one figure, with a caller's
+  `ax.set_xlim` as the case that separates them. Recolour (Context).
 - [ ] The notebook formatter emits the pair as `text/html` beside the light
   `image/png`, keeping the width-only metadata of WP-1957.
 - [ ] `render_structure`'s notebook output emits the same pair.
