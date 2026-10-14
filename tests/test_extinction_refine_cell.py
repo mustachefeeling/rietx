@@ -58,3 +58,19 @@ def test_a_cell_off_by_a_tenth_of_a_percent_refutes_the_true_class_only_when_hel
     assert refined.cell != pytest.approx(candidate.cell)
     assert abs(refined.cell[0] / certified[0] - 1) < abs(candidate.cell[0] / certified[0] - 1)
     assert refined.prefit_rwp is not None
+
+
+@pytest.mark.parametrize("factor", [0.9992, 1.0004, 1.0008, 1.002, 1.005, 1.01])
+def test_the_prefit_basin_holds_either_side_of_wp_1910s_acceptance_case(inputs, factor):
+    """WP-1910's case is x1.0008 (``R - - -`` today under a held cell); the
+    prefit has no ``window_slack_deg``, so the margin either side is measured
+    rather than assumed: the true class returns across -0.08 % to +1 %."""
+    from tests.test_extinction_symbol import CORUNDUM_CELL, _candidate
+
+    data, instrument, limits, _scaled_candidate, _certified = inputs
+    cand = _candidate(_scaled(CORUNDUM_CELL, factor), "trigonal", "R")
+    screen = determine_extinction_symbol(data, cand, instrument,
+                                         two_theta_limits=limits)
+    best = screen.best_or_none()
+    assert best is not None and best.symbol == "R - c -", (
+        factor, screen.status, [c.symbol for c in screen.candidates[:3]])

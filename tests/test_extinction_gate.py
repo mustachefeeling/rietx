@@ -62,6 +62,7 @@ def _si_structure():
 def si():
     """The pattern, the declared instrument, and the picked lines."""
     instrument = rx.Instrument.debye_scherrer(wavelength=LAM)
+    instrument.source.dispersion = None         # a pinned number declares it
     instrument.profile.w.value = 3e-4
     instrument.profile.u.value = 5e-4
     instrument.profile.x.value = 5e-3
@@ -228,3 +229,46 @@ def test_pbso4_xray_gets_its_class_only_through_the_seeded_prefit():
                                        two_theta_limits=limits, refine_cell=False)
     held_best = held.best_or_none()
     assert held_best is None or held_best.symbol != "P c - n"
+
+
+# ----------------------------------------------------------------------
+# a stop, and the gate (review of #939, round 1)
+# ----------------------------------------------------------------------
+def test_a_late_stop_keeps_the_gates_verdict(si):
+    """The token is set before the screen starts, so every class after the
+    first is skipped and the status used to be overwritten with "cancelled" —
+    which ``best_or_none`` does not abstain on."""
+    from rietx.optimize.cancel import CancelToken
+
+    token = CancelToken()
+    token.cancel()
+    screen = _screen(si, 1.004, refine_cell=False, cancel=token)
+    assert screen.status == "unreliable"
+    assert screen.best_or_none() is None
+    assert "EXTINCTION_SCREEN_UNRELIABLE" in _codes(screen)
+
+
+def test_a_stop_reaches_the_prefit(si):
+    """Without ``cancel=`` on the prefit's fit the five-stage Le Bail ran to the
+    end before the stop was read, and the screen came back with its cell moved."""
+    from rietx.optimize.cancel import CancelToken
+
+    token = CancelToken()
+    token.cancel()
+    screen = _screen(si, 1.004, cancel=token)
+    assert screen.status == "cancelled"
+    assert screen.prefit_rwp is None
+    assert screen.candidates == [] and screen.best_or_none() is None
+    assert screen.cell == pytest.approx(_cubic_f(SI_A * 1.004).cell)
+
+
+def test_the_unreliable_warning_survives_an_empty_candidate_list():
+    from rietx.indexing.diagnostics import extinction_diagnostics
+    from rietx.schemas.indexing import ExtinctionScreen
+
+    screen = ExtinctionScreen.model_construct(
+        status="unreliable", candidates=[], reference_rwp_net=0.9,
+        prefit_rwp=None, lattice_group="F", system="cubic", centring="F",
+        cell=(5.4, 5.4, 5.4, 90.0, 90.0, 90.0), two_theta_range=(10.0, 60.0))
+    codes = [d.code for d in extinction_diagnostics(screen)]
+    assert codes == ["EXTINCTION_SCREEN_UNRELIABLE", "EXTINCTION_SYMBOL_AMBIGUOUS"]
