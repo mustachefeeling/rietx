@@ -251,6 +251,24 @@ def test_two_high_candidates_are_not_a_singleton():
     assert "INDEX_ABSTAINED" in codes
 
 
+def test_the_abstention_names_the_refuting_caveats_the_gate_uses():
+    """The suggestion's list of caveats to act on first is read off the gate's
+    own set, so it cannot keep naming one the gate moved to a cap (C3 moved
+    ``predicted_but_absent``)."""
+    from rietx.indexing.diagnostics import index_diagnostics
+    from rietx.schemas.indexing import INDEX_REFUTING_CAVEATS
+
+    a, b = _candidate(TRUE_A), _candidate(2 * TRUE_A)
+    for cand in (a, b):
+        cand.confidence = "high"
+    text = next(d.suggestion for d in index_diagnostics(_result([a, b]))
+                if d.code == "INDEX_ABSTAINED")
+    refuting_part, capping_part = text.split(" — ")
+    named = {w.strip() for w in refuting_part.split("(")[1].rstrip(")").split(",")}
+    assert named == INDEX_REFUTING_CAVEATS
+    assert "predicted_but_absent" not in refuting_part
+
+
 def test_an_ambiguous_winner_is_not_a_singleton():
     """``best_or_none`` re-checks the ambiguity the gate already checked.
 
@@ -1134,3 +1152,24 @@ def test_a_monoclinic_candidate_is_reported_in_its_conventional_setting():
     out = to_cell_candidate(cand, peaks)
     assert out.change_of_basis == ((1, 0, 0), (0, 1, 0), (0, 0, 1))
     assert out.engine_cell == out.cell
+
+
+def test_the_fallback_panel_is_scored_at_the_resolution_like_the_search_panel(
+        monkeypatch):
+    """``to_cell_candidate`` builds its own panel when the engine brought none
+    (a prior, or a ``_panel_for`` that raised); it must ask the reversed member
+    the way ``_panel_for`` does, with the peak list's widths.  Spied, because on
+    a clean list the two members' values can coincide."""
+    from rietx.indexing import engines
+
+    cand, peaks = _monoclinic_engine_candidate(
+        (4.541, 4.884, 10.198, 90.0, 98.22, 90.0))
+    assert not cand.fom
+    calls = []
+    real = engines.fom_panel
+    monkeypatch.setattr(engines, "fom_panel",
+                        lambda *a, **kw: calls.append(kw.get("fwhm_obs")) or real(*a, **kw))
+    engines.to_cell_candidate(cand, peaks)
+    engines._panel_for(cand, peaks, 3.0)
+    assert len(calls) == 2 and all(w is not None for w in calls)
+    assert np.array_equal(calls[0], calls[1])

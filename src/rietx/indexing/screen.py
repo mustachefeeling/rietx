@@ -96,7 +96,13 @@ _LN2 = float(np.log(2.0))
 
 
 def _pseudo_voigt(x: np.ndarray, gamma: float, eta: float) -> np.ndarray:
-    """Unit-area pseudo-Voigt of FWHM ``gamma``, the peak list's own shape."""
+    """Unit-area pseudo-Voigt of FWHM ``gamma``, the peak list's own shape.
+
+    Thompson, Cox & Hastings (1987), J. Appl. Cryst. 20, 79: η·L + (1-η)·G of
+    one FWHM.  The same function as ``model.profiles.pseudovoigt.pseudo_voigt``,
+    spelled here in plain numpy so the screen never reads the model's global
+    backend; ``test_the_screens_pseudo_voigt_is_the_models`` pins them equal.
+    """
     g = (2.0 * np.sqrt(_LN2 / np.pi) / gamma
          * np.exp(-4.0 * _LN2 * x ** 2 / gamma ** 2))
     lor = (2.0 / (np.pi * gamma)) / (1.0 + 4.0 * x ** 2 / gamma ** 2)
@@ -158,7 +164,12 @@ class PatternScreen:
                    resolution: float = RESOLUTION_FWHM,
                    data: PatternData | None = None,
                    instrument: Instrument | None = None,
-                   window_lines: int = SCREEN_WINDOW_LINES) -> PatternScreen:
+                   window_lines: int = SCREEN_WINDOW_LINES,
+                   two_theta_limits: tuple[float, float] | None = None,
+                   ) -> PatternScreen:
+        """Screen the peak list's range, narrowed to ``two_theta_limits`` when
+        the fit that follows covers less (``validate_by_lebail``'s own): a line
+        the fit never reached is not one the pattern can be said to lack."""
         usable = peaks.usable()
         tt = np.array([p.two_theta for p in usable], dtype=np.float64)
         esd = np.array([p.two_theta_esd for p in usable], dtype=np.float64)
@@ -169,6 +180,8 @@ class PatternScreen:
         match = (np.asarray(q_match, dtype=np.float64) if q_match is not None
                  else np.array([p.q_esd for p in usable], dtype=np.float64))
         lo, hi = float(peaks.two_theta_min), float(peaks.two_theta_max)
+        if two_theta_limits is not None:
+            lo, hi = max(lo, float(two_theta_limits[0])), min(hi, float(two_theta_limits[1]))
         n = min(window_lines, len(q))
         q_window = float(np.sort(q)[n - 1]) if n else 0.0
         half = np.maximum(resolution * fwhm, k_sigma * esd)
@@ -426,7 +439,11 @@ def contains(child: LineScreen, parent: LineScreen) -> bool:
     cell that happens to index the same lines.  The denser line set is the
     child, the sparser the parent; at equal density the larger primitive
     volume is the child.  Every pair measured in the C3 record has the denser
-    cell as the one to refute.
+    cell as the one to refute.  The last comparison is **strict**: two cells with
+    equal line counts and equal volume contain neither each other nor
+    themselves, so the relation stays antisymmetric and
+    ``consensus.below_refuting_parents``'s "a parent is strictly smaller than
+    its child" holds without a tiebreak.
     """
     if len(child.indexed) != len(parent.indexed):
         return False
@@ -434,7 +451,7 @@ def contains(child: LineScreen, parent: LineScreen) -> bool:
         return False
     if child.n_lines != parent.n_lines:
         return child.n_lines > parent.n_lines
-    return _primitive_volume(child) >= _primitive_volume(parent)
+    return _primitive_volume(child) > _primitive_volume(parent)
 
 
 _LATTICE_POINTS = {"P": 1, "A": 2, "B": 2, "C": 2, "I": 2, "F": 4, "R": 3}
