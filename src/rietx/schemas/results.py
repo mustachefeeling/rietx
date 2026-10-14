@@ -65,8 +65,12 @@ class RefinedParameter(Base):
     (``PARAMETRIC_TARGET_UNSEEN``).  On a coefficient row they are in the
     table's units, per unit of the *scaled* coordinate, and
     :attr:`RefinementResult.parametric` holds the same coefficient in the
-    caller's units.  One writer, ``MultiHistogramRefinement._parameters``; a
-    single fit and a chain declare no law, so their rows are empty.
+    caller's units.  Two writers: ``MultiHistogramRefinement._parameters``,
+    and ``refine._build_result``, which writes it empty because a single fit
+    declares no law (a chain's rows are its fits').  ``None`` says nobody
+    recorded it: a hand-built row, or a result written before schema 0.57,
+    when 1.9.0's parametric fits already carried law-set rows that an empty
+    list would have called measured.
     """
 
     path: str
@@ -74,7 +78,7 @@ class RefinedParameter(Base):
     stderr: float | None = None
     vary: bool = True
     at_bound: bool | None = None
-    laws: list[str] = Field(default_factory=list)
+    laws: list[str] | None = None
 
 
 class Statistics(Base):
@@ -1286,9 +1290,11 @@ def _form_line(t: ParametricFormTest) -> str:
                 "finite number")
     verdict = "REJECTED" if t.rejected else "not rejected"
     side = "past" if t.rejected else "within"
+    # a tail under 1e-300 is 0.0 in a double, and "p = 0" claims certainty
+    p = "p < 0.001" if t.p_value < 1e-3 else f"p = {t.p_value:.2g}"
     return (f"      form {verdict}: {t.statistic:.1f} {side} the cut {t.cut:.1f} "
-            f"(p = {t.p_value:.2g}) for {t.dof} directions over {t.n_patterns} "
-            f"of {t.n_subset} patterns")
+            f"({p}) for {t.dof} directions over {t.n_patterns} of {t.n_subset} "
+            "patterns")
 
 
 def _provenance_line(provenance: Provenance) -> str:
@@ -1666,7 +1672,7 @@ class RefinementResult(Base):
         # declared none keeps its three columns
         if any(p.laws for p in self.parameters):
             header += ("laws",)
-            rows = [(*row, ", ".join(p.laws))
+            rows = [(*row, ", ".join(p.laws or ()))
                     for row, p in zip(rows, self.parameters, strict=True)]
         table = table_html(header, rows) if rows else ""
         return pre_html(str(self)) + table

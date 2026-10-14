@@ -465,8 +465,9 @@ from .._nearmiss import did_you_mean
 #: 0.56 → 0.57 (WP-1325): ``RefinedParameter.laws``, the parametric
 #: declarations whose coefficients set a row; ``ParametricFormTest.n_subset``,
 #: the subset's size beside the patterns tested, and
-#: ``ParametricFormTest.p_value``.  ``laws`` is defaulted, so an older result
-#: opens; the two form-test fields are required, the field being unreleased.
+#: ``ParametricFormTest.p_value``.  ``laws`` defaults to ``None``, "not
+#: recorded", so an older result opens and its rows claim nothing; the two
+#: form-test fields are required, ``parametric_form`` being unreleased.
 SCHEMA_VERSION = "0.57"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

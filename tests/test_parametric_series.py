@@ -676,7 +676,8 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
     assert (form.p_value < 0.05) is rejected
     found = [d for d in result.diagnostics if d.code == "PARAMETRIC_FORM_REJECTED"]
     text = str(result)
-    assert f"(p = {form.p_value:.2g}) for 8 directions over 10 of 10 patterns" in text
+    p = "p < 0.001" if rejected else f"p = {form.p_value:.2g}"
+    assert f"({p}) for 8 directions over 10 of 10 patterns" in text
     # every pattern's cell and both coefficients are the law's, in the joint
     # rows, in a histogram's view and in the notebook table
     assert {p.path for p in result.parameters if p.laws} == (
@@ -684,6 +685,14 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
         | {f"hist.{h}.phases.0.cell.{k}" for h in range(10) for k in "abc"})
     assert result.for_histogram(3).parameter("phases.0.cell.a").laws == ["a"]
     assert "<th>laws</th>" in result._repr_html_()
+    if not rejected:
+        # a single fit records that no law set its rows; a row from before the
+        # field reads unrecorded, never "no law"
+        single = rx.refine(patterns[0], *_start_models(), plan="mccusker_default")
+        assert single.parameters and all(p.laws == [] for p in single.parameters)
+        assert "<th>laws</th>" not in single._repr_html_()
+        old = single.parameters[0].model_dump(mode="json", exclude={"laws"})
+        assert type(single.parameters[0]).model_validate(old).laws is None
     if rejected:
         (d,) = found
         assert d.level == "warning" and d.where == ["vars.a_0", "vars.a_1"]

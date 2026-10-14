@@ -1073,7 +1073,7 @@ directions and 197.9 against 337.1 for 296.
   sha256 in `tests/local_data.py`, and `python -m tests.local_data` fetches
   them on a new machine. A cloud container has none of them, because the
   Durham host is outside its network policy.
-- [ ] **Show in the output when a value came from a law** (maintainer,
+- [x] **Show in the output when a value came from a law** (maintainer,
   2026-10-14). Today a pattern's target row (`hist.<h>.<target>` in
   `RefinementResult.parameters`) reads like a measured value, with the law's
   esd, which can be far tighter than that pattern measures alone. In a
@@ -1096,6 +1096,20 @@ directions and 197.9 against 337.1 for 296.
     tell readers to skip the row. Mark the row as a law's coefficient and
     point at `parametric`, or drop it from `parameters`; the
     `RefinedParameter` field rule above applies either way.
+
+  Landed 2026-10-14 (schema 0.57):
+  - `RefinedParameter.laws`, written by `multi._law_rows` off each table's
+    `entry_reach`, so what follows a target (a cubic cell's b and c) and a
+    held coefficient's rows count too. `None` reads "not recorded", since
+    1.9.0 shipped parametric fits whose rows carry no field; the single fit
+    writes an empty list. The notebook table gains a `laws` column.
+  - The coefficient rows are **marked, not dropped**. Dropping them breaks
+    the row contract (a row iff it varied or was tied), and `BOUND_HIT` on a
+    `constant` coefficient would then name a path absent from `parameters`.
+  - `ParametricFormTest.n_subset` and `.p_value`; the line reads "(p = 0.77)
+    for 8 directions over 10 of 10 patterns", and `p < 0.001` below that.
+  - `PARAMETRIC_TARGET_UNSEEN`, from the one `_parametric_unseen` reading the
+    form test's skip now takes too.
 - [ ] **The coefficients' covariance, and the law's value at any
   coordinate** (added 2026-10-14, from a review of the API against prior
   art). `ParametricCoefficient` carries an esd and nothing else, and

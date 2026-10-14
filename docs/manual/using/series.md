@@ -1574,8 +1574,12 @@ A plan frees the coefficients wherever a stage's glob reaches the target, so
 lists them. The target is per-histogram in every pattern, so each pattern
 reports its own value as `hist.<h>.phases.0.cell.a`, with an esd propagated
 from the coefficients, and what the target drives follows it: a cubic cell's
-`b` and `c`. A coefficient that drives a phase no pattern can see is held like
-the cell it drives, and `PHASE_UNCONSTRAINED` names the coefficient.
+`b` and `c`. Each of those rows names the declaration in
+`RefinedParameter.laws`, and so does each coefficient's `vars.` row. A target
+row's value and esd are the law's at that pattern's coordinates. They can be
+far tighter than the pattern measures on its own. A coefficient that drives a
+phase no pattern can see is held like the cell it drives, and
+`PHASE_UNCONSTRAINED` names the coefficient.
 
 A library of hundreds of patterns is in reach. Once the stacked Jacobian would
 pass 256 MiB, a joint fit keeps one block per pattern, against that pattern's
@@ -1603,7 +1607,8 @@ Read the coefficients here, never off `RefinementResult.parameters`. The
 `vars.` rows there are in the table's own units, per unit of the scaled
 coordinate: on a five-pattern synthetic ramp at 300-900 K the slope's row read
 0.006235, in Å per 300 K, where its coefficient read 2.0784 × 10⁻⁵ Å/K, the
-same number divided by the scale.
+same number divided by the scale. A loop over `parameters` can tell those rows
+by their `RefinedParameter.laws` and their `vars.` path.
 
 An esd of `None` has one of two causes, and `ParametricCoefficient.vary` says
 which: the coefficient was not free in the last stage, or the joint
@@ -1642,6 +1647,16 @@ per declaration, when the fitted coefficients put the target outside its own
 measurement. Narrow the subset to where the law holds, lower the polynomial's
 order, or declare a design basis that stays inside the range.
 
+`PARAMETRIC_TARGET_UNSEEN` is a warning, one per declaration, when the law sets
+its target in patterns that cannot see the target's phase. A pattern cannot
+see a phase when its scale is under the support screen that holds a phase's
+structure in a stage. There the target's value and esd come from the patterns
+that do see the phase, carried along the law, and the form test below leaves
+the pattern out. `where` names each such pattern's `hist.<h>.` path and
+`value` counts them. Quote the law's coefficients rather than the target in
+those patterns. If the law should hold only where the phase is measured, narrow
+the subset to those patterns.
+
 ### Testing the declared form
 
 The coefficients' esds assume the declared form is right. A joint fit tests
@@ -1655,10 +1670,12 @@ declaration, and is `None` exactly when `RefinementResult.parametric` is.
 |---|---|
 | `ParametricFormTest.tie`, `ParametricFormTest.target` | the declaration's name and its target |
 | `ParametricFormTest.n_patterns` | the subset patterns whose own target entered the alternative; a pattern that cannot see the target is left out |
+| `ParametricFormTest.n_subset` | the patterns the subset names. Where it is larger than `n_patterns`, the law sets the target in the rest unchecked |
 | `ParametricFormTest.dof` | the directions the alternative adds, `n_patterns` less the coefficients when nothing is degenerate; `None` when a coefficient was not free at the answer, 0 when there was nothing to test |
 | `ParametricFormTest.statistic` | the χ² the alternative would remove, over χ²_red·f² |
 | `ParametricFormTest.cut` | the 95 % point of χ² for `dof` directions |
 | `ParametricFormTest.rejected` | `statistic > cut` |
+| `ParametricFormTest.p_value` | the upper tail of χ² for `dof` directions at `statistic`, so a near miss shows on either side of the cut |
 
 The statistic is about χ² with `dof` degrees of freedom while the form holds.
 {ref}`par-parametric-section` has the equation. `str(result)` closes each declaration with its verdict. On the
@@ -1670,10 +1687,11 @@ at mid-ramp, and a straight line declared:
     a: phases.0.cell.a at T=750
       [1] 4.1658973(17) Å
       [T] 0.0000207833(23) Å/K
-      form REJECTED: 2606.7 past the cut 15.5 for 8 directions over 10 patterns
+      form REJECTED: 2606.7 past the cut 15.5 (p < 0.001) for 8 directions over 10 of 10 patterns
 ```
 
-The same ramp on its true line read 4.8 against the same cut. A rejected form
+The same ramp on its true line read 4.8 against the same cut, at p = 0.77. The
+line prints a p-value under 0.001 as `p < 0.001`. A rejected form
 adds `PARAMETRIC_FORM_REJECTED`, a warning on `RefinementResult.diagnostics`
 whose `where` names the coefficients and whose `value` is the statistic. Do
 not quote those coefficients or their esds. Add the next term to the basis and
@@ -1685,7 +1703,8 @@ The test has three limits.
 - It sees the form only where, and as well as, each pattern measures the
   target. A pattern that cannot see the target adds nothing to the statistic,
   so a law carried through patterns where a phase has faded out is not checked
-  there. On two synthetic ramps, one with a minor phase that faded out and one
+  there. The verdict line counts the patterns tested against the subset, and
+  `PARAMETRIC_TARGET_UNSEEN` names the patterns left out. On two synthetic ramps, one with a minor phase that faded out and one
   with a minor phase broad and overlapped, a curved truth on its cell went
   unrejected in 20 seeds of 20. A full untied refit rejected none of them
   either.
