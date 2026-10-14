@@ -849,6 +849,14 @@ the untied fit 1.21-1.44×. The chain itself took 20-83 s. One linear law took
   measurement says the joint form pays, the moment trajectory is a further
   series to measure it on.
 
+### Inherited
+
+- **From WP-1961 (2026-10-14).** #970 merged as `caf089fc`, after the
+  `v1.9.0` tag on `ea1800d3`, so it ships in 1.10. The staged
+  `docs/releases/1.10.0.md` did not exist when it merged, and it staged no
+  note anywhere. If its `multi.py` change is user-facing, its note goes in
+  that file.
+
 ## Non-goals
 
 - A library of physical models: the caller supplies the basis, or names a
