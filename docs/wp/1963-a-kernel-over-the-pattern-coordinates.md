@@ -67,7 +67,7 @@ PET kernel method) and lists its costs and scaling; the literature is in
 
 - Replacing the hard tie. It earned a measured precision gain in the same
   regime (WP-1325).
-- Nonlinear laws (`Parameter.expr`, WP-1119).
+- Nonlinear laws: [1964](1964-a-nonlinear-law-through-the-derived-block.md).
 - A pattern summed over several specimens ([1962](1962-xrd-ct-a-pattern-summed-over-the-voxels-its-beam-crosses.md)).
 
 ## Tasks

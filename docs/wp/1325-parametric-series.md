@@ -158,7 +158,9 @@ changes what every coefficient means.
 
 1. **Data, not code: yes.** The declaration is a pydantic model with a JSON
    round-trip. It has:
-   - targets as globs;
+   - targets as globs (superseded 2026-10-14: the declaration landed with
+     one bare path per target, and a glob is
+     [1965](1965-a-law-declared-by-formula-condition-and-glob.md)'s);
    - a basis from a **closed** vocabulary: `constant`, `polynomial` (terms over
      named coordinates, e.g. `[[], ["x"], ["y"], ["x", "y"]]`), or `design`
      (explicit per-pattern rows; this is the escape hatch for splines,
@@ -950,11 +952,21 @@ directions and 197.9 against 337.1 for 296.
 
 ## Non-goals
 
-- A library of physical models: the caller supplies the basis, or names a
-  polynomial.
+- A library of physical models: here the caller supplies the basis, or names
+  a polynomial. Named nonlinear laws are
+  [1964](1964-a-nonlinear-law-through-the-derived-block.md)'s.
 - Replacing the chain: it stays the exploratory tool and the seed.
-- Nonlinear functions of the coordinates (fenced with `Parameter.expr`,
-  WP-1119).
+- Laws nonlinear in their coefficients: an order parameter's
+  (1 − T/T_c)^β with T_c and β refined, an Avrami rate, an Einstein
+  temperature. Filed 2026-10-14 as
+  [1964](1964-a-nonlinear-law-through-the-derived-block.md). The fence here
+  rested on WP-1119's reading that only C·θ + d is exact under autodiff, and
+  WP-1804's derived block has since given the table a second, nonlinear seam.
+  A law nonlinear in the coordinates alone is already declarable as a
+  `design` basis.
+- Declaring a law by a formula string, a subset by a condition on the
+  coordinates, or a target by a glob:
+  [1965](1965-a-law-declared-by-formula-condition-and-glob.md).
 - One pattern as a sum over several specimens (A ≠ identity): direct XRD-CT,
   depth profiles. That is [1962](1962-xrd-ct-a-pattern-summed-over-the-voxels-its-beam-crosses.md).
 - Soft forms: partial pooling toward the surface, or a P-spline smoothness
@@ -1076,6 +1088,33 @@ directions and 197.9 against 337.1 for 296.
   - A warning when a law sets the target in patterns that cannot see it,
     naming them: there the value is the law's, and the form test is blind.
   - The p-value beside the statistic, so a near miss is visible as one.
+  - The coefficients' own rows too (added 2026-10-14, from a review of the
+    API against prior art). `RefinementResult.parameters` lists each
+    `vars.<name>_<j>` in the table's units, per unit of the *scaled*
+    coordinate, beside `RefinementResult.parametric`'s user units. On the
+    five-pattern ramp in `using/series.md` the slope's row reads 0.006235
+    (Å per 300 K) and its coefficient 2.0784 × 10⁻⁵ Å/K. The manual has to
+    tell readers to skip the row. Mark the row as a law's coefficient and
+    point at `parametric`, or drop it from `parameters`; the
+    `RefinedParameter` field rule above applies either way.
+- [ ] **The coefficients' covariance, and the law's value at any
+  coordinate** (added 2026-10-14, from a review of the API against prior
+  art). `ParametricCoefficient` carries an esd and nothing else, and
+  `Identifiability.top_correlations` lists only the worst pairs. A value
+  between or beyond the patterns needs the whole block. For example, a(293 K)
+  from a line centred at 600 K needs cov(c₀, c₁). Today the per-pattern
+  `hist.<h>.<target>` rows give a propagated esd at the measured coordinates
+  only. statsmodels' `cov_params()` and `get_prediction()` are the prior art.
+  - Carry each declaration's coefficient covariance on the result, in user
+    units at its reference. Take it from the matrix the esds come from
+    (`least_squares.covariance_jacobian`, WP-1929's rule), so the block's
+    diagonal reproduces every `ParametricCoefficient.esd` exactly. Pin that
+    equality by test.
+  - A reader evaluating the law at a coordinate returns Φ(z)·c and
+    √(Φ(z) Σ Φ(z)ᵀ). It reads the stored reference and scale and computes
+    nothing the fit has not stored (root CLAUDE.md § a display reads fields).
+  - The value carries the form test's verdict beside it, because its esd
+    assumes the form. Beyond the subset's range it says it is extrapolating.
 - [ ] **Test each law with the other laws freed** (maintainer, 2026-10-14).
   Beside other laws, a law reads weaker than alone: the cubic line scored
   1.37 per direction at the three-law answer and 1.57 alone.
@@ -1103,6 +1142,21 @@ directions and 197.9 against 337.1 for 296.
   `rx.read_project_model` builds all three WO₃ phases from
   `d9_02592_3phase_01.inp`. The ZrP₂O₇ input is refused at read, on its
   `B1(...)` site macros, so its phases need building by hand.
+- [ ] **Measure whether a one-direction test for the next term earns a
+  place** (added 2026-10-14, from a review of the API against prior art).
+  The form test's alternative spends n − m directions, one per pattern
+  beyond the law. Against smooth curvature, a score test on the next
+  polynomial term spends one. It is the same projection with one column
+  added, and it is how a statistician picks an order (a nested F-test, or
+  AIC/BIC across orders). Today the manual says to add a term and refit.
+  - On the synthetic ramps, shrink the bow below the 9.4 × 10⁻⁵ Å that
+    the form test rejected at 2606.7, and find where each test stops
+    rejecting. Then run the ZrP₂O₇ and WO₃ ramps above.
+  - Land it beside `ParametricFormTest` only if it rejects a curve the form
+    test passes. Where no pattern sees the target, neither test can help,
+    and that regime is [1963](1963-a-kernel-over-the-pattern-coordinates.md)'s.
+  - A second verdict per law is a further test at 95 %, so it joins
+    decision 4's correction.
 - [x] **Profile the joint Jacobian**, the maintainer's question of 2026-10-14:
   would another Rust kernel help? It would not, first. § Measured: where the
   joint Jacobian's time goes.
