@@ -268,6 +268,109 @@ the 20 seeds.
   - a joint result carries no covariance, so the control subclassed
     `_build_result` (`multi.py:1406`) to read it.
 
+### Measured: where one pattern cannot see the parameter (2026-10-14)
+
+`1325-measure/kernel_ramp.py`, output in `1325-measure/kernel_results.txt`.
+
+**Setup.**
+- 10 patterns at T = 300-1200 K and 20 seeds per cell, all converged.
+- Linux x86_64, 4 CPUs, `[dev]` venv, compiled kernels on. A frozen copy of
+  `src/` at 0b33465 ran it, because another lane was editing the tree. Load
+  was 1-8, so wall clock is indicative only.
+- The major phase is LaB₆, per pattern in every arm. The quantity measured is
+  a minor CaF₂ phase's cell, whose truth is a line, a curve
+  (line + (L/2)(t² − 1)) or a kink (the slope halves at 750 K).
+
+**Regimes.**
+- **W:** the minor phase dissolves on heating, with designed support
+  30 × 0.6^k. The chain's WP-1301 hold left patterns 5-9 as gaps: per
+  pattern, 0 0 0 0 1 15 18 20 19 20 of 20 seeds.
+- **O:** broad minor peaks (`lor_size` 0.4°, held), with a per-pattern cell
+  esd 6.3× the true step between patterns.
+
+**Arms.**
+- `chain`: `refine_sequential`;
+- `line`: a weighted line through the chain's kept points;
+- `gp`: Matérn-3/2 with a [1, t] mean, REML on the kept points;
+- `tie`: the hard tie a₀ + a₁·t;
+- `kernel`: the joint fit with prior rows, at the gp arm's REML
+  hyperparameters, appended by wrapping `_multi_closures` in the script;
+- `gp_fix` and `kernel_fix`: a sensitivity pair at a hand-set s = L/4,
+  ℓ = 1 (half the ramp).
+
+Units: a in 10⁻⁴ Å, a₁ in 10⁻⁹ Å/K.
+
+| W | a₁ bias | a₁ scatter | a₁ mean esd | gap RMSE, line / curve / kink | gap coverage ≤ 2 esd, line / curve / kink |
+|---|---|---|---|---|---|
+| line | −328 | 1533 | 1655 | 10.1 / 59.6 / 20.2 | 0.96 / 0.05 / 0.74 |
+| gp | −2273 | 10405 | 7465 | 73.1 / 56.1 / 22.1 | 0.97 / 0.38 / 0.76 |
+| gp_fix | −366 | 2790 | 4166 | 20.4 / 55.3 / 23.3 | 0.96 / 0.66 / 1.00 |
+| tie | +106 | 1107 | 1479 | 6.8 / 58.0 / 20.0 | 1.00 / 0.03 / 0.66 |
+| kernel | −2945 | 13893 | 8690 | 77.3 / 54.2 / 23.3 | 0.91 / 0.31 / 0.68 |
+| kernel_fix | +430 | 2083 | 4177 | 15.1 / 53.5 / 26.0 | 0.97 / 0.57 / 0.91 |
+
+**What it says.**
+- **Where one pattern cannot see the parameter, the hard tie buys
+  precision**, unlike R1 and R2. On W's line truth, a₁'s scatter is 0.72× the
+  line's and its esd 0.89×. The gap RMSE is 6.8 against 10.1, and gap
+  coverage stays at 1.00. A scatter ratio from 20 seeds carries about 16 %
+  of its own uncertainty, so 0.72 is about two sigma.
+
+  The gain has two sources:
+  - The gap patterns carry weak information, a data share of 0.04-0.2 each,
+    which the joint fit uses and the chain throws away.
+  - The near-threshold points the chain keeps are not Gaussian. Noise makes
+    the phase look significant at z ≈ 2, and the chain's |z| reaches 6.5. The
+    line inherits those points, its χ²_red reaching 9.2, and the tie does not
+    lean on them.
+- **The tie's esd is confidently wrong when its form is.** A bend that sits
+  only in the gaps is recovered by no arm: gap RMSE is 54-60 for the curve
+  and 20-26 for the kink, whatever the arm. The tie's gap coverage at 2 esd is
+  0.03 for the curve and 0.66 for the kink. § A kernel predicted this from
+  the literature; it is now measured.
+- **A kernel tuned by REML afterwards does worse than the line in exactly
+  this regime.**
+  - REML on the chain's kept points reads the near-threshold survivors as
+    curvature: s/σ ≈ 60-180 in 7-10 seeds of 20, and the floor in most of the
+    rest.
+  - The gp and kernel arms then extrapolate into the gaps at RMSE 73-77
+    against the line's 10, with kernel |z| up to 15.6.
+  - The coefficient is confounded with the GP: one seed gave a₁ = −48 059.
+
+  So § A kernel's recipe, "REML on (p̂, I), then freeze", fails in the one
+  regime where a kernel could matter. Its input is exactly the points the
+  regime corrupts.
+- **At good hyperparameters a kernel buys honest intervals, not accuracy.**
+  `kernel_fix`'s gap coverage is 0.57 (curve) and 0.91 (kink), against the
+  tie's 0.03 and 0.66, at a worse RMSE than the tie on the line and the kink.
+  Inside the fit against afterwards at the same kernel: `kernel_fix` beat
+  `gp_fix` on the line and the curve, and lost on the kink.
+- **The phase-fraction hypothesis is not supported.** Pinning the cell
+  removes the chain's lag bias: the chain reads the gap fractions 6-11 % low,
+  the tie 3-8 % high. It does not reduce the noise; every arm's gap RMSE is
+  3-4 × 10⁻⁵ against true fractions of 1-10 × 10⁻⁵.
+- **Broad peaks alone stay linear.** O's per-pattern fits were weak but
+  Gaussian (rms z 0.76), so O reproduces § Measured. The tie, `kernel_fix`
+  and the line agree within the 20-seed noise (trajectory RMSE 54.5, 54.5 and
+  59.6 on the line truth).
+- Neither joint arm's support hold fired in either regime.
+
+**Caveats.**
+- The prior rows took the χ²_red·BL² covariance factor, as the package treats
+  its own penalty rows (`least_squares.py:2661`). § A kernel says prior rows
+  should take neither.
+- No free-joint control was run, so the joint hold's behaviour on flat gap
+  cells with no prior is untested. The joint hold only fires for a phase
+  unsupported in every histogram.
+- O did not go non-Gaussian; a nonlinear overlap case needs lower support or
+  a refined `lor_size`.
+
+**Reading.** The hard tie has now earned a measured gain beyond convenience,
+in the regime the outside lab's weak and broad features live in. A kernel
+inside the fit has not. Its one demonstrated benefit is honest intervals
+under a wrong form, which a lack-of-fit check on the tie could give more
+cheaply (Tasks). The soft form stays a Non-goal.
+
 ### A kernel over the coordinates (survey, 2026-10-14)
 
 The maintainer asked whether a *kernel* over the pattern coordinates, rather
@@ -483,6 +586,9 @@ Where a kernel over measurement coordinates has paid most is in choosing
 - **Using it inside the fit has three costs**: a hyperparameter, a posterior
   esd that undercovers at a transition, and a decision against the WP-1301
   hold. It is measured against the hard tie before it is built.
+- **Measured the same day** (§ Measured: where one pattern cannot see the
+  parameter): REML on the trajectory fails in the weak regime, and at good
+  hyperparameters the kernel bought intervals, not accuracy. Not built.
 
 ### What the code has (survey, 2026-10-14)
 
@@ -583,7 +689,7 @@ Where a kernel over measurement coordinates has paid most is in choosing
   plus the wall-clock ratio against the chain, on today's dense joint path.
   Landed as `1325-measure/synthetic_ramp.py`; the numbers are in
   § Measured.
-- [ ] **The measurement, where a single pattern cannot see the parameter.**
+- [x] **The measurement, where a single pattern cannot see the parameter.**
   § Measured shows the tie buys nothing while every pattern's own fit is
   linear. Push the synthetic ramp until it is not:
   - a minor phase whose per-pattern scale falls under the 3σ hold
@@ -593,13 +699,26 @@ Where a kernel over measurement coordinates has paid most is in choosing
   Report the joint a₁ and its scatter across seeds against whatever line the
   surviving trajectory points allow.
 
-  *Proposed 2026-10-14, not yet agreed* (§ A kernel over the coordinates):
-  - add two arms beside the hard tie: a GP fitted afterwards on the
-    trajectory, and a joint fit with kernel prior rows (the script appends
-    them, as it already subclasses the joint path);
-  - add a truth that is not a line, one curved and one with a kink, so the
-    hard tie's form error and the kernel's smoothing bias both show;
-  - report the weak phase's *fraction* as well as its cell.
+  Extended 2026-10-14 at the maintainer's request (§ A kernel over the
+  coordinates):
+  - two arms beside the hard tie: a GP fitted afterwards on the trajectory,
+    and a joint fit with kernel prior rows (the script appends them, as it
+    already subclasses the joint path);
+  - a truth that is not a line, one curved and one with a kink, so the hard
+    tie's form error and the kernel's smoothing bias both show;
+  - the weak phase's *fraction* as well as its cell.
+
+  Landed as `1325-measure/kernel_ramp.py`; the numbers are in § Measured:
+  where one pattern cannot see the parameter.
+- [ ] **A lack-of-fit check on the declared form.** The tie's gap coverage
+  fell to 0.03 under a curved truth (§ Measured: where one pattern cannot see
+  the parameter), so a wrong Φ yields a confidently wrong esd. Candidates:
+  - χ² of the per-pattern values against the tie's curve, where the
+    per-pattern fits are trustworthy;
+  - a nested fit with one more term.
+
+  Either says when to widen the basis. It is cheaper than a kernel, which
+  bought only honest intervals.
 - [ ] **The measurement on real data**: the ZrMo₂O₈ ramp (maintainer-local),
   with the same numbers as the synthetic half.
 - [x] **Survey the prior art for declaring a parametric model**, for a
