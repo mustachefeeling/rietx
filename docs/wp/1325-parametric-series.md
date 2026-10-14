@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here (Claude session); scope decided, survey landed, synthetic measurement next
+Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here (Claude session); scope decided, survey and synthetic measurement landed; the regime a single pattern cannot see is next
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -187,6 +187,79 @@ changes what every coefficient means.
    unbounded campaign wants sliding-window marginalisation; that is out of
    scope.
 
+### Measured: the synthetic ramp (2026-10-14)
+
+`1325-measure/synthetic_ramp.py`, output in `1325-measure/results.txt`.
+
+**Setup.**
+- Ten LaB₆ patterns at T = 300-1200 K, built by `tests/test_sequential.py`'s
+  `_simulate` with the cell on a known line.
+- 20 noise seeds per regime.
+- Linux x86_64, 4 CPUs, `[dev]` venv, compiled kernels on, nothing else
+  running.
+- The joint fit is today's dense path, with no `src/` change. The pieces:
+  - `SharingMap(per_histogram=["phases.*"])`;
+  - `vars.a0`/`vars.a1` added to every sub-table, which fold onto one shared
+    column each;
+  - `phases.0.cell.a` tied per table to a0 + a1·t_h;
+  - `_rebuild_columns()` called by hand;
+  - `mccusker_default` with `vars.*` added to its cell stage.
+- `MultiParameterTable.set_vary` skips tied entries
+  (`params/multi.py:281`), so the tie survives every stage. The script
+  asserts a, b and c sit on the line to 1e-12 in every table.
+
+**Results.** a₁ is in 10⁻⁹ Å/K; truth 20 783. "Scatter" is a₁'s spread over
+the 20 seeds.
+
+| regime | estimator | bias | scatter | mean esd |
+|---|---|---|---|---|
+| R1, strong signal, only a0/a1 shared | weighted line through the chain | −0.45 | 4.45 | 5.48 |
+| | joint a0 + a1·t | −0.46 | 4.41 | 5.48 |
+| R2, phase scale ×0.035 (per-pattern cell esd ×4.95) | weighted line | −2.45 | 17.9 | 27.1 |
+| | joint | −2.67 | 17.95 | 27.1 |
+| R3, instrument (zero, profile) shared in the joint fit | weighted line | −0.45 | 4.45 | 5.48 |
+| | joint | +0.10 | 1.57 | 2.13 |
+| | control: shared instrument, cells free, GLS line over their joint covariance | +0.10 | 1.57 | 2.12 |
+
+**What it says.**
+- **The tie is correct.** In R1 and R2 the joint a₁ sits a mean 0.024 and
+  0.021 esd from the weighted line (max 0.074). The esd ratio is 0.983-1.011.
+  Theory says that when only the coefficients are shared, the joint estimate
+  *is* the weighted line, and it is.
+- **The tie alone buys no precision while each pattern's own fit is linear.**
+  Weakening the signal 5× in esd (R2) kept every per-pattern fit Gaussian and
+  unbiased, so the constraint had nothing to fix.
+- **Sharing buys precision, the tie does not.** Sharing the instrument across
+  the ramp (R3) cuts a₁'s esd 2.6× (ratio 0.381-0.392) and its scatter 2.8×.
+  The untied control gets the same answer to within 0.001 esd: a joint fit of
+  per-pattern cells already has that gain. a(T_ref) does not sharpen
+  (1.57e-6 Å in every regime), because a common shift of every cell still
+  trades off against the zero shift.
+- So, on this evidence, the parametric form's value for a series is:
+  - **convenience:** a coefficient with its esd, without exporting the joint
+    covariance, which a joint result does not carry today;
+  - **fewer columns:** one per coefficient instead of one per pattern;
+  - **what remains untested:** whatever happens where a single pattern
+    cannot see the parameter (the second measurement task).
+
+  The library case rests on the outside lab's report until that measurement
+  says otherwise.
+- **Cost.** Joint ÷ chain wall clock is 1.41-2.19 (R1), 1.66-2.11 (R2) and
+  1.44-2.36 (R3) at N = 10. The chain is 1.3-1.9 s and the joint fit
+  2.2-3.2 s.
+- **Calibration, in passing.** Scatter/esd is 0.81 (R1), 0.66 (R2) and 0.74
+  (R3). In R1 and R3 that is about 1/BL, where BL is the Bérar-Lelann factor
+  the package multiplies into every esd (1.263 here), so the raw esds are
+  near honest. The weighted line's χ²_red (mean 0.56) agrees. Why the factor
+  is 1.26 on a model that matches its Poisson data exactly is open, and not
+  this WP's question.
+- **Gaps the script had to work around.** These belong to the "ties and
+  variables" task:
+  - no public verb to add a joint variable or tie, hence the hand call to
+    `_rebuild_columns`;
+  - a joint result carries no covariance, so the control subclassed
+    `_build_result` (`multi.py:1406`) to read it.
+
 ### What the code has (survey, 2026-10-14)
 
 - **`multi.py` is the seam: N patterns, one θ** (WP-0308).
@@ -279,14 +352,22 @@ changes what every coefficient means.
 
 ## Tasks
 
-- [ ] **The measurement, synthetic first.**
-  - A synthetic ramp of 10 patterns with a known a(T): the trajectory-line
-    coefficient and esd against a joint a₀ + a₁·T fit, plus the wall-clock
-    ratio against the chain. It runs on today's dense joint path.
-  - Then the real ZrMo₂O₈ ramp (maintainer-local) for the same two numbers on
-    real data. If the coefficients agree within an esd and the joint esd is
-    not smaller, say so: the series use case then rests on convenience, and
-    the library case on the outside lab's report.
+- [x] **The measurement, synthetic half.** A ramp of 10 patterns with a known
+  a(T): the trajectory-line coefficient and esd against a joint a₀ + a₁·T fit,
+  plus the wall-clock ratio against the chain, on today's dense joint path.
+  Landed as `1325-measure/synthetic_ramp.py`; the numbers are in
+  § Measured.
+- [ ] **The measurement, where a single pattern cannot see the parameter.**
+  § Measured shows the tie buys nothing while every pattern's own fit is
+  linear. Push the synthetic ramp until it is not:
+  - a minor phase whose per-pattern scale falls under the 3σ hold
+    (WP-1301), so the trajectory has gaps;
+  - overlapping or broad peaks, the outside lab's case.
+
+  Report the joint a₁ and its scatter across seeds against whatever line the
+  surviving trajectory points allow.
+- [ ] **The measurement on real data**: the ZrMo₂O₈ ramp (maintainer-local),
+  with the same numbers as the synthetic half.
 - [x] **Survey the prior art for declaring a parametric model**, for a
   self-driving lab as the writer. Written into Context: § Prior art, § The
   shape and § What the code has.
