@@ -147,10 +147,10 @@ them with `numba` on first use and cached the result in `~/.rietx/numba-cache`.
 That directory is no longer read, and you can delete it.
 
 The structure figure draws with two more kernels from the same wheel, and the
-switch below reaches them too. From `rietx-kernels` 1.3 the dichotomy indexing
-engine tests its boxes in the wheel as well. On a monoclinic search of 161 705
-grid boxes the grid took about 4 s of CPU, against 13.5 s on the numpy loop. With an older
-wheel the engine runs its numpy loop.
+switch below reaches them too. The dichotomy indexing engine tests its boxes in
+the wheel as well, from `rietx-kernels` 1.3, the oldest wheel rietx accepts. On
+a monoclinic search of 161 705 grid boxes the grid took about 4 s of CPU,
+against 13.5 s on the numpy loop.
 
 Turn the kernels off with `RIETX_COMPILED=0`, which needs no reinstall. Every
 kernel has the numpy expression it replaces standing behind it, so refinements
@@ -169,7 +169,7 @@ It warns once per process, at the first refinement, structure figure or
 RuntimeWarning: rietx's compiled kernels did not load, because importing
 rietx_kernels raised ModuleNotFoundError (No module named 'rietx_kernels').
 Fits and structure figures run the numpy path, which is slower. Install the
-kernels with pip install "rietx-kernels>=1.1,<2", or set RIETX_COMPILED=0 to
+kernels with pip install "rietx-kernels>=1.3,<2", or set RIETX_COMPILED=0 to
 choose the numpy path and silence this warning.
 ```
 

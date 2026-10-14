@@ -10,8 +10,10 @@ The box test runs compiled again since WP-1959 (``rietx-kernels`` 1.3.0,
 ``kernels/src/dichotomy.rs``), and the numpy loop is its oracle in three
 steps: numpy's row sum has the association the kernel copies, every box a
 real search tests gets the same answer from both, and a whole search reaches
-the same leaves in the same order.  Those tests skip where the wheel predates
-the kernel; ``kernels.yml`` runs them against the wheel a pull request builds.
+the same leaves in the same order.  The pin's floor is 1.3, so they run
+wherever the wheel loads.  They skip only under a wheel that predates the
+kernel, which an install has to go round the resolver to get.  ``kernels.yml``
+runs them against the wheel a pull request builds as well.
 """
 
 from __future__ import annotations

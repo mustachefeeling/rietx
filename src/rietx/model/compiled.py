@@ -19,9 +19,9 @@ From 1.3.0 it carries the dichotomy indexer's box test as well
 (``dichotomy_box_test`` and ``dichotomy_child_key``, WP-1959).  Its oracle is
 ``indexing/dichotomy.py``'s numpy loop, on the bit, box by box and leaf by leaf
 (``tests/test_indexing_kernels.py``).  It is one call per box and never
-splits, since a box is tens of microseconds of work.  Until the pin's floor
-reaches 1.3 a wheel without it still loads, and :func:`dichotomy_kernels`
-declines for the indexer alone, silently.
+splits, since a box is tens of microseconds of work.  The indexer reaches it
+through :func:`dichotomy_kernels`, and a wheel without it is declined whole,
+like one lacking any other kernel.
 
 Why a compiled tier at all
 --------------------------
@@ -146,20 +146,16 @@ KERNEL_ABI = 1
 
 #: The oldest wheel this rietx calls: the F of ``pyproject``'s
 #: ``rietx-kernels>=F,<N+1`` pin.  It is the minor that added the newest name in
-#: :data:`KERNEL_NAMES`, 1.1 for the rasteriser.
-KERNEL_FLOOR = "1.1"
+#: :data:`KERNEL_NAMES`, 1.3 for the dichotomy's box test.
+KERNEL_FLOOR = "1.3"
 
 #: The kernels the wheel must export, under the names ``_KERNELS`` keys them
 #: by.  A wheel lacking one is declined like a wrong :data:`KERNEL_ABI`.  The
-#: first five are the model's and the last two the structure figure's.
+#: first five are the model's, the next two the structure figure's (1.1.0),
+#: and the last two the dichotomy indexer's (1.3.0, WP-1959).
 KERNEL_NAMES = ("accum", "omega_sym", "omega_fcj", "bases_sym", "bases_fcj",
-                "render_rows", "id_plane")
-
-#: The dichotomy indexer's box test and child key, from 1.3.0 (WP-1959).  They
-#: are looked up beside :data:`KERNEL_NAMES` until the pin's floor reaches the
-#: release that added them: a wheel without them still serves the model and the
-#: figure, and indexing runs its numpy loop (:func:`dichotomy_kernels`).
-DICHOTOMY_NAMES = ("dichotomy_box_test", "dichotomy_child_key")
+                "render_rows", "id_plane",
+                "dichotomy_box_test", "dichotomy_child_key")
 
 #: Ω spelled as :func:`~rietx.model.profiles.pseudovoigt.pseudo_voigt` — the
 #: forward model's own arithmetic.
@@ -245,8 +241,7 @@ def _load() -> tuple[dict | None, str | None]:
     if missing:
         return None, (f"rietx_kernels {version} lacks the kernel"
                       f"{'s' if len(missing) > 1 else ''} {', '.join(missing)}")
-    return {n: getattr(wheel, n) for n in KERNEL_NAMES + DICHOTOMY_NAMES
-            if callable(getattr(wheel, n, None))}, None
+    return {n: getattr(wheel, n) for n in KERNEL_NAMES}, None
 
 
 def _kernels() -> dict | None:
@@ -345,23 +340,16 @@ def set_enabled(flag: bool | None) -> bool | None:
 def dichotomy_kernels() -> tuple | None:
     """The dichotomy's ``(box_test, child_key)`` when the compiled path is on.
 
-    ``None`` sends the caller to its numpy loop: the tier is off, the wheel did
-    not load, or it predates the two kernels.  The last is silent.  It arises
-    only while the pin's floor is below 1.3, when the index serves 1.2.0 and
-    advice to install 1.3 could not be followed.  The numpy loop is then what
-    every rietx before WP-1959 ran.  Once the floor reaches 1.3 the two names
-    join :data:`KERNEL_NAMES`, and a wheel without them declines the whole
-    tier with its warning.  The answer is fixed for the process, like
-    :func:`enabled`'s.
+    ``None`` sends the caller to its numpy loop: the tier is off, or the wheel
+    did not load, which :func:`enabled` has already warned about.  The answer
+    is fixed for the process, like :func:`enabled`'s.
     """
     if not enabled():
         return None
     kernels = _kernels()
     if kernels is None:          # forced on where the wheel did not load
         return None
-    if all(n in kernels for n in DICHOTOMY_NAMES):
-        return tuple(kernels[n] for n in DICHOTOMY_NAMES)
-    return None
+    return kernels["dichotomy_box_test"], kernels["dichotomy_child_key"]
 
 
 def _pool() -> ThreadPoolExecutor:
