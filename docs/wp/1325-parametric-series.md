@@ -769,9 +769,16 @@ Where a kernel over measurement coordinates has paid most is in choosing
 - [x] esds of the coefficients in user units at the reference, marked
   unmeasured where no pattern in the subset contributes gradient. Landed as
   `RefinementResult.parametric` (schema 0.55).
-- [ ] `SeriesResult.summary(deliverable="series")` prints the coefficients
+- [x] `SeriesResult.summary(deliverable="series")` prints the coefficients
   beside the trajectory it already prints. A joint-fit summary prints them
-  for a library.
+  for a library. Landed:
+  - `RefinementResult.__str__` prints a coefficient block whenever
+    `parametric` is set.
+  - A chain has no coefficients of its own, so
+    `SeriesResult.summary(parametric=<the joint result>)` takes them from a
+    joint fit of the same patterns.
+  - The deliverable gains a "functional form" row that says NOT measured
+    when no joint fit is given.
 - [ ] Manual Part 1 `using/series.md` (series and library); Part 2 the
   equation with its *Source* line; the skill's series reference.
 - [ ] Tests: a synthetic ramp with a known a(T) (a₁ within one esd of truth,

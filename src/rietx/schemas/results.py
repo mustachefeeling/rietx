@@ -1219,6 +1219,39 @@ def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
     return lines
 
 
+def _parametric_lines(coefficients: list[ParametricCoefficient] | None) -> list[str]:
+    """The coefficients of a joint fit's parametric declarations (WP-1325).
+
+    Nothing for ``None``, which is "no declaration": the block is the answer
+    of a parametric fit, so it is absent where none was asked for rather than
+    printed empty.  One line per declaration names its target and reference,
+    then one line per term in the caller's units, so the intercept reads as
+    the target *at the reference* and never as an extrapolation to zero.  A
+    term with no esd says which of the two reasons holds.
+    """
+    if coefficients is None:
+        return []
+    from .._display import _number
+
+    lines = ["  parametric coefficients (user units, at each reference):"]
+    seen: set[str] = set()
+    for c in coefficients:
+        if c.tie not in seen:
+            seen.add(c.tie)
+            ref = ("" if not c.reference else " at " + ", ".join(
+                f"{k}={v:g}" for k, v in c.reference.items()))
+            lines.append(f"    {c.tie}: {c.target}{ref}")
+        if not c.vary:
+            value = f"{_number(c.value)} (never refined)"
+        elif c.esd is None:
+            value = f"{_number(c.value)} (no esd: unmeasured)"
+        else:
+            value = _number(c.value, c.esd)
+        unit = f" {c.unit}" if c.unit else ""
+        lines.append(f"      [{c.term}] {value}{unit}")
+    return lines
+
+
 def _provenance_line(provenance: Provenance) -> str:
     """The provenance clause of section 4 — the only part of it a bare
     result can answer (the rest needs the compiled model: held paths, the
@@ -1599,6 +1632,7 @@ class RefinementResult(Base):
         lines = [f"RefinementResult: {self.status} ({self.mode})"]
         lines += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
         lines += _diagnostic_lines(self.diagnostics)
+        lines += _parametric_lines(self.parametric)
         lines.append(_provenance_line(self.provenance))
         lines.append(_agreement_line(self.statistics))
         return "\n".join(lines)

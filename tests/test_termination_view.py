@@ -418,3 +418,47 @@ def test_refinement_summary_series_deliverable_points_one_rank_up():
     text = ref.summary(deliverable="series")
     assert "SeriesResult.summary(deliverable='series')" in text
     assert "2θ-scale anchor" in text
+
+
+# ------------------------------------------- parametric coefficients (WP-1325)
+def _coefficients() -> list:
+    """Two terms of one declaration, in user units at T = 750 K: the shape
+    ``MultiHistogramRefinement._build_result`` writes, built by hand because
+    these rows are a projection of the field."""
+    from rietx import ParametricCoefficient
+
+    common = dict(tie="a_T", target="phases.0.cell.a", vary=True,
+                  reference={"T": 750.0})
+    return [
+        ParametricCoefficient(term="1", path="vars.a_T_0", value=4.17531,
+                              esd=1.6e-6, unit="Å", **common),
+        ParametricCoefficient(term="T", path="vars.a_T_1", value=2.0783e-5,
+                              esd=2.1e-9, unit="Å/K", **common),
+    ]
+
+
+def test_str_result_prints_parametric_coefficients_at_the_reference():
+    _ref, result = _fit()
+    assert "parametric coefficients" not in str(result)  # None: none declared
+    text = str(result.model_copy(update={"parametric": _coefficients()}))
+    assert "a_T: phases.0.cell.a at T=750" in text
+    assert "[1] 4.1753100(16) Å" in text
+    assert "[T] " in text and "Å/K" in text
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    assert lines[-2].strip().startswith("provenance:")
+
+
+def test_series_deliverable_says_the_functional_form_was_not_measured():
+    text = _series_result().summary(deliverable="series")
+    assert "functional form: NOT measured" in text
+    assert "parametric=" in text
+
+
+def test_series_summary_prints_a_joint_fits_coefficients_beside_the_trajectory():
+    _ref, result = _fit()
+    joint = result.model_copy(update={"parametric": _coefficients()})
+    text = _series_result().summary(deliverable="series", parametric=joint)
+    assert text.index("trajectory") < text.index("parametric coefficients")
+    assert "functional form: measured jointly (a_T; coefficients above)" in text
+    with pytest.raises(ValueError, match="declared none"):
+        _series_result().summary(parametric=result)
