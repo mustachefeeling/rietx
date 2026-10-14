@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: 1325 (the scalable joint solver, and coordinates in any number of dimensions)
-Priority: P3 2026-10-14 — named on a use case, not on a measurement; reconstruct-then-fit through 1325 is the workaround
+Priority: P3 2026-10-14 — named on a use case, not on a measurement; 1325's blocked solver makes reconstruct-then-fit a working route to ~1 400 voxel patterns, and the direct route still needs a matrix-free solver
 
 ## Goal
 
@@ -120,6 +120,32 @@ TOPAS is closed, so DLSR is read from its paper only. Check the licence of
 any open XRD-CT toolkit (nDTomo, the DLSR authors' own) before reading its
 code; until then, concepts only. scikit-image's `radon`/`iradon` are BSD and
 usable for the synthetic phantom's reconstruction, as a dev-only dependency.
+
+### Inherited
+
+- **2026-10-14, from WP-1325: the blocked joint solver landed, and its
+  blocks are per pattern.**
+  - **What it is.** `optimize/blocked.py`'s `BlockJacobian` holds each
+    histogram's rows against its own columns. The LM driver scatters the
+    normal equations into a dense n×n A and keeps its BVLS / projected-CG
+    step, and the covariance is the Schur complement of the arrow.
+  - **What it measured.** On a synthetic (x, y) library at 3 000 points a
+    pattern, N = 300 (3 004 columns) ran in 48 s and 1 GiB. Its own limit is
+    the n×n arrays, about 1 400 patterns at that width (extrapolated). The
+    serial per-histogram Jacobian loop is 45 % of the fit (WP-1325
+    § Measured: scaling).
+  - **What it means here.** For the direct route this is the shape, not the
+    answer: a voxel's columns sit in many patterns' rows, so the blocks are not
+    disjoint, and 10⁴-10⁵ columns overflow a dense A. The matrix-free item
+    above stands. What carries over:
+    - `blocked.choose_layout` and `LSQOutcome.jacobian_layout`, the seam for
+      a third layout;
+    - the Schur covariance's equilibration and pseudo-inverse cut.
+  - **On choosing the penalty weight.** 1325 surveyed and measured a kernel
+    (smoothness) prior across patterns (§ A kernel over the coordinates,
+    § Measured: where one pattern cannot see the parameter). REML on the
+    per-pattern trajectory misled badly in the weak-signal regime, which bears
+    on how this WP chooses its penalty weight.
 
 ## Non-goals
 

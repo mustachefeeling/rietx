@@ -49,6 +49,28 @@ chain on the same data is reported as a range, never gated.
 
 ### Inherited
 
+- **2026-10-14, from [1325](1325-parametric-series.md): a parameter can now
+  be refined as a declared function of each pattern's coordinates, jointly,
+  and the joint form measured a gain where one pattern cannot see the
+  parameter.**
+  - **The tool.** `rx.refine_multi(..., coordinates=rx.CoordinateTable(...),
+    parametric=[rx.ParametricTie(...)])`, with `RefinementResult.parametric`
+    in user units at the reference.
+  - **Only forms linear in their coefficients.** m ∝ (1 − T/T_N)^β stays
+    fenced (`Parameter.expr`, WP-1119). A polynomial in T over the ordered
+    patterns only, `patterns=[…]`, is declarable. So is one law per side of
+    a transition, on disjoint subsets.
+  - **What it measured.** On a synthetic ramp whose minor phase fell under
+    the WP-1301 hold:
+    - the hard tie cut the slope's scatter to 0.72× the line through the
+      chain's kept points;
+    - under a wrong form (a curve in the gaps) its intervals covered 3 % at
+      2 esd.
+
+    A moment that falls toward T_N is that regime, so the moment trajectory
+    is the series 1325 named as a further measurement. Run it here with a
+    polynomial in (1 − T/T_N) below a declared T_N, and check the form
+    against the chain before quoting it.
 - **2026-10-11, from WP-1938 D13 (fourth session): the fences read a
   powder twin as path dependence.** Reversing every moment gives the same
   powder pattern, and so does a mirror of the lattice that fixes the site. On

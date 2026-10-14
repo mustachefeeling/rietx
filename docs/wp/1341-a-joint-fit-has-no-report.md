@@ -135,6 +135,33 @@ against the tree at e1d19359 on arrival.
   `esd=`, which `multi.py` already passes. It is folded into the Context
   bullet above.
 
+### Inherited
+
+- **2026-10-14, from [1325](1325-parametric-series.md): the joint path now
+  carries `vars.` coefficients that drive per-histogram cells, and three
+  joint guards do not see them.**
+  - **What changed underneath.** The joint support hold and its release now
+    read column reach, not a name prefix (WP-1342's rule), and
+    `StageResult.held_reach` is written on joint stages; it was always `{}`
+    before.
+  - **Still open:**
+    1. **The joint `CELL_RUNAWAY`** (`multi._clamp_cell_runaway_multi`) has
+       no twin of the single fit's `_vars_driven_cell_escapes`, so a cell a
+       coefficient drives out of its window is not named.
+    2. **The specimen-level guards read histogram 0's table only**
+       (`_top_diagnostics`). A per-histogram structural path, whether a
+       parametric target or a `SharingMap(per_histogram=["phases.*"])`
+       override, is checked in histogram 0 alone. This predates 1325.
+    3. **The joint support hold fires only for a phase unsupported in every
+       histogram.** A per-histogram cell of a phase invisible in *its own*
+       histogram, but visible elsewhere, is a flat direction nothing holds.
+       1325's measurement pinned such cells with a prior, so an unpinned run
+       is untested.
+  - **A new joint diagnostic is in.** `PARAMETRIC_OUT_OF_RANGE`, in
+    `DIAGNOSTIC_SCOPES` as FIT, warns when unbounded coefficients put a
+    target outside its own window. A joint report should render it beside
+    `RefinementResult.parametric`.
+
 ## Non-goals
 
 - Making the joint fit itself do more physics. This is reporting and
