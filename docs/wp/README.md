@@ -586,7 +586,9 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1949](1949-an-accepted-evaluation-carries-what-a-preview-draws.md) | An accepted evaluation carries what a preview draws | ⬜ | P3 | — |
 | [1957](1957-a-fit-seen-in-colab.md) | A fit seen in Colab: figures at their own shape, the structure beside them, a template for your own data | ✅ 2026-10-14 | — | — |
 | [1966](1966-the-tutorials-run-in-the-browser.md) | The tutorials run in the browser, in JupyterLite | ✅ 2026-10-14 | — | — |
-| [1970](1970-a-notebook-figure-follows-the-frontends-theme.md) | A notebook figure follows the frontend's theme | ⬜ | P3 | — |
+| [1970](1970-a-notebook-figure-follows-the-frontends-theme.md) | A notebook figure follows the frontend's theme | ✅ 2026-10-14 | — | — |
+| [1971](1971-a-returned-figure-survives-a-zoom-and-a-pickle.md) | A returned figure survives a caller's zoom and a pickle | ⬜ | P3 | — |
+| [1972](1972-the-indexing-figures-take-a-dark-palette.md) | The indexing figures take a dark palette | ⬜ | P3 | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 

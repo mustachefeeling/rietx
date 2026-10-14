@@ -1,9 +1,9 @@
 # WP-1970 — a notebook figure follows the frontend's theme
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-10-14 — a pattern, fit, series or structure figure in a notebook
+carries a dark copy the frontend's theme picks; the indexing figures are WP-1972
 Track: Render what the fit already knows
 Depends on: —
-Priority: P3 2026-10-14 — a workaround covers it: every pattern figure takes `style="dark"` and `render_structure` a dark `background=`; the series figure has no dark form
 
 ## Goal
 
@@ -74,13 +74,35 @@ natively, and more in the browser. The dark PNG is 27 kB against the light
 one's 26 kB. The six committed notebooks hold 12 PNGs, 676 kB of base64 in
 829 kB of files, so a pair per figure adds about 680 kB.
 
-**The open question** is how the dark copy is made. It can be drawn again,
-or recoloured. Drawing again needs the call's arguments held on the figure,
-and it loses whatever the caller changed on the returned figure, such as
-`ax.set_xlim` or an annotation. Recolouring maps each light role colour in
-`PALETTES` to its dark one on a copy, and keeps the caller's changes. It
-needs the light role colours to be distinct, or to map to one dark colour:
-`obs` and `tick` share `#1a1a1a` today and both become `#d2c9bd`.
+**The dark copy is recoloured, not drawn again** (decided 2026-10-14). The
+formatter deep-copies the light figure and maps each light ink to its dark
+one. A `PALETTES` role maps to the same role in dark. Matplotlib's own
+black maps by the artist's kind: text to `fg`, and spines, ticks and other
+lines to `rule`. White maps to `ground`, as `_ground_rc` paints it. The map
+must be a function, so two roles sharing a light colour must share a dark
+one: `obs` and `tick` share `#1a1a1a`, and both become `#d2c9bd`.
+
+It was measured on tutorial 01's FAP Le Bail fit, three figures:
+`best.plot()`, `data.plot()`, and `data.plot(model=ref,
+two_theta_range=(25, 35))`. At 200 dpi the recoloured copy matched the
+figure drawn with `style="dark"` in every pixel, 0 differing of about
+1.2 million in each. The copy costs 21-23 ms and the recolour 2-8 ms. A
+redraw costs 20-92 ms. Both are small beside the 220-240 ms encode.
+
+The caller's case separates the two. An annotation added to the returned
+figure stays in the recoloured copy, and its text turns from black to `fg`.
+A redraw drops it. The probe's first recolour missed the annotation's arrow,
+which a walk over `findobj()` does not reach, so the arrow is mapped
+separately. Neither route fixes a caller's `ax.set_xlim(30, 34)`. The light
+figure then encodes at 30 076 × 871 px, because the gutter labels sit in data
+coordinates beyond the new limits and `bbox_inches="tight"` reaches them.
+That issue predates this WP. Recolouring shows the same figure in both
+themes, and a redraw would show a different one.
+
+A CSS `filter: invert(1) hue-rotate(180deg)` on the one light image would
+cost no second image. Its output is a fixed function of each pixel, so the
+ground becomes `#000000` rather than the page's `#1d1813`, and the roles
+cannot reach the dark palette's hand-tuned values.
 
 ## Non-goals
 
@@ -92,22 +114,25 @@ needs the light role colours to be distinct, or to map to one dark colour:
 
 ## Tasks
 
-- [ ] `plot_trajectory` takes `style=`, so every figure call has both palettes.
-- [ ] Redraw or recolour, decided on one figure, with a caller's
-  `ax.set_xlim` as the case that separates them.
-- [ ] The notebook formatter emits the pair as `text/html` beside the light
+- [x] `plot_trajectory` takes `style=`, so every figure call has both palettes.
+- [x] Redraw or recolour, decided on one figure, with a caller's
+  `ax.set_xlim` as the case that separates them. Recolour (Context).
+- [x] The notebook formatter emits the pair as `text/html` beside the light
   `image/png`, keeping the width-only metadata of WP-1957.
-- [ ] `render_structure`'s notebook output emits the same pair.
-- [ ] A browser check: JupyterLab or the Lite site switched from Light to
+- [x] `render_structure`'s notebook output emits the same pair. Drawn again
+  from the recipe, on a copy of the structure taken at the call.
+- [x] A browser check: JupyterLab or the Lite site switched from Light to
   Dark swaps the figure without a rerun, and the same notebook opened
   untrusted shows one light figure.
-- [ ] The tutorial notebooks rebuilt. The manual's tutorial pages checked
+- [x] The tutorial notebooks rebuilt. The manual's tutorial pages checked
   in furo's dark theme. GitHub's render checked to show one figure.
-- [ ] The Lite site's light pin lifted (`SETTINGS` in `docs/lite/build.py`),
-  with the README sentence that explains it.
-- [ ] Tests: the bundle's shape, the inline fallback on the dark image, the
+- [x] The Lite site's light pin lifted (`SETTINGS` in `docs/lite/build.py`),
+  with the README sentence that explains it. Now `settings()`: the site
+  follows the reader once the newest tag's figures all carry the pair, and
+  the build marks the outputs trusted.
+- [x] Tests: the bundle's shape, the inline fallback on the dark image, the
   prefixed classes.
-- [ ] Skill: none. An agent reads a figure as a PNG file or through
+- [x] Skill: none. An agent reads a figure as a PNG file or through
   `plot_for_vlm`.
 
 ## Acceptance
@@ -127,8 +152,123 @@ pages show dark figures under furo's dark theme.
 
 ## Handover log
 
-- **2026-10-14** — created from a maintainer question in WP-1966's fourth
-  session: can the notebook figures follow a dark theme? No open WP owns
-  notebook figure theming. The index has no open row on it, and WP-1966
-  fenced a dark theme out as a non-goal. The frontend table comes from a
-  source-reading pass that day.
+### 2026-10-14 (2nd session) — the figures follow the theme, and the WP closes
+
+A pattern, fit, series or structure figure in a notebook now shows in the
+reader's light or dark theme, and switches when the theme does, with no cell
+run again. Where a frontend cannot switch, the reader sees the light figure
+as before. The dark image is the light figure recoloured, so a note a caller
+adds to the figure shows in both. A redraw would have dropped it. The cost is
+about twice the encode time per figure shown, and about three times the image
+bytes in a saved notebook. Every task is done and the WP closes. The indexing
+figures have no dark form yet, which is WP-1972. Two older defects of the
+returned figure, which this work found, are WP-1971.
+
+*Renumbered.* This WP was filed as WP-1967 in WP-1966's PR. Main took 1967 to
+1969 for issues the same day, so it is WP-1970. Commit e0fa96dc carries the
+old prefix.
+
+*Done.* `plot_trajectory` takes `style=`. Its five mark colours became
+`PALETTES` roles, and the light figure is byte-identical to before. The
+notebook output is `_repr_mimebundle_` (`viz.plots._notebook_bundle`): the
+light PNG, and for a figure drawn light an HTML pair from
+`viz._notebook.pair_html`. That leaf module imports nothing from rietx, so
+the structure figure reaches it without crossing the figure boundary. One
+light encode serves both. A PNG formatter returning `None` is registered for
+the figure class, which stops the inline backend's `Figure` formatter
+re-encoding over the bundle's PNG. `_darkened` recolours a deep copy: a
+role to its dark role, matplotlib's black to `fg` on text and `rule` on
+lines, and white to `ground`. It reaches an annotation's arrow, which
+`findobj()` misses. A failure in the dark copy warns and leaves the PNG.
+`StructureFigure` keeps a deep copy of its first argument, taken at the
+call, and redraws from `recipe` on the dark ground. A raster's antialiased
+edges cannot be recoloured. Any ground but the default white shows alone.
+The tutorials are rebuilt. The Lite build marks every code cell trusted and
+picks its theme with `settings()`. The manual's exports chapter and the
+series chapter say what a reader sees, and the 1.10 notes stage it.
+
+*Measured.* All on macOS arm64. Probes ran in the `[dev]` venv, the browser
+checks in a scratch venv with this tree installed.
+- Recolour against a `style="dark"` drawing, tutorial 01's FAP Le Bail fit
+  at 200 dpi: 0 differing pixels of about 1.2 million on `best.plot()`,
+  `data.plot()` and `data.plot(model=ref, two_theta_range=(25, 35))`. The
+  committed test adds a weighted panel, a sqrt axis with two phase rows, and
+  the trajectory, all exact at 100 dpi. The copy took 21-23 ms, the
+  recolour 2-8 ms, a redraw 20-92 ms.
+- One figure's display: PNG alone 244-484 ms, the whole bundle 539-933 ms
+  (FAP `data.plot()`, no other suite running). Before the shared encode the
+  bundle took 980-1584 ms.
+- A structure figure: dark redraw 44-47 ms, snapshot 0.4-2.4 ms, encode
+  88-145 ms (fluorapatite, 1000 px).
+- Tutorials: 828 505 → 2 195 188 bytes over six notebooks. All 12 figure
+  PNGs are byte-identical, and all 12 carry the pair.
+- JupyterLab 4.6.4, Chromium: a figure run in the session swaps light, dark,
+  light with no rerun. The same figure opened from a saved notebook has no
+  `<style>` left and shows the light image in both themes.
+- GitHub's viewer, branch blob of tutorial 01: three outputs, the light
+  image shown and the dark hidden in each, under both colour schemes.
+- The built manual under furo, tutorials 01, 02 and 05: one image per pair,
+  the right one, under the OS scheme and under an explicit choice.
+- JupyterLite 0.8.6, a minimal site: a stored output keeps 0 `<style>`
+  untrusted and 1 with `metadata.trusted`. Trusted, under `adaptive-theme`,
+  the stored figure follows the OS scheme in both the Notebook and Lab views.
+- The fast selection on the final tree, with main merged (unchanged since
+  1b97fc5c), in the `[dev]` venv on macOS arm64 with CPython 3.12, no other
+  suite running: 9726 passed, 187 skipped, 1 xfailed, in 9:49. WP-1966's
+  last session measured 9901 in all on the same venv. 9914 is +13, the cases
+  this session added: 2 in `test_sequential`, 9 in `test_viz`, 1 in
+  `test_display` and 1 in `test_lite`. No skip moved. `added_test_times`
+  put the added tests at 16.2 s in all, the bundle test the dearest at 7.9 s.
+  None joins the slow tail. The full selection did not run, because no
+  refined number can move. The acceptance pair passed (44 passed, 1
+  skipped).
+
+*Review* (`/code-review high --fix` over this WP's range). It found a real
+bug. A deep copy of a figure pyplot still holds registered the copy with
+pyplot, so each display under any backend but inline left a stray figure or
+opened a window. The copy is now made with the canvas manager detached, and
+a test that went red without the fix pins it. A display that drops
+`text/html` no longer draws the dark copy. The manual's frontend sentence
+now separates the frontends seen switching from those read from source. A
+`.jupyterlite.doit.db` cache, written to the tree root by this session's
+JupyterLite probe and committed, is removed and ignored. The indexing
+figures had no dark form, against a status that claimed every figure; the
+claims are narrowed and WP-1972 owns them. Declined: copying the structure
+lazily, which would let a later edit split the two pictures, and caching the
+structure's dark raster, which would hold a second image on every figure.
+
+*The fast suite* then found three failures this WP caused, all fixed in
+84f0be2f. The structure figure imported `viz.plots`, which
+`tests/test_figure_boundary.py` refuses. The pair moved to `viz._notebook`,
+and `figure3d.render.NOTEBOOK_DARK_GROUND` restates the dark ground, held
+equal to `PALETTES` as `NOTEBOOK_COLOURS` is. The stale-name guard read the
+notebooks' base64 HTML, and now skips a line with a data URI as it skips a
+PNG line. The skill's API index listed `StructureFigure._drawn_from`. The
+generator now skips private dataclass fields. That also removed three which
+had leaked into `api-magnetic.md` before this WP: `MagneticSolution._instrument`,
+`MagneticTrial._structure` and `MagneticTrial._result`.
+
+*Gotchas.* JupyterLite applies a settings override only from inside the
+lite-dir. A path outside it builds with `overrides.json: 0` and no error. The
+build already writes it there. The figure's warm dark ground, `#1d1813`,
+shows as a slightly lighter card on JupyterLab Dark's near-black. It matches
+the manual and the landing page.
+
+*Not generalised.* A caller's `set_xlim` makes a 30 076 px wide notebook
+image, and a rietx figure cannot be pickled. Both predate this WP and are
+WP-1971. VS Code and Colab were read from source, not run. VS Code's
+Restricted Mode is still unverified.
+
+*Next.* Nothing remains in this WP. WP-1972 first, if a tutorial is to
+store an indexing figure, because one such figure holds the Lite site light.
+WP-1971 when a zoomed or pickled figure matters. At the next cut, check that the Lite site has switched to
+`adaptive-theme`: it follows the reader once the newest tag's notebooks
+carry the pair.
+
+### 2026-10-14 — filed
+
+Created from a maintainer question in WP-1966's fourth session: can the
+notebook figures follow a dark theme? No open WP owns notebook figure
+theming. The index has no open row on it, and WP-1966 fenced a dark theme
+out as a non-goal. The frontend table comes from a source-reading pass that
+day.

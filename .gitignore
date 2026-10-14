@@ -134,3 +134,6 @@ docs/landing/site/
 docs/lite/site/
 docs/lite/wheels/
 docs/lite/.lite-work/
+
+# jupyterlite_core build cache, written to the working directory of a run
+.jupyterlite.doit.db
