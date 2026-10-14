@@ -1,6 +1,6 @@
 # WP-1959 — the dichotomy grid compiled again, so a ceiling reaches svd
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-14 — prune, kernel and measurements landed; the rietx-kernels 1.3.0 release and the pin's floor wait for the merge
 Track: A long run is not one fit
 Depends on: —
 Priority: P2 2026-10-13 — a defect that fires wrongly: on #780's monoclinic case a whole-run ceiling under ~157 s of CPU returns no candidate, although svd alone finds the cell in 27 s; the workaround is a longer ceiling or `engines=("svd",)`
@@ -94,5 +94,21 @@ The obliquity prune no worse on the acceptance file and the benchmark. Every fin
 - Issue #780; WP-1924 (profile), WP-1508 (the compiled spike), WP-1940 (the kernel tier).
 
 ## Handover log
+
+- **2026-10-14** — #780's monoclinic search now finds its cell, 8 s into the search where 400 s found nothing. The grid was not the real blocker. At normal load it cost 57 s, and the run then spent minutes in one grid cell lying outside the search's own domain, where nothing refused a box. This session refuses such boxes, compiles the box test into `rietx-kernels` 1.3.0, and runs the cheap prunes first. svd still never starts under a short ceiling, because dichotomy holds the ceiling until its unit completes, and its leaves are now 82 % of the cost. The maintainer chose (2026-10-14) to fold the prune in ahead of the kernel, so the bit-identity bar applies to the kernel step only.
+
+  *Done.* `a7ba2bbb` the row-free prunes before the Q bounds (identical on all 161 705 grid boxes and the seven WP-1924 digests). `56f0cfd9` `_outside_obliquity`, refusing a box whose unclipped ρ interval lies wholly beyond ±cos 30°. `1f477f60` `kernels/src/dichotomy.rs` (`dichotomy_box_test`, `dichotomy_child_key`), `compiled.dichotomy_kernels`, the wiring in the grid, phase 2 and the centred replay, the crate at 1.3.0, and `kernels.yml` running `tests/test_indexing_kernels.py` on its wheel. Also the 1.9.0 notes, the manual's kernel section and the skill's `INDEX_BUDGET_EXHAUSTED` row. Forward references: WP-1520 and WP-1924 `### Inherited`.
+
+  *Measured* (macOS arm64, `[dev]`, CPU seconds; § Findings has the rest). Grid 57 s → 13.5 s (reorder) → 3.6-4.5 s (kernel). Starving ceiling (`tests.repro_780 N --cpu-clock`): no candidate at 7 s, the cell at 8 s; the numpy loop returns it at 120 s. Phase 2 on the kernel path: `_accept` 82 %, kernels 10 %, loop 9 %, so no whole-traversal kernel. Kernel against numpy: 788 450 boxes and 1.17 M child keys identical. Acceptance file 44 passed (18:03, the pruned numpy tree, measurements beside it). Bethanechol default mode −3, run alone (Bb, Db, E rank 1; F rank 4, +0), against the WP's −6 baseline. That baseline is Linux x86-64, so the comparison is "no worse", not a measured +3.
+
+  *Tests.* 21 new test ids, 20 of them fast. In the engines file: `test_the_obliquity_prune_refuses_only_boxes_wholly_outside_the_domain`. In `test_compiled_kernels.py`: the indexer-only decline. In `test_indexing_kernels.py`: 15, one of them slow (the oblique monoclinic search, ~11 s). The centred-replay test also gains its compiled half (4 ids). On CI's 1.2.0 wheel, 17 of the 20 fast ids skip. They run in `kernels.yml` on every wheel a PR builds, and everywhere once 1.3.0 is published. `test_dichotomy_holds_its_frontier_as_indices_until_a_cell_is_popped` now pins the numpy path, since the kernel gathers no rows.
+
+  *Review* (`/code-review high --fix`, `173f186e`, `791cb9ae`). It found no case where the kernel and numpy disagree. Fixed: an untested decline path, a panic on a zero-width `m`, per-call allocations, a wrong test-file pointer, and the manual's comparison. Taken from its skipped list: the replay test's path, and the oblique search test. Declined: (a) `capabilities()` cannot see the indexer-only decline (the floor raise in Next removes the state); (b) the rule that a kernel splits on the pool (a box is tens of µs, under `_THREAD_MIN_NS`); (c) caching `Masks` across calls (about 1 µs a call; it needs a stateful object across the boundary); (d) ρ computed twice per box (a small numpy-path cost).
+
+  *Deliberately not generalised.* (1) `_det_interval` can still come out inverted (`det_lo > det_hi`, two valid bounds disjoint) without refusing. That is a sibling of the clip: sound to refuse, but it changes the boxes visited, and nobody has counted how often it fires after the obliquity prune. (2) The expanded determinant repeats B (the interval dependency problem). Factoring B out would tighten it, with the same caveat. (3) Contractors (HC4/ACID) and an exact matching test (Glover 1967) would prune more boxes; both change the traversal and need their own acceptance.
+
+  *Gotchas.* `maturin develop --release -m kernels/Cargo.toml` (with `~/.cargo/bin` on PATH) replaces the venv's wheel; do not run it while a suite is collecting. Until the floor reaches 1.3, `compiled.dichotomy_kernels` declines for the indexer alone and warns once, so the model's kernels still load from 1.2.0. The worktree guard refuses a long heredoc; edit with the tools instead.
+
+  *Next.* (1) After the merge, tag `kernels-v1.3.0` on main and approve the `pypi` deployment (`docs/RELEASING.md` § The kernel wheel). (2) Then raise `KERNEL_FLOOR` and the pin to 1.3, move `DICHOTOMY_NAMES` into `KERNEL_NAMES`, tick the last task and close. (3) WP-1924's scheduling question: re-measure what corroboration a short ceiling now allows. (4) WP-1520, the leaves.
 
 - **2026-10-13** — created from WP-1924's last task, on the maintainer's choice of compiling the grid over reordering engines. No open WP owns it: 1508 and 1940 are closed, and 1924 owns the memory and the profile, not a kernel.
