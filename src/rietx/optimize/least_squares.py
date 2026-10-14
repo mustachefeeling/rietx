@@ -57,6 +57,8 @@ from ..params.vector import (
     strain_cap,
 )
 from ..schemas.results import MomentAngleTest
+from . import blocked
+from .blocked import BlockJacobian
 from .cancel import RefinementCancelled
 
 if TYPE_CHECKING:
@@ -197,7 +199,10 @@ class LSQOutcome:
     cost_final: float
     n_iterations: int
     status: str  # "converged" | "max_iter" | "diverged"
-    jac: np.ndarray | None       # table columns only (guards read this)
+    #: table columns only (guards read this); a joint fit's data rows, as a
+    #: :class:`~.blocked.BlockJacobian` where :attr:`jacobian_layout` is
+    #: ``"blocked"``
+    jac: np.ndarray | BlockJacobian | None
     stderr_internal: np.ndarray | None
     correlation: np.ndarray | None
     #: length of the appended Pawley intensity block (its esds land on
@@ -309,6 +314,14 @@ class LSQOutcome:
     #: :attr:`jac` keeps them.  ``None`` where no test ran: no free moment angle
     #: beside its free modulus, or no covariance computed.
     moment_angle_tests: list[MomentAngleTest] | None = None
+    #: how the joint solve held its Jacobian (WP-1325): ``"dense"``, the
+    #: stacked matrix every joint fit had before, or ``"blocked"``, one
+    #: :class:`~.blocked.BlockJacobian` block per histogram, with its
+    #: covariance by Schur complement.  :func:`run_multi_least_squares` writes
+    #: it on every return, from :func:`.blocked.choose_layout`'s answer.
+    #: ``None`` on the single-histogram path, which has one layout and no
+    #: choice to report.
+    jacobian_layout: str | None = None
 
 
 def stationary_columns(outcome: LSQOutcome, free_paths: list[str]) -> list[int]:
@@ -374,7 +387,9 @@ def rechart_outcome(outcome: LSQOutcome, theta: np.ndarray,
         return np.concatenate([s, np.ones(n - len(s))]) if n > len(s) else s[:n]
 
     jac = outcome.jac
-    if jac is not None:
+    if isinstance(jac, BlockJacobian):
+        jac = jac.scaled_columns(padded(jac.shape[1]))
+    elif jac is not None:
         jac = np.asarray(jac) * padded(np.shape(jac)[1])
     corr = outcome.correlation
     if corr is not None:
@@ -432,7 +447,10 @@ def _rechart_matrix(outcome: LSQOutcome, theta: np.ndarray,
     off = np.abs(t - np.diag(np.sign(np.diag(t))))
     touched = np.flatnonzero(off.sum(axis=0) + off.sum(axis=1) > 0.0)
     jac_old = outcome.jac
-    jac = None if jac_old is None else np.asarray(jac_old) @ padded(np.shape(jac_old)[1])
+    if isinstance(jac_old, BlockJacobian):
+        jac = jac_old.matmul_chart(padded(jac_old.shape[1]))
+    else:
+        jac = None if jac_old is None else np.asarray(jac_old) @ padded(np.shape(jac_old)[1])
     stderr, corr = outcome.stderr_internal, outcome.correlation
     if stderr is not None:
         se = np.asarray(stderr, dtype=np.float64)
@@ -467,8 +485,12 @@ def _rechart_matrix(outcome: LSQOutcome, theta: np.ndarray,
             cos = cos * np.sign(np.diag(padded(len(cos))))  # a cosine is scale-free
         else:
             tm = padded(len(cos))
-            norm_old = np.linalg.norm(np.asarray(jac_old), axis=0)
-            norm_new = np.linalg.norm(jac, axis=0)
+            if isinstance(jac_old, BlockJacobian):
+                norm_old = np.sqrt(jac_old.column_sumsq())
+                norm_new = np.sqrt(jac.column_sumsq())
+            else:
+                norm_old = np.linalg.norm(np.asarray(jac_old), axis=0)
+                norm_new = np.linalg.norm(jac, axis=0)
             g = (cos * norm_old) @ tm          # ∝ J_newᵀ r; ‖r‖ cancels
             with np.errstate(invalid="ignore", divide="ignore"):
                 cos = np.where(norm_new > 0.0, g / norm_new, 0.0)
@@ -511,7 +533,13 @@ def _residual_cosine(jac, fun) -> np.ndarray | None:
         return None
     from .statistics import column_norms
 
-    j, f = np.asarray(jac), np.asarray(fun)
+    f = np.asarray(fun)
+    if isinstance(jac, BlockJacobian):
+        # per block, for a joint fit kept in blocks (WP-1325)
+        denom = column_norms(jac) * np.linalg.norm(f)
+        return np.divide(jac.rmatvec(f), denom, out=np.zeros(jac.shape[1]),
+                         where=denom > 0)
+    j = np.asarray(jac)
     # a column of 1e-170 squares to zero and would read as "not held" (WP-1463)
     denom = column_norms(j) * np.linalg.norm(f)
     return np.divide(j.T @ f, denom, out=np.zeros(j.shape[1]), where=denom > 0)
@@ -713,6 +741,9 @@ def _refitted_increase(jac_data: np.ndarray, angles: list[int],
     """
     from .statistics import column_norms
 
+    if isinstance(jac_data, BlockJacobian):
+        # the same minimum by eliminating each block's own columns (WP-1325)
+        return blocked.refitted_increase(jac_data, angles, r_stop, r_point)
     others = np.setdiff1d(np.arange(jac_data.shape[1]), angles)
     rhs = np.column_stack([r_stop, r_point])
     j_o = jac_data[:, others]
@@ -793,7 +824,10 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
     if not candidates:
         return None, []
     x = np.asarray(x, dtype=np.float64)
-    jac_data = to_host_fp64(jac)[:n_data]
+    if isinstance(jac, BlockJacobian):
+        jac_data = jac.data_rows()
+    else:
+        jac_data = to_host_fp64(jac)[:n_data]
 
     def r(th: np.ndarray) -> np.ndarray:
         return np.asarray(resid(th), dtype=np.float64)[:n_data]
@@ -806,8 +840,9 @@ def stationary_angle_test(resid, x: np.ndarray, jac: np.ndarray, n_data: int,
         return None, []
     reference: dict[int, float] = {}
     period: dict[int, float | None] = {}
+    norms = column_norms(jac_data) if isinstance(jac_data, BlockJacobian) else None
     for i, moduli, p in candidates:
-        m = column_norms(jac_data[:, moduli])
+        m = norms[moduli] if norms is not None else column_norms(jac_data[:, moduli])
         m = m[np.isfinite(m)]
         if m.size and m.max() > 0.0:
             reference[i], period[i] = float(m.max()), p
@@ -881,6 +916,8 @@ def _without_columns(jac, columns: list[int]):
     """
     if not columns:
         return jac
+    if isinstance(jac, BlockJacobian):
+        return jac.without_columns(columns)
     out = np.array(to_host_fp64(jac), dtype=np.float64, copy=True)
     out[:, columns] = 0.0
     return out
@@ -2411,15 +2448,31 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       moment_angle_tests=moment_angle_tests)
 
 
+def _stacked_rows(models: list[CompiledModel]) -> tuple[int, int]:
+    """``(n_data_total, n_rows)`` of the stacked joint residual: every
+    histogram's data rows, then every histogram's background-penalty rows."""
+    n_data = sum(len(m.tt) for m in models)
+    n_pen = sum(0 if m.bkg_penalty is None else m.bkg_penalty.shape[0] for m in models)
+    return n_data, n_data + n_pen
+
+
 def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
                     *, weights: list[float] | None = None,
-                    backend: str = "numpy"):
+                    backend: str = "numpy", layout: str = "dense"):
     """(residual, jacobian, n_data_total) for the stacked multi-histogram solve.
 
     Split out of :func:`run_multi_least_squares` so the stacked layout is
     reachable without running a solve — WP-0404's cross-backend matrix compares
     this Jacobian across backends exactly as the solver would build it.
+
+    ``layout="blocked"`` returns the same Jacobian as a
+    :class:`~.blocked.BlockJacobian`, each histogram's weighted rows against
+    its own columns, whose :meth:`~.blocked.BlockJacobian.toarray` is the
+    dense matrix entry for entry (WP-1325).
     """
+    if layout not in blocked.LAYOUTS:
+        raise ValueError(f"unknown Jacobian layout {layout!r}; "
+                         f"available: {', '.join(blocked.LAYOUTS)}")
     n_hist = len(models)
     if any(m.restraints is not None for m in models):
         # The stacked layout sizes the below-data slot from the background
@@ -2468,7 +2521,16 @@ def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
                 J[po:po + n_pen[h], cm] = sqrt_w[h] * Jh[n_data[h]:]
         return J
 
-    return residual, jacobian, n_data_total
+    def block_jacobian(theta: np.ndarray) -> BlockJacobian:
+        # the dense closure's entries, never scattered: each histogram's rows
+        # stay against its own columns (WP-1325)
+        thetas = mtable.split(theta)
+        return BlockJacobian(
+            [sqrt_w[h] * jacobians[h](thetas[h]) for h in range(n_hist)],
+            [mtable.col_map(h) for h in range(n_hist)], n_data, n_pen, n_cols)
+
+    return (residual, jacobian if layout == "dense" else block_jacobian,
+            n_data_total)
 
 
 def run_multi_least_squares(models: list[CompiledModel],
@@ -2518,11 +2580,22 @@ def run_multi_least_squares(models: list[CompiledModel],
     (WP-1341).  An ``eval`` is one evaluation of the *stacked* residual, so
     its ``cost`` and its ``values`` are the joint solve's, aligned with
     ``mtable.free_paths``.
+
+    The stacked Jacobian is held one of two ways (WP-1325), chosen by
+    :func:`.blocked.choose_layout` and recorded on
+    :attr:`LSQOutcome.jacobian_layout`: dense, as every joint fit was before,
+    or as a :class:`~.blocked.BlockJacobian` once the dense matrix would pass
+    :data:`.blocked.DENSE_JACOBIAN_MAX_BYTES`.  Blocked, the LM driver forms
+    its normal equations block by block and the covariance is the Schur
+    complement of the arrow; every reader below takes the blocks.
     """
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
+    # dense below a size, blocked above it (WP-1325, ``blocked.choose_layout``)
+    layout = blocked.choose_layout(_stacked_rows(models)[1], len(mtable.free_paths),
+                                   solver)
     residual, jacobian, n_data_total = _multi_closures(
-        models, mtable, weights=weights, backend=backend)
+        models, mtable, weights=weights, backend=backend, layout=layout)
     # The same two guards :func:`run_least_squares` wires up, for the same
     # reason and on the same closures: ``_multi_closures`` stacks the very
     # ``_make_residual``/``_jacobian_for`` pairs that function wraps, and a
@@ -2568,7 +2641,8 @@ def run_multi_least_squares(models: list[CompiledModel],
     if n_cols == 0:
         return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None,
                           solver=solver,
-                          n_degenerate_cell_probes=cell_guard.n_degenerate)
+                          n_degenerate_cell_probes=cell_guard.n_degenerate,
+                          jacobian_layout=layout)
 
     max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
@@ -2596,7 +2670,10 @@ def run_multi_least_squares(models: list[CompiledModel],
         stderr, corr, covariance_error = _guarded_covariance(
             _without_columns(res.jac, stationary), res.fun, len(res.x),
             n_data=n_data_total)
-    jac_data = np.asarray(res.jac)[:n_data_total] if res.jac is not None else None
+    if isinstance(res.jac, BlockJacobian):
+        jac_data = res.jac.data_rows()
+    else:
+        jac_data = np.asarray(res.jac)[:n_data_total] if res.jac is not None else None
     # ``jac_data`` drops the penalty and restraint *rows*; the angle keeps
     # them, being read off the cost the driver actually minimised
     return LSQOutcome(res.x, cost0, float(res.cost), int(res.nfev), status,
@@ -2608,7 +2685,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
                       covariance_error=covariance_error,
-                      moment_angle_tests=moment_angle_tests)
+                      moment_angle_tests=moment_angle_tests,
+                      jacobian_layout=layout)
 
 
 def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,

@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here (Claude session); scope decided, survey and synthetic measurement landed; the regime a single pattern cannot see is next
+Milestone: unscheduled · Status: 🔄 2026-10-14 — the parametric fit, its blocked solver, summaries and docs landed; the real ZrMo₂O₈ ramp, a lack-of-fit check, in-step bounds and start agreement remain
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -268,6 +268,361 @@ the 20 seeds.
   - a joint result carries no covariance, so the control subclassed
     `_build_result` (`multi.py:1406`) to read it.
 
+### Measured: where one pattern cannot see the parameter (2026-10-14)
+
+`1325-measure/kernel_ramp.py`, output in `1325-measure/kernel_results.txt`.
+
+**Setup.**
+- 10 patterns at T = 300-1200 K and 20 seeds per cell, all converged.
+- Linux x86_64, 4 CPUs, `[dev]` venv, compiled kernels on. A frozen copy of
+  `src/` at 0b33465 ran it, because another lane was editing the tree. Load
+  was 1-8, so wall clock is indicative only.
+- The major phase is LaB₆, per pattern in every arm. The quantity measured is
+  a minor CaF₂ phase's cell, whose truth is a line, a curve
+  (line + (L/2)(t² − 1)) or a kink (the slope halves at 750 K).
+
+**Regimes.**
+- **W:** the minor phase dissolves on heating, with designed support
+  30 × 0.6^k. The chain's WP-1301 hold left patterns 5-9 as gaps: per
+  pattern, 0 0 0 0 1 15 18 20 19 20 of 20 seeds.
+- **O:** broad minor peaks (`lor_size` 0.4°, held), with a per-pattern cell
+  esd 6.3× the true step between patterns.
+
+**Arms.**
+- `chain`: `refine_sequential`;
+- `line`: a weighted line through the chain's kept points;
+- `gp`: Matérn-3/2 with a [1, t] mean, REML on the kept points;
+- `tie`: the hard tie a₀ + a₁·t;
+- `kernel`: the joint fit with prior rows, at the gp arm's REML
+  hyperparameters, appended by wrapping `_multi_closures` in the script;
+- `gp_fix` and `kernel_fix`: a sensitivity pair at a hand-set s = L/4,
+  ℓ = 1 (half the ramp).
+
+Units: a in 10⁻⁴ Å, a₁ in 10⁻⁹ Å/K.
+
+| W | a₁ bias | a₁ scatter | a₁ mean esd | gap RMSE, line / curve / kink | gap coverage ≤ 2 esd, line / curve / kink |
+|---|---|---|---|---|---|
+| line | −328 | 1533 | 1655 | 10.1 / 59.6 / 20.2 | 0.96 / 0.05 / 0.74 |
+| gp | −2273 | 10405 | 7465 | 73.1 / 56.1 / 22.1 | 0.97 / 0.38 / 0.76 |
+| gp_fix | −366 | 2790 | 4166 | 20.4 / 55.3 / 23.3 | 0.96 / 0.66 / 1.00 |
+| tie | +106 | 1107 | 1479 | 6.8 / 58.0 / 20.0 | 1.00 / 0.03 / 0.66 |
+| kernel | −2945 | 13893 | 8690 | 77.3 / 54.2 / 23.3 | 0.91 / 0.31 / 0.68 |
+| kernel_fix | +430 | 2083 | 4177 | 15.1 / 53.5 / 26.0 | 0.97 / 0.57 / 0.91 |
+
+**What it says.**
+- **Where one pattern cannot see the parameter, the hard tie buys
+  precision**, unlike R1 and R2. On W's line truth, a₁'s scatter is 0.72× the
+  line's and its esd 0.89×. The gap RMSE is 6.8 against 10.1, and gap
+  coverage stays at 1.00. A scatter ratio from 20 seeds carries about 16 %
+  of its own uncertainty, so 0.72 is about two sigma.
+
+  The gain has two sources:
+  - The gap patterns carry weak information, a data share of 0.04-0.2 each,
+    which the joint fit uses and the chain throws away.
+  - The near-threshold points the chain keeps are not Gaussian. Noise makes
+    the phase look significant at z ≈ 2, and the chain's |z| reaches 6.5. The
+    line inherits those points, its χ²_red reaching 9.2, and the tie does not
+    lean on them.
+- **The tie's esd is confidently wrong when its form is.** A bend that sits
+  only in the gaps is recovered by no arm: gap RMSE is 54-60 for the curve
+  and 20-26 for the kink, whatever the arm. The tie's gap coverage at 2 esd is
+  0.03 for the curve and 0.66 for the kink. § A kernel predicted this from
+  the literature; it is now measured.
+- **A kernel tuned by REML afterwards does worse than the line in exactly
+  this regime.**
+  - REML on the chain's kept points reads the near-threshold survivors as
+    curvature: s/σ ≈ 60-180 in 7-10 seeds of 20, and the floor in most of the
+    rest.
+  - The gp and kernel arms then extrapolate into the gaps at RMSE 73-77
+    against the line's 10, with kernel |z| up to 15.6.
+  - The coefficient is confounded with the GP: one seed gave a₁ = −48 059.
+
+  So § A kernel's recipe, "REML on (p̂, I), then freeze", fails in the one
+  regime where a kernel could matter. Its input is exactly the points the
+  regime corrupts.
+- **At good hyperparameters a kernel buys honest intervals, not accuracy.**
+  `kernel_fix`'s gap coverage is 0.57 (curve) and 0.91 (kink), against the
+  tie's 0.03 and 0.66, at a worse RMSE than the tie on the line and the kink.
+  Inside the fit against afterwards at the same kernel: `kernel_fix` beat
+  `gp_fix` on the line and the curve, and lost on the kink.
+- **The phase-fraction hypothesis is not supported.** Pinning the cell
+  removes the chain's lag bias: the chain reads the gap fractions 6-11 % low,
+  the tie 3-8 % high. It does not reduce the noise; every arm's gap RMSE is
+  3-4 × 10⁻⁵ against true fractions of 1-10 × 10⁻⁵.
+- **Broad peaks alone stay linear.** O's per-pattern fits were weak but
+  Gaussian (rms z 0.76), so O reproduces § Measured. The tie, `kernel_fix`
+  and the line agree within the 20-seed noise (trajectory RMSE 54.5, 54.5 and
+  59.6 on the line truth).
+- Neither joint arm's support hold fired in either regime.
+
+**Caveats.**
+- The prior rows took the χ²_red·BL² covariance factor, as the package treats
+  its own penalty rows (`least_squares.py:2661`). § A kernel says prior rows
+  should take neither.
+- No free-joint control was run, so the joint hold's behaviour on flat gap
+  cells with no prior is untested. The joint hold only fires for a phase
+  unsupported in every histogram.
+- O did not go non-Gaussian; a nonlinear overlap case needs lower support or
+  a refined `lor_size`.
+
+**Reading.** The hard tie has now earned a measured gain beyond convenience,
+in the regime the outside lab's weak and broad features live in. A kernel
+inside the fit has not. Its one demonstrated benefit is honest intervals
+under a wrong form, which a lack-of-fit check on the tie could give more
+cheaply (Tasks). The soft form stays a Non-goal.
+
+### A kernel over the coordinates (survey, 2026-10-14)
+
+The maintainer asked whether a *kernel* over the pattern coordinates, rather
+than a declared basis, would be useful. A kernel makes a parameter vary
+smoothly without naming its functional form. This section is three
+literature searches plus the algebra that places a kernel in this WP. The
+searches confirmed each citation and its abstract-level claim through indexed
+records, but every full-text fetch failed on DNS, so no paper was read
+whole. Numbers that came only from secondary summaries are left out.
+
+**The form.** Each pattern keeps its own p_k, and a prior over the
+coordinates pulls the values together: p = Φc + g, with g a Gaussian process
+of covariance K_ij = s²·r(|z_i − z_j|/ℓ). In least squares the prior is extra
+residual rows R(p − Φc), with RᵀR = K⁻¹. Φc is left unpenalised, so the
+kernel penalises only departures from the declared basis. This is Wahba's
+(1978) partially improper prior, framed by her as a guard against the
+basis's model error. One family holds every form this WP names:
+- s → 0 is the hard tie, the form this WP scopes;
+- s → ∞ is independent per-pattern fits, the chain's answer;
+- ℓ → 0 (a white kernel) is partial pooling toward Φc, the mixed-effects
+  soft form in Non-goals;
+- a second-difference precision is the P-spline over a coordinate in
+  Non-goals. It is an intrinsic GMRF whose null space is the straight line
+  (Eilers & Marx 1996; Rue & Held 2005, ch. 3).
+
+So both soft forms in Non-goals are members of one family. The hard tie and
+the chain are its two limits, and both make regression tests for an
+implementation.
+
+**What it can buy, read against § Measured.** Profiling out a pattern's
+private parameters (the Schur step) leaves a quadratic in p_k. Its curvature
+I_k is exactly the information that pattern's own fit reports. So when
+nuisances are private and each fit is linear, a joint fit under a kernel
+**is** GP regression on the trajectory (z_k, p̂_k) with noise I_k⁻¹. This is
+the theorem R1 and R2 measured for the line, which is the s → 0 member. In
+that regime a kernel buys nothing that a smoother run afterwards on the
+chain's output does not.
+
+On a lattice parameter it is pure cost. A pattern's own cell esd in R1 is
+4.98e-6 Å (1.2 ppm), against a 2.1e-3 Å step between neighbouring patterns.
+Any kernel that admits the observed trajectory therefore leaves each value's
+data share at ≈ 1.
+
+Where it might pay is the regime the next measurement task already targets,
+where one pattern's likelihood is not Gaussian in p:
+- **Weakly determined parameters**: Biso, occupancy, microstrain, and a
+  minor phase's cell near its detection limit. Pinning a weak phase's cell to
+  its neighbours removes the noise a free cell lets its scale fit. So the
+  payoff may be the *phase fraction* more than the cell (hypothesis,
+  unmeasured).
+- **Overlap that changes along the axis.** Patterns where two phases' peaks
+  are resolved inform the patterns where they are not, with no declared
+  form.
+- **Prediction at an unmeasured coordinate**, for a self-driving lab
+  choosing its next sample. A polynomial's esd is conditional on its form
+  being right (Brynjarsdóttir & O'Hagan 2014). A GP's variance carries the
+  form's uncertainty too.
+- **A seed for a library.** Points in (x, y) have no chain order. Kriging
+  from already-fitted neighbours seeds the next pattern without one.
+
+Measured precedent agrees on the regime:
+- **Dynamic PET.** Fitting kinetic parameters straight to the raw data beats
+  frame-then-fit most at low counts, and the two converge at high counts
+  (Kamasak et al. 2005; reviewed by Reader & Verhaeghe 2014).
+- **MRI.** Parameter maps fitted to raw k-space keep their accuracy at 5-10×
+  undersampling (Sumpf et al. 2011).
+
+The mechanism in both is pooling where each measurement is weak.
+
+**Three uses, by how much they touch the answer.**
+
+| use | changes a converged answer? | needs |
+|---|---|---|
+| seed: krige a pattern's start from fitted neighbours | no | nothing new; a 2-D/3-D chain warm start |
+| afterwards: GP regression on (z_k, p̂_k, I_k⁻¹) | no; it reads the answers | each pattern's information, or the joint covariance where nuisances are shared (R3's control) |
+| prior inside the joint fit | yes, outside the linear regime | prior rows in the joint residual (refused today, `least_squares.py:2424`), hyperparameters, a prior-share report |
+
+A kernel can also be used as a **basis**: p = K(z, u)·α with M centres u.
+This is Wang & Qi's (2015) PET kernel method, or an inducing-point basis. It
+is a `design` Φ, so it is already in the declaration and needs no new
+machinery. With M = N and no penalty it is a reparametrisation and
+constrains nothing. The PET method's gain rests on stopping EM early, which a
+converged LM does not do. With M ≪ N it is just a smoother hard basis.
+
+**Costs and hazards.**
+- **Transitions.** A stationary kernel smears a jump, and its esds hide the
+  smear. Bayesian intervals cover only on average along the curve, and fail
+  at kinks (Wahba 1983; Nychka 1988). That collides with the chain's rule that
+  a step is "reported, never smoothed" (`_discontinuity_steps`,
+  `sequential.py:2377`).
+
+  Every field that smooths over coordinates segments first:
+  - SAGE fits one GP per phase region (Kusne, McDannald & DeCost 2024);
+  - SARA uses the GP to *locate* boundaries (Ament et al. 2021);
+  - EBSD and hyperspectral maps use edge-preserving total variation
+    (Athavale et al. 2023; Iordache et al. 2012);
+  - ANDiE's data preferred a first-order law to the continuous one its run
+    assumed (McDannald et al. 2022).
+
+  So a kernel is declared, never a default, and its subset is a phase field
+  (§ The shape item 1 already carries the subset). In difference or Markov
+  form, a declared break is one deleted prior row.
+- **Hyperparameters.** Only s²/ℓ^{2ν} can be estimated consistently
+  (Zhang 2004). Estimate it by REML on the reduced problem (p̂, I), never
+  inside the nonlinear fit, or fix ℓ from physics. Quote the answer again at
+  ℓ×½ and ℓ×2. GCV can undersmooth badly and REML is steadier (Wood 2011).
+  Over 500 000 synthetic DEER traces, AIC and GCV chose the strength better
+  than the L-curve (Edwards & Stoll 2018).
+- **What an esd means.** With the prior rows in, (JᵀJ)⁻¹ is a posterior
+  covariance conditional on the hyperparameters. It leaves out the smoothing
+  bias, so its intervals undercover (Kuusela & Panaretos 2015, in unfolding).
+  That is a confident wrong singleton in a new form. A kernel fit therefore
+  reports, per pattern:
+  - the data share h_k = diag[(I + K⁻¹)⁻¹·I];
+  - the independent esd beside the posterior esd;
+  - tr(H) as the trajectory's effective degrees of freedom (Hodges &
+    Sargent 2001).
+
+  A value whose data share is small belongs to the prior and is marked so.
+  That is WP-1110's rule (no esd rather than a small one) and WP-1301's (a
+  value that is not a measurement is the caller's), applied to a prior. Prior
+  rows take no χ²_red or Bérar-Lelann factor and stay out of the observation
+  count, as restraint rows already do.
+- **The absent-phase hold.** A prior gives a flat direction curvature, so the
+  WP-1301 hold and a kernel disagree about a phase the data cannot see. The
+  hold freezes it; the prior pins it to its neighbours. That has to be
+  decided before the joint path admits prior rows.
+- **Identifiability beside Φ.** A GP beside a parametric mean confounds c
+  with the discrepancy unless c is *defined* (Kennedy & O'Hagan 2001;
+  Brynjarsdóttir & O'Hagan 2014). Either definition fixes it: the GLS
+  projection (Tuo & Wu 2015), or Φ as the kernel's null space. The hard tie's
+  esd on c is overconfident whenever Φ is wrong.
+
+**Computation: a kernel keeps the solver's structure.**
+- Order the unknowns as [private blocks | p | c]. The prior touches only p,
+  so the kernelised parameters join the Schur *border*.
+- Eliminating each pattern's private block leaves I + K⁻¹ over (p, c): GP
+  regression with each pattern's profiled information as its noise.
+- The arrow survives, with a border of N·d_p + n_c columns, where d_p is the
+  number of kernelised parameters per pattern. The scalable solver's route
+  (ii) carries a kernel with no new structure.
+
+How the border scales:
+- **Dense K** is affordable up to N·d_p ≈ 3 000 (a Cholesky of order 10¹⁰
+  flops, seconds per iteration).
+- **1-D.** A half-integer Matérn kernel is a linear SDE (Hartikainen &
+  Särkkä 2010). Prior rows Q^{-½}(x_{k+1} − A·x_k) then couple neighbours
+  only, so the border is block-tridiagonal and the solve is O(N). At ν = 3/2
+  the state carries dp/dz, a thermal-expansion coefficient with an esd.
+- **Scattered 2-D/3-D (a library).** Vecchia or NNGP rows, each with m + 1
+  nonzeros (Datta et al. 2016; Katzfuss & Guinness 2021).
+- **A grid (a tomography slice).** The SPDE square root (Lindgren, Rue &
+  Lindström 2011).
+- **Partial pooling needs no dense K.** A latent mean in the border and
+  per-pattern rows (p_k − μ)/τ suffice (Henderson 1976 writes the precision
+  directly). Model the precision, never the covariance.
+
+**The chain is half a smoother.** The iterated extended Kalman smoother is
+Gauss-Newton on the joint problem (Bell 1994).
+- The warm-start chain is a forward pass with no prior precision.
+- A forward *filter* would add a `ValueRestraint` (`schemas/structure.py:550`)
+  toward each predicted value, which a single-pattern fit already accepts.
+- `direction="both"` runs both passes and *compares* them
+  (`SEQUENTIAL_PATH_DEPENDENT`). A two-filter smoother (Fraser & Potter 1969)
+  would *combine* them.
+
+In 1-D that is a route to a kernel prior with no joint solver. But iterated
+to convergence it is the joint fit by another name, and a forward filter
+alone makes the answer depend on direction by construction.
+
+**Precedent in diffraction.** No published Rietveld refinement puts a kernel
+prior across patterns. The diffraction work does one of three things:
+- smooths per-pattern values afterwards: GSAS-II's equations on its
+  sequential table; CAMEO and SAGE on phase labels and properties;
+  CrystalShift, which fits each pattern alone (Chang et al. 2025);
+- ties hard (Stinton & Evans 2007; Wragg et al. 2015);
+- fits jointly with no prior between voxels (DLSR, Vamvakeros et al. 2020).
+
+The one place a kernel prior sits inside a fit to raw diffraction data is
+**GP strain tomography** (Jidling et al. 2018; Hendriks et al. 2019;
+Henningsson & Hendriks 2021):
+- the strain field is a GP whose covariance satisfies equilibrium;
+- it is fitted per grain to raw Bragg-edge and 3DXRD projections, with
+  hyperparameters estimated from the data;
+- it beat both the algebraic inversion and an earlier hand-weighted
+  smoothing penalty on reconstruction error.
+
+Outside diffraction, two precedents have the same structure:
+- **geostatistical inversion** (Kitanidis 1995): a GP prior, a nonlinear
+  forward model, and structural parameters by maximum likelihood.
+  Gauss-Newton failed under strong nonlinearity and LM fixed it (Nowak &
+  Cirpka 2004);
+- **integrated plasma-profile analysis** (Kwak et al. 2020): GP priors fitted
+  jointly to raw Thomson-scattering data.
+
+Where a kernel over measurement coordinates has paid most is in choosing
+*what to measure*:
+- CAMEO, about 10× fewer experiments (Kusne et al. 2020);
+- gpCAM, roughly half the measuring time in ILL tests (Noack et al. 2021);
+- ANDiE, about 5× fewer temperature steps, with a parametric rather than a
+  kernel model (McDannald et al. 2022).
+
+**Reading.**
+- **The kernel is the general soft form.** The hard tie and the independent
+  fit are its limits, and it leaves the solver's structure unchanged.
+- **Where each fit is linear it buys nothing** beyond a smoother run
+  afterwards. That is the same regime where § Measured found the hard tie
+  buys nothing. Any in-fit value lies where the next measurement already
+  looks.
+- **Two uses are cheap and change no fitted answer**: seeding a library that
+  has no chain order, and smoothing afterwards with prediction at unmeasured
+  coordinates.
+- **Using it inside the fit has three costs**: a hyperparameter, a posterior
+  esd that undercovers at a transition, and a decision against the WP-1301
+  hold. It is measured against the hard tie before it is built.
+- **Measured the same day** (§ Measured: where one pattern cannot see the
+  parameter): REML on the trajectory fails in the weak regime, and at good
+  hyperparameters the kernel bought intervals, not accuracy. Not built.
+
+### Measured: scaling (2026-10-14)
+
+`1325-measure/scaling.py`, output in `1325-measure/scaling_results.txt`.
+
+**Setup.**
+- Synthetic LaB₆ library at 3 000 points per pattern.
+- The cell is a `polynomial` over (x, y), and each pattern has its own zero,
+  profile and background.
+- Linux x86_64, 4 CPUs, 15.7 GiB, no swap, `[dev]`, nothing else running.
+- Each case ran in a subprocess.
+
+| N | layout | columns | fit wall | peak RSS | coefficients vs truth |
+|---|---|---|---|---|---|
+| 10 | dense | 104 | 2.2-2.7 s | 0.24 GiB | |
+| 10 | blocked | 104 | 1.3-1.4 s | 0.17 GiB | \|z\| ≤ 1.05 |
+| 70 | dense | 704 | 63-68 s | 3.09 GiB | |
+| 70 | blocked | 704 | 10.3-10.6 s | 0.29 GiB | \|z\| ≤ 0.83 |
+| 300 | dense | 3004 | not run: J alone 20.1 GiB | | |
+| 300 | blocked | 3004 | 48.2-48.6 s | 1.00 GiB | \|z\| ≤ 0.79 |
+
+**What it says.**
+- **Where dense stops.** J alone passes RAM at N = 265. A dense fit peaks at
+  2.66× J (measured at N = 70), so it fits up to about N ≈ 161 on this
+  machine (extrapolated, not run).
+- **Blocked is the faster path from N = 10 up.** Blocked against dense, its
+  coefficients agree to 6.8e-9 esd at N = 10 and 1.6e-8 esd at N = 70.
+- **The blocked path's own limit is its n×n arrays.** N = 300 peaked at
+  about 11 such arrays, which puts the limit near 1 400 patterns
+  (extrapolated).
+- **The next cost is the serial per-histogram Jacobian loop**, at 45 % of
+  the N = 300 fit. The step is 4 %, normal equations 1.8 s and the
+  covariance 3.3 s.
+
 ### What the code has (survey, 2026-10-14)
 
 - **`multi.py` is the seam: N patterns, one θ** (WP-0308).
@@ -355,7 +710,9 @@ the 20 seeds.
 - Soft forms: partial pooling toward the surface, or a P-spline smoothness
   penalty over a coordinate. Both need the joint path's restraint refusal
   lifted, and both make the esds conditional on a penalty weight. They are a
-  follow-up WP if the hard form proves too stiff across a library.
+  follow-up WP if the hard form proves too stiff across a library. Both are
+  members of one kernel family (§ A kernel over the coordinates), so such a
+  WP would build the kernel, not either one alone.
 - Sliding-window marginalisation for unbounded campaigns.
 
 ## Tasks
@@ -365,7 +722,7 @@ the 20 seeds.
   plus the wall-clock ratio against the chain, on today's dense joint path.
   Landed as `1325-measure/synthetic_ramp.py`; the numbers are in
   § Measured.
-- [ ] **The measurement, where a single pattern cannot see the parameter.**
+- [x] **The measurement, where a single pattern cannot see the parameter.**
   § Measured shows the tie buys nothing while every pattern's own fit is
   linear. Push the synthetic ramp until it is not:
   - a minor phase whose per-pattern scale falls under the 3σ hold
@@ -374,23 +731,78 @@ the 20 seeds.
 
   Report the joint a₁ and its scatter across seeds against whatever line the
   surviving trajectory points allow.
+
+  Extended 2026-10-14 at the maintainer's request (§ A kernel over the
+  coordinates):
+  - two arms beside the hard tie: a GP fitted afterwards on the trajectory,
+    and a joint fit with kernel prior rows (the script appends them, as it
+    already subclasses the joint path);
+  - a truth that is not a line, one curved and one with a kink, so the hard
+    tie's form error and the kernel's smoothing bias both show;
+  - the weak phase's *fraction* as well as its cell.
+
+  Landed as `1325-measure/kernel_ramp.py`; the numbers are in § Measured:
+  where one pattern cannot see the parameter.
+- [ ] **A lack-of-fit check on the declared form.** The tie's gap coverage
+  fell to 0.03 under a curved truth (§ Measured: where one pattern cannot see
+  the parameter), so a wrong Φ yields a confidently wrong esd. Candidates:
+  - χ² of the per-pattern values against the tie's curve, where the
+    per-pattern fits are trustworthy;
+  - a nested fit with one more term.
+
+  Either says when to widen the basis. It is cheaper than a kernel, which
+  bought only honest intervals.
+
+  A third candidate needs no refit: a score test against a per-pattern
+  deviation, built from the coefficient columns at the answer.
+- [ ] **Hold each target's own bounds inside the step.** Coefficients are
+  unbounded, so a polynomial can step a target through its floor or pole
+  mid-solve (March-Dollase r at `MARCH_R_MIN`, the Caglioti W floor, an
+  occupancy outside [0, 1]). `PARAMETRIC_OUT_OF_RANGE` reports this only
+  afterwards. Root CLAUDE.md's rule is that a bound on a combination is an LM
+  `LinearInequality` held inside the step:
+  - one row lo ≤ Φ_k·c ≤ hi per subset pattern with a finite bound;
+  - the joint driver passes `inequalities=[]` today
+    (`least_squares.run_multi_least_squares`);
+  - TRF keeps the post-fit warning.
+
+  Declined from the 2026-10-14 code review as a design change.
+- [ ] **Per-pattern starting structures agree beyond their parameters.**
+  `_starting_structures` checks the phases, space groups and sites, and
+  `_check_starts_agree` the shared values. Fields that are not parameters
+  can still differ between starts: a preferred-orientation axis, the magnetic
+  symmetry, the extinction model. Two starts with different texture axes
+  sharing one `r` column are not one model with different values. Decide
+  which fields must agree and refuse the rest. Declined from the 2026-10-14
+  code review as a design decision.
 - [ ] **The measurement on real data**: the ZrMo₂O₈ ramp (maintainer-local),
   with the same numbers as the synthetic half.
 - [x] **Survey the prior art for declaring a parametric model**, for a
   self-driving lab as the writer. Written into Context: § Prior art, § The
   shape and § What the code has.
-- [ ] **The declaration**: the coordinate table, the closed basis vocabulary,
+- [x] **Survey a kernel over the pattern coordinates** (the maintainer's
+  question): precedent across fields, its place in this WP's family of
+  forms, what it can buy, its costs, and how it scales. Written into Context
+  as § A kernel over the coordinates.
+- [x] **The declaration**: the coordinate table, the closed basis vocabulary,
   the subset, the reference and scale, with JSON round-trip, and every
-  refusal of § The shape item 3 before any solve.
-- [ ] **Per-pattern starting values in a joint fit**: a `Structure` per
+  refusal of § The shape item 3 before any solve. Landed as
+  `schemas/parametric.py` (`CoordinateTable`, `ParametricTie`,
+  `ParametricCoefficient`) and `params/parametric.py` (`resolve_parametric`,
+  the one authority). Coefficients are unbounded in this cut, so the box
+  refusal became `PARAMETRIC_OUT_OF_RANGE` after the fit.
+- [x] **Per-pattern starting values in a joint fit**: a `Structure` per
   histogram, or per-pattern overrides, in place of the deep copy at
-  `params/multi.py:187`.
-- [ ] **Ties and variables reach the joint table**: a `vars.` coefficient
+  `params/multi.py:187`. Landed as `structure: Structure | list[Structure]`;
+  a list must agree on topology and on every shared value.
+- [x] **Ties and variables reach the joint table**: a `vars.` coefficient
   shared, per-table ties onto `hist.{h}.` targets, and
   `_unsupported_paths_multi` reading `column_reach` per the WP-1342 rule
   before any variable drives a per-histogram cell. Bit-identical to
-  `refine_multi` when the basis is `constant`.
-- [ ] **Scalable solver, the step.** A block-structured joint Jacobian (per
+  `refine_multi` when the basis is `constant`. Landed, and bit-identical (θ,
+  esds, statistics and y_calc `==`): a coefficient takes its target's column
+  slot, box and unit. The release (`_rehold_multi`) reads the reach too.
+- [x] **Scalable solver, the step.** A block-structured joint Jacobian (per
   histogram: its rows against its own columns, plus its rows against the
   shared columns), never assembled dense. Two routes to decide between by
   measurement:
@@ -402,27 +814,68 @@ the 20 seeds.
   Equivalence bar against the dense path at N ≤ 20: the step to WP-1125's
   6.6e-7 relative with no bound active, and the converged answer within
   0.01 esd.
-- [ ] **Scalable solver, the covariance.** The shared coefficients'
+
+  Landed as route (i):
+  - `optimize/blocked.py` `BlockJacobian` holds one block per histogram,
+    against its own columns;
+  - `lm._normal_equations` scatters A and b block by block into a dense n×n
+    A, and the BVLS / projected-CG step is unchanged;
+  - `blocked.choose_layout` picks blocked once the dense J would pass
+    `DENSE_JACOBIAN_MAX_BYTES` (256 MiB), and `set_layout` forces either;
+  - `LSQOutcome.jacobian_layout` records which ran.
+
+  Measured: the step agrees to 2e-12 (BVLS) and 3.8e-8-7.2e-8 (projected CG),
+  and the converged answer to ≤ 6.4e-6 esd. Route (ii) is not needed: at
+  N = 300 the step is 4 % of the fit and the serial Jacobian loop is 45 %
+  (§ Measured: scaling).
+- [x] **Scalable solver, the covariance.** The shared coefficients'
   covariance from the reduced (Schur) matrix, equilibrated first. Each
   histogram's own esds from its diagonal block of the full inverse,
   Σ_LL = H_LL⁻¹ + H_LL⁻¹·H_LG·S⁻¹·H_GL·H_LL⁻¹. Unmeasured rows marked through
-  each table's reach (WP-1110 item 14's rule).
-- [ ] **Scaling measured**: memory and wall clock at N = 10, 70, 300 on a
+  each table's reach (WP-1110 item 14's rule). Landed in `blocked.py`:
+  - equilibrated first;
+  - a PSD pseudo-inverse per own block, then the Schur complement;
+  - the cut is `PINV_RCOND`·λmax of the whole matrix, applied per block.
+
+  Returned dense n×n, because every consumer indexes by θ's columns. Esds
+  agree with the dense covariance to ≤ 3.7e-12 relative at one point.
+- [x] **Scaling measured**: memory and wall clock at N = 10, 70, 300 on a
   synthetic library, dense against blocked. State where dense stops being
-  possible on the measuring machine.
-- [ ] esds of the coefficients in user units at the reference, marked
-  unmeasured where no pattern in the subset contributes gradient.
-- [ ] `SeriesResult.summary(deliverable="series")` prints the coefficients
+  possible on the measuring machine. § Measured: scaling.
+- [x] esds of the coefficients in user units at the reference, marked
+  unmeasured where no pattern in the subset contributes gradient. Landed as
+  `RefinementResult.parametric` (schema 0.55).
+- [x] `SeriesResult.summary(deliverable="series")` prints the coefficients
   beside the trajectory it already prints. A joint-fit summary prints them
-  for a library.
-- [ ] Manual Part 1 `using/series.md` (series and library); Part 2 the
-  equation with its *Source* line; the skill's series reference.
-- [ ] Tests: a synthetic ramp with a known a(T) (a₁ within one esd of truth,
+  for a library. Landed:
+  - `RefinementResult.__str__` prints a coefficient block whenever
+    `parametric` is set.
+  - A chain has no coefficients of its own, so
+    `SeriesResult.summary(parametric=<the joint result>)` takes them from a
+    joint fit of the same patterns.
+  - The deliverable gains a "functional form" row that says NOT measured
+    when no joint fit is given.
+- [x] Manual Part 1 `using/series.md` (series and library); Part 2 the
+  equation with its *Source* line; the skill's series reference. Landed:
+  - `using/series.md` § A parameter as a function of each pattern's
+    coordinates;
+  - `parameterisation.md` § the same, with `{eq}par-parametric` and
+    `{eq}par-parametric-units`;
+  - the 28 names left `api_surface_deferred.txt`.
+- [x] Tests: a synthetic ramp with a known a(T) (a₁ within one esd of truth,
   and the esd no larger than the trajectory-line's); a synthetic library
   with a known 2-D surface over ≥ 100 patterns, through the blocked solver.
-  obs/calc/diff PNGs to `tests/output/`.
-- [ ] Skill: the series reference's routing row for "a parameter as a
+  obs/calc/diff PNGs to `tests/output/`. Both are `slow` in
+  `tests/test_parametric_series.py`:
+  - the ramp: a₁ at z = 0.30, esd 0.39× the line's with the instrument
+    shared;
+  - a 120-pattern (x, y) library, blocked by the size rule, coefficient z
+    within 1.2.
+- [x] Skill: the series reference's routing row for "a parameter as a
   function of composition or temperature across patterns", or "none" and why.
+  Landed as one row in `references/series.md`, with measured tags. No
+  `api-series.md` page: it would need a routing line in `SKILL.md`, which is
+  over its budget.
 
 ## Acceptance
 
@@ -452,11 +905,183 @@ the 20 seeds.
   adjustment.
 - Suram, S. K. et al. (2017). *ACS Comb. Sci.* 19, 37-46 — AgileFD.
 - Kusne, A. G. et al. (2020). *Nat. Commun.* 11, 5966 — CAMEO.
+- Kernel survey (2026-10-14; each record and abstract confirmed by search,
+  no full text read):
+  - Wahba, G. (1978). *J. R. Stat. Soc. B* 40, 364-372 — improper priors,
+    spline smoothing and model errors.
+  - Eilers, P. H. C. & Marx, B. D. (1996). *Stat. Sci.* 11, 89-121 —
+    P-splines.
+  - Kennedy, M. C. & O'Hagan, A. (2001). *J. R. Stat. Soc. B* 63, 425-464 —
+    calibration with model discrepancy.
+  - Brynjarsdóttir, J. & O'Hagan, A. (2014). *Inverse Problems* 30, 114007.
+  - Tuo, R. & Wu, C. F. J. (2015). *Ann. Stat.* 43, 2331-2352.
+  - Zhang, H. (2004). *J. Am. Stat. Assoc.* 99, 250-261 — what infill
+    asymptotics can estimate.
+  - Wood, S. N. (2011). *J. R. Stat. Soc. B* 73, 3-36 — REML against GCV.
+  - Hodges, J. S. & Sargent, D. J. (2001). *Biometrika* 88, 367-379 —
+    effective degrees of freedom.
+  - Nychka, D. (1988). *J. Am. Stat. Assoc.* 83, 1134-1143 — average
+    coverage of Bayesian intervals.
+  - Kuusela, M. & Panaretos, V. M. (2015). *Ann. Appl. Stat.* 9, 1671-1705 —
+    undercoverage under regularisation.
+  - Edwards, T. H. & Stoll, S. (2018). *J. Magn. Reson.* 288, 58-68 —
+    choosing the regularisation strength.
+  - Bell, B. M. (1994). *SIAM J. Optim.* 4, 626-636 — the iterated Kalman
+    smoother as Gauss-Newton.
+  - Fraser, D. C. & Potter, J. E. (1969). *IEEE Trans. Autom. Control* 14,
+    387-390 — the two-filter smoother.
+  - Hartikainen, J. & Särkkä, S. (2010). IEEE MLSP — GP regression as Kalman
+    smoothing.
+  - Lindgren, F., Rue, H. & Lindström, J. (2011). *J. R. Stat. Soc. B* 73,
+    423-498 — the SPDE approach.
+  - Datta, A. et al. (2016). *J. Am. Stat. Assoc.* 111, 800-812 — NNGP.
+  - Wang, G. & Qi, J. (2015). *IEEE Trans. Med. Imaging* 34, 61-71 — the PET
+    kernel method.
+  - Reader, A. J. & Verhaeghe, J. (2014). *Phys. Med. Biol.* 59, R371-R418 —
+    direct parametric reconstruction.
+  - Kitanidis, P. K. (1995). *Water Resour. Res.* 31, 2411-2419 —
+    quasi-linear geostatistical inversion.
+  - Kwak, S. et al. (2020). *Nucl. Fusion* 60, 046009 — GP priors in
+    integrated Thomson-scattering analysis.
+  - Hendriks, J. N. et al. (2019). *Strain* 55, e12325; Henningsson, A. &
+    Hendriks, J. N. (2021). *J. Appl. Cryst.* 54, 1057-1070 — GP strain
+    tomography.
+  - Kusne, A. G., McDannald, A. & DeCost, B. (2024). *Digital Discovery* 3,
+    2211-2225 — SAGE, one GP per phase region.
+  - McDannald, A. et al. (2022). *Appl. Phys. Rev.* 9, 021408 — ANDiE.
 - WP-0308 (the joint residual), WP-0505 / WP-1051 / WP-1127 (the chain),
   WP-1305 (the series deliverable), WP-1119 (named variables), WP-1125 (the
   Schur identity), issue #212.
 
 ## Handover log
+
+### 2026-10-14 (second session) — the parametric fit is built, measured and scales to hundreds of patterns
+
+A joint fit can now refine a parameter as a declared function of where each
+pattern sits: a line or polynomial in temperature down a ramp, a surface over
+composition across a library, or one law per phase field. The answer is the
+function's coefficients with esds, in the caller's units. The fit no longer
+runs out of memory with size: a 300-pattern library refines in about a minute
+in 1 GiB, where the old path needed 20 GiB for its Jacobian alone. The
+maintainer asked whether a smooth kernel over the coordinates would serve
+better than a declared form. Surveyed and then measured, it did not: tuned
+from the data it did worse than a plain line exactly where it could have
+helped, and at good settings it bought honest error bars, not accuracy. The
+hard function, on the other hand, measurably helped where single patterns
+cannot see the parameter. Its error bars go confidently wrong when the declared
+form is wrong, which makes a lack-of-fit check the next thing worth building.
+
+*Done* (session started 2026-10-14 at 0b33465, after #968 merged; one new
+draft PR, #969):
+- **The kernel survey.** Three agents covered diffraction, statistics and
+  other sciences; the result is § A kernel over the coordinates.
+- **The measurement where one pattern cannot see the parameter**, with the
+  maintainer's kernel extensions. § Measured: where one pattern cannot see
+  the parameter. A lack-of-fit task was filed from it.
+- **The declaration, per-pattern starts and ties in the joint table**:
+  `schemas/parametric.py`, `params/parametric.py` and `params/multi.py`. A
+  `constant` basis is bit-identical to a shared parameter. The joint support
+  hold and its release read column reach.
+- **Coefficients in user units**: `RefinementResult.parametric`, schema 0.55.
+- **Summaries.** `str(result)` prints the coefficients. `SeriesResult.summary`
+  takes `parametric=`, and the series deliverable gains a "functional form"
+  row.
+- **The blocked solver, step and covariance**, and its scaling measured
+  (§ Measured: scaling).
+- **Docs**: manual Part 1 and Part 2, and the skill's series row.
+- **Found while documenting, and fixed:**
+  - centred mixture fractions are refused until their reading is stated;
+  - one target may take a law per phase field, on disjoint subsets;
+  - the reported unit comes from `rietx.help`, so a cell coefficient reads
+    Å/K.
+- **`/code-review high --fix`: 9 findings, 5 fixed** (d2b8156):
+  - a size target across wavelengths is refused (WP-1131's factor never
+    reached a per-histogram target);
+  - "never refined" became "not free at the answer";
+  - one `entry_reach` per table;
+  - two unused methods removed;
+  - a restated regex now imported.
+
+  Four declined:
+  - in-step bounds on a combination: a design change, filed as a task;
+  - per-pattern starts' non-parameter fields: a design decision, filed as a
+    task;
+  - the joint `CELL_RUNAWAY` vars twin: forwarded to 1341;
+  - three reach walks per stage: cheap per call, and it touches unchanged
+    code.
+- **Forward references:**
+  - 1962 learns the solver's shape and limits; its priority clause was
+    re-dated;
+  - 1329 learns the parametric tie and its measured regime;
+  - 1341 learns three joint guards that cannot see a coefficient-driven or
+    per-histogram cell, and the new diagnostic.
+- **Inherited:** none on arrival.
+
+*Measured* (Linux x86_64, 4 CPUs, 15.7 GiB, `[dev]` venv):
+- The measurement, scaling and equivalence numbers are in § Measured and in
+  the solver tasks' landing notes.
+- Fast suite on the merged tree (main at 0b33465, which had not moved): 9653
+  passed, 197 skipped, 1 xfailed, in 18:54. That is one run, nothing else
+  running.
+  - The session added 32 fast test functions and 2 slow ones.
+    `tests.added_test_times` gives 62.8 s over the added fast tests, 61.9 s of
+    it in `test_parametric_series.py`.
+  - The new tail is `test_a_blocked_fit_lands_on_the_dense_answer` (31.3 s, 2
+    cases). It stays fast because it is the one end-to-end run of the blocked
+    path, which no fast fit reaches by size.
+  - Main's count was not re-measured (`tests/CLAUDE.md` § Running, rung 4),
+    so CI confirms the delta.
+- Slow joint-path files, run instead of the full selection, on the same tree:
+  17 passed in 1:19. The files are `test_absent_phase`,
+  `test_acceptance_wavelength`, `test_held_phase` and
+  `test_parametric_series`, run with `-m slow`. The full selection was not
+  run: these are the only slow files that reach the joint path (torch and
+  cross-backend skip without their backends).
+- Lanes (`session_usage.py lanes`). Main: 164 requests, peak 484K, $18.20.
+  Four lanes: $47.60.
+
+  | lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | lane $ | main $ | saved $ |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | measurement-kernel | 45 | 74 | 270K | 114K | 7K of 67K | 1 | 4K | 0 | 0 | 10.60 | 0.21 | +4.61 |
+  | declaration-ties-starts | 60 | 146 | 274K | 115K | 0K of 62K | 29 | 64K | 0 | 0 | 12.60 | 2.55 | +9.51 |
+  | scalable-solver | 80 | 146 | 340K | 115K | 0K of 110K | 10 | 22K | 2 | 0 | 14.94 | 1.00 | +11.11 |
+  | docs-manual-skill | 40 | 125 | 398K | 113K | 24K of 48K | 6 | 14K | 2 | 0 | 9.47 | 0.67 | +10.39 |
+
+  The trial row went to `docs/milestones/process.md` with fixed 0 where the
+  tool printed 2 for two lanes. Those later edits were my own code changes
+  rippling into the lanes' files, not repairs of their work. Selective
+  policy row: `lane when main > 150K and item >= 20 requests | 4 | -21%`.
+  Estimate against actual was 2.13×.
+
+*Gotchas*:
+- **Lanes ran concurrently**, against `/wp-start`'s one-at-a-time rule.
+  - The measurement lane ran on a frozen copy of `src/` (a `--src` flag that
+    inserts the path before import). A PYTHONPATH prefix is refused by a hook
+    here.
+  - The docs lane ran beside the solver lane, on disjoint files.
+  - Two of my commits touched a file a lane was still editing. Staging only
+    my hunks (`git apply --cached` of one extracted hunk) kept the lane's
+    edits out.
+- **The joint support hold fires only for a phase invisible in every
+  histogram.** A per-histogram cell is flat in a pattern that cannot see its
+  phase, and nothing holds it (forwarded to 1341).
+- **The single-fit 3σ hold keeps noise-chasing fits near threshold.** The
+  kernel measurement's chain kept patterns at support 0.84-1.4 whose cell
+  errors reached 6.5 esd. 1523 is closed and no open WP owns it, so it is
+  recorded in § Measured, not filed.
+- **Blocked is faster than dense from N = 10**, yet dense stays the default
+  below 256 MiB. That keeps every existing joint answer bit-identical.
+  Lowering the threshold would move converged values by ~1e-8 esd.
+
+Next, in order:
+1. **A lack-of-fit check on the declared form.** The measurement says a wrong
+   form gives confidently wrong esds. A score test against per-pattern
+   deviations needs no refit.
+2. **In-step bounds for the coefficients** (`LinearInequality` rows), so a
+   polynomial cannot step a target through its floor.
+3. **The real ZrMo₂O₈ ramp**, when the maintainer supplies it: the
+   measurement on real data.
+4. **Start agreement beyond parameters** (texture axis, magnetic symmetry).
 
 - **2026-10-14** — the parametric fit is scoped, and measured once. The
   maintainer made the combinatorial library a target, which puts a joint

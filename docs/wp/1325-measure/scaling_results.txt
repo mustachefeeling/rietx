@@ -1,0 +1,79 @@
+WP-1325 task "Scaling measured": dense against blocked joint Jacobian, N = 10, 70, 300.
+
+machine   Linux x86_64, 4 CPUs (Intel(R) Xeon(R) Processor @ 2.10GHz), 15.7 GiB RAM, no swap
+python    3.12.3, numpy 2.5.4 (scipy-openblas)
+rietx     1.9.0.dev0 from /home/user/rietx/.claude/worktrees/wp1325-parametric-series/src/rietx ([dev] venv), compiled kernels on
+load      1.00 3.16 3.66 (1/5/15 min) at start; other measuring or test processes running: 0
+tree      HEAD d60285a at start, src/ fingerprint 3017bd1f6b02
+library   3000 points a pattern, n = 4 + 10·N columns; dense J = 8·3000·N·n bytes
+
+[done] N=10 dense #0: wall 2.7 s, peak   0.24 GiB, converged, load 1.00
+[done] N=10 dense #1: wall 2.2 s, peak   0.24 GiB, converged, load 1.00
+[done] N=10 blocked #0: wall 1.4 s, peak   0.16 GiB, converged, load 1.24
+[done] N=10 blocked #1: wall 1.3 s, peak   0.17 GiB, converged, load 1.24
+[done] N=70 dense #0: wall 68.1 s, peak   3.09 GiB, converged, load 2.02
+[done] N=70 dense #1: wall 63.2 s, peak   3.09 GiB, converged, load 2.28
+[done] N=70 blocked #0: wall 10.6 s, peak   0.29 GiB, converged, load 2.20
+[done] N=70 blocked #1: wall 10.3 s, peak   0.29 GiB, converged, load 2.24
+[skip] N=300 dense: J alone  20.14 GiB of  15.72 GiB
+[done] N=300 blocked #0: wall 48.2 s, peak   1.00 GiB, converged, load 1.85
+[done] N=300 blocked #1: wall 48.6 s, peak   0.99 GiB, converged, load 1.60
+
+== wall clock (s, range over repeats) and peak RSS (GiB) per case ==
+   N  layout    cols  dense-J GiB   fit wall     jacobian   normal-eq    step        covariance  result   peak RSS  RSS before fit
+  10  dense       104    0.02      2.2-2.7     1.2-1.4     0.2-0.3     0.1-0.1     0.1-0.1   0.1-0.1     0.24     0.15
+  10  blocked     104    0.02      1.3-1.4     0.6-0.7     0.0-0.0     0.1-0.1     0.0-0.0   0.1-0.1     0.17     0.15
+  70  dense       704    1.10    63.2-68.1   36.9-39.8   11.9-12.0     0.1-0.1     2.9-2.9   1.7-1.8     3.09     0.16
+  70  blocked     704    1.10    10.3-10.6     5.1-5.5     0.2-0.2     0.1-0.1     0.3-0.3   0.6-0.7     0.29     0.16
+ 300  dense      3004   20.14   not run: J alone is 20.14 GiB, over 60 % of 15.72 GiB
+ 300  blocked    3004   20.14    48.2-48.6   21.2-22.0     1.8-1.8     1.7-1.9     3.3-3.3   3.2-3.2     1.00     0.22
+
+== counts per fit (identical across repeats) ==
+  10  dense     recorded dense    converged, Rwp 0.039136, stage iterations [2, 15, 11, 5, 4], 40 joint Jacobians, 35 step solves
+  10  blocked   recorded blocked  converged, Rwp 0.039136, stage iterations [2, 15, 11, 5, 4], 40 joint Jacobians, 35 step solves
+  70  dense     recorded dense    converged, Rwp 0.039080, stage iterations [2, 14, 12, 5, 4], 39 joint Jacobians, 35 step solves
+  70  blocked   recorded blocked  converged, Rwp 0.039080, stage iterations [2, 14, 12, 5, 4], 39 joint Jacobians, 35 step solves
+ 300  blocked   recorded blocked  converged, Rwp 0.038992, stage iterations [2, 14, 12, 5, 4], 39 joint Jacobians, 35 step solves
+
+== the surface recovered (Å, per unit x and y about the reference) ==
+  10  dense     reference x=0.4758, y=0.4330
+        1     4.16411282 ± 2.47e-06   truth 4.16411114   (fit − truth)/esd +0.68
+        x     0.01010510 ± 7.40e-06   truth 0.01011284   (fit − truth)/esd -1.05
+        y     0.00821017 ± 7.62e-06   truth 0.00821261   (fit − truth)/esd -0.32
+        x*y   0.00417755 ± 2.39e-05   truth 0.00415660   (fit − truth)/esd +0.88
+  10  blocked   reference x=0.4758, y=0.4330
+        1     4.16411282 ± 2.47e-06   truth 4.16411114   (fit − truth)/esd +0.68
+        x     0.01010510 ± 7.40e-06   truth 0.01011284   (fit − truth)/esd -1.05
+        y     0.00821017 ± 7.62e-06   truth 0.00821261   (fit − truth)/esd -0.32
+        x*y   0.00417755 ± 2.39e-05   truth 0.00415660   (fit − truth)/esd +0.88
+  70  dense     reference x=0.5000, y=0.5049
+        1     4.16495338 ± 9.19e-07   truth 4.16495368   (fit − truth)/esd -0.32
+        x     0.01040928 ± 3.13e-06   truth 0.01041187   (fit − truth)/esd -0.83
+        y     0.00831262 ± 2.97e-06   truth 0.00831309   (fit − truth)/esd -0.16
+        x*y   0.00415435 ± 1.03e-05   truth 0.00415660   (fit − truth)/esd -0.22
+  70  blocked   reference x=0.5000, y=0.5049
+        1     4.16495338 ± 9.19e-07   truth 4.16495368   (fit − truth)/esd -0.32
+        x     0.01040928 ± 3.13e-06   truth 0.01041187   (fit − truth)/esd -0.83
+        y     0.00831262 ± 2.97e-06   truth 0.00831309   (fit − truth)/esd -0.16
+        x*y   0.00415435 ± 1.03e-05   truth 0.00415660   (fit − truth)/esd -0.22
+ 300  blocked   reference x=0.4988, y=0.5022
+        1     4.16491872 ± 4.29e-07   truth 4.16491855   (fit − truth)/esd +0.39
+        x     0.01040117 ± 1.43e-06   truth 0.01040065   (fit − truth)/esd +0.37
+        y     0.00830677 ± 1.58e-06   truth 0.00830803   (fit − truth)/esd -0.79
+        x*y   0.00415944 ± 5.43e-06   truth 0.00415660   (fit − truth)/esd +0.52
+
+== dense against blocked on the same library ==
+  10  coefficients: worst |blocked − dense|/esd 6.8e-09, worst esd ratio − 1 1.5e-09; wall dense/blocked 1.7x
+  70  coefficients: worst |blocked − dense|/esd 1.6e-08, worst esd ratio − 1 2.2e-10; wall dense/blocked 6.1x
+
+== where dense stops being possible, and what blocked holds instead ==
+  10  dense:   peak − RSS before fit =   0.09 GiB = 3.87 × J
+  70  dense:   peak − RSS before fit =   2.93 GiB = 2.66 × J
+  10  blocked: peak − RSS before fit =   0.02 GiB = 209.5 × one n × n array (0 MiB at n = 104)
+  70  blocked: peak − RSS before fit =   0.13 GiB = 34.2 × one n × n array (4 MiB at n = 704)
+ 300  blocked: peak − RSS before fit =   0.78 GiB = 11.7 × one n × n array (69 MiB at n = 3004)
+      J alone passes the machine's 15.72 GiB at N = 265 (15.72 GiB)
+      at the largest dense case's 2.66 × J over the 0.22 GiB the library and interpreter hold, a dense fit fits up to N ≈ 161 (5.81 GiB of J; an extrapolation, not run); N = 300 would need 53.77 GiB
+
+load      1.60 2.39 3.20 (1/5/15 min) at end; other measuring or test processes running: 0
+tree      HEAD d60285a at end; src/ fingerprint 3017bd1f6b02, unchanged during the run

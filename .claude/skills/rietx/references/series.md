@@ -6,8 +6,8 @@ Load it for an in-situ ramp, a parametric sweep or a tray of related specimens.
 
 An in-situ ramp, a parametric sweep or a tray of related specimens is
 `rx.SequentialRefinement` / `rx.refine_sequential`: N separate refinements,
-each warm-started from its predecessor.  (One *joint* residual over patterns
-that share structural parameters is the different verb `rx.refine_multi`.)
+each warm-started from its predecessor.  (One *joint* residual is
+`rx.refine_multi`, below.)
 What comes back is a `SeriesResult` — per-pattern summaries plus
 `trajectory(path)`, `qpa_trajectory(phase)`, `to_table()`, `write_csv()`.
 
@@ -23,19 +23,18 @@ the plots are: `paths=["qpa.Rutile"]` exports the weight-fraction curve and
 `r_bragg.<phase>`/`r_f.<phase>` the agreement indices, beside any ordinary
 dot-path. Two things to expect. A path **no pattern carries raises**, naming
 it and listing what does exist: the phases carrying that kind of curve for a
-derived path, the series' own parameter paths for an ordinary one. A typo is
-therefore an error rather than a column of blanks. And an agreement index gets
-**no `_esd` column at all**, because it is a residual and has no esd in any
-series — where a column *is* present and a cell is empty, that pattern did not
-estimate one, which is a different fact. (Measured: WP-1310.)
+derived path, the series' own parameter paths for an ordinary one. And an
+agreement index gets **no `_esd` column at all**, because it is a residual and
+has no esd in any series — where a column *is* present and a cell is empty,
+that pattern did not estimate one, which is a different fact. (Measured:
+WP-1310.)
 
 `x` is the series coordinate, and where it comes from is the file: a reader
 puts a scan's own temperature in `data.metadata["temperature_k"]`, and
 `rx.io.readers.list_scans(path)` reports the same number per scan before any of
-them is read.  Today the Bruker `.raw` v3 range header is the one format here
-with such a field; the others record no specimen temperature and none is
-guessed from an axis named for something else.  A missing key is a file that
-recorded nothing — **refuse rather than substitute an ambient value**, because
+them is read.  Today only the Bruker `.raw` v3 range header has such a field,
+and none is guessed from an axis named for something else.  A missing key is a
+file that recorded nothing — **refuse rather than substitute an ambient value**, because
 an invented coordinate makes the trajectory a fiction while every fit in it
 stays perfectly good.
 
@@ -58,6 +57,15 @@ What an operator must know, all measured:
   running step by step rather than once: on that series a different, larger
   jump survived having no chain, so that one was real — chaining artefacts are
   established or refuted transition by transition.
+- **A law across the patterns (a(T) linear, a cell across a library) is a
+  joint fit, not a line through a chain**:
+  `rx.refine_multi(..., coordinates=, parametric=[rx.ParametricTie(...)])`,
+  read on `result.parametric`, never the scaled `vars.` rows.  It pays only where a
+  pattern cannot see the parameter alone (slope scatter 0.72× the line's for a
+  minor phase the hold dropped); elsewhere it equals the line, and sharing the
+  instrument cut the esd 2.6× (only while the mount stays put).  Its esd
+  assumes the form (2-esd coverage 3 % under a curved truth): draw the curve
+  over the trajectory first.  *(Measured: WP-1325, synthetic ramps.)*
 - **The default `refit="single"` collapses the plan into one stage** for every
   pattern after the first.  The staged turn-on order exists to keep early
   stages conditioned from a *poor* starting model; a converged neighbour is not
@@ -213,10 +221,8 @@ What an operator must know, all measured:
   the chain, its `stage_end` events carrying Rwp and `termination`.
   `rietx events <path>` reads it per run, re-runs into one path included
   ([`references/batch-operating.md`](batch-operating.md) § 9c.13).
-  The companion rule — a phase that switches fully in and fully out along the
-  ramp is a degenerate split rather than a coexistence, and whether its
-  fraction is an observable at all depends on the transition's order — is this
-  file's own *Is the transition first order?* section, not a batch row.
+  A phase switching fully in and out along the ramp is this file's *Is the
+  transition first order?* section, not a batch row.
 - **A trajectory of phase fractions is a QPA question at every point of it, and
   the background is what decides it.**  Fractions ride on scales, and an
   over-flexible background biases scales silently while *improving* every
@@ -303,20 +309,17 @@ shared `EventStream` instead (present on **637 of 637** payloads in one run,
 where `StageResult` carries no `rwp` field at all).
 
 Where `stage_reports=True` *does* apply — the single `Refinement.fit()` calls of a batch — it
-is expensive, and the name suggests only that it adds output.  On the bundled NAC fixture it
-cost **6.5×**: 1.923 s against 0.296 s, median of three, with Rwp identical to six decimal
-places, so it changes nothing about the refinement.  `cProfile` puts 75 % of the fit inside
+is expensive.  On the bundled NAC fixture it cost **6.5×**: 1.923 s against 0.296 s, median of
+three, with Rwp identical to six decimal places.  `cProfile` puts 75 % of the fit inside
 `_stage_report`, whose March-Dollase texture and Stephens strain analyses re-run at *every*
 stage and each cost more than the optimiser step they describe; the solve itself is 23 %.
 Sample it — the first fit, the last, anything you will plot — rather than setting it on every
 fit of a long run.
 
-That cost also sits **outside** the stage brackets, which makes one natural way of totalling a
-run wrong.  Σ(`stage_start`→`stage_end`) is 11 % of wall clock with stage reports on and 50 %
-with them off, and the bracketed total is unchanged between the two (0.225 s against 0.223 s)
-because it only ever covered the solve.  The log is not missing the time —
-`fit_start`→`fit_end` accounts for ~100 % either way — so take a fit's cost from that span,
-and never from a sum of per-stage durations.
+That cost sits **outside** the stage brackets: Σ(`stage_start`→`stage_end`) was 11 % of wall
+clock with stage reports on and 50 % off, unchanged at 0.225 s against 0.223 s (the solve
+alone), while `fit_start`→`fit_end` covers ~100 % either way, so take a fit's cost from that
+span (§ 9c.11).
 
 ## Microstrain evolves along a chain — leave it free, or it lands in the fractions
 
