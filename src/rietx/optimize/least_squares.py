@@ -1836,7 +1836,7 @@ def texture_positivity_inequalities(model: CompiledModel, table: ParameterTable,
     """
     from . import lm as lm_mod
 
-    if not table.free_paths:
+    if not table.free_paths or all(cp.tex_basis is None for cp in model.phases):
         return []
     C, d = table.constraint_block()
     C = C.toarray()
