@@ -855,32 +855,114 @@ def test_the_joint_path_holds_a_phase_no_histogram_can_see():
     assert len(fired) == 1 and "was held for stage cell" in fired[0].message
 
 
+def _held_columns(sharing=None) -> tuple[list[str], list[str]]:
+    """The cell columns held with the absent phase unseen in both histograms,
+    then with its scale raised in the second histogram only."""
+    from rietx.model.forward import compile_model as _compile
+    from rietx.multi import _joint_unsupported_phases, _unsupported_paths_multi
+    from rietx.params.multi import MultiParameterTable
+
+    structure, ins = _absent_phase_inputs()
+    mtable = MultiParameterTable(structure, [ins, ins.model_copy(deep=True)],
+                                 sharing=sharing)
+    mtable.set_vary(["*"], False)
+    mtable.set_vary(["phases.*.cell.*"], True)
+    model = _compile(structure, ins, synthesize(), mode="rietveld")
+    blind = _joint_unsupported_phases([model, model], mtable)
+    assert blind == [{1}, {1}]
+    both = _unsupported_paths_multi(mtable, blind)
+
+    # the scale is a per-histogram column, so the second pattern alone shows it
+    entry = next(e for e in mtable.tables[1].entries
+                 if e.path == "phases.1.scale")
+    entry.value = structure.phases[0].scale.value
+    mtable.tables[1]._rebuild()   # a fixed entry's value lives in the offsets
+    mtable._rebuild_columns()
+    seen = _joint_unsupported_phases([model, model], mtable)
+    assert seen == [{1}, set()]
+    return both, _unsupported_paths_multi(mtable, seen)
+
+
 def test_the_joint_hold_needs_every_histogram_to_be_blind():
-    """One histogram that can see the phase is enough to refine it jointly.
+    """One histogram that can see the phase is enough to refine a shared cell.
 
     Asserted on the predicate rather than on a fit, because the state it turns
     on — one histogram's scale up, the other's at its floor — is one a joint
     fit reaches only through a specimen that differs between patterns, and the
     rule has to hold before any of that is arranged.
     """
-    from rietx.model.forward import compile_model as _compile
-    from rietx.multi import _joint_unsupported_phases
-    from rietx.params.multi import MultiParameterTable
+    both, one = _held_columns()
+    assert both == ["phases.1.cell.a"]
+    assert one == []
 
-    structure, ins = _absent_phase_inputs()
-    pattern = synthesize()
-    mtable = MultiParameterTable(structure, [ins, ins.model_copy(deep=True)])
-    model = _compile(structure, ins, pattern, mode="rietveld")
-    assert _joint_unsupported_phases([model, model], mtable) == {1}
 
-    # raise the absent phase's scale in the *second* histogram only: it is a
-    # per-histogram column, and the joint fit can now see the phase
-    entry = next(e for e in mtable.tables[1].entries
-                 if e.path == "phases.1.scale")
-    entry.value = structure.phases[0].scale.value
-    mtable.tables[1]._rebuild()   # a fixed entry's value lives in the offsets
-    mtable._rebuild_columns()
-    assert _joint_unsupported_phases([model, model], mtable) == set()
+def test_a_per_pattern_cell_is_held_where_its_own_pattern_is_blind():
+    """WP-1325: a cell made per-histogram lives in one pattern.
+
+    Under ``SharingMap(per_histogram=["phases.*"])``, the series and library
+    shape, each pattern's cell is its own column, so the pattern that cannot
+    see the phase holds its copy while the one that can refines its own.
+    Decided per phase across the stack, neither was held.
+    """
+    from rietx.params.multi import SharingMap
+
+    both, one = _held_columns(SharingMap(per_histogram=["phases.*"]))
+    assert both == ["hist.0.phases.1.cell.a", "hist.1.phases.1.cell.a"]
+    assert one == ["hist.0.phases.1.cell.a"]
+
+
+def _pattern_with_both_phases(seed: int = 8):
+    """``synthesize``'s pattern with the second phase present at LaB₆'s scale."""
+    from rietx import Instrument, PatternData
+    from rietx.schemas.common import Parameter
+    from rietx.schemas.instrument import BackgroundChebyshev
+    from tests.test_refine_synthetic import (TRUE_BKG, TRUE_SCALE, TRUE_W, TRUE_ZERO,
+                                             WAVELENGTH)
+
+    structure, _ = _absent_phase_inputs()
+    for phase in structure.phases:
+        phase.scale.value = TRUE_SCALE
+    for n in "abc":
+        getattr(structure.phases[0].cell, n).value = TRUE_A
+    ins = Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    ins.zero_shift.value = TRUE_ZERO
+    ins.profile.w.value = TRUE_W
+    ins.background = BackgroundChebyshev(coefficients=[Parameter(value=v) for v in TRUE_BKG])
+    tt = np.arange(3.0, 24.0, 0.005)
+    grid = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, ins, grid, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    y = np.random.default_rng(seed).poisson(
+        np.maximum(model.evaluate(table.decode(table.x0())), 1.0)).astype(float)
+    return PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+
+
+def test_a_joint_series_fit_holds_a_vanished_phase_in_its_own_pattern():
+    """The fit-level form: pattern 0 lacks the second phase, pattern 1 has it.
+
+    Pattern 0's copy of that phase's cell is held for the stage, and pattern
+    1's is refined near the cell it was simulated with: the plan holds the
+    zero shift (0.008° in the truth), which the cell absorbs, 570 ppm here.
+    """
+    import rietx as rx
+    from rietx.params.multi import SharingMap
+
+    blind, ins = _absent_phase_inputs()
+    seen = blind.model_copy(deep=True)
+    seen.phases[1].scale.value = blind.phases[0].scale.value
+    ref = rx.MultiHistogramRefinement(
+        [blind, seen], [ins, ins.model_copy(deep=True)],
+        sharing=SharingMap(per_histogram=["phases.*"]))
+    result = ref.fit([synthesize(), _pattern_with_both_phases()], plan=rx.RefinementPlan(
+        stages=[rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+                rx.Stage("cell", ["phases.*.cell.*"])]))
+
+    assert result.stages[-1].held == ["hist.0.phases.1.cell.a"]
+    rows = {p.path: p for p in result.parameters}
+    assert "hist.0.phases.1.cell.a" not in rows
+    refined = rows["hist.1.phases.1.cell.a"]
+    assert refined.stderr is not None
+    assert refined.value == pytest.approx(5.2, abs=0.01)
 
 
 @pytest.mark.slow
