@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the form test landed and its 1.10 notes are staged; next the output marks law-set values, then the coefficients' covariance, each law tested with the others freed, and ZrP₂O₇ and WO₃ out of sample
+Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here (seventh session: mark law-set values in the output)
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
