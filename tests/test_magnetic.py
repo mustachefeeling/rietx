@@ -2137,10 +2137,11 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # WP-1317's ``SeriesResult.relative_paths`` and ``.angle_paths`` 0.51,
     # WP-1912's ``Phase.floating_origin`` and ``ParameterRow.origin_axis``
     # 0.52, and the time-of-flight axis and ``TOFSource`` (issue #193) 0.53,
-    # and the floating origin's ``"centroid"`` member 0.54, WP-1325's
-    # ``RefinementResult.parametric`` 0.55, and indexing C4's
-    # ``CellCandidate.n_search_unindexed`` and ``.unindexed_two_theta`` 0.56.
-    assert caps.schema_version == "0.56"
+    # and the floating origin's ``"centroid"`` member 0.54, and WP-1325's
+    # ``RefinementResult.parametric`` 0.55 and ``.parametric_form`` 0.56,
+    # and indexing C4's ``CellCandidate.n_search_unindexed`` and
+    # ``.unindexed_two_theta`` 0.57.
+    assert caps.schema_version == "0.57"
 
 
 def test_every_moment_dof_has_a_help_entry():

@@ -152,15 +152,25 @@ against the tree at e1d19359 on arrival.
        (`_top_diagnostics`). A per-histogram structural path, whether a
        parametric target or a `SharingMap(per_histogram=["phases.*"])`
        override, is checked in histogram 0 alone. This predates 1325.
-    3. **The joint support hold fires only for a phase unsupported in every
-       histogram.** A per-histogram cell of a phase invisible in *its own*
-       histogram, but visible elsewhere, is a flat direction nothing holds.
-       1325's measurement pinned such cells with a prior, so an unpinned run
-       is untested.
+    3. **A per-pattern hold is in no diagnostic.** 1325 fixed the hold
+       itself on 2026-10-14 (`multi._unseen`): each entry a column reaches
+       is judged in its own histogram, so a per-histogram cell is held where
+       its own pattern cannot see the phase. The hold is on
+       `StageResult.held`. `PHASE_UNCONSTRAINED` still names only a phase
+       that no histogram sees, so nothing says "held in 12 of 33 patterns".
+    4. **The joint path does not read WP-1523's answer significance**, by
+       design (the comment in `multi._joint_unsupported_phases` leaves it to
+       this WP). On 1325's ZrMo₂O₈ ramp the chain held a fading phase in two
+       of 33 patterns by that test, and the joint fit left the same 14
+       columns free. Whether a joint report adopts it is this WP's decision.
   - **A new joint diagnostic is in.** `PARAMETRIC_OUT_OF_RANGE`, in
     `DIAGNOSTIC_SCOPES` as FIT, warns when unbounded coefficients put a
     target outside its own window. A joint report should render it beside
     `RefinementResult.parametric`.
+  - **And a second, later on 2026-10-14.** `PARAMETRIC_FORM_REJECTED` (FIT)
+    and `RefinementResult.parametric_form` carry a score test of each
+    declared form. It leaves out the patterns `multi._unseen` holds, so
+    item 4's decision also changes which patterns the form test can see.
 
 ## Non-goals
 

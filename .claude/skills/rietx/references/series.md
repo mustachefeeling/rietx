@@ -61,11 +61,12 @@ What an operator must know, all measured:
   joint fit, not a line through a chain**:
   `rx.refine_multi(..., coordinates=, parametric=[rx.ParametricTie(...)])`,
   read on `result.parametric`, never the scaled `vars.` rows.  It pays only where a
-  pattern cannot see the parameter alone (slope scatter 0.72× the line's for a
-  minor phase the hold dropped); elsewhere it equals the line, and sharing the
-  instrument cut the esd 2.6× (only while the mount stays put).  Its esd
-  assumes the form (2-esd coverage 3 % under a curved truth): draw the curve
-  over the trajectory first.  *(Measured: WP-1325, synthetic ramps.)*
+  pattern cannot see the parameter alone (slope esd 0.72-0.76× the line's for a
+  minor phase); elsewhere it equals the line, and a shared instrument cut the
+  esd 2.6×.  Its esd assumes the form, which `result.parametric_form` tests
+  where patterns see the target; a law beside others tests weaker than
+  alone.  A minor phase stalls a quadratic at `max_iter`.
+  *(Measured: WP-1325, synthetic, ZrMo₂O₈.)*
 - **The default `refit="single"` collapses the plan into one stage** for every
   pattern after the first.  The staged turn-on order exists to keep early
   stages conditioned from a *poor* starting model; a converged neighbour is not

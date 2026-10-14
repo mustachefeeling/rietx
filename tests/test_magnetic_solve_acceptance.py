@@ -68,23 +68,45 @@ def test_the_4k_pattern_takes_the_k_zero_route_and_ranks_58_395_first(solved_4k)
 
 
 def test_the_150k_pattern_has_nothing_to_solve(solved_150k):
-    """No class wins, none improves on the nuclear model, and none is supported.
+    """No class wins, none improves on the nuclear model, and the verdict says so.
 
     The few unexplained peaks match k = (0, ½, ½) at about chance, and two
-    classes refine there.  Class 1's moments go to zero, where its child sites
-    fold into a powder-degenerate pair whose quadrature sum is zero.  Class 3's
-    moments stay near 0.14 and 0.58 μ_B with esds of 2.3 and 0.5 μ_B, which the
-    data cannot measure, and its fit wanders that flat valley through every
-    continuation of the stages' budget (``SOLVE_MAX_CONTINUATIONS``).  It stops
-    short under TRF and LM alike (macOS arm64, WP-1938 D12).  The solution
-    lists such a trial with a caveat and does not rank it, so the verdict does
-    not rest on where it stopped.  Under the softplus coordinates it reported
-    ``converged`` after 3-7 continuations, because a modulus near zero lost its
-    column there.
+    classes refine there, both converged against a converged nuclear
+    reference.  Measured on ``0ba8df81`` (macOS arm64, numpy 2.5.4 with
+    Accelerate, three runs bit-identical) and on ``c3d03673`` (Linux x86-64,
+    after #918 and #923):
 
-    Which pair the fold finds, and its size, follows where each fit stopped.
-    The rule behind the pair esd (one covariance for ρ and both σ's) is pinned
-    on its own in ``test_magnetic_solve.py``.
+    * class 1 at ΔBIC −45.2, every modulus at zero (2e-4 and 8e-7 μ_B, esds
+      685 and 3.5e4 μ_B on macOS, 873 and 2.5e4 on Linux).  That is intended
+      since WP-1938: intensity goes as m², so a modulus at zero has no gradient
+      to leave by.  No pair is folded.
+    * class 3 at ΔBIC −40.8, moduli 0.142 ± 6.4 and 0.498 ± 1.7 μ_B, whose two
+      child sites fold into one ``MOMENT_PAIR_DEGENERATE`` pair: quadrature sum
+      0.5183 ± 0.2501 μ_B (2.07σ) on macOS, 0.518 ± 0.250 on Linux.
+
+    **What is asserted, and what is not (#820, WP-1418, option (a)).**  The
+    verdict, ΔBIC ≤ 0 for every refined class (both sit 40-45 below zero), the
+    nuclear reference's convergence, the caveat on any trial stopped short, and
+    that class 3 converges and carries the pair, which both platforms show.
+    The pair is held to **bands, not to the gate**: sum 0.3-0.8 μ_B, esd
+    0.1-0.5 μ_B.  Each edge sits ≥ 0.1 μ_B from every value measured here and
+    from the lead pair before #918 and #923 (0.606 ± 0.202, Linux and macOS
+    alike), because the pair has already moved 0.09 μ_B across solver changes
+    on this one pattern; the 0.5-0.7 sum band WP-1418 first named sits 0.018
+    from today's 0.518.  The bands say what the pattern supports at 150 K: a
+    sub-μ_B sum, far below the 1.7-2.4 μ_B the 4 K arm measures and far above
+    the zero class 1 collapses to, with an esd of a few tenths of a μ_B, unlike
+    the flat directions (esds ≥ 1.7 μ_B) on either side of it.
+
+    Not asserted: whether any moment or pair clears ``MOMENT_SUPPORT_SIGMA``.
+    The verdict does not depend on it, since ``_eligible_trials`` needs
+    ΔBIC > 0, and the ratio has crossed sides with the solver: 2.9994σ on Linux
+    and 2.9917σ on macOS before WP-1938, no pair at all on ``edad5b5a``, 2.07σ
+    now.  An assertion that close to a threshold, or on a count that ρ = 0.95
+    decides, senses the solver and not the data (``tests/CLAUDE.md`` § Budgets
+    in tests).  The gate's own logic is pinned in ``test_magnetic_solve.py``
+    on constructed pairs well clear of it either side, and the rule behind the
+    pair esd (one covariance for ρ and both σ's) there too.
     """
     s = solved_150k
     assert s.n_on_forbidden_lattice_points == 0
@@ -92,25 +114,34 @@ def test_the_150k_pattern_has_nothing_to_solve(solved_150k):
     assert s.best is None and s.margin is None
     refined = [t for t in s.trials if t.status == "refined"]
     assert refined and all(t.delta_bic <= 0.0 for t in refined)
+    # the ΔBIC is measured against a converged nuclear reference
+    assert all(t.reference_status == "converged" for t in refined), [
+        (t.class_index, t.reference_status) for t in refined]
     # a trial stopped short is listed with its caveat and left out of the ranking
     for t in refined:
         if t.fit_status != "converged":
             assert any(c.startswith(f"class {t.class_index}: the trial fit stopped")
                        and "not ranked" in c for c in s.caveats), (t.class_index,
                                                                     s.caveats)
-    assert not any(t.supported for t in refined)
-    paired = [m for t in refined for m in t.moments if m.paired_with]
-    assert paired, "the degenerate pair was not folded"
-    assert not any(m.pair_supported for m in paired)
-    # each MOMENT_PAIR_DEGENERATE names its class, and that class's rows carry
-    # the pair (#742): the pair's ``where`` is two paths every class shares
-    # (moved here from test_pair_diagnostic_class in WP-1930)
+    # class 3 converges and folds its pair; the pair sits inside the bands
+    c3 = next(t for t in refined if t.class_index == 3)
+    assert c3.fit_status == "converged", c3.fit_status
+    c3_pair = [r for r in c3.moments if r.paired_with]
+    assert c3_pair, [(r.label, r.magnitude, r.esd) for r in c3.moments]
+    for r in c3_pair:
+        assert 0.3 < r.paired_magnitude < 0.8, (r.label, r.paired_magnitude)
+        assert 0.1 < r.paired_magnitude_esd < 0.5, (r.label,
+                                                    r.paired_magnitude_esd)
+    # each MOMENT_PAIR_DEGENERATE that is raised names its class, and that
+    # class's rows carry the pair (#742): the pair's ``where`` is two paths
+    # every class shares (moved here from test_pair_diagnostic_class in
+    # WP-1930).  The check holds for every pair raised; which classes other
+    # than 3 fold one is the solver's, so no count is asserted (#829).
     # A class index is unique only within one k.  The pairs span every k
     # tried and ``s.trials`` holds the chosen k's classes, so a pair is keyed
     # by its whole label and looked up only when it is the chosen k's (under
     # the LM driver a second k reaches a pair, WP-1938).
     pairs = [d for d in s.diagnostics if d.code == "MOMENT_PAIR_DEGENERATE"]
-    assert pairs, [d.message for d in s.diagnostics]
     chosen = ("" if s.k is None or all(c == "0" for c in s.k)
               else " (k = (" + ", ".join(s.k) + "))")
     labels, classes = set(), set()
@@ -124,7 +155,6 @@ def test_the_150k_pattern_has_nothing_to_solve(solved_150k):
         trial = next(t for t in s.trials if t.class_index == index)
         assert any(r.paired_with for r in trial.moments), (index, d.message)
         classes.add(index)
-    assert classes, "no pair names a class of the chosen k"
     assert len(labels) == len(pairs)
     unpaired = {t.class_index for t in s.trials
                 if not any(r.paired_with for r in t.moments)}

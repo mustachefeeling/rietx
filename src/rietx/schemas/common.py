@@ -457,12 +457,18 @@ from .._nearmiss import did_you_mean
 #: (``schemas/parametric.py``) the joint path now takes.  Additive and
 #: defaulted to ``None``, "nothing declared", which every earlier result is;
 #: an older build refuses a result carrying the field.
-#: 0.55 → 0.56 (indexing C4): ``CellCandidate.n_search_unindexed`` and
+#: 0.55 → 0.56 (WP-1325): ``RefinementResult.parametric_form``, one
+#: ``ParametricFormTest`` per parametric declaration — whether the data
+#: rejects the declared form, by a score test at the answer.  Additive and
+#: defaulted to ``None``, as ``parametric`` is; an older build refuses a
+#: result carrying the field.
+SCHEMA_VERSION = "0.56"
+#: 0.56 → 0.57 (indexing C4): ``CellCandidate.n_search_unindexed`` and
 #: ``.unindexed_two_theta``, the search's acceptance as an output (the inlier
 #: rule replaces the absolute ``n_unindexed`` cap, which a ``SearchSpecSpec``
 #: still accepts as a declared int, its default now ``None``).  Additive and
 #: defaulted to ``None``, "not computed", the 0.25 → 0.26 rule.
-SCHEMA_VERSION = "0.56"
+SCHEMA_VERSION = "0.57"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

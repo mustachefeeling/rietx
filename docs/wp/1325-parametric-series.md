@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the parametric fit, its blocked solver, summaries and docs landed; the real ZrMo₂O₈ ramp, a lack-of-fit check, in-step bounds and start agreement remain
+Milestone: unscheduled · Status: 🔄 2026-10-14 — the lack-of-fit check landed as a score test at the answer; ZrP₂O₇ and WO₃, the peak-chain dedup, in-step bounds and start agreement remain, and two 1.10 notes wait on #975
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -623,6 +623,239 @@ Where a kernel over measurement coordinates has paid most is in choosing
   the N = 300 fit. The step is 4 %, normal equations 1.8 s and the
   covariance 3.3 s.
 
+### Measured: where the joint Jacobian's time goes (2026-10-14)
+
+`1325-measure/jacobian_profile.py`, output in
+`1325-measure/jacobian_profile_results.txt` and, with openblas, OpenMP and
+the kernel pool held to one thread each,
+`1325-measure/jacobian_profile_one_thread_results.txt`. The maintainer asked
+whether another Rust kernel would speed the joint fit.
+
+**Setup.**
+- `scaling.py`'s library at N = 60, blocked, on the same machine, with
+  nothing else running.
+- Every repeat runs at a new θ, because `phase_peaks` memoises on the cell.
+  An early draft that reused one θ timed the cache and read 6.2× where the
+  honest figure is 1.5×.
+- Times are ranges over five repeats. A ratio is min against min, and (1) is
+  one fit per run.
+
+| what | default threads | one thread each |
+|---|---|---|
+| plain fit wall; joint Jacobian's share | 5.90 s; 48 % | 5.87 s; 49 % |
+| `rietx_kernels` calls: profiled fit / plain wall | 1.5 % / ≤ 2.4 % | 1.5 % / ≤ 2.4 % |
+| `_peak_chain_column`'s share of the joint Jacobian | 75 %, 4.0 calls a pattern a Jacobian | 76 % |
+| one pattern's Jacobian, last stage | 2.40-2.45 ms | 2.42-2.64 ms |
+| the per-pattern Jacobian loop over 2 / 4 threads | 0.68× / 0.49× | 0.70× / 0.49× |
+| the per-pattern residual loop over 2 / 4 threads | 0.56× / 0.44× | 0.57× / 0.40× |
+| the four `cell.a` peak-chain columns computed once | 1.52× on the Jacobian loop | 1.48× |
+
+**What it says.**
+- **Another kernel is not the lever.** The existing kernels are under 3 % of
+  the fit. The profiler inflates python and not Rust, so 1.5 % of the
+  profiled fit is a floor and 2.4 % of the plain wall a ceiling. A pattern
+  here is 3 000 points of LaB₆, so its Jacobian is about a hundred small
+  python and numpy calls, not a loop of arithmetic. A kernel of WP-1115's
+  kind (a serial loop over a row range) has no loop here to take.
+- **Threads lose, and the GIL is why.** A pool across patterns ran at 0.49×
+  on 4 threads. Holding openblas, OpenMP and the kernel pool to one thread
+  each left that unchanged, so it is not oversubscription. The work is short
+  python stretches between short numpy calls, and the threads queue on the
+  lock. Only a Rust port of the whole per-pattern peak chain would free
+  them: positions, widths, |F|² and the column assembly, with a fallback and
+  an oracle. That is a port of the forward model's per-reflection chain, not
+  a kernel.
+- **The repeated peak chain is the cheap win.** Every coefficient of one tie
+  reaches `_peak_chain_column` under its target's name. Here that is four
+  `phases.0.cell.a` columns beside six instrument columns, and each re-runs
+  `phase_peaks` at its own step. Within a pattern each column is
+  Φ_kj · ∂y/∂(target), so one call and a scale serve them all. That measured
+  1.48-1.52× on the last stage's Jacobian loop with four terms, over three
+  runs, and grows with the term count.
+  - On the 45 % share at N = 300 that is about 1.2× on the fit (estimated,
+    not run).
+  - The estimate takes the last stage's column mix, 10 peak-chain columns
+    with 4 repeated, for the whole fit, whose stages average 4.0 a pattern a
+    Jacobian. So it can be off in either direction.
+- **Then processes across patterns, not threads**, since the work is
+  independent. Not measured.
+- **The case for a kernel grows with the structure.** Synthetic LaB₆ is the
+  worst case for this overhead. A phase with many reflections and atoms
+  raises the arithmetic share, and the real ramp will say by how much.
+  It did: about 13× (§ Measured on real data).
+
+### Measured on real data: the ZrMo₂O₈ ramp (2026-10-14)
+
+`1325-measure/real_ramp.py`. Output: `real_ramp_results.txt` (linear form,
+`--each`), `real_ramp_quadratic_results.txt` (`--degree=2 --each`) and
+`real_ramp_profile_results.txt` (`--profile`), all beside it.
+
+**Setup.**
+- Durham TOPAS tutorial 9.2, read from the local data root
+  (`tests/local_data.py`). Ranges 36-68 in TOPAS's numbering: 693-991.5 K,
+  33 patterns of 4 168 points, Cu Kα1, Bragg-Brentano.
+- Three phases. Cubic ZrMo₂O₈ is the major one. LT-ZrMo₂O₈ decays across the
+  window. Trigonal ZrMo₂O₈ stays a few wt % throughout.
+- The structures are the tutorial input's, read by `rx.read_project_model`
+  when the script runs. The resolution function and axial term are held at
+  the input's values.
+- Every fit runs `lab_sample_refine`'s scale and background, displacement,
+  cell and sample-broadening stages.
+- Targets: the cubic a, the trigonal a and the trigonal c, each a polynomial
+  in T over all 33 patterns, under `SharingMap(per_histogram=["phases.*"])`.
+  The joint fits start from the chain's per-pattern answers.
+- macOS arm64, 10 CPUs, `[dev]` venv, compiled kernels on. Other sessions
+  shared the machine, at load averages of 3 to 85, so every wall clock is a
+  range over runs.
+
+**The slopes, linear form**, in 10⁻⁶ Å/K. "Point esd" is the chain's mean
+per-pattern esd on the target.
+
+| target | point esd | line | joint | Δ / line esd | joint esd ÷ line esd | line χ²_red |
+|---|---|---|---|---|---|---|
+| cubic a | 0.0007 Å | −17.9(13) | −19.6(14) | −1.29 | 1.09 | 1.63 |
+| trigonal a | 0.022 Å | −97.7(110) | −86.5(80) | +1.01 | 0.72 | 0.80 |
+| trigonal c | 0.050 Å | 282(22) | 319(17) | +1.67 | 0.76 | 1.13 |
+
+**The nested test.** The reference is the same joint fit with no law, at
+χ²_red 1.873 and a Bérar-Lelann factor f of 2.50. F is (Δχ² / Δfree) /
+χ²_red. F/f² also allows for serially correlated residuals, which inflate a
+χ² difference as they inflate the esds.
+
+| law | linear F | linear F/f² | quadratic F | quadratic F/f² |
+|---|---|---|---|---|
+| all three | 4.82 | 0.77 | 3.22, at `max_iter` | 0.51 |
+| cubic a | 9.92 | 1.58 | 5.70 | 0.91 |
+| trigonal a | 3.13 | 0.50 | 3.83 | 0.61 |
+| trigonal c | 3.52 | 0.56 | 0.69 | 0.11 |
+
+**Cost.** With the linear form the joint fit took 0.99-1.89× the chain, and
+the untied fit 1.21-1.44×. The chain itself took 20-83 s. One linear law took
+30-70 s. One quadratic law took 118-225 s, and all three 356 s.
+
+**What it says.**
+- **The joint path runs on real three-phase data.** All 33 patterns,
+  1 029-1 122 free columns, converged in one to two times the chain's wall
+  clock.
+- **For a strong phase the gain is convenience, as on the synthetic ramp.**
+  The cubic slope's esd matches the line's to within 9 %. The two slopes sit
+  1.3 esd apart, but the nested test rejects the straight line for this
+  target, so that gap is two weightings of a wrong form.
+- **For a weak phase the joint esd is a quarter smaller.** The trigonal
+  slopes' esds are 0.72 and 0.76 of the line's. The synthetic weak phase
+  measured 0.72 in scatter. The truth is unknown here, so this measures
+  precision only.
+- **The nested test finds the wrong form once serial correlation is allowed
+  for.** Plain F rejects every linear law, at 3.1-9.9. Divided by f², only the
+  cubic line fails, at 1.58, and its trajectory does curve: the cell rises
+  from 693 K to 723 K, then falls. A quadratic brings it to 0.91. The line's
+  own χ²_red ranks the targets the same way, by a narrower margin. The test
+  costs one joint fit without the law, about one more chain.
+- **Declare only the terms the data carries.** Quadratics on all three
+  targets stopped at `max_iter` after 356 s, with `HIGH_CORRELATION`.
+  - The trigonal a quadratic alone converged 34 above the χ² of the line it
+    nests, so the solver stopped in a different minimum along the weak
+    phase's direction.
+  - The trigonal c quadratic alone fell to 0.11. It bends through the
+    patterns below 838 K, where that cell's esd is 0.05-0.14 Å. This
+    measurement cannot say whether those points are biased.
+- **The compiled kernels are a fifth of a three-phase fit.** `rietx_kernels`
+  took 19.9-20.1 % of the profiled joint fit, against 1.5 % on the synthetic
+  library. `_peak_chain_column` took 34.8-35.2 % of the fit.
+- **Two gaps surfaced.**
+  - The joint support hold decided per phase across every histogram. Under
+    per-histogram phase paths, a pattern's own copy of a vanished phase's
+    cell stayed free wherever another pattern still showed the phase. Fixed
+    in `multi._unseen`, with a two-pattern joint fit as the guard. This
+    window never met it: no phase falls below support in any pattern here.
+  - The chain held the fading LT phase in two patterns (938 K and 956 K) by
+    WP-1523's answer significance. The joint path reads the support screen
+    alone, by design, because its report is WP-1341's. So the chain and the
+    joint free different sets, 14 columns here. That is why the nested test
+    takes the untied joint fit as its reference.
+
+### Measured: the form test (2026-10-14)
+
+`1325-measure/form_score.py` on the real ramp, `form_synthetic.py` on
+`kernel_ramp.py`'s synthetic ramps. Output beside them:
+`form_score_results.txt` (the shipped form), `form_score_first_results.txt`
+(the first run, with the readings the shipped form dropped) and
+`form_synthetic_results.txt`.
+
+**The test.** At the tied answer, each subset pattern's own target column is
+read off the coefficient columns, J_coef·Φ_kᵀ/‖Φ_k‖². The alternative swaps the
+coefficients for those columns. One linear step from the answer, every other
+column refitted, gives the χ² it would remove: Rao's score statistic for k
+columns, `Refinement.suggest`'s one-column gain generalised. It is divided by
+the tied fit's χ²_red·f² and compared with χ²_k's 95 % point. Three choices
+came from measurement:
+- **The alternative drops the coefficients.** Appending the per-pattern
+  columns beside them counted a tenth direction on a ten-pattern ramp, since
+  finite-difference error leaves a derived column a hair outside the
+  coefficients' span.
+- **A pattern that cannot see the target is left out**, by `multi._unseen`,
+  the support hold's predicate. Counted in, the weak synthetic phase scored
+  rank 8 against the untied refit's 3.
+- **The denominator is the tied fit's**, the textbook score test's
+  restricted estimate. Read off the residual the step predicts, f fell to
+  2.27 against the untied fit's 2.50, since the unbounded step also moves the
+  columns on a bound. That put the cubic law at 2.09 against the refit's 1.58.
+  Columns `bound_findings` names are held out of both sides; that moved the
+  three-law gain from 1.07 to 1.04 of the refit's.
+
+**The ZrMo₂O₈ ramp** (33 patterns, three phases; macOS arm64, 10 CPUs, `[dev]`,
+load 5-30). The refit is the untied joint fit, χ²_red 1.873, f 2.503.
+
+| law | refit Δχ² | score gain | refit F/f² | score F/f² | verdict |
+|---|---|---|---|---|---|
+| all three | 839.3 | 871.7 (1.04) | 0.77 | 0.79 | both keep |
+| cubic a | 576.1 | 572.8 (0.99) | 1.58, p 0.021 | 1.57, p 0.023 | both reject |
+| trigonal a | 181.7 | 246.6 (1.36) | 0.50 | 0.68 | both keep |
+| trigonal c | 204.7 | 182.0 (0.89) | 0.56 | 0.50 | both keep |
+| cubic a, quadratic | 320.3 | 315.0 (0.98) | 0.91 | 0.89 | both keep |
+
+- The score costs one Jacobian, 0.71-0.78 s, plus 0.05 s of algebra. The
+  untied refit took 41 s and each tied fit 47-117 s.
+- At the three-law answer, each law scored with the other two still tied:
+  cubic 1.37 (p 0.08), trigonal a 0.34, trigonal c 0.29. So the cubic law
+  passes beside the others and fails alone; a per-law test at a multi-law
+  answer is the weaker one.
+
+**The synthetic ramps**, 20 seeds a cell, the tie and the untied refit seeded
+from the chain:
+
+| regime, truth | refit rejects | score rejects | score gain ÷ refit Δχ², median [range] |
+|---|---|---|---|
+| W, line | 0 | 0 | 0.96 [0.37, 4.97] |
+| W, curve | 0 | 0 | 0.85 [0.26, 3.32] |
+| W, kink | 0 | 0 | 1.01 [0.38, 3.52] |
+| O, line | 0 | 0 | 1.10 [0.89, 1.38] |
+| O, curve | 0 | 0 | 1.08 [0.89, 1.41] |
+| O, kink | 0 | 0 | 1.10 [0.91, 1.29] |
+
+- **No power on either regime's bent truths, and the refit had none
+  either.** Both regimes were built so that a pattern measures the minor cell
+  poorly (`kernel_ramp.py`'s docstring). In W four to eight patterns saw the
+  phase, by the ranks. The test sees a form only where, and as well as, a
+  pattern measures the target, so it does not answer the 0.03 gap coverage,
+  which lives in the patterns that cannot see the phase. Why the seen
+  patterns carried no power was not measured.
+- **W's gain ratio spreads 0.26-4.97** because the untied refit and the tie
+  hold different patterns' cells; its Δχ² is then not a nested difference (it
+  read −0.24 on one seed).
+- **Size:** 0 of 40 straight truths rejected. f read 1.251-1.274 on these
+  fits, against 1.127 for white noise, so the f² reading is conservative on
+  synthetic data. Without f² the score rejected 1 of 20 W straight truths.
+- **A strong phase is where it works.** On the slow test's LaB6 ramp a bow
+  of 1 % of the line's half-excursion, 9.4 × 10⁻⁵ Å at mid-ramp, scored
+  2 607 against a cut of 15.5, at GoF 1.12; the straight truth scored 4.8.
+
+**On the synthetic library** (`tests/test_parametric_series.library`, the
+true bilinear surface declared, blocked solve; load 10-24): the test took
+0.27 s of a 6.7 s fit at 120 patterns (4.1 %) and 0.67 s of 18.0 s at 300
+(3.7 %). It kept the true surface, 76.4 against a cut of 142.1 for 116
+directions and 197.9 against 337.1 for 296.
+
 ### What the code has (survey, 2026-10-14)
 
 - **`multi.py` is the seam: N patterns, one θ** (WP-0308).
@@ -698,6 +931,14 @@ Where a kernel over measurement coordinates has paid most is in choosing
   measurement says the joint form pays, the moment trajectory is a further
   series to measure it on.
 
+### Inherited
+
+- **From WP-1961 (2026-10-14).** #970 merged as `caf089fc`, after the
+  `v1.9.0` tag on `ea1800d3`, so it ships in 1.10. The staged
+  `docs/releases/1.10.0.md` did not exist when it merged, and it staged no
+  note anywhere. If its `multi.py` change is user-facing, its note goes in
+  that file.
+
 ## Non-goals
 
 - A library of physical models: the caller supplies the basis, or names a
@@ -743,7 +984,7 @@ Where a kernel over measurement coordinates has paid most is in choosing
 
   Landed as `1325-measure/kernel_ramp.py`; the numbers are in § Measured:
   where one pattern cannot see the parameter.
-- [ ] **A lack-of-fit check on the declared form.** The tie's gap coverage
+- [x] **A lack-of-fit check on the declared form.** The tie's gap coverage
   fell to 0.03 under a curved truth (§ Measured: where one pattern cannot see
   the parameter), so a wrong Φ yields a confidently wrong esd. Candidates:
   - χ² of the per-pattern values against the tie's curve, where the
@@ -755,6 +996,23 @@ Where a kernel over measurement coordinates has paid most is in choosing
 
   A third candidate needs no refit: a score test against a per-pattern
   deviation, built from the coefficient columns at the answer.
+
+  Measured on the ZrMo₂O₈ ramp (§ Measured on real data), the nested test
+  works against the joint fit with no law, at one extra joint fit. It
+  separates the wrong form only once the χ² difference is divided by f², the
+  Bérar-Lelann factor squared: plain F rejected every linear law at 3.1-9.9.
+  The chain is the wrong reference, because it holds by WP-1523's answer
+  significance and the joint path does not.
+
+  Landed as the third candidate, the score test, measured against the nested
+  refit first (§ Measured: the form test):
+  - `params.parametric.form_tests`, run once at the answer by
+    `MultiHistogramRefinement._build_result`, with
+    `optimize.blocked.added_columns_gain` doing the algebra on the arrow;
+  - `RefinementResult.parametric_form`, one `ParametricFormTest` per
+    declaration (schema 0.56), printed after its coefficients;
+  - `PARAMETRIC_FORM_REJECTED`, a warning on the coefficients;
+  - the series deliverable's functional-form row names a rejected law.
 - [ ] **Hold each target's own bounds inside the step.** Coefficients are
   unbounded, so a polynomial can step a target through its floor or pole
   mid-solve (March-Dollase r at `MARCH_R_MIN`, the Caglioti W floor, an
@@ -775,8 +1033,50 @@ Where a kernel over measurement coordinates has paid most is in choosing
   sharing one `r` column are not one model with different values. Decide
   which fields must agree and refuse the rest. Declined from the 2026-10-14
   code review as a design decision.
-- [ ] **The measurement on real data**: the ZrMo₂O₈ ramp (maintainer-local),
-  with the same numbers as the synthetic half.
+- [x] **The measurement on real data**, with the same numbers as the
+  synthetic half, on the ZrMo₂O₈ ramp: `1325-measure/real_ramp.py`, in
+  § Measured on real data. All three sources are Durham TOPAS tutorials.
+  They are public downloads, which the maintainer cleared for local use only
+  (2026-10-14; never committed):
+  - ZrMo₂O₈ on a ramp (tutorial 9.2), the first 68 of the RAW file's 82
+    ranges. This is the ramp the Scope calls the maintainer's local copy,
+    byte for byte;
+  - ZrP₂O₇ (tutorial 9.5; Stinton & Evans 2007). Its input reads 37 of the
+    RAW file's 871 ranges, 303 K to 1173 K and back, with three phases:
+    ZrP₂O₇, a silicon standard and Al₂O₃. TOPAS numbers a range from 1 and
+    `read_pattern(scan=)` from 0;
+  - WO₃ (tutorials 9.3 and 9.4, the maintainer's "Tutorial 39"; 100 patterns
+    cooled from 300 to 90 K through its transitions).
+
+  Since 2026-10-14 they sit in the local data root, registered by URL and
+  sha256 in `tests/local_data.py`, and `python -m tests.local_data` fetches
+  them on a new machine. A cloud container has none of them, because the
+  Durham host is outside its network policy.
+- [ ] **The same measurement on ZrP₂O₇ and WO₃.** Both are where the ramp
+  could not reach. ZrP₂O₇ runs to 1173 K and back, so heating and cooling can
+  be tested as one law. WO₃ crosses phase fields, which is the case for one
+  law per field on disjoint subsets. `rx.read_project_model` builds all three
+  WO₃ phases from `d9_02592_3phase_01.inp`. The ZrP₂O₇ input is refused at
+  read, on its `B1(...)` site macros, so its phases need building by hand.
+- [x] **Profile the joint Jacobian**, the maintainer's question of 2026-10-14:
+  would another Rust kernel help? It would not, first. § Measured: where the
+  joint Jacobian's time goes.
+- [ ] **Compute a target's peak-chain column once per pattern.** A tie's
+  coefficient columns each re-run `phase_peaks` (§ Measured: where the joint
+  Jacobian's time goes, 1.48-1.52× on the Jacobian loop).
+  - The seam is `_make_jacobian`'s column loop
+    (`optimize/least_squares.py:1604`) and `_peak_chain_column` (`:1170`).
+    Group the peak-chain columns by the targets they reach, compute each
+    target's column once, and chain through C. The restraint block already
+    does this, as `r_phys @ cmat`.
+  - A coefficient reaching several targets (one law per phase field, a
+    shared cell) takes the general form, J_columns = J_targets · C_sub, and
+    never a per-name shortcut.
+  - The finite-difference step then sits on the target, not the
+    coefficient, so it is not bit-identical. The bar: the converged answer
+    within 0.01 esd of today's, as the blocked solver's was.
+  - It also removes a near-zero effective step: a pattern near the reference
+    has Φ_kj ≈ 0, so today a coefficient's step barely moves its target.
 - [x] **Survey the prior art for declaring a parametric model**, for a
   self-driving lab as the writer. Written into Context: § Prior art, § The
   shape and § What the code has.
@@ -954,6 +1254,320 @@ Where a kernel over measurement coordinates has paid most is in choosing
   Schur identity), issue #212.
 
 ## Handover log
+
+### 2026-10-14 (fifth session) — a declared law is now tested against its own data, at the cost of one Jacobian
+
+Every joint fit with a parametric law now says whether its data rejects that
+law. It does this from the answer alone, without refitting: it asks how much
+the fit would improve if each pattern's value were set free, and compares
+that with what noise would give. On the real ZrMo₂O₈ ramp it agreed with a
+full refit on all five laws tried, and it rejects the one law whose
+trajectory visibly curves. It costs under a second where the refit costs 41.
+The test is blind where a pattern cannot see the quantity: on synthetic ramps
+whose minor phase faded or overlapped, neither it nor a full refit rejected a
+bent truth. So it does not rescue the confidently wrong gap estimates the
+kernel measurement found.
+
+*Done* (session started 2026-10-14 on a fresh branch from `main` at caf089f,
+after #970 merged; on the maintainer's machine):
+- **The measurement first** (898ab18): `1325-measure/form_score.py` and
+  `form_synthetic.py`, in § Measured: the form test. The score test was
+  built as a probe, compared with the nested refit, and three of its choices
+  changed on the numbers (the alternative drops the coefficients, unseen
+  patterns are left out, the denominator is the tied fit's).
+- **The test in the package** (b7be8bc), ticking the lack-of-fit task:
+  - `optimize.blocked.added_columns_gain`, the gain on the arrow through the
+    covariance's own Schur pseudo-inverse and cut;
+  - `params.parametric.target_columns` and `form_tests`, with
+    `FORM_TEST_LEVEL` quoting `PARAMETER_INTERVAL_LEVEL`;
+  - `MultiHistogramRefinement._build_result` runs it once at the answer,
+    holding what `bound_findings` found on a bound and leaving out what
+    `multi._unseen` holds;
+  - `RefinementResult.parametric_form` (schema 0.56), `ParametricFormTest`
+    exported, a form line in `str(result)`, and the series deliverable's
+    functional-form row naming a rejected law;
+  - `PARAMETRIC_FORM_REJECTED`, a warning on the coefficients, in
+    `DIAGNOSTIC_SCOPES` as FIT;
+  - Part 1 `using/series.md` § Testing the declared form; Part 2
+    `{eq}par-parametric-form`, its level a `conf.py` substitution;
+  - the skill: the two parametric codes share one row in `diagnostics.md`,
+    and the series row points at the test instead of the hand recipe. Both
+    files sit at their 34 600 B budget, so the pointer row beside it was
+    tightened to make room (34 594 and 34 575 B).
+- **Tests**, in `tests/test_parametric_series.py`: the blocked gain against
+  dense least squares with drop and hold; a pattern's target column against
+  an untied table's (1.8e-7 to 8.1e-7 measured, bar 1e-5); the LaB6 ramp's
+  line law kept on its true line and rejected under a 1 % bow (fast,
+  parametrised); the slow ramp test asserts its form stands.
+  `test_magnetic`'s schema pin moved to 0.56.
+- **Forward references:** 1341 learns that its open item 4 (whether the joint
+  hold reads WP-1523's significance) also sets which patterns the form test
+  sees.
+- **Inherited:** none on arrival. WP-1961's open #975 adds one to this file:
+  #970's `multi._unseen` change ships in 1.10 and has no note. It cannot be
+  acted on yet, because `docs/releases/1.10.0.md` exists only in #975. The
+  two notes to stage there, once #975 merges:
+  - Fixed: a joint fit with per-histogram phase paths now holds a pattern's
+    own copy of a phase's cell where that pattern cannot see the phase; it
+    stayed free wherever another pattern still showed the phase (WP-1325).
+  - Added: `RefinementResult.parametric_form` tests each parametric
+    declaration's form at the answer, and `PARAMETRIC_FORM_REJECTED` warns
+    when the data rejects it (WP-1325, schema 0.56).
+- **Findings** checked on arrival: nothing on `main` had touched the WP's
+  files since the last handover.
+- **`/code-review high --fix`** over caf089f..57e2b60: 9 findings, 5 fixed
+  in one commit (1bcacd1).
+  - dof is clamped to 0 where fewer patterns than coefficients enter.
+  - The statistic needs a finite positive χ²_red·f², and that case prints
+    its own line.
+  - The held side's projection is computed once for every declaration.
+  - An all-zero target column is not counted as a tested pattern.
+  - `conf.py`'s new import is in sorted order.
+
+  Four declined:
+  - testing a law with a held coefficient: it would mix the form with the
+    held value;
+  - skipping the Jacobian when no law is testable: that needs a plan that
+    never frees `vars.*`;
+  - reusing `outcome.jac`: it can be stale after the cell clamp, and it has
+    no penalty rows;
+  - one helper for the χ²_red·f² the moment-angle test also computes: it is
+    outside the diff, and the finiteness drift it caused is fixed.
+
+*Measured* (macOS arm64, 10 CPUs, `[dev]` venv, compiled kernels on; other
+sessions shared the machine at load averages of 4 to 30):
+- The form test's numbers are in § Measured: the form test.
+- Fast selection, the command verbatim, before the review: 9699 passed,
+  1 failed (the schema pin, fixed), 186 skipped, 1 xfailed, in 5 m 14 s.
+- Fast selection after the review, the command verbatim plus a junit file,
+  on the merged tree (`main` had not moved since caf089f): 9700 passed,
+  186 skipped, 1 xfailed, in 4 m 32 s. passed+skipped is 9886 in both runs.
+  The 4 added cases (3 tests) pass. No base count was taken, so the +4 comes
+  from `tests.added_test_times`. They took 6.25 s in that run, 6.00 s of it
+  the two fit-level cases at 3 s each under `-n auto`; the test's docstring
+  says why they are fast.
+- The WP's acceptance command, slow tests included: 213 passed. Its two slow
+  parametric tests pass, the 120-pattern library among them.
+- The full selection was not run. The change adds a computation after the
+  solve of a parametric joint fit and moves no fitted number: the
+  constant-declaration test still holds bit for bit, and no acceptance suite
+  declares a parametric law.
+
+*Gotchas*:
+- **A derived column is a hair outside the span of what it was derived
+  from.** Finite differences on the coefficient's step and on the target's
+  differ by ~1e-7 relative, enough for the pseudo-inverse to count a tenth
+  direction among ten patterns. Swap columns; never append beside them.
+- **A predicted residual is not a fitted one.** The unbounded linear step
+  moves columns sitting on a bound too, so its residual's Bérar-Lelann factor
+  read 2.27 where the untied fit's was 2.50.
+- **`kernel_ramp.py` swaps `least_squares._multi_closures` on import.** A
+  script importing it puts the original back, and looks the function up at
+  call time.
+- **`v1.9.0` is tagged and 1.10 is being opened in #975**, so nothing here
+  can be staged until it merges.
+
+Next, in order:
+1. **Stage the two release notes** above in `docs/releases/1.10.0.md` once
+   #975 merges, and prune the Inherited entry.
+2. **The same measurement on ZrP₂O₇ and WO₃**, now with the form test
+   reading each law. WO₃ is the case for one law per phase field.
+3. **A per-law test beside other laws reads weaker than alone** (the cubic
+   law, 1.37 against 1.57). Decide whether `parametric_form` should also
+   test each law with the others freed, at one more set of columns each.
+4. **The peak-chain deduplication** (35 % of the real fit), then **in-step
+   bounds**, then **start agreement** beyond parameters.
+
+### 2026-10-14 (fourth session) — on real data a weak phase's slope tightens by a quarter, and the form check needs the correlation factor
+
+The parametric fit has now been measured on real data: 33 patterns of the
+ZrMo₂O₈ heating ramp, three phases. A law across temperature gave a weak
+phase's expansion slopes esds a quarter smaller than a line drawn through the
+per-pattern fits, and gave the strong phase nothing, as the synthetic ramps
+predicted. Checking the declared form by refitting without it works, but only
+after dividing by the correlated-residual factor. Without that, it rejected
+every straight line, and with it only the one that visibly curves failed. On
+this three-phase structure the compiled kernels are a fifth of the fit, against
+1.5 % on the synthetic library. Along the way the joint fit learned to hold a
+phase's per-pattern cell where that pattern cannot see the phase. Data that
+may not be committed now has one place on disk, outside the repository.
+
+*Done* (session started 2026-10-14 on PR #970's branch at ccc8c7b, on the
+maintainer's machine, because the cloud session could reach neither the data
+nor the Durham host):
+- **Where local-only data lives** (48d30ac), the maintainer's question. It
+  goes in `~/rietx-local-data/<source>/<dataset>/`, or wherever
+  `$RIETX_LOCAL_DATA` points. That is outside every checkout, so all
+  worktrees share one copy and no `git clean` reaches it. The pattern is
+  scikit-learn's, MNE's and nilearn's: a home directory plus an environment
+  override. pooch's registry of URL and sha256 is kept, without the
+  dependency. `tests/local_data.py` registers the three Durham tutorials,
+  fetches them through curl and verifies every hash. `dataset()` returns
+  `None` where they are absent. Three tests. The rule is in the module's
+  docstring and in a pointer at the top of `tests/data/README.md`.
+  `tests/CLAUDE.md` was already at its 302-line cap, so it has no line.
+- **The measurement on real data** (74a5770): `1325-measure/real_ramp.py`
+  and three output files, in § Measured on real data. The task is ticked. A
+  new task carries ZrP₂O₇ and WO₃. The lack-of-fit task records what the
+  nested test needs.
+- **A per-pattern cell is held where its own pattern is blind** (871d38a,
+  `multi._unseen`). The second session had forwarded this to 1341 as an
+  open question. It is fixed here, with a two-pattern joint fit as the guard,
+  which held nothing on the old code. This ramp never met it.
+- **Skill:** the parametric row in `references/series.md` now carries the
+  form check and the real-data esd ratio. It was rewritten to fit the file's
+  budget: 34 598 of 34 600 B. Both committed copies are re-synced.
+- **Forward references:** 1329 learns that a per-pattern moment is never held
+  as flat in a joint fit (by reading, not run). In 1341, Inherited item 3 now
+  says the hold is fixed and its naming is open, and a new item 4 records the
+  WP-1523 divergence.
+- **Inherited:** none on arrival. **Findings:** the "maintainer-local"
+  ZrMo₂O₈ ramp is Durham tutorial 9.2, byte-identical to the maintainer's
+  copy, and the ZrP₂O₇ input reads 37 of its RAW file's 871 ranges. The task
+  text was corrected.
+- **`/code-review high --fix`** over ccc8c7b..HEAD: 10 findings, 6 fixed in
+  one commit.
+  - The new test's imports failed ruff's ordering.
+  - The stage loop's comment still stated the per-phase rule.
+  - This record called the fit four-phase. The model has three.
+  - `fetch()` renamed a download before checking its hash, and read members
+    from a zip it had not verified.
+  - `tests/local_data.py` spelled the brand. Its names now come from
+    `_about.DIST_NAME`, with the same values.
+  - The fit-level test copied `synthesize()`. That function now takes
+    `extra_phases=`.
+
+  Four declined:
+  - the per-pattern moment hold: outside the diff, and forwarded to 1329;
+  - the joint cell window, which still decides per phase: outside the diff,
+    and the hold reaches every such cell before the window would matter;
+  - one predicate shared with `refine._only_moves`: the joint form has to
+    know which histogram owns each entry;
+  - a diagnostic naming a per-pattern hold: 1341's item 3.
+
+*Measured* (macOS arm64, 10 CPUs, `[dev]` venv, compiled kernels on; other
+sessions shared the machine at load averages of 3 to 85):
+- The real-data numbers are in § Measured on real data.
+- Fast selection, the command verbatim, at 08eb61e (this branch, not merged
+  with `main`, which had moved nine merges): 9669 passed, 186 skipped,
+  1 xfailed, in 7 m 22 s. Five tests were added and all pass. In one run
+  they took 0.69 s together, 0.53 s of it the two-pattern joint fit. No base
+  count was taken on this machine, so the +5 comes from
+  `tests.added_test_times`, not from a before-and-after.
+- The full selection was not run. The changed rule moves a fit only where a
+  phase path is per-histogram and the phase is absent from some patterns.
+  No acceptance suite declares that. The slow tests of
+  `test_parametric_series.py`, `test_multi_histogram.py`,
+  `test_held_phase.py` and `test_absent_phase.py` ran: 297 passed.
+
+*Gotchas*:
+- **TOPAS's `TCHZ_Peak_Type` maps by position** (WP-1455): slot 5 is the
+  tanθ Lorentzian term (`profile.y`), slot 6 the 1/cosθ one (`profile.x`).
+  The August transcription of this ramp, outside the repository, swapped
+  them.
+- **`Statistics.chi2` is reduced**, over N − P. A total is that times N − P.
+- **The chain is the wrong reference for a nested test.** It holds a fading
+  phase by WP-1523's answer significance, which the joint path does not read.
+- **Durham's host refuses urllib's user agent with a 403, and urllib stopped
+  at 12.8 of 17.7 MB without raising.** The hash check caught it, and the
+  fetch uses curl.
+- **`read_topas_inp` refuses the ZrP₂O₇ input** on its `B1(...)` site macros.
+  TOPAS numbers a range from 1, and `read_pattern(scan=)` from 0.
+- **Wall clocks swung 4× with other sessions' load.** Quote ranges.
+- **The worktree guard refuses a shell variable in `sed` or a loop.** Write a
+  scratchpad script and run it as one plain command.
+
+Next, in order:
+1. **Build the lack-of-fit check.** It now has evidence behind it: the joint
+   fit with no law as the reference, and F divided by the Bérar-Lelann factor
+   squared. Decide whether it is a result field or a diagnostic beside
+   `PARAMETRIC_OUT_OF_RANGE`, since it costs one more joint fit.
+2. **The same measurement on ZrP₂O₇ and WO₃**, on this machine. WO₃ is the
+   case for one law per phase field.
+3. **The peak-chain deduplication.** The peak chain is 35 % of the real fit.
+4. **In-step bounds** for the coefficients, then **start agreement** beyond
+   parameters.
+
+### 2026-10-14 (third session) — another Rust kernel is not the lever; a repeated peak chain is
+
+The maintainer asked whether another Rust kernel would speed up the large
+joint fits. Not first. The existing kernels are under 3 % of a 60-pattern fit.
+Each pattern is small, so its Jacobian is about a hundred small python calls
+rather than a loop of arithmetic for a kernel to take over. Spreading the
+patterns over threads made it slower, because python's lock serialises them.
+Holding the maths libraries to one thread did not change that. What does pay
+is algorithmic: a polynomial's coefficients all move the same per-pattern
+cell, yet each re-runs the peak chain. Doing it once measured about 1.5× on
+the Jacobian, and is filed as a task. The real-data measurement could not run
+from the cloud container, which reaches neither the maintainer's copy nor the
+Durham tutorials.
+
+*Done* (session started 2026-10-14 at 977ec2a, after #969 merged; a cloud
+session, pushed to `claude/happy-bardeen-b6d4g0`):
+- **The profile.** `1325-measure/jacobian_profile.py` and its results, in
+  § Measured: where the joint Jacobian's time goes.
+- **Tasks.** Ticked "Profile the joint Jacobian" and filed "Compute a
+  target's peak-chain column once per pattern". The real-data task now names
+  the Durham TOPAS surface tutorials, ZrP₂O₇ and WO₃, which the maintainer
+  cleared for local use only.
+- **Forward reference:** 1962 learns the per-pattern Jacobian's cost, and
+  that threads do not parallelise it.
+- **Skill:** `references/batch-operating.md` 9c.33, "run separate fits side by
+  side in processes, never threads", tagged measured for the closures and
+  hypothesis for whole fits. The two committed copies were re-synced.
+- **Inherited:** none on arrival. **Findings** are this morning's, and main
+  moved only by #969's merge since, so none went stale.
+- **`/code-review high --fix`: 10 findings, 7 acted on.**
+  - Rows (2)-(4) ran at the last stage's start: fixed, and re-run.
+  - The kernel share was quoted against the profiled time only: both are
+    printed now, floor and ceiling.
+  - The thread loss might have been oversubscription: re-run with openblas,
+    OpenMP and the kernel pool at one thread (the script now prints that
+    environment), and it is the GIL.
+  - Single figures became ranges or min-against-min over runs.
+  - The 1.2× estimate gained its column-mix caveat.
+  - The process filter skips every ancestor.
+
+  Three declined:
+  - one plain fit per run: three runs agree on the share, at 48-49 %;
+  - `fresh()` cannot move an entry at exactly 0: the cache keys on the cell,
+    which is never 0;
+  - `src_fingerprint` does not cover `tests/`: the helper is `scaling.py`'s,
+    which this branch does not touch.
+
+*Measured* (Linux x86_64, 4 CPUs, 15.7 GiB, `[dev]` venv, nothing else
+running): the numbers are in § Measured: where the joint Jacobian's time
+goes. No source or test changed, so no suite count moved and the fast
+selection was not run. Step 10's checks are below.
+
+*Gotchas*:
+- **`phase_peaks` memoises on the cell.** A profiling loop that reuses one θ
+  times the cache, and a deduplication then reads 6.2× where the honest
+  figure is 1.5×. Move θ every repeat.
+- **`mtable.x0()` is the last stage's start, not its answer.** A commit
+  leaves the combined vector cached. Read each sub-table's `x0()` through
+  `col_map`, as `_stage_end_rows` does.
+- **A coefficient column reaches `_peak_chain_column` under its target's
+  path** (`phases.0.cell.a`), not under its `vars.` name. A deduplication
+  keyed on `vars.` finds nothing.
+- **This cloud container cannot reach the data.** The maintainer's disk is
+  not mounted, and the network policy denies
+  `topas.webspace.durham.ac.uk`. The maintainer is carrying the WP on
+  locally.
+
+Next, in order:
+1. **The measurement on real data, on the maintainer's machine**, because
+   only a local session reaches it. Use the ZrMo₂O₈ ramp, or the Durham
+   ZrP₂O₇ (37 patterns) and WO₃ (100 patterns) tutorials, stored locally and
+   never committed. It also says whether a larger structure raises the
+   kernels' share.
+2. **A lack-of-fit check on the declared form**, the previous session's
+   first: a wrong form gives confidently wrong esds. Real data is the better
+   test of it.
+3. **The peak-chain deduplication**: about 1.2× on the fit, estimated, and a
+   stated equivalence bar.
+4. **In-step bounds** for the coefficients, then **start agreement** beyond
+   parameters.
 
 ### 2026-10-14 (second session) — the parametric fit is built, measured and scales to hundreds of patterns
 
