@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-11 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829), #565's certificates part 4 (PR #853); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-14 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829), #565's certificates part 4 (PR #853), #820's option (a) (PR #953); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -1265,3 +1265,36 @@ suite runs changed.
 authors and year.
 
 *Next:* #565 part 5, then M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs.
+
+### 2026-10-14 — #820's option (a), and #795's citation fix
+
+Two outside PRs merged in the PR review. The 150 K acceptance test no longer
+asserts which side of the 3σ gate its pair lands. It holds the class-3 pair to
+bands, and the gate's own logic has tests of its own.
+
+*Done.* PR #953 (head `0dc2c20e`) merged as `cfcc44d5` and closed #820. It is
+option (a) as decided on 2026-10-11, with the bands re-derived from the class-3
+pair after #918 and #923: sum 0.3-0.8 μ_B and esd 0.1-0.5 μ_B, against
+0.5183 ± 0.2501 μ_B on macOS arm64 and 0.518 ± 0.250 on Linux. Each edge sits at
+least 0.1 μ_B from every value measured, the pre-WP-1938 0.606 ± 0.202 included.
+The test keeps the verdict, ΔBIC ≤ 0 and the trial caveats, and adds the nuclear
+reference's convergence. Two new tests in `test_magnetic_solve.py` hold the gate
+on constructed pairs at twice and half `MOMENT_SUPPORT_SIGMA`, and at
+`MOMENT_FLOOR_MU_B`. PR #945 (head `c71e6ed4`) merged as `2e8d4a8d`:
+`minus_k_is_k`'s docstring now cites the FullProf manual § Propagation vectors,
+eqs 3.47-3.54, as the module docstring does. That settles the mismatch the
+2026-10-08 #795 entry recorded.
+
+*Gate:* the two stacked on `main` `2cbd7363` as `b1c43d37`, macOS arm64,
+`[dev,jax]`, nothing else running: the full suite gave 10062 passed, 144 skipped,
+1 xfailed in 28 min. `main` after the second merge equals that tree.
+
+*Reviewed, not merged:* PR #936 (#565 part 5), round 1 at `efa7bc83` with five
+items. The consistency loop's round cap is below the supply it claims. A
+`refuted_by` mark outlives a class split. The fit cache keyed on `id(v.witness)`
+now lives across rounds, which part 4's agreed leave-open did not cover. A pair
+keeps reason "joined" after a proof. And a table header names the wrong
+certificate.
+
+*Next:* #936's round 2; then M-8, M-9's `help.py` entries, Part 2 and the M-9
+PNGs.
