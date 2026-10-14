@@ -1003,8 +1003,15 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
                          anchors=anchor_rows)
         return None if kept is None else kept[3]
 
+    # **The survivor lists are the frontier's memory, so they take the
+    # narrowest index type** (WP-1924).  Each surviving box of the grid's last
+    # stage keeps its own list, shared only by its few children: on #780's
+    # monoclinic case 22 689 lists of ~7300 rows, 1.29 GB as int64.  A list
+    # only ever indexes ``m_full``, so its values, its order and every row it
+    # gathers are the same in any integer type wide enough to count them.
     frontier, n_boxes, n_rows, complete = _grid_pass(
-        basis, lo0, hi0, np.arange(len(m_full)), grid_test, budget)
+        basis, lo0, hi0, np.arange(len(m_full), dtype=_row_index_type(m_full)),
+        grid_test, budget)
     if frontier is None:
         return found, (n_boxes, n_rows), False
 
@@ -1018,19 +1025,28 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     # the shell containing the answer last.  Ordering the survivors by volume gives
     # the same "cheap answers first" property for one grid pass.
     volumes = _centre_volumes(basis, frontier)
-    # siblings share one survivor list, and so share one gathered copy of its
-    # rows, as they did when the frontier carried the rows themselves: a copy
-    # per cell would multiply the frontier's memory by the grid's fan-out
-    rows_of: dict[int, np.ndarray] = {id(ids): m_full[ids]
-                                      for _lo, _hi, ids in frontier}
-    stack = [(lo, hi, rows_of[id(ids)], ids, 0)
+    # **A grid cell's rows are gathered when it is popped, never for the whole
+    # frontier up front** (WP-1924).  Gathering every survivor list at once held
+    # ``n_dof`` floats per index until the unit returned: on #780's case 5.2 GB
+    # beside 1.29 GB of lists, 6.8 GB of footprint in all, reached once the
+    # grid finished.  A cell's first test filters what it gathered, so its
+    # children carry their own smaller copy and the gathered one dies with the
+    # pop.  The gathers are bit-identical to the shared ones; what they cost is
+    # one copy per cell where siblings shared one.
+    stack = [(lo, hi, None, ids, 0)
              for _v, _i, lo, hi, ids in sorted(
                  ((volumes[i], i, lo, hi, ids)
                   for i, (lo, hi, ids) in enumerate(frontier)), reverse=True)]
+    # the grid's one-entry gather cache would otherwise hold its last list's
+    # rows for the whole of phase 2
+    del frontier, volumes
+    gathered[:] = [None, None]
     while stack:
         if budget.expired():
             return found, (n_boxes, n_rows), False
         lo, hi, m, ids, depth = stack.pop()
+        if m is None:
+            m = m_full[ids]
         n_boxes += 1
         n_rows += len(m)
         kept = _test_box(m, lo, hi, basis, q_hi, det_band, swaps, lo_search,
@@ -1058,6 +1074,11 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         _push_children(stack, [(lo, left_hi), (right_lo, hi)], m, ids,
                        lo_search, hi_search, n_miss, depth + 1, anchor_rows)
     return found, (n_boxes, n_rows), complete and complete_union
+
+
+def _row_index_type(m_full: np.ndarray) -> np.dtype:
+    """The narrowest unsigned type that can index every row of ``m_full``."""
+    return np.min_scalar_type(max(len(m_full) - 1, 0))
 
 
 #: Relative grid on which a converged box's A..F is hashed to see whether that

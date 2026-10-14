@@ -1,6 +1,6 @@
 # WP-1912 — a polar axis has no origin, and the fit walks along it
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — the hold lives in the table behind `Phase.floating_origin`, off by default; whether to turn it on is the maintainer's call on #727
+Milestone: unscheduled · Status: 🔄 2026-10-13 — hold and centroid both built, default off; the default (centroid proposed) is the maintainer's call on #727
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — the default structural preset reaches it on every polar space group with a free coordinate, and the CIF it writes carries an absolute coordinate hundreds of cells out with an esd; flagged only by `FLAT_DIRECTION` on the result, so not P1
@@ -94,30 +94,22 @@ bit-identity anywhere.
 
 Licensing: SHELXL is closed. Use the paper only.
 
-### Inherited
-
-- **2026-10-13, from the issue triage (#727): the reporter withdrew the
-  hold-one default and prefers the floating-origin restraint.** Posted
-  2026-10-12: a restraint on a weighted centroid (Flack & Schwarzenbach 1988,
-  *Acta Cryst.* A44, 499-506) chooses no atom, does not depend on atom
-  order, leaves every atom an esd, and is one rule for every case
-  `floating_origin_basis` returns (one axis, Cc's a-c plane, P1's three).
-  They leave the weights, and restraint against exact constraint, to this WP.
-  Draft PR #929 (2026-10-13) moves the existing opt-in hold into the table as
-  `Phase.floating_origin: Literal["hold"] | None = None` and does not mention
-  the withdrawal; a `"centroid"` value can join that `Literal`. Which mode is
-  the default, if any, is still the maintainer's call. *Decided 2026-10-13
-  (the maintainer, through the issue triage): the hold is the default now,
-  and the centroid comes later as a second value.* `Phase.floating_origin`
-  defaults to `"hold"` (#929 flips its `None`), so polar-group fits stop
-  walking in the next release, `ORIGIN_FIXED_ON_POLAR_AXIS` names the held
-  atom, and `unhold` lifts it. Once WP-1942's linear restraint item lands,
-  `"centroid"` joins the `Literal` as an opt-in mode (Flack & Schwarzenbach
-  1988, weights from the paper, not from memory), and both modes are
-  measured on the ZnO, Cc and P1 fixtures before the default is revisited. A
-  second default change, if one comes, moves the reported origin, never the
-  structure, Rwp or any interatomic distance; each change goes in the
-  release notes.
+**Where the default stands (2026-10-13, folded from § Inherited).** The
+reporter withdrew the hold-one default on #727 (2026-10-12) and asked for the
+floating-origin restraint on a weighted centroid (Flack & Schwarzenbach 1988,
+*Acta Cryst.* A44, 499-506): it chooses no atom, does not depend on atom
+order, leaves every atom an esd, and is one rule for every case
+`floating_origin_basis` returns. The maintainer's two comments on #727 that
+day disagree (07:38 "the hold becomes the default now"; 15:16, after #929
+merged off by default, "the default is still to decide"). Resolved in session
+the same day: **the aim is to move quickly to the centroid**, so the hold
+stays opt-in and the default is not flipped twice. The centroid lands as a
+second value of `Phase.floating_origin`, built as the paper's restraint in
+a row block of its own (task below; it needs nothing from WP-1942's unbuilt
+user-declared restraint), is measured against the hold on ZnO, Cc and P1, and becomes the candidate
+default. A default change moves the reported origin and the spread of esds,
+never the structure, Rwp or any interatomic distance, and goes in the release
+notes.
 
 ## Non-goals
 
@@ -202,6 +194,104 @@ Licensing: SHELXL is closed. Use the paper only.
       codes, now describes the field, the quote rule for the held atom and
       the measured esds (+315 B, 23 766 B left). `api.md` regenerated for
       the two new fields, and the two committed copies re-synced.*
+- [x] #929's open review items (handoff of 2026-10-13, below): item 5,
+      `magnetic/supercell.py` copies `floating_origin` to the child phase
+      (and any other `Phase(...)` builder copying field by field); item 8,
+      a joint fit raises the origin codes; the pending tests for items 2
+      (every candidate tied to a freed variable → `ORIGIN_NOT_FIXED`), 9 (a
+      Le Bail fit raises no `ORIGIN_FIXED_ON_POLAR_AXIS`) and 11
+      (`hold_floating_origin()` declines where nothing is holdable); and the
+      "runs exactly along" wording in `using/concepts.md`, the 1.9.0 note and
+      the skill paragraph.
+      *Done 2026-10-13: `magnetic_supercell` copies the field (no other
+      builder copies a phase field by field); a joint stage records
+      `blocked_by_hold` (`MultiParameterTable.blocked_by_hold`) and
+      `multi._joint_origin_findings` asks `_origin_diagnostics` of each
+      histogram's table, a shared coordinate told once, so the
+      `DIAGNOSTIC_SCOPES` row moves from ABSENT to SPECIMEN; four tests in
+      `test_floating_origin.py` and one in `test_magnetic_supercell.py`; the
+      candidate wording fixed in `concepts.md`, the 1.9.0 note, `numbers.md`
+      and `help.py`, and `ORIGIN_NOT_FIXED`'s suggestion now names what the
+      tied coordinates follow. A joint result's `blocked_by_hold` was always
+      empty and now is not.*
+- [x] `floating_origin="centroid"`, the restraint of Flack &
+      Schwarzenbach (1988), read 2026-10-13 from the copy the maintainer
+      supplied. *Superseded in part, 2026-10-13: the "exact affine tie in C"
+      this task first named is the paper's infinite-weight limit, which it
+      shows does not give the near-diagonal matrix the method exists for
+      (§ Concluding remarks), so it is a restraint after all — but an
+      internal one, not WP-1942's.* What the paper fixes:
+      one pseudo-observation per floating direction p,
+      Z_p = Σₙ aₙ·Δ_pᵀ(xₙ − xₙ⁰) = 0 (eq 9), Δ_p orthonormal in fractional
+      components, x⁰ the values at the start of the cycle so the row adds
+      nothing to the gradient; the solve then satisfies it **exactly at any
+      weight** (eq 11 and the paragraph after), and only the covariance
+      depends on aₙ. The aₙ are not ∝ Z² by fiat (that is the mean-matrix
+      answer, and imposed as a constraint it is not diagonal): they solve
+      aₘ·Σ_{n≠m} aₙ = bₘ (eq 21, A1), bₘ = Σ_{ij} A_{im,jm}Ω_ij / Σᵢ Ω_ii
+      from the **unrestrained** normal matrix, by the (A6) iteration; this
+      zeroes each column's Ω-collapsed off-diagonal sum (eq 20), handles
+      special positions and multiplicity by itself, and exists iff
+      Σb − 2b_r > 0 for every r (A5). In this package's terms
+      bₘ = Σ_p ‖J·αₘ,ₚ‖²/P, αₘ,ₚ the θ step moving atom m alone by Δ_p
+      (the paper's [111] example, z alone refined, gives A_zz/3 either
+      way). Three cases the paper leaves open: N = 2 has b₁ = b₂ identically
+      (rows of A sum to zero, eq 8), so aₘ·aₙ = b fixes only the product —
+      take a₁ = a₂ = √b, which makes A′ diagonal and gives each z the
+      difference's esd over √2, uncorrelated; (A5) failing is the limit of a
+      hold on the dominant atom, so fall back to that and say so; and the
+      row is added **only where the stage's free set realises the uniform
+      shift** (`_origin_floats`), since on a fixed origin the same row is a
+      structural restraint and biases the answer. Where it lives: a row
+      block of its own in `model/rows.BLOCK_ORDER`, never `soft_restraint`,
+      whose √c_w would silence it at c_w = 0 and free the origin; aₙ and x⁰
+      frozen at stage compile (one J·α product per atom, 2N residual
+      evaluations); partials constant, chained through C like
+      `restraint_partials`; rows excluded from the observation count; the
+      covariance read **with** them, that being the point. Every backend
+      through `rows.assemble`, a `test_cross_backend.py` config, Part 2
+      equation with *Source* lines (eqs 9, 21, A6).
+      *Done 2026-10-13 (schema 0.54, renumbered from 0.53 at the merge of main, which took 0.53 for time of flight): `model/origin.py` (the eq 21 solve,
+      Δ by QR, bₘ by central difference, the frozen block), an
+      `origin_restraint` block last in `BLOCK_ORDER`, its analytic rows in
+      `least_squares`, `ParameterTable.origin_slides` sharing
+      `_origin_floats`' solve over the free set, compiled before each solve
+      in `_run_stage` (a release re-solves) and in `suggest`'s probe;
+      `ORIGIN_FIXED_ON_POLAR_AXIS` names each site's aₙ/Σa; a joint fit
+      refuses it by name; a direction one site can move along is held as
+      `"hold"` holds it. Zincite, LM and TRF: Rwp equal to the hold's to
+      1.4e-14, z(O) − z(Zn) = 0.382313 the held z(O), each z ±0.000394
+      against the hold's 0.000574/√2 = 0.000406, neither flat-direction
+      code. Three P 4 m m sites meet eq 21 to 1e-3 and eq 20 to 1e-6 on the
+      fit's own Jacobian; P 1 gets three rows and C c two. Part 2
+      `par-origin-centroid` and `par-origin-weights`, Part 1 `concepts.md`,
+      `help.py`, `numbers.md`, the 1.9.0 note. `replay` is evaluate-only
+      and quotes no esd, so it needs no rows. Untested: a rigid body's
+      origin as a site.*
+- [x] Measure hold against centroid on the ZnO, Cc and P1 fixtures and the
+      round-robin zincite (origin, esds, Rwp, free count), then propose the
+      default with a read-time pin for documents older than the schema that
+      flips it.
+      *Done 2026-10-13 (`[dev,jax]`, Linux). Round-robin
+      `qarr/zincite.prn`, `compare.py`'s zincite standard,
+      `mccusker_structural`:*
+
+      | solver | `None` | `"hold"` | `"centroid"` |
+      |---|---|---|---|
+      | LM | Zn −0.00011(76), O 0.38271(76); `FLAT_DIRECTION`, `HIGH_CORRELATION`; 20 free | Zn 0, O 0.38283(152); 19 free | Zn −0.00011(105), O 0.38271(105); 20 free |
+      | TRF | Zn 21102.46729(76), O 21102.85011(76) | as LM | as LM |
+
+      *Rwp 0.114703 in all six; the difference 0.38283 in all six. The
+      centroid's ±0.00105 is the hold's ±0.00152 over 1.44 (√2 is 1.41),
+      no flat-direction code, and TRF stays in the cell. The synthetic C c
+      (two rows) and P 1 (three) converge with no flat direction
+      (`test_one_row_per_floating_direction`). Proposed default:
+      `"centroid"`, behind a `mode="before"` pin reading documents older
+      than the flipping schema as `None`; it needs the joint fit to stop
+      refusing it first (a default that makes every polar joint fit raise
+      is not one), either one origin row per joint structure or a fallback
+      to `"hold"` there. Cost: 2·N·P extra forward evaluations per stage
+      that slides a phase. The maintainer's call on #727.*
 
 ## Acceptance
 
@@ -222,14 +312,100 @@ with each moved number named.
 
 - Issue #727.
 - Flack, H. D. & Schwarzenbach, D. (1988). *Acta Cryst.* A**44**, 499–506.
-  Least-squares restraints for origin fixing in polar space groups. **Check
-  the paper before quoting a weight scheme**; it is cited here from memory.
+  On the use of least-squares restraints for origin fixing in polar space
+  groups. Read 2026-10-13 (the maintainer's copy); the centroid task quotes
+  its eqs 9, 11, 20, 21, A1, A5 and A6.
 - Hahn, T., ed. (2005). *International Tables for Crystallography, Vol. A*,
   Part 15 (normalizers of space groups) for the continuous translations.
 - `crystallography/wyckoff.py` (`coordinate_basis`, `_nullspace_int`); WP-0301,
   WP-0302, WP-1432, WP-1435; `schemas/params.py` (`needs_held_cell`).
 
 ## Handover log
+
+### 2026-10-13 (2nd session) — the centroid, built from the paper
+
+A polar-group fit can now fix its origin the way single-crystal codes do. It
+restrains a data-weighted centroid of the atoms instead of freezing one of
+them, so every coordinate along the axis is refined and keeps an esd that can
+be quoted on its own. On the round-robin zincite it gives the same structure
+and Rwp as the hold, and each z's esd is the hold's divided by √2. It also
+stops the TRF driver's walk to z ≈ 21 000. Reading the paper changed the plan:
+an exact constraint gives the same values but loses the near-diagonal
+covariance the method exists for, so it is a restraint. That restraint needs
+nothing from WP-1942. Both modes stay off by default. A joint fit refuses the
+centroid on a polar phase. Whether either mode becomes the default is the
+maintainer's call on #727.
+
+*Inherited, pruned.* The 2026-10-13 decision note moved into Context as
+"Where the default stands". The two #727 comments that day disagree (hold now,
+against still to decide). The maintainer settled it in this session: aim for
+the centroid quickly and flip no default twice.
+
+*Done.* Three tasks.
+1. #929's review items, laned. The supercell copy, joint-fit origin codes
+   (`blocked_by_hold` on joint stages), four tests and the candidate wording.
+2. `"centroid"`, laned, schema 0.54. The mechanics are in the task's done
+   note. In this session I added the origin rows to `suggest`'s probe.
+   `replay` is evaluate-only, so it needs none.
+3. The real-data measurement, in the task's table.
+
+The paper (the maintainer's copy, read in full) is cited by equation in
+`model/origin.py` and Part 2 `par-origin-centroid`/`par-origin-weights`.
+
+*Review.* `/code-review high --fix` found eight issues and fixed three:
+- (A6) stalls where (A5) holds by a hair (b = [6724, 6724, 1] missed eq 21 by
+  27×; a 1e-30 site gave NaN). eq 21 is now also solved through S = Σa with
+  Brent, and the better answer kept, and a test pins it.
+- The origin partials are built once per solve and one C serves both blocks.
+- A docstring claimed one origin across stages. Each stage restrains its own
+  start.
+
+I fixed a fourth: a joint fit refused a non-polar phase declaring centroid,
+and now refuses only a polar one (with a test). Four I leave, as findings for
+the next session:
+- `site_curvatures` costs 2·N·P full evaluations per compile (a 60-site P1 is
+  360). The derivative bases could give them analytically.
+- A stage whose second solve cannot slide the phase records only that solve,
+  so the first solve's restraint goes unreported.
+- `hold_floating_origin()` returns `[]` for a phase already declaring
+  centroid.
+- A centroid phase whose sites scatter nothing gets no row and no
+  `ORIGIN_NOT_FIXED`.
+
+*Measured.* Real data: the task's table (`[dev,jax]`, Linux). Lanes: two, plus
+one item kept. The tool's table:
+
+| lane | est | requests | main at dispatch | lane $ | saved $ |
+|---|---|---|---|---|---|
+| review-items | 30 | 65 | 153K | 3.14 | +0.32 |
+| centroid | 60 | 130 | 227K | 10.55 | +2.19 |
+
+Kept: measure, est 15, 6 requests, at 288K. The selective policy's replay row
+is +12% for this session (+2.52, +10% of the session in the trial row). The
+estimates ran 2.17× short. The fast selection was run on this branch with main merged at
+`4366289` (`[dev,jax]`, Linux, one run, 23 min 15 s). It gave 9 497 passed,
+128 skipped and 1 xfailed, with no failure. There is no main baseline on this
+venv, so the count's move against main was not measured. The 21 added tests
+(22 cases) cost 22.6 s in that run, 22.3 s of it in `test_floating_origin.py`.
+The module fixture's two added centroid fits come on top of that and are not
+attributed to a test. The full selection did not run: the default stays off,
+so no measured number moves.
+
+*Gotchas.*
+- The venv in this worktree has `[dev,jax]`: the centroid lane installed jax.
+  Every count above is for that venv.
+- The goldens are pinned to darwin/arm64 and skip on Linux. Default-off
+  bit-identity here rests on the P 2₁2₁2₁/Pnma bit-for-bit tests and on
+  `compile_origin` returning `None` before anything else.
+- The rigid-body site path (a body origin as one site) has no test.
+
+*Next.*
+1. The maintainer decides the default on #727. The proposal is `"centroid"`
+   with a read-time pin, and the task gives the conditions.
+2. If the centroid is to become the default, a joint fit must take it first:
+   one origin row per structure in `multi.py`, or a fallback to `"hold"`.
+3. Then the four review findings above, the analytic curvatures first,
+   because they are the cost a default would impose on every polar fit.
 
 ### 2026-10-13 — the hold moves into the table, and the default is measured
 

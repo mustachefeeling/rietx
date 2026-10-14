@@ -215,7 +215,8 @@ def ambiguity_partners(cell: tuple[float, ...], system: str, centring: str,
                        two_theta_min: float = 0.0,
                        max_index: int = MAX_AMBIGUITY_INDEX,
                        k_sigma: float = MATCH_SIGMA,
-                       ) -> list[AmbiguityPartner]:
+                       cancel=None,
+                       ) -> list[AmbiguityPartner] | None:
     """Derivative lattices this data cannot distinguish from ``cell``.
 
     The test is empirical rather than taxonomic, and it is two-sided:
@@ -237,6 +238,13 @@ def ambiguity_partners(cell: tuple[float, ...], system: str, centring: str,
     :data:`AMBIGUITY_EXTEND_FACTOR`·``two_theta_max`` (or below
     ``two_theta_min``).  The report is therefore literally "collect here and
     look", the structural twin of Layer 2's "extend the fit range".
+
+    ``cancel`` is read before each derivative cell, so a stop waits one
+    child's work rather than the whole sweep (#895, WP-1924).  On #780's
+    monoclinic cell the sweep is 0.9 s of CPU and its slowest child 47 ms.  A
+    sweep the token stops returns ``None``, never the partners found so far:
+    a partial list reads as a complete answer, and an empty one as "no
+    partners".
     """
     from ..crystallography.lattice import cell_volume
 
@@ -256,6 +264,8 @@ def ambiguity_partners(cell: tuple[float, ...], system: str, centring: str,
 
     out: list[AmbiguityPartner] = []
     for index, h, child in derivative_cells(cell, max_index=max_index):
+        if cancel is not None and bool(cancel):
+            return None
         try:
             hkl_c, q_child = predicted_lines(child, "triclinic", "P", wavelength,
                                              tt_ext)

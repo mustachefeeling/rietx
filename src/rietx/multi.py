@@ -86,6 +86,7 @@ from .refine import (
     _low_angle_diagnostics,
     _max_iter_diagnostics,
     _onto_flat_meridian,
+    _origin_diagnostics,
     _phase_agreement,
     _phase_support_diagnostics,
     _quantify_phases,
@@ -236,6 +237,11 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_symmetry_silence_diagnostics": (
         (SPECIMEN,), "a snapped site or an assumed setting is a fact about the "
                      "one structure, asked of it as declared, before any stage"),
+    "_origin_diagnostics": (
+        (SPECIMEN,), "each histogram's table derives the same floating-origin "
+                     "hold from its copy of the one structure (WP-1912); asked "
+                     "of each, through _joint_origin_findings, and a shared "
+                     "coordinate told once"),
     # -- once: the joint solve and the plan ------------------------------------
     "_constraint_diagnostics": (
         (FIT,), "the answer-producing stage's one joint solve"),
@@ -267,13 +273,10 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
                 "several tables is one finding"),
     # -- deliberately not computed ---------------------------------------------
     "_hold_diagnostics": (
-        (ABSENT,), "a joint fit has no hold verb, so no StageResult here "
-                   "carries blocked_by_hold for HOLD_BLOCKED_PLAN to report"),
-    "_origin_diagnostics": (
-        (ABSENT,), "each histogram's table derives the same floating-origin "
-                   "hold from its copy of the structure (WP-1912), so the "
-                   "hold applies; no joint StageResult carries the "
-                   "blocked_by_hold it reports from"),
+        (ABSENT,), "a joint fit has no hold verb: the one hold its tables "
+                   "carry is the floating origin's, which HOLD_BLOCKED_PLAN "
+                   "leaves to _origin_diagnostics, so it would report "
+                   "nothing"),
     "_pawley_unresolved_diagnostics": (
         (ABSENT,), "a joint fit is Rietveld-only (fit refuses pawley)"),
     "_pawley_off_data_diagnostics": (
@@ -747,6 +750,31 @@ def _clamp_cell_runaway_multi(mtable, start_values: list[dict[str, float]]
     return list(seen.values())
 
 
+def _refuse_centroid_origin(structure: Structure) -> None:
+    """A joint fit refuses ``Phase.floating_origin = "centroid"`` (WP-1912).
+
+    The restraint is one row per direction **per structure** (Flack &
+    Schwarzenbach 1988, eq 9), weighted by the curvature of all the data along
+    it.  The joint residual is per-histogram residuals stacked, each with its
+    own row blocks, so built here it would land once per histogram, weighted
+    by one pattern's curvature each, and nothing is built to place it once.
+    ``"hold"`` works in a joint fit, every histogram holding the same atom.
+    A non-polar phase declaring it is not refused: nothing floats there, so
+    the declaration builds nothing in a single fit either.
+    """
+    from .crystallography.wyckoff import floating_origin_basis
+
+    for ip, phase in enumerate(structure.phases):
+        if (phase.floating_origin == "centroid"
+                and len(floating_origin_basis(phase.space_group))):
+            raise ValueError(
+                f"phase {ip} ({phase.name!r}) declares floating_origin="
+                "'centroid', which a joint fit does not build yet: the "
+                "restraint is one row per structure and the joint residual "
+                "would carry it once per histogram. Use floating_origin='hold' "
+                "for a joint fit")
+
+
 class MultiHistogramRefinement:
     """Joint Rietveld refinement of a shared structure against several patterns.
 
@@ -777,6 +805,7 @@ class MultiHistogramRefinement:
         if len(instruments) < 1:
             raise ValueError("multi-histogram needs at least one instrument")
         _judge_magnetic_groups(structure)       # a caller's statement (issue #597)
+        _refuse_centroid_origin(structure)
         for i, ins in enumerate(instruments):
             # Same reason as ``Refinement.__init__``: MultiParameterTable is
             # built on the next line and reaches for a wavelength a TOF bank
@@ -1119,6 +1148,10 @@ class MultiHistogramRefinement:
                 zip(plan.stages, plan.stage_ftols(), strict=True), start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
                 freed = self.mtable.set_vary(stage.turn_on, True)
+                # what the glob matched and a hold refused (WP-1435): here only
+                # the floating-origin hold (WP-1912), which the origin
+                # diagnostics report from
+                blocked_by_hold = self.mtable.blocked_by_hold(stage.turn_on)
                 # what the stage asked for and did not get (WP-1414): a literal
                 # no histogram has or a retired spelling, and — the joint fit's
                 # own case — a histogram the stage's globs reached nothing of
@@ -1285,7 +1318,7 @@ class MultiHistogramRefinement:
                     moment_flat_axes=kept_axes,
                     moment_turned=[b for b in kept_axes if b in moment_turned],
                     unknown_paths=unknown_paths, unreached_histograms=unreached,
-                    seeded=seeded,
+                    seeded=seeded, blocked_by_hold=blocked_by_hold,
                     moment_angle_tests=outcome.moment_angle_tests))
                 if stream is not None:
                     rwp, rows = self._stage_end_rows(models, outcome.theta)
@@ -1589,6 +1622,10 @@ class MultiHistogramRefinement:
             listing="[e.path for t in ref.mtable.tables for e in t.entries]")
         diagnostics = diagnostics + _unreached_histogram_diagnostics(
             stage_results, [h.label for h in histograms])
+        # the floating-origin hold every histogram's table derives from its
+        # copy of the one structure (WP-1912): asked of each and told once
+        diagnostics = diagnostics + _joint_origin_findings(stage_results,
+                                                              mt)
         # a stage's budget is spent by the one joint solve (FIT)
         diagnostics = diagnostics + _max_iter_diagnostics(stage_results)
         # one CELL_RUNAWAY per stage that fired the joint clamp above,
@@ -1906,6 +1943,34 @@ def _joint_fixed_literals(stages, mtable) -> list[Diagnostic]:
                  f"{', '.join(str(h) for h in hs)}")
         out.append(d.model_copy(update={"message": f"{d.message} in {scope}"}))
     return out
+
+
+def _joint_origin_findings(stage_results, mtable) -> list[Diagnostic]:
+    """``ORIGIN_FIXED_ON_POLAR_AXIS``/``ORIGIN_NOT_FIXED`` for a joint fit (WP-1912).
+
+    ``refine._origin_diagnostics`` asked of each histogram's table, with each
+    stage's ``freed`` and ``blocked_by_hold`` cut to the names that histogram
+    owns (bare shared rows and its own ``hist.<h>.`` ones, unscoped), so the
+    reach test reads that table's C.  A shared coordinate is one finding,
+    keyed by code and ``where``, as :func:`_joint_fixed_literals` keys a shared
+    row; a sharing map that makes coordinates per histogram gets one per
+    histogram, its origin being that histogram's.
+    """
+    found: dict[tuple[str, tuple[str, ...]], Diagnostic] = {}
+    for h, table in enumerate(mtable.tables):
+        prefix = f"hist.{h}."
+
+        def own(paths, prefix=prefix):
+            return [_unscoped(p) for p in paths
+                    if p.startswith(prefix) or not p.startswith("hist.")]
+
+        view = [sr.model_copy(update={"freed": own(sr.freed),
+                                      "blocked_by_hold": own(sr.blocked_by_hold)})
+                for sr in stage_results]
+        for d in _origin_diagnostics(
+                table, view, canonical=lambda p, h=h: mtable._canonical(h, p)):
+            found.setdefault((d.code, tuple(d.where)), d)
+    return list(found.values())
 
 
 def refine_multi(data: list[PatternData], structure: Structure,

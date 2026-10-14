@@ -408,7 +408,8 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     390-line wrong phase above the truth), then the two-opinion Bravais screen and
     the geometrical-ambiguity enumeration on the checked subset.
 
-    ``cancel`` (WP-1037) is read between ambiguity enumerations only — merging,
+    ``cancel`` (WP-1037) is read by the ambiguity enumeration only, between
+    candidates and between one candidate's derivative cells (#895) — merging,
     ranking and the Bravais screen always run, because they are what turns raw
     engine output into an answer at all and they are cheap (the enumeration was
     measured at 45 of a 105 s ceiling-bound corundum run; everything else here
@@ -553,29 +554,39 @@ def enumerate_ambiguity(outcome: ConsensusOutcome, peaks: PeakList, *,
     mandatory check, and this enumeration — measured at 45 s of a
     ceiling-bound corundum run, with one candidate's 55-lattice sweep
     uninterruptible — consumed the whole validation reserve whenever it ran
-    first.  ``cancel`` is read between candidates; one the clock stops before
-    stays out of ``ambiguity_checked``, which the gate reads as an unasked
-    question (capping), never a clean answer.
+    first.  ``cancel`` is read between candidates and, since #895, between
+    one candidate's derivative cells, so a stop waits one child's work rather
+    than a whole sweep.  A candidate the clock stops before or during its
+    sweep stays out of ``ambiguity_checked`` with no partners written, which
+    the gate reads as an unasked question (capping), never a clean answer.
+    A sweep that refuses (the parent's own lines cannot be predicted) is the
+    same unasked question, so its candidate stays out too (WP-1924).
     """
     checked = set(checked_indices(outcome.candidates, outcome.engines_run,
                                   top=top))
     for i, cand in enumerate(outcome.candidates):
         if i in checked and i not in outcome.ambiguity_checked \
                 and not (cancel is not None and bool(cancel)):
-            cand.ambiguity = _partners(cand, peaks)
+            partners = _partners(cand, peaks, cancel=cancel)
+            if partners is None:
+                continue
+            cand.ambiguity = partners
             outcome.ambiguity_checked.append(i)
 
 
-def _partners(cand: CellCandidate, peaks: PeakList):
+def _partners(cand: CellCandidate, peaks: PeakList, *, cancel=None):
+    """The candidate's partners, or ``None`` where the sweep refused or was
+    stopped: neither has asked the question, and ``[]`` would answer it."""
     from .ambiguity import ambiguity_partners
 
     try:
         return ambiguity_partners(cand.cell, cand.system, cand.centring,
                                   peaks.q(), peaks.q_esd(), peaks.wavelength,
                                   float(peaks.two_theta_max),
-                                  two_theta_min=float(peaks.two_theta_min))
+                                  two_theta_min=float(peaks.two_theta_min),
+                                  cancel=cancel)
     except (ValueError, RuntimeError, np.linalg.LinAlgError):
-        return []
+        return None
 
 
 # ----------------------------------------------------------------------
