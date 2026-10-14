@@ -424,4 +424,24 @@ def test_the_notebook_html_holds_the_light_image_and_a_hidden_dark_one(fitted, t
     for alone in (plot_result(result, style="dark"),
                   plot_for_vlm(result, path=str(tmp_path / "vlm.png"))):
         assert list(alone._repr_mimebundle_()[0]) == ["image/png"]
+    # a display that drops the HTML is not made to draw it
+    assert list(fig._repr_mimebundle_(include=["image/png"])[0]) == ["image/png"]
+    assert list(fig._repr_mimebundle_(exclude=["text/html"])[0]) == ["image/png"]
+    plt.close("all")
+
+
+def test_the_dark_copy_leaves_pyplot_s_figures_alone(fitted):
+    """Under any backend but the inline one, pyplot still holds the returned
+    figure, and a deep copy of it registers itself with pyplot too: one stray
+    figure, or window, per display, until the copy is made detached."""
+    import matplotlib.pyplot as plt
+
+    plt.close("all")
+    _, result = fitted
+    fig = plot_result(result, dpi=100)
+    before = plt.get_fignums()
+    assert len(before) == 1  # the suite's Agg keeps it, as a script's backend does
+    assert "text/html" in fig._repr_mimebundle_()[0]
+    assert plt.get_fignums() == before
+    assert fig.canvas.manager is not None  # handed back as it was
     plt.close("all")

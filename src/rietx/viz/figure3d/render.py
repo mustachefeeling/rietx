@@ -163,11 +163,11 @@ class StructureFigure:
         recoloured, as a fit figure is, because its antialiased edges blend
         each ink into the ground.  A figure on any other ground is the
         caller's choice, and shows alone."""
-        from ..plots import PALETTES, _no_dark_copy, _pair_html
+        from ..plots import PALETTES, _no_dark_copy, _pair_html, _wants_html
 
         png, meta = self._repr_png_()
         data, metadata = {"image/png": png}, {"image/png": meta}
-        if (self._drawn_from is None
+        if (self._drawn_from is None or not _wants_html(include, exclude)
                 or _colour(self.recipe.get("background")) != _colour("white")):
             return data, metadata
         try:

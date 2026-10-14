@@ -374,7 +374,7 @@ def _figure_class():
                 return _notebook_png(self)
 
             def _repr_mimebundle_(self, include=None, exclude=None):
-                return _notebook_bundle(self)
+                return _notebook_bundle(self, include, exclude)
 
         _FIGURE_CLASS = _NotebookFigure
     _register_notebook_png(_FIGURE_CLASS)
@@ -430,7 +430,15 @@ _DARK_MARKERS = ('body[data-jp-theme-light="false"]', "body.vscode-dark",
                  'html[theme="dark"]')
 
 
-def _notebook_bundle(fig) -> tuple[dict, dict]:
+def _wants_html(include, exclude) -> bool:
+    """Whether a display asked for ``text/html``, so the dark copy is worth
+    drawing.  IPython filters the bundle by ``include``/``exclude`` itself;
+    this only skips drawing what it would drop."""
+    return ((include is None or "text/html" in include)
+            and (exclude is None or "text/html" not in exclude))
+
+
+def _notebook_bundle(fig, include=None, exclude=None) -> tuple[dict, dict]:
     """``fig`` as a notebook output: ``(data, metadata)`` by MIME type.
 
     ``image/png`` is :func:`_notebook_png`, for a frontend that renders no
@@ -452,12 +460,24 @@ def _notebook_bundle(fig) -> tuple[dict, dict]:
     pair; the PNG still shows."""
     light, meta = _notebook_png(fig)
     data, metadata = {"image/png": light}, {"image/png": meta}
-    if fig._rietx_style != "light":
+    if fig._rietx_style != "light" or not _wants_html(include, exclude):
         return data, metadata
     import copy
 
+    # A figure pyplot still holds (any backend but the inline one) would
+    # register its copy with pyplot too, through Figure.__setstate__: one
+    # stray figure, or window, per display.  Detached, the copy is not.
+    manager = fig.canvas.manager
+    fig.canvas.manager = None
     try:
-        dark, _ = _notebook_png(_darkened(copy.deepcopy(fig)))
+        twin = copy.deepcopy(fig)
+    except Exception as exc:  # noqa: BLE001 - the light figure still shows
+        _no_dark_copy(exc)
+        return data, metadata
+    finally:
+        fig.canvas.manager = manager
+    try:
+        dark, _ = _notebook_png(_darkened(twin))
     except Exception as exc:  # noqa: BLE001 - the light figure still shows
         _no_dark_copy(exc)
         return data, metadata
