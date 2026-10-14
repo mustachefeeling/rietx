@@ -89,7 +89,7 @@ was built from. Then start with [](quickstart.md).
 | `pydantic` ≥ 2.6 | the schemas: validation, defaults, JSON round-trip |
 | `gemmi` ≥ 0.6.5 | CIF reading, space groups, symmetry operations |
 | `spglib` ≥ 2.8 | site symmetry, Wyckoff positions, cell reduction |
-| `rietx-kernels` ≥ 1.1, < 2 | the compiled peak kernels, one wheel per platform ({ref}`the-compiled-kernels`) |
+| `rietx-kernels` ≥ 1.3, < 2 | the compiled peak kernels, one wheel per platform ({ref}`the-compiled-kernels`) |
 | `matplotlib` ≥ 3.10 (≥ 3.10.5 on Python 3.14) | figures: `RefinementResult.plot`, `PatternData.plot` and the report figures |
 
 Those seven are the whole install, and nothing in that list is optional.
@@ -147,10 +147,10 @@ them with `numba` on first use and cached the result in `~/.rietx/numba-cache`.
 That directory is no longer read, and you can delete it.
 
 The structure figure draws with two more kernels from the same wheel, and the
-switch below reaches them too. From `rietx-kernels` 1.3 the dichotomy indexing
-engine tests its boxes in the wheel as well. On a monoclinic search of 161 705
-grid boxes the grid took about 4 s of CPU, against 13.5 s on the numpy loop. With an older
-wheel the engine runs its numpy loop.
+switch below reaches them too. The dichotomy indexing engine tests its boxes in
+the wheel as well, from `rietx-kernels` 1.3, the oldest wheel rietx accepts. On
+a monoclinic search of 161 705 grid boxes the grid took about 4 s of CPU,
+against 13.5 s on the numpy loop.
 
 Turn the kernels off with `RIETX_COMPILED=0`, which needs no reinstall. Every
 kernel has the numpy expression it replaces standing behind it, so refinements
@@ -162,25 +162,25 @@ RIETX_COMPILED=0 python my_refinement.py
 ```
 
 An install without the wheel also runs the numpy path (see Troubleshooting).
-It warns once per process, at the first refinement, structure figure or
-`capabilities()` call:
+It warns once per process, at the first refinement, structure figure,
+dichotomy search or `capabilities()` call:
 
 ```text
 RuntimeWarning: rietx's compiled kernels did not load, because importing
 rietx_kernels raised ModuleNotFoundError (No module named 'rietx_kernels').
-Fits and structure figures run the numpy path, which is slower. Install the
-kernels with pip install "rietx-kernels>=1.1,<2", or set RIETX_COMPILED=0 to
-choose the numpy path and silence this warning.
+Fits, structure figures and indexing run the numpy path, which is slower.
+Install the kernels with pip install "rietx-kernels>=1.3,<2", or set
+RIETX_COMPILED=0 to choose the numpy path and silence this warning.
 ```
 
 The same warning names a wheel of another major version, whose kernel
-interface this rietx does not call. It also names a wheel older than 1.1, which
-lacks the structure figure's kernels.
+interface this rietx does not call. It also names a wheel older than 1.3, which
+lacks the dichotomy indexing engine's kernels.
 
 `capabilities()` answers the three questions separately, because they can
 disagree. `features["compiled_kernels"]` is whether the wheel loaded here.
-`features["compiled_kernels_active"]` is whether the next refinement or figure
-will use it. `Capabilities.compiled_kernels_unavailable` is the reason the wheel did not
+`features["compiled_kernels_active"]` is whether the next refinement, figure
+or indexing search will use it. `Capabilities.compiled_kernels_unavailable` is the reason the wheel did not
 load, or `None` when it did.
 
 ```python

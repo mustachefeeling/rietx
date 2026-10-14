@@ -1010,7 +1010,7 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     found: list[EngineCandidate] = []
     seen: set[tuple[int, ...]] = set()
 
-    # **The compiled box test, when the wheel has it** (WP-1959).  It reads
+    # **The compiled box test, when the tier is on** (WP-1959).  It reads
     # ``m_full`` through a box's ids, so no box gathers rows, and it returns
     # what ``_test_box`` returns on the same bits.  ``None`` runs the numpy
     # loop, which is its oracle (``tests/test_indexing_kernels.py``).
