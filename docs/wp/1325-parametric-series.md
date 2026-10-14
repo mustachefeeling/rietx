@@ -1063,6 +1063,9 @@ session, pushed to `claude/happy-bardeen-b6d4g0`):
   cleared for local use only.
 - **Forward reference:** 1962 learns the per-pattern Jacobian's cost, and
   that threads do not parallelise it.
+- **Skill:** `references/batch-operating.md` 9c.33, "run separate fits side by
+  side in processes, never threads", tagged measured for the closures and
+  hypothesis for whole fits. The two committed copies were re-synced.
 - **Inherited:** none on arrival. **Findings** are this morning's, and main
   moved only by #969's merge since, so none went stale.
 - **`/code-review high --fix`: 10 findings, 7 acted on.**

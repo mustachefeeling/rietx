@@ -270,3 +270,16 @@ has yet run with labels on, so whether a named list is read faster than a
 timestamped one is undecided. What would decide it: a batch operator asked to
 reopen a named candidate from the watcher list, against the same task on a
 timestamped one.)*
+
+**9c.33 Run separate fits side by side in processes, never threads.** A
+fit's per-pattern work is short python stretches between short numpy and
+kernel calls, so threads queue on the GIL rather than sharing the cores: four
+threads ran a joint fit's per-pattern Jacobians at **0.49×** the speed of one,
+and holding BLAS and the kernel pool to one thread each left that unchanged.
+One process per fit is the parallel unit. Give each process
+`RIETX_COMPILED_THREADS=1` beside the `*_NUM_THREADS` variables (9c.31), so N
+processes do not each start a kernel pool sized for the whole machine.
+*(Measured: WP-1325, the per-pattern closures of a 60-pattern joint fit on 4
+CPUs. Hypothesis: whole fits behave the same on threads, not timed; and the
+one-thread pool per process, the use `RIETX_COMPILED_THREADS`'s docstring names
+for it, which no batch has measured.)*
