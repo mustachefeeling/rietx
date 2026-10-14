@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here (Claude session); scope decided, survey and synthetic measurement landed; the regime a single pattern cannot see is next
+Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here (Claude session); scope decided, synthetic measurement landed, a kernel over the coordinates surveyed; the regime a single pattern cannot see is next
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -268,6 +268,222 @@ the 20 seeds.
   - a joint result carries no covariance, so the control subclassed
     `_build_result` (`multi.py:1406`) to read it.
 
+### A kernel over the coordinates (survey, 2026-10-14)
+
+The maintainer asked whether a *kernel* over the pattern coordinates, rather
+than a declared basis, would be useful. A kernel makes a parameter vary
+smoothly without naming its functional form. This section is three
+literature searches plus the algebra that places a kernel in this WP. The
+searches confirmed each citation and its abstract-level claim through indexed
+records, but every full-text fetch failed on DNS, so no paper was read
+whole. Numbers that came only from secondary summaries are left out.
+
+**The form.** Each pattern keeps its own p_k, and a prior over the
+coordinates pulls the values together: p = Φc + g, with g a Gaussian process
+of covariance K_ij = s²·r(|z_i − z_j|/ℓ). In least squares the prior is extra
+residual rows R(p − Φc), with RᵀR = K⁻¹. Φc is left unpenalised, so the
+kernel penalises only departures from the declared basis. This is Wahba's
+(1978) partially improper prior, framed by her as a guard against the
+basis's model error. One family holds every form this WP names:
+- s → 0 is the hard tie, the form this WP scopes;
+- s → ∞ is independent per-pattern fits, the chain's answer;
+- ℓ → 0 (a white kernel) is partial pooling toward Φc, the mixed-effects
+  soft form in Non-goals;
+- a second-difference precision is the P-spline over a coordinate in
+  Non-goals. It is an intrinsic GMRF whose null space is the straight line
+  (Eilers & Marx 1996; Rue & Held 2005, ch. 3).
+
+So both soft forms in Non-goals are members of one family. The hard tie and
+the chain are its two limits, and both make regression tests for an
+implementation.
+
+**What it can buy, read against § Measured.** Profiling out a pattern's
+private parameters (the Schur step) leaves a quadratic in p_k. Its curvature
+I_k is exactly the information that pattern's own fit reports. So when
+nuisances are private and each fit is linear, a joint fit under a kernel
+**is** GP regression on the trajectory (z_k, p̂_k) with noise I_k⁻¹. This is
+the theorem R1 and R2 measured for the line, which is the s → 0 member. In
+that regime a kernel buys nothing that a smoother run afterwards on the
+chain's output does not.
+
+On a lattice parameter it is pure cost. A pattern's own cell esd in R1 is
+4.98e-6 Å (1.2 ppm), against a 2.1e-3 Å step between neighbouring patterns.
+Any kernel that admits the observed trajectory therefore leaves each value's
+data share at ≈ 1.
+
+Where it might pay is the regime the next measurement task already targets,
+where one pattern's likelihood is not Gaussian in p:
+- **Weakly determined parameters**: Biso, occupancy, microstrain, and a
+  minor phase's cell near its detection limit. Pinning a weak phase's cell to
+  its neighbours removes the noise a free cell lets its scale fit. So the
+  payoff may be the *phase fraction* more than the cell (hypothesis,
+  unmeasured).
+- **Overlap that changes along the axis.** Patterns where two phases' peaks
+  are resolved inform the patterns where they are not, with no declared
+  form.
+- **Prediction at an unmeasured coordinate**, for a self-driving lab
+  choosing its next sample. A polynomial's esd is conditional on its form
+  being right (Brynjarsdóttir & O'Hagan 2014). A GP's variance carries the
+  form's uncertainty too.
+- **A seed for a library.** Points in (x, y) have no chain order. Kriging
+  from already-fitted neighbours seeds the next pattern without one.
+
+Measured precedent agrees on the regime:
+- **Dynamic PET.** Fitting kinetic parameters straight to the raw data beats
+  frame-then-fit most at low counts, and the two converge at high counts
+  (Kamasak et al. 2005; reviewed by Reader & Verhaeghe 2014).
+- **MRI.** Parameter maps fitted to raw k-space keep their accuracy at 5-10×
+  undersampling (Sumpf et al. 2011).
+
+The mechanism in both is pooling where each measurement is weak.
+
+**Three uses, by how much they touch the answer.**
+
+| use | changes a converged answer? | needs |
+|---|---|---|
+| seed: krige a pattern's start from fitted neighbours | no | nothing new; a 2-D/3-D chain warm start |
+| afterwards: GP regression on (z_k, p̂_k, I_k⁻¹) | no; it reads the answers | each pattern's information, or the joint covariance where nuisances are shared (R3's control) |
+| prior inside the joint fit | yes, outside the linear regime | prior rows in the joint residual (refused today, `least_squares.py:2424`), hyperparameters, a prior-share report |
+
+A kernel can also be used as a **basis**: p = K(z, u)·α with M centres u.
+This is Wang & Qi's (2015) PET kernel method, or an inducing-point basis. It
+is a `design` Φ, so it is already in the declaration and needs no new
+machinery. With M = N and no penalty it is a reparametrisation and
+constrains nothing. The PET method's gain rests on stopping EM early, which a
+converged LM does not do. With M ≪ N it is just a smoother hard basis.
+
+**Costs and hazards.**
+- **Transitions.** A stationary kernel smears a jump, and its esds hide the
+  smear. Bayesian intervals cover only on average along the curve, and fail
+  at kinks (Wahba 1983; Nychka 1988). That collides with the chain's rule that
+  a step is "reported, never smoothed" (`_discontinuity_steps`,
+  `sequential.py:2377`).
+
+  Every field that smooths over coordinates segments first:
+  - SAGE fits one GP per phase region (Kusne, McDannald & DeCost 2024);
+  - SARA uses the GP to *locate* boundaries (Ament et al. 2021);
+  - EBSD and hyperspectral maps use edge-preserving total variation
+    (Athavale et al. 2023; Iordache et al. 2012);
+  - ANDiE's data preferred a first-order law to the continuous one its run
+    assumed (McDannald et al. 2022).
+
+  So a kernel is declared, never a default, and its subset is a phase field
+  (§ The shape item 1 already carries the subset). In difference or Markov
+  form, a declared break is one deleted prior row.
+- **Hyperparameters.** Only s²/ℓ^{2ν} can be estimated consistently
+  (Zhang 2004). Estimate it by REML on the reduced problem (p̂, I), never
+  inside the nonlinear fit, or fix ℓ from physics. Quote the answer again at
+  ℓ×½ and ℓ×2. GCV can undersmooth badly and REML is steadier (Wood 2011).
+  Over 500 000 synthetic DEER traces, AIC and GCV chose the strength better
+  than the L-curve (Edwards & Stoll 2018).
+- **What an esd means.** With the prior rows in, (JᵀJ)⁻¹ is a posterior
+  covariance conditional on the hyperparameters. It leaves out the smoothing
+  bias, so its intervals undercover (Kuusela & Panaretos 2015, in unfolding).
+  That is a confident wrong singleton in a new form. A kernel fit therefore
+  reports, per pattern:
+  - the data share h_k = diag[(I + K⁻¹)⁻¹·I];
+  - the independent esd beside the posterior esd;
+  - tr(H) as the trajectory's effective degrees of freedom (Hodges &
+    Sargent 2001).
+
+  A value whose data share is small belongs to the prior and is marked so.
+  That is WP-1110's rule (no esd rather than a small one) and WP-1301's (a
+  value that is not a measurement is the caller's), applied to a prior. Prior
+  rows take no χ²_red or Bérar-Lelann factor and stay out of the observation
+  count, as restraint rows already do.
+- **The absent-phase hold.** A prior gives a flat direction curvature, so the
+  WP-1301 hold and a kernel disagree about a phase the data cannot see. The
+  hold freezes it; the prior pins it to its neighbours. That has to be
+  decided before the joint path admits prior rows.
+- **Identifiability beside Φ.** A GP beside a parametric mean confounds c
+  with the discrepancy unless c is *defined* (Kennedy & O'Hagan 2001;
+  Brynjarsdóttir & O'Hagan 2014). Either definition fixes it: the GLS
+  projection (Tuo & Wu 2015), or Φ as the kernel's null space. The hard tie's
+  esd on c is overconfident whenever Φ is wrong.
+
+**Computation: a kernel keeps the solver's structure.**
+- Order the unknowns as [private blocks | p | c]. The prior touches only p,
+  so the kernelised parameters join the Schur *border*.
+- Eliminating each pattern's private block leaves I + K⁻¹ over (p, c): GP
+  regression with each pattern's profiled information as its noise.
+- The arrow survives, with a border of N·d_p + n_c columns, where d_p is the
+  number of kernelised parameters per pattern. The scalable solver's route
+  (ii) carries a kernel with no new structure.
+
+How the border scales:
+- **Dense K** is affordable up to N·d_p ≈ 3 000 (a Cholesky of order 10¹⁰
+  flops, seconds per iteration).
+- **1-D.** A half-integer Matérn kernel is a linear SDE (Hartikainen &
+  Särkkä 2010). Prior rows Q^{-½}(x_{k+1} − A·x_k) then couple neighbours
+  only, so the border is block-tridiagonal and the solve is O(N). At ν = 3/2
+  the state carries dp/dz, a thermal-expansion coefficient with an esd.
+- **Scattered 2-D/3-D (a library).** Vecchia or NNGP rows, each with m + 1
+  nonzeros (Datta et al. 2016; Katzfuss & Guinness 2021).
+- **A grid (a tomography slice).** The SPDE square root (Lindgren, Rue &
+  Lindström 2011).
+- **Partial pooling needs no dense K.** A latent mean in the border and
+  per-pattern rows (p_k − μ)/τ suffice (Henderson 1976 writes the precision
+  directly). Model the precision, never the covariance.
+
+**The chain is half a smoother.** The iterated extended Kalman smoother is
+Gauss-Newton on the joint problem (Bell 1994).
+- The warm-start chain is a forward pass with no prior precision.
+- A forward *filter* would add a `ValueRestraint` (`schemas/structure.py:550`)
+  toward each predicted value, which a single-pattern fit already accepts.
+- `direction="both"` runs both passes and *compares* them
+  (`SEQUENTIAL_PATH_DEPENDENT`). A two-filter smoother (Fraser & Potter 1969)
+  would *combine* them.
+
+In 1-D that is a route to a kernel prior with no joint solver. But iterated
+to convergence it is the joint fit by another name, and a forward filter
+alone makes the answer depend on direction by construction.
+
+**Precedent in diffraction.** No published Rietveld refinement puts a kernel
+prior across patterns. The diffraction work does one of three things:
+- smooths per-pattern values afterwards: GSAS-II's equations on its
+  sequential table; CAMEO and SAGE on phase labels and properties;
+  CrystalShift, which fits each pattern alone (Chang et al. 2025);
+- ties hard (Stinton & Evans 2007; Wragg et al. 2015);
+- fits jointly with no prior between voxels (DLSR, Vamvakeros et al. 2020).
+
+The one place a kernel prior sits inside a fit to raw diffraction data is
+**GP strain tomography** (Jidling et al. 2018; Hendriks et al. 2019;
+Henningsson & Hendriks 2021):
+- the strain field is a GP whose covariance satisfies equilibrium;
+- it is fitted per grain to raw Bragg-edge and 3DXRD projections, with
+  hyperparameters estimated from the data;
+- it beat both the algebraic inversion and an earlier hand-weighted
+  smoothing penalty on reconstruction error.
+
+Outside diffraction, two precedents have the same structure:
+- **geostatistical inversion** (Kitanidis 1995): a GP prior, a nonlinear
+  forward model, and structural parameters by maximum likelihood.
+  Gauss-Newton failed under strong nonlinearity and LM fixed it (Nowak &
+  Cirpka 2004);
+- **integrated plasma-profile analysis** (Kwak et al. 2020): GP priors fitted
+  jointly to raw Thomson-scattering data.
+
+Where a kernel over measurement coordinates has paid most is in choosing
+*what to measure*:
+- CAMEO, about 10× fewer experiments (Kusne et al. 2020);
+- gpCAM, roughly half the measuring time in ILL tests (Noack et al. 2021);
+- ANDiE, about 5× fewer temperature steps, with a parametric rather than a
+  kernel model (McDannald et al. 2022).
+
+**Reading.**
+- **The kernel is the general soft form.** The hard tie and the independent
+  fit are its limits, and it leaves the solver's structure unchanged.
+- **Where each fit is linear it buys nothing** beyond a smoother run
+  afterwards. That is the same regime where § Measured found the hard tie
+  buys nothing. Any in-fit value lies where the next measurement already
+  looks.
+- **Two uses are cheap and change no fitted answer**: seeding a library that
+  has no chain order, and smoothing afterwards with prediction at unmeasured
+  coordinates.
+- **Using it inside the fit has three costs**: a hyperparameter, a posterior
+  esd that undercovers at a transition, and a decision against the WP-1301
+  hold. It is measured against the hard tie before it is built.
+
 ### What the code has (survey, 2026-10-14)
 
 - **`multi.py` is the seam: N patterns, one θ** (WP-0308).
@@ -355,7 +571,9 @@ the 20 seeds.
 - Soft forms: partial pooling toward the surface, or a P-spline smoothness
   penalty over a coordinate. Both need the joint path's restraint refusal
   lifted, and both make the esds conditional on a penalty weight. They are a
-  follow-up WP if the hard form proves too stiff across a library.
+  follow-up WP if the hard form proves too stiff across a library. Both are
+  members of one kernel family (§ A kernel over the coordinates), so such a
+  WP would build the kernel, not either one alone.
 - Sliding-window marginalisation for unbounded campaigns.
 
 ## Tasks
@@ -374,11 +592,23 @@ the 20 seeds.
 
   Report the joint a₁ and its scatter across seeds against whatever line the
   surviving trajectory points allow.
+
+  *Proposed 2026-10-14, not yet agreed* (§ A kernel over the coordinates):
+  - add two arms beside the hard tie: a GP fitted afterwards on the
+    trajectory, and a joint fit with kernel prior rows (the script appends
+    them, as it already subclasses the joint path);
+  - add a truth that is not a line, one curved and one with a kink, so the
+    hard tie's form error and the kernel's smoothing bias both show;
+  - report the weak phase's *fraction* as well as its cell.
 - [ ] **The measurement on real data**: the ZrMo₂O₈ ramp (maintainer-local),
   with the same numbers as the synthetic half.
 - [x] **Survey the prior art for declaring a parametric model**, for a
   self-driving lab as the writer. Written into Context: § Prior art, § The
   shape and § What the code has.
+- [x] **Survey a kernel over the pattern coordinates** (the maintainer's
+  question): precedent across fields, its place in this WP's family of
+  forms, what it can buy, its costs, and how it scales. Written into Context
+  as § A kernel over the coordinates.
 - [ ] **The declaration**: the coordinate table, the closed basis vocabulary,
   the subset, the reference and scale, with JSON round-trip, and every
   refusal of § The shape item 3 before any solve.
@@ -452,6 +682,50 @@ the 20 seeds.
   adjustment.
 - Suram, S. K. et al. (2017). *ACS Comb. Sci.* 19, 37-46 — AgileFD.
 - Kusne, A. G. et al. (2020). *Nat. Commun.* 11, 5966 — CAMEO.
+- Kernel survey (2026-10-14; each record and abstract confirmed by search,
+  no full text read):
+  - Wahba, G. (1978). *J. R. Stat. Soc. B* 40, 364-372 — improper priors,
+    spline smoothing and model errors.
+  - Eilers, P. H. C. & Marx, B. D. (1996). *Stat. Sci.* 11, 89-121 —
+    P-splines.
+  - Kennedy, M. C. & O'Hagan, A. (2001). *J. R. Stat. Soc. B* 63, 425-464 —
+    calibration with model discrepancy.
+  - Brynjarsdóttir, J. & O'Hagan, A. (2014). *Inverse Problems* 30, 114007.
+  - Tuo, R. & Wu, C. F. J. (2015). *Ann. Stat.* 43, 2331-2352.
+  - Zhang, H. (2004). *J. Am. Stat. Assoc.* 99, 250-261 — what infill
+    asymptotics can estimate.
+  - Wood, S. N. (2011). *J. R. Stat. Soc. B* 73, 3-36 — REML against GCV.
+  - Hodges, J. S. & Sargent, D. J. (2001). *Biometrika* 88, 367-379 —
+    effective degrees of freedom.
+  - Nychka, D. (1988). *J. Am. Stat. Assoc.* 83, 1134-1143 — average
+    coverage of Bayesian intervals.
+  - Kuusela, M. & Panaretos, V. M. (2015). *Ann. Appl. Stat.* 9, 1671-1705 —
+    undercoverage under regularisation.
+  - Edwards, T. H. & Stoll, S. (2018). *J. Magn. Reson.* 288, 58-68 —
+    choosing the regularisation strength.
+  - Bell, B. M. (1994). *SIAM J. Optim.* 4, 626-636 — the iterated Kalman
+    smoother as Gauss-Newton.
+  - Fraser, D. C. & Potter, J. E. (1969). *IEEE Trans. Autom. Control* 14,
+    387-390 — the two-filter smoother.
+  - Hartikainen, J. & Särkkä, S. (2010). IEEE MLSP — GP regression as Kalman
+    smoothing.
+  - Lindgren, F., Rue, H. & Lindström, J. (2011). *J. R. Stat. Soc. B* 73,
+    423-498 — the SPDE approach.
+  - Datta, A. et al. (2016). *J. Am. Stat. Assoc.* 111, 800-812 — NNGP.
+  - Wang, G. & Qi, J. (2015). *IEEE Trans. Med. Imaging* 34, 61-71 — the PET
+    kernel method.
+  - Reader, A. J. & Verhaeghe, J. (2014). *Phys. Med. Biol.* 59, R371-R418 —
+    direct parametric reconstruction.
+  - Kitanidis, P. K. (1995). *Water Resour. Res.* 31, 2411-2419 —
+    quasi-linear geostatistical inversion.
+  - Kwak, S. et al. (2020). *Nucl. Fusion* 60, 046009 — GP priors in
+    integrated Thomson-scattering analysis.
+  - Hendriks, J. N. et al. (2019). *Strain* 55, e12325; Henningsson, A. &
+    Hendriks, J. N. (2021). *J. Appl. Cryst.* 54, 1057-1070 — GP strain
+    tomography.
+  - Kusne, A. G., McDannald, A. & DeCost, B. (2024). *Digital Discovery* 3,
+    2211-2225 — SAGE, one GP per phase region.
+  - McDannald, A. et al. (2022). *Appl. Phys. Rev.* 9, 021408 — ANDiE.
 - WP-0308 (the joint residual), WP-0505 / WP-1051 / WP-1127 (the chain),
   WP-1305 (the series deliverable), WP-1119 (named variables), WP-1125 (the
   Schur identity), issue #212.
