@@ -458,6 +458,105 @@ the 20 seeds.
 
 ## Handover log
 
+- **2026-10-14** — the parametric fit is scoped, and measured once. The
+  maintainer made the combinatorial library a target, which puts a joint
+  solver that scales to hundreds of patterns inside this WP. Direct XRD
+  tomography went to its own candidate,
+  [1962](1962-xrd-ct-a-pattern-summed-over-the-voxels-its-beam-crosses.md),
+  and the first measurement ran on synthetic data. On a synthetic heating
+  ramp, fitting the cell as a straight line in temperature across all the
+  patterns at once gives exactly the slope and error bar that a line through
+  the per-pattern fits gives. The only precision gain (2.6× on the slope's
+  error bar) came from sharing the instrument's parameters across the
+  patterns, and a joint fit without the line constraint gets that too. So far
+  the constraint's value is convenience. The case that could show more, a
+  parameter one pattern cannot pin down on its own, is untested.
+
+  *Done* (session started 2026-10-13):
+  - Claimed with draft PR #968. This morning's two unlogged commits got a
+    reconstructed entry, written by hand rather than through a full repair
+    run, because both only edited this file.
+  - The survey task: Context § Prior art, § The shape (the five questions
+    answered) and § What the code has, with file:line pointers. Ticked.
+  - The maintainer's three decisions went into § Scope. Tasks were
+    restructured to match:
+    - the measurement split three ways;
+    - the declaration;
+    - per-pattern starting values;
+    - ties and variables reaching the joint table, with the WP-1342 prefix
+      fix;
+    - the scalable solver's step, covariance and scaling;
+    - the remaining deliverables.
+  - Priority went P3 → P2.
+  - `### Inherited` pruned on arrival: all four entries were still true and
+    were folded into § Use cases and § The shape's refusals; the mailbox is
+    empty.
+  - Filed 1962 after checking for an owner: a grep of `docs/` and `src/` for
+    tomography, XRD-CT and voxel found nothing.
+  - The synthetic half of the measurement (a lane), in `1325-measure/`.
+    Results and reading are in § Measured. Ticked.
+  - `/code-review high --fix` returned 8 findings and 6 were fixed:
+    - the joint slope is the line weighted by each pattern's *raw*
+      information (here the equal-weight line, 0.0012 esd away), not the
+      chain's weighted line (0.024 away);
+    - a(T_ref)'s esd is quoted for R1/R3 only;
+    - R2's wide raw esds are named as open;
+    - the script refuses a missing esd or a malformed argument by name.
+
+    Two were declined. Caching R1's chain for R3 would copy R1's wall clock
+    into R3's ratio. Moving the Track line off "not yet on a measurement" is
+    the maintainer's call.
+
+  *Measured*:
+  - The synthetic ramp: § Measured holds the table. Linux x86_64, 4 CPUs,
+    `[dev]` venv, compiled kernels on, nothing else running.
+  - Lanes (`session_usage.py lanes`):
+
+    | lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | lane $ | main $ | saved $ |
+    |---|---|---|---|---|---|---|---|---|---|---|---|---|
+    | measurement | 30 | 62 | 336K | 113K | 0K of 9K | 26 | 40K | 2 | 0 | 3.95 | 2.38 | +0.43 |
+
+    The trial row went to `docs/milestones/process.md`, with fixed 0 where
+    the tool printed 1: the two later edits were to this file. Baseline,
+    selective policy row: `lane when main > 150K and item >= 20 requests | 2
+    | +4%`. Estimate against actual was 2.07×: the lane ran 20 seeds, not 5.
+  - Fast suite: see the PR body. No test was added, so no count delta is
+    owed.
+
+  *Gotchas*:
+  - `MultiHistogramRefinement` builds its joint table once (`multi.py:815`),
+    so sub-table edits persist across stages. But a new variable or tie needs
+    `_rebuild_columns()` called by hand.
+  - `MultiParameterTable.set_vary` skips tied entries
+    (`params/multi.py:281`), which is what keeps the tie alive through a
+    plan.
+  - A joint result carries no covariance. The script subclasses
+    `_build_result` (`multi.py:1406`) to read it. This belongs to the "ties
+    and variables" task, not forwarded to 1341.
+  - The Bérar-Lelann factor is 1.26 on data its model matches exactly, and
+    R2's raw esds run about 1.3× wide. No open WP owns esd calibration (1931
+    only divides the factor out), so it is recorded in § Measured and not
+    filed.
+  - Not ported to the skill. "Share the instrument across a ramp" is
+    synthetic-only, and sharing a zero or displacement through a heating ramp
+    is valid only while the mount does not move. It waits for the real ramp.
+  - The outside lab's other request, spherical-harmonics texture, is WP-1960,
+    which is in PR #966 and not yet on `main`, so nothing was forwarded into
+    it.
+  - This session's local branch `wp1325-parametric-series` pushes to
+    `origin/claude/blissful-ptolemy-tb7b7k`, the cloud session's branch. That
+    branch is PR #968's head.
+
+  Next, in order:
+  1. The measurement where a single pattern cannot see the parameter. Reuse
+     `synthetic_ramp.py`, with a minor phase under the per-pattern 3σ hold,
+     or broad, overlapping peaks. It decides whether the constraint earns
+     anything beyond convenience.
+  2. The scalable solver, starting with route (i): per-pattern blocks feeding
+     the existing projected CG, which already handles bounds. Measure it
+     against dense at N = 10/70/300. It is justified by the sharing result
+     whatever item 1 says.
+  3. The real ZrMo₂O₈ ramp, when the maintainer supplies it.
 - **2026-10-13 (reconstructed post hoc)** — two planning commits landed on
   `main` this morning without a handover entry, and the session-start hook
   flagged the WP for repair. Neither one changed code or measured anything.
