@@ -1,9 +1,8 @@
 # WP-1957 — a fit seen in Colab: figures at their own shape, the structure beside them, a template for your own data
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — every task but the maintainer's Colab check of 02; the template's landing row waits on the v1.9.0 tag
+Milestone: unscheduled · Status: ✅ 2026-10-14 — the maintainer saw 02's figures keep their shape in Colab; the template's landing row arrives with the v1.9.0 tag (WP-1961)
 Track: Render what the fit already knows
 Depends on: —
-Priority: P2 2026-10-13 — a defect with a named user: the Colab quickstart (1917) is live, every figure in it draws distorted, and the maintainer asked
 
 ## Goal
 
@@ -140,9 +139,10 @@ Rwp well above it points at the structure.
       that a `render_structure` cell shows an image. Every notebook is rebuilt.
 - [x] Notebook 06, the template, plus its README and manual rows and the
       scratch-directory build.
-- [ ] The maintainer opens notebook 02 in Colab at a narrow window, once the
+- [x] The maintainer opens notebook 02 in Colab at a narrow window, once the
       next release carries this, and records whether the figures keep their
-      shape.
+      shape. Opened from `main` 2026-10-14, whose committed outputs carry the
+      width-only metadata: the figures keep their shape.
 - [x] The maintainer decides the PNG density question (Context 3): keep 2×,
       or go to 1× and save about 60 %. Decided 2026-10-14: keep 2×.
 - [x] Skill: none. The changes are display encoding and notebooks for people.
@@ -166,6 +166,24 @@ The maintainer records the Colab check in the handover.
 - anywidget, the interactive tier left out: https://anywidget.dev
 
 ## Handover log
+
+### 2026-10-14 — closed on the maintainer's Colab check
+
+Notebook figures now keep their shape in Colab. The maintainer opened
+notebook 02 at a narrow window and confirmed it. That settles the hypothesis in
+Context 1: Colab squashed figures that declared a height, and declaring the
+width alone fixes it. Every task is done, and the WP closes. People running
+the notebooks get the fix from the 1.9.0 release, which also puts template 06
+on the landing page.
+
+*Done.* The Colab task is ticked with the observation. The maintainer opened
+02 from `main` without running it. Its committed outputs carry the width-only
+metadata, so the picture tested the fix itself. The narrative is in
+`docs/milestones/v1.9.md`. The live view in Context 2 stays deferred, by the
+maintainer's decision, with no owner.
+
+Next: none here. WP-1961 cuts 1.9.0, after which `%pip install rietx` draws
+width-only figures and the landing page lists 06.
 
 ### 2026-10-14 — the density kept, and the template's route to the landing page
 
