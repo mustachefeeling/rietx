@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: Render what the fit already knows
 Depends on: —
-Priority: P3 2026-10-14 — a workaround covers it: every figure call but the series one takes `style="dark"`
+Priority: P3 2026-10-14 — a workaround covers it: every pattern figure takes `style="dark"` and `render_structure` a dark `background=`; the series figure has no dark form
 
 ## Goal
 

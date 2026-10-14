@@ -77,7 +77,7 @@ match that ABI.
   Chromium; `tests/test_lite.py` holds the projection and the `fcntl` mock.
 - [x] The site at `/lite/` in `pages.yml`, a wheel from the same commit.
 - [x] The maintainer opens the site and decides whether it ships. It
-  does: a "Browser" link per landing-page row, beside Colab.
+  does: a "JupyterLite" link per landing-page row, before Colab.
 - [x] The `docs/lite/README.md` rules as a root CLAUDE.md bullet. There
   are three now, and the cap went from 978 to 983 lines.
 - [x] Skill: none. An agent driving rietx runs it in a Python with the

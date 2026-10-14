@@ -235,6 +235,10 @@ PRIORITIES = wp_index.PRIORITIES
 #                                                          and owed to every future freeze: four
 #                                                          consumers now read it and a fifth would
 #                                                          repeat the defect. Landed 972, +1 headroom
+#   2026-09-21  CLAUDE.md                     973 -> 978  for /issue-review: how an issue reaches the
+#                                                          roadmap, beside the contributor paragraph.
+#                                                          Landed 977, +1 headroom (row added
+#                                                          2026-10-14 from the SIZE_CAPS comment)
 #   2026-10-14  CLAUDE.md                     978 -> 983  for WP-1966: the package runs in a browser
 #                                                          tab, and three rules keep it running
 #                                                          there, where no CI job looks. Landed 982,
