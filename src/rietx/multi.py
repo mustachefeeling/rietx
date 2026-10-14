@@ -344,6 +344,10 @@ GUARD_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
         (SPECIMEN,), "one coefficient set, but each histogram measures its own "
                      "directions: a phase is named once, from the first "
                      "histogram whose reflections leave the cone"),
+    "nonpositive_texture": (
+        (SPECIMEN,), "one coefficient set, sampled at each histogram's own ψ: "
+                     "a phase is named once, from the first histogram where "
+                     "P leaves the physical set (WP-1960)"),
     "high_correlations": ((FIT,), "one correlation matrix, of the joint solve"),
     "flat_directions": ((FIT,), "read off the same matrix, beside the correlation"),
     "discarded_directions": ((FIT,), "the joint normal matrix's own cut, read "
