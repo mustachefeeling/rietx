@@ -79,6 +79,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::f64::consts::{LN_2, PI};
 
+mod dichotomy;
 mod fcj;
 mod raster;
 #[cfg(target_arch = "x86_64")]
@@ -596,5 +597,7 @@ fn rietx_kernels(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(force_baseline, m)?)?;
     m.add_function(wrap_pyfunction!(raster::render_rows, m)?)?;
     m.add_function(wrap_pyfunction!(raster::id_plane, m)?)?;
+    m.add_function(wrap_pyfunction!(dichotomy::dichotomy_box_test, m)?)?;
+    m.add_function(wrap_pyfunction!(dichotomy::dichotomy_child_key, m)?)?;
     Ok(())
 }

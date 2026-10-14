@@ -84,6 +84,12 @@ this closes 🛑 with the numbers, as WP-1508's gate did for the 2-D traversal.
 
 ### Inherited
 
+- **2026-10-14, from WP-1959 (PR #964).** The box test runs compiled again
+  from `rietx-kernels` 1.3, so the entry below reverses where 1.3 is installed.
+  On #780's monoclinic case (`tests/repro_780.py`) phase 2 is now 82 % `_accept`:
+  46.3 s of 56.4 s over 26 419 leaves, macOS arm64 `[dev]`, load ~5. The two
+  box-test kernels are 10 % and the Python loop 9 %. That case is a leaf-bound
+  unit with a known cell, so it is a fixture for this WP's count.
 - **2026-10-10, from WP-1940 (4th session, PR #864).** The dichotomy traversal now
   runs on numpy alone. § Context's 40-46 % leaf share was measured with the
   compiled traversal (numba 0.67.0), so the traversal's own share is now
