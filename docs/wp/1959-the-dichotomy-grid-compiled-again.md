@@ -104,6 +104,8 @@ rietx now requires the kernel wheel that carries the dichotomy's box test, and P
 
 *Review* (`/code-review high --fix 2cbd7363..fc91feb2`, `0eacc899`). It found no code bug and seven pieces of stale text, all fixed. The decline warning and three passages of `install.md` named fits and figures as all the tier serves, and the requirements table still said 1.1. The indexing kernel tests now skip on `compiled.available()`, since a wheel is loaded or declined whole. The new test builds its pin from `KERNEL_FLOOR`. One sibling it left outside its range was fixed by hand: `install.md`'s `compiled_kernels_active` sentence. Declined: `references/diagnostics-indexing.md` says the active flag covers "the next refinement". That stays true, and the skill file has a size budget.
 
+*Gotchas.* The Kernels gate flaked once on #971, on macOS x86-64, with no kernel past its bar (worst 5.3e-16). The gate compares the fit on the twins with the numpy path's only where two numpy fits agree. On that runner two numpy fits usually disagree: 3.5e-3 and 54 esd on #964's run, 4.0e-3 and 0.83 esd on the rerun. In the failing run the two cpd-1a fits happened to agree, so the twins' fit was gated and landed 4.6e-2 esd away. A rerun of the job passed. Two agreeing fits are luck there, not evidence that the path is deterministic. No open WP owns the bench (WP-1940 closed), so whether to change the gate is the maintainer's decision, with these numbers.
+
 *Next.* None here. WP-1961's cut no longer waits on the wheel, only on the nightly it names. WP-1924 and WP-1520 hold the dichotomy questions this WP left open (their `### Inherited`).
 
 ### 2026-10-14 (2nd session) — two red checks on #964, neither the kernel's
