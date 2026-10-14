@@ -27,5 +27,5 @@ this; everything in `rx.` is `import rietx as rx`.*
 - `rietx.crystallography.representation.distortion.ModeDecomposition` — A child decomposed against its parent: A_τ per (k, irrep, direction).
   Fields: `rows: tuple[ModeAmplitude, ...]`, `total: float`, `residual: float`, `translation: tuple[float, float, float]`, `displacements: np.ndarray`, `basis: ModeBasis`
 - `rietx.crystallography.representation.distortion.ModeAmplitude` — One irrep's share of a child's distortion, in Å.
-  Fields: `k: tuple[str, str, str]`, `irrep: str`, `isotropy_group: str`, `primary: bool`, `n_modes: int`, `amplitude: float`, `mode_amplitudes: tuple[float, ...]`
+  Fields: `k: tuple[str, str, str]`, `irrep: str`, `isotropy_group: str`, `primary: bool | None`, `n_modes: int`, `amplitude: float`, `mode_amplitudes: tuple[float, ...]`
 - `rietx.crystallography.representation.distortion.distortion_basis(parent, child, transform, *, reference: str = 'average') -> ModeBasis` — Every symmetry-adapted mode a child of `parent` admits, in Å.

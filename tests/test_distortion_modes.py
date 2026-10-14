@@ -44,6 +44,8 @@ from rietx.crystallography.wyckoff import (
     stabilizer_rotations,
 )
 
+pytestmark = pytest.mark.xdist_group("distortion-modes")  # the module fixture is built once
+
 DATA = Path(__file__).parent / "data"
 P_ = rx.Parameter
 A_CUBIC = 3.9
@@ -403,3 +405,55 @@ def test_a_child_whose_atoms_do_not_pair_is_refused(lamno3):
     fewer = child.model_copy(update={"atoms": child.atoms[:-1]})
     with pytest.raises(ValueError, match="CHILD_ATOMS_UNPAIRED"):
         D.mode_amplitudes(parent, fewer, (LAMNO3_P, LAMNO3_ORIGIN))
+
+
+def _p1_supercell(multiples):
+    """A one-atom P 1 parent (4, 5, 6 Å) and its supercell child along the axes."""
+    parent = rx.Phase(name="p1", space_group="P 1", cell=_cell(4.0, 5.0, 6.0),
+                      atoms=[_atom("Fe", "Fe", 0, 0, 0)])
+    child = rx.Phase(name="p1-super", space_group="P 1",
+                     cell=_cell(4.0 * multiples[0], 5.0 * multiples[1], 6.0 * multiples[2]),
+                     atoms=[_atom("Fe", "Fe", 0, 0, 0)])
+    return parent, child, (np.diag(multiples).astype(float), np.zeros(3))
+
+
+@pytest.mark.parametrize("multiples, free", [((2, 1, 1), 3), ((3, 1, 1), 6), ((4, 1, 1), 9),
+                                             ((3, 3, 1), 24)])
+def test_a_k_whose_double_is_not_reciprocal_is_counted_once(multiples, free):
+    """k and -k are separate classes in P 1 when 2k is no reciprocal vector; the real span of one
+    already holds both fields, so the basis has 3N - 3 modes and not twice that.  The doubled
+    cell, where every k is its own -k, is the arm that never failed."""
+    basis = D.distortion_basis(*_p1_supercell(multiples))
+    assert basis.n_modes == free
+
+
+def test_two_atoms_on_one_parent_site_are_refused_by_name():
+    parent = rx.Phase(name="mixed", space_group="P m -3 m", cell=rx.Cell.cubic(A_CUBIC), atoms=[
+        _atom("La", "La", 0.5, 0.5, 0.5), _atom("Sr", "Sr", 0.5, 0.5, 0.5),
+        _atom("Mn", "Mn", 0, 0, 0), _atom("O", "O", 0.5, 0, 0)])
+    with pytest.raises(ValueError, match="'La' and 'Sr' share one site"):
+        D.distortion_basis(parent, parent, (np.eye(3), np.zeros(3)))
+
+
+def test_a_deuterated_child_pairs_with_its_hydrogenous_parent():
+    """D is hydrogen to the species grammar, as everywhere else in the package."""
+    parent = rx.Phase(name="p", space_group="P m -3 m", cell=rx.Cell.cubic(A_CUBIC),
+                      atoms=[_atom("Mn", "Mn", 0, 0, 0), _atom("H", "H", 0.5, 0.5, 0.5)])
+    child = parent.model_copy(deep=True)
+    child.atoms[1].species = "D"
+    decomposition = D.mode_amplitudes(parent, child, (np.eye(3), np.zeros(3)))
+    assert decomposition.total == pytest.approx(0.0, abs=1e-9)
+    assert decomposition.basis.species == ("Mn", "H")
+
+
+def test_an_unidentified_probe_leaves_primary_unanswered(monkeypatch):
+    """spglib naming no group checked nothing; a False there would read as "secondary"."""
+    import spglib
+
+    parent, child, transform = _i4mcm(0.01)
+    named = D.distortion_basis(parent, child, transform)
+    assert all(isinstance(c.primary, bool) for c in named.components)  # positive arm
+    monkeypatch.setattr(spglib, "get_symmetry_dataset", lambda *a, **k: None)
+    blind = D.distortion_basis(parent, child, transform)
+    assert [c.primary for c in blind.components] == [None] * len(blind.components)
+    assert {c.isotropy_group for c in blind.components} == {"unidentified"}

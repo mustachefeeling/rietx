@@ -102,12 +102,12 @@ from __future__ import annotations
 
 import itertools
 import math
-import re
 from dataclasses import dataclass
 from fractions import Fraction
 
 import numpy as np
 
+from ..species import element_symbol
 from ..symmetry import _group_arrays, group_key, resolve_group, site_orbit
 from ..wyckoff import SPGLIB_REFUSALS
 from .irreps import canonical_kvector, equivalent_kvectors, small_irreps
@@ -144,14 +144,15 @@ class IrrepModes:
     first arm of the star present in the child (parent conventional reciprocal
     coordinates) and ``arms`` all of them.  ``isotropy_group`` is the group of
     a generic displacement inside this irrep's modes (Table 13's subgroup
-    column), and ``primary`` says whether that group is the child's own.
+    column), and ``primary`` says whether that group is the child's own, ``None`` when spglib
+    named no group for the probe (nothing was checked, so neither answer is given).
     """
 
     k: tuple[str, str, str]
     arms: tuple[tuple[str, str, str], ...]
     irrep: str
     isotropy_group: str
-    primary: bool
+    primary: bool | None
     vectors: np.ndarray  # (m, N, 3) child fractions per Å
 
     @property
@@ -183,7 +184,7 @@ class ModeAmplitude:
     k: tuple[str, str, str]
     irrep: str
     isotropy_group: str
-    primary: bool
+    primary: bool | None
     n_modes: int
     amplitude: float
     mode_amplitudes: tuple[float, ...]
@@ -222,12 +223,6 @@ def _cell_metric(cell) -> np.ndarray:
     return np.array([[a * a, a * b * cg, a * c * cb],
                      [a * b * cg, b * b, b * c * ca],
                      [a * c * cb, b * c * ca, c * c]], dtype=np.float64)
-
-
-def _element(species: str) -> str:
-    """The element a species names: ``O2-`` → ``O``, ``7Li`` → ``Li``."""
-    match = re.match(r"\d*([A-Z][a-z]?)", species.strip())
-    return match.group(1) if match else species
 
 
 def _group(phase):
@@ -407,6 +402,13 @@ def _reference(parent, big, small) -> _Reference:
     for s, atom in enumerate(parent.atoms):
         xyz = np.array([_value(atom.x), _value(atom.y), _value(atom.z)])
         orbit = site_orbit(group, xyz)
+        for t, other in enumerate(sites):
+            d = np.asarray(orbit.images) - other[None, :]
+            if np.any(np.all(np.abs(d - np.rint(d)) < _POSITION_TOL, axis=1)):
+                raise ValueError(
+                    f"parent atoms {parent.atoms[t].label!r} and {atom.label!r} share one site; "
+                    "a mixed-occupancy site is not handled, so give the site one atom (the "
+                    "modes carry no occupancy weight)")
         sites.append(orbit.position)
         n_conv += orbit.multiplicity
         for image in orbit.images:
@@ -416,7 +418,7 @@ def _reference(parent, big, small) -> _Reference:
                 c = _wrap(c)
                 child.append(c)
                 parent_pos.append(big @ c + small)
-                species.append(_element(atom.species))
+                species.append(element_symbol(atom.species))
                 site.append(s)
     expected = n_conv * abs(np.linalg.det(big))
     if abs(len(child) - expected) > 1e-6:
@@ -522,8 +524,11 @@ def _star_key(group, k, stars: list) -> int:
     return len(stars) - 1
 
 
-def _isotropy(field_frac, ref: _Reference, metric, n_child_ops) -> tuple[str, bool]:
-    """spglib's name for the group of the reference displaced by ``field_frac``."""
+def _isotropy(field_frac, ref: _Reference, metric, n_child_ops) -> tuple[str, bool | None]:
+    """spglib's name for the group of the reference displaced by ``field_frac``.
+
+    The flag is ``None`` with the name ``"unidentified"`` when spglib refuses.
+    """
     import spglib
 
     lattice = np.linalg.cholesky(metric)
@@ -534,7 +539,7 @@ def _isotropy(field_frac, ref: _Reference, metric, n_child_ops) -> tuple[str, bo
     except SPGLIB_REFUSALS:  # the same refusal in spglib's other error mode
         data = None
     if data is None:
-        return "unidentified", False
+        return "unidentified", None
     name = f"{data.international} ({data.number})"
     return name, len(data.rotations) == n_child_ops
 
@@ -590,7 +595,15 @@ def distortion_basis(parent, child, transform, *, reference: str = "average") ->
     # one real subspace per (k, small irrep), from every parent site
     items: list[tuple[int, tuple, str, np.ndarray]] = []
     stars: list = []
+    seen: list = []
     for k in _commensurate_kvectors(group, big, child_centrings):
+        # a complex irrep is the real span of the k and -k fields: when 2k is not a
+        # reciprocal vector the two sit in separate classes, and the first already
+        # spans both, so the second would be counted twice
+        minus_k = tuple(-c for c in k)
+        if any(equivalent_kvectors(group, minus_k, done) for done in seen):
+            continue
+        seen.append(k)
         star = _star_key(group, k, stars)
         kk = np.array([float(c) for c in k])
         fields: dict[str, list[np.ndarray]] = {}
@@ -719,7 +732,7 @@ def _child_atoms(child) -> tuple[np.ndarray, tuple[str, ...]]:
         xyz = np.array([_value(atom.x), _value(atom.y), _value(atom.z)])
         for image in site_orbit(group, xyz).images:
             pos.append(_wrap(np.asarray(image, dtype=np.float64)))
-            species.append(_element(atom.species))
+            species.append(element_symbol(atom.species))
     return np.array(pos), tuple(species)
 
 
