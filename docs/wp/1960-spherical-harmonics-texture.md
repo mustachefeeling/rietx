@@ -211,7 +211,7 @@ setting puts the polar axis on b and x on c. Rhombohedral axes put it on
 **Anchors from the papers.** A subagent read these and nobody has checked
 them. Each is a hypothesis until a Task 2 test reproduces it.
 
-- Bunge (1982) 14.284-14.287 print 0.646360, 0.359601, 0.835193 and 0.531858
+- *Reproduced by Task 2.* Bunge (1982) 14.284-14.287 print 0.646360, 0.359601, 0.835193 and 0.531858
   for the cubic harmonics at l = 4, 6, 8 and 10. These read as |K_l(100)| of
   the orthonormal function. The prefactor relation printed beside them is
   inconsistent at l = 6 and 10.
@@ -361,7 +361,7 @@ because it was not downloaded. Bunge's tables are published numbers.
       naming the generator script (measurement 4 says how not to call it).
       *Done 2026-10-14 (§ Pinned by Task 1), except two parts. The TOPAS
       reading moved to Task 9. Table 15.2.1 is not held.*
-- [ ] **`crystallography/harmonics.py`**: the real harmonics, the projector,
+- [x] **`crystallography/harmonics.py`**: the real harmonics, the projector,
       the frame and the canonical basis (D6), with the Rᵀ trap named in the
       docstring. Tests: each function equals GSAS-II's divided by its norm
       on the golden's invariant terms, through § Pinned by Task 1's
@@ -371,6 +371,16 @@ because it was not downloaded. Bunge's tables are published numbers.
       every one of gemmi's settings, the orbit average of a random harmonic
       under h → Rᵀh lies in the span (the "true metric lies in the span"
       check, one rank up); counts equal the character formula.
+      *Done 2026-10-14.* `tests/test_harmonics.py` runs 628 cases, 16-18 s
+      serial. Every function the golden marks invariant equals ours times
+      its GSAS-II norm to 7.4e-7. The signs agree too, so GSAS-II carries
+      no Condon-Shortley phase either: −3's odd-n terms match. Bunge's four
+      cubic |K_l(100)| match to 1e-6. Counts equal the character formula to
+      l = 12 in all sixteen settings. The gemmi-table test fails on purpose
+      on hexagonal and trigonal settings when hkl is mapped as a direct
+      vector. It passes on tetragonal and monoclinic-b ones, where the trap
+      cannot show, and the golden test covers those. Built wrong, the
+      basis fails earlier, at the rank check.
 - [ ] **Schema**: `SphericalHarmonicTexture` (`order`, `coefficients`
       as name → `Parameter`, default value 0, `vary=False`) on
       `Phase.texture`. Validators refuse an odd order and a phase declaring
