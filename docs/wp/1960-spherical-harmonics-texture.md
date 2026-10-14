@@ -361,7 +361,7 @@ because it was not downloaded. Bunge's tables are published numbers.
       naming the generator script (measurement 4 says how not to call it).
       *Done 2026-10-14 (§ Pinned by Task 1), except two parts. The TOPAS
       reading moved to Task 9. Table 15.2.1 is not held.*
-- [x] **`crystallography/harmonics.py`**: the real harmonics, the projector,
+- [x] **`crystallography/spherical_harmonics.py`**: the real harmonics, the projector,
       the frame and the canonical basis (D6), with the Rᵀ trap named in the
       docstring. Tests: each function equals GSAS-II's divided by its norm
       on the golden's invariant terms, through § Pinned by Task 1's
@@ -371,7 +371,7 @@ because it was not downloaded. Bunge's tables are published numbers.
       every one of gemmi's settings, the orbit average of a random harmonic
       under h → Rᵀh lies in the span (the "true metric lies in the span"
       check, one rank up); counts equal the character formula.
-      *Done 2026-10-14.* `tests/test_harmonics.py` runs 628 cases, 16-18 s
+      *Done 2026-10-14.* `tests/test_spherical_harmonics.py` runs 628 cases, 16-18 s
       serial. Every function the golden marks invariant equals ours times
       its GSAS-II norm to 7.4e-7. The signs agree too, so GSAS-II carries
       no Condon-Shortley phase either: −3's odd-n terms match. Bunge's four
@@ -380,7 +380,10 @@ because it was not downloaded. Bunge's tables are published numbers.
       on hexagonal and trigonal settings when hkl is mapped as a direct
       vector. It passes on tetragonal and monoclinic-b ones, where the trap
       cannot show, and the golden test covers those. Built wrong, the
-      basis fails earlier, at the rank check.
+      basis fails earlier, at the rank check. The module and test are named
+      `spherical_harmonics` because `tests/test_harmonics.py` already tests
+      λ/n monochromator harmonics. This task's first commit overwrote that
+      file, and the next commit restored it.
 - [ ] **Schema**: `SphericalHarmonicTexture` (`order`, `coefficients`
       as name → `Parameter`, default value 0, `vary=False`) on
       `Phase.texture`. Validators refuse an odd order and a phase declaring
@@ -459,7 +462,7 @@ because it was not downloaded. Bunge's tables are published numbers.
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_harmonics.py tests/test_texture.py tests/test_cross_backend.py tests/test_compare_ui.py
+.venv/bin/python -m pytest tests/test_spherical_harmonics.py tests/test_texture.py tests/test_cross_backend.py tests/test_compare_ui.py
 .venv/bin/python -m pytest -n auto --dist loadgroup tests/test_acceptance_qpa_roundrobin.py
 .venv/bin/python -m ruff check src tests examples
 ```

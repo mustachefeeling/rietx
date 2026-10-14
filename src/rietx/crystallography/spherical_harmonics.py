@@ -322,7 +322,7 @@ def _canonical(span: np.ndarray, degree: int, against: list[np.ndarray]) -> list
     Candidates are tried cosine first by n ≡ 0 (mod 4), then the other cosines,
     then the sines, each projected and Gram-Schmidt reduced.  The sign makes
     the first n > 0 cosine coefficient positive, which is the sign GSAS-II's
-    cubic functions carry (``tests/test_harmonics.py`` checks it).
+    cubic functions carry (``tests/test_spherical_harmonics.py`` checks it).
     """
     order = ([_cos_index(degree, n) for n in range(0, degree + 1, 4)]
              + [_cos_index(degree, n) for n in range(0, degree + 1) if n % 4]
