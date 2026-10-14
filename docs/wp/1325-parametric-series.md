@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here (the lack-of-fit check)
+Milestone: unscheduled · Status: 🔄 2026-10-14 — the lack-of-fit check landed as a score test at the answer; ZrP₂O₇ and WO₃, the peak-chain dedup, in-step bounds and start agreement remain, and two 1.10 notes wait on #975
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -1246,6 +1246,129 @@ directions and 197.9 against 337.1 for 296.
   Schur identity), issue #212.
 
 ## Handover log
+
+### 2026-10-14 (fifth session) — a declared law is now tested against its own data, at the cost of one Jacobian
+
+Every joint fit with a parametric law now says whether its data rejects that
+law. It does this from the answer alone, without refitting: it asks how much
+the fit would improve if each pattern's value were set free, and compares
+that with what noise would give. On the real ZrMo₂O₈ ramp it agreed with a
+full refit on all five laws tried, and it rejects the one law whose
+trajectory visibly curves. It costs under a second where the refit costs 41.
+The test is blind where a pattern cannot see the quantity: on synthetic ramps
+whose minor phase faded or overlapped, neither it nor a full refit rejected a
+bent truth. So it does not rescue the confidently wrong gap estimates the
+kernel measurement found.
+
+*Done* (session started 2026-10-14 on a fresh branch from `main` at caf089f,
+after #970 merged; on the maintainer's machine):
+- **The measurement first** (898ab18): `1325-measure/form_score.py` and
+  `form_synthetic.py`, in § Measured: the form test. The score test was
+  built as a probe, compared with the nested refit, and three of its choices
+  changed on the numbers (the alternative drops the coefficients, unseen
+  patterns are left out, the denominator is the tied fit's).
+- **The test in the package** (b7be8bc), ticking the lack-of-fit task:
+  - `optimize.blocked.added_columns_gain`, the gain on the arrow through the
+    covariance's own Schur pseudo-inverse and cut;
+  - `params.parametric.target_columns` and `form_tests`, with
+    `FORM_TEST_LEVEL` quoting `PARAMETER_INTERVAL_LEVEL`;
+  - `MultiHistogramRefinement._build_result` runs it once at the answer,
+    holding what `bound_findings` found on a bound and leaving out what
+    `multi._unseen` holds;
+  - `RefinementResult.parametric_form` (schema 0.56), `ParametricFormTest`
+    exported, a form line in `str(result)`, and the series deliverable's
+    functional-form row naming a rejected law;
+  - `PARAMETRIC_FORM_REJECTED`, a warning on the coefficients, in
+    `DIAGNOSTIC_SCOPES` as FIT;
+  - Part 1 `using/series.md` § Testing the declared form; Part 2
+    `{eq}par-parametric-form`, its level a `conf.py` substitution;
+  - the skill: the two parametric codes share one row in `diagnostics.md`,
+    and the series row points at the test instead of the hand recipe. Both
+    files sit at their 34 600 B budget, so the pointer row beside it was
+    tightened to make room (34 594 and 34 575 B).
+- **Tests**, in `tests/test_parametric_series.py`: the blocked gain against
+  dense least squares with drop and hold; a pattern's target column against
+  an untied table's (1.8e-7 to 8.1e-7 measured, bar 1e-5); the LaB6 ramp's
+  line law kept on its true line and rejected under a 1 % bow (fast,
+  parametrised); the slow ramp test asserts its form stands.
+  `test_magnetic`'s schema pin moved to 0.56.
+- **Forward references:** 1341 learns that its open item 4 (whether the joint
+  hold reads WP-1523's significance) also sets which patterns the form test
+  sees.
+- **Inherited:** none on arrival. WP-1961's open #975 adds one to this file:
+  #970's `multi._unseen` change ships in 1.10 and has no note. It cannot be
+  acted on yet, because `docs/releases/1.10.0.md` exists only in #975. The
+  two notes to stage there, once #975 merges:
+  - Fixed: a joint fit with per-histogram phase paths now holds a pattern's
+    own copy of a phase's cell where that pattern cannot see the phase; it
+    stayed free wherever another pattern still showed the phase (WP-1325).
+  - Added: `RefinementResult.parametric_form` tests each parametric
+    declaration's form at the answer, and `PARAMETRIC_FORM_REJECTED` warns
+    when the data rejects it (WP-1325, schema 0.56).
+- **Findings** checked on arrival: nothing on `main` had touched the WP's
+  files since the last handover.
+- **`/code-review high --fix`** over caf089f..57e2b60: 9 findings, 5 fixed
+  in one commit (1bcacd1).
+  - dof is clamped to 0 where fewer patterns than coefficients enter.
+  - The statistic needs a finite positive χ²_red·f², and that case prints
+    its own line.
+  - The held side's projection is computed once for every declaration.
+  - An all-zero target column is not counted as a tested pattern.
+  - `conf.py`'s new import is in sorted order.
+
+  Four declined:
+  - testing a law with a held coefficient: it would mix the form with the
+    held value;
+  - skipping the Jacobian when no law is testable: that needs a plan that
+    never frees `vars.*`;
+  - reusing `outcome.jac`: it can be stale after the cell clamp, and it has
+    no penalty rows;
+  - one helper for the χ²_red·f² the moment-angle test also computes: it is
+    outside the diff, and the finiteness drift it caused is fixed.
+
+*Measured* (macOS arm64, 10 CPUs, `[dev]` venv, compiled kernels on; other
+sessions shared the machine at load averages of 4 to 30):
+- The form test's numbers are in § Measured: the form test.
+- Fast selection, the command verbatim, before the review: 9699 passed,
+  1 failed (the schema pin, fixed), 186 skipped, 1 xfailed, in 5 m 14 s.
+- Fast selection after the review, the command verbatim plus a junit file,
+  on the merged tree (`main` had not moved since caf089f): 9700 passed,
+  186 skipped, 1 xfailed, in 4 m 32 s. passed+skipped is 9886 in both runs.
+  The 4 added cases (3 tests) pass. No base count was taken, so the +4 comes
+  from `tests.added_test_times`. They took 6.25 s in that run, 6.00 s of it
+  the two fit-level cases at 3 s each under `-n auto`; the test's docstring
+  says why they are fast.
+- The WP's acceptance command, slow tests included: 213 passed. Its two slow
+  parametric tests pass, the 120-pattern library among them.
+- The full selection was not run. The change adds a computation after the
+  solve of a parametric joint fit and moves no fitted number: the
+  constant-declaration test still holds bit for bit, and no acceptance suite
+  declares a parametric law.
+
+*Gotchas*:
+- **A derived column is a hair outside the span of what it was derived
+  from.** Finite differences on the coefficient's step and on the target's
+  differ by ~1e-7 relative, enough for the pseudo-inverse to count a tenth
+  direction among ten patterns. Swap columns; never append beside them.
+- **A predicted residual is not a fitted one.** The unbounded linear step
+  moves columns sitting on a bound too, so its residual's Bérar-Lelann factor
+  read 2.27 where the untied fit's was 2.50.
+- **`kernel_ramp.py` swaps `least_squares._multi_closures` on import.** A
+  script importing it puts the original back, and looks the function up at
+  call time.
+- **`v1.9.0` is tagged and 1.10 is being opened in #975**, so nothing here
+  can be staged until it merges.
+
+Next, in order:
+1. **Stage the two release notes** above in `docs/releases/1.10.0.md` once
+   #975 merges, and prune the Inherited entry.
+2. **The same measurement on ZrP₂O₇ and WO₃**, now with the form test
+   reading each law. WO₃ is the case for one law per phase field.
+3. **A per-law test beside other laws reads weaker than alone** (the cubic
+   law, 1.37 against 1.57). Decide whether `parametric_form` should also
+   test each law with the others freed, at one more set of columns each.
+4. **The peak-chain deduplication** (35 % of the real fit), then **in-step
+   bounds**, then **start agreement** beyond parameters.
 
 ### 2026-10-14 (fourth session) — on real data a weak phase's slope tightens by a quarter, and the form check needs the correlation factor
 

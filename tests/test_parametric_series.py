@@ -617,8 +617,9 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
     line or the line bowed by 1 % of its half-excursion at mid-ramp.  The
     line reads 4.8 against the cut 15.5 for 8 directions, and the bow 2 607
     (macOS arm64), so either verdict has a margin of three or more.  Fast,
-    at 1.5 s a joint fit, because the bowed row is the only fit-level check
-    that a wrong form is caught and says so."""
+    at 1.5 s a joint fit serially and 3 s under ``-n auto``, because the
+    bowed row is the only fit-level check that a wrong form is caught and
+    says so."""
     from tests.test_sequential import A0, RAMP, _simulate, _start_models
 
     temps = np.array([300.0 + 100.0 * k for k in range(10)])
