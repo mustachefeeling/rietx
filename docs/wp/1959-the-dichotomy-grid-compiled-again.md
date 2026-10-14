@@ -1,9 +1,8 @@
 # WP-1959 — the dichotomy grid compiled again, so a ceiling reaches svd
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — prune, kernel and measurements landed; the rietx-kernels 1.3.0 release and the pin's floor wait for the merge
+Milestone: unscheduled · Status: ✅ 2026-10-14 — prune, kernel and measurements landed; rietx-kernels 1.3.0 published and the pin's floor raised to it
 Track: A long run is not one fit
 Depends on: —
-Priority: P2 2026-10-13 — a defect that fires wrongly: on #780's monoclinic case a whole-run ceiling under ~157 s of CPU returns no candidate, although svd alone finds the cell in 27 s; the workaround is a longer ceiling or `engines=("svd",)`
 
 ## Goal
 
@@ -72,7 +71,7 @@ Near a singular metric Q is dense, so every line keeps matching and the subtree 
 - [x] Profile one grid on #780's case: the share of `_test_box` against the loop around it. Decide between a box-test kernel and a whole-traversal kernel, and write the measurement here. The box test alone (§ Findings): `_test_box` was 99.2 % of the grid, and once the kernel runs, phase 2 is 82 % leaves.
 - [x] The kernel in `kernels/src/`, with its `compiled.py` entry point and the numpy fallback. Bit-identical to `_test_box` box by box on #780's case and the seven WP-1924 replay digests. `kernels/src/dichotomy.rs`; `compiled.dichotomy_kernels` declines for the indexer alone on a wheel without it.
 - [x] Wire it into the grid and phase 2. Leaf-by-leaf agreement with the numpy loop under `RIETX_COMPILED=0` in a test. `tests/test_indexing_kernels.py`, which `kernels.yml` runs against the wheel a pull request builds.
-- [ ] `rietx-kernels` 1.3.0 and rietx's floor raised (`docs/RELEASING.md`'s kernel route).
+- [x] `rietx-kernels` 1.3.0 and rietx's floor raised (`docs/RELEASING.md`'s kernel route). Tag `kernels-v1.3.0` on `2cbd7363`, five wheels on PyPI; the floor in `fc91feb2`.
 - [x] Measure: #780's grid CPU before and after, and the largest whole-run ceiling under which #780's case still returns no candidate. Then `tests/test_acceptance_indexing.py`, and the bethanechol benchmark run alone in default mode against −6. Grid 57 s → 3.6-4.5 s of CPU; starving ceiling 7 s; acceptance 44 passed; benchmark default −3 (Bb, Db and E rank 1, F rank 4), run alone on macOS arm64 `[dev]`.
 - [x] Skill: `references/abstention.md`'s `INDEX_BUDGET_EXHAUSTED` row if the advice on a ceiling for large volumes moves, else "none" and why. Its measured sentence moved: #780's cell now comes 8 s of CPU into the search, where a 120 s ceiling returned nothing; the advice itself stands.
 
@@ -94,6 +93,18 @@ The obliquity prune no worse on the acceptance file and the benchmark. Every fin
 - Issue #780; WP-1924 (profile), WP-1508 (the compiled spike), WP-1940 (the kernel tier).
 
 ## Handover log
+
+### 2026-10-14 — rietx-kernels 1.3.0 on PyPI, the floor raised to it, and the WP closed
+
+rietx now requires the kernel wheel that carries the dichotomy's box test, and PyPI serves it on all five platforms. A plain install gets the compiled indexer with no further step. A wheel older than 1.3 is now treated like any incomplete wheel. The whole compiled tier steps aside and rietx warns once with the pin that fixes it. That ends the silent fallback the 2nd session added for the weeks PyPI had no 1.3.0. The WP is closed. Its last open question, why svd never starts under a short ceiling, belongs to WP-1924 and WP-1520.
+
+*Done.* The maintainer tagged `kernels-v1.3.0` on the merge commit `2cbd7363` and approved the `pypi` deployment. Run 38532295652 built and tested five wheels and published them. A fresh venv installed 1.3.0 from the index on the first try, reporting interface 1 and both dichotomy kernels (darwin/arm64). PyPI lists macOS x86-64 and arm64, Linux x86-64 and aarch64, and Windows x64. `fc91feb2` raises `KERNEL_FLOOR` and the pin to 1.3 and moves the two names into `KERNEL_NAMES`. `DICHOTOMY_NAMES` is gone, and `dichotomy_kernels` reads the two from the loaded set. The indexer-only decline test became `test_a_wheel_before_the_floor_is_declined_whole_and_says_so`. It holds a 1.2.0-shaped wheel to a whole-tier decline naming both kernels, and to one warning quoting `rietx-kernels>=1.3,<2`. `install.md`, `compatibility.md` and the 1.9.0 notes quote the new pin, and the notes gain a "Requirements that rise" entry.
+
+*Measured.* Fast selection on `[dev]`, darwin/arm64, with PyPI's 1.3.0 wheel, on main at `2cbd7363` plus `fc91feb2`: 9685 passed, 186 skipped, 1 xfailed, in 7:46. The branch removes one test and adds one, so it moves the count by zero. Main had moved since the 2nd session's 9612, so the two counts are not comparable. The renamed test runs in 1 ms. The touched files and the manual and docs tests on the final tree: 91 passed, 1 skipped. The full selection did not run, since nothing here moves a fit's arithmetic.
+
+*Review* (`/code-review high --fix 2cbd7363..fc91feb2`, `0eacc899`). It found no code bug and seven pieces of stale text, all fixed. The decline warning and three passages of `install.md` named fits and figures as all the tier serves, and the requirements table still said 1.1. The indexing kernel tests now skip on `compiled.available()`, since a wheel is loaded or declined whole. The new test builds its pin from `KERNEL_FLOOR`. One sibling it left outside its range was fixed by hand: `install.md`'s `compiled_kernels_active` sentence. Declined: `references/diagnostics-indexing.md` says the active flag covers "the next refinement". That stays true, and the skill file has a size budget.
+
+*Next.* None here. WP-1961's cut no longer waits on the wheel, only on the nightly it names. WP-1924 and WP-1520 hold the dichotomy questions this WP left open (their `### Inherited`).
 
 ### 2026-10-14 (2nd session) — two red checks on #964, neither the kernel's
 
