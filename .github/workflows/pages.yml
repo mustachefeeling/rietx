@@ -38,7 +38,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 15 until WP-1963: an uncached run adds ~5 min of WebAssembly builds.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       # The release tags, each at depth 1: the landing page's Jupyter quickstart links the
@@ -61,6 +62,29 @@ jobs:
         run: |
           mkdir -p site/skill
           cp -R docs/skill/rietx site/skill/rietx
+      # The tutorials in the browser, at /lite/ (WP-1963; docs/lite/README.md).  gemmi
+      # and spglib cross-compiled for Pyodide take ~5 min, so they are cached on the
+      # script that builds them.  The site serves a rietx wheel built from this commit
+      # with this commit's notebooks: the two match by construction, which is the rule
+      # the landing page's tag keeps for Colab (WP-1917), and a fix reaches the browser
+      # on merge rather than at the next release.
+      - uses: actions/cache@v4
+        id: lite-wheels
+        with:
+          path: docs/lite/wheels
+          key: lite-wheels-${{ hashFiles('docs/lite/build_wheels.py') }}
+      - name: Build gemmi and spglib for Pyodide
+        if: steps.lite-wheels.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y ninja-build
+          python3 docs/lite/build_wheels.py docs/lite/wheels
+      - name: Build the JupyterLite site
+        run: |
+          uv build --wheel --out-dir dist .
+          uv venv --python 3.13 /tmp/lite
+          uv pip install --python /tmp/lite/bin/python -r docs/lite/requirements.txt
+          /tmp/lite/bin/python docs/lite/build.py --wheels docs/lite/wheels --ref HEAD \
+            --rietx-wheel dist/rietx-*.whl --out site/lite
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
