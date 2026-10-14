@@ -911,30 +911,14 @@ def test_a_per_pattern_cell_is_held_where_its_own_pattern_is_blind():
     assert one == ["hist.0.phases.1.cell.a"]
 
 
-def _pattern_with_both_phases(seed: int = 8):
+def _pattern_with_both_phases():
     """``synthesize``'s pattern with the second phase present at LaB₆'s scale."""
-    from rietx import Instrument, PatternData
-    from rietx.schemas.common import Parameter
-    from rietx.schemas.instrument import BackgroundChebyshev
-    from tests.test_refine_synthetic import (TRUE_BKG, TRUE_SCALE, TRUE_W, TRUE_ZERO,
-                                             WAVELENGTH)
+    from tests.test_refine_synthetic import TRUE_SCALE
 
     structure, _ = _absent_phase_inputs()
-    for phase in structure.phases:
-        phase.scale.value = TRUE_SCALE
-    for n in "abc":
-        getattr(structure.phases[0].cell, n).value = TRUE_A
-    ins = Instrument.debye_scherrer(wavelength=WAVELENGTH)
-    ins.zero_shift.value = TRUE_ZERO
-    ins.profile.w.value = TRUE_W
-    ins.background = BackgroundChebyshev(coefficients=[Parameter(value=v) for v in TRUE_BKG])
-    tt = np.arange(3.0, 24.0, 0.005)
-    grid = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
-    model = compile_model(structure, ins, grid, mode="rietveld")
-    table = ParameterTable(structure, ins)
-    y = np.random.default_rng(seed).poisson(
-        np.maximum(model.evaluate(table.decode(table.x0())), 1.0)).astype(float)
-    return PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+    second = structure.phases[1]
+    second.scale.value = TRUE_SCALE
+    return synthesize(noise_seed=8, extra_phases=[second])
 
 
 def test_a_joint_series_fit_holds_a_vanished_phase_in_its_own_pattern():

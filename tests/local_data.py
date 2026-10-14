@@ -29,8 +29,10 @@ import sys
 import zipfile
 from pathlib import Path
 
-ROOT_ENV = "RIETX_LOCAL_DATA"
-DEFAULT_ROOT = Path.home() / "rietx-local-data"
+from rietx._about import DIST_NAME
+
+ROOT_ENV = f"{DIST_NAME.upper()}_LOCAL_DATA"
+DEFAULT_ROOT = Path.home() / f"{DIST_NAME}-local-data"
 
 _DURHAM = "https://topas.webspace.durham.ac.uk/wp-content/uploads/sites/261/"
 
@@ -162,7 +164,7 @@ def fetch(name: str) -> Path:
     """Download whatever of the dataset is missing, then check every file."""
     where = root() / name
     where.mkdir(parents=True, exist_ok=True)
-    for fname, (source, _) in DATASETS[name].items():
+    for fname, (source, digest) in DATASETS[name].items():
         path = where / fname
         if path.is_file():
             continue
@@ -177,6 +179,12 @@ def fetch(name: str) -> Path:
         else:
             with zipfile.ZipFile(where / source) as archive:
                 part.write_bytes(archive.read(fname))
+        # checked before it takes its name, so a short download never lands
+        # where dataset() would refuse it and a zip is verified before it is read
+        if _sha256(part) != digest:
+            part.unlink()
+            raise ValueError(f"{source} did not give the registered {fname} "
+                             f"(sha256 {digest[:12]}…)")
         part.replace(path)
     found = dataset(name)
     assert found is not None

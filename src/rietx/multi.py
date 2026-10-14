@@ -1324,11 +1324,11 @@ class MultiHistogramRefinement:
                         self.mtable.tables, strict=True)]
                 self.mtable.push_moment_frames(models)
                 stage_ftol = {} if ftol is None else {"ftol": ftol}
-                # A phase the data cannot see is flat here too, and "the data" is
-                # every histogram (WP-1301): the rule is the one
-                # ``_freeze_cell_windows_multi`` already applies, since a phase
-                # invisible in one pattern and plain in another *is* seen by the
-                # joint fit that shares its cell.
+                # A phase the data cannot see is flat here too (WP-1301), and
+                # each entry is judged where it lives (``_unseen``, WP-1325): a
+                # shared cell only when no histogram sees the phase, the rule
+                # ``_freeze_cell_windows_multi`` applies, and a per-histogram
+                # cell wherever its own pattern cannot.
                 # ``freed`` is derived from this whenever the hold moves, so the
                 # record's ``freed``/``held`` stay disjoint however the stage ends
                 # — the single-histogram runner's rule (``_run_stage``)
