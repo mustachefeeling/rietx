@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the parametric fit, its blocked solver, summaries and docs landed, the joint Jacobian profiled, and the fit measured on the real ZrMo₂O₈ ramp; a lack-of-fit check, ZrP₂O₇ and WO₃, the peak-chain dedup, in-step bounds and start agreement remain
+Milestone: unscheduled · Status: 🔄 2026-10-14 — claimed by @yue-here (the lack-of-fit check)
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
