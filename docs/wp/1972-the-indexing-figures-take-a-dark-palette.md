@@ -39,8 +39,8 @@ WP lands. No tutorial stores one today.
 
 - [ ] Dark values for the indexing roles, checked against the dark ground
   for contrast, and the candidate set checked on both grounds.
-- [ ] `style=` on the four functions, passed to `_handed_back`.
-- [ ] The pixel test of `tests/test_viz.py` extended to the four figures.
+- [x] `style=` on the four functions, passed to `_handed_back`.
+- [x] The pixel test of `tests/test_viz.py` extended to the four figures.
 
 ## Acceptance
 

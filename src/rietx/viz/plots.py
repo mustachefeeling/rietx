@@ -109,6 +109,17 @@ Y_SCALES = ("linear", "sqrt", "log", "asinh")
 #: ``--accent``, ``--muted`` and ``--bad`` and two darker hues, and dark's
 #: are the same tokens' dark values.  ``unrecovered`` sits nearer the type
 #: than ``reseeded`` on both grounds, so the worse verdict carries more ink.
+#:
+#: The ``index_`` roles, ``absent``, ``unmatched`` and ``candidate`` are
+#: :mod:`rietx.viz.indexing`'s (WP-1972).  Light's are the hues those figures
+#: have always drawn.  Each dark hue keeps its light one's OKLab hue and gains
+#: 0.19 in lightness, the mean lift of the three pairs this table already held
+#: (``series``, ``reseeded``, ``band``), so the candidate rows keep the
+#: lightness steps that tell them apart.  The two greys swap their order of
+#: ink, as ``obs`` and ``diff`` do, and ``absent``'s amber reads on both
+#: grounds as it is.  ``candidate`` is ranked like ``phase`` but is chosen per
+#: ground, because three of its hues are other roles' light colours, and a
+#: light colour takes one dark colour wherever it is drawn.
 PALETTES = {
     # `ground` is the page the figure sits on.  Dark's is the manual's and the
     # landing page's warm panel, which is what `_ground_rc` paints; light's is
@@ -119,14 +130,24 @@ PALETTES = {
               "tick": "#1a1a1a", "ground": "#ffffff",
               "phase": list(PHASE_COLOURS),
               "series": "#1f5fa8", "held": "#6b6b6b", "reseeded": "#c23b22",
-              "unrecovered": "#8b1a1a", "outlier": "#b8860b"},
+              "unrecovered": "#8b1a1a", "outlier": "#b8860b",
+              "index_obs": "#1f5fa8", "index_calc": "#c23b22",
+              "index_bkg": "#7a7a7a", "index_diff": "#4a4a4a",
+              "absent": "#f2c14e", "unmatched": "#7a1fa8",
+              "candidate": ["#1f5fa8", "#c23b22", "#2a9d2a", "#7a1fa8",
+                            "#d17b0f", "#0f8c8c", "#a8195f", "#5a5a9d"]},
     "dark": {"obs": "#d2c9bd", "calc": "#ff9d4d", "bkg": "#c99a6a",
              "diff": "#8f8f8f", "zero": "#4a4a4a", "band": "#4fd44f",
              "tick": "#d2c9bd", "fg": "#f1ece5", "rule": "#d2c9bd",
              "ground": "#1d1813",
              "phase": list(PHASE_COLOURS),
              "series": "#7fb2ea", "held": "#9a9a94", "reseeded": "#e8776a",
-             "unrecovered": "#ffb0a0", "outlier": "#d9a62e"},
+             "unrecovered": "#ffb0a0", "outlier": "#d9a62e",
+             "index_obs": "#7fb2ea", "index_calc": "#e8776a",
+             "index_bkg": "#8a8a8a", "index_diff": "#b5b5b5",
+             "absent": "#f2c14e", "unmatched": "#b561e8",
+             "candidate": ["#7fb2ea", "#e8776a", "#4fd44f", "#b561e8",
+                           "#ffbd7c", "#60c8c7", "#eb5d97", "#9193db"]},
 }
 
 
@@ -466,8 +487,8 @@ def _darkened(fig):
     """``fig``, drawn light, recoloured in place to the dark palette.
 
     Three maps, which are what :func:`_style_context` changes between the two
-    palettes.  A :data:`PALETTES` role takes the same role's dark colour.
-    Matplotlib's own black takes ``fg`` on text and ``rule`` on every other
+    palettes.  A :data:`PALETTES` role takes the same role's dark colour, and
+    a ranked list's entry the same entry's.  Matplotlib's own black takes ``fg`` on text and ``rule`` on every other
     line, as :func:`_ground_rc` sets them.  White takes ``ground``.  So a rietx
     figure comes out as the one drawn with ``style="dark"``, pixel for pixel,
     and a caller's own ink in any other colour is left as drawn.  The
@@ -480,8 +501,11 @@ def _darkened(fig):
     from matplotlib.text import Text
 
     light, dark = PALETTES["light"], PALETTES["dark"]
-    roles = {light[k].lower(): dark[k] for k, v in light.items()
-             if isinstance(v, str) and k != "ground"}
+    roles = {}
+    for k, v in light.items():
+        if k != "ground":
+            pairs = zip(v, dark[k], strict=True) if isinstance(v, list) else [(v, dark[k])]
+            roles.update((one.lower(), two) for one, two in pairs)
     ground, fg, rule = {"#ffffff": dark["ground"]}, {"#000000": dark["fg"]}, {
         "#000000": dark["rule"]}
 
@@ -560,9 +584,10 @@ def _style_context(plt, style: str, font_size: float):
                              else ["dark_background", _rc(font_size), _ground_rc(hue)])
 
 
-def _trajectory_context(plt, style: str):
-    """The trajectory's style context: the page's ground on dark, and on light
-    nothing, since that figure predates the house rc and keeps its own type."""
+def _ground_context(plt, style: str):
+    """The trajectory's and the indexing figures' style context: the page's
+    ground on dark, and on light nothing, since those figures predate the house
+    rc and keep their own type."""
     if style == "light":
         from contextlib import nullcontext
         return nullcontext()
@@ -1303,7 +1328,7 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     unrecovered = {e.label for e in series.entries if e.status == "diverged"}
     outliers = {e.label for e in series.entries if e.above_fence}
 
-    with _trajectory_context(plt, style):
+    with _ground_context(plt, style):
         fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
                                  dpi=dpi, FigureClass=_figure_class(), sharex=True, squeeze=False)
         for ax, name in zip(axes[:, 0], paths, strict=True):
