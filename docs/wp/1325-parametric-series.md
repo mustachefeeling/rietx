@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the lack-of-fit check landed as a score test at the answer; ZrP₂O₇ and WO₃, the peak-chain dedup, in-step bounds and start agreement remain, and two 1.10 notes wait on #975
+Milestone: unscheduled · Status: 🔄 2026-10-14 — the form test landed and its 1.10 notes are staged; next the output marks law-set values, then the coefficients' covariance, each law tested with the others freed, and ZrP₂O₇ and WO₃ out of sample
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -39,6 +39,22 @@ The maintainer took three decisions after the survey below.
    ramp with a known a(T) checks the joint fit is *right* and is re-runnable.
    The real ramp, from the maintainer's local copy, then measures what the
    joint form is *worth* on real data.
+
+### Decisions after the form test, 2026-10-14
+
+The maintainer read the fifth session's results and set the rule they serve:
+let people fit a function to their parameters, warn them when it might be
+wrong, and expose in the output that a value came from a function. Their
+standing concern is a check calibrated on one example.
+
+1. **The 1.10 release notes** were staged the same day, once #975 merged.
+2. **Each law is also tested with the other laws freed** (Tasks).
+3. **A law with a held coefficient stays untested**, as built: testing it
+   would mix the form with the held value.
+4. **A correction for several laws at 95 % each is open.** The ZrP₂O₇ and
+   WO₃ measurement decides it, because both declare several laws at once.
+5. **A kernel prior for the blind regime is
+   [1963](1963-a-kernel-over-the-pattern-coordinates.md)**, a stub.
 
 ### The general shape, and which part this WP builds
 
@@ -141,7 +157,9 @@ changes what every coefficient means.
 
 1. **Data, not code: yes.** The declaration is a pydantic model with a JSON
    round-trip. It has:
-   - targets as globs;
+   - targets as globs (superseded 2026-10-14: the declaration landed with
+     one bare path per target, and a glob is
+     [1965](1965-a-law-declared-by-formula-condition-and-glob.md)'s);
    - a basis from a **closed** vocabulary: `constant`, `polynomial` (terms over
      named coordinates, e.g. `[[], ["x"], ["y"], ["x", "y"]]`), or `design`
      (explicit per-pattern rows; this is the escape hatch for splines,
@@ -931,29 +949,32 @@ directions and 197.9 against 337.1 for 296.
   measurement says the joint form pays, the moment trajectory is a further
   series to measure it on.
 
-### Inherited
-
-- **From WP-1961 (2026-10-14).** #970 merged as `caf089fc`, after the
-  `v1.9.0` tag on `ea1800d3`, so it ships in 1.10. The staged
-  `docs/releases/1.10.0.md` did not exist when it merged, and it staged no
-  note anywhere. If its `multi.py` change is user-facing, its note goes in
-  that file.
-
 ## Non-goals
 
-- A library of physical models: the caller supplies the basis, or names a
-  polynomial.
+- A library of physical models: here the caller supplies the basis, or names
+  a polynomial. Named nonlinear laws are
+  [1964](1964-a-nonlinear-law-through-the-derived-block.md)'s.
 - Replacing the chain: it stays the exploratory tool and the seed.
-- Nonlinear functions of the coordinates (fenced with `Parameter.expr`,
-  WP-1119).
+- Laws nonlinear in their coefficients: an order parameter's
+  (1 − T/T_c)^β with T_c and β refined, an Avrami rate, an Einstein
+  temperature. Filed 2026-10-14 as
+  [1964](1964-a-nonlinear-law-through-the-derived-block.md). The fence here
+  rested on WP-1119's reading that only C·θ + d is exact under autodiff, and
+  WP-1804's derived block has since given the table a second, nonlinear seam.
+  A law nonlinear in the coordinates alone is already declarable as a
+  `design` basis.
+- Declaring a law by a formula string, a subset by a condition on the
+  coordinates, or a target by a glob:
+  [1965](1965-a-law-declared-by-formula-condition-and-glob.md).
 - One pattern as a sum over several specimens (A ≠ identity): direct XRD-CT,
   depth profiles. That is [1962](1962-xrd-ct-a-pattern-summed-over-the-voxels-its-beam-crosses.md).
 - Soft forms: partial pooling toward the surface, or a P-spline smoothness
   penalty over a coordinate. Both need the joint path's restraint refusal
-  lifted, and both make the esds conditional on a penalty weight. They are a
-  follow-up WP if the hard form proves too stiff across a library. Both are
-  members of one kernel family (§ A kernel over the coordinates), so such a
-  WP would build the kernel, not either one alone.
+  lifted, and both make the esds conditional on a penalty weight. Both are
+  members of one kernel family (§ A kernel over the coordinates), so the
+  follow-up builds the kernel:
+  [1963](1963-a-kernel-over-the-pattern-coordinates.md), filed 2026-10-14
+  once the form test proved blind where the tie's intervals fail.
 - Sliding-window marginalisation for unbounded campaigns.
 
 ## Tasks
@@ -1052,12 +1073,89 @@ directions and 197.9 against 337.1 for 296.
   sha256 in `tests/local_data.py`, and `python -m tests.local_data` fetches
   them on a new machine. A cloud container has none of them, because the
   Durham host is outside its network policy.
-- [ ] **The same measurement on ZrP₂O₇ and WO₃.** Both are where the ramp
-  could not reach. ZrP₂O₇ runs to 1173 K and back, so heating and cooling can
-  be tested as one law. WO₃ crosses phase fields, which is the case for one
-  law per field on disjoint subsets. `rx.read_project_model` builds all three
-  WO₃ phases from `d9_02592_3phase_01.inp`. The ZrP₂O₇ input is refused at
-  read, on its `B1(...)` site macros, so its phases need building by hand.
+- [ ] **Show in the output when a value came from a law** (maintainer,
+  2026-10-14). Today a pattern's target row (`hist.<h>.<target>` in
+  `RefinementResult.parameters`) reads like a measured value, with the law's
+  esd, which can be far tighter than that pattern measures alone. In a
+  pattern that cannot see the target it is extrapolation, the 0.03 coverage
+  case.
+  - Mark each such row with the law that set it, wherever rows print or
+    serialise, `for_histogram(h)` included. A field on `RefinedParameter`
+    needs its writer named in `multi._parameters` (WP-1076's rule).
+  - The form line says "n of N patterns", so a law checked on few of its
+    patterns shows it.
+  - A warning when a law sets the target in patterns that cannot see it,
+    naming them: there the value is the law's, and the form test is blind.
+  - The p-value beside the statistic, so a near miss is visible as one.
+  - The coefficients' own rows too (added 2026-10-14, from a review of the
+    API against prior art). `RefinementResult.parameters` lists each
+    `vars.<name>_<j>` in the table's units, per unit of the *scaled*
+    coordinate, beside `RefinementResult.parametric`'s user units. On the
+    five-pattern ramp in `using/series.md` the slope's row reads 0.006235
+    (Å per 300 K) and its coefficient 2.0784 × 10⁻⁵ Å/K. The manual has to
+    tell readers to skip the row. Mark the row as a law's coefficient and
+    point at `parametric`, or drop it from `parameters`; the
+    `RefinedParameter` field rule above applies either way.
+- [ ] **The coefficients' covariance, and the law's value at any
+  coordinate** (added 2026-10-14, from a review of the API against prior
+  art). `ParametricCoefficient` carries an esd and nothing else, and
+  `Identifiability.top_correlations` lists only the worst pairs. A value
+  between or beyond the patterns needs the whole block. For example, a(293 K)
+  from a line centred at 600 K needs cov(c₀, c₁). Today the per-pattern
+  `hist.<h>.<target>` rows give a propagated esd at the measured coordinates
+  only. statsmodels' `cov_params()` and `get_prediction()` are the prior art.
+  - Carry each declaration's coefficient covariance on the result, in user
+    units at its reference. Take it from the matrix the esds come from
+    (`least_squares.covariance_jacobian`, WP-1929's rule), so the block's
+    diagonal reproduces every `ParametricCoefficient.esd` exactly. Pin that
+    equality by test.
+  - A reader evaluating the law at a coordinate returns Φ(z)·c and
+    √(Φ(z) Σ Φ(z)ᵀ). It reads the stored reference and scale and computes
+    nothing the fit has not stored (root CLAUDE.md § a display reads fields).
+  - The value carries the form test's verdict beside it, because its esd
+    assumes the form. Beyond the subset's range it says it is extrapolating.
+- [ ] **Test each law with the other laws freed** (maintainer, 2026-10-14).
+  Beside other laws, a law reads weaker than alone: the cubic line scored
+  1.37 per direction at the three-law answer and 1.57 alone.
+  - From the answer, the gain with every law's columns swapped, less the
+    gain with only the others' swapped; dof by the same difference. One more
+    projection per law, no refit.
+  - Validate on the ZrMo₂O₈ ramp against the refits that freed the other
+    targets: 1.58, 0.50 and 0.56 per direction (§ Measured on real data).
+  - Decide how the two verdicts reach `rejected`, the diagnostic and the
+    printed line. Two tests per law raise the false-alarm rate, decision 4's
+    question.
+- [ ] **The same measurement on ZrP₂O₇ and WO₃, run as the form test's
+  out-of-sample check.** Its level and its f² divisor were settled on the
+  ZrMo₂O₈ ramp alone, the maintainer's concern. So:
+  - record the form test's verdicts before comparing them with the chain's
+    trajectories and with refits;
+  - declare one deliberately over-flexible law (a high-order polynomial or a
+    `design` spline) on correlated real residuals, to measure how often a
+    right form is rejected there;
+  - decide decision 4's correction from those two.
+
+  Both ramps are where the first could not reach. ZrP₂O₇ runs to 1173 K and
+  back, so heating and cooling can be tested as one law. WO₃ crosses phase
+  fields, which is the case for one law per field on disjoint subsets.
+  `rx.read_project_model` builds all three WO₃ phases from
+  `d9_02592_3phase_01.inp`. The ZrP₂O₇ input is refused at read, on its
+  `B1(...)` site macros, so its phases need building by hand.
+- [ ] **Measure whether a one-direction test for the next term earns a
+  place** (added 2026-10-14, from a review of the API against prior art).
+  The form test's alternative spends n − m directions, one per pattern
+  beyond the law. Against smooth curvature, a score test on the next
+  polynomial term spends one. It is the same projection with one column
+  added, and it is how a statistician picks an order (a nested F-test, or
+  AIC/BIC across orders). Today the manual says to add a term and refit.
+  - On the synthetic ramps, shrink the bow below the 9.4 × 10⁻⁵ Å that
+    the form test rejected at 2606.7, and find where each test stops
+    rejecting. Then run the ZrP₂O₇ and WO₃ ramps above.
+  - Land it beside `ParametricFormTest` only if it rejects a curve the form
+    test passes. Where no pattern sees the target, neither test can help,
+    and that regime is [1963](1963-a-kernel-over-the-pattern-coordinates.md)'s.
+  - A second verdict per law is a further test at 95 %, so it joins
+    decision 4's correction.
 - [x] **Profile the joint Jacobian**, the maintainer's question of 2026-10-14:
   would another Rust kernel help? It would not, first. § Measured: where the
   joint Jacobian's time goes.
@@ -1255,6 +1353,66 @@ directions and 197.9 against 337.1 for 296.
 
 ## Handover log
 
+### 2026-10-14 (sixth session) — the maintainer's rule for laws is recorded, and a review against prior art adds three tasks and two WPs
+
+The maintainer read the form test's results and set a rule for the rest of
+this WP. People may fit a function to their parameters, rietx warns them when
+the function might be wrong, and the output shows which values came from one.
+This session wrote that rule into tasks and staged the form test's 1.10
+release notes. It changed no code. A review of the API against prior art then
+found seven gaps. Three are tasks here, and the other four are features of
+their own, filed as WP-1964 and WP-1965.
+
+*Done* (branch `wp1325-decisions` from `main` at 72d8c0f, docs only; this
+entry was written after a `/clear`, from the three commits and PR #976's
+body):
+- **The maintainer's decisions** (1d6c47d), in § Decisions after the form
+  test. Three tasks follow from them: mark law-set values wherever rows
+  print, test each law with the other laws freed, and run ZrP₂O₇ and WO₃ as
+  the form test's out-of-sample check. A law with a held coefficient stays
+  untested. Whether to correct the 95 % level for several laws waits on the
+  out-of-sample check. WP-1963 is filed as a stub, for a kernel prior over
+  the regime the form test cannot see.
+- **The 1.10 notes** (e358ade). `docs/releases/1.10.0.md` carries the form
+  test under New, schema 0.56 under Code to check, and #970's per-pattern
+  hold under Numbers that move. The v1.10 record has an entry. WP-1961's
+  Inherited entry is consumed.
+- **The API review** (cab8a9c). Three tasks join this WP:
+  - the coefficients' covariance, and the law's value at any coordinate;
+  - the `vars.<name>_<j>` rows, which print per unit of the scaled
+    coordinate, folded into the exposure task;
+  - a measurement of whether a one-direction test for the next term earns a
+    place.
+
+  WP-1964 owns laws nonlinear in their coefficients, built on WP-1804's
+  derived block. WP-1965 owns the declaration's spelling: a formula, a subset
+  by condition and a glob target. 1329 inherits a pointer to 1964, and
+  1963's non-goal now names it.
+- **This handover**: decision 1 reads in the past tense, and the Status line
+  names the covariance task.
+- **Forward references**: 1804 gets no entry. 1964 depends on its derived
+  block but changes none of its open work.
+- **`/code-review`**: skipped, since the branch touches only `docs/`.
+
+*Measured*: nothing. No code or test changed, so neither the fast nor the
+full selection ran. `tests/test_docs_consistency.py` and ruff ran at handover.
+
+*Gotchas*:
+- **The first commit was pushed to #974's branch after #974 merged.** It
+  moved here by cherry-pick. Check `gh pr view --json state` before pushing
+  to a branch whose PR may have merged.
+
+Next, in order:
+1. **Show in the output when a value came from a law**, the maintainer's
+   priority. It now covers the `vars.` rows too. Its first decision is
+   whether a coefficient's row is marked or dropped from `parameters`.
+2. **The coefficients' covariance and the law's value at any coordinate.**
+3. **Test each law with the other laws freed.**
+4. **ZrP₂O₇ and WO₃ as the out-of-sample check.** It settles the
+   several-laws correction and whether the one-direction test earns a place.
+5. **The peak-chain deduplication**, then **in-step bounds**, then **start
+   agreement** beyond parameters.
+
 ### 2026-10-14 (fifth session) — a declared law is now tested against its own data, at the cost of one Jacobian
 
 Every joint fit with a parametric law now says whether its data rejects that
@@ -1367,15 +1525,16 @@ sessions shared the machine at load averages of 4 to 30):
 - **`v1.9.0` is tagged and 1.10 is being opened in #975**, so nothing here
   can be staged until it merges.
 
-Next, in order:
-1. **Stage the two release notes** above in `docs/releases/1.10.0.md` once
-   #975 merges, and prune the Inherited entry.
-2. **The same measurement on ZrP₂O₇ and WO₃**, now with the form test
-   reading each law. WO₃ is the case for one law per phase field.
-3. **A per-law test beside other laws reads weaker than alone** (the cubic
-   law, 1.37 against 1.57). Decide whether `parametric_form` should also
-   test each law with the others freed, at one more set of columns each.
-4. **The peak-chain deduplication** (35 % of the real fit), then **in-step
+Next, in order (rewritten the same day after the maintainer's decisions,
+§ Decisions after the form test):
+1. ~~Stage the two release notes~~: done the same day, once #975 merged,
+   with the v1.10 record's entry; the Inherited entry is consumed.
+2. **Show in the output when a value came from a law**, the maintainer's
+   priority.
+3. **Test each law with the other laws freed.**
+4. **ZrP₂O₇ and WO₃ as the out-of-sample check**, which also settles the
+   several-laws correction.
+5. **The peak-chain deduplication** (35 % of the real fit), then **in-step
    bounds**, then **start agreement** beyond parameters.
 
 ### 2026-10-14 (fourth session) — on real data a weak phase's slope tightens by a quarter, and the form check needs the correlation factor
