@@ -278,3 +278,171 @@ def test_the_default_result_render_is_the_pre_title_render(fitted):
                      ("log", {"y_scale": "log"})):
         got = hashlib.sha256(_png(plot_result(pinned, **kw))).hexdigest()
         assert got == PRE_TITLE_RENDER[name], name
+
+
+# -- WP-1970: the dark copy a notebook shows beside the light figure --------
+
+def _pixels(fig) -> np.ndarray:
+    """``fig`` as the notebook encoder frames it, unquantised."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=100, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    return np.asarray(Image.open(io.BytesIO(buf.getvalue())).convert("RGB"))
+
+
+def _series():
+    """A four-pattern series carrying a reseeded, a diverged and an outlier mark."""
+    from rietx.schemas.results import RefinedParameter, Statistics
+    from rietx.schemas.sequential import SeriesEntry, SeriesResult
+
+    def entry(i, **kw):
+        return SeriesEntry(
+            index=i, label=f"p{i}", x=float(i),
+            statistics=Statistics(rwp=0.1, rp=0.1, rexp=0.05, chi2=1.0, gof=1.0,
+                                  n_points=10, n_free_parameters=1),
+            parameters=[RefinedParameter(path="phases.0.cell.a",
+                                         value=4.0 + 0.01 * i, stderr=1e-3)], **kw)
+
+    return SeriesResult(entries=[entry(0), entry(1, reseeded=True, rung="cold"),
+                                 entry(2, status="diverged"),
+                                 entry(3, rwp_fence=0.05)])
+
+
+def _two_phases(result):
+    """The fit with a second tick row, so the phase colours are drawn."""
+    (name, ticks), = result.ticks.items()
+    return result.model_copy(update={"ticks": {
+        name: ticks, "second": [t + 0.7 for t in ticks]}})
+
+
+DRAWINGS = {
+    "result": lambda pattern, result, **kw: plot_result(result, dpi=100, **kw),
+    "weighted": lambda pattern, result, **kw: plot_result(result, weighted=True,
+                                                          dpi=100, **kw),
+    "sqrt, two phases": lambda pattern, result, **kw: plot_result(
+        _two_phases(result), y_scale="sqrt", dpi=100, **kw),
+    "pattern": lambda pattern, result, **kw: plot_pattern(pattern, dpi=100, **kw),
+    "trajectory": lambda pattern, result, **kw: _series().plot(
+        ["phases.0.cell.a"], dpi=100, **kw),
+}
+
+
+@pytest.mark.parametrize("name", list(DRAWINGS))
+def test_the_dark_copy_is_the_dark_figure_pixel_for_pixel(fitted, name):
+    """Recolouring a light figure gives the one drawn with ``style="dark"``.
+
+    This is what lets the notebook's dark image be a recoloured copy, which
+    keeps what a caller added, rather than a redraw, which drops it.  The
+    light figure is encoded first, as the formatter encodes it, because that
+    draw creates the tick artists the copy recolours.
+    """
+    import copy
+
+    import matplotlib.pyplot as plt
+
+    from rietx.viz.plots import _darkened
+
+    draw = DRAWINGS[name]
+    light = draw(*fitted)
+    _pixels(light)
+    twin = _darkened(copy.deepcopy(light))
+    assert np.array_equal(_pixels(twin), _pixels(draw(*fitted, style="dark")))
+    plt.close("all")
+
+
+def test_the_light_palette_maps_onto_the_dark_one():
+    """The recolour is a function of the light colour, so two roles sharing a
+    light colour share a dark one.  Black and white are matplotlib's own inks,
+    mapped by the artist's kind, so no role may take either."""
+    light, dark = PALETTES["light"], PALETTES["dark"]
+    seen: dict[str, str] = {}
+    for role, colour in light.items():
+        if isinstance(colour, str) and role != "ground":
+            assert colour.lower() not in ("#000000", "#ffffff"), role
+            assert seen.setdefault(colour.lower(), dark[role]) == dark[role], role
+
+
+def test_what_the_caller_adds_shows_in_the_dark_copy(fitted):
+    """A note keeps its place; black ink turns to the dark page's, and a
+    colour of the caller's own is left as drawn."""
+    import copy
+
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import to_hex
+
+    from rietx.viz.plots import _darkened
+
+    _, result = fitted
+    light = plot_result(result, dpi=100)
+    ax = light.axes[0]
+    ax.annotate("note", (8.0, 100.0), xytext=(10.0, 200.0),
+                arrowprops={"arrowstyle": "-|>"})
+    ax.axvline(9.0, color="#d62728")
+    twin = _darkened(copy.deepcopy(light))
+    (note,) = [t for t in twin.axes[0].texts if t.get_text() == "note"]
+    assert to_hex(note.get_color()) == PALETTES["dark"]["fg"]
+    assert to_hex(note.arrow_patch.get_edgecolor()) == PALETTES["dark"]["rule"]
+    assert to_hex(twin.axes[0].lines[-1].get_color()) == "#d62728"
+    plt.close("all")
+
+
+def test_the_notebook_html_holds_the_light_image_and_a_hidden_dark_one(fitted, tmp_path):
+    """The bundle's shape (WP-1970).  The dark image is hidden inline, which
+    every sanitizer measured keeps, so where the ``<style>`` is stripped the
+    light figure is the one shown.  Every rule in the ``<style>`` names a
+    prefixed class, since in a Sphinx page it applies to the whole page."""
+    import base64
+    import re
+
+    import matplotlib.pyplot as plt
+
+    from rietx.viz._notebook import DARK_MARKERS
+    from rietx.viz.plots import _notebook_png
+
+    _, result = fitted
+    fig = plot_result(result)
+    bundle, metadata = fig._repr_mimebundle_()
+    html = bundle["text/html"]
+    light, dark = re.findall(r"<img [^>]*>", html)
+    assert 'class="rx-fig-light only-light"' in light and "display:none" not in light
+    assert 'class="rx-fig-dark only-dark"' in dark and "display:none" in dark
+    # the PNG beside it is the light image, encoded once for both
+    data, meta = _notebook_png(fig)
+    assert bundle["image/png"] == data and metadata == {"image/png": meta}
+    assert re.search(r'base64,([^"]+)"', light).group(1) == base64.b64encode(data).decode()
+    assert re.search(r'base64,([^"]+)"', dark).group(1) != base64.b64encode(data).decode()
+    for image in (light, dark):
+        assert f'width="{meta["width"]}"' in image
+    (style,) = re.findall(r"<style>(.*?)</style>", html)
+    for rule in re.findall(r"([^{}]+)\{[^}]*\}", style):
+        for selector in rule.split(","):
+            assert re.search(r"\.rx-fig-(light|dark)$", selector.strip()), selector
+    for marker in DARK_MARKERS:
+        assert f"{marker} .rx-fig-dark" in style
+    # a figure with no dark form shows the PNG alone
+    for alone in (plot_result(result, style="dark"),
+                  plot_for_vlm(result, path=str(tmp_path / "vlm.png"))):
+        assert list(alone._repr_mimebundle_()[0]) == ["image/png"]
+    # a display that drops the HTML is not made to draw it
+    assert list(fig._repr_mimebundle_(include=["image/png"])[0]) == ["image/png"]
+    assert list(fig._repr_mimebundle_(exclude=["text/html"])[0]) == ["image/png"]
+    plt.close("all")
+
+
+def test_the_dark_copy_leaves_pyplot_s_figures_alone(fitted):
+    """Under any backend but the inline one, pyplot still holds the returned
+    figure, and a deep copy of it registers itself with pyplot too: one stray
+    figure, or window, per display, until the copy is made detached."""
+    import matplotlib.pyplot as plt
+
+    plt.close("all")
+    _, result = fitted
+    fig = plot_result(result, dpi=100)
+    before = plt.get_fignums()
+    assert len(before) == 1  # the suite's Agg keeps it, as a script's backend does
+    assert "text/html" in fig._repr_mimebundle_()[0]
+    assert plt.get_fignums() == before
+    assert fig.canvas.manager is not None  # handed back as it was
+    plt.close("all")

@@ -10,7 +10,7 @@ tab. Written 2026-10-14 with Claude Code (WP-1966).
 | path | what |
 |---|---|
 | `build_wheels.py` | `python build_wheels.py OUT` cross-compiles gemmi, spglib and rietx-kernels for the Pyodide the site loads. Pyodide ships none of them and PyPI has no WebAssembly wheel of any. The kernels come from this checkout's `kernels/`. It takes about six minutes and needs `uv`, `git`, `cmake`, `ninja` and `rustup` |
-| `build.py` | `python build.py --wheels OUT` builds the site into `site/`. It takes the notebooks at the newest `vX.Y.Z` tag, through the same reader the landing page's Colab links use, and puts in each one a browser install cell instead of `%pip install rietx`. The site's theme is pinned to light, because every figure is drawn on white |
+| `build.py` | `python build.py --wheels OUT` builds the site into `site/`. It takes the notebooks at the newest `vX.Y.Z` tag, through the same reader the landing page's Colab links use, and puts in each one a browser install cell instead of `%pip install rietx`. The site follows the reader's light or dark setting when every figure carries a light and a dark image, and stays light when any figure is drawn on white alone, as at a tag cut before WP-1970. The build marks the outputs trusted, because JupyterLite strips the `<style>` that picks between the two images from an untrusted output |
 | `smoke.mjs` | `PW=<playwright> node smoke.mjs site/` runs every notebook of a built site in headless Chromium. It fails on any raised error, an unrun cell, or a warning that the compiled kernels did not load, and prints other stderr without failing |
 | `requirements.txt` | the JupyterLite pins for `build.py`. They move together with `build_wheels.PYODIDE` |
 
@@ -63,6 +63,7 @@ Nothing in CI runs the browser, so these hold only if they are kept.
 - Nothing assumes a thread can start. The kernel pool asks `n_threads()`.
 
 `smoke.mjs` is the check. Run it after a change that touches any of them.
+The root CLAUDE.md states the same three rules, so a change to one changes both.
 
 ## The numbers, 2026-10-14
 

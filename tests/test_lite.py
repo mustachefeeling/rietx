@@ -50,6 +50,12 @@ def test_projection_replaces_the_install_cell_and_nothing_else(path):
     original = json.loads(path.read_bytes())
     projected = LITE.project(path.read_bytes())
 
+    # every code cell is marked trusted, so its stored figure keeps the
+    # <style> that follows the theme (WP-1970); that mark aside, one cell moves
+    code = [c for c in projected["cells"] if c["cell_type"] == "code"]
+    assert code and all(c["metadata"]["trusted"] is True for c in code)
+    for c in code:
+        del c["metadata"]["trusted"]
     assert len(projected["cells"]) == len(original["cells"])
     changed = [i for i, (a, b) in enumerate(zip(original["cells"], projected["cells"])) if a != b]
     assert len(changed) == 1, f"{path.name}: cells {changed} changed, expected only the install cell"
@@ -59,6 +65,23 @@ def test_projection_replaces_the_install_cell_and_nothing_else(path):
     assert projected["metadata"]["kernelspec"]["name"] == "python"  # the Pyodide kernel's
     assert {k: v for k, v in projected["metadata"].items() if k != "kernelspec"} == \
         {k: v for k, v in original["metadata"].items() if k != "kernelspec"}
+
+
+def test_the_site_follows_the_reader_only_when_every_figure_can():
+    """WP-1970: the committed tutorials carry a dark image for every figure, so
+    their site follows the reader's setting.  The site takes its notebooks from
+    the newest tag, and a tag whose figures are drawn on white alone keeps
+    WP-1966's light pin, or each figure is a white rectangle on a dark page."""
+    books = [LITE.project(path.read_bytes()) for path in NOTEBOOKS]
+    assert LITE.settings(books) == LITE.FOLLOW
+    for nb in books:
+        for cell in nb["cells"]:
+            for out in cell.get("outputs", []):
+                if "image/png" in out.get("data", {}):
+                    out["data"].pop("text/html", None)
+                    assert LITE.settings(books) == LITE.LIGHT
+                    return
+    pytest.fail("no tutorial figure to take the dark image from")
 
 
 def test_the_kernels_built_here_satisfy_rietx_s_own_requirement():

@@ -106,11 +106,25 @@ def install_source() -> str:
 
 KERNELSPEC = {"display_name": "Python (Pyodide)", "language": "python", "name": "python"}
 
-#: Light, pinned rather than inherited: every figure in the notebooks is drawn on
-#: white, so a site that followed the reader's dark setting would put white
-#: rectangles on a dark page.  `adaptive-theme` is what follows it.
-SETTINGS = {"@jupyterlab/apputils-extension:themes": {
+#: The site's theme, by what its figures can show (`settings`).  `adaptive-theme`
+#: follows the reader's own light or dark setting (WP-1970).  The light pin is
+#: WP-1966's, for figures drawn on white alone, which on a dark page would be
+#: white rectangles.
+FOLLOW = {"@jupyterlab/apputils-extension:themes": {"adaptive-theme": True}}
+LIGHT = {"@jupyterlab/apputils-extension:themes": {
     "theme": "JupyterLab Light", "adaptive-theme": False}}
+
+
+def settings(notebooks: list[dict]) -> dict:
+    """`FOLLOW` when every stored figure carries a dark image, else `LIGHT`.
+
+    The notebooks come from the newest tag, so this is a fact about that tag
+    and not about this checkout.  A tag cut before WP-1970 has figures drawn on
+    white alone, and its site stays light."""
+    figures = [o["data"] for nb in notebooks for c in nb["cells"] if c["cell_type"] == "code"
+               for o in c.get("outputs", []) if "image/png" in o.get("data", {})]
+    paired = all("rx-fig-dark" in "".join(f.get("text/html", "")) for f in figures)
+    return FOLLOW if paired else LIGHT
 
 
 def _is_install(cell: dict) -> bool:
@@ -119,7 +133,14 @@ def _is_install(cell: dict) -> bool:
 
 
 def project(data: bytes) -> dict:
-    """The notebook for the browser: its one install cell replaced, its kernel Pyodide's."""
+    """The notebook for the browser: its one install cell replaced, its kernel
+    Pyodide's, and its code cells marked trusted.
+
+    JupyterLite strips `<style>` from an output it does not trust, and a stored
+    output is untrusted unless its cell says otherwise, so each figure would
+    stay light on a dark page until its cell ran again (measured, WP-1970).
+    The outputs are this repository's own, built from its tag, so the mark is
+    what `jupyter trust` would sign."""
     nb = json.loads(data)
     installs = [c for c in nb["cells"] if _is_install(c)]
     if len(installs) != 1:
@@ -128,6 +149,9 @@ def project(data: bytes) -> dict:
     cell["source"] = install_source().splitlines(keepends=True)
     cell["outputs"] = []
     cell["execution_count"] = None
+    for code in nb["cells"]:
+        if code["cell_type"] == "code":
+            code.setdefault("metadata", {})["trusted"] = True
     nb["metadata"]["kernelspec"] = dict(KERNELSPEC)
     return nb
 
@@ -152,9 +176,11 @@ def build(wheels: Path, out: Path, ref: str, rietx_wheel: Path | None) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         contents = Path(tmp) / "contents"
         contents.mkdir()
+        projected = []
         for book in LANDING.notebooks(ref):
+            projected.append(project(book.data))
             (contents / book.name).write_text(
-                json.dumps(project(book.data), indent=1, ensure_ascii=False) + "\n",
+                json.dumps(projected[-1], indent=1, ensure_ascii=False) + "\n",
                 encoding="utf-8", newline="\n")
         lite_dir = Path(tmp) / "lite"
         lite_dir.mkdir()
@@ -165,7 +191,8 @@ def build(wheels: Path, out: Path, ref: str, rietx_wheel: Path | None) -> None:
                                     "exposeAppInBrowser": True},
         }, indent=2) + "\n", encoding="utf-8", newline="\n")
         overrides = lite_dir / "overrides.json"
-        overrides.write_text(json.dumps(SETTINGS, indent=2) + "\n", encoding="utf-8", newline="\n")
+        overrides.write_text(json.dumps(settings(projected), indent=2) + "\n",
+                             encoding="utf-8", newline="\n")
         # Built beside the old site and swapped in, so a failed build leaves it standing.
         built = Path(tmp) / "site"
         cmd = [sys.executable, "-m", "jupyterlite_core", "build",
