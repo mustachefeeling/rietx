@@ -59,6 +59,7 @@ from rietx.optimize.statistics import (
     OBS_PER_PARAMETER_PREFERRED,
     PINV_RCOND,
 )
+from rietx.params.parametric import FORM_TEST_LEVEL
 from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
 from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
 from rietx.report.layer2 import IMPURITY_SIGMA
@@ -186,6 +187,8 @@ myst_substitutions = {
     # read, and that test's level (WP-1929)
     "MOMENT_DIRECTION_SUPPORT": f"{MOMENT_DIRECTION_SUPPORT:.0e}",
     "STATIONARY_ANGLE_LEVEL": STATIONARY_ANGLE_LEVEL,
+    # the parametric form test's level (WP-1325)
+    "PARAMETRIC_FORM_LEVEL": FORM_TEST_LEVEL,
     "SCALE_B_SEPARATION_FLOOR": f"{SCALE_B_SEPARATION_FLOOR:.1e}",
     "DEFAULT_N_UNINDEXED": DEFAULT_N_UNINDEXED,
     "DEFAULT_SEARCH_LINES": DEFAULT_SEARCH_LINES,

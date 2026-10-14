@@ -1,0 +1,16 @@
+WP-1325: the score test against the refit, on the ZrMo2O8 ramp
+machine   Darwin arm64, 10 CPUs, python 3.12.10, numpy 2.5.4
+rietx     1.9.0 at 422391be, compiled kernels on
+load      29.61 15.08 8.03
+window    ranges 35..67 (0-based), 33 patterns; level for p: χ² tail
+
+chain     79.4 s
+untied    51.9 s; χ² 255371.3 with 1122 free; χ²r 1.873, f 2.503
+all three      56.1 s converged | refit Δχ²    839.3 for  93, F/f²  0.77 p 0.952 | score gain    899.9 for  93 (1.072 of refit), F/f²  1.08 p 0.291; tied-σ F/f²  0.82 | f tied 2.508 alt 2.265 untied 2.503 | J 0.82 s, score 0.05 s
+  cubic_a    at the all-three answer: score gain    521.3 for 31, F/f² 1.86 p 0.00256
+  trig_a     at the all-three answer: score gain    138.7 for 31, F/f² 0.49 p 0.992
+  trig_c     at the all-three answer: score gain    101.6 for 31, F/f² 0.36 p 1
+cubic_a        40.6 s converged | refit Δχ²    576.1 for  31, F/f²  1.58 p 0.0206 | score gain    582.8 for  31 (1.012 of refit), F/f²  2.09 p 0.000364; tied-σ F/f²  1.60 | f tied 2.505 alt 2.265 untied 2.503 | J 0.56 s, score 0.03 s
+trig_a         69.0 s converged | refit Δχ²    181.7 for  31, F/f²  0.50 p 0.991 | score gain    268.8 for  31 (1.479 of refit), F/f²  0.97 p 0.515; tied-σ F/f²  0.74 | f tied 2.504 alt 2.260 untied 2.503 | J 0.67 s, score 0.05 s
+trig_c         44.2 s converged | refit Δχ²    204.7 for  31, F/f²  0.56 p 0.976 | score gain    171.1 for  31 (0.836 of refit), F/f²  0.61 p 0.956; tied-σ F/f²  0.47 | f tied 2.506 alt 2.268 untied 2.503 | J 0.62 s, score 0.04 s
+cubic_a ^2     84.7 s converged | refit Δχ²    320.3 for  30, F/f²  0.91 p 0.608 | score gain    303.9 for  30 (0.949 of refit), F/f²  1.12 p 0.292; tied-σ F/f²  0.86 | f tied 2.503 alt 2.266 untied 2.503 | J 0.84 s, score 0.05 s

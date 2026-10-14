@@ -167,6 +167,10 @@ against the tree at e1d19359 on arrival.
     `DIAGNOSTIC_SCOPES` as FIT, warns when unbounded coefficients put a
     target outside its own window. A joint report should render it beside
     `RefinementResult.parametric`.
+  - **And a second, later on 2026-10-14.** `PARAMETRIC_FORM_REJECTED` (FIT)
+    and `RefinementResult.parametric_form` carry a score test of each
+    declared form. It leaves out the patterns `multi._unseen` holds, so
+    item 4's decision also changes which patterns the form test can see.
 
 ## Non-goals
 

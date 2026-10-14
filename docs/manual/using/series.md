@@ -1641,3 +1641,57 @@ per declaration, when the fitted coefficients put the target outside its own
 `hist.<h>.` path and `value` counts them. Do not quote the target there as a
 measurement. Narrow the subset to where the law holds, lower the polynomial's
 order, or declare a design basis that stays inside the range.
+
+### Testing the declared form
+
+The coefficients' esds assume the declared form is right. A joint fit tests
+each declaration at its answer against the alternative that frees the target in
+every pattern of the subset. The test costs one Jacobian evaluation and no
+refit: 0.7-0.8 s on 33 patterns of 4 168 points, where the fit took 47-117 s.
+`RefinementResult.parametric_form` holds one `ParametricFormTest` per
+declaration, and is `None` exactly when `RefinementResult.parametric` is.
+
+| Field | Holds |
+|---|---|
+| `ParametricFormTest.tie`, `ParametricFormTest.target` | the declaration's name and its target |
+| `ParametricFormTest.n_patterns` | the subset patterns whose own target entered the alternative; a pattern that cannot see the target is left out |
+| `ParametricFormTest.dof` | the directions the alternative adds, `n_patterns` less the coefficients when nothing is degenerate; `None` when a coefficient was not free at the answer, 0 when there was nothing to test |
+| `ParametricFormTest.statistic` | the χ² the alternative would remove, over χ²_red·f² |
+| `ParametricFormTest.cut` | the 95 % point of χ² for `dof` directions |
+| `ParametricFormTest.rejected` | `statistic > cut` |
+
+The statistic is about χ² with `dof` degrees of freedom while the form holds.
+{ref}`par-parametric-section` has the equation. `str(result)` closes each declaration with its verdict. On the
+ten-pattern LaB6 ramp above, with the truth bowed 9.4 × 10⁻⁵ Å below the line
+at mid-ramp, and a straight line declared:
+
+```text
+  parametric coefficients (user units, at each reference):
+    a: phases.0.cell.a at T=750
+      [1] 4.1658973(17) Å
+      [T] 0.0000207833(23) Å/K
+      form REJECTED: 2606.7 past the cut 15.5 for 8 directions over 10 patterns
+```
+
+The same ramp on its true line read 4.8 against the same cut. A rejected form
+adds `PARAMETRIC_FORM_REJECTED`, a warning on `RefinementResult.diagnostics`
+whose `where` names the coefficients and whose `value` is the statistic. Do
+not quote those coefficients or their esds. Add the next term to the basis and
+refit, or narrow the subset to where the form holds. A chain over the same
+patterns shows where the trajectory bends.
+
+The test has three limits.
+
+- It sees the form only where, and as well as, each pattern measures the
+  target. A pattern that cannot see the target adds nothing to the statistic,
+  so a law carried through patterns where a phase has faded out is not checked
+  there. On two synthetic ramps, one with a minor phase that faded out and one
+  with a minor phase broad and overlapped, a curved truth on its cell went
+  unrejected in 20 seeds of 20. A full untied refit rejected none of them
+  either.
+- Each declaration is tested with the others still in force. On the ZrMo₂O₈
+  ramp a cubic cell's straight line read 1.37 per direction beside laws on two
+  other cells, under the cut, and 1.57 declared alone, past it. When one law
+  is in doubt, fit it alone.
+- Each declaration is tested at 95 %, so a fit with several rejects a right
+  form more often than one time in twenty.

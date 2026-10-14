@@ -26,8 +26,15 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import linalg
 
-from ..optimize.statistics import PINV_RCOND
-from ..schemas.parametric import CoordinateTable, ParametricCoefficient, ParametricTie
+from ..optimize.blocked import added_columns_gain, held_projection
+from ..optimize.statistics import PINV_RCOND, berar_lelann_factor
+from ..schemas.interval import PARAMETER_INTERVAL_LEVEL
+from ..schemas.parametric import (
+    CoordinateTable,
+    ParametricCoefficient,
+    ParametricFormTest,
+    ParametricTie,
+)
 
 #: Below this, a pivoted-QR diagonal of the column-normalised Φ is a direction
 #: the basis does not have (rank refusal).  **Derived from the covariance's own
@@ -39,6 +46,14 @@ from ..schemas.parametric import CoordinateTable, ParametricCoefficient, Paramet
 #: collinearity (a ternary's x_A + x_B + x_C = 1 beside an intercept) sits at
 #: rounding, ~1e-16, eight decades below.
 RANK_RTOL = math.sqrt(PINV_RCOND)
+
+#: The confidence level of the form test (:func:`form_tests`): a declaration
+#: is rejected when its statistic passes the χ² point at this level for its
+#: degrees of freedom.  ``schemas.interval.PARAMETER_INTERVAL_LEVEL``'s value,
+#: as the stationary-angle test's is (WP-1929).  Each declaration is tested on
+#: its own, so a fit with several sees a false rejection more often than one
+#: in twenty.
+FORM_TEST_LEVEL = PARAMETER_INTERVAL_LEVEL
 
 
 @dataclass
@@ -341,4 +356,94 @@ def coefficient_rows(resolved: ResolvedParametric, values: dict[str, float],
             path=path, value=float(values[path]) / d,
             esd=None if esd is None else float(esd) / d,
             vary=bool(vary.get(path, False)), unit=resolved.units[j], reference=ref))
+    return out
+
+
+def target_columns(resolved: ResolvedParametric, bj, free_paths: list[str],
+                   skip: frozenset[int] = frozenset()) -> list[np.ndarray | None] | None:
+    """Each subset pattern's own column for the target, read off the tie's.
+
+    In pattern k the coefficient columns are Φ_kj·∂r_k/∂p_k, the target's
+    column times its row of Φ, so J_coef·Φ_kᵀ/‖Φ_k‖² is ∂r_k/∂p_k itself,
+    up to a factor constant in k (a value scale).  No residual is evaluated.
+    ``bj`` is the solve's :class:`~rietx.optimize.blocked.BlockJacobian`;
+    the result is one entry per block, a column over that block's rows or
+    ``None`` outside the subset, in ``skip``, and where Φ_k or the column is
+    zero, so a gradient-free pattern is not counted as tested.  ``skip``
+    is the patterns where an untied fit would hold the target, because the
+    pattern cannot see it (WP-1301).  ``None`` altogether when a coefficient
+    is not free, so its column is not in ``bj``.
+    """
+    index = {p: i for i, p in enumerate(free_paths)}
+    cols = [index.get(p) for p in resolved.paths]
+    if any(c is None for c in cols):
+        return None
+    out: list[np.ndarray | None] = [None] * bj.n_blocks
+    for row, k in zip(resolved.phi, resolved.patterns, strict=True):
+        norm = float(row @ row)
+        if norm == 0.0 or k in skip:
+            continue
+        local = {int(c): i for i, c in enumerate(bj.col_maps[k])}
+        col = bj.blocks[k][:, [local[c] for c in cols]] @ (row / norm)
+        if np.any(col):
+            out[k] = col[:, None]
+    return out
+
+
+def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data: int,
+               free_paths: list[str], skip: dict[str, frozenset[int]], hold
+               ) -> list[ParametricFormTest]:
+    """Each declaration's lack-of-fit test at the answer (WP-1325).
+
+    A score test, read off the answer alone.  The alternative frees the
+    target in each subset pattern (:func:`target_columns`, without ``skip``'s
+    patterns) in place of the declaration's coefficients, and
+    :func:`~rietx.optimize.blocked.added_columns_gain` says how much χ² one
+    linear step toward it removes, every other column refitted.  Columns in
+    ``hold`` (θ's indices) leave both sides, as a refit keeps a column on its
+    bound.  The gain over χ²_red·f² of the data rows of ``resid`` is ~χ²_k
+    while the form holds, k the directions the alternative adds.  The
+    denominator is the answer's own, the restricted estimate the textbook
+    score test takes (Rao, C. R., 1948, *Proc. Camb. Phil. Soc.* **44**, 50).
+    f is the Bérar-Lelann factor, because serially correlated residuals
+    inflate a χ² difference as they do an esd.
+
+    Measured on the ZrMo₂O₈ ramp (33 patterns), the gain was 0.98-1.04 of the
+    χ² a full untied refit removed for the strong phase's laws and for all
+    three laws together.  It was 0.89 and 1.36 for the weak phase's two, whose
+    refits stop in different minima.  The verdict matched the refit's on all
+    five laws.  It costs one Jacobian, 0.7-0.8 s against the refit's 41 s
+    (``docs/wp/1325-measure/form_score.py``).  Its power is where, and as
+    well as, a pattern measures the target: on synthetic ramps whose minor
+    phase fades out or overlaps, a bent truth was rejected in 0 of 20 seeds,
+    as by a full refit, and a straight one in 0 of 40 (``form_synthetic.py``).
+    """
+    rd = resid[:n_data]
+    chi2_red = float(rd @ rd) / max(n_data - len(free_paths), 1)
+    scale = chi2_red * berar_lelann_factor(rd) ** 2
+    index = {p: i for i, p in enumerate(free_paths)}
+    # the held side is one projection for every declaration tested here
+    null = None
+    out = []
+    for r in resolved:
+        cols = target_columns(r, bj, free_paths, skip.get(r.name, frozenset()))
+        n_patterns = 0 if cols is None else sum(c is not None for c in cols)
+        dof = statistic = cut = rejected = None
+        if cols is not None:
+            if null is None:
+                null = held_projection(bj, resid, hold)
+            gain, dof = added_columns_gain(bj, resid, cols,
+                                           [index[p] for p in r.paths], hold, null=null)
+            # fewer patterns than free coefficients: the alternative is smaller,
+            # so there is nothing to test, which the schema spells 0
+            dof = max(dof, 0)
+            if dof > 0 and np.isfinite(scale) and scale > 0.0:
+                from scipy.stats import chi2
+
+                statistic = gain / scale
+                cut = float(chi2.ppf(FORM_TEST_LEVEL, dof))
+                rejected = statistic > cut
+        out.append(ParametricFormTest(tie=r.name, target=r.target, n_patterns=n_patterns,
+                                      dof=dof, statistic=statistic, cut=cut,
+                                      rejected=rejected))
     return out

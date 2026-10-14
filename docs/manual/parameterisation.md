@@ -551,3 +551,44 @@ ten-pattern ramp the joint slope sat a mean 0.0012 esd from that line. The joint
 answer where a pattern's own likelihood is not Gaussian in $p_k$, such as a
 minor phase near its detection limit, or where other parameters are shared as
 well.
+
+The coefficients' esds assume the declared form is right, so the fit tests
+each declaration against the alternative that frees its target in every
+pattern of the subset. In pattern $k$ a coefficient's column is
+$\Phi_{kj}\,\partial r/\partial p_k$, so each pattern's own column for the
+target is read off the coefficients' columns with no further evaluation. The
+declaration is rejected when
+
+```{math}
+:label: par-parametric-form
+
+\frac{\min_\beta \lVert r - J\beta \rVert^2
+      - \min_\beta \lVert r - J_{\mathrm{u}}\beta \rVert^2}
+     {\chi^2_{\mathrm{red}} \cdot S''/S} \;>\; c_k,
+\qquad F_k(c_k) = \gamma,
+```
+
+{source}`rietx.params.parametric.form_tests`
+
+with $r$ the weighted residual at the answer and $J$ its free columns, less any
+the fit left on a bound. $J_{\mathrm{u}}$ is $J$ with the declaration's
+coefficient columns replaced by each subset pattern's own target column. A
+pattern that cannot see the target is left out of $J_{\mathrm{u}}$, as an
+untied fit would hold the target there. $k$ is the number of directions
+$J_{\mathrm{u}}$ adds past the covariance's cut, the subset's size less $m$
+when nothing is degenerate. $F_k$ is the $\chi^2_k$ distribution function,
+$S''/S$ the squared Bérar-Lelann factor of {eq}`est-berar-lelann`, and
+$\gamma$ = {{ PARAMETRIC_FORM_LEVEL }}. Each minimisation is one linear step,
+so the numerator is the score statistic of {eq}`est-suggest` for $k$ columns
+at once {cite}`rao1948`, and the test needs no refit. Serially correlated
+residuals inflate a $\chi^2$ difference as they inflate an esd, so the
+denominator carries the same factor.
+
+On the 33-pattern ZrMo₂O₈ ramp the numerator was 0.98-1.04 of the $\chi^2$ a
+full untied refit removed, for the strong phase's laws and for three laws
+together, and the verdict matched the refit's on all five laws tested. A
+pattern that cannot see the target adds nothing to the numerator, so the test
+cannot check how a form carries through the patterns where the target is
+invisible. On synthetic ramps whose minor phase faded out, or was broad and
+overlapped, a bent truth went unrejected in 20 seeds of 20, as it did under a
+full untied refit, and no straight truth was rejected in 40.

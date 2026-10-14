@@ -21,6 +21,9 @@ round-trip, so a self-driving lab can write one and a result can carry it:
 * :class:`ParametricCoefficient` — one refined coefficient on
   :attr:`RefinementResult.parametric <rietx.schemas.results.RefinementResult.parametric>`,
   in the caller's units at the reference.
+* :class:`ParametricFormTest` — one declaration's lack-of-fit test on
+  :attr:`RefinementResult.parametric_form
+  <rietx.schemas.results.RefinementResult.parametric_form>`.
 
 **The reference and scale are stored in the declaration** (patsy's lesson).  A
 polynomial term is evaluated on u = (z − reference)/scale.  Left out, both are
@@ -274,3 +277,36 @@ class ParametricCoefficient(Base):
     vary: bool
     unit: str | None
     reference: dict[str, float] | None
+
+
+class ParametricFormTest(Base):
+    """Whether one :class:`ParametricTie`'s form survives its own data.
+
+    A score test at the answer.  The alternative frees the target in each
+    pattern of the subset, in place of the coefficients, and one linear
+    least-squares step from the answer with every other free column refitted
+    says how much χ² that would remove (``params.parametric.form_tests``).
+    ``statistic`` is that χ² over χ²_red·f², the answer's reduced χ² and
+    Bérar-Lelann factor, which is ~χ² with ``dof`` degrees of freedom while
+    the form holds.  ``rejected`` is ``statistic > cut``, the χ² point at
+    ``params.parametric.FORM_TEST_LEVEL``, and then the coefficients' esds
+    assume a form the data refuses.
+
+    * ``n_patterns`` — the subset patterns whose own target entered the
+      alternative.  A pattern that cannot see the target is left out, as an
+      untied fit would hold it there (WP-1301), and so is one where Φ is zero.
+    * ``dof`` — the directions the alternative adds past the covariance's cut,
+      ``n_patterns`` less the free coefficients when nothing is degenerate.
+      ``None`` when the test did not run: a coefficient was not free at the
+      answer.  0 when there was nothing to test.
+    * ``statistic``, ``cut``, ``rejected`` — ``None`` unless ``dof`` is
+      positive and the answer's χ²_red·f² is a positive finite number.
+    """
+
+    tie: str
+    target: str
+    n_patterns: int
+    dof: int | None
+    statistic: float | None
+    cut: float | None
+    rejected: bool | None
