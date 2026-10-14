@@ -488,10 +488,13 @@ because it was not downloaded. Bunge's tables are published numbers.
       brucite standard, Rwp 0.469 bare, 0.185 under March-Dollase
       (r 0.658) and 0.192 under order 4, C2,0 1.34. The variant's text
       sends the reader to `result.texture` and the guard, not Rwp.
-- [ ] **Manual**: the equation in Part 2 (`corrections.md`, with its
+- [x] **Manual**: the equation in Part 2 (`corrections.md`, with its
       `*Source:*` line) replacing the "not implemented yet" sentence; the
       § Scope sentence in `manual.md`; Part 1 prose on declaring a block and
       reading J and the guard.
+      *Done 2026-10-14/15.* Part 2's section landed with Task 3. Part 1
+      documents the eleven new public names in `data.md`, `results.md`
+      and `refining.md`, and the deferred list is back to its 38.
 - [x] **Tests and acceptance**: the units above; synthetic recovery
       (noise-free patterns from known C for an m-3m, a 6/mmm, a -3m1, an mmm
       and a 2/m phase, under `bragg_brentano` and `debye_scherrer`, recovered
