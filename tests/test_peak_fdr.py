@@ -223,3 +223,63 @@ def test_a_named_position_is_never_held_to_the_detection_bar():
                       [20.0, 30.0])
     assert not any("weak_line" in p.flags for p in pl.peaks)
     assert "PEAK_EXPECTED_FALSE_LINES" not in {d.code for d in pl.diagnostics}
+
+
+def test_the_flag_follows_the_bar_in_both_directions():
+    det = _detection(1000.0)
+    peaks = [_peak(50.0), _peak(1.5, flags=["weak_line"]), _peak(40.0, flags=["weak_line"])]
+    # ``only`` fences what may be touched either way; without it a stale flag on
+    # a line that now clears the bar is cleared and a missing one is set
+    flag_weak_lines(peaks, det, only={0, 1})
+    assert peaks[1].flags == ["weak_line"] and peaks[2].flags == ["weak_line"]
+    flag_weak_lines(peaks, det)
+    assert peaks[2].flags == [] and peaks[1].flags == ["weak_line"]
+
+
+def _two_group_pattern():
+    tt = np.round(np.arange(10.0, 70.0, 0.01), 3)
+    pos = [14.0, 19.0, 23.5, 28.0, 33.0, 38.5, 44.0, 49.0, 54.5, 60.0]
+    y = 2000.0 + sum(3000.0 * np.exp(-0.5 * ((tt - p) / (0.08 / 2.3548)) ** 2)
+                     for p in pos)
+    obs = np.random.default_rng(5).poisson(y).astype(float)
+    return rx.PatternData(two_theta=list(tt), intensity=list(obs),
+                          sigma=list(np.sqrt(np.maximum(obs, 1))))
+
+
+def test_an_edit_re_marks_every_line_and_the_diagnostic_names_what_is_flagged():
+    """Yue's review of #947, item 1: the one-group refit used to add the flag
+    only inside the refitted group, so a stale flag elsewhere survived the edit
+    and the diagnostic named a line the list no longer flagged."""
+    from rietx.gui.peaks import _spliced
+    from rietx.indexing.pick import pick_peaks_with_state
+    pl, det, _ = pick_peaks_with_state(
+        _two_group_pattern(), rx.Instrument.debye_scherrer(wavelength=1.5406))
+    assert not any("weak_line" in p.flags for p in pl.peaks)
+    stale = pl.peaks[-1]
+    stale.flags = [*stale.flags, "weak_line"]
+    g = pl.peaks[0].group
+    assert stale.group != g
+    out = _spliced(pl, g, [p for p in pl.peaks if p.group == g], det)
+    assert not any("weak_line" in p.flags for p in out.peaks)
+    flagged = {f"{p.two_theta:.4f}°" for p in out.peaks if "weak_line" in p.flags}
+    assert set(_diag(out).where) == flagged
+    # deleting a group moves the bar too, and must re-mark as well
+    stale = out.peaks[-1]
+    stale.flags = [*stale.flags, "weak_line"]
+    gone = _spliced(out, g, [], det)
+    assert not any("weak_line" in p.flags for p in gone.peaks)
+
+
+def test_an_excluded_band_adds_no_trials():
+    """Yue's review of #947, item 2: the removed channels leave one large step,
+    which the sum divided by one FWHM and counted as 15°/FWHM trials never
+    searched."""
+    from rietx.indexing.peaks import detect_peaks
+    data = _two_group_pattern()
+    ins = rx.Instrument.debye_scherrer(wavelength=1.5406)
+    full = detect_peaks(data, ins).n_trials
+    data.excluded_regions = [(30.0, 45.0)]
+    cut = detect_peaks(data, ins).n_trials
+    # the width law is nearly flat over 10-70°, so removing 15° of the 60°
+    # takes about a quarter of the trials; the old sum took almost none
+    assert 0.70 < cut / full < 0.80

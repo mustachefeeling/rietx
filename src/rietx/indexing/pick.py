@@ -516,9 +516,11 @@ def flag_weak_lines(peaks: list[ObservedPeak], det: Detection, *,
     Benjamini–Hochberg at :data:`~rietx.schemas.indexing.PEAK_FDR_Q` on each
     component's I/σ_I over the pattern's resolution elements.  It is computed
     from the **whole** list every time — a false-discovery threshold is a
-    property of the pattern, not of a line — and ``only`` restricts which
-    components may be *marked*, for the one-group refit of the peak editor, as
-    :func:`flag_ghosts`' does.
+    property of the pattern, not of a line — so the flag is **set and cleared**
+    on every component to follow it: an edit that moves the bar moves it for
+    every line, and a flag the bar no longer supports must not outlive it.
+    ``only`` restricts which components may be touched, as :func:`flag_ghosts`'
+    does for its local flags; the peak editor does not pass it.
 
     **Reported, not refused** — the flag is absent from ``PEAK_UNUSABLE_FLAGS``,
     for ``axial_tail``'s reason: it is evidence, not proof.  Measured both ways:
@@ -530,11 +532,14 @@ def flag_weak_lines(peaks: list[ObservedPeak], det: Detection, *,
     count answers.
     """
     screen = fdr_screen(peaks, det)
-    for k in screen.weak:
+    weak = set(screen.weak)
+    for k, p in enumerate(peaks):
         if only is not None and k not in only:
             continue
-        if "weak_line" not in peaks[k].flags:
-            peaks[k].flags = [*peaks[k].flags, "weak_line"]
+        if k in weak and "weak_line" not in p.flags:
+            p.flags = [*p.flags, "weak_line"]
+        elif k not in weak and "weak_line" in p.flags:
+            p.flags = [f for f in p.flags if f != "weak_line"]
     return screen
 
 

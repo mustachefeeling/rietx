@@ -451,7 +451,7 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
         if ref > 0.0 and fwhm_meas > 0.0:
             scale = float(np.clip(fwhm_meas / ref, *PEAK_WIDTH_SCALE_BOUNDS))
     fwhm_seed_curve = scale * fwhm_pred
-    n_trials = float(np.sum(np.diff(tt) / fwhm_seed_curve[:-1]))
+    n_trials = _resolution_elements(tt, fwhm_seed_curve)
 
     # the Kα2 maximum of a resolved doublet is not a line — drop it before it
     # can become a group of its own with its own doublet
@@ -493,6 +493,25 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
     return Detection(tt, y, sigma, env, out, fwhm_meas,
                      float(np.median(fwhm_pred)), scale, int(len(shoulder_idx)),
                      tt[alias_idx], n_trials)
+
+
+#: A step this many times the median channel step is a gap — an excluded
+#: region the picker removed rather than masked — not a place it searched.
+TRIAL_GAP_STEPS = 3.0
+
+
+def _resolution_elements(tt: np.ndarray, fwhm: np.ndarray) -> float:
+    """∫ d2θ / FWHM(2θ) over the channels detection actually searched.
+
+    Excluded channels are removed from tt, so a step spanning one is much
+    larger than the channel step; it is skipped rather than counted, since a
+    line was never looked for there and counting it would raise the
+    false-discovery bar for every line that was."""
+    d = np.diff(tt)
+    if not len(d):
+        return 0.0
+    searched = d <= TRIAL_GAP_STEPS * float(np.median(d))
+    return float(np.sum(d[searched] / fwhm[:-1][searched]))
 
 
 def _candidates(tt: np.ndarray, y: np.ndarray, sigma: np.ndarray,

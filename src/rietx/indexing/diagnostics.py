@@ -211,8 +211,9 @@ def _false_line_diagnostic(peaks: PeakList, det: Detection) -> Diagnostic:
                f"the pattern's false-discovery bar (I/σ_I ≥ "
                f"{screen.z_threshold:.2f}, Benjamini–Hochberg at q = "
                f"{screen.q:g} over {screen.n_trials:.0f} resolution elements); "
-               f"about {screen.expected_false:.2f} of those kept are expected "
-               "to be noise")
+               f"at least about {screen.expected_false:.2f} of those kept are "
+               "expected to be noise (every component was first selected by "
+               "detection, so the bound understates)")
     if weak:
         message += (f", and {len(weak)} weaker one(s) are flagged "
                     "weak_line")

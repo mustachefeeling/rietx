@@ -1560,7 +1560,8 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         description=(
             "The pattern's own false-discovery bar on each component's "
             "intensity over its esd, and the expected number of noise lines "
-            "among those kept. Components under the bar are flagged weak and "
+            "among those kept, a lower bound, since detection selected every "
+            "component first. Components under the bar are flagged weak and "
             "stay usable. A component that absorbs a shape or "
             "background misfit carries real intensity and is not reached."
         ),
