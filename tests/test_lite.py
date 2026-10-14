@@ -77,15 +77,6 @@ def test_kernels_the_rietx_refuses_stop_the_build():
         LITE.check_kernels(wheel, ["numpy>=1.26", "rietx-kernels<2,>=1.3"])
 
 
-def test_the_site_serves_only_what_build_wheels_makes():
-    assert set(LITE.SERVED) == set(WHEELS.PACKAGES) == {"gemmi", "spglib", "rietx-kernels"}
-
-
-def test_the_site_is_pinned_light():
-    themes = LITE.SETTINGS["@jupyterlab/apputils-extension:themes"]
-    assert themes == {"theme": "JupyterLab Light", "adaptive-theme": False}
-
-
 @pytest.fixture
 def jupyterlite_fcntl(monkeypatch):
     """What JupyterLite's Pyodide kernel does at start (`pyodide_kernel/mocks.py`):

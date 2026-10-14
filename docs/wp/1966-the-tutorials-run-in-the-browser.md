@@ -154,6 +154,22 @@ version stamps and in one wall-clock-dependent indexing note in 03. The repo
 gains scripts only: wheels, site and toolchain are gitignored and built in
 CI, and the wheel cache holds about 2 MB.
 
+*Review* (`/code-review high --fix` over the whole branch, before the PR):
+ten findings. Five were fixed. `smoke.mjs` now fails a notebook whose stderr
+says the compiled kernels did not load. Before this, a broken kernel wheel
+would have passed on the numpy path. The wheel cache keys on `kernels/**`,
+the path `kernels.yml` rebuilds on. It is restored and saved as two steps, so
+a run cancelled after the build still keeps the wheels. The two dist-name
+literals come from `_about`. `build.py` builds beside the old site and swaps
+it in, so a failed build leaves the old site standing. I removed the two
+`test_lite.py` tests the review showed could not fail, since each compared a
+constant with a copy of itself, so the file is 11 passed and 1 skipped.
+Declined: one shared `flock` helper (three sites, each tested), a WASI
+threads check (no WASI target exists), and making the Lite steps
+`continue-on-error`. That last one is the maintainer's call, because it
+decides whether a broken browser site blocks the manual's deploy. Today it
+does.
+
 *Renumbered.* This was filed as WP-1963. The same afternoon `main` filed
 its own WP-1963 (a kernel over the pattern coordinates, #976) and took 1964
 and 1965, so this WP is 1966. The branch's commits up to the merge of

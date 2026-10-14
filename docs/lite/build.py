@@ -161,19 +161,24 @@ def build(wheels: Path, out: Path, ref: str, rietx_wheel: Path | None) -> None:
         # exposeAppInBrowser sets window.jupyterapp, which smoke.mjs drives.
         (lite_dir / "jupyter-lite.json").write_text(json.dumps({
             "jupyter-lite-schema-version": 0,
-            "jupyter-config-data": {"appName": "rietx tutorials", "exposeAppInBrowser": True},
+            "jupyter-config-data": {"appName": f"{ABOUT.DIST_NAME} tutorials",
+                                    "exposeAppInBrowser": True},
         }, indent=2) + "\n", encoding="utf-8", newline="\n")
         overrides = lite_dir / "overrides.json"
         overrides.write_text(json.dumps(SETTINGS, indent=2) + "\n", encoding="utf-8", newline="\n")
-        if out.exists():
-            shutil.rmtree(out)
+        # Built beside the old site and swapped in, so a failed build leaves it standing.
+        built = Path(tmp) / "site"
         cmd = [sys.executable, "-m", "jupyterlite_core", "build",
-               "--lite-dir", str(lite_dir), "--output-dir", str(out),
+               "--lite-dir", str(lite_dir), "--output-dir", str(built),
                "--contents", str(contents), "--settings-overrides", str(overrides),
                "--no-sourcemaps"]
         for w in found:
             cmd += ["--piplite-wheels", str(w)]
         subprocess.run(cmd, check=True, cwd=tmp)
+        if out.exists():
+            shutil.rmtree(out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(built, out)
     print(f"{out}: {len(LANDING.notebooks(ref))} notebooks at {ref}, "
           f"wheels {', '.join(w.name for w in found)}")
 

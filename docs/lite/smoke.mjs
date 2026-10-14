@@ -5,7 +5,8 @@
 // Serves SITE_DIR on 127.0.0.1, opens each notebook in the Notebook app, runs all
 // cells and waits for the kernel to go idle with every cell executed.  It prints
 // one line per notebook (wall clock, cells run, figures drawn) and every error
-// or stderr output, and exits 1 if any notebook raised.
+// or stderr output, and exits 1 if any notebook raised, left a cell unrun, or
+// warned that the compiled kernels did not load.
 //
 // --pyodide serves a local copy of Pyodide's full distribution (the
 // pyodide-<version>.tar.bz2 release asset, unpacked) at /_pyodide/, for a machine
@@ -119,6 +120,10 @@ for (const book of books) {
     }
     return out;
   });
+  // The compiled tier declines with a warning, never an error, so a site whose
+  // WebAssembly kernels failed to load would otherwise pass on the numpy path.
+  const declined = report.stderr.some((s) => s.includes("compiled kernels did not load"));
+  if (declined) report.errors.push("the compiled kernels did not load (see stderr)");
   const ok = report.errors.length === 0 && report.executed === report.cells;
   failed ||= !ok;
   console.log(`${ok ? "ok  " : "FAIL"} ${book}: kernel ${kernelReady.toFixed(0)} s, cells ${ran.toFixed(0)} s,`

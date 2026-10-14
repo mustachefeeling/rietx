@@ -11,7 +11,7 @@ tab. Written 2026-10-14 with Claude Code (WP-1966).
 |---|---|
 | `build_wheels.py` | `python build_wheels.py OUT` cross-compiles gemmi, spglib and rietx-kernels for the Pyodide the site loads. Pyodide ships none of them and PyPI has no WebAssembly wheel of any. The kernels come from this checkout's `kernels/`. It takes about six minutes and needs `uv`, `git`, `cmake`, `ninja` and `rustup` |
 | `build.py` | `python build.py --wheels OUT` builds the site into `site/`. It takes the notebooks at the newest `vX.Y.Z` tag, through the same reader the landing page's Colab links use, and puts in each one a browser install cell instead of `%pip install rietx`. The site's theme is pinned to light, because every figure is drawn on white |
-| `smoke.mjs` | `PW=<playwright> node smoke.mjs site/` runs every notebook of a built site in headless Chromium and fails on any error output |
+| `smoke.mjs` | `PW=<playwright> node smoke.mjs site/` runs every notebook of a built site in headless Chromium. It fails on any raised error, an unrun cell, or a warning that the compiled kernels did not load, and prints other stderr without failing |
 | `requirements.txt` | the JupyterLite pins for `build.py`. They move together with `build_wheels.PYODIDE` |
 
 ```sh

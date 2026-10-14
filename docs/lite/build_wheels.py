@@ -20,6 +20,7 @@ its Rust toolchain.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import shutil
@@ -29,6 +30,17 @@ import urllib.request
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+
+
+def _about():
+    """The name-bearing literals (`src/rietx/_about.py`), never spelled here."""
+    spec = importlib.util.spec_from_file_location("_lite_about", REPO / "src" / "rietx" / "_about.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ABOUT = _about()
 #: `jupyterlite_pyodide_kernel.constants.PYODIDE_VERSION` for the kernel in requirements.txt.
 PYODIDE = "314.0.6"
 #: The kernel pin that loads it, which requirements.txt must carry verbatim.
@@ -41,7 +53,7 @@ XBUILDENV = f"https://github.com/pyodide/pyodide/releases/download/{PYODIDE}/xbu
 #: Per package: where its source comes from (a PyPI `version`, or a `path` in
 #: this checkout), and what its build needs that a native build does not.
 PACKAGES = {
-    "rietx-kernels": {
+    f"{ABOUT.DIST_NAME}-kernels": {
         # No change at all: no threads of its own (the pool is Python's, and
         # `compiled.n_threads` answers 1 under Pyodide), and SLEEF is x86-64
         # only, so wasm32 takes the libm path the arm64 wheel takes.
