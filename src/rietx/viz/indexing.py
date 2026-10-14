@@ -32,7 +32,7 @@ from contextvars import ContextVar
 
 import numpy as np
 
-from .plots import PALETTES
+from .plots import PALETTES, _palette
 
 # The roles, in PALETTES per ground: ``index_obs`` and ``index_calc`` for
 # observed data and the calculated model, ``index_bkg`` and ``index_diff`` for
@@ -47,13 +47,6 @@ from .plots import PALETTES
 #: rather than in a generated hue.  ``PALETTES["dark"]["candidate"]`` is the
 #: dark ground's.
 CANDIDATE_COLORS = tuple(PALETTES["light"]["candidate"])
-
-
-def _hue(style: str) -> dict:
-    """The palette ``style`` names, or a ``ValueError`` naming the choices."""
-    if style not in PALETTES:
-        raise ValueError(f"style must be one of {sorted(PALETTES)}, not {style!r}")
-    return PALETTES[style]
 
 
 def _context(plt, style: str):
@@ -123,7 +116,7 @@ def plot_peak_list(peaks, data=None, *, path: str | None = None,
 
     if data is not None:
         require_two_theta(data, "plot_peak_list()")
-    hue = _hue(style)
+    hue = _palette(style)
     plt = _pyplot()
     usable = peaks.usable()
     tt = np.array([p.two_theta for p in usable], dtype=np.float64)
@@ -212,7 +205,7 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
     from ..indexing.engines import scored_positions
     from ..indexing.fom import MATCH_SIGMA, match_lines, predicted_lines
 
-    hue = _hue(style)
+    hue = _palette(style)
     plt = _pyplot()
     shown = list(candidates)[:n]
     if not shown:
@@ -227,7 +220,8 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
 
     with _context(plt, style):
         fig, (ax, axt) = plt.subplots(
-            2, 1, figsize=(11, 2.2 + 0.62 * len(shown)), dpi=dpi, FigureClass=_figure_class(), sharex=True,
+            2, 1, figsize=(11, 2.2 + 0.62 * len(shown)), dpi=dpi,
+            FigureClass=_figure_class(), sharex=True,
             gridspec_kw={"height_ratios": [1.5, 0.55 + 0.42 * len(shown)]})
 
         scale = float(inten.max()) if len(inten) and inten.max() > 0 else 1.0
@@ -347,7 +341,7 @@ def plot_validation(validation, result=None, *, path: str | None = None,
 
     ``style="dark"`` draws on the dark page's ground in the dark palette.
     """
-    hue = _hue(style)
+    hue = _palette(style)
     plt = _pyplot()
     absent = np.asarray(validation.predicted_but_absent_two_theta,
                         dtype=np.float64)
@@ -466,7 +460,7 @@ def plot_indexing(result, peaks, *, data=None, instrument=None,
     """
     from ..schemas.pattern import require_two_theta
 
-    _hue(style)  # refused before a Le Bail fit is spent on it
+    _palette(style)  # refused before a Le Bail fit is spent on it
     if data is not None or instrument is not None:
         require_two_theta(data, "plot_indexing()", instrument=instrument)
     token = _COMPOSING.set(True)
@@ -477,8 +471,11 @@ def plot_indexing(result, peaks, *, data=None, instrument=None,
     finally:
         _COMPOSING.reset(token)
     if path is not None:
-        for name, fig in figures.items():
-            fig.savefig(f"{path}_{name}.png")
+        # under the style, as each function's own save is: outside it a
+        # caller's ``savefig.facecolor`` would frame a dark figure in white
+        with _context(_pyplot(), style):
+            for name, fig in figures.items():
+                fig.savefig(f"{path}_{name}.png")
     return figures
 
 

@@ -112,14 +112,15 @@ Y_SCALES = ("linear", "sqrt", "log", "asinh")
 #:
 #: The ``index_`` roles, ``absent``, ``unmatched`` and ``candidate`` are
 #: :mod:`rietx.viz.indexing`'s (WP-1972).  Light's are the hues those figures
-#: have always drawn.  Each dark hue keeps its light one's OKLab hue and gains
-#: 0.19 in lightness, the mean lift of the three pairs this table already held
-#: (``series``, ``reseeded``, ``band``), so the candidate rows keep the
-#: lightness steps that tell them apart.  The two greys swap their order of
-#: ink, as ``obs`` and ``diff`` do, and ``absent``'s amber reads on both
-#: grounds as it is.  ``candidate`` is ranked like ``phase`` but is chosen per
-#: ground, because three of its hues are other roles' light colours, and a
-#: light colour takes one dark colour wherever it is drawn.
+#: have always drawn.  A light hue this table already held (``series``,
+#: ``reseeded``, ``band``) keeps that role's dark colour.  Each new one keeps
+#: its OKLab hue and gains 0.19 in lightness, the mean lift of those three
+#: pairs, so the candidate rows keep the lightness steps that tell them apart.
+#: The two greys swap their order of ink, as ``obs`` and ``diff`` do, and
+#: ``absent``'s amber reads on both grounds as it is.  ``candidate`` is ranked
+#: like ``phase`` but is chosen per ground, because four of its hues are other
+#: roles' light colours, and a light colour takes one dark colour wherever it
+#: is drawn.
 PALETTES = {
     # `ground` is the page the figure sits on.  Dark's is the manual's and the
     # landing page's warm panel, which is what `_ground_rc` paints; light's is
@@ -316,11 +317,17 @@ def _nice_ticks(forward, inverse, lo: float, hi: float, n: int = 4):
     return out
 
 
+def _palette(style: str) -> dict:
+    """The palette ``style`` names, or a ``ValueError`` naming the choices."""
+    if style not in PALETTES:
+        raise ValueError(f"style must be one of {sorted(PALETTES)}, not {style!r}")
+    return PALETTES[style]
+
+
 def _check_panel_args(style: str, x_axis: str, y_scale: str,
                       wavelength: float | None) -> None:
     """The keyword checks every panel shares, raised before anything is drawn."""
-    if style not in PALETTES:
-        raise ValueError(f"style must be one of {sorted(PALETTES)}, not {style!r}")
+    _palette(style)
     if x_axis not in X_AXES:
         raise ValueError(f"x_axis must be one of {list(X_AXES)}, not {x_axis!r}")
     if y_scale not in Y_SCALES:
@@ -488,8 +495,9 @@ def _darkened(fig):
 
     Three maps, which are what :func:`_style_context` changes between the two
     palettes.  A :data:`PALETTES` role takes the same role's dark colour, and
-    a ranked list's entry the same entry's.  Matplotlib's own black takes ``fg`` on text and ``rule`` on every other
-    line, as :func:`_ground_rc` sets them.  White takes ``ground``.  So a rietx
+    a ranked list's entry the same entry's.  Matplotlib's own black takes
+    ``fg`` on text and ``rule`` on every other line, as :func:`_ground_rc`
+    sets them.  White takes ``ground``.  So a rietx
     figure comes out as the one drawn with ``style="dark"``, pixel for pixel,
     and a caller's own ink in any other colour is left as drawn.  The
     redraw it replaces would have dropped what the caller added (WP-1970).
@@ -1305,10 +1313,8 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     ``style="dark"`` draws on the dark page's ground in the dark palette's
     trajectory roles (WP-1970), as :func:`plot_result`'s does.
     """
-    if style not in PALETTES:
-        raise ValueError(f"style must be one of {sorted(PALETTES)}, not {style!r}")
+    hue = _palette(style)
     plt = _pyplot()
-    hue = PALETTES[style]
 
     if isinstance(paths, str):
         paths = [paths]
