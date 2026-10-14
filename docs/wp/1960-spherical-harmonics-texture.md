@@ -93,9 +93,9 @@ Bunge (1982) gives a per-reflection multiplier:
 - The texture index is J = 1 + Σ (C_l^n)² / (2l+1) (GSAS-II's
   `G2lat.textureIndex`, 5.8.4 `GSASIIlattice.py:3467`).
 
-Check the equation, the normalisation and J against Von Dreele (1997) before
-Task 2. The paper is not in the local corpus; this form is read off
-GSAS-II's `SHPOcal` (`GSASIIstrMath.py:3010`).
+Task 1 checked this against the papers. It is Von Dreele's eq. (2)-(3) under
+cylindrical sample symmetry. His k_l^m are orthonormal on the sphere (his
+eq. 7 and 10, Bunge's 14.38 and 14.48), and J is his eq. (16).
 
 ### Measured while scoping (2026-10-14, e66fb223)
 
@@ -143,6 +143,102 @@ GSAS-II's `SHPOcal` (`GSASIIstrMath.py:3010`).
    GSAS-II's own environment returned 0.0 for every input, with the binaries
    reported found. Generate the golden through `SHPOcal` or the scriptable
    API, and check first that P ≠ 1 for a non-zero coefficient.
+   *Superseded in part, 2026-10-14 (Task 1).* The zeros were a missing
+   `pytexture.pyqlmninit()`, which GSAS-II's refinement driver calls before
+   any harmonic (`GSASIIstrMain.py:457`). With it, `GetKcl` and `GetKsl`
+   return real values.
+
+### Pinned by Task 1 (2026-10-14)
+
+**D2 is decided: ψ is the physical angle.** Three papers name a geometry,
+and all three put the Bragg-Brentano scattering vector on the plate normal.
+Järvinen (1993) Table I gives α = 0 for symmetric reflection and 90° for
+symmetric transmission and Debye-Scherrer. Ahtee et al. (1989) say the same
+in words. Popa (1992) takes K normal to the plate, with Ψ = α − θ (his
+eq. 27). Von Dreele (1997) measures ψ in "a coordinate system attached to
+the external form of the sample" and names no frame for a plate. Bunge
+(1982, 14.236) measures it from the sample's ∞-fold axis. No source gives a
+reason for ψ = 90° on a reflection plate. GSAS-II's 90° comes from a
+goniometer χ of 90° hard-coded in `SHPOcal`'s `Bragg` branch
+(`GSASIIstrMath.py:3021`). So `bragg_brentano` takes ψ = 0°, and
+`flat_plate_transmission` and `debye_scherrer` take 90°.
+
+**The basis is orthonormal, and GSAS-II's is not in five classes.** In the
+mirror-free classes (−1, 2/m, 4/m, −3, 6/m), GSAS-II puts one coefficient on
+(cos nβ + sin nβ)·√2·P̄_l^n/√(2π). For n ≠ 0 that function has norm² 2 over
+the sphere. Every other GSAS-II harmonic has norm² 1 (measured by
+quadrature). `G2lat.textureIndex` sums C²/(2l+1) in both cases, so GSAS-II's
+J counts those terms at half weight. rietx divides each function by its norm
+and keeps GSAS-II's (l, n) as the name.
+
+**The GSAS-II conversion.** For one P under `bragg_brentano`,
+C_rietx = C_GSAS · ‖K_GSAS‖ · P_l(0). Here P_l(0) = −1/2, 3/8, −5/16 and
+35/128 for l = 2, 4, 6 and 8. ‖K_GSAS‖ is √2 for the terms above and 1
+otherwise. Under rietx's 90° geometries the P_l(0) drops out. GSAS-II's
+`Debye` at zero goniometer angles has ψ = θ, and no constant converts that.
+
+**Where GSAS-II's harmonics can serve as a golden.** A harmonic that takes
+two values on one orbit is a function of which representative GSAS-II is
+handed. No basis can match it. The golden records each such term
+(`noninvariant`):
+
+| Laue class (setting) | GSAS-II's K on an orbit, Friedel mates included | Cause |
+|---|---|---|
+| mmm, 4/m, 4/mmm, 6/m, 6/mmm, m-3m; −3 and −3m1 on hexagonal axes | one value | |
+| m-3 | one value, one term short at l = 6 | treats m3 as m3m (measurement 2) |
+| −1; 2/m with unique axis a, b or c | n = 0 one value; every n ≠ 0 term two | `CrsAng`'s azimuth for these classes subtracts an index from a length (`b - h·cos γ`), so β is not an angle about the polar axis |
+| −3 and −3m on rhombohedral axes | every term two values | `CrsAng` puts the polar axis on [111] only for Laue `'R3'`/`'R3m'`. `SpcGroup` emits `'3R'`/`'3mR'`, so the axis falls back to c* |
+| −31m | the n = 3 terms two values | `GetKcl` gives −31m the sin 3β of −3m1, which −31m's operators do not leave invariant |
+
+These are defects in GSAS-II 5.8.4. They have not been reported upstream.
+
+**The golden.** `tests/data/gsas2_sh_texture.json` comes from
+`tests/data/make_gsas2_sh_texture.py`, run under GSAS-II's own interpreter.
+It holds sixteen cases: every Laue class, the three monoclinic unique axes
+and both rhombohedral-axes classes. Each runs to order 8 over 62 reflections.
+Per reflection it records the frame angles, each K, and `SHPOcal`'s P under
+`Bragg` and `Debye`. The script asserts P = 1 + Σ C·Lnorm·Kcl·Ksl and P ≠ 1.
+GSAS-II's `pytexture` is single precision: Ksl(90°)/Ksl(0°) at l = 2 is
+−0.50000005. The script is committed beside the numbers, against this
+task's "numbers only". A provenance row naming a script nobody can read
+records nothing. The script calls GSAS-II and copies none of it.
+
+**The crystal frame.** Popa (1992, eq. 24a) and GSAS-II's correct classes
+agree. The polar axis lies along c* with x along a. The monoclinic second
+setting puts the polar axis on b and x on c. Rhombohedral axes put it on
+[111]. Järvinen (1993) also puts the monoclinic polar axis on b. D6 stands.
+
+**Anchors from the papers.** A subagent read these and nobody has checked
+them. Each is a hypothesis until a Task 2 test reproduces it.
+
+- Bunge (1982) 14.284-14.287 print 0.646360, 0.359601, 0.835193 and 0.531858
+  for the cubic harmonics at l = 4, 6, 8 and 10. These read as |K_l(100)| of
+  the orthonormal function. The prefactor relation printed beside them is
+  inconsistent at l = 6 and 10.
+- Popa (1992) Table 4 gives Al₂O₃ t₂ = 0.54, t₄ = 0.186 and t₆ = 0.073. His
+  Fig. 2 shows A(222) ≈ 3.7 at Ψ = 0 and ≈ 0.5 at 90°. Bunge's normalisation
+  reproduces 3.66 and 0.49, so for n = 0, C = t·(2l+1)/2.
+- Ahtee et al. (1989) Table 1, nickel: W for 111, 200, 220, 311 and 331 is
+  reproduced to 5e-4 with Järvinen's max-normalised K₄₁ and K₆₁.
+- Järvinen (1993) Table 6, corundum: use C₂₀ = 0.85 and C₄₀ = 0.09 only. His
+  C₄₃ example measures the azimuth from a*, against his own x ⊥ m rule, and
+  that term is not invariant over {113}.
+
+Järvinen and Ahtee et al. normalise each harmonic to max|Y| = 1. They also
+drop the 4π/(2l+1) and use P_l(cos α) for the sample term. Their C differ
+from Von Dreele's by a per-term constant.
+
+**TOPAS is not settled.** Whitfield (2009) prints the macro,
+`PO_Spherical_Harmonics(sh, 4 load sh_Cij_prm {y00 !c00 1 y20 c20 …})`, with
+c00 fixed at 1. It gives no formula, normalisation or sample axis. It
+reports 13 refined terms at order 4 for P-1 wollastonite, where 14 exist,
+and does not say why. The conversion needs the Technical Reference, which is
+still unread. That reading moves to Task 9, which measures against TOPAS's
+own output anyway.
+
+**Bunge's tables are not held.** The library's copy of the "Numerical
+Tables" chapter is its one-page introduction. Table 15.2.1, which GSAS-II's
+`BOH` cites, sits in Appendix 3. The projector does not need it.
 
 ### Decisions, each with the practice behind it
 
@@ -175,7 +271,7 @@ The rest stand unless Task 1's reading overturns one.
   and that GSAS-II's default capillary model, with ψ = θ, has no constant
   conversion. The alternative is GSAS-II's ψ, which makes Bragg-Brentano
   coefficients identical and J a number about a fibre axis the plate does
-  not have. Decide after reading Von Dreele (1997) on the frame.
+  not have. Task 1 decided for the physical ψ (§ Pinned by Task 1).
 - **D3 — the order is declared.** GSAS-II takes it from a menu in the
   histogram panel. TOPAS takes it as `PO_Spherical_Harmonics(sh, order)`.
   Even, at least 2. An order with no allowed term for the Laue class is
@@ -213,7 +309,9 @@ The rest stand unless Task 1's reading overturns one.
   principal axis, the monoclinic two-fold whichever cell edge carries it,
   [111]* on rhombohedral axes), and the basis is chosen to coincide with
   GSAS-II's K_l^n in GSAS-II's frame (`G2lat.CrsAng`, `GSASIIlattice.py:2859`).
-  Where it cannot coincide, the conversion matrix is recorded instead. The
+  Where it cannot coincide, the conversion matrix is recorded instead.
+  Task 1 measured where it can: GSAS-II's K divided by its norm, on the
+  terms the golden does not mark `noninvariant`. The
   coefficients are the parameters, with no DOF indirection, because the
   basis is symmetric by construction (Stephens needs DOFs because its
   monomials are not). The basis is evaluated at the representative hkl. An
@@ -251,7 +349,7 @@ because it was not downloaded. Bunge's tables are published numbers.
 
 ## Tasks
 
-- [ ] **Pin the convention.** Read Von Dreele (1997), Bunge's chapter on
+- [x] **Pin the convention.** Read Von Dreele (1997), Bunge's chapter on
       symmetrised harmonics with the table GSAS-II's cubic coefficients cite
       (its `BOH`, "Table 15.2.1 … 1993, p 501"), and the TOPAS Technical
       Reference on `spherical_harmonics_hkl` and `PO_Spherical_Harmonics`.
@@ -261,10 +359,15 @@ because it was not downloaded. Bunge's tables are published numbers.
       fixed hkl list and cell per class, under `Bragg` and `Debye`. Commit the
       numbers only, as JSON under `tests/data/` with a README provenance row
       naming the generator script (measurement 4 says how not to call it).
+      *Done 2026-10-14 (§ Pinned by Task 1), except two parts. The TOPAS
+      reading moved to Task 9. Table 15.2.1 is not held.*
 - [ ] **`crystallography/harmonics.py`**: the real harmonics, the projector,
       the frame and the canonical basis (D6), with the Rᵀ trap named in the
-      docstring. Tests: the span equals GSAS-II's for every class except
-      m-3 at l = 6, where GSAS-II's is a proper subspace (measurement 2); for
+      docstring. Tests: each function equals GSAS-II's divided by its norm
+      on the golden's invariant terms, through § Pinned by Task 1's
+      conversion, to GSAS-II's single precision; the span equals GSAS-II's
+      for every class except m-3 at l = 6, where GSAS-II's is a proper
+      subspace (measurement 2); the anchors from the papers; for
       every one of gemmi's settings, the orbit average of a random harmonic
       under h → Rᵀh lies in the span (the "true metric lies in the span"
       check, one rank up); counts equal the character formula.
@@ -311,8 +414,11 @@ because it was not downloaded. Bunge's tables are published numbers.
 - [ ] **Plans**: every stage that frees `phases.*.preferred_orientation.r`
       also frees `phases.*.texture.*`, which matches only a declared block.
       `PLAN_INFO` says so.
-- [ ] **Readers and writers**: TOPAS `PO_Spherical_Harmonics(sh, order)`
-      imports into `Phase.texture` through Task 1's conversion, measured
+- [ ] **Readers and writers**: first read the TOPAS Technical Reference on
+      `PO_Spherical_Harmonics` and `spherical_harmonics_hkl` (moved from
+      Task 1) and write the TOPAS conversion in § Pinned by Task 1. TOPAS
+      `PO_Spherical_Harmonics(sh, order)`
+      imports into `Phase.texture` through that conversion, measured
       against TOPAS's own output (root CLAUDE.md, a foreign unit). The
       coverage row splits: `spherical_harmonics_hkl` inside a width equation,
       as in the Durham ZrMo₂O₈ file of WP-1130, is hkl-dependent broadening
@@ -350,8 +456,10 @@ because it was not downloaded. Bunge's tables are published numbers.
 
 - **Construction**: synthetic C recovered as above, and the identity
   bit-identical at `texture=None` and at C = 0.
-- **Cross-code**: P equals the GSAS-II golden to 1e-12 relative wherever the
-  bases coincide, through the stated conversion elsewhere.
+- **Cross-code**: P equals the GSAS-II golden to GSAS-II's single precision
+  on every term the golden does not mark `noninvariant`, through § Pinned by
+  Task 1's conversion. The bar was 1e-12 until Task 1 measured `pytexture`
+  at single precision.
 - **Real data, public**: IUCr CPD round-robin sample 2 (`qarr/cpd-2.prn`;
   brucite, P-3m1, strongly platy), the protocol of
   `test_sample2_brucite_march_dollase` with the brucite block swapped for
@@ -365,14 +473,18 @@ because it was not downloaded. Bunge's tables are published numbers.
 
 ## References
 
-The five journal entries were checked against Crossref on 2026-10-14. None
-is in the local corpus yet.
+The five journal entries were checked against Crossref on 2026-10-14. All
+five, and Bunge's two chapters, have been in the maintainer's library since
+2026-10-14. The library's chapter 15 is its introduction only, without the
+Appendix 3 tables.
 
 - Von Dreele, R. B. (1997). Quantitative texture analysis by Rietveld
   refinement. *J. Appl. Cryst.* 30(4), 517-525.
   doi:10.1107/S0021889897005918.
 - Bunge, H.-J. (1982). *Texture Analysis in Materials Science: Mathematical
-  Methods*. London: Butterworths. ISBN 0-408-10642-5. The symmetric
+  Methods*. London: Butterworths. ISBN 0-408-10642-5. Chapter 14,
+  "Mathematical Aids", doi:10.1016/B978-0-408-10642-9.50019-2; chapter 15,
+  "Numerical Tables", doi:10.1016/B978-0-408-10642-9.50020-9. The symmetric
   harmonics are §14.5-14.7 (cubic in §14.7.2 and §14.7.7), the cubic tables
   §15.4-15.5. GSAS-II's `BOH` cites "Table 15.2.1 … Cuvillier Verlag,
   Gottingen, 1993, p 501", the reprint, whose numbering may differ.
