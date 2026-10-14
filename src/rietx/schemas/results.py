@@ -1247,7 +1247,8 @@ def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
 
 
 def _parametric_lines(coefficients: list[ParametricCoefficient] | None,
-                      form: list[ParametricFormTest] | None = None) -> list[str]:
+                      form: list[ParametricFormTest] | None = None,
+                      joint: ParametricFormReading | None = None) -> list[str]:
     """The coefficients of a joint fit's parametric declarations (WP-1325).
 
     Nothing for ``None``, which is "no declaration": the block is the answer
@@ -1256,7 +1257,8 @@ def _parametric_lines(coefficients: list[ParametricCoefficient] | None,
     then one line per term in the caller's units, so the intercept reads as
     the target *at the reference* and never as an extrapolation to zero.  A
     term with no esd says which of the two reasons holds.  The declaration's
-    form test closes it, when ``form`` has one.
+    form test closes it, when ``form`` has one, and the joint reading of
+    every tested declaration closes the block.
     """
     if coefficients is None:
         return []
@@ -1281,6 +1283,9 @@ def _parametric_lines(coefficients: list[ParametricCoefficient] | None,
             lines.append(f"      [{c.term}] {value}{unit}")
         if tie in tests:
             lines.append(_form_line(tests[tie]))
+    if joint is not None:
+        n = sum(t.others_freed is not None for t in form or [])
+        lines.append(f"    the {n} tested laws together: form {_verdict(joint)}")
     return lines
 
 
@@ -1299,10 +1304,11 @@ def _form_line(t: ParametricFormTest) -> str:
             return ("      form not tested: the answer's χ²_red·f² is not a "
                     "positive finite number")
         return f"      form {_verdict(tied)} {over}"
+    # the freed reading is the verdict, so it reads first
     verdict = {True: "REJECTED", False: "not rejected", None: "not tested"}[t.rejected]
     return (f"      form {verdict} {over}:"
-            f"\n        with the other laws tied, {_verdict(tied)}"
-            f"\n        with the other laws freed, {_verdict(freed)}")
+            f"\n        with the other laws freed, {_verdict(freed)}"
+            f"\n        with the other laws tied, {_verdict(tied)}")
 
 
 def _verdict(r: ParametricFormReading) -> str:
@@ -1481,6 +1487,16 @@ class RefinementResult(Base):
     #: :attr:`parametric` is.  One writer:
     #: ``MultiHistogramRefinement._build_result``.
     parametric_form: list[ParametricFormTest] | None = None
+
+    #: The form test of every tested parametric declaration at once
+    #: (WP-1325): the χ² freeing each tested law's target in every pattern
+    #: would remove, as one
+    #: :class:`~rietx.schemas.parametric.ParametricFormReading`.  Two laws
+    #: whose targets move the pattern alike can each pass with the other freed
+    #: while both are wrong; this reading sees that, and names no law.
+    #: ``None`` unless two or more declarations were tested.  One writer:
+    #: ``MultiHistogramRefinement._build_result``.
+    parametric_form_joint: ParametricFormReading | None = None
 
     #: Each parametric declaration as the fit resolved it, with its
     #: coefficients' covariance in the caller's units, one
@@ -1747,7 +1763,8 @@ class RefinementResult(Base):
         lines = [f"RefinementResult: {self.status} ({self.mode})"]
         lines += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
         lines += _diagnostic_lines(self.diagnostics)
-        lines += _parametric_lines(self.parametric, self.parametric_form)
+        lines += _parametric_lines(self.parametric, self.parametric_form,
+                                   self.parametric_form_joint)
         lines.append(_provenance_line(self.provenance))
         lines.append(_agreement_line(self.statistics))
         return "\n".join(lines)

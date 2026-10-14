@@ -120,7 +120,12 @@ from .report.magnetic import moment_angle_stationary_diagnostics
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
 from .schemas.instrument import Instrument
-from .schemas.parametric import CoordinateTable, ParametricFormTest, ParametricTie
+from .schemas.parametric import (
+    CoordinateTable,
+    ParametricFormReading,
+    ParametricFormTest,
+    ParametricTie,
+)
 from .schemas.pattern import PatternData, require_two_theta
 from .schemas.results import (
     HistogramResult,
@@ -1783,10 +1788,11 @@ class MultiHistogramRefinement:
         diagnostics = diagnostics + _parametric_unseen_diagnostics(mt, unseen)
         # whether each declared form survives its data, holding what the one
         # bound test found on a bound (WP-1325, FIT)
-        parametric_form = _parametric_form_tests(models, mt, at_bounds, weights,
-                                                 unseen)
+        parametric_form, form_joint = _parametric_form_tests(models, mt, at_bounds,
+                                                             weights, unseen)
         coefficients = self._parametric_rows(esd_hist0)
-        diagnostics = diagnostics + _parametric_form_diagnostics(mt, parametric_form)
+        diagnostics = diagnostics + _parametric_form_diagnostics(mt, parametric_form,
+                                                                 form_joint)
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
                 stage_results[-1].name, outcome)
@@ -1895,6 +1901,7 @@ class MultiHistogramRefinement:
             # their covariance; ``None`` when nothing was declared (WP-1325)
             parametric=coefficients,
             parametric_form=parametric_form,
+            parametric_form_joint=form_joint,
             parametric_laws=self._parametric_laws(coefficients, corr),
             histograms=histograms)
 
@@ -2221,10 +2228,12 @@ def _parametric_unseen_diagnostics(mtable, unseen: dict[str, frozenset[int]]
 
 def _parametric_form_tests(models, mtable, at_bounds, weights,
                            unseen: dict[str, frozenset[int]]
-                           ) -> list[ParametricFormTest] | None:
-    """Each declaration's lack-of-fit test at the answer (WP-1325).
+                           ) -> tuple[list[ParametricFormTest] | None,
+                                      ParametricFormReading | None]:
+    """Each declaration's lack-of-fit test at the answer, and the joint
+    reading of every tested declaration at once (WP-1325).
 
-    ``None`` when nothing was declared.  One Jacobian at the answer, blocked
+    ``(None, None)`` when nothing was declared.  One Jacobian at the answer, blocked
     whatever layout the solve took, and :func:`~rietx.params.parametric.form_tests`
     reads it.  A pattern is left out of a declaration's alternative where
     ``unseen`` names it (:func:`_parametric_unseen`), the predicate the
@@ -2232,7 +2241,7 @@ def _parametric_form_tests(models, mtable, at_bounds, weights,
     columns ``at_bounds`` names stay on their bounds on both sides.
     """
     if not mtable.parametric:
-        return None
+        return None, None
     residual, jacobian, n_data = _multi_closures(models, mtable, weights=weights,
                                                  layout="blocked")
     x = mtable.x0()
@@ -2242,26 +2251,33 @@ def _parametric_form_tests(models, mtable, at_bounds, weights,
                       mtable.free_paths, unseen, hold)
 
 
-def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None
+def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
+                                 joint: ParametricFormReading | None = None
                                  ) -> list[Diagnostic]:
     """``PARAMETRIC_FORM_REJECTED`` — a declaration whose data refuses its
     form (WP-1325): one warning per rejected
     :class:`~rietx.schemas.parametric.ParametricFormTest`, ``where`` its
     coefficients, whose esds assume the form, and ``value`` the statistic of
-    the reading that rejected it, the tied one where both did."""
+    the verdict's reading.  One more, ``where`` every tested law's
+    coefficients, when the joint reading rejects and no law's own verdict
+    does: then the data refuses the forms together and cannot say which."""
     paths = {r.name: r.paths for r in mtable.parametric}
     out: list[Diagnostic] = []
     for t in tests or []:
         if not t.rejected:
             continue
-        freed = t.others_freed
-        r = t.tied if t.tied is not None and t.tied.rejected else freed
-        # tied, the law may have had no direction to test while freed it had
-        # one, so the tied side's statistic can be None
-        how = ("" if r is t.tied else
-               " once the other laws' targets are freed too (with them tied it "
-               + ("had no direction to test)" if t.tied.statistic is None else
-                  f"read {t.tied.statistic:.1f}, within the cut)"))
+        r = t.others_freed if t.others_freed is not None else t.tied
+        # the verdict is the freed reading wherever there is one; say what the
+        # tied one read when it passed, since a reader comparing refits will
+        # have run that one.  Tied, a law may have had no direction to test
+        # while freed it had one, so the tied statistic can be None
+        how = ""
+        if r is t.others_freed:
+            how = " with the other laws' targets freed"
+            if t.tied.statistic is None:
+                how += " (with them tied it had no direction to test)"
+            elif not t.tied.rejected:
+                how += f" (with them tied it read {t.tied.statistic:.1f}, within the cut)"
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_FORM_REJECTED",
             where=list(paths[t.tie]), value=r.statistic,
@@ -2275,6 +2291,23 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None
                         "term to the basis and refit, or narrow the subset to where "
                         "the form holds; the chain's trajectory shows where it "
                         "bends")))
+    if joint is not None and joint.rejected and not out:
+        # every law tested at once had its own freed reading
+        tested = [t for t in tests or [] if t.others_freed is not None]
+        names = ", ".join(repr(t.tie) for t in tested)
+        out.append(Diagnostic(
+            level="warning", code="PARAMETRIC_FORM_REJECTED",
+            where=[p for t in tested for p in paths[t.tie]], value=joint.statistic,
+            message=(f"parametric ties {names} together do not describe their "
+                     "targets: freeing every target in each pattern would remove "
+                     f"{joint.statistic:.1f} times χ²_red·f² of χ², past the "
+                     f"{100 * FORM_TEST_LEVEL:g} % point {joint.cut:.1f} of χ² for "
+                     f"{joint.dof} directions. No law's own reading rejects it, so "
+                     "the data does not say which form is wrong, and the "
+                     "coefficients' esds assume them all"),
+            suggestion=("do not quote the coefficients as they stand: add the next "
+                        "term to one law at a time and refit, and compare each law "
+                        "with the chain's trajectory")))
     return out
 
 

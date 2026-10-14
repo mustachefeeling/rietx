@@ -428,7 +428,7 @@ def target_columns(resolved: ResolvedParametric, bj, free_paths: list[str],
 
 def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data: int,
                free_paths: list[str], skip: dict[str, frozenset[int]], hold
-               ) -> list[ParametricFormTest]:
+               ) -> tuple[list[ParametricFormTest], ParametricFormReading | None]:
     """Each declaration's lack-of-fit test at the answer (WP-1325).
 
     A score test, read off the answer alone.  The alternative frees the
@@ -456,12 +456,19 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
 
     With two or more laws tested, each is read again with every other tested
     law's targets freed (``ParametricFormTest.others_freed``), the gain with
-    all swapped less the gain with the others swapped, and either reading
-    rejecting rejects the law.  At the ZrMo₂O₈ ramp's three-law answer the
-    cubic line read 42.8 for 31 directions tied (p 0.077) and 48.6 freed
+    all swapped less the gain with the others swapped.  That reading is the
+    law's verdict, since it assumes nothing of the other laws' forms; the tied
+    one assumes them right.  At the ZrMo₂O₈ ramp's three-law answer the cubic
+    line read 42.8 for 31 directions tied (p 0.077) and 48.6 freed
     (p 0.023); the freed gain was 575.3 against the 576.1 its own refit
-    removed (``form_freed.py``).  Two readings per law raise the false-alarm
-    rate above 5 %, by an amount not yet measured.
+    removed (``form_freed.py``).  Freed, two laws whose targets move the
+    pattern alike can absorb each other's misfit and both pass.  So the gain
+    with every law swapped is read too, one joint reading for the fit, which
+    names no law because the data cannot say which is wrong.  A regression
+    tests a term added last beside the overall test of the group the same way.
+
+    Returns the tests in declaration order and the joint reading, ``None``
+    unless two or more laws were tested.
     """
     rd = resid[:n_data]
     chi2_red = float(rd @ rd) / max(n_data - len(free_paths), 1)
@@ -489,10 +496,12 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
     # each law again with every other tested law's targets freed: the gain
     # with all of them swapped, less the gain with only the others swapped
     freed: list[ParametricFormReading | None] = [None] * len(resolved)
+    joint = None
     live = [i for i, s in enumerate(swaps) if s is not None]
     if len(live) >= 2:
         every = added_columns_gain(bj, resid, *_stacked(swaps, live, bj.n_blocks),
                                    hold, null=null)
+        joint = _reading(*every, scale)
         for i in live:
             others = [k for k in live if k != i]
             # one other law swapped alone is that law's tied alternative,
@@ -504,15 +513,14 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
     out = []
     for r, n_patterns, tied, other in zip(resolved, counts, readings, freed,
                                           strict=True):
-        # either reading rejecting is the verdict: tied, a law can pass behind
-        # another's misfit; freed, two collinear laws can absorb each other
-        verdicts = [v.rejected for v in (tied, other)
-                    if v is not None and v.rejected is not None]
+        # the verdict assumes nothing of the other laws: freed where there are
+        # others, and with none the two readings are one test
+        verdict = other if other is not None else tied
         out.append(ParametricFormTest(
             tie=r.name, target=r.target, n_patterns=n_patterns, n_subset=len(r.patterns),
-            rejected=any(verdicts) if verdicts else None, tied=tied,
+            rejected=None if verdict is None else verdict.rejected, tied=tied,
             others_freed=other))
-    return out
+    return out, joint
 
 
 def _stacked(swaps, which: list[int], n_blocks: int

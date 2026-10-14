@@ -468,7 +468,10 @@ from .._nearmiss import did_you_mean
 #: ``dof``/``statistic``/``cut`` moved into two ``ParametricFormReading``s,
 #: ``tied`` and ``others_freed``, each with a ``p_value``;
 #: ``RefinementResult.parametric_laws``, each declaration as resolved with its
-#: coefficients' covariance.  ``laws`` and ``parametric_laws`` default to
+#: coefficients' covariance; ``RefinementResult.parametric_form_joint``, the
+#: form test of every tested declaration at once, ``None`` below two.
+#: ``ParametricFormTest.rejected`` is the ``others_freed`` reading's verdict
+#: where there is one.  ``laws`` and ``parametric_laws`` default to
 #: ``None``, "not recorded", so an older result opens and claims nothing; the
 #: form-test fields are required and the old ones gone, ``parametric_form``
 #: being unreleased.

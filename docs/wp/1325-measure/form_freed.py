@@ -11,7 +11,9 @@ direction over the untied fit's χ²_red·f² (``form_score_results.txt``).
 
 Prints, per law, both readings off the three-law answer's own
 ``parametric_form``, and the second's gain over the untied fit's denominator
-beside the refit's recorded figure.  Run on ``real_ramp.py``'s window and
+beside the refit's recorded figure.  Then the joint reading of all three
+(``parametric_form_joint``), whose gain should be the 839.3 the untied fit
+removed from the three-law fit.  Run on ``real_ramp.py``'s window and
 protocol: ``python docs/wp/1325-measure/form_freed.py`` (about five minutes,
 one process; the data from ``python -m tests.local_data``).
 """
@@ -43,6 +45,8 @@ from tests import local_data  # noqa: E402
 
 #: each law alone, refitted against the untied fit (``form_score_results.txt``)
 REFIT = {"cubic_a": (576.1, 1.58), "trig_a": (181.7, 0.50), "trig_c": (204.7, 0.56)}
+#: the untied fit's χ² gain over the three-law fit (``form_score_results.txt``)
+REFIT_ALL = 839.3
 
 
 def reading(r) -> str:
@@ -93,6 +97,13 @@ def main() -> None:
             print(f"  {'':8} freed gain {gain:7.1f} ({gain / dchi2:4.2f} of the refit's "
                   f"{dchi2}); over the untied denominator {gain / denom / o.dof:4.2f}/dir "
                   f"against the refit's {per}", flush=True)
+    j = result.parametric_form_joint
+    print(f"  joint    {reading(j)}")
+    if j is not None and j.statistic is not None:
+        gain = j.statistic * own
+        print(f"  {'':8} joint gain {gain:7.1f} ({gain / REFIT_ALL:4.2f} of the untied "
+              f"refit's {REFIT_ALL}); over the untied denominator "
+              f"{gain / denom / j.dof:4.2f}/dir", flush=True)
     t0 = time.perf_counter()
     rx.RefinementResult.model_validate_json(result.model_dump_json())
     print(f"round trip {time.perf_counter() - t0:.2f} s")

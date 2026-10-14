@@ -284,7 +284,9 @@ class ParametricCoefficient(Base):
 
 
 class ParametricFormReading(Base):
-    """One reading of a form test (:class:`ParametricFormTest`).
+    """One reading of a form test (:class:`ParametricFormTest`), or of every
+    tested declaration at once (:attr:`RefinementResult.parametric_form_joint
+    <rietx.schemas.results.RefinementResult.parametric_form_joint>`).
 
     The alternative frees the declaration's target in each pattern of the
     subset, in place of its coefficients, and one linear least-squares step
@@ -332,10 +334,15 @@ class ParametricFormTest(Base):
       gain with every law's targets freed less the gain with only the others'
       freed, directions by the same difference.  ``None`` unless two or more
       laws were tested, since with one the two readings are one test.
-    * ``rejected`` — the verdict: either reading rejecting.  Tied, a law can
-      pass behind another law's misfit; freed, two collinear laws can absorb
-      each other.  Then the coefficients' esds assume a form the data
-      refuses.  ``None`` when no reading has a statistic.
+    * ``rejected`` — the verdict: ``others_freed``'s where there is one,
+      else ``tied``'s.  Freed assumes nothing of the other laws' forms, and
+      tied a law can pass behind another law's misfit.  Two laws whose
+      targets move the pattern alike can absorb each other freed, which the
+      joint reading of every law at once sees
+      (:attr:`RefinementResult.parametric_form_joint
+      <rietx.schemas.results.RefinementResult.parametric_form_joint>`).
+      When true, the coefficients' esds assume a form the data refuses.
+      ``None`` when the verdict's reading has no statistic.
     """
 
     tie: str

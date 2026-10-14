@@ -724,6 +724,7 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
     assert tied.cut == pytest.approx(15.507, abs=1e-3)
     assert form.rejected is tied.rejected is rejected, form
     assert form.others_freed is None              # one law: one reading
+    assert result.parametric_form_joint is None   # and no joint one
     from scipy.stats import chi2
     assert tied.p_value == chi2.sf(tied.statistic, tied.dof)
     assert (tied.p_value < 0.05) is rejected
@@ -1131,7 +1132,8 @@ def test_a_law_with_the_others_freed_is_the_difference_of_two_dense_gains():
     border's first two columns, each one's per-pattern copies its targets.
     With B freed too, A's gain is the χ² both swaps remove less what B's swap
     alone removes, as dense least squares reads them, and so are its
-    directions; a fit with one law gets no second reading."""
+    directions.  The verdict is that reading's, and the joint reading is the
+    χ² both swaps remove; a fit with one law gets neither."""
     bj = _random_arrow(11)
     rng = np.random.default_rng(12)
     r = rng.standard_normal(bj.shape[0])
@@ -1144,7 +1146,7 @@ def test_a_law_with_the_others_freed_is_the_difference_of_two_dense_gains():
             patterns=list(range(n)), phi=np.ones((n, 1)), labels=["1"],
             divisors=np.ones(1), units=[None])
 
-    a, b = form_tests([law("A"), law("B")], bj, r, n_data, names, {}, [])
+    (a, b), joint = form_tests([law("A"), law("B")], bj, r, n_data, names, {}, [])
     dense = bj.toarray()
 
     def copies(col: int) -> np.ndarray:
@@ -1169,40 +1171,97 @@ def test_a_law_with_the_others_freed_is_the_difference_of_two_dense_gains():
     assert b.others_freed.statistic / b.tied.statistic == pytest.approx(
         (only_a - both) / (held - only_b), rel=1e-8)
     for law_test in (a, b):
-        assert law_test.rejected is (law_test.tied.rejected or law_test.others_freed.rejected)
-    (alone,) = form_tests([law("A")], bj, r, n_data, names, {}, [])
-    assert alone.others_freed is None and alone.tied == a.tied
+        assert law_test.rejected is law_test.others_freed.rejected
+    assert joint.dof == 2 * (n - 1)
+    assert joint.statistic / a.tied.statistic == pytest.approx(
+        (held - both) / (held - only_a), rel=1e-8)
+    (alone,), none = form_tests([law("A")], bj, r, n_data, names, {}, [])
+    assert alone.others_freed is None and alone.tied == a.tied and none is None
+    assert alone.rejected is alone.tied.rejected
 
 
-def test_a_law_only_the_freed_reading_rejects_is_printed_and_warned_as_such():
+def _two_readings(tied_stat: float, tied_p: float, freed_stat: float, freed_p: float,
+                  cut: float = 44.985, dof: int = 31):
+    """Two ``ParametricFormReading``s at one cut, each rejecting past it."""
+    from rietx.schemas.parametric import ParametricFormReading
+
+    return tuple(ParametricFormReading(dof=dof, statistic=x, cut=cut, rejected=x > cut,
+                                       p_value=p)
+                 for x, p in ((tied_stat, tied_p), (freed_stat, freed_p)))
+
+
+def test_a_law_the_freed_reading_rejects_is_printed_and_warned_as_such():
     """The ZrMo₂O₈ cubic law's two readings (``form_freed_results.txt``):
-    passed with the other laws tied, rejected with them freed.  One verdict,
-    both readings printed under it, and a warning that says which rejected."""
+    passed with the other laws tied, rejected with them freed.  The freed
+    reading is the verdict and prints first, and the warning quotes it and
+    says what the tied one read."""
     from types import SimpleNamespace
 
     from rietx.multi import _parametric_form_diagnostics
-    from rietx.schemas.parametric import ParametricFormReading, ParametricFormTest
+    from rietx.schemas.parametric import ParametricFormTest
     from rietx.schemas.results import _form_line
 
-    tied = ParametricFormReading(dof=31, statistic=42.8, cut=44.985, rejected=False,
-                                 p_value=0.0771)
-    freed = ParametricFormReading(dof=31, statistic=48.6, cut=44.985, rejected=True,
-                                  p_value=0.0232)
+    tied, freed = _two_readings(42.8, 0.0771, 48.6, 0.0232)
     t = ParametricFormTest(tie="cubic_a", target="phases.1.cell.a", n_patterns=33,
                            n_subset=33, rejected=True, tied=tied, others_freed=freed)
     assert _form_line(t).splitlines() == [
         "      form REJECTED over 33 of 33 patterns:",
-        "        with the other laws tied, not rejected: 42.8 within the cut 45.0 "
-        "(p = 0.077) for 31 directions",
         "        with the other laws freed, REJECTED: 48.6 past the cut 45.0 "
-        "(p = 0.023) for 31 directions"]
+        "(p = 0.023) for 31 directions",
+        "        with the other laws tied, not rejected: 42.8 within the cut 45.0 "
+        "(p = 0.077) for 31 directions"]
     mt = SimpleNamespace(parametric=[SimpleNamespace(name="cubic_a",
                                                      paths=["vars.cubic_a_0",
                                                             "vars.cubic_a_1"])])
     (d,) = _parametric_form_diagnostics(mt, [t])
     assert d.value == 48.6 and d.where == ["vars.cubic_a_0", "vars.cubic_a_1"]
-    assert "once the other laws' targets are freed too" in d.message
-    assert "it read 42.8, within the cut" in d.message
+    assert "with the other laws' targets freed (with them tied it read 42.8" in d.message
+
+
+def test_laws_the_joint_reading_alone_rejects_are_warned_together_naming_none():
+    """Two laws that each pass with the other freed, while freeing both
+    removes more χ² than the cut for their directions together: one warning,
+    ``where`` both laws' coefficients, saying no law's own reading rejects.
+    A law rejected on its own reading takes the warning instead, and the
+    printed block closes on the joint reading either way."""
+    from types import SimpleNamespace
+
+    from rietx.multi import _parametric_form_diagnostics
+    from rietx.schemas.parametric import (
+        ParametricCoefficient,
+        ParametricFormReading,
+        ParametricFormTest,
+    )
+    from rietx.schemas.results import _parametric_lines
+
+    mt = SimpleNamespace(parametric=[SimpleNamespace(name=n, paths=[f"vars.{n}_0"])
+                                     for n in ("A", "B")])
+
+    def law(name: str, freed_stat: float) -> ParametricFormTest:
+        tied, freed = _two_readings(30.0, 0.5, freed_stat, 0.1)
+        return ParametricFormTest(tie=name, target=f"phases.0.cell.{name.lower()}",
+                                  n_patterns=33, n_subset=33, rejected=freed.rejected,
+                                  tied=tied, others_freed=freed)
+
+    joint = ParametricFormReading(dof=62, statistic=90.0, cut=81.381, rejected=True,
+                                  p_value=0.012)
+    passing = [law("A", 40.0), law("B", 41.0)]
+    (d,) = _parametric_form_diagnostics(mt, passing, joint)
+    assert (d.code, d.value, d.where) == (
+        "PARAMETRIC_FORM_REJECTED", 90.0, ["vars.A_0", "vars.B_0"])
+    assert "parametric ties 'A', 'B' together" in d.message
+    assert "No law's own reading rejects it" in d.message
+    (d,) = _parametric_form_diagnostics(mt, [law("A", 50.0), law("B", 41.0)], joint)
+    assert d.where == ["vars.A_0"]
+    assert _parametric_form_diagnostics(mt, passing, joint.model_copy(
+        update={"statistic": 70.0, "rejected": False})) == []
+    rows = [ParametricCoefficient(tie=n, target=t.target, term="1", path=f"vars.{n}_0",
+                                  value=1.0, esd=0.1, vary=True, unit=None,
+                                  reference=None)
+            for n, t in zip("AB", passing, strict=True)]
+    assert _parametric_lines(rows, passing, joint)[-1] == (
+        "    the 2 tested laws together: form REJECTED: 90.0 past the cut 81.4 "
+        "(p = 0.012) for 62 directions")
 
 
 def test_a_patterns_own_target_column_is_read_off_the_coefficients():
