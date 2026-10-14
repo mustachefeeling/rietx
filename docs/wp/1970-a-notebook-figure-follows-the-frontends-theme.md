@@ -171,7 +171,9 @@ old prefix.
 *Done.* `plot_trajectory` takes `style=`. Its five mark colours became
 `PALETTES` roles, and the light figure is byte-identical to before. The
 notebook output is `_repr_mimebundle_` (`viz.plots._notebook_bundle`): the
-light PNG, and for a figure drawn light an HTML pair from `_pair_html`. One
+light PNG, and for a figure drawn light an HTML pair from
+`viz._notebook.pair_html`. That leaf module imports nothing from rietx, so
+the structure figure reaches it without crossing the figure boundary. One
 light encode serves both. A PNG formatter returning `None` is registered for
 the figure class, which stops the inline backend's `Figure` formatter
 re-encoding over the bundle's PNG. `_darkened` recolours a deep copy: a
@@ -227,6 +229,17 @@ figures had no dark form, against a status that claimed every figure; the
 claims are narrowed and WP-1972 owns them. Declined: copying the structure
 lazily, which would let a later edit split the two pictures, and caching the
 structure's dark raster, which would hold a second image on every figure.
+
+*The fast suite* then found three failures this WP caused, all fixed in
+84f0be2f. The structure figure imported `viz.plots`, which
+`tests/test_figure_boundary.py` refuses. The pair moved to `viz._notebook`,
+and `figure3d.render.NOTEBOOK_DARK_GROUND` restates the dark ground, held
+equal to `PALETTES` as `NOTEBOOK_COLOURS` is. The stale-name guard read the
+notebooks' base64 HTML, and now skips a line with a data URI as it skips a
+PNG line. The skill's API index listed `StructureFigure._drawn_from`. The
+generator now skips private dataclass fields. That also removed three which
+had leaked into `api-magnetic.md` before this WP: `MagneticSolution._instrument`,
+`MagneticTrial._structure` and `MagneticTrial._result`.
 
 *Gotchas.* JupyterLite applies a settings override only from inside the
 lite-dir. A path outside it builds with `overrides.json: 0` and no error. The
