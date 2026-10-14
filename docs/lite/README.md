@@ -9,8 +9,8 @@ tab. Written 2026-10-14 with Claude Code (WP-1963).
 
 | path | what |
 |---|---|
-| `build_wheels.py` | `python build_wheels.py OUT` cross-compiles gemmi and spglib for the Pyodide the site loads. Pyodide ships neither, and PyPI has no WebAssembly wheel of either. It takes about five minutes and needs `uv`, `git`, `cmake` and `ninja` |
-| `build.py` | `python build.py --wheels OUT` builds the site into `site/`. It takes the notebooks at the newest `vX.Y.Z` tag, through the same reader the landing page's Colab links use, and puts in each one a browser install cell instead of `%pip install rietx` |
+| `build_wheels.py` | `python build_wheels.py OUT` cross-compiles gemmi, spglib and rietx-kernels for the Pyodide the site loads. Pyodide ships none of them and PyPI has no WebAssembly wheel of any. The kernels come from this checkout's `kernels/`. It takes about six minutes and needs `uv`, `git`, `cmake`, `ninja` and `rustup` |
+| `build.py` | `python build.py --wheels OUT` builds the site into `site/`. It takes the notebooks at the newest `vX.Y.Z` tag, through the same reader the landing page's Colab links use, and puts in each one a browser install cell instead of `%pip install rietx`. The site's theme is pinned to light, because every figure is drawn on white |
 | `smoke.mjs` | `PW=<playwright> node smoke.mjs site/` runs every notebook of a built site in headless Chromium and fails on any error output |
 | `requirements.txt` | the JupyterLite pins for `build.py`. They move together with `build_wheels.PYODIDE` |
 
@@ -30,10 +30,13 @@ site: `uv build --wheel --out-dir dist .` then
 WP-1917 parked JupyterLite because `pip` refuses rietx in Pyodide. There were
 four gaps, and none of them was a wall.
 
-1. **`rietx-kernels` has no WebAssembly build.** Its import is soft
-   (`model/compiled.py`), so rietx runs the numpy path. Only the resolver
-   objects. The install cell gives micropip a mock of it with no modules, and
-   sets `RIETX_COMPILED=0`, the switch the decline warning itself names.
+1. **`rietx-kernels` had no WebAssembly build.** The crate cross-compiles
+   unchanged: it starts no threads of its own, and its x86-only SLEEF code
+   already had a libm fallback, the one the arm64 wheel uses. Pyodide's CPython
+   has no threads, so `compiled.n_threads()` answers 1 there and the kernels
+   run on the caller. Under Pyodide, `tests/test_compiled_kernels.py` passes
+   22 and skips 1. The three it fails start threads, or assert a thread count
+   above one.
 2. **gemmi and spglib are not in Pyodide.** `build_wheels.py` builds them.
    Each needs a change a native build does not, and each change is written
    beside its package in `PACKAGES`.
@@ -46,19 +49,20 @@ four gaps, and none of them was a wall.
    import `flock` by name, which turns the mock into the `ImportError` they
    already read as Windows.
 
-Gaps 3 and 4 were fixed in rietx (WP-1963), so a release older than that fix
-fails in tutorials 02 and 06. That is why the Pages build serves a wheel built
-from the same commit as its notebooks.
+Gaps 3 and 4, and the thread count, were fixed in rietx (WP-1963), so a
+release older than that fix fails in tutorials 02 and 06. That is why the
+Pages build serves a wheel built from the same commit as its notebooks.
 
-## Two rules for changing the package
+## Three rules for changing the package
 
 Nothing in CI runs the browser, so these hold only if they are kept.
 
 - A count or an index handed to numpy is `intp`, never a fixed int64.
 - A POSIX primitive is imported by name (`from fcntl import flock`), never
   as a module whose attributes are read later.
+- Nothing assumes a thread can start. The kernel pool asks `n_threads()`.
 
-`smoke.mjs` is the check. Run it after a change that touches either.
+`smoke.mjs` is the check. Run it after a change that touches any of them.
 
 ## The numbers, 2026-10-14
 
@@ -72,10 +76,10 @@ entry.
 
 - **Not the agent's tool.** An agent driving rietx runs it in a Python
   with the compiled kernels. This is a reader's door.
-- **Not as fast as Colab.** Tutorial 02 took almost four minutes in the
-  browser against half a minute natively. Most of that is the missing compiled
-  kernels, since the native numpy path took 135 s. WebAssembly itself cost
-  1.7-1.8×.
+- **Not as fast as Colab.** Tutorial 02, the slowest, took 91 s in the
+  browser against 31 s natively. It took 226 s before the kernels were built
+  for WebAssembly. The rest are within about 30 s of native, most of that
+  the install cell.
 - **Files you upload stay in the browser** (IndexedDB), as JupyterLite keeps
   them. Notebook 06's text points at Colab's folder icon. JupyterLite's file
   browser has an upload button instead, and reading a pattern uploaded that

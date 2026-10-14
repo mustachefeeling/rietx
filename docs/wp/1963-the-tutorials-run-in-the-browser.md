@@ -18,11 +18,16 @@ WP-1917 parked JupyterLite as a non-goal: "Pyodide has no `rietx-kernels`
 wheel, so pip refuses rietx there". That is one of four gaps, and none is a
 wall.
 
-- **`rietx-kernels`**: no WebAssembly build. Its import is already soft
-  (`model/compiled.py`, `_load`), so rietx runs its numpy path. Only the
-  *resolver* refuses, and micropip's `add_mock_package(..., modules={})`
-  records the distribution without creating a module. `RIETX_COMPILED=0`
-  silences the decline warning, as the warning itself offers.
+- **`rietx-kernels`**: no WebAssembly build, and no sdist to make one from.
+  The crate cross-compiles unchanged with `pyodide-build` (maturin, the Rust
+  1.93.0 toolchain Pyodide's cross-build environment names, the stock
+  `wasm32-unknown-emscripten` target). It starts no threads of its own,
+  and its x86-only SLEEF `exp` already falls back to Rust's `f64::exp`, as
+  the arm64 wheel does. What did need a change was Python's side: Pyodide's
+  CPython has no threads (`sys._emscripten_info.pthreads` is False), so
+  `compiled.n_threads()` answers 1 there. Before the kernels were built,
+  micropip's `add_mock_package(..., modules={})` let rietx install on its
+  numpy path. That is the fallback if a kernel build ever breaks.
 - **gemmi and spglib**: absent from Pyodide's distribution and with no
   wasm wheel on PyPI (checked 2026-10-14: gemmi 0.7.5, spglib 2.8.0). Both
   cross-compile with `pyodide-build` against the Pyodide JupyterLite pins.
@@ -50,19 +55,22 @@ match that ABI.
 
 ## Non-goals
 
-- A WebAssembly build of `rietx-kernels`. PyO3 targets emscripten, but the
-  kernels' thread pool has no threads there.
-- A dependency marker (`rietx-kernels; sys_platform != "emscripten"`). It
-  would remove the mock line, and `pyproject.toml`'s comment on the
-  dependency rejects markers on purpose. That decision is the maintainer's.
+- Publishing the WebAssembly kernels to PyPI. The site builds them from
+  `kernels/` at its own commit. A published `pyemscripten` wheel would be a
+  second release artefact for `docs/RELEASING.md`.
+- A dark theme. The site is pinned light because every notebook figure is
+  drawn on white. Dark needs the figures drawn for it first.
 - Upstreaming gemmi and spglib recipes to `pyodide-recipes`, which would put
-  them on Pyodide's CDN and retire the build script.
+  them on Pyodide's CDN and retire most of the build script.
 
 ## Tasks
 
 - [x] `orbit_layout` passes its counts as `intp` (the one wasm32 failure).
 - [x] The three `fcntl.flock` sites import it by name.
 - [x] `docs/lite/build_wheels.py`: gemmi and spglib for the pinned Pyodide.
+- [x] rietx-kernels for the pinned Pyodide too, from `kernels/`, and
+  `compiled.n_threads()` answers 1 where the platform has no threads.
+- [x] The site's theme pinned to JupyterLab Light.
 - [x] `docs/lite/build.py`: the six notebooks, each with a browser install
   cell in place of `%pip install rietx`, built into a JupyterLite site.
 - [x] `docs/lite/smoke.mjs`: the site's six tutorials run in headless
@@ -93,6 +101,60 @@ PW=<playwright> node docs/lite/smoke.mjs docs/lite/site
 - PEP 783 (the `pyemscripten` platform tag).
 
 ## Handover log
+
+### 2026-10-14 (2nd session) — the compiled kernels run in the browser too
+
+rietx's compiled kernels now run in the browser, so the browser copy is no
+longer stuck on the slow path. The Rust crate cross-compiled to WebAssembly
+without a single change. Under Pyodide it passes the same agreement tests the
+native wheels do. The slowest tutorial (02) went from 226 s to 91 s, against
+31 s natively. The site is also pinned to the light theme, and stays light
+when the reader's system asks for dark, because every figure in the notebooks
+is drawn on white.
+
+*Done.* `build_wheels.py` builds rietx-kernels from `kernels/` with the Rust
+toolchain the cross-build environment names (`pyodide config get
+rust_toolchain`, 1.93.0) and installs it through `rustup`. The crate is
+copied first, so `target/` stays out of the checkout. `compiled.n_threads()`
+answers 1 where `sys._emscripten_info.pthreads` is False, with a native test
+that patches `_CAN_THREAD`. The install cell lost its mock and
+`RIETX_COMPILED=0`, and `build.py` refuses a site whose kernels the installed
+rietx's own requirement would not accept. `SETTINGS` pins JupyterLab Light
+with `adaptive-theme` off, through `--settings-overrides`. `pages.yml` keys
+the wheel cache on `kernels/Cargo.*` and `kernels/src/**` too.
+
+*Measured* (same machine and conditions as the table below, nothing else
+running; seconds of cell time in the browser):
+
+| notebook | numpy path in the browser | kernels in the browser | native, kernels |
+|---|---|---|---|
+| 01 | 37 | 39 | 11 |
+| 02 | 226 | 91 | 31 |
+| 03 | 106 | 101 | 58 |
+| 04 | 37 | 31 | 7 |
+| 05 | 42 | 37 | 11 |
+| 06 | 50 | 41 | 11 |
+
+Under Pyodide in Node, with the four wasm wheels, `tests/test_compiled_kernels.py`
+passed 22 and skipped 1 (the x86-only FCJ build check), with three deselected.
+Those three fail by construction there: two start threads, and one asserts
+that a count of 4 is honoured. The kernels wheel is 0.13 MB, and
+`build_wheels.py` runs in about six minutes from cold. With the OS asking for
+dark, the built site's body reported `JupyterLab Light`.
+Natively, `tests/test_compiled_kernels.py` gives 27 passed (+1),
+`tests/test_lite.py` 13 passed and 1 skipped (`[dev]`, CPython 3.12.3, Linux
+x86-64). The full fast selection was not rerun after this round. The one
+`src/` change returns what it returned before on every platform with threads.
+
+*Answers given to the maintainer.* Notebook parity with Colab: Colab opens
+v1.9.0's notebooks and installs 1.9.0, and `/lite/` opens `main`'s with a
+wheel from `main`. Their tutorial sources are identical today (`git diff
+v1.9.0 HEAD -- 'examples/tutorials/*.py'` is empty). Their outputs differ in
+version stamps and in one wall-clock-dependent indexing note in 03. The repo
+gains scripts only: wheels, site and toolchain are gitignored and built in
+CI, and the wheel cache holds about 2 MB.
+
+*Next.* Unchanged from the entry below, less item (4), which this did.
 
 ### 2026-10-14 — all six tutorials run in a browser tab
 
