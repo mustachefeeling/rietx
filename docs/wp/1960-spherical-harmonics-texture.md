@@ -461,9 +461,11 @@ because it was not downloaded. Bunge's tables are published numbers.
       min P −0.45 on (hk0), and `TEXTURE_NOT_POSITIVE` fired. The
       code's skill row is in `abstention.md`, since `diagnostics.md`
       had 6 B of budget left.
-- [ ] **Plans**: every stage that frees `phases.*.preferred_orientation.r`
+- [x] **Plans**: every stage that frees `phases.*.preferred_orientation.r`
       also frees `phases.*.texture.*`, which matches only a declared block.
       `PLAN_INFO` says so.
+      *Done 2026-10-14.* One stage frees March-Dollase, in
+      `mccusker_structural`; it frees `phases.*.texture.*` beside it.
 - [ ] **Readers and writers**: first read the TOPAS Technical Reference on
       `PO_Spherical_Harmonics` and `spherical_harmonics_hkl` (moved from
       Task 1) and write the TOPAS conversion in § Pinned by Task 1. TOPAS

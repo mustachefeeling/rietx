@@ -303,3 +303,13 @@ def test_the_record_matches_its_definition():
     assert row.texture_index == pytest.approx(expected, rel=1e-6)
     assert row.min_p_sphere <= row.min_p_reflections
     assert not [d for d in result.diagnostics if d.code == "TEXTURE_NOT_POSITIVE"]
+
+
+def test_the_structural_plan_frees_a_declared_block_with_march_dollase():
+    from rietx.strategy.staged import PLAN_PRESETS
+
+    (stage,) = [st for st in PLAN_PRESETS["mccusker_structural"]().stages
+                if "phases.*.preferred_orientation.r" in st.turn_on]
+    table = _table(_phase(texture=SphericalHarmonicTexture(order=4)))
+    assert table.set_vary(stage.turn_on, True) == [
+        "phases.0.texture.c2_0", "phases.0.texture.c4_0", "phases.0.texture.c4_3"]

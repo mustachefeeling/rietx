@@ -386,8 +386,12 @@ class RefinementPlan:
             # in Q-dependent ways, so letting the structure settle first leaves
             # PO with its own axis-angle signature to fit.  The glob matches only
             # phases that declared a PO block; r ≡ 1 is the identity, so a start
-            # from 1.0 perturbs nothing until the data pull it off.
-            Stage("preferred_orientation", ["phases.*.preferred_orientation.r"]),
+            # from 1.0 perturbs nothing until the data pull it off.  The
+            # spherical-harmonics texture (WP-1960) is the same effect and
+            # frees here too: its glob matches only a declared block, and
+            # C = 0 is its identity.
+            Stage("preferred_orientation", ["phases.*.preferred_orientation.r",
+                                            "phases.*.texture.*"]),
             # primary extinction (WP-0506, named secondary until WP-1451)
             # comes *after* the displacement stage on purpose: ext, Biso and
             # the ADPs all attenuate high-Q intensity, so letting the
@@ -678,7 +682,8 @@ PLAN_INFO: dict[str, PlanInfo] = {
             "The standard order continued into the structure: coordinates as "
             "site-symmetry DOFs, then displacement parameters (biso or the "
             "anisotropic patterns, whichever each site declares), then preferred "
-            "orientation, extinction and surface roughness where declared."),
+            "orientation (March-Dollase or the spherical-harmonics texture), "
+            "extinction and surface roughness where declared."),
         modes=("rietveld",),
         when_to_use=(
             "A structure worth refining against data good enough to carry it. "
