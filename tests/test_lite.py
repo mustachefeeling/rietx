@@ -1,4 +1,4 @@
-"""The browser copy of the tutorials (`docs/lite/`, WP-1963): the projection, not the build.
+"""The browser copy of the tutorials (`docs/lite/`, WP-1966): the projection, not the build.
 
 Building the site needs JupyterLite and three cross-compiled wheels, and running
 it needs a browser, so neither is here (`docs/lite/README.md` has both commands).
@@ -11,7 +11,7 @@ requirement, or micropip refuses rietx in every notebook at once.
 And one fact about the browser's Python that a native run never meets: the
 kernel replaces `fcntl` with an empty module, so every lock site must read a
 missing `flock` the way it reads Windows.  Tutorial 02 raised on it at
-`Project.create` until WP-1963.
+`Project.create` until WP-1966.
 """
 
 from __future__ import annotations

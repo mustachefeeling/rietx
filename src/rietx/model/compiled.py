@@ -207,7 +207,7 @@ def _off_by_env() -> bool:
 
 
 #: False under Pyodide, whose CPython is built without threads: a pool there
-#: could never start a worker, so the kernels run on the caller (WP-1963).
+#: could never start a worker, so the kernels run on the caller (WP-1966).
 _CAN_THREAD = getattr(getattr(sys, "_emscripten_info", None), "pthreads", True)
 
 

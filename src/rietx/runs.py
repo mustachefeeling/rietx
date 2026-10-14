@@ -718,7 +718,7 @@ def _probe_lock(path: Path) -> Literal["held", "free", "unavailable"]:
     if not path.is_file():
         return "unavailable"
     try:
-        # by name, so JupyterLite's empty fcntl mock reads as Windows (WP-1963)
+        # by name, so JupyterLite's empty fcntl mock reads as Windows (WP-1966)
         from fcntl import LOCK_NB, LOCK_SH, LOCK_UN, flock
     except ImportError:      # pragma: no cover - Windows
         return "unavailable"
@@ -1378,7 +1378,7 @@ class RunRecorder(EventStream):
         the pid fallback instead, which is weaker and still true.
         """
         try:
-            # by name, so JupyterLite's empty fcntl mock reads as Windows (WP-1963)
+            # by name, so JupyterLite's empty fcntl mock reads as Windows (WP-1966)
             from fcntl import LOCK_EX, LOCK_NB, flock
         except ImportError:      # pragma: no cover - Windows
             return

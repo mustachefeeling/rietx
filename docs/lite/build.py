@@ -1,4 +1,4 @@
-"""Build the tutorial notebooks into a JupyterLite site that runs them in the browser (WP-1963).
+"""Build the tutorial notebooks into a JupyterLite site that runs them in the browser (WP-1966).
 
     python docs/lite/build.py --wheels DIR                 # the notebooks at the newest release tag
     python docs/lite/build.py --wheels DIR --ref HEAD --rietx-wheel dist/rietx-….whl

@@ -1,4 +1,4 @@
-"""Cross-compile what rietx needs and Pyodide lacks, for the Pyodide the site loads (WP-1963).
+"""Cross-compile what rietx needs and Pyodide lacks, for the Pyodide the site loads (WP-1966).
 
     python docs/lite/build_wheels.py OUT_DIR [--work DIR]
 

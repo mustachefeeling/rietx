@@ -38,7 +38,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 15 until WP-1963: an uncached run adds ~6 min of WebAssembly builds.
+    # 15 until WP-1966: an uncached run adds ~6 min of WebAssembly builds.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -62,7 +62,7 @@ jobs:
         run: |
           mkdir -p site/skill
           cp -R docs/skill/rietx site/skill/rietx
-      # The tutorials in the browser, at /lite/ (WP-1963; docs/lite/README.md).  gemmi,
+      # The tutorials in the browser, at /lite/ (WP-1966; docs/lite/README.md).  gemmi,
       # spglib and rietx-kernels cross-compiled for Pyodide take ~6 min, so they are
       # cached on the script that builds them and on the kernels' own source, which it
       # builds from this checkout.  The site serves a rietx wheel built from this commit

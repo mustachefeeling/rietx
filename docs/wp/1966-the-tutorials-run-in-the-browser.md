@@ -1,4 +1,4 @@
-# WP-1963 — the tutorials run in the browser, in JupyterLite
+# WP-1966 — the tutorials run in the browser, in JupyterLite
 
 Milestone: unscheduled · Status: 🔄 2026-10-14 — all six tutorials run in JupyterLite in headless Chromium; the site goes to /lite/ on merge, which is the maintainer's call
 Track: Render what the fit already knows
@@ -153,6 +153,12 @@ v1.9.0 HEAD -- 'examples/tutorials/*.py'` is empty). Their outputs differ in
 version stamps and in one wall-clock-dependent indexing note in 03. The repo
 gains scripts only: wheels, site and toolchain are gitignored and built in
 CI, and the wheel cache holds about 2 MB.
+
+*Renumbered.* This was filed as WP-1963. The same afternoon `main` filed
+its own WP-1963 (a kernel over the pattern coordinates, #976) and took 1964
+and 1965, so this WP is 1966. The branch's commits up to the merge of
+`main` carry the old prefix, `WP-1963:`. The worktree and its local branch
+are still named `wp1963-…`, and only the pushed branch name matters.
 
 *Next.* Unchanged from the entry below, less item (4), which this did.
 

@@ -3,7 +3,7 @@
 A JupyterLite site that runs the tutorial notebooks in a browser tab, on
 Pyodide (CPython compiled to WebAssembly). Nothing is installed and no
 account or server is needed. The kernel is a Web Worker in the reader's own
-tab. Written 2026-10-14 with Claude Code (WP-1963).
+tab. Written 2026-10-14 with Claude Code (WP-1966).
 
 ## What is here
 
@@ -49,7 +49,7 @@ four gaps, and none of them was a wall.
    import `flock` by name, which turns the mock into the `ImportError` they
    already read as Windows.
 
-Gaps 3 and 4, and the thread count, were fixed in rietx (WP-1963), so a
+Gaps 3 and 4, and the thread count, were fixed in rietx (WP-1966), so a
 release older than that fix fails in tutorials 02 and 06. That is why the
 Pages build serves a wheel built from the same commit as its notebooks.
 
@@ -69,7 +69,7 @@ Nothing in CI runs the browser, so these hold only if they are kept.
 Measured in a Linux cloud container (4 cores) with headless Chromium. Pyodide
 was served locally, rietx from the site, and nothing else was running. Every
 tutorial ran to the end with no error output. The printed numbers in 01 match
-the committed notebook digit for digit. The table is in WP-1963's handover
+the committed notebook digit for digit. The table is in WP-1966's handover
 entry.
 
 ## What it is not

@@ -85,12 +85,12 @@ hook is the `pyinstaller40` entry point: `hook-dirs =
 
 ### Inherited
 
-- **From WP-1963 (2026-10-14): a second host where run records are useless.**
+- **From WP-1966 (2026-10-14): a second host where run records are useless.**
   The JupyterLite site's install cell sets `RIETX_TELEMETRY=0` before rietx
   is imported, because no `rietx watch` can read a browser tab's runs
   (`docs/lite/build.py`, `INSTALL`). A once-per-process switch from this WP
   would replace that line, so name the browser as a second caller. The same
-  host also empties `fcntl`. WP-1963 made the three lock sites import `flock`
+  host also empties `fcntl`. WP-1966 made the three lock sites import `flock`
   by name, so a record written there takes the Windows path.
 
 ## Non-goals

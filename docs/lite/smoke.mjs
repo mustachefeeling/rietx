@@ -1,4 +1,4 @@
-// Run every notebook of a built JupyterLite site in headless Chromium (WP-1963).
+// Run every notebook of a built JupyterLite site in headless Chromium (WP-1966).
 //
 //   PW=<path to the playwright package> node docs/lite/smoke.mjs SITE_DIR [--pyodide DIR] [--only NAME]
 //

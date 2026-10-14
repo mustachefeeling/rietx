@@ -162,7 +162,7 @@ def orbit_layout(orbits: list[np.ndarray]
     """
     # ``intp``, not int64: ``repeat`` casts its counts to the index type under
     # the 'safe' rule, which refuses int64 where that type is 32 bits (wasm32,
-    # WP-1963).  The two are one type on every 64-bit platform.
+    # WP-1966).  The two are one type on every 64-bit platform.
     counts = np.array([len(o) for o in orbits], dtype=np.intp)
     if len(orbits) == 0:
         return np.zeros((0, 3), dtype=np.int64), np.zeros(0, dtype=np.int64), counts

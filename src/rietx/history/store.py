@@ -29,7 +29,7 @@ try:  # pragma: no cover - platform dependent
     # by name: JupyterLite's Pyodide kernel puts an empty `fcntl` module in
     # sys.modules, which `import fcntl` accepts and `from fcntl import` does not
     from fcntl import LOCK_EX, LOCK_UN, flock
-except ImportError:  # pragma: no cover - Windows, and that mock (WP-1963)
+except ImportError:  # pragma: no cover - Windows, and that mock (WP-1966)
     flock = None  # type: ignore[assignment]
 
 
