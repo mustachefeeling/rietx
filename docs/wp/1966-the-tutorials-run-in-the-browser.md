@@ -78,8 +78,8 @@ match that ABI.
 - [x] The site at `/lite/` in `pages.yml`, a wheel from the same commit.
 - [x] The maintainer opens the site and decides whether it ships. It
   does: a "Browser" link per landing-page row, beside Colab.
-- [ ] The two `docs/lite/README.md` rules as a root CLAUDE.md bullet (the
-  file is at its pinned cap, so that is a cap decision).
+- [x] The `docs/lite/README.md` rules as a root CLAUDE.md bullet. There
+  are three now, and the cap went from 978 to 983 lines.
 - [x] Skill: none. An agent driving rietx runs it in a Python with the
   kernels; this is a reader's door.
 

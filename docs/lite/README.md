@@ -63,6 +63,7 @@ Nothing in CI runs the browser, so these hold only if they are kept.
 - Nothing assumes a thread can start. The kernel pool asks `n_threads()`.
 
 `smoke.mjs` is the check. Run it after a change that touches any of them.
+The root CLAUDE.md states the same three rules, so a change to one changes both.
 
 ## The numbers, 2026-10-14
 
