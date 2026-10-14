@@ -761,3 +761,13 @@ def test_the_thread_count_is_settable_and_never_zero(monkeypatch):
         assert got >= 1
         if want is not None:
             assert got == want, f"{raw!r} gave {got}"
+
+
+def test_a_platform_without_threads_gets_one_whatever_is_asked(monkeypatch):
+    """Pyodide's CPython has no threads, so a pool there could never start a
+    worker: the count is one even when the environment asks for more (WP-1963)."""
+    from rietx._about import COMPILED_THREADS_ENV
+
+    monkeypatch.setattr(compiled, "_CAN_THREAD", False)
+    monkeypatch.setenv(COMPILED_THREADS_ENV, "4")
+    assert compiled.n_threads() == 1

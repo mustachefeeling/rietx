@@ -129,6 +129,7 @@ additions arrive in is the whole of its bit-identity claim.
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -205,13 +206,21 @@ def _off_by_env() -> bool:
         "0", "off", "no", "false"}
 
 
+#: False under Pyodide, whose CPython is built without threads: a pool there
+#: could never start a worker, so the kernels run on the caller (WP-1963).
+_CAN_THREAD = getattr(getattr(sys, "_emscripten_info", None), "pthreads", True)
+
+
 def n_threads() -> int:
     """Worker threads the row-parallel kernels split across.
 
     Capped at 8 because the measured ladder is flat past it, and settable so a
     caller that is already parallel one rank up (a test suite under ``xdist``, a
-    series fanned out across processes) can decline the second layer.
+    series fanned out across processes) can decline the second layer.  One
+    where the platform cannot start a thread, whatever the setting.
     """
+    if not _CAN_THREAD:
+        return 1
     raw = os.environ.get(COMPILED_THREADS_ENV, "").strip()
     if raw:
         try:
