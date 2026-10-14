@@ -893,6 +893,92 @@ true bilinear surface declared, blocked solve; load 10-24): the test took
 (3.7 %). It kept the true surface, 76.4 against a cut of 142.1 for 116
 directions and 197.9 against 337.1 for 296.
 
+### Measured: the form test out of sample (2026-10-14)
+
+Three real ramps, each with an over-flexible arm. Scripts and output are in
+`1325-measure/`: `zrp2o7_*`, `wo3_*` and `zrmo2o8_overflex.py`. Two lanes ran
+ZrP₂O₇ and WO₃ at load 4-110, beside other sessions' suites. Wall times are
+in the results files.
+
+**The models.**
+- ZrP₂O₇: 37 patterns, 303 K to 1173 K and back, three phases parsed from
+  the input's `str` blocks (`read_topas_inp` refuses its `B1` macros).
+  Untied Rwp 31.47 %, TOPAS 31.56 %. TOPAS's 2θ calibration curve
+  (0.006-0.011°) is left out, since rietx has no such term.
+- WO₃: 100 patterns, 300 K to 90 K, three phases from `read_project_model`.
+  TOPAS's Einstein law on each edge is a `design` law with θ held at
+  125.37 K, and the angles are quadratic. Untied Rwp 13.53 %, TOPAS
+  12.81 %. One B per pattern is held at the chain's value in the joint
+  fits. The forward chain fell into a wrong minimum at 206-221 K, so each
+  pattern is seeded from the better of a forward and a backward chain.
+
+**The denominator.** Laws that must hold any smooth truth: a cubic or
+quartic per window, or a quintic over the ramp.
+
+| ramp | f | readings | rejected over χ²_red·f² (shipped) | over χ²_red alone | over 1 |
+|---|---|---|---|---|---|
+| ZrP₂O₇ | 1.23 | 20 freed, 2 joint | 0, 0 | 0, 0 | not run |
+| WO₃ | 2.4-3.6 | 210 freed, 15 joint | 0, 0 | 10, 2 | 39, 9 |
+| ZrMo₂O₈ | 2.42 | 12 freed, 2 joint | 0, 0 | 2, 0 | 7, 2 |
+
+- Over χ²_red alone, 12 of 242 freed readings reject (5.0 %), and 2 of 19
+  joint readings. WO₃'s ten fall at or above 238 K, mostly on Pc, whose
+  cell is unmeasured there while the support screen counts the phase seen.
+- With f², none of 261 readings rejects. The statistic per direction has
+  a median of 0.067 on WO₃, and the p-values pile toward 1 on ZrP₂O₇
+  (KS p 0.0002 pooled; 0.70 over χ²_red alone).
+- On ZrMo₂O₈, the ramp f² was chosen on, the over-flexible statistic over
+  χ²_red alone has a median of 1.08 per direction (0.35-2.15).
+- Synthetic, for comparison (§ Measured: the form test): f² is
+  conservative there too, and without it 1 of 20 straight truths was
+  rejected.
+
+**The laws, recorded before any comparison.**
+- ZrP₂O₇, one law over both legs, ZrP₂O₇ across its transition: that law
+  is rejected (3122 for 34). Beside it, Si's freed reading rejects
+  (51.4 for 35, p 0.036) while Si's law-alone refit keeps it (p 0.92).
+- ZrP₂O₇ with its law split at the transition: every law keeps with f²,
+  each freed gain 0.92-1.10 of its law-alone refit. Over χ²_red alone the
+  joint reading rejects (190.7 for 134, p 0.0009). A nested refit against
+  one law per leg rejects too (p 0.0013): the transition's hysteresis,
+  cooling +6(3) × 10⁻⁴ Å above heating below 502 K. Si shows no lag
+  (+1.2(3.4) K at 587 K). With one law per leg and field, 1 of 10 laws
+  rejects over χ²_red alone, and the joint reading keeps (p 0.13).
+- WO₃, TOPAS's laws: 4 of 14 rejected with f² (the three P2₁/n edges and
+  Pc c), and the joint reading (1941.9 for 1367). Against law-alone
+  refits: m_c freed p 0.0056 against the refit's 0.12 (gain 1.22×); t_a
+  both keep; t_beta freed p 0.17 against the refit's 5 × 10⁻⁷ (gain
+  0.62×), its chain points at χ²_red 5.89 about the law. Over χ²_red
+  alone, both readings of m_c and of t_beta reject.
+- ZrMo₂O₈, § Measured: the form test's lines over χ²_red alone: 9.9, 4.1
+  and 3.7 per direction, against the over-flexible arm's 1.08.
+
+**One linear step from a far answer.** The score is one step from the
+tied answer. Where a law is far wrong, the answer sits far from the
+alternative, and other laws' readings drift from their refits: Si on
+ZrP₂O₇ (2.6× and 3.1× its law-alone refit's gain, beside a law at 3122 for
+34), m_c and t_beta on WO₃ (1.22× and 0.62×). Where the laws are near
+right, each freed gain is 0.92-1.10 of its refit.
+
+**Found on the way.**
+- A law's seed broke a target's own bounds, and the fit refused before its
+  first iteration (`ValueError … breaks its own bounds`). It happened on
+  WO₃ and on ZrMo₂O₈'s windowed cubic (trigonal c 12.276 Å against
+  12.263 Å). Both runs widened the cell windows to get past it. This is
+  the in-step-bounds task's.
+- `MultiHistogramRefinement` has no tie verb, so WO₃'s one B per pattern
+  could only be held in a joint fit.
+- The support screen counted WO₃'s Pc as seen where its cell is
+  unmeasured (1.5-3.5 wt % above 221 K), so the form test counts those
+  patterns.
+- `real_ramp.py` sets the FCJ axial ratios to v/L from TOPAS's
+  `Simple_Axial_Model(v)`. The ZrP₂O₇ lane reads v as a full length, so
+  v/2L, which lowered χ²_red by 0.045-0.085 on five patterns. Not checked
+  against TOPAS's manual. The package does not convert the macro.
+- Unexplained: WO₃'s t_beta law-alone fit printed its own reading as
+  110.1 for 97 (p 0.171), the all-laws freed reading to every digit. It
+  is not used.
+
 ### What the code has (survey, 2026-10-14)
 
 - **`multi.py` is the seam: N patterns, one θ** (WP-0308).
