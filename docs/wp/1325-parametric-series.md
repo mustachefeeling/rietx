@@ -779,14 +779,22 @@ Where a kernel over measurement coordinates has paid most is in choosing
     joint fit of the same patterns.
   - The deliverable gains a "functional form" row that says NOT measured
     when no joint fit is given.
-- [ ] Manual Part 1 `using/series.md` (series and library); Part 2 the
-  equation with its *Source* line; the skill's series reference.
+- [x] Manual Part 1 `using/series.md` (series and library); Part 2 the
+  equation with its *Source* line; the skill's series reference. Landed:
+  - `using/series.md` § A parameter as a function of each pattern's
+    coordinates;
+  - `parameterisation.md` § the same, with `{eq}par-parametric` and
+    `{eq}par-parametric-units`;
+  - the 28 names left `api_surface_deferred.txt`.
 - [ ] Tests: a synthetic ramp with a known a(T) (a₁ within one esd of truth,
   and the esd no larger than the trajectory-line's); a synthetic library
   with a known 2-D surface over ≥ 100 patterns, through the blocked solver.
   obs/calc/diff PNGs to `tests/output/`.
-- [ ] Skill: the series reference's routing row for "a parameter as a
+- [x] Skill: the series reference's routing row for "a parameter as a
   function of composition or temperature across patterns", or "none" and why.
+  Landed as one row in `references/series.md`, with measured tags. No
+  `api-series.md` page: it would need a routing line in `SKILL.md`, which is
+  over its budget.
 
 ## Acceptance
 
