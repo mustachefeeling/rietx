@@ -304,6 +304,11 @@ def test_the_compiled_box_test_refuses_what_it_cannot_serve():
         call(swaps=(0, 6))
     with pytest.raises(ValueError, match="C-contiguous"):
         call(rows=np.ones((3, 5)).T)
+    with pytest.raises(ValueError, match="basis_t"):
+        rietx_kernels.dichotomy_box_test(
+            np.ones((5, 0)), np.arange(5, dtype=np.uint16), np.empty(0),
+            np.empty(0), np.ones((6, 0)), 1.0, 0.0, 1.0,
+            np.empty(0, dtype=np.int64), *edges, 0, 0.8, False)
 
 
 @needs_kernel

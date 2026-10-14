@@ -6,7 +6,7 @@
 //!
 //! **The floating-point half is a transcription.**  `q_bounds_row` and
 //! `af_interval` sum their at most six terms left to right, which is what
-//! numpy's `.sum(axis=1)` does at that width.  `tests/test_compiled_kernels.py`
+//! numpy's `.sum(axis=1)` does at that width.  `tests/test_indexing_kernels.py`
 //! pins numpy to that order, so a numpy that changed it fails there first.
 //! `det` copies `_det_interval` operation for operation, and its `min` and
 //! `max` keep the *first* of equal values, as Python's do.
@@ -26,7 +26,7 @@
 //! WP-1959.  Every prune is a refusal with no side effect, so the order
 //! changes only the cost.
 
-use numpy::{Element, PyArray1, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
+use numpy::{Element, PyArray1, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 
 use crate::{err, pl, sl};
@@ -377,7 +377,8 @@ fn box_test_loop<T: Id>(u: &Unit, ids: &[T], lo: &[f64], hi: &[f64], want_col_ma
     let mut width = 0.0;
     let mut col_max = vec![0.0; if want_col_max { w } else { 0 }];
     let mut mask_count = MaskCount::new();
-    let mut dense = Dense::new(u.lo_s, u.hi_s);
+    // the per-line counts are allocated only where a mask cannot hold them
+    let mut dense = u.masks.is_none().then(|| Dense::new(u.lo_s, u.hi_s));
     for &id in ids {
         let r = match id.at() {
             Some(r) if r < n_rows => r,
@@ -391,13 +392,14 @@ fn box_test_loop<T: Id>(u: &Unit, ids: &[T], lo: &[f64], hi: &[f64], want_col_ma
         }
         n_kept += 1;
         let position = out.len();
-        let reached = match &u.masks {
-            Some(masks) => {
+        let reached = match (&u.masks, &mut dense) {
+            (Some(masks), _) => {
                 let mask = masks.of(q_min, q_max);
                 mask_count.add(mask, position);
                 mask != 0
             }
-            None => dense.add(q_min, q_max, position) > 0,
+            (None, Some(dense)) => dense.add(q_min, q_max, position) > 0,
+            (None, None) => unreachable!("dense is built whenever masks is None"),
         };
         if reached {
             width = running_max(width, q_max - q_min, position == 0);
@@ -413,7 +415,10 @@ fn box_test_loop<T: Id>(u: &Unit, ids: &[T], lo: &[f64], hi: &[f64], want_col_ma
         return Ok(None);
     }
     let n_lines = u.lo_s.len() as i64;
-    let tally = if u.masks.is_some() { mask_count.tally() } else { dense.tally() };
+    let tally = match &dense {
+        Some(dense) => dense.tally(),
+        None => mask_count.tally(),
+    };
     if n_lines - tally.reached as i64 > u.n_unindexed {
         return Ok(None);
     }
@@ -440,7 +445,7 @@ fn child_key_loop<T: Id>(u: &Unit, ids: &[T], lo: &[f64], hi: &[f64]) -> Result<
     let w = u.width;
     let n_rows = u.m.len() / w.max(1);
     let mut reached_lines = 0u64;
-    let mut dense = Dense::new(u.lo_s, u.hi_s);
+    let mut dense = u.masks.is_none().then(|| Dense::new(u.lo_s, u.hi_s));
     let (mut pairs, mut n_rows_hit) = (0i64, 0i64);
     for &id in ids {
         let r = match id.at() {
@@ -448,20 +453,21 @@ fn child_key_loop<T: Id>(u: &Unit, ids: &[T], lo: &[f64], hi: &[f64]) -> Result<
             _ => return Err(id.at().map_or(u64::MAX, |r| r as u64)),
         };
         let (q_min, q_max) = corner_sum(&u.m[r * w..(r + 1) * w], lo, hi);
-        let n = match &u.masks {
-            Some(masks) => {
+        let n = match (&u.masks, &mut dense) {
+            (Some(masks), _) => {
                 let mask = masks.of(q_min, q_max);
                 reached_lines |= mask;
                 mask.count_ones()
             }
-            None => dense.add(q_min, q_max, 0),
+            (None, Some(dense)) => dense.add(q_min, q_max, 0),
+            (None, None) => unreachable!("dense is built whenever masks is None"),
         };
         pairs += n as i64;
         n_rows_hit += (n > 0) as i64;
     }
-    let reached = match &u.masks {
-        Some(_) => reached_lines.count_ones() as i64,
-        None => dense.tally().reached as i64,
+    let reached = match &dense {
+        Some(dense) => dense.counts.iter().filter(|&&c| c > 0).count() as i64,
+        None => reached_lines.count_ones() as i64,
     };
     Ok((u.lo_s.len() as i64 - reached, pairs, n_rows_hit))
 }
@@ -476,7 +482,7 @@ fn unit<'a>(
     hi: &[f64],
     q_hi: f64,
     band: (f64, f64),
-    swaps: &'a PyReadonlyArray1<'_, i64>,
+    swaps: &'a [i64],
     lo_s: &'a PyReadonlyArray1<'_, f64>,
     hi_s: &'a PyReadonlyArray1<'_, f64>,
     n_unindexed: i64,
@@ -484,8 +490,8 @@ fn unit<'a>(
 ) -> PyResult<Unit<'a>> {
     let (m, [_, width]) = pl("m", m)?;
     let (basis_t, [six, bw]) = pl("basis_t", basis_t)?;
-    let (swaps, lo_s, hi_s) = (sl(swaps)?, sl(lo_s)?, sl(hi_s)?);
-    if six != 6 || bw != width || lo.len() != width || hi.len() != width {
+    let (lo_s, hi_s) = (sl(lo_s)?, sl(hi_s)?);
+    if width == 0 || six != 6 || bw != width || lo.len() != width || hi.len() != width {
         return err(format!("basis_t is ({six}, {bw}), m is {width} wide, the box {} and {}",
                            lo.len(), hi.len()));
     }
@@ -555,8 +561,8 @@ pub(crate) fn dichotomy_box_test<'py>(
     cos_max: f64,
     want_col_max: bool,
 ) -> PyResult<Option<(Bound<'py, PyAny>, f64, bool, Option<Bound<'py, PyArray1<f64>>>)>> {
-    let (lo, hi) = (sl(&lo)?, sl(&hi)?);
-    let u = unit(&m, &basis_t, lo, hi, q_hi, (band_lo, band_hi), &swaps, &lo_s, &hi_s, n_unindexed,
+    let (lo, hi, swaps) = (sl(&lo)?, sl(&hi)?, sl(&swaps)?);
+    let u = unit(&m, &basis_t, lo, hi, q_hi, (band_lo, band_hi), swaps, &lo_s, &hi_s, n_unindexed,
                  cos_max)?;
     with_ids!(ids, ids, T, {
         let tested: Tested<T> = py.detach(|| box_test_loop(&u, ids, lo, hi, want_col_max));
@@ -584,8 +590,7 @@ pub(crate) fn dichotomy_child_key<'py>(
     hi_s: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<(i64, i64, i64)> {
     let (lo, hi) = (sl(&lo)?, sl(&hi)?);
-    let no_swaps = PyArray1::<i64>::zeros(py, 0, false).readonly();
-    let u = unit(&m, &basis_t, lo, hi, f64::INFINITY, (0.0, 0.0), &no_swaps, &lo_s, &hi_s, 0, 0.0)?;
+    let u = unit(&m, &basis_t, lo, hi, f64::INFINITY, (0.0, 0.0), &[], &lo_s, &hi_s, 0, 0.0)?;
     with_ids!(ids, ids, T, {
         let keyed: Result<(i64, i64, i64), u64> = py.detach(|| child_key_loop::<T>(&u, ids, lo, hi));
         keyed.or_else(bad_row)
