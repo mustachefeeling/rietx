@@ -66,7 +66,7 @@ import numpy as np
 
 from ..backend import get_backend
 from .adp import cartesian_basis
-from .symmetry import as_group, group_key, rotation_matrices
+from .symmetry import as_group, cell_constraints, group_key, rotation_matrices
 
 #: Tolerance on a projector check.  The projector is built by least squares
 #: on exact samples, so a member of its range comes back to about 1e-14.
@@ -428,18 +428,38 @@ class TextureBasis:
         return np.asarray(self.evaluate(reflection_directions(hkl, self.rule, cell)))
 
 
+def _symmetric_cell(group, cell) -> tuple[float, ...]:
+    """``cell`` with the setting's ties and fixed angles applied exactly.
+
+    ``ParameterTable`` accepts a fixed angle up to
+    ``symmetry.SYMMETRY_ANGLE_TOL_DEG`` from its value and a tied length at any
+    stored value, while :func:`frame_rotations` and the projector check
+    hold to about 1e-9.  The coefficients do not depend on the free values, so
+    the basis is built on the cell the symmetry demands.
+    """
+    names = ("a", "b", "c", "alpha", "beta", "gamma")
+    values = dict(zip(names, (float(v) for v in cell), strict=True))
+    constraints = cell_constraints(group)
+    values.update(constraints.fixed_angles)
+    for dependent, source in constraints.ties.items():
+        values[dependent] = values[source]
+    return tuple(values[n] for n in names)
+
+
 def texture_basis(space_group, order: int, cell) -> TextureBasis:
     """Every function the Laue class allows from l = 2 to ``order``.
 
-    ``order`` must be even and at least 2.  ``cell`` must carry the group's
-    symmetry.  It fixes the frame's Cartesian axes, and the coefficients do
-    not depend on its free values.
+    ``order`` must be even and at least 2.  ``cell`` fixes the frame's
+    Cartesian axes.  Its tied lengths and fixed angles are taken at the values
+    the symmetry demands, and the coefficients do not depend on its free
+    values.
     """
     if order < 2 or order % 2:
         raise ValueError(f"texture order {order}: it must be even and at least 2")
-    rotations = rotation_matrices(as_group(space_group))
+    group = as_group(space_group)
+    rotations = rotation_matrices(group)
     rule = frame_rule(rotations)
-    rots = frame_rotations(rotations, rule, cell)
+    rots = frame_rotations(rotations, rule, _symmetric_cell(group, cell))
     terms, coefs = [], []
     for degree in range(2, order + 1, 2):
         p = projector(degree, rots)

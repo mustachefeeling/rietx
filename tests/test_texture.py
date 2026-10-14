@@ -333,3 +333,11 @@ def test_poisson_noise_recovers_the_coefficients_within_three_esd(label):
     rows = {r.path.rsplit(".", 1)[1]: r for r in result.parameters if ".texture." in r.path}
     for name, value in truth.items():
         assert abs(rows[name].value - value) < 3.0 * rows[name].stderr, name
+
+
+def test_a_nearly_symmetric_cell_builds_the_same_terms():
+    """The table accepts a fixed angle 1e-3° off and a tied length at any stored
+    value; the basis is built on the cell the symmetry demands (review, WP-1960)."""
+    off = _phase(cell=_cell(3.15, 4.77, 120.0005), texture=SphericalHarmonicTexture(order=6))
+    exact = _phase(texture=SphericalHarmonicTexture(order=6))
+    assert list(_texture_rows(_table(off))) == list(_texture_rows(_table(exact)))
