@@ -59,7 +59,7 @@ match that ABI.
   `kernels/` at its own commit. A published `pyemscripten` wheel would be a
   second release artefact for `docs/RELEASING.md`.
 - A dark theme. The site is pinned light because every notebook figure is
-  drawn on white. Dark needs the figures drawn for it first, which WP-1967
+  drawn on white. Dark needs the figures drawn for it first, which WP-1970
   owns.
 - Upstreaming gemmi and spglib recipes to `pyodide-recipes`, which would put
   them on Pyodide's CDN and retire most of the build script.
@@ -103,6 +103,15 @@ PW=<playwright> node docs/lite/smoke.mjs docs/lite/site
 
 ## Handover log
 
+### 2026-10-14 (5th session) — "Hands-on", and the dark-figures WP renumbered
+
+The lead's first word now reads "Hands-on", at the maintainer's request.
+Main filed WP-1967 to WP-1969 for issues #933 to #935 while this branch was
+open. This branch had filed the dark-figures WP as WP-1967, so it is now
+WP-1970. Commit e0fa96dc still carries the prefix `WP-1967:`, and that
+commit belongs to WP-1970. The merge with main was clean, because the two
+1967 rows sat in different sections of the generated index.
+
 ### 2026-10-14 (4th session) — the panel names JupyterLite, and the rules reach CLAUDE.md
 
 The landing page now offers the browser copy first and calls it by its
@@ -112,7 +121,7 @@ how the link differs from Colab, because Colab runs in a browser too. The
 three rules that keep rietx running under Pyodide are now in the root
 CLAUDE.md, so a session changing the package meets them without opening
 `docs/lite/`. That was the last task, and the WP closes. The maintainer's
-question about dark-mode figures became WP-1967.
+question about dark-mode figures became WP-1970.
 
 *Done.* The lead reads "Run them live in your browser with JupyterLite, or
 on Colab." The maintainer gave that sentence and asked for a light polish.
@@ -139,7 +148,7 @@ not run, because no measured number can move.
 
 *Review* (`/code-review high --fix` over this session's range): no
 correctness bug. It fixed two doc lines. The ticked task still named the
-Browser link, and WP-1967's Priority line offered `style=` to
+Browser link, and WP-1970's Priority line offered `style=` to
 `render_structure`, which takes `background=`. It also found the cap
 diary missing its 973 → 978 row of 2026-09-21. That row is restored from
 the `SIZE_CAPS` comment that recorded the raise. Declined: the finding that
@@ -150,18 +159,18 @@ session.
 dark theme. They can. A `text/html` output holds a light and a dark image,
 with the dark one hidden by an inline style. A `<style>` keyed on the
 frontend's dark marker swaps them. Where the `<style>` is stripped, as on
-GitHub or in a notebook opened untrusted, the light figure shows. WP-1967
+GitHub or in a notebook opened untrusted, the light figure shows. WP-1970
 holds the frontend table read from source, the prior art and the costs,
 about 0.25 s and 27 kB a figure. Its first task decides between drawing the
 dark copy again and recolouring a copy. Today every pattern figure takes
 `style="dark"` and `render_structure` a dark `background=`. The series
-figure has no dark form. The Lite site stays pinned light until WP-1967
+figure has no dark form. The Lite site stays pinned light until WP-1970
 lifts the pin.
 
-*Next.* Nothing remains in this WP. (1) WP-1967, when the maintainer wants
+*Next.* Nothing remains in this WP. (1) WP-1970, when the maintainer wants
 dark figures. (2) The lead's first sentence, "Hands on", is the
 maintainer's copy and was left as written. As a compound adjective it is
-usually hyphenated.
+usually hyphenated. (The 5th session hyphenated it.)
 
 ### 2026-10-14 (3rd session) — the landing page links the browser copy
 

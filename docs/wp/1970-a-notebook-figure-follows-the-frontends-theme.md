@@ -1,4 +1,4 @@
-# WP-1967 — a notebook figure follows the frontend's theme
+# WP-1970 — a notebook figure follows the frontend's theme
 
 Milestone: unscheduled · Status: ⬜
 Track: Render what the fit already knows
