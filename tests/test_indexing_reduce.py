@@ -835,9 +835,12 @@ def test_a_monoclinic_truths_phantom_supercells_are_never_supported():
                 else:
                     assert ev.n_seen > ev.n_extra * ev.p0 and ev.p_value >= 0.01, \
                         (name, child, ev.n_seen, ev.n_extra, ev.p0)
-    # 544 of 550 refuted under the two-band rule (2026-09-29); the middle band
-    # moves the near-chance pairs, never past half
-    assert verdicts["refuted"] >= 0.5 * sum(verdicts.values()), verdicts
+    # these four sets x 55 cells, under the three bands (thresholds 1.10), measured
+    # 2026-10-14: 142 refuted, 78 undecided, 0 supported (Aa 21/34, Ba 40/15, E 46/9,
+    # F 35/20 refuted/undecided).  The two-band rule's 544 of 550 was all ten sets.
+    # The bar sits two under the count, so a fall toward half (110) is caught.
+    assert verdicts["refuted"] >= 140, verdicts
+    assert sum(verdicts.values()) == 220
     assert verdicts["supported"] == 0
 
 
