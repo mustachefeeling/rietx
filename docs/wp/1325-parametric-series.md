@@ -1232,6 +1232,42 @@ directions and 197.9 against 337.1 for 296.
     and that regime is [1963](1963-a-kernel-over-the-pattern-coordinates.md)'s.
   - A second verdict per law is a further test at 95 %, so it joins
     decision 4's correction.
+
+  Measured, the synthetic half (2026-10-14, `1325-measure/next_term.py`,
+  output in `next_term_results.txt`; 20 noise draws a cell, load 3.0-3.8).
+  The ten-pattern LaB6 ramp with a line declared, the truth bent by a
+  fraction of the line's half-excursion: `curve` (u² − 1, the next term
+  exactly) or `kink` (|u| − 1, which no polynomial holds). The `next`
+  score is one shared column, Σ_k u_k² times pattern k's own target
+  column, projected densely; rebuilding the form statistic the same way
+  matched the shipped one to 4 × 10⁻¹⁴.
+
+  | truth, bend | form rejects | next rejects | quadratic refit rejects |
+  |---|---|---|---|
+  | curve 7 × 10⁻⁴ (6.5 × 10⁻⁶ Å) | 15/20 | 20/20 | 20/20 |
+  | curve 5 × 10⁻⁴ | 7/20 | 18/20 | 18/20 |
+  | curve 3 × 10⁻⁴ | 0/20 | 10/20 | 8/20 |
+  | curve 2 × 10⁻⁴ | 0/20 | 8/20 | 8/20 |
+  | kink 7 × 10⁻⁴ | 12/20 | 20/20 | 20/20 |
+  | kink 5 × 10⁻⁴ | 7/20 | 18/20 | 18/20 |
+  | kink 3 × 10⁻⁴ | 0/20 | 9/20 | 8/20 |
+  | straight | 0/20 | 0/20 | 0/20 |
+
+  - It meets the landing condition on synthetic data: from a bend of
+    3 × 10⁻⁴ down, the form test passes every draw and the next-term score
+    rejects about half, as the refit does. It spends one direction where
+    the form test spends eight, and the kink shows that it is not only for
+    a truth that is the next term.
+  - The score tracks the refit: medians 20.2 against 20.3 at curve
+    7 × 10⁻⁴, 7.7 against 7.4 at kink 5 × 10⁻⁴.
+  - Straight truths: medians form 4.6 (χ²_8's is 7.3), next 0.6 (χ²_1's
+    0.45). The f² divisor is conservative here, as § Measured: the form
+    test found.
+  - To land it, `blocked.added_columns_gain` needs a column shared across
+    blocks: today `_edited` appends extras per block only. A polynomial in
+    several coordinates has several next-degree monomials, so the test
+    there spends that many directions, still far fewer than n − m. A
+    `design` or `constant` law has no next term.
 - [x] **Profile the joint Jacobian**, the maintainer's question of 2026-10-14:
   would another Rust kernel help? It would not, first. § Measured: where the
   joint Jacobian's time goes.
