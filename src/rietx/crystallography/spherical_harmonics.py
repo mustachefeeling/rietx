@@ -201,28 +201,51 @@ def frame_rule(rotations) -> FrameRule:
     return FrameRule(polar, edge, cubic)
 
 
+def _frame_rows(rule: FrameRule, m, m_inv, xp):
+    """Rows x, y, z of the texture frame, from M and M⁻¹ in array namespace ``xp``.
+
+    M holds the direct lattice vectors as columns and M⁻¹ the reciprocal ones
+    as rows, so c* is the third row of M⁻¹.  The cross product is written out
+    because no backend op provides it.
+    """
+    if rule.polar is None:
+        z = m_inv[2]
+    else:
+        z = xp.matmul(m, xp.asarray(rule.polar, dtype=np.float64))
+    z = z / xp.sqrt(xp.sum(z * z))
+    edge = m[:, rule.x_edge]
+    x = edge - xp.sum(edge * z) * z
+    x = x / xp.sqrt(xp.sum(x * x))
+    y = xp.stack([z[1] * x[2] - z[2] * x[1],
+                  z[2] * x[0] - z[0] * x[2],
+                  z[0] * x[1] - z[1] * x[0]])
+    return xp.stack([x, y, z])
+
+
 def frame_matrix(rule: FrameRule, cell) -> np.ndarray:
     """Rows x, y, z of the texture frame in the cell's Cartesian frame.
 
     The Cartesian frame is ``adp.cartesian_basis``'s (x ∥ a, z ∥ c*).
     """
-    m = cartesian_basis(*cell)
-    if rule.polar is None:
-        z = np.linalg.inv(m).T @ np.array([0.0, 0.0, 1.0])
-    else:
-        z = m @ np.asarray(rule.polar, dtype=np.float64)
-    z = z / np.linalg.norm(z)
-    edge = m[:, rule.x_edge]
-    x = edge - (edge @ z) * z
-    x = x / np.linalg.norm(x)
-    return np.stack([x, np.cross(z, x), z])
+    m = np.asarray(cartesian_basis(*cell), dtype=np.float64)
+    return _frame_rows(rule, m, np.linalg.inv(m), np)
 
 
-def reflection_directions(hkl, rule: FrameRule, cell) -> np.ndarray:
-    """Unit reciprocal vectors of ``hkl`` in the texture frame, shape (N, 3)."""
-    g = np.asarray(hkl, dtype=np.float64) @ np.linalg.inv(cartesian_basis(*cell))
-    g = g @ frame_matrix(rule, cell).T
-    return g / np.linalg.norm(g, axis=1)[:, None]
+def reflection_directions(hkl, rule: FrameRule, cell):
+    """Unit reciprocal vectors of ``hkl`` in the texture frame, shape (N, 3).
+
+    The frame follows the cell, so a refined cell turns it.  Built on the
+    closed-form ``params.derived.cartesian_frame`` and its inverse (the frame
+    ``adp.cartesian_basis`` builds by Cholesky), so every step is an array
+    operation of the active backend and the traced twin takes it unchanged.
+    """
+    from ..params.derived import cartesian_frame, fractional_frame
+
+    xp = get_backend()
+    m, m_inv = cartesian_frame(cell), fractional_frame(cell)
+    g = xp.matmul(xp.asarray(hkl, dtype=np.float64), m_inv)
+    g = xp.einsum("ni,ki->nk", g, _frame_rows(rule, m, m_inv, xp))
+    return g / xp.sqrt(xp.sum(g * g, axis=1))[:, None]
 
 
 def frame_rotations(rotations, rule: FrameRule, cell) -> list[np.ndarray]:

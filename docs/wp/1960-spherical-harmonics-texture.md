@@ -408,7 +408,7 @@ because it was not downloaded. Bunge's tables are published numbers.
       `phases.{ip}.` and spares only the scale
       (`refine._unsupported_phase_paths`), so it covers the texture
       paths with no change. Task 5's tests check it end to end.
-- [ ] **Forward model**: compile the (l, n) set and the per-l factor
+- [x] **Forward model**: compile the (l, n) set and the per-l factor
       (4π/(2l+1))·k_l(ψ) onto the compiled phase at stage compile, Rietveld
       only. Evaluate K at the current cell and fold P into `base` beside
       March-Dollase, memoised on (cell, C). No code path runs when
@@ -418,7 +418,20 @@ because it was not downloaded. Bunge's tables are published numbers.
       `backend.traced.active`, with no frozen numpy constant on the left of
       an operator. No kernel change is expected: check that `model/compiled.py`
       reads `base` after P is folded.
-- [ ] **Jacobian**: `texture_intensity_grad` beside `po_intensity_grad`
+      *Done 2026-10-14.* `reflection_directions` builds the frame from
+      `params.derived.cartesian_frame`, so the traced backends take it
+      unchanged. The ψ table and the weights live in
+      `model/preferred_orientation.py`, keyed by `Geometry.kind` and
+      held equal to it by a test. Recovery from C = 0 to 1e-6 relative
+      holds for m-3m, 6/mmm, -3m1, mmm and 2/m under both geometries.
+      **Finding:** reflections the Laue class leaves inequivalent but
+      the metric makes coincide (hkl and khl in -3m1) take opposite
+      signs on a term like c4_3. That term is then measured only
+      through |F(hkl)|² − |F(khl)|². With one atom at the origin the
+      two are equal, and c4_3 came back 0.93 ± 22.7 against −0.15,
+      while c2_0 and c4_0 landed to 1e-12. The esd says so, and no
+      guard is added. The skill row (Task 13) should name it.
+- [x] **Jacobian**: `texture_intensity_grad` beside `po_intensity_grad`
       (the intensity with P divided out, computed directly so P = 0 is safe,
       times the factor and K), a `_TEXTURE_PATH` route, an `_INTENSITY_ONLY`
       row and a declared reach. The cell columns must carry ∂P/∂cell the way
@@ -426,6 +439,13 @@ because it was not downloaded. Bunge's tables are published numbers.
       100 % step, the parameter being linear (root CLAUDE.md, the branch
       oracle rule). A `tests/test_cross_backend.py` config with texture and a
       free cell.
+      *Done 2026-10-14.* The per-line chain after a multiplier is now
+      one helper the two columns share. The cell columns reach P
+      through `phase_peaks`'s finite-difference chain, and the
+      structural columns multiply it in explicitly; the `texture`
+      config (P -3, cell free, C off zero) agrees on every column
+      under fd, jax and torch. Each texture column meets a whole-unit
+      difference quotient to 1e-9 of its size.
 - [ ] **Positivity and the record** (D4): `texture_positivity_inequalities`
       beside `strain_cone_inequalities`; `TEXTURE_NOT_POSITIVE` as a new
       `GuardFinding`; per-phase result fields for J and for the minimum P

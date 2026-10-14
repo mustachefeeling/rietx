@@ -1,11 +1,17 @@
 """WP-1960: the spherical-harmonics texture block, its table entries and its refusals."""
 
+import typing
+
+import numpy as np
 import pytest
 
+import rietx as rx
+from rietx.model.preferred_orientation import TEXTURE_SAMPLE_PSI_DEG
+from rietx.optimize.least_squares import _make_jacobian, _make_residual
 from rietx.params.vector import ParameterTable
-from rietx.refine import mode_fixed_path
+from rietx.refine import _unsupported_phase_paths, mode_fixed_path
 from rietx.schemas.common import Parameter
-from rietx.schemas.instrument import EmissionLine, Instrument, Source
+from rietx.schemas.instrument import EmissionLine, Geometry, Instrument, Source
 from rietx.schemas.structure import (
     Atom,
     Cell,
@@ -114,3 +120,108 @@ def test_writing_back_fills_in_the_terms_the_block_left_out():
 def test_an_intensity_model_force_fixes_the_coefficients(mode, fixed):
     assert mode_fixed_path("phases.0.texture.c2_0", mode) is fixed
     assert mode_fixed_path("phases.0.texture.c4_neg3", mode) is fixed
+
+
+# ------------------------------------------------------------- the forward model
+def test_the_sample_angle_covers_every_geometry():
+    kinds = set(typing.get_args(Geometry.model_fields["kind"].annotation))
+    assert set(TEXTURE_SAMPLE_PSI_DEG) == kinds
+
+
+def _textured_state():
+    from tests.test_cross_backend import _state_texture
+
+    return _state_texture()[:2]
+
+
+def test_each_texture_column_is_exact_at_a_whole_unit_step():
+    """The branch oracle: the intensity is linear in C, so a difference quotient
+    in physical units has no truncation error at any step (root CLAUDE.md)."""
+    model, table = _textured_state()
+    theta = np.array([table.entries[table._paths[q]].value for q in table.free_paths])
+    jac = _make_jacobian(model, table)(theta)
+    residual = _make_residual(model, table)
+    r0 = residual(theta)
+    checked = 0
+    for c, path in enumerate(table.free_paths):
+        if ".texture." not in path:
+            continue
+        step = theta.copy()
+        step[c] += 1.0
+        quotient = residual(step) - r0
+        assert np.max(np.abs(jac[:, c] - quotient)) <= 1e-9 * np.max(np.abs(quotient)), path
+        checked += 1
+    assert checked == 4
+
+
+def test_zero_coefficients_are_bit_identical_to_no_block():
+    grid = np.arange(15.0, 95.0, 0.02)
+    with_block = _phase(texture=SphericalHarmonicTexture(order=6))
+    without = _phase()
+    ins = Instrument.bragg_brentano()
+    y_with = rx.Refinement(Structure(phases=[with_block]), ins).predict(grid)
+    y_without = rx.Refinement(Structure(phases=[without]), ins).predict(grid)
+    assert np.array_equal(np.asarray(y_with), np.asarray(y_without))
+
+
+def test_the_absent_phase_hold_reaches_the_coefficients():
+    """WP-1301's hold selects by column reach under ``phases.{ip}.``, scale aside."""
+    model, table = _textured_state()
+    held = _unsupported_phase_paths(model, table, support=np.array([0.0]))
+    assert {p for p in table.free_paths if ".texture." in p} <= set(held)
+    assert "phases.0.scale" not in held
+
+
+#: One phase per Laue class the recovery runs over, each with the terms it allows to order 4.
+_RECOVERY = {
+    "m-3m": ("P m -3 m", (4.2, 4.2, 4.2, 90.0, 90.0, 90.0), {"c4_1": 0.4}),
+    "6/mmm": ("P 6/m m m", (3.1, 3.1, 5.0, 90.0, 90.0, 120.0),
+              {"c2_0": 0.5, "c4_0": -0.2}),
+    # brucite's O, not Mg alone: hkl and khl overlap exactly in -3m1 and c4_3's
+    # sin 3β takes opposite signs on them, so with equal |F|² the term cancels
+    # within every pair and only roundoff is left to fit
+    "-3m1": ("P -3 m 1", (3.147, 3.147, 4.769, 90.0, 90.0, 120.0),
+             {"c2_0": 0.8, "c4_0": 0.3, "c4_3": -0.15}),
+    "mmm": ("P m m m", (3.6, 4.4, 5.2, 90.0, 90.0, 90.0),
+            {"c2_0": 0.4, "c2_2": -0.25, "c4_0": 0.1, "c4_2": 0.08, "c4_4": -0.12}),
+    "2/m": ("P 1 2/m 1", (4.1, 3.6, 5.3, 90.0, 104.0, 90.0),
+            {"c2_neg2": 0.15, "c2_0": 0.45, "c2_2": -0.2, "c4_0": 0.1, "c4_2": 0.05}),
+}
+
+
+def _recovery_phase(space_group, cell, coefficients, *, vary):
+    p = Parameter
+    lengths = dict(zip(("a", "b", "c", "alpha", "beta", "gamma"), cell))
+    return Phase(name="t", space_group=space_group,
+                 cell=Cell(**{k: p(value=v) for k, v in lengths.items()}),
+                 scale=p(value=1e-3),
+                 atoms=[Atom(label="Mg", species="Mg", x=p(value=0.0), y=p(value=0.0),
+                             z=p(value=0.0), biso=p(value=0.5))]
+                 + ([Atom(label="O", species="O", x=p(value=1 / 3), y=p(value=2 / 3),
+                          z=p(value=0.22), biso=p(value=0.8))]
+                    if space_group == "P -3 m 1" else []),
+                 texture=SphericalHarmonicTexture(order=4, coefficients={
+                     k: p(value=v if not vary else 0.0, vary=vary)
+                     for k, v in coefficients.items()}))
+
+
+@pytest.mark.parametrize("geometry", ["bragg_brentano", "debye_scherrer"])
+@pytest.mark.parametrize("label", sorted(_RECOVERY))
+def test_noise_free_coefficients_are_recovered_from_zero(label, geometry):
+    space_group, cell, truth = _RECOVERY[label]
+    ins = (Instrument.bragg_brentano() if geometry == "bragg_brentano"
+           else Instrument.debye_scherrer(1.540598))
+    grid = np.arange(10.0, 120.0, 0.02)
+    y = np.asarray(rx.Refinement(Structure(phases=[_recovery_phase(
+        space_group, cell, truth, vary=False)]), ins).predict(grid)) + 20.0
+    data = rx.PatternData(two_theta=grid.tolist(), intensity=y.tolist())
+    fit = rx.Refinement(Structure(phases=[_recovery_phase(
+        space_group, cell, truth, vary=True)]), ins.model_copy(deep=True))
+    result = fit.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("texture", ["phases.*.scale", "instrument.background.c*",
+                             "phases.*.texture.*"])]))
+    got = {r.path.rsplit(".", 1)[1]: r.value for r in result.parameters
+           if ".texture." in r.path}
+    for name, value in truth.items():
+        assert got[name] == pytest.approx(value, rel=1e-6), name
