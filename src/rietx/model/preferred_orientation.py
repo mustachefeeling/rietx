@@ -219,3 +219,25 @@ def texture_factors(harmonics, weights: np.ndarray, coefficients):
     xp = get_backend()
     w = xp.asarray(weights, dtype=np.float64)
     return 1.0 + xp.matmul(harmonics, w * coefficients)
+
+
+#: Below this, P counts as negative.  P is dimensionless with the random
+#: powder at 1, and the bounded-LM driver can leave a reflection's P on the
+#: face P = 0 to roundoff, which is a legal pole density.
+TEXTURE_POSITIVITY_TOL = 1e-9
+
+#: Directions sampled over the sphere for the minimum of P between
+#: reflections.  The terms run to l = 8 or so, whose features span about
+#: 180°/l; 2000 points sit about 4.5° apart.
+TEXTURE_SPHERE_SAMPLES = 2000
+
+
+def texture_index(degrees, coefficients) -> float:
+    """J = 1 + Σ C²/(2l+1) (Von Dreele 1997, eq. 16; Bunge 1982, 14.135).
+
+    Exact for orthonormal harmonics, which these are.  The odd orders are not
+    measured and the series stops at the declared order, so this is a lower
+    bound on the specimen's texture index.  J = 1 is a random powder.
+    """
+    return 1.0 + float(sum(c * c / (2 * degree + 1)
+                           for degree, c in zip(degrees, coefficients, strict=True)))

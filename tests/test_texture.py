@@ -225,3 +225,81 @@ def test_noise_free_coefficients_are_recovered_from_zero(label, geometry):
            if ".texture." in r.path}
     for name, value in truth.items():
         assert got[name] == pytest.approx(value, rel=1e-6), name
+
+
+# -------------------------------------------------------- positivity and the record
+def test_the_inequality_rows_reproduce_p_at_the_start():
+    from rietx.optimize.least_squares import texture_positivity_inequalities
+
+    model, table = _textured_state()
+    x0 = table.x0()
+    (block,) = texture_positivity_inequalities(model, table, x0)
+    values = table.decode(x0)
+    cell = tuple(values[f"phases.0.cell.{k}"] for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+    p = np.asarray(model._texture_factors(0, values, cell))
+    assert np.allclose(block.T @ x0 + block.c, p, rtol=0, atol=1e-12)
+
+
+def _negative_density_case(solver):
+    """A strongly platy specimen (March-Dollase r = 0.4 along c) fitted at order 2.
+
+    Two terms cannot follow a density that steep, and the best order-2 fit
+    wants P < 0 on the (hk0) reflections, so the default driver must stop at
+    the face P = 0 there and TRF need not.
+    """
+    space_group, cell, _ = _RECOVERY["6/mmm"]
+    ins = Instrument.bragg_brentano()
+    grid = np.arange(10.0, 120.0, 0.02)
+    platy = _recovery_phase(space_group, cell, {}, vary=False).model_copy(update={
+        "texture": None,
+        "preferred_orientation": PreferredOrientation(axis=(0, 0, 1),
+                                                      r=Parameter(value=0.4))})
+    y = np.asarray(rx.Refinement(Structure(phases=[platy]), ins).predict(grid))
+    data = rx.PatternData(two_theta=grid.tolist(), intensity=(y + 50.0).tolist())
+    start = _recovery_phase(space_group, cell, {}, vary=False).model_copy(update={
+        "texture": SphericalHarmonicTexture(order=2, coefficients={
+            "c2_0": Parameter(value=0.0, vary=True)})})
+    fit = rx.Refinement(Structure(phases=[start]), ins.model_copy(deep=True),
+                        solver=solver)
+    return fit.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("texture", ["phases.*.scale", "instrument.background.c*",
+                             "phases.*.texture.*"])]))
+
+
+def test_the_default_driver_holds_p_at_the_reflections():
+    result = _negative_density_case("lm")
+    (row,) = result.texture
+    assert row.min_p_reflections >= -1e-9
+    assert row.texture_index > 1.0
+
+
+def test_trf_goes_negative_and_the_guard_says_so():
+    result = _negative_density_case("trf")
+    (row,) = result.texture
+    assert row.min_p_reflections < -0.1
+    (diag,) = [d for d in result.diagnostics if d.code == "TEXTURE_NOT_POSITIVE"]
+    assert diag.where == ["phases.0.texture"]
+    assert diag.value == pytest.approx(row.min_p_sphere)
+    assert "not quotable as a pole density" in diag.message
+
+
+def test_the_record_matches_its_definition():
+    space_group, cell, truth = _RECOVERY["mmm"]
+    ins = Instrument.bragg_brentano()
+    grid = np.arange(10.0, 120.0, 0.02)
+    y = np.asarray(rx.Refinement(Structure(phases=[_recovery_phase(
+        space_group, cell, truth, vary=False)]), ins).predict(grid)) + 20.0
+    fit = rx.Refinement(Structure(phases=[_recovery_phase(
+        space_group, cell, truth, vary=True)]), ins.model_copy(deep=True))
+    result = fit.fit(rx.PatternData(two_theta=grid.tolist(), intensity=y.tolist()),
+                     plan=rx.RefinementPlan(stages=[
+                         rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+                         rx.Stage("texture", ["phases.*.scale", "instrument.background.c*",
+                                              "phases.*.texture.*"])]))
+    (row,) = result.texture
+    expected = 1.0 + sum(v * v / (2 * int(k[1:].split("_")[0]) + 1) for k, v in truth.items())
+    assert row.name == "t"
+    assert row.texture_index == pytest.approx(expected, rel=1e-6)
+    assert row.min_p_sphere <= row.min_p_reflections
+    assert not [d for d in result.diagnostics if d.code == "TEXTURE_NOT_POSITIVE"]

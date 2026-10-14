@@ -143,6 +143,7 @@ from .strategy.staged import (
     check_resolution_positive,
     check_resolution_supported,
     check_stephens_positive,
+    check_texture_positive,
 )
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -1960,6 +1961,7 @@ class MultiHistogramRefinement:
         report.large_biso = check_biso_plausible(mt.tables[0], models[0])
         report.negative_biso = check_biso_negative(mt.tables[0], models[0])
         report.nonpositive_strain = _stephens_once(mt, models)
+        report.nonpositive_texture = _texture_once(mt, models)
         if outcome.correlation is not None and len(free) > 1:
             c = np.asarray(outcome.correlation)
             for i in range(len(free)):
@@ -1996,6 +1998,20 @@ def _stephens_once(mtable, models) -> list[GuardFinding]:
     seen: dict[tuple[str, ...], GuardFinding] = {}
     for table, model in zip(mtable.tables, models, strict=True):
         for finding in check_stephens_positive(table, model):
+            seen.setdefault(tuple(finding.paths), finding)
+    return list(seen.values())
+
+
+def _texture_once(mtable, models) -> list[GuardFinding]:
+    """``TEXTURE_NOT_POSITIVE`` for the joint fit, one per phase (WP-1960).
+
+    :func:`_stephens_once`'s shape: the coefficients are shared, each
+    histogram samples them at its own ψ, and a phase is named from the first
+    histogram where P leaves the physical set.
+    """
+    seen: dict[tuple[str, ...], GuardFinding] = {}
+    for table, model in zip(mtable.tables, models, strict=True):
+        for finding in check_texture_positive(table, model):
             seen.setdefault(tuple(finding.paths), finding)
     return list(seen.values())
 

@@ -272,7 +272,12 @@ def frame_rotations(rotations, rule: FrameRule, cell) -> list[np.ndarray]:
 @cache
 def _sample_points(degree: int) -> np.ndarray:
     """Fibonacci points on the sphere, three per harmonic: an exact least-squares fit."""
-    n = 3 * (2 * degree + 1) + 8
+    return sphere_points(3 * (2 * degree + 1) + 8)
+
+
+@cache
+def sphere_points(n: int) -> np.ndarray:
+    """``n`` near-uniform unit vectors on the sphere (a Fibonacci lattice), (n, 3)."""
     k = np.arange(n) + 0.5
     z = 1.0 - 2.0 * k / n
     phi = np.pi * (1.0 + 5.0**0.5) * k

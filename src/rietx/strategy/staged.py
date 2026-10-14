@@ -893,6 +893,14 @@ class GuardFinding:
                    f"worst σ²(M) {worst:+.2e} at {hkl})")
 
     @classmethod
+    def nonpositive_texture(cls, path: str, n_bad: int, n_total: int,
+                            on_reflections: float, on_sphere: float) -> "GuardFinding":
+        return cls("TEXTURE_NOT_POSITIVE", (path,), float(on_sphere),
+                   f"{path} (P below zero at {n_bad} of {n_total} reflections; "
+                   f"lowest {on_reflections:+.3f} there and {on_sphere:+.3f} "
+                   f"over the sphere)")
+
+    @classmethod
     def unsupported_resolution(cls, freed: tuple[str, ...], share: float,
                                n_lorentzian: int, n_total: int) -> "GuardFinding":
         names = ", ".join(path.rsplit(".", 1)[1].upper() for path in freed)
@@ -959,6 +967,8 @@ class GuardReport:
     :func:`check_resolution_supported` and the correlation loop in
     :func:`check_guards`.  ``negative_biso`` is the twelfth, written by
     :func:`check_biso_negative` since PR #663 let a reader keep a file's B < 0.
+    ``nonpositive_texture`` is written by :func:`check_texture_positive`
+    (WP-1960).
 
     ``measured_background_absorption`` is the one field that is **not**
     findings, and it is here rather than beside them so that the number a
@@ -991,6 +1001,9 @@ class GuardReport:
     nonpositive_adps: list[GuardFinding] = field(default_factory=list)
     # phases whose Stephens strain coefficients have left the physical cone
     nonpositive_strain: list[GuardFinding] = field(default_factory=list)
+    # phases whose spherical-harmonics pole density dips below zero on the
+    # sphere (WP-1960, see check_texture_positive)
+    nonpositive_texture: list[GuardFinding] = field(default_factory=list)
     # the instrument resolution function dipping below zero somewhere in the
     # fitted range — a variance the forward model then clamps to a floor
     # (see check_resolution_positive)
@@ -1048,7 +1061,8 @@ class GuardReport:
         diagnostics carry it, and only this projection is empty (WP-1076's
         rule, since a declared name whose reader is missing fails no test)."""
         return [*self.high_correlations, *self.at_bounds, *self.nonpositive_adps,
-                *self.nonpositive_strain, *self.unsupported_resolution,
+                *self.nonpositive_strain, *self.nonpositive_texture,
+                *self.unsupported_resolution,
                 *self.flat_directions, *self.discarded_directions,
                 *self.large_biso, *self.negative_biso,
                 *self.nonpositive_resolution, *self.narrow_humps,
@@ -1281,6 +1295,44 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
             hkl = reflection_label(cp.reflections.hklm[k])
             out.append(GuardFinding.nonpositive_strain(
                 base, int(bad.sum()), len(sigma2), float(sigma2[k]), hkl))
+    return out
+
+
+def check_texture_positive(table, model) -> list[GuardFinding]:
+    """Phases whose spherical-harmonics P is **negative** somewhere (WP-1960 D4).
+
+    P is a pole density, so a negative value is not a strong texture but a
+    truncated series that has left the physical set.  The bounded-LM driver
+    holds P ≥ 0 at the stage's reflections as a linear inequality, built at
+    the stage's starting cell, so a stage that also frees the cell holds it to
+    first order only.  Between reflections nothing holds it.  So this samples
+    P over the sphere at the answer and fires under any driver.
+
+    Zero is a legal density, so the test is one-sided at
+    :data:`~rietx.model.preferred_orientation.TEXTURE_POSITIVITY_TOL`.  It
+    says the coefficients are not quotable as a pole density.  It says
+    nothing about whether the specimen is textured.
+    """
+    import numpy as np
+
+    from ..model.preferred_orientation import TEXTURE_POSITIVITY_TOL
+
+    if model is None:
+        return []
+    values = {e.path: e.value for e in table.entries}
+    out: list[GuardFinding] = []
+    for ip, cp in enumerate(model.phases):
+        summary = model.texture_summary(ip, values)
+        if summary is None:
+            continue
+        _j, on_reflections, on_sphere = summary
+        if on_sphere < -TEXTURE_POSITIVITY_TOL:
+            p = np.asarray(model._texture_factors(ip, values, tuple(
+                values[f"phases.{ip}.cell.{k}"]
+                for k in ("a", "b", "c", "alpha", "beta", "gamma"))))
+            out.append(GuardFinding.nonpositive_texture(
+                f"phases.{ip}.texture", int((p < -TEXTURE_POSITIVITY_TOL).sum()),
+                len(p), on_reflections, on_sphere))
     return out
 
 
@@ -1860,6 +1912,7 @@ def check_guards(table, outcome, threshold: float,
     report = GuardReport()
     report.nonpositive_adps = check_adp_positive_definite(table)
     report.nonpositive_strain = check_stephens_positive(table, model)
+    report.nonpositive_texture = check_texture_positive(table, model)
     report.nonpositive_resolution = check_resolution_positive(table, model)
     report.large_biso = check_biso_plausible(table, model)
     report.negative_biso = check_biso_negative(table, model)

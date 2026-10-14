@@ -82,6 +82,7 @@ from ..crystallography.scattering import normalize_species
 from ..crystallography.spherical_harmonics import (
     TextureBasis,
     reflection_directions,
+    sphere_points,
     texture_basis,
 )
 from ..crystallography.stephens import S_NAMES, monomial_matrix, strain_width_deg
@@ -129,10 +130,12 @@ from .extinction import sabine_extinction, sabine_extinction_and_dx
 from .origin import CompiledOrigin, origin_residual
 from .preferred_orientation import (
     TEXTURE_SAMPLE_PSI_DEG,
+    TEXTURE_SPHERE_SAMPLES,
     march_dollase_and_dr,
     march_dollase_factors,
     orbit_layout,
     texture_factors,
+    texture_index,
     texture_term_weights,
 )
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
@@ -1460,6 +1463,29 @@ class CompiledModel:
         coefficients = xp.stack([values[p] for p in cp.tex_paths])
         return texture_factors(self._texture_harmonics(ip, cell), cp.tex_weights,
                                coefficients)
+
+    def texture_summary(self, ip: int, values: dict[str, float]
+                        ) -> tuple[float, float, float] | None:
+        """(J, min P over the reflections, min P over the sphere) for phase ip.
+
+        Numpy only, at ``values``: a record and a guard read it, never the
+        residual.  The sphere's minimum samples
+        :data:`~rietx.model.preferred_orientation.TEXTURE_SPHERE_SAMPLES`
+        directions, because the driver holds P ≥ 0 only at the reflections and
+        the series can dip between them.  None when the phase has no texture.
+        """
+        cp = self.phases[ip]
+        if cp.tex_basis is None:
+            return None
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        c = np.array([values[p] for p in cp.tex_paths], dtype=np.float64)
+        on_reflections = np.asarray(self._texture_factors(ip, values, cell))
+        sphere = 1.0 + np.asarray(cp.tex_basis.evaluate(
+            sphere_points(TEXTURE_SPHERE_SAMPLES))) @ (cp.tex_weights * c)
+        j = texture_index([t.degree for t in cp.tex_basis.terms], c)
+        return j, float(on_reflections.min()), float(min(sphere.min(),
+                                                         on_reflections.min()))
 
     def strain_width(self, ip: int, values: dict[str, float], d: np.ndarray):
         """Λ(hkl) (N,) — the Stephens tanθ coefficient — or 0.0 when off.

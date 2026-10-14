@@ -463,9 +463,10 @@ from .._nearmiss import did_you_mean
 #: defaulted to ``None``, as ``parametric`` is; an older build refuses a
 #: result carrying the field.
 #: 0.56 → 0.57 (WP-1960): ``Phase.texture``, a ``SphericalHarmonicTexture``
-#: (an even ``order`` and a name → ``Parameter`` map of coefficients).
-#: Additive and defaulted to ``None``, so every stored document loads and
-#: refines as before; an older build refuses a phase carrying the block.
+#: (an even ``order`` and a name → ``Parameter`` map of coefficients), and
+#: ``RefinementResult.texture``, one ``PhaseTexture`` per textured phase.
+#: Additive and defaulted to ``None`` and empty, so every stored document
+#: loads and refines as before; an older build refuses either.
 SCHEMA_VERSION = "0.57"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

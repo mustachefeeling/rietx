@@ -43,6 +43,7 @@ from ..crystallography.magnetic.moments import (
     MOMENT_DIRECTION_SUPPORT,
     MOMENT_DOF_PATH,
 )
+from ..crystallography.spherical_harmonics import reflection_directions
 from ..crystallography.stephens import S_NAMES
 from ..model import rows as row_layout
 from ..model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, DerivativeBases
@@ -1821,6 +1822,45 @@ def strain_cone_inequalities(model: CompiledModel, table: ParameterTable,
     return out
 
 
+def texture_positivity_inequalities(model: CompiledModel, table: ParameterTable,
+                                    x0: np.ndarray) -> list["lm_mod.LinearInequality"]:
+    """P ≥ 0 at every reflection of the stage, one block per textured phase.
+
+    P = 1 + (K·diag w)·c with c an affine function of θ, so the rows are linear
+    in θ (WP-1960 D4).  K is taken at the stage's **starting** cell, because K
+    follows the cell and a row must be a constant of the stage: a stage that
+    frees the cell beside the coefficients holds P ≥ 0 to first order only,
+    and ``TEXTURE_NOT_POSITIVE`` samples the answer.  Skipped as
+    :func:`strain_cone_inequalities` skips: nothing free in the direction, or
+    a start already outside.  C = 0 starts strictly inside, at P = 1.
+    """
+    from . import lm as lm_mod
+
+    if not table.free_paths:
+        return []
+    C, d = table.constraint_block()
+    C = C.toarray()
+    values = table.decode(x0)
+    out: list[lm_mod.LinearInequality] = []
+    for ip, cp in enumerate(model.phases):
+        if cp.tex_basis is None:
+            continue
+        rows = [table._paths[p] for p in cp.tex_paths]
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        kw = np.asarray(cp.tex_basis.evaluate(reflection_directions(
+            cp.reflections.hkl, cp.tex_basis.rule, cell))) * cp.tex_weights
+        T = kw @ C[rows, :]
+        if not np.any(T):
+            continue
+        block = lm_mod.LinearInequality(T=T, c=1.0 + kw @ d[rows],
+                                        label=f"phases.{ip}.texture")
+        if block.violated(x0).any():
+            continue
+        out.append(block)
+    return out
+
+
 def gaussian_width_inequalities(model: CompiledModel, table: ParameterTable,
                                 x0: np.ndarray) -> list["lm_mod.LinearInequality"]:
     """Γ_G² ≥ ``caglioti._MIN_GAMMA_G2`` at every reflection, one block per phase.
@@ -2418,6 +2458,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         # restored (see the builders)
         ineqs = _pad_inequalities(
             strain_cone_inequalities(model, table, x0[:n_table])
+            + texture_positivity_inequalities(model, table, x0[:n_table])
             + gaussian_width_inequalities(model, table, x0[:n_table]), n_aux)
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
                           ftol=ftol, inequalities=ineqs, events=events, stage=stage,

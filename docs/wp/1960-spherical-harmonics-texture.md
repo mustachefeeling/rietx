@@ -446,12 +446,21 @@ because it was not downloaded. Bunge's tables are published numbers.
       config (P -3, cell free, C off zero) agrees on every column
       under fd, jax and torch. Each texture column meets a whole-unit
       difference quotient to 1e-9 of its size.
-- [ ] **Positivity and the record** (D4): `texture_positivity_inequalities`
+- [x] **Positivity and the record** (D4): `texture_positivity_inequalities`
       beside `strain_cone_inequalities`; `TEXTURE_NOT_POSITIVE` as a new
       `GuardFinding`; per-phase result fields for J and for the minimum P
       over the observed reflections and over the sphere, each with its
       writer named (WP-1076). These fields are the correction's evidence. Rwp
       is not (root CLAUDE.md).
+      *Done 2026-10-14.* `RefinementResult.texture` holds one
+      `PhaseTexture` per textured phase, written by
+      `refine._phase_texture`; a joint fit leaves it empty. The guard
+      samples 2000 directions. Measured on a March-Dollase r = 0.4
+      specimen fitted at order 2: `lm` stopped at the face, C2,0 = 2.00
+      with min P −2.2e-16 and `CONSTRAINT_ACTIVE`; `trf` went to 2.90,
+      min P −0.45 on (hk0), and `TEXTURE_NOT_POSITIVE` fired. The
+      code's skill row is in `abstention.md`, since `diagnostics.md`
+      had 6 B of budget left.
 - [ ] **Plans**: every stage that frees `phases.*.preferred_orientation.r`
       also frees `phases.*.texture.*`, which matches only a declared block.
       `PLAN_INFO` says so.
