@@ -116,6 +116,30 @@ three lock sites. The store guard was made to fail once against the old code,
 which raises the browser's exact `AttributeError`. `pages.yml` builds the
 site to `/lite/`, but that has not run in CI.
 
+*Review* (`/code-review high --fix`): eight findings, all fixed in one commit.
+`counts` is built as `intp` at the source. The mock's floor is now read from
+the rietx the site serves, with its patch digit kept (it had read the
+working tree and dropped the patch digit). `build.py` refuses a missing
+`--rietx-wheel` and an `--out` that is not a previous site, and takes the
+dist and env names from `_about`. The kernel pin is checked against
+`requirements.txt` without JupyterLite installed. `smoke.mjs`'s path check
+carries a separator, and `pages.yml` runs `apt-get update`. One minor finding
+was dropped: `notebooks(ref)` is called twice, but it is cached. After
+the fixes, the six notebooks were rebuilt and smoke-run on the final tree.
+All six passed, each within 6 s of the table below.
+
+*Tests* (`[dev]` venv, CPython 3.12.3, Linux x86-64, 4 cores, alone). The
+fast selection gave 9700 passed, 198 skipped, 1 xfailed and 1 failed in
+21:52. The failure was this branch's: `test_portability` requires every
+write handle to name `newline=`, and a `test_lite.py` handle did not. It is
+fixed, and that file and `test_lite.py` pass on a rerun. `test_lite.py` adds
+13 cases, 12 passing and 1 skipping (the kernel-pin check against an
+installed `jupyterlite_pyodide_kernel`), 0.03 s in all. The baseline on
+`main` was not measured, so the +13 is the file's count and not a measured
+delta. The full selection did not run: the two `src/` changes are
+value-identical on every 64-bit platform, so neither can move a measured
+number.
+
 *Measured* (Linux cloud container, 4 cores, nothing else running; seconds).
 "Browser" is the smoke run's cell time, which includes the install cell, with
 Pyodide served locally. "Native" is `tests/test_tutorials.py`'s call time,
