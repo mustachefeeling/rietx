@@ -59,8 +59,8 @@ Three measurements:
      its terms: at H/L = 0 beside S/L > 0 (WP-1953) ∂Ω/∂(H/L) measured up to
      2.6e7 times smaller in the cpd-1a fit.  Divided by its own size the gap
      reached 4.7e-9 on darwin/arm64 and 4.9e-9 on Linux x86-64.  Divided by
-     its terms', every ``bases_fcj`` plane stayed under 5.0e-16 on
-     darwin/arm64.
+     its terms', every ``bases_fcj`` plane stayed under 5.0e-16 in the cpd-1a
+     fit and 8.7e-16 in the trigger fit on darwin/arm64.
 
    ``--gate`` exits 1 unless the wheel loaded, this section ran, every kernel
    was called, every call met its bar, and each case's twins reproduced the
