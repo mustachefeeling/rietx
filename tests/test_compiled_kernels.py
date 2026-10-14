@@ -557,7 +557,6 @@ def _fresh_load(monkeypatch, wheel=None, *, absent=False):
     monkeypatch.setattr(compiled, "_KERNELS", None)
     monkeypatch.setattr(compiled, "_UNAVAILABLE", None)
     monkeypatch.setattr(compiled, "_WARNED", False)
-    monkeypatch.setattr(compiled, "_DICHOTOMY_WARNED", False)
     if absent:
         # ``None`` in sys.modules makes the import raise, as a missing wheel does
         monkeypatch.setitem(sys.modules, "rietx_kernels", None)
@@ -621,20 +620,18 @@ def test_a_wheel_lacking_a_kernel_is_declined_by_name(monkeypatch):
 def test_a_wheel_without_the_dichotomy_kernels_declines_for_the_indexer_alone(
         monkeypatch):
     """A wheel before 1.3.0 still serves the model and the figure (WP-1959).
-    The indexer gets ``None``, so it runs its numpy loop, and that warns once a
-    process.  A numpy path chosen by switch never warns."""
+    The indexer gets ``None``, so it runs its numpy loop, silently: until the
+    floor reaches 1.3 the index serves 1.2.0, so advice to upgrade could not be
+    followed, and tutorial 03 printed it to stderr on CI."""
     _fresh_load(monkeypatch, _wheel())
     monkeypatch.setattr(compiled, "_ENABLED", True)
     assert compiled.available()
     with warnings.catch_warnings(record=True) as seen:
         warnings.simplefilter("always")
         assert compiled.dichotomy_kernels() is None
-        assert compiled.dichotomy_kernels() is None
         monkeypatch.setattr(compiled, "_ENABLED", False)
         assert compiled.dichotomy_kernels() is None
-    runtime = [w for w in seen if issubclass(w.category, RuntimeWarning)]
-    assert len(runtime) == 1, [str(w.message) for w in runtime]
-    assert "lacks the dichotomy kernels" in str(runtime[0].message)
+    assert [str(w.message) for w in seen] == []
 
 
 def test_a_decline_warns_once_and_never_when_the_numpy_path_was_chosen(

@@ -21,7 +21,7 @@ From 1.3.0 it carries the dichotomy indexer's box test as well
 (``tests/test_indexing_kernels.py``).  It is one call per box and never
 splits, since a box is tens of microseconds of work.  Until the pin's floor
 reaches 1.3 a wheel without it still loads, and :func:`dichotomy_kernels`
-declines for the indexer alone.
+declines for the indexer alone, silently.
 
 Why a compiled tier at all
 --------------------------
@@ -194,7 +194,6 @@ _KERNELS: dict | None = None
 _UNAVAILABLE: str | None = None
 _ENABLED: bool | None = None
 _WARNED = False
-_DICHOTOMY_WARNED = False
 _POOL: ThreadPoolExecutor | None = None
 #: worker count the pool was actually built with — read once, from the
 #: environment, and the number ``_spread`` splits by thereafter
@@ -344,11 +343,14 @@ def dichotomy_kernels() -> tuple | None:
     """The dichotomy's ``(box_test, child_key)`` when the compiled path is on.
 
     ``None`` sends the caller to its numpy loop: the tier is off, the wheel did
-    not load, or it predates the two kernels.  The last warns once a process,
-    because the switch was on and the caller expected them.  The answer is
-    fixed for the process, like :func:`enabled`'s.
+    not load, or it predates the two kernels.  The last is silent.  It arises
+    only while the pin's floor is below 1.3, when the index serves 1.2.0 and
+    advice to install 1.3 could not be followed.  The numpy loop is then what
+    every rietx before WP-1959 ran.  Once the floor reaches 1.3 the two names
+    join :data:`KERNEL_NAMES`, and a wheel without them declines the whole
+    tier with its warning.  The answer is fixed for the process, like
+    :func:`enabled`'s.
     """
-    global _DICHOTOMY_WARNED
     if not enabled():
         return None
     kernels = _kernels()
@@ -356,17 +358,6 @@ def dichotomy_kernels() -> tuple | None:
         return None
     if all(n in kernels for n in DICHOTOMY_NAMES):
         return tuple(kernels[n] for n in DICHOTOMY_NAMES)
-    with _LOCK:
-        warn, _DICHOTOMY_WARNED = not _DICHOTOMY_WARNED, True
-    if warn:
-        import rietx_kernels as wheel
-
-        warnings.warn(
-            f"rietx_kernels {getattr(wheel, '__version__', '')} lacks the"
-            f" dichotomy kernels, so the indexer's dichotomy runs its numpy loop,"
-            f' which is slower. Install them with pip install'
-            f' "rietx-kernels>=1.3,<{KERNEL_ABI + 1}".', RuntimeWarning,
-            stacklevel=2)
     return None
 
 

@@ -150,7 +150,7 @@ The structure figure draws with two more kernels from the same wheel, and the
 switch below reaches them too. From `rietx-kernels` 1.3 the dichotomy indexing
 engine tests its boxes in the wheel as well. On a monoclinic search of 161 705
 grid boxes the grid took about 4 s of CPU, against 13.5 s on the numpy loop. With an older
-wheel the engine runs its numpy loop and warns once.
+wheel the engine runs its numpy loop.
 
 Turn the kernels off with `RIETX_COMPILED=0`, which needs no reinstall. Every
 kernel has the numpy expression it replaces standing behind it, so refinements
