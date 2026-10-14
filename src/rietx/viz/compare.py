@@ -182,7 +182,9 @@ def qpa_plan(*, texture: bool = False) -> RefinementPlan:
         Stage("biso", ["phases.*.atoms.*.biso"]),
     ]
     if texture:
-        stages.append(Stage("po", ["phases.*.preferred_orientation.r"]))
+        # either orientation model's block; each glob matches only a declared one
+        stages.append(Stage("po", ["phases.*.preferred_orientation.r",
+                                   "phases.*.texture.*"]))
     return RefinementPlan(stages=stages)
 
 
