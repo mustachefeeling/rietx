@@ -183,12 +183,6 @@ class BlockJacobian:
                 out[po:po + self.n_pen[h], cm] = b[nd:]
         return out
 
-    def rows(self, h: int) -> np.ndarray:
-        """Histogram ``h``'s rows of the stacked layout, in block order."""
-        do, po = int(self._data_off[h]), int(self._pen_off[h])
-        return np.concatenate([np.arange(do, do + self.n_data[h]),
-                               np.arange(po, po + self.n_pen[h])])
-
     def residual_part(self, r: np.ndarray, h: int) -> np.ndarray:
         """``r``'s rows for histogram ``h``, aligned with ``blocks[h]``."""
         do, nd = int(self._data_off[h]), self.n_data[h]

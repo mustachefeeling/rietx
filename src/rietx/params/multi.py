@@ -438,8 +438,9 @@ class MultiParameterTable:
         leaves no half-wired table behind: the target must exist in every
         subset histogram's model and be a parameter a tie may drive — not
         locked, not already tied (its sources named), not held, not a rigid
-        body's increment or a moment DOF, and not a coordinate DOF whose
-        anchor the subset's starting structures store differently.  A
+        body's increment or a moment DOF, not a coordinate DOF whose
+        anchor the subset's starting structures store differently, and not a
+        size coefficient over patterns at different wavelengths.  A
         coefficient's path must be new and shared under the caller's map.
 
         Then, per declaration: what follows the target becomes per-histogram
@@ -469,6 +470,7 @@ class MultiParameterTable:
                     raise ValueError(f"parametric tie {r.name!r}: {r.target} in "
                                      f"histogram {h} {why}")
             self._refuse_unanchorable(r)
+            self._refuse_size_across_wavelengths(r)
             for path in r.paths:
                 if not self.sharing.is_shared(path):
                     raise ValueError(
@@ -481,9 +483,13 @@ class MultiParameterTable:
                         f"parametric tie {r.name!r}: {path} already exists; "
                         "rename the declaration")
         follows: dict[str, None] = {}
+        # one transpose of each table's ties, however many declarations ask it
+        reach_of: dict[int, dict[str, list[str]]] = {}
         for r in resolved:
             for h in r.patterns:
-                for q in self.tables[h].entry_reach()[r.target]:
+                if h not in reach_of:
+                    reach_of[h] = self.tables[h].entry_reach()
+                for q in reach_of[h][r.target]:
                     if q != r.target and self.sharing.is_shared(q):
                         follows[q] = None
         self.sharing.per_histogram.extend(follows)
@@ -551,6 +557,33 @@ class MultiParameterTable:
                     "structures store it differently, so a function of the DOF "
                     f"would not be a function of the coordinate; start every "
                     f"pattern at one {coord}")
+
+    def _refuse_size_across_wavelengths(self, r: ResolvedParametric) -> None:
+        """A size coefficient is not one number across wavelengths (WP-1131).
+
+        It is (180/π)·K·λ/L, so a shared size column carries the factor
+        λ_h/λ_0 into each histogram (:func:`size_value_scales`).  A parametric
+        target is per-histogram, so no factor reaches it, and Σ_j Φ_kj·c_j
+        would state one number of *degrees* in every pattern: a different
+        specimen size at each wavelength.  Refused where the subset's
+        wavelengths differ; where a source declares no line there is no λ to
+        normalise by, which is :func:`size_value_scales`' own empty case.
+        """
+        parts = r.target.split(".")
+        if len(parts) != 3 or parts[0] != "phases" or parts[2] not in SIZE_LAMBDA_POWER:
+            return
+        lams = {h: _longest_wavelength(self.instruments[h]) for h in r.patterns}
+        if any(lam is None for lam in lams.values()) or len(set(lams.values())) < 2:
+            return
+        shown = ", ".join(f"{lam:g}" for lam in sorted(set(lams.values())))
+        raise ValueError(
+            f"parametric tie {r.name!r}: {r.target} is a crystallite-size "
+            f"coefficient, (180/π)·K·λ/L, and the subset's patterns are at "
+            f"different wavelengths ({shown} Å), so one function of the "
+            "coordinates would state one number of degrees at every λ — a "
+            "different size in each pattern (WP-1131). Give the declaration a "
+            "subset at one wavelength (patterns=…), or leave the size shared, "
+            "which converts it per histogram")
 
     def parametric_targets(self, h: int) -> set[str]:
         """The bare paths histogram ``h``'s parametric ties drive (WP-1325)."""

@@ -1242,7 +1242,7 @@ def _parametric_lines(coefficients: list[ParametricCoefficient] | None) -> list[
                 f"{k}={v:g}" for k, v in c.reference.items()))
             lines.append(f"    {c.tie}: {c.target}{ref}")
         if not c.vary:
-            value = f"{_number(c.value)} (never refined)"
+            value = f"{_number(c.value)} (not free at the answer)"
         elif c.esd is None:
             value = f"{_number(c.value)} (no esd: unmeasured)"
         else:

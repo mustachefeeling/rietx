@@ -57,6 +57,7 @@ from .params.multi import (
 from .params.parametric import coefficient_rows
 from .params.vector import is_variable_path
 from .refine import (
+    _PHASE_PREFIX,
     _VERSION,
     _WAVELENGTH_PINNED_BY_HELD_HISTOGRAM,
     SCALE_B_SEPARATION_FLOOR,
@@ -415,14 +416,10 @@ def _joint_reach_beyond_self(columns: list[str], reach: dict[str, list[str]]
     return out
 
 
-#: ``phases.<i>.`` after any ``hist.<h>.`` scope: the phase a name belongs to
-_PHASE_SEGMENT = re.compile(r"^phases\.(\d+)\.")
-
-
 def _joint_phases_reached(columns: list[str], reach: dict[str, list[str]]) -> set[int]:
     """Every phase a column names or moves (``refine._phases_reached``, scoped)."""
     return {int(m.group(1)) for c in columns for name in (c, *reach.get(c, ()))
-            if (m := _PHASE_SEGMENT.match(_unscoped(name)))}
+            if (m := _PHASE_PREFIX.match(_unscoped(name)))}
 
 
 def _unsupported_paths_multi(mtable, absent: set[int],

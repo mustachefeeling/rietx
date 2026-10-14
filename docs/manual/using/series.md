@@ -1606,9 +1606,10 @@ coordinate: on a five-pattern synthetic ramp at 300-900 K the slope's row read
 same number divided by the scale.
 
 An esd of `None` has one of two causes, and `ParametricCoefficient.vary` says
-which: the coefficient was never refined, or the joint covariance gave it none
-because no pattern of the subset carried gradient for it. A unit of `None`
-means one of its parts was not recorded. The target's unit is its family's in
+which: the coefficient was not free in the last stage, or the joint
+covariance gave it none because no pattern of the subset carried gradient
+for it. A unit of `None` means one of its parts was not recorded. The
+target's unit is its family's in
 the [](glossary.md), so a cell coefficient over a temperature column
 in K reads `Å/K` and a `biso` one `Å²/K`; a coordinate the table gives no unit,
 or a dimensionless target such as an occupancy, leaves the unit `None`.

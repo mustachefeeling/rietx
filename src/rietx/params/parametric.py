@@ -71,13 +71,6 @@ class ResolvedParametric:
     def paths(self) -> list[str]:
         return self.tie.coefficient_paths()
 
-    def row(self, h: int) -> np.ndarray | None:
-        """Φ's row for histogram ``h``, or ``None`` outside the subset."""
-        try:
-            return self.phi[self.patterns.index(h)]
-        except ValueError:
-            return None
-
 
 def term_label(term: list[str]) -> str:
     """``"1"`` for the intercept, else the monomial: ``"T"``, ``"x*y"``, ``"T^2"``.

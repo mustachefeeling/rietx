@@ -259,8 +259,8 @@ class ParametricCoefficient(Base):
     design matrix defines it, and a ``constant`` one is the target itself.
 
     ``esd`` is ``None`` where the joint covariance gives the coefficient none:
-    no pattern of the subset carried gradient for it, or it was not refined
-    (``vary`` False).  ``unit`` is the target's unit over the term's coordinate
+    no pattern of the subset carried gradient for it, or it was not free in
+    the solve that produced the answer (``vary`` False).  ``unit`` is the target's unit over the term's coordinate
     units, and ``None`` unless the target's and every such coordinate's unit
     is recorded (a ``design`` coefficient's is the caller's, so never).
     """

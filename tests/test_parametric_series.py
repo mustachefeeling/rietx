@@ -280,6 +280,18 @@ def test_two_phase_fields_take_a_law_each_on_one_target():
     assert {"vars.lo_0", "vars.hi_0"} <= set(freed)
 
 
+def test_a_size_target_across_wavelengths_is_refused():
+    """A size coefficient goes as λ (WP-1131): shared, it carries the factor
+    into each histogram; a parametric target is per-histogram and would not."""
+    s, ins = perturbed_inputs()                  # 0.41390 and 0.71070 Å
+    tie = _tie(name="L", target="phases.0.lor_size", basis="constant", terms=None)
+    with pytest.raises(ValueError, match=r"crystallite-size.*0\.4139, 0\.7107 Å"):
+        MultiParameterTable(s, ins, parametric=[tie])
+    # one wavelength: nothing to convert, so the declaration stands
+    mt = MultiParameterTable(s, _lab6_instruments(2), parametric=[tie])
+    assert [r.target for r in mt.parametric] == ["phases.0.lor_size"]
+
+
 def test_a_sharing_map_that_splits_a_coefficient_is_refused():
     s, _ = perturbed_inputs()
     with pytest.raises(ValueError, match="makes vars.a_0 per-histogram"):
