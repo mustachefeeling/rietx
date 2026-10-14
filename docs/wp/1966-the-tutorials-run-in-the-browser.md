@@ -1,0 +1,265 @@
+# WP-1966 — the tutorials run in the browser, in JupyterLite
+
+Milestone: unscheduled · Status: 🔄 2026-10-14 — all six tutorials run in JupyterLite in headless Chromium; the site goes to /lite/ on merge, which is the maintainer's call
+Track: Render what the fit already knows
+Depends on: —
+Priority: P3 2026-10-14 — Colab covers it; a second door with no Google account and no server
+
+## Goal
+
+Every tutorial notebook runs live in a browser tab with nothing installed and
+no account, as a JupyterLite site served beside the landing page. A build
+script reproduces the site from the repository, including the two dependencies
+Pyodide does not ship.
+
+## Context
+
+WP-1917 parked JupyterLite as a non-goal: "Pyodide has no `rietx-kernels`
+wheel, so pip refuses rietx there". That is one of four gaps, and none is a
+wall.
+
+- **`rietx-kernels`**: no WebAssembly build, and no sdist to make one from.
+  The crate cross-compiles unchanged with `pyodide-build` (maturin, the Rust
+  1.93.0 toolchain Pyodide's cross-build environment names, the stock
+  `wasm32-unknown-emscripten` target). It starts no threads of its own,
+  and its x86-only SLEEF `exp` already falls back to Rust's `f64::exp`, as
+  the arm64 wheel does. What did need a change was Python's side: Pyodide's
+  CPython has no threads (`sys._emscripten_info.pthreads` is False), so
+  `compiled.n_threads()` answers 1 there. Before the kernels were built,
+  micropip's `add_mock_package(..., modules={})` let rietx install on its
+  numpy path. That is the fallback if a kernel build ever breaks.
+- **gemmi and spglib**: absent from Pyodide's distribution and with no
+  wasm wheel on PyPI (checked 2026-10-14: gemmi 0.7.5, spglib 2.8.0). Both
+  cross-compile with `pyodide-build` against the Pyodide JupyterLite pins.
+  gemmi needs three changes: nanobind `<3` (its CMake asks for 2.4 under
+  SameMajorVersion), `BUILD_GEMMI_PROGRAM=OFF`, and dummy `FE_*` macros,
+  because a vendored `half.hpp` names floating-point exception flags wasm's
+  libc lacks. It uses them only for CCP4 maps, which rietx never reads.
+  spglib needs `SPGLIB_SHARED_LIBS=OFF`, or `_spglib.so` links a
+  `libsymspg.so` Pyodide's loader cannot find.
+- **wasm32's index type is 32 bits.** `np.repeat` casts its counts to
+  `intp` under the 'safe' rule, so int64 counts raise there.
+  `model.preferred_orientation.orbit_layout` did, and every `summary()`
+  reached it through `report.texture`. The fit path itself is clean: every
+  tutorial's fits ran.
+- **JupyterLite's kernel empties `fcntl`** (`pyodide_kernel/mocks.py` puts
+  a bare module in `sys.modules`). Plain Pyodide has `fcntl.flock`, so a
+  Node run never sees this. `import fcntl` succeeds and `.flock` raises
+  `AttributeError`, past every `except ImportError`. `Project.create`
+  reached it through `history/store.py`. Importing `flock` by name turns
+  the mock into the `ImportError` each lock site reads as Windows.
+
+The Pyodide pin follows `jupyterlite-pyodide-kernel`: 0.8.6 loads Pyodide
+314.0.6 (CPython 3.14.2, ABI `pyemscripten_2026_0`), and the two wheels must
+match that ABI.
+
+## Non-goals
+
+- Publishing the WebAssembly kernels to PyPI. The site builds them from
+  `kernels/` at its own commit. A published `pyemscripten` wheel would be a
+  second release artefact for `docs/RELEASING.md`.
+- A dark theme. The site is pinned light because every notebook figure is
+  drawn on white. Dark needs the figures drawn for it first.
+- Upstreaming gemmi and spglib recipes to `pyodide-recipes`, which would put
+  them on Pyodide's CDN and retire most of the build script.
+
+## Tasks
+
+- [x] `orbit_layout` passes its counts as `intp` (the one wasm32 failure).
+- [x] The three `fcntl.flock` sites import it by name.
+- [x] `docs/lite/build_wheels.py`: gemmi and spglib for the pinned Pyodide.
+- [x] rietx-kernels for the pinned Pyodide too, from `kernels/`, and
+  `compiled.n_threads()` answers 1 where the platform has no threads.
+- [x] The site's theme pinned to JupyterLab Light.
+- [x] `docs/lite/build.py`: the six notebooks, each with a browser install
+  cell in place of `%pip install rietx`, built into a JupyterLite site.
+- [x] `docs/lite/smoke.mjs`: the site's six tutorials run in headless
+  Chromium; `tests/test_lite.py` holds the projection and the `fcntl` mock.
+- [x] The site at `/lite/` in `pages.yml`, a wheel from the same commit.
+- [ ] The maintainer opens the site and decides whether it ships. If it
+  does: a "Run in the browser" link per landing-page row, and the two
+  `docs/lite/README.md` rules as a root CLAUDE.md bullet (the file is at
+  its pinned cap, so that is a cap decision).
+- [x] Skill: none. An agent driving rietx runs it in a Python with the
+  kernels; this is a reader's door.
+
+## Acceptance
+
+```sh
+python3 docs/lite/build_wheels.py docs/lite/wheels
+<lite venv>/bin/python docs/lite/build.py --wheels docs/lite/wheels --ref HEAD --rietx-wheel <wheel>
+PW=<playwright> node docs/lite/smoke.mjs docs/lite/site
+.venv/bin/python -m pytest tests/test_lite.py
+```
+
+`smoke.mjs` prints `ok` for all six notebooks.
+
+## References
+
+- Pyodide 314.0.6 and `pyodide-build` 0.39.1; JupyterLite 0.8.6 with
+  `jupyterlite-pyodide-kernel` 0.8.6.
+- PEP 783 (the `pyemscripten` platform tag).
+
+## Handover log
+
+### 2026-10-14 (2nd session) — the compiled kernels run in the browser too
+
+rietx's compiled kernels now run in the browser, so the browser copy is no
+longer stuck on the slow path. The Rust crate cross-compiled to WebAssembly
+without a single change. Under Pyodide it passes the same agreement tests the
+native wheels do. The slowest tutorial (02) went from 226 s to 91 s, against
+31 s natively. The site is also pinned to the light theme, and stays light
+when the reader's system asks for dark, because every figure in the notebooks
+is drawn on white.
+
+*Done.* `build_wheels.py` builds rietx-kernels from `kernels/` with the Rust
+toolchain the cross-build environment names (`pyodide config get
+rust_toolchain`, 1.93.0) and installs it through `rustup`. The crate is
+copied first, so `target/` stays out of the checkout. `compiled.n_threads()`
+answers 1 where `sys._emscripten_info.pthreads` is False, with a native test
+that patches `_CAN_THREAD`. The install cell lost its mock and
+`RIETX_COMPILED=0`, and `build.py` refuses a site whose kernels the installed
+rietx's own requirement would not accept. `SETTINGS` pins JupyterLab Light
+with `adaptive-theme` off, through `--settings-overrides`. `pages.yml` keys
+the wheel cache on `kernels/Cargo.*` and `kernels/src/**` too.
+
+*Measured* (same machine and conditions as the table below, nothing else
+running; seconds of cell time in the browser):
+
+| notebook | numpy path in the browser | kernels in the browser | native, kernels |
+|---|---|---|---|
+| 01 | 37 | 39 | 11 |
+| 02 | 226 | 91 | 31 |
+| 03 | 106 | 101 | 58 |
+| 04 | 37 | 31 | 7 |
+| 05 | 42 | 37 | 11 |
+| 06 | 50 | 41 | 11 |
+
+Under Pyodide in Node, with the four wasm wheels, `tests/test_compiled_kernels.py`
+passed 22 and skipped 1 (the x86-only FCJ build check), with three deselected.
+Those three fail by construction there: two start threads, and one asserts
+that a count of 4 is honoured. The kernels wheel is 0.13 MB, and
+`build_wheels.py` runs in about six minutes from cold. With the OS asking for
+dark, the built site's body reported `JupyterLab Light`.
+Natively, `tests/test_compiled_kernels.py` gives 27 passed (+1),
+`tests/test_lite.py` 13 passed and 1 skipped (`[dev]`, CPython 3.12.3, Linux
+x86-64). The full fast selection was not rerun after this round. The one
+`src/` change returns what it returned before on every platform with threads.
+
+*Answers given to the maintainer.* Notebook parity with Colab: Colab opens
+v1.9.0's notebooks and installs 1.9.0, and `/lite/` opens `main`'s with a
+wheel from `main`. Their tutorial sources are identical today (`git diff
+v1.9.0 HEAD -- 'examples/tutorials/*.py'` is empty). Their outputs differ in
+version stamps and in one wall-clock-dependent indexing note in 03. The repo
+gains scripts only: wheels, site and toolchain are gitignored and built in
+CI, and the wheel cache holds about 2 MB.
+
+*Review* (`/code-review high --fix` over the whole branch, before the PR):
+ten findings. Five were fixed. `smoke.mjs` now fails a notebook whose stderr
+says the compiled kernels did not load. Before this, a broken kernel wheel
+would have passed on the numpy path. The wheel cache keys on `kernels/**`,
+the path `kernels.yml` rebuilds on. It is restored and saved as two steps, so
+a run cancelled after the build still keeps the wheels. The two dist-name
+literals come from `_about`. `build.py` builds beside the old site and swaps
+it in, so a failed build leaves the old site standing. I removed the two
+`test_lite.py` tests the review showed could not fail, since each compared a
+constant with a copy of itself, so the file is 11 passed and 1 skipped.
+Declined: one shared `flock` helper (three sites, each tested), a WASI
+threads check (no WASI target exists), and making the Lite steps
+`continue-on-error`. That last one is the maintainer's call, because it
+decides whether a broken browser site blocks the manual's deploy. Today it
+does.
+
+*Renumbered.* This was filed as WP-1963. The same afternoon `main` filed
+its own WP-1963 (a kernel over the pattern coordinates, #976) and took 1964
+and 1965, so this WP is 1966. The branch's commits up to the merge of
+`main` carry the old prefix, `WP-1963:`. The worktree and its local branch
+are still named `wp1963-…`, and only the pushed branch name matters.
+
+*Next.* Unchanged from the entry below, less item (4), which this did.
+
+### 2026-10-14 — all six tutorials run in a browser tab
+
+The tutorials now run in JupyterLite, in a browser tab, with nothing
+installed and no account. All six run to the end in headless Chromium with
+no error and no stderr, and 01's printed numbers match the committed notebook
+digit for digit. WP-1917's reason for parking this was one of four gaps.
+Two were packaging: gemmi and spglib had to be cross-compiled, and the
+compiled kernels had to be skipped. The other two were real rietx bugs that
+any 32-bit or JupyterLite user would have hit, and both are fixed here. What
+it costs is speed. Without the compiled kernels the structure tutorial (02)
+takes almost four minutes, and natively the kernels alone account for most
+of that.
+
+*Done.* `orbit_layout` passes `intp` counts. The three `flock` sites import
+it by name. `docs/lite/`: `build_wheels.py` (reproduced both wheels from a
+clean work directory), `build.py`, `smoke.mjs`, `requirements.txt`, README.
+`tests/test_lite.py` covers the projection on every notebook, the mock's
+version against rietx's `rietx-kernels` range, and the `fcntl` mock at all
+three lock sites. The store guard was made to fail once against the old code,
+which raises the browser's exact `AttributeError`. `pages.yml` builds the
+site to `/lite/`, but that has not run in CI.
+
+*Review* (`/code-review high --fix`): eight findings, all fixed in one commit.
+`counts` is built as `intp` at the source. The mock's floor is now read from
+the rietx the site serves, with its patch digit kept (it had read the
+working tree and dropped the patch digit). `build.py` refuses a missing
+`--rietx-wheel` and an `--out` that is not a previous site, and takes the
+dist and env names from `_about`. The kernel pin is checked against
+`requirements.txt` without JupyterLite installed. `smoke.mjs`'s path check
+carries a separator, and `pages.yml` runs `apt-get update`. One minor finding
+was dropped: `notebooks(ref)` is called twice, but it is cached. After
+the fixes, the six notebooks were rebuilt and smoke-run on the final tree.
+All six passed, each within 6 s of the table below.
+
+*Tests* (`[dev]` venv, CPython 3.12.3, Linux x86-64, 4 cores, alone). The
+fast selection gave 9700 passed, 198 skipped, 1 xfailed and 1 failed in
+21:52. The failure was this branch's: `test_portability` requires every
+write handle to name `newline=`, and a `test_lite.py` handle did not. It is
+fixed, and that file and `test_lite.py` pass on a rerun. `test_lite.py` adds
+13 cases, 12 passing and 1 skipping (the kernel-pin check against an
+installed `jupyterlite_pyodide_kernel`), 0.03 s in all. The baseline on
+`main` was not measured, so the +13 is the file's count and not a measured
+delta. The full selection did not run: the two `src/` changes are
+value-identical on every 64-bit platform, so neither can move a measured
+number.
+
+*Measured* (Linux cloud container, 4 cores, nothing else running; seconds).
+"Browser" is the smoke run's cell time, which includes the install cell, with
+Pyodide served locally. "Native" is `tests/test_tutorials.py`'s call time,
+which includes a kernel start, in this worktree's `[dev]` venv.
+
+| notebook | native, kernels | native, numpy path | browser |
+|---|---|---|---|
+| 01 quickstart | 11 | 11 | 37 |
+| 02 simple Rietveld | 31 | 135 | 226 |
+| 03 peaks, indexing | 58 | 60 | 106 |
+| 04 peak shape | 7 | 9 | 37 |
+| 05 sequential | 11 | 12 | 42 |
+| 06 your own data | 11 | 16 | 50 |
+
+WebAssembly costs 1.7-1.8× over the native numpy path where a notebook is
+long enough to tell (02, 03). The rest of the gap is install and the
+kernels. A first visit downloads about 55 MB: Pyodide core 13.5, its packages
+33.4 (summed from the wheels the run loaded), and the site's gemmi, spglib
+and rietx 6.8. The browser caches all of it. The site itself is 535 files,
+28 MB. The `--wheels` build takes about five minutes on four cores.
+
+*Gotchas.* Plain Pyodide in Node has `fcntl.flock`, so the `fcntl` bug shows
+only under the JupyterLite kernel. Run `smoke.mjs`, not a Node harness. An
+artifact cannot host the site: its sandbox blocks every outside fetch
+(Pyodide's CDN, PyPI) and service workers. `smoke.mjs` behind a proxy needs
+Playwright's forced loopback proxying switched off, which it does itself.
+The kernel fetches `comm` from PyPI at start, so even a fully self-hosted
+site needs PyPI.
+
+*Next.* (1) The maintainer opens the site and decides whether it ships. A
+local copy needs `python -m http.server` over the built `site/`. (2) If it
+ships: the first `pages.yml` run on `main` is the CI check, then a "Run in
+the browser" link beside each Colab link on the landing page. (3) If it
+ships, the two `docs/lite/README.md` rules go into the root CLAUDE.md, at
+the cost of raising its cap. (4) Optional speed: a single-threaded emscripten
+build of `rietx-kernels` would take back most of 02's time.
+
+- **2026-10-14** — created. No open WP owns it: 1917, which parked
+  JupyterLite, is closed.
