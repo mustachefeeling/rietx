@@ -296,10 +296,10 @@ destroys some of the information the model carries: two candidate families
 are powder-equivalent when each can reproduce the other's powder intensity
 at every shell to within a stated tolerance, over the whole range of its
 free amplitudes and normalised to the same total moment so a scale can never
-be the discriminator {cite}`shirane1959`. `rietx` reports the connected
-classes of that relation rather than a ranked list of individually
-distinguishable candidates, so a refinement need only try one representative
-per class.
+be the discriminator {cite}`shirane1959`. `rietx` reports the classes of that relation (`classes`, and
+`merged_classes` beside it where a proof splits one, below) rather than a
+ranked list of individually distinguishable candidates, so a refinement
+need only try one representative per class.
 
 "The whole range" is proved where one of two certificates applies, and
 sampled everywhere else. A family that lights a shell the other can never

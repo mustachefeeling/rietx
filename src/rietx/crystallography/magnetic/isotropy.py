@@ -1799,7 +1799,7 @@ class CandidateSet:
         dropped = sorted({(min(v.a, v.b), max(v.a, v.b)) for v in self.relations
                           if v.refuted_by is not None})
         if dropped:
-            lines.append("sampled edges refuted by transfer (dropped from the split, which rests "
+            lines.append("sampled edges refuted by a proof (dropped from the split, which rests "
                          "on their sampled ⊆ halves), n = draws a → b, b → a:")
             for i, j in dropped:
                 there, back = verdicts[(i, j)], verdicts[(j, i)]
@@ -3529,7 +3529,7 @@ def _settle(target: tuple[int, int], new: PairVerdict,
 def _transfers(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int],
                grams: list[np.ndarray], dark: list[np.ndarray], silent: list[bool], *,
                n: int, seed: int, rtol: float, restarts: int,
-               fits: dict[tuple[int, int], np.ndarray | None] | None = None) -> None:
+               fits: dict[tuple[int, int], tuple[Witness, np.ndarray | None]] | None = None) -> None:
     """Carry every proved separation as far as the proved containments and the fit transfers take it (issue #565, items 5 and 6).
 
     Repeated to a fixed point, each new proof handed to :func:`_propagate`
@@ -3549,7 +3549,9 @@ def _transfers(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int],
     holds the witness — its origin, whatever order the verdicts carrying
     it are visited in; a witness no ``farkas`` verdict holds takes the
     carrying verdict's pair — once per witness and ``c`` (``fits`` keeps
-    those fits across calls), and
+    those fits across calls, each beside the witness it was fitted to: the
+    key is the witness's ``id``, and a witness a replaced verdict freed
+    could otherwise hand its address to a new one), and
     :func:`_fit_transfer` decides c ⊄ b or nothing.  A ``c`` proved not to
     contain ``a`` is not tried: a generic draw of ``a`` is then out of its
     reach by the certificate, or expected to be; a ``c`` proved to be
@@ -3563,6 +3565,7 @@ def _transfers(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int],
     spin.
     """
     fits = {} if fits is None else fits
+    _alive = [v.witness for v in verdicts.values() if v.witness is not None]   # keeps every id below live
     origin = {id(v.witness): (v.a, v.b) for v in verdicts.values()
               if v.certificate == "farkas" and v.witness is not None}
     for _ in range(n * (n - 1) + 1):
@@ -3596,13 +3599,14 @@ def _transfers(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int],
                         or verdicts[(a, c)].status not in ("sampled-contained", "unresolved"):
                     continue
                 fit_key = (id(v.witness), c)
-                if fit_key not in fits:
-                    fits[fit_key] = _transfer_fit(
+                if fit_key not in fits or fits[fit_key][0] is not v.witness:
+                    fits[fit_key] = (v.witness, _transfer_fit(
                         t, grams[c], np.random.default_rng([seed, *origin.get(id(v.witness), (a, b)), c]),
-                        restarts=restarts, rtol=rtol)
-                if fits[fit_key] is None:
+                        restarts=restarts, rtol=rtol))
+                fit = fits[fit_key][1]
+                if fit is None:
                     continue
-                fires, record = _fit_transfer(v.witness, grams[b], dark[b], grams[c], fits[fit_key])
+                fires, record = _fit_transfer(v.witness, grams[b], dark[b], grams[c], fit)
                 if fires:
                     moved |= _settle((c, b), PairVerdict(
                         c, b, "proved-not", "transfer", d=_transfer_distance(v, record),
@@ -4003,7 +4007,7 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
                     _propagate(v, verdicts, copies, n)
             if there.contained and back.contained:
                 parent[find(j)] = find(i)
-    fits: dict[tuple[int, int], np.ndarray | None] = {}
+    fits: dict[tuple[int, int], tuple[Witness, np.ndarray | None]] = {}
     _transfers(verdicts, copies, grams, dark, silent, n=n, seed=seed, rtol=rtol,
                restarts=restarts, fits=fits)
     _consistency(verdicts, [c.irrep_label for c in candidate_set], copies, canonical, grams,
@@ -4015,6 +4019,15 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
 
 # --------------------------------------------------------------------------
 # the consistency rule and the split (issue #565, part 5)
+
+def _consistency_rounds(n: int) -> int:
+    """The most rounds :func:`_consistency` can need: its supply plus the round that draws nothing.
+
+    A round that continues consumes a skipped pair (at most n(n − 1)/2,
+    each drawn once) or a redrawn direction (at most n(n − 1), each once).
+    """
+    return n * (n - 1) // 2 + n * (n - 1) + 1
+
 
 def _consistency(verdicts: dict[tuple[int, int], PairVerdict], irrep, copies: list[int],
                  canonical, grams, silent, dark, spans, refl: ReflectionSet, *, n: int,
@@ -4038,7 +4051,7 @@ def _consistency(verdicts: dict[tuple[int, int], PairVerdict], irrep, copies: li
     read as a separation.
     """
     redrawn: set[tuple[int, int]] = set()
-    for _ in range(n * n + 1):
+    for _ in range(_consistency_rounds(n)):
         _split(verdicts, irrep, n)
         drawn = _rejoin(verdicts, copies, canonical, grams, silent, dark, spans, refl, n=n,
                         draws=draws, seed=seed, rtol=rtol, restarts=restarts, weights=weights)
@@ -4112,7 +4125,8 @@ def _rejoin(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int], can
     Farkas proof propagated at once, and a pair contained both ways joins
     its two components so that a later pair between them is skipped
     again.  A pair with a direction already proved apart has no edge to
-    test and is left as it is.
+    test and is left as it is, except that its other direction, if it was
+    skipped as joined, is recorded ``settled`` (:data:`UNRESOLVED_REASONS`).
     """
     edges = _equivalence_edges(verdicts, n, kept=True)
     parent = list(range(n))
@@ -4129,8 +4143,14 @@ def _rejoin(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int], can
     for i in range(n):
         for j in range(i + 1, n):
             there, back = verdicts[(i, j)], verdicts[(j, i)]
-            if find(i) == find(j) or "joined" not in (there.reason, back.reason) \
-                    or "proved-not" in (there.status, back.status):
+            if "proved-not" in (there.status, back.status):
+                # the pair is decided apart: what the other direction was skipped for
+                # is now that it was settled, not that a join stands
+                for key, v in (((i, j), there), ((j, i), back)):
+                    if v.status == "unresolved" and v.reason == "joined":
+                        verdicts[key] = replace(v, reason="settled")
+                continue
+            if find(i) == find(j) or "joined" not in (there.reason, back.reason):
                 continue
             decided = {key: verdicts[key] for key in ((i, j), (j, i)) if verdicts[key].proved}
             there, back = _pair_verdicts(i, j, canonical, grams, silent, dark, spans, refl,
@@ -4157,8 +4177,9 @@ def _redraw(verdicts: dict[tuple[int, int], PairVerdict], irrep, copies: list[in
     ``proved-not`` pair, every ``sampled-contained`` direction between the
     two irreps of such a pair, not in ``redrawn`` yet, is drawn again with
     the pair's own budget (:func:`_draws_for`), through
-    :func:`_certify_draw`, on a generator seeded (``seed``, 1): one per
-    direction, the same stream whatever the candidate order or the order
+    :func:`_certify_draw`, on a generator seeded (``seed``, 1, a, b): one per
+    direction, so two directions sharing a source do not redraw the same
+    amplitudes, and the same stream whatever the candidate order or the order
     the pairs were visited in, and a different one from the pair loop's.
     A certified draw proves the direction (``farkas``, propagated at
     once, and the caller re-runs the transfers); an unreproduced
@@ -4183,7 +4204,7 @@ def _redraw(verdicts: dict[tuple[int, int], PairVerdict], irrep, copies: list[in
                     todo.append((a, b))
     for a, b in sorted(todo):
         v = verdicts[(a, b)]
-        again = _draw_direction(a, b, canonical, grams, dark, refl, np.random.default_rng([seed, 1]),
+        again = _draw_direction(a, b, canonical, grams, dark, refl, np.random.default_rng([seed, 1, a, b]),
                                 draws=_draws_for(canonical[a], canonical[b], draws), rtol=rtol,
                                 restarts=restarts, weights=weights, spent=v.draws,
                                 below_gate=v.witness)
@@ -4202,9 +4223,16 @@ def _split(verdicts: dict[tuple[int, int], PairVerdict], irrep, n: int) -> None:
     least one of whose directions is ``sampled-contained``, is refuted:
     each such direction names the proved verdict (the one between those
     two irreps with the smallest pair) in ``refuted_by``.  A proved edge
-    is left alone, as is every edge in a class holding no proof.
+    is left alone, as is every edge in a class holding no proof.  The marks
+    are recomputed from nothing at every call, so an edge marked by a proof
+    a later round's redraw or transfer took out of its class is unmarked.
     :func:`_partitions` then reads the classes off.
     """
+    # the marks are recomputed from nothing: a class a later round broke in two
+    # must not keep an edge's mark from a proof it no longer holds
+    for key, v in verdicts.items():
+        if v.refuted_by is not None:
+            verdicts[key] = replace(v, refuted_by=None)
     edges = _equivalence_edges(verdicts, n)
     for members in _components(n, edges):
         proofs = _separations_inside(verdicts, members, irrep)
