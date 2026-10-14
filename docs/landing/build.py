@@ -100,7 +100,7 @@ def notebooks(ref: str, repo: Path = REPO) -> tuple[Notebook, ...]:
 
 
 def notebook_rows(ref: str, books: tuple[Notebook, ...]) -> str:
-    """The Jupyter quickstart's list: each notebook's title, then Read, Colab, Browser, Download."""
+    """The Jupyter quickstart's list: each notebook's title, then Read, JupyterLite, Colab, Download."""
     repo = ABOUT.REPO_URL.removeprefix("https://github.com/")
     rows = []
     for nb in books:
@@ -108,8 +108,8 @@ def notebook_rows(ref: str, books: tuple[Notebook, ...]) -> str:
         rows.append(
             f'<li><span class="nb-title">{_html.escape(nb.title)}</span><span class="nb-links">'
             f'<a href="{ABOUT.DOCS_URL}/using/tutorials/{stem}.html">Read</a>'
+            f'<a href="{LITE}{nb.name}">JupyterLite</a>'
             f'<a href="{COLAB}{repo}/blob/{ref}/{nb.path}">Colab</a>'
-            f'<a href="{LITE}{nb.name}">Browser</a>'
             f'<a href="notebooks/{nb.name}" download>Download</a></span></li>')
     return "\n".join(rows)
 

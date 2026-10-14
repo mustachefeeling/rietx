@@ -497,13 +497,13 @@ def test_every_colab_link_opens_the_notebook_at_the_ref(site_html, build):
         assert found.returncode == 0, f"{link} names no file at {REF}"
 
 
-def test_every_browser_link_opens_a_notebook_the_lite_site_serves(site_html, build):
-    """A Browser link opens the JupyterLite copy (WP-1966).  `pages.yml` builds that site
+def test_every_jupyterlite_link_opens_a_notebook_the_lite_site_serves(site_html, build):
+    """A JupyterLite link opens the browser copy (WP-1966).  `pages.yml` builds that site
     to /lite/, and `docs/lite/build.py` puts each notebook at its root under its file name.
     That build reads the notebooks at `HEAD` while the rows read the tag, so this suite,
     which builds both at `HEAD`, cannot see a tutorial renamed since the release.  The URL
     form is the one `smoke.mjs` opens."""
-    links = re.findall(r'href="([^"]+)">Browser</a>', site_html)
+    links = re.findall(r'href="([^"]+)">JupyterLite</a>', site_html)
     assert links == [build.LITE + nb.name for nb in build.notebooks(REF)]
     form = "/notebooks/index.html?path="
     assert build.LITE == f"{build.ABOUT.DOCS_URL}/lite{form}"
