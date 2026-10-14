@@ -480,6 +480,11 @@ because it was not downloaded. Bunge's tables are published numbers.
       took GSAS-II's ψ. The CIF and FullProf writers state the block or say
       they cannot (`io/exporters.py:464`, `io/projects/fullprof.py:3466`
       show what March-Dollase does).
+      *In part, 2026-10-15, from the handover's review.* The writers
+      are done: the CIF states the block, FullProf refuses a non-zero
+      one, `TOPAS_FIELD_NOT_WRITTEN` and `GSAS2_CIF_FIELD_NOT_WRITTEN`
+      name it, and a P 1 restatement refuses it. Open: the TOPAS
+      reading and import, the coverage-row split, and GSAS-II's `_hap`.
 - [x] **`rietx compare`**: a `+ spherical-harmonics texture` variant beside
       `preferred_orientation`, run on the `brucite` standard
       (`qarr/brucite.prn`; `viz/compare.py` has no cpd-2 standard), and its

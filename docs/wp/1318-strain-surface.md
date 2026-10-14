@@ -56,6 +56,11 @@ propagation is done properly, absent otherwise, never a diagonal shortcut.
   pole-figure render evaluates a function over the same sphere of hkl
   directions, so whichever WP lands second reuses the first's sampler rather
   than building another. WP-1960's positivity guard samples that sphere too.
+- **2026-10-15, from WP-1960:** WP-1960 landed first. The sampler is
+  `crystallography.spherical_harmonics.sphere_points`, and the texture
+  surface is `TextureBasis.evaluate` on those directions, which
+  `CompiledModel.texture_summary` already calls. A strain render reuses the
+  sampler.
 
 ## Non-goals
 
