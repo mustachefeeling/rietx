@@ -124,7 +124,8 @@ usable for the synthetic phantom's reconstruction, as a dev-only dependency.
 ## Non-goals
 
 - Texture tomography (spherical harmonics per voxel; Liebi et al. 2015 for
-  SAXS). That waits on texture itself, which WP-1960 (PR #966) scopes.
+  SAXS). That waits on texture itself, which
+  [1960](1960-spherical-harmonics-texture.md) scopes.
 - PDF-CT, absorption-contrast CT, and full 3-D or helical acquisition. A
   stack of 2-D slices comes first.
 - Reconstruct-then-fit as a feature: it is 1325's library case. This WP owns

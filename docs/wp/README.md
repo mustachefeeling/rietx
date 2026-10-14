@@ -43,13 +43,12 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-12 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1912](1912-a-polar-axis-has-no-origin.md) | A polar axis has no origin, and the fit walks along it | 2026-10-13 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1913](1913-what-the-benchmark-agents-wrote-by-hand.md) | What the benchmark agents wrote by hand: a mixed site, a special-position retry loop, and `.esd` | 2026-10-08 | P3 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
-| [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | 2026-10-09 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1922](1922-a-rigid-body-the-data-reject-is-named.md) | A rigid body the data reject is named | 2026-10-11 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | 2026-10-13 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1927](1927-tof-t1-the-axis-and-its-readers.md) | TOF T-1: the time-of-flight axis and its readers | 2026-10-13 | P2 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 2026-10-12 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
-| [1957](1957-a-fit-seen-in-colab.md) | A fit seen in Colab: figures at their own shape, the structure beside them, a template for your own data | 2026-10-13 | P2 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
+| [1961](1961-cut-1-9-0.md) | Cut 1.9.0 from what main holds | 2026-10-14 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
 
@@ -578,10 +577,10 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1544](1544-a-model-reads-in-a-notebook.md) | A model reads in a notebook | ✅ 2026-10-07 | — | — |
 | [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 🔄 2026-10-07 | — | [1544](1544-a-model-reads-in-a-notebook.md) |
 | [1916](1916-the-tutorials-in-the-manual.md) | The tutorials in the manual, and the quickstart is a notebook | ✅ 2026-10-08 | — | [1545](1545-tutorial-notebooks.md) |
-| [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | 🔄 2026-10-09 | P3 | [1916](1916-the-tutorials-in-the-manual.md) |
+| [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | ✅ 2026-10-14 | — | [1916](1916-the-tutorials-in-the-manual.md) |
 | [1947](1947-the-model-read-at-its-values-without-a-solve.md) | The model read at its values, without a solve | ⬜ | P3 | — |
 | [1949](1949-an-accepted-evaluation-carries-what-a-preview-draws.md) | An accepted evaluation carries what a preview draws | ⬜ | P3 | — |
-| [1957](1957-a-fit-seen-in-colab.md) | A fit seen in Colab: figures at their own shape, the structure beside them, a template for your own data | 🔄 2026-10-13 | P2 | — |
+| [1957](1957-a-fit-seen-in-colab.md) | A fit seen in Colab: figures at their own shape, the structure beside them, a template for your own data | ✅ 2026-10-14 | — | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 
@@ -631,6 +630,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1928](1928-the-toy-anomalous-golden-reads-a-frozen-y-obs.md) | The toy_anomalous golden reads a frozen y_obs | ✅ 2026-10-08 | — | — |
 | [1941](1941-a-release-note-is-a-file-per-change.md) | A release note is a file per change | ⬜ | P3 | — |
 | [1954](1954-cut-1-8-0.md) | Cut 1.8.0 from what main holds | ✅ 2026-10-12 | — | [1546](1546-cut-1-7-0.md), [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) |
+| [1961](1961-cut-1-9-0.md) | Cut 1.9.0 from what main holds | 🔄 2026-10-14 | P2 | [1954](1954-cut-1-8-0.md), [1959](1959-the-dichotomy-grid-compiled-again.md) |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 
@@ -644,4 +644,5 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1945](1945-the-peak-chain-columns-built-in-one-pass-per-phase.md) | The peak-chain columns of a Jacobian built in one pass per phase | ⬜ | P3 | — ([1938](1938-every-parameter-refined-in-its-own-units.md) soft) |
 | [1948](1948-a-public-objective-for-an-outside-optimiser.md) | A public objective for an outside optimiser | ⬜ | P4 | [1947](1947-the-model-read-at-its-values-without-a-solve.md), [1938](1938-every-parameter-refined-in-its-own-units.md) |
 | [1950](1950-rietx-inside-an-application.md) | Rietx inside an application | ⬜ | P3 | — |
+| [1960](1960-spherical-harmonics-texture.md) | Spherical-harmonics texture: preferred orientation with no single axis | ⬜ | P3 | — |
 | [1962](1962-xrd-ct-a-pattern-summed-over-the-voxels-its-beam-crosses.md) | XRD-CT: a pattern summed over the voxels its beam crosses | ⬜ | P3 | [1325](1325-parametric-series.md) |

@@ -327,7 +327,7 @@ the 20 seeds.
   modelled. Its targets include weak and broad features in `instrument.*`
   (background, `extra_components`), so a tie reaches `hist.{h}.` paths. The
   same email names spherical-harmonics texture as their other gap; that is
-  WP-1960 (PR #966), not this.
+  [1960](1960-spherical-harmonics-texture.md), not this.
 - **Issue #212's conserved elemental ratio** is a parametric constraint in
   disguise: linear in the phase scales and constant across the axis. Its
   restraint row is [1942](1942-a-soft-restraint-on-a-sum-across-phases.md),
@@ -540,8 +540,9 @@ the 20 seeds.
   - Not ported to the skill. "Share the instrument across a ramp" is
     synthetic-only, and sharing a zero or displacement through a heating ramp
     is valid only while the mount does not move. It waits for the real ramp.
-  - The outside lab's other request, spherical-harmonics texture, is WP-1960,
-    which is in PR #966 and not yet on `main`, so nothing was forwarded into
+  - The outside lab's other request, spherical-harmonics texture, is
+    [1960](1960-spherical-harmonics-texture.md). It landed on `main` during
+    this handover and already cites the lab, so nothing was forwarded into
     it.
   - This session's local branch `wp1325-parametric-series` pushes to
     `origin/claude/blissful-ptolemy-tb7b7k`, the cloud session's branch. That

@@ -48,6 +48,15 @@ band on the surface is derivable via the covariance (the
 `model/geometry.py` J·Cov·Jᵀ precedent) — include it only if the
 propagation is done properly, absent otherwise, never a diagonal shortcut.
 
+### Inherited
+
+- **2026-10-14, from WP-1960's filing:** spherical-harmonics texture left the
+  v2 fence that day as [WP-1960](1960-spherical-harmonics-texture.md), so the
+  Non-goals bullet's "fenced design" is stale. It stays a non-goal here. Its
+  pole-figure render evaluates a function over the same sphere of hkl
+  directions, so whichever WP lands second reuses the first's sampler rather
+  than building another. WP-1960's positivity guard samples that sphere too.
+
 ## Non-goals
 
 - **Not Fourier or difference-Fourier maps** — v2+ fence (the McCusker
