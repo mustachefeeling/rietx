@@ -948,14 +948,6 @@ directions and 197.9 against 337.1 for 296.
   measurement says the joint form pays, the moment trajectory is a further
   series to measure it on.
 
-### Inherited
-
-- **From WP-1961 (2026-10-14).** #970 merged as `caf089fc`, after the
-  `v1.9.0` tag on `ea1800d3`, so it ships in 1.10. The staged
-  `docs/releases/1.10.0.md` did not exist when it merged, and it staged no
-  note anywhere. If its `multi.py` change is user-facing, its note goes in
-  that file.
-
 ## Non-goals
 
 - A library of physical models: the caller supplies the basis, or names a
@@ -1422,8 +1414,8 @@ sessions shared the machine at load averages of 4 to 30):
 
 Next, in order (rewritten the same day after the maintainer's decisions,
 § Decisions after the form test):
-1. **Stage the two release notes** above in `docs/releases/1.10.0.md` once
-   #975 merges, and prune the Inherited entry.
+1. ~~Stage the two release notes~~: done the same day, once #975 merged,
+   with the v1.10 record's entry; the Inherited entry is consumed.
 2. **Show in the output when a value came from a law**, the maintainer's
    priority.
 3. **Test each law with the other laws freed.**
