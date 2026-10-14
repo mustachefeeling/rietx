@@ -142,7 +142,7 @@ def _recorded_boxes(system: str, limit: int) -> tuple[list, list]:
     boxes, children = [], []
     real_test, real_push = dichotomy._test_box, dichotomy._push_children
 
-    def test_box(m, lo, hi, basis, q_hi, det_band, swaps, lo_s, hi_s,
+    def record_box(m, lo, hi, basis, q_hi, det_band, swaps, lo_s, hi_s,
                  n_unindexed, ids=None):
         boxes.append((np.ascontiguousarray(m), lo.copy(), hi.copy(), basis,
                       q_hi, det_band, swaps, lo_s, hi_s, n_unindexed))
@@ -156,7 +156,7 @@ def _recorded_boxes(system: str, limit: int) -> tuple[list, list]:
         real_push(stack, kids, m, ids, lo_s, hi_s, n_unindexed, depth)
 
     was = compiled.set_enabled(False)
-    dichotomy._test_box, dichotomy._push_children = test_box, push
+    dichotomy._test_box, dichotomy._push_children = record_box, push
     try:
         peaks, _cell = synthetic_peaks(system)
         search_dichotomy(peaks, spec=spec_for(system))
