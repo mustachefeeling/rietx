@@ -850,6 +850,12 @@ from the chain:
   of 1 % of the line's half-excursion, 9.4 × 10⁻⁵ Å at mid-ramp, scored
   2 607 against a cut of 15.5, at GoF 1.12; the straight truth scored 4.8.
 
+**On the synthetic library** (`tests/test_parametric_series.library`, the
+true bilinear surface declared, blocked solve; load 10-24): the test took
+0.27 s of a 6.7 s fit at 120 patterns (4.1 %) and 0.67 s of 18.0 s at 300
+(3.7 %). It kept the true surface, 76.4 against a cut of 142.1 for 116
+directions and 197.9 against 337.1 for 296.
+
 ### What the code has (survey, 2026-10-14)
 
 - **`multi.py` is the seam: N patterns, one θ** (WP-0308).
