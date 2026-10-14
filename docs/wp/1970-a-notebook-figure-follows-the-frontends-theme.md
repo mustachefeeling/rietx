@@ -119,7 +119,8 @@ cannot reach the dark palette's hand-tuned values.
   `ax.set_xlim` as the case that separates them. Recolour (Context).
 - [x] The notebook formatter emits the pair as `text/html` beside the light
   `image/png`, keeping the width-only metadata of WP-1957.
-- [ ] `render_structure`'s notebook output emits the same pair.
+- [x] `render_structure`'s notebook output emits the same pair. Drawn again
+  from the recipe, on a copy of the structure taken at the call.
 - [ ] A browser check: JupyterLab or the Lite site switched from Light to
   Dark swaps the figure without a rerun, and the same notebook opened
   untrusted shows one light figure.

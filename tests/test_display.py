@@ -143,6 +143,34 @@ def test_a_structure_figure_shows_its_picture(fap):
     assert len(repr(fig)) < 100
 
 
+def test_a_structure_figure_carries_a_dark_copy_drawn_from_what_it_was(fap):
+    """WP-1970: on the default white ground the figure's notebook output
+    carries the pair, the dark one drawn again from the recipe on the dark
+    page's ground.  It is drawn from a copy taken at the call, so a structure
+    edited afterwards cannot make the two pictures differ.  A figure on any
+    other ground was the caller's choice, and shows alone."""
+    import base64
+    import re
+
+    from rietx.viz.plots import PALETTES
+
+    structure = fap["structure"].model_copy(deep=True)
+    fig = rx.viz.render_structure(structure, size=120)
+    dark = rx.viz.render_structure(structure, **{
+        **fig.recipe, "background": PALETTES["dark"]["ground"]})
+    structure.phases[0].cell.a.value *= 1.2
+    bundle, metadata = fig._repr_mimebundle_()
+    assert bundle["image/png"] == fig._repr_png_()[0]
+    assert metadata == {"image/png": fig._repr_png_()[1]}
+    light_img, dark_img = re.findall(r"<img [^>]*>", bundle["text/html"])
+    assert "display:none" in dark_img and "display:none" not in light_img
+    assert (re.search(r'base64,([^"]+)"', dark_img).group(1)
+            == base64.b64encode(dark._repr_png_()[0]).decode())
+    for ground in ("black", None, "#ffeedd"):
+        alone = rx.viz.render_structure(structure, size=120, background=ground)
+        assert list(alone._repr_mimebundle_()[0]) == ["image/png"]
+
+
 def test_a_result_html_is_its_text_and_its_parameter_table(fap):
     result = fap["result"]
     html = result._repr_html_()

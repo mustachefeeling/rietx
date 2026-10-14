@@ -454,29 +454,40 @@ def _notebook_bundle(fig) -> tuple[dict, dict]:
     data, metadata = {"image/png": light}, {"image/png": meta}
     if fig._rietx_style != "light":
         return data, metadata
-    import base64
     import copy
 
     try:
         dark, _ = _notebook_png(_darkened(copy.deepcopy(fig)))
     except Exception as exc:  # noqa: BLE001 - the light figure still shows
-        import warnings
-        warnings.warn(f"no dark copy of this figure, so it shows light only: {exc!r}",
-                      stacklevel=2)
+        _no_dark_copy(exc)
         return data, metadata
+    data["text/html"] = _pair_html(light, dark, meta["width"])
+    return data, metadata
+
+
+def _no_dark_copy(exc: Exception) -> None:
+    import warnings
+    warnings.warn(f"no dark copy of this figure, so it shows light only: {exc!r}",
+                  stacklevel=3)
+
+
+def _pair_html(light: bytes, dark: bytes, width: int) -> str:
+    """Two PNGs as one output, of which the frontend's theme shows one: the
+    shape :func:`_notebook_bundle` describes, shared with the structure
+    figure's (WP-1970)."""
+    import base64
 
     def img(png: bytes, role: str, hidden: bool) -> str:
         style = "max-width:100%;height:auto" + (";display:none" if hidden else "")
-        return (f'<img class="rx-fig-{role} only-{role}" width="{meta["width"]}" '
+        return (f'<img class="rx-fig-{role} only-{role}" width="{width}" '
                 f'style="{style}" alt="" '
                 f'src="data:image/png;base64,{base64.b64encode(png).decode()}">')
 
     hide = ", ".join(f"{m} .rx-fig-light" for m in _DARK_MARKERS)
     show = ", ".join(f"{m} .rx-fig-dark" for m in _DARK_MARKERS)
-    data["text/html"] = (f"<div>{img(light, 'light', False)}{img(dark, 'dark', True)}"
-                         f"<style>{hide} {{display:none !important}} "
-                         f"{show} {{display:inline !important}}</style></div>")
-    return data, metadata
+    return (f"<div>{img(light, 'light', False)}{img(dark, 'dark', True)}"
+            f"<style>{hide} {{display:none !important}} "
+            f"{show} {{display:inline !important}}</style></div>")
 
 
 def _darkened(fig):
