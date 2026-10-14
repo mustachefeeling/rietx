@@ -18,6 +18,8 @@ Adding the three anisotropic Stephens patterns to brucite improves Rwp from
 the added parameters — Hamilton's R-ratio test at α = 0.05 and ΔBIC, +22.4 at
 N/f² on the 1.7.0 tree (+592 at raw N).  In physical units (WP-1938) the same
 TRF fit stops at max_iter at 18.09 %, and ΔBIC reads +9.2 (+392 at raw N).
+Since WP-1953 the axial stage refines S/L with H/L held at 0, and on 1.9.0 the
+TRF fit converges at 17.88 % from 18.64 %, ΔBIC +21.0 (+578 at raw N).
 It is nonetheless **physically inadmissible**: the refinement drives σ²(M)
 negative on 12 of the 43 fitted reflections, and the fit stops at max_iter
 rather than converging.  σ² is a variance; a negative one is not a large
@@ -66,7 +68,9 @@ seed    LM Rwp               LM σ² < 0           TRF Rwp              TRF σ²
 Measured before 1.6.0. Re-run on the 1.7.0 tree, the TRF column reads 14, 7,
 0 and 0 of 43, and seed 800 gives LM 0.17946 against TRF 0.17844.  In physical
 units (WP-1938) it reads 13, 7, 26 and 24, seeds 400 and 1600 stop at
-max_iter, and seed 800 gives LM 0.17942 against TRF 0.18092.
+max_iter, and seed 800 gives LM 0.17942 against TRF 0.18092.  On 1.9.0, after
+WP-1953, it reads 15, 7, 19 and 24, every fit converges, LM holds the cone at
+all four, and seed 800 gives LM 0.17995 against TRF 0.17877.
 
 So: the constraint holds from **every** start, which is what it promised, and
 the unconstrained driver leaves the cone from the low seeds only.  But the
@@ -82,19 +86,20 @@ applied to the solver.
 
 Corundum is the control the brucite result needs to be readable: on the same
 instrument and protocol the Layer-1 diagnostic reports ``detected=False`` with
-a 1.6× fitted spread and R² = 0 against the isotropic baseline, so the machine
-is not simply calling everything anisotropic.
+a 1.5× fitted spread and R² = 0.11 against the isotropic baseline (1.9.0), so
+the machine is not simply calling everything anisotropic.
 
 It also pins which statistic to believe, and the answer moved with issue #270
 (WP-1417).  At the raw channel count Hamilton's F test blesses corundum's inert
-0.16 % χ² improvement just as it blesses brucite's 8.2 % one, and raw-N ΔBIC
-separates them (+592 against −15).  That read as ΔBIC being the statistic to
-trust until #270 showed raw-N ΔBIC blessing a 1σ occupancy the same way.  Both
-are now read at N/f², f the restricted fit's ``esd_inflation``.  There Hamilton
-refuses corundum too, and ΔBIC reads +22.4 for brucite against −18.6.  Brucite's
-block still pays for its three parameters jointly, while three of its four S_HKL
-coefficients lie within 1.3σ of zero (value/esd 0.38, −1.27, 0.37, 2.57): the
-~100 % spread across starts above, seen in one fit's esds.
+0.25 % χ² improvement just as it blesses brucite's 8.0 % one, and raw-N ΔBIC
+separates them (+578 against −8.8; +592 against −15 on 1.7.0).  That read as
+ΔBIC being the statistic to trust until #270 showed raw-N ΔBIC blessing a 1σ
+occupancy the same way.  Both are now read at N/f², f the restricted fit's
+``esd_inflation``.  There Hamilton refuses corundum too, and ΔBIC reads +21.0
+for brucite against −18.0 on 1.9.0.  Brucite's block still pays for its three
+parameters jointly, while three of its four S_HKL coefficients lie within 1.3σ
+of zero (value/esd 0.37, −1.22, 0.40, 2.29): the ~100 % spread across starts
+above, seen in one fit's esds.
 
 
 Dispersion is **declined**, inherited from ``qarr_instrument`` in
@@ -278,7 +283,8 @@ def test_brucite_improvement_is_justified_but_leaves_the_physical_cone(
         == pytest.approx(0.65, abs=0.05)
 
     # 1. the improvement is real and passes both tests for the added
-    #    parameters at N/f² (measured ΔBIC +9.2 at N_eff 479, +392 at raw N;
+    #    parameters at N/f² (measured ΔBIC +21.0 at N_eff 473, +578 at raw N
+    #    on 1.9.0; +9.2 and +392 on 1.8.0, before WP-1953's axial limit;
     #    +22.4 and +592 on 1.7.0, before WP-1938's physical units)
     assert iso.statistics.rwp == pytest.approx(0.1855, abs=0.01)
     assert ani.statistics.rwp == pytest.approx(0.1790, abs=0.01)
@@ -338,13 +344,14 @@ def test_corundum_block_is_inert_and_hamilton_blesses_it_only_at_raw_n(
     and both tests must say so at N/f².
 
     On 7251 channels Hamilton's F test at the raw count blesses corundum's
-    0.16 % χ² improvement at α = 0.05, exactly as it blesses brucite's 8.2 %
-    one.  With N that large its threshold sits below anything physically
-    meaningful.  This test used to read that as ΔBIC being the statistic to
-    trust, because raw-N ΔBIC refuses corundum (−15).  Issue #270 showed
-    raw-N ΔBIC blessing a 1σ occupancy the same way, so both tests are read
-    at N/f² now (WP-1417), and there both refuse (ΔBIC −18.6).  Read it as a
-    statement about the tests, not about corundum.
+    0.25 % χ² improvement at α = 0.05, exactly as it blesses brucite's 8.0 %
+    one (1.9.0).  With N that large its threshold sits below anything
+    physically meaningful.  This test used to read that as ΔBIC being the
+    statistic to trust, because raw-N ΔBIC refuses corundum (−15 on 1.7.0,
+    −8.8 on 1.9.0).  Issue #270 showed raw-N ΔBIC blessing a 1σ occupancy the
+    same way, so both tests are read at N/f² now (WP-1417), and there both
+    refuse (ΔBIC −18.0).  Read it as a statement about the tests, not about
+    corundum.
     """
     plain_ref, plain = corundum_plain
     # The block's last stage stopped on its 100-iteration budget, and the
@@ -399,14 +406,15 @@ def test_constrained_solver_keeps_brucite_inside_the_cone():
     ``scipy.optimize.least_squares`` call can express.  The comparison that
     matters is not Δ Rwp but *how many reflections the answer is unphysical
     on*.  On 1.7.0 the constrained fit was the worse of the two by Rwp at this
-    seed.  In physical units (WP-1938) TRF stops at max_iter above it:
+    seed.  In physical units (WP-1938) TRF stopped at max_iter above it, and
+    since WP-1953's axial limit it converges below it again:
 
-    ==================  ===========  ===========  ===================
-    brucite, seed 800   Rwp, 1.7.0   Rwp, 1.8     reflections σ² < 0
-    ==================  ===========  ===========  ===================
-    TRF, unconstrained  17.84        18.09        7 of 43
-    LM, cone enforced   17.95        17.94        0 of 43
-    ==================  ===========  ===========  ===================
+    ==================  ===========  ===========  ===========  ===================
+    brucite, seed 800   Rwp, 1.7.0   Rwp, 1.8     Rwp, 1.9     reflections σ² < 0
+    ==================  ===========  ===========  ===========  ===================
+    TRF, unconstrained  17.84        18.09        17.88        7 of 43
+    LM, cone enforced   17.95        17.94        18.00        0 of 43
+    ==================  ===========  ===========  ===========  ===================
 
     On 1.7.0 a fit inadmissible on 7 of its 43 reflections had the lower Rwp,
     and it was still not the better fit: its S_HKL cannot be quoted.  Same

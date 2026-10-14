@@ -15,7 +15,9 @@ that a 1 → 94 wt % scale swing needs a narrower carry is refuted, and the
 module keeps both passes so the number stays measured rather than assumed.
 What the series does establish is that chaining is worth 2.5x in iterations
 for the same answer.  In physical units under LM (WP-1938) the three read 1015,
-278 and 260, so chaining is worth 3.7x.
+278 and 260, so chaining is worth 3.7x.  Since WP-1953 the axial stage refines
+S/L with H/L held at 0, and on 1.9.0 they read 1214, 403 and 365 at mean Rwp
+0.1278, so chaining is worth 3.0x.
 
 The protocol is imported wholesale from ``test_acceptance_qpa_roundrobin`` —
 the same phases, instrument, staged plan and weighed truth table — so the
@@ -224,8 +226,9 @@ def test_warm_start_iteration_cost_is_reported(chained, chained_all,
     """The headline warm-start number, reported rather than gated.
 
     Whether a warm start pays on a series whose composition swings by 90 wt %
-    is a measurement, and it does: ~280 iterations against 1015 unchained, for
-    the same fractions (~700 against 1826 on 1.7.0, before WP-1938).  Which `carry` policy gets there is measured too, and
+    is a measurement, and it does: ~400 iterations against 1214 unchained, for
+    the same fractions (~280 against 1015 on 1.8.0, before WP-1953; ~700
+    against 1826 on 1.7.0, before WP-1938).  Which `carry` policy gets there is measured too, and
     the difference is small in iterations and nil in Rwp — so what is
     *asserted* is only the part that would matter to a user: neither chain
     diverged, and restricting the carry did not make the fit worse.

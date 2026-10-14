@@ -17,9 +17,9 @@ reports the bias because no fit statistic can. **Corollary for the agent: never
 judge a correction by Δ Rwp. Ask which physical quantity it unbiases.**
 
 Measured end to end on a real capillary pattern (11-BM, NIST SRM 660a LaB₆ in
-the documented 0.81 mm bore, µR = 0.674): Rwp moved 3 × 10⁻⁸, the lattice
-parameter 8 × 10⁻¹² Å, and **both** displacement parameters moved by
-+0.0166542 Å² against a predicted 0.0166542. That is what "exact" means here.
+the documented 0.81 mm bore, µR = 0.679): Rwp moved 4 × 10⁻⁹, the lattice
+parameter 2 × 10⁻¹¹ Å, and **both** displacement parameters moved by
++0.01687 Å² against a predicted 0.016875. That is what "exact" means here.
 It is not a general property of absorption corrections — see 8.12.
 
 `rietx compare` is this rule made mechanical: a browser UI comparing refinement
@@ -28,7 +28,7 @@ settings side by side on the bundled standards, whose cumulative-Δχ² panel sh
 
 **8.2 The opposite also happens: an improvement that passes every statistical
 test and is still rejected.** On round-robin brucite, adding anisotropic strain
-improves Rwp 18.62 → 17.84 % with ΔBIC +22.4 at N/f² — and drives σ²(M) negative on 7
+improves Rwp 18.64 → 17.88 % with ΔBIC +21.0 at N/f² — and drives σ²(M) negative on 7
 of 43 reflections, so the coefficients are unphysical and unquotable. A
 statistical test cannot see a violated positivity cone.
 
