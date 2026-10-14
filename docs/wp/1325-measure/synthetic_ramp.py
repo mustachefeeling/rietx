@@ -26,9 +26,11 @@ three-term background.  Per noise seed it fits the ramp twice:
 
 Three regimes, because theory says where a difference can and cannot appear.
 With nothing shared but the coefficients, the joint a₁ is to first order the
-weighted line through the per-pattern a_k, so R1 checks correctness, not
-value; R2 asks whether the constraint helps where one pattern's cell is weak;
-R3 shares the instrument as one diffractometer would, so its gain is from
+line through the per-pattern a_k weighted by each pattern's raw information
+(not by the chain's esds, which also carry each pattern's own χ²_red and
+Bérar-Lelann factor; near-equal information makes it the OLS line here), so
+R1 checks correctness, not value; R2 asks whether the constraint helps where
+one pattern's cell is weak; R3 shares the instrument as one diffractometer would, so its gain is from
 sharing.  R3 also runs a control that shares the instrument but leaves each
 pattern its own free cell, with the line taken through those a_k by GLS over
 their full joint covariance: if R3's gain is the sharing's and not the tie's,
@@ -117,6 +119,13 @@ class _Joint(MultiHistogramRefinement):
         return super()._build_result(models, outcome, *args, **kwargs)
 
 
+def _num(x: float | None, what: str) -> float:
+    """``x`` as a float, refusing a ``None`` by name rather than in ``float()``."""
+    if x is None:
+        raise RuntimeError(f"{what} is None: the fit estimated no covariance")
+    return float(x)
+
+
 def ramp(seed: int, scale: float) -> list:
     return [_simulate(A0 * (1.0 + RAMP * (t - 300.0) / 100.0),
                       seed=1000 * seed + k, scale=TRUE_SCALE * scale)
@@ -175,7 +184,8 @@ def run_chain(patterns, scale: float) -> dict:
                 weighted=line(a, np.diag(esd ** 2)), unweighted=line(a, None),
                 status=[e.status for e in series.entries],
                 rungs=[e.rung for e in series.entries],
-                inflation=float(np.mean([e.statistics.esd_inflation
+                inflation=float(np.mean([_num(e.statistics.esd_inflation,
+                                              "chain esd_inflation")
                                          for e in series.entries])))
 
 
@@ -201,7 +211,7 @@ def run_joint(patterns, scale: float, shared: list[str], *, tied: bool) -> dict:
     held = sorted({p for st in result.stages for p in st.held})
     out = dict(seconds=seconds, status=result.status, held=held,
                n_columns=len(mt.free_paths), n_rows=sum(len(p.two_theta) for p in patterns),
-               inflation=float(result.statistics.esd_inflation),
+               inflation=_num(result.statistics.esd_inflation, "joint esd_inflation"),
                shared=list(mt.shared_paths))
     a = np.array([rows[f"hist.{h}.phases.0.cell.a"].value for h in range(N_PATTERNS)])
     out["a"] = a
@@ -216,9 +226,10 @@ def run_joint(patterns, scale: float, shared: list[str], *, tied: bool) -> dict:
                     raise RuntimeError(f"hist {h} cell.{name} = {got} is off the line {want}")
         cell_freed = [st.freed for st in result.stages if st.name == "cell"][0]
         out.update(cell_freed=cell_freed,
-                   a0=rows["vars.a0"].value, a0_esd=rows["vars.a0"].stderr,
+                   a0=rows["vars.a0"].value,
+                   a0_esd=_num(rows["vars.a0"].stderr, "vars.a0 esd"),
                    a1=rows["vars.a1"].value / T_HALF,
-                   a1_esd=rows["vars.a1"].stderr / T_HALF)
+                   a1_esd=_num(rows["vars.a1"].stderr, "vars.a1 esd") / T_HALF)
     else:
         # the line through the jointly-fitted cells, by GLS over their joint
         # covariance (cell.a is a free column at value scale 1: one wavelength)
@@ -376,5 +387,17 @@ def main(n_seeds: int, regimes: list[str]) -> None:
 
 
 if __name__ == "__main__":
-    opts = dict(a.lstrip("-").split("=", 1) for a in sys.argv[1:] if "=" in a)
-    main(int(opts.get("seeds", 20)), opts.get("regimes", "R1,R2,R3").split(","))
+    usage = "usage: synthetic_ramp.py [--seeds=N] [--regimes=R1,R2,R3]"
+    opts: dict[str, str] = {}
+    for arg in sys.argv[1:]:
+        key, eq, value = arg.lstrip("-").partition("=")
+        if not eq or key not in ("seeds", "regimes"):
+            sys.exit(f"unrecognised argument {arg!r}; {usage}")
+        opts[key] = value
+    n_seeds = int(opts.get("seeds", 20))
+    regimes = opts.get("regimes", "R1,R2,R3").split(",")
+    unknown = [r for r in regimes if r not in REGIMES]
+    if n_seeds < 1 or unknown:
+        sys.exit(f"--seeds must be >= 1 and --regimes a subset of "
+                 f"{','.join(REGIMES)} (got {n_seeds}, {unknown or regimes}); {usage}")
+    main(n_seeds, regimes)

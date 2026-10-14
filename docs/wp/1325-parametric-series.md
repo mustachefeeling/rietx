@@ -225,7 +225,13 @@ the 20 seeds.
 - **The tie is correct.** In R1 and R2 the joint a₁ sits a mean 0.024 and
   0.021 esd from the weighted line (max 0.074). The esd ratio is 0.983-1.011.
   Theory says that when only the coefficients are shared, the joint estimate
-  *is* the weighted line, and it is.
+  is the line weighted by each pattern's *raw* information, and it is. That
+  line is not the chain's weighted line, whose weights also carry each
+  pattern's own χ²_red and Bérar-Lelann factor; across this ramp the raw
+  information is near-equal, so the reference is the equal-weight line. The
+  joint a₁ sits a mean 0.0012 esd from it in R1 (max 0.0037, the printed
+  resolution) and 0.0048 in R2 (max 0.018), 20× and 4× closer than to the
+  weighted line (computed from the per-seed rows of `results.txt`).
 - **The tie alone buys no precision while each pattern's own fit is linear.**
   Weakening the signal 5× in esd (R2) kept every per-pattern fit Gaussian and
   unbiased, so the constraint had nothing to fix.
@@ -233,8 +239,8 @@ the 20 seeds.
   the ramp (R3) cuts a₁'s esd 2.6× (ratio 0.381-0.392) and its scatter 2.8×.
   The untied control gets the same answer to within 0.001 esd: a joint fit of
   per-pattern cells already has that gain. a(T_ref) does not sharpen
-  (1.57e-6 Å in every regime), because a common shift of every cell still
-  trades off against the zero shift.
+  (1.57e-6 Å in R1 and R3 alike, for every estimator), because a common shift
+  of every cell still trades off against the zero shift.
 - So, on this evidence, the parametric form's value for a series is:
   - **convenience:** a coefficient with its esd, without exporting the joint
     covariance, which a joint result does not carry today;
@@ -250,9 +256,11 @@ the 20 seeds.
 - **Calibration, in passing.** Scatter/esd is 0.81 (R1), 0.66 (R2) and 0.74
   (R3). In R1 and R3 that is about 1/BL, where BL is the Bérar-Lelann factor
   the package multiplies into every esd (1.263 here), so the raw esds are
-  near honest. The weighted line's χ²_red (mean 0.56) agrees. Why the factor
-  is 1.26 on a model that matches its Poisson data exactly is open, and not
-  this WP's question.
+  near honest. The weighted line's χ²_red (mean 0.56) agrees. R2 does not fit
+  that reading: its factor is 1.137, so its raw esds still overstate the
+  scatter by about 1.3× (0.66 × 1.137 = 0.75). Why the factor is 1.26 on a
+  model that matches its Poisson data exactly, and why R2's raw esds run
+  wide, are open, and not this WP's question.
 - **Gaps the script had to work around.** These belong to the "ties and
   variables" task:
   - no public verb to add a joint variable or tie, hence the hand call to
