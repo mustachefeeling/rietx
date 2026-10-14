@@ -212,9 +212,16 @@ checks in a scratch venv with this tree installed.
 - JupyterLite 0.8.6, a minimal site: a stored output keeps 0 `<style>`
   untrusted and 1 with `metadata.trusted`. Trusted, under `adaptive-theme`,
   the stored figure follows the OS scheme in both the Notebook and Lab views.
-- Tests: `tests/test_viz.py`, `test_display.py`, `test_sequential.py`,
-  `test_lite.py` and the acceptance pair all pass. The fast-suite count is
-  below.
+- The fast selection on the final tree, with main merged (unchanged since
+  1b97fc5c), in the `[dev]` venv on macOS arm64 with CPython 3.12, no other
+  suite running: 9726 passed, 187 skipped, 1 xfailed, in 9:49. WP-1966's
+  last session measured 9901 in all on the same venv. 9914 is +13, the cases
+  this session added: 2 in `test_sequential`, 9 in `test_viz`, 1 in
+  `test_display` and 1 in `test_lite`. No skip moved. `added_test_times`
+  put the added tests at 16.2 s in all, the bundle test the dearest at 7.9 s.
+  None joins the slow tail. The full selection did not run, because no
+  refined number can move. The acceptance pair passed (44 passed, 1
+  skipped).
 
 *Review* (`/code-review high --fix` over this WP's range). It found a real
 bug. A deep copy of a figure pyplot still holds registered the copy with
