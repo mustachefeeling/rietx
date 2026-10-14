@@ -189,11 +189,19 @@ def test_a_ternary_with_an_intercept_is_refused_with_the_scheffe_fix():
     xc = [1.0 - a - b for a, b in zip(xa, xb, strict=True)]
     coords = CoordinateTable(columns={"xa": xa, "xb": xb, "xc": xc})
     tie = _tie(terms=[[], ["xa"], ["xb"], ["xc"]])
-    with pytest.raises(ValueError, match=r"rank 3 for 4.*Scheffé"):
+    with pytest.raises(ValueError, match=r"rank 3 for 4.*Scheffé.*reference="):
         resolve_parametric(tie, coords, 5)
-    # the Scheffé form itself resolves
-    ok = resolve_parametric(_tie(terms=[["xa"], ["xb"], ["xc"]]), coords, 5)
+    # without the intercept the basis is full rank, but centred fractions would
+    # make each coefficient a blend of pure-component values: refused until the
+    # reading is stated
+    scheffe = [["xa"], ["xb"], ["xc"]]
+    with pytest.raises(ValueError, match=r"mixture fractions.*Scheffé form"):
+        resolve_parametric(_tie(terms=scheffe), coords, 5)
+    # stated: the Scheffé form resolves, uncentred
+    zero, one = dict.fromkeys(coords.columns, 0.0), dict.fromkeys(coords.columns, 1.0)
+    ok = resolve_parametric(_tie(terms=scheffe, reference=zero, scale=one), coords, 5)
     assert ok.labels == ["xa", "xb", "xc"]
+    assert np.array_equal(ok.phi, np.column_stack([xa, xb, xc]))
 
 
 # -- refusals before any solve: what the tables can carry -------------------

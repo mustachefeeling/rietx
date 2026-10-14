@@ -1601,10 +1601,10 @@ same number divided by the scale.
 An esd of `None` has one of two causes, and `ParametricCoefficient.vary` says
 which: the coefficient was never refined, or the joint covariance gave it none
 because no pattern of the subset carried gradient for it. A unit of `None`
-means one of its parts was not recorded. A cell edge carries no
-`Parameter.unit`, so a cell's coefficients print none however the table's
-units are declared, while a `biso` coefficient over a temperature column in K
-reads `A^2/K`.
+means one of its parts was not recorded. The target's unit is its family's in
+the [](glossary.md), so a cell coefficient over a temperature column
+in K reads `Å/K` and a `biso` one `Å²/K`; a coordinate the table gives no unit,
+or a dimensionless target such as an occupancy, leaves the unit `None`.
 
 `str(result)` prints the coefficients after the stages and diagnostics, one
 declaration per heading and one term per line, each with its esd in
@@ -1613,8 +1613,8 @@ parentheses. On that synthetic ramp:
 ```text
   parametric coefficients (user units, at each reference):
     a: phases.0.cell.a at T=600
-      [1] 4.1628363(23)
-      [T] 0.000020784(11)
+      [1] 4.1628363(23) Å
+      [T] 0.000020784(11) Å/K
 ```
 
 A chain has no coefficients of its own. `SeriesResult.summary` takes a joint

@@ -177,6 +177,21 @@ class SharingMap:
         return not (path.startswith("instrument.") or path.endswith(".scale"))
 
 
+def _display_unit(path: str) -> str | None:
+    """The unit a reported coefficient's target is quoted in, or ``None``.
+
+    Read off the parameter's family in :mod:`rietx.help`, the one place what
+    a name *is* is written, rather than off the table's own unit record, which
+    holds only the few units a seed reads (a cell edge has none there, and a
+    displacement parameter's is the raw ``A^2``).  ``None`` for a family that
+    declares no unit, so a dimensionless target prints none.
+    """
+    from ..help import help_for
+
+    entry = help_for(path)
+    return None if entry is None else entry.unit
+
+
 def _refuse_clashing_declarations(declared: list[ParametricTie]) -> None:
     """Two declarations may share neither a name nor a target (WP-1325).
 
@@ -430,8 +445,8 @@ class MultiParameterTable:
         n = self.n_histograms
         resolved: list[ResolvedParametric] = []
         for tie in declared:
-            unit = self.tables[0]._units.get(tie.target)
-            resolved.append(resolve_parametric(tie, coordinates, n, target_unit=unit))
+            resolved.append(resolve_parametric(tie, coordinates, n,
+                                               target_unit=_display_unit(tie.target)))
         for r in resolved:
             for h in r.patterns:
                 table = self.tables[h]
