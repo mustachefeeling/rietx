@@ -154,19 +154,31 @@ def hamilton_justified(chi2_restricted: float, chi2_full: float,
     :func:`delta_bic` takes, so the two verdicts are read off one N.
     ``None``, the default, is the raw-channel test it has always been.
     """
-    n = float(n_points) if n_effective is None else float(n_effective)
-    dof = n - n_free_restricted - n_added
-    if n_added <= 0 or dof <= 0 or chi2_full <= 0:
+    test = _hamilton_f(chi2_restricted, chi2_full, n_points, n_free_restricted,
+                       n_added, n_effective=n_effective)
+    if test is None or test[0] <= 0:
         return False
-    # with N_eff the χ²s are read as N_eff independent points' worth: both
-    # scale by N_eff/N and cancel in the ratio, leaving the dof to carry it,
-    # so F ≈ t²/f² — the parameter's t at its inflated esd, squared
-    f = ((chi2_restricted - chi2_full) / n_added) / (chi2_full / dof)
-    if f <= 0:
-        return False
+    f, dof = test
     from scipy.stats import f as f_dist
 
     return bool(f > f_dist.ppf(1.0 - alpha, n_added, dof))
+
+
+def _hamilton_f(chi2_restricted: float, chi2_full: float, n_points: int,
+                n_free_restricted: int, n_added: int, *,
+                n_effective: float | None = None) -> tuple[float, float] | None:
+    """:func:`hamilton_justified`'s F and its denominator degrees of freedom,
+    or ``None`` where the test is undefined (no added parameter, no degrees of
+    freedom left, or a zero χ²_full).  The one place the statistic is written,
+    for a caller that reports F and p beside the verdict."""
+    n = float(n_points) if n_effective is None else float(n_effective)
+    dof = n - n_free_restricted - n_added
+    if n_added <= 0 or dof <= 0 or chi2_full <= 0:
+        return None
+    # with N_eff the χ²s are read as N_eff independent points' worth: both
+    # scale by N_eff/N and cancel in the ratio, leaving the dof to carry it,
+    # so F ≈ t²/f² — the parameter's t at its inflated esd, squared
+    return ((chi2_restricted - chi2_full) / n_added) / (chi2_full / dof), dof
 
 
 def delta_bic(chi2_restricted: float, chi2_full: float,

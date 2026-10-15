@@ -467,7 +467,10 @@ from .._nearmiss import did_you_mean
 #: ``RefinementResult.texture``, one ``PhaseTexture`` per textured phase.
 #: Additive and defaulted to ``None`` and empty, so every stored document
 #: loads and refines as before; an older build refuses either.
-#: 0.57 → 0.58 (WP-1325): ``RefinedParameter.equations``, the parametric
+#: 0.57 → 0.58 (WP-1810): ``RigidBody.riding``, the body atoms that are riding
+#: hydrogens, and the CIF ``_atom_site_refinement_flags_posn`` /
+#: ``_atom_site_calc_flag`` columns a phase with a body now writes.  Additive.
+#: 0.58 → 0.59 (WP-1325): ``RefinedParameter.equations``, the parametric
 #: equations whose coefficients set a row; ``ParametricFormTest.n_subset``,
 #: the subset's size beside the patterns tested; ``ParametricFormTest``'s
 #: ``dof``/``statistic``/``cut`` moved into two ``ParametricFormReading``s,
@@ -488,7 +491,7 @@ from .._nearmiss import did_you_mean
 #: 0.55 key ``tie``, so a 1.9.0 result opens and is written back as ``equation``.
 #: ``ParametricValue``, built on demand and never stored, carries
 #: ``provisional_on`` and ``joint_rejected`` beside ``form_rejected``.
-SCHEMA_VERSION = "0.58"
+SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

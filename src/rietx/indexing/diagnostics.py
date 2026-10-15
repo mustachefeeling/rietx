@@ -37,7 +37,7 @@ from ..schemas.indexing import (
     PeakList,
 )
 from ..schemas.instrument import Instrument, ProfileTCHZ
-from .peaks import Detection
+from .peaks import Detection, fdr_screen
 
 #: Physical cause of each shift template, for the messages.  The template names
 #: themselves come from ``report/layer2.py``'s ``_POSITION_ACTIONS`` — one
@@ -191,9 +191,42 @@ def peak_diagnostics(peaks: PeakList, detection: Detection | None = None,
                         "real aperture ratios and re-pick — the lowest-angle "
                         "lines are the ones indexing depends on most")))
 
-    if detection is not None:
+    if detection is not None and peaks.source == "fitted":
+        out.append(_false_line_diagnostic(peaks, detection))
+        out.extend(_width_diagnostics(detection))
+    elif detection is not None:
         out.extend(_width_diagnostics(detection))
     return out
+
+
+def _false_line_diagnostic(peaks: PeakList, det: Detection) -> Diagnostic:
+    """``PEAK_EXPECTED_FALSE_LINES``: the threshold the pattern set, how many
+    components it rejected, and how many of the kept lines are expected to be
+    noise (``value``).  Always emitted for a detected list, because a peak list
+    that never states its null is the defect (F2 § 3, G4); a line-free pattern
+    reads 0 here, which is the answer, not an absence."""
+    screen = fdr_screen(peaks.peaks, det)
+    weak = [peaks.peaks[k] for k in screen.weak]
+    message = (f"{screen.n_kept} of {screen.n_tested} fitted component(s) clear "
+               f"the pattern's false-discovery bar (I/σ_I ≥ "
+               f"{screen.z_threshold:.2f}, Benjamini–Hochberg at q = "
+               f"{screen.q:g} over {screen.n_trials:.0f} resolution elements); "
+               f"at least about {screen.expected_false:.2f} of those kept are "
+               "expected to be noise (every component was first selected by "
+               "detection, so the bound understates)")
+    if weak:
+        message += (f", and {len(weak)} weaker one(s) are flagged "
+                    "weak_line")
+    return Diagnostic(
+        level="info", code="PEAK_EXPECTED_FALSE_LINES", message=message,
+        where=[f"{p.two_theta:.4f}°" for p in weak],
+        suggestion=("a weak_line component is not distinguishable from noise "
+                    "at the rate the rest of the list keeps.  It stays "
+                    "usable, because on real lab data many are weak lines the "
+                    "true cell indexes; exclude them before a search only "
+                    "where the list is known to carry flank or tail junk, "
+                    "and count longer to tell the two apart"),
+        value=screen.expected_false)
 
 
 def _width_diagnostics(det: Detection) -> list[Diagnostic]:

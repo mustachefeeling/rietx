@@ -38,7 +38,7 @@ export const PEAK_FLAGS = ["ghost_kbeta", "ghost_tungsten", "excluded",
                            "not_separable", "background_extrapolated",
                            "axial_tail", "kalpha2_residual", "no_intensity",
                            "unnamed_neighbour", "position_unmeasured",
-                           "duplicate_line"];
+                           "duplicate_line", "weak_line"];
 
 /** `name value` annotations on a parameter row. `textdoc._PAIR_WORDS`. */
 export const PAIRS = ["min", "max", "esd"];

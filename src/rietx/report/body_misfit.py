@@ -213,14 +213,21 @@ def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
             "rigid_body_misfit needs a fitted Refinement: both arms start from "
             "its refined state, and from an unrefined pose a badly placed body "
             "would read as a misshapen one. Call ref.fit(...) first.")
+    from scipy.stats import f as f_dist
+
     from ..crystallography.structure_factor import compile_phase_sites
     from ..optimize.statistics import _chi2_absolute, effective_sample_size
-    from .layer2 import delta_bic, hamilton_justified
+    from ..params.derived import cartesian_frame
+    from .layer2 import _hamilton_f, delta_bic, hamilton_justified
 
     base: Structure = ref.fitted_structure.model_copy(deep=True)
     rows: list[BodyMisfitRow] = []
     diagnostics: list[Diagnostic] = []
     for ip, phase in enumerate(base.phases):
+        if not phase.rigid_bodies:
+            continue
+        sites = compile_phase_sites(phase)
+        labels = [a.label for a in phase.atoms]
         for b, body in enumerate(phase.rigid_bodies):
             bb = f"phases.{ip}.rigid_bodies.{b}"
             _, res_a, _ = _fit(ref, base.model_copy(deep=True), data,
@@ -231,7 +238,6 @@ def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
             # the released arm: same model, this body's atoms freed and held
             # by restraints at the geometry the body placed them in
             members, bonds, angles = _template_geometry(phase, body)
-            sites = compile_phase_sites(phase)
             ident = {j: _identity_op(sites, j) for j in members}
             restraints = [BondRestraint(atom_i=i, atom_j=j, target=d, sigma=bond_sigma,
                                         op_index=ident[j]) for i, j, d in bonds]
@@ -255,24 +261,22 @@ def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
             n_eff = effective_sample_size(n, sa.esd_inflation)
             k_a = int(sa.n_free_parameters)
             added = int(sb.n_free_parameters) - k_a
-            dof = n_eff - k_a - added
-            f_stat = (((chi_a - chi_b) / added) / (chi_b / dof)
-                      if added > 0 and dof > 0 and chi_b > 0 else 0.0)
-            from scipy.stats import f as f_dist
-            p = float(f_dist.sf(f_stat, added, dof)) if added > 0 and dof > 0 else 1.0
+            test = _hamilton_f(chi_a, chi_b, n, k_a, added, n_effective=n_eff)
+            if test is None:
+                f_stat, p = 0.0, 1.0
+            else:
+                f_stat, dof = test
+                p = float(f_dist.sf(f_stat, added, dof))
             dbic = delta_bic(chi_a, chi_b, n, added, n_effective=n_eff)
             fires = (hamilton_justified(chi_a, chi_b, n, k_a, added, alpha=alpha,
                                         n_effective=n_eff)
                      and dbic > bic_threshold)
             # where: the released geometry against the template, in σ units
             fitted = ref_b.fitted_structure.phases[ip]
-            _, bonds_after, angles_after = _template_geometry(
-                fitted, body.model_copy(update={"atoms": body.atoms}))
+            _, bonds_after, angles_after = _template_geometry(fitted, body)
             after_b = {(i, j): d for i, j, d in bonds_after}
             after_a = {(i, k, j): a for i, k, j, a in angles_after}
-            labels = [a.label for a in phase.atoms]
             devs = []
-            from ..params.derived import cartesian_frame
             m = np.asarray(cartesian_frame(fitted.cell.lengths_angles()))
 
             def cart(j, ph=fitted, m=m):

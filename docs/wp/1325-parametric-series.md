@@ -1683,10 +1683,11 @@ from the tree, verified and committed the rename, and wrote this entry.
     reading or a provisional verdict. It now carries `provisional_on` and
     `joint_rejected`, and prints both. It is never stored, so no schema
     number moved.
-- **Merging main** moved this WP's fields to **schema 0.58**. WP-1960's
-  texture took 0.57 on main first. `common.py`'s note, the
-  `test_magnetic` pin, the 1.10 notes and record say 0.58. This file's
-  older entries keep "0.57", the number they shipped under on the branch.
+- **Merging main** moved this WP's fields to **schema 0.59**. On main
+  first, WP-1960's texture took 0.57 and WP-1810's riding hydrogens 0.58.
+  `common.py`'s note, the `test_magnetic` pin, the 1.10 notes and record
+  say 0.59. This file's older entries keep "0.57", the number they shipped
+  under on the branch.
 - WP-1418 inherits the f² question for the moment-angle test.
 - CI's Python 3.14 shard failed the covariance symmetry pin: ρ_ij and ρ_ji
   from the solve's correlation differed in the last bit (2.3250376935784206e-17
