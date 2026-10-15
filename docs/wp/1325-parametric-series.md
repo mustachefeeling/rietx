@@ -1574,6 +1574,105 @@ right, each freed gain is 0.92-1.10 of its refit.
 
 ## Handover log
 
+### 2026-10-15 (eighth session) — two real ramps settle the form test's divisor, a verdict beside a rejected law is provisional, and a declaration is a parametric equation
+
+The form test checks a declared equation against its own data. It has now
+run on two real ramps it was not tuned on, ZrP₂O₇ and WO₃, beside the
+ZrMo₂O₈ ramp it was tuned on. Divided by the Bérar-Lelann factor squared,
+it almost never rejected. Of 261 readings that should pass, none rejected,
+where a 5 % test rejects about 13. Without the factor, 12 of 242 rejected
+(5.0 %). So the test now divides by χ²_red alone, the textbook score test.
+A far-wrong equation moves the answer every other reading steps from, so
+a verdict beside a rejected equation is now marked provisional. The public
+names say "parametric equation" where they said "law" or "tie", and a 1.9.0
+result still opens.
+
+This session ran in two contexts. The first wrote every commit up to
+667216c and stopped while a subagent ran the rename. The second picked up
+from the tree, verified and committed the rename, and wrote this entry.
+
+*Done* (branch `wp1325-law-marks`, PR #977; main merged at daf2ef8):
+- **The freed reading is the verdict, and a joint reading covers all
+  equations** (c5b015e, b5d7c64). Decision 6, the maintainer's call. On the
+  ZrMo₂O₈ three-law answer the joint reading read 74.1 for 93 directions
+  (p 0.93) and kept all three, while the cubic law failed alone. The Durham
+  tutorials check a law by plotting it against independent fits, with no
+  statistical test.
+- **The next-term score, synthetic half** (7d7cb7b). In the task's table.
+- **Out of sample on ZrP₂O₇ and WO₃** (506c340, c4f9cdc, 64d5777). In
+  § Measured: the form test out of sample, recorded before any comparison.
+  The task is ticked.
+- **Decision 4: χ²_red alone** (741649b, 301e4d6). The LaB6 ramp's true
+  line reads 7.6 (p 0.47) against the cut 15.5, and its 1 % bow 4461.1. On
+  ZrMo₂O₈ the three lines and their joint reading all reject, each freed gain
+  1.00-1.33 of its law-alone refit.
+- **Provisional verdicts** (667216c). `ParametricFormTest.provisional_on`
+  names the other rejected equations. The printed block and each
+  `PARAMETRIC_FORM_REJECTED` say so. Any rejection marks the rest, with no
+  threshold.
+- **The rename** (81bd517). `ParametricTie` → `ParametricEquation`,
+  `ParametricLaw` → `RefinedParametricEquation`, `.laws` → `.equations`,
+  `parametric_laws` → `parametric_equations`, and `tie` → `equation` on the
+  coefficient, the form test and the refined equation.
+  `ParametricCoefficient` still reads 1.9.0's `tie` key, pinned both ways.
+  Decision 7 records it.
+- **Review** (`/code-review high --fix 90872b7..4ea0b20`, fixes in 4ea0b20):
+  a redundant `scale = chi2_red` alias, five test names the rename left
+  ungrammatical (`a_equation` → `an_equation`), continuation indents.
+  Declined, both for the maintainer:
+  - An equation whose freed reading has zero directions gets
+    `rejected=None` even when its tied reading rejects. The docstrings
+    declare `None` there. Falling back to the tied verdict would keep a
+    collinear pair's evidence.
+  - `ParametricValue.form_rejected` carries the equation's own verdict
+    alone. It reads "form not rejected" under a rejecting joint reading or
+    a provisional verdict. 667216c's commit names this as not generalised.
+    It needs a schema field.
+- **Merging main** moved this WP's fields to **schema 0.58**. WP-1960's
+  texture took 0.57 on main first. `common.py`'s note, the
+  `test_magnetic` pin, the 1.10 notes and record say 0.58. This file's
+  older entries keep "0.57", the number they shipped under on the branch.
+- WP-1418 inherits the f² question for the moment-angle test.
+
+*Measured* (macOS arm64, worktree venv `[dev]`, load 9.8-11.9):
+- Fast selection on 81bd517, before the merge: 9712 passed, 186 skipped,
+  1 xfailed, in 231 s.
+- Fast selection on the merged tree (daf2ef8): 10489 passed, 191 skipped,
+  1 xfailed, in 285.6 s. Main's own additions are in that count, so it is
+  not this branch's delta.
+- This session added 3 fast tests: `test_parametric_series.py` collected 73
+  at 90872b7 and 76 now. No new skip.
+- `tests.added_test_times` against main names 10 tests, because the rename
+  gave existing tests new IDs. They cost 5.24 s in one run. 5.11 s of that
+  is `test_a_line_equation_is_rejected_by_a_ramp_that_bends` (2 cases),
+  which predates this session under its old name. The other nine take
+  0.04 s or less.
+
+*Gotchas*:
+- The next-term table divides by χ²_red·f². The shipped divisor is now
+  χ²_red alone, so re-run `next_term.py` on it before landing. The review
+  flagged that the script's docstring still calls its rebuild "the shipped
+  form test".
+- `real_ramp.py` reads TOPAS's `Simple_Axial_Model(v)` as v/L, and the
+  ZrP₂O₇ lane read it as v/2L. The TOPAS Technical Reference is public at
+  topas-academic.com/technical_reference, so check it there.
+- WO₃'s Pc counts as seen above 221 K while its cell is unmeasured
+  (1.5-3.5 wt %). The form test counts those patterns.
+- The three Durham ramps are local-only (`python -m tests.local_data`).
+
+*Next*, in order:
+1. **Land the next-term test.** Re-run the synthetic half over χ²_red,
+   then run the ZrP₂O₇ and WO₃ ramps. `blocked.added_columns_gain` needs a
+   column shared across blocks first. Land it only if it still rejects
+   curves the form test passes.
+2. **Hold each target's own bounds.** It now comes ahead of the speed work.
+   A seed broke a target's bounds and refused the fit on two of the three
+   real ramps (WO₃, ZrMo₂O₈'s windowed cubic). The refusal is at the seed,
+   before any step, so the task covers the starting coefficients as well
+   as the step.
+3. The maintainer's two calls from the review above.
+4. The peak-chain deduplication, then start agreement.
+
 ### 2026-10-14 (seventh session) — law-set values are marked, a law evaluates anywhere, and each law is also tested with the others freed
 
 A joint parametric fit now says which of its numbers came from a law rather
