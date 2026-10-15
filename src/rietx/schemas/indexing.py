@@ -142,7 +142,13 @@ from .structure import Cell
 #: flat-topped synthetic silicon, 34 usable components on 11 lines become 18;
 #: over the 16 IUCr round-robin lab patterns 789 usable components become 782
 #: (``cpd-4`` 76 → 75).
-INDEXING_THRESHOLDS_VERSION = "1.11"
+#: 1.12: the picker names every bound its group fit ends on (#934 (c)):
+#: ``PEAK_POSITION_AT_BOUND`` and ``PEAK_NO_INTENSITY`` are new, and the
+#: ``where`` entries of those two, ``PEAK_WIDTH_CAPPED`` and
+#: ``PEAK_EXPECTED_FALSE_LINES`` carry each line's bound and value.  No flag,
+#: threshold or ``usable()`` moved; bumped because a list's diagnostics are
+#: part of what this string stamps, as its flags were at 1.10.
+INDEXING_THRESHOLDS_VERSION = "1.12"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
