@@ -513,13 +513,21 @@ def _commensurate_kvectors(group, big, child_centrings) -> list:
     return sorted(found, key=lambda k: (any(c != 0 for c in k), k))
 
 
-def _star_key(group, k, stars: list) -> int:
+def _find_star(group, k, stars: list) -> int | None:
+    """The index of the star in ``stars`` that holds ``k``, or ``None``."""
     rot_g, _ = _operations(group)
     for i, rep in enumerate(stars):
         for r in rot_g:
             arm = tuple(sum(Fraction(int(r[a][b])) * rep[a] for a in range(3)) for b in range(3))
             if equivalent_kvectors(group, arm, k):
                 return i
+    return None
+
+
+def _star_key(group, k, stars: list) -> int:
+    found = _find_star(group, k, stars)
+    if found is not None:
+        return found
     stars.append(k)
     return len(stars) - 1
 
@@ -595,15 +603,16 @@ def distortion_basis(parent, child, transform, *, reference: str = "average") ->
     # one real subspace per (k, small irrep), from every parent site
     items: list[tuple[int, tuple, str, np.ndarray]] = []
     stars: list = []
-    seen: list = []
     for k in _commensurate_kvectors(group, big, child_centrings):
-        # a complex irrep is the real span of the k and -k fields: when 2k is not a
-        # reciprocal vector the two sit in separate classes, and the first already
-        # spans both, so the second would be counted twice
+        # a complex irrep is the real span of the k and -k fields: when no parent
+        # operation takes k to -k the two are separate stars, and the first already
+        # spans both, so the second would be counted twice.  The skip is per star:
+        # a -k that is an arm of k's own star is kept, since the arms of one star
+        # are merged below
         minus_k = tuple(-c for c in k)
-        if any(equivalent_kvectors(group, minus_k, done) for done in seen):
+        if (_find_star(group, k, stars) is None
+                and _find_star(group, minus_k, stars) is not None):
             continue
-        seen.append(k)
         star = _star_key(group, k, stars)
         kk = np.array([float(c) for c in k])
         fields: dict[str, list[np.ndarray]] = {}

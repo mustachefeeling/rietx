@@ -427,6 +427,39 @@ def test_a_k_whose_double_is_not_reciprocal_is_counted_once(multiples, free):
     assert basis.n_modes == free
 
 
+def _general_site_supercell(space_group, multiples, gamma=90.0):
+    """A one-atom parent at a general position under ``space_group`` and its diagonal supercell."""
+    def phase(name, group, m):
+        b = 5.0 if space_group in ("P 2", "P -1") else 4.0  # tetragonal and hexagonal: a = b
+        cell = rx.Cell(a=P_(value=4.0 * m[0]), b=P_(value=b * m[1]), c=P_(value=6.0 * m[2]),
+                       alpha=P_(value=90.0), beta=P_(value=90.0), gamma=P_(value=gamma))
+        return rx.Phase(name=name, space_group=group, cell=cell,
+                        atoms=[_atom("Fe", "Fe", 0.1, 0.2, 0.3)])
+    return (phase("parent", space_group, (1, 1, 1)), phase("child", "P 1", multiples),
+            (np.diag(multiples).astype(float), np.zeros(3)))
+
+
+@pytest.mark.parametrize("space_group, multiples, gamma, site_order, first_arms", [
+    ("P 4", (3, 3, 1), 90.0, 4, 4),   # a rotation takes k to -k: -k is an arm of k's own star
+    ("P 4", (4, 4, 1), 90.0, 4, 4),
+    ("P 2", (3, 1, 3), 90.0, 2, 2),
+    ("P -1", (3, 1, 1), 90.0, 2, 2),  # inversion puts -k in every star
+    ("P 3", (3, 3, 1), 120.0, 3, 3),  # three arms of one star, one irrep, one component
+])
+def test_every_arm_of_a_star_is_kept_when_minus_k_is_one_of_them(
+        space_group, multiples, gamma, site_order, first_arms):
+    """The skip is per star: a -k inside k's own star is an arm and stays, a -k that is another
+    star is dropped.  The 3N - 3 count is the regression check for the crash, and the arms of the
+    first non-Gamma star say how many the star has (the old skip halved them)."""
+    parent, child, transform = _general_site_supercell(space_group, multiples, gamma)
+    basis = D.distortion_basis(parent, child, transform)
+    assert basis.n_modes == 3 * site_order * int(np.prod(multiples)) - 3
+    first = next(c for c in basis.components if c.k != ("0", "0", "0"))
+    assert len(first.arms) == first_arms
+    labelled = [c for c in basis.components if c.k == first.k and c.irrep == first.irrep]
+    assert len(labelled) == 1  # one irrep, one component, never split across arms
+
+
 def test_two_atoms_on_one_parent_site_are_refused_by_name():
     parent = rx.Phase(name="mixed", space_group="P m -3 m", cell=rx.Cell.cubic(A_CUBIC), atoms=[
         _atom("La", "La", 0.5, 0.5, 0.5), _atom("Sr", "Sr", 0.5, 0.5, 0.5),
