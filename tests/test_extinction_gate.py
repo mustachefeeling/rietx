@@ -272,3 +272,17 @@ def test_the_unreliable_warning_survives_an_empty_candidate_list():
         cell=(5.4, 5.4, 5.4, 90.0, 90.0, 90.0), two_theta_range=(10.0, 60.0))
     codes = [d.code for d in extinction_diagnostics(screen)]
     assert codes == ["EXTINCTION_SCREEN_UNRELIABLE", "EXTINCTION_SYMBOL_AMBIGUOUS"]
+
+
+def test_a_cancelled_empty_screen_says_it_was_stopped():
+    """A stop during the prefit leaves no candidates; the diagnostic must not
+    blame the cell for 'no fittable reflections'."""
+    from rietx.indexing.diagnostics import extinction_diagnostics
+    from rietx.schemas.indexing import ExtinctionScreen
+
+    screen = ExtinctionScreen.model_construct(
+        status="cancelled", candidates=[], reference_rwp_net=None,
+        prefit_rwp=None, lattice_group="F", system="cubic", centring="F",
+        cell=(5.4, 5.4, 5.4, 90.0, 90.0, 90.0), two_theta_range=(10.0, 60.0))
+    (diag,) = extinction_diagnostics(screen)
+    assert "stopped" in diag.message and "fittable" not in diag.message
