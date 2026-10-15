@@ -566,6 +566,9 @@ from .._nearmiss import did_you_mean
 #: frozen windows dropped at its answer.  Additive and defaulted to ``None``,
 #: "nobody looked", the 0.25 → 0.26 rule; all three runners write it on every
 #: stage, and ``Refinement._record`` on every stage node.
+#: Also in 0.60, one number a release cycle (WP-1809): ``PlanarityRestraint`` joins the ``Restraint``
+#: union, and ``RestraintRow.kind`` gains ``"planarity"``.  Additive: no
+#: existing document carries either, and an older build refuses one that does.
 SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
