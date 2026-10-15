@@ -139,20 +139,14 @@ def stage_ticks(model, values: dict, *,
     two was lying.
     """
     ticks: dict[str, dict] = {}
-    for ip, cp in enumerate(model.phases):
-        cell = tuple(values[f"phases.{ip}.cell.{k}"]
-                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        # the forward model's own position: Bragg angle + zero + the
-        # geometry's shift, from the method it draws its peaks with (WP-1908)
-        rows = [model.apparent_two_theta(cp.reflections.two_theta(cell, lam),
-                                         values)
-                for lam in model.line_wavelengths]
-        pos = np.concatenate(rows) if rows else np.zeros(0)
-        # one reflection list per emission line, in the same order each time,
-        # so the index list is that list tiled: a Kα2 image is the same hkl
-        # (H, m), not H: a satellite is labelled by its order (WP-1326)
-        hkl = (np.tile(cp.reflections.hklm, (len(rows), 1)) if rows
-               else np.zeros((0, 4), dtype=np.int64))
+    for ip in range(len(model.phases)):
+        # the forward model's own position (Bragg angle, zero and the
+        # geometry's shift) and the reflection each is, from the walk every
+        # tick builder shares (`CompiledModel.reflection_positions`, WP-1908).
+        # The index list is the reflection list tiled once per emission line,
+        # so a Kα2 image is the same hkl: (H, m), not H, since a satellite is
+        # labelled by its order (WP-1326)
+        pos, hkl = model.reflection_positions(ip, values)
         # filtered and sorted in numpy, not in a generator: the cap below
         # exists because a large cell over a wide range reaches a hundred
         # thousand positions, and walking those in python is the cost this
