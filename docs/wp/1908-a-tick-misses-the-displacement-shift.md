@@ -1,6 +1,6 @@
 # WP-1908 — a tick misses the displacement shift
 
-Milestone: unscheduled · Status: ✅ 2026-10-13 — a tick sits where the model draws its peak; the Layer 0 flank-lobe question it exposed has no owner
+Milestone: unscheduled · Status: ✅ 2026-10-15 — a tick sits where the model draws its peak, at the refined wavelength and inside a window that follows the shift; the Layer 0 flank-lobe question it exposed has no owner
 Track: What fires, and what stays silent
 Depends on: —
 
@@ -110,6 +110,64 @@ hundredth of a degree of its reflection's fitted peak.
 - Root CLAUDE.md § Invariants, the `RefinementResult.ticks` clause.
 
 ## Handover log
+
+### 2026-10-15 — review round finished on main, a refined wavelength fixed
+
+The follow-up PR #942 has now run the whole suite on current main and passed.
+A second review found one more case of the WP's own defect. The ticks were
+placed at the wavelength fixed when the model was built, while the curve uses
+the refined one. So any fit that refines λ, such as a calibration on a
+standard with its cell held, drew its ticks away from its peaks: about 0.43°
+at 150° for a 0.1 % change, by 2·tan θ·Δλ/λ. Ticks now read the refined
+wavelength, and nothing else that was measured moves.
+
+*Done.* The worktree the 2026-10-13 entry names had been deleted, so the branch
+was checked out again in `.claude/worktrees/wp1908-review-followups`. Main was
+merged in (442 commits, clean, `895f54a9`). The TOF axis (WP-1927) landed in
+that range and added no tick builder of its own. `/code-review high --fix` on
+the branch's diff returned ten findings and fixed five in `fbac3d06`:
+`reflection_positions` walks `line_lambdas(values)` as `phase_peaks` does (new
+test, red with the fix removed); `compile_model`'s widened `hi_eff` is capped at
+180°, past which `d_min` folds back; the `REFLECTION_MARGIN_DEG` comment says
+the window follows the shift at compile-time values only; two unused loop
+variables and a duplicate test line went, and `mag_row` is an `np.tile`.
+Declined, with reasons: the satellite arm's low edge in the wrong line's frame
+and its second copy of the window scan (findings 4 and 6) are outside this
+diff and went to WP-1326's Inherited; `refine._reflection_positions` says
+"Bragg 2θ" but returns `phase_peaks` positions, which already carry the shift,
+and judges the absorption summary there (finding 5). That helper predates this
+WP, no open WP owns it, and whether the absorption summary should read Bragg or
+drawn angles is unverified. The window widening by the largest shift anywhere
+in the range rather than at each edge (finding 7) over-generates safely, so it
+stays. The rename of one test was cosmetic and skipped.
+
+*Measured.* `[dev]` venv (no jax or torch), darwin/arm64, Python 3.12,
+rietx 1.10.0.dev0. Collect-only of `-m "not slow"`: 10790 on `origin/main`
+(`git archive` snapshot) and 10794 here, +4, the three tests of the 2026-10-13
+round plus the one this round added. The fast selection on the final tree:
+10609 passed, 191 skipped, 2 xfailed, in about 4-5 min at load 3-5. The four
+added tests cost 0.02-0.04 s each in that run, far from the tail. The full
+selection ran twice on the merged tree. Before the review fixes it gave 10921
+passed, 200 skipped, 2 xfailed, 0 failed (about 21 min, load 3-5). On the
+final tree it gave 10920 passed, 202 skipped, 2 xfailed, 0 failed (about
+24 min, with the load average reaching 45 from other sessions). Passed plus
+skipped moved by +1, the added test. Two passes became skips, and they are not
+named, because neither log prints reasons. The likely cause is WP-1449's
+budget skip in `test_acceptance_indexing.py`, which fires when the clock cuts
+an indexing unit and which this branch's code does not reach. The slow
+selection that the 2026-10-13 entry left pending is therefore discharged.
+
+*Gotchas.* (1) The worktree guard refuses a command that `cd`s or loops over a
+path variable; a `git archive` base is collected with `-c` and `--rootdir`
+pointing into the snapshot. (2) A full-suite skip count can move under load,
+so a delta in skips between two runs on one tree is load until named with
+`-rs`.
+
+*Next.* Mark #942 ready, let the required checks run, and merge it (the
+maintainer authorised that on 2026-10-15). The open Layer 0 flank-lobe question
+from the first entry still has no owner; WP-1909 is the indexing picker's, not
+Layer 0's. Finding 5 above is a candidate line for whoever next touches the
+absorption summary.
 
 ### 2026-10-13 (2nd session) — post-merge review round, handed off
 

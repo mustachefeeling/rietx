@@ -93,6 +93,17 @@ not both be declared on one phase.
 
 ### Inherited
 
+- **2026-10-15, from [1908](1908-a-tick-misses-the-displacement-shift.md),
+  closed: the satellite arm's generation window is a second copy of
+  `compile_model`'s, and the two already differ.** `/code-review high` on PR
+  #942 found it and left it, being outside that diff. `satellites._generation_window`
+  scans the same 33-point shift grid as `compile_model` but applies its low 2θ
+  cutoff in the shortest line's frame without translating it from the longest
+  line's, so on a Cu Kα doublet a satellite whose Kα1 image falls just below
+  `tt_min` while its Kα2 image lies inside is never enumerated. It also caps at
+  179° where `compile_model` now caps at 180° and adds the 0.5°
+  `REFLECTION_MARGIN_DEG`. One helper both call would close the drift.
+  Unmeasured on a real pattern.
 - **2026-10-03, from [1328](1328-magnetic-interchange.md), closed: two
   places a propagation vector still drops on the way out or in.** Both were
   left as design choices by #567's review. `fullprof.to_structure` drops a
