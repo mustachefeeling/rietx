@@ -197,7 +197,7 @@ def test_the_result_type_has_no_singleton_accessor():
     ({}, "high"),
     ({"found_by": ["dichotomy"]}, "low"),
     ({"lebail": None}, "medium"),
-    # capping since thresholds 1.12 (C3): a count a truth's undetected weak
+    # capping since thresholds 1.11 (C3): a count a truth's undetected weak
     # lines can raise keeps ``high`` out of reach; the pairwise check refutes
     ({"lebail": LeBailValidation(rwp=0.4, gof=2.4, space_group="P m -3 m",
                                  n_reflections=153, predicted_but_absent=117)},
@@ -838,7 +838,7 @@ def test_index_pattern_recovers_the_cell_and_refutes_its_supercells(lab6_pattern
 
     # the supercells that index every observed line are refuted by the
     # pattern, not by the panel — this is the blind spot validation exists to
-    # close.  Since C3 (thresholds 1.12) the refutation is the pairwise check
+    # close.  Since C3 (thresholds 1.11) the refutation is the pairwise check
     # (``supercell_refuted``: the lines a superlattice adds over the truth,
     # that no extinction could remove, are seen no more often than chance)
     # and the line screen's absent count **caps**.  Only the checked subset
@@ -980,7 +980,7 @@ def test_the_evidence_view_is_a_projection_with_caveat_kinds():
     name ``supercell_refuted`` and ``not_validated`` in the same list
     without saying that one argues against the cell and the other only says a
     question was never asked (``predicted_but_absent`` was the refuting
-    example until thresholds 1.12 made it capping).  ``evidence()`` computes the view from the live
+    example until thresholds 1.11 made it capping).  ``evidence()`` computes the view from the live
     fields on each call, so the two representations cannot disagree."""
     from typing import get_args
 
@@ -1007,7 +1007,7 @@ def test_the_evidence_view_is_a_projection_with_caveat_kinds():
     ev = result.evidence()
     assert [c.index for c in ev.candidates] == [0, 1]
     kinds = {c.name: c.kind for c in ev.candidates[0].caveats}
-    assert kinds == {"predicted_but_absent": "capping",     # 1.12: caps (C3)
+    assert kinds == {"predicted_but_absent": "capping",     # 1.11: caps (C3)
                      "not_validated": "capping"}
     assert ev.candidates[1].caveats[0].kind == "capping"
 
