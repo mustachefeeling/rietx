@@ -427,6 +427,26 @@ def test_one_list_serves_every_surface():
     assert list(PHASE_TOKENS.values()) == list(PHASE_COLOURS)
 
 
+#: The indexing figures' roles (WP-1972), each drawn on its own ground only.
+INDEXING_ROLES = ("index_obs", "index_calc", "index_bkg", "index_diff",
+                  "absent", "unmatched")
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_every_indexing_colour_reads_against_its_figure_ground(theme):
+    """The light hues were chosen for a white page and the dark ones derived
+    from them, so both are measured.  The weakest is the light amber, 0.218
+    from white, and on the dark ground the background grey, 0.42."""
+    hue = PALETTES[theme]
+    ground = _oklab(hue["ground"])
+    for role in INDEXING_ROLES:
+        gap = _oklab_distance(_oklab(hue[role]), ground)
+        assert gap >= MIN_SEPARATION, f"{theme}: {role} {hue[role]} is {gap:.3f}"
+    for rank, colour in enumerate(hue["candidate"], start=1):
+        gap = _oklab_distance(_oklab(colour), ground)
+        assert gap >= MIN_SEPARATION, f"{theme}: rank {rank} {colour} is {gap:.3f}"
+
+
 def test_the_gui_names_the_reflection_in_the_strip_and_not_in_a_box():
     """Which reflection a tick is goes in the strip under the plot (WP-1438).
 

@@ -116,9 +116,9 @@ cannot draw it.
 `font_size=` are the exposure surface: build the figure at the width it will be
 read at, and do not scale it in the document afterwards.
 
-A notebook needs no `style=`. A pattern, fit or series figure drawn light
-carries a dark copy in its output, and a frontend in a dark theme shows that
-copy. The indexing figures do not yet. JupyterLab, Notebook 7
+A notebook needs no `style=`. A pattern, fit, series or indexing figure drawn
+light carries a dark copy in its output, and a frontend in a dark theme shows
+that copy. JupyterLab, Notebook 7
 and JupyterLite switch it live, and the manual switches it with its own theme.
 VS Code and Colab carry the same switch, read from their source and not yet
 seen running. A frontend that strips the switch shows the light figure. GitHub's

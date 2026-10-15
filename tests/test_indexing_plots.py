@@ -432,6 +432,28 @@ def test_plot_indexing_draws_the_stored_validation_without_a_refit(
         plot_indexing(result, bcc_peaks, candidate=99)
 
 
+def test_plot_indexing_draws_every_figure_in_the_style_asked(bcc_candidates,
+                                                             bcc_peaks):
+    """WP-1972: a composed figure stays with pyplot, so it never passes
+    through ``plots._handed_back``; it records its palette anyway, which is
+    what lets the notebook's draw at the cell's end carry the dark copy."""
+    from matplotlib.colors import to_hex
+
+    from rietx.viz import plot_indexing
+    from rietx.viz.plots import PALETTES
+
+    result = _result_of(bcc_candidates, bcc_peaks)
+    for style in ("light", "dark"):
+        figs = plot_indexing(result, bcc_peaks, style=style)
+        for name, fig in figs.items():
+            assert fig._rietx_style == style, name
+            assert to_hex(fig.get_facecolor()) == PALETTES[style]["ground"], name
+            fig.clf()
+    assert "text/html" in plot_indexing(result, bcc_peaks)["peaks"]._repr_mimebundle_()[0]
+    with pytest.raises(ValueError, match="style must be one of"):
+        plot_indexing(result, bcc_peaks, style="sepia")
+
+
 def test_an_ungated_candidate_is_not_labelled_with_a_verdict(bcc_candidates,
                                                              bcc_peaks):
     """``confidence`` defaults to ``"low"``, so printing it unconditionally puts

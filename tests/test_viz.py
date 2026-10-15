@@ -20,8 +20,14 @@ import pytest
 
 import rietx as rx
 from rietx.schemas.pattern import PatternData
+from rietx.viz.indexing import plot_candidates, plot_peak_list, plot_validation
 from rietx.viz.plots import PALETTES, plot_for_vlm, plot_pattern, plot_result
-from tests.test_refine_synthetic import perturbed_models, synthesize
+from tests.test_refine_synthetic import (
+    TRUE_A,
+    WAVELENGTH,
+    perturbed_models,
+    synthesize,
+)
 
 pytestmark = pytest.mark.xdist_group("viz-pattern")
 
@@ -317,6 +323,36 @@ def _two_phases(result):
         name: ticks, "second": [t + 0.7 for t in ticks]}})
 
 
+def _peaks(result):
+    """The fit's own reflection positions as a position-only peak list."""
+    from rietx.schemas.indexing import PeakList
+
+    (ticks,) = result.ticks.values()
+    return PeakList.from_positions(np.asarray(ticks), WAVELENGTH)
+
+
+def _candidates():
+    """Nine cubic cells, so every rank colour is drawn and the ninth row
+    falls back to the recessive grey."""
+    from rietx.schemas.indexing import CellCandidate
+
+    return [CellCandidate(cell=(a, a, a, 90.0, 90.0, 90.0), cell_esd=(0.0,) * 6,
+                          system="cubic", volume=a ** 3)
+            for a in TRUE_A * np.array([1.0, 2.0, 2 ** 0.5, 3 ** 0.5, 3.0,
+                                        1.002, 0.998, 2.5, 5 ** 0.5])]
+
+
+def _validation():
+    """A Le Bail verdict carrying both detector lists."""
+    from rietx.schemas.indexing import LeBailValidation
+
+    return LeBailValidation(rwp=0.1, gof=1.2, space_group="P m -3 m",
+                            n_reflections=20, predicted_but_absent=2,
+                            unmatched_observed=1,
+                            predicted_but_absent_two_theta=[12.0, 21.5],
+                            unmatched_observed_two_theta=[16.2])
+
+
 DRAWINGS = {
     "result": lambda pattern, result, **kw: plot_result(result, dpi=100, **kw),
     "weighted": lambda pattern, result, **kw: plot_result(result, weighted=True,
@@ -326,6 +362,17 @@ DRAWINGS = {
     "pattern": lambda pattern, result, **kw: plot_pattern(pattern, dpi=100, **kw),
     "trajectory": lambda pattern, result, **kw: _series().plot(
         ["phases.0.cell.a"], dpi=100, **kw),
+    # WP-1972: the indexing figures, each of their branches
+    "peak list": lambda pattern, result, **kw: plot_peak_list(
+        _peaks(result), pattern, dpi=100, **kw),
+    "peak list alone": lambda pattern, result, **kw: plot_peak_list(
+        _peaks(result), dpi=100, **kw),
+    "candidates": lambda pattern, result, **kw: plot_candidates(
+        _candidates(), _peaks(result), n=9, dpi=100, **kw),
+    "validation": lambda pattern, result, **kw: plot_validation(
+        _validation(), result, dpi=100, **kw),
+    "validation alone": lambda pattern, result, **kw: plot_validation(
+        _validation(), dpi=100, **kw),
 }
 
 
@@ -352,16 +399,79 @@ def test_the_dark_copy_is_the_dark_figure_pixel_for_pixel(fitted, name):
     plt.close("all")
 
 
+def _inks(fig) -> set[str]:
+    """Every colour ``fig`` puts on the page, as hex: visible artists only,
+    and a marker-only line's markers without its unused line colour."""
+    from matplotlib.collections import Collection
+    from matplotlib.colors import to_hex, to_rgba
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    from matplotlib.text import Text
+
+    out: set[str] = set()
+    for artist in fig.findobj(lambda a: a.get_visible()):
+        if isinstance(artist, Text):
+            colours = [artist.get_color()]
+        elif isinstance(artist, Line2D):
+            if not len(artist.get_xdata()):
+                continue
+            colours = [artist.get_markerfacecolor(), artist.get_markeredgecolor()]
+            if artist.get_linestyle() not in ("None", "none", ""):
+                colours.append(artist.get_color())
+        elif isinstance(artist, Patch):
+            colours = [artist.get_facecolor(), artist.get_edgecolor()]
+        elif isinstance(artist, Collection):
+            colours = [*artist.get_facecolor(), *artist.get_edgecolor()]
+        else:
+            continue
+        for colour in colours:
+            if isinstance(colour, str) and colour.lower() in ("none", "auto"):
+                continue
+            rgba = to_rgba(colour)
+            if rgba[3] > 0:
+                out.add(to_hex(rgba[:3]))
+    return out
+
+
+@pytest.mark.parametrize("name", list(DRAWINGS))
+def test_every_ink_a_light_figure_draws_has_a_dark_form(fitted, name):
+    """The pixel test above cannot see a colour outside :data:`PALETTES`:
+    the copy leaves it as drawn and the dark figure draws it too, so both
+    agree on a light colour on the dark page.  That is how the indexing
+    figures went without a dark form until WP-1972.  So a light figure
+    draws palette colours and matplotlib's black and white, and nothing
+    else."""
+    import io
+
+    import matplotlib.pyplot as plt
+
+    known = {"#000000", "#ffffff"}
+    for value in PALETTES["light"].values():
+        known.update(c.lower() for c in (value if isinstance(value, list) else [value]))
+    fig = DRAWINGS[name](*fitted)
+    fig.savefig(io.BytesIO(), format="png")  # the draw that makes the ticks
+    assert _inks(fig) <= known, sorted(_inks(fig) - known)
+    plt.close("all")
+
+
 def test_the_light_palette_maps_onto_the_dark_one():
     """The recolour is a function of the light colour, so two roles sharing a
     light colour share a dark one.  Black and white are matplotlib's own inks,
-    mapped by the artist's kind, so no role may take either."""
+    mapped by the artist's kind, so no role may take either.  A ranked list
+    maps entry by entry, so its two grounds' lists are one length."""
     light, dark = PALETTES["light"], PALETTES["dark"]
     seen: dict[str, str] = {}
-    for role, colour in light.items():
-        if isinstance(colour, str) and role != "ground":
+    for role, value in light.items():
+        if role == "ground":
+            continue
+        if isinstance(value, list):
+            assert len(value) == len(dark[role]), role
+            pairs = list(zip(value, dark[role]))
+        else:
+            pairs = [(value, dark[role])]
+        for colour, ink in pairs:
             assert colour.lower() not in ("#000000", "#ffffff"), role
-            assert seen.setdefault(colour.lower(), dark[role]) == dark[role], role
+            assert seen.setdefault(colour.lower(), ink) == ink, role
 
 
 def test_what_the_caller_adds_shows_in_the_dark_copy(fitted):

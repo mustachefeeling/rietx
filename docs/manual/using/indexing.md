@@ -1093,7 +1093,8 @@ dump beside it. [](agents.md) has the rest of the programmatic surface.
 `rietx.viz.plot_indexing` draws the ranked candidates as tick rows against the
 pattern, with the Le Bail panel, from the result alone. The visual check is
 part of the answer rather than documentation of it: a wrong cell that scores
-well usually looks wrong immediately.
+well usually looks wrong immediately. Its figures take `style="dark"` as the
+pattern figures do, and in a notebook each follows the frontend's theme.
 
 ## From a candidate to a phase
 
