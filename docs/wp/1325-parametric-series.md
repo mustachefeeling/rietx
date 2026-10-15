@@ -1688,6 +1688,11 @@ from the tree, verified and committed the rename, and wrote this entry.
   `test_magnetic` pin, the 1.10 notes and record say 0.58. This file's
   older entries keep "0.57", the number they shipped under on the branch.
 - WP-1418 inherits the f² question for the moment-angle test.
+- CI's Python 3.14 shard failed the covariance symmetry pin: ρ_ij and ρ_ji
+  from the solve's correlation differed in the last bit (2.3250376935784206e-17
+  against 2.32503769357842e-17). `parametric_equation` now reads ρ off one
+  triangle. The other off-diagonal readers (`identifiability.py`,
+  `staged.py`) read each pair once and claim no symmetry, so they are left.
 - @mustachefeeling's two comments on PR #977 are folded in, after the
   first version of this entry. This WP's points are in § A contributor's
   series work and the start-agreement task. The boundary and detector

@@ -388,9 +388,13 @@ def parametric_equation(resolved: ResolvedParametric, rows: list[ParametricCoeff
         if m == 1:
             covariance = [[esd[0] * esd[0]]]
         elif correlation is not None:
-            covariance = [[esd[i] * esd[j] * (1.0 if i == j else
-                                              float(correlation[columns[i], columns[j]]))
-                           for j in range(m)] for i in range(m)]
+            # ρ read off one triangle: the solve's correlation can differ from its
+            # transpose in the last bit (measured on Linux, Python 3.14), and a
+            # covariance must be symmetric to the bit
+            covariance = [[esd[i] * esd[j] * (
+                1.0 if i == j else
+                float(correlation[columns[min(i, j)], columns[max(i, j)]]))
+                for j in range(m)] for i in range(m)]
     return RefinedParametricEquation(equation=resolved.equation, unit=resolved.unit,
                                      span=dict(resolved.span), covariance=covariance)
 
