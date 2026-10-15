@@ -34,13 +34,13 @@ works, and WP-1970's dark copy relies on it.
 
 ## Tasks
 
-- [ ] The gutter labels and the annotation placed so that a caller's
+- [x] The gutter labels and the annotation placed so that a caller's
   `set_xlim` keeps the notebook image at its designed size. Axes or
   figure coordinates are the candidates. Check the pixel pins in
   `tests/test_viz.py` (`PRE_TITLE_RENDER`) before changing any placement.
-- [ ] `_NotebookFigure` reachable by its qualified name, so a pickle
+- [x] `_NotebookFigure` reachable by its qualified name, so a pickle
   round-trips. A module-level class built on first use is the candidate.
-- [ ] Tests: a zoomed figure's notebook width; a pickle round trip.
+- [x] Tests: a zoomed figure's notebook width; a pickle round trip.
 
 ## Acceptance
 

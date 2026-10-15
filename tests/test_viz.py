@@ -399,6 +399,65 @@ def test_the_dark_copy_is_the_dark_figure_pixel_for_pixel(fitted, name):
     plt.close("all")
 
 
+# -- WP-1971: the figure a plot hands back, once a caller has changed it ----
+
+def _notebook_size(fig) -> tuple[int, int]:
+    """The notebook image's size in pixels, as the encoder frames it."""
+    from PIL import Image
+
+    from rietx.viz.plots import _notebook_png
+
+    return Image.open(io.BytesIO(_notebook_png(fig)[0])).size
+
+
+def _zoom(ax, axis: str, lo: float, hi: float) -> None:
+    """Narrow ``ax`` to the fractions ``lo``-``hi`` of its own range."""
+    get, put = ((ax.get_xlim, ax.set_xlim) if axis == "x"
+                else (ax.get_ylim, ax.set_ylim))
+    a, b = get()
+    put(a + lo * (b - a), a + hi * (b - a))
+
+
+@pytest.mark.parametrize("name", ["result", "weighted", "sqrt, two phases", "pattern"])
+@pytest.mark.parametrize("zoom", [("x", 0.4, 0.5), ("y", 0.0, 0.05), ("y", 0.5, 1.0)])
+def test_a_callers_zoom_keeps_the_notebook_image_its_designed_size(fitted, name, zoom):
+    """The gutter labels and the statistics annotation stay beside the axes,
+    and a label or spine the zoom leaves outside them is clipped.  Placed in
+    data coordinates, a zoom to a tenth of the x range made the image 7.7
+    times wider and one to the lowest twentieth of y 15 times taller.  The
+    height may grow by the clip's margin, ``_CLIP_MARGIN`` of the axes
+    height at each end, which a clipped spine reaches: 15 px of 871."""
+    import matplotlib.pyplot as plt
+
+    draw = DRAWINGS[name]
+    width, height = _notebook_size(draw(*fitted))
+    fig = draw(*fitted)
+    _zoom(fig.axes[0], *zoom)
+    zoomed_width, zoomed_height = _notebook_size(fig)
+    assert zoomed_width <= width
+    assert zoomed_height <= 1.05 * height
+    plt.close("all")
+
+
+@pytest.mark.parametrize("name", list(DRAWINGS))
+def test_a_returned_figure_pickles_and_comes_back_the_same(fitted, name):
+    """A figure pickles as any matplotlib figure does, and loads to the same
+    pixels.  The class is found by name through the module's ``__getattr__``,
+    which is also what an unpickle in a fresh process reaches."""
+    import pickle
+
+    import matplotlib.pyplot as plt
+
+    from rietx.viz import plots
+
+    fig = DRAWINGS[name](*fitted)
+    back = pickle.loads(pickle.dumps(fig))
+    assert type(back) is plots._NotebookFigure
+    assert back._rietx_style == fig._rietx_style
+    assert np.array_equal(_pixels(back), _pixels(fig))
+    plt.close("all")
+
+
 def _inks(fig) -> set[str]:
     """Every colour ``fig`` puts on the page, as hex: visible artists only,
     and a marker-only line's markers without its unused line colour."""

@@ -55,6 +55,8 @@ second one.
 
 from __future__ import annotations
 
+from functools import partial
+
 import numpy as np
 
 from .._about import DIST_NAME
@@ -388,6 +390,10 @@ def _figure_class():
     standing; the caller's own figures keep the backend's formatter.
     ``_repr_png_`` answers a caller outside IPython. Built on first use,
     because this module imports matplotlib lazily.
+
+    Pickle finds a class by its module and qualified name, so the class is
+    named as a module attribute, and the module's ``__getattr__`` builds it
+    when an unpickle in a fresh process asks for it (WP-1971).
     """
     global _FIGURE_CLASS
     if _FIGURE_CLASS is None:
@@ -404,9 +410,17 @@ def _figure_class():
             def _repr_mimebundle_(self, include=None, exclude=None):
                 return _notebook_bundle(self, include, exclude)
 
+        _NotebookFigure.__qualname__ = "_NotebookFigure"
         _FIGURE_CLASS = _NotebookFigure
     _register_notebook_png(_FIGURE_CLASS)
     return _FIGURE_CLASS
+
+
+def __getattr__(name: str):
+    """``_NotebookFigure``, built on first use, for pickle to find."""
+    if name == "_NotebookFigure":
+        return _figure_class()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _register_notebook_png(cls) -> None:
@@ -615,6 +629,56 @@ def _title(ax, title: str | None, font_size: float) -> None:
         ax.set_title(title, fontsize=font_size, pad=0.6 * font_size)
 
 
+#: Where a gutter label starts, as a fraction of the axes width.
+_GUTTER_X = 1.012
+#: How far beside the axes :func:`_height_clip` reaches, in axes widths: far
+#: enough for any phase name, which grows the saved canvas rather than being cut.
+_CLIP_REACH = 100.0
+#: How far above and below the axes :func:`_height_clip` reaches, in axes
+#: heights, so a spine ending on the axes edge keeps its last row of pixels;
+#: at 0 three of the six pinned renders change.  It is also how far a spine
+#: can reach past the axes after a caller's ``set_ylim``: 15 px of 871.
+_CLIP_MARGIN = 0.02
+
+
+def _height_clip(artist, ax) -> None:
+    """Clip ``artist``, placed in data height beyond the axes, to their height.
+
+    A gutter label and a bounded spine are drawn outside the axes, where
+    matplotlib clips nothing.  After a caller's ``set_ylim`` either can sit
+    far above or below the view, and a tight save then grows the canvas to
+    reach it: 871 px tall became 13 369 px (WP-1971).  A tight save measures a
+    clipped artist by its visible part, so this keeps the figure its designed
+    size.  It is set after the artist exists, because ``Axes.text`` replaces a
+    ``clip_box`` it is given with the axes' own.
+    """
+    from matplotlib.transforms import Bbox, TransformedBbox
+
+    artist.set_clip_box(TransformedBbox(
+        Bbox([[-_CLIP_REACH, -_CLIP_MARGIN], [_CLIP_REACH, 1.0 + _CLIP_MARGIN]]),
+        ax.transAxes))
+    artist.set_clip_on(True)
+
+
+def _gutter_label(ax, y: float, text: str, colour) -> None:
+    """``text`` in the right-hand gutter of ``ax``, level with data height ``y``.
+
+    The x position is a fraction of the axes width, so the label stays beside
+    the axes under a caller's ``set_xlim``.  In data coordinates a zoom to a
+    tenth of the range put it nine axes widths away, and the notebook image
+    grew to reach it (WP-1971).
+    """
+    label = ax.text(_GUTTER_X, y, text, color=colour, ha="left", va="center",
+                    transform=ax.get_yaxis_transform())
+    _height_clip(label, ax)
+
+
+def _tick_over(value: float, _pos, scale: float) -> str:
+    """A tick number divided by the power of ten its axis label carries.
+    Module-level, so the figure holding it pickles (WP-1971)."""
+    return f"{value / scale:g}"
+
+
 def _intensity_axis(ax, y_scale: str, forward, inverse, base: float, top: float,
                     u_top: float, u_head: float) -> float:
     """Ticks, formatter, spine and label of the intensity axis; the drawn floor.
@@ -674,15 +738,15 @@ def _intensity_axis(ax, y_scale: str, forward, inverse, base: float, top: float,
         # moves the origin without saying so, which a multiplier does not.
         k = int(np.floor(np.log10(abs(top)))) if top != 0.0 else 0
         if k >= 4 or k <= -3:
-            scale_10 = 10.0 ** k
             ax.yaxis.set_major_formatter(
-                FuncFormatter(lambda v, _p, m=scale_10: f"{v / m:g}"))
+                FuncFormatter(partial(_tick_over, scale=10.0 ** k)))
             y_label = f"Intensity ($10^{{{k}}}$ arb. units)"
         else:
             fmt = ScalarFormatter(useMathText=True)
             fmt.set_useOffset(False)
             ax.yaxis.set_major_formatter(fmt)
     ax.spines["left"].set_bounds(base, top)
+    _height_clip(ax.spines["left"], ax)
     # the label belongs over the region it labels, not centred on an axis
     # most of which carries no numbers.  ``y=`` moves it there and leaves
     # matplotlib's own horizontal placement alone, which is what keeps it
@@ -926,13 +990,16 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
 
         # fit statistics as a corner annotation, above the data ceiling so it
         # can never collide with a peak
+        # in axes coordinates, so a caller's zoom keeps it in the corner
         s = result.statistics
-        ax.text(x0, float(inverse(u_top + 0.055 * u_span)),
+        corner = (ax.transScale + ax.transLimits).transform(
+            (x0, float(inverse(u_top + 0.055 * u_span))))
+        ax.text(0.0, float(corner[1]),
                 f"{result.mode}    $R_\\mathrm{{wp}}$ = {s.rwp:.4f}"
-                f"    GoF = {s.gof:.2f}", ha="left", va="bottom")
+                f"    GoF = {s.gof:.2f}", ha="left", va="bottom",
+                transform=ax.transAxes)
 
         # one label convention for the whole figure: the right-hand gutter
-        x_gut = x1 + 0.012 * (x1 - x0)
         tail = slice(-max(5, x.size // 50), None)
         ends = [(float(y_obs[tail].mean()), "observed", hue["obs"]),
                 (float(y_calc[tail].mean()), "calculated", hue["calc"])]
@@ -969,13 +1036,11 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
                       else u_bottom + 0.55 * min_gap)
             placed = [u + max(0.0, lowest - min(placed)) for u in placed]
         for u_value, (_, text, colour) in zip(placed, ends, strict=True):
-            ax.text(x_gut, float(inverse(u_value)), text, color=colour,
-                    ha="left", va="center", clip_on=False)
+            _gutter_label(ax, float(inverse(u_value)), text, colour)
         for i, ((name, _), y) in enumerate(zip(rows, row_y, strict=True)):
             colour = (hue["tick"] if n_rows == 1
                       else hue["phase"][i % len(hue["phase"])])
-            row_axes.text(x_gut, y, name, color=colour, ha="left", va="center",
-                          clip_on=False)
+            _gutter_label(row_axes, y, name, colour)
 
         if inline:
             ax.set_xlabel(x_label)
@@ -985,14 +1050,14 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
             axd.set_yticks([t for t in MaxNLocator(nbins=3).tick_values(r_lo, r_hi)
                             if r_lo <= t <= r_hi])
             axd.spines["left"].set_bounds(r_lo, r_hi)
+            _height_clip(axd.spines["left"], axd)
             axd.set_ylabel(r"$\Delta/\sigma$" if weighted else "obs $-$ calc",
                            labelpad=6,
                            y=(0.5 * (r_lo + r_hi) - row_floor)
                            / (r_head - row_floor))
             axd.set_xlabel(x_label)
             if weighted:
-                axd.text(x_gut, 0.0, r"$\pm 3\sigma$", color=hue["band"],
-                         ha="left", va="center", clip_on=False)
+                _gutter_label(axd, 0.0, r"$\pm 3\sigma$", hue["band"])
             # separated, not butted: a butted join needs ticks on both sides to
             # earn its ink, and those ticks claim a shared axis the reader can
             # trace — which two different quantities are not
@@ -1163,16 +1228,13 @@ def plot_pattern(data, *, path: str | None = None,
         fig_h = fig.get_size_inches()[1]
         ax_h_in = ax.get_position().height * fig_h
         min_gap = 1.15 * font_size * (u_head - u_bottom) / (ax_h_in * 72.0)
-        x_gut = x1 + 0.012 * (x1 - x0)
-        ax.text(x_gut,
-                float(inverse(max(u_bottom, float(forward(floor))) + 0.55 * min_gap)),
-                "observed", color=hue["obs"], ha="left", va="center",
-                clip_on=False)
+        _gutter_label(ax,
+                      float(inverse(max(u_bottom, float(forward(floor))) + 0.55 * min_gap)),
+                      "observed", hue["obs"])
         for i, ((name, _), y) in enumerate(zip(rows, row_y, strict=True)):
             colour = (hue["tick"] if n_rows == 1
                       else hue["phase"][i % len(hue["phase"])])
-            ax.text(x_gut, y, name, color=colour, ha="left", va="center",
-                    clip_on=False)
+            _gutter_label(ax, y, name, colour)
         _title(ax, title, font_size)
 
         if path is not None:
