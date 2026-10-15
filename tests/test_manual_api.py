@@ -74,7 +74,14 @@ from tests.test_schemas import make_lab6
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANUAL_DIR = REPO_ROOT / "docs" / "manual"
 USING_DIR = MANUAL_DIR / "using"
+#: The new manual (WP-1978), every tab of it.  A name it spells resolves, and a
+#: name it documents counts toward the partition, exactly as Part 1's do.  Its
+#: Theory tab is included, which the old tree's Part 2 is not: a code span
+#: there is a name a reader may type, wherever the page sits.
+DOCS_TREE = REPO_ROOT / "docs" / "docs"
 PAGES = sorted(USING_DIR.rglob("*.md")) if USING_DIR.exists() else []
+PAGES += sorted(p for p in DOCS_TREE.rglob("*.md")
+                if "_build" not in p.relative_to(DOCS_TREE).parts)
 
 CODE_SPAN = re.compile(r"`([^`\n]+)`")
 FENCE = re.compile(r"^```\{?([\w-]+)\}?[^\n]*\n(.*?)^```", re.S | re.M)
