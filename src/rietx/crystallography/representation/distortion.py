@@ -100,6 +100,7 @@ complete mode set of a subgroup (p. 611).
 
 from __future__ import annotations
 
+import functools
 import itertools
 import math
 from dataclasses import dataclass
@@ -171,6 +172,7 @@ class ModeBasis:
     metric: np.ndarray  # (3, 3) G_ref in the child frame
     lattice_points: int
     child_group: str
+    parent_atoms: np.ndarray  # (N,) index of the parent atom each position is an image of
 
     @property
     def n_modes(self) -> int:
@@ -293,6 +295,34 @@ def _canonical(q: np.ndarray) -> np.ndarray:
     if len(out) != rank:
         raise RuntimeError("could not draw a canonical basis from a mode subspace; this is a bug")
     return np.array(out).T
+
+
+#: The groups the two caches below were called with, by :func:`group_key`.
+_GROUPS: dict = {}
+
+
+@functools.lru_cache(maxsize=256)
+def _small_irreps_cached(key, k):
+    return small_irreps(_GROUPS[key], k)
+
+
+@functools.lru_cache(maxsize=1024)
+def _representation_cached(key, xyz, k):
+    return magnetic_representation(_GROUPS[key], np.array(xyz), k, kind="polar")
+
+
+def _irreps_and_representations(group, k, sites):
+    """``small_irreps`` and each site's polar representation at ``k``, memoised.
+
+    Both are pure functions of (group, k, site) and cost most of a basis
+    (the factor-system checks); the candidates of one parent at one k ask for
+    the same ones once per child, so they are computed once per process.
+    """
+    key = group_key(group)
+    _GROUPS.setdefault(key, group)
+    k = tuple(k)
+    reps = [_representation_cached(key, tuple(float(v) for v in xyz), k) for xyz in sites]
+    return _small_irreps_cached(key, k), reps
 
 
 def _k_text(k) -> tuple[str, str, str]:
@@ -617,9 +647,8 @@ def distortion_basis(parent, child, transform, *, reference: str = "average") ->
         star = _star_key(group, k, stars)
         kk = np.array([float(c) for c in k])
         fields: dict[str, list[np.ndarray]] = {}
-        irreps = small_irreps(group, k)
-        for s, xyz in enumerate(ref.sites):
-            rep = magnetic_representation(group, xyz, k, kind="polar")
+        irreps, reps = _irreps_and_representations(group, k, ref.sites)
+        for s, rep in enumerate(reps):
             orbit = rep.positions
             members = np.flatnonzero(ref.site == s)
             where = []
@@ -738,6 +767,7 @@ def distortion_basis(parent, child, transform, *, reference: str = "average") ->
         metric=g_ref,
         lattice_points=lattice_points,
         child_group=str(child.space_group),
+        parent_atoms=ref.site,
     )
 
 
