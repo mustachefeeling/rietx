@@ -1,6 +1,6 @@
 # WP-1968 — the picker offers no line the data cannot support
 
-Milestone: unscheduled · Status: 🔄 2026-10-15 — PR #947 (part b) merged; PR #948 (part a) waits on its rebase
+Milestone: unscheduled · Status: 🔄 2026-10-15 — both PRs merged (#947 part b, #948 part a); open: the driven-set follow-up after WP-1969
 Track: What fires, and what stays silent
 Depends on: 1909 soft (the 1σ floor this bar succeeds, and its census)
 Priority: P2 2026-10-14 — a defect that fires wrongly: off-lattice components reach every engine as usable lines, and every benchmark harness filters them by hand
@@ -102,7 +102,7 @@ close, since the peak list feeds every engine.
       *Decided 2026-10-14: (a) and (b) as PRs #948 and #947 build them, and
       a free hand beyond (Context).*
 - [x] Review and merge PR #947 (part b).
-- [ ] Review and merge PR #948 (part a).
+- [x] Review and merge PR #948 (part a).
 - [ ] Follow-up, after WP-1969: keep `weak_line` and the other reported
       flags in the list, and leave them out of the search's driven set, as
       the issue's (c) asks.
@@ -137,6 +137,20 @@ name.
 
 ## Handover log
 
+- **2026-10-15** — PR #948 (part a) merged as `54526f82`. Both parts of #934
+  are now in. `pick_peaks` merges two comparable components closer than
+  Sparrow's limit (`unresolved_split`), and flags a group whose width runs into
+  its bound (`width_capped`). Both flags leave `usable()`, and a merged line's
+  σ(2θ) is widened to reach its splits. `ObservedPeak.two_theta_esd_fit` keeps
+  the fit's own σ for the duplicate ranking. The judgements run once, on
+  detection's accepted fit, so `fit_peaks` and the peak editor fit named
+  positions exactly. The merge is transitive by measurement: no chain of three
+  on the 16 round-robin patterns, while an outer-pair bound breaks #728's
+  flat-top arm. Combined with #947, #728's steep-background arm has 17 usable
+  components, 4 under the false-discovery bar, where #947 alone flagged 24 of
+  37. The field adds no `SCHEMA_VERSION` bump, the same open question as #940's
+  round 1. Gated in a stack with the other on `main` `e517bb64` (tree `a66be65c`). The fast suite gave 10688 passed, 120 skipped, 2 xfailed, and the whole `-m slow` suite gave 319 passed, 12 skipped (macOS arm64, `[dev,jax]`, Python 3.12.10). *Next:* the follow-up after WP-1969 (keep reported flags out
+  of the driven set), then close; #934 is the maintainer's to close.
 - **2026-10-15** — PR #947 (part b) merged as `1eb58a5f`. `pick_peaks` now
   tests each component's I/σ_I by Benjamini–Hochberg over the pattern's
   resolution elements. A component under the bar is flagged `weak_line` and
