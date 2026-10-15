@@ -564,7 +564,7 @@ declaration is rejected when
 
 \frac{\min_\beta \lVert r - J\beta \rVert^2
       - \min_\beta \lVert r - J_{\mathrm{u}}\beta \rVert^2}
-     {\chi^2_{\mathrm{red}} \cdot S''/S} \;>\; c_k,
+     {\chi^2_{\mathrm{red}}} \;>\; c_k,
 \qquad F_k(c_k) = \gamma,
 ```
 
@@ -577,12 +577,15 @@ pattern that cannot see the target is left out of $J_{\mathrm{u}}$, as an
 untied fit would hold the target there. $k$ is the number of directions
 $J_{\mathrm{u}}$ adds past the covariance's cut, the subset's size less $m$
 when nothing is degenerate. $F_k$ is the $\chi^2_k$ distribution function,
-$S''/S$ the squared Bérar-Lelann factor of {eq}`est-berar-lelann`, and
-$\gamma$ = {{ PARAMETRIC_FORM_LEVEL }}. Each minimisation is one linear step,
-so the numerator is the score statistic of {eq}`est-suggest` for $k$ columns
-at once {cite}`rao1948`, and the test needs no refit. Serially correlated
-residuals inflate a $\chi^2$ difference as they inflate an esd, so the
-denominator carries the same factor.
+and $\gamma$ = {{ PARAMETRIC_FORM_LEVEL }}. Each minimisation is one linear
+step, so the numerator is the score statistic of {eq}`est-suggest` for $k$
+columns at once {cite}`rao1948`, and the test needs no refit. The denominator
+is the answer's own $\chi^2_{\mathrm{red}}$, the restricted estimate the score
+test takes. Dividing by the squared Bérar-Lelann factor of
+{eq}`est-berar-lelann` as well, as an esd is inflated, made the test far
+stricter than $\gamma$. On laws that must hold any smooth truth, over three
+real ramps, none of 261 readings rejected with that factor and 12 of 242
+(5.0 %) without it.
 
 A fit with several declarations reads each one a second time, with the other
 declarations' targets freed too. Let $J_{\mathrm{a}}$ swap every tested

@@ -77,15 +77,17 @@ def main() -> None:
     chain = run_chain(patterns, start, temps, limits)
     print(f"chain     {chain['seconds']:.1f} s", flush=True)
     untied = joint(patterns, chain, temps, limits, {})
-    denom = untied["chi2r"] * untied["inflation"] ** 2
+    # the readings divide by χ²_red alone since the χ²_red commit; the
+    # refits' recorded per-direction figures were over χ²_red·f²
+    denom = untied["chi2r"]
     print(f"untied    {untied['seconds']:.1f} s; χ²r {untied['chi2r']:.3f}, "
           f"f {untied['inflation']:.3f}", flush=True)
     every = joint(patterns, chain, temps, limits, dict.fromkeys(TARGETS, 1))
     result = every["result"]
     s = result.statistics
-    own = s.chi2 * s.esd_inflation ** 2
+    own = s.chi2
     print(f"all three {every['seconds']:.1f} s {result.status}; χ²r {s.chi2:.3f}, "
-          f"f {s.esd_inflation:.3f}; the readings divide by χ²r·f² {own:.3f}, "
+          f"f {s.esd_inflation:.3f}; the readings divide by χ²r {own:.3f}, "
           f"the untied fit's is {denom:.3f}", flush=True)
     for t in result.parametric_form:
         print(f"  {t.tie:8} tied   {reading(t.tied)}")
@@ -93,16 +95,16 @@ def main() -> None:
         o = t.others_freed
         if o is not None and o.statistic is not None:
             gain = o.statistic * own
-            dchi2, per = REFIT[t.tie]
+            dchi2, _ = REFIT[t.tie]
             print(f"  {'':8} freed gain {gain:7.1f} ({gain / dchi2:4.2f} of the refit's "
-                  f"{dchi2}); over the untied denominator {gain / denom / o.dof:4.2f}/dir "
-                  f"against the refit's {per}", flush=True)
+                  f"{dchi2}); over the untied χ²r {gain / denom / o.dof:4.2f}/dir "
+                  f"against the refit's {dchi2 / denom / o.dof:4.2f}", flush=True)
     j = result.parametric_form_joint
     print(f"  joint    {reading(j)}")
     if j is not None and j.statistic is not None:
         gain = j.statistic * own
         print(f"  {'':8} joint gain {gain:7.1f} ({gain / REFIT_ALL:4.2f} of the untied "
-              f"refit's {REFIT_ALL}); over the untied denominator "
+              f"refit's {REFIT_ALL}); over the untied χ²r "
               f"{gain / denom / j.dof:4.2f}/dir", flush=True)
     t0 = time.perf_counter()
     rx.RefinementResult.model_validate_json(result.model_dump_json())

@@ -2284,7 +2284,7 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
             message=(f"parametric tie {t.tie!r} does not describe {t.target} across "
                      f"{t.n_patterns} of its {t.n_subset} patterns{how}: freeing "
                      f"the target in each would remove {r.statistic:.1f} times "
-                     f"χ²_red·f² of χ², past the {100 * FORM_TEST_LEVEL:g} % point "
+                     f"χ²_red of χ², past the {100 * FORM_TEST_LEVEL:g} % point "
                      f"{r.cut:.1f} of χ² for {r.dof} directions. The coefficients' "
                      "esds assume the form, so they are too small"),
             suggestion=("do not quote the coefficients as they stand: add the next "
@@ -2300,7 +2300,7 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
             where=[p for t in tested for p in paths[t.tie]], value=joint.statistic,
             message=(f"parametric ties {names} together do not describe their "
                      "targets: freeing every target in each pattern would remove "
-                     f"{joint.statistic:.1f} times χ²_red·f² of χ², past the "
+                     f"{joint.statistic:.1f} times χ²_red of χ², past the "
                      f"{100 * FORM_TEST_LEVEL:g} % point {joint.cut:.1f} of χ² for "
                      f"{joint.dof} directions. No law's own reading rejects it, so "
                      "the data does not say which form is wrong, and the "

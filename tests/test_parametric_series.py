@@ -699,8 +699,8 @@ def test_a_parametric_slope_recovers_a_known_expansion_within_its_esd():
 def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
     """The form test on the slow test's ten-pattern LaB6 ramp, its truth the
     line or the line bowed by 1 % of its half-excursion at mid-ramp.  The
-    line reads 4.8 against the cut 15.5 for 8 directions, and the bow 2 607
-    (macOS arm64), so either verdict has a margin of three or more.  Fast,
+    line reads 7.6 against the cut 15.5 for 8 directions, and the bow 4 461
+    (macOS arm64), so either verdict has a margin of two or more.  Fast,
     at 1.5 s a joint fit serially and 3 s under ``-n auto``, because the
     bowed row is the only fit-level check that a wrong form is caught and
     says so."""
@@ -1191,10 +1191,10 @@ def _two_readings(tied_stat: float, tied_p: float, freed_stat: float, freed_p: f
 
 
 def test_a_law_the_freed_reading_rejects_is_printed_and_warned_as_such():
-    """The ZrMo₂O₈ cubic law's two readings (``form_freed_results.txt``):
-    passed with the other laws tied, rejected with them freed.  The freed
-    reading is the verdict and prints first, and the warning quotes it and
-    says what the tied one read."""
+    """A law that passes with the other laws tied and is rejected with them
+    freed, as the ZrMo₂O₈ cubic law read over the earlier χ²_red·f².  The
+    freed reading is the verdict and prints first, and the warning quotes it
+    and says what the tied one read."""
     from types import SimpleNamespace
 
     from rietx.multi import _parametric_form_diagnostics

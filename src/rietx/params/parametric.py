@@ -27,7 +27,7 @@ import numpy as np
 from scipy import linalg
 
 from ..optimize.blocked import added_columns_gain, held_projection
-from ..optimize.statistics import PINV_RCOND, berar_lelann_factor
+from ..optimize.statistics import PINV_RCOND
 from ..schemas.interval import PARAMETER_INTERVAL_LEVEL
 from ..schemas.parametric import (
     CoordinateTable,
@@ -437,12 +437,15 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
     :func:`~rietx.optimize.blocked.added_columns_gain` says how much χ² one
     linear step toward it removes, every other column refitted.  Columns in
     ``hold`` (θ's indices) leave both sides, as a refit keeps a column on its
-    bound.  The gain over χ²_red·f² of the data rows of ``resid`` is ~χ²_k
+    bound.  The gain over χ²_red of the data rows of ``resid`` is ~χ²_k
     while the form holds, k the directions the alternative adds.  The
     denominator is the answer's own, the restricted estimate the textbook
     score test takes (Rao, C. R., 1948, *Proc. Camb. Phil. Soc.* **44**, 50).
-    f is the Bérar-Lelann factor, because serially correlated residuals
-    inflate a χ² difference as they do an esd.
+    An earlier cut also divided by the Bérar-Lelann factor f², as an esd is
+    inflated.  On laws that must hold any smooth truth, over three real
+    ramps (f 1.2-3.6), none of 261 readings rejected with it and 12 of 242
+    (5.0 %) without it (``docs/wp/1325-parametric-series.md`` § Measured: the
+    form test out of sample).
 
     Measured on the ZrMo₂O₈ ramp (33 patterns), the gain was 0.98-1.04 of the
     χ² a full untied refit removed for the strong phase's laws and for all
@@ -452,16 +455,15 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
     (``docs/wp/1325-measure/form_score.py``).  Its power is where, and as
     well as, a pattern measures the target: on synthetic ramps whose minor
     phase fades out or overlaps, a bent truth was rejected in 0 of 20 seeds,
-    as by a full refit, and a straight one in 0 of 40 (``form_synthetic.py``).
+    as by a full refit (``form_synthetic.py``).
 
     With two or more laws tested, each is read again with every other tested
     law's targets freed (``ParametricFormTest.others_freed``), the gain with
     all swapped less the gain with the others swapped.  That reading is the
     law's verdict, since it assumes nothing of the other laws' forms; the tied
     one assumes them right.  At the ZrMo₂O₈ ramp's three-law answer the cubic
-    line read 42.8 for 31 directions tied (p 0.077) and 48.6 freed
-    (p 0.023); the freed gain was 575.3 against the 576.1 its own refit
-    removed (``form_freed.py``).  Freed, two laws whose targets move the
+    line's freed gain was 575.3 against the 576.1 its own refit removed
+    (``form_freed.py``).  Freed, two laws whose targets move the
     pattern alike can absorb each other's misfit and both pass.  So the gain
     with every law swapped is read too, one joint reading for the fit, which
     names no law because the data cannot say which is wrong.  A regression
@@ -472,7 +474,7 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
     """
     rd = resid[:n_data]
     chi2_red = float(rd @ rd) / max(n_data - len(free_paths), 1)
-    scale = chi2_red * berar_lelann_factor(rd) ** 2
+    scale = chi2_red
     index = {p: i for i, p in enumerate(free_paths)}
     # the held side is one projection for every alternative tested here
     null = None

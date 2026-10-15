@@ -1301,7 +1301,7 @@ def _form_line(t: ParametricFormTest) -> str:
                     "patterns that see the target add no direction beyond the "
                     "coefficients")
         if tied.statistic is None:
-            return ("      form not tested: the answer's χ²_red·f² is not a "
+            return ("      form not tested: the answer's χ²_red is not a "
                     "positive finite number")
         return f"      form {_verdict(tied)} {over}"
     # the freed reading is the verdict, so it reads first
@@ -1316,7 +1316,7 @@ def _verdict(r: ParametricFormReading) -> str:
     if r.statistic is None:
         # the schema's two reasons, as the one-reading line above tells them
         return ("not tested: no direction to test" if r.dof == 0 else
-                "not tested: the answer's χ²_red·f² is not a positive finite number")
+                "not tested: the answer's χ²_red is not a positive finite number")
     verdict = "REJECTED" if r.rejected else "not rejected"
     side = "past" if r.rejected else "within"
     # a tail under 1e-300 is 0.0 in a double, and "p = 0" claims certainty

@@ -296,16 +296,15 @@ class ParametricFormReading(Base):
     * ``dof`` — the directions the alternative adds past the covariance's
       cut, the patterns tested less the free coefficients when nothing is
       degenerate; 0 when there was nothing to test.
-    * ``statistic`` — that χ² over χ²_red·f², the answer's reduced χ² and
-      Bérar-Lelann factor, which is ~χ² with ``dof`` degrees of freedom while
-      the form holds.
+    * ``statistic`` — that χ² over χ²_red, the answer's reduced χ², which
+      is ~χ² with ``dof`` degrees of freedom while the form holds.
     * ``cut`` — the χ² point at ``params.parametric.FORM_TEST_LEVEL``.
     * ``rejected`` — ``statistic > cut``.
     * ``p_value`` — χ²'s upper tail at ``statistic``, so a near miss reads as
       one on either side of the cut.
 
     The last four are ``None`` unless ``dof`` is positive and the answer's
-    χ²_red·f² is a positive finite number.
+    χ²_red is a positive finite number.
     """
 
     dof: int
