@@ -191,7 +191,9 @@ handed. No basis can match it. The golden records each such term
 | −3 and −3m on rhombohedral axes | every term two values | `CrsAng` puts the polar axis on [111] only for Laue `'R3'`/`'R3m'`. `SpcGroup` emits `'3R'`/`'3mR'`, so the axis falls back to c* |
 | −31m | the n = 3 terms two values | `GetKcl` gives −31m the sin 3β of −3m1, which −31m's operators do not leave invariant |
 
-These are defects in GSAS-II 5.8.4. They have not been reported upstream.
+These are defects in GSAS-II 5.8.4. They are recorded here, in the manual's
+warning under the texture equation and in the `.gpx` reader's report. On
+2026-10-15 the maintainer decided not to report them upstream.
 
 **The golden.** `tests/data/gsas2_sh_texture.json` comes from
 `tests/data/make_gsas2_sh_texture.py`, run under GSAS-II's own interpreter.
@@ -229,13 +231,30 @@ Järvinen and Ahtee et al. normalise each harmonic to max|Y| = 1. They also
 drop the 4π/(2l+1) and use P_l(cos α) for the sample term. Their C differ
 from Von Dreele's by a per-term constant.
 
-**TOPAS is not settled.** Whitfield (2009) prints the macro,
-`PO_Spherical_Harmonics(sh, 4 load sh_Cij_prm {y00 !c00 1 y20 c20 …})`, with
-c00 fixed at 1. It gives no formula, normalisation or sample axis. It
-reports 13 refined terms at order 4 for P-1 wollastonite, where 14 exist,
-and does not say why. The conversion needs the Technical Reference, which is
-still unread. That reading moves to Task 9, which measures against TOPAS's
-own output anyway.
+**TOPAS is read but not settled** (Task 9, 2026-10-15). Whitfield (2009)
+prints the macro, `PO_Spherical_Harmonics(sh, 4 load sh_Cij_prm {y00 !c00 1
+y20 c20 …})`, with c00 fixed at 1, and gives no formula. He reports 13 refined
+terms at order 4 for P-1 wollastonite, where 14 exist, and does not say why.
+The Technical Reference (Version 9, `spherical_harmonics_hkl` and § 20.17.1)
+adds four facts:
+
+- `spherical_harmonics_hkl` is "a hkl dependent symmetrized spherical
+  harmonics series". Its terms follow Järvinen (1993)'s selection rules.
+- `PO_Spherical_Harmonics(sh, order)` is that series with `scale_pks = sh`, so
+  TOPAS's P is the series' value.
+- `sh_alpha`, "the angle in degrees between the polar axis and the scattering
+  vector", defaults to 0°, "required for symmetric reflection as is the case
+  for Bragg-Brentano geometry". So TOPAS puts the Bragg-Brentano angle where D2
+  does, and GSAS-II is the code that differs.
+- The order runs from 2 to 8, or to 10 in a cubic class.
+
+It states neither the harmonics' normalisation nor their crystal frame.
+Järvinen normalises each function to max|Y| = 1 and drops the 4π/(2l+1). If
+TOPAS does the same in our frame, C = c_TOPAS / (√(4π/(2l+1))·max|K|) at
+α = 0. That is a reading of prose, and a foreign unit is measured against the
+format's own output (root CLAUDE.md). The import moved to
+[WP-1973](1973-a-topas-spherical-harmonics-texture-reads-in.md), which
+needs TOPAS's own value of `sh` at stated coefficients.
 
 **Bunge's tables are not held.** The library's copy of the "Numerical
 Tables" chapter is its one-page introduction. Table 15.2.1, which GSAS-II's
@@ -325,9 +344,9 @@ GSAS-II is a behavioural reference and a source of goldens; no code is
 ported (ATTRIBUTION.md: custom Argonne licence with a grant-back clause).
 MAUD (Lutterotti, BSD-3) implements harmonic texture and may be ported with
 attribution; its ATTRIBUTION row names this path. TOPAS is closed, so its
-Technical Reference only. A copy sits on the maintainer's OneDrive
-(`TOPAS-5 Technical_Reference.pdf`) and could not be read on 2026-10-14
-because it was not downloaded. Bunge's tables are published numbers.
+Technical Reference only. It is public at
+`https://topas-academic.com/technical_reference`, as WP-1433 had recorded on
+2026-09-16. Bunge's tables are published numbers.
 
 ### Inherited
 
@@ -341,7 +360,8 @@ because it was not downloaded. Bunge's tables are published numbers.
 - **Replacing March-Dollase.** It is one parameter against 2-44 here and the
   better-conditioned model for one fibre axis.
 - **Choosing the order automatically.** The order scan over `report/texture.py`'s
-  extracted corrections is the follow-up. File it once Task 2's basis exists.
+  extracted corrections is
+  [WP-1974](1974-the-texture-screen-says-which-order-the-misfit-needs.md).
 - **The pole-figure render.** WP-1318 builds the directional surface for
   Stephens strain; an inherited note there says the two share it.
 - **GSAS-I `.EXP` texture terms.** No file in the tree carries one.
@@ -467,7 +487,7 @@ because it was not downloaded. Bunge's tables are published numbers.
       `PLAN_INFO` says so.
       *Done 2026-10-14.* One stage frees March-Dollase, in
       `mccusker_structural`; it frees `phases.*.texture.*` beside it.
-- [ ] **Readers and writers**: first read the TOPAS Technical Reference on
+- [x] **Readers and writers**: first read the TOPAS Technical Reference on
       `PO_Spherical_Harmonics` and `spherical_harmonics_hkl` (moved from
       Task 1) and write the TOPAS conversion in § Pinned by Task 1. TOPAS
       `PO_Spherical_Harmonics(sh, order)`
@@ -486,6 +506,20 @@ because it was not downloaded. Bunge's tables are published numbers.
       one, `TOPAS_FIELD_NOT_WRITTEN` and `GSAS2_CIF_FIELD_NOT_WRITTEN`
       name it, and a P 1 restatement refuses it. Open: the TOPAS
       reading and import, the coverage-row split, and GSAS-II's `_hap`.
+      *Done 2026-10-15, except the TOPAS import.* `_hap` reads an SH
+      entry into `Gsas2Hap.texture`, and `to_structure` carries it onto
+      `Phase.texture` through the conversion. On all twelve golden
+      settings GSAS-II marks invariant, the carried texture under
+      `bragg_brentano` gives `SHPOcal`'s `Bragg` P to 2e-5. On the four
+      others the report names exactly the golden's non-invariant terms.
+      A Debye-Scherrer histogram and disagreeing histograms are reported
+      too, and the n = 0 terms of a defective class still carry. Dropping
+      P_l(0) fails nine cases and dropping the √2 three. TOPAS's
+      reference is read (§ Pinned by Task 1) and the coverage row split:
+      a bare `spherical_harmonics_hkl` is a "spherical-harmonics series",
+      no longer a texture. The import is
+      [WP-1973](1973-a-topas-spherical-harmonics-texture-reads-in.md),
+      because the reference does not settle the normalisation.
 - [x] **`rietx compare`**: a `+ spherical-harmonics texture` variant beside
       `preferred_orientation`, run on the `brucite` standard
       (`qarr/brucite.prn`; `viz/compare.py` has no cpd-2 standard), and its
@@ -580,10 +614,10 @@ Appendix 3 tables.
   (3010), `penaltyFxn`'s `SH-Pref.Ori.` (847-872); `GSASIIlattice.OdfChk`
   and `GenSHCoeffT` (2792-2857), `CrsAng` (2859), `SamAng` (2929), `BOH`,
   `Lnorm`, `GetKcl`, `GetKsl` (2995-3106), `textureIndex` (3467).
-- Coelho, A. A., TOPAS 5 Technical Reference, `PO_Spherical_Harmonics` and
-  `spherical_harmonics_hkl`. Edition not checked: the local copy is
-  `TOPAS-5 Technical_Reference.pdf` on the maintainer's OneDrive, dated
-  2013-01-31 on disk.
+- Coelho, A. A., TOPAS / TOPAS-Academic Technical Reference, Version 9,
+  `spherical_harmonics_hkl`, `PO_Spherical_Harmonics` and § 20.17.1. Read
+  2026-10-15 at `https://topas-academic.com/technical_reference`, one HTML page
+  whose text is the `TECH_REF_HTML_PLAIN` string inside it.
 
 ## Handover log
 

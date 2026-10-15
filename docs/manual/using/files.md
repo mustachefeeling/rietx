@@ -1455,7 +1455,8 @@ A phase-and-histogram pair is a `Gsas2Hap`:
 | `Gsas2Hap.scale`, `Gsas2Hap.used` | the phase's scale in this histogram, and whether the pair was in the fit at all |
 | `Gsas2Hap.size`, `Gsas2Hap.mustrain` | the sample broadening, which GSAS-II refines per pair |
 | `Gsas2Hap.hstrain` | the hydrostatic-strain terms |
-| `Gsas2Hap.preferred_orientation` | the model, its value, its flag and its axis |
+| `Gsas2Hap.preferred_orientation` | a March-Dollase entry: the model, its value, its flag and its axis. `None` for a spherical-harmonics entry |
+| `Gsas2Hap.texture` | a spherical-harmonics entry, as a `Gsas2Texture`, or `None` |
 | `Gsas2Hap.extinction` | the extinction coefficient |
 | `Gsas2Hap.lebail` | whether this pair's intensities were extracted rather than calculated |
 
@@ -1467,6 +1468,14 @@ Size and microstrain are each a `Gsas2Broadening`:
 | `Gsas2Broadening.values` | the direct numbers with their flags: a size in µm, a microstrain in units of 1e-6 |
 | `Gsas2Broadening.axis` | the unique axis a uniaxial model uses |
 | `Gsas2Broadening.terms` | the hkl-dependent coefficients. The format writes this row whatever the model, so on an isotropic one it is the unused default rather than a second opinion |
+
+A spherical-harmonics texture is a `Gsas2Texture`, in GSAS-II's own numbers:
+
+| Field | What it holds |
+|---|---|
+| `Gsas2Texture.order` | the highest even degree. Below 2 there is no term |
+| `Gsas2Texture.coefficients` | each coefficient under GSAS-II's own name, such as `C(4,0)` |
+| `Gsas2Texture.refined` | the one refine flag GSAS-II keeps for all of them |
 
 A constraint is a `Gsas2Constraint`:
 
@@ -1481,7 +1490,7 @@ A constraint is a `Gsas2Constraint`:
 Anything with a flag beside it is a `Gsas2Value`, which is `Gsas2Value.value`
 and `Gsas2Value.refined` and nothing else.
 
-Three things about a `.gpx` decide how you read one.
+Four things about a `.gpx` decide how you read one.
 
 #### It is a pickle, so the reader refuses names rather than running them
 
@@ -1518,6 +1527,36 @@ because deciding what a negative `Uiso` should have been is yours. An isotope ch
 names a nucleus the Sears table rietx scatters from does not carry, is refused
 the same way, since reading it as natural abundance would change the site's
 scattering length without saying so.
+
+#### A texture comes across converted, or not at all
+
+GSAS-II refines a spherical-harmonics texture per phase and histogram.
+`to_structure` carries it onto `Phase.texture` when one conversion holds at
+every reflection, and reports `GSAS2_GPX_TEXTURE_CONVERTED`. GSAS-II puts a
+Bragg-Brentano histogram's sample angle at 90°, and this package puts it on the
+plate normal. So each coefficient is multiplied by the Legendre polynomial
+P_l(0), which is −1/2 at l = 2. The warning under {eq}`corr-sh` gives the
+whole conversion. In Laue classes 4/m, −3 and 6/m the n ≠ 0 terms take a
+further √2. Fitted under the `bragg_brentano` geometry, the carried texture
+gives GSAS-II's own multipliers to GSAS-II's single precision.
+
+The phase builds without the texture, and `GSAS2_GPX_TEXTURE_NOT_CARRIED` says
+why, in four cases:
+
+- A Debye-Scherrer histogram. GSAS-II's sample angle there follows θ, so no
+  constant converts it.
+- Histograms that disagree. A phase here has one texture, which a joint fit
+  shares.
+- A term GSAS-II 5.8.4 evaluates wrongly. Its function takes two values on one
+  set of equivalent reflections, so its coefficient matches no invariant
+  function. This happens for every n ≠ 0 term in −1 and 2/m, for every term on
+  rhombohedral axes, and for the n = 3 terms of −31m. A zero coefficient there
+  is dropped, since nothing is lost.
+- A name no term of the class matches.
+
+A cubic phase at order 2 has no term, so nothing is lost, and the report says
+so at `info`. A March-Dollase entry stays on `Gsas2Hap.preferred_orientation`
+and is not carried.
 
 ### Which formats this build reads
 
