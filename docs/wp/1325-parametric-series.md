@@ -66,6 +66,13 @@ standing concern is a check calibrated on one example.
    `ParametricEquation`, `RefinedParametricEquation`,
    `RefinementResult.parametric_equations`, `RefinedParameter.equations`.
    The record below keeps the names each session shipped under.
+8. **An equation with no direction of its own keeps no verdict, and a
+   value carries every verdict** (the maintainer, 2026-10-15, from the
+   review). With the others freed, an equation they already cover has
+   nothing to test. Its verdict stays `None`, as R's `lm` leaves an aliased
+   term untested, and the joint warning names it with its tied reading.
+   `ParametricValue` carries `provisional_on` and `joint_rejected` beside
+   `form_rejected`.
 5. **A kernel prior for the blind regime is
    [1963](1963-a-kernel-over-the-pattern-coordinates.md)**, a stub.
 6. **The verdict follows statistical practice** (the maintainer, 2026-10-14,
@@ -1619,15 +1626,17 @@ from the tree, verified and committed the rename, and wrote this entry.
 - **Review** (`/code-review high --fix 90872b7..4ea0b20`, fixes in 4ea0b20):
   a redundant `scale = chi2_red` alias, five test names the rename left
   ungrammatical (`a_equation` → `an_equation`), continuation indents.
-  Declined, both for the maintainer:
-  - An equation whose freed reading has zero directions gets
-    `rejected=None` even when its tied reading rejects. The docstrings
-    declare `None` there. Falling back to the tied verdict would keep a
-    collinear pair's evidence.
-  - `ParametricValue.form_rejected` carries the equation's own verdict
-    alone. It reads "form not rejected" under a rejecting joint reading or
-    a provisional verdict. 667216c's commit names this as not generalised.
-    It needs a schema field.
+  Two findings went to the maintainer, who decided both (decision 8,
+  5c5575a):
+  - An equation whose freed reading has zero directions keeps
+    `rejected=None` even when its tied reading rejects. Falling back to
+    the tied verdict would name a culprit the data cannot separate, which
+    decision 6 removed. The joint warning now names each such equation
+    and quotes its tied reading.
+  - `ParametricValue` read "form not rejected" under a rejecting joint
+    reading or a provisional verdict. It now carries `provisional_on` and
+    `joint_rejected`, and prints both. It is never stored, so no schema
+    number moved.
 - **Merging main** moved this WP's fields to **schema 0.58**. WP-1960's
   texture took 0.57 on main first. `common.py`'s note, the
   `test_magnetic` pin, the 1.10 notes and record say 0.58. This file's
@@ -1640,6 +1649,9 @@ from the tree, verified and committed the rename, and wrote this entry.
 - Fast selection on the merged tree (daf2ef8): 10489 passed, 191 skipped,
   1 xfailed, in 285.6 s. Main's own additions are in that count, so it is
   not this branch's delta.
+- Fast selection on 5c5575a, decision 8: 10491 passed, 191 skipped,
+  1 xfailed, in 247.5 s. That is +2 passed for its 2 new tests, with no
+  new skip.
 - This session added 3 fast tests: `test_parametric_series.py` collected 73
   at 90872b7 and 76 now. No new skip.
 - `tests.added_test_times` against main names 10 tests, because the rename
@@ -1670,8 +1682,7 @@ from the tree, verified and committed the rename, and wrote this entry.
    real ramps (WO₃, ZrMo₂O₈'s windowed cubic). The refusal is at the seed,
    before any step, so the task covers the starting coefficients as well
    as the step.
-3. The maintainer's two calls from the review above.
-4. The peak-chain deduplication, then start agreement.
+3. The peak-chain deduplication, then start agreement.
 
 ### 2026-10-14 (seventh session) — law-set values are marked, a law evaluates anywhere, and each law is also tested with the others freed
 
