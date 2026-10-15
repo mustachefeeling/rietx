@@ -6,10 +6,10 @@ OUT=$S/site-sphinx/docs
 rm -rf $S/site-sphinx $S/sphinx/_build
 mkdir -p $S/sphinx/figures
 cp $S/../../manual/using/figures/angular-signatures-*.png $S/sphinx/figures/
-$S/venv/bin/python $S/tools/stubs.py $S/sphinx
 for v in dev 1.9; do
   start=$(date +%s)
-  DOCS_VERSION=$v $S/venv/bin/python -m sphinx -W -q -E -b html $S/sphinx $OUT/$v
+  # -d keeps the doctree pickles out of the served site (the default is $OUT/$v/.doctrees).
+  DOCS_VERSION=$v $S/venv/bin/python -m sphinx -W -q -E -b html -d $S/sphinx/_build/doctrees-$v $S/sphinx $OUT/$v
   echo "built $v in $(( $(date +%s) - start )) s"
 done
 ln -s 1.9 $OUT/stable

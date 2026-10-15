@@ -40,7 +40,7 @@ html_theme_options = {
 
 llms_txt_summary = "rietx is a Python package for Rietveld, Le Bail and Pawley refinement."
 
-REPO_URL = "https://github.com/yue-here/rietx"
+from rietx._about import REPO_URL  # noqa: E402 — a brand token, spelled in _about only
 
 
 def _source_role(name, rawtext, text, lineno, inliner, options=None, content=None):

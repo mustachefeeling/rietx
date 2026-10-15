@@ -1204,6 +1204,23 @@ for the repo's tests). The full table is § I.
 - A new WP file is untracked until staged, and `test_no_planning_doc_links_something_gitignored`
   fails on the index's links to it until then.
 
+**Review** (`/code-review high --fix`). PR #1001 was readied and merged by another session
+while the review ran, so its fixes land in a follow-up PR from `wp1975-review-fixes`. It found
+ten issues and fixed nine:
+- WP-1979 gained the anchor problem. Moving `DOCS_URL` to `/docs/<version>/` would 404
+  every help link until Theory moves.
+- WP-1978 now says importing the old `conf.py` has side effects.
+- The old manual's calibration snippet in `files.md` now runs, and the concepts diagram shows
+  `mccusker_structural`'s extra-components stage.
+- The spike guide's list of freed parameters and its Γ_G² floor wording are corrected.
+- The spike build keeps its doctrees out of the site. WP-1979 notes that the 6.3 MB included
+  them.
+- `switcher.py`'s quiet logging is fixed.
+- `REPO_URL` is imported from `_about`.
+- `stubs.py` is gone.
+The tenth, WP-1545's header, was done here. 1545 gains a task for the new direction and a
+dependency on 1985. § I sitting before § E was left as it is.
+
 **Next.** Start WP-1978, the new tree, since every other rebuild WP writes into it. WP-1985
 can run alongside, because it touches the package and not the manual. Both are P2.
 

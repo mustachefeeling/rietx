@@ -36,7 +36,8 @@ Part 1 too dense and too narrative. In particular they asked for:
 25 chapters and 15 885 lines. The largest are `files.md` 1988, `series.md` 1832,
 `refining.md` 1521, `data.md` 1412, `indexing.md` 1315 and `results.md` 1012.
 `using/concepts.md` holds the angular-signature parameter table (lines 15-33) and the
-correlation figures, and its plan mermaid (461-474) has drifted from `mccusker_structural`.
+correlation figures, and its hand-drawn plan mermaid (461-474), which drifted from
+`mccusker_structural` once already.
 Background and humps are in Part 2's `background.md:131-177` and `using/data.md:1160-1379`.
 Mine these; do not move them whole.
 

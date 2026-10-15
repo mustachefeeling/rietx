@@ -35,8 +35,9 @@ pydata-sphinx-theme's.
 `examples/` (root CLAUDE.md § Conventions), and the manual `{literalinclude}`s it. Mine from the
 old chapters; `refining.md`, `data.md`, `files.md`, `series.md`, `indexing.md` and `results.md`
 are the largest. The spike's guide (`docs/wp/1975-spike/sphinx/guides/calibrate.md`) shows the
-shape. The old `files.md` calibration snippet calls `ref.fitted_instrument` after binding
-`result = rx.refine(...)`, so it cannot run. Write the new one from a `Refinement`.
+shape. The old `files.md` calibration snippet called `ref.fitted_instrument` after binding
+`result = rx.refine(...)`, so it could not run (fixed 2026-10-16). A `RefinementResult`
+carries no instrument, so write the new one from a `Refinement`.
 
 **GUI chapters** (`gui-quickstart|guide|power.md`) have their own guard
 (`tests/test_gui_manual.py`), which partitions routes and panels. Move it with them.

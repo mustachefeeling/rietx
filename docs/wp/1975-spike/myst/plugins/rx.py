@@ -7,7 +7,8 @@ import json
 import sys
 from pathlib import Path
 
-REPO_URL = "https://github.com/yue-here/rietx"
+from rietx._about import REPO_URL  # a brand token, spelled in _about only
+
 CONSTANTS = {"MIN_GAMMA_G2": ("rietx.model.profiles.caglioti", "_MIN_GAMMA_G2", "{:g}")}
 
 plugin = {

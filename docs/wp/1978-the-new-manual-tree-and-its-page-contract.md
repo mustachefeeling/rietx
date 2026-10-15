@@ -19,8 +19,9 @@ WP-1975 re-planned the manual and chose its toolchain from a spike. Its decision
   been mined (WP-1986). The old tree's guards stay green throughout.
 - **Toolchain: Sphinx with pydata-sphinx-theme** (spike, WP-1975 § I). Keep MyST, myst-nb,
   sphinx-design, sphinxcontrib-bibtex and sphinxcontrib-mermaid. The spike's `conf.py`
-  (`docs/wp/1975-spike/sphinx/conf.py`) is the starting point: the theme options, the
-  switcher, `myst_substitutions` and a `{source}` role in 15 lines.
+  (`docs/wp/1975-spike/sphinx/conf.py`) is the starting point for the theme options and the
+  switcher. Its `{source}` role is a 15-line stand-in. The old tree's role reports an
+  unresolvable name as a build error and resolves module constants, so that one is kept.
 - **Layout: six tabs.** Start (install, first fit, notebooks), Guides (how-to, by topic),
   Concepts (explanation), Reference (API, parameter map, files, CLI, GUI, diagnostics),
   Theory (today's Part 2), Switching (for users of other codes). Each tab is one Diátaxis
@@ -62,8 +63,10 @@ on any MyST tree). `rietx.org/` is the landing page and the manual is `/manual.h
 - [ ] The tree: a directory (name it at the start; `docs/site/` or `docs/docs/`), `conf.py`
       from the spike's, six tab indexes, the front page with its three cards, `-W` clean.
 - [ ] Theory tab infrastructure: `math_numfig`, the shared `references.bib`, the `{source}`
-      role and `myst_substitutions` imported from the old `conf.py` rather than copied, so
-      one change reaches both trees.
+      role and `myst_substitutions` shared with the old `conf.py` rather than copied, so one
+      change reaches both trees. Importing the old `conf.py` runs `_write_glossary()` and
+      `_copy_tutorials()` and sets its whole Sphinx config, so move the shared parts into a
+      module both trees import.
 - [ ] Page-contract tests on the new tree: answer sentence, 50 000-character cap, no
       back-reference opener.
 - [ ] Register guard and trail tests extended to the new tree; the Theory-link check for

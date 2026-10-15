@@ -37,8 +37,9 @@ Facts measured 2026-10-15 (WP-1975 § B2-B4):
   GSAS-II also keeps humps in its Background (WP-1975 § G3). The parameter map says this in
   its background group.
 - **Plans.** `PLAN_PRESETS` and `PLAN_INFO` (8 presets). The old tree's plan mermaid in
-  `using/concepts.md` has drifted: it omits the `extra_components` stage that
-  `mccusker_structural` inserts sixth of eleven. Generate the ladder from the plan objects.
+  `using/concepts.md` drifted once: it omitted the `extra_components` stage that
+  `mccusker_structural` inserts sixth of eleven (fixed by hand 2026-10-16). Generate the
+  ladder from the plan objects so it cannot drift again.
 - **API.** `rietx.__all__` holds 115 explicit names plus every schema class. There is no API
   reference at all today (no autodoc). `docs/skill/make_api_index.py` already groups the
   agent-facing index (`SECTIONS`), and its groups are a starting point for "by how likely".
