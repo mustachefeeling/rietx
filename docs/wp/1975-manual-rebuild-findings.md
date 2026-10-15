@@ -1,6 +1,6 @@
 # WP-1975 — the manual rebuilt: findings brief
 
-Milestone: unscheduled · Status: 🔄 2026-10-15 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-15 — brief and groundwork (§ G) landed; the re-plan waits on the maintainer's new concepts
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-15 — a scoping WP: the maintainer's re-plan of the whole manual starts from this file
@@ -739,6 +739,10 @@ where the background goes and how humps interact with it (§ A1).
 - So a GSAS-II user looks for humps under Background and will not find them there. Whatever
   the parameter map's grouping, it needs that one sentence, and the "elsewhere" column of
   § D2 needs the `BkPk*` and `Debye*` names.
+- The `.gpx` reader already knows both: it counts a histogram's Debye terms and fitted
+  background peaks and reports that it does not carry them
+  (`GSAS2_GPX_BACKGROUND_NOT_CARRIED`, `io/projects/gsas2.py:1412`). A "coming from GSAS-II"
+  page can quote that diagnostic rather than restate it.
 
 ### G4. The toolchain, weighed against § F8's needs
 A delegated survey read each toolchain's own docs from shallow GitHub clones and its versions
@@ -839,6 +843,9 @@ that ran the real one and added `sphinx_llm.txt`; nothing in the tree changed.
 
 ## Tasks
 
+- [x] Check the brief against the tree and settle what it left unverified, before the
+  re-plan (§ G: the findings recheck, the published source copies, GSAS-II's background,
+  the toolchain weighed, sphinx-llm tried on this manual).
 - [ ] Re-plan the manual from this brief, in a session of its own, bringing in the
   maintainer's new concepts; then rewrite Goal and Tasks here or file the WPs the plan
   names and close this one into them.
@@ -859,6 +866,58 @@ python3 .claude/hooks/wp_index.py        # the index is unchanged afterwards
   problems to developers? ESEC/FSE.
 
 ## Handover log
+
+### 2026-10-15 (3rd session) — the brief checked, the toolchain weighed; the re-plan waits
+
+What this means: the brief is still true of the tree, and the facts the re-plan would
+otherwise have to go and fetch are now in it. The biggest is that the toolchain question is
+smaller than § F8 framed it. Of six toolchains only Sphinx (today's) and Jupyter Book 2 meet
+the manual's stated needs. Sphinx misses only the agents' markdown copy, and the package that
+claims to add it fails this manual's strict build, so that copy is a build step to write. The
+manual already publishes a raw copy of its sources that shows agents placeholders where the
+page shows numbers. The re-plan itself has not started: it needs the maintainer's new concepts,
+which no session can supply.
+
+**Done.**
+- `/wp-start` ritual: the hook's four repair flags (WP-1418, 1419, 1810, 1932) were left alone,
+  since the maintainer's open PR #989 holds those WPs' review records, and the handover command
+  asks for the user before touching a second WP. No open PR touches the manual. Claimed with
+  draft PR #994.
+- No `### Inherited` to prune. § B rechecked against `main` one merge later (§ G1).
+- § G added: the published `_sources/` copies (G2), GSAS-II's background (G3), the toolchain
+  survey (G4, delegated to one research agent and spot-checked at six of its line pointers and
+  four registry versions), and a sphinx-llm trial build (G5). Nothing outside this WP file and
+  the index changed; the trial ran from a wrapper `conf.py` and a `--target` install in the
+  scratchpad.
+- No lanes: no checklist item was implementation, and the context stayed well under 150K.
+
+**Measured** (`[dev]` venv, Linux x86_64, this container):
+- `sphinx -W -b html docs/manual` cold: 28.8 s; 46 `_sources/` files, 3.3 MB.
+- sphinx-llm 1.1.0 trial: 21 unknown-node warnings under `-W`; 92 markdown files; nine pages
+  over 50 k characters, four over 100 k (table in § G5).
+- `tests/test_docs_consistency.py`: 25 passed, before and after.
+- The survey agent: 118 tool calls, about 13 minutes.
+
+**Gotchas.**
+- This container's worktree guard refuses a Bash command that runs `find` or `git` on a path
+  held in a shell variable, and a bare `cd`; write the path out, or wrap the work in
+  `( cd DIR && … )`.
+- To build the manual with an extra extension and no tree change, point `sphinx -c` at a
+  wrapper `conf.py` that sets `__file__` to the real one and `exec`s it into its own
+  `globals()`. A fresh dict breaks the real file's `@dataclass`. Then make `bibtex_bibfiles`,
+  `html_static_path`, `templates_path` and `html_favicon` absolute, or every citation reads as
+  missing.
+- `gh` is not logged in here; the GitHub MCP tools answered the open-PR check.
+
+**Next.**
+1. The maintainer states the new concepts (§ E, last bullet). Nothing below can start without
+   them.
+2. The re-plan session reads § F8, then § E, then § G. Its first decision is the toolchain:
+   stay on Sphinx and write the markdown twin as a build step (§ G5 lists the four node
+   types it must handle), or move to Jupyter Book 2 and pay § G4's guard rows. The
+   published `_sources/` copy is switched off or replaced in either case (§ G2).
+3. Then rewrite Goal and Tasks here, or file the WPs the plan names and close this one into
+   them.
 
 ### 2026-10-15 — the brief, from two research sessions
 
