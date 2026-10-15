@@ -1040,6 +1040,50 @@ python3 .claude/hooks/wp_index.py        # the index is unchanged afterwards
 
 ## Handover log
 
+### 2026-10-15 (4th session) — four decisions taken; the toolchain goes to a spike
+
+What this means: the manual's rebuild now has a shape. It will be a new tree built beside the
+old one, with six tabs (Start, Guides, Concepts, Reference, Theory, Switching) and three
+audience cards on the front page. Measurement diaries and history leave the pages, but every
+physics claim keeps a visible trail to its paper, its code and its validation, because that
+trail is what shows the physics is real. The "new concepts" the brief was waiting on turned
+out to be these decisions, and none of them were recorded anywhere before this session. The
+toolchain is not decided: it is narrowed to Sphinx with pydata-sphinx-theme or mystmd, and a
+spike that builds the same pages in each will settle it.
+
+**Done.**
+- The maintainer asked which concepts the re-plan still needed. Nothing was recorded: the WP
+  file named none, and the merged PR #994 has no comments. So this session listed the twelve
+  open decisions and asked the four most blocking. Three answers came back as questions, and
+  § H answers them from primary sources: six layouts (H1), the tiers of docs toolchains and
+  the agent layer (H2), and the precedent for evidence and history (H3, a table).
+- Four decisions recorded at the end of § F8: migration beside the old tree, the hybrid
+  layout, a toolchain spike, and the evidence trail with the maintainer's own reason.
+- § E trimmed to the eight questions still open. Tasks rewritten: the spike, § E, then the
+  WP slate.
+- Forward reference: WP-1443's `### Inherited` now says the rebuild is coming, so its passage
+  fixes land in the new tree rather than in chapters about to be retired.
+- The branch was restarted from `main`, because PR #994 was merged with this branch.
+- `/code-review` was skipped: the branch is prose-only (two WP files). No CLAUDE.md edits, no
+  tests added, no lanes.
+
+**Measured** (`[dev]` venv, Linux x86_64): nothing about the package. The figures in § H are
+read from the cited sources.
+
+**Gotchas.**
+- Vendor pages dominate web search for docs platforms (Mintlify, Context7). § H2 uses them
+  only for what each platform ships, never for rankings.
+- The worktree guard refuses a heredoc that writes to the scratchpad from a `cd`'d compound
+  command. Edit the WP file in place instead.
+
+**Next.**
+1. The toolchain spike (first Task). Build the front page, one Guides page and one Theory
+   page (numbered equations, a citation, a light/dark figure pair) in both toolchains. Try
+   `sphinx-llms-txt` on the Sphinx side before writing a twin builder. The built pages decide.
+2. In parallel, put § E's open questions to the maintainer. The page-contract guards and
+   how far the trail's guard reaches decide what the first new pages are tested against.
+3. Then file the WP slate for the new tree and close 1975 into it.
+
 ### 2026-10-15 (3rd session) — the brief checked, the toolchain weighed; the re-plan waits
 
 What this means: the brief is still true of the tree, and the facts the re-plan would
