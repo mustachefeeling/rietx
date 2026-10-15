@@ -1,6 +1,6 @@
 # WP-1343 — the magnetic peaks are broader, and the moment pays for it
 
-Milestone: magnetic · Status: 🔄 2026-10-06 — PR #734 merged (#729's warm-refit silence); 9 of 11 tasks done; open: a synthetic k = 0 no-esd case, the PNGs, and acceptance 4 on real k ≠ 0 data
+Milestone: magnetic · Status: 🔄 2026-10-15 — 9 of 12 tasks done; open: a synthetic k = 0 no-esd case, the PNGs and acceptance 4's synthetic k ≠ 0 fallback (PR #943 in review), and the width diagnostic's self-inflated noise (decided 2026-10-15)
 Depends on: 1327 (the moment, the magnetic |F_⊥|², the shared scale);
 1326 soft (the satellites that make the term identifiable)
 Priority: P2 2026-10-05 — was P3: `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` fires on a warm refit under `fit` (#729), a flag firing wrongly whose workaround is `run_stage`
@@ -371,6 +371,17 @@ the cheaper of the two at the time; the skill row is required either way.
       measurable. Paid for by a named cut if the body moves at all.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/`, magnetic-only
       reflections zoomed.
+- [ ] `MAGNETIC_WIDTH_UNMODELLED` divides its statistic by a pooled scatter
+      that the misfit itself inflates, so its evidence shrinks as the problem
+      grows. *Decided 2026-10-15 (from PR #943): a task here, with no change
+      in #943.* On #943's synthetic CrSBr (k = (0, 0, ½), 5 000 counts on the
+      strongest magnetic line, seed 1343), the width held at zero returns the
+      moment 25 % low (2.317 against 3.09 μ_B) while the diagnostic reads
+      z = 2.99 against its 3.0 bar, with the scatter at s = 2.57 against about
+      1 for a good fit. Five other seeds at 5 000 counts fire 4 of 5, twice
+      the counts 5 of 6, four times 6 of 6. Measure a noise estimate the
+      misfit cannot inflate, keep the nuclear-only control silent, and turn
+      #943's A2 arm from an expected failure into a pass.
 
 ## Acceptance
 
@@ -441,6 +452,15 @@ the cheaper of the two at the time; the skill row is required either way.
 
 ## Handover log
 
+- **2026-10-15** — from the PR review (PR #943): the width diagnostic can stay
+  silent on the case it exists for. On #943's synthetic CrSBr the moment came
+  back 25 % low with the width held at zero, and `MAGNETIC_WIDTH_UNMODELLED`
+  read z = 2.99 against its 3.0 bar. @yue-here decided it is a task here, with
+  no change in #943 (Tasks, last row). Round 1 at `98cfb0a4` asks one change
+  before merge: the A2 test's `xfail(strict=True)` becomes non-strict, since
+  2.99 sits 0.3 % from the bar and any platform's last digits can cross it.
+  *Next:* #943's round 2. It carries the Tests row and acceptance 4's
+  synthetic fallback.
 - **2026-10-06** — PR #734 (outside contributor, issue #729) merged as
   `36765711`. `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` is now silent where
   the width starts the stage above zero. The order the code describes starts
