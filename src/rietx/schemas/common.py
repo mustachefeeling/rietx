@@ -18,6 +18,11 @@ from .._nearmiss import did_you_mean
 #: Data-contract version of the pydantic schemas (``Capabilities.schema_version``).
 #: Any change a consumer could observe bumps the last component by one, and
 #: the comment says what changed — no classification, no digest (WP-1117).
+#: The number moves once per release cycle.  The first change after a release
+#: bumps it, and each later change before the next release adds its own line
+#: under that number, so a PR rebased onto a ``main`` already bumped keeps
+#: ``main``'s number.  Decided 2026-10-15, after six concurrent PRs had
+#: renumbered one another after every merge.
 #: 0.1 → 0.2 (WP-1076): ``RefinedParameter.initial`` and
 #: ``RefinementResult.correlation_warnings`` removed, both fields nothing wrote.
 #: 0.2 → 0.3 (WP-1112): ``StageSpec.window_slack_deg`` added — a stage's
