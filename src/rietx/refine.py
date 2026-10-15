@@ -6771,7 +6771,7 @@ def _absorption_record(model: CompiledModel, source: str, skipped: str | None,
         return None
     mu_t = 0.0 if model.mu_t is None else float(model.mu_t)
     delta_biso = unabsorbed = identifiable = None
-    positions = _reflection_positions(model, values)
+    positions = _reflection_bragg_angles(model, values)
     if (model.mu_t is not None or transmission) and positions.size:
         a = np.asarray(model._absorption(positions), dtype=np.float64)
         delta_biso, unabsorbed = equivalent_delta_biso_from_transmission(
@@ -6788,22 +6788,37 @@ def _absorption_record(model: CompiledModel, source: str, skipped: str | None,
             transmission_intensity_fraction(mu_t) if transmission else None))
 
 
-def _reflection_positions(model: CompiledModel,
-                          values: dict[str, float] | None) -> np.ndarray:
-    """In-range Bragg 2θ of every modelled reflection, primary line.
+def _reflection_bragg_angles(model: CompiledModel,
+                             values: dict[str, float] | None) -> np.ndarray:
+    """Bragg 2θ of every modelled reflection drawn in range, primary line.
 
     Where an intensity correction is *judged* — never on the fitted grid, which
     can start far below the first peak and make a correction look enormous that
     no modelled reflection ever experienced (WP-0502 measured exactly that on
     the round-robin patterns).
+
+    Two angles per reflection, and each test takes its own.  *Which*
+    reflections count is read at the drawn angle, because that is where the
+    pattern shows them.  The value returned is the Bragg angle, because the
+    forward model evaluates absorption and roughness there (``phase_peaks``
+    passes ``tt_bragg``).  Until WP-1908's follow-up this returned the drawn
+    angle, so a refined displacement judged both corrections at angles no
+    reflection was corrected at.
     """
     if not model.phases or values is None:
         return np.empty(0)
-    positions = np.concatenate(
-        [np.asarray(model.phase_peaks(ip, values)[0][0], dtype=np.float64)
-         for ip in range(len(model.phases))])
-    positions = positions[np.isfinite(positions)]
-    return positions[(positions >= model.tt_min) & (positions <= model.tt_max)]
+    lam = model.line_lambdas(values)[0]
+    out = []
+    for ip, cp in enumerate(model.phases):
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        bragg = np.asarray(cp.reflections.two_theta(cell, lam), dtype=np.float64)
+        drawn = np.asarray(model.apparent_two_theta(bragg, values),
+                           dtype=np.float64)
+        keep = (np.isfinite(bragg) & np.isfinite(drawn)
+                & (drawn >= model.tt_min) & (drawn <= model.tt_max))
+        out.append(bragg[keep])
+    return np.concatenate(out)
 
 
 def _capillary_offset_diagnostics(model: CompiledModel,
@@ -9580,12 +9595,7 @@ def _roughness_regime_diagnostics(model: CompiledModel,
     # reported a 27 % depression that no modelled peak ever experienced.
     # Roughness is constrained by low-angle reflections, so that is where it
     # has to be judged.
-    positions = np.concatenate(
-        [np.asarray(pos) for ip in range(len(model.phases))
-         for pos, *_ in [model.phase_peaks(ip, values)[0]]]) \
-        if model.phases else np.empty(0)
-    positions = positions[np.isfinite(positions)]
-    positions = positions[(positions >= model.tt_min) & (positions <= model.tt_max)]
+    positions = _reflection_bragg_angles(model, values)
     if not positions.size:
         return []
     tt_min = float(np.min(positions))
