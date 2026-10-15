@@ -491,12 +491,12 @@ from .._nearmiss import did_you_mean
 #: 0.55 key ``tie``, so a 1.9.0 result opens and is written back as ``equation``.
 #: ``ParametricValue``, built on demand and never stored, carries
 #: ``provisional_on`` and ``joint_rejected`` beside ``form_rejected``.
-#: 0.59 → 0.60 (indexing C4): ``CellCandidate.n_search_unindexed`` and
+#: Also in 0.59, one number a release cycle (indexing C4): ``CellCandidate.n_search_unindexed`` and
 #: ``.unindexed_two_theta``, the search's acceptance as an output (the inlier
 #: rule replaces the absolute ``n_unindexed`` cap, which a ``SearchSpecSpec``
 #: still accepts as a declared int, its default now ``None``).  Additive and
 #: defaulted to ``None``, "not computed", the 0.25 → 0.26 rule.
-SCHEMA_VERSION = "0.60"
+SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

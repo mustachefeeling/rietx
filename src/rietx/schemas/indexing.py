@@ -137,14 +137,14 @@ from .structure import Cell
 #: flat-topped synthetic silicon, 34 usable components on 11 lines become 18;
 #: over the 16 IUCr round-robin lab patterns 789 usable components become 782
 #: (``cpd-4`` 76 → 75).
-#: 1.12 (indexing C4, C6): a search that ends with no lattice two engines agree
+#: Also in 1.11, one number a release cycle (indexing C4, C6): a search that ends with no lattice two engines agree
 #: on is run again under the inlier rule, so a run that returned no cell, or
 #: single-engine cells, can now return the true one; and a picked list's search
 #: window is its lower-quartile fitted FWHM (capped at the old 0.05 degrees)
 #: where it was the constant, so a high-resolution list now matches within its
 #: own widths.  A run whose first pass finds an agreed lattice, and a lab list
 #: with lines 0.05 degrees or wider, answer as at 1.9.
-INDEXING_THRESHOLDS_VERSION = "1.12"
+INDEXING_THRESHOLDS_VERSION = "1.11"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
