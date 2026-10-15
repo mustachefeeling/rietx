@@ -34,8 +34,9 @@ Three measurements:
    forced to 1, so each call covers all its rows.  The comparison is over the
    rows the call wrote, in window.  Per kernel the table gives the calls, the
    calls that were bit-identical, the largest relative difference (the largest
-   absolute difference over the plane's largest magnitude,
-   ``tests/test_compiled_kernels._rel``), the largest distance in ulps, and
+   absolute difference over the plane's largest magnitude, or for
+   ``bases_fcj`` its terms', ``tests/test_compiled_kernels._rel``), the
+   largest distance in ulps, and
    which arms ran (:data:`ARM`).  The bar each call must meet is the one
    ``tests/test_compiled_kernels.py`` asserts for the wheel against the numpy
    path (:data:`BAR`):
@@ -52,6 +53,14 @@ Three measurements:
      From 1.2.0, on x86-64, they call SLEEF's ``exp`` (``kernels/src/sleef.rs``),
      whose own bound ``test_the_fcj_exponential_holds_its_stated_bound``
      asserts, and the ulp column then counts its last bits too.
+     ``bases_fcj`` divides by the largest sum of |terms| behind a plane
+     (:func:`fcj_terms`), not by the plane's largest value.  Two correct sums
+     differ by about ε times their terms, and a plane can be far smaller than
+     its terms: at H/L = 0 beside S/L > 0 (WP-1953) ∂Ω/∂(H/L) measured up to
+     2.6e7 times smaller in the cpd-1a fit.  Divided by its own size the gap
+     reached 4.7e-9 on darwin/arm64 and 4.9e-9 on Linux x86-64.  Divided by
+     its terms', every ``bases_fcj`` plane stayed under 5.0e-16 in the cpd-1a
+     fit and 8.7e-16 in the trigger fit on darwin/arm64.
 
    ``--gate`` exits 1 unless the wheel loaded, this section ran, every kernel
    was called, every call met its bar, and each case's twins reproduced the
@@ -247,6 +256,39 @@ def _np_bases_fcj(omega, d_pos, d_gamma, d_eta, d_sl, d_hl, x, rows, w1, w2,
             _window(plane, rs, width, v)
 
 
+def fcj_terms(args: tuple) -> list[np.ndarray | None]:
+    """Σ|terms| behind each output plane of one ``bases_fcj`` call.
+
+    :func:`_np_bases_fcj` with every factor made absolute and each difference
+    made a sum, flattened to the cells the call wrote (:func:`_cells`).
+    ``None`` stands for a plane the call did not build.  It is the bar's
+    denominator for these planes, here and in
+    ``tests/test_compiled_kernels.py``.
+    """
+    (omega, d_pos, d_gamma, d_eta, d_sl, d_hl, x, rows, w1, w2, width, phi,
+     om, dphi, dom, dphi_sl, dom_sl, dphi_hl, dom_hl, has_ax, lo, hi) = args
+    planes = [np.zeros_like(p) for p in (omega, d_pos, d_gamma, d_eta, d_sl,
+                                          d_hl)]
+    for rs, s in _chunks(rows, lo, hi):
+        x3 = x[rs][:, None, :] - phi[s][:, :, None]
+        pv, ddx, ddg, dde = (np.abs(v) for v in pseudo_voigt_derivs(
+            x3, w1[rs, None, None], w2[rs, None, None]))
+        w = np.abs(om[s])
+        out = [(planes[0], _node_mix(w, pv)), (planes[2], _node_mix(w, ddg)),
+               (planes[3], _node_mix(w, dde)),
+               (planes[1], _node_mix(np.abs(dom[s]), pv)
+                + _node_mix(w * np.abs(dphi[s]), ddx))]
+        if has_ax:
+            out += [(plane, _node_mix(np.abs(dw[s]), pv)
+                     + _node_mix(w * np.abs(dp[s]), ddx))
+                    for plane, dp, dw in ((planes[4], dphi_sl, dom_sl),
+                                          (planes[5], dphi_hl, dom_hl))]
+        for plane, v in out:
+            _window(plane, rs, width, v)
+    cut = _cells("bases_fcj", args)
+    return [cut(p) for p in planes]
+
+
 #: the reference, under the wheel's kernel names
 NUMPY = {"accum": _np_accum, "omega_sym": _np_omega_sym,
          "omega_fcj": _np_omega_fcj, "bases_sym": _np_bases_sym,
@@ -289,21 +331,24 @@ def _max_ulps(a: np.ndarray, b: np.ndarray) -> float:
     return float((hi - lo).max())
 
 
-def _compare(got: np.ndarray, want: np.ndarray) -> tuple[bool, float, float]:
+def _compare(got: np.ndarray, want: np.ndarray,
+             terms: np.ndarray | None = None) -> tuple[bool, float, float]:
     """(bit-identical, relative difference, ulps) of two flat arrays.
 
-    The relative difference is ``tests/test_compiled_kernels._rel``'s.  A
-    point that is NaN on both sides agrees.  A NaN on one side only is an
-    infinite difference, so it can never pass a bar.
+    The relative difference is ``tests/test_compiled_kernels._rel``'s, over
+    ``terms``' largest value where given (:func:`fcj_terms`) and ``want``'s
+    otherwise.  A point that is NaN on both sides agrees.  A NaN on one side
+    only is an infinite difference, so it can never pass a bar.
     """
+    ref = want if terms is None else terms
     both = np.isnan(got) & np.isnan(want)
     if both.any():
-        got, want = got[~both], want[~both]
+        got, want, ref = got[~both], want[~both], ref[~both]
     if np.array_equal(got.view(np.int64), want.view(np.int64)):
         return True, 0.0, 0.0
     if np.isnan(got).any() or np.isnan(want).any():
         return False, float("inf"), float("inf")
-    scale = float(np.abs(want).max()) or 1.0
+    scale = float(np.abs(ref).max()) or 1.0
     return (False, float(np.abs(got - want).max()) / scale,
             _max_ulps(got, want))
 
@@ -359,12 +404,14 @@ class _Shadow:
                 args[i][...] = b
             NUMPY[kname](*args)
             cut = _cells(kname, args)
+            terms = (fcj_terms(args) if kname == "bases_fcj"
+                     else [None] * len(outs))
             same, rel, ulps = True, 0.0, 0.0
-            for i, g in zip(outs, got):
+            for i, g, t in zip(outs, got, terms):
                 g, w = cut(g), cut(args[i])
                 if g is None:
                     continue
-                s, r, u = _compare(g, w)
+                s, r, u = _compare(g, w, t)
                 same, rel, ulps = same and s, max(rel, r), max(ulps, u)
             self.same[kname] = self.same.get(kname, 0) + same
             self.rel[kname] = max(self.rel.get(kname, 0.0), rel)

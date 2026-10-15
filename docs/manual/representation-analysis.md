@@ -206,7 +206,7 @@ $\ker(D(h) - I)$; the pointwise stabiliser of a direction $V$ is
 S(V) \;=\; \{\, h \;:\; D(h)\,\mathbf{v} = \mathbf{v} \ \ \forall\, \mathbf{v} \in V \,\},
 ```
 
-{source}`rietx.crystallography.magnetic.isotropy.isotropy_directions`
+{source}`rietx.crystallography.representation.order_parameter.isotropy_directions`
 
 {cite}`stokeshatch1988`, and the isotropy subgroups of one irrep are the
 distinct subgroups this construction returns, one per direction with a
@@ -296,10 +296,10 @@ destroys some of the information the model carries: two candidate families
 are powder-equivalent when each can reproduce the other's powder intensity
 at every shell to within a stated tolerance, over the whole range of its
 free amplitudes and normalised to the same total moment so a scale can never
-be the discriminator {cite}`shirane1959`. `rietx` reports the connected
-classes of that relation rather than a ranked list of individually
-distinguishable candidates, so a refinement need only try one representative
-per class.
+be the discriminator {cite}`shirane1959`. `rietx` reports the classes of that relation (`classes`, and
+`merged_classes` beside it where a proof splits one, below) rather than a
+ranked list of individually distinguishable candidates, so a refinement
+need only try one representative per class.
 
 "The whole range" is proved where one of two certificates applies, and
 sampled everywhere else. A family that lights a shell the other can never
@@ -399,9 +399,29 @@ shells it uses); a smaller one is kept and printed, and the fits decide.
 "Proved" for this certificate is of the stored draw, not of every model of
 the family. An optional per-shell `weights` vector (an inverse standard
 deviation, say) changes the norm $d$ is measured in, not what is proved. The
-printed table lists every such separation with its bracket and names any
-class that holds one, which can happen while classes are still joined
-through sampled pairs.
+printed table lists every such separation with its bracket.
+
+A class that union-find joined can hold a proved separation: the join
+rests on a false sampled edge, or on a partial containment, one family
+reproducing every draw of another while a draw of its own is proved out of
+the other's reach. The consistency rule then does three things. Every
+pair the loop had skipped as already joined, whose join the proofs have
+since undone, is drawn as it would have been, so that no join and no
+separation rests on a pair nobody tested. Every sampled direction a proof
+contradicts, between the two irreps holding the proof, is drawn once more
+with the pair's own budget; a draw certified or not reproduced removes the
+edge on that direction's own evidence. What is still joined is split at
+the irreps holding the proof: every edge with a sampled half between them
+is dropped, and the verdict names the proof that refuted it. `classes` is
+that split partition, and `merged_classes` the union-find one beside it;
+they agree exactly when nothing was dropped, and where they differ the
+split rests on sampled "⊆" halves, which the table prints with their draw
+counts. Nothing sampled is upgraded by this, and a proved edge is never
+dropped, so a class can still hold a proved separation inside one irrep, or
+between two irreps joined only through a third no proof reaches; the table
+names it. A wrong split costs one extra trial refinement, a wrong merge
+silently drops a distinguishable model, which is why the split is the
+partition a refinement reads.
 
 Shirane's own example is mechanical here. His criterion is on the
 configurational symmetry (the symmetry of the signed moment arrangement, which

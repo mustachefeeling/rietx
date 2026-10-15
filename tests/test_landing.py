@@ -480,7 +480,7 @@ def test_the_jupyter_quickstart_has_one_row_per_notebook(site_html):
         heading = next(line for line in source.read_text(encoding="utf-8").splitlines()
                        if line.startswith("# # "))
         assert f'<span class="nb-title">{_html.escape(heading[4:].strip())}</span>' in row, source.name
-        assert row.count(f"{source.stem}.ipynb") == 2 and f"/{source.stem}.html" in row, source.name
+        assert row.count(f"{source.stem}.ipynb") == 3 and f"/{source.stem}.html" in row, source.name
 
 
 def test_every_colab_link_opens_the_notebook_at_the_ref(site_html, build):
@@ -495,6 +495,22 @@ def test_every_colab_link_opens_the_notebook_at_the_ref(site_html, build):
         assert link.startswith(prefix), link
         found = subprocess.run(["git", "-C", str(REPO_ROOT), "cat-file", "-e", f"{REF}:{link[len(prefix):]}"])
         assert found.returncode == 0, f"{link} names no file at {REF}"
+
+
+def test_every_jupyterlite_link_opens_a_notebook_the_lite_site_serves(site_html, build):
+    """A JupyterLite link opens the browser copy (WP-1966).  `pages.yml` builds that site
+    to /lite/, and `docs/lite/build.py` puts each notebook at its root under its file name.
+    That build reads the notebooks at `HEAD` while the rows read the tag, so this suite,
+    which builds both at `HEAD`, cannot see a tutorial renamed since the release.  The URL
+    form is the one `smoke.mjs` opens."""
+    links = re.findall(r'href="([^"]+)">JupyterLite</a>', site_html)
+    assert links == [build.LITE + nb.name for nb in build.notebooks(REF)]
+    form = "/notebooks/index.html?path="
+    assert build.LITE == f"{build.ABOUT.DOCS_URL}/lite{form}"
+    smoke = (REPO_ROOT / "docs" / "lite" / "smoke.mjs").read_text(encoding="utf-8")
+    assert f"${{base}}{form}" in smoke, "smoke.mjs opens the notebooks at another URL"
+    workflow = (REPO_ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
+    assert "--out site/lite" in workflow, "pages.yml no longer builds the browser site at /lite/"
 
 
 def test_every_read_link_is_a_page_the_manual_builds(site_html):

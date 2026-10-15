@@ -713,8 +713,9 @@ def _sign_consistent_operations(cand, m_matrix, ops, *, tol: float = 1e-6
     ``cand`` is one of :mod:`.isotropy`'s ``MagneticCandidate`` objects
     (``kind="displacive"`` or ``"magnetic"`` — the test is the same shape for
     either; the axial-vs-polar distinction is already baked into
-    ``cand.configurations`` by :func:`~.isotropy.order_parameter_space`, so
-    this function never itself decides which action a component takes).
+    ``cand.configurations`` by
+    :func:`~rietx.crystallography.representation.order_parameter.order_parameter_space`,
+    so this function never itself decides which action a component takes).
     ``m_matrix`` carries ``cand.positions``/``cand.configurations`` from the
     candidate's own cell into the cell ``ops`` is expressed in; one matrix
     carries both, because a mode vector is contravariant.
@@ -1446,6 +1447,9 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             propagation_vector_parent=(None if k is None
                                        else tuple(str(c) for c in k))),
         scale=Parameter(value=parent.scale.value),
+        # the declaration, not a hold: the child's table derives which DOF
+        # fixes the child group's origin (WP-1912)
+        floating_origin=parent.floating_origin,
     )
     # the builder's own statement is judged here, once; a refined copy of it
     # is not (``check_group_is_structure_symmetry``)

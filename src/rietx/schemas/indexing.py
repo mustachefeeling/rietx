@@ -119,7 +119,25 @@ from .structure import Cell
 #: usable lines where 1.8 offered 77, and the corundum list loses one
 #: ``no_intensity`` component (2 → 1).  A Cu Kα rock salt at a 0.02° step went
 #: from 7 of 9 lines indexed to all of them.
-INDEXING_THRESHOLDS_VERSION = "1.9"
+#: 1.10: ``PeakFlag`` gains ``weak_line`` — a fitted component whose intensity
+#: significance I/σ_I fails the pattern's own false-discovery threshold
+#: (Benjamini–Hochberg at :data:`PEAK_FDR_Q` over the pattern's resolution
+#: elements) — and ``pick_peaks`` reports the expected number of false lines
+#: among those it keeps (``PEAK_EXPECTED_FALSE_LINES``).  The flag is
+#: **reported, not refused**, so ``usable()`` is unchanged; bumped because a
+#: list's flags are part of what this string stamps.  On #728's synthetic
+#: silicon with a steep background it marks 24 of the 26 off-lattice usable
+#: components and no silicon line.
+#: 1.11: ``PeakFlag`` gains ``unresolved_split`` and ``width_capped`` and
+#: ``PEAK_UNUSABLE_FLAGS`` gains both — the component count by resolvability
+#: (#934): comparable components of one group closer than Sparrow's limit for
+#: the group's fitted shape are reported as one line with a widened σ(2θ), and
+#: a component whose width ran into its bound is not a line.
+#: ``flag_duplicate_lines`` now reads a merged line's whole extent.  On #728's
+#: flat-topped synthetic silicon, 34 usable components on 11 lines become 18;
+#: over the 16 IUCr round-robin lab patterns 789 usable components become 782
+#: (``cpd-4`` 76 → 75).
+INDEXING_THRESHOLDS_VERSION = "1.11"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
@@ -167,6 +185,38 @@ PEAK_POSITION_ESD_MAX_DEG = 180.0
 #: round-robin lab patterns the floor drops 6 (0.75 %); the 5th
 #: percentile is 4.9.
 PEAK_NO_INTENSITY_SIGMA = 1.0
+
+#: False-discovery rate a picked list is held to: the expected fraction of the
+#: lines ``pick_peaks`` keeps that are noise.  Applied by Benjamini & Hochberg's
+#: (1995, *J. R. Stat. Soc. B* 57, 289) step-up rule to each fitted component's
+#: one-sided p-value of I/σ_I, over **the pattern's resolution elements**
+#: (``Detection.n_trials``: ∫ d2θ / FWHM(2θ) over the picked range, the number
+#: of places a line could have been), so the bar adapts to the pattern: the more
+#: real lines it holds, the lower the bar each further line must clear, and a
+#: line-free pattern meets the Bonferroni bar q/m.  Astronomy settled on this
+#: for source detection for exactly that reason (Miller et al. 2001, *AJ* 122,
+#: 3492; Hopkins et al. 2002, *AJ* 123, 1086).  A component that fails is
+#: flagged ``weak_line`` (reported, not refused; see ``PeakFlag``), and q × (lines
+#: kept) is reported as the expected number of false lines
+#: (``PEAK_EXPECTED_FALSE_LINES``).
+#:
+#: **The statistic is the fitted I/σ_I, not detection's net/σ**, and that is a
+#: measured choice.  The junk on #728's steep-background silicon and on F2's
+#: clean synthetic (M3) are *maxima* that cleared detection's 5σ on net/σ —
+#: net is genuinely large on a strong line's tail or on a flank the envelope
+#: under-tracks — and that then fitted to I/σ_I = 1.0–2.6, because the group fit
+#: models the neighbour's tail and the local level that net/σ cannot see.  A
+#: threshold on net/σ, FDR or not, passes them all; on I/σ_I every true line of
+#: those patterns sits above 28.  What the rule does **not** reach is model
+#: error: a component that absorbs a shape or background misfit carries real
+#: intensity (I/σ_I 6–10 on the same patterns) and no statistical threshold
+#: removes it.
+#:
+#: 0.01 is the rate F2's design names; at it the bar sits at I/σ_I 3.2 on the
+#: IUCr round-robin ``cpd-4`` (914 resolution elements, 72 lines kept) and 3.5–3.9
+#: on #728's synthetic silicon.  Over the 16 round-robin lab patterns it flags 13
+#: of 789 usable components (``cpd-4`` 4, ``cpd-1b``/``1d`` 2 each).
+PEAK_FDR_Q = 0.01
 
 # ----------------------------------------------------------------------
 # Detection
@@ -567,6 +617,32 @@ PEAK_ASSUMED_ESD_DEG = 0.02
 #: ``peaks`` because it is what let the first group's window fit its own line,
 #: and is unusable because a list that offers one line twice makes the
 #: second copy a "line no candidate explains".
+#: ``weak_line`` — the component's fitted I/σ_I fails the pattern's
+#: false-discovery threshold (:data:`PEAK_FDR_Q`), so the list cannot tell it
+#: from noise at the rate it promises for the rest.  **Reported, not refused**,
+#: like ``axial_tail``: on the certified lab patterns a component under the bar
+#: is often a real weak line — refusing them took the SRM 676a corundum truth
+#: from 45 indexed lines to 44 and the GSAS-II fluorapatite truth to 115 of 122,
+#: and moved three more indexing-acceptance rows — while on synthetic silicon
+#: the same flag marks the steep-flank and tail junk and no silicon line.  The
+#: consumer that can weigh it decides; the search's driven set is the place
+#: F2 (§ 3, G7) puts that exclusion.  A component a human placed
+#: (``origin="manual"``) is never tested: its position is the caller's claim,
+#: not detection's.
+#: ``unresolved_split`` — a component closer to a comparable group-mate (area
+#: ratio ≥ :data:`PEAK_SATELLITE_MAX_RATIO`) than two lines of the group's
+#: fitted shape can be and still show a dip — Sparrow's resolution limit
+#: (:func:`rietx.indexing.peakfit.unresolved_mates`).  The pair is one line:
+#: the stronger component reports it, its σ(2θ) widened to reach the merged
+#: component, and the merged one stays in ``peaks``, unusable, because it is
+#: part of the shape that let the line fit.
+#: ``width_capped`` — the group's fitted width ran into its upper bound
+#: (:data:`PEAK_WIDTH_BOUND_FACTORS`, 5 × the pattern's own width law at that
+#: angle per component): a hump the fit wanted broader still, not a line of
+#: the phase that set the law.  Unusable.  Raised on 6 components across the 16
+#: IUCr round-robin lab patterns, every one at I/σ_I ≤ 3.9 and three at the
+#: scan's opening degree (5.1–5.3°), and on 129 flank components of #728's
+#: steep-background silicon.
 #: ``unnamed_neighbour`` — only :func:`~rietx.indexing.fit_peaks` can raise it
 #: (WP-1101): detection saw a component inside this window that the caller's
 #: position list did not name, so the fit apportioned that intensity among the
@@ -594,6 +670,9 @@ PeakFlag = Literal[
     "unnamed_neighbour",
     "position_unmeasured",
     "duplicate_line",
+    "weak_line",
+    "unresolved_split",
+    "width_capped",
 ]
 
 #: FWHM multiple within which a weak component may be read as a stronger
@@ -630,7 +709,8 @@ PEAK_AXIAL_TAIL_MAX_FWHM = 3.5
 #: stops holding at ±1 961° (WP-1442).
 PEAK_UNUSABLE_FLAGS: frozenset[str] = frozenset(
     {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable",
-     "no_intensity", "position_unmeasured", "duplicate_line"})
+     "no_intensity", "position_unmeasured", "duplicate_line",
+     "unresolved_split", "width_capped"})
 
 #: Standard deviations above χ²_red = 1 at which a group's fit is **refuted**, and
 #: therefore above which a ΔBIC verdict on adding one more component to it cannot
@@ -719,6 +799,12 @@ class ObservedPeak(Base):
 
     two_theta: float               # ° 2θ of the **Kα1** (primary-line) component
     two_theta_esd: float           # ° 2θ, carrying the √max(χ²_red,1) inflation
+    #: The fit's own σ(2θ) before a merge widened ``two_theta_esd`` to reach
+    #: unresolved splits of this line (``unresolved_split``, #934); ``None`` on
+    #: a line nothing was merged into, where the two are one number.  Written by
+    #: :func:`rietx.indexing.pick.peaks_of_group`; read by the duplicate-line
+    #: ranking, which must not demote a line for having absorbed a split.
+    two_theta_esd_fit: float | None = None
     intensity: float               # integrated area of the primary line
     intensity_esd: float
     q: float                       # Å⁻², = 1/d²

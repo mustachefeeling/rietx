@@ -116,6 +116,7 @@ from scipy.optimize import lsq_linear, nnls
 
 from ..backend.linalg64 import require_fp64, to_host_fp64
 from . import bccg
+from .blocked import BlockJacobian
 
 #: λ schedule constants, Coelho (2018) equation (9).  λ starts at 0 (pure
 #: Gauss-Newton) and is dimensionless because the system is pre-conditioned.
@@ -281,7 +282,7 @@ class LMOutcome:
 
     x: np.ndarray
     fun: np.ndarray            # residual at x (fp64, freshly evaluated)
-    jac: np.ndarray            # Jacobian at x
+    jac: np.ndarray            # Jacobian at x (a BlockJacobian if the closure returns one)
     cost: float                # ½·rᵀr, scipy's convention
     #: residual evaluations, the initial one included — scipy's ``nfev``, and
     #: the unit both drivers' budget is in (WP-1937)
@@ -470,11 +471,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
         n_outer += 1
         J = jacobian(x)
         n_jev += 1
-        # invariant 2: cond(JᵀJ) = cond(J)², so the normal equations are the one
-        # step that can never run below fp64 whatever built the columns
-        Jh = to_host_fp64(J)
-        A = Jh.T @ Jh
-        b = -(Jh.T @ r)
+        A, b = _normal_equations(J, r)
         # each column keeps the largest norm it has had this stage (Moré
         # 1978, MINPACK's ``mode=1``): a column that shrinks towards a
         # stationary point keeps the damping its scale earned, rather than
@@ -620,7 +617,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     at_bounds = (np.isclose(x, lo) & np.isfinite(lo)) | (np.isclose(x, hi) & np.isfinite(hi))
     n_bound_hits = int(np.count_nonzero(at_bounds))
     # ½∇S = Jᵀr: positive means S falls as the variable decreases
-    half_grad = to_host_fp64(J).T @ r
+    half_grad = J.rmatvec(r) if isinstance(J, BlockJacobian) else to_host_fp64(J).T @ r
     active = np.zeros(len(x), dtype=np.int8)
     active[(x == lo) & (half_grad > 0.0)] = -1
     active[(x == hi) & (half_grad < 0.0)] = 1
@@ -630,6 +627,22 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                      truncated_by=truncated_by,
                      n_stalled=n_stalled, termination=termination,
                      active_mask=active)
+
+
+def _normal_equations(J, r: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """``(A, b) = (JᵀJ, −Jᵀr)``, the two quantities every outer iteration forms.
+
+    A joint fit's :class:`~.blocked.BlockJacobian` scatters them block by block
+    into a dense A (WP-1325, the WP's route (i)): everything after this point
+    is the dense driver's, so the step is BVLS's or projected CG's on the same
+    model, and the box is held as it always was.
+    """
+    if isinstance(J, BlockJacobian):
+        return J.normal_equations(r)
+    # invariant 2: cond(JᵀJ) = cond(J)², so the normal equations are the one
+    # step that can never run below fp64 whatever built the columns
+    Jh = to_host_fp64(J)
+    return Jh.T @ Jh, -(Jh.T @ r)
 
 
 def _furthest_moved(step: np.ndarray, x: np.ndarray,

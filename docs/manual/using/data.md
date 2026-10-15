@@ -68,11 +68,36 @@ known about their uncertainty.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `PatternData.two_theta` | list[float] | required | 2θ in degrees, strictly increasing |
+| `PatternData.two_theta` | list[float] or None | `None` | 2θ in degrees, strictly increasing |
+| `PatternData.tof` | list[float] or None | `None` | neutron flight time in microseconds, strictly increasing |
 | `PatternData.intensity` | list[float] | required | measured intensity, same length |
 | `PatternData.sigma` | list[float] or None | `None` | per-point esd from the file; `None` selects the Poisson fallback |
-| `PatternData.excluded_regions` | list[tuple[float, float]] | `[]` | 2θ intervals to leave out of the fit |
+| `PatternData.excluded_regions` | list[tuple[float, float]] | `[]` | intervals to leave out of the fit, on whichever axis is set |
 | `PatternData.metadata` | dict[str, str] | `{}` | what the reader found in the file header |
+
+Exactly one of `two_theta` and `tof` is set, and a pattern that sets both or
+neither is refused. `PatternData.axis` is the discriminator (`"two_theta"` or
+`"tof"`), and it is read off *which field a reader filled in*, never off the
+values: a flight-time range of 1000-10000 µs is a perfectly plausible 10-100°
+scan and passes every monotonicity check an angle passes.
+`PatternData.axis_unit` names the unit for a message or an axis label.
+
+A time-of-flight pattern is one a neutron spallation source produced (ISIS, SNS,
+LANSCE): the whole moderator spectrum hits the specimen and the reflections
+arrive in order of their d-spacing. This build reads one and refines none:
+there is no flight-time forward model yet. `Refinement`, `refine`,
+`MultiHistogramRefinement`, `refine_sequential`, `index_pattern`, `pick_peaks`,
+`determine_extinction_symbol`, `auto_background`, `diagnose`,
+`PatternData.plot`, the project container, every other entry that computes
+from a pattern (`suggest`, `profile_fraction`, `replay`, `solve_magnetic`,
+`fit_peaks`, the background selectors, the indexing plots, the rigid-body
+check) and the constant-wavelength instrument and refinement CIF writers each
+raise on a flight time or a
+`neutron_tof` instrument, naming the axis, its unit and the entry point that
+closed, rather than computing an angle from a microsecond.
+
+Reading such a pattern is useful on its own even so: with the bank's
+calibration (`TOFSource`, below) the flight times convert to d-spacings.
 
 Strictly increasing is enforced, not sorted for you. A file stored high to low
 is reversed by the reader, which reports that it did; a file whose 2θ column is
@@ -80,9 +105,13 @@ not monotone at all is a refusal, because sorting it, concatenating it and
 splitting it are three different measurements. [](files.md) has that rule and
 the four other places a reader may repair a file.
 
-Five methods read the pattern out. `PatternData.tt` and `PatternData.y` are
-float64 numpy views of the two columns. `PatternData.sig` is the one that
-matters:
+Six methods read the pattern out. `PatternData.x` is a float64 numpy view of
+whichever abscissa is set, for code that windows, masks or counts channels and
+does not care which quantity it has. `PatternData.tt` and `PatternData.tof_us`
+are the *typed* views: each returns the axis it names and raises on the other
+one, so a path that can only do trigonometry says so at the boundary instead of
+computing an angle from a microsecond. `PatternData.y` is the intensity, and
+`PatternData.sig` is the one that matters:
 
 ```python
 from rietx import PatternData
@@ -104,7 +133,9 @@ intensity's units: the same pattern in counts or normalised to one is
 weighted the same.
 
 `PatternData.in_range_mask` is the boolean mask that `excluded_regions` implies,
-and `PatternData.crop` returns a new pattern over a 2θ interval. Cropping and
+and `PatternData.crop` returns a new pattern over an interval of the axis as
+measured: degrees on a constant-wavelength pattern, microseconds on a
+time-of-flight one, and the axis kind is preserved. Cropping and
 excluding are different acts: a cropped pattern has fewer points, an excluded
 region leaves the points in place and out of the residual. Prefer excluding, so
 the count that a statistic quotes still describes the file. A project records
@@ -200,6 +231,7 @@ and the rest describe what this specimen did to the peaks.
 | `Phase.gauss_strain` | `Parameter` | 0.0 deg², ≥ 0 | Gaussian strain broadening, tan²θ |
 | `Phase.extinction` | `Parameter` | 0.0 µm², fixed, ≥ 0 | primary extinction, the squared mosaic-block size D², {eq}`corr-sabine`; 0 is E ≡ 1 exactly |
 | `Phase.preferred_orientation` | `PreferredOrientation` or None | `None` | single-axis March-Dollase, {eq}`corr-md` |
+| `Phase.texture` | `SphericalHarmonicTexture` or None | `None` | spherical-harmonics texture, {eq}`corr-sh`; a phase declares this or March-Dollase |
 | `Phase.microstrain` | `StephensStrain` or None | `None` | anisotropic strain, width per hkl, {eq}`ms-sigma` |
 | `Phase.particle_radius_um` | float or None | `None` | Brindley microabsorption input, {eq}`corr-brindley`; a plain float, never refined |
 | `Phase.propagation_vector` | tuple of three rational strings, or None | `None` | commensurate k on the conventional reciprocal cell; adds satellites at Q = H ± k, {eq}`sat-position` |
@@ -408,13 +440,29 @@ subspace.
 is a fixed integer hkl and `PreferredOrientation.r` is the one refinable number,
 with r = 1 the identity.
 
+`SphericalHarmonicTexture` is the general correction, for a texture with no
+single axis. `SphericalHarmonicTexture.order` is the highest even degree, and
+`SphericalHarmonicTexture.coefficients` maps a term's name to its `Parameter`.
+The names follow GSAS-II's C(l, n): `c4_0`, `c4_3`, `c4_neg3`. Which terms
+exist depends on the Laue class, so a term you leave out is held at 0 and
+`ParameterTable` makes an entry for every allowed one. It refuses a name the
+class does not allow, and an order with no term (2, for a cubic phase).
+Every coefficient at 0 is the identity.
+
+```python
+from rietx.schemas.structure import SphericalHarmonicTexture
+
+texture = SphericalHarmonicTexture(order=4)
+assert texture.coefficients == {}   # every term starts held at 0
+```
+
 ## The instrument
 
 `Instrument` is everything about the measurement except the sample.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `Instrument.source` | `Source` or `NeutronSource` | required | the radiation, discriminated on `kind` |
+| `Instrument.source` | `Source`, `NeutronSource` or `TOFSource` | required | the radiation, discriminated on `kind` |
 | `Instrument.geometry` | `Geometry` | capillary, no aberrations | how the specimen sits in the beam |
 | `Instrument.zero_shift` | `Parameter` | 0.0 deg, in [−0.5, 0.5] | a constant 2θ offset, the one position error every geometry has |
 | `Instrument.profile` | `ProfileTCHZ` | see below | the instrumental width function |
@@ -638,6 +686,123 @@ this build has no tabulated scattering length for raises at compile naming the
 species, rather than contributing zero. A substituted zero would delete a site
 from the structure factor without changing the shape of anything.
 
+(a-time-of-flight-bank)=
+### A time-of-flight bank
+
+`TOFSource` is the third arm of `Instrument.source`. A spallation source fires the whole
+moderator spectrum at the specimen and a bank of detectors at one fixed angle
+separates the reflections by arrival time, so there is no wavelength on the
+source at all: a reflection's position comes from its d-spacing through the
+bank's own calibration,
+
+$$
+\mathrm{TOF} = \mathrm{DIFC}\cdot d + \mathrm{DIFA}\cdot d^2
+             + \mathrm{TZERO} + \mathrm{DIFB}/d .
+$$
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `TOFSource.difc` | `Parameter` | required | µs/Å, the linear term, `vary=False` |
+| `TOFSource.difa` | `Parameter` | 0 | µs/Å², usually small and often negative |
+| `TOFSource.tzero` | `Parameter` | 0 | µs, the constant offset |
+| `TOFSource.difb` | `Parameter` | 0 | µs·Å, GSAS-II's fourth term |
+| `TOFSource.two_theta_bank_deg` | float | required | the bank's fixed scattering angle, not a `Parameter` |
+| `TOFSource.l1_m` | float or None | `None` | primary flight path in m, metadata |
+| `TOFSource.l2_m` | float or None | `None` | secondary flight path in m, metadata |
+| `TOFSource.profile_tof` | `ProfileTOF` | all zero | the GSAS type-3 pulse-shape coefficients |
+| `TOFSource.incident_spectrum` | `IncidentSpectrum` | `ITYP 0`, i.e. none | the moderator spectrum this bank's data still carries |
+| `TOFSource.kind` | `"neutron_tof"` | `"neutron_tof"` | the discriminator you write |
+
+Three spellings, one quantity. The GSAS manual writes `ZERO`, GSAS-II
+writes `Zero`, Mantid writes `TZERO`. The field is Mantid's, because it is the
+only one of the three that cannot be confused with `Instrument.zero_shift`
+(a 2θ offset in degrees, a different quantity in a different unit), and the readers
+map all three.
+
+DIFB is carried because dropping it is silent. Neither the GSAS manual nor
+Mantid documents a fourth term; GSAS-II evaluates one. A reader built to the
+documented three-term relation would turn a GSAS-II project that sets `difB`
+into a pattern whose peaks are in the wrong place with nothing said.
+
+Four read-only members answer the questions a caller asks of any source.
+`TOFSource.polarization` is 1.0 and force-fixed, and `TOFSource.dispersion` is
+`None`, both for the reasons `NeutronSource` gives: this is the same radiation.
+`TOFSource.harmonics_supported` is `False` because the question does not arise:
+there is no monochromator to pass an order it did not filter.
+`TOFSource.continuous_spectrum` is `True`, and it is what stops
+`capabilities()` reporting this arm as a one-wavelength source: a white beam
+has no line list to declare, so "one wavelength and nothing else" would be the
+one wrong statement a derived table could make about it.
+
+`TOFSource.tof_from_d` and `TOFSource.d_from_tof` are the relation and its
+inverse. With DIFA or DIFB non-zero the relation is a cubic in d with no useful
+closed form, so the inverse iterates by successive substitution and raises
+rather than returning an unconverged value: a silently unconverged d is a peak
+in the wrong place. On a real calibration (a small DIFA against a DIFC of
+thousands) it converges in a handful of iterations.
+
+`ProfileTOF` holds the GSAS type-3 coefficients (`ProfileTOF.alpha0`,
+`ProfileTOF.alpha1`, `ProfileTOF.beta0`, `ProfileTOF.beta1`, `ProfileTOF.sig0`,
+`ProfileTOF.sig1`, `ProfileTOF.sig2`, `ProfileTOF.gam0`, `ProfileTOF.gam1`,
+`ProfileTOF.gam2`), each a polynomial term in the reflection's d-spacing
+rather than in an angle, which is the whole structural difference from
+`ProfileTCHZ`:
+
+$$
+\alpha(d) = \alpha_0 + \alpha_1/d, \quad
+\beta(d) = \beta_0 + \beta_1/d^4, \quad
+\sigma^2(d) = \sigma_0^2 + \sigma_1^2 d^2 + \sigma_2^2 d^4, \quad
+\gamma(d) = \gamma_0 + \gamma_1 d + \gamma_2 d^2 .
+$$
+
+They are held by default, because an instrument-parameter file's profile is a
+calibration refined against a standard. In this build they are carried and
+listed in a bank's parameter table, and nothing evaluates them.
+
+`IncidentSpectrum` is the moderator spectrum a bank's histograms still carry,
+and whether they do is a fact about the file: `IncidentSpectrum.itype` is
+the GSAS `ITYP` function number, `IncidentSpectrum.coefficients` its `ICOFF`
+block as `Parameter`s (held, with the file's own esds on their `stderr`), and
+`IncidentSpectrum.tof_min_us` / `IncidentSpectrum.tof_max_us` the flight-time
+window it was fitted over, converted from the file's milliseconds on the way
+in. The default is `itype = 0`, no coefficients, which is exactly no spectrum:
+what a reduction that already divided by a vanadium measurement leaves behind,
+and what ISIS GEM, SNS NOMAD and POWGEN all write. A LANSCE-style file writes
+`ITYP 1` with a full `ICOFF` block. A block whose fifth pair ($P_{10}$,
+$P_{11}$) is non-zero is refused by `read_gsas_tof_iparm`, which holds to the
+documented layout, and carried as written by `rietx.io.legacy.read_lansce_iparm`.
+Nothing in this build evaluates a spectrum.
+
+`Instrument.tof_neutron_bank` is the constructor, beside
+`Instrument.constant_wavelength_neutron` and with the same shape. A multi-bank
+experiment is several instruments, not one: DIFC, the angle and the whole
+profile differ per bank (that is what a bank *is*), so each gets its own
+`Instrument`, the way several wavelengths each get one today.
+
+A bank's parameter table carries its own rows, `instrument.source.difc`,
+`…difa`, `…tzero`, `…difb`, `instrument.source.profile_tof.*` and
+`instrument.source.incident_spectrum.p*`, and not the constant-wavelength
+rows whose part those play: `instrument.profile.*` (the widths),
+`instrument.zero_shift` (the zero) and the two sample position aberrations
+(the position calibration). A glob naming one of those matches nothing on a
+bank rather than matching a row that can never move, so a stage that frees a
+scan's widths and nothing of a bank's can say so (yue-here/rietx issue #442).
+A `vary=True` written on one of them on a bank is refused by name.
+
+```python
+from rietx import Instrument
+
+# a synthetic bank at 90°: DIFC ≈ 505.555·L·sin θ for a total path L in m
+bank = Instrument.tof_neutron_bank(
+    difc=12000.0, difa=-1.5, tzero=-5.0,
+    two_theta_bank_deg=90.0, l1_m=30.0, l2_m=3.5)
+assert bank.source.kind == "neutron_tof"
+assert round(float(bank.source.d_from_tof(bank.source.tof_from_d(3.1355))), 4) == 3.1355
+```
+
+[](files.md) has the readers that fill one in from a file, and the axis rule
+that decides whether a pattern is 2θ or a flight time.
+
 (harmonic-contamination)=
 ### λ/n monochromator harmonics
 
@@ -714,7 +879,7 @@ cancels its own second order exactly. Part 2 has both.
 
 :::{admonition} Time-of-flight is not this
 :class: note
-Everything here is constant wavelength. A time-of-flight instrument spans a
+Everything in this chapter is constant wavelength: a time-of-flight bank can be read, and its instrument described (`TOFSource`, below), but nothing refines one yet. A time-of-flight instrument spans a
 range of wavelengths across several detector banks, which changes the profile
 function, the intensity corrections and the number of histograms at once, and
 the thermal scattering-length table cannot give b(λ) for a resonant absorber.

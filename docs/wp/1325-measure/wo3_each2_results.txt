@@ -1,0 +1,12 @@
+WP-1325 out of sample: TOPAS laws on WO3 refitted alone, against the untied fit
+machine   Darwin arm64, 10 CPUs, python 3.12.10, numpy 2.5.4
+rietx     1.10.0.dev0 at 506c340a, compiled kernels on
+load      80.47 74.60 73.98
+laws      ['t_beta', 'p_c'], each alone over all 100 patterns
+t_beta    3248.0 s converged iters [2, 4, 28, 184]; χ² 1337266.5 with 2903 free; alone    110.1 /  97 dof (cut  121.0,  1.14/dir, p 0.171) keep
+
+the comparison, from the per-law lines in wo3_each2_results.txt
+against the untied fit read from wo3_form_results.txt: χ² 1333788.3 with 3000 free, χ²r·f² 19.253; the all-laws fit's χ²r·f² 19.577
+  t_beta   refit Δχ²    3478.2 for  97:   180.7 (1.86/dir, p 5.42e-07)
+           all-laws freed 110.1 /  97 dof (cut  121.0,  1.14/dir, p 0.171) keep; its gain    2155.5 (0.62 of the refit)
+           the law-alone fit's own reading 110.1 /  97 dof (cut  121.0,  1.14/dir, p 0.171) keep

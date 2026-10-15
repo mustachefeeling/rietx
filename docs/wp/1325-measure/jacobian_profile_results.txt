@@ -1,0 +1,42 @@
+WP-1325, "would another Rust kernel help?": where a blocked joint fit's Jacobian time goes, N = 60.
+
+machine   Linux x86_64, 4 CPUs (Intel(R) Xeon(R) Processor), 15.7 GiB RAM, no swap
+python    3.12.3, numpy 2.5.4 (scipy-openblas)
+rietx     1.9.0.dev0 from /home/user/rietx/.claude/worktrees/wp1325-parametric-series/src/rietx ([dev] venv), compiled kernels on
+load      0.21 0.19 0.18 (1/5/15 min) at start; other measuring or test processes running: 0
+kernels   4 pool threads; RIETX_COMPILED_THREADS=(unset), OPENBLAS_NUM_THREADS=(unset), OMP_NUM_THREADS=(unset)
+tree      HEAD cf8f789 at start, src/ fingerprint 6e3d84a08da0
+library   tests' library(n): 3000 points a pattern, cell = four-term polynomial over (x, y), 10 own columns a pattern, blocked layout
+
+== (1) the fit: converged, Rwp 0.038988
+  plain      wall 5.90 s; joint Jacobian 2.85 s over 40 calls (48%), joint residual 0.55 s over 43 calls (9%)
+  cProfile   wall 9.61 s, 9.59 s profiled (the profiler inflates python, not the kernels: a python share is read against python, a kernel's against the plain wall)
+    rietx_kernels calls: 0.144 s = 1.5% of the profiled fit, 2.4% of the plain wall (an upper estimate)
+      <built-in method rietx_kernels.rietx_kernels.accum>      15660 calls 0.055 s
+      <built-in method rietx_kernels.rietx_kernels.omega_sym>   3900 calls 0.047 s
+      <built-in method rietx_kernels.rietx_kernels.bases_sym>   2220 calls 0.041 s
+    joint Jacobian (block_jacobian): 4.80 s over 40 calls = 50% of the fit
+    _peak_chain_column: 3.62 s over 9600 calls = 75% of the joint Jacobian, 4.0 a pattern a Jacobian
+
+== (2) at the answer, 60 patterns, last stage's 604 columns; min over 5 repeats, each at a new θ
+  Jacobian  serial       143.7-147.1 ms   (2.39 ms a pattern)
+  Jacobian  2 threads    212.8-252.8 ms   speedup 0.68x
+  Jacobian  4 threads    290.6-342.0 ms   speedup 0.49x
+  residual  serial         17.7-18.3 ms   (0.30 ms a pattern)
+  residual  2 threads      31.4-36.2 ms   speedup 0.56x
+  residual  4 threads      40.1-62.0 ms   speedup 0.44x
+
+== (3) peak-chain columns of one pattern's Jacobian, last stage: 10
+  1 x instrument.zero_shift
+  1 x instrument.profile.u
+  1 x instrument.profile.v
+  1 x instrument.profile.w
+  1 x instrument.profile.x
+  1 x instrument.profile.y
+  4 x phases.0.cell.a
+
+== (4) each repeated peak-chain path once per pattern (timing only)
+  Jacobian loop 146.3-192.7 ms -> 96.5-125.2 ms = 1.52x (min against min)
+
+load      0.71 0.32 0.22 (1/5/15 min) at end; other measuring or test processes running: 0
+tree      HEAD cf8f789 at end; src/ fingerprint 6e3d84a08da0, unchanged during the run

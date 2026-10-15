@@ -1,0 +1,234 @@
+WP-1325: the over-flexible arm's p-values on WO3, read three ways
+files     ['wo3_flex_results.txt', 'wo3_flex10_results.txt']; 435 readings
+  wo3_flex_results.txt: windows (index, χ²_red, f) [(0, 2.156, 2.421), (1, 2.189, 2.466), (2, 2.103, 2.468), (3, 2.403, 3.247), (4, 2.614, 3.506)]
+  wo3_flex10_results.txt: windows (index, χ²_red, f) [(0, 2.142, 2.387), (1, 2.174, 2.455), (2, 2.192, 2.434), (3, 2.186, 2.496), (4, 2.088, 2.412), (5, 2.119, 2.522), (6, 2.299, 3.097), (7, 2.508, 3.391), (8, 2.573, 3.456), (9, 2.657, 3.548)]
+
+freed readings (210): statistic per direction, median 0.067, range 0.000-1.783 (≈1 under a right law and a right denominator)
+  over χ²_red·f² (shipped)             0 of 210 reject at 95 % (expected 10.5); median p 1.000; KS D 0.925, p 1.31e-236
+  over χ²_red (no f²)                 10 of 210 reject at 95 % (expected 10.5); median p 0.865; KS D 0.443, p 4.82e-38
+  over 1 (raw gain)                   39 of 210 reject at 95 % (expected 10.5); median p 0.361; KS D 0.195, p 1.75e-07
+    raw gain per direction: median 1.097, range 0.000-21.765
+
+tied readings (210): statistic per direction, median 0.067, range 0.000-1.650 (≈1 under a right law and a right denominator)
+  over χ²_red·f² (shipped)             0 of 210 reject at 95 % (expected 10.5); median p 1.000; KS D 0.925, p 4.64e-236
+  over χ²_red (no f²)                  9 of 210 reject at 95 % (expected 10.5); median p 0.860; KS D 0.406, p 7.75e-32
+  over 1 (raw gain)                   46 of 210 reject at 95 % (expected 10.5); median p 0.351; KS D 0.211, p 1.02e-08
+    raw gain per direction: median 1.115, range 0.000-20.138
+
+joint readings (15): statistic per direction, median 0.095, range 0.038-0.333 (≈1 under a right law and a right denominator)
+  over χ²_red·f² (shipped)             0 of  15 reject at 95 % (expected  0.8); median p 1.000; KS D 1.000, p 3.01e-134
+  over χ²_red (no f²)                  2 of  15 reject at 95 % (expected  0.8); median p 1.000; KS D 0.795, p 1.15e-10
+  over 1 (raw gain)                    9 of  15 reject at 95 % (expected  0.8); median p 0.023; KS D 0.860, p 3.18e-13
+    raw gain per direction: median 1.275, range 1.134-4.068
+
+per law, freed: file, window, law, statistic/dof, p shipped, p no f², p raw
+  wo3_flex_results.txt     0 m_a       0.173        1    0.434  0.00491
+  wo3_flex_results.txt     0 m_b       0.107        1    0.857    0.164
+  wo3_flex_results.txt     0 m_c       0.107        1    0.857    0.164
+  wo3_flex_results.txt     0 m_beta    0.073        1    0.971    0.533
+  wo3_flex_results.txt     0 t_a       0.113        1    0.822    0.122
+  wo3_flex_results.txt     0 t_b       0.153        1    0.565   0.0158
+  wo3_flex_results.txt     0 t_c       0.300    0.996   0.0343 8.65e-07
+  wo3_flex_results.txt     0 t_alpha   0.193        1    0.319  0.00142
+  wo3_flex_results.txt     0 t_beta    0.100        1    0.888    0.216
+  wo3_flex_results.txt     0 t_gamma   0.127        1    0.743   0.0649
+  wo3_flex_results.txt     0 p_a       0.673    0.813 3.46e-07 6.18e-20
+  wo3_flex_results.txt     0 p_b       0.307    0.995    0.029 5.27e-07
+  wo3_flex_results.txt     0 p_c       0.273    0.997   0.0646 6.07e-06
+  wo3_flex_results.txt     0 p_beta    0.113        1    0.822    0.122
+  wo3_flex_results.txt     1 m_a       0.080        1    0.949    0.384
+  wo3_flex_results.txt     1 m_b       0.107        1    0.836    0.128
+  wo3_flex_results.txt     1 m_c       0.047        1    0.997     0.86
+  wo3_flex_results.txt     1 m_beta    0.073        1    0.966    0.477
+  wo3_flex_results.txt     1 t_a       0.060        1    0.987    0.681
+  wo3_flex_results.txt     1 t_b       0.087        1    0.928    0.301
+  wo3_flex_results.txt     1 t_c       0.240    0.999    0.111 2.62e-05
+  wo3_flex_results.txt     1 t_alpha   0.080        1    0.949    0.384
+  wo3_flex_results.txt     1 t_beta    0.060        1    0.987    0.681
+  wo3_flex_results.txt     1 t_gamma   0.073        1    0.966    0.477
+  wo3_flex_results.txt     1 p_a       0.093        1    0.902    0.231
+  wo3_flex_results.txt     1 p_b       0.133        1    0.667    0.032
+  wo3_flex_results.txt     1 p_c       0.440    0.968 0.000433 2.49e-12
+  wo3_flex_results.txt     1 p_beta    0.080        1    0.949    0.384
+  wo3_flex_results.txt     2 m_a       0.093        1    0.901    0.266
+  wo3_flex_results.txt     2 m_b       0.140        1    0.618   0.0296
+  wo3_flex_results.txt     2 m_c       0.127        1    0.711   0.0596
+  wo3_flex_results.txt     2 m_beta    0.053        1    0.993    0.804
+  wo3_flex_results.txt     2 t_a       0.107        1    0.835    0.154
+  wo3_flex_results.txt     2 t_b       0.067        1    0.978    0.617
+  wo3_flex_results.txt     2 t_c       0.207        1    0.219 0.000502
+  wo3_flex_results.txt     2 t_alpha   0.073        1    0.965    0.519
+  wo3_flex_results.txt     2 t_beta    0.140        1    0.618   0.0296
+  wo3_flex_results.txt     2 t_gamma   0.067        1    0.978    0.617
+  wo3_flex_results.txt     2 p_a       0.073        1    0.965    0.519
+  wo3_flex_results.txt     2 p_b       0.080        1    0.948    0.425
+  wo3_flex_results.txt     2 p_c       0.120        1    0.755   0.0829
+  wo3_flex_results.txt     2 p_beta    0.087        1    0.927     0.34
+  wo3_flex_results.txt     3 m_a       0.040        1    0.974    0.437
+  wo3_flex_results.txt     3 m_b       0.027        1    0.997    0.811
+  wo3_flex_results.txt     3 m_c       0.067        1    0.784   0.0456
+  wo3_flex_results.txt     3 m_beta    0.040        1    0.974    0.437
+  wo3_flex_results.txt     3 t_a       0.040        1    0.974    0.437
+  wo3_flex_results.txt     3 t_b       0.040        1    0.974    0.437
+  wo3_flex_results.txt     3 t_c       0.060        1    0.851   0.0884
+  wo3_flex_results.txt     3 t_alpha   0.047        1    0.946    0.277
+  wo3_flex_results.txt     3 t_beta    0.040        1    0.974    0.437
+  wo3_flex_results.txt     3 t_gamma   0.033        1     0.99    0.628
+  wo3_flex_results.txt     3 p_a       0.047        1    0.946    0.277
+  wo3_flex_results.txt     3 p_b       0.027        1    0.997    0.811
+  wo3_flex_results.txt     3 p_c       0.053        1    0.905    0.162
+  wo3_flex_results.txt     3 p_beta    0.033        1     0.99    0.628
+  wo3_flex_results.txt     4 m_a       0.047        1    0.897   0.0955
+  wo3_flex_results.txt     4 m_b       0.027        1    0.993    0.614
+  wo3_flex_results.txt     4 m_c       0.087        1    0.383 0.000244
+  wo3_flex_results.txt     4 m_beta    0.020        1    0.999    0.842
+  wo3_flex_results.txt     4 t_a       0.040        1    0.946    0.201
+  wo3_flex_results.txt     4 t_b       0.027        1    0.993    0.614
+  wo3_flex_results.txt     4 t_c       0.100        1     0.24 2.36e-05
+  wo3_flex_results.txt     4 t_alpha   0.033        1    0.977    0.378
+  wo3_flex_results.txt     4 t_beta    0.027        1    0.993    0.614
+  wo3_flex_results.txt     4 t_gamma   0.013        1        1    0.972
+  wo3_flex_results.txt     4 p_a       0.040        1    0.946    0.201
+  wo3_flex_results.txt     4 p_b       0.027        1    0.993    0.614
+  wo3_flex_results.txt     4 p_c       0.020        1    0.999    0.842
+  wo3_flex_results.txt     4 p_beta    0.053        1     0.83   0.0412
+  wo3_flex10_results.txt   0 m_a       0.217    0.972    0.285   0.0145
+  wo3_flex10_results.txt   0 m_b       0.167    0.986    0.458   0.0576
+  wo3_flex10_results.txt   0 m_c       0.150    0.989    0.528   0.0889
+  wo3_flex10_results.txt   0 m_beta    0.033        1     0.98    0.875
+  wo3_flex10_results.txt   0 t_a       0.067    0.999    0.892    0.559
+  wo3_flex10_results.txt   0 t_b       0.150    0.989    0.528   0.0889
+  wo3_flex10_results.txt   0 t_c       0.500    0.809  0.00895 2.09e-06
+  wo3_flex10_results.txt   0 t_alpha   0.467    0.833    0.014 6.23e-06
+  wo3_flex10_results.txt   0 t_beta    0.083    0.998    0.828    0.412
+  wo3_flex10_results.txt   0 t_gamma   0.083    0.998    0.828    0.412
+  wo3_flex10_results.txt   0 p_a       0.150    0.989    0.528   0.0889
+  wo3_flex10_results.txt   0 p_b       0.100    0.996    0.755    0.292
+  wo3_flex10_results.txt   0 p_c       1.783   0.0981 2.86e-11 9.66e-26
+  wo3_flex10_results.txt   0 p_beta    0.650     0.69   0.0011 1.42e-08
+  wo3_flex10_results.txt   1 m_a       0.050    0.999    0.936    0.686
+  wo3_flex10_results.txt   1 m_b       0.033        1    0.977    0.855
+  wo3_flex10_results.txt   1 m_c       0.083    0.998    0.807    0.364
+  wo3_flex10_results.txt   1 m_beta    0.083    0.998    0.807    0.364
+  wo3_flex10_results.txt   1 t_a       0.067    0.999    0.878    0.513
+  wo3_flex10_results.txt   1 t_b       0.033        1    0.977    0.855
+  wo3_flex10_results.txt   1 t_c       0.100    0.996    0.728    0.248
+  wo3_flex10_results.txt   1 t_alpha   0.133    0.992    0.567    0.106
+  wo3_flex10_results.txt   1 t_beta    0.050    0.999    0.936    0.686
+  wo3_flex10_results.txt   1 t_gamma   0.083    0.998    0.807    0.364
+  wo3_flex10_results.txt   1 p_a       0.133    0.992    0.567    0.106
+  wo3_flex10_results.txt   1 p_b       0.200    0.977      0.3   0.0153
+  wo3_flex10_results.txt   1 p_c       0.150    0.989    0.491   0.0668
+  wo3_flex10_results.txt   1 p_beta    0.067    0.999    0.878    0.513
+  wo3_flex10_results.txt   2 m_a       0.067    0.999    0.883    0.519
+  wo3_flex10_results.txt   2 m_b       0.050    0.999    0.939    0.691
+  wo3_flex10_results.txt   2 m_c       0.067    0.999    0.883    0.519
+  wo3_flex10_results.txt   2 m_beta    0.050    0.999    0.939    0.691
+  wo3_flex10_results.txt   2 t_a       0.067    0.999    0.883    0.519
+  wo3_flex10_results.txt   2 t_b       0.017        1    0.997    0.972
+  wo3_flex10_results.txt   2 t_c       0.217    0.972    0.261  0.00973
+  wo3_flex10_results.txt   2 t_alpha   0.033        1    0.978    0.857
+  wo3_flex10_results.txt   2 t_beta    0.067    0.999    0.883    0.519
+  wo3_flex10_results.txt   2 t_gamma   0.050    0.999    0.939    0.691
+  wo3_flex10_results.txt   2 p_a       0.083    0.998    0.814     0.37
+  wo3_flex10_results.txt   2 p_b       0.117    0.994    0.657    0.169
+  wo3_flex10_results.txt   2 p_c       1.000    0.423 3.38e-06 9.62e-15
+  wo3_flex10_results.txt   2 p_beta    0.083    0.998    0.814     0.37
+  wo3_flex10_results.txt   3 m_a       0.100    0.996    0.712    0.226
+  wo3_flex10_results.txt   3 m_b       0.167    0.986    0.398   0.0342
+  wo3_flex10_results.txt   3 m_c       0.033        1    0.975    0.843
+  wo3_flex10_results.txt   3 m_beta    0.067    0.999    0.869    0.488
+  wo3_flex10_results.txt   3 t_a       0.100    0.996    0.712    0.226
+  wo3_flex10_results.txt   3 t_b       0.150    0.989    0.469   0.0565
+  wo3_flex10_results.txt   3 t_c       0.317    0.929   0.0657 0.000235
+  wo3_flex10_results.txt   3 t_alpha   0.167    0.986    0.398   0.0342
+  wo3_flex10_results.txt   3 t_beta    0.017        1    0.996    0.968
+  wo3_flex10_results.txt   3 t_gamma   0.083    0.998    0.794    0.339
+  wo3_flex10_results.txt   3 p_a       0.117    0.994    0.628    0.146
+  wo3_flex10_results.txt   3 p_b       0.183    0.982    0.335   0.0204
+  wo3_flex10_results.txt   3 p_c       0.117    0.994    0.628    0.146
+  wo3_flex10_results.txt   3 p_beta    0.067    0.999    0.869    0.488
+  wo3_flex10_results.txt   4 m_a       0.083    0.998     0.82    0.415
+  wo3_flex10_results.txt   4 m_b       0.217    0.972    0.272   0.0149
+  wo3_flex10_results.txt   4 m_c       0.183    0.982     0.38   0.0376
+  wo3_flex10_results.txt   4 m_beta    0.050    0.999    0.942    0.725
+  wo3_flex10_results.txt   4 t_a       0.117    0.994    0.667    0.204
+  wo3_flex10_results.txt   4 t_b       0.083    0.998     0.82    0.415
+  wo3_flex10_results.txt   4 t_c       0.100    0.996    0.745    0.295
+  wo3_flex10_results.txt   4 t_alpha   0.100    0.996    0.745    0.295
+  wo3_flex10_results.txt   4 t_beta    0.267    0.953    0.157  0.00349
+  wo3_flex10_results.txt   4 t_gamma   0.067    0.999    0.887    0.562
+  wo3_flex10_results.txt   4 p_a       0.100    0.996    0.745    0.295
+  wo3_flex10_results.txt   4 p_b       0.067    0.999    0.887    0.562
+  wo3_flex10_results.txt   4 p_c       0.117    0.994    0.667    0.204
+  wo3_flex10_results.txt   4 p_beta    0.067    0.999    0.887    0.562
+  wo3_flex10_results.txt   5 m_a       0.083    0.998    0.786    0.346
+  wo3_flex10_results.txt   5 m_b       0.100    0.996    0.702    0.232
+  wo3_flex10_results.txt   5 m_c       0.067    0.999    0.863    0.495
+  wo3_flex10_results.txt   5 m_beta    0.067    0.999    0.863    0.495
+  wo3_flex10_results.txt   5 t_a       0.117    0.994    0.616    0.151
+  wo3_flex10_results.txt   5 t_b       0.050    0.999    0.928    0.671
+  wo3_flex10_results.txt   5 t_c       0.350     0.91   0.0377 8.24e-05
+  wo3_flex10_results.txt   5 t_alpha   0.033        1    0.973    0.846
+  wo3_flex10_results.txt   5 t_beta    0.067    0.999    0.863    0.495
+  wo3_flex10_results.txt   5 t_gamma   0.067    0.999    0.863    0.495
+  wo3_flex10_results.txt   5 p_a       0.067    0.999    0.863    0.495
+  wo3_flex10_results.txt   5 p_b       0.067    0.999    0.863    0.495
+  wo3_flex10_results.txt   5 p_c       0.133    0.992    0.533   0.0953
+  wo3_flex10_results.txt   5 p_beta    0.050    0.999    0.928    0.671
+  wo3_flex10_results.txt   6 m_a       0.050    0.999    0.824    0.358
+  wo3_flex10_results.txt   6 m_b       0.050    0.999    0.824    0.358
+  wo3_flex10_results.txt   6 m_c       0.083    0.998     0.57   0.0876
+  wo3_flex10_results.txt   6 m_beta    0.067    0.999    0.699    0.184
+  wo3_flex10_results.txt   6 t_a       0.033        1    0.927    0.621
+  wo3_flex10_results.txt   6 t_b       0.050    0.999    0.824    0.358
+  wo3_flex10_results.txt   6 t_c       0.100    0.996    0.451   0.0395
+  wo3_flex10_results.txt   6 t_alpha   0.033        1    0.927    0.621
+  wo3_flex10_results.txt   6 t_beta    0.033        1    0.927    0.621
+  wo3_flex10_results.txt   6 t_gamma   0.017        1    0.987      0.9
+  wo3_flex10_results.txt   6 p_a       0.083    0.998     0.57   0.0876
+  wo3_flex10_results.txt   6 p_b       0.050    0.999    0.824    0.358
+  wo3_flex10_results.txt   6 p_c       0.100    0.996    0.451   0.0395
+  wo3_flex10_results.txt   6 p_beta    0.033        1    0.927    0.621
+  wo3_flex10_results.txt   7 m_a       0.017        1    0.979    0.823
+  wo3_flex10_results.txt   7 m_b       0.017        1    0.979    0.823
+  wo3_flex10_results.txt   7 m_c       0.050    0.999    0.751    0.194
+  wo3_flex10_results.txt   7 m_beta    0.017        1    0.979    0.823
+  wo3_flex10_results.txt   7 t_a       0.050    0.999    0.751    0.194
+  wo3_flex10_results.txt   7 t_b       0.050    0.999    0.751    0.194
+  wo3_flex10_results.txt   7 t_c       0.017        1    0.979    0.823
+  wo3_flex10_results.txt   7 t_alpha   0.050    0.999    0.751    0.194
+  wo3_flex10_results.txt   7 t_beta    0.050    0.999    0.751    0.194
+  wo3_flex10_results.txt   7 t_gamma   0.050    0.999    0.751    0.194
+  wo3_flex10_results.txt   7 p_a       0.033        1     0.89     0.45
+  wo3_flex10_results.txt   7 p_b       0.017        1    0.979    0.823
+  wo3_flex10_results.txt   7 p_c       0.017        1    0.979    0.823
+  wo3_flex10_results.txt   7 p_beta    0.033        1     0.89     0.45
+  wo3_flex10_results.txt   8 m_a       0.033        1    0.881    0.407
+  wo3_flex10_results.txt   8 m_b       0.033        1    0.881    0.407
+  wo3_flex10_results.txt   8 m_c       0.067    0.999    0.573   0.0557
+  wo3_flex10_results.txt   8 m_beta    0.017        1    0.977      0.8
+  wo3_flex10_results.txt   8 t_a       0.050    0.999    0.733    0.162
+  wo3_flex10_results.txt   8 t_b       0.033        1    0.881    0.407
+  wo3_flex10_results.txt   8 t_c       0.083    0.998    0.426   0.0176
+  wo3_flex10_results.txt   8 t_alpha   0.017        1    0.977      0.8
+  wo3_flex10_results.txt   8 t_beta    0.017        1    0.977      0.8
+  wo3_flex10_results.txt   8 t_gamma   0.017        1    0.977      0.8
+  wo3_flex10_results.txt   8 p_a       0.033        1    0.881    0.407
+  wo3_flex10_results.txt   8 p_b       0.033        1    0.881    0.407
+  wo3_flex10_results.txt   8 p_c       0.033        1    0.881    0.407
+  wo3_flex10_results.txt   8 p_beta    0.050    0.999    0.733    0.162
+  wo3_flex10_results.txt   9 m_a       0.067    0.999    0.539   0.0374
+  wo3_flex10_results.txt   9 m_b       0.017        1    0.974    0.765
+  wo3_flex10_results.txt   9 m_c       0.117    0.994    0.184 0.000669
+  wo3_flex10_results.txt   9 m_beta    0.017        1    0.974    0.765
+  wo3_flex10_results.txt   9 t_a       0.017        1    0.974    0.765
+  wo3_flex10_results.txt   9 t_b       0.033        1    0.866    0.351
+  wo3_flex10_results.txt   9 t_c       0.083    0.998    0.391   0.0104
+  wo3_flex10_results.txt   9 t_alpha   0.033        1    0.866    0.351
+  wo3_flex10_results.txt   9 t_beta    0.000        1        1        1
+  wo3_flex10_results.txt   9 t_gamma   0.017        1    0.974    0.765
+  wo3_flex10_results.txt   9 p_a       0.017        1    0.974    0.765
+  wo3_flex10_results.txt   9 p_b       0.033        1    0.866    0.351
+  wo3_flex10_results.txt   9 p_c       0.000        1        1        1
+  wo3_flex10_results.txt   9 p_beta    0.033        1    0.866    0.351

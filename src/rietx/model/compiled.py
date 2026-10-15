@@ -15,6 +15,14 @@ off with the model's five, so a process takes one path for both, and
 :func:`_pool`.  They call no library function, so their bar against the numpy
 oracle is the bit on every platform (``tests/test_raster_kernels.py``).
 
+From 1.3.0 it carries the dichotomy indexer's box test as well
+(``dichotomy_box_test`` and ``dichotomy_child_key``, WP-1959).  Its oracle is
+``indexing/dichotomy.py``'s numpy loop, on the bit, box by box and leaf by leaf
+(``tests/test_indexing_kernels.py``).  It is one call per box and never
+splits, since a box is tens of microseconds of work.  The indexer reaches it
+through :func:`dichotomy_kernels`, and a wheel without it is declined whole,
+like one lacking any other kernel.
+
 Why a compiled tier at all
 --------------------------
 WP-1112 and WP-1120 removed the two costs a numpy-level loop is usually blamed
@@ -61,7 +69,10 @@ The three rules this module is held to
    Linux, so the contract is the rounding bar (≤ 1e-15) and the bit is
    asserted only where it was measured.  The FCJ kernels sum their nodes in a
    loop where numpy runs a matmul, so their bar was 1e-13 relative from the
-   start (WP-1112's).  From ``rietx-kernels`` 1.2.0, on x86-64, they call
+   start (WP-1112's).  For the bases it is relative to each plane's sum of
+   |terms|, since a derivative plane can be far smaller than its terms
+   (WP-1959; ``bench_aot_kernels.fcj_terms`` computes it).  From
+   ``rietx-kernels`` 1.2.0, on x86-64, they call
    SLEEF's ``exp`` (``kernels/src/sleef.rs``) under WP-1940's relaxed rule:
    **transcendentals to a stated bound, associations as written**.  The bound
    is SLEEF's documented 1.0 ulp, asserted on every wheel, and every sum keeps
@@ -118,6 +129,7 @@ additions arrive in is the whole of its bit-identity claim.
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -135,14 +147,16 @@ KERNEL_ABI = 1
 
 #: The oldest wheel this rietx calls: the F of ``pyproject``'s
 #: ``rietx-kernels>=F,<N+1`` pin.  It is the minor that added the newest name in
-#: :data:`KERNEL_NAMES`, 1.1 for the rasteriser.
-KERNEL_FLOOR = "1.1"
+#: :data:`KERNEL_NAMES`, 1.3 for the dichotomy's box test.
+KERNEL_FLOOR = "1.3"
 
 #: The kernels the wheel must export, under the names ``_KERNELS`` keys them
 #: by.  A wheel lacking one is declined like a wrong :data:`KERNEL_ABI`.  The
-#: first five are the model's and the last two the structure figure's.
+#: first five are the model's, the next two the structure figure's (1.1.0),
+#: and the last two the dichotomy indexer's (1.3.0, WP-1959).
 KERNEL_NAMES = ("accum", "omega_sym", "omega_fcj", "bases_sym", "bases_fcj",
-                "render_rows", "id_plane")
+                "render_rows", "id_plane",
+                "dichotomy_box_test", "dichotomy_child_key")
 
 #: Ω spelled as :func:`~rietx.model.profiles.pseudovoigt.pseudo_voigt` — the
 #: forward model's own arithmetic.
@@ -192,13 +206,21 @@ def _off_by_env() -> bool:
         "0", "off", "no", "false"}
 
 
+#: False under Pyodide, whose CPython is built without threads: a pool there
+#: could never start a worker, so the kernels run on the caller (WP-1966).
+_CAN_THREAD = getattr(getattr(sys, "_emscripten_info", None), "pthreads", True)
+
+
 def n_threads() -> int:
     """Worker threads the row-parallel kernels split across.
 
     Capped at 8 because the measured ladder is flat past it, and settable so a
     caller that is already parallel one rank up (a test suite under ``xdist``, a
-    series fanned out across processes) can decline the second layer.
+    series fanned out across processes) can decline the second layer.  One
+    where the platform cannot start a thread, whatever the setting.
     """
+    if not _CAN_THREAD:
+        return 1
     raw = os.environ.get(COMPILED_THREADS_ENV, "").strip()
     if raw:
         try:
@@ -279,8 +301,8 @@ def _warn_unavailable() -> None:
     pin = f"rietx-kernels>={KERNEL_FLOOR},<{KERNEL_ABI + 1}"
     warnings.warn(
         f"rietx's compiled kernels did not load, because {_UNAVAILABLE}. Fits"
-        f" and structure figures run the numpy path, which is slower. Install"
-        f' the kernels with pip install "{pin}", or set {COMPILED_ENV}=0 to'
+        f", structure figures and indexing run the numpy path, which is slower."
+        f' Install the kernels with pip install "{pin}", or set {COMPILED_ENV}=0 to'
         f" choose the numpy path and silence this warning.",
         RuntimeWarning, stacklevel=3)
 
@@ -322,6 +344,22 @@ def set_enabled(flag: bool | None) -> bool | None:
     global _ENABLED
     was, _ENABLED = _ENABLED, flag
     return was
+
+
+def dichotomy_kernels() -> tuple | None:
+    """The dichotomy's ``(box_test, child_key)`` when the compiled path is on.
+
+    ``None`` sends the caller to its numpy loop: the tier is off, or the wheel
+    did not load, which :func:`enabled` has already warned about unless the
+    tier was forced on.  The answer is fixed for the process, like
+    :func:`enabled`'s.
+    """
+    if not enabled():
+        return None
+    kernels = _kernels()
+    if kernels is None:          # forced on where the wheel did not load
+        return None
+    return kernels["dichotomy_box_test"], kernels["dichotomy_child_key"]
 
 
 def _pool() -> ThreadPoolExecutor:

@@ -55,7 +55,7 @@ moves are logged in the schema version history:
 | `refine_sample_strain_broadening` | stage | the `tan_theta` width template is significant | `phases.*.lor_strain` |
 | `refine_axial_asymmetry` | stage | a significant asymmetry coefficient in gated regions below 2θ = 40° | `instrument.geometry.axial_sl`, `…axial_hl` |
 | `refine_biso` | stage | the relative intensity error trends with sin²θ/λ² — the ADP signature | `phases.*.atoms.*.biso` |
-| `refine_preferred_orientation` | stage | `TextureAnalysis.detected` with a best axis (both sides of the maturity gate); capped below a coexisting impurity call (§6's caveat row) | `phases.N.preferred_orientation.r` — named even when the phase declares no such block, on purpose: the rationale says which axis to declare first, and freeing nothing rolls back |
+| `refine_preferred_orientation` | stage | `TextureAnalysis.detected` with a best axis (both sides of the maturity gate); capped below a coexisting impurity call (§6's caveat row) | `phases.N.preferred_orientation.r` — named even when the phase declares no such block, on purpose: the rationale says which axis to declare first, and freeing nothing rolls back. A phase with no single fibre axis takes `Phase.texture` instead, at order 4 (6 on good data), freeing `phases.N.texture.*`, and is judged by `result.texture` and the composition (Measured: CPD-2 brucite, worst weighed fraction 3.41 wt % at order 4 and 2.71 at 6 against March-Dollase's 2.80). On a phase that declares `texture`, the rationale says to raise the order instead |
 | `refine_scale` | stage | the `constant` intensity template is significant — an angle-independent scale error | `phases.*.scale` |
 | `add_impurity_phase` | advice | strong unmatched observed peaks (> 8σ) not explained by the position-error evidence; when *every* one matches that evidence it is still emitted, capped at 0.3 with `reindex_or_recheck_cell` first among alternatives (§6) | empty **by design** — no phase is named yet, so there is nothing to free; the note says what to do instead |
 | `increase_background_flexibility` | advice | between-peak misfit is systematic (high off-region χ²_red at low Durbin-Watson) — the too-stiff detector; capped at 0.6 however strong the evidence (§7's code block has why) | empty by design — the edit is to the background's *shape*, not to the free set; `instrument.background.*` would read as "free the background", which every plan already does |
@@ -97,11 +97,18 @@ insignificant deviations, and sits on an absolute scale with expectation 1).
 Pna2₁ and the other polar groups the whole structure can slide along the polar
 axis without changing any intensity, so every z a plan frees along it is quoted
 with a small esd for a number the data does not fix (`FLAT_DIRECTION`, ρ = −1).
-`ref.hold_floating_origin()` holds one atom's coordinate along each such axis
-before the fit and returns `ORIGIN_FIXED_ON_POLAR_AXIS` (info; `where` names the
-held DOF, `unhold` takes it back): read the other atoms' z as relative to it.
-`ORIGIN_NOT_FIXED` (warning) says a direction had no atom to hold, so the flat
-direction is still there. Nothing is held unless you call it.
+Set `phase.floating_origin = "hold"`, or call `ref.hold_floating_origin()` for
+every phase, before the fit. The parameter table then holds, per such axis,
+one atom DOF a shift along it moves, and the fit reports `ORIGIN_FIXED_ON_POLAR_AXIS`
+(info; `where` names the held DOF). Quote that atom's coordinate as fixed, with
+no esd, and read the other atoms' z as relative to it. `unhold` on the held DOF
+sets the field back to `None`. `ORIGIN_NOT_FIXED` (warning) says every DOF the
+shift moves was tied or held, so the flat direction is still there. Nothing is held
+unless you ask. `"centroid"` instead restrains a data-weighted centroid
+(Flack & Schwarzenbach 1988): every z keeps an esd quotable alone, and the
+diagnostic lists each site's weight; a joint fit refuses it. (Measured:
+synthetic zincite under `mccusker_structural`, O at 0.38231(57) held, each z
+±0.00039 under the centroid, against ±0.00029 on each z unheld; WP-1912.)
 
 **A symmetry-lowering can win ΔBIC and gain nothing where it splits.** Two fits
 of one pattern, a model and its lowering (cubic, tetragonal): ΔBIC says it paid

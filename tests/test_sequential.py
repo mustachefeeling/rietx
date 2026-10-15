@@ -64,9 +64,11 @@ TEMPERATURES = [300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0]
 
 
 def _simulate(a: float, *, seed: int, biso: float = 0.4,
-              scale: float = TRUE_SCALE) -> rx.PatternData:
+              scale: float = TRUE_SCALE, tt_max: float = 24.0) -> rx.PatternData:
     """One pattern of the series at cell edge ``a``, with Poisson noise.
-    ``scale=0`` is a blank frame: the background and its noise alone."""
+    ``scale=0`` is a blank frame: the background and its noise alone.
+    ``tt_max`` ends the 0.005° grid begun at 3°: 18.0 gives the 3 000 points a
+    synthetic library uses (WP-1325's solver measurements)."""
     structure = make_lab6()
     for name in ("a", "b", "c"):
         getattr(structure.phases[0].cell, name).value = a
@@ -79,7 +81,7 @@ def _simulate(a: float, *, seed: int, biso: float = 0.4,
     ins.background = BackgroundChebyshev(
         coefficients=[Parameter(value=v) for v in TRUE_BKG])
 
-    tt = np.arange(3.0, 24.0, 0.005)
+    tt = np.arange(3.0, tt_max, 0.005)
     blank = rx.PatternData(two_theta=tt.tolist(),
                            intensity=np.zeros_like(tt).tolist())
     model = compile_model(structure, ins, blank, mode="rietveld")
@@ -2128,6 +2130,43 @@ def test_plot_trajectory_titles_the_figure_only_when_asked(thermal_series):
     assert titled.get_suptitle() == "thermal ramp"
     assert [ax.get_title(loc="left") for ax in titled.get_axes()] == paths
     plt.close("all")
+
+
+@pytest.mark.parametrize("style", ["light", "dark"])
+def test_plot_trajectory_draws_every_mark_in_its_styles_role(style):
+    """WP-1970: ``style=`` reaches the series figure, so every figure call has
+    a dark form.  Each mark takes its role from the style's palette, and the
+    ground is the style's, so no light-palette ink is left on a dark page."""
+    import matplotlib.pyplot as plt
+
+    from rietx.viz.plots import PALETTES
+
+    def entry(i, value, **kw):
+        return SeriesEntry(
+            index=i, label=f"p{i}", x=float(i),
+            statistics=Statistics(rwp=0.1, rp=0.1, rexp=0.05, chi2=1.0, gof=1.0,
+                                  n_points=10, n_free_parameters=1),
+            parameters=[RefinedParameter(path="phases.0.cell.a", value=value,
+                                         stderr=1e-3)], **kw)
+
+    series = SeriesResult(entries=[
+        entry(0, 4.00), entry(1, 4.01, reseeded=True, rung="cold"),
+        entry(2, 4.02, status="diverged"), entry(3, 4.03, rwp_fence=0.05)])
+    hue = PALETTES[style]
+    fig = series.plot(["phases.0.cell.a"], style=style)
+    lines = fig.axes[0].lines
+    by_marker = {line.get_marker(): line for line in lines if line.get_marker() in "xs"}
+    rings = [line for line in lines
+             if line.get_marker() == "o" and line.get_markerfacecolor() == "none"]
+    assert lines[0].get_color() == hue["series"]
+    assert [ring.get_markeredgecolor() for ring in rings] == [hue["reseeded"]]
+    assert by_marker["x"].get_color() == hue["unrecovered"]
+    assert by_marker["s"].get_markeredgecolor() == hue["outlier"]
+    from matplotlib.colors import to_hex
+    assert to_hex(fig.get_facecolor()) == hue["ground"]
+    plt.close("all")
+    with pytest.raises(ValueError, match="style must be one of"):
+        series.plot(["phases.0.cell.a"], style="sepia")
 
 
 def test_qpa_trajectory(thermal_series):

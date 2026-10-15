@@ -127,8 +127,49 @@ def test_a_tree_prints_its_summary(fap):
 
 def test_a_structure_figure_shows_its_picture(fap):
     fig = rx.viz.render_structure(fap["structure"], size=120)
-    assert fig._repr_png_().startswith(b"\x89PNG\r\n\x1a\n")
+    data, md = fig._repr_png_()
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    # the width alone, or a column narrower than the figure squashes it (WP-1957)
+    assert md == {"width": fig.image.shape[1] // 2}
+    import io
+
+    from PIL import Image
+    assert Image.open(io.BytesIO(data)).mode == "P"  # a notebook palette, like a fit figure
+    from rietx.viz import plots
+    from rietx.viz.figure3d import render
+    assert render.NOTEBOOK_COLOURS == plots._NOTEBOOK_COLOURS  # restated across the boundary
+    assert render.NOTEBOOK_DARK_GROUND == plots.PALETTES["dark"]["ground"]  # likewise
+    clear = rx.viz.render_structure(fap["structure"], size=120, background=None)
+    assert Image.open(io.BytesIO(clear._repr_png_()[0])).mode == "RGBA"  # its alpha kept
     assert len(repr(fig)) < 100
+
+
+def test_a_structure_figure_carries_a_dark_copy_drawn_from_what_it_was(fap):
+    """WP-1970: on the default white ground the figure's notebook output
+    carries the pair, the dark one drawn again from the recipe on the dark
+    page's ground.  It is drawn from a copy taken at the call, so a structure
+    edited afterwards cannot make the two pictures differ.  A figure on any
+    other ground was the caller's choice, and shows alone."""
+    import base64
+    import re
+
+    from rietx.viz.plots import PALETTES
+
+    structure = fap["structure"].model_copy(deep=True)
+    fig = rx.viz.render_structure(structure, size=120)
+    dark = rx.viz.render_structure(structure, **{
+        **fig.recipe, "background": PALETTES["dark"]["ground"]})
+    structure.phases[0].cell.a.value *= 1.2
+    bundle, metadata = fig._repr_mimebundle_()
+    assert bundle["image/png"] == fig._repr_png_()[0]
+    assert metadata == {"image/png": fig._repr_png_()[1]}
+    light_img, dark_img = re.findall(r"<img [^>]*>", bundle["text/html"])
+    assert "display:none" in dark_img and "display:none" not in light_img
+    assert (re.search(r'base64,([^"]+)"', dark_img).group(1)
+            == base64.b64encode(dark._repr_png_()[0]).decode())
+    for ground in ("black", None, "#ffeedd"):
+        alone = rx.viz.render_structure(structure, size=120, background=ground)
+        assert list(alone._repr_mimebundle_()[0]) == ["image/png"]
 
 
 def test_a_result_html_is_its_text_and_its_parameter_table(fap):
@@ -226,6 +267,10 @@ def test_a_plot_in_a_kernel_shows_once_and_leaves_the_backend_alone():
     assert rietx_out["metadata"]["image/png"]["width"] < 800
     plain_out = next(o for o in nb.cells[-1].outputs if "image/png" in o.get("data", {}))
     assert "width" not in plain_out.get("metadata", {}).get("image/png", {})
+    # beside the PNG, the light and dark pair a frontend's theme picks from
+    # (WP-1970), and only for the rietx figure
+    assert rietx_out["data"]["text/html"].count("<img ") == 2
+    assert "text/html" not in plain_out["data"]
 
 
 def test_a_notebook_figure_is_encoded_for_a_screen_and_files_are_not(fap, tmp_path):
@@ -240,7 +285,8 @@ def test_a_notebook_figure_is_encoded_for_a_screen_and_files_are_not(fap, tmp_pa
     data, md = fig._repr_png_()
     image = Image.open(io.BytesIO(data))
     assert image.mode == "P"
-    assert md == {"width": image.size[0] // 2, "height": image.size[1] // 2}
+    # the width alone, or a column narrower than the figure squashes it (WP-1957)
+    assert md == {"width": image.size[0] // 2}
     fig.savefig(tmp_path / "file.png")
     saved = Image.open(tmp_path / "file.png")
     assert saved.mode == "RGBA"

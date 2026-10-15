@@ -89,6 +89,15 @@ runs before close, since the peak list feeds every engine.
 
 ### Inherited
 
+- **2026-10-14, from the issue triage: issue #934 is filed as WP-1968, and
+  its PR #947 moves this WP's census baseline.** #947 tests each component's
+  I/σ_I against a per-pattern Benjamini–Hochberg bar and flags a component
+  under it `weak_line`, reported and left in `usable()`. That is the 1σ
+  floor's per-pattern successor on the same statistic. #948 (WP-1968 too)
+  merges unresolved splits and flags `width_capped`, both unusable, and moves
+  the 16 round-robin lists from 789 to 782 usable components. The census here
+  should say which of the two had merged on the tree it ran on.
+
 - **2026-10-11, from the issue triage: issue #878 is in PR #880 (theirs),
   and it moves this WP's census baseline.** A sibling false line by another
   mechanism. `_drop_kalpha2_aliases` compares two channel maxima against

@@ -113,6 +113,7 @@ the group it was fitted in.
 |---|---|
 | `ObservedPeak.two_theta` | fitted position of the Kα1 component, ° |
 | `ObservedPeak.two_theta_esd` | its esd, carrying the √max(χ²_red, 1) inflation |
+| `ObservedPeak.two_theta_esd_fit` | the fit's own esd, where `two_theta_esd` was widened to reach merged `unresolved_split` components; `None` otherwise |
 | `ObservedPeak.q` | 1/d², Å⁻², derived from the position and the list's wavelength |
 | `ObservedPeak.q_esd` | σ(Q), by the exact derivative of that relation |
 | `ObservedPeak.intensity` | integrated area of the primary line |
@@ -141,9 +142,9 @@ mis-indexing a pattern later.
 
 ### The flags
 
-`ObservedPeak.flags` is a closed vocabulary of sixteen. Eight of them take a
+`ObservedPeak.flags` is a closed vocabulary of nineteen. Ten of them take a
 line out of `PeakList.usable`, and the rest are evidence a consumer weighs.
-Fifteen are below; the sixteenth, `unnamed_neighbour`, belongs to `fit_peaks`
+Eighteen are below; the nineteenth, `unnamed_neighbour`, belongs to `fit_peaks`
 and is described there.
 
 | Flag | Means | Usable? |
@@ -156,6 +157,8 @@ and is described there.
 | `no_intensity` | it refined onto its zero intensity bound, or to under its own esd, so it locates nothing | no |
 | `position_unmeasured` | its position esd reached 180°, the whole span a 2θ axis has, so it has no position | no |
 | `duplicate_line` | a better-measured component of another group already fitted this line | no |
+| `unresolved_split` | it sits closer to a comparable group-mate than Sparrow's limit for the fitted shape; the mate reports the pair as one line with a σ that reaches both | no |
+| `width_capped` | the group's width ran into its bound, five times the pattern's width law: a hump, not a line | no |
 | `sigma_assumed` | σ was supplied rather than fitted | yes |
 | `unresolved_shoulder` | it never separated from its neighbour by half a FWHM | yes |
 | `position_at_bound` | the fit pushed to its position bound: detection seeded it in the wrong place | yes |
@@ -163,12 +166,14 @@ and is described there.
 | `background_extrapolated` | it stands where the background was extrapolated, not measured | yes |
 | `axial_tail` | it sits on a much stronger group-mate's axial-divergence tail side | yes |
 | `kalpha2_residual` | it sits at a stronger group-mate's predicted Kα2 maximum | yes |
+| `weak_line` | its I/σ_I is under the pattern's false-discovery bar (Benjamini–Hochberg at q = 0.01); on real lab data often a real weak line | yes |
 
 A contamination line is flagged and excluded, never subtracted, because
 Rachinger stripping redistributes the noise and biases what is left. The last
-three flags report evidence rather than refusing a line, since a real reflection
+four flags report evidence rather than refusing a line, since a real reflection
 can coincide with an extrapolated background, with a stronger line's axial tail
-or with a predicted Kα2 position, and one pattern cannot tell which it is. §7b
+or with a predicted Kα2 position, or sit under the false-discovery bar, and one
+pattern cannot tell which it is. §7b
 of the protocol says which ones are usually excluded before a search, and what
 that has been measured to cost.
 
@@ -1093,7 +1098,8 @@ dump beside it. [](agents.md) has the rest of the programmatic surface.
 `rietx.viz.plot_indexing` draws the ranked candidates as tick rows against the
 pattern, with the Le Bail panel, from the result alone. The visual check is
 part of the answer rather than documentation of it: a wrong cell that scores
-well usually looks wrong immediately.
+well usually looks wrong immediately. Its figures take `style="dark"` as the
+pattern figures do, and in a notebook each follows the frontend's theme.
 
 ## From a candidate to a phase
 
@@ -1167,6 +1173,15 @@ and the same cell scaled by 1.0012 gives `R - - -`, whose members exclude
 `R -3 c`. Refine the cell by Le Bail first and screen that, or pass
 `refine_cell=True`, which frees it inside the shared fit (after the shift,
 before the widths); the classes still differ only in their reflection sets.
+
+A container halo has to be declared too. A capillary's amorphous halo is about
+1° wide and can sit on a forbidden position, and the screen's background (a
+P-spline is stiff by design) cannot take it, so an undeclared halo there reads
+as intensity the class forbids and refutes it. Declare it as a `HumpComponent`
+in `Instrument.extra_components` and fit it with the Le Bail pre-fit. The screen
+refits every declared hump per class, alongside the background, with its width
+floored at {{ HUMP_MIN_WIDTH_MULT }} instrument widths (`HUMP_MIN_WIDTH_MULT`), so a hump cannot
+narrow onto a forbidden line and explain a real violation away.
 
 The candidate's `CellCandidate.system` is taken as given rather than
 re-screened, because when the Bravais screen reported an ambiguity that field

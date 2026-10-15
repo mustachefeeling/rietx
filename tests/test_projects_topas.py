@@ -3598,6 +3598,19 @@ def test_a_library_macro_is_named_as_a_partial_import(
     assert to_structure(model).phases[0].cell.a.value == pytest.approx(5.0)
 
 
+def test_a_bare_harmonics_series_is_not_reported_as_a_texture(tmp_path):
+    """`spherical_harmonics_hkl` alone defines a function an equation may use for
+    broadening, as the Technical Reference's clay.inp does (§20.17.1), so the
+    report does not call it a texture (WP-1960)."""
+    text = (_XDD + _PLAIN + "spherical_harmonics_hkl sh\n  sh_order 8\n"
+            "exp_conv_const = (sh-1) Tan(Th);\n")
+    model = read_topas_inp(_inp(tmp_path, "series.inp", text))
+    (hit,) = [h for h in model.coverage.reported
+              if "spherical_harmonics_hkl" in h.keywords]
+    assert hit.feature.name == "spherical-harmonics series"
+    assert "texture is dropped" not in hit.feature.why
+
+
 def test_a_macro_name_that_is_not_an_invocation_is_not_reported(tmp_path):
     """The positive arm of the invocation rule. A name in a quoted path, a
     parameter declared with a short form's name and an equation reading it are

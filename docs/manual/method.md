@@ -35,8 +35,11 @@ The paper {cite}`coelho2005` prints the early-iteration damping factor as
 $\mathrm{Max}[(k+1)/N_k,\, 1]$ while the surrounding text describes a reduction.
 A reduction would be Min. Measured on real refinements, neither reading helps
 once parameter removal shrinks $N_k$, and the printed Max form then actively
-degrades the step. The shipped factor is 1, kept as a selectable option because
-it was measured rather than argued.
+degrades the step. `bccg.solve` uses a factor of 1 and keeps the two printed
+readings selectable, because the choice was measured rather than argued. The LM
+driver no longer takes this step. Its bounded step is a projected conjugate
+gradient (`bccg.projected_cg`), which stops at a bound instead of clamping a
+variable mid-loop.
 
 {source}`rietx.optimize.bccg`
 

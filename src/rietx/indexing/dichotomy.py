@@ -33,8 +33,9 @@ d-spacing become a bound on θ with no per-system table.
 Three prunes run per box, cheapest first:
 
 1. **the metric cone** — the box's induced interval for det G* must intersect the
-   volume band, and a box whose diagonal A..F interval is entirely non-positive
-   is not a lattice;
+   volume band, a box whose diagonal A..F interval is entirely non-positive
+   is not a lattice, and a box with some reciprocal angle beyond the domain's
+   obliquity bound everywhere holds nothing the search may report (WP-1959);
 2. **line matching** — for each observed line in increasing Q, some trial hkl's
    [Q_min, Q_max] over the box must reach it within k·σ_eff; more than
    ``n_unindexed`` misses and the box is impossible.  Both are *monotone* under
@@ -55,6 +56,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..model import compiled
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import PeakList
 from .engines import (
@@ -253,18 +255,16 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
     grid pass and the dichotomy so the two phases cannot come to different
     conclusions about the same box — which is the whole reason the prunes live
     in a function rather than inline in each loop.
-    """
-    q_min, q_max = _q_bounds(m, lo, hi)
-    keep = q_min <= q_hi
-    if not keep.all():
-        m, q_min, q_max = m[keep], q_min[keep], q_max[keep]
-        if ids is not None:
-            ids = ids[keep]
-    if not len(q_min):
-        return None
 
+    **The prunes that read no row run first** (WP-1959).  Each prune is a
+    ``return None`` with no side effect, so their order changes only the cost.
+    On #780's monoclinic grid, 135 593 of the last stage's 158 282 boxes die at
+    the cone, axis-swap or volume prune.  Reading ~8300 rows' Q bounds before
+    those tests was 90 % of the grid.  Run first, they cut the grid 4.4× in
+    CPU, with every box's answer unchanged.
+    """
     af_lo, af_hi = _af_interval(basis, lo, hi)
-    if np.any(af_hi[:3] <= 0.0):
+    if np.any(af_hi[:3] <= 0.0) or _outside_obliquity(af_lo, af_hi):
         return None
     # A box lying entirely in "A < B" holds no cell this search needs to report:
     # permuting the axes is a setting change, so an equivalent description with
@@ -276,6 +276,15 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
             return None
     det_lo, det_hi = _det_interval(af_lo, af_hi)
     if det_hi < det_band[0] or det_lo > det_band[1]:
+        return None
+
+    q_min, q_max = _q_bounds(m, lo, hi)
+    keep = q_min <= q_hi
+    if not keep.all():
+        m, q_min, q_max = m[keep], q_min[keep], q_max[keep]
+        if ids is not None:
+            ids = ids[keep]
+    if not len(q_min):
         return None
 
     # one (lines × reflections) pass answers all three remaining questions: how
@@ -318,7 +327,8 @@ def _centred_replay(m_full: np.ndarray, rows: np.ndarray, member: np.ndarray,
                     lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
                     q_hi: float, det_band: tuple[float, float],
                     swaps: list[tuple[int, int]], lo_search: np.ndarray,
-                    hi_search: np.ndarray, n_unindexed: int) -> bool:
+                    hi_search: np.ndarray, n_unindexed: int,
+                    box_test=None) -> bool:
     """Would one centring's own search have reached this leaf?
 
     ``_test_box`` over that centring's whole search set (``m_full[member]``)
@@ -339,15 +349,22 @@ def _centred_replay(m_full: np.ndarray, rows: np.ndarray, member: np.ndarray,
 
     ``tests/test_indexing_kernels.py`` holds this equal to the whole-set test
     at every leaf of the synthetic searches.
+
+    ``box_test(ids, lo, hi)`` is the compiled test over ``m_full[ids]`` when
+    the search runs it (WP-1959); ``None`` runs :func:`_test_box`.
     """
+    def survives(ids: np.ndarray) -> bool:
+        if box_test is not None:
+            return box_test(ids, lo, hi) is not None
+        return _test_box(m_full[ids], lo, hi, basis, q_hi, det_band, swaps,
+                         lo_search, hi_search, n_unindexed) is not None
+
     sub = rows[member[rows]]
     if len(sub):
-        return _test_box(m_full[sub], lo, hi, basis, q_hi, det_band, swaps,
-                         lo_search, hi_search, n_unindexed) is not None
+        return survives(sub)
     if len(lo_search) > n_unindexed:
         return False
-    return _test_box(m_full[member], lo, hi, basis, q_hi, det_band, swaps,
-                     lo_search, hi_search, n_unindexed) is not None
+    return survives(np.flatnonzero(member))
 
 
 def _assignment_possible(hit: np.ndarray, n_reachable: int, counts: np.ndarray,
@@ -423,6 +440,30 @@ def _push_children(stack: list, children: list, m: np.ndarray, ids: np.ndarray,
         if int(np.count_nonzero(hit.any(axis=0))) < len(hi_search) - n_unindexed:
             continue
         scored.append((misses, int(hit.sum()), child_lo, child_hi))
+    _push_scored(stack, scored, m, ids, depth)
+
+
+def _push_children_compiled(stack: list, children: list, ids: np.ndarray,
+                            child_key, n_lines: int, n_unindexed: int,
+                            depth: int) -> None:
+    """:func:`_push_children` with each child scored by the compiled
+    ``child_key(ids, lo, hi) -> (misses, pairs, rows reaching a line)``.
+
+    The stack then holds no rows, only ids, since the compiled test reads
+    ``m_full`` through them.
+    """
+    scored = []
+    for child_lo, child_hi in children:
+        misses, pairs, n_rows_hit = child_key(ids, child_lo, child_hi)
+        if misses > n_unindexed or n_rows_hit < n_lines - n_unindexed:
+            continue
+        scored.append((misses, pairs, child_lo, child_hi))
+    _push_scored(stack, scored, None, ids, depth)
+
+
+def _push_scored(stack: list, scored: list, m: np.ndarray | None,
+                 ids: np.ndarray, depth: int) -> None:
+    """Push scored children **best last**, the left child first on a tie."""
     scored.sort(key=lambda entry: (entry[0], entry[1]), reverse=True)
     for _misses, _pairs, child_lo, child_hi in scored:
         stack.append((child_lo, child_hi, m, ids, depth))
@@ -523,17 +564,61 @@ def _isq(x: tuple[float, float]) -> tuple[float, float]:
     return min(lo * lo, hi * hi), max(lo * lo, hi * hi)
 
 
-def _rho_interval(x_lo: float, x_hi: float, y: tuple[float, float],
-                  z: tuple[float, float]) -> tuple[float, float]:
-    """The off-diagonal as a **correlation**, clipped to the domain's obliquity."""
-    c = float(MAX_ANGLE_COSINE)
+def _rho_bounds(x_lo: float, x_hi: float, y: tuple[float, float],
+                z: tuple[float, float]) -> tuple[float, float] | None:
+    """The off-diagonal as a **correlation** over the box, unclipped.
+
+    ``None`` when a diagonal partner's interval reaches zero, where ρ is
+    unbounded and the box says nothing about it.
+    """
     if y[0] <= 0.0 or z[0] <= 0.0:
-        return -c, c
+        return None
     small = 2.0 * np.sqrt(y[0] * z[0])       # smallest denominator → largest |ρ|
     big = 2.0 * np.sqrt(y[1] * z[1])
     lo = x_lo / small if x_lo < 0.0 else x_lo / big
     hi = x_hi / small if x_hi > 0.0 else x_hi / big
+    return lo, hi
+
+
+def _rho_interval(x_lo: float, x_hi: float, y: tuple[float, float],
+                  z: tuple[float, float]) -> tuple[float, float]:
+    """The off-diagonal as a correlation, clipped to the domain's obliquity.
+
+    The clip is sound only for a box that reaches the domain, which
+    :func:`_outside_obliquity` has already established for every box
+    :func:`_det_interval` sees.
+    """
+    c = float(MAX_ANGLE_COSINE)
+    bounds = _rho_bounds(x_lo, x_hi, y, z)
+    if bounds is None:
+        return -c, c
+    lo, hi = bounds
     return max(lo, -c), min(hi, c)
+
+
+def _outside_obliquity(af_lo: np.ndarray, af_hi: np.ndarray) -> bool:
+    """Does some reciprocal angle lie beyond the domain's obliquity bound
+    everywhere in the box?
+
+    The domain is |ρᵢⱼ| ≤ :data:`MAX_ANGLE_COSINE` for every off-diagonal
+    (:func:`_inside_domain`), so such a box holds no cell the search may
+    report.  Nothing else refuses one (WP-1959).  The clip in
+    :func:`_rho_interval` turned an interval wholly past the bound into an
+    inverted one.  The expanded determinant cannot refuse it either, because
+    A·B·C − B·(E/2)² carries B twice and its interval bound loses the coupling.
+    Near a singular metric Q is dense, so every line keeps matching and the
+    subtree does not converge.  On #780's monoclinic case one grid cell at
+    |ρ₁₃| ≈ 1.003 took 5.1 M boxes without a leaf until this test refused it.
+    The ρ interval only narrows under bisection, so the prune is monotone.
+    """
+    c = float(MAX_ANGLE_COSINE)
+    for p, (i, j) in _OFFDIAG_PARTNERS.items():
+        bounds = _rho_bounds(float(af_lo[p]), float(af_hi[p]),
+                             (float(af_lo[i]), float(af_hi[i])),
+                             (float(af_lo[j]), float(af_hi[j])))
+        if bounds is not None and (bounds[0] > c or bounds[1] < -c):
+            return True
+    return False
 
 
 def _det_interval(af_lo: np.ndarray, af_hi: np.ndarray
@@ -548,8 +633,8 @@ def _det_interval(af_lo: np.ndarray, af_hi: np.ndarray
     and that is what makes the volume window prune at all.**  Writing
     G* = D^½ R D^½ with D the diagonal gives det G* = A·B·C·det R, so the
     off-diagonals enter only as ρᵢⱼ = G*ᵢⱼ/√(G*ᵢᵢG*ⱼⱼ) — which the search domain
-    already bounds by :data:`MAX_ANGLE_COSINE` (``_initial_box``, ``_stage_edges``
-    and ``_inside_domain`` all enforce it, so a box's cone-violating corners hold
+    already bounds by :data:`MAX_ANGLE_COSINE` (``_initial_box``, ``_stage_edges``,
+    ``_outside_obliquity`` and ``_inside_domain`` all enforce it, so a box's cone-violating corners hold
     nothing this search may report).  Interval arithmetic on the *expanded*
     determinant throws that coupling away: it evaluates −B·(E/2)² with E at the
     **domain's** maximum while A and C are at this **box's**, and the term then
@@ -913,9 +998,10 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
                if len(q_search) > 1 else 0.0)
     tol_accept = max(float(np.min(tol_search)), ACCEPT_SPACING_FRAC * spacing)
 
-    # the stack holds the box's *surviving trial rows* beside their ids, not the
-    # ids alone: a child that filters nothing then reuses its parent's array
-    # instead of paying a fancy-index copy, and the copy was 30 % of the loop
+    # on the numpy loop the stack holds the box's *surviving trial rows* beside
+    # their ids, not the ids alone: a child that filters nothing then reuses its
+    # parent's array instead of paying a fancy-index copy, and the copy was 30 %
+    # of the loop
     lo_search = q_search - tol_search
     hi_search = q_search + tol_search
     swaps = [(_pivot_of(basis, i), _pivot_of(basis, j))
@@ -923,6 +1009,28 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     swaps = [(a, b) for a, b in swaps if a is not None and b is not None]
     found: list[EngineCandidate] = []
     seen: set[tuple[int, ...]] = set()
+
+    # **The compiled box test, when the tier is on** (WP-1959).  It reads
+    # ``m_full`` through a box's ids, so no box gathers rows, and it returns
+    # what ``_test_box`` returns on the same bits.  ``None`` runs the numpy
+    # loop, which is its oracle (``tests/test_indexing_kernels.py``).
+    kernels = compiled.dichotomy_kernels()
+    box_test = child_key = None
+    if kernels is not None:
+        box_test_k, child_key_k = kernels
+        basis_t = np.ascontiguousarray(basis.T)
+        swaps_k = np.asarray(swaps, dtype=np.int64).reshape(-1)
+        band_lo, band_hi = det_band
+        cos_max = float(MAX_ANGLE_COSINE)
+
+        def box_test(ids, lo, hi, col_max=False):
+            return box_test_k(m_full, ids, lo, hi, basis_t, q_hi, band_lo,
+                              band_hi, swaps_k, lo_search, hi_search,
+                              spec.n_unindexed, cos_max, col_max)
+
+        def child_key(ids, lo, hi):
+            return child_key_k(m_full, ids, lo, hi, basis_t, lo_search,
+                               hi_search)
 
     def leaf(lo: np.ndarray, hi: np.ndarray, width: float,
              rows: np.ndarray) -> None:
@@ -952,7 +1060,8 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
             # centred search would have reached here".
             if not _centred_replay(m_full, rows, in_search[centring], lo, hi,
                                    basis, q_hi, det_band, swaps, lo_search,
-                                   hi_search, spec.n_unindexed):
+                                   hi_search, spec.n_unindexed,
+                                   box_test=box_test):
                 continue
             cand = _accept(basis, system, centring, spec, theta,
                            hkl_c, dm_c, indices[centring], q_all, sigma,
@@ -968,14 +1077,24 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     gathered: list = [None, None]
 
     def grid_test(ids: np.ndarray, lo: np.ndarray, hi: np.ndarray):
+        if box_test is not None:
+            kept = box_test(ids, lo, hi)
+            return None if kept is None else kept[0]
         if gathered[0] is not ids:
             gathered[0], gathered[1] = ids, m_full[ids]
         kept = _test_box(gathered[1], lo, hi, basis, q_hi, det_band, swaps,
                          lo_search, hi_search, spec.n_unindexed, ids=ids)
         return None if kept is None else kept[3]
 
+    # **The survivor lists are the frontier's memory, so they take the
+    # narrowest index type** (WP-1924).  Each surviving box of the grid's last
+    # stage keeps its own list, shared only by its few children: on #780's
+    # monoclinic case 22 689 lists of ~7300 rows, 1.29 GB as int64.  A list
+    # only ever indexes ``m_full``, so its values, its order and every row it
+    # gathers are the same in any integer type wide enough to count them.
     frontier, n_boxes, n_rows, complete = _grid_pass(
-        basis, lo0, hi0, np.arange(len(m_full)), grid_test, budget)
+        basis, lo0, hi0, np.arange(len(m_full), dtype=_row_index_type(m_full)),
+        grid_test, budget)
     if frontier is None:
         return found, (n_boxes, n_rows), False
 
@@ -989,26 +1108,41 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     # the shell containing the answer last.  Ordering the survivors by volume gives
     # the same "cheap answers first" property for one grid pass.
     volumes = _centre_volumes(basis, frontier)
-    # siblings share one survivor list, and so share one gathered copy of its
-    # rows, as they did when the frontier carried the rows themselves: a copy
-    # per cell would multiply the frontier's memory by the grid's fan-out
-    rows_of: dict[int, np.ndarray] = {id(ids): m_full[ids]
-                                      for _lo, _hi, ids in frontier}
-    stack = [(lo, hi, rows_of[id(ids)], ids, 0)
+    # **A grid cell's rows are gathered when it is popped, never for the whole
+    # frontier up front** (WP-1924).  Gathering every survivor list at once held
+    # ``n_dof`` floats per index until the unit returned: on #780's case 5.2 GB
+    # beside 1.29 GB of lists, 6.8 GB of footprint in all, reached once the
+    # grid finished.  A cell's first test filters what it gathered, so its
+    # children carry their own smaller copy and the gathered one dies with the
+    # pop.  The gathers are bit-identical to the shared ones; what they cost is
+    # one copy per cell where siblings shared one.
+    stack = [(lo, hi, None, ids, 0)
              for _v, _i, lo, hi, ids in sorted(
                  ((volumes[i], i, lo, hi, ids)
                   for i, (lo, hi, ids) in enumerate(frontier)), reverse=True)]
+    # the grid's one-entry gather cache would otherwise hold its last list's
+    # rows for the whole of phase 2
+    del frontier, volumes
+    gathered[:] = [None, None]
     while stack:
         if budget.expired():
             return found, (n_boxes, n_rows), False
         lo, hi, m, ids, depth = stack.pop()
         n_boxes += 1
-        n_rows += len(m)
-        kept = _test_box(m, lo, hi, basis, q_hi, det_band, swaps, lo_search,
-                         hi_search, spec.n_unindexed, ids=ids)
-        if kept is None:
-            continue
-        m, width, unique, ids = kept
+        n_rows += len(ids)
+        if box_test is not None:
+            kept = box_test(ids, lo, hi, True)
+            if kept is None:
+                continue
+            ids, width, unique, col_max = kept
+        else:
+            if m is None:
+                m = m_full[ids]
+            kept = _test_box(m, lo, hi, basis, q_hi, det_band, swaps,
+                             lo_search, hi_search, spec.n_unindexed, ids=ids)
+            if kept is None:
+                continue
+            m, width, unique, ids = kept
 
         if unique or width <= tol_accept or depth >= MAX_DEPTH:
             leaf(lo, hi, width, ids)
@@ -1018,17 +1152,29 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         # the largest coefficient any surviving reflection gives it, dominates the
         # box's Q extent.  Splitting the widest *parameter* instead would spend
         # levels on a direction the data cannot see.
-        if not len(m):
+        if not len(ids):
             continue
-        span = (hi - lo) * np.max(np.abs(m), axis=0)
+        if box_test is None:
+            col_max = np.max(np.abs(m), axis=0)
+        span = (hi - lo) * col_max
         j = int(np.argmax(span))
         mid = 0.5 * (lo[j] + hi[j])
         left_hi, right_lo = hi.copy(), lo.copy()
         left_hi[j] = mid
         right_lo[j] = mid
-        _push_children(stack, [(lo, left_hi), (right_lo, hi)], m, ids,
-                       lo_search, hi_search, spec.n_unindexed, depth + 1)
+        children = [(lo, left_hi), (right_lo, hi)]
+        if child_key is not None:
+            _push_children_compiled(stack, children, ids, child_key,
+                                    len(hi_search), spec.n_unindexed, depth + 1)
+        else:
+            _push_children(stack, children, m, ids, lo_search, hi_search,
+                           spec.n_unindexed, depth + 1)
     return found, (n_boxes, n_rows), complete and complete_union
+
+
+def _row_index_type(m_full: np.ndarray) -> np.dtype:
+    """The narrowest unsigned type that can index every row of ``m_full``."""
+    return np.min_scalar_type(max(len(m_full) - 1, 0))
 
 
 #: Relative grid on which a converged box's A..F is hashed to see whether that

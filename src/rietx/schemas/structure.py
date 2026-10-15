@@ -17,6 +17,7 @@ from __future__ import annotations
 import functools
 import math
 import os
+import re
 from collections.abc import Sequence
 from typing import ClassVar, Literal
 
@@ -266,6 +267,58 @@ class PreferredOrientation(_InheritsDeclaredDefaults):
         if not math.isfinite(self.r.max):
             self.r.max = MARCH_R_MAX
         self.r.value = min(max(self.r.value, self.r.min), self.r.max)
+        return self
+
+
+#: A texture coefficient's name, GSAS-II's C(l, n) without bracket or comma:
+#: ``c4_0``, ``c4_4``, ``c4_neg4``.  ``crystallography.spherical_harmonics``
+#: writes them, and the table refuses one the Laue class does not allow.
+_TEXTURE_NAME = re.compile(r"c(\d+)_(neg)?(\d+)")
+
+
+class SphericalHarmonicTexture(_InheritsDeclaredDefaults):
+    """Spherical-harmonics preferred-orientation correction (Von Dreele 1997).
+
+    Multiplies each reflection's intensity by
+
+        P_h = 1 + Σ_l (4π/(2l+1)) · Σ_n C_l^n · k_l(ψ) · K_l^n(h)
+
+    over the even degrees l = 2 … ``order`` (J. Appl. Cryst. 30, 517, his
+    eq. 2-3 under cylindrical sample symmetry).  K are the symmetrised
+    harmonics of the reflection's direction, and k_l(ψ) is the sample
+    harmonic at the geometry's angle between the scattering vector and the
+    specimen's symmetry axis.  The conventions, the frame and the names are
+    :mod:`rietx.crystallography.spherical_harmonics`'s.
+
+    ``coefficients`` maps a term's name to its C.  A term the map leaves out
+    is C = 0 and held.  Which terms exist depends on the Laue class, and only
+    the operators know that, so ``ParameterTable`` makes one entry per allowed
+    term and refuses a name the class does not allow.  The same table refuses
+    an order with no allowed term (a cubic class at order 2).  C = 0
+    everywhere is exactly P = 1, so a phase carrying this block unrefined is
+    bit-identical to one without it.  The coefficients are unbounded, because
+    P ≥ 0 couples them all and so cannot be a box.
+    """
+
+    order: int
+    coefficients: dict[str, Parameter] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _even_order_and_known_names(self) -> "SphericalHarmonicTexture":
+        if self.order < 2 or self.order % 2:
+            raise ValueError(
+                f"texture order {self.order}: it must be even and at least 2. A "
+                "powder pattern obeys Friedel's law, so odd degrees cannot be "
+                "measured, and degree 0 is the phase scale")
+        for name in self.coefficients:
+            match = _TEXTURE_NAME.fullmatch(name)
+            degree = int(match.group(1)) if match else -1
+            n = int(match.group(3)) if match else -1
+            if not match or degree % 2 or not 2 <= degree <= self.order or n > degree:
+                raise ValueError(
+                    f"texture coefficient {name!r}: a name is c<l>_<n> or "
+                    f"c<l>_neg<n> with l even from 2 to the order "
+                    f"({self.order}) and n at most l, as in c4_0 or c4_neg4")
         return self
 
 
@@ -681,6 +734,10 @@ class RigidBody(Base):
     rotation_vary: bool = False
     #: named-bond torsions inside the body (WP-1808), applied in order
     torsions: list[BodyTorsion] = Field(default_factory=list)
+    #: member atoms that are riding hydrogens (WP-1810): their template
+    #: points are computed from a parent and a tabulated X–H length
+    #: (``crystallography.riding``), and a CIF writes them ``R``/``calc``
+    riding: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _consistent(self) -> "RigidBody":
@@ -698,6 +755,10 @@ class RigidBody(Base):
         names = [t.name for t in self.torsions]
         if len(names) != len(set(names)):
             raise ValueError(f"rigid body {self.name!r} names a torsion twice: {names}")
+        if not set(self.riding) <= members:
+            raise ValueError(
+                f"rigid body {self.name!r}: riding atoms "
+                f"{sorted(set(self.riding) - members)} are not body atoms")
         for t in self.torsions:
             if t.axis[0] == t.axis[1] or not set(t.axis) <= members:
                 raise ValueError(
@@ -975,6 +1036,11 @@ class Phase(_InheritsDeclaredDefaults):
     # perturbs a phase that does not free r.  The axis is fixed integer hkl; only
     # r enters the least-squares fit.
     preferred_orientation: PreferredOrientation | None = None
+    # Optional spherical-harmonics preferred-orientation correction (WP-1960,
+    # crystallography/spherical_harmonics.py).  None ⇒ no correction; every
+    # coefficient at 0 is also exactly the identity.  One effect, so a phase
+    # declares this or ``preferred_orientation``, never both.
+    texture: SphericalHarmonicTexture | None = None
     # Sample contribution to Lorentzian width (deg 2θ units, see profiles.caglioti):
     # size term varies as 1/cosθ (Scherrer), strain term as tanθ.  Lorentzian
     # FWHMs add under convolution, so these stack on the instrument X, Y.
@@ -1093,6 +1159,23 @@ class Phase(_InheritsDeclaredDefaults):
     # Rigid bodies over this phase's own atoms (WP-1805).  Empty default ⇒
     # exactly off: a phase declaring none builds the table it always built.
     rigid_bodies: list[RigidBody] = Field(default_factory=list)
+    # What fixes the origin of a polar group (WP-1912, issue #727).  In
+    # P 6₃ m c, P 4 m m, Cc or P 1 the whole structure can shift along the
+    # polar axis without changing any intensity
+    # (``crystallography.wyckoff.floating_origin_basis``), so a fit that frees
+    # every coordinate along it has a flat direction.  ``"hold"`` makes the
+    # parameter table hold, per such direction, the first atom DOF a shift
+    # along it moves (``ParameterTable`` does it, so
+    # every fit, series pattern and joint histogram builds the same hold), and
+    # skips a direction the caller's own ties or holds already fix.
+    # ``Refinement.unhold`` on that DOF sets this back to ``None``.
+    # ``"centroid"`` holds nothing: each stage whose free set can slide the
+    # phase gets one restraint row per such direction on a weighted centroid
+    # of every site, Flack & Schwarzenbach (1988) (``model.origin``, written
+    # by the stage runner), so every coordinate keeps an esd; a direction only
+    # one site can move along is held as ``"hold"`` holds it.  ``None`` (the
+    # default) is exactly off: the table every earlier version built.
+    floating_origin: Literal["hold", "centroid"] | None = None
 
     @model_validator(mode="after")
     def _bodies_name_their_atoms(self) -> "Phase":
@@ -1366,6 +1449,17 @@ class Phase(_InheritsDeclaredDefaults):
                 "isotropic direction is the same residual column as "
                 "lor_strain; refining both is exactly degenerate.  Set "
                 "lor_strain.vary=False and refine the S_HKL patterns instead")
+        return self
+
+    @model_validator(mode="after")
+    def _one_orientation_model(self) -> "Phase":
+        # GSAS-II's ``Pref.Ori.`` holds one kind for the same reason (WP-1960 D5).
+        if self.preferred_orientation is not None and self.texture is not None:
+            raise ValueError(
+                f"phase {self.name!r} declares both preferred_orientation and "
+                "texture, two models of one effect. Keep March-Dollase for a "
+                "single fibre axis, or the spherical-harmonics texture for "
+                "anything else")
         return self
 
     @model_validator(mode="after")

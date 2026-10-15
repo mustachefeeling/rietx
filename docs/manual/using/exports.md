@@ -116,6 +116,17 @@ cannot draw it.
 `font_size=` are the exposure surface: build the figure at the width it will be
 read at, and do not scale it in the document afterwards.
 
+A notebook needs no `style=`. A pattern, fit, series or indexing figure drawn
+light carries a dark copy in its output, and a frontend in a dark theme shows
+that copy. JupyterLab, Notebook 7
+and JupyterLite switch it live, and the manual switches it with its own theme.
+VS Code and Colab carry the same switch, read from their source and not yet
+seen running. A frontend that strips the switch shows the light figure. GitHub's
+notebook viewer strips it. So does JupyterLab on a notebook opened with its
+outputs, until the cell runs again. What you add to the returned figure, such as an
+annotation, appears in both. A structure figure on the default white ground
+works the same way.
+
 ## A figure of the structure
 
 `rietx.viz.render_structure` draws one phase as the GUI's structure viewer

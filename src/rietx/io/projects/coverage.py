@@ -257,14 +257,21 @@ FEATURES: tuple[Feature, ...] = (
                "Variable_Divergence_Intensity",
                "Apply_Brindley_Spherical_R_PD")),
     _f("preferred orientation", Stance.REPORTED,
-       "a texture model", "spherical_harmonics_hkl", "normals_plot",
-       "normals_plot_min_d",
-       why="spherical harmonics are a v2 fence, and this reader does not "
-           "translate a March-Dollase correction into rietx's either, so the "
-           "texture is dropped and the intensities it explained are not",
+       "a texture model", "normals_plot", "normals_plot_min_d",
+       why="this reader translates neither a March-Dollase correction nor a "
+           "spherical-harmonics one into rietx's.  The Technical Reference "
+           "cites Järvinen (1993) for its harmonics but states neither their "
+           "normalisation nor their frame, and no TOPAS output has measured "
+           "them, so the texture is dropped and the intensities it explained "
+           "are not",
        # §19.3.8, with the documented short form.
        macros=("Preferred_Orientation", "PO", "PO_Two_Directions",
                "PO_Spherical_Harmonics")),
+    _f("spherical-harmonics series", Stance.REPORTED,
+       "a spherical-harmonics function of hkl", "spherical_harmonics_hkl",
+       why="an equation uses its value, for a texture through scale_pks or "
+           "for hkl-dependent broadening, and this reader translates neither "
+           "use, so what that equation explained is dropped"),
     _f("restraints and penalties", Stance.REPORTED,
        "a restraint, penalty or interatomic interaction",
        "penalty", "phase_penalties", "only_penalties", "atomic_interaction",

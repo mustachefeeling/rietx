@@ -29,7 +29,8 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
+from typing import Literal
 
 import numpy as np
 from pydantic import ValidationError
@@ -44,6 +45,8 @@ from ..crystallography.magnetic.moments import (
     moment_from_dofs,
     wrap_angle,
 )
+from ..crystallography.spherical_harmonics import lowest_order as lowest_texture_order
+from ..crystallography.spherical_harmonics import texture_names
 from ..crystallography.stephens import S_NAMES, isotropic_coefficients, strain_basis
 from ..crystallography.symmetry import (
     cell_constraints,
@@ -51,14 +54,21 @@ from ..crystallography.symmetry import (
     resolve_group,
     rotation_matrices,
 )
-from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
+from ..crystallography.wyckoff import (
+    adp_basis,
+    coordinate_basis,
+    floating_origin_basis,
+    stabilizer_rotations,
+)
 from ..schemas.common import Parameter
 from ..schemas.instrument import (
     CAPILLARY_OFFSETS,
     COMPONENT_FIELDS,
+    TOF_CONSTANTS,
     BackgroundFixedPlusChebyshev,
     BackgroundPSpline,
     Instrument,
+    ProfileTOF,
 )
 from ..schemas.structure import MOMENT_COMPONENTS, Structure
 from .derived import DerivedBlock
@@ -194,6 +204,81 @@ def background_parameters(bkg) -> list[tuple[str, Parameter]]:
     return [(f"c{n}", p) for n, p in enumerate(bkg.coefficients)]
 
 
+def tof_source_parameters(source) -> list[tuple[str, Parameter]]:
+    """(sub-path, Parameter) pairs for a ``neutron_tof`` bank, or [].
+
+    The third member of the :func:`roughness_parameters` /
+    :func:`extra_component_parameters` family, and here for exactly their
+    reason: the collector and :meth:`ParameterTable.apply_to_models` must walk
+    one list, or a value written into θ is silently dropped at the next
+    rebuild — the half-wired-parameter failure this module's docstring names.
+
+    :data:`~rietx.schemas.instrument.TOF_CONSTANTS` under ``instrument.source.``
+    (``difc``, ``difa``, ``tzero``, ``difb``, the four-term flight-time
+    relation), then :class:`ProfileTOF`'s ten coefficients under
+    ``instrument.source.profile_tof.``, then the incident spectrum's.  The name
+    lists are **read off their own authority** — the constants tuple the schema
+    validator uses, and the pydantic field order of ``ProfileTOF`` — rather
+    than typed here, so a coefficient added to the container reaches the table
+    without a second edit.
+
+    ``[]`` for every constant-wavelength source, so a table built from one is
+    byte-for-byte the table it was.
+    """
+    if getattr(source, "kind", None) != "neutron_tof":
+        return []
+    return ([(name, getattr(source, name)) for name in TOF_CONSTANTS]
+            + [(f"profile_tof.{name}", getattr(source.profile_tof, name))
+               for name in ProfileTOF.model_fields]
+            + incident_spectrum_parameters(source.incident_spectrum))
+
+
+def incident_spectrum_parameters(spectrum) -> list[tuple[str, Parameter]]:
+    """(sub-path, Parameter) pairs for the incident spectrum, or [].
+
+    **Numbered from 1, as the manual numbers them.**  GSAS calls the
+    coefficients P₁…P_N (Larson & Von Dreele, 2004, LAUR 86-748, GSAS Technical
+    Manual p. 128-129) and the file writes them in that order, so the path is
+    ``…incident_spectrum.p1``.  The background's ``c0`` is 0-based because its
+    T₀ genuinely is the zeroth Chebyshev term; here a 0-based path would put an
+    off-by-one between a parameter's name and the manual a reader is holding.
+
+    ``[]`` when the bank declares ``ITYP 0`` — no coefficients, no rows — which
+    is the default.
+    """
+    return [(f"incident_spectrum.p{i}", p)
+            for i, p in enumerate(spectrum.coefficients, start=1)]
+
+
+#: The constant-wavelength instrument rows a ``neutron_tof`` bank **does not
+#: carry** (yue-here/rietx issue #442), each beside the bank's own row that
+#: plays its part.  A bank has widths, a zero and a position calibration, under
+#: other names: ``instrument.source.profile_tof.*`` for the Caglioti terms,
+#: ``instrument.source.tzero`` for the degree ``zero_shift``, and
+#: ``instrument.source.difc``/``difa`` for the two 2θ position aberrations.
+#: Registering the constant-wavelength rows force-fixed would make a glob like
+#: ``instrument.profile.*`` *match* on a bank and free nothing — silent under
+#: ``MultiParameterTable.unreached_histograms``' "matched, not freed" rule, which
+#: is right for a row with nothing to refine (a capillary's
+#: ``sample_displacement``) and wrong for one whose role the bank fills under
+#: another name.  Absent, the glob matches nothing on the bank and the
+#: existing ``STAGE_FREED_NOTHING`` says so, with no new rule.  The geometry
+#: rows with nothing to refine on a bank (axial divergence, the capillary
+#: offsets) stay registered and force-fixed, which is the capillary case.
+BANK_ABSENT_PATHS: tuple[str, ...] = (
+    "instrument.zero_shift",
+    "instrument.geometry.sample_displacement",
+    "instrument.geometry.sample_transparency",
+    *(f"instrument.profile.{name}" for name in ("u", "v", "w", "x", "y")),
+)
+
+
+def _bank_absent(instrument: Instrument, path: str) -> bool:
+    """Whether ``path`` is one of :data:`BANK_ABSENT_PATHS` on a bank."""
+    return (instrument.source.kind == "neutron_tof"
+            and path in BANK_ABSENT_PATHS)
+
+
 def extra_component_parameters(components) -> list[tuple[str, Parameter]]:
     """(sub-path, Parameter) pairs for ``Instrument.extra_components``, or [].
 
@@ -274,15 +359,20 @@ class Entry:
     hi: float
     tie: AffineTie | None = None  # affine dependence on other entries
     locked: bool = False  # structurally fixed: set_vary may never free it
-    #: the caller declared this parameter does not move (WP-1435).  Written by
-    #: ``Refinement._apply_holds`` from its own register on every build, for
-    #: the reason a user tie is: a hold is not a property of the models, and
-    #: nothing the table derives from a structure could rebuild it.
+    #: this parameter does not move, whatever a glob asks (WP-1435).  Two
+    #: writers, and :meth:`ParameterTable.held_by` is the one place that says
+    #: which.  ``Refinement._apply_holds`` writes the caller's own register on
+    #: every build (:meth:`ParameterTable.set_held`), because a caller's hold is
+    #: not a property of the models.  :meth:`ParameterTable._fix_origin` writes
+    #: the floating-origin hold, derived from ``Phase.floating_origin`` (WP-1912),
+    #: which *is* in the models and so is rebuilt with the table.
     #:
     #: Read by :meth:`set_vary` alongside ``locked``, which is the whole
     #: mechanism.  The two differ in who said so and in what can undo it: a
     #: locked entry is the space group's and no caller may free it, a held one
-    #: is the caller's own and ``Refinement.unhold`` takes it back.
+    #: is the caller's own, by either route, and ``Refinement.unhold`` takes it
+    #: back.  A verb that has to tell the routes apart asks ``held_by``, never
+    #: its own register.
     held: bool = False
 
 
@@ -1023,6 +1113,44 @@ def _magnetic_component_drawn(phase, instrument) -> bool:
 FLOOR_SEEDS: dict[str, float] = {"deg": 1e-3, "deg^2": 1e-3 ** 2, "um^2": 1e-3}
 
 
+@dataclass(frozen=True)
+class _OriginPhase:
+    """One phase's floating origin, as the table found it at collection (WP-1912).
+
+    Built by :meth:`ParameterTable._declare_origin` from the space group and
+    the displacement DOFs the table has just built, and read by
+    :meth:`ParameterTable._fix_origin` at every build, tie and hold.
+    """
+
+    space_group: str
+    #: the directions the origin floats in: ``floating_origin_basis``'s rows
+    directions: tuple[tuple[int, int, int], ...]
+    #: direction → the displacement DOF paths a shift along it moves (a
+    #: nonzero coefficient in the site's own expression of the shift), atoms in
+    #: phase order and body origins after them: the order the fix walks to
+    #: choose what it holds
+    candidates: dict[tuple[int, int, int], tuple[str, ...]]
+    #: DOF path → the label of the atom (or the name of the body) it moves
+    labels: dict[str, str]
+    #: every coordinate row a DOF of this phase drives: the rows a shift of
+    #: the whole phase moves, and the targets :meth:`_origin_floats` solves for
+    coords: tuple[str, ...]
+    #: ``Phase.floating_origin`` as declared: ``"hold"`` or ``"centroid"``
+    mode: str = "hold"
+    #: site base path (``phases.i.atoms.j`` or ``phases.i.rigid_bodies.b.origin``)
+    #: → (label, the atom indices whose coordinates the forward model reads
+    #: and a shift of that site moves), in candidate order.  The centroid
+    #: restraint's sites (``model.origin``): its row reads ``{base}.x/y/z``,
+    #: and its curvature moves the atoms
+    sites: dict[str, tuple[str, tuple[int, ...]]] = field(
+        default_factory=dict)
+
+
+def _candidate_sites(rec: _OriginPhase, f: tuple[int, int, int]) -> set[str]:
+    """The sites (atoms, body origins) whose DOFs a shift along ``f`` moves."""
+    return {d.rsplit(".dof.", 1)[0] for d in rec.candidates[f]}
+
+
 class ParameterTable:
     """The tree-to-flat-θ machinery behind a fit — internal, not the agent surface.
 
@@ -1126,8 +1254,30 @@ class ParameterTable:
         self._precommit_anchor: dict[str, tuple] = {}
         #: body base path → φ₀ as the last :meth:`commit` found it (WP-1808)
         self._precommit_torsions: dict[str, np.ndarray] = {}
+        #: phase index → its floating-origin declaration (WP-1912), for every
+        #: phase with ``Phase.floating_origin`` set and a group whose origin
+        #: floats.  Empty for every other table, and then nothing below runs:
+        #: the table is the one every earlier version built.
+        self._origin: dict[int, _OriginPhase] = {}
+        #: path → (phase index, direction) of every entry the floating-origin
+        #: fix holds (:meth:`_fix_origin`), the one authority for
+        #: :attr:`origin_holds`.  Kept beside :class:`Entry`, whose ``held``
+        #: it sets, because ``Entry`` mirrors ``ParameterRow`` field for field.
+        self._origin_held: dict[str, tuple[int, tuple[int, int, int]]] = {}
+        #: phase index → the floating directions no entry could be held for
+        self._origin_unfixed: dict[int, list[tuple[int, int, int]]] = {}
+        #: the paths a caller marked through :meth:`set_held`, so that moving
+        #: the origin fix off an entry leaves the caller's own hold on it
+        self._caller_held: set[str] = set()
+        #: origin-held path → the ``vary`` its caller last asked for: the value
+        #: it had when the fix took it, then whatever a glob reaching it set
+        #: (:meth:`set_vary`).  Restored when the fix moves off the entry, so a
+        #: take-back leaves the row as the caller left it, never silently fixed.
+        self._origin_wanted: dict[str, bool] = {}
         self._collect(structure, instrument)
         self._rebuild()
+        if self._origin:
+            self._fix_origin()
         if self._bodies:
             # the stored atoms are checked against their bodies before the
             # blocks write them, so an edit of a body atom is refused rather
@@ -1173,6 +1323,7 @@ class ParameterTable:
             if phase.preferred_orientation is not None:
                 self._add(f"{base}.preferred_orientation.r",
                           phase.preferred_orientation.r)
+            self._collect_texture(base, sg, phase)
             self._add(f"{base}.lor_size", phase.lor_size)
             # a Stephens block owns the tanθ Lorentzian channel outright: its
             # isotropic direction is the same column, so lor_strain is locked
@@ -1218,9 +1369,41 @@ class ParameterTable:
                 self._collect_atom_moment(f"{base}.atoms.{j}", phase, atom)
             for b, body in enumerate(phase.rigid_bodies):
                 self._collect_body(base, sg, phase, b, body)
+            if phase.floating_origin is not None:
+                self._declare_origin(ip, sg, phase)
 
-        self._add("instrument.zero_shift", instrument.zero_shift)
+        self._add_instrument_row(instrument, "instrument.zero_shift",
+                                 instrument.zero_shift)
         self._collect_instrument(instrument)
+
+    def _collect_texture(self, base: str, sg, phase) -> None:
+        """One ``phases.i.texture.<name>`` entry per term the Laue class allows.
+
+        The coefficients are the parameters, with no DOF indirection, because
+        each basis function is symmetric by construction
+        (``crystallography.spherical_harmonics``).  A term the block leaves out
+        enters at C = 0, held.  Two refusals need the Laue class, so they are
+        made here and not in the schema (WP-1035's rule): an order with no
+        allowed term, and a name the class does not allow.
+        """
+        block = phase.texture
+        if block is None:
+            return
+        names = texture_names(sg, block.order, phase.cell.lengths_angles())
+        if not names:
+            raise ValueError(
+                f"{base}.texture: order {block.order} allows no term in the Laue "
+                f"class of {phase.space_group!r}. The lowest order that allows "
+                f"one is {lowest_texture_order(sg)}")
+        unknown = sorted(set(block.coefficients) - set(names))
+        if unknown:
+            raise ValueError(
+                f"{base}.texture: {', '.join(unknown)} is not a term the Laue "
+                f"class of {phase.space_group!r} allows. To order {block.order} "
+                f"it allows {', '.join(names)}")
+        for name in names:
+            p = block.coefficients.get(name) or Parameter(value=0.0)
+            self._add(f"{base}.texture.{name}", p)
 
     def _collect_microstrain(self, base: str, sg, phase) -> None:
         """Stephens S_HKL enter θ through Laue-symmetry-allowed patterns.
@@ -1328,6 +1511,74 @@ class ParameterTable:
             self._anchored_dofs[path] = tuple(
                 (f"{base}.{c}", float(basis[k][c_idx]))
                 for c_idx, c in enumerate(("x", "y", "z")) if basis[k][c_idx] != 0)
+
+    def _declare_origin(self, ip: int, sg, phase) -> None:
+        """Record where phase ``ip``'s origin floats and what could hold it (WP-1912).
+
+        Called once per phase that sets ``Phase.floating_origin``, after its
+        atoms and bodies are collected, so the displacement DOFs exist.  The
+        directions are the translations that commute with every rotation of the
+        group (:func:`~rietx.crystallography.wyckoff.floating_origin_basis`):
+        a polar axis, a plane (Cc), or all three axes (P 1).  A non-polar group
+        floats nowhere and records nothing.
+
+        The candidates for each direction are the DOFs a shift along it
+        moves.  Every site of a polar group can move along its polar axis (the
+        axis is fixed by every rotation, so by every stabilizer), so the
+        site's basis B, read off ``_anchored_dofs`` where its construction is
+        recorded, states the shift as Bᵀa = f; a DOF with aₖ ≠ 0 is one the
+        shift cannot leave still, and holding it fixes the origin.  On a
+        hexagonal or tetragonal axis a is a single ±1 on the DOF running along
+        it.  On rhombohedral axes (R 3 m:R, f = [1, 1, 1]) a general site has
+        a = (1, 1, 1), so its x is held, which blocks the shift as well.
+
+        The sites themselves are recorded too (``_OriginPhase.sites``): an
+        atom, or a rigid body's origin with the atoms it places, which is what
+        a ``"centroid"`` declaration weights (``model.origin``).
+        """
+        floating = floating_origin_basis(sg)
+        if len(floating) == 0:
+            return
+        prefix = f"phases.{ip}."
+        dofs = [d for d in self._anchored_dofs if d.startswith(prefix)]
+        labels: dict[str, str] = {}
+        for d in dofs:
+            kind, index = d.split(".")[2:4]
+            labels[d] = (phase.atoms[int(index)].label if kind == "atoms"
+                         else phase.rigid_bodies[int(index)].name)
+        directions = tuple(tuple(int(v) for v in f) for f in floating)
+        sites: dict[str, list[str]] = {}
+        for d in dofs:
+            sites.setdefault(d.rsplit(".dof.", 1)[0], []).append(d)
+        candidates: dict[tuple[int, int, int], tuple[str, ...]] = {}
+        for f in directions:
+            hits = []
+            for site_dofs in sites.values():
+                basis = np.zeros((len(site_dofs), 3))
+                for k, d in enumerate(site_dofs):
+                    for coord, coeff in self._anchored_dofs[d]:
+                        basis[k, "xyz".index(coord[-1])] = coeff
+                a, *_ = np.linalg.lstsq(basis.T, np.asarray(f, float), rcond=None)
+                if np.abs(basis.T @ a - f).max() > 1e-9:
+                    continue  # this site cannot move along f at all
+                hits.extend(d for d, ak in zip(site_dofs, a, strict=True)
+                            if abs(ak) > 1e-9)
+            candidates[f] = tuple(hits)
+        coords = tuple(dict.fromkeys(c for d in dofs
+                                     for c, _ in self._anchored_dofs[d]))
+        # what each site moves in the forward model: an atom itself, a body
+        # every atom it places (a shift of its origin is a shift of all of them)
+        index = {atom.label: j for j, atom in enumerate(phase.atoms)}
+        site_info: dict[str, tuple[str, tuple[int, ...]]] = {}
+        for base, site_dofs in sites.items():
+            kind, k = base.split(".")[2:4]
+            members = ((int(k),) if kind == "atoms" else tuple(
+                index[label] for label in phase.rigid_bodies[int(k)].atoms))
+            site_info[base] = (labels[site_dofs[0]], members)
+        self._origin[ip] = _OriginPhase(
+            space_group=phase.space_group, directions=directions,
+            candidates=candidates, labels=labels, coords=coords,
+            mode=phase.floating_origin, sites=site_info)
 
     def _collect_body_atom_coords(self, base: str, atom, body: str) -> None:
         """A body atom's x, y, z: locked rows its body's block writes (WP-1805).
@@ -1831,7 +2082,101 @@ class ParameterTable:
         # ``set_vary`` frees it and nothing objects.
         self._add("instrument.polarization", instrument.source.polarization,
                   force_fixed=instrument.source.kind != "xray_cw")
-        for il, line in enumerate(instrument.source.lines):
+        tof = instrument.source.kind == "neutron_tof"
+        if tof:
+            # A white beam is a continuum, so there is no line list and no
+            # wavelength to register: ``TOFSource`` carries neither.  What it
+            # carries instead is the bank's calibration, its d-polynomial
+            # profile and its incident spectrum — **fixed by default**, because
+            # a DIFC read from a `.iparm` is a calibration refined against a
+            # standard.  Not force-fixed: freeing one constant against a *held*
+            # certified cell is exactly how a bank is calibrated, so "can never
+            # legitimately move" would be false — the distinction line 0's
+            # wavelength draws below.
+            for sub, cp in tof_source_parameters(instrument.source):
+                self._add(f"instrument.source.{sub}", cp)
+        else:
+            self._collect_cw_source(instrument.source)
+        geom = instrument.geometry
+        for name in ("sample_displacement", "sample_transparency",
+                     "axial_sl", "axial_hl"):
+            self._add_instrument_row(
+                instrument, f"instrument.geometry.{name}", getattr(geom, name),
+                force_fixed=(tof or (geom.kind != "bragg_brentano"
+                                     and name.startswith("sample_"))))
+        for name in CAPILLARY_OFFSETS:
+            offset = getattr(geom, name)
+            # eq (4) divides by R.  Geometry's validator refuses a *stored*
+            # free offset without one, but ``vary`` set after construction
+            # re-runs no validator, and this is the last gate before a solve —
+            # so refuse here too, naming the field rather than quietly holding
+            # the parameter (a held aberration reads as "measured zero").
+            usable = bool(not tof and geom.kind == "debye_scherrer"
+                          and geom.goniometer_radius_mm)
+            if offset.vary and not usable:
+                raise ValueError(
+                    f"instrument.geometry.{name} cannot vary without "
+                    f"goniometer_radius_mm: eq (4) is "
+                    f"Δ2θ = (−a·sin2θ + b·cos2θ)/R and R is unset"
+                    if not tof else
+                    f"instrument.geometry.{name} cannot vary on a neutron_tof "
+                    f"bank: eq (4) is Δ2θ = (−a·sin2θ + b·cos2θ)/R, a shift in "
+                    f"degrees 2θ, and this histogram's abscissa is a flight "
+                    f"time in microseconds. A bank's position calibration is "
+                    f"instrument.source.difc/difa/tzero/difb")
+            # force-fixed rather than merely unfree when R is missing, because
+            # ``_position_shift_deg`` skips the term without one: a free entry
+            # there would be a dead column — a parameter the solver moves and
+            # the model does not read.
+            self._add(f"instrument.geometry.{name}", offset,
+                      force_fixed=not usable)
+        # surface roughness is opt-in, so it is *skipped* when absent rather
+        # than added locked: a table built from an instrument without the block
+        # is byte-for-byte the pre-WP-0502 table.  No geometry gate needed —
+        # Geometry's validator already refuses the block on non-flat specimens.
+        for sub, cp in roughness_parameters(geom.surface_roughness):
+            self._add(f"instrument.geometry.surface_roughness.{sub}", cp)
+        for name in ("u", "v", "w", "x", "y"):
+            self._add_instrument_row(instrument, f"instrument.profile.{name}",
+                                     getattr(instrument.profile, name))
+        for sub, cp in background_parameters(instrument.background):
+            self._add(f"instrument.background.{sub}", cp)
+        # Additive broad peaks: skipped when none is declared rather than added
+        # locked, the surface-roughness idiom one loop up.  No gate — a peak
+        # composes with every background model and every geometry, which is the
+        # whole reason it lives beside ``background`` rather than inside its
+        # union.
+        for sub, cp in extra_component_parameters(instrument.extra_components):
+            self._add(f"instrument.extra_components.{sub}", cp)
+
+    def _add_instrument_row(self, instrument: Instrument, path: str,
+                            p: Parameter, *, force_fixed: bool = False) -> None:
+        """``_add``, except for a :data:`BANK_ABSENT_PATHS` row on a bank.
+
+        That row is not registered, and a *declared* ``vary=True`` on it is
+        refused by name rather than quietly dropped, because it is a claim the
+        caller made about a parameter the bank does not have.
+        """
+        if not _bank_absent(instrument, path):
+            self._add(path, p, force_fixed=force_fixed)
+            return
+        if p.vary:
+            raise ValueError(
+                f"{path} cannot vary on a neutron_tof bank: it is a "
+                f"constant-wavelength parameter, and a bank carries its role "
+                f"under its own name (widths in instrument.source.profile_tof.*, "
+                f"the zero in instrument.source.tzero, the position "
+                f"calibration in instrument.source.difc/difa). A bank's table "
+                f"has no {path} row (issue #442)")
+
+    def _collect_cw_source(self, source) -> None:
+        """The emission lines and their wavelengths — constant-wavelength only.
+
+        Split out of :meth:`_collect_instrument` unchanged when the
+        time-of-flight arm arrived: a white beam has neither list, and the
+        reasoning below is entirely about a *line*.
+        """
+        for il, line in enumerate(source.lines):
             # line 0 defines the intensity scale: its weight is degenerate with
             # the phase scale factors, so it is always held fixed
             self._add(f"instrument.source.lines.{il}.weight", line.weight,
@@ -1855,7 +2200,7 @@ class ParameterTable:
         # fourth held-reason, and what stops a glob freeing it by accident.  And
         # a *declared* ``vary=True`` there is refused by name rather than
         # quietly swallowed, because it is a claim the caller made.
-        wl_params = list(instrument.source.wavelength_parameters)
+        wl_params = list(source.wavelength_parameters)
         # No single-histogram check here: ``_rebuild`` runs at the end of
         # ``__init__`` and at every stage boundary, and it is the only place
         # that sees both free sets at once.  Checking here as well would be a
@@ -1872,49 +2217,6 @@ class ParameterTable:
             # physical constant, not a calibration target.
             self._add(f"instrument.source.lines.{il}.wavelength", wl,
                       force_fixed=il > 0)
-        geom = instrument.geometry
-        for name in ("sample_displacement", "sample_transparency",
-                     "axial_sl", "axial_hl"):
-            self._add(f"instrument.geometry.{name}", getattr(geom, name),
-                      force_fixed=(geom.kind != "bragg_brentano"
-                                   and name.startswith("sample_")))
-        for name in CAPILLARY_OFFSETS:
-            offset = getattr(geom, name)
-            # eq (4) divides by R.  Geometry's validator refuses a *stored*
-            # free offset without one, but ``vary`` set after construction
-            # re-runs no validator, and this is the last gate before a solve —
-            # so refuse here too, naming the field rather than quietly holding
-            # the parameter (a held aberration reads as "measured zero").
-            usable = bool(geom.kind == "debye_scherrer"
-                          and geom.goniometer_radius_mm)
-            if offset.vary and not usable:
-                raise ValueError(
-                    f"instrument.geometry.{name} cannot vary without "
-                    f"goniometer_radius_mm: eq (4) is "
-                    f"Δ2θ = (−a·sin2θ + b·cos2θ)/R and R is unset")
-            # force-fixed rather than merely unfree when R is missing, because
-            # ``_position_shift_deg`` skips the term without one: a free entry
-            # there would be a dead column — a parameter the solver moves and
-            # the model does not read.
-            self._add(f"instrument.geometry.{name}", offset,
-                      force_fixed=not usable)
-        # surface roughness is opt-in, so it is *skipped* when absent rather
-        # than added locked: a table built from an instrument without the block
-        # is byte-for-byte the pre-WP-0502 table.  No geometry gate needed —
-        # Geometry's validator already refuses the block on non-flat specimens.
-        for sub, cp in roughness_parameters(geom.surface_roughness):
-            self._add(f"instrument.geometry.surface_roughness.{sub}", cp)
-        for name in ("u", "v", "w", "x", "y"):
-            self._add(f"instrument.profile.{name}", getattr(instrument.profile, name))
-        for sub, cp in background_parameters(instrument.background):
-            self._add(f"instrument.background.{sub}", cp)
-        # Additive broad peaks: skipped when none is declared rather than added
-        # locked, the surface-roughness idiom one loop up.  No gate — a peak
-        # composes with every background model and every geometry, which is the
-        # whole reason it lives beside ``background`` rather than inside its
-        # union.
-        for sub, cp in extra_component_parameters(instrument.extra_components):
-            self._add(f"instrument.extra_components.{sub}", cp)
 
     # -- the affine constraint block -----------------------------------
     def _flatten(self, tie: AffineTie, _seen: tuple[str, ...] = ()
@@ -2329,7 +2631,12 @@ class ParameterTable:
         e.tie = tie
         if tie is not None:
             e.vary = False
-        self._rebuild()
+        if self._origin:
+            # a tie can fix the origin itself, or tie away the entry holding
+            # it; the fix ends in the rebuild, so one is enough
+            self._fix_origin()
+        else:
+            self._rebuild()
 
     def _body_increment_kind(self, path: str) -> str | None:
         """``"rotation"``/``"torsion"``/``"origin"`` for a body increment, else ``None``.
@@ -2402,9 +2709,236 @@ class ParameterTable:
             e.held = held
             if held:
                 e.vary = False
+                self._caller_held.add(path)
+            else:
+                self._caller_held.discard(path)
             hits.append(path)
-        self._rebuild()
+        if self._origin:
+            # a caller's hold can fix the origin, making the table's
+            # redundant; the fix ends in the rebuild, so one is enough
+            self._fix_origin()
+        else:
+            self._rebuild()
         return hits
+
+    # -- the floating origin of a polar group (WP-1912) -----------------
+    def _fix_origin(self) -> None:
+        """Hold one entry per direction the origin can still float in.
+
+        For each phase declaring ``Phase.floating_origin = "hold"`` and each
+        direction its origin floats in, the question is whether the columns
+        that *could* be freed can shift every position of the phase along it
+        and move nothing else (:meth:`_origin_floats`).  Where they can, the
+        first candidate DOF (atom order, then body origins) that is a column
+        is held: ``Entry.held``, which :meth:`set_vary` already refuses to
+        free, so every plan and every caller of the table gets the same answer
+        and no call site has to remember it.  Where they cannot, a tie or a
+        hold of the caller's has fixed the origin already, and holding
+        another coordinate would remove a real degree of freedom, so nothing
+        is added.  A direction that floats with no candidate a column is
+        recorded in :attr:`origin_unfixed`.
+
+        Re-run on every build, tie and hold, because each can change the
+        answer, and from scratch: the previous choice is taken back first,
+        leaving a caller's own hold on the same entry (``_caller_held``) in
+        place.  A taken-back entry gets back the ``vary`` its caller asked for
+        while it was held (``_origin_wanted``), so moving the fix off an atom
+        frees it again if a glob had asked for that.
+
+        Which atom is held is the decision recorded on WP-1912 (2026-10-06):
+        the first whose DOF moves it along the direction, the common powder
+        practice.  A phase declaring ``"centroid"`` holds nothing here where
+        two or more sites can move along the direction: each stage restrains
+        their weighted centroid instead (Flack & Schwarzenbach 1988, Acta
+        Cryst. A44, 499-506; :meth:`origin_slides`, ``model.origin``).  With
+        one such site there is no centroid to restrain, so that direction is
+        held exactly as ``"hold"`` holds it.
+        """
+        for path in self._origin_held:
+            i = self._paths.get(path)
+            wanted = self._origin_wanted.pop(path, None)
+            if i is None or path in self._caller_held:
+                continue
+            self.entries[i].held = False
+            if wanted is not None:
+                self.entries[i].vary = wanted
+        self._origin_held = {}
+        self._origin_unfixed = {}
+        # the equations are the tied rows, which no hold below changes, so
+        # they are flattened once for every phase and direction
+        rows = self._origin_rows()
+        for ip, rec in self._origin.items():
+            for f in rec.directions:
+                if rec.mode == "centroid" and len(_candidate_sites(rec, f)) > 1:
+                    continue  # the stage's restraint, never a hold
+                if not self._origin_floats(rec, f, rows):
+                    continue
+                path = next((p for p in rec.candidates[f]
+                             if self._holdable(p)), None)
+                if path is None:
+                    self._origin_unfixed.setdefault(ip, []).append(f)
+                    continue
+                e = self.entries[self._paths[path]]
+                self._origin_wanted[path] = e.vary
+                e.held = True
+                e.vary = False
+                self._origin_held[path] = (ip, f)
+        self._rebuild()
+
+    def _holdable(self, path: str) -> bool:
+        """Is ``path`` a column the origin fix may hold: untied, unlocked, not held?"""
+        i = self._paths.get(path)
+        if i is None:
+            return False
+        e = self.entries[i]
+        return e.tie is None and not e.locked and not e.held
+
+    def _origin_rows(self) -> list[tuple[str, list[tuple[int, float]]]]:
+        """Every tied row :meth:`_origin_floats` reads, flattened onto untied entries.
+
+        A displacement DOF's and a variable's own rows are left out, the
+        forward model reading neither.
+        """
+        return [(e.path, self._flatten(e.tie, (e.path,))[0])
+                for e in self.entries
+                if e.tie is not None and e.path not in self._anchored_dofs
+                and not is_variable_path(e.path)]
+
+    def _origin_floats(self, rec: _OriginPhase, f: tuple[int, int, int],
+                       tied: list[tuple[str, list[tuple[int, float]]]], *,
+                       free_only: bool = False) -> bool:
+        """Can the columns a stage could free shift the phase along ``f`` alone?
+
+        ``free_only`` asks it of the columns that **are** free now (``vary``
+        and untied, the columns of θ) rather than of those a stage could free:
+        :meth:`origin_slides`'s question, one solve for both callers.
+
+        Exact linear algebra on the affine block, never a reading of names
+        (WP-1342's rule): find Δθ over the columns that could be freed with
+        every coordinate row of the phase moving by ``f`` and every other row
+        the forward model reads not moving at all.  Only a displacement DOF
+        or a named variable can take a nonzero step in such a Δθ, because
+        every other column's own row is a model parameter that must stay
+        still; so those are the unknowns, and the tied rows are the equations
+        (a DOF's and a variable's own rows are left out, the forward model
+        reading neither).  A held, locked or tied DOF is no column, so an atom
+        the caller holds, or ties to a constant, makes a shift impossible and
+        this returns ``False``: the origin is fixed already.
+
+        Solved per connected component of the row-column graph, so a
+        structure with no cross ties is one small block per atom and a large
+        cell costs what its atoms do.
+        """
+        from scipy.sparse.csgraph import connected_components
+
+        cols = [i for i, e in enumerate(self.entries)
+                if e.tie is None and not e.locked and not e.held
+                and (e.vary or not free_only)
+                and (e.path in self._anchored_dofs or is_variable_path(e.path))]
+        col = {i: k for k, i in enumerate(cols)}
+        targets = {c: float(f["xyz".index(c[-1])]) for c in rec.coords}
+        r_idx: list[int] = []
+        c_idx: list[int] = []
+        vals: list[float] = []
+        rhs: list[float] = []
+        for path, terms in tied:
+            row = {}
+            for j, coeff in terms:
+                k = col.get(j)
+                if k is not None and coeff != 0.0:
+                    row[k] = row.get(k, 0.0) + coeff
+            t = targets.get(path, 0.0)
+            if not row and t == 0.0:
+                continue
+            for k, v in row.items():
+                r_idx.append(len(rhs))
+                c_idx.append(k)
+                vals.append(v)
+            rhs.append(t)
+        b = np.array(rhs, dtype=np.float64)
+        if not b.any() or not cols:
+            # no position of this phase to shift, or nothing that could shift it
+            return False
+        n_r, n_c = len(rhs), len(cols)
+        a = sparse.csr_matrix((vals, (r_idx, c_idx)), shape=(n_r, n_c))
+        graph = sparse.bmat([[None, a], [a.T, None]], format="csr")
+        _, label = connected_components(graph, directed=False)
+        for comp in np.unique(label[:n_r][b != 0.0]):
+            rows = np.flatnonzero(label[:n_r] == comp)
+            cs = np.flatnonzero(label[n_r:] == comp)
+            if cs.size == 0:
+                return False
+            block = a[rows][:, cs].toarray()
+            step, *_ = np.linalg.lstsq(block, b[rows], rcond=None)
+            if float(np.abs(block @ step - b[rows]).max()) > 1e-9:
+                return False
+        return True
+
+    def held_by(self, path: str) -> Literal["caller", "origin"] | None:
+        """Who holds ``path`` on this table: the caller, the origin fix, or nobody.
+
+        ``Entry.held`` has two writers (its docstring), and a verb that answers
+        differently for the two reads this rather than its own register, so the
+        answer is the table's, as the hold itself is.  ``"caller"`` wins where
+        both could apply: the origin fix never holds a row the caller holds.
+        """
+        if path in self._caller_held:
+            return "caller"
+        if path in self._origin_held:
+            return "origin"
+        return None
+
+    @property
+    def origin_holds(self) -> dict[str, tuple[int, tuple[int, int, int]]]:
+        """Path → (phase index, direction) of every entry held to fix an origin.
+
+        Empty unless a phase declares ``Phase.floating_origin``.  The one
+        authority for ``ParameterRow.origin_axis`` and for the
+        ``ORIGIN_FIXED_ON_POLAR_AXIS`` diagnostic (WP-1912).
+        """
+        return dict(self._origin_held)
+
+    @property
+    def origin_unfixed(self) -> dict[int, list[tuple[int, int, int]]]:
+        """Phase index → the floating directions no candidate could be held for.
+
+        A direction lands here when the columns can still walk it and no DOF
+        the shift moves is a column: every candidate tied (to a variable, say)
+        or held.  The fit then keeps a flat direction, which
+        ``ORIGIN_NOT_FIXED`` says.
+        """
+        return {ip: list(fs) for ip, fs in self._origin_unfixed.items()}
+
+    @property
+    def origin_phases(self) -> dict[int, _OriginPhase]:
+        """Phase index → its floating-origin record, for every declaring phase."""
+        return dict(self._origin)
+
+    def origin_slides(self) -> dict[int, list[tuple[int, int, int]]]:
+        """Phase index → the directions the **free** columns slide it along.
+
+        Asked per stage, of every phase declaring ``"centroid"``, by whoever
+        builds that stage's origin restraint (``model.origin``): a direction
+        is listed only where the columns free now can shift every coordinate
+        of the phase along it and move nothing else, the
+        :meth:`_origin_floats` solve over the free set.  Where they cannot (a
+        stage that frees one atom's DOF, the caller's hold, a mode that
+        force-fixes coordinates) the origin is fixed by what stays still, and
+        a restraint row there would be a *structural* restraint, the hybrid
+        Flack & Schwarzenbach (1988) warn against.  A direction this table
+        holds (one site along it) is never free, so never listed.
+        """
+        rows = None
+        out: dict[int, list[tuple[int, int, int]]] = {}
+        for ip, rec in self._origin.items():
+            if rec.mode != "centroid":
+                continue
+            for f in rec.directions:
+                if rows is None:
+                    rows = self._origin_rows()
+                if self._origin_floats(rec, f, rows, free_only=True):
+                    out.setdefault(ip, []).append(f)
+        return out
 
     def refresh_ties(self) -> None:
         """Recompute every tied entry's value from its sources.
@@ -2797,6 +3331,16 @@ class ParameterTable:
         # loudly instead — at the solve, by
         # :meth:`check_wavelength_against_cell`.
         lam_paths = self._wavelength_paths()
+        if self._origin_held:
+            # a row the origin fix holds is not freed, but what the glob asked
+            # is kept, for the moment the fix moves off it (``_fix_origin``)
+            import fnmatch
+
+            for path in self._origin_held:
+                e = self.entries[self._paths[path]]
+                if (e.tie is None and not e.locked
+                        and any(fnmatch.fnmatchcase(path, g) for g in path_globs)):
+                    self._origin_wanted[path] = vary
         hits = []
         for e in self.entries:
             if self._glob_reaches(e, path_globs, vary):
@@ -3273,6 +3817,17 @@ class ParameterTable:
             self._apply_derived(p)
         return {e.path: float(p[i]) for i, e in enumerate(self.entries)}
 
+    def free_values(self, theta: np.ndarray) -> list[float]:
+        """Physical values of :attr:`free_paths` at ``theta``, in that order.
+
+        The ``values`` of an ``eval`` event.  A longer ``theta`` is sliced, so
+        an appended Pawley intensity block is dropped: it refines outside the
+        table, and its per-hkl values are serialized per history node.
+        """
+        values = self.decode(np.asarray(theta[:len(self.free_paths)],
+                                        dtype=np.float64))
+        return [float(values[p]) for p in self.free_paths]
+
     def commit(self, theta: np.ndarray) -> np.ndarray | None:
         """Write refined values back into the table (used between stages).
 
@@ -3676,6 +4231,11 @@ class ParameterTable:
         def put(p: Parameter, path: str) -> None:
             pending.append((p, path))
 
+        def put_row(p: Parameter, path: str) -> None:
+            # the registration's own exception, asked of the same predicate
+            if not _bank_absent(instrument, path):
+                put(p, path)
+
         def _refuse(path: str, value: float, exc: Exception | None = None):
             # A bound broken *here* is one the solver never saw: the box
             # covers free columns, and this is where a tied value first
@@ -3713,6 +4273,15 @@ class ParameterTable:
             put(phase.extinction, f"{base}.extinction")
             if phase.preferred_orientation is not None:
                 put(phase.preferred_orientation.r, f"{base}.preferred_orientation.r")
+            if phase.texture is not None:
+                # a term the block left out gains its entry here, at the value
+                # the table holds, so a refined term is never dropped
+                prefix = f"{base}.texture."
+                for e in self.entries:
+                    if e.path.startswith(prefix):
+                        name = e.path[len(prefix):]
+                        put(phase.texture.coefficients.setdefault(
+                            name, Parameter(value=0.0)), e.path)
             put(phase.lor_size, f"{base}.lor_size")
             put(phase.lor_strain, f"{base}.lor_strain")
             put(phase.gauss_size, f"{base}.gauss_size")
@@ -3741,24 +4310,33 @@ class ParameterTable:
                     for name in MOMENT_COMPONENTS:
                         put(getattr(atom.moment, name),
                             f"{base}.atoms.{j}.moment.{name}")
-        put(instrument.zero_shift, "instrument.zero_shift")
+        put_row(instrument.zero_shift, "instrument.zero_shift")
         put(instrument.source.polarization, "instrument.polarization")
-        for il, line in enumerate(instrument.source.lines):
-            put(line.weight, f"instrument.source.lines.{il}.weight")
-        # …and the wavelength through ``wavelength_parameters``, never through
-        # ``lines``: a neutron source's ``lines`` is a *property* that builds a
-        # fresh EmissionLine per access, so a write there lands on a throwaway
-        # and the refined λ is silently lost at the next recompile — exactly the
-        # half-wired-parameter failure this file's docstring warns about.
-        for il, wl in enumerate(instrument.source.wavelength_parameters):
-            put(wl, f"instrument.source.lines.{il}.wavelength")
+        # The mirror of ``_collect_instrument``'s source branch: a
+        # ``TOFSource`` has no ``lines`` and no ``wavelength_parameters``, and
+        # ``tof_source_parameters`` is the one list both walk.
+        tof_pairs = tof_source_parameters(instrument.source)
+        for sub, cp in tof_pairs:
+            put(cp, f"instrument.source.{sub}")
+        if not tof_pairs:
+            for il, line in enumerate(instrument.source.lines):
+                put(line.weight, f"instrument.source.lines.{il}.weight")
+            # …and the wavelength through ``wavelength_parameters``, never
+            # through ``lines``: a neutron source's ``lines`` is a *property*
+            # that builds a fresh EmissionLine per access, so a write there
+            # lands on a throwaway and the refined λ is silently lost at the
+            # next recompile — exactly the half-wired-parameter failure this
+            # file's docstring warns about.
+            for il, wl in enumerate(instrument.source.wavelength_parameters):
+                put(wl, f"instrument.source.lines.{il}.wavelength")
         for name in ("sample_displacement", "sample_transparency",
                      "axial_sl", "axial_hl", *CAPILLARY_OFFSETS):
-            put(getattr(instrument.geometry, name), f"instrument.geometry.{name}")
+            put_row(getattr(instrument.geometry, name),
+                    f"instrument.geometry.{name}")
         for sub, cp in roughness_parameters(instrument.geometry.surface_roughness):
             put(cp, f"instrument.geometry.surface_roughness.{sub}")
         for name in ("u", "v", "w", "x", "y"):
-            put(getattr(instrument.profile, name), f"instrument.profile.{name}")
+            put_row(getattr(instrument.profile, name), f"instrument.profile.{name}")
         for sub, cp in background_parameters(instrument.background):
             put(cp, f"instrument.background.{sub}")
         # the other half of the pair the helper exists for (see

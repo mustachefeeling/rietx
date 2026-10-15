@@ -26,18 +26,20 @@ from ..schemas.history import HistoryRecord
 from ..schemas.migrate import migrate_document_text
 
 try:  # pragma: no cover - platform dependent
-    import fcntl
-except ImportError:  # pragma: no cover - Windows
-    fcntl = None  # type: ignore[assignment]
+    # by name: JupyterLite's Pyodide kernel puts an empty `fcntl` module in
+    # sys.modules, which `import fcntl` accepts and `from fcntl import` does not
+    from fcntl import LOCK_EX, LOCK_UN, flock
+except ImportError:  # pragma: no cover - Windows, and that mock (WP-1966)
+    flock = None  # type: ignore[assignment]
 
 
 @contextmanager
 def _locked(handle: IO[str]) -> Iterator[None]:
-    if fcntl is None:  # pragma: no cover - platform dependent
+    if flock is None:  # pragma: no cover - platform dependent
         yield
         return
     try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        flock(handle.fileno(), LOCK_EX)
     except OSError:  # pragma: no cover - e.g. network filesystems
         yield
         return
@@ -45,7 +47,7 @@ def _locked(handle: IO[str]) -> Iterator[None]:
         yield
     finally:
         try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            flock(handle.fileno(), LOCK_UN)
         except OSError:  # pragma: no cover
             pass
 

@@ -49,6 +49,44 @@ chain on the same data is reported as a range, never gated.
 
 ### Inherited
 
+- **2026-10-14 (review), from [1325](1325-parametric-series.md): the
+  critical-exponent law has a WP of its own.** m ∝ (1 − T/T_N)^β was fenced
+  with `Parameter.expr` (WP-1119). [1964](1964-a-nonlinear-law-through-the-derived-block.md)
+  now owns laws nonlinear in their coefficients, built on WP-1804's derived
+  block, and names this moment as a use case. Until it lands, the entry below
+  holds: only forms linear in their coefficients are declarable.
+- **2026-10-14 (later), from [1325](1325-parametric-series.md): a joint fit
+  never holds a per-pattern moment as flat.** Under
+  `SharingMap(per_histogram=["phases.*"])`, the series shape, a moment
+  degree of freedom is per-histogram. `multi._flat_moments_multi` compares
+  the scoped free paths (`hist.{h}.…`) against each table's bare entry
+  names, so none matches and nothing is held. `_turn_flat_axes_multi` then
+  writes one turn into every table, as it would for a shared moment. Found by
+  reading the code, never run. 1325 fixed the same class for a phase's cell
+  (`multi._unseen` judges each entry in its own histogram). A joint fit of a
+  moment down a ramp is where this one would surface.
+- **2026-10-14, from [1325](1325-parametric-series.md): a parameter can now
+  be refined as a declared function of each pattern's coordinates, jointly,
+  and the joint form measured a gain where one pattern cannot see the
+  parameter.**
+  - **The tool.** `rx.refine_multi(..., coordinates=rx.CoordinateTable(...),
+    parametric=[rx.ParametricTie(...)])`, with `RefinementResult.parametric`
+    in user units at the reference.
+  - **Only forms linear in their coefficients.** m ∝ (1 − T/T_N)^β stays
+    fenced (`Parameter.expr`, WP-1119). A polynomial in T over the ordered
+    patterns only, `patterns=[…]`, is declarable. So is one law per side of
+    a transition, on disjoint subsets.
+  - **What it measured.** On a synthetic ramp whose minor phase fell under
+    the WP-1301 hold:
+    - the hard tie cut the slope's scatter to 0.72× the line through the
+      chain's kept points;
+    - under a wrong form (a curve in the gaps) its intervals covered 3 % at
+      2 esd.
+
+    A moment that falls toward T_N is that regime, so the moment trajectory
+    is the series 1325 named as a further measurement. Run it here with a
+    polynomial in (1 − T/T_N) below a declared T_N, and check the form
+    against the chain before quoting it.
 - **2026-10-11, from WP-1938 D13 (fourth session): the fences read a
   powder twin as path dependence.** Reversing every moment gives the same
   powder pattern, and so does a mirror of the lattice that fixes the site. On

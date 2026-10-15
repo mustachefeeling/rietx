@@ -44,7 +44,7 @@ from ..schemas.instrument import (
     BackgroundPSpline,
     Instrument,
 )
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from ..schemas.results import (
     PhaseAgreement,
     QuantitativePhaseAnalysis,
@@ -467,6 +467,14 @@ def _special_details(result: RefinementResult, structure: Structure) -> list[str
             out.append(f"Preferred orientation of {phase.name}: March-Dollase "
                        f"(Dollase 1986), axis the normal to ({hkl}), r="
                        f"{_value(po.r, '_pd_proc_ls_special_details')}.")
+        tex = phase.texture
+        terms = [f"{name}={_value(c, '_pd_proc_ls_special_details')}"
+                 for name, c in (tex.coefficients.items() if tex else ())
+                 if c.vary or c.value != 0.0]
+        if terms:
+            out.append(f"Preferred orientation of {phase.name}: spherical "
+                       f"harmonics (Von Dreele 1997) to order {tex.order}, "
+                       f"cylindrical sample symmetry, {', '.join(terms)}.")
     if st.rwp_background_subtracted is not None:
         out.append("Rwp with the background subtracted: "
                    f"{st.rwp_background_subtracted:.4f}.")
@@ -770,6 +778,7 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
                        reflections: list[ReflectionRow] | None = None
                        ) -> gemmi.cif.Document:
     """Build the refinement CIF as a gemmi document (see :func:`write_refinement_cif`)."""
+    require_two_theta(pattern, "refinement_cif_doc()", instrument=instrument)
     doc = gemmi.cif.Document()
     agreement = {row.name: row for row in result.phase_agreement}
     probe = "neutron" if instrument.source.kind == "neutron_cw" else "xray"
@@ -834,5 +843,6 @@ def write_refinement_cif(result: RefinementResult, structure: Structure,
     the reflection table only a fit's compiled model can build
     (:func:`refinement_cif_doc`'s ``reflections``).
     """
+    require_two_theta(pattern, "write_refinement_cif()", instrument=instrument)
     write_document(refinement_cif_doc(result, structure, instrument,
                                       pattern=pattern), path)

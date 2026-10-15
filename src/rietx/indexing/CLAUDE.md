@@ -222,11 +222,11 @@ roughly the shift (+1400 ppm).
   fired `INDEX_DOMINANT_ZONE` for two years on a fixture the base table could solve
   (WP-1041); the peak list blocked the certified pattern twice the same way (fitted
   satellites, then `_box_key` skipping unrefined leaves).
-- **The dichotomy traversal runs on numpy alone, and that loop is the oracle for any
-  compiled port** (WP-1940). Its numba twin left with numba. The numpy loop costs
-  1.03-1.09× on real patterns, and 10 s → ~200 s only on a synthetic box-bound
-  monoclinic list. A port goes into the `rietx-kernels` crate (`kernels/`), held to
-  the numpy loop on the bit and *leaf by leaf*, since box counts cannot see the order.
+- **The box test runs compiled, held to the numpy loop on the bit and *leaf by
+  leaf*** (WP-1959, `kernels/src/dichotomy.rs`), so a prune added to `_test_box` is
+  transcribed there in the same change. **A box wholly outside the declared domain
+  is refused, and a clip is not a refusal**: clipping ρ to ±cos 30° inverted an
+  out-of-domain interval, and one #780 cell took 5.1 M boxes without a leaf.
 - **An exact restriction keeps a superset of the rows in the set's own order, and
   rounds them as the whole computation did** (WP-1509). Equivalent reflections tie
   in Q and position breaks the tie, so a restriction is a mask, never a sort
@@ -286,6 +286,10 @@ roughly the shift (+1400 ppm).
   `reduce.reduction`'s map. Unmapped, it moved groups in all 99 bethanechol dedups (1518).
   Exact because **a reduced cell is the exact image of its input**: a sign gemmi picks
   inside ε is not a change of basis, so M·G·Mᵀ's replaces it (#797, WP-1923).
+- **Two reduced cells are compared across the reduction's boundaries** (WP-1932): call
+  `equal_reduced`, `equal_reduced_many` or `same_lattice`, never a ΔᵀΣ⁺Δ of your own on
+  two reduced vectors, which split one lattice 4 784 times on bethanechol (#834). The
+  Selling gate selects and the χ² decides; a distance over its esd is not that χ².
 - **A candidate is reported in its conventional setting, at `to_cell_candidate`**
   (WP-1923): `engines.conventional_fit` re-sets af, `cov_af`, cell and esds in one map. A
   new surface showing an engine's cell goes through it too, or one search speaks two.

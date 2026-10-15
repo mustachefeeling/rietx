@@ -1,0 +1,226 @@
+WP-1325, the form test out of sample: cell laws on the ZrP2O7 ramp (Durham TOPAS tutorial 9.5)
+machine   Darwin arm64, 10 CPUs, python 3.12.10, numpy 2.5.4
+rietx     1.10.0.dev0 at 7d7cb7bc, compiled kernels on
+load      5.97 5.97 4.75
+window    37 ranges, TOPAS's 1..871 subset (0-based scans [0, 25, 50]…); heating 19 patterns 303-1173 K, cooling 18 1152-304 K; 2θ (15.0, 90.0)
+model     ZrP2O7 Pa-3, silicon Fd-3m:1, Al2O3 R-3c:H; per pattern: 3 scales, 18-term background, displacement, 4 cell edges, 12 broadening terms, 7 Biso, P x
+
+chain     7.4 s (load 5.6); status ['converged']; Rwp 30.36-33.12 %; Σχ² 197385.5 with 1702 free over 163133 points
+  SEQUENTIAL_DISCONTINUITY: phases.0.cell.a steps by 0.0204 between d8_02999_4 and d8_02999_5 (T (K) 503 → 553), 20× its median step over the series
+  SEQUENTIAL_DISCONTINUITY: phases.0.cell.b steps by 0.0204 between d8_02999_4 and d8_02999_5 (T (K) 503 → 553), 20× its median step over the series
+  SEQUENTIAL_DISCONTINUITY: phases.0.cell.c steps by 0.0204 between d8_02999_4 and d8_02999_5 (T (K) 503 → 553), 20× its median step over the series
+  SEQUENTIAL_DISCONTINUITY: instrument.background.c0 steps by 0.5213 between d8_02999 and d8_02999_1 (T (K) 303 → 353), 5× its median step over the series
+  free per pattern [46]: no phase held in any pattern
+
+degree    sequential F through the chain's points, per leg; declared = the larger
+  zrp_a     heat n 19: chosen 2 | d1 χ²r 1031.32 p+ 4.8e-06 | d2 χ²r  209.94 p+ 3.9e-07 | d3 χ²r  195.58 p+ 0.16 | d4 χ²r  148.79 p+ 0.031 | d5 χ²r   82.07 p+ 0.0038
+  zrp_a     cool n 18: chosen 2 | d1 χ²r  681.46 p+ 6.2e-06 | d2 χ²r  129.41 p+ 5.3e-07 | d3 χ²r  121.40 p+ 0.18 | d4 χ²r   87.74 p+ 0.025 | d5 χ²r   49.06 p+ 0.0057
+  zrp_a     declared degree 2
+  zrp_a_lo  heat n  5: chosen 2 | d1 χ²r   25.51 p+ 0.0013 | d2 χ²r    0.32 p+ 0.0042 | d3 χ²r    0.14 p+ 0.31
+  zrp_a_lo  cool n  5: chosen 2 | d1 χ²r   18.47 p+ 0.0017 | d2 χ²r    1.07 p+ 0.02 | d3 χ²r    0.12 p+ 0.15
+  zrp_a_lo  declared degree 2
+  zrp_a_hi  heat n 14: chosen 3 | d1 χ²r   19.52 p+ 8.7e-06 | d2 χ²r    2.04 p+ 6.1e-07 | d3 χ²r    1.20 p+ 0.015 | d4 χ²r    0.99 p+ 0.11 | d5 χ²r    0.93 p+ 0.25
+  zrp_a_hi  cool n 13: chosen 3 | d1 χ²r   17.27 p+ 1.5e-05 | d2 χ²r    1.46 p+ 6.8e-07 | d3 χ²r    0.11 p+ 1.7e-06 | d4 χ²r    0.12 p+ 0.46 | d5 χ²r    0.13 p+ 0.76
+  zrp_a_hi  declared degree 3
+  si_a      heat n 19: chosen 1 | d1 χ²r    0.80 p+ 4.8e-28 | d2 χ²r    0.85 p+ 0.82 | d3 χ²r    0.81 p+ 0.22 | d4 χ²r    0.87 p+ 0.95 | d5 χ²r    0.71 p+ 0.064
+  si_a      cool n 18: chosen 1 | d1 χ²r    0.50 p+ 6.5e-27 | d2 χ²r    0.54 p+ 0.89 | d3 χ²r    0.42 p+ 0.042 | d4 χ²r    0.34 p+ 0.054 | d5 χ²r    0.29 p+ 0.1
+  si_a      declared degree 1
+  al_a      heat n 19: chosen 2 | d1 χ²r    0.97 p+ 7.3e-27 | d2 χ²r    0.68 p+ 0.011 | d3 χ²r    0.73 p+ 0.85 | d4 χ²r    0.72 p+ 0.31 | d5 χ²r    0.59 p+ 0.061
+  al_a      cool n 18: chosen 1 | d1 χ²r    1.30 p+ 8.4e-24 | d2 χ²r    1.38 p+ 0.93 | d3 χ²r    1.30 p+ 0.18 | d4 χ²r    1.05 p+ 0.058 | d5 χ²r    0.92 p+ 0.12
+  al_a      declared degree 2
+  al_c      heat n 19: chosen 1 | d1 χ²r    0.47 p+ 1.3e-26 | d2 χ²r    0.50 p+ 0.78 | d3 χ²r    0.53 p+ 0.84 | d4 χ²r    0.50 p+ 0.19 | d5 χ²r    0.50 p+ 0.34
+  al_c      cool n 18: chosen 1 | d1 χ²r    0.53 p+ 5.4e-24 | d2 χ²r    0.52 p+ 0.26 | d3 χ²r    0.54 p+ 0.53 | d4 χ²r    0.58 p+ 0.95 | d5 χ²r    0.63 p+ 0.98
+  al_c      declared degree 1
+
+untied    17.4 s (load 5.0); status converged; Rwp 31.466 % (TOPAS 31.56 %); χ² 197384.9 with 1702 free; χ²r 1.2227, f 1.232
+
+====================================================================================================
+VERDICTS (recorded before any comparison)
+====================================================================================================
+arm A: 24.3 s (load 4.4), status converged; χ² 210473.8 with 1564 free, χ²r 1.3027, f 1.316
+  zrp_a            phases.0.cell.a  deg 2 subset all       tested 37/37 verdict REJECT
+                   freed  3122.0/ 34 p      0 REJECT [no f²:  5408.5 p      0]
+                   tied   5279.8/ 34 p      0 REJECT [no f²:  9146.6 p      0]
+  si_a             phases.1.cell.a  deg 1 subset all       tested 37/37 verdict REJECT
+                   freed    51.4/ 35 p 0.0363 REJECT [no f²:    89.1 p 1.33e-06]
+                   tied   1486.0/ 35 p 5.93e-290 REJECT [no f²:  2574.3 p      0]
+  al_a             phases.2.cell.a  deg 2 subset all       tested 37/37 verdict keep
+                   freed    43.7/ 34 p  0.124 keep   [no f²:    75.7 p 5.27e-05]
+                   tied    273.1/ 34 p 3.98e-39 REJECT [no f²:   473.1 p 9.28e-79]
+  al_c             phases.2.cell.c  deg 1 subset all       tested 37/37 verdict keep
+                   freed    17.1/ 35 p  0.995 keep   [no f²:    29.7 p  0.722]
+                   tied    244.7/ 35 p 2.8e-33 REJECT [no f²:   423.8 p 2.82e-68]
+  joint             5380.5/138 p      0 REJECT [no f²:  9321.1 p      0]
+  diagnostics ['BISO_UNUSUALLY_LARGE', 'FLOOR_HIT', 'PARAMETRIC_FORM_REJECTED']
+
+arm A': 45.9 s (load 6.7), status converged; χ² 197615.7 with 1568 free, χ²r 1.2231, f 1.233
+  zrp_a_lo         phases.0.cell.a  deg 2 subset 10 of 37  tested 10/10 verdict keep
+                   freed     9.7/  7 p  0.206 keep   [no f²:    14.7 p 0.0395]
+                   tied     21.5/  7 p 0.00307 REJECT [no f²:    32.7 p 2.99e-05]
+  zrp_a_hi         phases.0.cell.a  deg 3 subset 27 of 37  tested 27/27 verdict keep
+                   freed    21.3/ 23 p  0.565 keep   [no f²:    32.3 p 0.0934]
+                   tied     26.9/ 23 p   0.26 keep   [no f²:    40.9 p 0.0122]
+  si_a             phases.1.cell.a  deg 1 subset all       tested 37/37 verdict keep
+                   freed    24.3/ 35 p  0.912 keep   [no f²:    37.0 p  0.378]
+                   tied     27.8/ 35 p  0.801 keep   [no f²:    42.3 p  0.185]
+  al_a             phases.2.cell.a  deg 2 subset all       tested 37/37 verdict keep
+                   freed    37.6/ 34 p  0.307 keep   [no f²:    57.2 p 0.00768]
+                   tied     40.2/ 34 p  0.215 keep   [no f²:    61.1 p 0.00295]
+  al_c             phases.2.cell.c  deg 1 subset all       tested 37/37 verdict keep
+                   freed    18.7/ 35 p  0.989 keep   [no f²:    28.5 p  0.775]
+                   tied     19.9/ 35 p  0.981 keep   [no f²:    30.3 p  0.694]
+  joint              125.4/134 p  0.689 keep   [no f²:   190.7 p 0.000945]
+  diagnostics ['BISO_UNUSUALLY_LARGE', 'FLOOR_HIT']
+
+arm B: 102.6 s (load 9.5), status converged; χ² 210380.5 with 1574 free, χ²r 1.3022, f 1.316
+  zrp_a_heat       phases.0.cell.a  deg 2 subset 19 of 37  tested 19/19 verdict REJECT
+                   freed  1832.0/ 16 p      0 REJECT [no f²:  3174.5 p      0]
+                   tied   3062.9/ 16 p      0 REJECT [no f²:  5307.2 p      0]
+  zrp_a_cool       phases.0.cell.a  deg 2 subset 18 of 37  tested 18/18 verdict REJECT
+                   freed  1244.3/ 15 p 5.01e-256 REJECT [no f²:  2156.0 p      0]
+                   tied   2148.1/ 15 p      0 REJECT [no f²:  3722.1 p      0]
+  si_a_heat        phases.1.cell.a  deg 1 subset 19 of 37  tested 19/19 verdict REJECT
+                   freed    36.3/ 17 p 0.00422 REJECT [no f²:    62.8 p 3.54e-07]
+                   tied    827.9/ 17 p 5.16e-165 REJECT [no f²:  1434.5 p 5.86e-295]
+  si_a_cool        phases.1.cell.a  deg 1 subset 18 of 37  tested 18/18 verdict keep
+                   freed    13.7/ 16 p  0.619 keep   [no f²:    23.8 p 0.0944]
+                   tied    644.8/ 16 p 7.22e-127 REJECT [no f²:  1117.2 p 8.6e-228]
+  al_a_heat        phases.2.cell.a  deg 2 subset 19 of 37  tested 19/19 verdict keep
+                   freed    14.2/ 16 p  0.583 keep   [no f²:    24.6 p 0.0766]
+                   tied    173.8/ 16 p 1.48e-28 REJECT [no f²:   301.1 p 1.49e-54]
+  al_a_cool        phases.2.cell.a  deg 2 subset 18 of 37  tested 18/18 verdict keep
+                   freed    24.0/ 15 p 0.0643 keep   [no f²:    41.7 p 0.000253]
+                   tied     88.1/ 15 p 2.29e-12 REJECT [no f²:   152.6 p 7.42e-25]
+  al_c_heat        phases.2.cell.c  deg 1 subset 19 of 37  tested 19/19 verdict keep
+                   freed     9.8/ 17 p  0.913 keep   [no f²:    16.9 p   0.46]
+                   tied    136.5/ 17 p 1.02e-20 REJECT [no f²:   236.6 p 1.13e-40]
+  al_c_cool        phases.2.cell.c  deg 1 subset 18 of 37  tested 18/18 verdict keep
+                   freed     7.9/ 16 p  0.952 keep   [no f²:    13.7 p  0.624]
+                   tied    102.9/ 16 p 9.98e-15 REJECT [no f²:   178.3 p 1.88e-29]
+  joint             5305.8/128 p      0 REJECT [no f²:  9193.7 p      0]
+  diagnostics ['BISO_UNUSUALLY_LARGE', 'FLOOR_HIT', 'PARAMETRIC_FORM_REJECTED']
+
+arm B': 92.8 s (load 17.3), status converged; χ² 197550.2 with 1582 free, χ²r 1.2228, f 1.233
+  zrp_a_lo_heat    phases.0.cell.a  deg 2 subset 5 of 37   tested 5/5 verdict keep
+                   freed     0.5/  2 p  0.771 keep   [no f²:     0.8 p  0.674]
+                   tied      4.2/  2 p  0.121 keep   [no f²:     6.4 p 0.0405]
+  zrp_a_lo_cool    phases.0.cell.a  deg 2 subset 5 of 37   tested 5/5 verdict keep
+                   freed     2.3/  2 p  0.318 keep   [no f²:     3.5 p  0.175]
+                   tied      3.2/  2 p  0.205 keep   [no f²:     4.8 p 0.0899]
+  zrp_a_hi_heat    phases.0.cell.a  deg 3 subset 14 of 37  tested 14/14 verdict keep
+                   freed    11.9/ 10 p   0.29 keep   [no f²:    18.1 p 0.0531]
+                   tied     10.9/ 10 p  0.367 keep   [no f²:    16.5 p 0.0856]
+  zrp_a_hi_cool    phases.0.cell.a  deg 3 subset 13 of 37  tested 13/13 verdict keep
+                   freed     1.0/  9 p      1 keep   [no f²:     1.5 p  0.997]
+                   tied      2.7/  9 p  0.973 keep   [no f²:     4.2 p    0.9]
+  si_a_heat        phases.1.cell.a  deg 1 subset 19 of 37  tested 19/19 verdict keep
+                   freed    13.9/ 17 p  0.676 keep   [no f²:    21.1 p  0.223]
+                   tied     12.5/ 17 p  0.767 keep   [no f²:    19.0 p  0.326]
+  si_a_cool        phases.1.cell.a  deg 1 subset 18 of 37  tested 18/18 verdict keep
+                   freed     9.3/ 16 p    0.9 keep   [no f²:    14.1 p  0.588]
+                   tied     13.4/ 16 p  0.645 keep   [no f²:    20.3 p  0.206]
+  al_a_heat        phases.2.cell.a  deg 2 subset 19 of 37  tested 19/19 verdict keep
+                   freed    10.6/ 16 p  0.831 keep   [no f²:    16.2 p  0.441]
+                   tied      7.9/ 16 p  0.951 keep   [no f²:    12.1 p  0.739]
+  al_a_cool        phases.2.cell.a  deg 2 subset 18 of 37  tested 18/18 verdict keep
+                   freed    21.2/ 15 p  0.132 keep   [no f²:    32.2 p 0.00612]
+                   tied     19.3/ 15 p  0.201 keep   [no f²:    29.3 p 0.0146]
+  al_c_heat        phases.2.cell.c  deg 1 subset 19 of 37  tested 19/19 verdict keep
+                   freed     8.7/ 17 p  0.948 keep   [no f²:    13.3 p  0.719]
+                   tied      8.6/ 17 p  0.952 keep   [no f²:    13.0 p  0.733]
+  al_c_cool        phases.2.cell.c  deg 1 subset 18 of 37  tested 18/18 verdict keep
+                   freed     9.8/ 16 p  0.878 keep   [no f²:    14.8 p  0.536]
+                   tied      7.9/ 16 p  0.952 keep   [no f²:    12.0 p  0.744]
+  joint               90.7/120 p  0.979 keep   [no f²:   137.8 p  0.127]
+  diagnostics ['BISO_UNUSUALLY_LARGE', 'FLOOR_HIT']
+
+====================================================================================================
+COMPARISONS
+====================================================================================================
+against the chain's trajectory: the same form through the chain's points of the subset
+ arm A
+  zrp_a            chain points χ²   5310.8/ 34 =  156.20, p      0 | form test REJECT
+  si_a             chain points χ²     22.6/ 35 =    0.65, p  0.947 | form test REJECT
+  al_a             chain points χ²     36.8/ 34 =    1.08, p   0.34 | form test keep
+  al_c             chain points χ²     16.8/ 35 =    0.48, p  0.996 | form test keep
+ arm A'
+  zrp_a_lo         chain points χ²     10.0/  7 =    1.43, p  0.189 | form test keep
+  zrp_a_hi         chain points χ²     21.3/ 23 =    0.93, p  0.564 | form test keep
+  si_a             chain points χ²     22.6/ 35 =    0.65, p  0.947 | form test keep
+  al_a             chain points χ²     36.8/ 34 =    1.08, p   0.34 | form test keep
+  al_c             chain points χ²     16.8/ 35 =    0.48, p  0.996 | form test keep
+ arm B
+  zrp_a_heat       chain points χ²   3359.0/ 16 =  209.94, p      0 | form test REJECT
+  zrp_a_cool       chain points χ²   1941.1/ 15 =  129.41, p      0 | form test REJECT
+  si_a_heat        chain points χ²     13.6/ 17 =    0.80, p  0.698 | form test REJECT
+  si_a_cool        chain points χ²      8.0/ 16 =    0.50, p  0.948 | form test keep
+  al_a_heat        chain points χ²     10.9/ 16 =    0.68, p  0.813 | form test keep
+  al_a_cool        chain points χ²     20.7/ 15 =    1.38, p  0.146 | form test keep
+  al_c_heat        chain points χ²      8.0/ 17 =    0.47, p  0.966 | form test keep
+  al_c_cool        chain points χ²      8.5/ 16 =    0.53, p  0.932 | form test keep
+ arm B'
+  zrp_a_lo_heat    chain points χ²      0.6/  2 =    0.32, p  0.727 | form test keep
+  zrp_a_lo_cool    chain points χ²      2.1/  2 =    1.07, p  0.342 | form test keep
+  zrp_a_hi_heat    chain points χ²     12.0/ 10 =    1.20, p  0.282 | form test keep
+  zrp_a_hi_cool    chain points χ²      1.0/  9 =    0.11, p  0.999 | form test keep
+  si_a_heat        chain points χ²     13.6/ 17 =    0.80, p  0.698 | form test keep
+  si_a_cool        chain points χ²      8.0/ 16 =    0.50, p  0.948 | form test keep
+  al_a_heat        chain points χ²     10.9/ 16 =    0.68, p  0.813 | form test keep
+  al_a_cool        chain points χ²     20.7/ 15 =    1.38, p  0.146 | form test keep
+  al_c_heat        chain points χ²      8.0/ 17 =    0.47, p  0.966 | form test keep
+  al_c_cool        chain points χ²      8.5/ 16 =    0.53, p  0.932 | form test keep
+
+against the refit: the untied joint fit's χ² gain over each arm, over its χ²r·f²
+  arm A            refit Δχ²  13088.9 for 138: F/f² 51.13 p      0 [no f²: F 77.57 p      0]; 24 s converged
+  arm A'           refit Δχ²    230.8 for 134: F/f²  0.93 p  0.712 [no f²: F  1.41 p 0.0013]; 46 s converged
+  arm B            refit Δχ²  12995.6 for 128: F/f² 54.73 p      0 [no f²: F 83.03 p      0]; 103 s converged
+  arm B'           refit Δχ²    165.3 for 120: F/f²  0.74 p  0.984 [no f²: F  1.13 p  0.163]; 93 s converged
+  A' against B' (one law per leg nests one law over both): Δχ² 65.5 for 14, /χ²r·f² 35.3, p 0.00135 [no f²: p 1.53e-06]
+
+each law alone, refitted against the untied fit (one joint fit per distinct law), beside the freed reading's gain
+ arm A
+  zrp_a            refit Δχ²   7958.5 for  34: F/f² 126.19 p      0 [no f²: F 191.44 p      0]; 52 s converged | freed gain   7045.6 ( 0.89 of the refit's)
+  si_a             refit Δχ²     44.7 for  35: F/f²  0.69 p  0.918 [no f²: F  1.04 p  0.397]; 41 s converged | freed gain    116.0 ( 2.60 of the refit's)
+  al_a             refit Δχ²     69.5 for  34: F/f²  1.10 p  0.312 [no f²: F  1.67 p 0.00828]; 43 s converged | freed gain     98.6 ( 1.42 of the refit's)
+  al_c             refit Δχ²     32.8 for  35: F/f²  0.51 p  0.993 [no f²: F  0.77 p  0.838]; 40 s converged | freed gain     38.7 ( 1.18 of the refit's)
+ arm A'
+  zrp_a_lo         refit Δχ²     19.7 for   7: F/f²  1.52 p  0.156 [no f²: F  2.30 p 0.0242]; 41 s converged | freed gain     18.0 ( 0.92 of the refit's)
+  zrp_a_hi         refit Δχ²     38.6 for  23: F/f²  0.90 p  0.593 [no f²: F  1.37 p   0.11]; 36 s converged | freed gain     39.5 ( 1.03 of the refit's)
+  si_a             refit Δχ²     44.7 for  35: F/f²  0.69 p  0.918 [no f²: F  1.04 p  0.397]; 41 s converged | freed gain     45.2 ( 1.01 of the refit's)
+  al_a             refit Δχ²     69.5 for  34: F/f²  1.10 p  0.312 [no f²: F  1.67 p 0.00828]; 43 s converged | freed gain     69.9 ( 1.01 of the refit's)
+  al_c             refit Δχ²     32.8 for  35: F/f²  0.51 p  0.993 [no f²: F  0.77 p  0.838]; 40 s converged | freed gain     34.8 ( 1.06 of the refit's)
+ arm B
+  zrp_a_heat       refit Δχ²   4742.0 for  16: F/f² 159.77 p      0 [no f²: F 242.39 p      0]; 88 s converged | freed gain   4133.8 ( 0.87 of the refit's)
+  zrp_a_cool       refit Δχ²   3179.8 for  15: F/f² 114.28 p      0 [no f²: F 173.38 p      0]; 81 s converged | freed gain   2807.6 ( 0.88 of the refit's)
+  si_a_heat        refit Δχ²     26.1 for  17: F/f²  0.83 p  0.662 [no f²: F  1.26 p  0.211]; 88 s converged | freed gain     81.8 ( 3.13 of the refit's)
+  si_a_cool        refit Δχ²     16.4 for  16: F/f²  0.55 p   0.92 [no f²: F  0.84 p  0.642]; 360 s converged | freed gain     31.0 ( 1.89 of the refit's)
+  al_a_heat        refit Δχ²     20.0 for  16: F/f²  0.67 p  0.823 [no f²: F  1.02 p  0.428]; 324 s converged | freed gain     32.1 ( 1.60 of the refit's)
+  al_a_cool        refit Δχ²     40.0 for  15: F/f²  1.44 p  0.119 [no f²: F  2.18 p 0.00508]; 192 s converged | freed gain     54.3 ( 1.35 of the refit's)
+  al_c_heat        refit Δχ²     15.1 for  17: F/f²  0.48 p  0.963 [no f²: F  0.73 p  0.778]; 245 s converged | freed gain     22.0 ( 1.46 of the refit's)
+  al_c_cool        refit Δχ²     17.1 for  16: F/f²  0.58 p  0.903 [no f²: F  0.88 p  0.598]; 313 s converged | freed gain     17.8 ( 1.04 of the refit's)
+ arm B'
+  zrp_a_lo_heat    refit Δχ²      0.9 for   2: F/f²  0.24 p  0.789 [no f²: F  0.36 p  0.698]; 117 s converged | freed gain      1.0 ( 1.10 of the refit's)
+  zrp_a_lo_cool    refit Δχ²      3.9 for   2: F/f²  1.06 p  0.346 [no f²: F  1.61 p    0.2]; 225 s converged | freed gain      4.3 ( 1.08 of the refit's)
+  zrp_a_hi_heat    refit Δχ²     22.0 for  10: F/f²  1.18 p  0.296 [no f²: F  1.80 p 0.0557]; 215 s converged | freed gain     22.1 ( 1.01 of the refit's)
+  zrp_a_hi_cool    refit Δχ²      1.7 for   9: F/f²  0.10 p      1 [no f²: F  0.16 p  0.998]; 151 s converged | freed gain      1.8 ( 1.04 of the refit's)
+  si_a_heat        refit Δχ²     26.1 for  17: F/f²  0.83 p  0.662 [no f²: F  1.26 p  0.211]; 88 s converged | freed gain     25.8 ( 0.99 of the refit's)
+  si_a_cool        refit Δχ²     16.4 for  16: F/f²  0.55 p   0.92 [no f²: F  0.84 p  0.642]; 360 s converged | freed gain     17.3 ( 1.05 of the refit's)
+  al_a_heat        refit Δχ²     20.0 for  16: F/f²  0.67 p  0.823 [no f²: F  1.02 p  0.428]; 324 s converged | freed gain     19.8 ( 0.99 of the refit's)
+  al_a_cool        refit Δχ²     40.0 for  15: F/f²  1.44 p  0.119 [no f²: F  2.18 p 0.00508]; 192 s converged | freed gain     39.3 ( 0.98 of the refit's)
+  al_c_heat        refit Δχ²     15.1 for  17: F/f²  0.48 p  0.963 [no f²: F  0.73 p  0.778]; 245 s converged | freed gain     16.2 ( 1.07 of the refit's)
+  al_c_cool        refit Δχ²     17.1 for  16: F/f²  0.58 p  0.903 [no f²: F  0.88 p  0.598]; 313 s converged | freed gain     18.2 ( 1.06 of the refit's)
+
+leg offsets from arm B''s laws (cooling minus heating, esds combined as independent; in K through the heating law's slope)
+  zrp_a_lo   cool - heat |   304 K:  +6.17(4.05)e-4 Å =   +9.5(6.2) K |   370 K:  +5.97(2.86)e-4 Å =   +5.9(2.8) K |   436 K:  +5.88(2.75)e-4 Å =   +4.2(2.0) K |   502 K:  +5.88(3.74)e-4 Å =   +3.4(2.1) K
+  zrp_a_hi   cool - heat |   553 K:  -7.54(3.18)e-4 Å =  -13.8(5.8) K |   753 K:  -1.97(1.98)e-4 Å =   -8.8(8.9) K |   952 K:  +0.61(2.15)e-4 Å =  +13.6(48.1) K |  1152 K:  +5.05(3.43)e-4 Å = +394.2(267.9) K
+  si_a       cool - heat |   304 K:  -0.26(1.24)e-4 Å =   -1.2(5.6) K |   587 K:  +0.27(0.74)e-4 Å =   +1.2(3.4) K |   869 K:  +0.80(0.78)e-4 Å =   +3.6(3.5) K |  1152 K:  +1.33(1.31)e-4 Å =   +6.1(6.0) K
+  al_a       cool - heat |   304 K:  -5.88(2.96)e-4 Å =  -16.3(8.2) K |   587 K:  +0.27(1.51)e-4 Å =   +0.7(4.0) K |   869 K:  +2.51(1.55)e-4 Å =   +6.4(3.9) K |  1152 K:  +0.84(2.82)e-4 Å =   +2.0(6.9) K
+  al_c       cool - heat |   304 K:  -0.34(10.16)e-4 Å =   -0.3(8.7) K |   587 K:  +1.27(6.03)e-4 Å =   +1.1(5.2) K |   869 K:  +2.88(6.06)e-4 Å =   +2.5(5.2) K |  1152 K:  +4.49(10.21)e-4 Å =   +3.9(8.8) K
+
+total     2942 s; load at end (54.0029296875, 57.2080078125, 67.4111328125)
+
+chain trajectories (T, value, esd):
+  zrp_a: 303:8.24491(0.00033) 353:8.24880(0.00033) 403:8.25406(0.00033) 453:8.26053(0.00031) 503:8.26906(0.00032) 553:8.28946(0.00029) 603:8.29202(0.00031) 653:8.29465(0.00032) 703:8.29563(0.00033) 753:8.29612(0.00033) 803:8.29732(0.00035) 853:8.29839(0.00034) 903:8.29912(0.00035) 953:8.29894(0.00035) 1003:8.29961(0.00036) 1053:8.29952(0.00037) 1103:8.29982(0.00038) 1153:8.29952(0.00041) 1173:8.29957(0.00042) 1152:8.30009(0.00041) 1102:8.29986(0.00039) 1052:8.29970(0.00039) 1002:8.29937(0.00040) 952:8.29942(0.00037) 902:8.29878(0.00040) 852:8.29838(0.00036) 802:8.29766(0.00038) 752:8.29667(0.00039) 702:8.29521(0.00036) 652:8.29381(0.00037) 602:8.29126(0.00037) 552:8.28859(0.00037) 502:8.26932(0.00038) 452:8.26067(0.00039) 402:8.25428(0.00039) 352:8.24977(0.00042) 304:8.24578(0.00042)
+  si_a: 303:5.43054(0.00017) 353:5.43142(0.00017) 403:5.43250(0.00018) 453:5.43385(0.00017) 503:5.43484(0.00017) 553:5.43625(0.00016) 603:5.43707(0.00018) 653:5.43842(0.00018) 703:5.43935(0.00018) 753:5.43996(0.00019) 803:5.44137(0.00019) 853:5.44248(0.00017) 903:5.44361(0.00019) 953:5.44478(0.00019) 1003:5.44595(0.00020) 1053:5.44699(0.00020) 1103:5.44809(0.00022) 1153:5.44912(0.00024) 1173:5.44979(0.00023) 1152:5.44928(0.00024) 1102:5.44794(0.00023) 1052:5.44714(0.00022) 1002:5.44617(0.00023) 952:5.44484(0.00022) 902:5.44369(0.00023) 852:5.44260(0.00020) 802:5.44158(0.00021) 752:5.44053(0.00023) 702:5.43921(0.00022) 652:5.43837(0.00021) 602:5.43714(0.00022) 552:5.43584(0.00022) 502:5.43473(0.00020) 452:5.43346(0.00021) 402:5.43253(0.00021) 352:5.43152(0.00022) 304:5.43075(0.00021)
+  al_a: 303:4.75892(0.00033) 353:4.76026(0.00033) 403:4.76277(0.00038) 453:4.76451(0.00036) 503:4.76600(0.00035) 553:4.76812(0.00031) 603:4.76988(0.00032) 653:4.77209(0.00032) 703:4.77404(0.00031) 753:4.77533(0.00035) 803:4.77720(0.00034) 853:4.77968(0.00036) 903:4.78132(0.00035) 953:4.78351(0.00036) 1003:4.78567(0.00037) 1053:4.78776(0.00037) 1103:4.79018(0.00038) 1153:4.79128(0.00039) 1173:4.79233(0.00038) 1152:4.79205(0.00037) 1102:4.78965(0.00038) 1052:4.78773(0.00039) 1002:4.78500(0.00040) 952:4.78407(0.00039) 902:4.78096(0.00039) 852:4.77973(0.00033) 802:4.77753(0.00037) 752:4.77629(0.00036) 702:4.77375(0.00034) 652:4.77242(0.00033) 602:4.77028(0.00036) 552:4.76857(0.00034) 502:4.76579(0.00036) 452:4.76366(0.00039) 402:4.76175(0.00037) 352:4.75988(0.00039) 304:4.75847(0.00039)
+  al_c: 303:12.99283(0.00145) 353:12.99644(0.00147) 403:13.00134(0.00168) 453:13.00829(0.00158) 503:13.01582(0.00153) 553:13.02122(0.00142) 603:13.02542(0.00146) 653:13.03312(0.00148) 703:13.03774(0.00143) 753:13.04360(0.00158) 803:13.05018(0.00149) 853:13.05439(0.00160) 903:13.06067(0.00152) 953:13.06724(0.00156) 1003:13.07286(0.00163) 1053:13.07891(0.00165) 1103:13.08203(0.00174) 1153:13.09229(0.00178) 1173:13.09262(0.00179) 1152:13.09095(0.00177) 1102:13.08493(0.00171) 1052:13.07809(0.00170) 1002:13.07575(0.00177) 952:13.06634(0.00170) 902:13.06104(0.00170) 852:13.05495(0.00144) 802:13.05029(0.00168) 752:13.04226(0.00160) 702:13.03970(0.00156) 652:13.03151(0.00154) 602:13.02559(0.00165) 552:13.01880(0.00162) 502:13.01570(0.00156) 452:13.00822(0.00172) 402:13.00261(0.00165) 352:12.99882(0.00175) 304:12.99220(0.00176)

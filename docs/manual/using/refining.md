@@ -458,8 +458,8 @@ way to reduce χ² is to remove the magnetic intensity. Where it lands depends
 on the rest of the model: on the Cr₂WO₆ tutorial pattern at 150 K (GSAS-II
 tutorial *Magnetic-II*, HB-2A) the acceptance protocol this package ships
 (`tests/test_acceptance_magnetic.py`: u, v, w, x free in the width stage, from
-the ideal trirutile positions) leaves it at 0.017 μ_B with an esd of 1.29,
-75 times larger, and the same stages from the tutorial's own starting
+the ideal trirutile positions) leaves it at 0.067 μ_B with an esd of 0.33,
+five times larger, and the same stages from the tutorial's own starting
 structure drive it to the floor with an esd three orders of magnitude above
 it. Neither is a measurement. So
 `MomentEvidence.supported` is false when the modulus is below its floor or
@@ -1179,7 +1179,13 @@ hold exists to remove, and holding it would freeze a cell the data can measure.
 A phase appearing while the stage solves lifts the hold the same way.
 
 A hold is decided per stage, at the values that stage starts from, so a phase
-that appears later refines normally from the stage where it appears. If it
+that appears later refines normally from the stage where it appears. Each stage
+of a plan after the first also reads the previous stage's answer. A phase that
+answer could not see is held again from the start, so its cell does not chase
+the noise once per stage. A stage run on its own has no previous answer to
+read: `Refinement.run_stage`, `Refinement.cherry_pick` and the GUI's
+stage-by-stage path decide from the screen alone, and such a phase still
+costs them a second solve. If it
 appears while a stage solves, that stage lifts the hold and solves a second
 time, once and never a third, and lists those paths in `StageResult.released`
 instead. Both solves are counted in `n_iterations`; `cost_initial` is still the
@@ -1245,6 +1251,7 @@ once:
 | `GuardFinding.roughness_absorption` | the roughness correction could |
 | `GuardFinding.nonpositive_adp` | an anisotropic displacement tensor is not positive definite |
 | `GuardFinding.nonpositive_strain` | a Stephens block gives a negative σ²(M) for some reflection |
+| `GuardFinding.nonpositive_texture` | a spherical-harmonics texture gives a negative P somewhere on the sphere |
 | `GuardFinding.narrow_hump` | a declared hump has narrowed towards the instrumental resolution, where it is a reflection rather than a background feature |
 | `GuardFinding.unsupported_resolution` | the Gaussian resolution terms were refined on a pattern whose peaks are predominantly Lorentzian, where the data does not determine them |
 | `GuardFinding.flat_direction` | a correlated pair reaches \|ρ\| = 1.000 to the precision the message prints, so the data does not separate them at all |

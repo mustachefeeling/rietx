@@ -105,6 +105,34 @@ equal to `equal_reduced_many` on every pair.
   `ambiguity.py` or `priors.py`, so the count stands for this tree. The
   task's box stays open for the session that builds on it.
 
+- **2026-10-12, from WP-1930: `equal_reduced`'s χ² can go negative on a
+  rank-deficient Σ.** It takes `pinv(sigma, hermitian=True)` of the summed
+  covariance (`indexing/reduce.py:578` and `:600`). numpy inverts a kept
+  eigenvalue with its sign, and an exactly flat direction comes back at a
+  rounding-level eigenvalue of either sign. On the refinement side that gave
+  six widths an esd of 0 on LaB₆ + cBN, above a cut of 1e-15
+  (`statistics._psd_pinv` now inverts by magnitude). Here a kept negative
+  eigenvalue would make χ² negative and pass `CELL_EQUALITY_CHI2`, merging
+  two cells. A high-symmetry cell's `cov_af` is rank-deficient, so the case
+  is reachable. **Update 2026-10-13: the sign half is done in WP-1930**
+  (`reduce.CELL_PINV_RCOND`, `statistics._psd_pinv`, bit-identical to
+  `pinv` wherever no kept eigenvalue is negative; 0 of 20 000 witness pairs
+  had a negative χ² under the old call). The NCDIST/S6 redesign stays here,
+  and `python -m tests.unit_replay` was not run on the change. **Update
+  later on 2026-10-13 (WP-1930's second session, `[dev]`, Linux x86-64):** it
+  has run now. Twenty-two units were captured and replayed under the signed
+  `pinv` and under `_psd_pinv`. All 22 digests are identical, and every unit
+  completes. `tests/test_acceptance_indexing.py` gives 44 passed, run alone.
+- **2026-10-13, from WP-1930: hypothesis found a counterexample to
+  `test_the_reduced_cell_is_the_exact_image_of_its_input[F]`.** Centring F,
+  a = 3.2, b = 16.0, c = 23.602486327493914 Å, α = 81°, β = 66°, γ = 65°.
+  The reduced metric's (1, 2) entry is −1.45957512 against −1.45956250 for
+  M·G·Mᵀ, outside the test's 1e-12·max|G| bar. It surfaced in a local full
+  suite (`[dev]`, macOS arm64, at aea419b6) and fails identically on c4607fa0,
+  which lacks WP-1930's change; `reduce.py` calls nothing WP-1930 touched. The
+  example now replays from the local `.hypothesis` database only, so CI will
+  not see it until its own search finds it.
+
 ## Non-goals
 
 - The #797 reduction being an exact change of basis, and the conventional
@@ -158,9 +186,73 @@ moves is listed in the handover with its cause.
 
 ## Handover log
 
+- **2026-10-13** — Dedup and `same_lattice` no longer call one lattice two
+  when its descriptions reduce either side of a Niggli boundary. A pair the χ²
+  calls distinct is now asked again of the second cell's other descriptions in
+  Selling's form, and joined when one passes the same χ². Every split #834
+  counted now joins, the groups match an exhaustive oracle on all 602 logged
+  dedup calls, and a pair the old test joined is answered exactly as before.
+  The price is dedup's wall clock, 1.35× on the acceptance searches and 1.63×
+  on bethanechol. Next: Yue's read of the three questions on the PR.
+
+  *Done.* Tasks 2 to 5. **S6 over NCDIST, from a spike that built both from
+  the papers** (no implementation opened). As exact images decided by rietx's
+  χ², an NCDIST-style set (24 unrollings × one crossing of each of the 15
+  boundaries) joined 595 of 608 recorded splits and missed 13 reduction-step
+  ones in one bethanechol call. Selling's images (24 relabellings × one step on
+  a's side and up to two on b's, 2019a § 4, 2019b § 4.1) joined 608 of 608 and
+  cost 27 % less per pair. **The decision is the χ² on the matched image, not
+  the distance over its esd**: projected on one direction, d/σ_d merged 76 of
+  76 real distinct pairs at z ≤ 2.576 that the oracle refuses. One
+  implementation, `reduce._equal_across_boundaries`, serves `equal_reduced`,
+  `equal_reduced_many` and `same_lattice`. A gate on the sorted Selling
+  scalars, a lattice invariant continuous across every boundary, at
+  `SELLING_GATE_SIGMAS` = 1.25·√χ² of their linear esds
+  (`SELLING_GATE_RELATIVE` without covariances), decides which pairs are
+  searched. The same bound selects images slot by slot. Dedup hands each
+  stacked solve its groups' packed gate inputs. Selling's reduction is written
+  here because `gemmi.GruberVector.selling` keeps neither the four vectors nor
+  a step through a boundary. Tests: `tests/test_indexing_reduce_boundaries.py`
+  (42), on `tests/data/wp1932_boundary_pairs.json`, holding the 8 LaB6
+  splits, 10 bethanechol ones, 6 near-boundary distinct pairs, constructed
+  pairs either side of each boundary kind and moved 50-500 esds, the #797 pair
+  at χ² < 1e-6, and a revert check. The skill: none, since a candidate list's
+  shape does not change.
+
+  *Measured* (Mac, `.venv-test`, other sessions' suites running; pearl
+  offline). On the 2026-10-09 probe (tree 9219e886), all 4 784 bethanechol and
+  8 LaB6 splits join. Of 3 000 random called-distinct pairs none joins, and of
+  3 000 called-equal pairs none changes. Replaying every logged dedup call on
+  this tree, every call's group count equals the oracle's: acceptance 173 of
+  173 (two LaB6 calls regroup, net 0), bethanechol 429 of 429 (150 calls
+  change, 178 875 → 178 301 groups). Groups that move in acceptance: LaB6's
+  tetragonal (4.1568, 4.1568, 4.1517) group absorbs the (4.1559, 4.1559,
+  4.1627) one, ranks 3 and 6 of 12 on 9219e886, both `low` and found by all
+  three engines. `tests/test_acceptance_indexing.py`: 44 passed in 17 min.
+  Bethanechol, shortest form, against a main checkout (1307cb2f3) on the same
+  machine: F/default truth rank 3 twice on this branch, 4 twice on main (score
+  0 both); Db/manual rank 2 on both; Ab/default and Cb/manual no truth on
+  either. No truth `found_by` and no grade moved; every listed cell is `low` on
+  both. F/default took 371 s twice against 328 and 352 s on main.
+
+  *Gotchas.* A replay timing split across two processes measures the load, not
+  the change: the same 51 calls took 8.7 s and 30.3 s on main an hour apart.
+  Time both passes interleaved in one process. A per-vector cache of the
+  two-step Selling tree was measured and not kept: it answered identically on
+  24 784 pairs and ran no faster.
+
 - **2026-10-08** — created, from the 2026-10-08 issue triage (issue #834).
   Checked against the tree at `a3f9140a`: the named functions and constants
   are where the issue says. No open WP owns the equality test: 1923 shares
   the seam and fences dedup's grouping out as a non-goal; 1518 and 1519 are
   closed; 1921 is a consumer. The reporter names this the proposal they
   would take on first.
+- **2026-10-14** — from the PR review (PR #949): the three questions answered
+  by @yue-here. (1) A joined pair reports the χ² of the description that
+  joined it. (2) Dedup's 1.35-1.63× wall clock is accepted, and the boundary
+  search stays on every system. (3) Hand-writing Selling's reduction is within
+  the module's rule, since gemmi's keeps neither the four vectors nor a step
+  through a boundary. Round 1 at `89c5b3e2` asks for a rebase (the 1.9.0
+  notes conflict after #964), `_psd_pinv` in the image path in place of
+  numpy's signed `pinv`, a skip on `stacked_pinv_exact`, and the Part 2 dedup
+  paragraph. *Next:* #949's round 2.

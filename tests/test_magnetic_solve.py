@@ -49,8 +49,16 @@ from rietx.crystallography.symmetry import (
     resolve_group,
     unnamed_label,
 )
+from rietx.report.schemas import MOMENT_SUPPORT_SIGMA
 from rietx.schemas.common import Parameter
-from rietx.schemas.structure import Atom, Cell, MagneticSymmetry, Moment, Phase
+from rietx.schemas.structure import (
+    MOMENT_FLOOR_MU_B,
+    Atom,
+    Cell,
+    MagneticSymmetry,
+    Moment,
+    Phase,
+)
 from rietx.strategy.magnetic import (
     SOLVE_TIE_DELTA_BIC,
     MagneticSolution,
@@ -1545,6 +1553,49 @@ def test_a_pair_whose_quadrature_sum_is_inside_its_esd_stays_unsupported():
     _o, tied, verdict, reason = _rank([null], SOLVE_TIE_DELTA_BIC, 0.02)
     assert verdict == "nothing to solve" and tied == ()
     assert "quadrature sum" in reason
+
+
+@pytest.mark.parametrize(
+    ("ratio", "fires"),
+    [pytest.param(2.0, True, id="2x-the-gate-fires"),
+     pytest.param(0.5, False, id="half-the-gate-is-silent")])
+def test_the_pair_gate_on_pairs_well_clear_of_it_either_side(ratio, fires):
+    """The gate's own logic, on constructed pairs (#820, WP-1418 option (a)).
+
+    Cr₂WO₆ at 150 K put a real pair within 0.3 % of ``MOMENT_SUPPORT_SIGMA``
+    before WP-1938 (2.9994σ on Linux, 2.9917σ on macOS), and its pair has
+    moved with the solver since (2.07σ after #918 and #923), so the acceptance
+    test no longer asserts which side it lands; this test owns the rule
+    instead.  Each arm carries a quadrature sum of 0.6 μ_B, the size of that
+    pair before WP-1938, with its esd
+    set to put the sum at twice or half the gate.  Each row alone is 0.21× its
+    esd in both arms, so only the pair can make the class supported, and the
+    ranking follows the gate both ways.
+    """
+    pair_m = 0.6
+    pair_esd = pair_m / (ratio * MOMENT_SUPPORT_SIGMA)
+    trial = _paired_trial(0, delta_bic=500.0, m=0.42, esd=2.0,
+                          pair_m=pair_m, pair_esd=pair_esd)
+    assert not any(r.supported for r in trial.moments)
+    assert all(r.pair_supported is fires for r in trial.moments)
+    assert trial.supported is fires
+    _o, tied, verdict, reason = _rank([trial], SOLVE_TIE_DELTA_BIC, 0.02)
+    if fires:
+        assert verdict == "solved" and tied == (0,), reason
+    else:
+        assert verdict == "nothing to solve" and tied == (), reason
+        assert "quadrature sum" in reason
+
+
+def test_a_pair_at_the_moment_floor_is_silent_however_small_its_esd():
+    """The gate's other condition: a quadrature sum at ``MOMENT_FLOOR_MU_B``
+    fails even at many times ``MOMENT_SUPPORT_SIGMA`` of its esd, the shape of a
+    class whose moduli all refined to zero."""
+    pair_m = MOMENT_FLOOR_MU_B
+    trial = _paired_trial(0, delta_bic=500.0, m=pair_m / 2, esd=1.0,
+                          pair_m=pair_m, pair_esd=pair_m / 100.0)
+    assert not any(r.pair_supported for r in trial.moments)
+    assert not trial.supported
 
 
 def test_nothing_to_solve_counts_the_supported_classes_not_the_refined_ones():

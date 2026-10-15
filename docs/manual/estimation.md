@@ -438,7 +438,7 @@ the solve reports:
 :label: est-discarded-touch
 
 \frac{1}{\mathrm{rcond}\,\lambda_{\max}}\sum_{k \in G} v_{ik}^2
-\;\ge\; \sum_{k \notin G} \frac{v_{ik}^2}{\lambda_k}.
+\;\ge\; \sum_{k \notin G} \frac{v_{ik}^2}{|\lambda_k|}.
 ```
 
 {source}`rietx.optimize.statistics.discarded_directions`
@@ -448,6 +448,16 @@ the variance the solve left out. Where it reaches the right side, the esd is at
 least $\sqrt{2}$ short. The sums run over the subspace, never one eigenvector,
 because two discarded directions are defined only up to a rotation inside it.
 Jacobi scaling makes the test independent of a column's units.
+
+The magnitude on the right is the one the solve itself inverts. A normal matrix
+has no negative eigenvalue, but `eigh` returns an exactly flat direction at a
+rounding-level eigenvalue of either sign. Inverted with its sign, a negative one
+gives every column on that direction a negative variance, and the esd floors to
+0. So the pseudo-inverse inverts each kept eigenvalue by its magnitude. On the
+LaB₆ + cBN fit with six Lorentzian widths free, the two flat directions came
+back between 1e-16 and 4e-15 of the largest. Before the change Linux raised no
+`HIGH_CORRELATION` there. On macOS a 1e-14 change to one start value left six
+widths at ± 0.
 
 `COVARIANCE_DIRECTION_DISCARDED` names the touched parameters and leaves their
 esds as they are. A touched set that is exactly a pair `FLAT_DIRECTION` already
@@ -466,8 +476,10 @@ frozen within them. A series of related patterns (an in-situ ramp, a parametric
 sweep) is chained by warm starts, and the result is a parameter trajectory,
 path-dependent by construction. The chain can be run in both directions, and
 parameters the two runs disagree on are flagged. That is the one check
-separating a measured trajectory from an ordering artefact. True parametric
-refinement across patterns {cite}`stinton2007` is out of scope.
+separating a measured trajectory from an ordering artefact. Parametric
+refinement {cite}`stinton2007` is the other route: every pattern in one joint
+residual, with a parameter held to a declared function of each pattern's
+coordinates ({ref}`par-parametric-section`).
 
 ## Solvers
 

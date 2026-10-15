@@ -193,6 +193,31 @@ def test_a_parent_biso_bound_reaches_the_child():
     assert hot and all((b.value, b.max) == (26.8, 26.8) for b in hot)
 
 
+def test_a_polar_parents_floating_origin_reaches_the_child():
+    """``Phase.floating_origin`` is copied, and the child's own table holds
+    one DOF along the child group's polar axis (WP-1912, review of #929 item 5)."""
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.instrument import Instrument
+    from rietx.schemas.structure import Structure
+
+    parent = Phase(
+        name="synthetic P4mm", space_group="P 4 m m", cell=_cell(*P4MMM_CELL),
+        floating_origin="hold",
+        atoms=[
+            Atom(label="Mn", species="Mn", x=P(value=0.0), y=P(value=0.0),
+                 z=P(value=0.0), biso=P(value=0.3)),
+            Atom(label="O", species="O", x=P(value=0.5), y=P(value=0.5),
+                 z=P(value=0.375), biso=P(value=0.5)),
+        ])
+    statement, _cand = _statement(parent, (0, 0, 0), HALF_C, species="Mn",
+                                  ion="Mn3+")
+    child = statement.phase
+    assert child.floating_origin == "hold"
+    table = ParameterTable(Structure(phases=[child]),
+                           Instrument.bragg_brentano(radiation="CuKa"))
+    assert table.origin_holds == {"phases.0.atoms.0.dof.0": (0, (0, 0, 1))}
+
+
 def test_the_group_in_the_child_cell_identifies_to_the_candidates_bns():
     """The transform is a change of setting, not a change of group.
 

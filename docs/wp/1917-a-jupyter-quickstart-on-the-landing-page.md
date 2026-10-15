@@ -1,9 +1,8 @@
 # WP-1917 — a Jupyter quickstart on the landing page, opened in Colab at the release
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — live; the Colab restart is fixed on main and reaches Colab with the next release
+Milestone: unscheduled · Status: ✅ 2026-10-14 — the v1.8.0 install asks for no restart in Colab; notebook 06's row arrives with the v1.9.0 tag (WP-1961)
 Track: Render what the fit already knows
 Depends on: 1916 (the manual pages it links; ✅ 2026-10-08, PR #826)
-Priority: P3 2026-10-09 — what remains waits on the next release
 
 ## Goal
 
@@ -86,19 +85,11 @@ reads that page's article body, and needs widening if the column becomes
 required. The manual copies notebooks from `examples/tutorials/` on every build,
 so dropping the "until 1.7" lines needs no manual edit.
 
-### Inherited
-
-- **2026-10-10, from WP-1940 (4th session, PR #864).** rietx no longer depends on
-  numba. It depends on `rietx-kernels`, one abi3 wheel per platform with no
-  sdist. So the next release's `%pip install rietx` on Colab touches numba
-  not at all, and adds a ~200 KB manylinux wheel. JupyterLite stays out of
-  reach for a new reason: Pyodide has no `rietx-kernels` wheel, so pip refuses
-  rietx there.
-
 ## Non-goals
 
 - The manual's tutorial chapter and the quickstart rename (WP-1916).
-- Binder (minutes to start) and JupyterLite (no numba in Pyodide).
+- Binder (minutes to start) and JupyterLite (Pyodide has no `rietx-kernels`
+  wheel, so pip refuses rietx there; WP-1940).
 - A Colab badge inside the notebooks themselves.
 
 ## Tasks
@@ -117,8 +108,9 @@ so dropping the "until 1.7" lines needs no manual edit.
 - [x] The matplotlib floor at Colab's preinstalled 3.10.0 below Python 3.14,
   so the install needs no restart.
 - [x] The two quickstarts as a row of toggle buttons over one panel.
-- [ ] After the next release: one notebook re-run in Colab with no restart
-  prompt and no "until 1.7" line.
+- [x] After the next release: one notebook re-run in Colab with no restart
+  prompt and no "until 1.7" line. Run by the maintainer at v1.8.0, 2026-10-14:
+  no restart prompt.
 - [x] Skill: none. The page is for people, and the agent quickstart is unchanged.
 
 ## Acceptance
@@ -139,6 +131,24 @@ that runs top to bottom on a fresh Colab runtime.
 
 ## Handover log
 
+- **2026-10-14** — closed, from WP-1957's session. A notebook opened from the
+  landing page now installs rietx in Colab with no runtime restart. The
+  maintainer ran the install cell of a v1.8.0 notebook and Colab asked for
+  nothing, so lowering the matplotlib floor worked. The v1.8.0 notebooks also
+  carry no "until 1.7" line. Every task is done.
+
+  *Done.* The last task is ticked. The Inherited section was consumed and
+  removed. Its WP-1940 note moved into Non-goals as the reason JupyterLite
+  stays out of reach: Pyodide has no `rietx-kernels` wheel. Its two WP-1957
+  notes are answered by this close and by WP-1961. The narrative is in
+  `docs/milestones/v1.9.md`.
+
+  *Measured.* This matches a prediction made before the run. In a Python 3.13
+  venv holding Colab's matplotlib 3.10.0 and numpy 2.1.3, a dry run of
+  `rietx==1.8.0` installed only `rietx` and `rietx-kernels` 1.2.0.
+
+  Next: none here. Notebook 06 gets its row from the glob at the v1.9.0 tag,
+  which WP-1961 cuts. No edit is needed.
 - **2026-10-09** — (second session) the maintainer's Colab run answered the
   open question. `%pip install rietx` does ask for a runtime restart, naming
   `matplotlib` and `mpl_toolkits`. Colab preinstalls matplotlib 3.10.0 and

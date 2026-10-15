@@ -121,7 +121,7 @@ from ..schemas.indexing import (
     PeakList,
 )
 from ..schemas.instrument import Instrument
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from .fom import LINE_COINCIDENCE_RTOL, lattice_group
 from .workflow import (
     ABSENT_SIGMA,
@@ -622,7 +622,7 @@ def _model_is_quiet(two_theta: np.ndarray, y_calc: np.ndarray,
 # ----------------------------------------------------------------------
 # the screen
 # ----------------------------------------------------------------------
-def _screen_plan():
+def _screen_plan(instrument: Instrument | None = None):
     """The one stage every class is fitted with: the background, and nothing else.
 
     The profile is **frozen** at the shared pre-fit's values, and that is what
@@ -631,22 +631,73 @@ def _screen_plan():
     back a missing reflection by broadening its neighbour.  The background stays
     free because removing reflections genuinely changes what the background must
     carry, and holding it would charge that difference to the class.
+
+    **"The background" includes every declared hump** (#931).  A
+    :class:`~rietx.schemas.instrument.HumpComponent` joins the reported
+    background, but ``instrument.background.*`` does not reach it, so it used to
+    be held at whatever the caller's pre-fit left it at.  That pre-fit runs in
+    the absence-free lattice group, where every forbidden position *is* a
+    reflection, and a Le Bail reflection at a forbidden position under a
+    container halo takes the halo's centre: the hump comes back too low and too
+    wide, and the class that forbids the line is then refuted by the halo it
+    was handed.  Measured on a synthetic pyrochlore with a 1°-wide halo on (200)
+    at 0.1 % of the strongest line: the declared hump refined to 52 counts and
+    1.32° against a true 90 and 1.0°, and ``F d - -`` was refuted on 3 of 3
+    noise seeds; freed here, it is returned on 3 of 3, while an
+    instrument-width line at the same position still refutes it.  A declared
+    *peak* (``"ticks"``) is not background and stays held.
     """
+    from ..model.components import COMPONENT_AGGREGATE
     from ..strategy.staged import RefinementPlan, Stage
 
-    return RefinementPlan(stages=[Stage("bkg", ["instrument.background.*"])])
+    paths = ["instrument.background.*"]
+    if instrument is not None:
+        paths += [f"instrument.extra_components.{i}.*"
+                  for i, c in enumerate(instrument.extra_components or ())
+                  if COMPONENT_AGGREGATE.get(c.kind) == "background"]
+    return RefinementPlan(stages=[Stage("bkg", paths)])
+
+
+def _with_background_width_humps(instrument: Instrument) -> Instrument:
+    """The instrument with every declared hump held to a *background* width.
+
+    Freeing a hump per class (:func:`_screen_plan`) must not let it narrow onto
+    a forbidden line and explain a real violation away.  So each hump's width is
+    floored, for the screen only, at the width
+    :func:`~rietx.strategy.staged.check_hump_width` already calls a background
+    width: ``HUMP_MIN_WIDTH_MULT`` times the instrument FWHM at its position.
+    """
+    from ..model.components import COMPONENT_AGGREGATE
+    from ..strategy.staged import HUMP_MIN_WIDTH_MULT
+    from .peaks import predicted_fwhm
+
+    humps = [i for i, c in enumerate(instrument.extra_components or ())
+             if COMPONENT_AGGREGATE.get(c.kind) == "background"]
+    if not humps:
+        return instrument
+    out = instrument.model_copy(deep=True)
+    for i in humps:
+        hump = out.extra_components[i]
+        floor = HUMP_MIN_WIDTH_MULT * float(predicted_fwhm(
+            np.array([float(hump.position.value)]), out)[0])
+        if hump.fwhm.value < floor:             # the value first: assignment
+            hump.fwhm.value = floor             # is validated against the bound
+        if hump.fwhm.min is None or hump.fwhm.min < floor:
+            hump.fwhm.min = floor
+    return out
 
 
 def _fit_class(candidate: CellCandidate, data: PatternData, instrument: Instrument,
                symbol: str, two_theta_limits):
     from ..refine import Refinement
 
+    instrument = _with_background_width_humps(instrument)
     ref = Refinement(structure_from_candidate(candidate, space_group=symbol),
                      instrument, history=False)
     # ``telemetry=False``: the screen fits one Le Bail per candidate class, and
     # a recorder on each would write a dozen run directories for one screen
     # (WP-1403).  The job a reader wants listed is the indexing run.
-    result = ref.fit(data, mode="lebail", plan=_screen_plan(),
+    result = ref.fit(data, mode="lebail", plan=_screen_plan(instrument),
                      two_theta_limits=two_theta_limits, telemetry=False)
     return ref, result
 
@@ -660,6 +711,8 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
                                 refine_cell: bool = False,
                                 cancel=None) -> ExtinctionScreen:
     """Rank the extinction classes of a lattice.
+
+    2θ only: every step below is a Le Bail fit, which is the forward model.
 
     The pipeline, and the reason for each step:
 
@@ -704,6 +757,12 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     from .peaks import predicted_fwhm
     from .workflow import seed_widths, validation_plan
 
+    # Before the try below, deliberately: that block turns a raise into an
+    # EXTINCTION_SCREEN_FAILED diagnostic, which is right for a fit that would
+    # not converge and wrong for a pattern this whole function cannot read.
+    require_two_theta(data, "determine_extinction_symbol()",
+                      instrument=instrument)
+
     symbol = candidate.lattice_group or lattice_group(candidate.system,
                                                       candidate.centring)
     wavelength = float(instrument.source.lines[0].wavelength.value)
@@ -723,7 +782,7 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     try:
         pre = Refinement(structure_from_candidate(candidate, space_group=symbol),
                          ins, history=False)
-        tt_max = float(np.max(np.asarray(data.two_theta)))
+        tt_max = float(np.max(data.tt()))
         if two_theta_limits is not None:
             tt_max = min(tt_max, float(two_theta_limits[1]))
         plan = validation_plan(candidate, ins, two_theta_max=tt_max)

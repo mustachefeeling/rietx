@@ -1274,7 +1274,7 @@ def test_the_editor_marks_only_what_it_just_refitted():
 def test_no_two_usable_lines_share_a_position_on_a_crowded_lab_pattern():
     """``cpd-4`` offered 113 usable lines, 26 of them within 0.02° of another
     (a re-seed pass in one group's window had refitted its neighbour's line);
-    34 components now carry ``duplicate_line`` and none of the 76 left does (78 before the
+    32 components now carry ``duplicate_line`` and none of the 75 left does (78 before the
     intensity floor of ``PEAK_NO_INTENSITY_SIGMA``, 77 before the alias screen allowed
     for the sampling step: the line it removed, 146.13°, is the Kα2 of corundum's
     145.21° line at 0.47 of its intensity, and no phase has a Kα1 line within
@@ -1289,10 +1289,14 @@ def test_no_two_usable_lines_share_a_position_on_a_crowded_lab_pattern():
     peaks = pick_peaks(rx.read_pattern(path), qarr_instrument())
     usable = np.sort([p.two_theta for p in peaks.usable()])
     assert not np.any(np.diff(usable) < 0.02)
-    assert sum("duplicate_line" in p.flags for p in peaks.peaks) == 34
+    # 32 since the resolvability rule (#934): two components that were copies
+    # are now unresolved_split, merged into their own group's line
+    assert sum("duplicate_line" in p.flags for p in peaks.peaks) == 32
     # 77 once the 1-sigma intensity floor (PEAK_NO_INTENSITY_SIGMA) flagged one
     # more component here, a line of intensity 0.42 of its own esd; 76 since the
     # alias screen allowed for the step, which removes the 146.13° alias and
     # also the group that 0.42-sigma component lived in (it sat at 136.76°, a
-    # Kα2 residual beside the newly recognised 136.86° alias)
-    assert len(usable) == 76
+    # Kα2 residual beside the newly recognised 136.86° alias); 75 since the
+    # resolvability rule (#934): a hump at 94.44° (I/σ_I 1.5) is width_capped
+    # and two unresolved splits are reported once
+    assert len(usable) == 75

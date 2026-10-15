@@ -59,6 +59,7 @@ from rietx.indexing.workflow import (
 from rietx.schemas.indexing import (
     INDEX_REFUTING_CAVEATS,
     PEAK_MIN_USABLE_LINES,
+    AmbiguityPartner,
     BravaisOpinion,
     CellCandidate,
     FigureOfMerit,
@@ -435,6 +436,121 @@ def test_the_expensive_checks_cover_every_promotable_candidate():
     assert idx[:CONSENSUS_CHECK_TOP] == list(range(CONSENSUS_CHECK_TOP))
     assert 6 in idx, "a candidate both engines found must always be checked"
     assert 7 not in idx
+
+
+# ----------------------------------------------------------------------
+# a stop inside one candidate's ambiguity sweep (#895, WP-1924)
+# ----------------------------------------------------------------------
+class _StopsAfter:
+    """A cancel token that reads unset ``n`` times and set from then on."""
+
+    def __init__(self, n: int):
+        self.n, self.reads = n, 0
+
+    def __bool__(self) -> bool:
+        self.reads += 1
+        return self.reads > self.n
+
+
+def _sweep_args(peaks, a=TRUE_A):
+    return ((a,) * 3 + (90.0,) * 3, "cubic", "P", peaks.q(), peaks.q_esd(),
+            LAM, float(peaks.two_theta_max))
+
+
+def test_a_stop_inside_an_ambiguity_sweep_waits_one_child_and_answers_nothing(
+        cubic_peaks, monkeypatch):
+    """The token is read before each derivative cell, so a stop waits one
+    child's work, and a stopped sweep returns ``None`` rather than the
+    partners found so far, which would read as a complete answer.  One
+    monoclinic sweep takes 0.9 s of CPU on #780's cell, its slowest child 47 ms.
+    """
+    from rietx.indexing import ambiguity
+
+    calls: list[int] = []
+    real = ambiguity.predicted_lines
+
+    def counted(*args, **kwargs):
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ambiguity, "predicted_lines", counted)
+    whole = ambiguity.ambiguity_partners(*_sweep_args(cubic_peaks))
+    n_children = len(calls) - 1
+    assert n_children > 3
+    calls.clear()
+    never = _StopsAfter(10 ** 9)
+    assert ambiguity.ambiguity_partners(*_sweep_args(cubic_peaks),
+                                        cancel=never) == whole
+    assert never.reads == n_children
+    calls.clear()
+    assert ambiguity.ambiguity_partners(*_sweep_args(cubic_peaks),
+                                        cancel=_StopsAfter(2)) is None
+    assert len(calls) == 1 + 2, "the parent's lines and the two children begun"
+
+
+def test_a_candidate_whose_sweep_is_stopped_stays_unasked(cubic_peaks):
+    """``enumerate_ambiguity`` leaves a stopped candidate out of
+    ``ambiguity_checked`` with its ``ambiguity`` untouched, and a candidate
+    finished before the stop keeps its whole answer."""
+    from rietx.indexing.ambiguity import derivative_cells
+    from rietx.indexing.consensus import ConsensusOutcome, enumerate_ambiguity
+
+    n_children = len(derivative_cells(_sweep_args(cubic_peaks)[0]))
+
+    def outcome():
+        cands = [_candidate(TRUE_A), _candidate(TRUE_A * 1.5)]
+        return ConsensusOutcome(candidates=cands,
+                                engines_run=sorted(engine_names()))
+
+    full = outcome()
+    enumerate_ambiguity(full, cubic_peaks)
+    assert full.ambiguity_checked == [0, 1]
+
+    # stopped inside the first candidate's sweep: its loop read, two children
+    first = outcome()
+    sentinel = [AmbiguityPartner(cell=(1.0,) * 3 + (90.0,) * 3,
+                                 transformation=[[1, 0, 0], [0, 1, 0], [0, 0, 2]],
+                                 index=2, system="triclinic", volume=1.0)]
+    first.candidates[0].ambiguity = sentinel
+    enumerate_ambiguity(first, cubic_peaks, cancel=_StopsAfter(1 + 2))
+    assert first.ambiguity_checked == []
+    assert first.candidates[0].ambiguity == sentinel
+
+    # stopped inside the second: the first is answered whole
+    second = outcome()
+    second.candidates[1].ambiguity = sentinel
+    enumerate_ambiguity(second, cubic_peaks,
+                        cancel=_StopsAfter(1 + n_children + 1 + 2))
+    assert second.ambiguity_checked == [0]
+    assert second.candidates[0].ambiguity == full.candidates[0].ambiguity
+    assert second.candidates[1].ambiguity == sentinel
+
+
+def test_a_candidate_whose_sweep_refuses_stays_unasked(cubic_peaks,
+                                                       monkeypatch):
+    """A sweep that raises has not asked the question, so its candidate stays
+    out of ``ambiguity_checked`` and the gate caps it.  Before WP-1924 the
+    refusal came back as ``[]``, which reads as "asked, no partners", and the
+    next candidate is still asked."""
+    from rietx.indexing import ambiguity
+    from rietx.indexing.consensus import ConsensusOutcome, enumerate_ambiguity
+
+    real = ambiguity.predicted_lines
+
+    def refusing(cell, system, *args, **kwargs):
+        if system == "cubic" and cell[0] == TRUE_A:
+            raise ValueError("the parent's lines cannot be predicted")
+        return real(cell, system, *args, **kwargs)
+
+    monkeypatch.setattr(ambiguity, "predicted_lines", refusing)
+    outcome = ConsensusOutcome(
+        candidates=[_candidate(TRUE_A), _candidate(TRUE_A * 1.5)],
+        engines_run=sorted(engine_names()))
+    enumerate_ambiguity(outcome, cubic_peaks)
+    assert outcome.ambiguity_checked == [1]
+    caveats, grade_ = _gate(outcome.candidates[0],
+                            checked=0 in outcome.ambiguity_checked)
+    assert "geometric_ambiguity" in caveats and grade_ != "high"
 
 
 # ----------------------------------------------------------------------

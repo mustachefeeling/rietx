@@ -79,6 +79,12 @@ from ..crystallography.neutron import (
 )
 from ..crystallography.satellites import merge_satellites, satellite_reflections
 from ..crystallography.scattering import normalize_species
+from ..crystallography.spherical_harmonics import (
+    TextureBasis,
+    reflection_directions,
+    sphere_points,
+    texture_basis,
+)
 from ..crystallography.stephens import S_NAMES, monomial_matrix, strain_width_deg
 from ..crystallography.structure_factor import (
     PhaseSites,
@@ -103,7 +109,7 @@ from ..schemas.instrument import (
     BackgroundPSpline,
     Instrument,
 )
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from ..schemas.structure import Structure
 from . import compiled
 from .absorption import (
@@ -121,10 +127,16 @@ from .corrections import (
     transparency_shift_deg,
 )
 from .extinction import sabine_extinction, sabine_extinction_and_dx
+from .origin import CompiledOrigin, origin_residual
 from .preferred_orientation import (
+    TEXTURE_SAMPLE_PSI_DEG,
+    TEXTURE_SPHERE_SAMPLES,
     march_dollase_and_dr,
     march_dollase_factors,
     orbit_layout,
+    texture_factors,
+    texture_index,
+    texture_term_weights,
 )
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from .profiles.fcj import (
@@ -564,6 +576,15 @@ class CompiledPhase:
     po_members: np.ndarray | None = None    # (M_total, 3) int
     po_seg: np.ndarray | None = None        # (M_total,) int → reflection index
     po_counts: np.ndarray | None = None     # (N,) int orbit sizes
+    # Spherical-harmonics texture (WP-1960): the basis to the declared order,
+    # the coefficients' paths in its order, and each term's weight
+    # (4π/(2l+1))·k_l(ψ) at this geometry's ψ.  None unless the phase carries
+    # a texture block in Rietveld mode.  The harmonics are Laue-invariant, so
+    # they are evaluated at each representative hkl with no orbit average; K
+    # follows the cell at evaluation, and the rest is frozen for the stage.
+    tex_basis: TextureBasis | None = None
+    tex_paths: tuple[str, ...] = ()
+    tex_weights: np.ndarray | None = None
     # Stephens anisotropic strain: the frozen (N, 15) matrix of quartic
     # monomials h^H k^K l^L.  None unless the phase carries a microstrain
     # block.  σ²(M) = monomials @ S is the only hkl-dependent piece; the
@@ -818,6 +839,16 @@ class CompiledModel:
     # esd is built from them.  Scaled there, all of them would come back ×√c_w
     # with no test failing that a reader would connect to the change.
     restraint_weight_scale: float = 1.0
+    # The origin restraint of a ``Phase.floating_origin = "centroid"`` phase
+    # (WP-1912, Flack & Schwarzenbach 1988; ``model.origin``): one row per
+    # direction this solve's free set can slide the phase along.  ``None``
+    # everywhere else, and then no row exists.  Written by the stage runner
+    # (``refine._attach_origin``) once the stage's free set is final, since
+    # the rows depend on it and ``compile_model`` sees only what may move; so
+    # frozen per solve, never per evaluation.  Its own block below the soft
+    # restraints, and deliberately NOT scaled by ``restraint_weight_scale``:
+    # c_w = 0 silences the restraints the caller declared, never the origin.
+    origin: "CompiledOrigin | None" = None
     meta: dict = field(default_factory=dict)
 
     # ------------------------------------------------------------------
@@ -1450,6 +1481,52 @@ class CompiledModel:
         return march_dollase_factors(cp.po_members, cp.po_seg, cp.po_counts,
                                      cp.po_axis, gstar, r)
 
+    def _texture_harmonics(self, ip: int, cell: tuple):
+        """K (N, n_terms) for phase ip's texture terms at ``cell``.
+
+        The frame and the reciprocal vectors follow the cell, so K does too;
+        the basis is frozen for the stage.
+        """
+        cp = self.phases[ip]
+        directions = reflection_directions(cp.reflections.hkl, cp.tex_basis.rule, cell)
+        return cp.tex_basis.evaluate(directions)
+
+    def _texture_factors(self, ip: int, values: dict[str, float], cell: tuple):
+        """Spherical-harmonics P_h (N,) for phase ip, or None when off.
+
+        Affine in the coefficients, so every C = 0 gives exactly 1.
+        """
+        cp = self.phases[ip]
+        if cp.tex_basis is None:
+            return None
+        xp = get_backend()
+        coefficients = xp.stack([values[p] for p in cp.tex_paths])
+        return texture_factors(self._texture_harmonics(ip, cell), cp.tex_weights,
+                               coefficients)
+
+    def texture_summary(self, ip: int, values: dict[str, float]
+                        ) -> tuple[float, float, float] | None:
+        """(J, min P over the reflections, min P over the sphere) for phase ip.
+
+        Numpy only, at ``values``: a record and a guard read it, never the
+        residual.  The sphere's minimum samples
+        :data:`~rietx.model.preferred_orientation.TEXTURE_SPHERE_SAMPLES`
+        directions, because the driver holds P ≥ 0 only at the reflections and
+        the series can dip between them.  None when the phase has no texture.
+        """
+        cp = self.phases[ip]
+        if cp.tex_basis is None:
+            return None
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        c = np.array([values[p] for p in cp.tex_paths], dtype=np.float64)
+        on_reflections = np.asarray(self._texture_factors(ip, values, cell))
+        sphere = 1.0 + np.asarray(cp.tex_basis.evaluate(
+            sphere_points(TEXTURE_SPHERE_SAMPLES))) @ (cp.tex_weights * c)
+        j = texture_index([t.degree for t in cp.tex_basis.terms], c)
+        return j, float(on_reflections.min()), float(min(sphere.min(),
+                                                         on_reflections.min()))
+
     def strain_width(self, ip: int, values: dict[str, float], d: np.ndarray):
         """Λ(hkl) (N,) — the Stephens tanθ coefficient — or 0.0 when off.
 
@@ -1722,6 +1799,16 @@ class CompiledModel:
                     lambda: (cell_key(),
                              float(values[f"phases.{ip}.preferred_orientation.r"])),
                     lambda: self._po_factors(ip, values, cell))
+                base = base * P
+            # spherical-harmonics texture (WP-1960): the same kind of
+            # line-independent multiplier, folded in the same place; a phase
+            # carries this or March-Dollase, never both
+            if cp.tex_basis is not None:
+                P = self._memo(
+                    cp, "tex",
+                    lambda: (cell_key(),
+                             *(float(values[p]) for p in cp.tex_paths)),
+                    lambda: self._texture_factors(ip, values, cell))
                 base = base * P
             # primary extinction (model/extinction.py): a per-(line,
             # reflection) intensity multiplier folded in below.  ext=0 makes E
@@ -2048,7 +2135,8 @@ class CompiledModel:
         inherits the choice.  Measured on issue #481's frame redrawn over 20
         blank fits, this norm reached 3.1 to 4.4 once a released cell had
         chased the noise.  The full test is marginal over every column but
-        those that only rescale intensities, which counts that freedom to
+        those that only rescale intensities (another phase's scale among
+        them), which counts that freedom to
         first order, and called 1 of the 20 seen.
 
         Measured on the **modelled contribution** rather than on ``scale``,
@@ -2299,6 +2387,10 @@ class CompiledModel:
         P = self._po_factors(ip, values, cell)
         if P is not None:
             d_base = d_base * P
+        # the texture multiplier chains through unchanged for the same reason
+        P = self._texture_factors(ip, values, cell)
+        if P is not None:
+            d_base = d_base * P
         # extinction couples |F|² into the intensity twice (as the prefactor
         # and through x ∝ |F|²), so a coordinate/ADP move chains through the
         # factor G = E + x·dE/dx (see model/extinction.py) — at ext=0, x=0
@@ -2362,6 +2454,43 @@ class CompiledModel:
         _P, dP = march_dollase_and_dr(cp.po_members, cp.po_seg, cp.po_counts,
                                       cp.po_axis, gstar, r)
         d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * f2 * dP
+        return self._multiplier_columns(ip, values, cell, d, f2, d_base)
+
+    def texture_intensity_grad(self, ip: int, path: str, values: dict[str, float]
+                               ) -> list[np.ndarray] | None:
+        """Per-line ∂intensity/∂C for one texture coefficient of phase ip (WP-1960).
+
+        P is affine in C, so ∂P/∂C_t = w_t·K_t(h): the intensity with P divided
+        out times that, built directly rather than as I/P so that a reflection
+        where P = 0 is no division by zero.  Exact at any step, because the
+        intensity is linear in C (root CLAUDE.md, the branch oracle).  Returns
+        ``None`` when the phase has no texture block or outside Rietveld mode.
+        """
+        if self.mode != "rietveld":
+            return None
+        cp = self.phases[ip]
+        if cp.tex_basis is None or path not in cp.tex_paths:
+            return None
+        t = cp.tex_paths.index(path)
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        d = d_spacings(cp.reflections.index, *cell)
+        # texture multiplies the whole reflection's intensity, magnetic term too
+        f2 = self._total_f2(ip, d, values, cell)
+        dP = self._texture_harmonics(ip, cell)[:, t] * float(cp.tex_weights[t])
+        d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * f2 * dP
+        return self._multiplier_columns(ip, values, cell, d, f2, d_base)
+
+    def _multiplier_columns(self, ip: int, values: dict[str, float], cell: tuple,
+                            d: np.ndarray, f2: np.ndarray, d_base: np.ndarray
+                            ) -> list[np.ndarray]:
+        """The per-line chain :meth:`phase_peaks` puts after a multiplier P.
+
+        ``d_base`` is scale·multiplicity·|F|²·∂P, line-independent; this carries
+        it through each line's weight, Lp, extinction, absorption and roughness,
+        so the March-Dollase and texture columns share one copy of the chain.
+        """
+        cp = self.phases[ip]
         # gated exactly like phase_peaks, and unconditional otherwise: E ≡ 1
         # exactly at ext=0 either way (purity (b))
         ext = values[f"phases.{ip}.extinction"]
@@ -2984,6 +3113,17 @@ class CompiledModel:
         # scalar on the right: a python float, so no backend routing question
         return rows * math.sqrt(self.restraint_weight_scale)
 
+    def origin_residual(self, values: dict) -> np.ndarray | None:
+        """Σₙ aₙ·Δ_pᵀ(xₙ − xₙ⁰) origin rows (WP-1912), or None when there are none.
+
+        Flack & Schwarzenbach (1988), Acta Cryst. A44, 499-506, eq 9.  Never
+        ×√c_w (the field comment says why); traceable, so the autodiff
+        backends differentiate it through ``rows.assemble`` with the rest.
+        """
+        if self.origin is None:
+            return None
+        return origin_residual(self.origin, values)
+
     def build_pawley_restraint(self, lam: float = PAWLEY_OVERLAP_LAMBDA) -> None:
         """Build the equal-split restraint rows for the current intensities.
 
@@ -3480,7 +3620,14 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     ``window_slack_deg`` overrides ``WINDOW_MIN_DEG`` as the absolute capture
     slack added to every window half-width (``Stage.window_slack_deg`` has
     the two-jobs story); ``None`` — every ordinary caller — is the default.
+
+    The pattern must be in 2θ and the instrument a constant-wavelength one:
+    this is the backstop for :func:`rietx.schemas.pattern.require_two_theta`,
+    below every public entry that calls it, so a caller who assembled a compile
+    by hand gets the same authored refusal rather than an ``arcsin`` of a
+    microsecond.
     """
+    require_two_theta(pattern, "compile_model()", instrument=instrument)
     if restraint_weight_scale < 0.0:
         raise ValueError(
             f"restraint_weight_scale must be >= 0 (got {restraint_weight_scale})")
@@ -3803,6 +3950,16 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             orbits = reflection_orbits(group, refl.hkl)
             cp.po_axis = np.array(phase.preferred_orientation.axis, dtype=np.int64)
             cp.po_members, cp.po_seg, cp.po_counts = orbit_layout(orbits)
+        # Spherical-harmonics texture (WP-1960), Rietveld-only for the same
+        # reason.  The basis and each term's weight at this geometry's ψ are
+        # frozen here; K follows the cell at evaluation.
+        if mode == "rietveld" and phase.texture is not None and n:
+            basis = texture_basis(group, phase.texture.order, cell)
+            cp.tex_basis = basis
+            cp.tex_paths = tuple(f"phases.{ip}.texture.{name}" for name in basis.names)
+            cp.tex_weights = texture_term_weights(
+                [t.degree for t in basis.terms],
+                TEXTURE_SAMPLE_PSI_DEG[instrument.geometry.kind])
         # Soft restraints are a structural correction (bond/angle geometry, or a
         # value target), so they are Rietveld-only — Le Bail/Pawley extract
         # intensities and never compute the coordinates a bond would need.  The

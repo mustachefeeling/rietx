@@ -1,6 +1,6 @@
 # WP-1927 — TOF T-1: the time-of-flight axis and its readers
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-13 — T-1 landed from outside (PR #911, through #961); every task is met and the close is the maintainer's
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: —
 Priority: P2 2026-10-11 — a fence decision with a named user and a branch ready to rebase, no longer held by the index cap (WP-1920); the forward-model cuts wait on it
@@ -107,12 +107,12 @@ the files) sits beside the fence and is not part of T-1.
 
 ## Tasks
 
-- [ ] The TOF axis and the readers, from the branch rebased on `main`
-- [ ] A bank refused by name at every compute entry point, each refusal tested
-- [ ] #442: a bank carries no CW rows, with the joint-fit case it names tested
-- [ ] `help.py` rows for any new reader option; `io.readers.PATTERN_FORMATS` and `capabilities()` arms
-- [ ] Tests (synthetic banks only; no real-calibration fixture)
-- [ ] Skill: a reference row for reading a TOF bank and what it cannot yet do
+- [x] The TOF axis and the readers, from the branch rebased on `main`
+- [x] A bank refused by name at every compute entry point, each refusal tested
+- [x] #442: a bank carries no CW rows, with the joint-fit case it names tested
+- [x] `help.py` rows for any new reader option; `io.readers.PATTERN_FORMATS` and `capabilities()` arms
+- [x] Tests (synthetic banks only; no real-calibration fixture)
+- [x] Skill: a reference row for reading a TOF bank and what it cannot yet do
 
 ## Acceptance
 
@@ -130,6 +130,55 @@ by name, and the joint case of #442 is silent because no CW row exists.
 - WP-1414 ("matched, not freed"), WP-1134 (CW neutron).
 
 ## Handover log
+
+### 2026-10-13 — T-1 landed from outside: PR #911
+
+rietx can now read a neutron time-of-flight bank and say what it holds, and it
+refuses that bank by name everywhere a pattern would be computed. A GSAS bank
+with a flight-time axis and a two-column `.xy` file that states a flight time
+both load onto `PatternData.tof`. A GSAS-I `.iparm`, a `Type: PNT` `.instprm`
+and the legacy LANSCE layout load as an `Instrument` whose source is the new
+`TOFSource`. Nothing refines a bank yet. That is T-2/T-3, which wait on the
+magnetic milestone.
+
+*Done.* PR #911 (@mustachefeeling, head `3abb4b6c`) landed through #961 as
+`6e2f9a81`, after four review rounds. #961 is one merge commit of that head,
+unchanged, with `main` `f5ffc23b`, so GitHub marked #911 merged. The fork
+branch could not take the sync from a cloud session. Each of the six Tasks is
+met, as the PR's acceptance table maps them, and all six are ticked. #442 is
+decided as "a bank carries no CW rows": `zero_shift` and the two 2θ
+aberrations are absent from a bank's table, not force-fixed. `SCHEMA_VERSION`
+is **0.53**: #929 took 0.52 for WP-1912 first, and #961 renumbered the ladder
+note, the `test_magnetic` pin and the release note's two mentions. The 1.9.0
+staging file carries the readers under `## New` and `PatternData.two_theta`
+being `None` on a bank under `### Code to check`.
+
+*Gate,* on #961's tree `9bcce437` (Linux x86_64, Python 3.12, `[dev,jax]`
+venv, 4 cores, nothing else running):
+- **GUI and docs.** The GUI ladder reproduces the committed dist, and ruff and
+  the `-W` Sphinx build are clean.
+- **Every test outside the acceptance files, slow included.** 9556 passed, 68
+  skipped, 1 xfailed, 0 failed.
+- **The acceptance files, `test_sequential` and `test_cross_backend`, slow
+  included.** 380 passed, 64 skipped, 0 failed, at `-n 2`. At `-n auto` the
+  container's memory cgroup OOM-killed two workers mid-test (5.7 GB and
+  4.3 GB RSS), during the fluorite and short-wavelength indexing rows. No
+  assertion had failed.
+
+`main` after the merge equals that tree.
+
+*Not done, from the reviews* (round 1 and round 2 follow-ups, none blocking):
+`TOFSource` could expose `lines`, `primary_wavelength` and
+`wavelength_parameters` as properties that refuse by name, closing that class
+of miss at once. A `TIME_MAP` record placed after a bank's data is read as
+that bank's rows. `TOFSource.l1_m` has no reader writing it, though `.iparm`
+states `FPATH1`. `SPECTRUM_TYPES` in `model/tof_spectrum.py` is read by
+nothing. The `capabilities()` note for `neutron_tof` is hand-written prose.
+`Project.open` could write the bank it chose back into the `DataRef`.
+`load_instrument_profile`'s refusal does not name the file.
+
+*Next:* the maintainer closes this WP (✅, its narrative to the v1.9 record, the
+`Priority:` line deleted). T-2 picks up the follow-ups above.
 
 - **2026-10-08** — created, from the 2026-10-08 issue triage (issue #193).
   Checked against the tree at `5d1f5f67`: the `.prm` reader's TOF refusal is

@@ -84,10 +84,90 @@ factor,
 
 ({cite}`itc-a` Part 15): the polar axis of a polar group, nothing for a
 non-polar one. A fit freeing a coordinate of every atom along it has a flat
-direction; fixing it by holding one atom's coordinate, as
-`Refinement.hold_floating_origin` does, leaves the others' esds measured
-relative to that atom, where a restraint on the mean coordinate would spread
-them {cite}`flack1988`. The $U^{ij}$ tensor transforms as $U \to R\,U
+direction.
+
+With `Phase.floating_origin = "hold"` the parameter table fixes that
+direction. For each basis row $\mathbf{f}$ of {eq}`par-origin`, it first asks
+whether the columns a stage could free can shift the phase along
+$\mathbf{f}$ and move nothing else:
+
+```{math}
+:label: par-origin-floats
+
+\exists\,\Delta p_{\mathrm{free}}:\quad C\,\Delta p_{\mathrm{free}} = \mathbf{v}_{\mathbf{f}}
+```
+
+{source}`rietx.params.vector.ParameterTable._origin_floats`
+
+Here $C$ is the block of {eq}`par-affine` over every column that is not held,
+locked or tied. The vector $\mathbf{v}_{\mathbf{f}}$ moves each coordinate row
+of the phase by its component of $\mathbf{f}$ and every other row the forward
+model reads by zero. Where {eq}`par-origin-floats` has a solution, the table
+holds the first displacement DOF that the shift moves. Atom $j$ states the
+shift in its own basis as $B_j^\top \mathbf{a}_j = \mathbf{f}$, and the held
+DOF is the first one, in atom order, with a nonzero coefficient:
+
+```{math}
+:label: par-origin-hold
+
+\Delta\theta_{j^\ast k^\ast} = 0,
+\qquad (j^\ast, k^\ast) = \min\{\, (j, k) : a_{jk} \neq 0 \,\}
+```
+
+{source}`rietx.params.vector.ParameterTable._fix_origin`
+
+The other atoms' coordinates along $\mathbf{f}$ are then measured relative to
+atom $j^\ast$. Their esds are the esds of those differences, and atom $j^\ast$
+has none. Where a caller's tie or hold already leaves
+{eq}`par-origin-floats` without a solution, the table holds nothing more,
+because a second hold would remove a real degree of freedom.
+
+With `Phase.floating_origin = "centroid"` nothing is held. Each stage whose
+*free* columns solve {eq}`par-origin-floats` instead gains one
+pseudo-observation per floating direction, restraining a weighted centroid
+of the phase's sites to where the stage found it {cite}`flack1988` (eq 9):
+
+```{math}
+:label: par-origin-centroid
+
+Z_p = \sum_n a_n\,\boldsymbol{\Delta}_p^\top(\mathbf{x}_n - \mathbf{x}_n^0) = 0
+```
+
+{source}`rietx.model.origin.origin_residual`
+
+The $\boldsymbol{\Delta}_p$ are the rows of {eq}`par-origin`, orthonormal in
+fractional components, and $\mathbf{x}_n^0$ the coordinates at the start of
+the solve. The data are flat along the shift, so the solve satisfies
+{eq}`par-origin-centroid` exactly whatever the $a_n$. The weights change only
+the covariance. They solve the paper's eq 21,
+
+```{math}
+:label: par-origin-weights
+
+a_m \sum_{n \neq m} a_n = b_m,
+\qquad b_m = \frac{1}{P}\sum_p \bigl\lVert \sqrt{w} \odot
+\partial \mathbf{y} / \partial(\text{site } m \text{ moved by } \boldsymbol{\Delta}_p) \bigr\rVert^2
+```
+
+{source}`rietx.model.origin.centroid_coefficients`
+
+with $b_m$ the curvature of the data rows when site $m$ moves alone along the
+floating directions, measured once per stage by central difference
+(`rietx.model.origin.site_curvatures`), and the system solved by the
+paper's (A6) iteration. These weights make the restrained normal matrix as
+nearly diagonal as it can be along the floating directions (the paper's
+eq 20). Each coordinate then keeps an esd that can be quoted without its
+covariances, and on average the weights are proportional to $Z_n^2$. Two sites give
+$b_1 = b_2$ identically, so the equation fixes only the product and
+$a_1 = a_2 = \sqrt{b}$. The restrained matrix is then diagonal, and each
+site's esd is that of their difference over $\sqrt{2}$. A direction only one
+site can move along is held as `"hold"` holds it. Where (A5) has no solution,
+because one site's curvature exceeds the others' combined, that curvature is
+clipped just below the bound, close to a hold on that site, and the
+diagnostic says so. The rows form a block of their own, so a stage's
+restraint weight $c_w$ never scales them.
+
+The $U^{ij}$ tensor transforms as $U \to R\,U
 R^\top$ under a rotation acting on fractional coordinates, so the allowed
 ADP pattern spans the invariant subspace of that action on symmetric 3×3
 matrices {cite}`peterse1966` (cross-checked against the cctbx tables
@@ -328,6 +408,13 @@ esd of $\varphi$.
 
 A body's *shape* is a hypothesis the data can reject. `Refinement.check_rigid_bodies` releases each body's atoms as free coordinates held near the template by soft restraints and compares the two fits on the data χ² alone, by Hamilton's R-factor ratio test {cite}`hamilton1965` and by ΔBIC {cite}`schwarz1978`, both at the effective sample size of the serially correlated residual. It warns (`RIGID_BODY_MISFIT`) only when both reject the body, and names the template bonds the released fit moved.
 
+A hydrogen in a body rides with it, at a tabulated length from its parent atom
+that depends on what the data measure: the SHELXL riding defaults for X-ray
+data (C–H 0.93–0.98 Å, O–H 0.82 Å, the electron-density centroid) and the
+neutron means of the *International Tables* Vol. C § 9.5 for neutron data
+(C–H 1.06–1.10 Å, N–H 1.009 Å, O–H 0.967 Å). A joint X-ray and neutron fit takes the
+neutron lengths, because the hydrogen signal is in the neutron histogram.
+
 ## Soft restraints
 
 A bond-length, angle or value restraint contributes one row to the residual
@@ -389,3 +476,145 @@ derived-quantity esds of {eq}`est-derived` at $\sigma = w = 1$; a scale leaking
 that far would multiply every reported bond esd by $\sqrt{c_w}$. And $c_w = 0$
 silences the rows without deleting them, so the row count the agreement
 statistics exclude cannot move part-way through a plan.
+
+(par-parametric-section)=
+## A parameter as a function of each pattern's coordinates
+
+A joint fit stacks $N$ patterns into one residual {cite}`vondreele1997`, each
+pattern with its own parameter table and the shared parameters folded onto one
+column each. Parametric refinement {cite}`stinton2007` holds one parameter to a
+declared function of where each pattern sits. Pattern $k$ carries coordinates
+$z_k$, a temperature down a ramp or a composition across a library, and its
+value of the target is
+
+```{math}
+:label: par-parametric
+
+p_k \;=\; \sum_{j=1}^{m} \Phi_{kj}\, c_j,
+\qquad
+\Phi_{kj} \;=\; \prod_{i \in t_j} u_i(z_k),
+\qquad
+u_i(z) \;=\; \frac{z_i - z_i^{\mathrm{ref}}}{s_i},
+```
+
+{source}`rietx.params.parametric.resolve_parametric`
+
+where the term $t_j$ is a list of coordinate names, a repeated name being a
+power and the empty term the intercept ($\Phi_{kj} = 1$), and the coefficients
+$c_j$ are the refined parameters, shared by every pattern of the declared
+subset. That is the polynomial basis. A design basis supplies $\Phi$ as the
+caller's own matrix, and a constant basis is the single column of ones.
+
+The function is linear in its coefficients, so it is exactly one affine tie of
+{eq}`par-affine` per pattern, with $C_k = \Phi_k$ and $d = 0$. The tie needs no
+derivative of its own: what each coefficient's column moves is read off $C$, as
+for any tie. A function with a coefficient inside a power or an exponential (an
+Arrhenius rate, an order-parameter exponent) is not of this form and cannot be
+declared. A basis whose columns are collinear over the subset is refused before
+any solve: pivoted QR on the column-normalised $\Phi$ names the dependent terms,
+with its cut at $\sqrt{\mathrm{rcond}}$ of the leading diagonal, since an
+eigenvalue of $\Phi^\top\Phi$ below the covariance's own cut would leave a
+declared coefficient with no esd. Mixture fractions summing to one make the
+intercept their sum, so the Scheffé form drops it.
+
+The reference $z^{\mathrm{ref}}$ and scale $s$ are part of the declaration.
+Left out, they are the mid-range and half-range of the subset's coordinates,
+computed once when the declaration is resolved and stored with it, so a pattern
+that joins later rebuilds $\Phi$ from the same numbers and never redefines a
+coefficient. Centring makes the intercept's coefficient the target at
+$z^{\mathrm{ref}}$ rather than an extrapolation to $z = 0$, and removes the intercept-slope correlation an
+off-centre coordinate creates. The equilibration of the normal matrix before
+{eq}`est-cov` fixes a column's scale and not that correlation, which is why the
+declaration centres.
+
+The coefficients are reported per unit of the coordinates themselves, at the
+reference:
+
+```{math}
+:label: par-parametric-units
+
+\tilde c_j \;=\; \frac{c_j}{\prod_{i \in t_j} s_i},
+\qquad
+\sigma(\tilde c_j) \;=\; \frac{\sigma(c_j)}{\prod_{i \in t_j} s_i},
+```
+
+{source}`rietx.params.parametric.coefficient_rows`
+
+with $\sigma(c_j)$ from the joint covariance {eq}`est-cov`. So the intercept is
+the target at the reference and the coefficient of a temperature its slope
+there, in the target's unit per kelvin. A design coefficient is reported as
+$\Phi$ defines it. A constant basis's one coefficient carries the target's own
+bounds, intersected over the subset; a sum of terms has no box that holds every
+pattern's target, so the coefficients are unbounded and a target that leaves
+its range is reported after the fit.
+
+When the coefficients are the only shared parameters and each pattern's own fit
+is linear, profiling out each pattern's private parameters leaves a quadratic in
+$p_k$ whose curvature is that pattern's own information. The joint $c$ is then
+the generalised least-squares fit of {eq}`par-parametric` to the per-pattern
+values, weighted by that information, and the declaration changes no number
+that line through the separate fits' values would give. On a synthetic
+ten-pattern ramp the joint slope sat a mean 0.0012 esd from that line. The joint form changes the
+answer where a pattern's own likelihood is not Gaussian in $p_k$, such as a
+minor phase near its detection limit, or where other parameters are shared as
+well.
+
+The coefficients' esds assume the declared form is right, so the fit tests
+each declaration against the alternative that frees its target in every
+pattern of the subset. In pattern $k$ a coefficient's column is
+$\Phi_{kj}\,\partial r/\partial p_k$, so each pattern's own column for the
+target is read off the coefficients' columns with no further evaluation. The
+declaration is rejected when
+
+```{math}
+:label: par-parametric-form
+
+\frac{\min_\beta \lVert r - J\beta \rVert^2
+      - \min_\beta \lVert r - J_{\mathrm{u}}\beta \rVert^2}
+     {\chi^2_{\mathrm{red}}} \;>\; c_k,
+\qquad F_k(c_k) = \gamma,
+```
+
+{source}`rietx.params.parametric.form_tests`
+
+with $r$ the weighted residual at the answer and $J$ its free columns, less any
+the fit left on a bound. $J_{\mathrm{u}}$ is $J$ with the declaration's
+coefficient columns replaced by each subset pattern's own target column. A
+pattern that cannot see the target is left out of $J_{\mathrm{u}}$, as an
+untied fit would hold the target there. $k$ is the number of directions
+$J_{\mathrm{u}}$ adds past the covariance's cut, the subset's size less $m$
+when nothing is degenerate. $F_k$ is the $\chi^2_k$ distribution function,
+and $\gamma$ = {{ PARAMETRIC_FORM_LEVEL }}. Each minimisation is one linear
+step, so the numerator is the score statistic of {eq}`est-suggest` for $k$
+columns at once {cite}`rao1948`, and the test needs no refit. The denominator
+is the answer's own $\chi^2_{\mathrm{red}}$, the restricted estimate the score
+test takes. Dividing by the squared Bérar-Lelann factor of
+{eq}`est-berar-lelann` as well, as an esd is inflated, made the test far
+stricter than $\gamma$. On equations that must hold any smooth truth, over three
+real ramps, none of 261 readings rejected with that factor and 12 of 242
+(5.0 %) without it.
+
+A fit with several declarations reads each one a second time, with the other
+declarations' targets freed too. Let $J_{\mathrm{a}}$ swap every tested
+declaration's coefficient columns and $J_{\mathrm{o}}$ every one but this. The
+numerator is then the difference
+$\min_\beta \lVert r - J_{\mathrm{o}}\beta \rVert^2 - \min_\beta \lVert r - J_{\mathrm{a}}\beta \rVert^2$,
+and $k$ is the difference of their directions. That reading does not assume the other
+declarations' forms, and the declaration is rejected when it passes its cut.
+Two declarations whose target columns are nearly collinear can each pass this
+way while both are wrong, because each one's columns absorb the other's
+misfit. So the fit is also read once with $J_{\mathrm{a}}$ in place of
+$J_{\mathrm{u}}$, every tested declaration swapped at once and $k$ their
+directions together. That joint reading rejects the set and names no
+declaration in it.
+
+On the 33-pattern ZrMo₂O₈ ramp the numerator was 0.98-1.04 of the $\chi^2$ a
+full untied refit removed, for the strong phase's equations and for three equations
+together, and the verdict matched the refit's on all five equations tested. At the
+three-equation answer, the second reading of the cubic equation's numerator was 575.3,
+against the 576.1 a refit of that equation alone removed. A pattern that cannot see
+the target adds nothing to the numerator, so the test
+cannot check how a form carries through the patterns where the target is
+invisible. On synthetic ramps whose minor phase faded out, or was broad and
+overlapped, a bent truth went unrejected in 20 seeds of 20, as it did under a
+full untied refit, and no straight truth was rejected in 40.

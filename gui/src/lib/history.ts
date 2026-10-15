@@ -400,8 +400,28 @@ export const PLACES: Readonly<Record<string, Format>> = {
   "instrument.profile.w": 6,
   "instrument.profile.x": 6,
   "instrument.profile.y": 6,
+  // A time-of-flight bank's calibration (µs/Å, µs/Å², µs, µs·Å): DIFC runs to
+  // tens of thousands, so three places show a ppm move in it; DIFA is of order
+  // one.  The profile rates and the incident-spectrum coefficients span orders
+  // of magnitude between banks and have no natural place count, like a phase
+  // scale.  The σ² and γ terms are µs² and µs, of order 1-1000.
+  "instrument.source.difa": 4,
+  "instrument.source.difb": 3,
+  "instrument.source.difc": 3,
+  "instrument.source.incident_spectrum.p*": "exp",
   "instrument.source.lines.*.wavelength": 6,
   "instrument.source.lines.*.weight": 4,
+  "instrument.source.profile_tof.alpha0": "exp",
+  "instrument.source.profile_tof.alpha1": "exp",
+  "instrument.source.profile_tof.beta0": "exp",
+  "instrument.source.profile_tof.beta1": "exp",
+  "instrument.source.profile_tof.gam0": 3,
+  "instrument.source.profile_tof.gam1": 3,
+  "instrument.source.profile_tof.gam2": 3,
+  "instrument.source.profile_tof.sig0": 3,
+  "instrument.source.profile_tof.sig1": 3,
+  "instrument.source.profile_tof.sig2": 3,
+  "instrument.source.tzero": 3,
   "instrument.zero_shift": 5,
   "phases.*.atoms.*.adp.*": 5,
   "phases.*.atoms.*.biso": 3,
@@ -440,6 +460,7 @@ export const PLACES: Readonly<Record<string, Format>> = {
   "phases.*.microstrain.dof.*": 3,
   "phases.*.microstrain.s*": 3,
   "phases.*.preferred_orientation.r": 4,
+  "phases.*.texture.*": 4,
   // WP-1805: a rigid body's origin is fractional like an atom's x, y, z, and
   // its rotation increment is radians, which four places write to 0.006°
   "phases.*.rigid_bodies.*.origin.dof.*": 5,

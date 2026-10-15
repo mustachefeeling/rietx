@@ -31,8 +31,10 @@ from .results import (
     PhaseAgreement,
     QuantitativePhaseAnalysis,
     RefinedParameter,
+    RefinementResult,
     Statistics,
     _diagnostic_lines,
+    _parametric_lines,
 )
 
 
@@ -1175,7 +1177,8 @@ class SeriesResult(Base):
         return self.summary()
 
     def summary(self, *, max_entries: int = 5,
-                deliverable: str | None = None) -> str:
+                deliverable: str | None = None,
+                parametric: RefinementResult | None = None) -> str:
         """The series termination view (WP-1302): the trajectory table, the
         ``SEQUENTIAL_*`` rows, first and last ``max_entries`` with the count.
 
@@ -1192,6 +1195,13 @@ class SeriesResult(Base):
         would have to be wrong for it to be wrong (WP-1305).  The other three
         purposes are decided on one pattern's own fit and are refused here by
         name.
+
+        ``parametric`` is a joint fit of the same patterns with parametric
+        declarations (``refine_multi(..., coordinates=, parametric=)``,
+        WP-1325): its coefficients print after the trajectory, beside the
+        curve they describe, and the deliverable's functional-form row reads
+        them.  A chain has no coefficients of its own, so without one that
+        row says the form was not measured.
         """
         n = len(self.entries)
         lines = [f"SeriesResult: {n} pattern(s), {self.mode}, "
@@ -1211,11 +1221,20 @@ class SeriesResult(Base):
             rwp = f"{e.statistics.rwp:.4f}" if e.statistics else "n/a"
             lines.append(f"    [{i + 1}/{n}] {e.label} x={self.x[i]:g} "
                          f"{e.status} Rwp={rwp}")
+        if parametric is not None:
+            if parametric.parametric is None:
+                raise ValueError(
+                    "parametric= takes a joint fit with parametric declarations "
+                    "(refine_multi(..., coordinates=, parametric=[...])); this "
+                    "result declared none, so it has no coefficients to print")
+            lines += _parametric_lines(parametric.parametric, parametric.parametric_form,
+                                       parametric.parametric_form_joint)
         if deliverable is not None:
-            lines += self._deliverable_lines(deliverable)
+            lines += self._deliverable_lines(deliverable, parametric)
         return "\n".join(lines)
 
-    def _deliverable_lines(self, deliverable: str) -> list[str]:
+    def _deliverable_lines(self, deliverable: str,
+                           parametric: RefinementResult | None = None) -> list[str]:
         """§4b's fourth deliverable: the rows that decide a trajectory.
 
         Four of them are diagnostics this class already carries, read as
@@ -1304,6 +1323,26 @@ class SeriesResult(Base):
             lines.append(f"    widths grown with a worsening fit: {len(growth)}")
         for d in growth[:5]:
             lines.append(f"      {d.message}")
+
+        # the form itself (WP-1325): a chain measures points, and a line drawn
+        # through them afterwards weights each by an esd conditional on its
+        # own pattern; a joint parametric fit measures the coefficients
+        if parametric is not None:
+            names = sorted({c.equation for c in parametric.parametric or []})
+            refused = [t.equation for t in parametric.parametric_form or [] if t.rejected]
+            line = (f"    functional form: measured jointly "
+                    f"({', '.join(names)}; coefficients above)")
+            joint = parametric.parametric_form_joint
+            if refused:
+                line += f"; REJECTED by its data: {', '.join(refused)}"
+            elif joint is not None and joint.rejected:
+                line += "; REJECTED by its data jointly, though no equation alone"
+            lines.append(line)
+        else:
+            lines.append("    functional form: NOT measured — a chain measures "
+                         "points; refine_multi(..., coordinates=, parametric=) "
+                         "refines the coefficients with a joint esd, and "
+                         "summary(parametric=that result) prints them here")
 
         steps = by_code.get("SEQUENTIAL_DISCONTINUITY", [])
         lines.append(f"    steps: {len(steps)}")

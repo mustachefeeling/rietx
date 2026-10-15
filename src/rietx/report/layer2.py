@@ -154,19 +154,31 @@ def hamilton_justified(chi2_restricted: float, chi2_full: float,
     :func:`delta_bic` takes, so the two verdicts are read off one N.
     ``None``, the default, is the raw-channel test it has always been.
     """
-    n = float(n_points) if n_effective is None else float(n_effective)
-    dof = n - n_free_restricted - n_added
-    if n_added <= 0 or dof <= 0 or chi2_full <= 0:
+    test = _hamilton_f(chi2_restricted, chi2_full, n_points, n_free_restricted,
+                       n_added, n_effective=n_effective)
+    if test is None or test[0] <= 0:
         return False
-    # with N_eff the χ²s are read as N_eff independent points' worth: both
-    # scale by N_eff/N and cancel in the ratio, leaving the dof to carry it,
-    # so F ≈ t²/f² — the parameter's t at its inflated esd, squared
-    f = ((chi2_restricted - chi2_full) / n_added) / (chi2_full / dof)
-    if f <= 0:
-        return False
+    f, dof = test
     from scipy.stats import f as f_dist
 
     return bool(f > f_dist.ppf(1.0 - alpha, n_added, dof))
+
+
+def _hamilton_f(chi2_restricted: float, chi2_full: float, n_points: int,
+                n_free_restricted: int, n_added: int, *,
+                n_effective: float | None = None) -> tuple[float, float] | None:
+    """:func:`hamilton_justified`'s F and its denominator degrees of freedom,
+    or ``None`` where the test is undefined (no added parameter, no degrees of
+    freedom left, or a zero χ²_full).  The one place the statistic is written,
+    for a caller that reports F and p beside the verdict."""
+    n = float(n_points) if n_effective is None else float(n_effective)
+    dof = n - n_free_restricted - n_added
+    if n_added <= 0 or dof <= 0 or chi2_full <= 0:
+        return None
+    # with N_eff the χ²s are read as N_eff independent points' worth: both
+    # scale by N_eff/N and cancel in the ratio, leaving the dof to carry it,
+    # so F ≈ t²/f² — the parameter's t at its inflated esd, squared
+    return ((chi2_restricted - chi2_full) / n_added) / (chi2_full / dof), dof
 
 
 def delta_bic(chi2_restricted: float, chi2_full: float,
@@ -549,7 +561,8 @@ def layer0_actions(unmatched: list[UnmatchedPeak],
 TEXTURE_AXIS_AMBIGUITY = 0.8
 
 
-def texture_actions(texture) -> list[SuggestedAction]:
+def texture_actions(texture, *, harmonic_phases=frozenset()
+                    ) -> list[SuggestedAction]:
     """Actions from the March-Dollase texture diagnostic (the WP-0307 orphan,
     claimed by WP-0602).
 
@@ -561,9 +574,11 @@ def texture_actions(texture) -> list[SuggestedAction]:
     the strategy veto marks the declared-and-planned case, and on an
     undeclared phase ``predict_then_verify`` frees nothing and rolls back —
     the rationale carries the axis and r so the agent knows what block to
-    declare first.  No ``expected_delta_chi2``: the estimate comes from the
-    gated region attribution, and this analysis is per-reflection, not
-    per-region.
+    declare first.  A phase in ``harmonic_phases`` carries a
+    spherical-harmonics texture, which excludes a March-Dollase block
+    (WP-1960), so its rationale names the order instead.  No
+    ``expected_delta_chi2``: the estimate comes from the gated region
+    attribution, and this analysis is per-reflection, not per-region.
     """
     out: list[SuggestedAction] = []
     for t in texture or []:
@@ -583,8 +598,13 @@ def texture_actions(texture) -> list[SuggestedAction]:
             rationale += (f"; the axis is not cleanly resolved — {runner} "
                           f"fits R²={t.runner_up_r2:.2f}, so refine r but do "
                           "not report the axis as measured")
-        rationale += ("; if the phase declares no preferred_orientation block, "
-                      "add one with this axis before freeing r")
+        if t.phase_index in harmonic_phases:
+            rationale += ("; the phase carries a spherical-harmonics texture, "
+                          "which excludes a preferred_orientation block, so "
+                          "raise its order rather than adding one")
+        else:
+            rationale += ("; if the phase declares no preferred_orientation "
+                          "block, add one with this axis before freeing r")
         out.append(SuggestedAction(
             kind="refine_preferred_orientation",
             confidence=round(confidence, 3), rationale=rationale,

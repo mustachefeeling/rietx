@@ -119,8 +119,9 @@ def restate_phase_in_p1(phase: Phase, *, name: str | None = None,
     scattering length being keyed to the element, and changes an X-ray one.
 
     Refused by name: a phase with restraints (they name atoms of the
-    asymmetric unit) or a Stephens microstrain model (its terms are the Laue
-    class's), neither of which has a statement in P1 that would mean the same.
+    asymmetric unit), a Stephens microstrain model or a spherical-harmonics
+    texture (their terms are the Laue class's), none of which has a statement
+    in P1 that would mean the same.
     A structure whose magnetic group does not determine a moment for every
     nuclear image is refused by :func:`~.scattering._axial_matrices`, with the
     message the forward model gives for the same phase.
@@ -136,6 +137,12 @@ def restate_phase_in_p1(phase: Phase, *, name: str | None = None,
             f"whose terms are those of its Laue class; in P 1 all fifteen "
             f"would be free and the model would be a different one. Restate "
             f"the phase without it")
+    if phase.texture is not None:
+        raise ValueError(
+            f"phase {phase.name!r} carries a spherical-harmonics texture, whose "
+            f"terms and their names belong to its Laue class and its frame; in "
+            f"P 1 a name such as c4_1 is a different function. Restate the "
+            f"phase without it")
     group_spec = phase.magnetic_symmetry
     magnetic = group_spec is not None and any(
         a.moment is not None for a in phase.atoms)

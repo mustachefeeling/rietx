@@ -324,17 +324,40 @@ are the reasons `unhold` cannot lift. The parameter listing reads a held row
 through `ParameterRow.held`, and [](model.md) has the field beside the other
 four held-reasons.
 
-In a polar space group (P 6₃ m c, P 4 m m, Pna2₁, C c, P 1) the origin along the polar
-axis is one more thing a hold is for: every atom has a free coordinate along it,
-the whole structure can slide along it without changing any intensity, and a plan
-that frees them all walks the pair and quotes an esd for what the data does not
-fix. `Refinement.hold_floating_origin` holds, for each such direction, the first
-atom's displacement DOF that runs along it, and returns an
-`ORIGIN_FIXED_ON_POLAR_AXIS` diagnostic naming it (`ORIGIN_NOT_FIXED` when no
-atom's DOF runs exactly along a direction). Nothing is held unless you call it, a
-non-polar group returns an empty list, and `unhold` takes the hold back. The
-directions themselves come from
+A polar space group (P 6₃ m c, P 4 m m, Pna2₁, C c, P 1) needs one more hold. Every
+atom has a free coordinate along the polar axis, and the whole structure can slide
+along it without changing any intensity. A plan that frees them all walks the
+atoms along that axis and quotes an esd for a position the data does not fix. On a
+synthetic zincite pattern under `mccusker_structural`, the TRF driver moved Zn
+and O from z = 0 and 0.40 to z ≈ 150, each quoted at ±0.00029.
+
+`Phase.floating_origin = "hold"` makes the parameter table hold, for each
+direction the origin floats in, the first atom's displacement DOF that a shift
+along it moves. On a hexagonal or tetragonal axis that is the DOF running along
+the axis; on rhombohedral axes (R 3 m:R) a general site's x serves, since a
+shift along [1, 1, 1] moves it too. `Refinement.hold_floating_origin()` sets
+the field on every phase where the table would hold something. The held row
+reads `held`, and `ParameterRow.origin_axis` names the direction. The same
+zincite fit then keeps Zn at 0 and refines O to 0.38231(57), the esd of the Zn-O
+difference. The fit, a joint fit included, reports `ORIGIN_FIXED_ON_POLAR_AXIS`
+naming the phase, the direction and the atom. Where every DOF such a shift moves
+is tied or held, so none can be held, and a stage still frees what walks the
+direction (a variable they all follow), it reports `ORIGIN_NOT_FIXED` instead.
+A tie or hold of your own that already fixes the origin gets no second hold.
+`unhold` on the held DOF sets the field back to `None`. The field is `None` by
+default, so nothing is held unless you ask. The directions themselves come from
 `rietx.crystallography.wyckoff.floating_origin_basis(space_group)`.
+
+`Phase.floating_origin = "centroid"` holds nothing. Instead each stage that
+can slide the phase restrains a weighted centroid of its sites to where the
+stage found it, as Flack & Schwarzenbach (1988) do. The weights come from the
+data, so every coordinate along the axis is refined and keeps an esd you can
+quote on its own. The same zincite fit gives z(O) − z(Zn) = 0.38231, the held
+fit's answer at the same Rwp, with each z quoted at ±0.00039: two sites share
+the difference's esd equally and uncorrelated. `ORIGIN_FIXED_ON_POLAR_AXIS`
+then names the sites with their weights. A joint fit refuses `"centroid"` by
+name and accepts `"hold"`. The restraint is the theory part's
+{eq}`par-origin-centroid`.
 
 The stage that wanted the parameter says so. `StageResult.blocked_by_hold`
 names what its glob matched and could not free, and the fit raises

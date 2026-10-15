@@ -402,6 +402,14 @@ without the rule carries the defect `replay` carried alone.  The measurement,
 the two controls that bound the class and the two rejected fixes stayed in the
 WP.  Landed 962, +1 headroom.
 
+978 -> 983 for WP-1966 (2026-10-14): the package runs in a browser tab, on
+wasm32 Pyodide, and three rules keep it running there.  A count handed to numpy
+is `intp`.  A POSIX primitive is imported by name.  Nothing assumes a thread can
+start.  Each rule names a bug the browser site found in shipped code.  No CI job
+runs the browser, so a session changing `src/` meets the rules only where it
+already reads.  The README in `docs/lite/` keeps the rules with their causes,
+and the WP keeps the measurements.  Landed 982, +1 headroom.
+
 ### `docs/ROADMAP.md`
 
 400 -> 416 for the agentic-report planning session (2026-08-18): four
@@ -935,6 +943,18 @@ and which source each fact came from is `ATTRIBUTION.md`.  The blocks were
 cut by roughly a third before the cap was touched, per this comment's own
 instruction; 344 landed against the 350.
 
+501 -> 561 for the neutron time-of-flight readers and axis (yue-here/rietx
+issue #193): a bank turns one of this subtree's standing rules from one case
+into two, which is what a cap is for.  The **axis** is a second declared
+quantity — a flight time in µs beside 2θ in degrees — so the declare-never-infer
+rule gains the bintypes that state one and the reason a `RALF`/`SLOG` axis is
+read only from a written x column.  Beside it, `instrument_tof.py` is a reader
+whose product is an *instrument*, reached for `.instprm` through the one
+reader's `Type` dispatch, and `legacy/` a reader that accepts a named deviation
+only when called by name.  The operating detail went down a rank: the PRCF
+layout, the bintype table and every refusal's wording are the module
+docstrings'.  560 landed against the 561.
+
 ## What a session's reading costs
 
 Measured 2026-09-30 for `/pr-review`
@@ -1187,6 +1207,11 @@ lanes, the ten trial sessions first:
 | 2026-10-11 | bdba13b6 | 2 | 0 | 4K | 24 | 35K | 1.73 | 2 / 0 | +15.00 | +25% |
 | 2026-10-11 | 1b6f1d28 | 3 | 1 | 13K | 8 | 10K | 4.17 | 3 / 0 | +21.28 | +35% |
 | 2026-10-12 | 34ea5c63 | 2 | 0 | 22K | 18 | 56K | 3.66 | 1 / 0 | +11.65 | +27% |
+| 2026-10-13 | fe19ab09 | 2 | 1 | 0K | 20 | 56K | 2.17 | 1 / 0 | +2.52 | +10% |
+| 2026-10-13 | a2f27ce6 | 1 | 1 | 0K | 5 | 7K | 1.88 | 1 / 0 | +2.76 | +21% |
+| 2026-10-13 | 1e6e1192 | 1 | 0 | 0K | 26 | 40K | 2.07 | 0 / 0 | +0.43 | +3% |
+| 2026-10-14 | 2aa6e19e | 4 | 0 | 4K | 8 | 18K | 2.13 | 0 / 0 | +35.62 | +35% |
+| 2026-10-14 | 8f4b0657 | 1 | 1 | 5K | 11 | 16K | 5.80 | 0 / 0 | +8.77 | +20% |
 
 Session 38257a74 (WP-1523) resumed its one lane by `SendMessage` with a
 revised design after the first report. The tool counts that as no redo, and the
@@ -1206,6 +1231,24 @@ kept the BT-1 fixture under a written `lanes: keep` line at 113K. Its third
 lane, the moment angle, landed nothing on the branch: it found a real defect
 whose fix waits on WP-1953, parked on a branch of its own, and a detection
 rule that did not separate its cases. Its 99 requests still count.
+
+Session fe19ab09 (WP-1912) is entered as fixed 1 where the tool printed 0. After
+the centroid lane it wired the origin rows into `suggest`'s probe, which the
+lane had reported as unresolved. It kept one item, the real-data measurement,
+under a written `lanes: keep` line at 288K.
+
+Session 1e6e1192 (WP-1325) is entered as fixed 0 where the tool printed 1. Its
+two edits after the measurement lane were to the WP file, recording the lane's
+numbers; the lane's script and output were committed as the lane left them.
+
+Session 8f4b0657 (WP-1961) is entered as kept 1 and fixed 0 where the tool
+printed 0 and 1. It kept the version bump, estimated at 8 requests. That
+decision line survives only in the session's compaction summary, and the tool
+does not read one. The ratio column therefore covers the lane alone. The
+session's five edits after the lane went to the release notes and the WP file.
+The lane's files were committed as the lane left them. The lane ran 232
+requests against an estimate of 40. It re-measured 133 figures on two trees.
+It then bisected 16 moves over seven snapshots. The estimate foresaw neither.
 
 **The decision: adopted** (2026-10-08,
 [WP-1903](../wp/1903-the-lane-trial-decides.md)). The rule is now `/wp-start`

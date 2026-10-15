@@ -109,7 +109,7 @@ def make_traced_residual(model, table, xp):
 
     Mirrors ``optimize.least_squares._make_residual`` by *construction*, not by
     inspection: both call :func:`rietx.model.rows.assemble`, so the block
-    order — [data | background-penalty | Pawley-restraint | soft-restraint] —
+    order — ``rows.BLOCK_ORDER``, data first and the restraint blocks below —
     exists in one place for every backend.  The Le Bail intensity snapshot and
     every weight/design constant are closed over as constants of the trace,
     exactly as they are constants of the numpy closure.

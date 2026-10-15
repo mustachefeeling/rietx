@@ -5042,8 +5042,9 @@ def _not_written_diagnostics(structure: Structure, *,
     the written ``str`` does not state, so TOPAS computes the phase without it.
 
     The magnetic-only widths (they apply to magnetic reflections alone, which
-    a structure-only ``str`` cannot single out), extinction and a preferred
-    orientation with r ≠ 1. ``whole``: the file is a whole input
+    a structure-only ``str`` cannot single out), extinction, a preferred
+    orientation with r ≠ 1 and a spherical-harmonics texture coefficient away
+    from zero. ``whole``: the file is a whole input
     (``instrument=``), which writes the extinction as ``scale_pks`` and a
     magnetic-only width as a ``mag_only`` magnetic part, so only the texture is
     left to name. One diagnostic
@@ -5060,9 +5061,15 @@ def _not_written_diagnostics(structure: Structure, *,
         if po is not None and po.r.value != 1.0:
             here.append(("preferred_orientation.r",
                          "the March-Dollase preferred orientation"))
+        if phase.texture is not None:
+            here += [(f"texture.{name}", "the spherical-harmonics texture")
+                     for name, c in phase.texture.coefficients.items()
+                     if c.value != 0.0]
         if here:
             where += [f"phases.{i}.{name}" for name, _ in here]
-            named.append(f"{phase.name!r}: " + ", ".join(w for _, w in here))
+            # one texture names several paths and one term
+            named.append(f"{phase.name!r}: "
+                         + ", ".join(dict.fromkeys(w for _, w in here)))
     if not named:
         return []
     return [Diagnostic(
@@ -5144,6 +5151,10 @@ def write_topas_inp(structure: Structure, path: str | Path, *,
     for ``p1_expand``, ``free``, ``scale``, ``instrument`` and ``pattern``.
     With ``pattern=`` the data are written beside it as ``<stem>.xye`` (2θ,
     intensity and the σ rietx fits with), which the ``xdd`` line names."""
+    from ...schemas.pattern import require_two_theta
+
+    if instrument is not None or pattern is not None:
+        require_two_theta(pattern, "write_topas_inp()", instrument=instrument)
     path = Path(path)
     if pattern is None:
         path.write_text(

@@ -39,6 +39,7 @@ from .io.instrument_profile import (
     write_gsas2_instprm,
     write_gsas_prm,
 )
+from .io.instrument_tof import read_gsas_tof_iparm
 from .io.projects import (
     ProjectFormat,
     ProjectModel,
@@ -95,6 +96,15 @@ from .schemas.indexing import (
     PeakList,
 )
 from .schemas.interval import ParameterInterval, ParameterIntervalPoint
+from .schemas.parametric import (
+    CoordinateTable,
+    ParametricCoefficient,
+    ParametricEquation,
+    ParametricFormReading,
+    ParametricFormTest,
+    ParametricValue,
+    RefinedParametricEquation,
+)
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
 from .schemas.project import DataRef, ProjectDoc
@@ -130,6 +140,7 @@ __all__ = [
     "CandidateGroup",
     "Cell",
     "CellCandidate",
+    "CoordinateTable",
     "DataRef",
     "FitReport",
     "FractionProfile",
@@ -157,6 +168,11 @@ __all__ = [
     "ParameterInterval",
     "ParameterIntervalPoint",
     "ParameterRow",
+    "ParametricCoefficient",
+    "ParametricEquation",
+    "ParametricFormReading",
+    "ParametricFormTest",
+    "ParametricValue",
     "PatternData",
     "PeakList",
     "Phase",
@@ -169,6 +185,7 @@ __all__ = [
     "ProjectDoc",
     "Recipe",
     "RecipeError",
+    "RefinedParametricEquation",
     "Refinement",
     "RefinementCancelled",
     "RefinementPlan",
@@ -204,6 +221,7 @@ __all__ = [
     "identify_project_format",
     "read_gsas2_instprm",
     "read_gsas_prm",
+    "read_gsas_tof_iparm",
     "read_pattern",
     "read_pdcif",
     "read_fullprof_pcr",

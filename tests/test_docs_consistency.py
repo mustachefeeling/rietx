@@ -147,6 +147,7 @@ PRIORITIES = wp_index.PRIORITIES
 #   2026-09-28  src/rietx/indexing/CLAUDE.md  318 -> 321  for WP-1518
 #   2026-09-29  src/rietx/indexing/CLAUDE.md  321 -> 323  for WP-1519
 #   2026-10-11  src/rietx/indexing/CLAUDE.md  323 -> 328  for WP-1923
+#   2026-10-13  src/rietx/indexing/CLAUDE.md  328 -> 332  for WP-1932
 #   2026-09-01  tests/CLAUDE.md               253 -> 275  for the placement pass
 #   2026-09-01  docs/ROADMAP.md               589 -> 597  for the roadmap reorder: landed 573, cap landed + 24
 #   2026-09-02  docs/ROADMAP.md               597 -> 621  for the magnetic scattering track (1326-1329, out of
@@ -235,6 +236,14 @@ PRIORITIES = wp_index.PRIORITIES
 #                                                          and owed to every future freeze: four
 #                                                          consumers now read it and a fifth would
 #                                                          repeat the defect. Landed 972, +1 headroom
+#   2026-09-21  CLAUDE.md                     973 -> 978  for /issue-review: how an issue reaches the
+#                                                          roadmap, beside the contributor paragraph.
+#                                                          Landed 977, +1 headroom (row added
+#                                                          2026-10-14 from the SIZE_CAPS comment)
+#   2026-10-14  CLAUDE.md                     978 -> 983  for WP-1966: the package runs in a browser
+#                                                          tab, and three rules keep it running
+#                                                          there, where no CI job looks. Landed 982,
+#                                                          +1 headroom
 #   2026-09-27  docs/ROADMAP.md               880 -> 571  for WP-1507: the WP tables left for the
 #                                                          generated docs/wp/README.md; prose only now
 #   2026-09-28  docs/ROADMAP.md               571 -> 579  for the structure track (1510-1517): one new
@@ -242,6 +251,12 @@ PRIORITIES = wp_index.PRIORITIES
 #                                                          paragraph saying what left it; landed 578
 #   2026-09-30  docs/ROADMAP.md               579 -> 588  for v1.8 and v1.9: two table rows, two headings
 #                                                          and blurbs; landed 588
+#   2026-10-14  docs/ROADMAP.md               588 -> 589  for v1.10 (WP-1961): one table row, the cut's
+#                                                          Current focus already two lines; landed 589
+#   2026-10-06  src/rietx/io/CLAUDE.md        501 -> 561  for the time-of-flight readers and axis (issue
+#                                                          #193): the flight-time axis row, and the two
+#                                                          new reader kinds (a calibration reader and the
+#                                                          opt-in legacy layer); landed 560
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -435,7 +450,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # rule for anyone who files or folds a WP: the `#N` citation is the whole
     # triage record, read by the command's table and by wp_claim.py alike.
     # Landed 977, +1 headroom.
-    "CLAUDE.md": 978,
+    # 978 -> 983 (WP-1966, 2026-10-14): the browser bullet, the three rules
+    # that keep rietx running under wasm32 Pyodide, where no CI job looks.
+    # Landed 982, +1 headroom.
+    "CLAUDE.md": 983,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
@@ -562,7 +580,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # its WP-level paragraphs moved to the v1.6 record.  From here the cap is
     # a budget on prose alone, and the per-row bump above ends.  Landed 570,
     # +1 headroom.
-    "docs/ROADMAP.md": 588,
+    "docs/ROADMAP.md": 589,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
@@ -622,7 +640,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # not round as each matrix alone, so ``reduce.stacked_pinv_exact`` measures
     # it and the nightly prints both probes — and the replay harness named.
     # The timings stayed in the WP.  Landed at 323, no headroom.
-    "src/rietx/indexing/CLAUDE.md": 328,
+    # 328 -> 332 (WP-1932): one standing rule on comparing two reduced cells —
+    # across the reduction's boundaries, through the three functions, never a
+    # χ² of one's own on two reduced vectors.  The counts stayed in the WP.
+    # Landed at 332, no headroom.
+    "src/rietx/indexing/CLAUDE.md": 332,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather
     # than store them, that the *permissive* description can be the defective
@@ -700,7 +722,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # rietx computed rather than refusing a label the reader would take.  It
     # governs every later writer, and the file had no line of headroom.
     # Landed at 501, no headroom.
-    "src/rietx/io/CLAUDE.md": 501,
+    # 501 -> 561 (yue-here/rietx issue #193, the time-of-flight readers and
+    # axis): a bank makes the axis a second *declared* quantity, so the
+    # declare-never-infer rule gains a flight-time row; `instrument_tof.py` is
+    # a reader whose product is a calibration and not a pattern; and `legacy/`
+    # is a reader accepting a named deviation only when asked.  The long form
+    # is in the module docstrings (`io/instrument_tof.py`, `io/formats/gsas.py`,
+    # `io/legacy/__init__.py`).  Landed at 560; the +1 is headroom.
+    "src/rietx/io/CLAUDE.md": 561,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

@@ -339,8 +339,53 @@ transmission (capillary) geometry the sense reverses for the same axis choice.
 The correction is geometry-agnostic. The interpretation of $r$ is not.
 ```
 
-Spherical-harmonics texture {cite}`vondreele1997` is not implemented; it is
-planned for v2.
+## Preferred orientation (spherical harmonics)
+
+March-Dollase describes one fibre axis with one number. A texture with no
+single axis needs the general description, a series of symmetrised spherical
+harmonics {cite}`vondreele1997`. Under cylindrical sample symmetry the
+multiplier on a reflection's intensity is
+
+```{math}
+:label: corr-sh
+
+P_{h} \;=\; 1 + \sum_{l = 2, 4, \ldots}^{L} \frac{4\pi}{2l+1}
+\sum_{n} C_l^{\,n}\, k_l(\psi)\, K_l^{\,n}(\mathbf{h}),
+\qquad
+k_l(\psi) = \sqrt{\frac{2l+1}{4\pi}}\, P_l(\cos\psi).
+```
+
+{source}`rietx.crystallography.spherical_harmonics.texture_basis`
+
+$L$ is the declared order. Only even $l$ appear, because a powder pattern
+obeys Friedel's law, and $l = 0$ is the phase scale. Each $K_l^n$ is a real
+harmonic of the reflection's direction, orthonormal over the sphere and
+invariant under the Laue group. The harmonics follow Bunge {cite}`bunge1982`,
+with no Condon-Shortley phase. The crystal frame puts $z$ on the principal
+axis and $x$ on the next cell edge {cite}`popa1992`. Which $(l, n)$ the
+class allows is read off the operators. Every $C = 0$ gives $P \equiv 1$
+exactly.
+
+$\psi$ is the angle between the scattering vector and the specimen's
+symmetry axis. In symmetric reflection the scattering vector lies along the
+plate normal, so $\psi = 0$. In symmetric transmission and in a spinning
+capillary it is perpendicular to the axis, so $\psi = 90°$
+{cite}`jarvinen1993`. The size of the texture is the texture index
+$J = 1 + \sum C^2/(2l+1)$, which is 1 for a random powder.
+
+```{warning}
+GSAS-II puts the Bragg-Brentano $\psi$ at 90°. For the same pattern, this
+package's coefficient is GSAS-II's times $P_l(0)$, which is $-1/2$ at
+$l = 2$. In the five Laue classes without mirrors ($\bar 1$, $2/m$, $4/m$,
+$\bar 3$, $6/m$), GSAS-II's $n \ne 0$ functions also have norm $\sqrt 2$, so
+those coefficients take a further factor $\sqrt 2$.
+
+GSAS-II 5.8.4's functions are not invariant under the Laue group in three
+places: the $n \ne 0$ terms of $\bar 1$ and $2/m$, every term on rhombohedral
+axes, and the $n = 3$ terms of $\bar 3 1m$. Each takes two values on one set of
+equivalent reflections, so those coefficients have no counterpart here. GSAS-II
+also gives $m\bar 3$ one function fewer at $l = 6$ than the group allows.
+```
 
 ## Quantitative phase analysis and microabsorption
 

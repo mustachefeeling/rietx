@@ -430,7 +430,68 @@ from .._nearmiss import did_you_mean
 #: wraps what the fences do.  Additive and defaulted to ``None``, "not
 #: recorded", the 0.25 → 0.26 rule; ``SequentialRefinement.fit`` writes both
 #: on every result, the backward chain's included.
-SCHEMA_VERSION = "0.51"
+#: 0.51 → 0.52 (WP-1912): ``Phase.floating_origin``, ``"hold"`` making the
+#: parameter table hold one coordinate DOF along each direction a polar
+#: group's origin floats in, and ``ParameterRow.origin_axis``, the direction a
+#: row so held fixes.  Additive and defaulted to ``None``: exactly off, the
+#: table every earlier document built.  An older build refuses a document
+#: carrying either key.
+#: 0.52 → 0.53 (yue-here/rietx issue #193, the time-of-flight readers and
+#: axis): ``PatternData.two_theta`` becomes ``list[float] | None`` beside a new
+#: ``PatternData.tof`` (µs), exactly one of the two set; ``Instrument.source``
+#: gains a third arm, ``TOFSource`` (``kind="neutron_tof"``: DIFC/DIFA/TZERO/
+#: DIFB, the bank angle, ``ProfileTOF`` and ``IncidentSpectrum``).  Not purely additive: a
+#: consumer that read ``two_theta`` as always present must now ask
+#: ``PatternData.axis``.  Every stored document loads unchanged — each has a
+#: ``two_theta`` — and a 2θ pattern serializes apart from the new nulls, and
+#: refines, exactly as before.  A ``neutron_tof`` source is read and never
+#: refined in this build.
+#: 0.53 → 0.54 (WP-1912): ``Phase.floating_origin`` gains ``"centroid"``, the
+#: restraint of Flack & Schwarzenbach (1988) on a weighted centroid of the
+#: phase's sites in place of a hold on one.  Additive: no existing document
+#: carries the value, and an older build refuses one that does.
+#: 0.54 → 0.55 (WP-1325): ``RefinementResult.parametric``, a list of
+#: ``ParametricCoefficient`` — the coefficients of a joint fit's parametric
+#: declarations, in user units at each declaration's reference — beside the
+#: two declaration models ``CoordinateTable`` and ``ParametricTie``
+#: (``schemas/parametric.py``) the joint path now takes.  Additive and
+#: defaulted to ``None``, "nothing declared", which every earlier result is;
+#: an older build refuses a result carrying the field.
+#: 0.55 → 0.56 (WP-1325): ``RefinementResult.parametric_form``, one
+#: ``ParametricFormTest`` per parametric declaration — whether the data
+#: rejects the declared form, by a score test at the answer.  Additive and
+#: defaulted to ``None``, as ``parametric`` is; an older build refuses a
+#: result carrying the field.
+#: 0.56 → 0.57 (WP-1960): ``Phase.texture``, a ``SphericalHarmonicTexture``
+#: (an even ``order`` and a name → ``Parameter`` map of coefficients), and
+#: ``RefinementResult.texture``, one ``PhaseTexture`` per textured phase.
+#: Additive and defaulted to ``None`` and empty, so every stored document
+#: loads and refines as before; an older build refuses either.
+#: 0.57 → 0.58 (WP-1810): ``RigidBody.riding``, the body atoms that are riding
+#: hydrogens, and the CIF ``_atom_site_refinement_flags_posn`` /
+#: ``_atom_site_calc_flag`` columns a phase with a body now writes.  Additive.
+#: 0.58 → 0.59 (WP-1325): ``RefinedParameter.equations``, the parametric
+#: equations whose coefficients set a row; ``ParametricFormTest.n_subset``,
+#: the subset's size beside the patterns tested; ``ParametricFormTest``'s
+#: ``dof``/``statistic``/``cut`` moved into two ``ParametricFormReading``s,
+#: ``tied`` and ``others_freed``, each with a ``p_value``;
+#: ``RefinementResult.parametric_equations``, each equation as resolved with its
+#: coefficients' covariance; ``RefinementResult.parametric_form_joint``, the
+#: form test of every tested equation at once, ``None`` below two.
+#: ``ParametricFormTest.rejected`` is the ``others_freed`` reading's verdict
+#: where there is one, and ``ParametricFormTest.provisional_on`` names the
+#: other rejected equations; every reading divides by χ²_red alone.
+#: ``equations`` and ``parametric_equations`` default to
+#: ``None``, "not recorded", so an older result opens and claims nothing; the
+#: form-test fields are required and the old ones gone, ``parametric_form``
+#: being unreleased.  The declaration model is ``ParametricEquation``, which
+#: 1.9.0 called ``ParametricTie`` (no alias), and the field naming it is
+#: ``equation`` on ``ParametricCoefficient``, ``ParametricFormTest`` and
+#: ``RefinedParametricEquation``; ``ParametricCoefficient`` still reads the
+#: 0.55 key ``tie``, so a 1.9.0 result opens and is written back as ``equation``.
+#: ``ParametricValue``, built on demand and never stored, carries
+#: ``provisional_on`` and ``joint_rejected`` beside ``form_rejected``.
+SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

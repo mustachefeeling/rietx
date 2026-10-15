@@ -2134,8 +2134,14 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # ``ParameterInterval``, a new answer type, 0.48, and its
     # ``StageResult.moment_angle_tests`` 0.49, and WP-1809's one-sided
     # distance restraints (``TetherRestraint``, ``AntiBumpRestraint``) 0.50, and
-    # WP-1317's ``SeriesResult.relative_paths`` and ``.angle_paths`` 0.51.
-    assert caps.schema_version == "0.51"
+    # WP-1317's ``SeriesResult.relative_paths`` and ``.angle_paths`` 0.51,
+    # WP-1912's ``Phase.floating_origin`` and ``ParameterRow.origin_axis``
+    # 0.52, and the time-of-flight axis and ``TOFSource`` (issue #193) 0.53,
+    # and the floating origin's ``"centroid"`` member 0.54, and WP-1325's
+    # ``RefinementResult.parametric`` 0.55 and ``.parametric_form`` 0.56, and
+    # WP-1960's ``Phase.texture`` 0.57, WP-1810's ``RigidBody.riding``
+    # 0.58, and WP-1325's ``RefinedParameter.equations`` 0.59.
+    assert caps.schema_version == "0.59"
 
 
 def test_every_moment_dof_has_a_help_entry():

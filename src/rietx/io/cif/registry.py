@@ -144,6 +144,10 @@ _TAGS: tuple[Tag, ...] = (
         ("_atom_site_U_iso_or_equiv", "_atom_site.U_iso_or_equiv", "Measurand", "Real"),
         ("_atom_site_site_symmetry_multiplicity",
          "_atom_site.site_symmetry_multiplicity", "Number", "Integer"),
+        # a Le Bail scaffold's ``dum``, and a rigid body's placed sites (WP-1810)
+        ("_atom_site_calc_flag", "_atom_site.calc_flag", "State", "Text"),
+        ("_atom_site_refinement_flags_posn", "_atom_site.refinement_flags_posn",
+         "State", "Text"),
     ),
     # the refinement CIF (io/exporters.py)
     *_rows(
@@ -175,7 +179,6 @@ _TAGS: tuple[Tag, ...] = (
          "Number", "Real"),
         ("_atom_type_scat_dispersion_source", "_atom_type_scat.dispersion_source",
          "Describe", "Text"),
-        ("_atom_site_calc_flag", "_atom_site.calc_flag", "State", "Text"),
         ("_geom_bond_publ_flag", "_geom_bond.publ_flag", "State", "Text"),
         ("_geom_contact_publ_flag", "_geom_contact.publ_flag", "State", "Text"),
         ("_geom_angle_publ_flag", "_geom_angle.publ_flag", "State", "Text"),

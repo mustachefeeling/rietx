@@ -1,0 +1,20 @@
+WP-1325: a one-direction next-term test against the form test
+machine   Darwin arm64, 10 CPUs, python 3.12.10, numpy 2.5.4
+rietx     1.10.0.dev0 at b5d7c642, compiled kernels on
+load      3.01 3.80 3.50
+ramp      10 LaB6 patterns, 300-1200 K, a line declared; 20 noise draws a cell; cuts χ²_8 15.51, χ²_1 3.84
+curve bow 2.0e-03  reject: form 20/20  next 20/20  refit 20/20   median: form    133.8  next    130.5  refit    131.6  check/form [1.0000, 1.0000]
+curve bow 1.0e-03  reject: form 20/20  next 20/20  refit 20/20   median: form     39.9  next     36.1  refit     35.4  check/form [1.0000, 1.0000]
+curve bow 7.0e-04  reject: form 15/20  next 20/20  refit 20/20   median: form     24.5  next     20.2  refit     20.3  check/form [1.0000, 1.0000]
+curve bow 5.0e-04  reject: form  7/20  next 18/20  refit 18/20   median: form     14.5  next     10.2  refit      9.9  check/form [1.0000, 1.0000]
+curve bow 3.0e-04  reject: form  0/20  next 10/20  refit  8/20   median: form      7.6  next      3.8  refit      3.5  check/form [1.0000, 1.0000]
+curve bow 2.0e-04  reject: form  0/20  next  8/20  refit  8/20   median: form      6.6  next      2.1  refit      1.9  check/form [1.0000, 1.0000]
+curve bow 0.0e+00  reject: form  0/20  next  0/20  refit  0/20   median: form      4.6  next      0.6  refit      0.5  check/form [1.0000, 1.0000]
+kink  bow 2.0e-03  reject: form 20/20  next 20/20  refit 20/20   median: form    105.4  next     96.3  refit     96.8  check/form [1.0000, 1.0000]
+kink  bow 1.0e-03  reject: form 19/20  next 20/20  refit 20/20   median: form     30.8  next     25.7  refit     24.6  check/form [1.0000, 1.0000]
+kink  bow 7.0e-04  reject: form 12/20  next 20/20  refit 20/20   median: form     17.4  next     13.5  refit     12.9  check/form [1.0000, 1.0000]
+kink  bow 5.0e-04  reject: form  7/20  next 18/20  refit 18/20   median: form     10.5  next      7.7  refit      7.4  check/form [1.0000, 1.0000]
+kink  bow 3.0e-04  reject: form  0/20  next  9/20  refit  8/20   median: form      7.4  next      3.3  refit      3.2  check/form [1.0000, 1.0000]
+kink  bow 2.0e-04  reject: form  0/20  next  6/20  refit  5/20   median: form      5.9  next      1.9  refit      1.6  check/form [1.0000, 1.0000]
+kink  bow 0.0e+00  reject: form  0/20  next  0/20  refit  0/20   median: form      4.6  next      0.6  refit      0.5  check/form [1.0000, 1.0000]
+wall      450 s

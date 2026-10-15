@@ -81,8 +81,9 @@ def _bits_equal(a, b) -> bool:
                                                  b.view(np.int64))
 
 
-def _rel(a, b) -> float:
-    scale = float(np.abs(b).max()) or 1.0
+def _rel(a, b, scale=None) -> float:
+    """The largest difference over ``scale``, or over ``b``'s largest value."""
+    scale = scale or float(np.abs(b).max()) or 1.0
     return float(np.abs(np.asarray(a) - np.asarray(b)).max()) / scale
 
 
@@ -146,7 +147,7 @@ def test_the_scatter_declines_an_arity_it_was_not_written_for():
 
 
 # -- the profile kernels ------------------------------------------------------
-def _model(*, axial: bool):
+def _model(*, axial: bool, hl: float = 0.030):
     phases = [
         Phase(name="a", space_group="P21/c",
               cell=Cell(a=Parameter(value=5.2), b=Parameter(value=6.4),
@@ -163,7 +164,7 @@ def _model(*, axial: bool):
         ins = Instrument.bragg_brentano(radiation="CuKa",
                                         goniometer_radius_mm=173.0)
         ins.geometry.axial_sl.value = 0.025
-        ins.geometry.axial_hl.value = 0.030
+        ins.geometry.axial_hl.value = hl
     else:
         ins = Instrument.debye_scherrer(wavelength=1.5406)
     ins.profile.w.value = 1e-2
@@ -250,19 +251,63 @@ def test_the_forward_and_the_bases_keep_their_separate_spellings():
             "the compiled bases Ω stopped reproducing _components"
 
 
-def test_fcj_rows_agree_to_rounding_on_every_plane():
+FCJ_PLANES = ("omega", "d_pos", "d_gamma", "d_eta", "d_sl", "d_hl")
+
+
+@pytest.fixture(scope="module")
+def aot_bench():
+    """``examples/aot_spike/bench_aot_kernels.py``, whose ``fcj_terms`` is the
+    FCJ bases' bar denominator in both places."""
+    path = (Path(__file__).resolve().parent.parent / "examples" / "aot_spike"
+            / "bench_aot_kernels.py")
+    spec = importlib.util.spec_from_file_location("bench_aot_kernels", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("hl", [0.030, 0.0])
+def test_fcj_rows_agree_to_rounding_on_every_plane(aot_bench, monkeypatch, hl):
     """Including the two axial planes, which are node-FD differences divided by
-    1e-7 and so the place a last-digit disagreement is most amplified."""
-    model, values = _model(axial=True)
+    1e-7 and so the place a last-digit disagreement is most amplified.
+
+    Each plane is held to its terms, the bench's :func:`fcj_terms`.  Two
+    correct sums differ by about ε times their terms, and at H/L = 0 beside
+    S/L > 0 (WP-1953) the ∂Ω/∂(H/L) plane is far smaller than its terms.  On
+    this model it is 2.3e5 times smaller, and measured against its own size
+    the gap is 4.2e-11, past the bar.  Against its terms it is 1.8e-16
+    (darwin/arm64).
+    """
+    model, values = _model(axial=True, hl=hl)
     assert any(np.any(cp.batch.fcj > 0) for cp in model.phases)
-    got, want = _both(lambda: model.derivative_bases(values))
+    compiled.set_enabled(False)
+    want = model.derivative_bases(values)
+    compiled.set_enabled(True)
+    wheel, terms = compiled._kernels(), dict.fromkeys(FCJ_PLANES, 0.0)
+
+    def kernel(*args):
+        wheel["bases_fcj"](*args)
+        for name, t in zip(FCJ_PLANES, aot_bench.fcj_terms(args)):
+            if t is not None and t.size:
+                terms[name] = max(terms[name], float(t.max()))
+
+    # one call a bucket, so ``terms`` is never written from two threads
+    monkeypatch.setattr(compiled, "_THREAD_MIN_NS", float("inf"))
+    monkeypatch.setattr(compiled, "_KERNELS", {**wheel, "bases_fcj": kernel})
+    got = model.derivative_bases(values)
     for gp, wp in zip(got.planes, want.planes):
-        for name in ("omega", "d_pos", "d_gamma", "d_eta", "d_sl", "d_hl"):
+        for name in FCJ_PLANES:
             a, b = getattr(gp, name), getattr(wp, name)
             assert (a is None) == (b is None), f"{name} present on one path only"
             if a is None:
                 continue
-            assert _rel(a, b) < 1e-13, f"{name} past the rounding bar"
+            assert terms[name] > 0, f"{name} built with no kernel call behind it"
+            assert _rel(a, b, terms[name]) < 1e-13, f"{name} past the rounding bar"
+    if hl == 0.0:
+        # the case this one exists for: the plane is far smaller than its terms
+        d_hl = max(float(np.abs(p.d_hl).max()) for p in want.planes
+                   if p.d_hl is not None)
+        assert terms["d_hl"] / d_hl > 1e3, "H/L = 0 no longer cancels here"
 
 
 #: The bound on the FCJ kernels' ``exp``, in ulps of the true value: SLEEF's
@@ -617,6 +662,28 @@ def test_a_wheel_lacking_a_kernel_is_declined_by_name(monkeypatch):
     assert compiled.bases_fcj(*[None] * 16) is False
 
 
+def test_a_wheel_before_the_floor_is_declined_whole_and_says_so(monkeypatch):
+    """A 1.2.0 wheel lacks the dichotomy's two kernels (WP-1959).  Under the
+    1.3 floor it is declined like any wheel missing a kernel, so the indexer
+    runs its numpy loop beside the model's, and the one warning names the pin
+    that installs them.  Until the floor rose, the indexer alone declined, in
+    silence, because PyPI had no 1.3.0 to point at."""
+    monkeypatch.delenv(COMPILED_ENV, raising=False)
+    _fresh_load(monkeypatch, _wheel(__version__="1.2.0", dichotomy_box_test=None,
+                                    dichotomy_child_key=None))
+    with warnings.catch_warnings(record=True) as seen:
+        warnings.simplefilter("always")
+        compiled.set_enabled(None)
+        assert compiled.dichotomy_kernels() is None
+    assert compiled.unavailable() == (
+        "rietx_kernels 1.2.0 lacks the kernels dichotomy_box_test, "
+        "dichotomy_child_key")
+    runtime = [str(w.message) for w in seen if issubclass(w.category, RuntimeWarning)]
+    assert len(runtime) == 1, runtime
+    pin = f"rietx-kernels>={compiled.KERNEL_FLOOR},<{compiled.KERNEL_ABI + 1}"
+    assert f'pip install "{pin}"' in runtime[0]
+
+
 def test_a_decline_warns_once_and_never_when_the_numpy_path_was_chosen(
         monkeypatch):
     """A tier that did not run must say so (WP-1521), once a process, and only
@@ -694,3 +761,13 @@ def test_the_thread_count_is_settable_and_never_zero(monkeypatch):
         assert got >= 1
         if want is not None:
             assert got == want, f"{raw!r} gave {got}"
+
+
+def test_a_platform_without_threads_gets_one_whatever_is_asked(monkeypatch):
+    """Pyodide's CPython has no threads, so a pool there could never start a
+    worker: the count is one even when the environment asks for more (WP-1966)."""
+    from rietx._about import COMPILED_THREADS_ENV
+
+    monkeypatch.setattr(compiled, "_CAN_THREAD", False)
+    monkeypatch.setenv(COMPILED_THREADS_ENV, "4")
+    assert compiled.n_threads() == 1

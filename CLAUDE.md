@@ -715,6 +715,10 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   (3) **Its bar is stated and asserted: transcendentals to a bound, associations as written** (`compiled.py` rule 3).
   No library call means the bit, an `exp` 1e-13 relative, its own `exp` a ulp bound on every wheel; the numpy
   builder stays the bit-identity oracle against `_phase_component_scalar`. (4) **One path per process**, never per call.
+- **The package runs in a browser tab too, on wasm32 Pyodide, and no CI job runs it there**
+  (WP-1966, `docs/lite/README.md`). So a count or index handed to numpy is `intp`, never int64. A
+  POSIX primitive is imported by name (`from fcntl import flock`), as JupyterLite empties `fcntl`.
+  Nothing assumes a thread can start (`compiled.n_threads()`). `docs/lite/smoke.mjs` is the check.
 - **Traced code runs inside `backend.traced.active(xp)`** — it makes `xp` the globally-bound
   backend *and* opens the backend's `full_precision()` scope. jax's fp64 is scoped, so a constant
   (or a θ vector) materialised outside it is silently float32 (it once cost the Pawley aux columns
@@ -877,7 +881,7 @@ Planning docs are split so a session loads only what it needs; do not read all:
 - `docs/DESIGN.md` — design record; read only the section a WP links.
 - `docs/milestones/vX.Y.md` — one record per release: the measured ship block, plus (while in
   flight) the running "How vX.Y is getting here" narrative; `<name>.md` holds a named milestone's
-  scope and acceptance (WP-1540). The highest-numbered `vX.Y.md` is the live one.
+  scope and acceptance (WP-1540). The live one is `pyproject.version`'s X.Y, never `ls`'s last.
 - The **paper corpus** (location and unread list) is maintainer-local, outside this repo;
   `AGENTS.md` names the split and the maintainer's memory holds it. **Search it before asking for a
   paper or re-deriving a published constant.**
@@ -974,5 +978,5 @@ is held to per-column agreement with the analytic Jacobian in `tests/test_cross_
 Apple-GPU execution is *slower* than numpy (46-182×, launch-latency-bound): `torch-mps` buys
 precision validation, not speed (the v0.4 record). Also since v0.4: true Voigt (`shape="voigt"`,
 TCHZ still the default), soft restraints, the Bérar-Lelann esd inflation. v2 fence: FPA, neutron
-**TOF**, spherical-harmonics texture, MCP server — and the **peaks buffer with FPA**, never before:
+**TOF**, MCP server — and the **peaks buffer with FPA**, never before:
 shape reuse needs > 2.8-4.2 FCJ images a window point (WP-1122).

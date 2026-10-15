@@ -130,7 +130,13 @@ form here follows WP-1119's decision 4, which kept strings out of storage.
   restraint is one such row per floating direction, a weighted sum of the
   coordinates along it held at its starting value. Keep the item general
   enough for coordinate paths and per-atom weights, not only phase scales and
-  cross-phase composition.
+  cross-phase composition. *Superseded 2026-10-13 (WP-1912): the consumer no
+  longer waits.* The centroid landed without this item, as a row block of its
+  own (`origin_restraint`, `model/origin.py`). The paper's restraint has no σ
+  and data-derived weights, and the soft-restraint block's √c_w would free
+  the origin at c_w = 0. What this item can reuse is the shape: a linear row
+  whose partials are a constant matrix over entry paths, chained through C
+  (`origin.origin_partials`, beside `restraints.restraint_partials`).
 
 ## Non-goals
 

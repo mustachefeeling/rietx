@@ -182,8 +182,8 @@ def check_propagation_vector(space_group, k) -> KVector:
 def minus_k_is_k(space_group, k) -> bool:
     """True when −k ≡ k, i.e. when 2k is a vector of the reciprocal lattice.
 
-    The FullProf manual's ±k rule (Rodríguez-Carvajal, J. (1993). *Physica B*
-    **192**, 55, § Propagation vectors), and it is **centring-aware** because
+    The FullProf manual's ±k rule (*FullProf manual* § Propagation vectors,
+    eqs 3.47-3.54), and it is **centring-aware** because
     the reciprocal lattice is: on a C lattice (½, 0, 0) has 2k = (1, 0, 0),
     which violates h + k = 2n and is therefore *not* a reciprocal-lattice
     vector, so +k and −k are two vectors; (0, 0, ½) has 2k = (0, 0, 1), which
