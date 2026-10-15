@@ -87,6 +87,43 @@ one declaration per matched path, each with its own coefficients.
 
 ### Inherited
 
+- **2026-10-15, from [1325](1325-parametric-series.md), from @mustachefeeling's comments on PR #977: where a subset's boundary goes.** Numbers as
+  reported, not re-measured. Since 2026-10-15 the declaration is
+  `ParametricEquation` and the resolved one `RefinedParametricEquation`
+  (1325 decision 7), so read the entry below in those names.
+  - Their draft's default for equations per phase field: a phase transition
+    breaks cell, Biso, profile and composition equations; a gas switch
+    breaks composition only; isothermal ↔ ramp breaks nothing. Biso is
+    never tied across a transition. Each default is overridable per path and
+    boundary, with the override recorded. Boundaries are physical, declared
+    or detected, never "every N patterns".
+  - A misplaced edge is the expensive error: 1325's kink row covers its gap
+    0.66 of the time.
+  - Their blind event detector (Le Bail, one high-symmetry model along the
+    chain): a cell discontinuity did not fire, since a high-symmetry cell
+    fitted to lower-symmetry patterns wanders and the jump was 3× the median
+    step against `SEQUENTIAL_DISCONTINUITY`'s 5×. What held: the GoF step
+    (30× the median), a sustained Rwp regime shift (ratio 1.87), and the
+    tallest unmatched peak collapsing (h/σ 510 to 24). The null control fired
+    nothing. At a real transition the two directions disagree by one step,
+    so agreement is corroboration rather than a test.
+  - A ΔBIC symmetry test needs a negative control: a cubic null once
+    "required" R-3m at ΔBIC +1.4 × 10⁶ before a cell-window guard.
+  - A continuous reaction needs another detector: a reduction onset showed
+    as an agreement shift of 1.2σ, and the abrupt logic fired only at the
+    gas switch.
+  - **The detector's calibration inverted in seven weeks** (their addendum,
+    re-run on 1.9.0.dev0): the positive series is now missed, the null
+    control now fires, and a subgroup screen gives one false "lower symmetry
+    required" per run on a different compound each time. So a detector that
+    proposes a boundary is calibrated inside the test suite, against a
+    seeded planted-events series (#141, which still owes its generator;
+    [1317](1317-series-scrubber.md)).
+  - A cheap first step they propose: report, beside each equation, whether
+    any detector on main (`SeriesResult.discontinuities`, `moved_paths`,
+    the `MagneticOnset` bracket, `split_localisation`) fired inside its
+    subset.
+
 - **2026-10-14, from [1325](1325-parametric-series.md) (seventh session,
   PR #977): a result now carries each law as resolved.**
   `RefinementResult.parametric_laws[k].tie` is the declaration with its

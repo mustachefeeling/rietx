@@ -1074,6 +1074,48 @@ right, each freed gain is 0.92-1.10 of its refit.
   measurement says the joint form pays, the moment trajectory is a further
   series to measure it on.
 
+### A contributor's series work (PR #977 comments, 2026-10-14)
+
+@mustachefeeling commented twice on PR #977 with what their August to
+October series work found. Neither comment asks for a change to #977. A
+private bundle with the harness, drafts and data goes to the maintainer
+separately. The points for this WP are below. The subset boundary and the
+detectors went to [1965](1965-a-law-declared-by-formula-condition-and-glob.md),
+the scanned nonlinear laws to [1964](1964-a-nonlinear-law-through-the-derived-block.md),
+and the telemetry and event pairing to [1322](1322-events-aggregator.md).
+Their numbers are as reported and were not re-measured here.
+
+- **The joint fit inherits the chain's start, and the chain can be wrong at
+  equal Rwp.** On a two-phase VT series, whether the subgroup phase existed
+  depended on the walk direction. On an orthorhombic perovskite series, a
+  and c swapped between passes at 15.8σ. A chain reported `converged` with a
+  phase fraction wrong by tens of wt %, and the reseed ladder fires only when
+  Rwp is worse. For the start-agreement task they suggest seeding from a
+  chain that passed `direction="both"`, or from both directions with the
+  disagreements reported.
+- **Long in-situ series need segments.** Declaring every phase from pattern
+  1 gave a cell runaway and an SVD failure. What worked was segments switched
+  on the temperature history, at most 90 patterns each, chained from the
+  previous segment and run with `direction="both"`. A segment cannot resume
+  a dead chain's warm state.
+- **The WP-1523 hold picks the weaker of two collinear phases** (#219): the
+  real parent in 2 of 3 arms, at identical Rwp. It is the same unowned
+  defect as § Measured's chain kept at support 0.84-1.4.
+- **Admissibility.** Their draft planned a free fit under a smoothness
+  penalty, then a Durbin-Watson or runs test of the free trajectory against
+  the law, quoting esds conditional on the law and free. The form test
+  covers the same ground. They suggest the manual state the end state: an
+  equation is for nuisance parameters, and the science stays free.
+- **Composition equations.** One δ drives several occupancies by charge
+  balance. Anchoring and extrapolating fails far from dilute. Anchoring by
+  isotherm plus an external restraint row (TGA) is what they would want,
+  which is [1942](1942-a-soft-restraint-on-a-sum-across-phases.md)'s seam.
+- **An equation on an angle path** meets the angle wrap in `moved_paths` and
+  #263's one-sided esd (closed).
+- Not carried: their test that a tie survives the chain's carry step (#376,
+  closed). A parametric equation exists only in the joint fit, which has no
+  carry step.
+
 ## Non-goals
 
 - A library of physical models: here the caller supplies the basis, or names
@@ -1179,6 +1221,10 @@ right, each freed gain is 0.92-1.10 of its refit.
   sharing one `r` column are not one model with different values. Decide
   which fields must agree and refuse the rest. Declined from the 2026-10-14
   code review as a design decision.
+  - The values matter as much as the fields: a chain can hand the joint fit
+    a wrong basin at equal Rwp, or a phase that exists in one walk direction
+    only (§ A contributor's series work). Decide whether the start reads
+    a `direction="both"` chain and reports where the two walks disagree.
 - [x] **The measurement on real data**, with the same numbers as the
   synthetic half, on the ZrMo₂O₈ ramp: `1325-measure/real_ramp.py`, in
   § Measured on real data. All three sources are Durham TOPAS tutorials.
@@ -1642,6 +1688,11 @@ from the tree, verified and committed the rename, and wrote this entry.
   `test_magnetic` pin, the 1.10 notes and record say 0.58. This file's
   older entries keep "0.57", the number they shipped under on the branch.
 - WP-1418 inherits the f² question for the moment-angle test.
+- @mustachefeeling's two comments on PR #977 are folded in, after the
+  first version of this entry. This WP's points are in § A contributor's
+  series work and the start-agreement task. The boundary and detector
+  findings went to 1965 and 1317, the scanned nonlinear equations to 1964,
+  and the telemetry to 1322. Not re-measured here.
 
 *Measured* (macOS arm64, worktree venv `[dev]`, load 9.8-11.9):
 - Fast selection on 81bd517, before the merge: 9712 passed, 186 skipped,

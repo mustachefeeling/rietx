@@ -53,6 +53,15 @@ screenshots come from `docs/manual/make_screenshots.py`.
 
 ### Inherited
 
+- **2026-10-15, from [1325](1325-parametric-series.md), from @mustachefeeling's comments on PR #977: #141's planted-events series is wanted as a
+  calibration fixture.** Their blind event detector's thresholds, tuned by
+  hand on one positive and one null series in August, inverted by
+  1.9.0.dev0: the positive series is missed and the null fires. A detector
+  calibrated inside the suite against a seeded planted-events series would
+  fail a test when a fitting change moves it. That series still owes its
+  seeded generator. [1965](1965-a-law-declared-by-formula-condition-and-glob.md)
+  holds the rest.
+
 - **2026-10-11, from the issue triage (#218, in PR #903): the two asks are
   open as the reporter's PR, and the scrubber is not in it.** PR #903 (opened
   2026-10-11, fork) adds `SequentialRefinement.forward_`, published at
