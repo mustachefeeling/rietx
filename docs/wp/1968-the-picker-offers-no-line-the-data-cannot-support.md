@@ -1,6 +1,6 @@
 # WP-1968 — the picker offers no line the data cannot support
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-15 — PR #947 (part b) merged; PR #948 (part a) waits on its rebase
 Track: What fires, and what stays silent
 Depends on: 1909 soft (the 1σ floor this bar succeeds, and its census)
 Priority: P2 2026-10-14 — a defect that fires wrongly: off-lattice components reach every engine as usable lines, and every benchmark harness filters them by hand
@@ -101,7 +101,7 @@ close, since the peak list feeds every engine.
       recorded as `Decided YYYY-MM-DD:` here and answered on #934.
       *Decided 2026-10-14: (a) and (b) as PRs #948 and #947 build them, and
       a free hand beyond (Context).*
-- [ ] Review and merge PR #947 (part b).
+- [x] Review and merge PR #947 (part b).
 - [ ] Review and merge PR #948 (part a).
 - [ ] Follow-up, after WP-1969: keep `weak_line` and the other reported
       flags in the list, and leave them out of the search's driven set, as
@@ -137,6 +137,18 @@ name.
 
 ## Handover log
 
+- **2026-10-15** — PR #947 (part b) merged as `1eb58a5f`. `pick_peaks` now
+  tests each component's I/σ_I by Benjamini–Hochberg over the pattern's
+  resolution elements. A component under the bar is flagged `weak_line` and
+  stays usable, and `PEAK_EXPECTED_FALSE_LINES` gives the bar and the
+  expected noise count, worded as a lower bound. Round 2 fixed both round-1
+  items. The peak editor re-marks every component on each edit, so flags and
+  diagnostic agree. The trial count skips excluded bands, through
+  `TRIAL_GAP_STEPS`. #947 took `INDEXING_THRESHOLDS_VERSION` 1.10 and the
+  committed dist, so #948 (part a) rebases, renumbers and rebuilds. Its
+  round 2 is otherwise clean. Gated in the stack on tree `2268e525` (counts
+  in WP-1343's entry of today), `test_acceptance_indexing.py` green among
+  them. *Next:* #948 after its rebase.
 - **2026-10-14** — created, from the 2026-10-14 issue triage (issue #934).
   Checked against the tree at `ee589bab`: every symbol the issue names exists
   where cited, and its reproducer gives 17 usable lines with five extra
