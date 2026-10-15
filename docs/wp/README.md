@@ -443,6 +443,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 🔄 2026-10-09 | P2 | [1319](1319-structure-interchange.md) |
 | [1942](1942-a-soft-restraint-on-a-sum-across-phases.md) | A soft restraint on a sum of parameters across phases | ⬜ | P3 | — |
 | [1943](1943-the-pbso4-round-robin-as-an-acceptance-case.md) | The PbSO₄ round robin as an acceptance case | ⬜ | P3 | — |
+| [1973](1973-a-topas-spherical-harmonics-texture-reads-in.md) | A TOPAS spherical-harmonics texture reads in | ⬜ | P3 | [1960](1960-spherical-harmonics-texture.md), #131 |
 
 ### <a id="unscheduled-the-fit-has-no-reference"></a>The fit has no reference
 
@@ -659,3 +660,4 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1963](1963-a-kernel-over-the-pattern-coordinates.md) | A kernel over the pattern coordinates: honest intervals where no pattern sees the parameter | ⬜ | P3 | [1325](1325-parametric-series.md) |
 | [1964](1964-a-nonlinear-law-through-the-derived-block.md) | A nonlinear law over the pattern coordinates, through the derived block | ⬜ | P2 | [1325](1325-parametric-series.md), [1804](1804-the-derived-block.md) |
 | [1965](1965-a-law-declared-by-formula-condition-and-glob.md) | A parametric law declared by formula, condition and glob | ⬜ | P3 | [1325](1325-parametric-series.md) |
+| [1974](1974-the-texture-screen-says-which-order-the-misfit-needs.md) | The texture screen says which order the misfit needs | ⬜ | P3 | [1960](1960-spherical-harmonics-texture.md) |
