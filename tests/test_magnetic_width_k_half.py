@@ -27,7 +27,7 @@ A2 bias    broad        stage 1 only                     the moment is not biase
                                                          missing width
 A2 diag    broad        stage 1 only                     ``MAGNETIC_WIDTH_UNMODELLED`` misses
                                                          the case it exists for (**xfail,
-                                                         strict**: see below)
+                                                         non-strict**: see below)
 A2-4x      broad, 4x    stage 1 only                     the diagnostic does not fire at 4x
                         counts                           counts either
 C1 (a)     sharp        stage 1 only                     the diagnostic false-fires, or the
@@ -59,8 +59,10 @@ the moment held-width fit lands 25 % low (2.317 against 3.09) but
 ``MAGNETIC_WIDTH_UNMODELLED`` stays silent at z = 2.99 against its 3.0 bar: the
 misfit inflates the pooled-scatter noise the statistic is divided by.  On seeds
 1346-1350 it fires on 4 of 5; at 2x counts on 5 of 6, at 4x on 6 of 6.  So
-``test_a2_the_diagnostic_fires_at_5000_counts`` is ``xfail(strict=True)`` and
-flips to a failure once the diagnostic is fixed; ``A2-4x`` is the same arm at 4x
+``test_a2_the_diagnostic_fires_at_5000_counts`` is ``xfail(strict=False)``: the
+statistic sits 0.3 % under its bar, so a change in the fit's last digits can
+cross it on some platform, and an XPASS reports without failing (the #820
+shape); ``A2-4x`` is the same arm at 4x
 counts (seed 1343, z = 4.10) and must pass.  **4x gives up the truncation-floor
 argument above for this arm only**: it is a diagnostic test, and it asserts no
 width or moment recovery.
@@ -274,7 +276,7 @@ def test_a2_without_the_width_the_moment_is_biased_low(arms):
     assert bias > 0.10
 
 
-@pytest.mark.xfail(strict=True, reason=(
+@pytest.mark.xfail(strict=False, reason=(
     "the misfit inflates the pooled-scatter noise MAGNETIC_WIDTH_UNMODELLED is "
     "divided by, so it stays at z = 2.99 (< 3.0) on seed 1343 while the moment "
     "is 25 % low; fires on 4 of 5 other seeds (WP-1343 finding, #277)"))
