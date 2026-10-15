@@ -156,11 +156,13 @@ def test_a_line_free_pattern_keeps_no_line_and_says_so(slope):
 
 def test_steep_background_junk_fails_the_patterns_bar_and_no_true_line_does(tmp_path):
     """#728 arm c2: a background falling 3× over 12–23° under synthetic
-    silicon.  37 usable components, 24 of them more than 1.5 FWHM from every
-    silicon line at I/σ_I 1.0–1.5 (maxima on the flank the envelope
-    under-tracks): all 24 flagged.  The two left unflagged are I/σ_I 7.4
-    re-seeds that absorb a background misfit, which no statistical threshold
-    reaches."""
+    silicon.  Before the resolvability rule (#934) 37 usable components, 24 of
+    them more than 1.5 FWHM from every silicon line at I/σ_I 1.0–1.5 (maxima on
+    the flank the envelope under-tracks), all 24 flagged; the two left
+    unflagged are I/σ_I 7.4 re-seeds that absorb a background misfit, which no
+    statistical threshold reaches.  With it most flank components leave
+    usable() as width_capped before the bar sees them: 17 usable,
+    4 of them below the bar."""
     truth = _si_lines()
     pl = rx.pick_peaks(_silicon(tmp_path, steep=True, hi=102.1161),
                        rx.Instrument.debye_scherrer(wavelength=LAM),
@@ -171,7 +173,7 @@ def test_steep_background_junk_fails_the_patterns_bar_and_no_true_line_does(tmp_
     d = _diag(pl)
     weak = [p for p in pl.peaks if "weak_line" in p.flags]
     kept = [p for p in pl.usable() if "weak_line" not in p.flags]
-    assert len(weak) >= 20 and d.value == pytest.approx(PEAK_FDR_Q * len(kept))
+    assert len(weak) >= 3 and d.value == pytest.approx(PEAK_FDR_Q * len(kept))
     # reported, not refused: every flagged component is still offered
     assert all(p.usable for p in weak)
 
