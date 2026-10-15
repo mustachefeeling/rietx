@@ -1,6 +1,6 @@
 # WP-1978 — The new manual's tree: six tabs beside the old, and its page contract
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-16 — claimed by @yue-here
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-16 — a feature the maintainer asked for, and the tree every other rebuild WP (1979-1986) writes into
