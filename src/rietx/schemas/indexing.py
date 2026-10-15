@@ -543,7 +543,7 @@ Confidence = Literal["high", "medium", "low"]
 #: remove, inside de Wolff's window (the first twenty lines), where the
 #: pattern has nothing above the picker's background envelope
 #: (``LeBailValidation.predicted_but_absent_uncancellable_in_window``).
-#: **Capping** since thresholds 1.11: a true cell's weak general reflections
+#: **Capping** since thresholds 1.12: a true cell's weak general reflections
 #: below detection read absent too (corundum 5 over the full range, 0 in the
 #: window), so the count keeps ``high`` out of reach and the pairwise
 #: ``supercell_refuted`` is what refutes.  ``indexed_fraction_low`` — below
@@ -1074,7 +1074,7 @@ class SupercellCheck(Base):
     #: 0 when the parent is not a sublattice (``relation="containment"``)
     index: int
     #: ``"sublattice"``: the parent is an index-2-to-4 sublattice of this
-    #: lattice.  ``"containment"`` (thresholds 1.11): every observed line the
+    #: lattice.  ``"containment"`` (thresholds 1.12): every observed line the
     #: parent indexes, this lattice indexes, and this one's line set is the
     #: denser — the relation ``indexing.screen.contains`` asks, which reaches
     #: cubic I √2·a₀ over cubic F a₀ and a trigonal description of a cubic
@@ -1154,7 +1154,7 @@ class LeBailValidation(Base):
     space_group: str
     n_reflections: int
     #: lines the lattice predicts where the pattern has no intensity.  Since
-    #: thresholds 1.11 the line screen's count (``indexing/screen.py``): merged
+    #: thresholds 1.12 the line screen's count (``indexing/screen.py``): merged
     #: predicted lines, testable (resolved from every picked component and
     #: quiet in the peak-list model) and with nothing above the picker's
     #: background envelope at the measured width — inputs the candidate
@@ -1162,7 +1162,7 @@ class LeBailValidation(Base):
     #: the fit's own background (``absent_source``).
     predicted_but_absent: int = 0
     #: of those, the lines no space group of this lattice could extinguish
-    #: (``ambiguity.uncancellable``); ``None`` before 1.11 or without a screen
+    #: (``ambiguity.uncancellable``); ``None`` before 1.12 or without a screen
     predicted_but_absent_uncancellable: int | None = None
     #: of *those*, the lines inside de Wolff's window — positions up to the
     #: Q of the 20th usable line, where a true cell's lines are strong enough
