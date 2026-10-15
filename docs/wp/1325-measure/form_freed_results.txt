@@ -1,42 +1,42 @@
 WP-1325: each law with the other laws freed, on the ZrMo2O8 ramp
 machine   Darwin arm64, 10 CPUs, python 3.12.10, numpy 2.5.4
-rietx     1.10.0.dev0 at c5b015e2, compiled kernels on
-load      4.77 3.76 3.23
+rietx     1.10.0.dev0 at 741649b6, compiled kernels on
+load      76.52 65.06 38.73
 window    ranges 35..67 (0-based), 33 patterns
-chain     20.4 s
-untied    25.2 s; χ²r 1.873, f 2.503
-all three 39.2 s converged; χ²r 1.878, f 2.511; the readings divide by χ²r·f² 11.847, the untied fit's is 11.734
-  cubic_a  tied      42.8 for  31 (1.38/dir, p 0.0771) keep
-           freed     48.6 for  31 (1.57/dir, p 0.0232) REJECT
-           freed gain   575.3 (1.00 of the refit's 576.1); over the untied denominator 1.58/dir against the refit's 1.58
-  trig_a   tied      10.6 for  31 (0.34/dir, p 1) keep
-           freed     20.4 for  31 (0.66/dir, p 0.927) keep
-           freed gain   241.6 (1.33 of the refit's 181.7); over the untied denominator 0.66/dir against the refit's 0.5
-  trig_c   tied       9.0 for  31 (0.29/dir, p 1) keep
-           freed     18.2 for  31 (0.59/dir, p 0.967) keep
-           freed gain   215.6 (1.05 of the refit's 204.7); over the untied denominator 0.59/dir against the refit's 0.56
-  joint       74.1 for  93 (0.80/dir, p 0.925) keep
-           joint gain   878.3 (1.05 of the untied refit's 839.3); over the untied denominator 0.80/dir
-round trip 0.08 s
+chain     55.4 s
+untied    35.3 s; χ²r 1.873, f 2.503
+all three 53.8 s converged; χ²r 1.878, f 2.511; the readings divide by χ²r 1.878, the untied fit's is 1.873
+  cubic_a  tied     269.3 for  31 (8.69/dir, p 8.48e-40) REJECT
+           freed    305.5 for  31 (9.85/dir, p 7.05e-47) REJECT
+           freed gain   573.8 (1.00 of the refit's 576.1); over the untied χ²r 9.88/dir against the refit's 9.92
+  trig_a   tied      67.0 for  31 (2.16/dir, p 0.000189) REJECT
+           freed    128.3 for  31 (4.14/dir, p 8.57e-14) REJECT
+           freed gain   240.9 (1.33 of the refit's 181.7); over the untied χ²r 4.15/dir against the refit's 3.13
+  trig_c   tied      56.4 for  31 (1.82/dir, p 0.00347) REJECT
+           freed    114.5 for  31 (3.69/dir, p 1.7e-11) REJECT
+           freed gain   215.0 (1.05 of the refit's 204.7); over the untied χ²r 3.70/dir against the refit's 3.52
+  joint      466.4 for  93 (5.01/dir, p 4.42e-51) REJECT
+           joint gain   875.9 (1.04 of the untied refit's 839.3); over the untied χ²r 5.03/dir
+round trip 0.17 s
  (user units, at each reference):
     cubic_a: phases.1.cell.a at T=842.25
       [1] 9.11157(11) Å
       [T] -0.0000196(14) Å/K
       form REJECTED over 33 of 33 patterns:
-        with the other laws freed, REJECTED: 48.6 past the cut 45.0 (p = 0.023) for 31 directions
-        with the other laws tied, not rejected: 42.8 within the cut 45.0 (p = 0.077) for 31 directions
+        with the other laws freed, REJECTED: 305.5 past the cut 45.0 (p < 0.001) for 31 directions
+        with the other laws tied, REJECTED: 269.3 past the cut 45.0 (p < 0.001) for 31 directions
     trig_a: phases.2.cell.a at T=842.25
       [1] 10.12001(97) Å
       [T] -0.0000865(80) Å/K
-      form not rejected over 33 of 33 patterns:
-        with the other laws freed, not rejected: 20.4 within the cut 45.0 (p = 0.93) for 31 directions
-        with the other laws tied, not rejected: 10.6 within the cut 45.0 (p = 1) for 31 directions
+      form REJECTED over 33 of 33 patterns:
+        with the other laws freed, REJECTED: 128.3 past the cut 45.0 (p < 0.001) for 31 directions
+        with the other laws tied, REJECTED: 67.0 past the cut 45.0 (p < 0.001) for 31 directions
     trig_c: phases.2.cell.c at T=842.25
       [1] 12.1099(21) Å
       [T] 0.000319(17) Å/K
-      form not rejected over 33 of 33 patterns:
-        with the other laws freed, not rejected: 18.2 within the cut 45.0 (p = 0.97) for 31 directions
-        with the other laws tied, not rejected: 9.0 within the cut 45.0 (p = 1) for 31 directions
-    the 3 tested laws together: form not rejected: 74.1 within the cut 116.5 (p = 0.93) for 93 directions
+      form REJECTED over 33 of 33 patterns:
+        with the other laws freed, REJECTED: 114.5 past the cut 45.0 (p < 0.001) for 31 directions
+        with the other laws tied, REJECTED: 56.4 past the cut 45.0 (p = 0.0035) for 31 directions
+    the 3 tested laws together: form REJECTED: 466.4 past the cut 116.5 (p < 0.001) for 93 directions
   provenance: rietx 1.10.0.dev0, backend=numpy, solver=lm
   Rwp 0.0999 / Rexp 0.0729 (GoF 1.37), Rp 0.0751, χ² 1.9, DW 1.09

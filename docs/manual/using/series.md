@@ -1680,7 +1680,7 @@ Each reading is a `ParametricFormReading`:
 | Field | Holds |
 |---|---|
 | `ParametricFormReading.dof` | the directions the alternative adds, `n_patterns` less the coefficients when nothing is degenerate; 0 when there was nothing to test |
-| `ParametricFormReading.statistic` | the χ² the alternative would remove, over χ²_red·f² |
+| `ParametricFormReading.statistic` | the χ² the alternative would remove, over the answer's χ²_red |
 | `ParametricFormReading.cut` | the 95 % point of χ² for `dof` directions |
 | `ParametricFormReading.rejected` | `statistic > cut` |
 | `ParametricFormReading.p_value` | the upper tail of χ² for `dof` directions at `statistic`, so a near miss shows on either side of the cut |
@@ -1698,10 +1698,10 @@ at mid-ramp, and a straight line declared:
     a: phases.0.cell.a at T=750
       [1] 4.1658973(17) Å
       [T] 0.0000207833(23) Å/K
-      form REJECTED: 2606.7 past the cut 15.5 (p < 0.001) for 8 directions over 10 of 10 patterns
+      form REJECTED: 4461.1 past the cut 15.5 (p < 0.001) for 8 directions over 10 of 10 patterns
 ```
 
-The same ramp on its true line read 4.8 against the same cut, at p = 0.77. The
+The same ramp on its true line read 7.6 against the same cut, at p = 0.47. The
 line prints a p-value under 0.001 as `p < 0.001`. A rejected form
 adds `PARAMETRIC_FORM_REJECTED`, a warning on `RefinementResult.diagnostics`
 whose `where` names the coefficients and whose `value` is the verdict
@@ -1721,13 +1721,14 @@ phase's a and c read:
       [1] 9.11157(11) Å
       [T] -0.0000196(14) Å/K
       form REJECTED over 33 of 33 patterns:
-        with the other laws freed, REJECTED: 48.6 past the cut 45.0 (p = 0.023) for 31 directions
-        with the other laws tied, not rejected: 42.8 within the cut 45.0 (p = 0.077) for 31 directions
+        with the other laws freed, REJECTED: 305.5 past the cut 45.0 (p < 0.001) for 31 directions
+        with the other laws tied, REJECTED: 269.3 past the cut 45.0 (p < 0.001) for 31 directions
 ```
 
 A refit holding only the cubic law, with both trigonal cells free in every
-pattern, rejected it too (p 0.021). The freed reading's gain was 575.3 against
-the 576.1 that refit removed.
+pattern, rejected it too. The freed reading's gain was 573.8 against the 576.1
+that refit removed. The tied reading assumes the other laws are right, so it
+can pass a law that hides behind another law's misfit.
 
 Two laws whose targets change the pattern alike can each pass with the other
 freed while both are wrong, because each law's freed targets absorb the other's
@@ -1735,12 +1736,11 @@ misfit. So the fit is also read once with every tested law's targets freed
 together. That joint reading closes the block. On the same ramp:
 
 ```text
-    the 3 tested laws together: form not rejected: 74.1 within the cut 116.5 (p = 0.93) for 93 directions
+    the 3 tested laws together: form REJECTED: 466.4 past the cut 116.5 (p < 0.001) for 93 directions
 ```
 
-It kept all three laws while the cubic law failed on its own reading. One wrong
-law among three spreads its misfit over all 93 directions, so the joint reading
-adds to each law's verdict and does not replace it.
+One wrong law among several spreads its misfit over all their directions, so
+the joint reading adds to each law's verdict and does not replace it.
 
 When the joint reading rejects and no law's own verdict does,
 `PARAMETRIC_FORM_REJECTED` names every tested law's coefficients. The data
