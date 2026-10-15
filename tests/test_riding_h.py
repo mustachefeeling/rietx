@@ -77,7 +77,14 @@ def test_a_joint_fit_takes_the_neutron_lengths():
     assert riding_radiation([xray, neutron]) == "neutron"
 
 
-def test_a_class_with_no_tabulated_length_is_refused():
+def test_n_h_has_a_neutron_length_from_the_h_n3_row():
+    # Allen et al. (2006) Table 9.5.1.1, X2-N-H: 1.009 Å, neutron data only
+    assert riding_length("NH", "neutron") == 1.009
+    assert riding_length("NH", "xray") == 0.86
+
+
+def test_a_class_with_no_tabulated_length_is_refused(monkeypatch):
+    monkeypatch.setitem(RIDING_LENGTHS["neutron"], "NH", None)
     with pytest.raises(ValueError, match="no tabulated neutron length"):
         riding_length("NH", "neutron")
     with pytest.raises(ValueError, match="no riding-H length"):

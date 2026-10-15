@@ -17,9 +17,9 @@ measure:
   Crystallography* Vol. C (2006), § 9.5, Table 9.5.1.1 (pp. 801, 808), whose
   X–H rows are from neutron structures only (its Note 21) and uncorrected for
   libration: aromatic C–H 1.083, C=C–H 1.077, X₃C–H 1.099, X₂C–H₂ 1.092,
-  C–CH₃ 1.059, alcohol O–H 0.967, acid O–H 1.015 Å.  Table 9.5.1.1 has no
-  N–H row in the source rows held here, so ``"NH"`` has no neutron length and
-  is refused rather than guessed.
+  C–CH₃ 1.059, alcohol O–H 0.967, acid O–H 1.015, X₂N–H 1.009 Å (the H—N(3)
+  row, n = 95, Note 21).  The table's X₃N⁺–H row (1.033 Å, n = 87) is not
+  typed: the X-ray column has no ammonium length to pair it with.
 * **A joint X-ray + neutron fit takes the neutron lengths**: the hydrogen's
   scattering signal is in the neutron histogram (a design choice of this
   package), and the X-ray pattern barely constrains it.  So
@@ -34,12 +34,12 @@ from collections.abc import Iterable, Mapping
 import numpy as np
 
 #: X–H lengths (Å) by bond class and radiation; see the module docstring for
-#: the source of each column.  ``None`` = no tabulated value: refused.
+#: the source of each column.  ``None`` = no tabulated value: refused (no entry is ``None`` today).
 RIDING_LENGTHS: dict[str, dict[str, float | None]] = {
     "xray": {"aromatic_CH": 0.93, "sp2_CH": 0.93, "CH": 0.98, "CH2": 0.97,
              "CH3": 0.96, "OH": 0.82, "acid_OH": 0.82, "NH": 0.86},
     "neutron": {"aromatic_CH": 1.083, "sp2_CH": 1.077, "CH": 1.099, "CH2": 1.092,
-                "CH3": 1.059, "OH": 0.967, "acid_OH": 1.015, "NH": None},
+                "CH3": 1.059, "OH": 0.967, "acid_OH": 1.015, "NH": 1.009},
 }
 
 
