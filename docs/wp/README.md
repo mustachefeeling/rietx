@@ -49,6 +49,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 2026-10-12 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1960](1960-spherical-harmonics-texture.md) | Spherical-harmonics texture: preferred orientation with no single axis | 2026-10-15 | P3 | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
+| [1971](1971-a-returned-figure-survives-a-zoom-and-a-pickle.md) | A returned figure survives a caller's zoom and a pickle | 2026-10-15 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 
 ## Next, by priority
 
@@ -588,7 +589,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1957](1957-a-fit-seen-in-colab.md) | A fit seen in Colab: figures at their own shape, the structure beside them, a template for your own data | ✅ 2026-10-14 | — | — |
 | [1966](1966-the-tutorials-run-in-the-browser.md) | The tutorials run in the browser, in JupyterLite | ✅ 2026-10-14 | — | — |
 | [1970](1970-a-notebook-figure-follows-the-frontends-theme.md) | A notebook figure follows the frontend's theme | ✅ 2026-10-14 | — | — |
-| [1971](1971-a-returned-figure-survives-a-zoom-and-a-pickle.md) | A returned figure survives a caller's zoom and a pickle | ⬜ | P3 | — |
+| [1971](1971-a-returned-figure-survives-a-zoom-and-a-pickle.md) | A returned figure survives a caller's zoom and a pickle | 🔄 2026-10-15 | P3 | — |
 | [1972](1972-the-indexing-figures-take-a-dark-palette.md) | The indexing figures take a dark palette | ✅ 2026-10-15 | — | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out

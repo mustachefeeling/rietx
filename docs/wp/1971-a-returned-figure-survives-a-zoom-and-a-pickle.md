@@ -1,6 +1,6 @@
 # WP-1971 — a returned figure survives a caller's zoom and a pickle
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-15 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-10-14 — a workaround covers each: `two_theta_range=` zooms, and `fig.savefig` keeps a picture
