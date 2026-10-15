@@ -37,6 +37,11 @@ from .structure import Cell
 
 #: Any change a consumer could observe bumps the last component by one, and
 #: the comment says what changed — no classification, no digest (WP-1117).
+#: The number moves once per release cycle.  The first change after a release
+#: bumps it, and each later change before the next release adds its own line
+#: under that number, so a PR rebased onto a ``main`` already bumped keeps
+#: ``main``'s number.  Decided 2026-10-15, after six concurrent PRs had
+#: renumbered one another after every merge.
 #: 1.0 (WP-1018): first release of the peak-list contract.
 #: 1.1 (WP-1038): ``ShiftScreen.source`` gains ``"reflection_pairs"`` and the
 #: screen gains ``allowance_deg`` — a vocabulary member is a contract change even
