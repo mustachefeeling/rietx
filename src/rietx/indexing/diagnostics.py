@@ -863,12 +863,12 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
 
     reasons = []
     rivals = admissible if admissible else alive
+    contradicting = [c for c in alive if not c.space_groups
+                     and top.delta_bic - c.delta_bic >= DECISIVE_DELTA_BIC]
     if len(rivals) > 1 and rivals[1].delta_bic - top.delta_bic < DECISIVE_DELTA_BIC:
         reasons.append(f"{rivals[1].symbol} is within ΔBIC "
                        f"{rivals[1].delta_bic - top.delta_bic:.1f} of it "
                        f"(decisive is {DECISIVE_DELTA_BIC:g})")
-    contradicting = [c for c in alive if not c.space_groups
-                     and top.delta_bic - c.delta_bic >= DECISIVE_DELTA_BIC]
     if contradicting:
         reasons.append(f"the data prefer {contradicting[0].symbol}, which the "
                        "declared prior excludes, by ΔBIC "
@@ -890,7 +890,10 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
             message=("The extinction symbol is not settled by these data: "
                      + "; ".join(reasons) + "."),
             where=[f"leading: {top.symbol}"]
-            + [f"then: {c.symbol} (ΔBIC {c.delta_bic:+.1f})" for c in alive[1:3]],
+            + [f"then: {c.symbol} (ΔBIC {c.delta_bic:+.1f})"
+               for c in rivals[1:3]]
+            + [f"excluded by the prior: {c.symbol} (ΔBIC {c.delta_bic:+.1f})"
+               for c in contradicting[:2]],
             suggestion=("Count longer at the forbidden positions where the "
                         "leading classes disagree, or extend the 2θ range.")))
     return out
@@ -913,10 +916,14 @@ def _prior_diagnostic(screen, alive, top) -> Diagnostic:
                f"group(s) from {len(removed)} class(es)")
     if emptied:
         message += f", emptying {', '.join(emptied)}"
-    if first_emptied:
+    if first_emptied and top.space_groups:
         message += (f"; the data's leading class {alive[0].symbol} is among "
                     f"them, so the answer is read from {top.symbol}, the "
                     "first class the declaration admits")
+    elif first_emptied:
+        message += (f"; the data's leading class {alive[0].symbol} is among "
+                    "them and the declaration admits no member of any "
+                    "surviving class, so there is no admissible answer")
     return Diagnostic(
         level="warning" if first_emptied else "info",
         code="EXTINCTION_PRIOR_APPLIED",

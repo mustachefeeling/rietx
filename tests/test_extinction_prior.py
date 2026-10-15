@@ -166,3 +166,49 @@ def test_a_class_inside_one_laue_class_does_not(p21_screens):
     assert "LAUE_CLASS_NOT_SEPARABLE" not in _codes(plain)
     diagnostics = extinction_diagnostics(_one_class_screen(["P 63", "P 63/m"]))
     assert "LAUE_CLASS_NOT_SEPARABLE" not in [d.code for d in diagnostics]
+
+
+# ----------------------------------------------------------------------
+# the diagnostics name the right classes once a prior empties the leader
+# ----------------------------------------------------------------------
+def _cand(symbol: str, groups: list[str], delta_bic: float, excluded=()):
+    return ExtinctionCandidate(
+        symbol=symbol, representative=(groups or list(excluded))[0],
+        space_groups=groups, excluded_groups=list(excluded),
+        laue_classes=laue_classes(groups), n_absent=3, n_testable=3,
+        screened=True, delta_bic=delta_bic)
+
+
+def _prior_screen(candidates):
+    return ExtinctionScreen(candidates=candidates, system="monoclinic",
+                            prior=ENANTIOPURE)
+
+
+def test_the_runners_up_exclude_the_leading_class_and_name_the_emptied_one():
+    screen = _prior_screen([
+        _cand("emptied", [], -300.0, excluded=["P 1 21/c 1"]),
+        _cand("top", ["P 1 21 1"], -100.0),
+        _cand("rival", ["P 1 1 21"], -98.0),
+        _cand("third", ["P 1 1 2"], -50.0)])
+    ambiguous = next(d for d in extinction_diagnostics(screen)
+                     if d.code == "EXTINCTION_SYMBOL_AMBIGUOUS")
+    assert ambiguous.where[0] == "leading: top"
+    assert [w.split(" (")[0] for w in ambiguous.where[1:]] == [
+        "then: rival", "then: third", "excluded by the prior: emptied"]
+
+
+def test_a_prior_that_empties_every_class_does_not_call_one_admitted():
+    screen = _prior_screen([
+        _cand("emptied", [], -300.0, excluded=["P 1 21/c 1"]),
+        _cand("also", [], -100.0, excluded=["P 1 21/m 1"])])
+    note = next(d for d in extinction_diagnostics(screen)
+                if d.code == "EXTINCTION_PRIOR_APPLIED")
+    assert note.level == "warning"
+    assert "first class the declaration admits" not in note.message
+    assert "no admissible answer" in note.message
+
+
+def test_the_polar_test_is_the_floating_origin_basis():
+    from rietx.crystallography.wyckoff import floating_origin_basis
+    for sg in gemmi.spacegroup_table():
+        assert is_polar(sg) == (len(floating_origin_basis(sg)) > 0)

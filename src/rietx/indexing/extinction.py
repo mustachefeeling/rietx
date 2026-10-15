@@ -267,16 +267,17 @@ def _order(sg: gemmi.SpaceGroup) -> int:
 def is_polar(sg: gemmi.SpaceGroup) -> bool:
     """Does the point group leave a direction fixed?
 
-    Derived, not looked up: the polar classes are exactly those whose rotations
-    share an invariant vector, i.e. the stacked ``R − I`` has rank below 3 (the
-    ten classes 1, 2, m, mm2, 4, 4mm, 3, 3m, 6, 6mm; Nye 1957, *Physical
-    Properties of Crystals*, ch. 10).  Inversion is a rotation part here, so a
-    centrosymmetric group is never polar.
+    A group is polar exactly when its rotations share an invariant vector, which
+    is the axis its origin floats along: :func:`~rietx.crystallography.wyckoff.
+    floating_origin_basis` is non-empty (the ten classes 1, 2, m, mm2, 4, 4mm,
+    3, 3m, 6, 6mm; Nye 1957, *Physical Properties of Crystals*, ch. 10).  That
+    is the one derivation, in integers, shared with the floating-origin hold
+    (WP-1912).  Inversion is a rotation part here, so a centrosymmetric group is
+    never polar.
     """
-    rots = [np.asarray(op.rot, dtype=np.float64) / gemmi.Op.DEN
-            for op in sg.operations()]
-    stacked = np.vstack([r - np.eye(3) for r in rots])
-    return int(np.linalg.matrix_rank(stacked, tol=1e-9)) < 3
+    from ..crystallography.wyckoff import floating_origin_basis
+
+    return len(floating_origin_basis(sg)) > 0
 
 
 def admits(prior: ExtinctionPrior | None, sg: gemmi.SpaceGroup) -> bool:

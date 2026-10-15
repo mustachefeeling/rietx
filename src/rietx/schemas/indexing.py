@@ -149,7 +149,7 @@ from .structure import Cell
 #: ``LAUE_CLASS_NOT_SEPARABLE`` fires on every screen whose leading class
 #: spans two Laue classes (a hexagonal ``P 63 - -``: 6/m and 6/mmm).  Without
 #: a declaration no ranking and no ``best_or_none`` moves.
-INDEXING_THRESHOLDS_VERSION = "1.11"
+INDEXING_THRESHOLDS_VERSION = "1.12"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
