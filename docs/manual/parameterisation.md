@@ -408,6 +408,13 @@ esd of $\varphi$.
 
 A body's *shape* is a hypothesis the data can reject. `Refinement.check_rigid_bodies` releases each body's atoms as free coordinates held near the template by soft restraints and compares the two fits on the data χ² alone, by Hamilton's R-factor ratio test {cite}`hamilton1965` and by ΔBIC {cite}`schwarz1978`, both at the effective sample size of the serially correlated residual. It warns (`RIGID_BODY_MISFIT`) only when both reject the body, and names the template bonds the released fit moved.
 
+A hydrogen in a body rides with it, at a tabulated length from its parent atom
+that depends on what the data measure: the SHELXL riding defaults for X-ray
+data (C–H 0.93–0.98 Å, O–H 0.82 Å, the electron-density centroid) and the
+neutron means of the *International Tables* Vol. C § 9.5 for neutron data
+(C–H 1.06–1.10 Å, N–H 1.009 Å, O–H 0.967 Å). A joint X-ray and neutron fit takes the
+neutron lengths, because the hydrogen signal is in the neutron histogram.
+
 ## Soft restraints
 
 A bond-length, angle or value restraint contributes one row to the residual
