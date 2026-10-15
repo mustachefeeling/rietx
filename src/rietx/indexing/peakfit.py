@@ -137,13 +137,17 @@ class GroupFit:
     from_reseed: np.ndarray | None = None
     #: Per component: the index of the group-mate whose line it is reported in,
     #: or −1 when it is a line of its own (:func:`unresolved_mates`).  ``None``
-    #: on a fit nothing measured it for (an empty group).
+    #: on a fit nothing judged it for, as ``width_at_bound``.
     merged_into: np.ndarray | None = None
     #: Did a shared width (Γ_G or Γ_L) end on its upper bound,
     #: ``PEAK_WIDTH_BOUND_FACTORS[1]`` × the group's seed width?  The fit wanted
     #: a broader component than the pattern's own width law allows at this
     #: angle by that factor: a hump, not a line of the phase that set the law.
-    width_at_bound: bool = False
+    #: ``None`` on a fit nothing judged (:func:`fit_group_at`'s, an empty group,
+    #: a stored fit redrawn): "not asked", which a ``False`` would read as "not
+    #: capped".  Written by :func:`_judge`, which :func:`fit_group` runs on its
+    #: accepted fit.
+    width_at_bound: bool | None = None
 
     def reseeded(self) -> np.ndarray:
         """``from_reseed``, or all-False for a fit that never re-seeded."""
@@ -481,7 +485,23 @@ def unresolved_mates(m: _GroupModel, p: np.ndarray, width: float
     if n < 2:
         return out
     _gg, _gl, pos, inten = m.unpack(p)
-    order = np.argsort(pos)
+    order = [int(j) for j in np.argsort(pos)]
+
+    def mergeable(a: int, b: int) -> bool:
+        lo, hi = sorted((float(inten[a]), float(inten[b])))
+        if hi <= 0.0 or lo < PEAK_SATELLITE_MAX_RATIO * hi:
+            return False
+        return _sparrow_dip(m, p, a, b, width) <= _SPARROW_DIP_MIN
+
+    # **The merge is transitive, on purpose.**  A flat-topped line is fitted by
+    # three copies a fraction of a FWHM apart whose outer pair, taken alone, is
+    # resolvable (#728's silicon: 0.012° copies on a 0.020° width); bounding a
+    # run by its outer pair's dip test keeps two of the three as lines (measured:
+    # 6 of 11 silicon lines reported once, against 10 or more).  What the rule
+    # costs is a genuine triple whose neighbours are each under the limit and
+    # whose outer pair is over it.  Measured on the 16 IUCr round-robin lab
+    # patterns that never happens: of 290 multi-component groups, 7 hold a
+    # merged pair and none a chain of three.
     parent = list(range(n))
 
     def root(i: int) -> int:
@@ -491,16 +511,13 @@ def unresolved_mates(m: _GroupModel, p: np.ndarray, width: float
         return i
 
     for a, b in zip(order[:-1], order[1:]):
-        lo, hi = sorted((float(inten[a]), float(inten[b])))
-        if hi <= 0.0 or lo < PEAK_SATELLITE_MAX_RATIO * hi:
-            continue
-        if _sparrow_dip(m, p, int(a), int(b), width) > _SPARROW_DIP_MIN:
-            continue
-        parent[root(int(a))] = root(int(b))
+        if mergeable(a, b):
+            parent[root(a)] = root(b)
     clusters: dict[int, list[int]] = {}
     for j in range(n):
         clusters.setdefault(root(j), []).append(j)
-    for members in clusters.values():
+    runs = list(clusters.values())
+    for members in runs:
         if len(members) < 2:
             continue
         rep = max(members, key=lambda j: float(inten[j]))
@@ -538,6 +555,12 @@ def fit_group_at(det: Detection, group: PeakGroup, instrument: Instrument,
     ``from_reseed`` stays ``None`` — a component a human placed is not a
     residual's proposal, so :func:`~rietx.indexing.pick._not_separable` never
     fires on it by condition 1 alone.
+
+    **It makes neither resolvability judgement** (``merged_into`` and
+    ``width_at_bound`` stay ``None``): two named components 0.5 FWHM apart come
+    back as two lines, and a broadened sample's lines are not ``width_capped``.
+    Those are detection's judgements about components *it* proposed
+    (:func:`fit_group`); a caller who names positions has said what is there.
     """
     pos = np.sort(np.asarray(positions, dtype=np.float64))
     if pos.ndim != 1 or len(pos) == 0:
@@ -585,6 +608,9 @@ def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
     positive became a reported line with an esd and no evidence.  Every
     shoulder-seeded component now has to earn its two parameters against its own
     absence — for a singleton, against there being no peak there whatsoever.
+
+    The accepted fit alone is then judged for resolvability (:func:`_judge`:
+    ``merged_into``, ``width_at_bound``); the trial fits above are not.
     """
     pos = np.asarray(group.seed_two_theta, dtype=np.float64)
     shoulder = np.asarray(group.from_shoulder, dtype=bool)
@@ -604,6 +630,7 @@ def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
         added = np.insert(added, k, True)
         best = trial
     best.from_reseed = added
+    _judge(det, group, instrument, best)
     return best
 
 
@@ -724,7 +751,6 @@ def _fit_at(det: Detection, group: PeakGroup, instrument: Instrument,
     fwhm, eta = tch_gamma_eta(gg, gl)
 
     lo, hi = m.bounds(pos)
-    width_at_bound = bool(max(gg / hi[0], gl / hi[1]) >= 1.0 - 1e-6)
     tol = 1e-8 * np.maximum(np.abs(pos), 1.0)
     at_bound = np.array([
         bool(abs(fit_pos[j] - lo[2 + 2 * j]) <= tol[j]
@@ -741,6 +767,28 @@ def _fit_at(det: Detection, group: PeakGroup, instrument: Instrument,
         two_theta_esd=esd[2::2], intensity=inten, intensity_esd=esd[3::2],
         gamma_g=gg, gamma_l=gl, fwhm=float(fwhm), eta=float(eta),
         chi2_red=chi2_red, converged=bool(res.status > 0), at_bound=at_bound,
-        asymmetry_t=_asymmetry_t(m, p), n_points=len(m.x), reseed_at=reseed,
-        merged_into=unresolved_mates(m, p, float(fwhm)),
-        width_at_bound=width_at_bound)
+        asymmetry_t=_asymmetry_t(m, p), n_points=len(m.x), reseed_at=reseed)
+
+
+def _judge(det: Detection, group: PeakGroup, instrument: Instrument,
+           fit: GroupFit) -> None:
+    """Write the two resolvability judgements onto ``fit`` — detection's own.
+
+    Run once, on the fit :func:`fit_group` accepts, and not inside
+    :func:`_fit_at`: the trial fits of the shoulder prune and the re-seed passes
+    discard their answer, and a caller that names its own positions
+    (:func:`fit_group_at`, :func:`~rietx.indexing.pick.fit_peaks`, the peak
+    editor) has asked for exactly those components, so merging two of them or
+    flagging every named line on a broadened sample would answer a question it
+    did not ask.  The model is rebuilt at the fitted positions, not solved.
+    """
+    f_hi = PEAK_WIDTH_BOUND_FACTORS[1]
+    fit.width_at_bound = bool(
+        max(fit.gamma_g, fit.gamma_l) / (f_hi * group.seed_fwhm) >= 1.0 - 1e-6)
+    if fit.n < 2:
+        fit.merged_into = np.full(fit.n, -1, dtype=np.int64)
+        return
+    m = _GroupModel(det, group, instrument, fit.n, group.seed_fwhm)
+    m.freeze(fit.two_theta)
+    p = m.pack(fit.gamma_g, fit.gamma_l, fit.two_theta, fit.intensity)
+    fit.merged_into = unresolved_mates(m, p, fit.fwhm)

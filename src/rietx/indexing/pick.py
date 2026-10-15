@@ -133,7 +133,7 @@ def fit_peaks(data: PatternData, instrument: Instrument,
     than fitted into nonsense, as is the same position named twice — two
     components at one 2θ are exactly singular in their intensities.
 
-    **Three things a caller must know about the answer.**  (1) Every line
+    **Four things a caller must know about the answer.**  (1) Every line
     carries ``origin="manual"``: these positions are the caller's, not
     detection's proposals.  (2) A named position where there is no peak comes
     back *flagged* ``no_intensity`` and unusable — not dropped, and never
@@ -143,7 +143,10 @@ def fit_peaks(data: PatternData, instrument: Instrument,
     position, so what comes back is wherever the solve left it (measured: 40 m°
     from the seed, with an esd of 1e+16 degrees saying exactly that) — the flag
     is the answer, the number is not.
-    (3) Where the window holds a component the list did not name, its named
+    (3) The two resolvability judgements of detection (``unresolved_split``,
+    ``width_capped``) are **not** made: the components are the caller's, so a
+    named pair closer than Sparrow's limit comes back as two lines.
+    (4) Where the window holds a component the list did not name, its named
     lines are flagged ``unnamed_neighbour``: the unnamed intensity had nowhere
     to go but into them.  The question is asked of the caller's own fit, and
     answered the way :func:`fit_group` answers it for detection's seeds — the
@@ -327,6 +330,8 @@ def peaks_of_group(fit: GroupFit, group_index: int, wavelength: float
     return [ObservedPeak(
         two_theta=(tt := float(fit.two_theta[j])),
         two_theta_esd=(esd := _position_esd(fit, j, merged)),
+        two_theta_esd_fit=(float(fit.two_theta_esd[j])
+                           if bool(np.any(merged == j)) else None),
         intensity=float(fit.intensity[j]),
         intensity_esd=float(fit.intensity_esd[j]),
         q=float(q_of_two_theta(np.array(tt), wavelength)),
@@ -347,7 +352,10 @@ def _position_esd(fit: GroupFit, j: int, merged: np.ndarray) -> float:
     says what the list cannot resolve instead of quoting two precise positions
     the data do not support.  Position, area and width stay the component's
     own, which keeps the stored list redrawable as the fit it came from (the
-    peak editor rebuilds a group from its members).
+    peak editor rebuilds a group from its members).  The fit's own σ rides
+    beside it as ``two_theta_esd_fit``, because a **ranking** by measurement
+    quality (:func:`flag_duplicate_lines`) must not move a line down for having
+    absorbed a split.
     """
     own = float(fit.two_theta_esd[j])
     if merged[j] >= 0:
@@ -496,6 +504,11 @@ def _unresolved(fit: GroupFit, j: int,
     return bool(np.min(np.abs(others - fit.two_theta[j])) < gap)
 
 
+def _rank_esd(p: ObservedPeak) -> float:
+    """The esd that ranks a copy: the fit's own, never one widened by a merge."""
+    return p.two_theta_esd if p.two_theta_esd_fit is None else p.two_theta_esd_fit
+
+
 def flag_duplicate_lines(peaks: list[ObservedPeak], *,
                          only: set[int] | None = None) -> None:
     """Mark a line that another group has already fitted as ``duplicate_line``.
@@ -510,7 +523,8 @@ def flag_duplicate_lines(peaks: list[ObservedPeak], *,
     11-BM NAC, a quarter to a third of the re-seeded components were such
     copies, 27 of the 116 on ``cpd-4``.
 
-    The better-measured copy (smaller position esd, then lower group index) is
+    The better-measured copy (smaller position esd, then lower group index; the
+    fit's own esd, not one widened to reach merged splits) is
     the line and the other is flagged.  Components are judged best first, and
     only an unflagged one owns a line.  So in a chain of three copies, each
     within the tolerance of the next, the far end is not lost to a middle copy
@@ -546,8 +560,7 @@ def flag_duplicate_lines(peaks: list[ObservedPeak], *,
         hi_of[k] = max(hi_of[k], peaks[s_].two_theta)
     # owners: the unflagged usable components judged so far, as 2θ extents
     owners: list[tuple[float, float, int]] = []
-    for k in sorted(usable,
-                    key=lambda k: (peaks[k].two_theta_esd, peaks[k].group)):
+    for k in sorted(usable, key=lambda k: (_rank_esd(peaks[k]), peaks[k].group)):
         p = peaks[k]
         tol = PAWLEY_OVERLAP_FWHM_FRAC * p.fwhm
         lo, hi = lo_of[k] - tol, hi_of[k] + tol

@@ -799,6 +799,12 @@ class ObservedPeak(Base):
 
     two_theta: float               # ° 2θ of the **Kα1** (primary-line) component
     two_theta_esd: float           # ° 2θ, carrying the √max(χ²_red,1) inflation
+    #: The fit's own σ(2θ) before a merge widened ``two_theta_esd`` to reach
+    #: unresolved splits of this line (``unresolved_split``, #934); ``None`` on
+    #: a line nothing was merged into, where the two are one number.  Written by
+    #: :func:`rietx.indexing.pick.peaks_of_group`; read by the duplicate-line
+    #: ranking, which must not demote a line for having absorbed a split.
+    two_theta_esd_fit: float | None = None
     intensity: float               # integrated area of the primary line
     intensity_esd: float
     q: float                       # Å⁻², = 1/d²

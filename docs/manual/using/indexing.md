@@ -113,6 +113,7 @@ the group it was fitted in.
 |---|---|
 | `ObservedPeak.two_theta` | fitted position of the Kα1 component, ° |
 | `ObservedPeak.two_theta_esd` | its esd, carrying the √max(χ²_red, 1) inflation |
+| `ObservedPeak.two_theta_esd_fit` | the fit's own esd, where `two_theta_esd` was widened to reach merged `unresolved_split` components; `None` otherwise |
 | `ObservedPeak.q` | 1/d², Å⁻², derived from the position and the list's wavelength |
 | `ObservedPeak.q_esd` | σ(Q), by the exact derivative of that relation |
 | `ObservedPeak.intensity` | integrated area of the primary line |

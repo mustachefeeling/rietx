@@ -70,6 +70,11 @@ def _silicon_728(tmp_path, *, steep: bool, split: float) -> rx.PatternData:
 
 
 def _pairs(sep_fwhm: float, fwhm: float = 0.05):
+    data, centres = _pairs_data(sep_fwhm, fwhm)
+    return rx.pick_peaks(data, rx.Instrument.debye_scherrer(wavelength=0.8)), centres
+
+
+def _pairs_data(sep_fwhm: float, fwhm: float = 0.05):
     tt = np.round(np.arange(10.0, 40.0, 0.005), 3)
     s = fwhm / 2.3548
     centres = [15.0, 20.0, 25.0, 30.0, 35.0]
@@ -80,7 +85,7 @@ def _pairs(sep_fwhm: float, fwhm: float = 0.05):
     obs = np.random.default_rng(4).poisson(y).astype(float)
     data = rx.PatternData(two_theta=list(tt), intensity=list(obs),
                           sigma=list(np.sqrt(np.maximum(obs, 1))))
-    return rx.pick_peaks(data, rx.Instrument.debye_scherrer(wavelength=0.8)), centres
+    return data, centres
 
 
 def _in_pair(pl, c, sep, fwhm=0.05):
@@ -172,3 +177,70 @@ def test_a_merged_lines_copy_is_a_duplicate_anywhere_on_its_extent():
     peaks = [_peak(20.0, 0, esd=0.03), _peak(20.035, 1, esd=0.04)]
     flag_duplicate_lines(peaks)
     assert not any("duplicate_line" in p.flags for p in peaks)
+
+
+# --- review round 1 (yue-here, #948) ----------------------------------------
+
+def _triples(sep_fwhm: float, fwhm: float = 0.05, n: int = 3):
+    """Equal Gaussian lines ``sep_fwhm`` FWHM apart, ``n`` per cluster."""
+    tt = np.round(np.arange(10.0, 30.0, 0.005), 3)
+    s = fwhm / 2.3548
+    y = np.full_like(tt, 500.0)
+    for k in range(n):
+        y = y + 20000.0 * np.exp(-0.5 * ((tt - (20.0 + k * sep_fwhm * fwhm)) / s) ** 2)
+    obs = np.random.default_rng(4).poisson(y).astype(float)
+    return rx.PatternData(two_theta=list(tt), intensity=list(obs),
+                          sigma=list(np.sqrt(np.maximum(obs, 1))))
+
+
+def _judged_group(data, ins):
+    from rietx.indexing.peakfit import fit_group
+    from rietx.indexing.peaks import detect_peaks
+
+    det = detect_peaks(data, ins)
+    group = max(det.groups, key=lambda g: g.n)
+    return det, group, fit_group(det, group, ins)
+
+
+def test_a_caller_named_pair_is_never_merged_and_a_broad_sample_never_capped():
+    """``fit_peaks`` and the editor's ``fit_group_at`` fit exactly the
+    caller's positions: the two judgements are detection's, and are not made
+    there (#948 review item 3)."""
+    data, centres = _pairs_data(0.6)
+    ins = rx.Instrument.debye_scherrer(wavelength=0.8)
+    named = [x for c in centres for x in (c, c + 0.03)]
+    pl = rx.fit_peaks(data, ins, named)
+    assert len(pl.peaks) == len(named)
+    assert all("unresolved_split" not in p.flags and "width_capped" not in p.flags
+               for p in pl.peaks)
+    # the same pattern through detection *is* judged: the control arm
+    pl = rx.pick_peaks(data, ins)
+    assert any("unresolved_split" in p.flags for p in pl.peaks)
+
+
+def test_an_unjudged_fit_says_so_rather_than_not_capped():
+    """``width_at_bound`` and ``merged_into`` are ``None`` where nothing judged
+    (the declared-name rule): never a ``False`` that reads "not capped"."""
+    from rietx.indexing.peakfit import fit_group_at
+
+    ins = rx.Instrument.debye_scherrer(wavelength=0.8)
+    from rietx.indexing.peaks import detect_peaks
+    det = detect_peaks(_triples(0.5, n=2), ins)
+    g = det.groups[0]
+    fit = fit_group_at(det, g, ins, g.seed_two_theta)
+    assert fit.width_at_bound is None and fit.merged_into is None
+    _det, _g, judged = _judged_group(_triples(0.5, n=2), ins)
+    assert judged.width_at_bound is False and judged.merged_into is not None
+
+
+def test_a_line_that_absorbed_a_split_is_ranked_by_its_own_esd():
+    """Review item 1: the widened σ of a merged line must not demote it below
+    another group's re-seeded copy of the same line."""
+    real = _peak(20.0, 0, esd=0.05)             # widened to reach its split
+    real.two_theta_esd_fit = 0.003
+    split = _peak(20.03, 0, flags=["unresolved_split"])
+    copy = _peak(20.002, 1, esd=0.01)
+    peaks = [real, split, copy]
+    flag_duplicate_lines(peaks)
+    assert "duplicate_line" in copy.flags
+    assert "duplicate_line" not in real.flags
