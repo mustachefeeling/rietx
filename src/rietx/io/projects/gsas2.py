@@ -622,6 +622,21 @@ class Gsas2Broadening:
 
 
 @dataclass(frozen=True)
+class Gsas2Texture:
+    """A ``Pref.Ori.`` entry of kind ``SH``: a spherical-harmonics texture.
+
+    ``coefficients`` are keyed by GSAS-II's own names (``C(4,0)``) and hold its
+    numbers, in its normalisation and for its sample angle.
+    :func:`to_structure` converts them.  ``refined`` is the one flag GSAS-II
+    keeps for all of them.  An order below 2 carries no term.
+    """
+
+    order: int
+    coefficients: dict[str, float] = field(default_factory=dict)
+    refined: bool = False
+
+
+@dataclass(frozen=True)
 class Gsas2Hap:
     """What one phase did in one histogram.
 
@@ -635,9 +650,10 @@ class Gsas2Hap:
     size: Gsas2Broadening | None = None
     mustrain: Gsas2Broadening | None = None
     hstrain: tuple[Gsas2Value, ...] = ()
-    #: ``(model, value, refined, axis)`` — ``MD`` is March-Dollase, ``SH`` the
-    #: spherical-harmonic texture, whose coefficients this reader does not read
+    #: ``(model, value, refined, axis)`` of a March-Dollase entry, whose model
+    #: is ``MD``.  An ``SH`` entry is :attr:`texture` instead, and this is ``None``
     preferred_orientation: tuple[str, float, bool, tuple[int, int, int]] | None = None
+    texture: Gsas2Texture | None = None
     extinction: Gsas2Value | None = None
     #: whether this pair's intensities were extracted rather than calculated
     lebail: bool = False
@@ -1065,12 +1081,25 @@ def _histogram(label: str, payload: Any, children: dict[str, Any]) -> Gsas2Histo
 
 def _hap(phase: str, histogram: str, data: dict) -> Gsas2Hap:
     """One phase-and-histogram entry, from a phase's ``Histograms`` dict."""
+    # [kind, MD ratio, flag, MD axis, SH order, {C(l,n): value}, penalty hkls,
+    # penalty tolerance]; one flag serves either kind (GSASIIstrIO, 5.8.4).
     prefo = data.get("Pref.Ori.")
     preferred = None
+    texture = None
     if isinstance(prefo, (list, tuple)) and len(prefo) >= 4:
-        axis = prefo[3] if isinstance(prefo[3], (list, tuple)) else (0, 0, 1)
-        preferred = (str(prefo[0]), _float(prefo[1]) or 1.0, _flag(prefo[2]),
-                     tuple(int(v) for v in axis))
+        if str(prefo[0]) == "SH":
+            order = prefo[4] if len(prefo) > 4 else 0
+            terms = prefo[5] if len(prefo) > 5 and isinstance(prefo[5], dict) else {}
+            texture = Gsas2Texture(
+                # a numpy integer is no ``int``, so read it as a number
+                order=int(o) if (o := _float(order)) is not None else 0,
+                coefficients={str(k): f for k, v in terms.items()
+                              if (f := _float(v)) is not None},
+                refined=_flag(prefo[2]))
+        else:
+            axis = prefo[3] if isinstance(prefo[3], (list, tuple)) else (0, 0, 1)
+            preferred = (str(prefo[0]), _float(prefo[1]) or 1.0, _flag(prefo[2]),
+                         tuple(int(v) for v in axis))
     hstrain: tuple[Gsas2Value, ...] = ()
     row = data.get("HStrain")
     if isinstance(row, (list, tuple)) and len(row) >= 2:
@@ -1085,6 +1114,7 @@ def _hap(phase: str, histogram: str, data: dict) -> Gsas2Hap:
         mustrain=_broadening(data.get("Mustrain")),
         hstrain=hstrain,
         preferred_orientation=preferred,  # type: ignore[arg-type]
+        texture=texture,
         extinction=_value(data.get("Extinction")),
         lebail=bool(data.get("LeBail", False)),
         used=bool(data.get("Use", True)))
@@ -1496,6 +1526,156 @@ def _isotope_species(phase: Gsas2Phase, atom_type: str, named: str) -> str:
     return isotope
 
 
+#: The Laue classes without a mirror, where GSAS-II puts one coefficient on
+#: (cos nβ + sin nβ)·√2·P̄_l^n/√(2π).  For n ≠ 0 that function has norm √2 over
+#: the sphere, and this package's are orthonormal (WP-1960 § Pinned by Task 1).
+_GSAS2_ROOT2_LAUE = frozenset({"-1", "2/m", "4/m", "-3", "6/m"})
+
+_GSAS2_TERM = re.compile(r"C\((\d+),(-?\d+)\)")
+
+
+def _gsas2_texture_defect(sg, n: int) -> str | None:
+    """Why GSAS-II 5.8.4's harmonic C(l, n) is not invariant in ``sg``, or ``None``.
+
+    Measured against GSAS-II's own functions over every member of each
+    reflection's orbit, Friedel mates included
+    (``tests/data/gsas2_sh_texture.json``'s ``noninvariant``; WP-1960 § Pinned
+    by Task 1).  Such a function takes two values on one set of equivalent
+    reflections, so GSAS-II's P depends on which representative it was handed,
+    and no invariant basis reproduces it.  These are GSAS-II's defects, not
+    reported upstream.
+    """
+    system = sg.crystal_system_str()
+    if system in ("triclinic", "monoclinic"):
+        return None if n == 0 else (
+            "its azimuth for this class subtracts an index from a cell length, "
+            "so on an oblique cell it is not an angle about the polar axis")
+    if system == "trigonal" and sg.ext == "R":
+        return "it puts the polar axis on c* rather than on [111] on rhombohedral axes"
+    parts = sg.hm.split()
+    if system == "trigonal" and len(parts) == 4 and parts[2] == "1" and n % 6 == 3:
+        return ("it gives -31m the sin 3β function of -3m1, which -31m's "
+                "operators do not leave invariant")
+    return None
+
+
+def _gsas2_texture(model: Gsas2Model, chosen: Gsas2Phase, sg,
+                   named: str) -> tuple[tuple[int, dict[str, float], bool] | None,
+                                        list[Diagnostic]]:
+    """The texture to build ``chosen`` with, converted, and what to report.
+
+    GSAS-II evaluates a ``Bragg-Brentano`` histogram's sample harmonic at
+    ψ = 90° and this package at the plate normal, ψ = 0°.  So for one P,
+    C = C_GSAS·‖K_GSAS‖·P_l(0) under ``bragg_brentano``, the conversion
+    ``test_spherical_harmonics`` measures against GSAS-II's own ``SHPOcal``.
+    GSAS-II's ``Debye-Scherrer`` angle follows θ and the goniometer angles
+    (ψ = θ at its defaults), so no constant converts that one.
+    """
+    from ...crystallography.spherical_harmonics import (
+        lowest_order,
+        term_name,
+        texture_names,
+    )
+    fitted = [(hist, hap.texture) for (owner, hist), hap in model.hap.items()
+              if owner == chosen.name and hap.used and not hap.lebail]
+    entries = [(hist, t) for hist, t in fitted if t is not None and t.order >= 2]
+    if not entries:
+        return None, []
+    texture = entries[0][1]
+    hists = ", ".join(repr(h) for h, _ in entries)
+
+    def note(why: str, level: str = "warning"):
+        return None, [Diagnostic(
+            level=level, code="GSAS2_GPX_TEXTURE_NOT_CARRIED",
+            message=(
+                f"{named}: phase {chosen.name!r} carries a spherical-harmonics "
+                f"texture of order {texture.order} in histogram(s) {hists}, and "
+                f"it is not carried: {why}.  The file's numbers are on "
+                f"`model.hap[…].texture`"),
+            where=["phases.0"])]
+
+    # The one flag is a protocol, not a texture: histograms that agree on the
+    # numbers and differ only in it merge free, as the writers merge a flag.
+    if len(entries) < len(fitted) or any(
+            (t.order, t.coefficients) != (texture.order, texture.coefficients)
+            for _, t in entries[1:]):
+        return note("the histograms state different coefficients (a histogram "
+                    "the phase is fitted in with none states all zero), and a phase "
+                    "here has one texture, which a joint fit shares.  The phase "
+                    "builds without it, so the intensities it explained are not")
+    by_name = {h.name: h for h in model.histograms}
+    for hist_name, _ in entries:
+        hist = by_name.get(hist_name)
+        if hist is None or "Bragg" not in hist.geometry or not hist.constant_wavelength:
+            return note(
+                f"GSAS-II's sample angle for histogram {hist_name!r} "
+                f"({hist.geometry if hist else 'absent from the file'}) is not "
+                f"the Bragg-Brentano one.  It follows θ and the goniometer "
+                f"angles (ψ = θ at its default ones), so no constant converts "
+                f"its coefficients to a geometry this package models.  The "
+                f"phase builds without it, so the intensities it explained "
+                f"are not")
+    if texture.order % 2:
+        return note(f"GSAS-II generates even orders only, so order {texture.order} "
+                    f"names no series this package can build.  The phase builds "
+                    f"without it, so the intensities it explained are not")
+    if texture.order < lowest_order(sg):
+        return note(f"a cubic class has no term below order {lowest_order(sg)}, "
+                    f"so GSAS-II's P is 1 at every reflection and nothing is lost",
+                    level="info")
+    allowed = set(texture_names(sg, texture.order, chosen.cell))
+    laue = sg.laue_str()
+    values: dict[str, float] = {}
+    root2 = False  # whether any carried term took GSAS-II's √2
+    defects: dict[str, list[str]] = {}
+    unknown: list[str] = []
+    for gname, value in texture.coefficients.items():
+        m = _GSAS2_TERM.fullmatch(gname.replace(" ", ""))
+        if m is not None and int(m[1]) > texture.order:
+            continue  # GSAS-II evaluates only the names its order generates
+        if m is None or term_name(int(m[1]), int(m[2])) not in allowed:
+            if value != 0.0:  # a zero loses nothing, as a defective term's does
+                unknown.append(gname)
+            continue
+        degree, n = int(m[1]), int(m[2])
+        defect = _gsas2_texture_defect(sg, n)
+        if defect:
+            if value != 0.0:
+                defects.setdefault(defect, []).append(gname)
+            continue
+        norm = math.sqrt(2.0) if laue in _GSAS2_ROOT2_LAUE and n != 0 else 1.0
+        root2 = root2 or norm != 1.0
+        p_l0 = float(np.polynomial.legendre.Legendre.basis(degree)(0.0))
+        values[term_name(degree, n)] = value * norm * p_l0
+    if unknown:
+        return note(f"{', '.join(unknown)} name no term Laue class {laue} allows "
+                    f"to order {texture.order}.  The phase builds without it, "
+                    f"so the intensities it explained are not")
+    if defects:
+        return note(
+            "GSAS-II 5.8.4's function for "
+            + "; for ".join(f"{', '.join(terms)}, {why}" for why, terms in defects.items())
+            + ".  Each takes two values on one set of symmetry-equivalent "
+              "reflections, so its coefficient is not a pole density any "
+              "invariant function can match (WP-1960).  The phase builds "
+              "without the texture, so the intensities it explained are not")
+    notes = [Diagnostic(
+        level="info", code="GSAS2_GPX_TEXTURE_CONVERTED",
+        message=(
+            f"{named}: phase {chosen.name!r}'s spherical-harmonics texture "
+            f"(histogram(s) {hists}, order {texture.order}) is carried with "
+            f"each coefficient converted.  GSAS-II evaluates a Bragg-Brentano "
+            f"histogram's sample harmonic at ψ = 90° and this package at the "
+            f"plate normal, ψ = 0°, so each C is GSAS-II's times P_l(0)"
+            + (", and times √2 on the n ≠ 0 terms, whose GSAS-II functions "
+               f"have norm √2 in Laue class {laue}"
+               if root2 else "")
+            + ".  Fitted under the `bragg_brentano` geometry, the multipliers "
+              "are GSAS-II's.  The file's numbers are on `model.hap[…].texture`"),
+        where=[f"phases.0.texture.{name}" for name in values])]
+    return (texture.order, values, any(t.refined for _, t in entries)), notes
+
+
 def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                  diagnostics: list[Diagnostic] | None = None):
     """Build a :class:`~rietx.schemas.Structure` from a parsed ``.gpx``.
@@ -1610,6 +1790,7 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
             f"{named}: phase {chosen.name!r} states the space-group symbol "
             f"{chosen.space_group!r}, which is not one this build resolves "
             f"({exc}).  The cell and sites are on `model.phases`") from exc
+    carried, texture_notes = _gsas2_texture(model, chosen, sg, named)
 
     rewrites: dict[str, tuple[str, list[str]]] = {}
     frozen: list[str] = []
@@ -1663,6 +1844,10 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                                  vary=site["vary_occupancy"]),
                 biso=rx.Parameter(value=site["biso"], vary=site["vary_biso"]))
                 for site in sites],
+            texture=None if carried is None else rx.SphericalHarmonicTexture(
+                order=carried[0],
+                coefficients={name: rx.Parameter(value=c, vary=carried[2])
+                              for name, c in carried[1].items()}),
             scale=rx.Parameter(value=1e-3, min=0.0))])
     except ValueError as exc:
         raise Gsas2GpxError(
@@ -1705,6 +1890,7 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                 f"`model.histograms[…].sample['Scale']` and "
                 f"`model.hap[…].scale`"),
             where=["phases.0.scale"]))
+        diagnostics.extend(texture_notes)
     return structure
 
 

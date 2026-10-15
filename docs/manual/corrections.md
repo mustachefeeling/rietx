@@ -379,6 +379,12 @@ package's coefficient is GSAS-II's times $P_l(0)$, which is $-1/2$ at
 $l = 2$. In the five Laue classes without mirrors ($\bar 1$, $2/m$, $4/m$,
 $\bar 3$, $6/m$), GSAS-II's $n \ne 0$ functions also have norm $\sqrt 2$, so
 those coefficients take a further factor $\sqrt 2$.
+
+GSAS-II 5.8.4's functions are not invariant under the Laue group in three
+places: the $n \ne 0$ terms of $\bar 1$ and $2/m$, every term on rhombohedral
+axes, and the $n = 3$ terms of $\bar 3 1m$. Each takes two values on one set of
+equivalent reflections, so those coefficients have no counterpart here. GSAS-II
+also gives $m\bar 3$ one function fewer at $l = 6$ than the group allows.
 ```
 
 ## Quantitative phase analysis and microabsorption
