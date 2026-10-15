@@ -929,7 +929,7 @@ list too. Each pair asked is a `SupercellCheck` on the larger cell's
 `CellCandidate.supercell_checks`.
 
 Which pairs are asked is a question about the lines, not the volumes
-(indexing thresholds 1.10). A cell is asked as the larger one whenever every
+(indexing thresholds 1.11). A cell is asked as the larger one whenever every
 observed line the smaller cell indexes it indexes too, and its own line set is
 the denser. That reaches a sublattice pair, and it reaches pairs that are not:
 a cubic I cell at √2 the edge of a cubic F truth, whose primitive volume is
@@ -1117,7 +1117,7 @@ question was never asked.
 Read `IndexingResult.evidence` rather than the gate alone, and read
 `CandidateEvidence.lebail_rwp` beside the two detector counts instead of scoring
 on it. The three together are what let a reader notice that a detector
-has failed: on one measured pair, before 1.10 the correct cell read
+has failed: on one measured pair, before 1.11 the correct cell read
 `predicted_but_absent` 3 and its wrong rival 0, which is backwards, while
 Rwp read 0.22 against 0.71. A reasoner given both could see that; the gate,
 reading one number, could not. This is an argument for surfacing Rwp, never for
