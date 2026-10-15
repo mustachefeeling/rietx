@@ -1047,7 +1047,9 @@ RELATION_CERTIFICATES = ("absence", "subspace", "isometry", "farkas", "propagate
 #: Why an ``unresolved`` :class:`PairVerdict` was not decided: ``settled``,
 #: its pair was already decided distinct by the other direction; ``joined``,
 #: its two candidates were already in one class through other pairs, so no
-#: draw was spent on it (the certificates still ran, and none applied).
+#: draw was spent on it (the certificates still ran, and none applied), and
+#: that join still stands at the end: a skipped pair whose join the
+#: transfers refuted is drawn by the consistency rule (:func:`_rejoin`).
 UNRESOLVED_REASONS = ("settled", "joined")
 
 
@@ -1495,9 +1497,28 @@ class PairVerdict:
     ``weights`` the gate reads the unweighted bound derived from the same
     certificate (:func:`_certify_draw`).
 
-    **What is left for part 5 of issue #565:** the consistency rule and the
-    split.  A transferred separation that lands inside a class union-find
-    joined is named by the printed table; the class is not yet split.
+    **The consistency rule (issue #565, item 7).**  A class that union-find
+    joined and that holds a ``proved-not`` pair rests on a false sampled
+    edge or on a partial containment (``a`` ⊊ ``b`` in image: every draw
+    of ``b`` reproduced by ``a``, a draw of ``a`` proved out of ``b``'s
+    reach).  Inside such a class every ``sampled-contained`` direction
+    between the two irreps holding the proof is drawn once more with the
+    pair's own budget, on its own generator (``draws`` then counts both
+    rounds); a certified draw proves the direction, an unreproduced one
+    ends it ``sampled-not``, and either removes the edge on its own
+    evidence.  What is still joined after that is split: every edge with a
+    sampled half between two irreps that hold a proved separation inside
+    the class is dropped, and ``refuted_by`` on its sampled direction(s)
+    names the proved-not verdict (the one between those two irreps with
+    the smallest pair) that refuted it.  The status stays
+    ``sampled-contained``: the draws were reproduced, and nothing sampled
+    is upgraded or downgraded by a proof about other families; the edge is
+    not used for :attr:`CandidateSet.classes` and is for
+    :attr:`CandidateSet.merged_classes`.  A proved edge (``isometry``, or
+    ``span`` both ways) is never dropped, so a class can still hold a
+    proved separation after the split: one inside a single irrep, or one
+    between two irreps joined only through a third that no proof reaches;
+    the printed table names such classes.
 
     ``d``, ``witness`` and ``dual`` are set only by the draws, or carried:
     ``proved-not``/``farkas`` carries all three, and so do a
@@ -1511,7 +1532,8 @@ class PairVerdict:
     ``containment`` one whose source has it (the record is the source's: its
     ``x`` is in the amplitude basis of the source's c, ``via[0]`` of a
     propagated verdict, and verifies against that family's stack, not the
-    copy's); ``via`` on a ``propagated``, ``containment`` or ``transfer`` one.  Everything is a
+    copy's); ``via`` on a ``propagated``, ``containment`` or ``transfer`` one;
+    ``refuted_by`` on a ``sampled-contained`` one the split dropped.  Everything is a
     tuple, so the record stays hashable.
     """
 
@@ -1529,6 +1551,7 @@ class PairVerdict:
     via: tuple[int, int] | None = None
     containment: Containment | None = None
     transfer: Transfer | None = None
+    refuted_by: tuple[int, int] | None = None
 
     @property
     def proved(self) -> bool:
@@ -1555,8 +1578,19 @@ class CandidateSet:
     by every sampled pair with its draw counts.
 
     ``relations`` holds one :class:`PairVerdict` per ordered pair of
-    candidates, as :func:`analyse` measured it; ``classes`` are the
-    connected components of its equivalent pairs.
+    candidates, as :func:`analyse` measured it.  ``merged_classes`` are the
+    connected components of its equivalent pairs, every pair contained
+    both ways, by a proof or by draws: the union-find partition, which one
+    false sampled edge joins across.  ``classes`` is that partition split
+    by the consistency rule (issue #565, item 7, decision 1): inside a
+    merged class that holds a proved separation, every edge with a sampled
+    half between two irreps holding one is dropped (``refuted_by`` on the
+    verdict), and the components of what is left are the classes.  The two
+    agree exactly when no edge was dropped; where they differ the split
+    rests on sampled "⊆" halves, and the table says so.  A refinement
+    tries one representative per class of ``classes``: a wrong split costs
+    one extra trial, a wrong merge silently drops a distinguishable model.
+    Both are functions of ``relations`` alone (:func:`_partitions`).
 
     ``space_group`` is :func:`candidates`'s own resolved group object, exactly
     as :attr:`MagneticCandidate.space_group` — see that field's docstring
@@ -1575,6 +1609,7 @@ class CandidateSet:
     determinable: tuple[int, ...] = ()
     absences: tuple[int, ...] = ()
     relations: tuple[PairVerdict, ...] = ()
+    merged_classes: tuple[tuple[int, ...], ...] = ()
 
     def __len__(self) -> int:
         return len(self.candidates)
@@ -1635,7 +1670,7 @@ class CandidateSet:
         direction lookup by label — filters here rather than re-deriving the
         same test.  A candidate with ``verified is None`` (``verify=False``
         was used to build this set) is kept: nothing has said it fails.
-        ``classes``/``determinable``/``absences``/``relations`` are dropped
+        ``classes``/``merged_classes``/``determinable``/``absences``/``relations`` are dropped
         rather than reindexed, since they are computed by :func:`analyse`
         against the *positions* of ``self.candidates`` and would silently
         point at the wrong row once any candidate is removed; call
@@ -1643,17 +1678,18 @@ class CandidateSet:
         """
         kept = tuple(c for c in self.candidates if c.verified is not False)
         return replace(self, candidates=kept, classes=(), determinable=(), absences=(),
-                       relations=())
+                       relations=(), merged_classes=())
 
     def _class_proved(self, index: int) -> bool | None:
         """Whether a class's boundary is proved, or None if :func:`analyse` has not run.
 
-        True when every pair inside class ``index`` is proved contained both
-        ways and every pair between it and another class has a direction
-        proved not contained; one sampled or unresolved relation on either
-        side makes it False.  Issue #565's part 5 changes what ``classes``
-        means, and this rule, the ``__str__`` legend and the ``classes``
-        docstring are to be rewritten there together.
+        True when every pair inside class ``index`` of ``classes`` (the
+        split partition) is proved contained both ways and every pair
+        between it and another class has a direction proved not contained;
+        one sampled or unresolved relation on either side makes it False.
+        A class the split cut from a merged one is therefore S: the edges
+        it dropped were sampled, and so is at least one direction of the
+        partial containment it rests on.
         """
         if not self.relations:
             return None
@@ -1759,11 +1795,30 @@ class CandidateSet:
             lines.append("certificates below the rtol gate (the draws decide), d ∈ [1/‖y‖, best fit residual]:")
             lines += [f"  {label[v.a]} ⊄ {label[v.b]}  d ∈ [{v.d[0]:.2g}, {v.d[1]:.2g}]"
                       f"  {v.status}" for v in below]
+        verdicts = {(v.a, v.b): v for v in self.relations}
+        dropped = sorted({(min(v.a, v.b), max(v.a, v.b)) for v in self.relations
+                          if v.refuted_by is not None})
+        if dropped:
+            lines.append("sampled edges refuted by a proof (dropped from the split, which rests "
+                         "on their sampled ⊆ halves), n = draws a → b, b → a:")
+            for i, j in dropped:
+                there, back = verdicts[(i, j)], verdicts[(j, i)]
+                proof = verdicts[there.refuted_by or back.refuted_by]
+                lines.append(f"  {label[i]} ~ {label[j]}  n = {there.draws}, {back.draws}"
+                             f"  by {label[proof.a]} ⊄ {label[proof.b]} ({proof.certificate})")
+        if self.merged_classes and self.merged_classes != self.classes:
+            split_of = {m: c for c, members in enumerate(self.classes) for m in members}
+            parts = [f"{k} = " + " ∪ ".join(str(c) for c in sorted({split_of[m] for m in members}))
+                     for k, members in enumerate(self.merged_classes)
+                     if len({split_of[m] for m in members}) > 1]
+            lines.append("merged classes (union-find over every equivalence edge, the refuted "
+                         "ones included), as unions of the classes above: " + "; ".join(parts))
         holding = [c for c, members in enumerate(self.classes)
                    if any(v.status == "proved-not" and v.a in members and v.b in members
                           for v in self.relations)]
         if holding:
-            lines.append("classes holding a proved separation (part 5 of issue #565 splits them): "
+            lines.append("classes still holding a proved separation after the split (inside one "
+                         "irrep, or joined through a third irrep no proof reaches): "
                          + ", ".join(str(c) for c in holding))
         return lines
 
@@ -3473,7 +3528,8 @@ def _settle(target: tuple[int, int], new: PairVerdict,
 
 def _transfers(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int],
                grams: list[np.ndarray], dark: list[np.ndarray], silent: list[bool], *,
-               n: int, seed: int, rtol: float, restarts: int) -> None:
+               n: int, seed: int, rtol: float, restarts: int,
+               fits: dict[tuple[int, int], tuple[Witness, np.ndarray | None]] | None = None) -> None:
     """Carry every proved separation as far as the proved containments and the fit transfers take it (issue #565, items 5 and 6).
 
     Repeated to a fixed point, each new proof handed to :func:`_propagate`
@@ -3489,7 +3545,13 @@ def _transfers(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int],
     are ``b``'s own, every ``c`` that the draws said reproduces ``a``
     (``sampled-contained`` or ``unresolved`` a → c) and whose c → b is not
     yet proved is fitted to the witness draw on a generator seeded
-    (``seed``, a, b, c), once per witness and ``c``, and
+    (``seed``, a, b, c) with (a, b) the pair of the ``farkas`` verdict that
+    holds the witness — its origin, whatever order the verdicts carrying
+    it are visited in; a witness no ``farkas`` verdict holds takes the
+    carrying verdict's pair — once per witness and ``c`` (``fits`` keeps
+    those fits across calls, each beside the witness it was fitted to: the
+    key is the witness's ``id``, and a witness a replaced verdict freed
+    could otherwise hand its address to a new one), and
     :func:`_fit_transfer` decides c ⊄ b or nothing.  A ``c`` proved not to
     contain ``a`` is not tried: a generic draw of ``a`` is then out of its
     reach by the certificate, or expected to be; a ``c`` proved to be
@@ -3502,7 +3564,10 @@ def _transfers(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int],
     moving beyond it means a proof was overwritten, and raises rather than
     spin.
     """
-    fits: dict[tuple[int, int], np.ndarray | None] = {}
+    fits = {} if fits is None else fits
+    _alive = [v.witness for v in verdicts.values() if v.witness is not None]   # keeps every id below live
+    origin = {id(v.witness): (v.a, v.b) for v in verdicts.values()
+              if v.certificate == "farkas" and v.witness is not None}
     for _ in range(n * (n - 1) + 1):
         moved = False
         contained = [(v.a, v.b) for v in verdicts.values() if v.status == "proved-contained"]
@@ -3534,13 +3599,14 @@ def _transfers(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int],
                         or verdicts[(a, c)].status not in ("sampled-contained", "unresolved"):
                     continue
                 fit_key = (id(v.witness), c)
-                if fit_key not in fits:
-                    fits[fit_key] = _transfer_fit(
-                        t, grams[c], np.random.default_rng([seed, a, b, c]),
-                        restarts=restarts, rtol=rtol)
-                if fits[fit_key] is None:
+                if fit_key not in fits or fits[fit_key][0] is not v.witness:
+                    fits[fit_key] = (v.witness, _transfer_fit(
+                        t, grams[c], np.random.default_rng([seed, *origin.get(id(v.witness), (a, b)), c]),
+                        restarts=restarts, rtol=rtol))
+                fit = fits[fit_key][1]
+                if fit is None:
                     continue
-                fires, record = _fit_transfer(v.witness, grams[b], dark[b], grams[c], fits[fit_key])
+                fires, record = _fit_transfer(v.witness, grams[b], dark[b], grams[c], fit)
                 if fires:
                     moved |= _settle((c, b), PairVerdict(
                         c, b, "proved-not", "transfer", d=_transfer_distance(v, record),
@@ -3811,32 +3877,41 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
         if out and out[0].status in ("sampled-not", "proved-not"):
             out.append(PairVerdict(a, b, "unresolved", reason="settled"))
             continue
-        made = 0
-        verdict = None
-        below_gate = None
-        for _ in range(draws):
-            amplitudes = _normalised_draw(canonical[a], refl.lattice, rng)
-            made += 1
-            target = (grams[a] @ amplitudes) @ amplitudes
-            if float(np.max(np.abs(target))) <= 0.0:
-                continue
-            reproduced, certified, witness, dual = _certify_draw(
-                target, grams[b], dark[b], rng, restarts=restarts, rtol=rtol, draw=made,
-                weights=weights)
-            if certified:
-                verdict = PairVerdict(a, b, "proved-not", "farkas", made, 0,
-                                      d=witness.d, witness=witness, dual=dual)
-                break
-            if not reproduced:
-                verdict = PairVerdict(a, b, "sampled-not", None, made, 1,
-                                      d=None if witness is None else witness.d,
-                                      witness=witness, dual=dual)
-                break
-            below_gate = below_gate or witness
-        out.append(verdict or PairVerdict(
-            a, b, "sampled-contained", None, made, 0,
-            d=None if below_gate is None else below_gate.d, witness=below_gate))
+        out.append(_draw_direction(a, b, canonical, grams, dark, refl, rng, draws=draws,
+                                   rtol=rtol, restarts=restarts, weights=weights))
     return out[0], out[1]
+
+
+def _draw_direction(a: int, b: int, canonical, grams, dark, refl: ReflectionSet, rng, *,
+                    draws: int, rtol: float, restarts: int, weights: np.ndarray | None = None,
+                    spent: int = 0, below_gate: Witness | None = None) -> PairVerdict:
+    """The verdict of one direction from ``draws`` draws of ``a`` fitted by ``b`` on ``rng``: the loop :func:`_pair_verdicts` states.
+
+    ``spent`` draws were made on this direction before (a redraw continues
+    the count, so ``draws`` on the verdict and a witness's ``draw`` index
+    count every draw the direction ever consumed) and ``below_gate`` is a
+    certificate under the gate an earlier round stored.
+    """
+    made = spent
+    for _ in range(draws):
+        amplitudes = _normalised_draw(canonical[a], refl.lattice, rng)
+        made += 1
+        target = (grams[a] @ amplitudes) @ amplitudes
+        if float(np.max(np.abs(target))) <= 0.0:
+            continue
+        reproduced, certified, witness, dual = _certify_draw(
+            target, grams[b], dark[b], rng, restarts=restarts, rtol=rtol, draw=made,
+            weights=weights)
+        if certified:
+            return PairVerdict(a, b, "proved-not", "farkas", made, 0,
+                               d=witness.d, witness=witness, dual=dual)
+        if not reproduced:
+            return PairVerdict(a, b, "sampled-not", None, made, 1,
+                               d=None if witness is None else witness.d,
+                               witness=witness, dual=dual)
+        below_gate = below_gate or witness
+    return PairVerdict(a, b, "sampled-contained", None, made, 0,
+                       d=None if below_gate is None else below_gate.d, witness=below_gate)
 
 
 def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | None,
@@ -3844,7 +3919,7 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
               ) -> tuple[tuple[tuple[int, ...], ...], tuple[PairVerdict, ...]]:
     """:func:`equivalence_classes` and :func:`powder_relations` from one pass over the pairs.
 
-    Four passes, the first two cheap.  (1) The family-level certificates
+    Five passes, the first two cheap.  (1) The family-level certificates
     on every ordered pair, and on every pair they leave open the isometry
     certificate and, where that fails, the span containment on each
     direction; isometric candidates are grouped (union-find over the
@@ -3853,14 +3928,21 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
     i < j in order, each direction drawn only if nothing has decided it;
     a Farkas proof is carried to the copies the moment it is found, so a
     later pair of copies is not drawn.  Union-find over the equivalent
-    pairs joins as it always did, on the pair's own two verdicts.  (3) The
+    pairs joins as it always did, on the pair's own two verdicts, and a
+    pair reached joined is not drawn.  (3) The
     transfers (:func:`_transfers`): every proved separation is carried
     along the proved containments and, by the sign-free bound, to the
     families that reproduce its witness, to a fixed point, each new proof
-    propagated at once.  (4) The classes are read off.  A proof that lands
-    on a pair an earlier sampled join made replaces the sampled verdict
-    and leaves the join (the table names the class, part 5 splits it).
-    Nothing sampled is carried.
+    propagated at once.  (4) The consistency rule (issue #565, item 7): a
+    class holding a proved separation has the sampled edges that proof
+    contradicts redrawn once (:func:`_redraw`), the transfers re-run if
+    anything was redrawn, and what is still joined split (:func:`_split`,
+    ``refuted_by``).  (5) The classes are read off the final verdicts
+    (:func:`_partitions`): ``merged_classes`` from every equivalence edge,
+    ``classes`` from those not refuted.  A proof that lands on a pair an
+    earlier sampled join made replaces the sampled verdict, and the join
+    then rests on whatever other edges hold.  Nothing sampled is carried,
+    upgraded or downgraded.
     """
     weights = _shell_weights(weights, refl)
     little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
@@ -3925,14 +4007,257 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
                     _propagate(v, verdicts, copies, n)
             if there.contained and back.contained:
                 parent[find(j)] = find(i)
+    fits: dict[tuple[int, int], tuple[Witness, np.ndarray | None]] = {}
     _transfers(verdicts, copies, grams, dark, silent, n=n, seed=seed, rtol=rtol,
-               restarts=restarts)
+               restarts=restarts, fits=fits)
+    _consistency(verdicts, [c.irrep_label for c in candidate_set], copies, canonical, grams,
+                 silent, dark, spans, refl, n=n, draws=draws, seed=seed, rtol=rtol,
+                 restarts=restarts, weights=weights, fits=fits)
+    relations = tuple(verdicts[key] for key in sorted(verdicts))
+    return _partitions(relations, n)[0], relations
+
+
+# --------------------------------------------------------------------------
+# the consistency rule and the split (issue #565, part 5)
+
+def _consistency_rounds(n: int) -> int:
+    """The most rounds :func:`_consistency` can need: its supply plus the round that draws nothing.
+
+    A round that continues consumes a skipped pair (at most n(n − 1)/2,
+    each drawn once) or a redrawn direction (at most n(n − 1), each once).
+    """
+    return n * (n - 1) // 2 + n * (n - 1) + 1
+
+
+def _consistency(verdicts: dict[tuple[int, int], PairVerdict], irrep, copies: list[int],
+                 canonical, grams, silent, dark, spans, refl: ReflectionSet, *, n: int,
+                 draws: int | None, seed: int, rtol: float, restarts: int,
+                 weights: np.ndarray | None, fits) -> None:
+    """The consistency rule (issue #565, item 7): test every join the proofs undercut, redraw every sampled edge they contradict, then split.
+
+    To a fixed point, each round followed by the transfers: (i)
+    :func:`_split` marks the edges the rule drops; (ii) :func:`_rejoin`
+    draws the pairs the loop skipped as joined whose join no longer holds
+    on the edges that are left, because the edges it rested on were
+    refuted by a proof or dropped by the split; (iii) :func:`_redraw`
+    gives every sampled direction a proof contradicts one more round.  A
+    round that draws nothing ends it, and the supply of both is finite (a
+    skipped pair is drawn at most once, a direction redrawn at most once),
+    so the loop is bounded by their count.  The split comes first and is
+    repeated because a dropped edge can leave a pair the loop skipped
+    between two groups nothing connects any more (on ``F m -3 m`` Γ with
+    one root withheld, S8(a,b,c) against the other S8 families once the
+    S7 ~ S8 edges are dropped), and that pair is then drawn rather than
+    read as a separation.
+    """
+    redrawn: set[tuple[int, int]] = set()
+    for _ in range(_consistency_rounds(n)):
+        _split(verdicts, irrep, n)
+        drawn = _rejoin(verdicts, copies, canonical, grams, silent, dark, spans, refl, n=n,
+                        draws=draws, seed=seed, rtol=rtol, restarts=restarts, weights=weights)
+        drawn |= _redraw(verdicts, irrep, copies, canonical, grams, dark, refl, redrawn, n=n,
+                         draws=draws, seed=seed, rtol=rtol, restarts=restarts, weights=weights)
+        if not drawn:
+            break
+        _transfers(verdicts, copies, grams, dark, silent, n=n, seed=seed, rtol=rtol,
+                   restarts=restarts, fits=fits)
+    else:  # pragma: no cover - each round consumes a pair or a direction
+        raise RuntimeError("the consistency rule did not settle: a pair was drawn twice")
+
+
+def _components(n: int, edges) -> tuple[tuple[int, ...], ...]:
+    """The connected components of ``edges`` over ``range(n)``, each sorted, in order of their smallest member."""
+    parent = list(range(n))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i, j in edges:
+        parent[find(j)] = find(i)
     groups: dict[int, list[int]] = {}
     for i in range(n):
         groups.setdefault(find(i), []).append(i)
-    classes = tuple(tuple(members) for members in
-                    sorted(groups.values(), key=lambda m: m[0]))
-    return classes, tuple(verdicts[key] for key in sorted(verdicts))
+    return tuple(tuple(members) for members in sorted(groups.values(), key=lambda m: m[0]))
+
+
+def _equivalence_edges(verdicts: dict[tuple[int, int], PairVerdict], n: int, *,
+                       kept: bool = False) -> list[tuple[int, int]]:
+    """Every unordered pair contained both ways, by a proof or by draws: what union-find joins on; with ``kept``, only those the split has not dropped."""
+    return [(i, j) for i in range(n) for j in range(i + 1, n)
+            if verdicts[(i, j)].contained and verdicts[(j, i)].contained
+            and not (kept and (verdicts[(i, j)].refuted_by is not None
+                               or verdicts[(j, i)].refuted_by is not None))]
+
+
+def _separations_inside(verdicts: dict[tuple[int, int], PairVerdict], members, irrep
+                        ) -> dict[frozenset, PairVerdict]:
+    """The proved separations between two members of one class, one per irrep pair: the verdict with the smallest (a, b)."""
+    inside = set(members)
+    proofs: dict[frozenset, PairVerdict] = {}
+    for key in sorted(verdicts):
+        v = verdicts[key]
+        if v.status == "proved-not" and v.a in inside and v.b in inside:
+            proofs.setdefault(frozenset((irrep[v.a], irrep[v.b])), v)
+    return proofs
+
+
+def _rejoin(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int], canonical, grams,
+            silent, dark, spans, refl: ReflectionSet, *, n: int, draws: int | None, seed: int,
+            rtol: float, restarts: int, weights: np.ndarray | None) -> bool:
+    """Draw every pair the loop skipped as joined whose join the proofs have since undone; whether any was drawn.
+
+    The pair loop skips the draws on a pair union-find has already joined
+    (``unresolved``, ``reason="joined"``).  A transfer can then refute the
+    sampled edges that join rested on, and the pair is left untested
+    between two groups nothing connects any more: read as an edge it
+    keeps a join that stands on nothing, read as a separation it splits
+    what was never tested (on ``F m -3 m`` Γ the first reading keeps S8
+    and S9 inside S7 ∪ S10, the second cuts S8 into its rank-1 copies, its
+    rank-2 copies and its (a,b,c) direction).  So the loop is run again
+    over those pairs, in the same order, with the same per-pair stream and
+    the same rule: a pair whose two ends are in different components of
+    the present equivalence edges (those the split has dropped left out,
+    since a dropped edge joins nothing either) is drawn as
+    :func:`_pair_verdicts` would have drawn it (a direction already proved keeps its verdict), its
+    Farkas proof propagated at once, and a pair contained both ways joins
+    its two components so that a later pair between them is skipped
+    again.  A pair with a direction already proved apart has no edge to
+    test and is left as it is, except that its other direction, if it was
+    skipped as joined, is recorded ``settled`` (:data:`UNRESOLVED_REASONS`).
+    """
+    edges = _equivalence_edges(verdicts, n, kept=True)
+    parent = list(range(n))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i, j in edges:
+        parent[find(j)] = find(i)
+    drew = False
+    for i in range(n):
+        for j in range(i + 1, n):
+            there, back = verdicts[(i, j)], verdicts[(j, i)]
+            if "proved-not" in (there.status, back.status):
+                # the pair is decided apart: what the other direction was skipped for
+                # is now that it was settled, not that a join stands
+                for key, v in (((i, j), there), ((j, i), back)):
+                    if v.status == "unresolved" and v.reason == "joined":
+                        verdicts[key] = replace(v, reason="settled")
+                continue
+            if find(i) == find(j) or "joined" not in (there.reason, back.reason):
+                continue
+            decided = {key: verdicts[key] for key in ((i, j), (j, i)) if verdicts[key].proved}
+            there, back = _pair_verdicts(i, j, canonical, grams, silent, dark, spans, refl,
+                                         draws=_draws_for(canonical[i], canonical[j], draws),
+                                         seed=seed, rtol=rtol, restarts=restarts,
+                                         weights=weights, decided=decided)
+            verdicts[(i, j)], verdicts[(j, i)] = there, back
+            drew = True
+            for v in (there, back):
+                if v.certificate == "farkas":
+                    _propagate(v, verdicts, copies, n)
+            if there.contained and back.contained:
+                parent[find(j)] = find(i)
+    return drew
+
+
+def _redraw(verdicts: dict[tuple[int, int], PairVerdict], irrep, copies: list[int], canonical,
+            grams, dark, refl: ReflectionSet, redrawn: set[tuple[int, int]], *, n: int,
+            draws: int | None, seed: int, rtol: float, restarts: int,
+            weights: np.ndarray | None) -> bool:
+    """One more round of draws on every sampled edge a proof contradicts (issue #565, item 7); whether any direction was redrawn.
+
+    In every merged class (:func:`_equivalence_edges`) that holds a
+    ``proved-not`` pair, every ``sampled-contained`` direction between the
+    two irreps of such a pair, not in ``redrawn`` yet, is drawn again with
+    the pair's own budget (:func:`_draws_for`), through
+    :func:`_certify_draw`, on a generator seeded (``seed``, 1, a, b): one per
+    direction, so two directions sharing a source do not redraw the same
+    amplitudes, and the same stream whatever the candidate order or the order
+    the pairs were visited in, and a different one from the pair loop's.
+    A certified draw proves the direction (``farkas``, propagated at
+    once, and the caller re-runs the transfers); an unreproduced
+    uncertified one ends it ``sampled-not``; either removes the edge on
+    the direction's own evidence, and the ``draws`` count carries both
+    rounds.  Nothing outside those directions is touched: an edge no
+    proof contradicts keeps its draws, and a proved direction is never
+    redrawn.
+    """
+    merged = _components(n, _equivalence_edges(verdicts, n))
+    todo = []
+    for members in merged:
+        proofs = _separations_inside(verdicts, members, irrep)
+        if not proofs:
+            continue
+        for a in members:
+            for b in members:
+                v = verdicts.get((a, b))
+                if a != b and (a, b) not in redrawn and v is not None \
+                        and v.status == "sampled-contained" \
+                        and frozenset((irrep[a], irrep[b])) in proofs:
+                    todo.append((a, b))
+    for a, b in sorted(todo):
+        v = verdicts[(a, b)]
+        again = _draw_direction(a, b, canonical, grams, dark, refl, np.random.default_rng([seed, 1, a, b]),
+                                draws=_draws_for(canonical[a], canonical[b], draws), rtol=rtol,
+                                restarts=restarts, weights=weights, spent=v.draws,
+                                below_gate=v.witness)
+        verdicts[(a, b)] = again
+        redrawn.add((a, b))
+        if again.certificate == "farkas":
+            _propagate(again, verdicts, copies, n)
+    return bool(todo)
+
+
+def _split(verdicts: dict[tuple[int, int], PairVerdict], irrep, n: int) -> None:
+    """Mark ``refuted_by`` on the sampled half of every equivalence edge the consistency rule drops (issue #565, item 7).
+
+    Inside every merged class that holds a ``proved-not`` pair, an edge
+    whose two ends' irreps hold a proved separation in that class, and at
+    least one of whose directions is ``sampled-contained``, is refuted:
+    each such direction names the proved verdict (the one between those
+    two irreps with the smallest pair) in ``refuted_by``.  A proved edge
+    is left alone, as is every edge in a class holding no proof.  The marks
+    are recomputed from nothing at every call, so an edge marked by a proof
+    a later round's redraw or transfer took out of its class is unmarked.
+    :func:`_partitions` then reads the classes off.
+    """
+    # the marks are recomputed from nothing: a class a later round broke in two
+    # must not keep an edge's mark from a proof it no longer holds
+    for key, v in verdicts.items():
+        if v.refuted_by is not None:
+            verdicts[key] = replace(v, refuted_by=None)
+    edges = _equivalence_edges(verdicts, n)
+    for members in _components(n, edges):
+        proofs = _separations_inside(verdicts, members, irrep)
+        if not proofs:
+            continue
+        for i, j in [(i, j) for i, j in edges if i in members]:
+            proof = proofs.get(frozenset((irrep[i], irrep[j])))
+            if proof is None:
+                continue
+            for key in ((i, j), (j, i)):
+                if verdicts[key].status == "sampled-contained":
+                    verdicts[key] = replace(verdicts[key], refuted_by=(proof.a, proof.b))
+
+
+def _partitions(relations, n: int) -> tuple[tuple[tuple[int, ...], ...], tuple[tuple[int, ...], ...]]:
+    """(``classes``, ``merged_classes``) of a :class:`CandidateSet` from its ``relations`` alone.
+
+    ``merged_classes`` are the components of every equivalence edge
+    (:func:`_equivalence_edges`); ``classes`` those of the edges with no
+    ``refuted_by`` half.  Both are read off the verdicts, so a stored set
+    can be re-partitioned without the generator.
+    """
+    verdicts = {(v.a, v.b): v for v in relations}
+    return (_components(n, _equivalence_edges(verdicts, n, kept=True)),
+            _components(n, _equivalence_edges(verdicts, n)))
 
 
 def _propagate(source: PairVerdict, verdicts: dict[tuple[int, int], PairVerdict],
@@ -4012,9 +4337,13 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     measured at this ``seed``, ``draws`` and ``restarts``, not as a
     property of the group; :func:`powder_relations` says which pair rests
     on what.  A proved separation can therefore sit inside a class that
-    sampled pairs joined (``S7`` ⊄ ``S8`` with ``S7`` ~ ``S10`` ~ ``S8``):
-    the printed table names such classes, and issue #565's part 5 splits
-    them.  Each candidate's basis is made canonical and its structure
+    sampled pairs joined (``S7`` ⊄ ``S8`` with ``S7`` ~ ``S10`` ~ ``S8``,
+    a partial containment); the consistency rule then redraws the
+    contradicted edges and splits the class at the two irreps holding the
+    proof (:class:`PairVerdict`, issue #565 item 7): what is returned here
+    is that split partition, :attr:`CandidateSet.classes`, with the
+    union-find one kept beside it as :attr:`CandidateSet.merged_classes`
+    by :func:`analyse`.  Each candidate's basis is made canonical and its structure
     factors and :func:`gram` stack built once, rather than once per pair or
     per draw.
     Cost: an equivalent pair mostly stops at its first restart, while a
@@ -4050,9 +4379,13 @@ def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
     (``span``) and on a direction a proof reached through an isometric
     copy (``propagated``); the transfers run after the draws and may
     replace a sampled verdict by a proof (``containment``, ``transfer``),
-    which keeps the draws it had consumed.  The same pass, the same
+    which keeps the draws it had consumed; the consistency rule then
+    redraws the sampled directions a proof contradicts (their ``draws``
+    count both rounds) and marks the edges it drops (``refuted_by``).  The
+    same pass, the same
     generator streams and the same partition as :func:`equivalence_classes`
-    with these arguments.  A family-level certificate does not read
+    with these arguments; :func:`_partitions` reads both partitions off
+    the records.  A family-level certificate does not read
     ``rtol``; the Farkas one is gated on it (:class:`PairVerdict` states
     both).  A ``farkas`` verdict carries its :class:`Witness` and ``d``;
     ``weights`` is :func:`powder_equivalent`'s.
@@ -4105,10 +4438,11 @@ def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
         absences.append(systematic_absences(candidate, refl, little=little).total)
     classes, relations = _classify(candidate_set, refl, draws=draws, seed=seed,
                                    rtol=rtol, restarts=restarts, weights=weights)
+    merged = _partitions(relations, len(candidate_set))[1]
     return CandidateSet(
         space_group=candidate_set.space_group, site=candidate_set.site,
         k=candidate_set.k, kind=candidate_set.kind, cell=candidate_set.cell,
         lattice=candidate_set.lattice, representation=candidate_set.representation,
         candidates=candidate_set.candidates, classes=classes,
         determinable=tuple(determinable), absences=tuple(absences),
-        relations=relations)
+        relations=relations, merged_classes=merged)
