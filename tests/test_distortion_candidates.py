@@ -309,3 +309,15 @@ def test_unknown_sites_are_refused(at_gamma):
     parent, _ = at_gamma
     with pytest.raises(ValueError, match="not atoms"):
         I.distortion_candidates(parent, K_GAMMA, sites=["Fe"])
+
+
+def test_each_direction_is_listed_once_with_every_site_that_carries_it():
+    """Γ4− (S9) lives on all three sites; it is one candidate per direction, not three."""
+    parent = _perovskite(3.9)
+    cands = I.distortion_candidates(parent, K_GAMMA)
+    labels = [c.label for c in cands]
+    assert len(labels) == len(set(labels))
+    polar = [c for c in cands if c.irrep == "S9"]
+    assert len(polar) == 6
+    assert all(c.sites == ("Mn", "La", "O") for c in polar)
+    assert {c.sites for c in cands if c.irrep == "S7"} == {("O",)}
