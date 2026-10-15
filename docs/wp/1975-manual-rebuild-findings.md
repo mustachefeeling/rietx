@@ -740,6 +740,90 @@ where the background goes and how humps interact with it (§ A1).
   the parameter map's grouping, it needs that one sentence, and the "elsewhere" column of
   § D2 needs the `BkPk*` and `Debye*` names.
 
+### G4. The toolchain, weighed against § F8's needs
+A delegated survey read each toolchain's own docs from shallow GitHub clones and its versions
+from the PyPI and npm registries (2026-10-15). Four versions and Material's maintenance notice
+were re-checked here; cells the survey could not verify from a primary source are marked so.
+
+**Two real candidates.**
+
+| need (§ F8) | Sphinx + MyST + myst-nb (today) | Jupyter Book 2 / mystmd |
+|---|---|---|
+| numbered equations, cross-page refs | native (`math_numfig`, `conf.py:249`) | native; section-prefixed numbers need a per-page enumerator |
+| BibTeX | sphinxcontrib-bibtex 2.7.0 | native, but a list per page, not one bibliography page |
+| mermaid, light/dark | sphinxcontrib-mermaid 2.1.1 (WP-1412 measured) | native |
+| light/dark figure pairs | native under furo, pydata, book (WP-1412) | native (Tailwind `dark:hidden`) |
+| executed notebooks, no execution | myst-nb 1.4.0 | native |
+| markdown twin + llms.txt | sphinx-llm 1.1.0, **fails `-W` on this tree** (§ G5) | per-document `--md` export only; no llms.txt |
+| nested nav, front page, type badge | toctree + sphinx-design 0.7.0 (badge roles unverified) | native toc and cards; badge is custom |
+| package injected at build | native (`conf.py` is Python) | custom: a Python "executable plugin" or a pre-build script; no substitutions (unverified) |
+| include by path | native | native |
+| fail on any warning | native `-W` | `--strict` fails on errors only; warnings promoted rule by rule |
+
+**The others, each with the one reason against it:**
+- *Quarto* 1.10.19: the closest fit outside MyST, but numbered cross-page equations exist only
+  in book projects and no warnings-as-errors build is documented.
+- *MkDocs + Material*: Material 9.7.0 (2025-11-11) announced maintenance mode and its team
+  moved to Zensical; MkDocs itself last released 1.6.1 (2024-08-30), and its 2.0 dev line
+  drops plugins. Numbered cross-page equations would be custom code.
+- *Zensical* 0.0.70 (2026-10-12): the Material team's successor, alpha, with neither BibTeX nor
+  notebook support; it silently ignores settings for plugins it does not list.
+- *Docusaurus* 3.10.2: KaTeX does not support `\label` or `\eqref`, and moving `conf.py`'s
+  Python injection into a Node pipeline costs the most of any option.
+- *VitePress* 1.6.4: no BibTeX or notebook route, and no stable release since 2025-08-05.
+
+**What a move off Sphinx costs the guards.** Rewritten under any change: the build fixture
+(`tests/test_manual.py:79`) and every guard reading Sphinx, furo, docutils or myst-nb HTML
+(`test_manual.py:202-250`, `:336-367`, `:560-571`, `:613-616`, `:659-689`;
+`test_help.py:819-855` with `help.py`'s `page.html#slug` anchors; `test_landing.py:334-340`).
+The guards parsing MyST source (`{cite}`, `{math}` labels, `_prose_lines` behind the register
+guard at `test_manual.py:735-807`, and `test_manual_api.py`'s fence, include, image and `{ref}`
+parsers) mostly survive mystmd, which shares the syntax, except the custom `{source}` role
+(`conf.py:645-660`) and the toctree regex (`test_landing.py:516-525`); all of them are rewritten
+for the non-MyST toolchains. The name-resolution and API-partition checks
+(`test_manual_api.py:289-357`, `:397-650`) survive anything, since they read code spans and
+python fences. The Python to port is `conf.py:116-161`, `:163-245`, `:378-456`, `:507-548` and
+`:645-660`, plus `check_equations.py`, which measures furo's layout.
+
+**Reading.** The status quo meets every need but the twin. mystmd's case is native features in
+the same syntax; against it, no twin or llms.txt, no strict build and no substitutions, which
+are the three needs the agent audience and this repo's guards rest on. A re-plan that keeps
+Sphinx keeps every source guard; one that moves pays the rows above before a page renders.
+
+### G5. sphinx-llm tried on this manual
+The one cell § G4 could not settle from documentation. Method: sphinx-llm 1.1.0 and
+sphinx-markdown-builder 0.6.11 installed outside the venv, and a throwaway wrapper `conf.py`
+that ran the real one and added `sphinx_llm.txt`; nothing in the tree changed.
+- **It breaks `-W`.** The markdown pass met 21 node types it cannot write: 16 admonitions, 3
+  mermaid diagrams, 1 toctree, 1 citation. The admonitions include the `agent` ones, so the
+  copy made for agents drops the passages written for them.
+- **What it gets right:** an `llms.txt` with one link per page (46), every page as `.md` at both
+  layouts (92 files), substitutions expanded (no `{{` left, where § G2's copies keep 21
+  pages' worth), literal includes resolved, notebook code and text output carried through.
+- **What it gets wrong:** equation numbers vanish (the anchor stays); both halves of each figure
+  pair are emitted with no marker; citation links point at `manual.md#idNN`, an anchor only the
+  HTML has; and `llms.txt` descriptions carry HTML entities (`&#96;`, `&#42;`).
+- **Page sizes** of the twin, against § F4's bars (agent-score fails a page over 100 k
+  characters; the spec asks ≤ 50 k):
+
+  | page | characters |
+  |---|---|
+  | `using/skill.md` | 702 002 |
+  | `using/files.md` | 147 801 |
+  | `using/series.md` | 125 102 |
+  | `using/refining.md` | 124 111 |
+  | `using/indexing.md` | 99 690 |
+  | `using/data.md` | 98 046 |
+  | `using/results.md` | 94 269 |
+  | `using/report.md` | 92 402 |
+  | `using/glossary.md` | 77 424 |
+
+  Nine pages pass 50 k and four pass 100 k. The skill page is the whole skill tree rendered as
+  one page.
+- **So the twin is a build step to write, not a package to add**: a markdown writer for the
+  admonition, mermaid, citation and figure-pair nodes, or a fork of the builder. That cost
+  belongs in the re-plan beside § G4's table.
+
 ## E. Open questions for the re-plan
 - Does Part 2 (Theory) count as Diátaxis explanation, and do some Part 1 explanations
   move there?
