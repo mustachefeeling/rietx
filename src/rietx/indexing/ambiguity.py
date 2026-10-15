@@ -655,7 +655,7 @@ class SupercellEvidence:
         so it is not a refutation: a child with no extra line in range is the
         geometrical ambiguity :func:`ambiguity_partners` reports, not a cell
         the data reject.  Or the extras are seen above chance but not
-        significantly so (thresholds 1.10, C3): a non-significant test does
+        significantly so (thresholds 1.11, C3): a non-significant test does
         not establish the null (Altman & Bland 1995, *BMJ* **311**, 485).
         Measured reason for the middle band: SRM 676a's own cell as a child of
         its c/2 subcell reads 8 of 18 extras seen at p₀ = 0.21 at the
