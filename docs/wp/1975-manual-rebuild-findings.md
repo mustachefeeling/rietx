@@ -1125,8 +1125,12 @@ toolchain, was settled by the spike on 2026-10-16: Sphinx with pydata-sphinx-the
   and attempt `llms.txt` plus a markdown twin in each (`sphinx-llms-txt` first on the Sphinx
   side). Run Vale with the Microsoft package over each page's sources. Choose from the built
   pages. (§ I: Sphinx with pydata-sphinx-theme; sources in `docs/wp/1975-spike/`.)
-- [ ] File the WP slate for the new tree (layout 6, built beside the old, § F8's decisions)
-  and close this one into it.
+- [x] File the WP slate for the new tree (layout 6, built beside the old, § F8's decisions)
+  and close this one into it. (2026-10-16: 1978 the tree and page contract, 1979 versions at
+  `/docs/`, 1980 the markdown twin and `llms.txt`, 1981 generated reference pages, 1982
+  Vale, 1983 Concepts, 1984 Switching, 1985 the report and diagnostic text, 1986 Guides,
+  Theory and the old tree's retirement. The tutorial direction folded into 1545's
+  `### Inherited`.)
 
 ## Acceptance
 
