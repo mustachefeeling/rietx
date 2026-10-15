@@ -1081,16 +1081,30 @@ class CompiledModel:
         the ticks with the peaks rather than leaving them at the compile-time
         value.
         """
+        rows = [drawn for _bragg, drawn in self.reflection_angles(ip, values)]
+        pos = np.concatenate(rows) if rows else np.array([])
+        hklm = (np.tile(self.phases[ip].reflections.hklm, (len(rows), 1))
+                if rows else np.zeros((0, 4), dtype=np.int64))
+        return pos, hklm
+
+    def reflection_angles(self, ip: int, values: dict[str, float]
+                          ) -> list[tuple[np.ndarray, np.ndarray]]:
+        """``(bragg, drawn)`` 2θ of every reflection of phase ``ip``, per line.
+
+        The walk :meth:`reflection_positions` takes, with the Bragg angle kept
+        beside the drawn one.  A reader that judges an intensity correction
+        needs both (WP-1976): the forward model evaluates absorption and
+        roughness at the Bragg angle, while the pattern shows the reflection
+        at the drawn one.
+        """
         cp = self.phases[ip]
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        rows = [self.apparent_two_theta(cp.reflections.two_theta(cell, lam),
-                                        values)
-                for lam in self.line_lambdas(values)]
-        pos = np.concatenate(rows) if rows else np.array([])
-        hklm = (np.tile(cp.reflections.hklm, (len(rows), 1)) if rows
-                else np.zeros((0, 4), dtype=np.int64))
-        return pos, hklm
+        out = []
+        for lam in self.line_lambdas(values):
+            bragg = cp.reflections.two_theta(cell, lam)
+            out.append((bragg, self.apparent_two_theta(bragg, values)))
+        return out
 
     def _absorption(self, tt_bragg: np.ndarray) -> np.ndarray | float:
         """Specimen absorption transmission A(θ) for this geometry, or exactly 1.0.

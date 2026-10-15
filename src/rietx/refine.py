@@ -6755,6 +6755,10 @@ def _absorption_record(model: CompiledModel, source: str, skipped: str | None,
     if model.mode != "rietveld":
         return None
     lam = model.line_wavelengths[0] if model.line_wavelengths else model.wavelength
+    if values is not None and model.line_wavelengths:
+        # the λ the Bragg angles below are found at (WP-1976), so the
+        # sin²θ basis and ΔB = β·λ²/2 read one wavelength
+        lam = model.line_lambdas(values)[0]
     if model.geometry_kind == "debye_scherrer":
         if not model.mu_r and skipped is None:
             return None
@@ -6771,7 +6775,7 @@ def _absorption_record(model: CompiledModel, source: str, skipped: str | None,
         return None
     mu_t = 0.0 if model.mu_t is None else float(model.mu_t)
     delta_biso = unabsorbed = identifiable = None
-    positions = _reflection_positions(model, values)
+    positions = _reflection_bragg_angles(model, values)
     if (model.mu_t is not None or transmission) and positions.size:
         a = np.asarray(model._absorption(positions), dtype=np.float64)
         delta_biso, unabsorbed = equivalent_delta_biso_from_transmission(
@@ -6788,22 +6792,33 @@ def _absorption_record(model: CompiledModel, source: str, skipped: str | None,
             transmission_intensity_fraction(mu_t) if transmission else None))
 
 
-def _reflection_positions(model: CompiledModel,
-                          values: dict[str, float] | None) -> np.ndarray:
-    """In-range Bragg 2θ of every modelled reflection, primary line.
+def _reflection_bragg_angles(model: CompiledModel,
+                             values: dict[str, float] | None) -> np.ndarray:
+    """Bragg 2θ of every modelled reflection drawn in range, primary line.
 
     Where an intensity correction is *judged* — never on the fitted grid, which
     can start far below the first peak and make a correction look enormous that
     no modelled reflection ever experienced (WP-0502 measured exactly that on
     the round-robin patterns).
+
+    Two angles per reflection, and each test takes its own.  *Which*
+    reflections count is read at the drawn angle, because that is where the
+    pattern shows them.  The value returned is the Bragg angle, because the
+    forward model evaluates absorption and roughness there (``phase_peaks``
+    passes ``tt_bragg``).  Until WP-1976 this returned the drawn
+    angle, so a refined displacement judged both corrections at angles no
+    reflection was corrected at.
     """
-    if not model.phases or values is None:
+    if not model.phases or not model.line_wavelengths or values is None:
         return np.empty(0)
-    positions = np.concatenate(
-        [np.asarray(model.phase_peaks(ip, values)[0][0], dtype=np.float64)
-         for ip in range(len(model.phases))])
-    positions = positions[np.isfinite(positions)]
-    return positions[(positions >= model.tt_min) & (positions <= model.tt_max)]
+    out = []
+    for ip in range(len(model.phases)):
+        bragg, drawn = (np.asarray(a, dtype=np.float64)
+                        for a in model.reflection_angles(ip, values)[0])
+        keep = (np.isfinite(bragg) & np.isfinite(drawn)
+                & (drawn >= model.tt_min) & (drawn <= model.tt_max))
+        out.append(bragg[keep])
+    return np.concatenate(out)
 
 
 def _capillary_offset_diagnostics(model: CompiledModel,
@@ -9580,17 +9595,18 @@ def _roughness_regime_diagnostics(model: CompiledModel,
     # reported a 27 % depression that no modelled peak ever experienced.
     # Roughness is constrained by low-angle reflections, so that is where it
     # has to be judged.
-    positions = np.concatenate(
-        [np.asarray(pos) for ip in range(len(model.phases))
-         for pos, *_ in [model.phase_peaks(ip, values)[0]]]) \
-        if model.phases else np.empty(0)
-    positions = positions[np.isfinite(positions)]
-    positions = positions[(positions >= model.tt_min) & (positions <= model.tt_max)]
+    positions = _reflection_bragg_angles(model, values)
     if not positions.size:
         return []
     tt_min = float(np.min(positions))
     factor = np.asarray(model._roughness_factor(positions, values))
     depression = float(1.0 - np.min(factor))
+
+    def drawn(tt: float) -> float:
+        # the checks read Bragg angles; a message quotes the pattern's own axis,
+        # which is where a reader looks and where a fit range is set
+        return float(np.asarray(model.apparent_two_theta(np.array([tt]), values),
+                                dtype=np.float64).reshape(-1)[0])
 
     out: list[Diagnostic] = []
     if model.roughness == "pitschke":
@@ -9602,10 +9618,10 @@ def _roughness_regime_diagnostics(model: CompiledModel,
                 where=[f"{base}.tau"],
                 message=(f"Pitschke roughness tau={tau:.4f} exceeds "
                          f"sin(theta) = {sin_min:.4f} at the lowest fitted "
-                         f"angle ({tt_min:.2f}° 2θ): past that point the model "
+                         f"angle ({drawn(tt_min):.2f}° 2θ): past that point the model "
                          f"amplifies rather than depresses intensity"),
                 suggestion="restrict the fit to 2θ above "
-                           f"{2 * np.degrees(np.arcsin(min(tau, 1.0))):.1f}°, or "
+                           f"{drawn(2 * np.degrees(np.arcsin(min(tau, 1.0)))):.1f}°, or "
                            "switch to kind='suortti', which is bounded ≤ 1 "
                            "everywhere (Pitschke et al. 1993 Eq 18)",
             ))
@@ -9615,7 +9631,7 @@ def _roughness_regime_diagnostics(model: CompiledModel,
                 where=[f"{base}.tau"],
                 message=(f"Pitschke roughness is past its turnover at the low "
                          f"end of the fit (tau={tau:.4f} vs sin(theta)="
-                         f"{sin_min:.4f} at {tt_min:.2f}° 2θ): the depression "
+                         f"{sin_min:.4f} at {drawn(tt_min):.2f}° 2θ): the depression "
                          f"stops deepening there"),
                 suggestion="the model is empirical rather than geometric in "
                            "this range (the paper says so); treat tau as a "
@@ -9629,7 +9645,7 @@ def _roughness_regime_diagnostics(model: CompiledModel,
                    if f"{base}.{n}" in values],
             message=(f"the refined surface roughness depresses intensity by at "
                      f"most {depression:.2%} at any modelled reflection "
-                     f"(lowest at {tt_min:.2f}° 2θ) — the data cannot see it"),
+                     f"(lowest at {drawn(tt_min):.2f}° 2θ) — the data cannot see it"),
             suggestion="drop the roughness block, or extend the measurement to "
                        "lower 2θ where the depression has a lever arm; note "
                        "the Suortti model reaches the identity from both ends, "

@@ -481,3 +481,77 @@ def test_a_reflection_the_geometry_pushes_into_the_range_is_still_generated():
     assert np.allclose(narrow.tt, wide.tt[: len(y_narrow)])
     worst = float(np.max(np.abs(y_narrow - y_wide)) / np.max(y_wide))
     assert worst < 1e-3, f"the narrow model's curve is off the wide one's by {worst:.2e}"
+
+
+# ----------------------------------------------------------------------
+# where an intensity correction is judged (WP-1908's review finding 5)
+# ----------------------------------------------------------------------
+def test_a_correction_summary_is_judged_at_the_bragg_angle():
+    """The absorption and roughness summaries read the angle the model used.
+
+    The forward model evaluates both factors at each reflection's Bragg angle
+    (``phase_peaks`` passes ``tt_bragg``).  The summaries' helper returned the
+    drawn angle until WP-1976, so under a 0.5 mm displacement it
+    judged them up to 0.26° away from where any reflection was corrected.
+    """
+    from rietx.model.absorption import equivalent_delta_biso_from_transmission
+    from rietx.refine import _absorption_record, _reflection_bragg_angles
+
+    ins = _flat_plate(displacement=0.5)
+    ins.geometry.mu_t = 1.0
+    structure = _rutile()
+    data = _simulate(ins, structure)
+    model = compile_model(structure, ins, data, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    values = table.decode(table.x0())
+
+    cp = model.phases[0]
+    cell = tuple(values[f"phases.0.cell.{k}"]
+                 for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+    bragg = np.asarray(cp.reflections.two_theta(cell, model.line_lambdas(values)[0]))
+    drawn = np.asarray(model.apparent_two_theta(bragg, values))
+    inside = (drawn >= model.tt_min) & (drawn <= model.tt_max)
+    assert np.max(np.abs(drawn - bragg)[inside]) > 0.1, "the case lost its shift"
+
+    judged = _reflection_bragg_angles(model, values)
+    assert np.array_equal(judged, bragg[inside])
+
+    lam = model.line_lambdas(values)[0]
+    record = _absorption_record(model, "given", None, values)
+
+    def delta_biso(tt):
+        return equivalent_delta_biso_from_transmission(
+            tt, np.asarray(model._absorption(tt)), lam)[0]
+
+    assert record.equivalent_delta_biso == delta_biso(bragg[inside])
+    assert record.equivalent_delta_biso != delta_biso(drawn[inside])
+
+
+def test_the_roughness_regime_is_judged_at_the_bragg_angle():
+    """The second consumer: Pitschke's sinθ ≥ τ fence reads the Bragg angle.
+
+    Rutile's first reflection sits at 27.44° Bragg and is drawn at 27.18°
+    under a 0.5 mm displacement.  τ = 0.236 lies between sin θ at the two
+    (0.2371 and 0.2350).  The forward model evaluates roughness at the Bragg
+    angle, where sin θ > τ, so the model still depresses intensity there and
+    only the turnover note may fire.  Judged at the drawn angle, the fence
+    warned that the model amplifies.  The message quotes the drawn angle, the
+    pattern's own axis.
+    """
+    from rietx.refine import _roughness_regime_diagnostics
+    from rietx.schemas import RoughnessPitschke
+
+    ins = _flat_plate(displacement=0.5)
+    ins.geometry.surface_roughness = RoughnessPitschke(
+        c=Parameter(value=1.0, min=0.0, max=4.0, transform="softplus"),
+        tau=Parameter(value=0.236, min=0.0, max=0.3))
+    structure = _rutile()
+    data = _simulate(ins, structure)
+    model = compile_model(structure, ins, data, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    values = table.decode(table.x0())
+
+    hits = [d for d in _roughness_regime_diagnostics(model, values)
+            if d.code == "ROUGHNESS_OUTSIDE_REGIME"]
+    assert [d.level for d in hits] == ["info"], "judged at the drawn angle"
+    assert "sin(theta)=0.2371 at 27.18° 2θ" in hits[0].message
