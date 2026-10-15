@@ -22,7 +22,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 2026-10-01 | P3 | [magnetic](#magnetic) |
 | [1339](1339-where-the-improvement-lives.md) | Where the improvement lives | 2026-10-12 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | 2026-10-13 | P2 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
-| [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-10-06 | P2 | [magnetic](#magnetic) |
+| [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-10-15 | P2 | [magnetic](#magnetic) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-14 | P2 | [magnetic](#magnetic) |
 | [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 2026-10-13 | P3 | [magnetic](#magnetic) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-10-03 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
@@ -381,7 +381,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 🔄 2026-10-07 | P2 | [1326](1326-satellites-without-a-moment.md) |
 | [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ✅ 2026-10-03 | — | [1327](1327-magnetic-structure.md) ([1118](1118-foreign-model-files.md) soft) |
 | [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 🔄 2026-10-01 | P3 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
-| [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 🔄 2026-10-06 | P2 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
+| [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 🔄 2026-10-15 | P2 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-10-14 | P2 | #290, [1326](1326-satellites-without-a-moment.md), [1327](1327-magnetic-structure.md) |
 | [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 🔄 2026-10-13 | P3 | [1418](1418-the-magnetic-structure-is-determined.md) ([1327](1327-magnetic-structure.md) soft) |
 
@@ -588,7 +588,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1957](1957-a-fit-seen-in-colab.md) | A fit seen in Colab: figures at their own shape, the structure beside them, a template for your own data | ✅ 2026-10-14 | — | — |
 | [1966](1966-the-tutorials-run-in-the-browser.md) | The tutorials run in the browser, in JupyterLite | ✅ 2026-10-14 | — | — |
 | [1970](1970-a-notebook-figure-follows-the-frontends-theme.md) | A notebook figure follows the frontend's theme | ✅ 2026-10-14 | — | — |
-| [1971](1971-a-returned-figure-survives-a-zoom-and-a-pickle.md) | A returned figure survives a caller's zoom and a pickle | ⬜ | P3 | — |
+| [1971](1971-a-returned-figure-survives-a-zoom-and-a-pickle.md) | A returned figure survives a caller's zoom and a pickle | ✅ 2026-10-15 | — | — |
 | [1972](1972-the-indexing-figures-take-a-dark-palette.md) | The indexing figures take a dark palette | ✅ 2026-10-15 | — | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
