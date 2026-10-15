@@ -45,6 +45,8 @@ from ..crystallography.magnetic.moments import (
     moment_from_dofs,
     wrap_angle,
 )
+from ..crystallography.spherical_harmonics import lowest_order as lowest_texture_order
+from ..crystallography.spherical_harmonics import texture_names
 from ..crystallography.stephens import S_NAMES, isotropic_coefficients, strain_basis
 from ..crystallography.symmetry import (
     cell_constraints,
@@ -1321,6 +1323,7 @@ class ParameterTable:
             if phase.preferred_orientation is not None:
                 self._add(f"{base}.preferred_orientation.r",
                           phase.preferred_orientation.r)
+            self._collect_texture(base, sg, phase)
             self._add(f"{base}.lor_size", phase.lor_size)
             # a Stephens block owns the tanθ Lorentzian channel outright: its
             # isotropic direction is the same column, so lor_strain is locked
@@ -1372,6 +1375,35 @@ class ParameterTable:
         self._add_instrument_row(instrument, "instrument.zero_shift",
                                  instrument.zero_shift)
         self._collect_instrument(instrument)
+
+    def _collect_texture(self, base: str, sg, phase) -> None:
+        """One ``phases.i.texture.<name>`` entry per term the Laue class allows.
+
+        The coefficients are the parameters, with no DOF indirection, because
+        each basis function is symmetric by construction
+        (``crystallography.spherical_harmonics``).  A term the block leaves out
+        enters at C = 0, held.  Two refusals need the Laue class, so they are
+        made here and not in the schema (WP-1035's rule): an order with no
+        allowed term, and a name the class does not allow.
+        """
+        block = phase.texture
+        if block is None:
+            return
+        names = texture_names(sg, block.order, phase.cell.lengths_angles())
+        if not names:
+            raise ValueError(
+                f"{base}.texture: order {block.order} allows no term in the Laue "
+                f"class of {phase.space_group!r}. The lowest order that allows "
+                f"one is {lowest_texture_order(sg)}")
+        unknown = sorted(set(block.coefficients) - set(names))
+        if unknown:
+            raise ValueError(
+                f"{base}.texture: {', '.join(unknown)} is not a term the Laue "
+                f"class of {phase.space_group!r} allows. To order {block.order} "
+                f"it allows {', '.join(names)}")
+        for name in names:
+            p = block.coefficients.get(name) or Parameter(value=0.0)
+            self._add(f"{base}.texture.{name}", p)
 
     def _collect_microstrain(self, base: str, sg, phase) -> None:
         """Stephens S_HKL enter θ through Laue-symmetry-allowed patterns.
@@ -4241,6 +4273,15 @@ class ParameterTable:
             put(phase.extinction, f"{base}.extinction")
             if phase.preferred_orientation is not None:
                 put(phase.preferred_orientation.r, f"{base}.preferred_orientation.r")
+            if phase.texture is not None:
+                # a term the block left out gains its entry here, at the value
+                # the table holds, so a refined term is never dropped
+                prefix = f"{base}.texture."
+                for e in self.entries:
+                    if e.path.startswith(prefix):
+                        name = e.path[len(prefix):]
+                        put(phase.texture.coefficients.setdefault(
+                            name, Parameter(value=0.0)), e.path)
             put(phase.lor_size, f"{base}.lor_size")
             put(phase.lor_strain, f"{base}.lor_strain")
             put(phase.gauss_size, f"{base}.gauss_size")

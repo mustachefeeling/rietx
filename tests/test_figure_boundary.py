@@ -25,7 +25,10 @@ ROOT = Path(rietx.__file__).parent
 #: ``optimize.qpa`` so the split is not committed to qpa's imports (#590
 #: review).  2026-10-10: ``model.compiled`` came back with the wheel's
 #: rasteriser (WP-1940), whose loading, switch and thread pool the figure
-#: shares with the model's kernels.
+#: shares with the model's kernels.  2026-10-14: ``viz._notebook``, the light
+#: and dark pair both figures emit to a notebook (WP-1970).  It imports nothing
+#: from rietx, so the split can move it whole; the dark ground it would have
+#: taken from ``viz.plots`` is restated instead, as the palette size is.
 BOUNDARY = {
     "rietx._about",
     "rietx.crystallography.adp",
@@ -33,6 +36,7 @@ BOUNDARY = {
     "rietx.crystallography.symmetry",
     "rietx.gui.structure3d",
     "rietx.model.compiled",
+    "rietx.viz._notebook",
     "rietx.viz.theme",
 }
 

@@ -1,0 +1,8 @@
+# The JupyterLite build (docs/lite/build.py).  The two jupyterlite pins move
+# together: the kernel fixes the Pyodide it loads (314.0.6 for 0.8.6), and
+# build_wheels.py's PYODIDE must name the same one or the gemmi and spglib wheels
+# will not load.  jupyter-server is what indexes the notebooks into the site;
+# without it the build refuses any contents.
+jupyterlite-core==0.8.6
+jupyterlite-pyodide-kernel==0.8.6
+jupyter-server>=2.21

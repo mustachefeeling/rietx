@@ -71,6 +71,7 @@ from ..schemas.structure import (
     Parameter,
     Phase,
     PreferredOrientation,
+    SphericalHarmonicTexture,
     StephensStrain,
     Structure,
 )
@@ -181,7 +182,9 @@ def qpa_plan(*, texture: bool = False) -> RefinementPlan:
         Stage("biso", ["phases.*.atoms.*.biso"]),
     ]
     if texture:
-        stages.append(Stage("po", ["phases.*.preferred_orientation.r"]))
+        # either orientation model's block; each glob matches only a declared one
+        stages.append(Stage("po", ["phases.*.preferred_orientation.r",
+                                   "phases.*.texture.*"]))
     return RefinementPlan(stages=stages)
 
 
@@ -684,6 +687,19 @@ def _with_preferred_orientation(inputs: StandardInputs) -> None:
         Stage("preferred_orientation", ["phases.*.preferred_orientation.r"]))
 
 
+def _with_texture(inputs: StandardInputs) -> None:
+    """The spherical-harmonics texture to order 4 on every phase (WP-1960).
+
+    No axis to guess, unlike March-Dollase, and order 4 is the lowest every
+    Laue class has a term at.  A phase already carrying a March-Dollase block
+    keeps it: the two are one effect, and a phase declares one of them.
+    """
+    for phase in inputs.structure.phases:
+        if phase.preferred_orientation is None and phase.texture is None:
+            phase.texture = SphericalHarmonicTexture(order=4)
+    inputs.plan.stages.append(Stage("texture", ["phases.*.texture.*"]))
+
+
 def _dominant_axis(phase: Phase) -> tuple[int, int, int]:
     """(001) for a hexagonal/trigonal/tetragonal cell, (100) otherwise.
 
@@ -852,6 +868,13 @@ VARIANTS: tuple[Variant, ...] = (
             "trigonal/tetragonal cells, (100) otherwise). r ≡ 1 is the exact "
             "identity, so an untextured specimen simply stays there.",
             _with_preferred_orientation),
+    Variant("texture", "+ spherical-harmonics texture",
+            "Symmetrised harmonics to order 4 on every phase: no axis to guess, "
+            "and 1-14 coefficients by Laue class. Every C = 0 is the exact "
+            "identity. Judge it by result.texture's J and minimum P beside the "
+            "composition, never by Rwp alone; TEXTURE_NOT_POSITIVE rejects the "
+            "coefficients whatever the statistics say.",
+            _with_texture),
     Variant("stephens", "+ Stephens anisotropic strain",
             "hkl-dependent Lorentzian widths, seeded on the isotropic ray. "
             "Judge with ΔBIC, not Hamilton's R-ratio (useless at 7000 channels). "
@@ -987,7 +1010,7 @@ _REPORT_PATHS = (
     "instrument.zero_shift", "instrument.geometry.sample_displacement",
     "instrument.geometry.capillary_offset",
     "instrument.geometry.surface_roughness", ".extinction",
-    ".preferred_orientation.r",
+    ".preferred_orientation.r", ".texture.",
 )
 
 

@@ -897,6 +897,19 @@ CLAIMS: tuple[Claim, ...] = (
                  "2.5",
     ),
     Claim(
+        "test_acceptance_qpa_roundrobin", "test_sample2_brucite_spherical_harmonics",
+        "qarr", ("spread", "characterisation", "identity"),
+        "the spherical-harmonics texture carries brucite's platy habit as well "
+        "as March-Dollase does, at orders 4 and 6 (WP-1960)",
+        reference="participant spread on the fractions, the bar March-Dollase "
+                  "meets on the same protocol; C2,0 is judged as physics "
+                  "(positive is platy with psi = 0 on a reflection plate, and "
+                  "five esd from the C = 0 identity is a detection)",
+        measured="worst fraction 3.41 wt % at order 4, 2.71 at order 6, "
+                 "against March-Dollase's 2.80; C2,0 1.41(4) and 1.39(5); "
+                 "J 1.46; min P 0.47 and 0.40",
+    ),
+    Claim(
         "test_acceptance_qpa_roundrobin",
         "test_sample4_microabsorption_characterised_not_hidden", "qarr",
         ("characterisation", "ceiling"),

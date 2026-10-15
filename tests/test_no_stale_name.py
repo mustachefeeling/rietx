@@ -90,8 +90,11 @@ def _tracked_hits() -> dict[str, list[str]]:
         path, _, rest = line.partition(":")
         # A committed notebook's figure is one base64 line, and a three-letter
         # token matched without case turns up in it by chance, about twice in
-        # 70 kB (WP-1545).  Its prose and code are still read.
-        if path.endswith(".ipynb") and rest.partition(":")[2].lstrip().startswith('"image/'):
+        # 70 kB (WP-1545).  The light and dark pair carries the same base64
+        # inline, as one HTML line (WP-1970).  Its prose and code are still read.
+        body = rest.partition(":")[2].lstrip()
+        if path.endswith(".ipynb") and (body.startswith('"image/')
+                                        or "data:image/png;base64," in body):
             continue
         hits.setdefault(path, []).append(rest)
     return hits

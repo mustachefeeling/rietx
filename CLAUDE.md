@@ -715,6 +715,10 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   (3) **Its bar is stated and asserted: transcendentals to a bound, associations as written** (`compiled.py` rule 3).
   No library call means the bit, an `exp` 1e-13 relative, its own `exp` a ulp bound on every wheel; the numpy
   builder stays the bit-identity oracle against `_phase_component_scalar`. (4) **One path per process**, never per call.
+- **The package runs in a browser tab too, on wasm32 Pyodide, and no CI job runs it there**
+  (WP-1966, `docs/lite/README.md`). So a count or index handed to numpy is `intp`, never int64. A
+  POSIX primitive is imported by name (`from fcntl import flock`), as JupyterLite empties `fcntl`.
+  Nothing assumes a thread can start (`compiled.n_threads()`). `docs/lite/smoke.mjs` is the check.
 - **Traced code runs inside `backend.traced.active(xp)`** — it makes `xp` the globally-bound
   backend *and* opens the backend's `full_precision()` scope. jax's fp64 is scoped, so a constant
   (or a θ vector) materialised outside it is silently float32 (it once cost the Pawley aux columns

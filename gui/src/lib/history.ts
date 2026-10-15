@@ -460,6 +460,7 @@ export const PLACES: Readonly<Record<string, Format>> = {
   "phases.*.microstrain.dof.*": 3,
   "phases.*.microstrain.s*": 3,
   "phases.*.preferred_orientation.r": 4,
+  "phases.*.texture.*": 4,
   // WP-1805: a rigid body's origin is fractional like an atom's x, y, z, and
   // its rotation increment is radians, which four places write to 0.006°
   "phases.*.rigid_bodies.*.origin.dof.*": 5,

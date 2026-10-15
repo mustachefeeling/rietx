@@ -574,6 +574,16 @@ Quantitative phase analysis against weighed truth, at tolerances referenced to w
 
 **Measured:** r ~ 0.67; worst fraction 2.8 wt %; H Biso held at exactly 2.5
 
+#### `test_sample2_brucite_spherical_harmonics`
+
+`spread` `characterisation` `identity` · dataset `qarr`
+
+**Claims:** the spherical-harmonics texture carries brucite's platy habit as well as March-Dollase does, at orders 4 and 6 (WP-1960)
+
+**Referenced to:** participant spread on the fractions, the bar March-Dollase meets on the same protocol; C2,0 is judged as physics (positive is platy with psi = 0 on a reflection plate, and five esd from the C = 0 identity is a detection)
+
+**Measured:** worst fraction 3.41 wt % at order 4, 2.71 at order 6, against March-Dollase's 2.80; C2,0 1.41(4) and 1.39(5); J 1.46; min P 0.47 and 0.40
+
 #### `test_sample4_microabsorption_characterised_not_hidden`
 
 `characterisation` `ceiling` · dataset `qarr`

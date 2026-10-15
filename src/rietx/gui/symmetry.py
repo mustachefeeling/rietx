@@ -610,8 +610,9 @@ def _refusals(candidate: Structure, instrument, phase: int) -> list[dict]:
     """Every incompatible item, in the package's own words.
 
     A ``ParameterTable`` stops at the **first** refusal, so this probes the phase
-    once (cell angles and the Stephens block, which are collected before any
-    atom) and then once per atom, each against a real table.  The alternative —
+    once (cell angles, the texture block and the Stephens block, which are
+    collected before any atom) and then once per atom, each against a real
+    table.  The alternative —
     reading the message and neutralising what it names — would be a parser for
     sentences this module does not own.
     """
@@ -627,14 +628,17 @@ def _refusals(candidate: Structure, instrument, phase: int) -> list[dict]:
         return [{"where": f"phases.{phase}.cell", "message": str(exc)}]
 
     out: list[dict] = []
-    if block.microstrain is not None:
-        probe = _probe(candidate, phase, atoms=block.atoms[:1], microstrain=True)
-        message = _build_error(probe, instrument)
-        if message and message.split(":")[0] == "phases.0.microstrain":
-            out.append({"where": f"phases.{phase}.microstrain",
-                        "message": _relabel(message, phase, 0)})
+    # the texture and Stephens blocks are collected before any atom, so each
+    # is probed alone and stripped from every other probe
+    for name in ("texture", "microstrain"):
+        if getattr(block, name) is not None:
+            probe = _probe(candidate, phase, atoms=block.atoms[:1], keep=name)
+            message = _build_error(probe, instrument)
+            if message and message.split(":")[0] == f"phases.0.{name}":
+                out.append({"where": f"phases.{phase}.{name}",
+                            "message": _relabel(message, phase, 0)})
     for j, atom in enumerate(block.atoms):
-        probe = _probe(candidate, phase, atoms=[atom], microstrain=False)
+        probe = _probe(candidate, phase, atoms=[atom], keep=None)
         message = _build_error(probe, instrument)
         if message:
             out.append({"where": f"phases.{phase}.atoms.{j}",
@@ -642,12 +646,18 @@ def _refusals(candidate: Structure, instrument, phase: int) -> list[dict]:
     return out
 
 
-def _probe(candidate: Structure, phase: int, *, atoms, microstrain: bool) -> Structure:
-    """A one-phase, one-atom structure — the smallest thing the real rule reads."""
+def _probe(candidate: Structure, phase: int, *, atoms, keep: str | None) -> Structure:
+    """A one-phase, one-atom structure — the smallest thing the real rule reads.
+
+    ``keep`` names the one per-phase block (``texture`` or ``microstrain``)
+    the probe carries; the other is dropped, so its refusal cannot stand in
+    for this one's.
+    """
     block = candidate.phases[phase].model_copy(deep=True)
     block.atoms = [a.model_copy(deep=True) for a in atoms]
-    if not microstrain:
-        block.microstrain = None
+    for name in ("texture", "microstrain"):
+        if name != keep:
+            setattr(block, name, None)
     probe = candidate.model_copy(deep=True)
     probe.phases = [block]
     return probe
@@ -661,7 +671,8 @@ def _relabel(message: str, phase: int, atom: int) -> str:
     the real rule instead of restating it.
     """
     return (message.replace("phases.0.atoms.0", f"phases.{phase}.atoms.{atom}")
-                   .replace("phases.0.microstrain", f"phases.{phase}.microstrain"))
+                   .replace("phases.0.microstrain", f"phases.{phase}.microstrain")
+                   .replace("phases.0.texture", f"phases.{phase}.texture"))
 
 
 def _build_error(probe: Structure, instrument) -> str:

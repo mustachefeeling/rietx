@@ -66,7 +66,7 @@ import pytest
 
 import rietx as rx
 from rietx.schemas.instrument import BackgroundChebyshev
-from rietx.schemas.structure import PreferredOrientation
+from rietx.schemas.structure import PreferredOrientation, SphericalHarmonicTexture
 
 DATA = Path(__file__).parent / "data" / "qarr"
 OUT = Path(__file__).parent / "output"
@@ -136,16 +136,20 @@ def fluorite_phase() -> rx.Phase:
                    ("F", "F", 0.25, 0.25, 0.25, 0.75)])
 
 
-def brucite_phase(*, textured: bool = False) -> rx.Phase:
+def brucite_phase(*, textured: bool = False, texture_order: int | None = None
+                  ) -> rx.Phase:
     """Mg(OH)₂, P-3m1; Zigan & Rothbauer (1967) Z. Kristallogr. 125, 425
     (neutron, D → H).  H is invisible to X-rays but carries 3.5 % of the
     molar mass — omitting it would bias the ZMV fraction by that much, so it
     stays in the model with its Biso *held* (the biso stage below frees only
     Mg and O).  ``textured`` attaches the March-Dollase block on (001), the
-    plate normal of this strongly platy mineral."""
+    plate normal of this strongly platy mineral.  ``texture_order`` attaches
+    the spherical-harmonics block to that order instead (WP-1960)."""
     kw = {}
     if textured:
         kw["preferred_orientation"] = PreferredOrientation(axis=(0, 0, 1))
+    if texture_order is not None:
+        kw["texture"] = SphericalHarmonicTexture(order=texture_order)
     return _phase("brucite", "P -3 m 1", (3.142, 3.142, 4.766, 90, 90, 120),
                   [("Mg", "Mg", 0.0, 0.0, 0.0, 0.70),
                    ("O", "O", 1 / 3, 2 / 3, 0.2216, 0.90),
@@ -231,7 +235,9 @@ def qpa_plan(*, biso_globs: tuple[str, ...] = ("phases.*.atoms.*.biso",),
         rx.Stage("biso", list(biso_globs)),
     ]
     if texture:
-        stages.append(rx.Stage("po", ["phases.*.preferred_orientation.r"]))
+        # either orientation model's block; each glob matches only a declared one
+        stages.append(rx.Stage("po", ["phases.*.preferred_orientation.r",
+                                      "phases.*.texture.*"]))
     plan = rx.RefinementPlan(stages=stages)
     # WP-1123: the shipped convergence schedule, named rather than inherited.
     # Every stage but the last stops at 1e-6 and the last at the solver's own
@@ -247,7 +253,8 @@ def _require_data():
         pytest.skip("IUCr QPA round-robin dataset not present")
 
 
-def _fit(sample: str, phases: list[rx.Phase], *, plan: rx.RefinementPlan):
+def _fit(sample: str, phases: list[rx.Phase], *, plan: rx.RefinementPlan,
+         label: str | None = None):
     data = rx.read_pattern(DATA / f"{sample}.prn")
     structure = rx.Structure(phases=phases)
     ins = qarr_instrument()
@@ -255,8 +262,9 @@ def _fit(sample: str, phases: list[rx.Phase], *, plan: rx.RefinementPlan):
     ref = rx.Refinement(structure, ins)
     result = ref.fit(data, plan=plan)
     OUT.mkdir(exist_ok=True)
-    result.plot(path=str(OUT / f"qarr_{sample}.png"))
-    result.plot(path=str(OUT / f"qarr_{sample}_lowangle.png"),
+    name = label or sample
+    result.plot(path=str(OUT / f"qarr_{name}.png"))
+    result.plot(path=str(OUT / f"qarr_{name}_lowangle.png"),
                 two_theta_range=(15.0, 60.0))
     import matplotlib.pyplot as plt
     plt.close("all")   # plot() hands back live figures; 24 of them add up
@@ -407,6 +415,38 @@ def test_sample2_brucite_march_dollase():
     assert 0.4 < r < 0.9
     # H Biso was held at its starting value, not driven to a bound
     assert ref.fitted_structure.phases[3].atoms[2].biso.value == pytest.approx(2.5)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("order", [4, 6])
+def test_sample2_brucite_spherical_harmonics(order):
+    """The March-Dollase protocol above with brucite's block swapped for the
+    spherical-harmonics texture (WP-1960).  The weighed composition is the
+    evidence, never Rwp.  Measured 2026-10-14, darwin/arm64: the largest
+    error is 3.41 wt % at order 4 and 2.71 at order 6, against
+    March-Dollase's 2.80 on the same protocol.  C2,0 must read platy, which
+    in the frame of WP-1960 D2 (ψ = 0 on a reflection plate) is positive."""
+    _require_data()
+    biso = ("phases.0.atoms.*.biso", "phases.1.atoms.*.biso",
+            "phases.2.atoms.*.biso", "phases.3.atoms.0.biso",
+            "phases.3.atoms.1.biso")
+    _ref, result = _fit(
+        "cpd-2",
+        [corundum_phase(), zincite_phase(), fluorite_phase(),
+         brucite_phase(texture_order=order)],
+        plan=qpa_plan(biso_globs=biso, texture=True), label=f"cpd-2_sh{order}")
+
+    assert result.status == "converged"
+    got = _fractions_pct(result)
+    for name, w_true in WEIGHED["cpd-2"].items():
+        assert abs(got[name] - w_true) < MAJOR_TOL, \
+            f"cpd-2 order {order} {name}: {got[name]:.2f} vs weighed {w_true:.2f}"
+    (c20,) = [r for r in result.parameters if r.path == "phases.3.texture.c2_0"]
+    assert c20.value > 5.0 * c20.stderr > 0.0
+    (row,) = result.texture
+    assert row.name == "brucite" and row.texture_index > 1.2
+    assert row.min_p_sphere > 0.0
+    assert not [d for d in result.diagnostics if d.code == "TEXTURE_NOT_POSITIVE"]
 
 
 # -- sample 4: microabsorption (designed to defeat Brindley) ---------------

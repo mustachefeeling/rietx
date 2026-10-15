@@ -636,7 +636,7 @@ class Gsas2Hap:
     mustrain: Gsas2Broadening | None = None
     hstrain: tuple[Gsas2Value, ...] = ()
     #: ``(model, value, refined, axis)`` — ``MD`` is March-Dollase, ``SH`` the
-    #: spherical-harmonic texture this build does not model
+    #: spherical-harmonic texture, whose coefficients this reader does not read
     preferred_orientation: tuple[str, float, bool, tuple[int, int, int]] | None = None
     extinction: Gsas2Value | None = None
     #: whether this pair's intensities were extracted rather than calculated
@@ -1994,6 +1994,7 @@ def _report_cif(structure, ambiguous: list[str],
     extras = {
         "microstrain": "the Stephens anisotropic strain coefficients",
         "preferred_orientation": "the March-Dollase preferred orientation",
+        "texture": "the spherical-harmonics texture",
         "extinction": "the primary-extinction coefficient",
         "restraints": "the soft restraints",
     }

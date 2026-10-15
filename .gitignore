@@ -128,3 +128,12 @@ docs/landing/site/
 # `git check-ignore` about all six paths, in both directions, because reading
 # this file correctly is what failed the first three times.
 !docs/landing/img/*.png
+# The JupyterLite site and what builds it (docs/lite/, WP-1966): the site, the
+# two WebAssembly wheels and the toolchain build_wheels.py fetches, all rebuilt
+# from the scripts there.
+docs/lite/site/
+docs/lite/wheels/
+docs/lite/.lite-work/
+
+# jupyterlite_core build cache, written to the working directory of a run
+.jupyterlite.doit.db

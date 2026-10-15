@@ -1065,6 +1065,26 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
                 "mounts produce",
         anchor="corrections.html#preferred-orientation-march-dollase",
     ),
+    "phases.*.texture.*": HelpEntry(
+        title="Texture coefficient",
+        description=(
+            "One coefficient C_l^n of the spherical-harmonics preferred-"
+            "orientation correction, named c<l>_<n> after GSAS-II's C(l,n). "
+            "Every coefficient at 0 is exactly no correction. The Laue class "
+            "decides which coefficients exist. The texture index "
+            "J = 1 + Σ C²/(2l+1) summarises their size, and J = 1 is a random "
+            "powder. A Bragg-Brentano coefficient is GSAS-II's multiplied by "
+            "P_l(0), because this package measures the sample angle from the "
+            "plate normal. Where the metric makes two inequivalent reflections "
+            "coincide (hkl and khl in -3m1), a term of opposite sign on the "
+            "pair is measured only through their |F|² difference, and its esd "
+            "says so."
+        ),
+        unit=None, default="0.0",
+        typical="|C| under 1 at l = 2 for a lightly textured mount; several "
+                "for a strongly platy one",
+        anchor="corrections.html#preferred-orientation-spherical-harmonics",
+    ),
     "phases.*.atoms.*.x": _ATOM_COORD,
     "phases.*.atoms.*.y": _ATOM_COORD,
     "phases.*.atoms.*.z": _ATOM_COORD,

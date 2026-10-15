@@ -462,13 +462,17 @@ from .._nearmiss import did_you_mean
 #: rejects the declared form, by a score test at the answer.  Additive and
 #: defaulted to ``None``, as ``parametric`` is; an older build refuses a
 #: result carrying the field.
-SCHEMA_VERSION = "0.56"
-#: 0.56 → 0.57 (indexing C4): ``CellCandidate.n_search_unindexed`` and
+#: 0.56 → 0.57 (WP-1960): ``Phase.texture``, a ``SphericalHarmonicTexture``
+#: (an even ``order`` and a name → ``Parameter`` map of coefficients), and
+#: ``RefinementResult.texture``, one ``PhaseTexture`` per textured phase.
+#: Additive and defaulted to ``None`` and empty, so every stored document
+#: loads and refines as before; an older build refuses either.
+#: 0.57 → 0.58 (indexing C4): ``CellCandidate.n_search_unindexed`` and
 #: ``.unindexed_two_theta``, the search's acceptance as an output (the inlier
 #: rule replaces the absolute ``n_unindexed`` cap, which a ``SearchSpecSpec``
 #: still accepts as a declared int, its default now ``None``).  Additive and
 #: defaulted to ``None``, "not computed", the 0.25 → 0.26 rule.
-SCHEMA_VERSION = "0.57"
+SCHEMA_VERSION = "0.58"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

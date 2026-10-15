@@ -455,6 +455,7 @@ an axis title for a series with no coordinate but would be the header's second
 `index`. The column count, order and meaning do not change either way.
 
 `SeriesResult.plot` plots one or more trajectories against the series axis.
+`style="dark"` draws it for a dark page, as it does for the pattern figures.
 
 ### A moment through an ordering transition
 

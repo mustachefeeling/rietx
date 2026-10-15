@@ -323,6 +323,11 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # common *cause* of an immature fit, so these must still speak when the rest
     # of Layer 1 abstains.
     report.texture = analyse_texture(model, values)
+    # phases carrying the spherical-harmonics texture (WP-1960), whose
+    # remedy for a leftover single-axis signature is the order, never a
+    # March-Dollase block the schema would refuse beside it
+    harmonic = frozenset(ip for ip, cp in enumerate(model.phases)
+                         if cp.tex_basis is not None)
     report.strain = analyse_strain(model, values)
     # The satellite arm (WP-1326) is computed here, on the same terms and for
     # the same reason as texture and strain: intensity the model puts nowhere
@@ -379,7 +384,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         # the one action whose remedy is the beamline, emitted exactly on the
         # abstention flavour that names the data as the limit (WP-1106)
         actions += resolution_limited_action(report.abstained_kind)
-        actions += texture_actions(report.texture)
+        actions += texture_actions(report.texture, harmonic_phases=harmonic)
         # the background hypotheses stand here for the same reason texture
         # does: their evidence never linearised anything, and an over-flexible
         # or over-stiff background is a *cause* of an immature fit
@@ -425,7 +430,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # is per-reflection or whole-pattern, not the gated region attribution the
     # estimate covers — and off-region misfit is by definition outside every
     # region the estimate sums over
-    actions += texture_actions(report.texture)
+    actions += texture_actions(report.texture, harmonic_phases=harmonic)
     actions += background_actions(report.background)
     actions = cap_texture_crosstalk(actions, report.texture, report.unmatched)
     actions = note_background_crosstalk(actions, report.background)

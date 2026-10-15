@@ -549,7 +549,8 @@ def layer0_actions(unmatched: list[UnmatchedPeak],
 TEXTURE_AXIS_AMBIGUITY = 0.8
 
 
-def texture_actions(texture) -> list[SuggestedAction]:
+def texture_actions(texture, *, harmonic_phases=frozenset()
+                    ) -> list[SuggestedAction]:
     """Actions from the March-Dollase texture diagnostic (the WP-0307 orphan,
     claimed by WP-0602).
 
@@ -561,9 +562,11 @@ def texture_actions(texture) -> list[SuggestedAction]:
     the strategy veto marks the declared-and-planned case, and on an
     undeclared phase ``predict_then_verify`` frees nothing and rolls back —
     the rationale carries the axis and r so the agent knows what block to
-    declare first.  No ``expected_delta_chi2``: the estimate comes from the
-    gated region attribution, and this analysis is per-reflection, not
-    per-region.
+    declare first.  A phase in ``harmonic_phases`` carries a
+    spherical-harmonics texture, which excludes a March-Dollase block
+    (WP-1960), so its rationale names the order instead.  No
+    ``expected_delta_chi2``: the estimate comes from the gated region
+    attribution, and this analysis is per-reflection, not per-region.
     """
     out: list[SuggestedAction] = []
     for t in texture or []:
@@ -583,8 +586,13 @@ def texture_actions(texture) -> list[SuggestedAction]:
             rationale += (f"; the axis is not cleanly resolved — {runner} "
                           f"fits R²={t.runner_up_r2:.2f}, so refine r but do "
                           "not report the axis as measured")
-        rationale += ("; if the phase declares no preferred_orientation block, "
-                      "add one with this axis before freeing r")
+        if t.phase_index in harmonic_phases:
+            rationale += ("; the phase carries a spherical-harmonics texture, "
+                          "which excludes a preferred_orientation block, so "
+                          "raise its order rather than adding one")
+        else:
+            rationale += ("; if the phase declares no preferred_orientation "
+                          "block, add one with this axis before freeing r")
         out.append(SuggestedAction(
             kind="refine_preferred_orientation",
             confidence=round(confidence, 3), rationale=rationale,
