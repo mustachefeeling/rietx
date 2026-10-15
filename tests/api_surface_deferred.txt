@@ -33,6 +33,12 @@ MomentEvidence.paired_magnitude_esd
 MomentEvidence.paired_with
 ParameterRow.body
 Phase.rigid_bodies
+PlanarityRestraint
+PlanarityRestraint.atoms
+PlanarityRestraint.op_indices
+PlanarityRestraint.sigma
+PlanarityRestraint.translations
+PlanarityRestraint.weight
 RigidBody.atoms
 RigidBody.name
 RigidBody.orientation

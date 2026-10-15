@@ -496,7 +496,10 @@ from .._nearmiss import did_you_mean
 #: 0.55 key ``tie``, so a 1.9.0 result opens and is written back as ``equation``.
 #: ``ParametricValue``, built on demand and never stored, carries
 #: ``provisional_on`` and ``joint_rejected`` beside ``form_rejected``.
-SCHEMA_VERSION = "0.59"
+#: 0.59 → 0.60 (WP-1809): ``PlanarityRestraint`` joins the ``Restraint``
+#: union, and ``RestraintRow.kind`` gains ``"planarity"``.  Additive: no
+#: existing document carries either, and an older build refuses one that does.
+SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated
