@@ -1746,9 +1746,9 @@ class RefinementResult(Base):
         its polynomial uses to a value, in the coordinate table's units, and a
         ``design`` equation takes a ``row`` instead.  Reads the stored coefficients
         (:attr:`parametric`), their covariance and the resolved reference
-        (:attr:`parametric_equations`), and the form test (:attr:`parametric_form`),
-        whose verdict rides beside the value because the esd assumes the
-        form.  At a pattern's own coordinates this is that pattern's
+        (:attr:`parametric_equations`), and the form test (:attr:`parametric_form`
+        and :attr:`parametric_form_joint`), whose verdicts ride beside the value
+        because the esd assumes the form.  At a pattern's own coordinates this is that pattern's
         ``hist.<h>.`` target row, value and esd.
         """
         if self.parametric_equations is None:
@@ -1761,7 +1761,8 @@ class RefinementResult(Base):
                            f"{sorted(declared)}")
         coefficients = [c for c in self.parametric or [] if c.equation == equation]
         form = next((t for t in self.parametric_form or [] if t.equation == equation), None)
-        return declared[equation].evaluate(coefficients, form, coordinates, row)
+        return declared[equation].evaluate(coefficients, form, coordinates, row,
+                                           joint=self.parametric_form_joint)
 
     def _repr_html_(self) -> str:
         """The termination view, then the refined parameters as a table

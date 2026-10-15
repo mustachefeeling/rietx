@@ -2280,7 +2280,10 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
     coefficients, whose esds assume the form, and ``value`` the statistic of
     the verdict's reading.  One more, ``where`` every tested equation's
     coefficients, when the joint reading rejects and no equation's own verdict
-    does: then the data refuses the forms together and cannot say which.  A
+    does: then the data refuses the forms together and cannot say which.  It
+    names each equation whose freed reading had no direction, and what that
+    equation's tied reading said, because its own verdict is ``None`` and this
+    warning is the only one that carries it.  A
     rejection beside another says its verdict is provisional
     (``ParametricFormTest.provisional_on``), and each tells the reader to
     read the other equations again after the refit."""
@@ -2326,6 +2329,24 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
         # every equation tested at once had its own freed reading
         tested = [t for t in tests or [] if t.others_freed is not None]
         names = ", ".join(repr(t.equation) for t in tested)
+        # an equation the others' targets already cover has no direction of its
+        # own, so its verdict is None and only this warning carries it; say so,
+        # with what its tied reading said, since that reading cannot tell its
+        # misfit from theirs
+        blind = [t for t in tested if t.others_freed.dof == 0]
+        unseen = ""
+        if blind:
+            told = [f"{t.equation!r}" + ("" if t.tied is None or t.tied.statistic is None else
+                                         f" (tied {t.tied.statistic:.1f} for "
+                                         f"{t.tied.dof} directions, "
+                                         f"{'past' if t.tied.rejected else 'within'} "
+                                         f"the cut {t.tied.cut:.1f})")
+                    for t in blind]
+            unseen = (f". {', '.join(told)} add{'s' if len(blind) == 1 else ''} no "
+                      "direction beside the other equations' targets, so no reading of "
+                      f"{'its' if len(blind) == 1 else 'their'} own can test "
+                      f"{'it' if len(blind) == 1 else 'them'}, and the data cannot "
+                      "separate that misfit from the others'")
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_FORM_REJECTED",
             where=[p for t in tested for p in paths[t.equation]], value=joint.statistic,
@@ -2335,7 +2356,7 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
                      f"{100 * FORM_TEST_LEVEL:g} % point {joint.cut:.1f} of χ² for "
                      f"{joint.dof} directions. No equation's own reading rejects it, so "
                      "the data does not say which form is wrong, and the "
-                     "coefficients' esds assume them all"),
+                     f"coefficients' esds assume them all{unseen}"),
             suggestion=("do not quote the coefficients as they stand: add the next "
                         "term to one equation at a time and refit, and compare each equation "
                         "with the chain's trajectory")))

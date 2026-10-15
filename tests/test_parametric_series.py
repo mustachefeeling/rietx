@@ -496,6 +496,7 @@ def test_an_equation_evaluates_in_user_units_with_the_covariance_its_esds_came_f
         assert v.esd == pytest.approx(np.sqrt(phi @ cov @ phi), rel=1e-12)
         assert v.outside == ([] if temp <= 700.0 else ["T"])
         assert v.form_rejected is None and v.unit == "A"
+        assert (v.provisional_on, v.joint_rejected) == ([], None)
     # each refusal names what the basis takes
     with pytest.raises(ValueError, match=r"missing \['T'\]"):
         equation.evaluate(rows, coordinates={})
@@ -1303,6 +1304,70 @@ def test_a_verdict_beside_a_rejected_equation_is_marked_provisional():
     assert "The verdict is provisional: 'si_a' rejected too" in a.message
     assert "The verdict is provisional: 'zrp_a' rejected too" in b.message
     assert "read them again after the refit" in a.suggestion
+
+
+def test_an_equation_with_no_direction_beside_the_others_is_named_by_the_joint_warning():
+    """An equation whose targets the others' already cover adds no direction
+    freed, so its verdict is ``None`` even when its tied reading rejects: the
+    data cannot tell its misfit from theirs.  The joint warning names it and
+    quotes the tied reading, since no other warning carries it."""
+    from types import SimpleNamespace
+
+    from rietx.multi import _parametric_form_diagnostics
+    from rietx.schemas.parametric import ParametricFormReading, ParametricFormTest
+
+    mt = SimpleNamespace(parametric=[SimpleNamespace(name=n, paths=[f"vars.{n}_0"])
+                                     for n in ("A", "B")])
+    none = ParametricFormReading(dof=0, statistic=None, cut=None, rejected=None,
+                                 p_value=None)
+    tied_a, _ = _two_readings(60.0, 0.0006, 30.0, 0.5)
+    tied_b, freed_b = _two_readings(30.0, 0.5, 40.0, 0.1)
+    tests = [ParametricFormTest(equation="A", target="phases.0.cell.a", n_patterns=33,
+                                n_subset=33, rejected=None, tied=tied_a, others_freed=none,
+                                provisional_on=[]),
+             ParametricFormTest(equation="B", target="phases.1.cell.a", n_patterns=33,
+                                n_subset=33, rejected=False, tied=tied_b,
+                                others_freed=freed_b, provisional_on=[])]
+    joint = ParametricFormReading(dof=31, statistic=70.0, cut=45.0, rejected=True,
+                                  p_value=1e-4)
+    (d,) = _parametric_form_diagnostics(mt, tests, joint)
+    assert d.where == ["vars.A_0", "vars.B_0"]
+    assert ("'A' (tied 60.0 for 31 directions, past the cut 45.0) adds no direction "
+            "beside the other equations' targets, so no reading of its own can test "
+            "it") in d.message
+    # every equation with a direction of its own: the clause is absent
+    tests[0] = tests[0].model_copy(update={"others_freed": freed_b, "rejected": False})
+    (d,) = _parametric_form_diagnostics(mt, tests, joint)
+    assert "adds no direction" not in d.message
+
+
+def test_a_value_carries_the_provisional_mark_and_the_joint_verdict():
+    """``ParametricValue`` carries what its esd's assumption rests on beyond its
+    own verdict: the other rejected equations, and the joint reading where the
+    equation took part in one.  Its printed line says both."""
+    from rietx.schemas.parametric import ParametricFormReading, ParametricFormTest
+
+    r = resolve_parametric(_equation(terms=[[], ["T"]]), _coords(300.0, 500.0, 700.0), 3,
+                           target_unit="A")
+    rows = coefficient_rows(r, dict(zip(r.paths, [4.0, 0.02], strict=True)),
+                            dict(zip(r.paths, [1e-5, 2e-5], strict=True)),
+                            dict.fromkeys(r.paths, True))
+    equation = parametric_equation(r, rows, [0, 1], np.eye(2))
+    tied, freed = _two_readings(30.0, 0.5, 40.0, 0.1)
+    form = ParametricFormTest(equation=r.name, target=r.target, n_patterns=3, n_subset=3,
+                              rejected=False, tied=tied, others_freed=freed,
+                              provisional_on=["b"])
+    joint = ParametricFormReading(dof=62, statistic=90.0, cut=81.381, rejected=True,
+                                  p_value=0.012)
+    v = equation.evaluate(rows, form, {"T": 500.0}, joint=joint)
+    assert (v.form_rejected, v.provisional_on, v.joint_rejected) == (False, ["b"], True)
+    assert str(v).endswith("(form not rejected; provisional beside rejected 'b'; "
+                           "the joint reading of every equation rejects the set)")
+    # alone in its fit, an equation took part in no joint reading
+    alone = form.model_copy(update={"others_freed": None, "provisional_on": []})
+    v = equation.evaluate(rows, alone, {"T": 500.0}, joint=joint)
+    assert (v.provisional_on, v.joint_rejected) == ([], None)
+    assert str(v).endswith("(form not rejected)")
 
 
 def test_a_patterns_own_target_column_is_read_off_the_coefficients():

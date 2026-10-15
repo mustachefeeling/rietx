@@ -385,6 +385,16 @@ class ParametricValue(Base):
     * ``form_rejected`` — the declaration's form test verdict
       (:class:`ParametricFormTest`), because the esd assumes the form.
       ``None`` where the form was not tested.
+    * ``provisional_on`` — the other declarations the form test rejected
+      (:attr:`ParametricFormTest.provisional_on`).  Their misfit moved the
+      answer this verdict steps from, so a verdict beside them is provisional.
+      Empty where none was rejected or the form was not tested.
+    * ``joint_rejected`` — the verdict of the joint reading of every tested
+      declaration at once (:attr:`RefinementResult.parametric_form_joint
+      <rietx.schemas.results.RefinementResult.parametric_form_joint>`).  It can
+      reject while each declaration's own verdict passes, and then this esd's
+      assumption is refused too.  ``None`` where this declaration was not part
+      of a joint reading.
     """
 
     equation: str
@@ -396,6 +406,8 @@ class ParametricValue(Base):
     unit: str | None
     outside: list[str] | None
     form_rejected: bool | None
+    provisional_on: list[str]
+    joint_rejected: bool | None
 
     def __str__(self) -> str:
         from .._display import _number
@@ -412,6 +424,11 @@ class ParametricValue(Base):
             notes.append(f"extrapolating in {', '.join(self.outside)}")
         notes.append({True: "form REJECTED", False: "form not rejected",
                       None: "form not tested"}[self.form_rejected])
+        if self.provisional_on:
+            notes.append("provisional beside rejected "
+                         + ", ".join(repr(n) for n in self.provisional_on))
+        if self.joint_rejected:
+            notes.append("the joint reading of every equation rejects the set")
         return (f"{self.equation}: {self.target}{at} = {_number(self.value, self.esd)}"
                 f"{unit} ({'; '.join(notes)})")
 
@@ -442,14 +459,17 @@ class RefinedParametricEquation(Base):
     def evaluate(self, coefficients: list[ParametricCoefficient],
                  form: ParametricFormTest | None = None,
                  coordinates: dict[str, float] | None = None,
-                 row: list[float] | None = None) -> ParametricValue:
+                 row: list[float] | None = None,
+                 joint: ParametricFormReading | None = None) -> ParametricValue:
         """The target at ``coordinates`` (or a ``design`` equation's ``row``).
 
         Σ_j x_j·c_j and √(x·Σ·xᵀ), with c the coefficients in the caller's
         units and x_j the term's product of (z − reference) per coordinate, so
         the value at the reference is the intercept.  ``coefficients`` are
         this equation's, in coefficient order, and are refused otherwise, as are a
-        coordinate set or a row that does not match the basis.
+        coordinate set or a row that does not match the basis.  ``joint`` is the
+        joint reading of every tested equation, read only where ``form`` took
+        part in it.
         """
         equation = self.equation
         paths = [c.path for c in coefficients]
@@ -495,4 +515,8 @@ class RefinedParametricEquation(Base):
         return ParametricValue(
             equation=equation.name, target=equation.target, coordinates=coordinates,
             row=None if row is None else x, value=value, esd=esd, unit=self.unit,
-            outside=outside, form_rejected=None if form is None else form.rejected)
+            outside=outside, form_rejected=None if form is None else form.rejected,
+            provisional_on=[] if form is None else list(form.provisional_on),
+            # an equation took part in the joint reading iff it has a freed one
+            joint_rejected=(None if joint is None or form is None
+                            or form.others_freed is None else joint.rejected))

@@ -486,6 +486,8 @@ from .._nearmiss import did_you_mean
 #: ``equation`` on ``ParametricCoefficient``, ``ParametricFormTest`` and
 #: ``RefinedParametricEquation``; ``ParametricCoefficient`` still reads the
 #: 0.55 key ``tie``, so a 1.9.0 result opens and is written back as ``equation``.
+#: ``ParametricValue``, built on demand and never stored, carries
+#: ``provisional_on`` and ``joint_rejected`` beside ``form_rejected``.
 SCHEMA_VERSION = "0.58"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

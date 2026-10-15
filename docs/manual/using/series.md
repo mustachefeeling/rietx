@@ -1758,6 +1758,13 @@ When the joint reading rejects and no equation's own verdict does,
 cannot say which form is wrong. Add the next term to one equation at a time and
 refit.
 
+An equation can add no direction of its own once the others are freed. That
+happens when the other equations' targets already move the pattern every way
+its own target could. Its freed reading then has nothing to test, and its
+verdict is `None` even when its tied reading rejects, because the data cannot
+tell its misfit from the others'. The joint warning names such an equation and
+quotes its tied reading.
+
 The test has three limits.
 
 - It sees the form only where, and as well as, each pattern measures the
@@ -1813,10 +1820,13 @@ coefficients and the form test directly.
 | `ParametricValue.value`, `ParametricValue.esd`, `ParametricValue.unit` | the target there. The esd is `None` when the equation has no covariance |
 | `ParametricValue.outside` | the coordinates whose value lies outside the subset's range. `None` for a design row |
 | `ParametricValue.form_rejected` | the declaration's form test verdict, `None` where the form was not tested |
+| `ParametricValue.provisional_on` | the other declarations the form test rejected, so this verdict is provisional. Empty where none was |
+| `ParametricValue.joint_rejected` | the joint reading's verdict, `None` where the declaration took part in none |
 
 A `design` equation has no coordinates. Evaluate it with `row=`, one number per
 coefficient in the units of its design matrix. `ParametricValue.outside` checks
 each coordinate on its own. Over two or more coordinates a point can lie inside
 each range and still be far from every pattern, and the field does not see
 that. The esd assumes the declared form, so read `ParametricValue.form_rejected`
-beside it.
+beside it, with `provisional_on` and `joint_rejected`. The printed value says
+when either applies.
