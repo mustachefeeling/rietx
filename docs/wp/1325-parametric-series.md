@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — each law's verdict is its others-freed reading and a joint reading covers all laws at once (maintainer: best practice); next ZrP₂O₇ and WO₃ out of sample
+Milestone: unscheduled · Status: 🔄 2026-10-15 — ZrP₂O₇ and WO₃ out of sample settled decision 4 (χ²_red alone, a verdict beside a rejected equation provisional) and a declaration is now a parametric equation; next the next-term test, then in-step bounds
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -54,6 +54,18 @@ standing concern is a check calibrated on one example.
 4. **A correction for several laws at 95 % each is open.** The ZrP₂O₇ and
    WO₃ measurement decides it, because both declare several laws at once.
    It covers one verdict per law plus the joint reading (decision 6).
+   Settled 2026-10-15 by the maintainer, from § Measured: the form test out
+   of sample. Every reading divides by χ²_red alone, without f² (741649b):
+   over χ²_red alone 12 of 242 readings that must hold rejected (5.0 %),
+   and with f² none of 261 did. Each reading stays at 95 %, with no
+   family-wise correction. A verdict beside a rejected law is marked
+   provisional instead (667216c), because a far-wrong law moves the answer
+   every reading steps from.
+7. **A declaration is a parametric equation** (2026-10-15). The public
+   names say "equation" where this file says "law" or "tie":
+   `ParametricEquation`, `RefinedParametricEquation`,
+   `RefinementResult.parametric_equations`, `RefinedParameter.equations`.
+   The record below keeps the names each session shipped under.
 5. **A kernel prior for the blind regime is
    [1963](1963-a-kernel-over-the-pattern-coordinates.md)**, a stub.
 6. **The verdict follows statistical practice** (the maintainer, 2026-10-14,
@@ -824,7 +836,8 @@ read off the coefficient columns, J_coef·Φ_kᵀ/‖Φ_k‖². The alternative 
 coefficients for those columns. One linear step from the answer, every other
 column refitted, gives the χ² it would remove: Rao's score statistic for k
 columns, `Refinement.suggest`'s one-column gain generalised. It is divided by
-the tied fit's χ²_red·f² and compared with χ²_k's 95 % point. Three choices
+the tied fit's χ²_red·f² and compared with χ²_k's 95 % point. (Since
+741649b it is divided by χ²_red alone: decision 4.) Three choices
 came from measurement:
 - **The alternative drops the coefficients.** Appending the per-pattern
   columns beside them counted a tenth direction on a ten-pattern ramp, since
@@ -915,7 +928,7 @@ in the results files.
 **The denominator.** Laws that must hold any smooth truth: a cubic or
 quartic per window, or a quintic over the ramp.
 
-| ramp | f | readings | rejected over χ²_red·f² (shipped) | over χ²_red alone | over 1 |
+| ramp | f | readings | rejected over χ²_red·f² (shipped until 741649b) | over χ²_red alone (shipped since) | over 1 |
 |---|---|---|---|---|---|
 | ZrP₂O₇ | 1.23 | 20 freed, 2 joint | 0, 0 | 0, 0 | not run |
 | WO₃ | 2.4-3.6 | 210 freed, 15 joint | 0, 0 | 10, 2 | 39, 9 |
@@ -1280,7 +1293,7 @@ right, each freed gain is 0.92-1.10 of its refit.
     `PARAMETRIC_FORM_REJECTED` whose `where` is every tested law's
     coefficients. `str(result)` prints the freed reading first and closes
     the block on the joint reading.
-- [ ] **The same measurement on ZrP₂O₇ and WO₃, run as the form test's
+- [x] **The same measurement on ZrP₂O₇ and WO₃, run as the form test's
   out-of-sample check.** Its level and its f² divisor were settled on the
   ZrMo₂O₈ ramp alone, the maintainer's concern. So:
   - record the form test's verdicts before comparing them with the chain's
@@ -1303,6 +1316,12 @@ right, each freed gain is 0.92-1.10 of its refit.
   - ZrP₂O₇'s TOPAS law calibrates the temperature itself, a law on a
     coordinate this WP does not build. Declare cell laws in the set
     temperature instead, heating and cooling as one.
+
+  Landed 2026-10-15 (506c340, c4f9cdc, 64d5777), recorded in § Measured:
+  the form test out of sample before any comparison. Decision 4 followed
+  from it: the divisor is χ²_red alone (741649b), and a verdict beside a
+  rejected law is provisional, `ParametricFormTest.provisional_on` naming
+  the others (667216c).
 - [ ] **Measure whether a one-direction test for the next term earns a
   place** (added 2026-10-14, from a review of the API against prior art).
   The form test's alternative spends n − m directions, one per pattern
@@ -1354,6 +1373,10 @@ right, each freed gain is 0.92-1.10 of its refit.
     several coordinates has several next-degree monomials, so the test
     there spends that many directions, still far fewer than n − m. A
     `design` or `constant` law has no next term.
+  - Open (2026-10-15): the real-ramp half, ZrP₂O₇ and WO₃, did not run.
+    The table above divides by χ²_red·f². The shipped form test now divides
+    by χ²_red alone (decision 4), so re-run the synthetic half on that
+    divisor before landing.
 - [x] **Profile the joint Jacobian**, the maintainer's question of 2026-10-14:
   would another Rust kernel help? It would not, first. § Measured: where the
   joint Jacobian's time goes.
