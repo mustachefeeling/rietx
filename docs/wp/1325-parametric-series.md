@@ -1,6 +1,6 @@
 # WP-1325 — parametric series: a parameter as a function of each pattern's coordinates
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the form test landed and its 1.10 notes are staged; next the output marks law-set values, then the coefficients' covariance, each law tested with the others freed, and ZrP₂O₇ and WO₃ out of sample
+Milestone: unscheduled · Status: 🔄 2026-10-15 — ZrP₂O₇ and WO₃ out of sample settled decision 4 (χ²_red alone, a verdict beside a rejected equation provisional) and a declaration is now a parametric equation; next the next-term test, then in-step bounds
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (1119 soft: a named coefficient is a named variable)
 Priority: P2 2026-10-14 — was P3: the maintainer took the combinatorial-library case (the first named outside user) and the scalable solver it needs; 1962 waits on that solver
@@ -53,8 +53,39 @@ standing concern is a check calibrated on one example.
    would mix the form with the held value.
 4. **A correction for several laws at 95 % each is open.** The ZrP₂O₇ and
    WO₃ measurement decides it, because both declare several laws at once.
+   It covers one verdict per law plus the joint reading (decision 6).
+   Settled 2026-10-15 by the maintainer, from § Measured: the form test out
+   of sample. Every reading divides by χ²_red alone, without f² (741649b):
+   over χ²_red alone 12 of 242 readings that must hold rejected (5.0 %),
+   and with f² none of 261 did. Each reading stays at 95 %, with no
+   family-wise correction. A verdict beside a rejected law is marked
+   provisional instead (667216c), because a far-wrong law moves the answer
+   every reading steps from.
+7. **A declaration is a parametric equation** (2026-10-15). The public
+   names say "equation" where this file says "law" or "tie":
+   `ParametricEquation`, `RefinedParametricEquation`,
+   `RefinementResult.parametric_equations`, `RefinedParameter.equations`.
+   The record below keeps the names each session shipped under.
+8. **An equation with no direction of its own keeps no verdict, and a
+   value carries every verdict** (the maintainer, 2026-10-15, from the
+   review). With the others freed, an equation they already cover has
+   nothing to test. Its verdict stays `None`, as R's `lm` leaves an aliased
+   term untested, and the joint warning names it with its tied reading.
+   `ParametricValue` carries `provisional_on` and `joint_rejected` beside
+   `form_rejected`.
 5. **A kernel prior for the blind regime is
    [1963](1963-a-kernel-over-the-pattern-coordinates.md)**, a stub.
+6. **The verdict follows statistical practice** (the maintainer, 2026-10-14,
+   eighth session, overturning the seventh session's "either reading
+   rejects"). A law's verdict is its others-freed reading, the test of a
+   regression term added last, which assumes nothing of the other laws'
+   forms. The tied reading stays on the record. Two laws whose targets move
+   the pattern alike can each pass freed while both are wrong, so one joint
+   reading swaps every tested law at once, the overall test of the group.
+   It names no law, since the data cannot say which one is wrong. The
+   either rule's per-law false-alarm rate lay between 5 % and 10 % by the
+   union bound, and its tied half could flag a right law beside a wrong
+   one.
 
 ### The general shape, and which part this WP builds
 
@@ -92,7 +123,14 @@ exponent, a Debye σ²(T)) is the `Parameter.expr` fence of WP-1119.
   & Schorr (2011) refined symmetry-mode amplitudes as a Landau power law in T,
   and report better statistics, stability and lower correlation than the
   sequential route. The outside lab's polynomial surfaces are this, over
-  composition.
+  composition. The Durham tutorials (9.3-9.5, read 2026-10-14) check a law
+  by plotting it against independent fits and by Rwp with the law on and
+  off (WO₃: 12.87 % for 184 parameters over 11 patterns; ZrP₂O₇: 31.56 % to
+  31.53 % with its three terms freed). They name no statistical test.
+  WO₃'s nine cell edges share one refined Einstein temperature,
+  a = a₀ + g/(exp(θ/T) − 1), and its angles are quadratic in T.
+  ZrP₂O₇'s law is a cubic temperature calibration, the sample's true
+  temperature from the set one with Si and Al₂O₃ as thermometers.
 - **GSAS-II** fits an equation to its sequential *table* after the fact.
   That is the weaker form `sequential.py` already has.
 - **FullProf's multi-pattern refinements** share a parameter through a
@@ -805,7 +843,8 @@ read off the coefficient columns, J_coef·Φ_kᵀ/‖Φ_k‖². The alternative 
 coefficients for those columns. One linear step from the answer, every other
 column refitted, gives the χ² it would remove: Rao's score statistic for k
 columns, `Refinement.suggest`'s one-column gain generalised. It is divided by
-the tied fit's χ²_red·f² and compared with χ²_k's 95 % point. Three choices
+the tied fit's χ²_red·f² and compared with χ²_k's 95 % point. (Since
+741649b it is divided by χ²_red alone: decision 4.) Three choices
 came from measurement:
 - **The alternative drops the coefficients.** Appending the per-pattern
   columns beside them counted a tenth direction on a ten-pattern ramp, since
@@ -873,6 +912,92 @@ true bilinear surface declared, blocked solve; load 10-24): the test took
 0.27 s of a 6.7 s fit at 120 patterns (4.1 %) and 0.67 s of 18.0 s at 300
 (3.7 %). It kept the true surface, 76.4 against a cut of 142.1 for 116
 directions and 197.9 against 337.1 for 296.
+
+### Measured: the form test out of sample (2026-10-14)
+
+Three real ramps, each with an over-flexible arm. Scripts and output are in
+`1325-measure/`: `zrp2o7_*`, `wo3_*` and `zrmo2o8_overflex.py`. Two lanes ran
+ZrP₂O₇ and WO₃ at load 4-110, beside other sessions' suites. Wall times are
+in the results files.
+
+**The models.**
+- ZrP₂O₇: 37 patterns, 303 K to 1173 K and back, three phases parsed from
+  the input's `str` blocks (`read_topas_inp` refuses its `B1` macros).
+  Untied Rwp 31.47 %, TOPAS 31.56 %. TOPAS's 2θ calibration curve
+  (0.006-0.011°) is left out, since rietx has no such term.
+- WO₃: 100 patterns, 300 K to 90 K, three phases from `read_project_model`.
+  TOPAS's Einstein law on each edge is a `design` law with θ held at
+  125.37 K, and the angles are quadratic. Untied Rwp 13.53 %, TOPAS
+  12.81 %. One B per pattern is held at the chain's value in the joint
+  fits. The forward chain fell into a wrong minimum at 206-221 K, so each
+  pattern is seeded from the better of a forward and a backward chain.
+
+**The denominator.** Laws that must hold any smooth truth: a cubic or
+quartic per window, or a quintic over the ramp.
+
+| ramp | f | readings | rejected over χ²_red·f² (shipped until 741649b) | over χ²_red alone (shipped since) | over 1 |
+|---|---|---|---|---|---|
+| ZrP₂O₇ | 1.23 | 20 freed, 2 joint | 0, 0 | 0, 0 | not run |
+| WO₃ | 2.4-3.6 | 210 freed, 15 joint | 0, 0 | 10, 2 | 39, 9 |
+| ZrMo₂O₈ | 2.42 | 12 freed, 2 joint | 0, 0 | 2, 0 | 7, 2 |
+
+- Over χ²_red alone, 12 of 242 freed readings reject (5.0 %), and 2 of 19
+  joint readings. WO₃'s ten fall at or above 238 K, mostly on Pc, whose
+  cell is unmeasured there while the support screen counts the phase seen.
+- With f², none of 261 readings rejects. The statistic per direction has
+  a median of 0.067 on WO₃, and the p-values pile toward 1 on ZrP₂O₇
+  (KS p 0.0002 pooled; 0.70 over χ²_red alone).
+- On ZrMo₂O₈, the ramp f² was chosen on, the over-flexible statistic over
+  χ²_red alone has a median of 1.08 per direction (0.35-2.15).
+- Synthetic, for comparison (§ Measured: the form test): f² is
+  conservative there too, and without it 1 of 20 straight truths was
+  rejected.
+
+**The laws, recorded before any comparison.**
+- ZrP₂O₇, one law over both legs, ZrP₂O₇ across its transition: that law
+  is rejected (3122 for 34). Beside it, Si's freed reading rejects
+  (51.4 for 35, p 0.036) while Si's law-alone refit keeps it (p 0.92).
+- ZrP₂O₇ with its law split at the transition: every law keeps with f²,
+  each freed gain 0.92-1.10 of its law-alone refit. Over χ²_red alone the
+  joint reading rejects (190.7 for 134, p 0.0009). A nested refit against
+  one law per leg rejects too (p 0.0013): the transition's hysteresis,
+  cooling +6(3) × 10⁻⁴ Å above heating below 502 K. Si shows no lag
+  (+1.2(3.4) K at 587 K). With one law per leg and field, 1 of 10 laws
+  rejects over χ²_red alone, and the joint reading keeps (p 0.13).
+- WO₃, TOPAS's laws: 4 of 14 rejected with f² (the three P2₁/n edges and
+  Pc c), and the joint reading (1941.9 for 1367). Against law-alone
+  refits: m_c freed p 0.0056 against the refit's 0.12 (gain 1.22×); t_a
+  both keep; t_beta freed p 0.17 against the refit's 5 × 10⁻⁷ (gain
+  0.62×), its chain points at χ²_red 5.89 about the law. Over χ²_red
+  alone, both readings of m_c and of t_beta reject.
+- ZrMo₂O₈, § Measured: the form test's lines over χ²_red alone: 9.9, 4.1
+  and 3.7 per direction, against the over-flexible arm's 1.08.
+
+**One linear step from a far answer.** The score is one step from the
+tied answer. Where a law is far wrong, the answer sits far from the
+alternative, and other laws' readings drift from their refits: Si on
+ZrP₂O₇ (2.6× and 3.1× its law-alone refit's gain, beside a law at 3122 for
+34), m_c and t_beta on WO₃ (1.22× and 0.62×). Where the laws are near
+right, each freed gain is 0.92-1.10 of its refit.
+
+**Found on the way.**
+- A law's seed broke a target's own bounds, and the fit refused before its
+  first iteration (`ValueError … breaks its own bounds`). It happened on
+  WO₃ and on ZrMo₂O₈'s windowed cubic (trigonal c 12.276 Å against
+  12.263 Å). Both runs widened the cell windows to get past it. This is
+  the in-step-bounds task's.
+- `MultiHistogramRefinement` has no tie verb, so WO₃'s one B per pattern
+  could only be held in a joint fit.
+- The support screen counted WO₃'s Pc as seen where its cell is
+  unmeasured (1.5-3.5 wt % above 221 K), so the form test counts those
+  patterns.
+- `real_ramp.py` sets the FCJ axial ratios to v/L from TOPAS's
+  `Simple_Axial_Model(v)`. The ZrP₂O₇ lane reads v as a full length, so
+  v/2L, which lowered χ²_red by 0.045-0.085 on five patterns. Not checked
+  against TOPAS's manual. The package does not convert the macro.
+- Unexplained: WO₃'s t_beta law-alone fit printed its own reading as
+  110.1 for 97 (p 0.171), the all-laws freed reading to every digit. It
+  is not used.
 
 ### What the code has (survey, 2026-10-14)
 
@@ -948,6 +1073,48 @@ directions and 197.9 against 337.1 for 296.
   m ∝ (1 − T/T_N)^β, is nonlinear in β and T_N, so it is fenced. If the
   measurement says the joint form pays, the moment trajectory is a further
   series to measure it on.
+
+### A contributor's series work (PR #977 comments, 2026-10-14)
+
+@mustachefeeling commented twice on PR #977 with what their August to
+October series work found. Neither comment asks for a change to #977. A
+private bundle with the harness, drafts and data goes to the maintainer
+separately. The points for this WP are below. The subset boundary and the
+detectors went to [1965](1965-a-law-declared-by-formula-condition-and-glob.md),
+the scanned nonlinear laws to [1964](1964-a-nonlinear-law-through-the-derived-block.md),
+and the telemetry and event pairing to [1322](1322-events-aggregator.md).
+Their numbers are as reported and were not re-measured here.
+
+- **The joint fit inherits the chain's start, and the chain can be wrong at
+  equal Rwp.** On a two-phase VT series, whether the subgroup phase existed
+  depended on the walk direction. On an orthorhombic perovskite series, a
+  and c swapped between passes at 15.8σ. A chain reported `converged` with a
+  phase fraction wrong by tens of wt %, and the reseed ladder fires only when
+  Rwp is worse. For the start-agreement task they suggest seeding from a
+  chain that passed `direction="both"`, or from both directions with the
+  disagreements reported.
+- **Long in-situ series need segments.** Declaring every phase from pattern
+  1 gave a cell runaway and an SVD failure. What worked was segments switched
+  on the temperature history, at most 90 patterns each, chained from the
+  previous segment and run with `direction="both"`. A segment cannot resume
+  a dead chain's warm state.
+- **The WP-1523 hold picks the weaker of two collinear phases** (#219): the
+  real parent in 2 of 3 arms, at identical Rwp. It is the same unowned
+  defect as § Measured's chain kept at support 0.84-1.4.
+- **Admissibility.** Their draft planned a free fit under a smoothness
+  penalty, then a Durbin-Watson or runs test of the free trajectory against
+  the law, quoting esds conditional on the law and free. The form test
+  covers the same ground. They suggest the manual state the end state: an
+  equation is for nuisance parameters, and the science stays free.
+- **Composition equations.** One δ drives several occupancies by charge
+  balance. Anchoring and extrapolating fails far from dilute. Anchoring by
+  isotherm plus an external restraint row (TGA) is what they would want,
+  which is [1942](1942-a-soft-restraint-on-a-sum-across-phases.md)'s seam.
+- **An equation on an angle path** meets the angle wrap in `moved_paths` and
+  #263's one-sided esd (closed).
+- Not carried: their test that a tie survives the chain's carry step (#376,
+  closed). A parametric equation exists only in the joint fit, which has no
+  carry step.
 
 ## Non-goals
 
@@ -1054,6 +1221,10 @@ directions and 197.9 against 337.1 for 296.
   sharing one `r` column are not one model with different values. Decide
   which fields must agree and refuse the rest. Declined from the 2026-10-14
   code review as a design decision.
+  - The values matter as much as the fields: a chain can hand the joint fit
+    a wrong basin at equal Rwp, or a phase that exists in one walk direction
+    only (§ A contributor's series work). Decide whether the start reads
+    a `direction="both"` chain and reports where the two walks disagree.
 - [x] **The measurement on real data**, with the same numbers as the
   synthetic half, on the ZrMo₂O₈ ramp: `1325-measure/real_ramp.py`, in
   § Measured on real data. All three sources are Durham TOPAS tutorials.
@@ -1073,7 +1244,7 @@ directions and 197.9 against 337.1 for 296.
   sha256 in `tests/local_data.py`, and `python -m tests.local_data` fetches
   them on a new machine. A cloud container has none of them, because the
   Durham host is outside its network policy.
-- [ ] **Show in the output when a value came from a law** (maintainer,
+- [x] **Show in the output when a value came from a law** (maintainer,
   2026-10-14). Today a pattern's target row (`hist.<h>.<target>` in
   `RefinementResult.parameters`) reads like a measured value, with the law's
   esd, which can be far tighter than that pattern measures alone. In a
@@ -1096,7 +1267,21 @@ directions and 197.9 against 337.1 for 296.
     tell readers to skip the row. Mark the row as a law's coefficient and
     point at `parametric`, or drop it from `parameters`; the
     `RefinedParameter` field rule above applies either way.
-- [ ] **The coefficients' covariance, and the law's value at any
+
+  Landed 2026-10-14 (schema 0.57):
+  - `RefinedParameter.laws`, written by `multi._law_rows` off each table's
+    `entry_reach`, so what follows a target (a cubic cell's b and c) and a
+    held coefficient's rows count too. `None` reads "not recorded", since
+    1.9.0 shipped parametric fits whose rows carry no field; the single fit
+    writes an empty list. The notebook table gains a `laws` column.
+  - The coefficient rows are **marked, not dropped**. Dropping them breaks
+    the row contract (a row iff it varied or was tied), and `BOUND_HIT` on a
+    `constant` coefficient would then name a path absent from `parameters`.
+  - `ParametricFormTest.n_subset` and `.p_value`; the line reads "(p = 0.77)
+    for 8 directions over 10 of 10 patterns", and `p < 0.001` below that.
+  - `PARAMETRIC_TARGET_UNSEEN`, from the one `_parametric_unseen` reading the
+    form test's skip now takes too.
+- [x] **The coefficients' covariance, and the law's value at any
   coordinate** (added 2026-10-14, from a review of the API against prior
   art). `ParametricCoefficient` carries an esd and nothing else, and
   `Identifiability.top_correlations` lists only the worst pairs. A value
@@ -1114,7 +1299,21 @@ directions and 197.9 against 337.1 for 296.
     nothing the fit has not stored (root CLAUDE.md § a display reads fields).
   - The value carries the form test's verdict beside it, because its esd
     assumes the form. Beyond the subset's range it says it is extrapolating.
-- [ ] **Test each law with the other laws freed** (maintainer, 2026-10-14).
+
+  Landed 2026-10-14 (schema 0.57):
+  - `RefinementResult.parametric_laws`, one `ParametricLaw` per declaration:
+    the resolved tie, the target's unit, each coordinate's span over the
+    subset, and the covariance. Built by `params.parametric.parametric_law`
+    as esd_i·esd_j·ρ_ij from the joint correlation the esds were read off,
+    with ρ_ii = 1, so the diagonal is `esd ** 2` exactly (pinned).
+  - `RefinementResult.parametric_value(name, {coord: z})` (or `row=` for a
+    `design` law) returns a `ParametricValue`: value, esd, unit, the
+    coordinates outside the subset's span, and the form verdict.
+  - On the ten-pattern LaB6 line ramp it reproduced every `hist.<h>.` row's
+    value and esd to the bit; ρ(c₀, c₁) was 0.007 there, the centring's work.
+  - `outside` checks each coordinate's range on its own, so a 2-D point
+    inside both ranges and far from every pattern is not flagged.
+- [x] **Test each law with the other laws freed** (maintainer, 2026-10-14).
   Beside other laws, a law reads weaker than alone: the cubic line scored
   1.37 per direction at the three-law answer and 1.57 alone.
   - From the answer, the gain with every law's columns swapped, less the
@@ -1125,7 +1324,29 @@ directions and 197.9 against 337.1 for 296.
   - Decide how the two verdicts reach `rejected`, the diagnostic and the
     printed line. Two tests per law raise the false-alarm rate, decision 4's
     question.
-- [ ] **The same measurement on ZrP₂O₇ and WO₃, run as the form test's
+
+  Landed 2026-10-14 (schema 0.57; `1325-measure/form_freed.py`, output in
+  `form_freed_results.txt`):
+  - `ParametricFormTest` holds two `ParametricFormReading`s, `tied` and
+    `others_freed`, the second only when two or more laws are tested.
+    `parametric_form` was unreleased, so its fields moved freely.
+  - On the three-law answer the freed reading reproduced each law's own
+    refit: cubic 575.3 of the refit's 576.1, 1.58 per direction over the
+    untied denominator against 1.58; trigonal a 241.6 (1.33 of the refit's,
+    0.66 against 0.50, the weak phase whose refits stop in other minima);
+    trigonal c 215.6 (1.05, 0.59 against 0.56). Tied, the cubic law read
+    42.8 for 31 (p 0.077) and passed; freed, 48.6 (p 0.023), rejected.
+  - The session decided that either reading rejecting rejects the law. The
+    maintainer overturned it the next session for decision 6: the freed
+    reading is the verdict, and `RefinementResult.parametric_form_joint`
+    reads every tested law at once (c5b015e).
+  - The diagnostic's `value` is the verdict reading's statistic, and its
+    message says what the tied one read when that one passed. A joint
+    rejection with no law rejected on its own adds one
+    `PARAMETRIC_FORM_REJECTED` whose `where` is every tested law's
+    coefficients. `str(result)` prints the freed reading first and closes
+    the block on the joint reading.
+- [x] **The same measurement on ZrP₂O₇ and WO₃, run as the form test's
   out-of-sample check.** Its level and its f² divisor were settled on the
   ZrMo₂O₈ ramp alone, the maintainer's concern. So:
   - record the form test's verdicts before comparing them with the chain's
@@ -1141,6 +1362,19 @@ directions and 197.9 against 337.1 for 296.
   `rx.read_project_model` builds all three WO₃ phases from
   `d9_02592_3phase_01.inp`. The ZrP₂O₇ input is refused at read, on its
   `B1(...)` site macros, so its phases need building by hand.
+  - WO₃'s TOPAS law refines its Einstein temperature, which no linear
+    basis expresses ([1964](1964-a-nonlinear-law-through-the-derived-block.md)).
+    Held at TOPAS's 125.4 K it is a `design` law with columns 1 and
+    1/(exp(θ/T) − 1), which is how to declare it here.
+  - ZrP₂O₇'s TOPAS law calibrates the temperature itself, a law on a
+    coordinate this WP does not build. Declare cell laws in the set
+    temperature instead, heating and cooling as one.
+
+  Landed 2026-10-15 (506c340, c4f9cdc, 64d5777), recorded in § Measured:
+  the form test out of sample before any comparison. Decision 4 followed
+  from it: the divisor is χ²_red alone (741649b), and a verdict beside a
+  rejected law is provisional, `ParametricFormTest.provisional_on` naming
+  the others (667216c).
 - [ ] **Measure whether a one-direction test for the next term earns a
   place** (added 2026-10-14, from a review of the API against prior art).
   The form test's alternative spends n − m directions, one per pattern
@@ -1156,6 +1390,46 @@ directions and 197.9 against 337.1 for 296.
     and that regime is [1963](1963-a-kernel-over-the-pattern-coordinates.md)'s.
   - A second verdict per law is a further test at 95 %, so it joins
     decision 4's correction.
+
+  Measured, the synthetic half (2026-10-14, `1325-measure/next_term.py`,
+  output in `next_term_results.txt`; 20 noise draws a cell, load 3.0-3.8).
+  The ten-pattern LaB6 ramp with a line declared, the truth bent by a
+  fraction of the line's half-excursion: `curve` (u² − 1, the next term
+  exactly) or `kink` (|u| − 1, which no polynomial holds). The `next`
+  score is one shared column, Σ_k u_k² times pattern k's own target
+  column, projected densely; rebuilding the form statistic the same way
+  matched the shipped one to 4 × 10⁻¹⁴.
+
+  | truth, bend | form rejects | next rejects | quadratic refit rejects |
+  |---|---|---|---|
+  | curve 7 × 10⁻⁴ (6.5 × 10⁻⁶ Å) | 15/20 | 20/20 | 20/20 |
+  | curve 5 × 10⁻⁴ | 7/20 | 18/20 | 18/20 |
+  | curve 3 × 10⁻⁴ | 0/20 | 10/20 | 8/20 |
+  | curve 2 × 10⁻⁴ | 0/20 | 8/20 | 8/20 |
+  | kink 7 × 10⁻⁴ | 12/20 | 20/20 | 20/20 |
+  | kink 5 × 10⁻⁴ | 7/20 | 18/20 | 18/20 |
+  | kink 3 × 10⁻⁴ | 0/20 | 9/20 | 8/20 |
+  | straight | 0/20 | 0/20 | 0/20 |
+
+  - It meets the landing condition on synthetic data: from a bend of
+    3 × 10⁻⁴ down, the form test passes every draw and the next-term score
+    rejects about half, as the refit does. It spends one direction where
+    the form test spends eight, and the kink shows that it is not only for
+    a truth that is the next term.
+  - The score tracks the refit: medians 20.2 against 20.3 at curve
+    7 × 10⁻⁴, 7.7 against 7.4 at kink 5 × 10⁻⁴.
+  - Straight truths: medians form 4.6 (χ²_8's is 7.3), next 0.6 (χ²_1's
+    0.45). The f² divisor is conservative here, as § Measured: the form
+    test found.
+  - To land it, `blocked.added_columns_gain` needs a column shared across
+    blocks: today `_edited` appends extras per block only. A polynomial in
+    several coordinates has several next-degree monomials, so the test
+    there spends that many directions, still far fewer than n − m. A
+    `design` or `constant` law has no next term.
+  - Open (2026-10-15): the real-ramp half, ZrP₂O₇ and WO₃, did not run.
+    The table above divides by χ²_red·f². The shipped form test now divides
+    by χ²_red alone (decision 4), so re-run the synthetic half on that
+    divisor before landing.
 - [x] **Profile the joint Jacobian**, the maintainer's question of 2026-10-14:
   would another Rust kernel help? It would not, first. § Measured: where the
   joint Jacobian's time goes.
@@ -1352,6 +1626,214 @@ directions and 197.9 against 337.1 for 296.
   Schur identity), issue #212.
 
 ## Handover log
+
+### 2026-10-15 (eighth session) — two real ramps settle the form test's divisor, a verdict beside a rejected law is provisional, and a declaration is a parametric equation
+
+The form test checks a declared equation against its own data. It has now
+run on two real ramps it was not tuned on, ZrP₂O₇ and WO₃, beside the
+ZrMo₂O₈ ramp it was tuned on. Divided by the Bérar-Lelann factor squared,
+it almost never rejected. Of 261 readings that should pass, none rejected,
+where a 5 % test rejects about 13. Without the factor, 12 of 242 rejected
+(5.0 %). So the test now divides by χ²_red alone, the textbook score test.
+A far-wrong equation moves the answer every other reading steps from, so
+a verdict beside a rejected equation is now marked provisional. The public
+names say "parametric equation" where they said "law" or "tie", and a 1.9.0
+result still opens.
+
+This session ran in two contexts. The first wrote every commit up to
+667216c and stopped while a subagent ran the rename. The second picked up
+from the tree, verified and committed the rename, and wrote this entry.
+
+*Done* (branch `wp1325-law-marks`, PR #977; main merged at daf2ef8):
+- **The freed reading is the verdict, and a joint reading covers all
+  equations** (c5b015e, b5d7c64). Decision 6, the maintainer's call. On the
+  ZrMo₂O₈ three-law answer the joint reading read 74.1 for 93 directions
+  (p 0.93) and kept all three, while the cubic law failed alone. The Durham
+  tutorials check a law by plotting it against independent fits, with no
+  statistical test.
+- **The next-term score, synthetic half** (7d7cb7b). In the task's table.
+- **Out of sample on ZrP₂O₇ and WO₃** (506c340, c4f9cdc, 64d5777). In
+  § Measured: the form test out of sample, recorded before any comparison.
+  The task is ticked.
+- **Decision 4: χ²_red alone** (741649b, 301e4d6). The LaB6 ramp's true
+  line reads 7.6 (p 0.47) against the cut 15.5, and its 1 % bow 4461.1. On
+  ZrMo₂O₈ the three lines and their joint reading all reject, each freed gain
+  1.00-1.33 of its law-alone refit.
+- **Provisional verdicts** (667216c). `ParametricFormTest.provisional_on`
+  names the other rejected equations. The printed block and each
+  `PARAMETRIC_FORM_REJECTED` say so. Any rejection marks the rest, with no
+  threshold.
+- **The rename** (81bd517). `ParametricTie` → `ParametricEquation`,
+  `ParametricLaw` → `RefinedParametricEquation`, `.laws` → `.equations`,
+  `parametric_laws` → `parametric_equations`, and `tie` → `equation` on the
+  coefficient, the form test and the refined equation.
+  `ParametricCoefficient` still reads 1.9.0's `tie` key, pinned both ways.
+  Decision 7 records it.
+- **Review** (`/code-review high --fix 90872b7..4ea0b20`, fixes in 4ea0b20):
+  a redundant `scale = chi2_red` alias, five test names the rename left
+  ungrammatical (`a_equation` → `an_equation`), continuation indents.
+  Two findings went to the maintainer, who decided both (decision 8,
+  5c5575a):
+  - An equation whose freed reading has zero directions keeps
+    `rejected=None` even when its tied reading rejects. Falling back to
+    the tied verdict would name a culprit the data cannot separate, which
+    decision 6 removed. The joint warning now names each such equation
+    and quotes its tied reading.
+  - `ParametricValue` read "form not rejected" under a rejecting joint
+    reading or a provisional verdict. It now carries `provisional_on` and
+    `joint_rejected`, and prints both. It is never stored, so no schema
+    number moved.
+- **Merging main** moved this WP's fields to **schema 0.59**. On main
+  first, WP-1960's texture took 0.57 and WP-1810's riding hydrogens 0.58.
+  `common.py`'s note, the `test_magnetic` pin, the 1.10 notes and record
+  say 0.59. This file's older entries keep "0.57", the number they shipped
+  under on the branch.
+- WP-1418 inherits the f² question for the moment-angle test.
+- CI's Python 3.14 shard failed the covariance symmetry pin: ρ_ij and ρ_ji
+  from the solve's correlation differed in the last bit (2.3250376935784206e-17
+  against 2.32503769357842e-17). `parametric_equation` now reads ρ off one
+  triangle. The other off-diagonal readers (`identifiability.py`,
+  `staged.py`) read each pair once and claim no symmetry, so they are left.
+- @mustachefeeling's two comments on PR #977 are folded in, after the
+  first version of this entry. This WP's points are in § A contributor's
+  series work and the start-agreement task. The boundary and detector
+  findings went to 1965 and 1317, the scanned nonlinear equations to 1964,
+  and the telemetry to 1322. Not re-measured here.
+
+*Measured* (macOS arm64, worktree venv `[dev]`, load 9.8-11.9):
+- Fast selection on 81bd517, before the merge: 9712 passed, 186 skipped,
+  1 xfailed, in 231 s.
+- Fast selection on the merged tree (daf2ef8): 10489 passed, 191 skipped,
+  1 xfailed, in 285.6 s. Main's own additions are in that count, so it is
+  not this branch's delta.
+- Fast selection on 5c5575a, decision 8: 10491 passed, 191 skipped,
+  1 xfailed, in 247.5 s. That is +2 passed for its 2 new tests, with no
+  new skip.
+- This session added 3 fast tests: `test_parametric_series.py` collected 73
+  at 90872b7 and 76 now. No new skip.
+- `tests.added_test_times` against main names 10 tests, because the rename
+  gave existing tests new IDs. They cost 5.24 s in one run. 5.11 s of that
+  is `test_a_line_equation_is_rejected_by_a_ramp_that_bends` (2 cases),
+  which predates this session under its old name. The other nine take
+  0.04 s or less.
+
+*Gotchas*:
+- The next-term table divides by χ²_red·f². The shipped divisor is now
+  χ²_red alone, so re-run `next_term.py` on it before landing. The review
+  flagged that the script's docstring still calls its rebuild "the shipped
+  form test".
+- `real_ramp.py` reads TOPAS's `Simple_Axial_Model(v)` as v/L, and the
+  ZrP₂O₇ lane read it as v/2L. The TOPAS Technical Reference is public at
+  topas-academic.com/technical_reference, so check it there.
+- WO₃'s Pc counts as seen above 221 K while its cell is unmeasured
+  (1.5-3.5 wt %). The form test counts those patterns.
+- The three Durham ramps are local-only (`python -m tests.local_data`).
+
+*Next*, in order:
+1. **Land the next-term test.** Re-run the synthetic half over χ²_red,
+   then run the ZrP₂O₇ and WO₃ ramps. `blocked.added_columns_gain` needs a
+   column shared across blocks first. Land it only if it still rejects
+   curves the form test passes.
+2. **Hold each target's own bounds.** It now comes ahead of the speed work.
+   A seed broke a target's bounds and refused the fit on two of the three
+   real ramps (WO₃, ZrMo₂O₈'s windowed cubic). The refusal is at the seed,
+   before any step, so the task covers the starting coefficients as well
+   as the step.
+3. The peak-chain deduplication, then start agreement.
+
+### 2026-10-14 (seventh session) — law-set values are marked, a law evaluates anywhere, and each law is also tested with the others freed
+
+A joint parametric fit now says which of its numbers came from a law rather
+than from a pattern's own data. It also warns where a law sets a value in a
+pattern that cannot see the phase. A law can be evaluated at any temperature
+or composition with an esd, because the result now carries the coefficients'
+covariance; at each measured pattern it gives back that pattern's row to the
+bit. Each law is now also tested with the other laws freed, and that reading
+gives the verdict a refit of the law alone gives: on the ZrMo₂O₈ ramp it
+rejects the cubic line the old reading passed. Rejecting a law when either
+reading rejects is this session's call and waits on the maintainer, since it
+raises the false-alarm rate by an amount nobody has measured.
+
+*Done* (branch `wp1325-law-marks` from `main` at 6e793e8, PR #977; schema
+0.56 → 0.57, one bump for all three tasks):
+- **Law-set values marked** (f6b0e83, e720da1). `RefinedParameter.laws`,
+  written by `multi._law_rows` off each table's `entry_reach`, so a cubic
+  cell's b and c and a held coefficient count too. The coefficient rows are
+  **marked, not dropped**: dropping breaks the row contract, and `BOUND_HIT`
+  on a `constant` coefficient would name a path absent from `parameters`.
+  `laws` is `None` for "not recorded" because 1.9.0 shipped parametric fits
+  whose rows carry no field; the single fit writes `[]`. The form line reads
+  "n of N patterns" with a p-value (`p < 0.001` below that, since a tail
+  under 1e-300 is 0.0). `PARAMETRIC_TARGET_UNSEEN` (FIT) names the unseen
+  patterns from `multi._parametric_unseen`, the one reading the form test's
+  skip now takes too.
+- **Covariance and the law anywhere** (07cffad). `RefinementResult.parametric_laws`
+  (`ParametricLaw`: resolved tie, unit, span, covariance) and
+  `RefinementResult.parametric_value` → `ParametricValue`. The covariance is
+  esd_i·esd_j·ρ_ij with ρ_ii = 1, so its diagonal is `esd ** 2` exactly
+  (pinned).
+- **Each law with the others freed** (6d061bf, ceeff20). `ParametricFormTest`
+  reshaped: `rejected` (the verdict) plus two `ParametricFormReading`s, `tied`
+  and `others_freed`. `parametric_form` was unreleased, so nothing shipped
+  breaks. `form_freed.py` records the real-ramp run.
+- Manual (`using/series.md`, `using/model.md`), the skill's diagnostics and
+  series rows (both at or under budget), `api.md` regenerated, the 1.10
+  notes and record staged.
+- **Forward references**: 1341 (third note: the new warning is top-level,
+  the per-pattern placement is its), 1963 (the blind regime is named per
+  law), 1964 (three readers assume linear coefficients), 1965 (a result
+  carries the resolved tie). No `Priority:` moved: nothing waited on this.
+- **`/code-review high --fix`** (91ddadf): nine findings, eight fixed. A
+  crash formatting a tied statistic of `None` in the freed-only warning;
+  the all-blind `PARAMETRIC_TARGET_UNSEEN` claiming a seeing pattern; a
+  hardcoded distribution name; one projection per two-law fit recomputed
+  (now reused, bit for bit); `_verdict`'s "not tested" reason;
+  `ParametricLaw.evaluate` accepting another law's coefficients; two
+  docstrings and the 0.57 log entry. Skipped: `_law_rows` builds a whole
+  `entry_reach()` per table to read the coefficients' keys, unmeasured at
+  300 patterns and needing a new `ParameterTable` method.
+
+*Measured* (macOS arm64, 10 CPUs, `[dev]`, compiled kernels on):
+- `parametric_value` against each pattern's `hist.<h>.` row on the
+  ten-pattern LaB6 line ramp: value and esd identical at all ten (relative
+  difference 0.0). ρ(c₀, c₁) = 0.007 there, the centring's work.
+- `form_freed_results.txt` at 6d061bf, ZrMo₂O₈ ramp, three-law answer
+  (χ²_red 1.878, f 2.511; untied 1.873, 2.503; load 3.3-4.5):
+
+  | law | tied | freed | freed gain / own refit's | per dir, untied denominator / refit's |
+  |---|---|---|---|---|
+  | cubic a | 42.8 for 31, p 0.077 | 48.6, p 0.023 REJECT | 575.3 / 576.1 | 1.58 / 1.58 |
+  | trigonal a | 10.6, p 1 | 20.4, p 0.93 | 241.6 / 181.7 | 0.66 / 0.50 |
+  | trigonal c | 9.0, p 1 | 18.2, p 0.97 | 215.6 / 204.7 | 0.59 / 0.56 |
+
+  Trigonal a's 1.33 ratio is the weak phase whose refits stop in other
+  minima, as § Measured: the form test recorded (1.36 there).
+- Fast selection (alone on the machine): 9709 passed, 186 skipped,
+  1 xfailed in 3:34-3:41 over two runs; the second run's one failure was
+  this session's own Part 2 math wrapping onto a "- " line, fixed and
+  re-run alone. Four tests added, all four passes:
+  `tests.added_test_times` reads 0.03 s for the four, one run.
+- Acceptance (the WP's command, slow rows included): 217 passed; the two
+  slow parametric rows, one of which this session edited, pass. The full
+  suite did not run: nothing here changes a refinement path, only what
+  is read off the answer.
+
+*Gotchas*:
+- `diagnostics.md` sits exactly at its budget (0 B left) and `series.md`
+  has 29 B; the next row added to either pays with a cut.
+- The worktree guard refused a long `python - <<EOF` heredoc; scratchpad
+  scripts run as one plain command worked.
+
+Next, in order:
+1. **The maintainer confirms or overturns "either reading rejects"**
+   (`params.parametric.form_tests`, one line). The alternative is the freed
+   reading alone: 5 % per law, losing two collinear wrong laws.
+2. **ZrP₂O₇ and WO₃ out of sample.** It now settles decision 4 for two
+   readings per law, and whether the one-direction next-term test earns a
+   place.
+3. **The one-direction next-term test**, if 2 leaves room for it.
+4. **The peak-chain deduplication**, then **in-step bounds**, then **start
+   agreement** beyond parameters.
 
 ### 2026-10-14 (sixth session) — the maintainer's rule for laws is recorded, and a review against prior art adds three tasks and two WPs
 

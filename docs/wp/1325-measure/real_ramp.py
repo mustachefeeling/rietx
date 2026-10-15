@@ -35,20 +35,20 @@ necessary to keep a vanishing phase from dissolving into the background.
    lack-of-fit check the WP lists first.
 3. ``joint``: one ``MultiHistogramRefinement`` over the window, every phase
    path per-pattern, seeded from the chain's fitted models, with a polynomial
-   [1, T] law on each target.  Same plan.
+   [1, T] equation on each target.  Same plan.
 
 Targets: the cubic cell a, and the trigonal cell's a and c.  T_ref is the
 window's mid-range, the joint's own default reference.  ``--degree`` sets the
 polynomial's degree for the line and the joint alike.
 
 **A second lack-of-fit check comes nearly free.**  The same joint fit with no
-law (``untied``) frees every target per pattern, so the joint's χ² above it,
-per parameter the law removed, is a nested test of the declared form: F near
+equation (``untied``) frees every target per pattern, so the joint's χ² above it,
+per parameter the equation removed, is a nested test of the declared form: F near
 1 when the form holds.  The reference is the untied joint fit and not the
 chain, because the two free different sets: on this window the chain held a
 fading phase in two patterns by WP-1523's answer significance, which the joint
 path does not read, and that left 14 columns free in the joint only.
-``--each`` fits one law at a time, to say which target the excess comes from.
+``--each`` fits one equation at a time, to say which target the excess comes from.
 ``--profile`` runs the joint fit again under cProfile, with
 ``jacobian_profile.py``'s accounting of the compiled kernels and the peak chain.
 """
@@ -216,17 +216,17 @@ def run_line(t: np.ndarray, t_ref: float, v: np.ndarray, e: np.ndarray, degree: 
 def run_joint(patterns, chain: dict, temps, limits, keys, degree: int) -> dict:
     series = chain["series"]
     terms = [["T"] * j for j in range(degree + 1)]
-    ties = [rx.ParametricTie(name=key, target=TARGETS[key], basis="polynomial", terms=terms)
+    equations = [rx.ParametricEquation(name=key, target=TARGETS[key], basis="polynomial", terms=terms)
             for key in keys]
     t0 = time.perf_counter()
     fit = rx.MultiHistogramRefinement(
         list(series.fitted_structures), list(series.fitted_instruments),
         sharing=SharingMap(per_histogram=["phases.*"]),
         coordinates=rx.CoordinateTable(columns={"T": list(temps)}, units={"T": "K"}),
-        parametric=ties or None)
+        parametric=equations or None)
     result = fit.fit(patterns, plan=plan(), two_theta_limits=limits)
     seconds = time.perf_counter() - t0
-    coef = {(c.tie, c.term): c for c in result.parametric or []}
+    coef = {(c.equation, c.term): c for c in result.parametric or []}
     s = result.statistics
     return dict(seconds=seconds, result=result, coef=coef, resolved=fit.parametric,
                 chi2=_total_chi2(s), n_free=s.n_free_parameters,
@@ -240,7 +240,7 @@ UNIT = {0: ("Å", 1.0), 1: ("1e-6 Å/K", 1e6), 2: ("1e-9 Å/K²", 1e9)}
 def report_joint(label: str, joint: dict, ref: dict | None) -> None:
     """One joint fit's line; against ``ref``, the untied joint fit, the nested test.
 
-    F is (Δχ²/Δfree)/χ²_red(ref), near 1 when the law holds.  F/f² divides by
+    F is (Δχ²/Δfree)/χ²_red(ref), near 1 when the equation holds.  F/f² divides by
     the untied fit's Bérar-Lelann factor squared too, since serially
     correlated residuals inflate a χ² difference by about that much, as they do
     the esds (``statistics.esd_inflation``).
@@ -333,7 +333,7 @@ def main() -> None:
 
     if args["each"]:
         print()
-        print("one law per joint fit: which target the Δχ² comes from")
+        print("one equation per joint fit: which target the Δχ² comes from")
         for key in keys:
             one = run_joint(patterns, chain, temps.tolist(), proto["limits"], [key], degree)
             report_joint(f"  {key}", one, untied)

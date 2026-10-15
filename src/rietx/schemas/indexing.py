@@ -119,14 +119,23 @@ from .structure import Cell
 #: usable lines where 1.8 offered 77, and the corundum list loses one
 #: ``no_intensity`` component (2 → 1).  A Cu Kα rock salt at a 0.02° step went
 #: from 7 of 9 lines indexed to all of them.
-#: 1.10 (indexing C4, C6): a search that ends with no lattice two engines agree
+#: 1.10: ``PeakFlag`` gains ``weak_line`` — a fitted component whose intensity
+#: significance I/σ_I fails the pattern's own false-discovery threshold
+#: (Benjamini–Hochberg at :data:`PEAK_FDR_Q` over the pattern's resolution
+#: elements) — and ``pick_peaks`` reports the expected number of false lines
+#: among those it keeps (``PEAK_EXPECTED_FALSE_LINES``).  The flag is
+#: **reported, not refused**, so ``usable()`` is unchanged; bumped because a
+#: list's flags are part of what this string stamps.  On #728's synthetic
+#: silicon with a steep background it marks 24 of the 26 off-lattice usable
+#: components and no silicon line.
+#: 1.11 (indexing C4, C6): a search that ends with no lattice two engines agree
 #: on is run again under the inlier rule, so a run that returned no cell, or
 #: single-engine cells, can now return the true one; and a picked list's search
 #: window is its lower-quartile fitted FWHM (capped at the old 0.05 degrees)
 #: where it was the constant, so a high-resolution list now matches within its
 #: own widths.  A run whose first pass finds an agreed lattice, and a lab list
 #: with lines 0.05 degrees or wider, answer as at 1.9.
-INDEXING_THRESHOLDS_VERSION = "1.10"
+INDEXING_THRESHOLDS_VERSION = "1.11"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
@@ -174,6 +183,38 @@ PEAK_POSITION_ESD_MAX_DEG = 180.0
 #: round-robin lab patterns the floor drops 6 (0.75 %); the 5th
 #: percentile is 4.9.
 PEAK_NO_INTENSITY_SIGMA = 1.0
+
+#: False-discovery rate a picked list is held to: the expected fraction of the
+#: lines ``pick_peaks`` keeps that are noise.  Applied by Benjamini & Hochberg's
+#: (1995, *J. R. Stat. Soc. B* 57, 289) step-up rule to each fitted component's
+#: one-sided p-value of I/σ_I, over **the pattern's resolution elements**
+#: (``Detection.n_trials``: ∫ d2θ / FWHM(2θ) over the picked range, the number
+#: of places a line could have been), so the bar adapts to the pattern: the more
+#: real lines it holds, the lower the bar each further line must clear, and a
+#: line-free pattern meets the Bonferroni bar q/m.  Astronomy settled on this
+#: for source detection for exactly that reason (Miller et al. 2001, *AJ* 122,
+#: 3492; Hopkins et al. 2002, *AJ* 123, 1086).  A component that fails is
+#: flagged ``weak_line`` (reported, not refused; see ``PeakFlag``), and q × (lines
+#: kept) is reported as the expected number of false lines
+#: (``PEAK_EXPECTED_FALSE_LINES``).
+#:
+#: **The statistic is the fitted I/σ_I, not detection's net/σ**, and that is a
+#: measured choice.  The junk on #728's steep-background silicon and on F2's
+#: clean synthetic (M3) are *maxima* that cleared detection's 5σ on net/σ —
+#: net is genuinely large on a strong line's tail or on a flank the envelope
+#: under-tracks — and that then fitted to I/σ_I = 1.0–2.6, because the group fit
+#: models the neighbour's tail and the local level that net/σ cannot see.  A
+#: threshold on net/σ, FDR or not, passes them all; on I/σ_I every true line of
+#: those patterns sits above 28.  What the rule does **not** reach is model
+#: error: a component that absorbs a shape or background misfit carries real
+#: intensity (I/σ_I 6–10 on the same patterns) and no statistical threshold
+#: removes it.
+#:
+#: 0.01 is the rate F2's design names; at it the bar sits at I/σ_I 3.2 on the
+#: IUCr round-robin ``cpd-4`` (914 resolution elements, 72 lines kept) and 3.5–3.9
+#: on #728's synthetic silicon.  Over the 16 round-robin lab patterns it flags 13
+#: of 789 usable components (``cpd-4`` 4, ``cpd-1b``/``1d`` 2 each).
+PEAK_FDR_Q = 0.01
 
 # ----------------------------------------------------------------------
 # Detection
@@ -574,6 +615,18 @@ PEAK_ASSUMED_ESD_DEG = 0.02
 #: ``peaks`` because it is what let the first group's window fit its own line,
 #: and is unusable because a list that offers one line twice makes the
 #: second copy a "line no candidate explains".
+#: ``weak_line`` — the component's fitted I/σ_I fails the pattern's
+#: false-discovery threshold (:data:`PEAK_FDR_Q`), so the list cannot tell it
+#: from noise at the rate it promises for the rest.  **Reported, not refused**,
+#: like ``axial_tail``: on the certified lab patterns a component under the bar
+#: is often a real weak line — refusing them took the SRM 676a corundum truth
+#: from 45 indexed lines to 44 and the GSAS-II fluorapatite truth to 115 of 122,
+#: and moved three more indexing-acceptance rows — while on synthetic silicon
+#: the same flag marks the steep-flank and tail junk and no silicon line.  The
+#: consumer that can weigh it decides; the search's driven set is the place
+#: F2 (§ 3, G7) puts that exclusion.  A component a human placed
+#: (``origin="manual"``) is never tested: its position is the caller's claim,
+#: not detection's.
 #: ``unnamed_neighbour`` — only :func:`~rietx.indexing.fit_peaks` can raise it
 #: (WP-1101): detection saw a component inside this window that the caller's
 #: position list did not name, so the fit apportioned that intensity among the
@@ -601,6 +654,7 @@ PeakFlag = Literal[
     "unnamed_neighbour",
     "position_unmeasured",
     "duplicate_line",
+    "weak_line",
 ]
 
 #: FWHM multiple within which a weak component may be read as a stronger

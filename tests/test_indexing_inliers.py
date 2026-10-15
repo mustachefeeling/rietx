@@ -330,3 +330,16 @@ def test_the_panel_trim_accepts_the_inlier_string():
                            n_unindexed=spec.n_unindexed)
     assert to_cell_candidate(res.candidates[0], peaks,
                              n_unindexed=spec.n_unindexed) is not None
+
+
+def test_the_panel_trim_keeps_a_numpy_integer():
+    """A numpy integer is a declared count, as ``int(n or 0)`` once read it
+    (#951 round 2, follow-up)."""
+    import numpy as np
+
+    from rietx.indexing.engines import _panel_trim
+
+    assert _panel_trim(np.int64(3)) == 3
+    assert _panel_trim(3) == 3
+    assert _panel_trim(None) == 0
+    assert _panel_trim("inliers") == 0

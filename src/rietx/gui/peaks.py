@@ -51,6 +51,7 @@ from ..indexing.pick import (
     flag_duplicate_lines,
     flag_ghosts,
     flag_kalpha2_residuals,
+    flag_weak_lines,
     peaks_of_group,
     pick_peaks_with_state,
 )
@@ -536,5 +537,10 @@ def _spliced(peaks: PeakList, g: int, fresh: list[ObservedPeak],
         # cleared on an untouched line (WP-1043)
         flag_kalpha2_residuals(merged, lines, only=only)
         flag_duplicate_lines(merged, only=only)
+    # unlike the three above, the false-discovery bar is the whole pattern's:
+    # an edit moves it for every line (a deleted group too, which is why this
+    # sits outside ``if fresh``), so every component is re-marked and a flag
+    # the new bar no longer supports is cleared
+    flag_weak_lines(merged, det)
     out = peaks.model_copy(update={"peaks": merged})
     return out.model_copy(update={"diagnostics": peak_diagnostics(out, det)})

@@ -33,7 +33,7 @@ R1 checks correctness, not value; R2 asks whether the constraint helps where
 one pattern's cell is weak; R3 shares the instrument as one diffractometer would, so its gain is from
 sharing.  R3 also runs a control that shares the instrument but leaves each
 pattern its own free cell, with the line taken through those a_k by GLS over
-their full joint covariance: if R3's gain is the sharing's and not the tie's,
+their full joint covariance: if R3's gain is the sharing's and not the equation's,
 the control and the tied fit agree.
 
 * R1, strong signal: ``_simulate``'s own scale; phase and instrument per
@@ -216,7 +216,7 @@ def run_joint(patterns, scale: float, shared: list[str], *, tied: bool) -> dict:
     a = np.array([rows[f"hist.{h}.phases.0.cell.a"].value for h in range(N_PATTERNS)])
     out["a"] = a
     if tied:
-        # the tie held: b and c follow a, which follows the line, in every table
+        # the equation held: b and c follow a, which follows the line, in every table
         for h in range(N_PATTERNS):
             want = rows["vars.a0"].value + rows["vars.a1"].value * (
                 (TEMPERATURES[h] - T_REF) / T_HALF)
@@ -374,7 +374,7 @@ def main(n_seeds: int, regimes: list[str]) -> None:
                       ("chain.unweighted", "chain line, OLS"),
                       ("joint", "joint a0 + a1*t")]
         if control:
-            estimators.append(("control", "control (no tie)"))
+            estimators.append(("control", "control (no equation)"))
         flat = [dict(r, **{"chain.weighted": r["chain"]["weighted"],
                            "chain.unweighted": r["chain"]["unweighted"]}) for r in rows]
         for ln in summarise(name, flat, estimators):

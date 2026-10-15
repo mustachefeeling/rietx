@@ -35,6 +35,7 @@ import math
 import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field, replace
+from numbers import Integral
 
 import numpy as np
 
@@ -1528,8 +1529,9 @@ def scored_positions(peaks: PeakList, fit) -> tuple[np.ndarray, np.ndarray]:
 def _panel_trim(n_unindexed) -> int:
     """The FoM panel's trim from a declared ``n_unindexed``: the int, or 0 for
     ``None`` and :data:`INLIERS` (a caller handing ``spec.n_unindexed`` straight
-    through hands those; the trim is then the panel's own business)."""
-    return n_unindexed if isinstance(n_unindexed, int) else 0
+    through hands those; the trim is then the panel's own business).  Any
+    integer type counts, a numpy one included."""
+    return int(n_unindexed) if isinstance(n_unindexed, Integral) else 0
 
 
 def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
@@ -1779,7 +1781,13 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
     from bisect import bisect_left, bisect_right
     from itertools import islice
 
-    from .reduce import equal_reduced, reduced_covariance, reduction, stacked_pinv_exact
+    from .reduce import (
+        _gate_inputs,
+        equal_reduced,
+        reduced_covariance,
+        reduction,
+        stacked_pinv_exact,
+    )
 
     #: reduce **once** per candidate, not once per comparison, and keep the map
     #: that carries the candidate's covariance into the same reduced frame
@@ -1802,19 +1810,24 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
         cov = cand.fit.cov_af
         cov_key = (None if cov is None
                    else np.asarray(cov, dtype=np.float64).tobytes())
+        red_cov = reduced_covariance(cov, t)
         prepared.append((cand, red, volume,
-                         (af_key, cov_key, cand.system, cand.centring),
-                         reduced_covariance(cov, t)))
+                         (af_key, cov_key, cand.system, cand.centring), red_cov,
+                         _gate_inputs(red, red_cov) if fast and red_cov is not None
+                         else None))
 
     kept: list[tuple[list[EngineCandidate], np.ndarray, float,
                      np.ndarray | None]] = []
+    #: each kept group's Selling gate inputs (WP-1932), held beside ``kept`` so
+    #: a stacked solve reads them rather than looking them up per pair
+    kept_gates: list[np.ndarray | None] = []
     tested: dict[tuple[tuple, int], bool] = {}
     # per (system, centring): finite volumes sorted, their groups beside them,
     # and the groups whose volume is not finite
     by_volume: dict[tuple[str, str], tuple[list[float], list[int], list[int]]] = {}
     rtol = DEDUP_VOLUME_RTOL
     stacked = fast and stacked_pinv_exact()
-    for cand, red, volume, key, cov in prepared:
+    for cand, red, volume, key, cov, gate in prepared:
         if fast:
             vols, ids, unbounded = by_volume.setdefault(
                 (cand.system, cand.centring), ([], [], []))
@@ -1836,7 +1849,8 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
             same = tested.get((key, g)) if fast else None
             if same is None and size and other_cov is not None:
                 size = _ask_stacked(cand, red, volume, key, cov,
-                                    islice(order, at, None), kept, tested, size)
+                                    islice(order, at, None), kept, tested, size,
+                                    gate=gate, kept_gates=kept_gates)
                 same = tested.get((key, g))
             if same is None:
                 try:
@@ -1858,6 +1872,7 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
                 else:
                     unbounded.append(len(kept))
             kept.append(([cand], red, volume, cov))
+            kept_gates.append(gate)
     return [group for group, _red, _vol, _cov in kept]
 
 
@@ -1875,7 +1890,9 @@ def _dedup_admits(cand: EngineCandidate, volume: float, entry: tuple) -> bool:
 
 def _ask_stacked(cand: EngineCandidate, red: np.ndarray, volume: float,
                  key: tuple, cov: np.ndarray, ahead: Iterable[int],
-                 kept: list, tested: dict, size: int) -> int:
+                 kept: list, tested: dict, size: int, *,
+                 gate: np.ndarray | None = None,
+                 kept_gates: list | None = None) -> int:
     """Cache the verdicts of the next ``size`` tests dedup's walk would ask
     of ``cand``, from one stacked solve (WP-1519).  Returns the next stack's
     size, four times this one, or 0 once a stack has raised.
@@ -1897,9 +1914,14 @@ def _ask_stacked(cand: EngineCandidate, red: np.ndarray, volume: float,
         if (kept[g][3] is not None and (key, g) not in tested
                 and _dedup_admits(cand, volume, kept[g])):
             batch.append(g)
+    gates = None
+    if gate is not None and kept_gates is not None:
+        theirs = [kept_gates[g] for g in batch]
+        if all(t is not None for t in theirs):
+            gates = (gate, theirs)
     try:
         answers = equal_reduced_many(red, [kept[g][1] for g in batch], cov_a=cov,
-                                     covs_b=[kept[g][3] for g in batch])
+                                     covs_b=[kept[g][3] for g in batch], gates=gates)
     except (ValueError, np.linalg.LinAlgError):
         return 0
     for g, (same, _chi2) in zip(batch, answers):

@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from scipy.stats import f as f_dist
 
 import tests.test_rigid_body as trb
 from rietx import Refinement
 from rietx.optimize.statistics import _chi2_absolute
 from rietx.report.body_misfit import _element, rigid_body_misfit
-from rietx.report.layer2 import delta_bic
+from rietx.report.layer2 import _hamilton_f, delta_bic, hamilton_justified
 from rietx.strategy.staged import RefinementPlan, Stage
 
 pytestmark = pytest.mark.xdist_group("body-misfit")
@@ -100,6 +101,13 @@ def test_the_statistics_are_the_packages_own(wrong):
         row.chi2_body, row.chi2_released, row.n_points, row.n_added,
         n_effective=row.n_effective))
     assert row.n_added == 3 * 7 - 6        # seven free atoms against a 6-DOF pose
+    f, dof = _hamilton_f(row.chi2_body, row.chi2_released, row.n_points,
+                         row.n_free_body, row.n_added, n_effective=row.n_effective)
+    assert row.f_statistic == f
+    assert row.p_value == pytest.approx(float(f_dist.sf(f, row.n_added, dof)))
+    assert hamilton_justified(row.chi2_body, row.chi2_released, row.n_points,
+                              row.n_free_body, row.n_added, alpha=1e-3,
+                              n_effective=row.n_effective)
 
 
 def test_no_body_no_rows():
