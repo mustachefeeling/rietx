@@ -1674,6 +1674,7 @@ declaration, and is `None` exactly when `RefinementResult.parametric` is.
 | `ParametricFormTest.tied` | the reading with every other law still tied, `None` when a coefficient was not free at the answer |
 | `ParametricFormTest.others_freed` | the reading with every other tested law's target freed too, `None` unless two or more laws were tested |
 | `ParametricFormTest.rejected` | the verdict: the `others_freed` reading's where there is one, else the `tied` reading's |
+| `ParametricFormTest.provisional_on` | the other tested laws whose verdict is a rejection; while it is not empty, this verdict is provisional |
 
 Each reading is a `ParametricFormReading`:
 
@@ -1741,6 +1742,15 @@ together. That joint reading closes the block. On the same ramp:
 
 One wrong law among several spreads its misfit over all their directions, so
 the joint reading adds to each law's verdict and does not replace it.
+
+Every reading is one linear step from the answer, and a rejected law's misfit
+moves that answer. Beside a badly wrong law, the other laws' verdicts can then
+differ from their own refits. On the ZrP₂O₇ ramp a silicon line was rejected
+beside a law crossing a phase transition, while the silicon line's own refit
+kept it (p 0.92). On the WO₃ ramp a bent angle passed beside rejected cell
+edges, while its own refit rejected it. So a verdict beside a rejected law
+names that law in `ParametricFormTest.provisional_on`, and the printed block
+says so. Fix the rejected law, refit, and read the others again.
 
 When the joint reading rejects and no law's own verdict does,
 `PARAMETRIC_FORM_REJECTED` names every tested law's coefficients. The data

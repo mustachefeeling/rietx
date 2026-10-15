@@ -342,6 +342,13 @@ class ParametricFormTest(Base):
       <rietx.schemas.results.RefinementResult.parametric_form_joint>`).
       When true, the coefficients' esds assume a form the data refuses.
       ``None`` when the verdict's reading has no statistic.
+    * ``provisional_on`` — the other tested declarations whose verdict is a
+      rejection.  Every reading is one linear step from the answer, and a
+      rejected declaration's misfit has moved that answer, so this verdict
+      can differ from a refit's.  On ZrP₂O₇ a right line was rejected beside
+      a law at 3122 for 34 directions, and on WO₃ a bent angle passed beside
+      rejected edges (``docs/wp/1325-parametric-series.md`` § Measured: the
+      form test out of sample).  Empty when no other declaration is rejected.
     """
 
     tie: str
@@ -351,6 +358,7 @@ class ParametricFormTest(Base):
     rejected: bool | None
     tied: ParametricFormReading | None
     others_freed: ParametricFormReading | None
+    provisional_on: list[str]
 
 
 class ParametricValue(Base):

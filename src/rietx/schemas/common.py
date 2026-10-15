@@ -471,7 +471,8 @@ from .._nearmiss import did_you_mean
 #: coefficients' covariance; ``RefinementResult.parametric_form_joint``, the
 #: form test of every tested declaration at once, ``None`` below two.
 #: ``ParametricFormTest.rejected`` is the ``others_freed`` reading's verdict
-#: where there is one.  ``laws`` and ``parametric_laws`` default to
+#: where there is one, and ``ParametricFormTest.provisional_on`` names the
+#: other rejected declarations; every reading divides by χ²_red alone.  ``laws`` and ``parametric_laws`` default to
 #: ``None``, "not recorded", so an older result opens and claims nothing; the
 #: form-test fields are required and the old ones gone, ``parametric_form``
 #: being unreleased.

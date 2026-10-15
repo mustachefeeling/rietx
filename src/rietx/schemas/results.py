@@ -1306,9 +1306,14 @@ def _form_line(t: ParametricFormTest) -> str:
         return f"      form {_verdict(tied)} {over}"
     # the freed reading is the verdict, so it reads first
     verdict = {True: "REJECTED", False: "not rejected", None: "not tested"}[t.rejected]
-    return (f"      form {verdict} {over}:"
+    line = (f"      form {verdict} {over}:"
             f"\n        with the other laws freed, {_verdict(freed)}"
             f"\n        with the other laws tied, {_verdict(tied)}")
+    if t.provisional_on:
+        names = ", ".join(repr(n) for n in t.provisional_on)
+        line += (f"\n        provisional: {names} rejected too, and moved the answer this "
+                 "reading steps from; read it again after fixing and refitting")
+    return line
 
 
 def _verdict(r: ParametricFormReading) -> str:

@@ -1170,8 +1170,9 @@ def test_a_law_with_the_others_freed_is_the_difference_of_two_dense_gains():
         (only_b - both) / (held - only_a), rel=1e-8)
     assert b.others_freed.statistic / b.tied.statistic == pytest.approx(
         (only_a - both) / (held - only_b), rel=1e-8)
-    for law_test in (a, b):
+    for law_test, other in ((a, b), (b, a)):
         assert law_test.rejected is law_test.others_freed.rejected
+        assert law_test.provisional_on == ([other.tie] if other.rejected else [])
     assert joint.dof == 2 * (n - 1)
     assert joint.statistic / a.tied.statistic == pytest.approx(
         (held - both) / (held - only_a), rel=1e-8)
@@ -1203,7 +1204,8 @@ def test_a_law_the_freed_reading_rejects_is_printed_and_warned_as_such():
 
     tied, freed = _two_readings(42.8, 0.0771, 48.6, 0.0232)
     t = ParametricFormTest(tie="cubic_a", target="phases.1.cell.a", n_patterns=33,
-                           n_subset=33, rejected=True, tied=tied, others_freed=freed)
+                           n_subset=33, rejected=True, tied=tied, others_freed=freed,
+                           provisional_on=[])
     assert _form_line(t).splitlines() == [
         "      form REJECTED over 33 of 33 patterns:",
         "        with the other laws freed, REJECTED: 48.6 past the cut 45.0 "
@@ -1241,7 +1243,7 @@ def test_laws_the_joint_reading_alone_rejects_are_warned_together_naming_none():
         tied, freed = _two_readings(30.0, 0.5, freed_stat, 0.1)
         return ParametricFormTest(tie=name, target=f"phases.0.cell.{name.lower()}",
                                   n_patterns=33, n_subset=33, rejected=freed.rejected,
-                                  tied=tied, others_freed=freed)
+                                  tied=tied, others_freed=freed, provisional_on=[])
 
     joint = ParametricFormReading(dof=62, statistic=90.0, cut=81.381, rejected=True,
                                   p_value=0.012)
@@ -1262,6 +1264,32 @@ def test_laws_the_joint_reading_alone_rejects_are_warned_together_naming_none():
     assert _parametric_lines(rows, passing, joint)[-1] == (
         "    the 2 tested laws together: form REJECTED: 90.0 past the cut 81.4 "
         "(p = 0.012) for 62 directions")
+
+
+def test_a_verdict_beside_a_rejected_law_is_marked_provisional():
+    """Two laws rejected together: each verdict names the other in
+    ``provisional_on``, the printed line says so, and each warning calls its
+    verdict provisional and tells the reader to read the others again."""
+    from types import SimpleNamespace
+
+    from rietx.multi import _parametric_form_diagnostics
+    from rietx.schemas.parametric import ParametricFormTest
+    from rietx.schemas.results import _form_line
+
+    tied, freed = _two_readings(3122.0, 0.0, 51.4, 0.036, cut=48.6, dof=34)
+    tests = [ParametricFormTest(tie=n, target=f"phases.{k}.cell.a", n_patterns=37,
+                                n_subset=37, rejected=True, tied=tied, others_freed=freed,
+                                provisional_on=[m for m in ("zrp_a", "si_a") if m != n])
+             for k, n in enumerate(("zrp_a", "si_a"))]
+    assert _form_line(tests[1]).splitlines()[-1] == (
+        "        provisional: 'zrp_a' rejected too, and moved the answer this reading "
+        "steps from; read it again after fixing and refitting")
+    mt = SimpleNamespace(parametric=[SimpleNamespace(name=n, paths=[f"vars.{n}_0"])
+                                     for n in ("zrp_a", "si_a")])
+    a, b = _parametric_form_diagnostics(mt, tests)
+    assert "The verdict is provisional: 'si_a' rejected too" in a.message
+    assert "The verdict is provisional: 'zrp_a' rejected too" in b.message
+    assert "read them again after the refit" in a.suggestion
 
 
 def test_a_patterns_own_target_column_is_read_off_the_coefficients():

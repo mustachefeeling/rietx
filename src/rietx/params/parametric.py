@@ -512,16 +512,19 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
                     added_columns_gain(bj, resid, *_stacked(swaps, others, bj.n_blocks),
                                        hold, null=null))
             freed[i] = _reading(every[0] - rest[0], every[1] - rest[1], scale)
-    out = []
-    for r, n_patterns, tied, other in zip(resolved, counts, readings, freed,
-                                          strict=True):
-        # the verdict assumes nothing of the other laws: freed where there are
-        # others, and with none the two readings are one test
-        verdict = other if other is not None else tied
-        out.append(ParametricFormTest(
-            tie=r.name, target=r.target, n_patterns=n_patterns, n_subset=len(r.patterns),
-            rejected=None if verdict is None else verdict.rejected, tied=tied,
-            others_freed=other))
+    # the verdict assumes nothing of the other laws: freed where there are
+    # others, and with none the two readings are one test
+    verdicts = [None if v is None else v.rejected
+                for v in (o if o is not None else t for t, o in zip(readings, freed,
+                                                                    strict=True))]
+    rejected = [r.name for r, v in zip(resolved, verdicts, strict=True) if v]
+    out = [ParametricFormTest(
+        tie=r.name, target=r.target, n_patterns=n_patterns, n_subset=len(r.patterns),
+        rejected=verdict, tied=tied, others_freed=other,
+        # a rejected law's misfit has moved the answer every reading steps from
+        provisional_on=[] if tied is None else [n for n in rejected if n != r.name])
+        for r, n_patterns, tied, other, verdict in zip(resolved, counts, readings, freed,
+                                                       verdicts, strict=True)]
     return out, joint
 
 

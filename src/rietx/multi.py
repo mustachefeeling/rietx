@@ -2260,7 +2260,10 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
     coefficients, whose esds assume the form, and ``value`` the statistic of
     the verdict's reading.  One more, ``where`` every tested law's
     coefficients, when the joint reading rejects and no law's own verdict
-    does: then the data refuses the forms together and cannot say which."""
+    does: then the data refuses the forms together and cannot say which.  A
+    rejection beside another says its verdict is provisional
+    (``ParametricFormTest.provisional_on``), and each tells the reader to
+    read the other laws again after the refit."""
     paths = {r.name: r.paths for r in mtable.parametric}
     out: list[Diagnostic] = []
     for t in tests or []:
@@ -2278,6 +2281,14 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
                 how += " (with them tied it had no direction to test)"
             elif not t.tied.rejected:
                 how += f" (with them tied it read {t.tied.statistic:.1f}, within the cut)"
+        # every reading steps from one answer, which a rejected law has moved
+        also = ("" if not t.provisional_on else
+                ". The verdict is provisional: "
+                + ", ".join(repr(n) for n in t.provisional_on)
+                + " rejected too, and moved the answer this test steps from")
+        others = ("" if t.others_freed is None else
+                  "; the other laws' verdicts step from an answer this law has "
+                  "moved, so read them again after the refit")
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_FORM_REJECTED",
             where=list(paths[t.tie]), value=r.statistic,
@@ -2286,11 +2297,11 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
                      f"the target in each would remove {r.statistic:.1f} times "
                      f"χ²_red of χ², past the {100 * FORM_TEST_LEVEL:g} % point "
                      f"{r.cut:.1f} of χ² for {r.dof} directions. The coefficients' "
-                     "esds assume the form, so they are too small"),
+                     f"esds assume the form, so they are too small{also}"),
             suggestion=("do not quote the coefficients as they stand: add the next "
                         "term to the basis and refit, or narrow the subset to where "
                         "the form holds; the chain's trajectory shows where it "
-                        "bends")))
+                        f"bends{others}")))
     if joint is not None and joint.rejected and not out:
         # every law tested at once had its own freed reading
         tested = [t for t in tests or [] if t.others_freed is not None]
