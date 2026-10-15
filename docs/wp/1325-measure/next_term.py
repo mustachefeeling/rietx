@@ -1,7 +1,7 @@
 """WP-1325: does a one-direction test for the next term earn a place?
 
 The form test's alternative frees the target in every pattern, n − m
-directions for a law of m coefficients over n patterns.  Against smooth
+directions for an equation of m coefficients over n patterns.  Against smooth
 curvature most of those directions carry only noise, and a score test on the
 next polynomial term alone spends one.  That is how a statistician picks an
 order: a nested F-test, or AIC/BIC across orders.
@@ -20,7 +20,7 @@ A straight line is declared.  Three readings per fit:
    pattern k's own target column (``target_columns``).  Dense: one projection
    of the free columns at the answer, columns on a bound held out of both
    sides as the form test holds them, over the same χ²_red·f², against χ²_1.
-3. ``refit``: the oracle, a quadratic law refitted; its χ² drop over the
+3. ``refit``: the oracle, a quadratic equation refitted; its χ² drop over the
    quadratic fit's χ²_red·f², against χ²_1.
 
 The ``check`` line rebuilds the form statistic densely from per-pattern
@@ -71,8 +71,8 @@ def fit(patterns, degree: int):
         structure, [ins] * 10,
         sharing=SharingMap(shared=["instrument.zero_shift", "instrument.profile.*"]),
         coordinates=rx.CoordinateTable(columns={"T": TEMPS.tolist()}, units={"T": "K"}),
-        parametric=[rx.ParametricTie(name="a", target="phases.0.cell.a", basis="polynomial",
-                                     terms=[["T"] * j for j in range(degree + 1)])])
+        parametric=[rx.ParametricEquation(name="a", target="phases.0.cell.a", basis="polynomial",
+                                          terms=[["T"] * j for j in range(degree + 1)])])
     return ref, ref.fit(patterns, plan="mccusker_default")
 
 

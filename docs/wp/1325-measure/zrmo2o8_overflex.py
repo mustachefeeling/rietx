@@ -1,6 +1,6 @@
 """WP-1325: the over-flexible arm on the ZrMo2O8 ramp, the form test's denominator.
 
-ZrP2O7 and WO3 each fitted laws that must hold any smooth truth, and with
+ZrP2O7 and WO3 each fitted equations that must hold any smooth truth, and with
 the shipped χ²_red·f² divisor their readings piled toward p = 1, while over
 χ²_red alone they read near nominal (``zrp2o7_overflex_results.txt``,
 ``wo3_pvalues_results.txt``).  The divisor was chosen on this ramp, which
@@ -8,7 +8,7 @@ had no such arm.  Here are two, on ``real_ramp.py``'s window and protocol
 (33 patterns, the cubic cell a and the trigonal a and c):
 
 1. ``windows``: the 33 patterns in three windows of 11, a cubic in T on
-   each target in each window, nine laws in one fit;
+   each target in each window, nine equations in one fit;
 2. ``quintic``: a quintic in T on each target over all 33.
 
 Each reading prints over χ²_red·f² (shipped), over χ²_red alone (the
@@ -70,14 +70,14 @@ def widened(structures):
     return out
 
 
-def joint(patterns, chain, temps, limits, ties) -> dict:
+def joint(patterns, chain, temps, limits, equations) -> dict:
     series = chain["series"]
     t0 = time.perf_counter()
     fit = rx.MultiHistogramRefinement(
         widened(series.fitted_structures), list(series.fitted_instruments),
         sharing=SharingMap(per_histogram=["phases.*"]),
         coordinates=rx.CoordinateTable(columns={"T": list(temps)}, units={"T": "K"}),
-        parametric=ties)
+        parametric=equations)
     result = fit.fit(patterns, plan=plan(), two_theta_limits=limits)
     return dict(result=result, seconds=time.perf_counter() - t0)
 
@@ -102,7 +102,7 @@ def report(name: str, run: dict) -> None:
     print(f"{name}: {run['seconds']:.1f} s {res.status}; χ²r {s.chi2:.3f}, f {s.esd_inflation:.3f}"
           f" (χ²r·f² {s.chi2 * f2:.3f})", flush=True)
     for t in res.parametric_form:
-        print(f"  {t.tie} tested {t.n_patterns}/{t.n_subset}")
+        print(f"  {t.equation} tested {t.n_patterns}/{t.n_subset}")
         print(line("freed", t.others_freed, f2, s.chi2))
         print(line("tied", t.tied, f2, s.chi2))
     print(line("joint", res.parametric_form_joint, f2, s.chi2), flush=True)
@@ -121,21 +121,21 @@ def main() -> None:
     patterns = [rx.read_pattern(where / RAW, scan=k) for k in window]
     start = (structure(where / INP), instrument(proto, radius))
 
-    print("WP-1325: over-flexible laws on the ZrMo2O8 ramp")
+    print("WP-1325: over-flexible equations on the ZrMo2O8 ramp")
     for m in machine():
         print(m)
     print(f"window    ranges 35..67 (0-based), {len(window)} patterns", flush=True)
     chain = run_chain(patterns, start, temps, limits)
     print(f"chain     {chain['seconds']:.1f} s", flush=True)
 
-    ties = [rx.ParametricTie(name=f"{key}_w{w}", target=path, basis="polynomial",
+    equations = [rx.ParametricEquation(name=f"{key}_w{w}", target=path, basis="polynomial",
                              terms=[["T"] * j for j in range(4)], patterns=list(rng))
             for key, path in TARGETS.items() for w, rng in enumerate(WINDOWS)]
-    report("windows (cubic, 3 × 11)", joint(patterns, chain, temps, limits, ties))
-    ties = [rx.ParametricTie(name=f"{key}_q5", target=path, basis="polynomial",
+    report("windows (cubic, 3 × 11)", joint(patterns, chain, temps, limits, equations))
+    equations = [rx.ParametricEquation(name=f"{key}_q5", target=path, basis="polynomial",
                              terms=[["T"] * j for j in range(6)])
             for key, path in TARGETS.items()]
-    report("quintic (33)", joint(patterns, chain, temps, limits, ties))
+    report("quintic (33)", joint(patterns, chain, temps, limits, equations))
 
 
 if __name__ == "__main__":

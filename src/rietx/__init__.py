@@ -99,11 +99,11 @@ from .schemas.interval import ParameterInterval, ParameterIntervalPoint
 from .schemas.parametric import (
     CoordinateTable,
     ParametricCoefficient,
+    ParametricEquation,
     ParametricFormReading,
     ParametricFormTest,
-    ParametricLaw,
-    ParametricTie,
     ParametricValue,
+    RefinedParametricEquation,
 )
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
@@ -169,10 +169,9 @@ __all__ = [
     "ParameterIntervalPoint",
     "ParameterRow",
     "ParametricCoefficient",
+    "ParametricEquation",
     "ParametricFormReading",
     "ParametricFormTest",
-    "ParametricLaw",
-    "ParametricTie",
     "ParametricValue",
     "PatternData",
     "PeakList",
@@ -186,6 +185,7 @@ __all__ = [
     "ProjectDoc",
     "Recipe",
     "RecipeError",
+    "RefinedParametricEquation",
     "Refinement",
     "RefinementCancelled",
     "RefinementPlan",

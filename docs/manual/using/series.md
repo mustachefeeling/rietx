@@ -20,8 +20,8 @@ eight measurements and a series is the right shape. One powder measured at two
 wavelengths is one specimen, so its cell is one number and a joint fit is.
 
 A third case puts specimens that differ into one joint fit. When a parameter
-follows a law you can write down, such as a cell edge linear in temperature down
-a ramp or smooth across the compositions of a combinatorial library, the law's
+follows an equation you can write down, such as a cell edge linear in temperature down
+a ramp or smooth across the compositions of a combinatorial library, the equation's
 coefficients can be refined against every pattern at once
 ({ref}`a-parameter-as-a-function-of-coordinates`).
 
@@ -1302,9 +1302,9 @@ and the per-histogram Rwp spread above is what to watch instead.
 
 A chain measures a parameter once per pattern, and a joint fit shares it as one
 number. Between the two is a parameter that differs from pattern to pattern by
-a law you can write down: a cell edge linear in temperature down a ramp, or a
+an equation you can write down: a cell edge linear in temperature down a ramp, or a
 cell edge that follows the composition across a combinatorial library.
-Declaring the law puts every pattern in one residual with the law's
+Declaring the equation puts every pattern in one residual with the equation's
 coefficients as the refined parameters, which is parametric refinement
 {cite}`stinton2007`. Pattern $k$'s value of the target is
 $p_k = \sum_j \Phi_{kj} c_j$, with $\Phi$ built from each pattern's coordinates
@@ -1315,7 +1315,7 @@ It is a joint fit, so the sections above apply unchanged: Rietveld mode only,
 one `MultiHistogramRefinement` or `refine_multi` call, an `Instrument` per
 pattern, and a `SharingMap` deciding what else is shared. The declaration adds
 two keywords to both: `coordinates`, a `CoordinateTable`, and `parametric`, a
-list of `ParametricTie`.
+list of `ParametricEquation`.
 
 ### When it pays
 
@@ -1380,21 +1380,21 @@ declaration, because several declarations can share one table, and not in
 A name must be a single identifier, so that a term can name it, and every
 column needs one value per pattern.
 
-`ParametricTie` declares one target:
+`ParametricEquation` declares one target:
 
 | Field | Holds |
 |---|---|
-| `ParametricTie.name` | the declaration's name. Its coefficients are named variables, `vars.<name>_0`, `vars.<name>_1` and so on |
-| `ParametricTie.target` | one bare dot-path under `phases.` or `instrument.`, never a glob and never a `hist.` scope |
-| `ParametricTie.basis` | `"constant"`, `"polynomial"` or `"design"` |
-| `ParametricTie.terms` | a polynomial's terms, each a list of coordinate names: `[]` is the intercept, and a repeated name is a power |
-| `ParametricTie.design` | a design basis's rows, one per pattern of the subset, in subset order |
-| `ParametricTie.patterns` | the subset the law holds over, by index into the patterns as passed. `None` is every pattern |
-| `ParametricTie.reference`, `ParametricTie.scale` | per coordinate, the point a polynomial is centred on and the length it is scaled by |
+| `ParametricEquation.name` | the declaration's name. Its coefficients are named variables, `vars.<name>_0`, `vars.<name>_1` and so on |
+| `ParametricEquation.target` | one bare dot-path under `phases.` or `instrument.`, never a glob and never a `hist.` scope |
+| `ParametricEquation.basis` | `"constant"`, `"polynomial"` or `"design"` |
+| `ParametricEquation.terms` | a polynomial's terms, each a list of coordinate names: `[]` is the intercept, and a repeated name is a power |
+| `ParametricEquation.design` | a design basis's rows, one per pattern of the subset, in subset order |
+| `ParametricEquation.patterns` | the subset the equation holds over, by index into the patterns as passed. `None` is every pattern |
+| `ParametricEquation.reference`, `ParametricEquation.scale` | per coordinate, the point a polynomial is centred on and the length it is scaled by |
 
-`ParametricTie.coefficient_paths` lists the coefficients' dot-paths,
-`ParametricTie.n_coefficients` counts them and
-`ParametricTie.coordinates_used` names the coordinates the terms use.
+`ParametricEquation.coefficient_paths` lists the coefficients' dot-paths,
+`ParametricEquation.n_coefficients` counts them and
+`ParametricEquation.coordinates_used` names the coordinates the terms use.
 
 The three bases cover different cases. `"constant"` is one coefficient, the
 same in every pattern of the subset: a parameter shared over part of the fit.
@@ -1404,10 +1404,10 @@ including its esd. `"polynomial"` is a sum of monomials in the coordinates.
 linear in its coefficients. Its columns are in units only you know, so its
 coefficients are reported as you defined them, with no unit.
 
-The subset is how a law is kept inside a phase field. A property varies
+The subset is how an equation is kept inside a phase field. A property varies
 smoothly within a field and not across its boundary, so name the patterns the
-law holds over. Outside the subset the target is each pattern's own
-parameter, refined wherever a stage frees it. Two fields with a law each are
+equation holds over. Outside the subset the target is each pattern's own
+parameter, refined wherever a stage frees it. Two fields with an equation each are
 two declarations on one target with disjoint subsets, each with its own name
 and its own reference; a pattern both subsets hold is refused.
 
@@ -1425,8 +1425,8 @@ temperatures = [300.0, 450.0, 600.0, 750.0, 900.0]
 instruments = [rx.Instrument.debye_scherrer(wavelength=0.4139) for _ in temperatures]
 
 coordinates = rx.CoordinateTable(columns={"T": temperatures}, units={"T": "K"})
-expansion = rx.ParametricTie(name="a", target="phases.0.cell.a",
-                             basis="polynomial", terms=[[], ["T"]])
+expansion = rx.ParametricEquation(name="a", target="phases.0.cell.a",
+                                  basis="polynomial", terms=[[], ["T"]])
 joint = rx.MultiHistogramRefinement(lab6, instruments, coordinates=coordinates,
                                     parametric=[expansion])
 
@@ -1446,8 +1446,8 @@ library = rx.CoordinateTable(columns={
     "x": [0.0, 0.0, 0.1, 0.1, 0.2, 0.2, 0.3, 0.3],
     "y": [0.0, 0.2, 0.0, 0.2, 0.1, 0.3, 0.1, 0.3],
 })
-surface = rx.ParametricTie(name="a", target="phases.0.cell.a", basis="polynomial",
-                           terms=[[], ["x"], ["y"], ["x", "y"], ["x", "x"]])
+surface = rx.ParametricEquation(name="a", target="phases.0.cell.a", basis="polynomial",
+                                terms=[[], ["x"], ["y"], ["x", "y"], ["x", "x"]])
 assert library.n_patterns == 8
 assert surface.n_coefficients == 5
 assert surface.coordinates_used() == ["x", "y"]
@@ -1476,7 +1476,7 @@ Fractions that sum to one are the one place the defaults mislead. With an
 intercept the basis is rank-deficient, since the intercept is the sum of the
 fractions, and the refusal says so and names the Scheffé form, which drops the
 intercept. In the Scheffé form give each fraction reference 0 and scale 1, so
-each coefficient is the target in the pure end member and the law is Vegard's
+each coefficient is the target in the pure end member and the equation is Vegard's
 between them. Left centred, the coefficients would lose that meaning, because
 each fraction is measured from its own mid-range and those points need not lie
 on the simplex. So a basis with no intercept over fractions that sum to a
@@ -1497,9 +1497,9 @@ ternary = rx.CoordinateTable(columns={
     "xc": [0.2, 0.2, 0.6, 0.3, 0.4],
 })
 
-with_intercept = rx.ParametricTie(name="a", target="phases.0.cell.a",
-                                  basis="polynomial",
-                                  terms=[[], ["xa"], ["xb"], ["xc"]])
+with_intercept = rx.ParametricEquation(name="a", target="phases.0.cell.a",
+                                       basis="polynomial",
+                                       terms=[[], ["xa"], ["xb"], ["xc"]])
 try:
     rx.MultiHistogramRefinement(lab6, instruments, coordinates=ternary,
                                 parametric=[with_intercept])
@@ -1508,10 +1508,10 @@ except ValueError as exc:
 else:
     raise AssertionError("the intercept is the sum of the fractions")
 
-scheffe = rx.ParametricTie(name="a", target="phases.0.cell.a", basis="polynomial",
-                           terms=[["xa"], ["xb"], ["xc"]],
-                           reference={"xa": 0.0, "xb": 0.0, "xc": 0.0},
-                           scale={"xa": 1.0, "xb": 1.0, "xc": 1.0})
+scheffe = rx.ParametricEquation(name="a", target="phases.0.cell.a", basis="polynomial",
+                                terms=[["xa"], ["xb"], ["xc"]],
+                                reference={"xa": 0.0, "xb": 0.0, "xc": 0.0},
+                                scale={"xa": 1.0, "xb": 1.0, "xc": 1.0})
 joint = rx.MultiHistogramRefinement(lab6, instruments, coordinates=ternary,
                                     parametric=[scheffe])
 assert joint.parametric[0].reference == {"xa": 0.0, "xb": 0.0, "xc": 0.0}
@@ -1547,7 +1547,7 @@ rest need the patterns:
 | a basis whose rank is below its number of terms | drop one term of each collinear set the message names; for fractions summing to one, the Scheffé form |
 | fractions summing to a constant in a basis with no intercept, without a stated `reference` and `scale` | state them: 0 and 1 per fraction for the Scheffé form |
 | a target that is not a parameter of a subset pattern's model | a path the model has; the message says how to list them |
-| a target tied to another path | declare the law on the source the message names |
+| a target tied to another path | declare the equation on the source the message names |
 | a target locked by symmetry, held by the phase's floating origin, a rigid body's increment or a magnetic moment's degree of freedom | another target: none of these moves itself as one quantity across patterns |
 | a coordinate degree of freedom whose atom the starting structures place differently | start every pattern with the atom in one place |
 | two declarations with one name, or on one target with overlapping subsets | a name each, and disjoint `patterns` per target |
@@ -1575,8 +1575,8 @@ lists them. The target is per-histogram in every pattern, so each pattern
 reports its own value as `hist.<h>.phases.0.cell.a`, with an esd propagated
 from the coefficients, and what the target drives follows it: a cubic cell's
 `b` and `c`. Each of those rows names the declaration in
-`RefinedParameter.laws`, and so does each coefficient's `vars.` row. A target
-row's value and esd are the law's at that pattern's coordinates. They can be
+`RefinedParameter.equations`, and so does each coefficient's `vars.` row. A target
+row's value and esd are the equation's at that pattern's coordinates. They can be
 far tighter than the pattern measures on its own. A coefficient that drives a
 phase no pattern can see is held like the cell it drives, and
 `PHASE_UNCONSTRAINED` names the coefficient.
@@ -1595,7 +1595,7 @@ coefficient, and is `None` when nothing was declared.
 
 | Field | Holds |
 |---|---|
-| `ParametricCoefficient.tie`, `ParametricCoefficient.target` | the declaration's name and its target |
+| `ParametricCoefficient.equation`, `ParametricCoefficient.target` | the declaration's name and its target |
 | `ParametricCoefficient.term` | the term: `"1"` for the intercept, then `"T"`, `"x*y"`, `"T^2"`; a design column is `"d0"`, `"d1"` and so on |
 | `ParametricCoefficient.path` | the coefficient's dot-path, `vars.<name>_<j>` |
 | `ParametricCoefficient.value`, `ParametricCoefficient.esd` | the coefficient per unit of the coordinates themselves, at the reference |
@@ -1608,7 +1608,7 @@ Read the coefficients here, never off `RefinementResult.parameters`. The
 coordinate: on a five-pattern synthetic ramp at 300-900 K the slope's row read
 0.006235, in Å per 300 K, where its coefficient read 2.0784 × 10⁻⁵ Å/K, the
 same number divided by the scale. A loop over `parameters` can tell those rows
-by their `RefinedParameter.laws` and their `vars.` path.
+by their `RefinedParameter.equations` and their `vars.` path.
 
 An esd of `None` has one of two causes, and `ParametricCoefficient.vary` says
 which: the coefficient was not free in the last stage, or the joint
@@ -1644,17 +1644,17 @@ print(series.summary(deliverable="series", parametric=result))
 per declaration, when the fitted coefficients put the target outside its own
 `min`/`max` on some pattern. `where` names each such pattern's
 `hist.<h>.` path and `value` counts them. Do not quote the target there as a
-measurement. Narrow the subset to where the law holds, lower the polynomial's
+measurement. Narrow the subset to where the equation holds, lower the polynomial's
 order, or declare a design basis that stays inside the range.
 
-`PARAMETRIC_TARGET_UNSEEN` is a warning, one per declaration, when the law sets
+`PARAMETRIC_TARGET_UNSEEN` is a warning, one per declaration, when the equation sets
 its target in patterns that cannot see the target's phase. A pattern cannot
 see a phase when its scale is under the support screen that holds a phase's
 structure in a stage. There the target's value and esd come from the patterns
-that do see the phase, carried along the law, and the form test below leaves
+that do see the phase, carried along the equation, and the form test below leaves
 the pattern out. `where` names each such pattern's `hist.<h>.` path and
-`value` counts them. Quote the law's coefficients rather than the target in
-those patterns. If the law should hold only where the phase is measured, narrow
+`value` counts them. Quote the equation's coefficients rather than the target in
+those patterns. If the equation should hold only where the phase is measured, narrow
 the subset to those patterns.
 
 ### Testing the declared form
@@ -1668,13 +1668,13 @@ declaration, and is `None` exactly when `RefinementResult.parametric` is.
 
 | Field | Holds |
 |---|---|
-| `ParametricFormTest.tie`, `ParametricFormTest.target` | the declaration's name and its target |
+| `ParametricFormTest.equation`, `ParametricFormTest.target` | the declaration's name and its target |
 | `ParametricFormTest.n_patterns` | the subset patterns whose own target entered the alternative; a pattern that cannot see the target is left out |
-| `ParametricFormTest.n_subset` | the patterns the subset names. Where it is larger than `n_patterns`, the law sets the target in the rest unchecked |
-| `ParametricFormTest.tied` | the reading with every other law still tied, `None` when a coefficient was not free at the answer |
-| `ParametricFormTest.others_freed` | the reading with every other tested law's target freed too, `None` unless two or more laws were tested |
+| `ParametricFormTest.n_subset` | the patterns the subset names. Where it is larger than `n_patterns`, the equation sets the target in the rest unchecked |
+| `ParametricFormTest.tied` | the reading with every other equation still tied, `None` when a coefficient was not free at the answer |
+| `ParametricFormTest.others_freed` | the reading with every other tested equation's target freed too, `None` unless two or more equations were tested |
 | `ParametricFormTest.rejected` | the verdict: the `others_freed` reading's where there is one, else the `tied` reading's |
-| `ParametricFormTest.provisional_on` | the other tested laws whose verdict is a rejection; while it is not empty, this verdict is provisional |
+| `ParametricFormTest.provisional_on` | the other tested equations whose verdict is a rejection; while it is not empty, this verdict is provisional |
 
 Each reading is a `ParametricFormReading`:
 
@@ -1687,7 +1687,7 @@ Each reading is a `ParametricFormReading`:
 | `ParametricFormReading.p_value` | the upper tail of χ² for `dof` directions at `statistic`, so a near miss shows on either side of the cut |
 
 `RefinementResult.parametric_form_joint` is one more `ParametricFormReading`,
-of every tested law at once. It is `None` unless two or more laws were tested.
+of every tested equation at once. It is `None` unless two or more equations were tested.
 
 The statistic is about χ² with `dof` degrees of freedom while the form holds.
 {ref}`par-parametric-section` has the equation. `str(result)` closes each declaration with its verdict. On the
@@ -1711,9 +1711,9 @@ not quote those coefficients or their esds. Add the next term to the basis and
 refit, or narrow the subset to where the form holds. A chain over the same
 patterns shows where the trajectory bends.
 
-A fit with several laws reads each law twice. The first reading keeps the
-other laws tied. The second frees their targets too, so it does not assume
-their forms, and it gives the law's verdict. On the ZrMo₂O₈ ramp
+A fit with several equations reads each equation twice. The first reading keeps the
+other equations tied. The second frees their targets too, so it does not assume
+their forms, and it gives the equation's verdict. On the ZrMo₂O₈ ramp
 (33 patterns), a line on the cubic phase's cell beside lines on the trigonal
 phase's a and c read:
 
@@ -1722,64 +1722,64 @@ phase's a and c read:
       [1] 9.11157(11) Å
       [T] -0.0000196(14) Å/K
       form REJECTED over 33 of 33 patterns:
-        with the other laws freed, REJECTED: 305.5 past the cut 45.0 (p < 0.001) for 31 directions
-        with the other laws tied, REJECTED: 269.3 past the cut 45.0 (p < 0.001) for 31 directions
+        with the other equations freed, REJECTED: 305.5 past the cut 45.0 (p < 0.001) for 31 directions
+        with the other equations tied, REJECTED: 269.3 past the cut 45.0 (p < 0.001) for 31 directions
 ```
 
-A refit holding only the cubic law, with both trigonal cells free in every
+A refit holding only the cubic equation, with both trigonal cells free in every
 pattern, rejected it too. The freed reading's gain was 573.8 against the 576.1
-that refit removed. The tied reading assumes the other laws are right, so it
-can pass a law that hides behind another law's misfit.
+that refit removed. The tied reading assumes the other equations are right, so it
+can pass an equation that hides behind another equation's misfit.
 
-Two laws whose targets change the pattern alike can each pass with the other
-freed while both are wrong, because each law's freed targets absorb the other's
-misfit. So the fit is also read once with every tested law's targets freed
+Two equations whose targets change the pattern alike can each pass with the other
+freed while both are wrong, because each equation's freed targets absorb the other's
+misfit. So the fit is also read once with every tested equation's targets freed
 together. That joint reading closes the block. On the same ramp:
 
 ```text
-    the 3 tested laws together: form REJECTED: 466.4 past the cut 116.5 (p < 0.001) for 93 directions
+    the 3 tested equations together: form REJECTED: 466.4 past the cut 116.5 (p < 0.001) for 93 directions
 ```
 
-One wrong law among several spreads its misfit over all their directions, so
-the joint reading adds to each law's verdict and does not replace it.
+One wrong equation among several spreads its misfit over all their directions, so
+the joint reading adds to each equation's verdict and does not replace it.
 
-Every reading is one linear step from the answer, and a rejected law's misfit
-moves that answer. Beside a badly wrong law, the other laws' verdicts can then
+Every reading is one linear step from the answer, and a rejected equation's misfit
+moves that answer. Beside a badly wrong equation, the other equations' verdicts can then
 differ from their own refits. On the ZrP₂O₇ ramp a silicon line was rejected
-beside a law crossing a phase transition, while the silicon line's own refit
+beside an equation crossing a phase transition, while the silicon line's own refit
 kept it (p 0.92). On the WO₃ ramp a bent angle passed beside rejected cell
-edges, while its own refit rejected it. So a verdict beside a rejected law
-names that law in `ParametricFormTest.provisional_on`, and the printed block
-says so. Fix the rejected law, refit, and read the others again.
+edges, while its own refit rejected it. So a verdict beside a rejected equation
+names that equation in `ParametricFormTest.provisional_on`, and the printed block
+says so. Fix the rejected equation, refit, and read the others again.
 
-When the joint reading rejects and no law's own verdict does,
-`PARAMETRIC_FORM_REJECTED` names every tested law's coefficients. The data
-cannot say which form is wrong. Add the next term to one law at a time and
+When the joint reading rejects and no equation's own verdict does,
+`PARAMETRIC_FORM_REJECTED` names every tested equation's coefficients. The data
+cannot say which form is wrong. Add the next term to one equation at a time and
 refit.
 
 The test has three limits.
 
 - It sees the form only where, and as well as, each pattern measures the
   target. A pattern that cannot see the target adds nothing to the statistic,
-  so a law carried through patterns where a phase has faded out is not checked
+  so an equation carried through patterns where a phase has faded out is not checked
   there. The verdict line counts the patterns tested against the subset, and
   `PARAMETRIC_TARGET_UNSEEN` names the patterns left out. On two synthetic ramps, one with a minor phase that faded out and one
   with a minor phase broad and overlapped, a curved truth on its cell went
   unrejected in 20 seeds of 20. A full untied refit rejected none of them
   either.
 - Each verdict is a test at 95 %, and so is the joint reading. A fit with K
-  laws therefore flags some right law more often than one time in twenty:
-  1 − 0.95^K of the time if the tests were independent, 14 % for three laws.
+  equations therefore flags some right equation more often than one time in twenty:
+  1 − 0.95^K of the time if the tests were independent, 14 % for three equations.
   No correction is applied yet.
 
-### The law at any coordinate
+### The equation at any coordinate
 
-The coefficients' esds are not enough to evaluate the law between the patterns
+The coefficients' esds are not enough to evaluate the equation between the patterns
 or beyond them, because the coefficients are correlated.
-`RefinementResult.parametric_laws` holds one `ParametricLaw` per declaration,
+`RefinementResult.parametric_equations` holds one `RefinedParametricEquation` per declaration,
 with the coefficients' covariance, and is `None` exactly when
 `RefinementResult.parametric` is. `RefinementResult.parametric_value` evaluates
-a law at any coordinate and returns a `ParametricValue`. On the ten-pattern
+an equation at any coordinate and returns a `ParametricValue`. On the ten-pattern
 LaB6 ramp at 300-1200 K, on its true line:
 
 <!-- api-doc: no-exec — reads a joint fit of the ten-pattern ramp -->
@@ -1793,27 +1793,27 @@ a: phases.0.cell.a at T=293 = 4.1564546(18) Å (extrapolating in T; form not rej
 
 | Field | Holds |
 |---|---|
-| `ParametricLaw.tie` | the declaration as resolved, with its reference and scale filled in. Pass it back to refit with the same coefficients |
-| `ParametricLaw.unit` | the target's unit, `None` where none is recorded |
-| `ParametricLaw.span` | per coordinate a polynomial uses, the lowest and highest value across the subset |
-| `ParametricLaw.covariance` | the coefficients' covariance in the caller's units, in coefficient order. `None` when a coefficient has no esd |
+| `RefinedParametricEquation.equation` | the declaration as resolved, with its reference and scale filled in. Pass it back to refit with the same coefficients |
+| `RefinedParametricEquation.unit` | the target's unit, `None` where none is recorded |
+| `RefinedParametricEquation.span` | per coordinate a polynomial uses, the lowest and highest value across the subset |
+| `RefinedParametricEquation.covariance` | the coefficients' covariance in the caller's units, in coefficient order. `None` when a coefficient has no esd |
 
-The diagonal of `ParametricLaw.covariance` is each `ParametricCoefficient.esd`
+The diagonal of `RefinedParametricEquation.covariance` is each `ParametricCoefficient.esd`
 squared, exactly. At a pattern's own coordinates the value and esd are that
 pattern's `hist.<h>.` row. On the ramp above the two agreed to the last bit at
-all ten patterns. `ParametricLaw.evaluate` is the same computation, given the
+all ten patterns. `RefinedParametricEquation.evaluate` is the same computation, given the
 coefficients and the form test directly.
 
 | Field | Holds |
 |---|---|
-| `ParametricValue.tie`, `ParametricValue.target` | the declaration's name and its target |
-| `ParametricValue.coordinates` | where the law was evaluated, empty for a `constant` law and a design row |
-| `ParametricValue.row` | the design row a `design` law was evaluated at, `None` for the other bases |
-| `ParametricValue.value`, `ParametricValue.esd`, `ParametricValue.unit` | the target there. The esd is `None` when the law has no covariance |
+| `ParametricValue.equation`, `ParametricValue.target` | the declaration's name and its target |
+| `ParametricValue.coordinates` | where the equation was evaluated, empty for a `constant` equation and a design row |
+| `ParametricValue.row` | the design row a `design` equation was evaluated at, `None` for the other bases |
+| `ParametricValue.value`, `ParametricValue.esd`, `ParametricValue.unit` | the target there. The esd is `None` when the equation has no covariance |
 | `ParametricValue.outside` | the coordinates whose value lies outside the subset's range. `None` for a design row |
 | `ParametricValue.form_rejected` | the declaration's form test verdict, `None` where the form was not tested |
 
-A `design` law has no coordinates. Evaluate it with `row=`, one number per
+A `design` equation has no coordinates. Evaluate it with `row=`, one number per
 coefficient in the units of its design matrix. `ParametricValue.outside` checks
 each coordinate on its own. Over two or more coordinates a point can lie inside
 each range and still be far from every pattern, and the field does not see

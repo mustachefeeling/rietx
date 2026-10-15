@@ -12,7 +12,7 @@ round-trip, so a self-driving lab can write one and a result can carry it:
 
 * :class:`CoordinateTable` — one row per pattern, named columns with units,
   passed **beside** the patterns because several declarations share one table.
-* :class:`ParametricTie` — one target, a basis from a **closed** vocabulary
+* :class:`ParametricEquation` — one target, a basis from a **closed** vocabulary
   (``constant``, ``polynomial`` over named coordinates, or an explicit
   ``design`` matrix, the escape hatch for splines, Scheffé mixture forms and
   sin²ψ), the pattern subset, and the reference point and scale per
@@ -24,10 +24,10 @@ round-trip, so a self-driving lab can write one and a result can carry it:
 * :class:`ParametricFormTest` — one declaration's lack-of-fit test on
   :attr:`RefinementResult.parametric_form
   <rietx.schemas.results.RefinementResult.parametric_form>`.
-* :class:`ParametricLaw` — one declaration as resolved, with its
-  coefficients' covariance, on :attr:`RefinementResult.parametric_laws
-  <rietx.schemas.results.RefinementResult.parametric_laws>`; and
-  :class:`ParametricValue`, the law evaluated at a coordinate.
+* :class:`RefinedParametricEquation` — one declaration as resolved, with its
+  coefficients' covariance, on :attr:`RefinementResult.parametric_equations
+  <rietx.schemas.results.RefinementResult.parametric_equations>`; and
+  :class:`ParametricValue`, the equation evaluated at a coordinate.
 
 **The reference and scale are stored in the declaration** (patsy's lesson).  A
 polynomial term is evaluated on u = (z − reference)/scale.  Left out, both are
@@ -46,7 +46,7 @@ from __future__ import annotations
 import math
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 
 from .common import Base
 
@@ -109,7 +109,7 @@ class CoordinateTable(Base):
         return len(next(iter(self.columns.values())))
 
 
-class ParametricTie(Base):
+class ParametricEquation(Base):
     """One target refined as a declared linear function of the coordinates.
 
     Its coefficients are named variables ``vars.{name}_{j}``, j = 0…m−1, one
@@ -143,10 +143,10 @@ class ParametricTie(Base):
     scale: dict[str, float] | None = None
 
     @model_validator(mode="after")
-    def _check(self) -> "ParametricTie":
+    def _check(self) -> "ParametricEquation":
         if not self.name.isidentifier():
             raise ValueError(
-                f"parametric tie name {self.name!r} must be a single identifier: "
+                f"parametric equation name {self.name!r} must be a single identifier: "
                 f"its coefficients are the variables vars.{self.name}_0, …, and a "
                 "glob must be able to name them")
         t = self.target
@@ -256,7 +256,7 @@ class ParametricTie(Base):
 
 
 class ParametricCoefficient(Base):
-    """One refined coefficient of a :class:`ParametricTie`, in user units.
+    """One refined coefficient of a :class:`ParametricEquation`, in user units.
 
     ``value`` and ``esd`` are the coefficient of the term ``term`` per unit of
     the coordinates themselves (not of the scaled u), **at the reference**: for
@@ -270,9 +270,12 @@ class ParametricCoefficient(Base):
     the solve that produced the answer (``vary`` False).  ``unit`` is the target's unit over the term's coordinate
     units, and ``None`` unless the target's and every such coordinate's unit
     is recorded (a ``design`` coefficient's is the caller's, so never).
+
+    ``equation`` was ``tie`` in 1.9.0 (schema 0.55), whose results still open:
+    the old key is read as ``equation`` and only ``equation`` is written.
     """
 
-    tie: str
+    equation: str = Field(validation_alias=AliasChoices("equation", "tie"))
     target: str
     term: str
     path: str
@@ -315,7 +318,7 @@ class ParametricFormReading(Base):
 
 
 class ParametricFormTest(Base):
-    """Whether one :class:`ParametricTie`'s form survives its own data.
+    """Whether one :class:`ParametricEquation`'s form survives its own data.
 
     A score test at the answer, read up to twice (:class:`ParametricFormReading`).
 
@@ -323,21 +326,21 @@ class ParametricFormTest(Base):
       alternative.  A pattern that cannot see the target is left out, as an
       untied fit would hold it there (WP-1301), and so is one where Φ is zero.
     * ``n_subset`` — the patterns the declaration's subset names.  Where
-      ``n_patterns`` is the smaller, the law sets the target in the rest and
+      ``n_patterns`` is the smaller, the equation sets the target in the rest and
       the test cannot check it there; ``PARAMETRIC_TARGET_UNSEEN`` names the
       patterns that cannot see it.
-    * ``tied`` — the reading with every other law still tied.  ``None`` when
+    * ``tied`` — the reading with every other equation still tied.  ``None`` when
       the test did not run: a coefficient was not free at the answer.
-    * ``others_freed`` — the reading with every other tested law's target
-      freed too, so its verdict does not assume the other laws' forms: the
-      gain with every law's targets freed less the gain with only the others'
+    * ``others_freed`` — the reading with every other tested equation's target
+      freed too, so its verdict does not assume the other equations' forms: the
+      gain with every equation's targets freed less the gain with only the others'
       freed, directions by the same difference.  ``None`` unless two or more
-      laws were tested, since with one the two readings are one test.
+      equations were tested, since with one the two readings are one test.
     * ``rejected`` — the verdict: ``others_freed``'s where there is one,
-      else ``tied``'s.  Freed assumes nothing of the other laws' forms, and
-      tied a law can pass behind another law's misfit.  Two laws whose
+      else ``tied``'s.  Freed assumes nothing of the other equations' forms, and
+      tied an equation can pass behind another equation's misfit.  Two equations whose
       targets move the pattern alike can absorb each other freed, which the
-      joint reading of every law at once sees
+      joint reading of every equation at once sees
       (:attr:`RefinementResult.parametric_form_joint
       <rietx.schemas.results.RefinementResult.parametric_form_joint>`).
       When true, the coefficients' esds assume a form the data refuses.
@@ -346,12 +349,12 @@ class ParametricFormTest(Base):
       rejection.  Every reading is one linear step from the answer, and a
       rejected declaration's misfit has moved that answer, so this verdict
       can differ from a refit's.  On ZrP₂O₇ a right line was rejected beside
-      a law at 3122 for 34 directions, and on WO₃ a bent angle passed beside
+      an equation at 3122 for 34 directions, and on WO₃ a bent angle passed beside
       rejected edges (``docs/wp/1325-parametric-series.md`` § Measured: the
       form test out of sample).  Empty when no other declaration is rejected.
     """
 
-    tie: str
+    equation: str
     target: str
     n_patterns: int
     n_subset: int
@@ -366,16 +369,16 @@ class ParametricValue(Base):
 
     :meth:`RefinementResult.parametric_value
     <rietx.schemas.results.RefinementResult.parametric_value>` builds it from
-    the stored coefficients and their covariance (:class:`ParametricLaw`).
+    the stored coefficients and their covariance (:class:`RefinedParametricEquation`).
 
-    * ``coordinates`` — where it was evaluated; empty for a ``constant`` law
+    * ``coordinates`` — where it was evaluated; empty for a ``constant`` equation
       and for a ``design`` row, which is ``row``.
     * ``value``, ``esd``, ``unit`` — the target there, in its own unit.
-      ``esd`` is ``None`` when the law has no covariance
-      (:attr:`ParametricLaw.covariance`), even at a point whose term for the
+      ``esd`` is ``None`` when the equation has no covariance
+      (:attr:`RefinedParametricEquation.covariance`), even at a point whose term for the
       coefficient lacking an esd is zero.
     * ``outside`` — the coordinates whose value lies outside the range the
-      subset's patterns span, so the value there extrapolates the law.  Empty
+      subset's patterns span, so the value there extrapolates the equation.  Empty
       inside every range.  Over two or more coordinates a point can be inside
       each range and still far from every pattern, which this does not see.
       ``None`` for a ``design`` row, whose coordinates the fit never saw.
@@ -384,7 +387,7 @@ class ParametricValue(Base):
       ``None`` where the form was not tested.
     """
 
-    tie: str
+    equation: str
     target: str
     coordinates: dict[str, float]
     row: list[float] | None
@@ -409,29 +412,29 @@ class ParametricValue(Base):
             notes.append(f"extrapolating in {', '.join(self.outside)}")
         notes.append({True: "form REJECTED", False: "form not rejected",
                       None: "form not tested"}[self.form_rejected])
-        return (f"{self.tie}: {self.target}{at} = {_number(self.value, self.esd)}"
+        return (f"{self.equation}: {self.target}{at} = {_number(self.value, self.esd)}"
                 f"{unit} ({'; '.join(notes)})")
 
 
-class ParametricLaw(Base):
+class RefinedParametricEquation(Base):
     """One parametric declaration as the fit resolved it, with what a reader
     needs to evaluate it anywhere (WP-1325).
 
-    * ``tie`` — the declaration with its reference and scale filled in, the
+    * ``equation`` — the declaration with its reference and scale filled in, the
       form to pass back for a refit or a grown campaign.
     * ``unit`` — the target's unit, ``None`` where none is recorded.
     * ``span`` — per coordinate a polynomial uses, the lowest and highest
       value across the subset; empty for the other bases.
     * ``covariance`` — the coefficients' covariance in the caller's units at
       the reference, one row and column per coefficient in
-      ``tie.coefficient_paths()`` order.  It is each pair's correlation from
+      ``equation.coefficient_paths()`` order.  It is each pair's correlation from
       the joint solve times their esds, so its diagonal is each
       :class:`ParametricCoefficient` ``esd`` squared, bit for bit.  ``None``
       when a coefficient has no esd, or the solve kept no correlation for a
-      law of several coefficients.
+      equation of several coefficients.
     """
 
-    tie: ParametricTie
+    equation: ParametricEquation
     unit: str | None
     span: dict[str, tuple[float, float]]
     covariance: list[list[float]] | None
@@ -440,47 +443,47 @@ class ParametricLaw(Base):
                  form: ParametricFormTest | None = None,
                  coordinates: dict[str, float] | None = None,
                  row: list[float] | None = None) -> ParametricValue:
-        """The target at ``coordinates`` (or a ``design`` law's ``row``).
+        """The target at ``coordinates`` (or a ``design`` equation's ``row``).
 
         Σ_j x_j·c_j and √(x·Σ·xᵀ), with c the coefficients in the caller's
         units and x_j the term's product of (z − reference) per coordinate, so
         the value at the reference is the intercept.  ``coefficients`` are
-        this law's, in coefficient order, and are refused otherwise, as are a
+        this equation's, in coefficient order, and are refused otherwise, as are a
         coordinate set or a row that does not match the basis.
         """
-        tie = self.tie
+        equation = self.equation
         paths = [c.path for c in coefficients]
-        if paths != tie.coefficient_paths():
-            raise ValueError(f"law {tie.name!r} takes its coefficients "
-                             f"{tie.coefficient_paths()} in that order, got {paths}")
+        if paths != equation.coefficient_paths():
+            raise ValueError(f"equation {equation.name!r} takes its coefficients "
+                             f"{equation.coefficient_paths()} in that order, got {paths}")
         coordinates = dict(coordinates or {})
-        if tie.basis == "design":
+        if equation.basis == "design":
             if row is None or coordinates:
                 raise ValueError(
-                    f"law {tie.name!r} is a design basis, so it is evaluated at a "
-                    f"design row (row=[…], {tie.n_coefficients} numbers in the "
+                    f"equation {equation.name!r} is a design basis, so it is evaluated at a "
+                    f"design row (row=[…], {equation.n_coefficients} numbers in the "
                     "units of its design matrix), never at coordinates")
-            if len(row) != tie.n_coefficients:
-                raise ValueError(f"law {tie.name!r} needs a row of "
-                                 f"{tie.n_coefficients} numbers, got {len(row)}")
+            if len(row) != equation.n_coefficients:
+                raise ValueError(f"equation {equation.name!r} needs a row of "
+                                 f"{equation.n_coefficients} numbers, got {len(row)}")
             x = [float(v) for v in row]
             outside = None
         else:
             if row is not None:
-                raise ValueError(f"law {tie.name!r} is a {tie.basis} basis: pass "
+                raise ValueError(f"equation {equation.name!r} is a {equation.basis} basis: pass "
                                  "coordinates, never a design row")
-            used = tie.coordinates_used()
+            used = equation.coordinates_used()
             missing = [c for c in used if c not in coordinates]
             extra = sorted(set(coordinates) - set(used))
             if missing or extra:
                 raise ValueError(
-                    f"law {tie.name!r} is evaluated at {used or 'no coordinate'}; "
+                    f"equation {equation.name!r} is evaluated at {used or 'no coordinate'}; "
                     f"missing {missing}, not used {extra}")
             for c, v in coordinates.items():
                 _finite(v, f"coordinate {c!r}")
-            ref = tie.reference or {}
+            ref = equation.reference or {}
             x = [math.prod(coordinates[c] - ref[c] for c in term)
-                 for term in (tie.terms or [[]])]
+                 for term in (equation.terms or [[]])]
             outside = [c for c in used
                        if not self.span[c][0] <= coordinates[c] <= self.span[c][1]]
         value = sum(xj * c.value for xj, c in zip(x, coefficients, strict=True))
@@ -490,6 +493,6 @@ class ParametricLaw(Base):
                       for i in range(len(x)) for j in range(len(x)))
             esd = math.sqrt(max(var, 0.0))
         return ParametricValue(
-            tie=tie.name, target=tie.target, coordinates=coordinates,
+            equation=equation.name, target=equation.target, coordinates=coordinates,
             row=None if row is None else x, value=value, esd=esd, unit=self.unit,
             outside=outside, form_rejected=None if form is None else form.rejected)

@@ -17,11 +17,11 @@ cooling 1152-304 K, disjoint subsets), one joint fit each:
   (553-1173 K, 552-1152 K), since its cell steps at the phase transition
   between them (``zrp2o7_form.py``), and a cubic over each leg's five
   low-field patterns, one term past the quadratic the chain's points chose.
-* ``Q4``: the same with quartics.  Its ZrP2O7 low-field laws are Q5's, so
+* ``Q4``: the same with quartics.  Its ZrP2O7 low-field equations are Q5's, so
   those two p-values repeat.
 
 ``zrp2o7_form.py``'s chain chose degree 1 for Si a and Al2O3 c, 2 for Al2O3 a,
-3 for ZrP2O7 a's high field and 2 for its low field, so every law here carries
+3 for ZrP2O7 a's high field and 2 for its low field, so every equation here carries
 two to four terms the chain's points do not ask for.
 
 Printed: every reading (the verdict, others-freed; the tied; the joint), each
@@ -31,7 +31,7 @@ against Uniform(0, 1).  Ten verdicts a fit is a small sample: at n = 10 the
 two-sided KS 5 % critical distance is 0.41, so only a gross departure shows,
 and the two fits share their data, so their p-values are not independent.
 The same forms through the chain's points (weighted χ², the trajectory check)
-are printed beside each law.
+are printed beside each equation.
 """
 
 from __future__ import annotations
@@ -48,22 +48,22 @@ import numpy as np  # noqa: E402
 from scipy.stats import chi2 as chi2_dist  # noqa: E402
 from scipy.stats import kstest  # noqa: E402
 from zrp2o7_form import TRANSITION_K, wls  # noqa: E402
-from zrp2o7_model import TARGETS, load, machine, poly_tie, run_chain, run_joint  # noqa: E402
+from zrp2o7_model import TARGETS, load, machine, poly_equation, run_chain, run_joint  # noqa: E402
 
 LOW_FIELD_DEGREE = 3
 
 
-def ties(data: dict, degree: int) -> list:
+def equations(data: dict, degree: int) -> list:
     t = data["temps"]
     out = []
     for leg in ("heat", "cool"):
         idx = data[leg]
         lo = [k for k in idx if t[k] < TRANSITION_K]
         hi = [k for k in idx if t[k] > TRANSITION_K]
-        out.append(poly_tie(f"zrp_a_lo_{leg}", "zrp_a", LOW_FIELD_DEGREE, lo))
-        out.append(poly_tie(f"zrp_a_hi_{leg}", "zrp_a", degree, hi))
+        out.append(poly_equation(f"zrp_a_lo_{leg}", "zrp_a", LOW_FIELD_DEGREE, lo))
+        out.append(poly_equation(f"zrp_a_hi_{leg}", "zrp_a", degree, hi))
         for key in ("si_a", "al_a", "al_c"):
-            out.append(poly_tie(f"{key}_{leg}", key, degree, idx))
+            out.append(poly_equation(f"{key}_{leg}", key, degree, idx))
     return out
 
 
@@ -95,27 +95,27 @@ def main() -> None:
           f"{sorted(set(chain['status']))}", flush=True)
     collected: dict[str, dict[str, list[float]]] = {}
     for name, degree in (("Q5", 5), ("Q4", 4)):
-        fit = run_joint(data, chain, ties(data, degree))
+        fit = run_joint(data, chain, equations(data, degree))
         r = fit["result"]
         f2 = fit["inflation"] ** 2
         print()
         print(f"arm {name}: {fit['seconds']:.1f} s (load {os.getloadavg()[0]:.1f}), status {r.status}; "
               f"χ² {fit['chi2']:.1f} with {fit['n_free']} free, χ²r {fit['chi2r']:.4f}, "
               f"f {fit['inflation']:.3f}")
-        print(f"  {'law':16} {'deg':>3} {'tested':>6} | {'freed (verdict)':^34} | "
+        print(f"  {'equation':16} {'deg':>3} {'tested':>6} | {'freed (verdict)':^34} | "
               f"{'freed, no f²':^16} | {'tied':^22} | {'tied, no f²':^11} | chain points")
         got = collected.setdefault(name, {k: [] for k in ("freed", "freed_raw", "tied", "tied_raw",
                                                           "chain")})
         resolved = {x.name: x for x in fit["fit"].parametric}
         for ft in r.parametric_form:
-            tie = resolved[ft.tie]
+            equation = resolved[ft.equation]
             o, ti = ft.others_freed, ft.tied
             so, po = raw(o, f2)
             st, pt = raw(ti, f2)
-            key = next(k for k, p in TARGETS.items() if p == tie.target)
+            key = next(k for k, p in TARGETS.items() if p == equation.target)
             v, e = chain["traj"][key]
-            idx = list(tie.patterns)
-            m = len(tie.terms)
+            idx = list(equation.patterns)
+            m = len(equation.terms)
             c, _ = wls(t[idx], v[idx], e[idx], m - 1)
             pc = float(chi2_dist.sf(c, len(idx) - m))
             got["freed"].append(o.p_value)
@@ -123,7 +123,7 @@ def main() -> None:
             got["tied"].append(ti.p_value)
             got["tied_raw"].append(pt)
             got["chain"].append(pc)
-            print(f"  {ft.tie:16} {m - 1:3d} {ft.n_patterns:3d}/{ft.n_subset:<2d} | "
+            print(f"  {ft.equation:16} {m - 1:3d} {ft.n_patterns:3d}/{ft.n_subset:<2d} | "
                   f"{o.statistic:6.1f}/{o.dof:2d} p {o.p_value:6.3f} {'REJECT' if o.rejected else 'keep  '}"
                   f"    | {so:6.1f} p {po:6.3f} | {ti.statistic:6.1f}/{ti.dof:2d} p {ti.p_value:6.3f} | "
                   f"p {pt:6.3f}    | χ²r {c / (len(idx) - m):5.2f} p {pc:6.3f}")

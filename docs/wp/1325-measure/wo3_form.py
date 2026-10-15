@@ -1,4 +1,4 @@
-"""WP-1325, the form test out of sample: TOPAS's own laws on the WO3 ramp.
+"""WP-1325, the form test out of sample: TOPAS's own equations on the WO3 ramp.
 
     .venv/bin/python docs/wp/1325-measure/wo3_form.py [--first=0] [--last=99]
         [--each=] [--plan=staged] > docs/wp/1325-measure/wo3_form_results.txt
@@ -9,12 +9,12 @@ each pattern's better chain answer (``wo3_ramp.best_chain``).  Model, protocol
 and departures from TOPAS: ``wo3_ramp.py``'s docstring.  ``--first``/``--last``
 pick a window of the 100 patterns (0-based, inclusive).
 
-**The laws** are ``parametric_05.inp``'s, one per refinable cell parameter of
+**The equations** are ``parametric_05.inp``'s, one per refinable cell parameter of
 each phase, fourteen in all, each over every pattern of the window:
 
 * each cell edge, a₀ + g/(exp(θ_E/T) − 1), all nine with TOPAS's refined
   Einstein temperature θ_E = 125.370423 K **held**, since no linear basis
-  refines it (WP-1964).  So each is a ``design`` law with the two columns
+  refines it (WP-1964).  So each is a ``design`` equation with the two columns
   1 and 1/(exp(θ_E/T) − 1), coefficients a₀ and g in Å;
 * each angle, a quadratic in T (``polynomial``, rietx's centred form; TOPAS
   writes it c₀(1 + c₁T + c₂T²), the same space).
@@ -27,14 +27,14 @@ everything in one stage from the chain's answer; ``staged`` runs the chain's
 stages without B.
 
 **The order of the output is the measurement's protocol.**  The form test's
-verdicts are printed first, off the all-laws fit alone (per law the freed
+verdicts are printed first, off the all-equations fit alone (per equation the freed
 reading, the tied reading and the verdict; then the joint reading).  Only
-after them come the comparisons: the all-laws fit against the untied joint fit
-as a nested refit, each law against the chain's trajectory (the weighted χ²_red
-of the chain's points about the law's curve), and with ``--each=a,b`` (or
-``all``) those laws each alone refitted against the untied fit, whose χ² gain
+after them come the comparisons: the all-equations fit against the untied joint fit
+as a nested refit, each equation against the chain's trajectory (the weighted χ²_red
+of the chain's points about the equation's curve), and with ``--each=a,b`` (or
+``all``) those equations each alone refitted against the untied fit, whose χ² gain
 over the untied fit's χ²_red·f² is the refit the freed reading predicts
-(``form_freed.py``).  A figure of every trajectory with its law goes to the
+(``form_freed.py``).  A figure of every trajectory with its equation goes to the
 scratch directory.
 """
 
@@ -61,7 +61,7 @@ from wo3_ramp import (  # noqa: E402
     parse_args,
     plan,
     targets,
-    topas_law,
+    topas_equation,
 )
 
 import rietx as rx  # noqa: E402
@@ -83,20 +83,20 @@ def joint_plan() -> RefinementPlan:
         g for s in plan(False).stages for g in s.turn_on])])
 
 
-def topas_laws(temps: np.ndarray, theta: float, keys: list[str] | None = None
-               ) -> list[rx.ParametricTie]:
-    """``parametric_05.inp``'s fourteen laws over every pattern of a fit."""
+def topas_equations(temps: np.ndarray, theta: float, keys: list[str] | None = None
+               ) -> list[rx.ParametricEquation]:
+    """``parametric_05.inp``'s fourteen equations over every pattern of a fit."""
     out = []
     for key, path in targets().items():
         if keys is not None and key not in keys:
             continue
         name = key.split("_", 1)[1]
         if name in "abc":
-            out.append(rx.ParametricTie(
+            out.append(rx.ParametricEquation(
                 name=key, target=path, basis="design",
                 design=[[1.0, einstein(float(t), theta)] for t in temps]))
         else:
-            out.append(rx.ParametricTie(
+            out.append(rx.ParametricEquation(
                 name=key, target=path, basis="polynomial", terms=[[], ["T"], ["T", "T"]]))
     return out
 
@@ -104,10 +104,10 @@ def topas_laws(temps: np.ndarray, theta: float, keys: list[str] | None = None
 def widened(structures: list[rx.Structure]) -> list[rx.Structure]:
     """The chain's models with every cell window widened, for a joint fit.
 
-    A law's coefficients are free columns whose box cannot keep a tied target
+    An equation's coefficients are free columns whose box cannot keep a tied target
     inside the target's own bounds, and a target pushed outside them is
     refused at write-back (``ParameterTable.apply_to_models``).  The chain's
-    ±1.5 % sat binding on weak-phase cells, so a law seeded through those
+    ±1.5 % sat binding on weak-phase cells, so an equation seeded through those
     points broke it on the first trial.  Tied and untied fits take the same
     wider windows, so the nested comparison stays nested.
     """
@@ -126,7 +126,7 @@ def widened(structures: list[rx.Structure]) -> list[rx.Structure]:
     return out
 
 
-def joint(data: dict, chain: dict, ties: list[rx.ParametricTie],
+def joint(data: dict, chain: dict, equations: list[rx.ParametricEquation],
           subset: list[int] | None = None) -> dict:
     """One joint fit over ``subset`` of the 100 patterns, seeded from the chain."""
     idx = list(range(len(data["patterns"]))) if subset is None else subset
@@ -137,7 +137,7 @@ def joint(data: dict, chain: dict, ties: list[rx.ParametricTie],
         sharing=SharingMap(per_histogram=["phases.*"]),
         coordinates=rx.CoordinateTable(columns={"T": data["temps"][idx].tolist()},
                                        units={"T": "K"}),
-        parametric=ties or None)
+        parametric=equations or None)
     result = fit.fit([data["patterns"][k] for k in idx], plan=joint_plan(),
                      two_theta_limits=data["proto"]["limits"])
     s = result.statistics
@@ -161,7 +161,7 @@ def print_verdicts(result) -> None:
     print("FORM TEST VERDICTS (recorded before any comparison)")
     for t in result.parametric_form or []:
         verdict = {True: "REJECTED", False: "kept", None: "untested"}[t.rejected]
-        print(f"  {t.tie:8} {t.target:22} patterns {t.n_patterns:3d} of {t.n_subset:3d}  verdict {verdict}")
+        print(f"  {t.equation:8} {t.target:22} patterns {t.n_patterns:3d} of {t.n_subset:3d}  verdict {verdict}")
         print(f"  {'':8} freed  {reading(t.others_freed)}")
         print(f"  {'':8} tied   {reading(t.tied)}")
     print(f"  joint    {reading(result.parametric_form_joint)}")
@@ -181,7 +181,7 @@ def nested(label: str, tied: dict, untied: dict) -> str:
             f"p {chi2_dist.sf(stat, max(dfree, 1)):.3g}")
 
 
-def law_curve(result, key: str, temps: np.ndarray, theta: float) -> tuple[np.ndarray, np.ndarray]:
+def equation_curve(result, key: str, temps: np.ndarray, theta: float) -> tuple[np.ndarray, np.ndarray]:
     vals, esds = [], []
     for t in temps:
         if key.split("_", 1)[1] in "abc":
@@ -219,14 +219,14 @@ def figure(path: Path, proto: dict, temps: np.ndarray, traj: dict, untied, tied,
             uv, ue = per_pattern(untied, targets()[key], len(temps))
             ax.errorbar(temps + 0.6, uv, yerr=ue, fmt="s", ms=2, lw=0.5, color="tab:blue",
                         alpha=0.6, label="untied joint")
-        lv, le = law_curve(tied, key, temps, theta)
-        ax.plot(temps, lv, "-", color="tab:orange", lw=1.4, label="law (joint)")
+        lv, le = equation_curve(tied, key, temps, theta)
+        ax.plot(temps, lv, "-", color="tab:orange", lw=1.4, label="equation (joint)")
         ax.fill_between(temps, lv - le, lv + le, color="tab:orange", alpha=0.3, lw=0)
         i = int(targets()[key].split(".")[1])
         name = key.split("_", 1)[1]
-        ax.plot(temps, [topas_law(proto, i, name, float(t)) for t in temps], "--",
-                color="grey", lw=1, label="TOPAS law")
-        form = next(t for t in tied.parametric_form if t.tie == key)
+        ax.plot(temps, [topas_equation(proto, i, name, float(t)) for t in temps], "--",
+                color="grey", lw=1, label="TOPAS equation")
+        form = next(t for t in tied.parametric_form if t.equation == key)
         fr = form.others_freed or form.tied
         tag = "untested" if fr is None or fr.statistic is None else (
             f"freed p {fr.p_value:.2g} {'REJECT' if fr.rejected else 'keep'}")
@@ -258,7 +258,7 @@ def main() -> None:
     traj = {k: (v[idx], e[idx]) for k, (v, e) in chain["traj"].items()}
     n = len(idx)
     theta = data["proto"]["theta"]
-    print("WP-1325 out of sample: TOPAS's laws on the WO3 ramp, the form test first")
+    print("WP-1325 out of sample: TOPAS's equations on the WO3 ramp, the form test first")
     for line in machine():
         print(line)
     print(f"window    patterns {idx[0]}..{idx[-1]} (0-based), {n} patterns, "
@@ -268,15 +268,15 @@ def main() -> None:
           f"{src.count('wo3_chain_back')} backward; Σχ² {sum(chain['chi2'][k] for k in idx):.1f}; "
           f"Rwp {100 * min(chain['rwp'][k] for k in idx):.2f}-"
           f"{100 * max(chain['rwp'][k] for k in idx):.2f} %")
-    print(f"laws      9 edges a0 + g/(exp(θ/T)-1), θ {theta:.6f} K held; 5 angles quadratic in T; "
+    print(f"equations      9 edges a0 + g/(exp(θ/T)-1), θ {theta:.6f} K held; 5 angles quadratic in T; "
           f"joint plan {[s.name for s in joint_plan().stages]}, B held at the chain's")
     print(f"anchor    {TOPAS_RWP}")
     print(flush=True)
 
-    tied = joint(data, chain, topas_laws(temps, theta), subset=idx)
+    tied = joint(data, chain, topas_equations(temps, theta), subset=idx)
     r = tied["result"]
     s = r.statistics
-    print(f"all laws  {tied['seconds']:.1f} s; status {r.status}; iters {tied['iters']}; "
+    print(f"all equations  {tied['seconds']:.1f} s; status {r.status}; iters {tied['iters']}; "
           f"Rwp {100 * s.rwp:.3f} %; χ² {tied['chi2']:.1f} with {tied['n_free']} free; "
           f"χ²r {tied['chi2r']:.3f}, f {tied['inflation']:.3f}", flush=True)
     print()
@@ -303,34 +303,34 @@ def main() -> None:
     print(f"untied    {untied['seconds']:.1f} s; status {u.status}; iters {untied['iters']}; "
           f"Rwp {100 * u.statistics.rwp:.3f} %; χ² {untied['chi2']:.1f} with "
           f"{untied['n_free']} free; χ²r {untied['chi2r']:.3f}, f {untied['inflation']:.3f}")
-    print(nested("all laws", tied, untied))
+    print(nested("all equations", tied, untied))
     j = r.parametric_form_joint
     if j is not None and j.statistic is not None:
         own = tied["chi2r"] * tied["inflation"] ** 2
         print(f"          joint reading's gain {j.statistic * own:9.1f} for {j.dof} "
               f"(refit Δχ² {tied['chi2'] - untied['chi2']:.1f} for "
               f"{untied['n_free'] - tied['n_free']})")
-    print("diagnostics, all laws:", sorted({d.code for d in r.diagnostics}))
+    print("diagnostics, all equations:", sorted({d.code for d in r.diagnostics}))
     print("diagnostics, untied:  ", sorted({d.code for d in u.diagnostics}))
     held = sorted({p for st in r.stages for p in st.held})
-    print(f"held in the all-laws fit ({len(held)}):", held[:10], "…" if len(held) > 10 else "")
+    print(f"held in the all-equations fit ({len(held)}):", held[:10], "…" if len(held) > 10 else "")
     print()
 
-    print("coefficients (all-laws fit) beside TOPAS's")
+    print("coefficients (all-equations fit) beside TOPAS's")
     prm = data["proto"]["prm"]
     for c in r.parametric or []:
         esd = c.esd if c.esd is not None else float("nan")
-        print(f"  {c.tie:8} {c.term:6} {c.value:14.7g} ± {esd:.3g}")
+        print(f"  {c.equation:8} {c.term:6} {c.value:14.7g} ± {esd:.3g}")
     print("  TOPAS edges (a0 + g): " + ", ".join(
         f"{k}: {prm['zero_' + k[0] + k[2]]:.5f} + {prm['grad_' + k[0] + k[2]]:.5f}"
         for k in targets() if k.split('_', 1)[1] in 'abc'))
     print()
 
-    print("each law against the chain's trajectory: weighted χ²_red of the chain points about "
-          "the law's curve (points with an esd only)")
+    print("each equation against the chain's trajectory: weighted χ²_red of the chain points about "
+          "the equation's curve (points with an esd only)")
     for key in targets():
         v, e = traj[key]
-        lv, _ = law_curve(r, key, temps, theta)
+        lv, _ = equation_curve(r, key, temps, theta)
         ok = np.isfinite(v) & np.isfinite(e) & (e > 0)
         z = (v[ok] - lv[ok]) / e[ok]
         m = 2 if key.split("_", 1)[1] in "abc" else 3
@@ -343,20 +343,20 @@ def main() -> None:
     stem = f"form_trajectories_{idx[0]}_{idx[-1]}.png"
     figure(SCRATCH / stem, data["proto"], temps, traj, u, r, theta,
            f"WO3, patterns {idx[0]}-{idx[-1]}: chain (black), untied joint (blue), "
-           f"TOPAS-form law (orange), TOPAS's law (grey dashed)")
+           f"TOPAS-form equation (orange), TOPAS's equation (grey dashed)")
     print(f"figure    {stem} in the scratch directory")
 
     keys = (list(targets()) if args["each"] == "all"
             else [k for k in str(args["each"]).split(",") if k])
     if keys:
         print()
-        print("each law alone, refitted, against the untied fit (the freed reading's refit)")
-        freed = {t.tie: t.others_freed for t in r.parametric_form}
+        print("each equation alone, refitted, against the untied fit (the freed reading's refit)")
+        freed = {t.equation: t.others_freed for t in r.parametric_form}
         for key in keys:
-            one = joint(data, chain, topas_laws(temps, theta, keys=[key]), subset=idx)
+            one = joint(data, chain, topas_equations(temps, theta, keys=[key]), subset=idx)
             t1 = one["result"].parametric_form[0]
             print(nested(key, one, untied) + f" | alone {reading(t1.tied)} | "
-                  f"all-laws freed {reading(freed.get(key))}", flush=True)
+                  f"all-equations freed {reading(freed.get(key))}", flush=True)
 
 
 if __name__ == "__main__":

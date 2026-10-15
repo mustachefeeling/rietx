@@ -53,7 +53,7 @@ value (calibrated at the start, printed in the header).
    over t, noise = each point's chain variance; s and ℓ by REML (the mean's
    coefficients profiled), s floored at 2 % of the median chain esd; the
    latent value and its variance at every pattern by universal kriging.
-4. ``tie`` -- the hard parametric tie: one ``MultiHistogramRefinement`` with
+4. ``tie`` -- the hard parametric equation: one ``MultiHistogramRefinement`` with
    ``SharingMap(per_histogram=["phases.*"])`` and the minor cell tied in every
    table to vars.a0 + vars.a1·t_h, as ``synthetic_ramp.py`` ties LaB₆'s.
 5. ``kernel`` -- the same joint fit with the minor cell its own column per

@@ -531,7 +531,7 @@ present with `vary=False`.
 | `RefinedParameter.stderr` | the esd, or None if it could not be estimated |
 | `RefinedParameter.vary` | false on the tied rows, which is how to spot them |
 | `RefinedParameter.at_bound` | true, false, or None where the row was not tested |
-| `RefinedParameter.laws` | the parametric declarations that set the row ([](series.md)), empty where none did, and None on a row a result from before 1.10 carries |
+| `RefinedParameter.equations` | the parametric declarations that set the row ([](series.md)), empty where none did, and None on a row a result from before 1.10 carries |
 
 A parameter the data said nothing about reports no esd rather than a small one.
 A free parameter can end up in a direction the residual does not move at all

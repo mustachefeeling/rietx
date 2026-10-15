@@ -2139,7 +2139,7 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # 0.52, and the time-of-flight axis and ``TOFSource`` (issue #193) 0.53,
     # and the floating origin's ``"centroid"`` member 0.54, and WP-1325's
     # ``RefinementResult.parametric`` 0.55 and ``.parametric_form`` 0.56, and
-    # its ``RefinedParameter.laws`` 0.57.
+    # its ``RefinedParameter.equations`` 0.57.
     assert caps.schema_version == "0.57"
 
 

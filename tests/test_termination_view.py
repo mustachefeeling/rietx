@@ -427,7 +427,7 @@ def _coefficients() -> list:
     these rows are a projection of the field."""
     from rietx import ParametricCoefficient
 
-    common = dict(tie="a_T", target="phases.0.cell.a", vary=True,
+    common = dict(equation="a_T", target="phases.0.cell.a", vary=True,
                   reference={"T": 750.0})
     return [
         ParametricCoefficient(term="1", path="vars.a_T_0", value=4.17531,

@@ -1,6 +1,6 @@
 """WP-1325: does a score test at the tied answer give the refit's verdict?
 
-The nested test of § Measured on real data refits the joint model with no law
+The nested test of § Measured on real data refits the joint model with no equation
 and divides the χ² it gains by χ²_red·f².  A score test reads the same gain
 off the tied answer alone: each subset pattern's own target column is
 appended to its block, and one linear least-squares step with every other
@@ -8,7 +8,7 @@ column refitted says how much χ² freeing the targets would buy
 (``optimize.blocked.added_columns_gain``).  It needs the tied fit's Jacobian
 and residual only, so it costs no refit.
 
-Run on ``real_ramp.py``'s window and protocol.  For every law of that script
+Run on ``real_ramp.py``'s window and protocol.  For every equation of that script
 (the three targets together, each alone, the cubic quadratic), it prints the
 score's gain beside the refit's Δχ², and both statistics: the refit's F/f²,
 over the untied fit's χ²_red and f, and the score's, over the tied fit's
@@ -55,18 +55,18 @@ from rietx.params.parametric import target_columns  # noqa: E402
 from tests import local_data  # noqa: E402
 
 
-def joint(patterns, chain, temps, limits, laws: dict[str, int]) -> dict:
-    """One joint fit, ``laws`` mapping a target key to its polynomial degree."""
+def joint(patterns, chain, temps, limits, equations: dict[str, int]) -> dict:
+    """One joint fit, ``equations`` mapping a target key to its polynomial degree."""
     series = chain["series"]
-    ties = [rx.ParametricTie(name=key, target=TARGETS[key], basis="polynomial",
+    equations = [rx.ParametricEquation(name=key, target=TARGETS[key], basis="polynomial",
                              terms=[["T"] * j for j in range(degree + 1)])
-            for key, degree in laws.items()]
+            for key, degree in equations.items()]
     t0 = time.perf_counter()
     fit = rx.MultiHistogramRefinement(
         list(series.fitted_structures), list(series.fitted_instruments),
         sharing=SharingMap(per_histogram=["phases.*"]),
         coordinates=rx.CoordinateTable(columns={"T": list(temps)}, units={"T": "K"}),
-        parametric=ties or None)
+        parametric=equations or None)
     result = fit.fit(patterns, plan=plan(), two_theta_limits=limits)
     s = result.statistics
     return dict(fit=fit, result=result, seconds=time.perf_counter() - t0,
@@ -76,7 +76,7 @@ def joint(patterns, chain, temps, limits, laws: dict[str, int]) -> dict:
 
 def score(fit, names: list[str] | None) -> dict:
     """The score test at ``fit``'s answer, freeing the targets of ``names``
-    (every law when ``None``) per pattern."""
+    (every equation when ``None``) per pattern."""
     mt = fit.mtable
     t0 = time.perf_counter()
     residual, jacobian, n_data = lsq._multi_closures(fit._models, mt, layout="blocked")
@@ -155,8 +155,8 @@ def main() -> None:
 
     every = joint(patterns, chain, temps, limits, dict.fromkeys(TARGETS, 1))
     line("all three", every, untied, score(every["fit"], None))
-    # each law scored at the all-three answer, the other two still tied: what
-    # a fit with several laws would report per law
+    # each equation scored at the all-three answer, the other two still tied: what
+    # a fit with several equations would report per equation
     for key in TARGETS:
         sc = score(every["fit"], [key])
         print(f"  {key:10} at the all-three answer: score gain {sc['gain']:8.1f} for "

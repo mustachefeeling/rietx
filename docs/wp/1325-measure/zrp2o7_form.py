@@ -1,16 +1,16 @@
-"""WP-1325, the form test out of sample: cell laws on the ZrP2O7 ramp.
+"""WP-1325, the form test out of sample: cell equations on the ZrP2O7 ramp.
 
     .venv/bin/python docs/wp/1325-measure/zrp2o7_form.py \
         > docs/wp/1325-measure/zrp2o7_form_results.txt
 
 Run from the repository root (2942 s on 2026-10-14 at load averages of 4 to
-67, most of it the 18 single-law refits; one process; the data from
+67, most of it the 18 single-equation refits; one process; the data from
 ``python -m tests.local_data durham-topas/zrp2o7``).  The model, protocol and
 fits are ``zrp2o7_model.py``'s.  This script prints, in this order:
 
 1. **The chain** over all 37 patterns (303 K -> 1173 K -> 304 K), warm-started
    in measurement order, and its diagnostics.
-2. **The degree of each law, chosen from the chain's points.**  Per target and
+2. **The degree of each equation, chosen from the chain's points.**  Per target and
    per leg, a weighted least-squares polynomial through the chain's values and
    esds, with a sequential F-test: a term is added while it is significant at
    95 % against the larger fit's residual, and the first that is not stops the
@@ -22,24 +22,24 @@ fits are ``zrp2o7_model.py``'s.  This script prints, in this order:
    each one joint fit seeded from the chain under
    ``SharingMap(per_histogram=["phases.*"])``:
 
-   * ``A``: one law per cell edge over all 37 patterns, heating and cooling as
-     one.  ZrP2O7 a's law crosses the transition, so it is a known-wrong form,
+   * ``A``: one equation per cell edge over all 37 patterns, heating and cooling as
+     one.  ZrP2O7 a's equation crosses the transition, so it is a known-wrong form,
      the positive control.
-   * ``A'``: as A, with ZrP2O7 a one law per phase field, both legs in each.
-   * ``B``: one law per leg per cell edge, on disjoint subsets (eight laws).
-   * ``B'``: as B, with ZrP2O7 a one law per leg per phase field (ten laws).
+   * ``A'``: as A, with ZrP2O7 a one equation per phase field, both legs in each.
+   * ``B``: one equation per leg per cell edge, on disjoint subsets (eight equations).
+   * ``B'``: as B, with ZrP2O7 a one equation per leg per phase field (ten equations).
 
-   Per law: patterns tested of the subset, the others-freed reading, the tied
+   Per equation: patterns tested of the subset, the others-freed reading, the tied
    reading, the verdict; then the joint reading.  Each reading is also given
    without the f² divisor (statistic × f², p from χ²'s tail), since that
    divisor was settled on one ramp.
-4. **The comparisons.**  Each law against the chain's trajectory (the same form
+4. **The comparisons.**  Each equation against the chain's trajectory (the same form
    fitted through the chain's points of the subset: χ²_red and p); each arm
    against the refit (the untied joint fit's χ² gain over the arm, as
-   ``form_score.py``); each law alone refitted against the untied fit (one
-   joint fit per distinct law); A' against B', the nested test of one law per
-   leg against one over both; and the leg offset per target, from B''s laws.
-   A figure of the trajectories with each arm's laws goes to the scratch
+   ``form_score.py``); each equation alone refitted against the untied fit (one
+   joint fit per distinct equation); A' against B', the nested test of one equation per
+   leg against one over both; and the leg offset per target, from B''s equations.
+   A figure of the trajectories with each arm's equations goes to the scratch
    directory passed as ``--plots=DIR`` (none by default).
 """
 
@@ -60,7 +60,7 @@ from zrp2o7_model import (  # noqa: E402
     TARGETS,
     load,
     machine,
-    poly_tie,
+    poly_equation,
     run_chain,
     run_joint,
 )
@@ -134,21 +134,21 @@ def arms(data: dict, deg: dict[str, int]) -> dict[str, list]:
         return [k for k in idx if (t[k] < TRANSITION_K) == lo]
 
     smooth = [k for k in TARGETS if k != "zrp_a"]
-    a = [poly_tie(k, k, deg[k], None) for k in TARGETS]
-    a2 = ([poly_tie("zrp_a_lo", "zrp_a", deg["zrp_a_lo"], field(every, True)),
-           poly_tie("zrp_a_hi", "zrp_a", deg["zrp_a_hi"], field(every, False))]
-          + [poly_tie(k, k, deg[k], None) for k in smooth])
-    b = [poly_tie(f"{k}_{leg}", k, deg[k], idx)
+    a = [poly_equation(k, k, deg[k], None) for k in TARGETS]
+    a2 = ([poly_equation("zrp_a_lo", "zrp_a", deg["zrp_a_lo"], field(every, True)),
+           poly_equation("zrp_a_hi", "zrp_a", deg["zrp_a_hi"], field(every, False))]
+          + [poly_equation(k, k, deg[k], None) for k in smooth])
+    b = [poly_equation(f"{k}_{leg}", k, deg[k], idx)
          for k in TARGETS for leg, idx in (("heat", heat), ("cool", cool))]
-    b2 = ([poly_tie(f"zrp_a_{f}_{leg}", "zrp_a", deg[f"zrp_a_{f}"], field(idx, f == "lo"))
+    b2 = ([poly_equation(f"zrp_a_{f}_{leg}", "zrp_a", deg[f"zrp_a_{f}"], field(idx, f == "lo"))
            for f in ("lo", "hi") for leg, idx in (("heat", heat), ("cool", cool))]
-          + [poly_tie(f"{k}_{leg}", k, deg[k], idx)
+          + [poly_equation(f"{k}_{leg}", k, deg[k], idx)
              for k in smooth for leg, idx in (("heat", heat), ("cool", cool))])
     return {"A": a, "A'": a2, "B": b, "B'": b2}
 
 
-def subset_label(tie, n: int) -> str:
-    return "all" if tie.patterns is None else f"{len(tie.patterns)} of {n}"
+def subset_label(equation, n: int) -> str:
+    return "all" if equation.patterns is None else f"{len(equation.patterns)} of {n}"
 
 
 def reading_line(r, f2: float) -> str:
@@ -164,10 +164,10 @@ def print_verdicts(name: str, fit: dict, n: int) -> None:
     f2 = fit["inflation"] ** 2
     print(f"arm {name}: {fit['seconds']:.1f} s (load {os.getloadavg()[0]:.1f}), status {r.status}; "
           f"χ² {fit['chi2']:.1f} with {fit['n_free']} free, χ²r {fit['chi2r']:.4f}, f {fit['inflation']:.3f}")
-    ties = {t.name: t for t in fit["fit"].parametric}
+    equations = {t.name: t for t in fit["fit"].parametric}
     for ft in r.parametric_form or []:
-        tie = ties[ft.tie]
-        print(f"  {ft.tie:16} {tie.target:16} deg {len(tie.terms) - 1} subset {subset_label(tie, n):9} "
+        equation = equations[ft.equation]
+        print(f"  {ft.equation:16} {equation.target:16} deg {len(equation.terms) - 1} subset {subset_label(equation, n):9} "
               f"tested {ft.n_patterns}/{ft.n_subset} verdict {'REJECT' if ft.rejected else 'keep'}")
         print(f"  {'':16} freed {reading_line(ft.others_freed, f2)}")
         print(f"  {'':16} tied  {reading_line(ft.tied, f2)}")
@@ -181,16 +181,16 @@ def print_verdicts(name: str, fit: dict, n: int) -> None:
 def trajectory_check(fit: dict, chain: dict, data: dict) -> None:
     """The same form through the chain's points of the subset."""
     t = data["temps"]
-    for tie in fit["fit"].parametric:
-        key = next(k for k, p in TARGETS.items() if p == tie.target)
-        idx = list(range(len(t))) if tie.patterns is None else list(tie.patterns)
+    for equation in fit["fit"].parametric:
+        key = next(k for k, p in TARGETS.items() if p == equation.target)
+        idx = list(range(len(t))) if equation.patterns is None else list(equation.patterns)
         v, e = chain["traj"][key]
-        m = len(tie.terms)
+        m = len(equation.terms)
         c, _ = wls(t[idx], v[idx], e[idx], m - 1)
         dof = len(idx) - m
         p = chi2_dist.sf(c, dof) if dof > 0 else float("nan")
-        verdict = next(ft.rejected for ft in fit["result"].parametric_form if ft.tie == tie.name)
-        print(f"  {tie.name:16} chain points χ² {c:8.1f}/{dof:3d} = {c / max(dof, 1):7.2f}, "
+        verdict = next(ft.rejected for ft in fit["result"].parametric_form if ft.equation == equation.name)
+        print(f"  {equation.name:16} chain points χ² {c:8.1f}/{dof:3d} = {c / max(dof, 1):7.2f}, "
               f"p {p:6.3g} | form test {'REJECT' if verdict else 'keep'}")
 
 
@@ -206,16 +206,16 @@ def refit_line(label: str, tied: dict, untied: dict) -> str:
 
 
 def leg_offsets(fit: dict, data: dict) -> None:
-    """Cooling's law minus heating's at common temperatures, in Å and in K."""
+    """Cooling's equation minus heating's at common temperatures, in Å and in K."""
     r = fit["result"]
     names = [t.name for t in fit["fit"].parametric]
     for name in names:
         if not name.endswith("_heat"):
             continue
         other = name.replace("_heat", "_cool")
-        ties = {t.name: t for t in fit["fit"].parametric}
-        lo = max(min(data["temps"][k] for k in ties[n].patterns) for n in (name, other))
-        hi = min(max(data["temps"][k] for k in ties[n].patterns) for n in (name, other))
+        equations = {t.name: t for t in fit["fit"].parametric}
+        lo = max(min(data["temps"][k] for k in equations[n].patterns) for n in (name, other))
+        hi = min(max(data["temps"][k] for k in equations[n].patterns) for n in (name, other))
         cells = []
         for T in np.linspace(lo, hi, 4):
             vh = r.parametric_value(name, {"T": float(T)})
@@ -247,16 +247,16 @@ def plot(path: Path, data: dict, chain: dict, fits: dict) -> None:
                      label="cooling (chain)")
         for arm, style in (("A", ":"), ("A'", "-"), ("B'", "--")):
             r = fits[arm]["result"]
-            for tie in fits[arm]["fit"].parametric:
-                if tie.target != target:
+            for equation in fits[arm]["fit"].parametric:
+                if equation.target != target:
                     continue
-                idx = range(len(t)) if tie.patterns is None else tie.patterns
+                idx = range(len(t)) if equation.patterns is None else equation.patterns
                 tt = np.linspace(min(t[k] for k in idx), max(t[k] for k in idx), 200)
-                yy = [r.parametric_value(tie.name, {"T": float(x)}).value for x in tt]
-                color = "C3" if tie.name.endswith("_heat") else "C0" if tie.name.endswith("_cool") else "k"
+                yy = [r.parametric_value(equation.name, {"T": float(x)}).value for x in tt]
+                color = "C3" if equation.name.endswith("_heat") else "C0" if equation.name.endswith("_cool") else "k"
                 top.plot(tt, yy, style, color=color, lw=1)
                 if arm == "A'":
-                    res = [(v[k] - r.parametric_value(tie.name, {"T": float(t[k])}).value) / e[k]
+                    res = [(v[k] - r.parametric_value(equation.name, {"T": float(t[k])}).value) / e[k]
                            for k in idx]
                     kk = list(idx)
                     hk = [i for i, k in enumerate(kk) if k in heat]
@@ -268,9 +268,9 @@ def plot(path: Path, data: dict, chain: dict, fits: dict) -> None:
         top.set_title(f"{key} ({target})")
         bot.set_xlabel("set T (K)")
     axs[0, 0].set_ylabel("Å")
-    axs[1, 0].set_ylabel("(chain - law A') / esd")
+    axs[1, 0].set_ylabel("(chain - equation A') / esd")
     axs[0, 0].legend(fontsize=7)
-    fig.suptitle("chain points; laws A (dotted), A' (solid), B' (dashed: red heat, blue cool)")
+    fig.suptitle("chain points; equations A (dotted), A' (solid), B' (dashed: red heat, blue cool)")
     fig.tight_layout()
     fig.savefig(path, dpi=90)
 
@@ -279,7 +279,7 @@ def main() -> None:
     plots = next((Path(a.split("=", 1)[1]) for a in sys.argv[1:] if a.startswith("--plots=")), None)
     data = load()
     n = len(data["temps"])
-    print("WP-1325, the form test out of sample: cell laws on the ZrP2O7 ramp "
+    print("WP-1325, the form test out of sample: cell equations on the ZrP2O7 ramp "
           "(Durham TOPAS tutorial 9.5)")
     for m in machine():
         print(m)
@@ -315,8 +315,8 @@ def main() -> None:
     print("VERDICTS (recorded before any comparison)")
     print("=" * 100)
     fits = {}
-    for name, ties in arms(data, deg).items():
-        fits[name] = run_joint(data, chain, ties)
+    for name, equations in arms(data, deg).items():
+        fits[name] = run_joint(data, chain, equations)
         print_verdicts(name, fits[name], n)
         print(flush=True)
 
@@ -336,34 +336,34 @@ def main() -> None:
     dchi2 = a2["chi2"] - b2["chi2"]
     dfree = b2["n_free"] - a2["n_free"]
     stat = dchi2 / (b2["chi2r"] * b2["inflation"] ** 2)
-    print(f"  A' against B' (one law per leg nests one law over both): Δχ² {dchi2:.1f} for {dfree}, "
+    print(f"  A' against B' (one equation per leg nests one equation over both): Δχ² {dchi2:.1f} for {dfree}, "
           f"/χ²r·f² {stat:.1f}, p {chi2_dist.sf(stat, dfree):.3g} "
           f"[no f²: p {chi2_dist.sf(dchi2 / b2['chi2r'], dfree):.3g}]")
     print(flush=True)
 
-    print("each law alone, refitted against the untied fit (one joint fit per distinct law), beside "
+    print("each equation alone, refitted against the untied fit (one joint fit per distinct equation), beside "
           "the freed reading's gain")
     alone: dict[tuple, dict] = {}
     for name, fit in fits.items():
         print(f" arm {name}")
         f2arm = fit["chi2r"] * fit["inflation"] ** 2
-        for tie in fit["fit"].parametric:
-            spec = (tie.name, tie.target, len(tie.terms), tuple(tie.patterns or ()))
+        for equation in fit["fit"].parametric:
+            spec = (equation.name, equation.target, len(equation.terms), tuple(equation.patterns or ()))
             if spec not in alone:
-                key = next(k for k, p in TARGETS.items() if p == tie.target)
-                alone[spec] = run_joint(data, chain, [poly_tie(tie.name, key, len(tie.terms) - 1,
-                                                              tie.patterns)])
+                key = next(k for k, p in TARGETS.items() if p == equation.target)
+                alone[spec] = run_joint(data, chain, [poly_equation(equation.name, key, len(equation.terms) - 1,
+                                                                  equation.patterns)])
             one = alone[spec]
-            ft = next(x for x in fit["result"].parametric_form if x.tie == tie.name)
+            ft = next(x for x in fit["result"].parametric_form if x.equation == equation.name)
             o = ft.others_freed
             gain = o.statistic * f2arm if o is not None and o.statistic is not None else float("nan")
             dchi2 = one["chi2"] - untied["chi2"]
-            print(f"  {refit_line(tie.name, one, untied)} | freed gain {gain:8.1f} "
+            print(f"  {refit_line(equation.name, one, untied)} | freed gain {gain:8.1f} "
                   f"({gain / dchi2 if dchi2 else float('nan'):5.2f} of the refit's)", flush=True)
     print()
 
-    print("leg offsets from arm B''s laws (cooling minus heating, esds combined as independent; "
-          "in K through the heating law's slope)")
+    print("leg offsets from arm B''s equations (cooling minus heating, esds combined as independent; "
+          "in K through the heating equation's slope)")
     leg_offsets(b2, data)
     print()
     print(f"total     {time.perf_counter() - t0:.0f} s; load at end {os.getloadavg()}")
@@ -376,7 +376,7 @@ def main() -> None:
                                        for T, x, s in zip(data["temps"], v, e)))
     if plots is not None:
         plots.mkdir(parents=True, exist_ok=True)
-        plot(plots / "zrp2o7_laws.png", data, chain, fits)
+        plot(plots / "zrp2o7_equations.png", data, chain, fits)
 
 
 if __name__ == "__main__":

@@ -583,7 +583,7 @@ columns at once {cite}`rao1948`, and the test needs no refit. The denominator
 is the answer's own $\chi^2_{\mathrm{red}}$, the restricted estimate the score
 test takes. Dividing by the squared Bérar-Lelann factor of
 {eq}`est-berar-lelann` as well, as an esd is inflated, made the test far
-stricter than $\gamma$. On laws that must hold any smooth truth, over three
+stricter than $\gamma$. On equations that must hold any smooth truth, over three
 real ramps, none of 261 readings rejected with that factor and 12 of 242
 (5.0 %) without it.
 
@@ -602,10 +602,10 @@ directions together. That joint reading rejects the set and names no
 declaration in it.
 
 On the 33-pattern ZrMo₂O₈ ramp the numerator was 0.98-1.04 of the $\chi^2$ a
-full untied refit removed, for the strong phase's laws and for three laws
-together, and the verdict matched the refit's on all five laws tested. At the
-three-law answer, the second reading of the cubic law's numerator was 575.3,
-against the 576.1 a refit of that law alone removed. A pattern that cannot see
+full untied refit removed, for the strong phase's equations and for three equations
+together, and the verdict matched the refit's on all five equations tested. At the
+three-equation answer, the second reading of the cubic equation's numerator was 575.3,
+against the 576.1 a refit of that equation alone removed. A pattern that cannot see
 the target adds nothing to the numerator, so the test
 cannot check how a form carries through the patterns where the target is
 invisible. On synthetic ramps whose minor phase faded out, or was broad and

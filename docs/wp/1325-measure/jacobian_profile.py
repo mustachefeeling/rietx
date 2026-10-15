@@ -20,7 +20,7 @@ Four measurements:
    under the GIL;
 3. which columns reach the peak chain in the last stage;
 4. the Jacobian loop with each **repeated peak-chain path computed once per
-   pattern**: a tie's coefficient columns all arrive under their target's name,
+   pattern**: an equation's coefficient columns all arrive under their target's name,
    so this is what computing ∂y/∂(target) once and scaling it by Φ would save.
    **Timing only** — the cached column is returned unscaled, so its values are
    wrong.
@@ -127,10 +127,10 @@ ls._jacobian_for = _jacobian_spy
 
 
 def fit(n: int, profile: cProfile.Profile | None = None):
-    patterns, coords, tie = library(n)
+    patterns, coords, equation = library(n)
     blocked.set_layout("blocked")
     s, ins = _start_models()
-    ref = MultiHistogramRefinement(s, [ins] * n, coordinates=coords, parametric=[tie])
+    ref = MultiHistogramRefinement(s, [ins] * n, coordinates=coords, parametric=[equation])
     for k in spent:
         spent[k], calls[k] = 0.0, 0
     t = time.perf_counter()

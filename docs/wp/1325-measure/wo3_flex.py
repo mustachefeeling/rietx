@@ -1,4 +1,4 @@
-"""WP-1325, the form test's false-alarm rate on real residuals: over-flexible laws on WO3.
+"""WP-1325, the form test's false-alarm rate on real residuals: over-flexible equations on WO3.
 
     .venv/bin/python docs/wp/1325-measure/wo3_flex.py [--size=20] [--degree=4]
         [--windows=all] > docs/wp/1325-measure/wo3_flex_results.txt
@@ -23,11 +23,11 @@ structure on a few-pattern scale.  ``--windows`` picks windows by index
 
 One tied joint fit per window: the windows share no parameter (every phase
 path and the instrument are per pattern), so this is the fit with every
-window's laws at once, split into independent blocks.  Each fit's form test is
-recorded per law (the others-freed reading, the verdict, and the tied one) and
+window's equations at once, split into independent blocks.  Each fit's form test is
+recorded per equation (the others-freed reading, the verdict, and the tied one) and
 jointly.  At the end: how many readings reject at 95 %, the p-values
 themselves, and a Kolmogorov-Smirnov test of each set against Uniform(0, 1).
-A calibrated test gives uniform p-values on true laws; real, serially
+A calibrated test gives uniform p-values on true equations; real, serially
 correlated residuals are what the f² divisor is meant to absorb.
 """
 
@@ -49,10 +49,10 @@ from wo3_ramp import SCRATCH, best_chain, load, machine, parse_args, targets  # 
 import rietx as rx  # noqa: E402
 
 
-def window_laws(degree: int) -> list[rx.ParametricTie]:
+def window_equations(degree: int) -> list[rx.ParametricEquation]:
     """Every cell target as a polynomial of ``degree`` in T over the fit's patterns."""
     terms = [["T"] * j for j in range(degree + 1)]
-    return [rx.ParametricTie(name=key, target=path, basis="polynomial", terms=terms)
+    return [rx.ParametricEquation(name=key, target=path, basis="polynomial", terms=terms)
             for key, path in targets().items()]
 
 
@@ -69,7 +69,7 @@ def main() -> None:
     picked = (range(len(windows)) if args["windows"] == "all"
               else [int(w) for w in str(args["windows"]).split(",")])
 
-    print("WP-1325 out of sample: over-flexible laws on the WO3 ramp (false-alarm arm)")
+    print("WP-1325 out of sample: over-flexible equations on the WO3 ramp (false-alarm arm)")
     for line in machine():
         print(line)
     print(f"arm       {len(windows)} windows of {size} patterns; degree {degree} in T on all "
@@ -83,7 +83,7 @@ def main() -> None:
     for w in picked:
         idx = windows[w]
         t = data["temps"][idx]
-        one = joint(data, chain, window_laws(degree), subset=idx)
+        one = joint(data, chain, window_equations(degree), subset=idx)
         r = one["result"]
         s = r.statistics
         f2 = one["inflation"] ** 2
@@ -93,7 +93,7 @@ def main() -> None:
               flush=True)
         for ft in r.parametric_form or []:
             verdict = {True: "REJECTED", False: "kept", None: "untested"}[ft.rejected]
-            print(f"  {ft.tie:8} patterns {ft.n_patterns:3d} of {ft.n_subset:3d}  {verdict}")
+            print(f"  {ft.equation:8} patterns {ft.n_patterns:3d} of {ft.n_subset:3d}  {verdict}")
             print(f"  {'':8} freed  {reading(ft.others_freed)}")
             print(f"  {'':8} tied   {reading(ft.tied)}")
             for read, bucket in ((ft.others_freed, p_freed), (ft.tied, p_tied)):
@@ -104,7 +104,7 @@ def main() -> None:
                    else float(chi2_dist.sf(o.statistic * f2, o.dof)))
             if nof is not None:
                 p_freed_nof.append(nof)
-            rows.append((w, ft.tie, ft.n_patterns, ft.rejected,
+            rows.append((w, ft.equation, ft.n_patterns, ft.rejected,
                          None if o is None else o.p_value,
                          None if ft.tied is None else ft.tied.p_value, nof))
         j = r.parametric_form_joint
@@ -118,9 +118,9 @@ def main() -> None:
         print(flush=True)
 
     print("SUMMARY (p over χ²_red·f², the shipped test; 'no f²' divides by χ²_red alone)")
-    for label, ps in (("per-law freed (the verdict)", p_freed), ("per-law tied", p_tied),
+    for label, ps in (("per-equation freed (the verdict)", p_freed), ("per-equation tied", p_tied),
                       ("joint, one per window", p_joint),
-                      ("per-law freed, no f²", p_freed_nof), ("joint, no f²", p_joint_nof)):
+                      ("per-equation freed, no f²", p_freed_nof), ("joint, no f²", p_joint_nof)):
         ps = np.array(ps)
         if ps.size == 0:
             print(f"  {label}: none")
@@ -131,9 +131,9 @@ def main() -> None:
               f"median p {np.median(ps):.3f}")
         print("    p: " + " ".join(f"{p:.3g}" for p in sorted(ps)))
     print()
-    print("per law (window, law, patterns tested, verdict, freed p, tied p, freed p no f²):")
-    for w, tie, npat, rej, pf, pt, pn in rows:
-        print(f"  {w} {tie:8} {npat:3d} {str(rej):5} "
+    print("per equation (window, equation, patterns tested, verdict, freed p, tied p, freed p no f²):")
+    for w, equation, npat, rej, pf, pt, pn in rows:
+        print(f"  {w} {equation:8} {npat:3d} {str(rej):5} "
               f"{'—' if pf is None else f'{pf:.3g}':>8} {'—' if pt is None else f'{pt:.3g}':>8} "
               f"{'—' if pn is None else f'{pn:.3g}':>9}")
     out = SCRATCH / f"flex_p_{size}_{degree}.json"

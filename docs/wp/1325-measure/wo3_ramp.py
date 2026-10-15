@@ -21,14 +21,14 @@ from 0.  The file itself records no temperature.
 **The model.**  The three phases, P2₁/n (γ, "m"), P-1 (δ, "t") and Pc (ε, "p"),
 are read from ``d9_02592_3phase_01.inp`` by ``rx.read_project_model``.  Three
 things are then taken from ``parametric_05.inp`` instead, since that is the
-fit the laws come from:
+fit the equations come from:
 
 * every atom's coordinates, from its site lines, matched by order within each
   phase.  TOPAS refines the W coordinates once across all 100 patterns and
   holds the O ones; here all are held at TOPAS's answer;
-* each phase's starting cell, TOPAS's laws evaluated at the first pattern's
+* each phase's starting cell, TOPAS's equations evaluated at the first pattern's
   temperature.  The single-pattern input's P-1 angles (90.52, 90.32, 90.13)
-  sit 1.4° from the laws' 89.14 for α at 300 K, a weak phase's wandering;
+  sit 1.4° from the equations' 89.14 for α at 300 K, a weak phase's wandering;
 * each phase's strain, ``Strain_G`` and ``Strain_L``: TOPAS's Gaussian and
   Lorentzian FWHM per tanθ, so ``gauss_strain`` = G² (a variance) and
   ``lor_strain`` = L.  TOPAS shares one pair per phase across all patterns;
@@ -104,7 +104,7 @@ SCRATCH = Path(os.environ.get(
 PHASES = {0: ("m", "P21/n", ("a", "b", "c", "beta")),
           1: ("t", "P-1", ("a", "b", "c", "alpha", "beta", "gamma")),
           2: ("p", "Pc", ("a", "b", "c", "beta"))}
-#: TOPAS's angle-law parameter stems per (phase, angle)
+#: TOPAS's angle-equation parameter stems per (phase, angle)
 ANGLE_STEMS = {(0, "beta"): "beta_m", (1, "alpha"): "alph_t", (1, "beta"): "beta_t",
                (1, "gamma"): "gamm_t", (2, "beta"): "beta_p"}
 #: TOPAS's per-pattern angle windows (parametric_05.inp § 5's minmax macros)
@@ -126,7 +126,7 @@ def _number(token: str) -> float:
 
 
 def protocol(text: str) -> dict:
-    """``parametric_05.inp``'s ranges, temperatures, laws, strains and sites."""
+    """``parametric_05.inp``'s ranges, temperatures, equations, strains and sites."""
     rows = re.findall(r'"d9_02592\.raw"\s+(\d+)\s+(\d+)', text)
     if len(rows) != 111:
         raise SystemExit(f"{SERIES_INP}: expected 11 + 100 #list rows, found {len(rows)}")
@@ -160,12 +160,12 @@ def protocol(text: str) -> dict:
 
 
 def einstein(t: float, theta: float) -> float:
-    """1/(exp(θ/T) − 1), the Einstein term of TOPAS's cell-edge law."""
+    """1/(exp(θ/T) − 1), the Einstein term of TOPAS's cell-edge equation."""
     return 1.0 / math.expm1(theta / t)
 
 
-def topas_law(proto: dict, phase: int, name: str, t: float) -> float:
-    """TOPAS's parametric_05 law for one cell parameter at temperature t."""
+def topas_equation(proto: dict, phase: int, name: str, t: float) -> float:
+    """TOPAS's parametric_05 equation for one cell parameter at temperature t."""
     tag = PHASES[phase][0]
     prm = proto["prm"]
     if name in "abc":
@@ -190,7 +190,7 @@ def structure(where: Path, proto: dict, t_start: float) -> rx.Structure:
         cell = phase.cell
         for name in PHASES[i][2]:
             p = getattr(cell, name)
-            p.value = topas_law(proto, i, name, t_start)
+            p.value = topas_equation(proto, i, name, t_start)
             if name in "abc":
                 p.min, p.max = p.value * (1 - CELL_WINDOW), p.value * (1 + CELL_WINDOW)
             else:
@@ -400,7 +400,7 @@ def main() -> None:
     print(f"window    ranges {data['window'][0]}..{data['window'][-1]} (0-based), {n} patterns, "
           f"T {data['temps'].max():.0f} -> {data['temps'].min():.0f} K")
     first_t = data["temps"][0 if args["direction"] == "forward" else -1]
-    print(f"direction {args['direction']}; the first fit starts from TOPAS's laws at {first_t:.0f} K")
+    print(f"direction {args['direction']}; the first fit starts from TOPAS's equations at {first_t:.0f} K")
     print(f"protocol  chain plan {[s.name for s in plan(True).stages]}; 2θ "
           f"{data['proto']['limits']}; θ_E {data['proto']['theta']:.6f} K")
     s0 = data["start"][0]

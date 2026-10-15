@@ -462,20 +462,25 @@ from .._nearmiss import did_you_mean
 #: rejects the declared form, by a score test at the answer.  Additive and
 #: defaulted to ``None``, as ``parametric`` is; an older build refuses a
 #: result carrying the field.
-#: 0.56 → 0.57 (WP-1325): ``RefinedParameter.laws``, the parametric
-#: declarations whose coefficients set a row; ``ParametricFormTest.n_subset``,
+#: 0.56 → 0.57 (WP-1325): ``RefinedParameter.equations``, the parametric
+#: equations whose coefficients set a row; ``ParametricFormTest.n_subset``,
 #: the subset's size beside the patterns tested; ``ParametricFormTest``'s
 #: ``dof``/``statistic``/``cut`` moved into two ``ParametricFormReading``s,
 #: ``tied`` and ``others_freed``, each with a ``p_value``;
-#: ``RefinementResult.parametric_laws``, each declaration as resolved with its
+#: ``RefinementResult.parametric_equations``, each equation as resolved with its
 #: coefficients' covariance; ``RefinementResult.parametric_form_joint``, the
-#: form test of every tested declaration at once, ``None`` below two.
+#: form test of every tested equation at once, ``None`` below two.
 #: ``ParametricFormTest.rejected`` is the ``others_freed`` reading's verdict
 #: where there is one, and ``ParametricFormTest.provisional_on`` names the
-#: other rejected declarations; every reading divides by χ²_red alone.  ``laws`` and ``parametric_laws`` default to
+#: other rejected equations; every reading divides by χ²_red alone.
+#: ``equations`` and ``parametric_equations`` default to
 #: ``None``, "not recorded", so an older result opens and claims nothing; the
 #: form-test fields are required and the old ones gone, ``parametric_form``
-#: being unreleased.
+#: being unreleased.  The declaration model is ``ParametricEquation``, which
+#: 1.9.0 called ``ParametricTie`` (no alias), and the field naming it is
+#: ``equation`` on ``ParametricCoefficient``, ``ParametricFormTest`` and
+#: ``RefinedParametricEquation``; ``ParametricCoefficient`` still reads the
+#: 0.55 key ``tie``, so a 1.9.0 result opens and is written back as ``equation``.
 SCHEMA_VERSION = "0.57"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

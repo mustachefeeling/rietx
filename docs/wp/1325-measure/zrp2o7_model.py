@@ -48,7 +48,7 @@ occupancy, coordinates, Biso) and the per-phase TCHZ.
   coordinate.
 * TOPAS computes the Si and Al2O3 cells from the temperature (Einstein terms,
   Taylor's quadratic) and refines its temperature calibration.  Here all four
-  cell edges refine per pattern instead: the WP declares laws in the set
+  cell edges refine per pattern instead: the WP declares equations in the set
   temperature on cell edges, never on a coordinate.
 
 The plan is ``scale_bkg``, ``disp``, ``cell``, ``sample_profile``, ``biso``,
@@ -273,19 +273,19 @@ def run_chain(data: dict) -> dict:
                 rwp=[s.rwp for s in stats])
 
 
-def poly_tie(name: str, key: str, degree: int, patterns: list[int] | None) -> rx.ParametricTie:
-    return rx.ParametricTie(name=name, target=TARGETS[key], basis="polynomial",
-                            terms=[["T"] * j for j in range(degree + 1)], patterns=patterns)
+def poly_equation(name: str, key: str, degree: int, patterns: list[int] | None) -> rx.ParametricEquation:
+    return rx.ParametricEquation(name=name, target=TARGETS[key], basis="polynomial",
+                                 terms=[["T"] * j for j in range(degree + 1)], patterns=patterns)
 
 
-def run_joint(data: dict, chain: dict, ties: list[rx.ParametricTie]) -> dict:
+def run_joint(data: dict, chain: dict, equations: list[rx.ParametricEquation]) -> dict:
     series = chain["series"]
     t0 = time.perf_counter()
     fit = rx.MultiHistogramRefinement(
         list(series.fitted_structures), list(series.fitted_instruments),
         sharing=SharingMap(per_histogram=["phases.*"]),
         coordinates=rx.CoordinateTable(columns={"T": data["temps"].tolist()}, units={"T": "K"}),
-        parametric=ties or None)
+        parametric=equations or None)
     result = fit.fit(data["patterns"], plan=plan(), two_theta_limits=data["proto"]["limits"])
     s = result.statistics
     return dict(seconds=time.perf_counter() - t0, fit=fit, result=result,

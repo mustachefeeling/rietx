@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..schemas.instrument import Instrument
-from ..schemas.parametric import CoordinateTable, ParametricTie
+from ..schemas.parametric import CoordinateTable, ParametricEquation
 from ..schemas.structure import Structure
 from .parametric import ResolvedParametric, least_squares_start, resolve_parametric
 from .vector import (
@@ -192,35 +192,35 @@ def _display_unit(path: str) -> str | None:
     return None if entry is None else entry.unit
 
 
-def _refuse_clashing_declarations(declared: list[ParametricTie], n: int) -> None:
+def _refuse_clashing_declarations(declared: list[ParametricEquation], n: int) -> None:
     """Two declarations may share no name, nor a target on one pattern (WP-1325).
 
     A name is its coefficients' paths, so two of one name would be one set of
     columns claimed twice.  A target is one tie per *pattern*, so two
-    declarations may drive it on disjoint subsets — one law per phase field,
+    declarations may drive it on disjoint subsets — one equation per phase field,
     a property varying smoothly inside a field and not across its boundary —
     but a pattern both subsets hold would have its tie silently replaced.
     """
     names: set[str] = set()
     targets: dict[str, list[tuple[str, set[int]]]] = {}
-    for tie in declared:
-        if tie.name in names:
+    for equation in declared:
+        if equation.name in names:
             raise ValueError(
-                f"two parametric ties are named {tie.name!r}: a name is its "
-                f"coefficients' paths (vars.{tie.name}_0, …), so each needs its own")
-        names.add(tie.name)
-        mine = set(range(n)) if tie.patterns is None else set(tie.patterns)
-        for other, theirs in targets.get(tie.target, []):
+                f"two parametric equations are named {equation.name!r}: a name is its "
+                f"coefficients' paths (vars.{equation.name}_0, …), so each needs its own")
+        names.add(equation.name)
+        mine = set(range(n)) if equation.patterns is None else set(equation.patterns)
+        for other, theirs in targets.get(equation.target, []):
             both = sorted(mine & theirs)
             if both:
                 raise ValueError(
-                    f"parametric ties {other!r} and {tie.name!r} both drive "
-                    f"{tie.target} on pattern{'' if len(both) == 1 else 's'} "
+                    f"parametric equations {other!r} and {equation.name!r} both drive "
+                    f"{equation.target} on pattern{'' if len(both) == 1 else 's'} "
                     f"{', '.join(map(str, both[:5]))}{' …' if len(both) > 5 else ''}: "
                     "a target follows one function per pattern. Give the two "
                     "declarations disjoint subsets (patterns=…), or combine them "
                     "into one")
-        targets.setdefault(tie.target, []).append((tie.name, mine))
+        targets.setdefault(equation.target, []).append((equation.name, mine))
 
 
 def _target_refusal(table: ParameterTable, e) -> str | None:
@@ -235,14 +235,14 @@ def _target_refusal(table: ParameterTable, e) -> str | None:
     """
     if e.locked:
         return ("is structurally fixed by symmetry or by the model (locked), so "
-                "no tie can drive it")
+                "no parametric equation can drive it")
     if e.tie is not None:
         sources = ", ".join(src for src, _ in e.tie.terms)
         return (f"is tied: = {_tie_text(e.tie)}. A target must be a parameter "
-                f"that moves itself; declare the tie on {sources} instead")
+                f"that moves itself; declare the equation on {sources} instead")
     if e.held:
         return ("is held (Phase.floating_origin fixes it), so no stage frees it; "
-                "declare the tie on another coordinate of the phase")
+                "declare the equation on another coordinate of the phase")
     if table._body_increment_kind(e.path) is not None:
         return ("is a rigid body's increment, which restarts at zero at every "
                 "commit while the body's record moves, so it is not one "
@@ -306,7 +306,7 @@ class MultiParameterTable:
     ``SharingMap.per_histogram`` override, a parametric target.
 
     ``parametric`` declares targets as functions of ``coordinates``
-    (:class:`~rietx.schemas.parametric.ParametricTie`): each target becomes
+    (:class:`~rietx.schemas.parametric.ParametricEquation`): each target becomes
     per-histogram, its coefficients ``vars.{name}_{j}`` are added to every
     table and fold onto one shared column each, and the target in each
     pattern of the subset is tied onto Σ_j Φ_kj·``vars.{name}_{j}``.  Every
@@ -317,7 +317,7 @@ class MultiParameterTable:
     def __init__(self, structure: Structure | list[Structure],
                  instruments: list[Instrument], *,
                  sharing: SharingMap | None = None,
-                 parametric: list[ParametricTie] | None = None,
+                 parametric: list[ParametricEquation] | None = None,
                  coordinates: CoordinateTable | None = None):
         if len(instruments) < 1:
             raise ValueError("need at least one instrument")
@@ -385,7 +385,7 @@ class MultiParameterTable:
         self._check_moment_frames_shared()
         self._rebuild_columns()
 
-    # -- per-pattern starting values and parametric ties (WP-1325) -----
+    # -- per-pattern starting values and parametric equations (WP-1325) -----
     def _check_starts_agree(self, starts: list[Structure]) -> None:
         """Refuse per-pattern starts that disagree on a shared path.
 
@@ -428,15 +428,15 @@ class MultiParameterTable:
                 f"differ from histogram 0{more}. A shared parameter is one column "
                 f"with one starting value; start every structure at one value, "
                 f"make it per-histogram (SharingMap(per_histogram=['{path}'])), "
-                f"or declare it a ParametricTie target")
+                f"or declare it a ParametricEquation target")
 
-    def _install_parametric(self, declared: list[ParametricTie],
+    def _install_parametric(self, declared: list[ParametricEquation],
                             coordinates: CoordinateTable | None) -> None:
         """Resolve each declaration, refuse what no table can carry, wire the rest.
 
         Refusals first, all of them, so a declaration that cannot be built
         leaves no half-wired table behind: the target must exist in every
-        subset histogram's model and be a parameter a tie may drive — not
+        subset histogram's model and be a parameter a parametric equation may drive — not
         locked, not already tied (its sources named), not held, not a rigid
         body's increment or a moment DOF, not a coordinate DOF whose
         anchor the subset's starting structures store differently, and not a
@@ -453,34 +453,34 @@ class MultiParameterTable:
         """
         n = self.n_histograms
         resolved: list[ResolvedParametric] = []
-        for tie in declared:
-            resolved.append(resolve_parametric(tie, coordinates, n,
-                                               target_unit=_display_unit(tie.target)))
+        for equation in declared:
+            resolved.append(resolve_parametric(equation, coordinates, n,
+                                               target_unit=_display_unit(equation.target)))
         for r in resolved:
             for h in r.patterns:
                 table = self.tables[h]
                 i = table._paths.get(r.target)
                 if i is None:
                     raise ValueError(
-                        f"parametric tie {r.name!r}: target {r.target!r} is not a "
+                        f"parametric equation {r.name!r}: target {r.target!r} is not a "
                         f"parameter of histogram {h}'s model; list them with "
                         f"[e.path for e in mtable.tables[{h}].entries]")
                 why = _target_refusal(table, table.entries[i])
                 if why:
-                    raise ValueError(f"parametric tie {r.name!r}: {r.target} in "
+                    raise ValueError(f"parametric equation {r.name!r}: {r.target} in "
                                      f"histogram {h} {why}")
             self._refuse_unanchorable(r)
             self._refuse_size_across_wavelengths(r)
             for path in r.paths:
                 if not self.sharing.is_shared(path):
                     raise ValueError(
-                        f"parametric tie {r.name!r}: the sharing map makes {path} "
+                        f"parametric equation {r.name!r}: the sharing map makes {path} "
                         "per-histogram (a per_histogram glob matches it), but a "
                         "coefficient is one number across the subset; narrow the "
                         "glob so vars.* stays shared")
                 if any(path in t._paths for t in self.tables):
                     raise ValueError(
-                        f"parametric tie {r.name!r}: {path} already exists; "
+                        f"parametric equation {r.name!r}: {path} already exists; "
                         "rename the declaration")
         follows: dict[str, None] = {}
         # one transpose of each table's ties, however many declarations ask it
@@ -500,7 +500,7 @@ class MultiParameterTable:
             start = np.array([e.value for e in targets], dtype=np.float64)
             coeffs = least_squares_start(r, start)
             lo, hi, unit = -np.inf, np.inf, None
-            if r.tie.basis == "constant":
+            if r.equation.basis == "constant":
                 # the one coefficient *is* the target in every pattern of the
                 # subset, so it carries the target's declared box and unit —
                 # WP-1119's renaming rule, which makes the column the target's
@@ -511,7 +511,7 @@ class MultiParameterTable:
                 hi = min(e.hi for e in targets)
                 if lo > hi:
                     raise ValueError(
-                        f"parametric tie {r.name!r}: the subset's patterns declare "
+                        f"parametric equation {r.name!r}: the subset's patterns declare "
                         f"{r.target} bounds with no common value ([{lo:g}, {hi:g}] "
                         "intersected), so no one value can be every pattern's")
                 coeffs = np.clip(coeffs, lo, hi)
@@ -526,7 +526,7 @@ class MultiParameterTable:
                 try:
                     self.tables[h].set_tie(r.target, tie)
                 except ValueError as exc:
-                    raise ValueError(f"parametric tie {r.name!r}: {exc}") from exc
+                    raise ValueError(f"parametric equation {r.name!r}: {exc}") from exc
                 touched.add(h)
             for j, path in enumerate(r.paths):
                 self._column_anchor[path] = (r.target, j + 1)
@@ -552,7 +552,7 @@ class MultiParameterTable:
                       for h in r.patterns}
             if len(set(values.values())) > 1:
                 raise ValueError(
-                    f"parametric tie {r.name!r}: {r.target} is a displacement from "
+                    f"parametric equation {r.name!r}: {r.target} is a displacement from "
                     f"each pattern's own stored {coord}, and the subset's starting "
                     "structures store it differently, so a function of the DOF "
                     f"would not be a function of the coordinate; start every "
@@ -577,7 +577,7 @@ class MultiParameterTable:
             return
         shown = ", ".join(f"{lam:g}" for lam in sorted(set(lams.values())))
         raise ValueError(
-            f"parametric tie {r.name!r}: {r.target} is a crystallite-size "
+            f"parametric equation {r.name!r}: {r.target} is a crystallite-size "
             f"coefficient, (180/π)·K·λ/L, and the subset's patterns are at "
             f"different wavelengths ({shown} Å), so one function of the "
             "coordinates would state one number of degrees at every λ — a "
@@ -586,7 +586,7 @@ class MultiParameterTable:
             "which converts it per histogram")
 
     def parametric_targets(self, h: int) -> set[str]:
-        """The bare paths histogram ``h``'s parametric ties drive (WP-1325)."""
+        """The bare paths histogram ``h``'s parametric equations drive (WP-1325)."""
         return {r.target for r in self.parametric if h in r.patterns}
 
     def _parametric_reached(self, path_globs: list[str]) -> set[str]:

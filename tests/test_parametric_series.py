@@ -3,7 +3,7 @@ coordinates, refined in one joint residual (WP-1325).
 
 What is checked here, and on what:
 
-* the declaration (``CoordinateTable``, ``ParametricTie``) as data — its JSON
+* the declaration (``CoordinateTable``, ``ParametricEquation``) as data — its JSON
   round-trip, its shape refusals, and its resolution against the patterns:
   the reference and scale frozen once, the term labels, and every refusal
   of the WP's § The shape item 3, each by its message, before any solve;
@@ -18,7 +18,7 @@ What is checked here, and on what:
   weighted trajectory line's;
 * the form test: its blocked gain against dense least squares, each
   pattern's target column read off the coefficients against an untied
-  table's, and that ramp's line law kept on its own truth and rejected when
+  table's, and that ramp's line equation kept on its own truth and rejected when
   the truth bends;
 * the blocked joint Jacobian (``optimize/blocked.py``) against the dense one:
   the matrix entry for entry, the LM step to WP-1125's 6.6e-7 relative with
@@ -44,8 +44,8 @@ from rietx.model import compiled
 from rietx.model.forward import compile_model
 from rietx.multi import (
     MultiHistogramRefinement,
+    _equation_rows,
     _joint_fixed_literals,
-    _law_rows,
     _parametric_range_diagnostics,
     _unsupported_paths_multi,
     refine_multi,
@@ -66,7 +66,7 @@ from rietx.params.parametric import (
     ResolvedParametric,
     coefficient_rows,
     form_tests,
-    parametric_law,
+    parametric_equation,
     resolve_parametric,
     target_columns,
     term_label,
@@ -75,7 +75,7 @@ from rietx.params.vector import AffineTie
 from rietx.schemas.parametric import (
     CoordinateTable,
     ParametricCoefficient,
-    ParametricTie,
+    ParametricEquation,
 )
 from rietx.strategy.staged import Stage
 from tests.test_multi_histogram import perturbed_inputs, synthesize
@@ -83,11 +83,11 @@ from tests.test_multi_histogram import perturbed_inputs, synthesize
 OUT = Path(__file__).parent / "output"
 
 
-def _tie(**kw) -> ParametricTie:
+def _equation(**kw) -> ParametricEquation:
     base = dict(name="a", target="phases.0.cell.a", basis="polynomial",
                 terms=[[], ["T"]])
     base.update(kw)
-    return ParametricTie(**base)
+    return ParametricEquation(**base)
 
 
 def _coords(*temps: float | None, **more) -> CoordinateTable:
@@ -110,18 +110,31 @@ def test_the_declarations_round_trip_through_json():
     coords = CoordinateTable(columns={"T": [300.0, None, 500.0], "x": [0.1, 0.2, 0.3]},
                              units={"T": "K"})
     ties = [
-        _tie(patterns=[0, 2], reference={"T": 400.0}, scale={"T": 100.0}),
-        ParametricTie(name="c", target="instrument.background.c2", basis="constant"),
-        ParametricTie(name="d", target="phases.0.atoms.0.biso", basis="design",
-                      design=[[1.0, 0.0], [0.5, 0.5], [0.0, 1.0]]),
+        _equation(patterns=[0, 2], reference={"T": 400.0}, scale={"T": 100.0}),
+        ParametricEquation(name="c", target="instrument.background.c2", basis="constant"),
+        ParametricEquation(name="d", target="phases.0.atoms.0.biso", basis="design",
+                           design=[[1.0, 0.0], [0.5, 0.5], [0.0, 1.0]]),
     ]
-    row = ParametricCoefficient(tie="a", target="phases.0.cell.a", term="T",
+    row = ParametricCoefficient(equation="a", target="phases.0.cell.a", term="T",
                                 path="vars.a_1", value=2.1e-5, esd=None, vary=True,
                                 unit=None, reference={"T": 400.0})
     for obj in (coords, *ties, row):
         text = obj.model_dump_json()
         assert type(obj).model_validate_json(text) == obj
         assert type(obj).model_validate(json.loads(text)) == obj
+
+
+def test_a_1_9_coefficient_row_opens_with_its_tie_key_read_as_equation():
+    """1.9.0 (schema 0.55) wrote ``tie``; the key is now ``equation``, and only
+    ``equation`` is written back."""
+    row = dict(target="phases.0.cell.a", term="T", path="vars.a_1", value=2.1e-5,
+               esd=None, vary=True, unit=None, reference={"T": 400.0})
+    old = ParametricCoefficient.model_validate({"tie": "a", **row})
+    new = ParametricCoefficient(equation="a", **row)
+    assert old == new and old.equation == "a"
+    dumped = json.loads(old.model_dump_json())
+    assert dumped["equation"] == "a" and "tie" not in dumped
+    assert ParametricCoefficient.model_validate_json(json.dumps({"tie": "a", **row})) == new
 
 
 @pytest.mark.parametrize("kw, fragment", [
@@ -142,7 +155,7 @@ def test_the_declarations_round_trip_through_json():
 ])
 def test_a_malformed_declaration_is_refused_by_its_shape(kw, fragment):
     with pytest.raises(ValidationError, match=fragment):
-        _tie(**kw)
+        _equation(**kw)
 
 
 @pytest.mark.parametrize("columns, units, fragment", [
@@ -159,20 +172,20 @@ def test_a_malformed_coordinate_table_is_refused(columns, units, fragment):
 # -- resolution: the reference and scale, once ------------------------------
 
 def test_resolution_freezes_the_reference_and_scale_and_a_refit_keeps_them():
-    r = resolve_parametric(_tie(), _coords(300.0, 375.0, 600.0), 3, target_unit="A")
-    assert r.tie.reference == {"T": 450.0} and r.tie.scale == {"T": 150.0}
+    r = resolve_parametric(_equation(), _coords(300.0, 375.0, 600.0), 3, target_unit="A")
+    assert r.equation.reference == {"T": 450.0} and r.equation.scale == {"T": 150.0}
     assert r.labels == ["1", "T"]
     np.testing.assert_array_equal(r.phi[:, 1], [-1.0, -0.5, 1.0])
     assert r.units == ["A", "A/K"]
     # the campaign grows past the old range: the resolved declaration keeps
     # its reference and scale, so the old patterns' rows are unchanged and a
     # coefficient means what it meant
-    grown = resolve_parametric(r.tie, _coords(300.0, 375.0, 600.0, 900.0), 4)
-    assert grown.tie.reference == {"T": 450.0} and grown.tie.scale == {"T": 150.0}
+    grown = resolve_parametric(r.equation, _coords(300.0, 375.0, 600.0, 900.0), 4)
+    assert grown.equation.reference == {"T": 450.0} and grown.equation.scale == {"T": 150.0}
     np.testing.assert_array_equal(grown.phi[:3], r.phi)
     # left unresolved, the same growth would have moved both
-    fresh = resolve_parametric(_tie(), _coords(300.0, 375.0, 600.0, 900.0), 4)
-    assert fresh.tie.reference == {"T": 600.0} and fresh.tie.scale == {"T": 300.0}
+    fresh = resolve_parametric(_equation(), _coords(300.0, 375.0, 600.0, 900.0), 4)
+    assert fresh.equation.reference == {"T": 600.0} and fresh.equation.scale == {"T": 300.0}
 
 
 def test_term_labels_and_units_name_each_monomial():
@@ -180,7 +193,7 @@ def test_term_labels_and_units_name_each_monomial():
                                     ["x", "y", "x"])] == ["1", "T", "x*y", "T^2", "x^2*y"]
     coords = CoordinateTable(columns={"x": [0.0, 1.0, 2.0, 3.0], "y": [0.0, 2.0, 1.0, 3.0]},
                              units={"x": "at%"})
-    r = resolve_parametric(_tie(terms=[[], ["x"], ["y"], ["x", "x"]]), coords, 4,
+    r = resolve_parametric(_equation(terms=[[], ["x"], ["y"], ["x", "x"]]), coords, 4,
                            target_unit="A")
     # y has no recorded unit, so no unit is claimed for its term
     assert r.units == ["A", "A/at%", None, "A/at%^2"]
@@ -189,25 +202,25 @@ def test_term_labels_and_units_name_each_monomial():
 
 # -- refusals before any solve: from the declaration and the coordinates ----
 
-@pytest.mark.parametrize("tie, coords, n, fragment", [
-    (_tie(patterns=[0, 3]), _coords(1.0, 2.0, 3.0), 3, "out of range"),
-    (_tie(), None, 3, "needs a CoordinateTable"),
-    (_tie(), _coords(1.0, 2.0), 3, "2 rows for 3 patterns"),
-    (_tie(terms=[[], ["x"]]), _coords(1.0, 2.0, 3.0), 3, "does not have"),
-    (_tie(), _coords(1.0, None, 3.0), 3, "pattern 1 has no value"),
-    (_tie(), _coords(2.0, 2.0, 2.0), 3, "takes one value"),
-    (_tie(terms=[[], ["T"], ["T", "T"]]), _coords(1.0, 2.0), 2, "3 coefficients"),
-    (ParametricTie(name="d", target="phases.0.cell.a", basis="design",
-                   design=[[1.0], [2.0]]), None, 3, "2 design rows"),
-    (ParametricTie(name="d", target="phases.0.cell.a", basis="design",
-                   design=[[1.0, 2.0], [2.0, 4.0], [3.0, 6.0]]), None, 3,
+@pytest.mark.parametrize("equation, coords, n, fragment", [
+    (_equation(patterns=[0, 3]), _coords(1.0, 2.0, 3.0), 3, "out of range"),
+    (_equation(), None, 3, "needs a CoordinateTable"),
+    (_equation(), _coords(1.0, 2.0), 3, "2 rows for 3 patterns"),
+    (_equation(terms=[[], ["x"]]), _coords(1.0, 2.0, 3.0), 3, "does not have"),
+    (_equation(), _coords(1.0, None, 3.0), 3, "pattern 1 has no value"),
+    (_equation(), _coords(2.0, 2.0, 2.0), 3, "takes one value"),
+    (_equation(terms=[[], ["T"], ["T", "T"]]), _coords(1.0, 2.0), 2, "3 coefficients"),
+    (ParametricEquation(name="d", target="phases.0.cell.a", basis="design",
+                        design=[[1.0], [2.0]]), None, 3, "2 design rows"),
+    (ParametricEquation(name="d", target="phases.0.cell.a", basis="design",
+                        design=[[1.0, 2.0], [2.0, 4.0], [3.0, 6.0]]), None, 3,
      "d1 is a combination of"),
-    (ParametricTie(name="d", target="phases.0.cell.a", basis="design",
-                   design=[[1.0, 0.0], [1.0, 0.0], [1.0, 0.0]]), None, 3, "zero in every"),
+    (ParametricEquation(name="d", target="phases.0.cell.a", basis="design",
+                        design=[[1.0, 0.0], [1.0, 0.0], [1.0, 0.0]]), None, 3, "zero in every"),
 ])
-def test_each_resolution_refusal_names_its_fix(tie, coords, n, fragment):
+def test_each_resolution_refusal_names_its_fix(equation, coords, n, fragment):
     with pytest.raises(ValueError, match=fragment):
-        resolve_parametric(tie, coords, n)
+        resolve_parametric(equation, coords, n)
 
 
 def test_a_ternary_with_an_intercept_is_refused_with_the_scheffe_fix():
@@ -216,34 +229,34 @@ def test_a_ternary_with_an_intercept_is_refused_with_the_scheffe_fix():
     xb = [0.2, 0.6, 0.2, 0.3, 0.3]
     xc = [1.0 - a - b for a, b in zip(xa, xb, strict=True)]
     coords = CoordinateTable(columns={"xa": xa, "xb": xb, "xc": xc})
-    tie = _tie(terms=[[], ["xa"], ["xb"], ["xc"]])
+    equation = _equation(terms=[[], ["xa"], ["xb"], ["xc"]])
     with pytest.raises(ValueError, match=r"rank 3 for 4.*Scheffé.*reference="):
-        resolve_parametric(tie, coords, 5)
+        resolve_parametric(equation, coords, 5)
     # without the intercept the basis is full rank, but centred fractions would
     # make each coefficient a blend of pure-component values: refused until the
     # reading is stated
     scheffe = [["xa"], ["xb"], ["xc"]]
     with pytest.raises(ValueError, match=r"mixture fractions.*Scheffé form"):
-        resolve_parametric(_tie(terms=scheffe), coords, 5)
+        resolve_parametric(_equation(terms=scheffe), coords, 5)
     # stated: the Scheffé form resolves, uncentred
     zero, one = dict.fromkeys(coords.columns, 0.0), dict.fromkeys(coords.columns, 1.0)
-    ok = resolve_parametric(_tie(terms=scheffe, reference=zero, scale=one), coords, 5)
+    ok = resolve_parametric(_equation(terms=scheffe, reference=zero, scale=one), coords, 5)
     assert ok.labels == ["xa", "xb", "xc"]
     assert np.array_equal(ok.phi, np.column_stack([xa, xb, xc]))
 
 
 # -- refusals before any solve: what the tables can carry -------------------
 
-@pytest.mark.parametrize("tie, fragment", [
-    (_tie(target="phases.0.cell.q", basis="constant", terms=None), "not a parameter"),
-    (_tie(target="phases.0.cell.b", basis="constant", terms=None),
-     "is tied: = 1·phases.0.cell.a.*declare the tie on phases.0.cell.a"),
-    (_tie(target="phases.0.atoms.0.x", basis="constant", terms=None), "locked"),
+@pytest.mark.parametrize("equation, fragment", [
+    (_equation(target="phases.0.cell.q", basis="constant", terms=None), "not a parameter"),
+    (_equation(target="phases.0.cell.b", basis="constant", terms=None),
+     "is tied: = 1·phases.0.cell.a.*declare the equation on phases.0.cell.a"),
+    (_equation(target="phases.0.atoms.0.x", basis="constant", terms=None), "locked"),
 ])
-def test_a_target_no_tie_can_drive_is_refused_naming_why(tie, fragment):
+def test_a_target_no_equation_can_drive_is_refused_naming_why(equation, fragment):
     s, _ = perturbed_inputs()
     with pytest.raises(ValueError, match=fragment):
-        MultiParameterTable(s, _lab6_instruments(2), parametric=[tie])
+        MultiParameterTable(s, _lab6_instruments(2), parametric=[equation])
 
 
 def test_a_held_target_is_refused():
@@ -253,15 +266,15 @@ def test_a_held_target_is_refused():
     phase = _zno()
     phase.floating_origin = "hold"
     s = rx.Structure(phases=[phase])
-    tie = _tie(target="phases.0.atoms.0.dof.0", basis="constant", terms=None)
+    equation = _equation(target="phases.0.atoms.0.dof.0", basis="constant", terms=None)
     with pytest.raises(ValueError, match="is held"):
         MultiParameterTable(s, [rx.Instrument.bragg_brentano(radiation="CuKa")] * 2,
-                            parametric=[tie])
+                            parametric=[equation])
 
 
 def test_two_declarations_may_share_neither_a_name_nor_a_pattern_of_one_target():
     s, _ = perturbed_inputs()
-    one = _tie(basis="constant", terms=None)
+    one = _equation(basis="constant", terms=None)
     with pytest.raises(ValueError, match="both drive phases.0.cell.a on patterns 0, 1"):
         MultiParameterTable(s, _lab6_instruments(2),
                             parametric=[one, one.model_copy(update={"name": "b"})])
@@ -269,16 +282,16 @@ def test_two_declarations_may_share_neither_a_name_nor_a_pattern_of_one_target()
         MultiParameterTable(s, _lab6_instruments(3), parametric=[
             one.model_copy(update={"patterns": [0, 1]}),
             one.model_copy(update={"name": "b", "patterns": [1, 2]})])
-    with pytest.raises(ValueError, match="two parametric ties are named 'a'"):
+    with pytest.raises(ValueError, match="two parametric equations are named 'a'"):
         MultiParameterTable(s, _lab6_instruments(2), parametric=[
             one, one.model_copy(update={"target": "phases.0.atoms.0.biso"})])
 
 
-def test_two_phase_fields_take_a_law_each_on_one_target():
-    """Disjoint subsets: one law per field, each pattern tied by its own."""
+def test_two_phase_fields_take_a_equation_each_on_one_target():
+    """Disjoint subsets: one equation per field, each pattern tied by its own."""
     s, _ = perturbed_inputs()
-    lo = _tie(name="lo", basis="constant", terms=None, patterns=[0, 1])
-    hi = _tie(name="hi", basis="constant", terms=None, patterns=[2, 3])
+    lo = _equation(name="lo", basis="constant", terms=None, patterns=[0, 1])
+    hi = _equation(name="hi", basis="constant", terms=None, patterns=[2, 3])
     mt = MultiParameterTable(s, _lab6_instruments(4), parametric=[lo, hi])
     sources = [mt.tables[h].entries[mt.tables[h]._paths["phases.0.cell.a"]].tie.terms
                for h in range(4)]
@@ -288,31 +301,31 @@ def test_two_phase_fields_take_a_law_each_on_one_target():
     assert {"vars.lo_0", "vars.hi_0"} <= set(freed)
 
 
-def test_each_row_a_law_sets_names_it_and_no_other_row_does():
-    """``RefinedParameter.laws``' writer, read off C before anything is freed,
+def test_each_row_a_equation_sets_names_it_and_no_other_row_does():
+    """``RefinedParameter.equations``' writer, read off C before anything is freed,
     so a held coefficient counts.  Two phase fields on one target: in each
-    subset pattern the cubic cell's three edges name that field's law, each
+    subset pattern the cubic cell's three edges name that field's equation, each
     coefficient row names its own, and the pattern in neither subset names
     none."""
     s, _ = perturbed_inputs()
-    lo = _tie(name="lo", basis="constant", terms=None, patterns=[0, 1])
-    hi = _tie(name="hi", basis="constant", terms=None, patterns=[2, 3])
+    lo = _equation(name="lo", basis="constant", terms=None, patterns=[0, 1])
+    hi = _equation(name="hi", basis="constant", terms=None, patterns=[2, 3])
     mt = MultiParameterTable(s, _lab6_instruments(5), parametric=[lo, hi])
     want = {"vars.lo_0": ["lo"], "vars.hi_0": ["hi"]}
-    for h, law in [(0, "lo"), (1, "lo"), (2, "hi"), (3, "hi")]:
-        want.update({f"hist.{h}.phases.0.cell.{k}": [law] for k in "abc"})
-    assert _law_rows(mt) == want
+    for h, equation in [(0, "lo"), (1, "lo"), (2, "hi"), (3, "hi")]:
+        want.update({f"hist.{h}.phases.0.cell.{k}": [equation] for k in "abc"})
+    assert _equation_rows(mt) == want
 
 
 def test_a_size_target_across_wavelengths_is_refused():
     """A size coefficient goes as λ (WP-1131): shared, it carries the factor
     into each histogram; a parametric target is per-histogram and would not."""
     s, ins = perturbed_inputs()                  # 0.41390 and 0.71070 Å
-    tie = _tie(name="L", target="phases.0.lor_size", basis="constant", terms=None)
+    equation = _equation(name="L", target="phases.0.lor_size", basis="constant", terms=None)
     with pytest.raises(ValueError, match=r"crystallite-size.*0\.4139, 0\.7107 Å"):
-        MultiParameterTable(s, ins, parametric=[tie])
+        MultiParameterTable(s, ins, parametric=[equation])
     # one wavelength: nothing to convert, so the declaration stands
-    mt = MultiParameterTable(s, _lab6_instruments(2), parametric=[tie])
+    mt = MultiParameterTable(s, _lab6_instruments(2), parametric=[equation])
     assert [r.target for r in mt.parametric] == ["phases.0.lor_size"]
 
 
@@ -321,7 +334,7 @@ def test_a_sharing_map_that_splits_a_coefficient_is_refused():
     with pytest.raises(ValueError, match="makes vars.a_0 per-histogram"):
         MultiParameterTable(s, _lab6_instruments(2),
                             sharing=SharingMap(per_histogram=["vars.*"]),
-                            parametric=[_tie(basis="constant", terms=None)])
+                            parametric=[_equation(basis="constant", terms=None)])
 
 
 # -- the joint table's wiring ------------------------------------------------
@@ -330,7 +343,7 @@ def _ramp_table(n: int = 3, **kw) -> MultiParameterTable:
     s, _ = perturbed_inputs()
     return MultiParameterTable(
         s, _lab6_instruments(n), coordinates=_coords(*[300.0 + 100 * k for k in range(n)]),
-        parametric=[_tie()], **kw)
+        parametric=[_equation()], **kw)
 
 
 def test_the_target_follows_the_declared_line_in_every_table():
@@ -371,8 +384,8 @@ def test_a_column_is_held_only_when_every_phase_it_moves_is_unseen():
                rx.Atom(label="Cl", species="Cl", x=rx.Parameter(value=0.5),
                        y=rx.Parameter(value=0.5), z=rx.Parameter(value=0.5))])
     s.phases.append(nacl)
-    tie = _tie(name="b", target="phases.1.cell.a", basis="constant", terms=None)
-    mt = MultiParameterTable(s, _lab6_instruments(2), parametric=[tie])
+    equation = _equation(name="b", target="phases.1.cell.a", basis="constant", terms=None)
+    mt = MultiParameterTable(s, _lab6_instruments(2), parametric=[equation])
     mt.set_vary(["*"], False)
     mt.set_vary(["phases.*.cell.*"], True)
     assert "vars.b_0" in mt.free_paths
@@ -406,7 +419,7 @@ def test_per_pattern_starting_structures_differ_only_where_a_path_is_per_histogr
     # the cell differs, but it is the parametric target: accepted, and the
     # line through the starts is the coefficients' start
     mt = MultiParameterTable([start(4.15), start(4.17)], _lab6_instruments(2),
-                             coordinates=coords, parametric=[_tie()])
+                             coordinates=coords, parametric=[_equation()])
     t0 = mt.tables[0]
     assert t0.entries[t0._paths["vars.a_0"]].value == pytest.approx(4.16, abs=1e-12)
     assert t0.entries[t0._paths["vars.a_1"]].value == pytest.approx(0.01, abs=1e-12)
@@ -428,9 +441,9 @@ def test_per_pattern_starting_structures_differ_only_where_a_path_is_per_histogr
 
 def test_a_dependent_the_coefficients_put_out_of_range_is_named():
     s, _ = perturbed_inputs()
-    tie = _tie(name="w", target="instrument.profile.w")
+    equation = _equation(name="w", target="instrument.profile.w")
     mt = MultiParameterTable(s, _lab6_instruments(3), coordinates=_coords(300.0, 400.0, 500.0),
-                             parametric=[tie])
+                             parametric=[equation])
     assert _parametric_range_diagnostics(mt) == []
     for t in mt.tables:      # w = 1e-3 - 2e-3·u: negative at the top of the ramp
         t.entries[t._paths["vars.w_1"]].value = -2e-3
@@ -442,9 +455,9 @@ def test_a_dependent_the_coefficients_put_out_of_range_is_named():
 
 
 def test_coefficients_are_reported_per_unit_of_the_coordinates_at_the_reference():
-    r = resolve_parametric(_tie(terms=[[], ["T"], ["T", "T"]]),
+    r = resolve_parametric(_equation(terms=[[], ["T"], ["T", "T"]]),
                            _coords(300.0, 500.0, 700.0), 3, target_unit="A")
-    assert isinstance(r, ResolvedParametric) and r.tie.scale == {"T": 200.0}
+    assert isinstance(r, ResolvedParametric) and r.equation.scale == {"T": 200.0}
     rows = coefficient_rows(
         r, {"vars.a_0": 4.0, "vars.a_1": 0.02, "vars.a_2": 0.004},
         {"vars.a_0": 1e-5, "vars.a_1": 2e-5},           # a_2: marked unmeasured
@@ -459,11 +472,11 @@ def test_coefficients_are_reported_per_unit_of_the_coordinates_at_the_reference(
     assert all(c.esd is None and not c.vary for c in fixed)
 
 
-def test_a_law_evaluates_in_user_units_with_the_covariance_its_esds_came_from():
-    """``parametric_law`` and ``ParametricLaw.evaluate`` without a fit: the
-    table-unit law Φ(u)·c at a coordinate is the user-unit one, and its esd is
+def test_a_equation_evaluates_in_user_units_with_the_covariance_its_esds_came_from():
+    """``parametric_equation`` and ``RefinedParametricEquation.evaluate`` without a fit: the
+    table-unit equation Φ(u)·c at a coordinate is the user-unit one, and its esd is
     √(Φ Σ_table Φᵀ) from the correlation the esds were paired by."""
-    r = resolve_parametric(_tie(terms=[[], ["T"], ["T", "T"]]),
+    r = resolve_parametric(_equation(terms=[[], ["T"], ["T", "T"]]),
                            _coords(300.0, 500.0, 700.0), 3, target_unit="A")
     assert (r.unit, r.span) == ("A", {"T": (300.0, 700.0)})
     table = np.array([4.0, 0.02, 0.004])
@@ -472,12 +485,12 @@ def test_a_law_evaluates_in_user_units_with_the_covariance_its_esds_came_from():
     rows = coefficient_rows(r, dict(zip(r.paths, table, strict=True)),
                             dict(zip(r.paths, s, strict=True)),
                             dict.fromkeys(r.paths, True))
-    law = parametric_law(r, rows, [0, 1, 2], corr)
-    assert [law.covariance[j][j] for j in range(3)] == [c.esd ** 2 for c in rows]
+    equation = parametric_equation(r, rows, [0, 1, 2], corr)
+    assert [equation.covariance[j][j] for j in range(3)] == [c.esd ** 2 for c in rows]
     for temp in (300.0, 640.0, 900.0):
         u = (temp - 500.0) / 200.0
         phi = np.array([1.0, u, u * u])
-        v = law.evaluate(rows, coordinates={"T": temp})
+        v = equation.evaluate(rows, coordinates={"T": temp})
         assert v.value == pytest.approx(phi @ table, rel=1e-14)
         cov = corr * np.outer(s, s)
         assert v.esd == pytest.approx(np.sqrt(phi @ cov @ phi), rel=1e-12)
@@ -485,25 +498,25 @@ def test_a_law_evaluates_in_user_units_with_the_covariance_its_esds_came_from():
         assert v.form_rejected is None and v.unit == "A"
     # each refusal names what the basis takes
     with pytest.raises(ValueError, match=r"missing \['T'\]"):
-        law.evaluate(rows, coordinates={})
+        equation.evaluate(rows, coordinates={})
     with pytest.raises(ValueError, match="never a design row"):
-        law.evaluate(rows, coordinates={"T": 1.0}, row=[1.0, 0.0, 0.0])
-    # one coefficient without an esd leaves the law with no covariance
+        equation.evaluate(rows, coordinates={"T": 1.0}, row=[1.0, 0.0, 0.0])
+    # one coefficient without an esd leaves the equation with no covariance
     rows[2] = rows[2].model_copy(update={"esd": None})
-    blind = parametric_law(r, rows, [0, 1, 2], corr)
+    blind = parametric_equation(r, rows, [0, 1, 2], corr)
     assert blind.covariance is None
     assert blind.evaluate(rows, coordinates={"T": 500.0}).esd is None
-    # a design law takes its own row, and a single coefficient needs no correlation
-    d = resolve_parametric(_tie(basis="design", terms=None, design=[[1.0], [2.0]]),
+    # a design equation takes its own row, and a single coefficient needs no correlation
+    d = resolve_parametric(_equation(basis="design", terms=None, design=[[1.0], [2.0]]),
                            None, 2)
     (dc,) = coefficient_rows(d, {"vars.a_0": 3.0}, {"vars.a_0": 0.5}, {"vars.a_0": True})
-    dlaw = parametric_law(d, [dc], [None], None)
-    assert dlaw.covariance is None              # not free in θ: no column to pair
-    dlaw = parametric_law(d, [dc], [0], None)
-    v = dlaw.evaluate([dc], row=[4.0])
+    design_eq = parametric_equation(d, [dc], [None], None)
+    assert design_eq.covariance is None              # not free in θ: no column to pair
+    design_eq = parametric_equation(d, [dc], [0], None)
+    v = design_eq.evaluate([dc], row=[4.0])
     assert (v.value, v.esd, v.outside, v.row) == (12.0, 2.0, None, [4.0])
     with pytest.raises(ValueError, match="evaluated at a design row"):
-        dlaw.evaluate([dc], coordinates={"T": 1.0})
+        design_eq.evaluate([dc], coordinates={"T": 1.0})
 
 
 # -- the joint fit: a constant declaration is refine_multi -------------------
@@ -528,7 +541,7 @@ def test_a_constant_declaration_is_refine_multi_bit_for_bit(lab6_pair, target, f
                                                             compiled_path):
     """The WP's equivalence bar, met exactly rather than to a tolerance.
 
-    A ``constant`` tie makes the target per-histogram and ties it in each
+    A ``constant`` equation makes the target per-histogram and ties it in each
     table to one shared coefficient at coefficient 1, against a plain joint
     fit that shares the target (the cell by default, the width by
     ``SharingMap.shared``).  The coefficient takes the column the shared target
@@ -545,7 +558,7 @@ def test_a_constant_declaration_is_refine_multi_bit_for_bit(lab6_pair, target, f
                              sharing=SharingMap(shared=[target]))
         s, ins = perturbed_inputs()
         ref = MultiHistogramRefinement(
-            s, ins, parametric=[ParametricTie(name="t", target=target, basis="constant")])
+            s, ins, parametric=[ParametricEquation(name="t", target=target, basis="constant")])
         tied = ref.fit(lab6_pair, plan="mccusker_default")
     finally:
         compiled.set_enabled(was)
@@ -570,12 +583,12 @@ def test_a_constant_declaration_is_refine_multi_bit_for_bit(lab6_pair, target, f
     assert (coef.value, coef.esd, coef.term, coef.vary) == (
         shared.value, shared.stderr, "1", True)
     assert plain.parametric is None
-    # the law's rows name it, every other row and every plain row nothing
-    law_set = {"vars.t_0"} | {f"hist.{h}.{p}" for h in range(2) for p in (target, *follows)}
-    assert {p for p, row in b.items() if row.laws} == law_set
-    assert all(b[p].laws == ["t"] for p in law_set)
-    assert not any(row.laws for row in plain.parameters)
-    assert tied.for_histogram(1).parameter(target).laws == ["t"]
+    # the equation's rows name it, every other row and every plain row nothing
+    equation_set = {"vars.t_0"} | {f"hist.{h}.{p}" for h in range(2) for p in (target, *follows)}
+    assert {p for p, row in b.items() if row.equations} == equation_set
+    assert all(b[p].equations == ["t"] for p in equation_set)
+    assert not any(row.equations for row in plain.parameters)
+    assert tied.for_histogram(1).parameter(target).equations == ["t"]
     v = tied.parametric_value("t")
     assert (v.value, v.esd, v.outside) == (shared.value, shared.stderr, [])
     assert not any(d.code == "PARAMETRIC_TARGET_UNSEEN" for d in tied.diagnostics)
@@ -583,7 +596,7 @@ def test_a_constant_declaration_is_refine_multi_bit_for_bit(lab6_pair, target, f
     stage = next(st for st in plain.stages if target in st.freed)
     assert [p.replace(target, "vars.t_0") for p in stage.freed] == next(
         st.freed for st in tied.stages if st.name == stage.name)
-    assert ref.parametric == [ParametricTie(name="t", target=target, basis="constant")]
+    assert ref.parametric == [ParametricEquation(name="t", target=target, basis="constant")]
 
 
 def _with_an_unseen_phase() -> rx.Structure:
@@ -613,8 +626,8 @@ def test_a_joint_fit_holds_a_coefficient_whose_phase_no_pattern_sees(lab6_pair):
     plain = refine_multi(lab6_pair, _with_an_unseen_phase(), ins,
                          plan="mccusker_default")
     _, ins = perturbed_inputs()
-    tie = ParametricTie(name="b", target="phases.1.cell.a", basis="constant")
-    result = refine_multi(lab6_pair, _with_an_unseen_phase(), ins, parametric=[tie],
+    equation = ParametricEquation(name="b", target="phases.1.cell.a", basis="constant")
+    result = refine_multi(lab6_pair, _with_an_unseen_phase(), ins, parametric=[equation],
                           plan="mccusker_default")
     OUT.mkdir(exist_ok=True)
     result.for_histogram(0).plot(OUT / "parametric_unseen_phase_h0.png")
@@ -633,13 +646,13 @@ def test_a_joint_fit_holds_a_coefficient_whose_phase_no_pattern_sees(lab6_pair):
     unseen = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
     assert unseen and "vars.b_0" in unseen[0].where
     assert result.statistics == plain.statistics
-    # neither pattern sees NaCl, so the law sets its cell in both and says so
+    # neither pattern sees NaCl, so the equation sets its cell in both and says so
     (blind,) = [d for d in result.diagnostics if d.code == "PARAMETRIC_TARGET_UNSEEN"]
     assert blind.level == "warning" and blind.value == 2.0
     assert blind.where == ["hist.0.phases.1.cell.a", "hist.1.phases.1.cell.a"]
     for h in range(2):
         for k in "abc":
-            assert result.parameter(f"hist.{h}.phases.1.cell.{k}").laws == ["b"]
+            assert result.parameter(f"hist.{h}.phases.1.cell.{k}").equations == ["b"]
     (form,) = result.parametric_form
     assert (form.n_patterns, form.n_subset, form.tied, form.rejected) == (0, 2, None, None)
 
@@ -665,8 +678,8 @@ def test_a_parametric_slope_recovers_a_known_expansion_within_its_esd():
         patterns, structure, [ins] * len(temps), plan="mccusker_default",
         sharing=SharingMap(shared=["instrument.zero_shift", "instrument.profile.*"]),
         coordinates=CoordinateTable(columns={"T": temps}, units={"T": "K"}),
-        parametric=[ParametricTie(name="a", target="phases.0.cell.a",
-                                  basis="polynomial", terms=[[], ["T"]])])
+        parametric=[ParametricEquation(name="a", target="phases.0.cell.a",
+                                       basis="polynomial", terms=[[], ["T"]])])
     OUT.mkdir(exist_ok=True)
     for h in (0, len(temps) - 1):
         result.for_histogram(h).plot(OUT / f"parametric_ramp_h{h}.png")
@@ -696,7 +709,7 @@ def test_a_parametric_slope_recovers_a_known_expansion_within_its_esd():
 
 @pytest.mark.parametrize("bow, rejected", [(0.0, False), (0.01, True)],
                          ids=["line", "bowed"])
-def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
+def test_a_line_equation_is_rejected_by_a_ramp_that_bends(bow, rejected):
     """The form test on the slow test's ten-pattern LaB6 ramp, its truth the
     line or the line bowed by 1 % of its half-excursion at mid-ramp.  The
     line reads 7.6 against the cut 15.5 for 8 directions, and the bow 4 461
@@ -715,15 +728,15 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
         patterns, structure, [ins] * 10, plan="mccusker_default",
         sharing=SharingMap(shared=["instrument.zero_shift", "instrument.profile.*"]),
         coordinates=CoordinateTable(columns={"T": temps.tolist()}, units={"T": "K"}),
-        parametric=[ParametricTie(name="a", target="phases.0.cell.a",
-                                  basis="polynomial", terms=[[], ["T"]])])
+        parametric=[ParametricEquation(name="a", target="phases.0.cell.a",
+                                       basis="polynomial", terms=[[], ["T"]])])
     (form,) = result.parametric_form
     tied = form.tied
-    assert (form.tie, form.target, form.n_patterns, form.n_subset, tied.dof) == (
+    assert (form.equation, form.target, form.n_patterns, form.n_subset, tied.dof) == (
         "a", "phases.0.cell.a", 10, 10, 8)
     assert tied.cut == pytest.approx(15.507, abs=1e-3)
     assert form.rejected is tied.rejected is rejected, form
-    assert form.others_freed is None              # one law: one reading
+    assert form.others_freed is None              # one equation: one reading
     assert result.parametric_form_joint is None   # and no joint one
     from scipy.stats import chi2
     assert tied.p_value == chi2.sf(tied.statistic, tied.dof)
@@ -732,23 +745,23 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
     text = str(result)
     p = "p < 0.001" if rejected else f"p = {tied.p_value:.2g}"
     assert f"({p}) for 8 directions over 10 of 10 patterns" in text
-    # every pattern's cell and both coefficients are the law's, in the joint
+    # every pattern's cell and both coefficients are the equation's, in the joint
     # rows, in a histogram's view and in the notebook table
-    assert {p.path for p in result.parameters if p.laws} == (
+    assert {p.path for p in result.parameters if p.equations} == (
         {"vars.a_0", "vars.a_1"}
         | {f"hist.{h}.phases.0.cell.{k}" for h in range(10) for k in "abc"})
-    assert result.for_histogram(3).parameter("phases.0.cell.a").laws == ["a"]
-    assert "<th>laws</th>" in result._repr_html_()
-    # the law's covariance: its diagonal is each esd squared, bit for bit, and
-    # at each pattern's coordinate the law is that pattern's row
-    (law,) = result.parametric_laws
+    assert result.for_histogram(3).parameter("phases.0.cell.a").equations == ["a"]
+    assert "<th>equations</th>" in result._repr_html_()
+    # the equation's covariance: its diagonal is each esd squared, bit for bit, and
+    # at each pattern's coordinate the equation is that pattern's row
+    (equation,) = result.parametric_equations
     intercept, slope = result.parametric
-    assert law.tie == ParametricTie(name="a", target="phases.0.cell.a", basis="polynomial",
+    assert equation.equation == ParametricEquation(name="a", target="phases.0.cell.a", basis="polynomial",
                                     terms=[[], ["T"]], reference={"T": 750.0},
                                     scale={"T": 450.0})
-    assert law.span == {"T": (300.0, 1200.0)}
-    assert [law.covariance[j][j] for j in range(2)] == [intercept.esd ** 2, slope.esd ** 2]
-    assert law.covariance[0][1] == law.covariance[1][0] != 0.0
+    assert equation.span == {"T": (300.0, 1200.0)}
+    assert [equation.covariance[j][j] for j in range(2)] == [intercept.esd ** 2, slope.esd ** 2]
+    assert equation.covariance[0][1] == equation.covariance[1][0] != 0.0
     for h in (0, 4, 9):
         v = result.parametric_value("a", {"T": float(temps[h])})
         row = result.parameter(f"hist.{h}.phases.0.cell.a")
@@ -761,15 +774,15 @@ def test_a_line_law_is_rejected_by_a_ramp_that_bends(bow, rejected):
     assert room.outside == ["T"] and room.esd > at_ref.esd
     assert "extrapolating in T" in str(room)
     assert rx.RefinementResult.model_validate_json(
-        result.model_dump_json()).parametric_laws == result.parametric_laws
+        result.model_dump_json()).parametric_equations == result.parametric_equations
     if not rejected:
-        # a single fit records that no law set its rows; a row from before the
-        # field reads unrecorded, never "no law"
+        # a single fit records that no equation set its rows; a row from before the
+        # field reads unrecorded, never "no equation"
         single = rx.refine(patterns[0], *_start_models(), plan="mccusker_default")
-        assert single.parameters and all(p.laws == [] for p in single.parameters)
-        assert "<th>laws</th>" not in single._repr_html_()
-        old = single.parameters[0].model_dump(mode="json", exclude={"laws"})
-        assert type(single.parameters[0]).model_validate(old).laws is None
+        assert single.parameters and all(p.equations == [] for p in single.parameters)
+        assert "<th>equations</th>" not in single._repr_html_()
+        old = single.parameters[0].model_dump(mode="json", exclude={"equations"})
+        assert type(single.parameters[0]).model_validate(old).equations is None
     if rejected:
         (d,) = found
         assert d.level == "warning" and d.where == ["vars.a_0", "vars.a_1"]
@@ -794,7 +807,7 @@ LIBRARY_GLOBS = ["phases.*.scale", "instrument.background.*", "instrument.zero_s
 
 def library(n: int, *, seed: int = 0, tt_max: float = 18.0):
     """``n`` LaB6 patterns at random wafer positions, the cell on the known
-    surface: ``(patterns, coordinates, tie)``.  ``tests/test_sequential``'s
+    surface: ``(patterns, coordinates, equation)``.  ``tests/test_sequential``'s
     ``_simulate`` (λ = 0.4139 Å, Poisson noise), 3 000 points at the default
     ``tt_max``; ``docs/wp/1325-measure/scaling.py`` builds its libraries here.
     """
@@ -807,9 +820,9 @@ def library(n: int, *, seed: int = 0, tt_max: float = 18.0):
     patterns = [_simulate(float(a[k]), seed=100_000 * seed + k, tt_max=tt_max)
                 for k in range(n)]
     coords = CoordinateTable(columns={"x": x.tolist(), "y": y.tolist()})
-    tie = ParametricTie(name="a", target="phases.0.cell.a", basis="polynomial",
+    equation = ParametricEquation(name="a", target="phases.0.cell.a", basis="polynomial",
                         terms=LIBRARY_TERMS)
-    return patterns, coords, tie
+    return patterns, coords, equation
 
 
 def library_truth(reference: dict[str, float]) -> dict[str, float]:
@@ -841,9 +854,9 @@ def _library_problem(n: int):
     if n not in _PROBLEMS:
         from tests.test_sequential import _start_models
 
-        patterns, coords, tie = library(n, tt_max=10.0)
+        patterns, coords, equation = library(n, tt_max=10.0)
         s, ins = _start_models()
-        mt = MultiParameterTable(s, [ins] * n, coordinates=coords, parametric=[tie])
+        mt = MultiParameterTable(s, [ins] * n, coordinates=coords, parametric=[equation])
         mt.set_vary(["*"], False)
         mt.set_vary(LIBRARY_GLOBS, True)
         mt.apply_to_models()
@@ -991,13 +1004,13 @@ def test_a_blocked_fit_lands_on_the_dense_answer(n):
     at one point the two covariances agree to 4e-12 (the tests below)."""
     from tests.test_sequential import _start_models
 
-    patterns, coords, tie = library(n, tt_max=10.0)
+    patterns, coords, equation = library(n, tt_max=10.0)
     results, layouts = {}, {}
     for layout in blocked.LAYOUTS:
         was = blocked.set_layout(layout)
         try:
             s, ins = _start_models()
-            ref = _Probe(s, [ins] * n, coordinates=coords, parametric=[tie])
+            ref = _Probe(s, [ins] * n, coordinates=coords, parametric=[equation])
             results[layout] = ref.fit(patterns, plan="mccusker_default")
         finally:
             blocked.set_layout(was)
@@ -1127,26 +1140,26 @@ def test_the_form_tests_gain_is_the_dense_least_squares_gain():
     assert gain == pytest.approx(want, rel=1e-9)
 
 
-def test_a_law_with_the_others_freed_is_the_difference_of_two_dense_gains():
-    """``ParametricFormTest.others_freed``: two ``constant`` laws on the
+def test_a_equation_with_the_others_freed_is_the_difference_of_two_dense_gains():
+    """``ParametricFormTest.others_freed``: two ``constant`` equations on the
     border's first two columns, each one's per-pattern copies its targets.
     With B freed too, A's gain is the χ² both swaps remove less what B's swap
     alone removes, as dense least squares reads them, and so are its
     directions.  The verdict is that reading's, and the joint reading is the
-    χ² both swaps remove; a fit with one law gets neither."""
+    χ² both swaps remove; a fit with one equation gets neither."""
     bj = _random_arrow(11)
     rng = np.random.default_rng(12)
     r = rng.standard_normal(bj.shape[0])
     n, n_data = bj.n_blocks, int(sum(bj.n_data))
     names = ["vars.A_0", "vars.B_0"] + [f"own{j}" for j in range(2, bj.n_cols)]
 
-    def law(name: str) -> ResolvedParametric:
+    def equation(name: str) -> ResolvedParametric:
         return ResolvedParametric(
-            tie=ParametricTie(name=name, target="phases.0.cell.a", basis="constant"),
+            equation=ParametricEquation(name=name, target="phases.0.cell.a", basis="constant"),
             patterns=list(range(n)), phi=np.ones((n, 1)), labels=["1"],
             divisors=np.ones(1), units=[None])
 
-    (a, b), joint = form_tests([law("A"), law("B")], bj, r, n_data, names, {}, [])
+    (a, b), joint = form_tests([equation("A"), equation("B")], bj, r, n_data, names, {}, [])
     dense = bj.toarray()
 
     def copies(col: int) -> np.ndarray:
@@ -1170,13 +1183,13 @@ def test_a_law_with_the_others_freed_is_the_difference_of_two_dense_gains():
         (only_b - both) / (held - only_a), rel=1e-8)
     assert b.others_freed.statistic / b.tied.statistic == pytest.approx(
         (only_a - both) / (held - only_b), rel=1e-8)
-    for law_test, other in ((a, b), (b, a)):
-        assert law_test.rejected is law_test.others_freed.rejected
-        assert law_test.provisional_on == ([other.tie] if other.rejected else [])
+    for eq_test, other in ((a, b), (b, a)):
+        assert eq_test.rejected is eq_test.others_freed.rejected
+        assert eq_test.provisional_on == ([other.equation] if other.rejected else [])
     assert joint.dof == 2 * (n - 1)
     assert joint.statistic / a.tied.statistic == pytest.approx(
         (held - both) / (held - only_a), rel=1e-8)
-    (alone,), none = form_tests([law("A")], bj, r, n_data, names, {}, [])
+    (alone,), none = form_tests([equation("A")], bj, r, n_data, names, {}, [])
     assert alone.others_freed is None and alone.tied == a.tied and none is None
     assert alone.rejected is alone.tied.rejected
 
@@ -1191,9 +1204,9 @@ def _two_readings(tied_stat: float, tied_p: float, freed_stat: float, freed_p: f
                  for x, p in ((tied_stat, tied_p), (freed_stat, freed_p)))
 
 
-def test_a_law_the_freed_reading_rejects_is_printed_and_warned_as_such():
-    """A law that passes with the other laws tied and is rejected with them
-    freed, as the ZrMo₂O₈ cubic law read over the earlier χ²_red·f².  The
+def test_a_equation_the_freed_reading_rejects_is_printed_and_warned_as_such():
+    """An equation that passes with the other equations tied and is rejected with them
+    freed, as the ZrMo₂O₈ cubic equation read over the earlier χ²_red·f².  The
     freed reading is the verdict and prints first, and the warning quotes it
     and says what the tied one read."""
     from types import SimpleNamespace
@@ -1203,28 +1216,28 @@ def test_a_law_the_freed_reading_rejects_is_printed_and_warned_as_such():
     from rietx.schemas.results import _form_line
 
     tied, freed = _two_readings(42.8, 0.0771, 48.6, 0.0232)
-    t = ParametricFormTest(tie="cubic_a", target="phases.1.cell.a", n_patterns=33,
+    t = ParametricFormTest(equation="cubic_a", target="phases.1.cell.a", n_patterns=33,
                            n_subset=33, rejected=True, tied=tied, others_freed=freed,
                            provisional_on=[])
     assert _form_line(t).splitlines() == [
         "      form REJECTED over 33 of 33 patterns:",
-        "        with the other laws freed, REJECTED: 48.6 past the cut 45.0 "
+        "        with the other equations freed, REJECTED: 48.6 past the cut 45.0 "
         "(p = 0.023) for 31 directions",
-        "        with the other laws tied, not rejected: 42.8 within the cut 45.0 "
+        "        with the other equations tied, not rejected: 42.8 within the cut 45.0 "
         "(p = 0.077) for 31 directions"]
     mt = SimpleNamespace(parametric=[SimpleNamespace(name="cubic_a",
                                                      paths=["vars.cubic_a_0",
                                                             "vars.cubic_a_1"])])
     (d,) = _parametric_form_diagnostics(mt, [t])
     assert d.value == 48.6 and d.where == ["vars.cubic_a_0", "vars.cubic_a_1"]
-    assert "with the other laws' targets freed (with them tied it read 42.8" in d.message
+    assert "with the other equations' targets freed (with them tied it read 42.8" in d.message
 
 
-def test_laws_the_joint_reading_alone_rejects_are_warned_together_naming_none():
-    """Two laws that each pass with the other freed, while freeing both
+def test_equations_the_joint_reading_alone_rejects_are_warned_together_naming_none():
+    """Two equations that each pass with the other freed, while freeing both
     removes more χ² than the cut for their directions together: one warning,
-    ``where`` both laws' coefficients, saying no law's own reading rejects.
-    A law rejected on its own reading takes the warning instead, and the
+    ``where`` both equations' coefficients, saying no equation's own reading rejects.
+    An equation rejected on its own reading takes the warning instead, and the
     printed block closes on the joint reading either way."""
     from types import SimpleNamespace
 
@@ -1239,35 +1252,35 @@ def test_laws_the_joint_reading_alone_rejects_are_warned_together_naming_none():
     mt = SimpleNamespace(parametric=[SimpleNamespace(name=n, paths=[f"vars.{n}_0"])
                                      for n in ("A", "B")])
 
-    def law(name: str, freed_stat: float) -> ParametricFormTest:
+    def equation(name: str, freed_stat: float) -> ParametricFormTest:
         tied, freed = _two_readings(30.0, 0.5, freed_stat, 0.1)
-        return ParametricFormTest(tie=name, target=f"phases.0.cell.{name.lower()}",
+        return ParametricFormTest(equation=name, target=f"phases.0.cell.{name.lower()}",
                                   n_patterns=33, n_subset=33, rejected=freed.rejected,
                                   tied=tied, others_freed=freed, provisional_on=[])
 
     joint = ParametricFormReading(dof=62, statistic=90.0, cut=81.381, rejected=True,
                                   p_value=0.012)
-    passing = [law("A", 40.0), law("B", 41.0)]
+    passing = [equation("A", 40.0), equation("B", 41.0)]
     (d,) = _parametric_form_diagnostics(mt, passing, joint)
     assert (d.code, d.value, d.where) == (
         "PARAMETRIC_FORM_REJECTED", 90.0, ["vars.A_0", "vars.B_0"])
-    assert "parametric ties 'A', 'B' together" in d.message
-    assert "No law's own reading rejects it" in d.message
-    (d,) = _parametric_form_diagnostics(mt, [law("A", 50.0), law("B", 41.0)], joint)
+    assert "parametric equations 'A', 'B' together" in d.message
+    assert "No equation's own reading rejects it" in d.message
+    (d,) = _parametric_form_diagnostics(mt, [equation("A", 50.0), equation("B", 41.0)], joint)
     assert d.where == ["vars.A_0"]
     assert _parametric_form_diagnostics(mt, passing, joint.model_copy(
         update={"statistic": 70.0, "rejected": False})) == []
-    rows = [ParametricCoefficient(tie=n, target=t.target, term="1", path=f"vars.{n}_0",
+    rows = [ParametricCoefficient(equation=n, target=t.target, term="1", path=f"vars.{n}_0",
                                   value=1.0, esd=0.1, vary=True, unit=None,
                                   reference=None)
             for n, t in zip("AB", passing, strict=True)]
     assert _parametric_lines(rows, passing, joint)[-1] == (
-        "    the 2 tested laws together: form REJECTED: 90.0 past the cut 81.4 "
+        "    the 2 tested equations together: form REJECTED: 90.0 past the cut 81.4 "
         "(p = 0.012) for 62 directions")
 
 
-def test_a_verdict_beside_a_rejected_law_is_marked_provisional():
-    """Two laws rejected together: each verdict names the other in
+def test_a_verdict_beside_a_rejected_equation_is_marked_provisional():
+    """Two equations rejected together: each verdict names the other in
     ``provisional_on``, the printed line says so, and each warning calls its
     verdict provisional and tells the reader to read the others again."""
     from types import SimpleNamespace
@@ -1277,7 +1290,7 @@ def test_a_verdict_beside_a_rejected_law_is_marked_provisional():
     from rietx.schemas.results import _form_line
 
     tied, freed = _two_readings(3122.0, 0.0, 51.4, 0.036, cut=48.6, dof=34)
-    tests = [ParametricFormTest(tie=n, target=f"phases.{k}.cell.a", n_patterns=37,
+    tests = [ParametricFormTest(equation=n, target=f"phases.{k}.cell.a", n_patterns=37,
                                 n_subset=37, rejected=True, tied=tied, others_freed=freed,
                                 provisional_on=[m for m in ("zrp_a", "si_a") if m != n])
              for k, n in enumerate(("zrp_a", "si_a"))]
@@ -1295,7 +1308,7 @@ def test_a_verdict_beside_a_rejected_law_is_marked_provisional():
 def test_a_patterns_own_target_column_is_read_off_the_coefficients():
     """``target_columns``: in pattern k, J_coef·Φ_kᵀ/‖Φ_k‖² is the target's
     own column, the one an untied table's ``hist.k.`` path carries; a
-    skipped pattern has none, and a tie whose coefficient is not free has no
+    skipped pattern has none, and an equation whose coefficient is not free has no
     columns at all."""
     from tests.test_sequential import _start_models
 
@@ -1346,9 +1359,9 @@ def test_a_library_surface_over_a_hundred_patterns_through_the_blocked_solver():
     from tests.test_sequential import _start_models
 
     n = 120
-    patterns, coords, tie = library(n)
+    patterns, coords, equation = library(n)
     s, ins = _start_models()
-    ref = _Probe(s, [ins] * n, coordinates=coords, parametric=[tie])
+    ref = _Probe(s, [ins] * n, coordinates=coords, parametric=[equation])
     result = ref.fit(patterns, plan="mccusker_default")
     OUT.mkdir(exist_ok=True)
     for h in (0, n - 1):

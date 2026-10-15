@@ -13,8 +13,8 @@ from .parametric import (
     ParametricCoefficient,
     ParametricFormReading,
     ParametricFormTest,
-    ParametricLaw,
     ParametricValue,
+    RefinedParametricEquation,
 )
 from .pattern import _floor_sigma
 
@@ -60,23 +60,23 @@ class RefinedParameter(Base):
     reported channel — the flag exists so that an agent iterating
     ``parameters`` does not have to cross-reference ``diagnostics`` by path.
 
-    **``laws`` names the parametric declarations that set the row** (WP-1325),
-    in declaration order, and is empty where none does.  A row is set by a law
+    **``equations`` names the parametric declarations that set the row** (WP-1325),
+    in declaration order, and is empty where none does.  A row is set by an equation
     when one of its coefficients moves it, read off **C** as every hold reads
     it (WP-1342), so a held coefficient still counts.  Three kinds of row are:
     the target in each pattern of the subset, what follows the target there (a
     cubic cell's b and c), and the coefficient's own ``vars.<name>_<j>`` row.
-    On a target row the value and esd are the law's at that pattern's
+    On a target row the value and esd are the equation's at that pattern's
     coordinates, which can be far tighter than the pattern measures alone, and
-    where the pattern cannot see the target they are the law's alone
+    where the pattern cannot see the target they are the equation's alone
     (``PARAMETRIC_TARGET_UNSEEN``).  On a coefficient row they are in the
     table's units, per unit of the *scaled* coordinate, and
     :attr:`RefinementResult.parametric` holds the same coefficient in the
     caller's units.  Two writers: ``MultiHistogramRefinement._parameters``,
     and ``refine._build_result``, which writes it empty because a single fit
-    declares no law (a chain's rows are its fits').  ``None`` says nobody
+    declares no equation (a chain's rows are its fits').  ``None`` says nobody
     recorded it: a hand-built row, or a result written before schema 0.57,
-    when 1.9.0's parametric fits already carried law-set rows that an empty
+    when 1.9.0's parametric fits already carried equation-set rows that an empty
     list would have called measured.
     """
 
@@ -85,7 +85,7 @@ class RefinedParameter(Base):
     stderr: float | None = None
     vary: bool = True
     at_bound: bool | None = None
-    laws: list[str] | None = None
+    equations: list[str] | None = None
 
 
 class Statistics(Base):
@@ -1264,14 +1264,14 @@ def _parametric_lines(coefficients: list[ParametricCoefficient] | None,
         return []
     from .._display import _number
 
-    tests = {t.tie: t for t in form or []}
+    tests = {t.equation: t for t in form or []}
     lines = ["  parametric coefficients (user units, at each reference):"]
-    ties = list(dict.fromkeys(c.tie for c in coefficients))
-    for tie in ties:
-        terms = [c for c in coefficients if c.tie == tie]
+    names = list(dict.fromkeys(c.equation for c in coefficients))
+    for equation in names:
+        terms = [c for c in coefficients if c.equation == equation]
         ref = ("" if not terms[0].reference else " at " + ", ".join(
             f"{k}={v:g}" for k, v in terms[0].reference.items()))
-        lines.append(f"    {tie}: {terms[0].target}{ref}")
+        lines.append(f"    {equation}: {terms[0].target}{ref}")
         for c in terms:
             if not c.vary:
                 value = f"{_number(c.value)} (not free at the answer)"
@@ -1281,11 +1281,11 @@ def _parametric_lines(coefficients: list[ParametricCoefficient] | None,
                 value = _number(c.value, c.esd)
             unit = f" {c.unit}" if c.unit else ""
             lines.append(f"      [{c.term}] {value}{unit}")
-        if tie in tests:
-            lines.append(_form_line(tests[tie]))
+        if equation in tests:
+            lines.append(_form_line(tests[equation]))
     if joint is not None:
         n = sum(t.others_freed is not None for t in form or [])
-        lines.append(f"    the {n} tested laws together: form {_verdict(joint)}")
+        lines.append(f"    the {n} tested equations together: form {_verdict(joint)}")
     return lines
 
 
@@ -1307,8 +1307,8 @@ def _form_line(t: ParametricFormTest) -> str:
     # the freed reading is the verdict, so it reads first
     verdict = {True: "REJECTED", False: "not rejected", None: "not tested"}[t.rejected]
     line = (f"      form {verdict} {over}:"
-            f"\n        with the other laws freed, {_verdict(freed)}"
-            f"\n        with the other laws tied, {_verdict(tied)}")
+            f"\n        with the other equations freed, {_verdict(freed)}"
+            f"\n        with the other equations tied, {_verdict(tied)}")
     if t.provisional_on:
         names = ", ".join(repr(n) for n in t.provisional_on)
         line += (f"\n        provisional: {names} rejected too, and moved the answer this "
@@ -1478,10 +1478,10 @@ class RefinementResult(Base):
     identifiability: Identifiability | None = None
 
     #: The coefficients of every parametric declaration a joint fit refined
-    #: (WP-1325, :class:`~rietx.schemas.parametric.ParametricTie`), each in the
+    #: (WP-1325, :class:`~rietx.schemas.parametric.ParametricEquation`), each in the
     #: caller's units at the declaration's reference, with its esd from the
     #: joint covariance or ``None`` where that gives it none.  ``None`` means
-    #: no parametric tie was declared — never "declared, and nothing to say",
+    #: no parametric equation was declared — never "declared, and nothing to say",
     #: which a declaration cannot be.  One writer:
     #: ``MultiHistogramRefinement._build_result``.
     parametric: list[ParametricCoefficient] | None = None
@@ -1494,23 +1494,23 @@ class RefinementResult(Base):
     parametric_form: list[ParametricFormTest] | None = None
 
     #: The form test of every tested parametric declaration at once
-    #: (WP-1325): the χ² freeing each tested law's target in every pattern
+    #: (WP-1325): the χ² freeing each tested equation's target in every pattern
     #: would remove, as one
-    #: :class:`~rietx.schemas.parametric.ParametricFormReading`.  Two laws
+    #: :class:`~rietx.schemas.parametric.ParametricFormReading`.  Two equations
     #: whose targets move the pattern alike can each pass with the other freed
-    #: while both are wrong; this reading sees that, and names no law.
+    #: while both are wrong; this reading sees that, and names no equation.
     #: ``None`` unless two or more declarations were tested.  One writer:
     #: ``MultiHistogramRefinement._build_result``.
     parametric_form_joint: ParametricFormReading | None = None
 
     #: Each parametric declaration as the fit resolved it, with its
     #: coefficients' covariance in the caller's units, one
-    #: :class:`~rietx.schemas.parametric.ParametricLaw` per declaration in
+    #: :class:`~rietx.schemas.parametric.RefinedParametricEquation` per declaration in
     #: declaration order (WP-1325).  :meth:`parametric_value` evaluates one at
     #: any coordinate.  ``None`` exactly when :attr:`parametric` is, and on a
     #: result written before schema 0.57.  One writer:
     #: ``MultiHistogramRefinement._build_result``.
-    parametric_laws: list[ParametricLaw] | None = None
+    parametric_equations: list[RefinedParametricEquation] | None = None
 
     # How many explicit :class:`~rietx.schemas.instrument.HumpComponent` terms
     # this fit declared — the other half of "how flexible was the background":
@@ -1711,30 +1711,30 @@ class RefinementResult(Base):
                 return p
         raise KeyError(path)
 
-    def parametric_value(self, tie: str, coordinates: dict[str, float] | None = None,
+    def parametric_value(self, equation: str, coordinates: dict[str, float] | None = None,
                          *, row: list[float] | None = None) -> ParametricValue:
-        """A parametric law's target at any coordinate, with its esd (WP-1325).
+        """A parametric equation's target at any coordinate, with its esd (WP-1325).
 
-        ``tie`` names the declaration; ``coordinates`` maps each coordinate
+        ``equation`` names the declaration; ``coordinates`` maps each coordinate
         its polynomial uses to a value, in the coordinate table's units, and a
-        ``design`` law takes a ``row`` instead.  Reads the stored coefficients
+        ``design`` equation takes a ``row`` instead.  Reads the stored coefficients
         (:attr:`parametric`), their covariance and the resolved reference
-        (:attr:`parametric_laws`), and the form test (:attr:`parametric_form`),
+        (:attr:`parametric_equations`), and the form test (:attr:`parametric_form`),
         whose verdict rides beside the value because the esd assumes the
         form.  At a pattern's own coordinates this is that pattern's
         ``hist.<h>.`` target row, value and esd.
         """
-        if self.parametric_laws is None:
+        if self.parametric_equations is None:
             raise ValueError(
-                "this result carries no parametric law to evaluate: it declared "
+                "this result carries no parametric equation to evaluate: it declared "
                 f"none, or was written before {DIST_NAME} 1.10")
-        laws = {law.tie.name: law for law in self.parametric_laws}
-        if tie not in laws:
-            raise KeyError(f"no parametric law named {tie!r}; this result has "
-                           f"{sorted(laws)}")
-        coefficients = [c for c in self.parametric or [] if c.tie == tie]
-        form = next((t for t in self.parametric_form or [] if t.tie == tie), None)
-        return laws[tie].evaluate(coefficients, form, coordinates, row)
+        declared = {r.equation.name: r for r in self.parametric_equations}
+        if equation not in declared:
+            raise KeyError(f"no parametric equation named {equation!r}; this result has "
+                           f"{sorted(declared)}")
+        coefficients = [c for c in self.parametric or [] if c.equation == equation]
+        form = next((t for t in self.parametric_form or [] if t.equation == equation), None)
+        return declared[equation].evaluate(coefficients, form, coordinates, row)
 
     def _repr_html_(self) -> str:
         """The termination view, then the refined parameters as a table
@@ -1745,11 +1745,11 @@ class RefinementResult(Base):
                  "" if p.at_bound is None else str(p.at_bound).lower())
                 for p in self.parameters]
         header = ("path", "value", "at_bound")
-        # a law's column only where a law set a row (WP-1325), so a fit that
+        # an equation's column only where an equation set a row (WP-1325), so a fit that
         # declared none keeps its three columns
-        if any(p.laws for p in self.parameters):
-            header += ("laws",)
-            rows = [(*row, ", ".join(p.laws or ()))
+        if any(p.equations for p in self.parameters):
+            header += ("equations",)
+            rows = [(*row, ", ".join(p.equations or ()))
                     for row, p in zip(rows, self.parameters, strict=True)]
         table = table_html(header, rows) if rows else ""
         return pre_html(str(self)) + table

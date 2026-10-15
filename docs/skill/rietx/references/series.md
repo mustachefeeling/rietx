@@ -57,14 +57,14 @@ What an operator must know, all measured:
   running step by step rather than once: on that series a different, larger
   jump survived having no chain, so that one was real — chaining artefacts are
   established or refuted transition by transition.
-- **A law across the patterns (a(T) linear, a cell across a library) is a
+- **An equation across the patterns (a(T) linear, a cell across a library) is a
   joint fit, not a line through a chain**:
-  `rx.refine_multi(..., coordinates=, parametric=[rx.ParametricTie(...)])`,
+  `rx.refine_multi(..., coordinates=, parametric=[rx.ParametricEquation(...)])`,
   read on `result.parametric`, never the scaled `vars.` rows.  It pays only where a
   pattern cannot see the parameter alone (slope esd 0.72-0.76× the line's for a
   minor phase); elsewhere it equals the line, and a shared instrument cut the
   esd 2.6×.  Its esd assumes the form, which `result.parametric_form` tests
-  where patterns see the target, each law with the others freed,
+  where patterns see the target, each equation with the others freed,
   then all at once.  A minor phase stalls a quadratic at `max_iter`.
   *(Measured: WP-1325, synthetic, ZrMo₂O₈.)*
 - **The default `refit="single"` collapses the plan into one stage** for every
