@@ -43,7 +43,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-12 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1912](1912-a-polar-axis-has-no-origin.md) | A polar axis has no origin, and the fit walks along it | 2026-10-13 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1913](1913-what-the-benchmark-agents-wrote-by-hand.md) | What the benchmark agents wrote by hand: a mixed site, a special-position retry loop, and `.esd` | 2026-10-08 | P3 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
-| [1922](1922-a-rigid-body-the-data-reject-is-named.md) | A rigid body the data reject is named | 2026-10-11 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | 2026-10-13 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1927](1927-tof-t1-the-axis-and-its-readers.md) | TOF T-1: the time-of-flight axis and its readers | 2026-10-13 | P2 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 2026-10-12 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -506,7 +505,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1912](1912-a-polar-axis-has-no-origin.md) | A polar axis has no origin, and the fit walks along it | 🔄 2026-10-13 | P2 | — |
 | [1914](1914-a-size-read-off-a-coefficient-at-its-floor.md) | A size read off a coefficient at its floor | ⬜ | P3 | — |
 | [1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) | An unmeasured direction poisons every esd of an indexing candidate | ⬜ | P3 | — |
-| [1922](1922-a-rigid-body-the-data-reject-is-named.md) | A rigid body the data reject is named | 🔄 2026-10-11 | P3 | [1805](1805-the-rigid-body.md) |
+| [1922](1922-a-rigid-body-the-data-reject-is-named.md) | A rigid body the data reject is named | ✅ 2026-10-15 | — | [1805](1805-the-rigid-body.md) |
 | [1923](1923-a-candidate-in-its-conventional-setting.md) | A candidate is reported as a lattice in its conventional setting, and the reduction is an exact change of basis | ✅ 2026-10-11 | — | — ([1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) |
 | [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) | An esd follows where the solver stopped beside a flat column | ✅ 2026-10-12 | — | [1938](1938-every-parameter-refined-in-its-own-units.md) |
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | ✅ 2026-10-13 | — | — |
