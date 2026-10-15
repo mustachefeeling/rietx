@@ -139,7 +139,7 @@ def stage_ticks(model, values: dict, *,
     two was lying.
     """
     ticks: dict[str, dict] = {}
-    for ip, cp in enumerate(model.phases):
+    for ip in range(len(model.phases)):
         # the forward model's own position (Bragg angle, zero and the
         # geometry's shift) and the reflection each is, from the walk every
         # tick builder shares (`CompiledModel.reflection_positions`, WP-1908).

@@ -363,6 +363,27 @@ def test_the_three_builders_share_one_walk_and_pair_positions_with_indices():
     assert row["hkl"] == [reflection_label_row(r) for r in hklm[keep][order]]
 
 
+def test_the_walk_reads_a_refined_wavelength_as_the_peaks_do():
+    """A free λ moves every peak, so it moves every tick.
+
+    ``phase_peaks`` reads λ from the values (``line_lambdas``, WP-1134), and a
+    walk reading the compile-time tuple instead left the ticks of a λ
+    calibration at the old λ: 0.1 deg at 150 deg for +0.1 %.
+    """
+    ins = _flat_plate(radiation="CuKa")
+    structure = _rutile()
+    model = compile_model(structure, ins, _simulate(ins, structure),
+                          mode="rietveld")
+    table = ParameterTable(structure, ins)
+    values = dict(table.decode(table.x0()))
+    path = "instrument.source.lines.0.wavelength"
+    values[path] *= 1.001
+
+    pos, _ = model.reflection_positions(0, values)
+    drawn = np.concatenate([p[0] for p in model.phase_peaks(0, values)])
+    assert np.allclose(pos, drawn, rtol=0.0, atol=1e-10, equal_nan=True)
+
+
 def test_the_satellite_arms_lattice_follows_the_ticks_geometry():
     """``report.satellites`` places its own positions and owes the ticks' answer.
 
@@ -401,7 +422,6 @@ def test_the_satellite_arm_places_a_propagation_vectors_satellites_by_the_ticks(
     k = (0, 0, "1/2")
     structure = Structure(phases=[modulated_phase(k)])
     ins = _flat_plate(displacement=0.5)
-    ins.source.dispersion = None
     data = _simulate(ins, structure)
     model = compile_model(structure, ins, data, mode="rietveld")
     table = ParameterTable(structure, ins)

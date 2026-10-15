@@ -7130,8 +7130,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
             with np.errstate(invalid="ignore", divide="ignore"):
                 frac = np.where(total > 0.0, f_mag / total, 0.0)
             mag_hkl = frac >= 1.0 - MAGNETIC_TICK_PURITY
-            mag_row = (np.concatenate([mag_hkl for _ in range(n_lines)])
-                       if n_lines else np.zeros(0, dtype=bool))
+            mag_row = np.tile(mag_hkl, n_lines)
             rows_out = ((name, keep & ~mag_row),
                         (f"{name} (magnetic)", keep & mag_row))
         else:

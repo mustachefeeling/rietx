@@ -1552,7 +1552,7 @@ class MultiHistogramRefinement:
         ticks: dict[str, list[float]] = {}
         tick_hkl: dict[str, list[list[int]]] = {}
         tick_support: dict[str, list[float]] = {}
-        for ip, cp in enumerate(model.phases):
+        for ip in range(len(model.phases)):
             name = structure.phases[ip].name
             # (H, m), not H: a satellite is labelled by its order (WP-1326)
             pos, hkl = model.reflection_positions(ip, values)

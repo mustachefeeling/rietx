@@ -244,8 +244,9 @@ AXIAL_SIZING_FLOOR = 0.02
 #: (``compile_model``).  A peak centred just outside the range still puts its
 #: tail inside it, and the reflection list is frozen for the stage while the
 #: zero and the geometry move.  The margin is on top of the geometry's own
-#: shift, which the window follows exactly (WP-1908), so it is a tail
-#: allowance and no longer the room a displacement has to fit in.
+#: shift at the values the stage compiles from, which the window follows
+#: (WP-1908).  A stage that frees the zero or a geometry shift from those
+#: values still has only this margin for what it moves during the stage.
 REFLECTION_MARGIN_DEG = 0.5
 
 #: WP-1343.  When a magnetic broadening term is about to be *refined* from
@@ -1075,14 +1076,17 @@ class CompiledModel:
         A time-of-flight axis owes a twin here, not a fifth walk.  Positions come
         from :meth:`apparent_two_theta`, so they are where the model draws each
         peak.  The satellite report's lattice enumerates differently and calls
-        :meth:`apparent_two_theta` itself.
+        :meth:`apparent_two_theta` itself.  The wavelengths are
+        :meth:`line_lambdas`, as in :meth:`phase_peaks`, so a refined λ moves
+        the ticks with the peaks rather than leaving them at the compile-time
+        value.
         """
         cp = self.phases[ip]
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
         rows = [self.apparent_two_theta(cp.reflections.two_theta(cell, lam),
                                         values)
-                for lam in self.line_wavelengths]
+                for lam in self.line_lambdas(values)]
         pos = np.concatenate(rows) if rows else np.array([])
         hklm = (np.tile(cp.reflections.hklm, (len(rows), 1)) if rows
                 else np.zeros((0, 4), dtype=np.int64))
@@ -3717,8 +3721,10 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     _extra = _extra[np.isfinite(_extra)]
     widen_lo = max(float(_extra.max()), 0.0) if _extra.size else 0.0
     widen_hi = max(-float(_extra.min()), 0.0) if _extra.size else 0.0
+    # capped at backscatter: d_min = λ/(2·sin θ_max) folds back past 180°, so
+    # a window widened beyond it would generate *fewer* reflections, not more
     lo_eff = max(tt_min - zero - REFLECTION_MARGIN_DEG - widen_lo, 0.1)
-    hi_eff = tt_max - zero + REFLECTION_MARGIN_DEG + widen_hi
+    hi_eff = min(tt_max - zero + REFLECTION_MARGIN_DEG + widen_hi, 180.0)
     sin_lo = np.sin(np.radians(lo_eff / 2.0)) * lam_gen / max(lams)
     gen_min = max(2.0 * np.degrees(np.arcsin(min(sin_lo, 1.0))), 0.05)
 
