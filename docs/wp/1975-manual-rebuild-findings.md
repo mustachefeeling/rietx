@@ -1,6 +1,6 @@
 # WP-1975 — the manual rebuilt: findings brief
 
-Milestone: unscheduled · Status: 🔄 2026-10-15 — layout, migration, evidence decided (§ F8, § H); next the toolchain spike and § E's remaining questions
+Milestone: unscheduled · Status: 🔄 2026-10-15 — every re-plan question but the toolchain decided (§ F8, § H); next the toolchain spike
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-15 — a scoping WP: the maintainer's re-plan of the whole manual starts from this file
@@ -709,6 +709,62 @@ Blocked: agentdocsspec.com, jamdesk, vercel, logrocket, pingidentity.
   the release notes; `versionchanged` notes expire; the maturity badge is generated;
   differences from other codes go in labelled callouts.
 
+**And the rest of § E, the same session:**
+- **URLs and versions.** The manual moves to `rietx.org/docs/`, introduced with the new tree.
+  The old chapters keep their URLs until each is retired, then get an HTML redirect stub, since
+  GitHub Pages has no server-side redirects. The versions are:
+  - `/docs/stable/` (the latest tag), where `/docs/` redirects;
+  - `/docs/dev/` (`main`, under a "not yet released" banner);
+  - the last few minor releases, older ones pruned to stay inside Pages' 1 GB cap.
+
+  The installed package links to its own version's docs, through `_about.DOCS_URL` and
+  `help.py`'s anchors. Why it matters: #407 hit a verb on the hosted manual (built from
+  `main`) that the PyPI release lacked, and `compatibility.md` tells users to pin. Two
+  consequences:
+  - Today's Pages workflow deploys one fresh build, so keeping versions needs an
+    accumulating deploy; the slate decides which.
+  - The spike adds a version switcher and a dev banner to its criteria (pydata-sphinx-theme
+    ships both; mystmd's equivalent is unverified).
+- **The page contract is tested.** On the new tree only, a test fails a page that:
+  - has no answer sentence under its H1;
+  - passes 50 k characters;
+  - opens a section on a back-reference ("as above").
+
+  Old chapters are exempt until retired.
+- **The trail's reach: Theory, plus checked links from elsewhere.** Theory keeps today's
+  check, a source and a citation on every equation. An equation on any other page carries the
+  same. A physics claim on a Concepts or Guides page links its Theory section, and a test
+  checks that the link resolves.
+- **Every registry projection is generated.** The parameter map, plan ladder, API reference,
+  diagnostic index, project tree and roadmap are built from their authority at build time.
+  The foreign-name map is checked against the readers' keyword constants. Prose pages are
+  written.
+- **Tutorials teach rietx, not Rietveld.** The first audience already knows the method.
+  Notebooks show rietx's moves one step a cell ("predict, then run") and link to Concepts and
+  Theory for the why. Notebook 02 splits, and the agent-supervision checklists leave the
+  notebooks.
+- **The skill page is dropped.** The manual stops rendering the 702 k-character skill. A
+  "For agents" page under Reference says what the skill is and links its published copy at
+  `/skill/rietx/`. `agent` admonitions stay only where a supervising person needs them.
+- **Style, four layers, the first winning:**
+  1. the repo's own rules, with the register guard (no em dash, no bold) carried to the new
+     tree;
+  2. a term list, one term per concept, with `help.py`'s names the authority and IUCr
+     notation conventions added;
+  3. **Microsoft's Writing Style Guide** as the base, chosen for being easier to read and
+     getting to the point. Take its directness, not its chattiness: contractions and short
+     sentences yes, marketing warmth and fragments no;
+  4. Vale with the Microsoft package on the new tree, the term list as its accept list, and
+     the maintainer's banned words as its reject list.
+
+  The report and diagnostic text rewrite (draft 1976) takes the same guide, so the manual and
+  the package's output speak in one voice. One check for the spike: Vale skips fenced blocks,
+  so MyST admonitions probably need the `:::` colon-fence form to be linted (inferred, not
+  tested).
+- **Order: overlap.** The spike comes first. Then the Concepts, Reference and Switching pages
+  start, since they show no fit output, while the report-text rewrite runs alongside. The
+  tutorials and Guides wait for that rewrite.
+
 ### F9. Hand-off
 The brief is to be copied into the repo as `docs/wp/1975-manual-rebuild-findings.md` with the
 template's header lines (Milestone: unscheduled, Status ⬜, Track: The repo's own process,
@@ -987,26 +1043,12 @@ keeps the tie true.
   Sphinx paragraph-level markup; Django "Writing documentation"; python/cpython#121277.
 
 ## E. Open questions for the re-plan
-Answered since the brief was written: the migration, the layout, the evidence (§ F8, end);
-Part 2's place (the Theory tab, and the home of the trail § H3 describes); the version stance
-(expiring `versionchanged` notes plus the release notes, no diary in prose); agent-facing
-material's track (the skill and the markdown twin, § F8). Still open:
-- **The toolchain**, by the spike in Tasks.
-- **The page contract as guards**: an answer sentence under every H1, self-contained
-  sections, at most 50 k characters a page (§ F4).
-- **Who the tutorials teach.** The first audience already knows Rietveld, so do they teach
-  rietx only, with Rietveld background a link away?
-- **The skill page** (`using/skill.md`, 702 k characters, § G5): drop it, link to it, or split
-  it; and do the `agent` admonitions survive?
-- **Generated or written**: which pages are projections of code registries (parameter map,
-  plan ladder, API reference, diagnostic index, project tree, foreign-name map, roadmap)?
-- **Terminology and style**: a term list, a public base style guide, Vale; does the register
-  guard (no em dash, no bold) carry over?
-- **Order of work** against the report-text rewrite (draft 1976). A suggestion: the Concepts
-  and Reference pages start now, the tutorials and Guides wait on 1976, since they show its
-  output.
-- **How far the trail's guard reaches**: today only Theory's equations are checked; does a
-  physics claim on a Concepts or Guides page have to cite its paper or link its Theory section?
+Every question this section held is answered at the end of § F8. They cover the migration,
+the layout, the evidence trail, URLs and versions, the page contract, the trail's reach,
+generated pages, the tutorials, the skill page, style and the order of work. Part 2 becomes
+the Theory tab, and versions go in expiring notes plus the release notes. One stays open:
+- **The toolchain**, settled by the spike in Tasks, which now also judges version support (a
+  switcher and a dev banner) and whether Vale reads the MyST sources.
 
 ## Tasks
 
@@ -1015,13 +1057,16 @@ material's track (the skill and the markdown twin, § F8). Still open:
   the toolchain weighed, sphinx-llm tried on this manual).
 - [x] List the decisions the re-plan needs from the maintainer, research layout, toolchain
   and evidence precedent, and record the four decisions taken (§ H, § F8).
-- [ ] Toolchain spike: the front page, one Guides page and one Theory page (numbered
-  equations, a citation, a light/dark figure pair) built in Sphinx with pydata-sphinx-theme and
-  in mystmd, each with an attempt at `llms.txt` and a markdown twin (`sphinx-llms-txt` first on
-  the Sphinx side). Choose from the built pages.
-- [ ] Settle § E's remaining questions with the maintainer.
-- [ ] File the WP slate for the new tree (layout 6, built beside the old) and close this one
-  into it.
+- [x] Settle § E's questions with the maintainer (§ F8, end: URLs and versions, page
+  contract, trail reach, generated pages, tutorials, skill page, style, order).
+- [ ] Toolchain spike: build the front page, one Guides page and one Theory page (numbered
+  equations, a citation, a light/dark figure pair) in Sphinx with pydata-sphinx-theme and in
+  mystmd. Build each under `/docs/<version>/` URLs with a version switcher and a dev banner,
+  and attempt `llms.txt` plus a markdown twin in each (`sphinx-llms-txt` first on the Sphinx
+  side). Run Vale with the Microsoft package over each page's sources. Choose from the built
+  pages.
+- [ ] File the WP slate for the new tree (layout 6, built beside the old, § F8's decisions)
+  and close this one into it.
 
 ## Acceptance
 
@@ -1040,16 +1085,17 @@ python3 .claude/hooks/wp_index.py        # the index is unchanged afterwards
 
 ## Handover log
 
-### 2026-10-15 (4th session) — four decisions taken; the toolchain goes to a spike
+### 2026-10-15 (4th session) — the re-plan decided; only the toolchain goes to a spike
 
 What this means: the manual's rebuild now has a shape. It will be a new tree built beside the
 old one, with six tabs (Start, Guides, Concepts, Reference, Theory, Switching) and three
-audience cards on the front page. Measurement diaries and history leave the pages, but every
-physics claim keeps a visible trail to its paper, its code and its validation, because that
-trail is what shows the physics is real. The "new concepts" the brief was waiting on turned
-out to be these decisions, and none of them were recorded anywhere before this session. The
-toolchain is not decided: it is narrowed to Sphinx with pydata-sphinx-theme or mystmd, and a
-spike that builds the same pages in each will settle it.
+audience cards on the front page. It will be served at `rietx.org/docs/` in dev, stable and
+recent-release versions, written in Microsoft's plain style and checked by Vale. Measurement
+diaries and history leave the pages, but every physics claim keeps a visible trail to its
+paper, its code and its validation, because that trail is what shows the physics is real.
+The "new concepts" the brief was waiting on turned out to be these decisions, and none of
+them were recorded anywhere before this session. Only the toolchain is left: Sphinx with
+pydata-sphinx-theme or mystmd, settled by a spike that builds the same pages in each.
 
 **Done.**
 - The maintainer asked which concepts the re-plan still needed. Nothing was recorded: the WP
@@ -1059,8 +1105,22 @@ spike that builds the same pages in each will settle it.
   the agent layer (H2), and the precedent for evidence and history (H3, a table).
 - Four decisions recorded at the end of § F8: migration beside the old tree, the hybrid
   layout, a toolchain spike, and the evidence trail with the maintainer's own reason.
-- § E trimmed to the eight questions still open. Tasks rewritten: the spike, § E, then the
-  WP slate.
+- The maintainer then answered § E's remaining eight questions in the same session, also
+  recorded at the end of § F8:
+  - versioned `/docs/` (dev, stable, recent minors);
+  - all three page rules as tests;
+  - the trail checked in Theory and by links from elsewhere;
+  - every registry projection generated;
+  - tutorials that teach rietx only;
+  - the skill page dropped;
+  - a term list, the register guard, Microsoft as the base guide, and Vale;
+  - overlapping order.
+- Microsoft was chosen over Google after a side-by-side rewrite of one manual passage. It is
+  easier to read and gets to the point, and Google's extra developer coverage matters less
+  where the repo already has naming rules and a generated API reference. The caveat recorded
+  with it: take the directness, not the chattiness.
+- § E now holds only the toolchain. Tasks: the spike (with versioning and Vale added to its
+  criteria), then the WP slate.
 - Forward reference: WP-1443's `### Inherited` now says the rebuild is coming, so its passage
   fixes land in the new tree rather than in chapters about to be retired.
 - The branch was restarted from `main`, because PR #994 was merged with this branch.
@@ -1077,12 +1137,19 @@ read from the cited sources.
   command. Edit the WP file in place instead.
 
 **Next.**
-1. The toolchain spike (first Task). Build the front page, one Guides page and one Theory
-   page (numbered equations, a citation, a light/dark figure pair) in both toolchains. Try
-   `sphinx-llms-txt` on the Sphinx side before writing a twin builder. The built pages decide.
-2. In parallel, put § E's open questions to the maintainer. The page-contract guards and
-   how far the trail's guard reaches decide what the first new pages are tested against.
-3. Then file the WP slate for the new tree and close 1975 into it.
+1. The toolchain spike (the open Task). Build the front page, one Guides page and one Theory
+   page (numbered equations, a citation, a light/dark figure pair) in both toolchains, under
+   `/docs/<version>/` URLs with a switcher and a dev banner. Try `sphinx-llms-txt` on the
+   Sphinx side before writing a twin builder, and run Vale (Microsoft package) over each
+   page's sources. The built pages decide.
+2. Then file the WP slate from § F8's decisions and close 1975 into it. Expected members:
+   - the new tree's skeleton with its page-contract tests;
+   - the generated reference pages;
+   - the Switching tab;
+   - versioned deploys with redirects;
+   - Vale with the term list;
+   - the report-text rewrite in Microsoft style;
+   - the tutorials, after the report-text rewrite.
 
 ### 2026-10-15 (3rd session) — the brief checked, the toolchain weighed; the re-plan waits
 
