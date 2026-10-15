@@ -537,6 +537,9 @@ from .._nearmiss import did_you_mean
 #: node ran at), the same rule.  And ``StageResult.n_lapack_fallbacks``, the
 #: decompositions a stage repeated with LAPACK's second driver, defaulting to
 #: 0, which every earlier stage took.
+#: Also in 0.59, one number a release cycle (WP-1809): ``PlanarityRestraint`` joins the ``Restraint``
+#: union, and ``RestraintRow.kind`` gains ``"planarity"``.  Additive: no
+#: existing document carries either, and an older build refuses one that does.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
