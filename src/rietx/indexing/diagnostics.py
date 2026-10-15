@@ -845,6 +845,14 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
                         "check the range, the wavelength and the width law")))
     alive = [c for c in screen.candidates if not c.refuted and c.screened]
     unscreened = [c for c in screen.candidates if not c.refuted and not c.screened]
+    if not screen.candidates and screen.status == "cancelled":
+        return out + [Diagnostic(
+            level="warning", code="EXTINCTION_SYMBOL_AMBIGUOUS",
+            message=("the screen was stopped before any extinction class was "
+                     f"screened (lattice {screen.lattice_group}); nothing here "
+                     "says anything about the cell"),
+            where=[f"{screen.system} {screen.centring}"],
+            suggestion="run the screen again to completion")]
     if not screen.candidates:
         return out + [Diagnostic(
             level="warning", code="EXTINCTION_SYMBOL_AMBIGUOUS",
