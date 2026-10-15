@@ -1,8 +1,9 @@
 """Static plots for the indexing pipeline (matplotlib/Agg).
 
 Three pictures, one per stage of what :func:`~rietx.indexing.index_pattern`
-does, drawn in the same palette as the Rietveld panel in :mod:`rietx.viz.plots`
-so a reader moving between them is not relearning colours:
+does.  Their colours are roles in :data:`rietx.viz.plots.PALETTES`, beside the
+Rietveld panel's, and each takes ``style="light"`` or ``"dark"`` as that panel
+does (WP-1972):
 
 * :func:`plot_peak_list` — what the search was actually given.  A peak list is an
   *input* that has already thrown most of the pattern away, and every indexing
@@ -31,25 +32,27 @@ from contextvars import ContextVar
 
 import numpy as np
 
-#: Observed data, calculated model, and the recessive marks — the tokens
-#: ``viz.plots`` already uses, restated here rather than imported so the two
-#: modules stay independently readable.
-OBS = "#1f5fa8"
-CALC = "#c23b22"
-BKG = "#7a7a7a"
-DIFF = "#4a4a4a"
-#: The two Le Bail detectors.  ``unmatched_observed`` keeps the purple
-#: ``plot_for_vlm`` already gives that exact meaning; ``predicted_but_absent`` is
-#: the amber this palette uses for "look here", and the two never share a mark
-#: because they are evidence about opposite things — a wrong metric against an
-#: oversized one.
-ABSENT = "#f2c14e"
-UNMATCHED = "#7a1fa8"
-#: Candidate rows, in **rank order and never cycled**: rank 1 is always the first
-#: colour, so two galleries of the same dataset are comparable.  Past the eighth
-#: candidate the rows are drawn in ``DIFF`` rather than in a generated hue.
-CANDIDATE_COLORS = ("#1f5fa8", "#c23b22", "#2a9d2a", "#7a1fa8",
-                    "#d17b0f", "#0f8c8c", "#a8195f", "#5a5a9d")
+from .plots import PALETTES, _palette
+
+# The roles, in PALETTES per ground: ``index_obs`` and ``index_calc`` for
+# observed data and the calculated model, ``index_bkg`` and ``index_diff`` for
+# the recessive marks.  The two Le Bail detectors are ``unmatched``, the purple
+# ``plot_for_vlm`` already gives that exact meaning, and ``absent``, the amber
+# this palette uses for "look here".  The two never share a mark because they
+# are evidence about opposite things — a wrong metric against an oversized one.
+
+#: Candidate rows on the light ground, in **rank order and never cycled**: rank
+#: 1 is always the first colour, so two galleries of the same dataset are
+#: comparable.  Past the eighth candidate the rows are drawn in ``index_diff``
+#: rather than in a generated hue.  ``PALETTES["dark"]["candidate"]`` is the
+#: dark ground's.
+CANDIDATE_COLORS = tuple(PALETTES["light"]["candidate"])
+
+
+def _context(plt, style: str):
+    """:func:`rietx.viz.plots._ground_context`: the dark ground, or nothing."""
+    from .plots import _ground_context
+    return _ground_context(plt, style)
 
 
 def _pyplot():
@@ -70,12 +73,16 @@ def _figure_class():
     return figure_class()
 
 
-def _handed_back(fig):
-    """:func:`rietx.viz.plots._handed_back`: one rule for a notebook's figures."""
+def _handed_back(fig, style: str):
+    """:func:`rietx.viz.plots._handed_back`: one rule for a notebook's figures.
+
+    A composed figure stays with pyplot but still records its palette, so the
+    inline backend's draw at the cell's end carries the dark copy too."""
     if _COMPOSING.get():
+        fig._rietx_style = style
         return fig
     from .plots import _handed_back as handed_back
-    return handed_back(fig)
+    return handed_back(fig, style)
 
 
 def _two_theta_of_q(q: np.ndarray, wavelength: float) -> np.ndarray:
@@ -86,7 +93,7 @@ def _two_theta_of_q(q: np.ndarray, wavelength: float) -> np.ndarray:
 
 
 def plot_peak_list(peaks, data=None, *, path: str | None = None,
-                   dpi: int = 150, title: str | None = None):
+                   dpi: int = 150, title: str | None = None, style: str = "light"):
     """The picked lines over the pattern they came from — the search's real input.
 
     ``data`` is optional: with a
@@ -101,11 +108,15 @@ def plot_peak_list(peaks, data=None, *, path: str | None = None,
     ``sigma_assumed`` is deliberately **not** one of them: it is a property of the
     whole list rather than of a line (every entry of a ``from_positions`` list
     carries it), so it belongs in the title, where it says once what it means.
+
+    ``style="dark"`` draws on the dark page's ground in the dark palette, as
+    :func:`~rietx.viz.plots.plot_result`'s does.
     """
     from ..schemas.pattern import require_two_theta
 
     if data is not None:
         require_two_theta(data, "plot_peak_list()")
+    hue = _palette(style)
     plt = _pyplot()
     usable = peaks.usable()
     tt = np.array([p.two_theta for p in usable], dtype=np.float64)
@@ -115,47 +126,50 @@ def plot_peak_list(peaks, data=None, *, path: str | None = None,
                        dtype=bool)
     assumed = all("sigma_assumed" in p.flags for p in usable) if usable else False
 
-    fig, ax = plt.subplots(figsize=(11, 4.5), dpi=dpi, FigureClass=_figure_class())
-    if data is not None:
-        x = np.asarray(data.two_theta, dtype=np.float64)
-        y = np.asarray(data.intensity, dtype=np.float64)
-        ax.plot(x, y, "-", lw=0.7, color=OBS, label="pattern", zorder=1)
-        top = float(y.max())
-    else:
-        top = float(inten.max()) if len(inten) else 1.0
-        ax.vlines(tt, 0.0, inten, lw=0.9, color=OBS, label="peak list", zorder=1)
-
-    base = -0.06 * top
-    ax.vlines(tt[~flagged], base - 0.03 * top, base + 0.03 * top, lw=1.1,
-              color=CALC, zorder=3,
-              label=f"clean ({int((~flagged).sum())})")
-    if flagged.any():
-        ax.vlines(tt[flagged], base - 0.03 * top, base + 0.03 * top, lw=1.1,
-                  color=CALC, alpha=0.30, zorder=3,
-                  label=f"flagged ({int(flagged.sum())})")
-
-    ax.axhline(0.0, lw=0.4, color="#cccccc", zorder=0)
-    ax.set_xlabel(r"2$\theta$ (deg)")
-    ax.set_ylabel("intensity")
     # σ is quoted rather than drawn: at a whole-pattern scale 3σ is well under a
     # pixel on any list worth indexing (0.03° against a 70° axis), and a mark the
     # legend promises but the eye cannot find is worse than a number
     median_sigma = float(np.median(esd)) if len(esd) else float("nan")
-    ax.set_title(title or (
-        f"{len(usable)} usable lines, source={peaks.source}, "
-        rf"$\lambda$={peaks.wavelength:.5f} Å, "
-        rf"median $\sigma$(2$\theta$)={median_sigma:.4f}°"
-        + (" (assumed, not measured)" if assumed else "")), fontsize=10)
-    ax.legend(loc="upper right", fontsize=8, frameon=False)
-    fig.tight_layout()
-    if path is not None:
-        fig.savefig(path)
-    return _handed_back(fig)
+    with _context(plt, style):
+        fig, ax = plt.subplots(figsize=(11, 4.5), dpi=dpi, FigureClass=_figure_class())
+        if data is not None:
+            x = np.asarray(data.two_theta, dtype=np.float64)
+            y = np.asarray(data.intensity, dtype=np.float64)
+            ax.plot(x, y, "-", lw=0.7, color=hue["index_obs"], label="pattern",
+                    zorder=1)
+            top = float(y.max())
+        else:
+            top = float(inten.max()) if len(inten) else 1.0
+            ax.vlines(tt, 0.0, inten, lw=0.9, color=hue["index_obs"],
+                      label="peak list", zorder=1)
+
+        base = -0.06 * top
+        ax.vlines(tt[~flagged], base - 0.03 * top, base + 0.03 * top, lw=1.1,
+                  color=hue["index_calc"], zorder=3,
+                  label=f"clean ({int((~flagged).sum())})")
+        if flagged.any():
+            ax.vlines(tt[flagged], base - 0.03 * top, base + 0.03 * top, lw=1.1,
+                      color=hue["index_calc"], alpha=0.30, zorder=3,
+                      label=f"flagged ({int(flagged.sum())})")
+
+        ax.axhline(0.0, lw=0.4, color=hue["zero"], zorder=0)
+        ax.set_xlabel(r"2$\theta$ (deg)")
+        ax.set_ylabel("intensity")
+        ax.set_title(title or (
+            f"{len(usable)} usable lines, source={peaks.source}, "
+            rf"$\lambda$={peaks.wavelength:.5f} Å, "
+            rf"median $\sigma$(2$\theta$)={median_sigma:.4f}°"
+            + (" (assumed, not measured)" if assumed else "")), fontsize=10)
+        ax.legend(loc="upper right", fontsize=8, frameon=False)
+        fig.tight_layout()
+        if path is not None:
+            fig.savefig(path)
+    return _handed_back(fig, style)
 
 
 def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
                     n: int = 5, dpi: int = 150, title: str | None = None,
-                    q_match=None):
+                    q_match=None, style: str = "light"):
     """Ranked candidates as tick rows against the observed lines.
 
     **The forward and reverse directions are both visible, which is the whole
@@ -184,10 +198,14 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
     *drawn* at the uncorrected predicted positions, since the shifts this
     package fits are 0.03-0.07° against a 100°+ axis — sub-pixel, where the
     match is not.
+
+    ``style="dark"`` draws on the dark page's ground, each row in the dark
+    ground's colour of its rank.
     """
     from ..indexing.engines import scored_positions
     from ..indexing.fom import MATCH_SIGMA, match_lines, predicted_lines
 
+    hue = _palette(style)
     plt = _pyplot()
     shown = list(candidates)[:n]
     if not shown:
@@ -200,111 +218,114 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
     tt_lo = float(peaks.two_theta_min)
     tt_hi = float(peaks.two_theta_max)
 
-    fig, (ax, axt) = plt.subplots(
-        2, 1, figsize=(11, 2.2 + 0.62 * len(shown)), dpi=dpi, FigureClass=_figure_class(), sharex=True,
-        gridspec_kw={"height_ratios": [1.5, 0.55 + 0.42 * len(shown)]})
+    with _context(plt, style):
+        fig, (ax, axt) = plt.subplots(
+            2, 1, figsize=(11, 2.2 + 0.62 * len(shown)), dpi=dpi,
+            FigureClass=_figure_class(), sharex=True,
+            gridspec_kw={"height_ratios": [1.5, 0.55 + 0.42 * len(shown)]})
 
-    scale = float(inten.max()) if len(inten) and inten.max() > 0 else 1.0
-    ax.vlines(tt_obs, 0.0, inten / scale, lw=0.9, color=OBS, zorder=2,
-              label=f"observed ({len(tt_obs)})")
-    ax.set_ylabel("rel. intensity")
-    ax.set_ylim(0.0, 1.15)
+        scale = float(inten.max()) if len(inten) and inten.max() > 0 else 1.0
+        ax.vlines(tt_obs, 0.0, inten / scale, lw=0.9, color=hue["index_obs"], zorder=2,
+                  label=f"observed ({len(tt_obs)})")
+        ax.set_ylabel("rel. intensity")
+        ax.set_ylim(0.0, 1.15)
 
-    for row, cand in enumerate(shown):
-        colour = (CANDIDATE_COLORS[row] if row < len(CANDIDATE_COLORS) else DIFF)
-        _hkl, q_pred = predicted_lines(cand.cell, cand.system, cand.centring,
-                                       peaks.wavelength, tt_hi)
-        tt_pred = _two_theta_of_q(q_pred, peaks.wavelength)
-        # each prediction: is an observed line sitting under it?  Against the
-        # positions *this* candidate claims, in the window the search used.
-        q_claim, _tt_claim = scored_positions(peaks, cand)
-        if len(q_claim) and len(q_pred):
-            gap = np.abs(np.asarray(q_pred)[:, None] - q_claim[None, :])
-            j = np.argmin(gap, axis=1)
-            seen = gap[np.arange(len(q_pred)), j] <= MATCH_SIGMA * np.maximum(
-                q_esd[j], 1e-300)
-        else:
-            seen = np.zeros(len(q_pred), dtype=bool)
-        # drawn over the plotted range, matched over the panel's.  Enumerating
-        # from ``tt_lo`` instead put the *boundary* prediction outside the set —
-        # and ``PeakList.two_theta_min`` is the first line's own position, so
-        # every candidate figure read its first observed line as unindexed.
-        inview = tt_pred >= tt_lo
-        y = -float(row)
-        axt.vlines(tt_pred[seen & inview], y - 0.30, y + 0.30, lw=1.0,
-                   color=colour, zorder=3)
-        axt.vlines(tt_pred[~seen & inview], y - 0.18, y + 0.18, lw=0.8,
-                   color=colour, alpha=0.30, zorder=2)
-        # **The share is quoted from the panel, not recomputed here.**  The two
-        # enumerate over different ranges on purpose — the panel stops at the
-        # last *observed* line (``fom.fom_panel``) while the picture must cover
-        # the axis it draws — so recomputing gives a number a few points from
-        # ``predicted_seen_fraction`` and prints it in a figure whose whole
-        # claim is that it agrees with the panel (measured on NAC: 43 % drawn
-        # against the panel's 46 %).  The ticks show the lattice over the range;
-        # the number is the one that was ranked on.
-        fom_value = getattr(cand, "fom_value", None)
-        share = fom_value("predicted_seen_fraction") if fom_value else None
-        if share is None:
-            share = float(np.mean(seen)) if len(seen) else 0.0
-        m20 = fom_value("m20") if fom_value else None
-        label = (f"#{row + 1} {cand.system} {cand.centring}  "
-                 f"a={cand.cell[0]:.4f} V={cand.volume:.1f} Å³  "
-                 f"{cand.n_indexed}/{cand.n_lines} indexed, "
-                 f"{share:.0%} of predicted lines seen "
-                 f"({int(inview.sum())} drawn)")
-        if m20 is not None:
-            label += f", M20={m20:.1f}"
-        # ``confidence`` defaults to ``"low"`` on an *ungated* candidate, so
-        # printing it unconditionally would put a verdict in the picture that
-        # nothing had reached.  A gated candidate either says something other
-        # than low or carries the caveats that made it low; both are shown.
-        conf = getattr(cand, "confidence", None)
-        caveats = list(getattr(cand, "confidence_caveats", ()) or ())
-        if conf and (conf != "low" or caveats):
-            # capped: a candidate can carry six caveats, and a label wider than
-            # the axes is a label nobody reads.  The count is kept, so a reader
-            # knows there are more rather than being shown a truncated set as
-            # though it were the whole one.
-            shown_caveats = caveats[:3]
-            more = len(caveats) - len(shown_caveats)
-            text = ", ".join(shown_caveats) + (f", +{more} more" if more else "")
-            label += f"  [{conf}" + (f": {text}]" if caveats else "]")
-        axt.text(0.004, y + 0.40, label, fontsize=7.5, color=DIFF, va="bottom",
-                 transform=axt.get_yaxis_transform())
+        for row, cand in enumerate(shown):
+            colour = (hue["candidate"][row] if row < len(hue["candidate"])
+                      else hue["index_diff"])
+            _hkl, q_pred = predicted_lines(cand.cell, cand.system, cand.centring,
+                                           peaks.wavelength, tt_hi)
+            tt_pred = _two_theta_of_q(q_pred, peaks.wavelength)
+            # each prediction: is an observed line sitting under it?  Against the
+            # positions *this* candidate claims, in the window the search used.
+            q_claim, _tt_claim = scored_positions(peaks, cand)
+            if len(q_claim) and len(q_pred):
+                gap = np.abs(np.asarray(q_pred)[:, None] - q_claim[None, :])
+                j = np.argmin(gap, axis=1)
+                seen = gap[np.arange(len(q_pred)), j] <= MATCH_SIGMA * np.maximum(
+                    q_esd[j], 1e-300)
+            else:
+                seen = np.zeros(len(q_pred), dtype=bool)
+            # drawn over the plotted range, matched over the panel's.  Enumerating
+            # from ``tt_lo`` instead put the *boundary* prediction outside the set —
+            # and ``PeakList.two_theta_min`` is the first line's own position, so
+            # every candidate figure read its first observed line as unindexed.
+            inview = tt_pred >= tt_lo
+            y = -float(row)
+            axt.vlines(tt_pred[seen & inview], y - 0.30, y + 0.30, lw=1.0,
+                       color=colour, zorder=3)
+            axt.vlines(tt_pred[~seen & inview], y - 0.18, y + 0.18, lw=0.8,
+                       color=colour, alpha=0.30, zorder=2)
+            # **The share is quoted from the panel, not recomputed here.**  The two
+            # enumerate over different ranges on purpose — the panel stops at the
+            # last *observed* line (``fom.fom_panel``) while the picture must cover
+            # the axis it draws — so recomputing gives a number a few points from
+            # ``predicted_seen_fraction`` and prints it in a figure whose whole
+            # claim is that it agrees with the panel (measured on NAC: 43 % drawn
+            # against the panel's 46 %).  The ticks show the lattice over the range;
+            # the number is the one that was ranked on.
+            fom_value = getattr(cand, "fom_value", None)
+            share = fom_value("predicted_seen_fraction") if fom_value else None
+            if share is None:
+                share = float(np.mean(seen)) if len(seen) else 0.0
+            m20 = fom_value("m20") if fom_value else None
+            label = (f"#{row + 1} {cand.system} {cand.centring}  "
+                     f"a={cand.cell[0]:.4f} V={cand.volume:.1f} Å³  "
+                     f"{cand.n_indexed}/{cand.n_lines} indexed, "
+                     f"{share:.0%} of predicted lines seen "
+                     f"({int(inview.sum())} drawn)")
+            if m20 is not None:
+                label += f", M20={m20:.1f}"
+            # ``confidence`` defaults to ``"low"`` on an *ungated* candidate, so
+            # printing it unconditionally would put a verdict in the picture that
+            # nothing had reached.  A gated candidate either says something other
+            # than low or carries the caveats that made it low; both are shown.
+            conf = getattr(cand, "confidence", None)
+            caveats = list(getattr(cand, "confidence_caveats", ()) or ())
+            if conf and (conf != "low" or caveats):
+                # capped: a candidate can carry six caveats, and a label wider than
+                # the axes is a label nobody reads.  The count is kept, so a reader
+                # knows there are more rather than being shown a truncated set as
+                # though it were the whole one.
+                shown_caveats = caveats[:3]
+                more = len(caveats) - len(shown_caveats)
+                text = ", ".join(shown_caveats) + (f", +{more} more" if more else "")
+                label += f"  [{conf}" + (f": {text}]" if caveats else "]")
+            axt.text(0.004, y + 0.40, label, fontsize=7.5, color=hue["index_diff"], va="bottom",
+                     transform=axt.get_yaxis_transform())
 
-    # observed lines the best candidate does not claim.  ``scored_positions``
-    # is duck-typed on ``shift_template``/``shift_coefficient``, which a
-    # ``CellCandidate`` carries directly — the previous ``hasattr(best, "fit")``
-    # guard was never true on one, so this silently drew every shift-carrying
-    # candidate against positions it had not claimed.
-    best = shown[0]
-    q_claim, _tt_claim = scored_positions(peaks, best)
-    _hkl0, q_pred0 = predicted_lines(best.cell, best.system, best.centring,
-                                     peaks.wavelength, tt_hi)
-    idx, _d = match_lines(q_claim, q_esd, q_pred0, k_sigma=MATCH_SIGMA)
-    missed = idx < 0
-    if missed.any():
-        ax.vlines(tt_obs[missed], 0.0, inten[missed] / scale, lw=1.4,
-                  color=UNMATCHED, zorder=3,
-                  label=f"not indexed by #1 ({int(missed.sum())})")
-    ax.legend(loc="upper right", fontsize=8, frameon=False)
+        # observed lines the best candidate does not claim.  ``scored_positions``
+        # is duck-typed on ``shift_template``/``shift_coefficient``, which a
+        # ``CellCandidate`` carries directly — the previous ``hasattr(best, "fit")``
+        # guard was never true on one, so this silently drew every shift-carrying
+        # candidate against positions it had not claimed.
+        best = shown[0]
+        q_claim, _tt_claim = scored_positions(peaks, best)
+        _hkl0, q_pred0 = predicted_lines(best.cell, best.system, best.centring,
+                                         peaks.wavelength, tt_hi)
+        idx, _d = match_lines(q_claim, q_esd, q_pred0, k_sigma=MATCH_SIGMA)
+        missed = idx < 0
+        if missed.any():
+            ax.vlines(tt_obs[missed], 0.0, inten[missed] / scale, lw=1.4,
+                      color=hue["unmatched"], zorder=3,
+                      label=f"not indexed by #1 ({int(missed.sum())})")
+        ax.legend(loc="upper right", fontsize=8, frameon=False)
 
-    axt.set_ylim(-len(shown) + 0.3, 0.95)
-    axt.set_yticks([])
-    axt.set_xlabel(r"2$\theta$ (deg)")
-    axt.set_xlim(tt_lo - 1.0, tt_hi + 1.0)
-    ax.set_title(title or ("ranked candidates: solid tick = predicted line with "
-                           "an observed line under it, faint = predicted and "
-                           "absent"), fontsize=10)
-    fig.tight_layout()
-    if path is not None:
-        fig.savefig(path)
-    return _handed_back(fig)
+        axt.set_ylim(-len(shown) + 0.3, 0.95)
+        axt.set_yticks([])
+        axt.set_xlabel(r"2$\theta$ (deg)")
+        axt.set_xlim(tt_lo - 1.0, tt_hi + 1.0)
+        ax.set_title(title or ("ranked candidates: solid tick = predicted line with "
+                               "an observed line under it, faint = predicted and "
+                               "absent"), fontsize=10)
+        fig.tight_layout()
+        if path is not None:
+            fig.savefig(path)
+    return _handed_back(fig, style)
 
 
 def plot_validation(validation, result=None, *, path: str | None = None,
-                    dpi: int = 150, title: str | None = None):
+                    dpi: int = 150, title: str | None = None, style: str = "light"):
     """The Le Bail validation fit, with both detector lists marked.
 
     ``result`` is the :class:`~rietx.schemas.results.RefinementResult` from
@@ -317,7 +338,10 @@ def plot_validation(validation, result=None, *, path: str | None = None,
     **oversized** one, so the amber marks (predicted, nothing there) and the
     purple ones (observed, nothing predicted) are not decoration — they are the
     two failures the fit statistic cannot separate.
+
+    ``style="dark"`` draws on the dark page's ground in the dark palette.
     """
+    hue = _palette(style)
     plt = _pyplot()
     absent = np.asarray(validation.predicted_but_absent_two_theta,
                         dtype=np.float64)
@@ -325,52 +349,54 @@ def plot_validation(validation, result=None, *, path: str | None = None,
                            dtype=np.float64)
 
     if result is None:
-        fig, ax = plt.subplots(figsize=(11, 3.2), dpi=dpi, FigureClass=_figure_class())
-        ax.vlines(absent, 0.0, 1.0, lw=1.0, color=ABSENT,
-                  label=f"predicted but absent ({len(absent)})")
-        ax.vlines(unmatched, -1.0, 0.0, lw=1.0, color=UNMATCHED,
-                  label=f"unmatched observed ({len(unmatched)})")
-        ax.set_yticks([])
-        ax.set_xlabel(r"2$\theta$ (deg)")
-        ax.legend(loc="upper right", fontsize=8, frameon=False)
-        ax.set_title(title or _validation_title(validation), fontsize=10)
-        fig.tight_layout()
-        if path is not None:
-            fig.savefig(path)
-        return _handed_back(fig)
+        with _context(plt, style):
+            fig, ax = plt.subplots(figsize=(11, 3.2), dpi=dpi, FigureClass=_figure_class())
+            ax.vlines(absent, 0.0, 1.0, lw=1.0, color=hue["absent"],
+                      label=f"predicted but absent ({len(absent)})")
+            ax.vlines(unmatched, -1.0, 0.0, lw=1.0, color=hue["unmatched"],
+                      label=f"unmatched observed ({len(unmatched)})")
+            ax.set_yticks([])
+            ax.set_xlabel(r"2$\theta$ (deg)")
+            ax.legend(loc="upper right", fontsize=8, frameon=False)
+            ax.set_title(title or _validation_title(validation), fontsize=10)
+            fig.tight_layout()
+            if path is not None:
+                fig.savefig(path)
+        return _handed_back(fig, style)
 
     tt = np.asarray(result.two_theta)
     y_obs = np.asarray(result.y_obs)
     y_calc = np.asarray(result.y_calc)
     y_bkg = np.asarray(result.y_background)
-    fig, (ax, axd) = plt.subplots(
-        2, 1, figsize=(11, 6.4), dpi=dpi, FigureClass=_figure_class(), sharex=True,
-        gridspec_kw={"height_ratios": [3, 1]})
-    ax.plot(tt, y_obs, ".", ms=2.0, color=OBS, label="observed", zorder=2)
-    ax.plot(tt, y_calc, "-", lw=1.0, color=CALC, label="Le Bail", zorder=3)
-    ax.plot(tt, y_bkg, "--", lw=0.8, color=BKG, label="background", zorder=1)
+    with _context(plt, style):
+        fig, (ax, axd) = plt.subplots(
+            2, 1, figsize=(11, 6.4), dpi=dpi, FigureClass=_figure_class(), sharex=True,
+            gridspec_kw={"height_ratios": [3, 1]})
+        ax.plot(tt, y_obs, ".", ms=2.0, color=hue["index_obs"], label="observed", zorder=2)
+        ax.plot(tt, y_calc, "-", lw=1.0, color=hue["index_calc"], label="Le Bail", zorder=3)
+        ax.plot(tt, y_bkg, "--", lw=0.8, color=hue["index_bkg"], label="background", zorder=1)
 
-    span = float(y_obs.max() - min(y_obs.min(), 0.0))
-    if len(absent):
-        ax.vlines(absent, -0.05 * span, 0.02 * span, lw=1.0, color=ABSENT,
-                  zorder=4, label=f"predicted but absent ({len(absent)})")
-    if len(unmatched):
-        for x in unmatched:
-            ax.axvline(x, color=UNMATCHED, lw=0.8, ls=":", alpha=0.8, zorder=1)
-        ax.plot([], [], ls=":", lw=0.8, color=UNMATCHED,
-                label=f"unmatched observed ({len(unmatched)})")
-    ax.set_ylabel("intensity")
-    ax.legend(loc="upper right", fontsize=8, frameon=False)
-    ax.set_title(title or _validation_title(validation), fontsize=10)
+        span = float(y_obs.max() - min(y_obs.min(), 0.0))
+        if len(absent):
+            ax.vlines(absent, -0.05 * span, 0.02 * span, lw=1.0, color=hue["absent"],
+                      zorder=4, label=f"predicted but absent ({len(absent)})")
+        if len(unmatched):
+            for x in unmatched:
+                ax.axvline(x, color=hue["unmatched"], lw=0.8, ls=":", alpha=0.8, zorder=1)
+            ax.plot([], [], ls=":", lw=0.8, color=hue["unmatched"],
+                    label=f"unmatched observed ({len(unmatched)})")
+        ax.set_ylabel("intensity")
+        ax.legend(loc="upper right", fontsize=8, frameon=False)
+        ax.set_title(title or _validation_title(validation), fontsize=10)
 
-    axd.plot(tt, (y_obs - y_calc) / result.sig(), "-", lw=0.6, color=DIFF)
-    axd.axhspan(-3, 3, color="#2a9d2a", alpha=0.15, lw=0)
-    axd.set_ylabel(r"$\Delta/\sigma$")
-    axd.set_xlabel(r"2$\theta$ (deg)")
-    fig.tight_layout()
-    if path is not None:
-        fig.savefig(path)
-    return _handed_back(fig)
+        axd.plot(tt, (y_obs - y_calc) / result.sig(), "-", lw=0.6, color=hue["index_diff"])
+        axd.axhspan(-3, 3, color=hue["band"], alpha=0.15, lw=0)
+        axd.set_ylabel(r"$\Delta/\sigma$")
+        axd.set_xlabel(r"2$\theta$ (deg)")
+        fig.tight_layout()
+        if path is not None:
+            fig.savefig(path)
+    return _handed_back(fig, style)
 
 
 def _window_from_result(result, peaks) -> np.ndarray:
@@ -401,7 +427,7 @@ def _window_from_result(result, peaks) -> np.ndarray:
 
 def plot_indexing(result, peaks, *, data=None, instrument=None,
                   candidate: int = 0, n: int = 5, validation=None,
-                  path: str | None = None, dpi: int = 150):
+                  path: str | None = None, dpi: int = 150, style: str = "light"):
     """The whole visual check, as a function of (result, pattern) — WP-1043.
 
     The user's design call made the picture part of the deliverable: one
@@ -428,30 +454,36 @@ def plot_indexing(result, peaks, *, data=None, instrument=None,
     ``path`` is a stem: each figure is saved as ``f"{path}_{name}.png"``.
     Figures are returned open either way, and closing them is the caller's.
     They stay with pyplot even in a notebook, unlike a single figure: the
-    dict prints as text, so the inline backend draws each one as the cell ends.
+    dict prints as text, so the inline backend draws each one as the cell
+    ends, with its dark copy beside it.  ``style`` draws all three figures, as
+    each function's own ``style`` does.
     """
     from ..schemas.pattern import require_two_theta
 
+    _palette(style)  # refused before a Le Bail fit is spent on it
     if data is not None or instrument is not None:
         require_two_theta(data, "plot_indexing()", instrument=instrument)
     token = _COMPOSING.set(True)
     try:
         figures = _compose_indexing(result, peaks, data=data, instrument=instrument,
                                     candidate=candidate, n=n, validation=validation,
-                                    dpi=dpi)
+                                    dpi=dpi, style=style)
     finally:
         _COMPOSING.reset(token)
     if path is not None:
-        for name, fig in figures.items():
-            fig.savefig(f"{path}_{name}.png")
+        # under the style, as each function's own save is: outside it a
+        # caller's ``savefig.facecolor`` would frame a dark figure in white
+        with _context(_pyplot(), style):
+            for name, fig in figures.items():
+                fig.savefig(f"{path}_{name}.png")
     return figures
 
 
 def _compose_indexing(result, peaks, *, data, instrument, candidate, n,
-                      validation, dpi) -> dict:
+                      validation, dpi, style) -> dict:
     """:func:`plot_indexing`'s figures, in drawing order."""
     figures: dict = {}
-    figures["peaks"] = plot_peak_list(peaks, data, dpi=dpi)
+    figures["peaks"] = plot_peak_list(peaks, data, dpi=dpi, style=style)
 
     cands = list(getattr(result, "candidates", ()) or ())
     if cands:
@@ -459,7 +491,7 @@ def _compose_indexing(result, peaks, *, data, instrument, candidate, n,
             raise ValueError(f"candidate {candidate} is out of range for "
                              f"{len(cands)} candidate(s)")
         figures["candidates"] = plot_candidates(
-            cands, peaks, n=n, dpi=dpi,
+            cands, peaks, n=n, dpi=dpi, style=style,
             q_match=_window_from_result(result, peaks))
         chosen = cands[candidate]
         if validation is None and data is not None and instrument is not None:
@@ -469,12 +501,12 @@ def _compose_indexing(result, peaks, *, data, instrument, candidate, n,
                                             peaks=peaks, with_result=True)
         if validation is not None:
             val, fit = validation
-            figures["validation"] = plot_validation(val, fit, dpi=dpi)
+            figures["validation"] = plot_validation(val, fit, dpi=dpi, style=style)
         elif chosen.lebail is not None:
             # positions only — strictly worse than the fit panel and drawn
             # anyway: the two detector lists are what separate a wrong metric
             # from an oversized one, and they need no refit
-            figures["validation"] = plot_validation(chosen.lebail, dpi=dpi)
+            figures["validation"] = plot_validation(chosen.lebail, dpi=dpi, style=style)
     return figures
 
 

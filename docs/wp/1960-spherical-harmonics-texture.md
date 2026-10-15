@@ -1,9 +1,9 @@
 # WP-1960 — spherical-harmonics texture: preferred orientation with no single axis
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-10-15 — the texture model, its GSAS-II conversion
+and the `.gpx` import landed; the TOPAS import is WP-1973 and the order scan WP-1974
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (#131 is the design record this WP carries forward)
-Priority: P3 2026-10-14 — a workaround covers the single-fibre case (March-Dollase); two named users want the general one (#131's author, whose SRM 1976a plate was rejected as an acceptance case for want of it, and the outside lab of WP-1325's 2026-10-13 entry); no WP waits on it
 
 ## Goal
 
@@ -93,9 +93,9 @@ Bunge (1982) gives a per-reflection multiplier:
 - The texture index is J = 1 + Σ (C_l^n)² / (2l+1) (GSAS-II's
   `G2lat.textureIndex`, 5.8.4 `GSASIIlattice.py:3467`).
 
-Check the equation, the normalisation and J against Von Dreele (1997) before
-Task 2. The paper is not in the local corpus; this form is read off
-GSAS-II's `SHPOcal` (`GSASIIstrMath.py:3010`).
+Task 1 checked this against the papers. It is Von Dreele's eq. (2)-(3) under
+cylindrical sample symmetry. His k_l^m are orthonormal on the sphere (his
+eq. 7 and 10, Bunge's 14.38 and 14.48), and J is his eq. (16).
 
 ### Measured while scoping (2026-10-14, e66fb223)
 
@@ -143,6 +143,121 @@ GSAS-II's `SHPOcal` (`GSASIIstrMath.py:3010`).
    GSAS-II's own environment returned 0.0 for every input, with the binaries
    reported found. Generate the golden through `SHPOcal` or the scriptable
    API, and check first that P ≠ 1 for a non-zero coefficient.
+   *Superseded in part, 2026-10-14 (Task 1).* The zeros were a missing
+   `pytexture.pyqlmninit()`, which GSAS-II's refinement driver calls before
+   any harmonic (`GSASIIstrMain.py:457`). With it, `GetKcl` and `GetKsl`
+   return real values.
+
+### Pinned by Task 1 (2026-10-14)
+
+**D2 is decided: ψ is the physical angle.** Three papers name a geometry,
+and all three put the Bragg-Brentano scattering vector on the plate normal.
+Järvinen (1993) Table I gives α = 0 for symmetric reflection and 90° for
+symmetric transmission and Debye-Scherrer. Ahtee et al. (1989) say the same
+in words. Popa (1992) takes K normal to the plate, with Ψ = α − θ (his
+eq. 27). Von Dreele (1997) measures ψ in "a coordinate system attached to
+the external form of the sample" and names no frame for a plate. Bunge
+(1982, 14.236) measures it from the sample's ∞-fold axis. No source gives a
+reason for ψ = 90° on a reflection plate. GSAS-II's 90° comes from a
+goniometer χ of 90° hard-coded in `SHPOcal`'s `Bragg` branch
+(`GSASIIstrMath.py:3021`). So `bragg_brentano` takes ψ = 0°, and
+`flat_plate_transmission` and `debye_scherrer` take 90°.
+
+**The basis is orthonormal, and GSAS-II's is not in five classes.** In the
+mirror-free classes (−1, 2/m, 4/m, −3, 6/m), GSAS-II puts one coefficient on
+(cos nβ + sin nβ)·√2·P̄_l^n/√(2π). For n ≠ 0 that function has norm² 2 over
+the sphere. Every other GSAS-II harmonic has norm² 1 (measured by
+quadrature). `G2lat.textureIndex` sums C²/(2l+1) in both cases, so GSAS-II's
+J counts those terms at half weight. rietx divides each function by its norm
+and keeps GSAS-II's (l, n) as the name.
+
+**The GSAS-II conversion.** For one P under `bragg_brentano`,
+C_rietx = C_GSAS · ‖K_GSAS‖ · P_l(0). Here P_l(0) = −1/2, 3/8, −5/16 and
+35/128 for l = 2, 4, 6 and 8. ‖K_GSAS‖ is √2 for the terms above and 1
+otherwise. Under rietx's 90° geometries the P_l(0) drops out. GSAS-II's
+`Debye` at zero goniometer angles has ψ = θ, and no constant converts that.
+
+**Where GSAS-II's harmonics can serve as a golden.** A harmonic that takes
+two values on one orbit is a function of which representative GSAS-II is
+handed. No basis can match it. The golden records each such term
+(`noninvariant`):
+
+| Laue class (setting) | GSAS-II's K on an orbit, Friedel mates included | Cause |
+|---|---|---|
+| mmm, 4/m, 4/mmm, 6/m, 6/mmm, m-3m; −3 and −3m1 on hexagonal axes | one value | |
+| m-3 | one value, one term short at l = 6 | treats m3 as m3m (measurement 2) |
+| −1; 2/m with unique axis a, b or c | n = 0 one value; every n ≠ 0 term two | `CrsAng`'s azimuth for these classes subtracts an index from a length (`b - h·cos γ`), so β is not an angle about the polar axis |
+| −3 and −3m on rhombohedral axes | every term two values | `CrsAng` puts the polar axis on [111] only for Laue `'R3'`/`'R3m'`. `SpcGroup` emits `'3R'`/`'3mR'`, so the axis falls back to c* |
+| −31m | the n = 3 terms two values | `GetKcl` gives −31m the sin 3β of −3m1, which −31m's operators do not leave invariant |
+
+These are defects in GSAS-II 5.8.4. They are recorded here, in the manual's
+warning under the texture equation and in the `.gpx` reader's report. On
+2026-10-15 the maintainer decided not to report them upstream.
+
+**The golden.** `tests/data/gsas2_sh_texture.json` comes from
+`tests/data/make_gsas2_sh_texture.py`, run under GSAS-II's own interpreter.
+It holds sixteen cases: every Laue class, the three monoclinic unique axes
+and both rhombohedral-axes classes. Each runs to order 8 over 62 reflections.
+Per reflection it records the frame angles, each K, and `SHPOcal`'s P under
+`Bragg` and `Debye`. The script asserts P = 1 + Σ C·Lnorm·Kcl·Ksl and P ≠ 1.
+GSAS-II's `pytexture` is single precision: Ksl(90°)/Ksl(0°) at l = 2 is
+−0.50000005. The script is committed beside the numbers, against this
+task's "numbers only". A provenance row naming a script nobody can read
+records nothing. The script calls GSAS-II and copies none of it.
+
+**The crystal frame.** Popa (1992, eq. 24a) and GSAS-II's correct classes
+agree. The polar axis lies along c* with x along a. The monoclinic second
+setting puts the polar axis on b and x on c. Rhombohedral axes put it on
+[111]. Järvinen (1993) also puts the monoclinic polar axis on b. D6 stands.
+
+**Anchors from the papers.** A subagent read these and nobody has checked
+them. Each is a hypothesis until a Task 2 test reproduces it.
+
+- *Reproduced by Task 2.* Bunge (1982) 14.284-14.287 print 0.646360, 0.359601, 0.835193 and 0.531858
+  for the cubic harmonics at l = 4, 6, 8 and 10. These read as |K_l(100)| of
+  the orthonormal function. The prefactor relation printed beside them is
+  inconsistent at l = 6 and 10.
+- Popa (1992) Table 4 gives Al₂O₃ t₂ = 0.54, t₄ = 0.186 and t₆ = 0.073. His
+  Fig. 2 shows A(222) ≈ 3.7 at Ψ = 0 and ≈ 0.5 at 90°. Bunge's normalisation
+  reproduces 3.66 and 0.49, so for n = 0, C = t·(2l+1)/2.
+- Ahtee et al. (1989) Table 1, nickel: W for 111, 200, 220, 311 and 331 is
+  reproduced to 5e-4 with Järvinen's max-normalised K₄₁ and K₆₁.
+- Järvinen (1993) Table 6, corundum: use C₂₀ = 0.85 and C₄₀ = 0.09 only. His
+  C₄₃ example measures the azimuth from a*, against his own x ⊥ m rule, and
+  that term is not invariant over {113}.
+
+Järvinen and Ahtee et al. normalise each harmonic to max|Y| = 1. They also
+drop the 4π/(2l+1) and use P_l(cos α) for the sample term. Their C differ
+from Von Dreele's by a per-term constant.
+
+**TOPAS is read but not settled** (Task 9, 2026-10-15). Whitfield (2009)
+prints the macro, `PO_Spherical_Harmonics(sh, 4 load sh_Cij_prm {y00 !c00 1
+y20 c20 …})`, with c00 fixed at 1, and gives no formula. He reports 13 refined
+terms at order 4 for P-1 wollastonite, where 14 exist, and does not say why.
+The Technical Reference (Version 9, `spherical_harmonics_hkl` and § 20.17.1)
+adds four facts:
+
+- `spherical_harmonics_hkl` is "a hkl dependent symmetrized spherical
+  harmonics series". Its terms follow Järvinen (1993)'s selection rules.
+- `PO_Spherical_Harmonics(sh, order)` is that series with `scale_pks = sh`, so
+  TOPAS's P is the series' value.
+- `sh_alpha`, "the angle in degrees between the polar axis and the scattering
+  vector", defaults to 0°, "required for symmetric reflection as is the case
+  for Bragg-Brentano geometry". So TOPAS puts the Bragg-Brentano angle where D2
+  does, and GSAS-II is the code that differs.
+- The order runs from 2 to 8, or to 10 in a cubic class.
+
+It states neither the harmonics' normalisation nor their crystal frame.
+Järvinen normalises each function to max|Y| = 1 and drops the 4π/(2l+1). If
+TOPAS does the same in our frame, C = c_TOPAS / (√(4π/(2l+1))·max|K|) at
+α = 0. That is a reading of prose, and a foreign unit is measured against the
+format's own output (root CLAUDE.md). The import moved to
+[WP-1973](1973-a-topas-spherical-harmonics-texture-reads-in.md), which
+needs TOPAS's own value of `sh` at stated coefficients.
+
+**Bunge's tables are not held.** The library's copy of the "Numerical
+Tables" chapter is its one-page introduction. Table 15.2.1, which GSAS-II's
+`BOH` cites, sits in Appendix 3. The projector does not need it.
 
 ### Decisions, each with the practice behind it
 
@@ -175,7 +290,7 @@ The rest stand unless Task 1's reading overturns one.
   and that GSAS-II's default capillary model, with ψ = θ, has no constant
   conversion. The alternative is GSAS-II's ψ, which makes Bragg-Brentano
   coefficients identical and J a number about a fibre axis the plate does
-  not have. Decide after reading Von Dreele (1997) on the frame.
+  not have. Task 1 decided for the physical ψ (§ Pinned by Task 1).
 - **D3 — the order is declared.** GSAS-II takes it from a menu in the
   histogram panel. TOPAS takes it as `PO_Spherical_Harmonics(sh, order)`.
   Even, at least 2. An order with no allowed term for the Laue class is
@@ -213,7 +328,9 @@ The rest stand unless Task 1's reading overturns one.
   principal axis, the monoclinic two-fold whichever cell edge carries it,
   [111]* on rhombohedral axes), and the basis is chosen to coincide with
   GSAS-II's K_l^n in GSAS-II's frame (`G2lat.CrsAng`, `GSASIIlattice.py:2859`).
-  Where it cannot coincide, the conversion matrix is recorded instead. The
+  Where it cannot coincide, the conversion matrix is recorded instead.
+  Task 1 measured where it can: GSAS-II's K divided by its norm, on the
+  terms the golden does not mark `noninvariant`. The
   coefficients are the parameters, with no DOF indirection, because the
   basis is symmetric by construction (Stephens needs DOFs because its
   monomials are not). The basis is evaluated at the representative hkl. An
@@ -226,11 +343,9 @@ GSAS-II is a behavioural reference and a source of goldens; no code is
 ported (ATTRIBUTION.md: custom Argonne licence with a grant-back clause).
 MAUD (Lutterotti, BSD-3) implements harmonic texture and may be ported with
 attribution; its ATTRIBUTION row names this path. TOPAS is closed, so its
-Technical Reference only. A copy sits on the maintainer's OneDrive
-(`TOPAS-5 Technical_Reference.pdf`) and could not be read on 2026-10-14
-because it was not downloaded. Bunge's tables are published numbers.
-
-### Inherited
+Technical Reference only. It is public at
+`https://topas-academic.com/technical_reference`, as WP-1433 had recorded on
+2026-09-16. Bunge's tables are published numbers.
 
 ## Non-goals
 
@@ -242,7 +357,8 @@ because it was not downloaded. Bunge's tables are published numbers.
 - **Replacing March-Dollase.** It is one parameter against 2-44 here and the
   better-conditioned model for one fibre axis.
 - **Choosing the order automatically.** The order scan over `report/texture.py`'s
-  extracted corrections is the follow-up. File it once Task 2's basis exists.
+  extracted corrections is
+  [WP-1974](1974-the-texture-screen-says-which-order-the-misfit-needs.md).
 - **The pole-figure render.** WP-1318 builds the directional surface for
   Stephens strain; an inherited note there says the two share it.
 - **GSAS-I `.EXP` texture terms.** No file in the tree carries one.
@@ -251,7 +367,7 @@ because it was not downloaded. Bunge's tables are published numbers.
 
 ## Tasks
 
-- [ ] **Pin the convention.** Read Von Dreele (1997), Bunge's chapter on
+- [x] **Pin the convention.** Read Von Dreele (1997), Bunge's chapter on
       symmetrised harmonics with the table GSAS-II's cubic coefficients cite
       (its `BOH`, "Table 15.2.1 … 1993, p 501"), and the TOPAS Technical
       Reference on `spherical_harmonics_hkl` and `PO_Spherical_Harmonics`.
@@ -261,14 +377,32 @@ because it was not downloaded. Bunge's tables are published numbers.
       fixed hkl list and cell per class, under `Bragg` and `Debye`. Commit the
       numbers only, as JSON under `tests/data/` with a README provenance row
       naming the generator script (measurement 4 says how not to call it).
-- [ ] **`crystallography/harmonics.py`**: the real harmonics, the projector,
+      *Done 2026-10-14 (§ Pinned by Task 1), except two parts. The TOPAS
+      reading moved to Task 9. Table 15.2.1 is not held.*
+- [x] **`crystallography/spherical_harmonics.py`**: the real harmonics, the projector,
       the frame and the canonical basis (D6), with the Rᵀ trap named in the
-      docstring. Tests: the span equals GSAS-II's for every class except
-      m-3 at l = 6, where GSAS-II's is a proper subspace (measurement 2); for
+      docstring. Tests: each function equals GSAS-II's divided by its norm
+      on the golden's invariant terms, through § Pinned by Task 1's
+      conversion, to GSAS-II's single precision; the span equals GSAS-II's
+      for every class except m-3 at l = 6, where GSAS-II's is a proper
+      subspace (measurement 2); the anchors from the papers; for
       every one of gemmi's settings, the orbit average of a random harmonic
       under h → Rᵀh lies in the span (the "true metric lies in the span"
       check, one rank up); counts equal the character formula.
-- [ ] **Schema**: `SphericalHarmonicTexture` (`order`, `coefficients`
+      *Done 2026-10-14.* `tests/test_spherical_harmonics.py` runs 628 cases, 16-18 s
+      serial. Every function the golden marks invariant equals ours times
+      its GSAS-II norm to 7.4e-7. The signs agree too, so GSAS-II carries
+      no Condon-Shortley phase either: −3's odd-n terms match. Bunge's four
+      cubic |K_l(100)| match to 1e-6. Counts equal the character formula to
+      l = 12 in all sixteen settings. The gemmi-table test fails on purpose
+      on hexagonal and trigonal settings when hkl is mapped as a direct
+      vector. It passes on tetragonal and monoclinic-b ones, where the trap
+      cannot show, and the golden test covers those. Built wrong, the
+      basis fails earlier, at the rank check. The module and test are named
+      `spherical_harmonics` because `tests/test_harmonics.py` already tests
+      λ/n monochromator harmonics. This task's first commit overwrote that
+      file, and the next commit restored it.
+- [x] **Schema**: `SphericalHarmonicTexture` (`order`, `coefficients`
       as name → `Parameter`, default value 0, `vary=False`) on
       `Phase.texture`. Validators refuse an odd order and a phase declaring
       both blocks (D5). The two refusals that need the Laue class, an order
@@ -280,11 +414,19 @@ because it was not downloaded. Bunge's tables are published numbers.
       `SCHEMA_VERSION` (0.54 at e66fb223; re-read it). A `help.py` entry for
       `phases.*.texture.*`, the `gui/src/lib/history.ts` `PLACES` row with a
       rebuilt dist, and a derived `capabilities()` feature flag.
-- [ ] **Parameter table and holds**: one entry per allowed coefficient;
+      *Done 2026-10-14*, schema 0.57. The manual's theory section
+      landed with it, because the help entry's anchor must exist in
+      the built HTML. The four new public names are deferred in
+      `tests/api_surface_deferred.txt` until Task 11 documents them.
+- [x] **Parameter table and holds**: one entry per allowed coefficient;
       `mode_fixed_path` gains `.texture.` (measurement 3); check that the
       absent-phase hold (WP-1301) reaches `phases.i.texture.*` as it reaches
       `preferred_orientation.r`.
-- [ ] **Forward model**: compile the (l, n) set and the per-l factor
+      *Done 2026-10-14.* The hold selects by column reach under
+      `phases.{ip}.` and spares only the scale
+      (`refine._unsupported_phase_paths`), so it covers the texture
+      paths with no change. Task 5's tests check it end to end.
+- [x] **Forward model**: compile the (l, n) set and the per-l factor
       (4π/(2l+1))·k_l(ψ) onto the compiled phase at stage compile, Rietveld
       only. Evaluate K at the current cell and fold P into `base` beside
       March-Dollase, memoised on (cell, C). No code path runs when
@@ -294,7 +436,20 @@ because it was not downloaded. Bunge's tables are published numbers.
       `backend.traced.active`, with no frozen numpy constant on the left of
       an operator. No kernel change is expected: check that `model/compiled.py`
       reads `base` after P is folded.
-- [ ] **Jacobian**: `texture_intensity_grad` beside `po_intensity_grad`
+      *Done 2026-10-14.* `reflection_directions` builds the frame from
+      `params.derived.cartesian_frame`, so the traced backends take it
+      unchanged. The ψ table and the weights live in
+      `model/preferred_orientation.py`, keyed by `Geometry.kind` and
+      held equal to it by a test. Recovery from C = 0 to 1e-6 relative
+      holds for m-3m, 6/mmm, -3m1, mmm and 2/m under both geometries.
+      **Finding:** reflections the Laue class leaves inequivalent but
+      the metric makes coincide (hkl and khl in -3m1) take opposite
+      signs on a term like c4_3. That term is then measured only
+      through |F(hkl)|² − |F(khl)|². With one atom at the origin the
+      two are equal, and c4_3 came back 0.93 ± 22.7 against −0.15,
+      while c2_0 and c4_0 landed to 1e-12. The esd says so, and no
+      guard is added. The skill row (Task 13) should name it.
+- [x] **Jacobian**: `texture_intensity_grad` beside `po_intensity_grad`
       (the intensity with P divided out, computed directly so P = 0 is safe,
       times the factor and K), a `_TEXTURE_PATH` route, an `_INTENSITY_ONLY`
       row and a declared reach. The cell columns must carry ∂P/∂cell the way
@@ -302,17 +457,38 @@ because it was not downloaded. Bunge's tables are published numbers.
       100 % step, the parameter being linear (root CLAUDE.md, the branch
       oracle rule). A `tests/test_cross_backend.py` config with texture and a
       free cell.
-- [ ] **Positivity and the record** (D4): `texture_positivity_inequalities`
+      *Done 2026-10-14.* The per-line chain after a multiplier is now
+      one helper the two columns share. The cell columns reach P
+      through `phase_peaks`'s finite-difference chain, and the
+      structural columns multiply it in explicitly; the `texture`
+      config (P -3, cell free, C off zero) agrees on every column
+      under fd, jax and torch. Each texture column meets a whole-unit
+      difference quotient to 1e-9 of its size.
+- [x] **Positivity and the record** (D4): `texture_positivity_inequalities`
       beside `strain_cone_inequalities`; `TEXTURE_NOT_POSITIVE` as a new
       `GuardFinding`; per-phase result fields for J and for the minimum P
       over the observed reflections and over the sphere, each with its
       writer named (WP-1076). These fields are the correction's evidence. Rwp
       is not (root CLAUDE.md).
-- [ ] **Plans**: every stage that frees `phases.*.preferred_orientation.r`
+      *Done 2026-10-14.* `RefinementResult.texture` holds one
+      `PhaseTexture` per textured phase, written by
+      `refine._phase_texture`; a joint fit leaves it empty. The guard
+      samples 2000 directions. Measured on a March-Dollase r = 0.4
+      specimen fitted at order 2: `lm` stopped at the face, C2,0 = 2.00
+      with min P −2.2e-16 and `CONSTRAINT_ACTIVE`; `trf` went to 2.90,
+      min P −0.45 on (hk0), and `TEXTURE_NOT_POSITIVE` fired. The
+      code's skill row is in `abstention.md`, since `diagnostics.md`
+      had 6 B of budget left.
+- [x] **Plans**: every stage that frees `phases.*.preferred_orientation.r`
       also frees `phases.*.texture.*`, which matches only a declared block.
       `PLAN_INFO` says so.
-- [ ] **Readers and writers**: TOPAS `PO_Spherical_Harmonics(sh, order)`
-      imports into `Phase.texture` through Task 1's conversion, measured
+      *Done 2026-10-14.* One stage frees March-Dollase, in
+      `mccusker_structural`; it frees `phases.*.texture.*` beside it.
+- [x] **Readers and writers**: first read the TOPAS Technical Reference on
+      `PO_Spherical_Harmonics` and `spherical_harmonics_hkl` (moved from
+      Task 1) and write the TOPAS conversion in § Pinned by Task 1. TOPAS
+      `PO_Spherical_Harmonics(sh, order)`
+      imports into `Phase.texture` through that conversion, measured
       against TOPAS's own output (root CLAUDE.md, a foreign unit). The
       coverage row splits: `spherical_harmonics_hkl` inside a width equation,
       as in the Durham ZrMo₂O₈ file of WP-1130, is hkl-dependent broadening
@@ -322,36 +498,72 @@ because it was not downloaded. Bunge's tables are published numbers.
       took GSAS-II's ψ. The CIF and FullProf writers state the block or say
       they cannot (`io/exporters.py:464`, `io/projects/fullprof.py:3466`
       show what March-Dollase does).
-- [ ] **`rietx compare`**: a `+ spherical-harmonics texture` variant beside
+      *In part, 2026-10-15, from the handover's review.* The writers
+      are done: the CIF states the block, FullProf refuses a non-zero
+      one, `TOPAS_FIELD_NOT_WRITTEN` and `GSAS2_CIF_FIELD_NOT_WRITTEN`
+      name it, and a P 1 restatement refuses it. Open: the TOPAS
+      reading and import, the coverage-row split, and GSAS-II's `_hap`.
+      *Done 2026-10-15, except the TOPAS import.* `_hap` reads an SH
+      entry into `Gsas2Hap.texture`, and `to_structure` carries it onto
+      `Phase.texture` through the conversion. On all twelve golden
+      settings GSAS-II marks invariant, the carried texture under
+      `bragg_brentano` gives `SHPOcal`'s `Bragg` P to 2e-5. On the four
+      others the report names exactly the golden's non-invariant terms.
+      A Debye-Scherrer histogram and disagreeing histograms are reported
+      too, and the n = 0 terms of a defective class still carry. Dropping
+      P_l(0) fails nine cases and dropping the √2 three. TOPAS's
+      reference is read (§ Pinned by Task 1) and the coverage row split:
+      a bare `spherical_harmonics_hkl` is a "spherical-harmonics series",
+      no longer a texture. The import is
+      [WP-1973](1973-a-topas-spherical-harmonics-texture-reads-in.md),
+      because the reference does not settle the normalisation.
+- [x] **`rietx compare`**: a `+ spherical-harmonics texture` variant beside
       `preferred_orientation`, run on the `brucite` standard
       (`qarr/brucite.prn`; `viz/compare.py` has no cpd-2 standard), and its
       row in `tests/test_compare_ui.py`.
-- [ ] **Manual**: the equation in Part 2 (`corrections.md`, with its
+      *Done 2026-10-14.* Order 4 on every phase with no block. On the
+      brucite standard, Rwp 0.469 bare, 0.185 under March-Dollase
+      (r 0.658) and 0.192 under order 4, C2,0 1.34. The variant's text
+      sends the reader to `result.texture` and the guard, not Rwp.
+- [x] **Manual**: the equation in Part 2 (`corrections.md`, with its
       `*Source:*` line) replacing the "not implemented yet" sentence; the
       § Scope sentence in `manual.md`; Part 1 prose on declaring a block and
       reading J and the guard.
-- [ ] **Tests and acceptance**: the units above; synthetic recovery
+      *Done 2026-10-14/15.* Part 2's section landed with Task 3. Part 1
+      documents the eleven new public names in `data.md`, `results.md`
+      and `refining.md`, and the deferred list is back to its 38.
+- [x] **Tests and acceptance**: the units above; synthetic recovery
       (noise-free patterns from known C for an m-3m, a 6/mmm, a -3m1, an mmm
       and a 2/m phase, under `bragg_brentano` and `debye_scherrer`, recovered
       from C = 0 to 1e-6 relative; with Poisson noise, within 3 esd); the
       GSAS-II golden; cpd-2 below; obs/calc/diff PNGs to `tests/output/`.
-- [ ] **Skill**: a reference row for `TEXTURE_NOT_POSITIVE` and the
+      *Done 2026-10-14.* `tests/test_texture.py` (43), the golden in
+      `tests/test_spherical_harmonics.py`, Poisson recovery within 3 esd for
+      -3m1 and mmm, and `test_sample2_brucite_spherical_harmonics` at
+      orders 4 and 6 with its validation-matrix claim and its plots.
+- [x] **Skill**: a reference row for `TEXTURE_NOT_POSITIVE` and the
       `phases.*.texture.*` family, and the routing row an agent needs to
       choose between March-Dollase and an order (tagged Hypothesis until the
       cpd-2 numbers exist).
 
+      *Done 2026-10-14.* The code's row is in `abstention.md`. The family
+      is described by its `help.py` entry, which also names the overlap
+      degeneracy. The routing clause sits on `numbers.md`'s
+      `refine_preferred_orientation` row, tagged Measured from CPD-2.
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_harmonics.py tests/test_texture.py tests/test_cross_backend.py tests/test_compare_ui.py
+.venv/bin/python -m pytest tests/test_spherical_harmonics.py tests/test_texture.py tests/test_cross_backend.py tests/test_compare_ui.py
 .venv/bin/python -m pytest -n auto --dist loadgroup tests/test_acceptance_qpa_roundrobin.py
 .venv/bin/python -m ruff check src tests examples
 ```
 
 - **Construction**: synthetic C recovered as above, and the identity
   bit-identical at `texture=None` and at C = 0.
-- **Cross-code**: P equals the GSAS-II golden to 1e-12 relative wherever the
-  bases coincide, through the stated conversion elsewhere.
+- **Cross-code**: P equals the GSAS-II golden to GSAS-II's single precision
+  on every term the golden does not mark `noninvariant`, through § Pinned by
+  Task 1's conversion. The bar was 1e-12 until Task 1 measured `pytexture`
+  at single precision.
 - **Real data, public**: IUCr CPD round-robin sample 2 (`qarr/cpd-2.prn`;
   brucite, P-3m1, strongly platy), the protocol of
   `test_sample2_brucite_march_dollase` with the brucite block swapped for
@@ -365,14 +577,18 @@ because it was not downloaded. Bunge's tables are published numbers.
 
 ## References
 
-The five journal entries were checked against Crossref on 2026-10-14. None
-is in the local corpus yet.
+The five journal entries were checked against Crossref on 2026-10-14. All
+five, and Bunge's two chapters, have been in the maintainer's library since
+2026-10-14. The library's chapter 15 is its introduction only, without the
+Appendix 3 tables.
 
 - Von Dreele, R. B. (1997). Quantitative texture analysis by Rietveld
   refinement. *J. Appl. Cryst.* 30(4), 517-525.
   doi:10.1107/S0021889897005918.
 - Bunge, H.-J. (1982). *Texture Analysis in Materials Science: Mathematical
-  Methods*. London: Butterworths. ISBN 0-408-10642-5. The symmetric
+  Methods*. London: Butterworths. ISBN 0-408-10642-5. Chapter 14,
+  "Mathematical Aids", doi:10.1016/B978-0-408-10642-9.50019-2; chapter 15,
+  "Numerical Tables", doi:10.1016/B978-0-408-10642-9.50020-9. The symmetric
   harmonics are §14.5-14.7 (cubic in §14.7.2 and §14.7.7), the cubic tables
   §15.4-15.5. GSAS-II's `BOH` cites "Table 15.2.1 … Cuvillier Verlag,
   Gottingen, 1993, p 501", the reprint, whose numbering may differ.
@@ -395,12 +611,141 @@ is in the local corpus yet.
   (3010), `penaltyFxn`'s `SH-Pref.Ori.` (847-872); `GSASIIlattice.OdfChk`
   and `GenSHCoeffT` (2792-2857), `CrsAng` (2859), `SamAng` (2929), `BOH`,
   `Lnorm`, `GetKcl`, `GetKsl` (2995-3106), `textureIndex` (3467).
-- Coelho, A. A., TOPAS 5 Technical Reference, `PO_Spherical_Harmonics` and
-  `spherical_harmonics_hkl`. Edition not checked: the local copy is
-  `TOPAS-5 Technical_Reference.pdf` on the maintainer's OneDrive, dated
-  2013-01-31 on disk.
+- Coelho, A. A., TOPAS / TOPAS-Academic Technical Reference, Version 9,
+  `spherical_harmonics_hkl`, `PO_Spherical_Harmonics` and § 20.17.1. Read
+  2026-10-15 at `https://topas-academic.com/technical_reference`, one HTML page
+  whose text is the `TECH_REF_HTML_PLAIN` string inside it.
 
 ## Handover log
+
+### 2026-10-15 (2nd session) — GSAS-II's texture reads in, and the WP closes
+
+A GSAS-II project's spherical-harmonics texture now comes across into rietx,
+converted, and reproduces GSAS-II's own multipliers to GSAS-II's single
+precision. Where GSAS-II's functions are wrong, or no constant converts the
+geometry, the reader says so and leaves the texture out. The TOPAS reference
+was read at the address the maintainer gave. It agrees with rietx on the
+sample angle, but it does not say how its harmonics are normalised, so the
+TOPAS import needs a TOPAS run and moved to its own WP. The maintainer decided
+that GSAS-II's defects are recorded here and in the manual, and not reported
+upstream.
+
+- **Done.** Task 9, except the TOPAS import. `Gsas2Hap.texture` and
+  `Gsas2Texture`; `to_structure` carries the texture onto `Phase.texture`;
+  `GSAS2_GPX_TEXTURE_CONVERTED` and `GSAS2_GPX_TEXTURE_NOT_CARRIED` with their
+  skill rows; the TOPAS coverage split; the manual's `.gpx` section and the
+  theory warning naming GSAS-II's non-invariant functions; the staged 1.10
+  notes. #983 had not staged the texture feature or schema 0.57, so this
+  session did. Filed: [1973](1973-a-topas-spherical-harmonics-texture-reads-in.md)
+  (the TOPAS import) and [1974](1974-the-texture-screen-says-which-order-the-misfit-needs.md)
+  (the order scan). No open WP owned either: 1455 reads a TCHZ profile, 1530
+  the reader's silences, and nothing open owns `report/texture.py`. Pushed a
+  note to 1962, whose texture-tomography non-goal waited on this.
+- **Measured.** darwin/arm64, `[dev,jax,torch]`:
+  - Twelve of the golden's sixteen settings are invariant in GSAS-II. In all
+    twelve, the carried texture under `bragg_brentano` gives `SHPOcal`'s `Bragg`
+    P to 2e-5. In the other four, the report names exactly the golden's
+    non-invariant terms. Dropping P_l(0) fails nine cases, and dropping the √2
+    fails three (4/m, −3, 6/m).
+  - No `.gpx` in the 68 readable local projects carries an SH entry or a
+    non-trivial March-Dollase one, so the trees are written in the test from
+    GSAS-II's layout, which `GSASIIstrIO` (5.8.4) reads and the committed
+    projects show in their MD form.
+  - Fast selection on this branch merged with main at `62fe61a3` (merge
+    `919702c3`): 10663 passed, 35 skipped, 1 xfailed, 10:53, with no other suite
+    running. A run one main earlier (`1c2563a1`) gave 10639 passed, 36 skipped,
+    1 xfailed. The 23 between them are WP-1971's, which main brought, and its
+    re-pinned pixel test is the skip that became a pass.
+    This session added 26 cases (8 tests), all passes. The count cannot be
+    squared against #983's 10592 + 2 failed + 36 skipped, because main brought
+    other WPs' tests since. The added cases cost 0.40 s in all
+    (`tests.added_test_times`), so none joins the tail. The full selection was
+    not run: the change is a reader path no acceptance suite takes.
+- **Review.** `/code-review high --fix 703d3fbd..HEAD` found seven and fixed
+  six, landed as one commit because the pass applied them together: an odd
+  order raised a bare `ValueError`; a numpy-integer order was read as 0 and
+  dropped silently; histograms differing only in the flag counted as
+  disagreeing; a histogram fitted with no texture did not; a zero under an
+  unknown name dropped the whole texture; the √2 clause printed when no term
+  took it. Declined: the test rewrites the golden's `R -3 R` for gemmi, which
+  reads both spellings today. Not generalised: an odd order is refused, though
+  GSAS-II's `GenSHCoeffT` would evaluate it as the even order below; only a
+  hand-edited file can hold one.
+- **Gotchas.** The TOPAS reference was never missing. WP-1433 recorded
+  `https://topas-academic.com/technical_reference` on 2026-09-16, and this WP
+  looked only at an OneDrive placeholder. The page is a viewer: WebFetch sees
+  its help text, and the reference is the `TECH_REF_HTML_PLAIN` string inside.
+- **Not done.** A `.gpx` March-Dollase entry is still not carried by
+  `to_structure`. That was true before this WP, and it is left alone here.
+
+Next: nothing on this WP. WP-1973 waits on a TOPAS run, and WP-1974 can start
+any time.
+
+### 2026-10-15 — every task but the readers landed
+
+A phase can now carry a spherical-harmonics texture, the general preferred-
+orientation correction for a texture with no single axis. It refines from
+zero with exact analytic columns. The default driver keeps the pole density
+non-negative at every reflection, and a guard says when the series goes
+negative between them. On the IUCr round-robin sample 2, the platy brucite's
+composition comes out as well as under March-Dollase: worst error 2.71 wt % at
+order 6, against 2.80. The papers settled the open design question: the sample
+angle is the physical one, so a Bragg-Brentano coefficient is GSAS-II's times
+P_l(0). GSAS-II's own functions turned out wrong in four classes, so it serves
+as a golden only where they are invariant. Reading TOPAS and GSAS-II files that
+carry a texture is the work left.
+
+- **Done.** Tasks 1-8 and 10-13, each ticked with its own note above. The
+  module is `crystallography/spherical_harmonics.py`, not the WP's
+  `harmonics.py`, because "harmonic" already names a λ/n monochromator line
+  here. Schema 0.57. Task 9 is half done: the review's fixes made every
+  writer state the block or say it cannot.
+- **Measured.** All on darwin/arm64, in this worktree's `[dev,jax,torch]` venv
+  (`[dev]` until the jax/torch install part-way through Task 6):
+  - GSAS-II golden: our functions equal GSAS-II's invariant ones to 7.4e-7,
+    its single precision, at ratio 1 or √2 with the signs.
+  - CPD-2 worst weighed error: March-Dollase 2.80 wt %, order 4 3.41, order 6
+    2.71. C2,0 is 1.41(4) and 1.39(5), J 1.46, min P 0.47 and 0.40.
+  - `rietx compare` on brucite: Rwp 0.469 bare, 0.185 under March-Dollase,
+    0.192 under order 4.
+  - March-Dollase r = 0.4 data fitted at order 2: `lm` stops at C2,0 = 2.00
+    on the face; `trf` reaches 2.90 with P = −0.45 and the guard fires.
+  - Fast selection on the tree merged with main at `3be03f2e`: 10592 passed,
+    2 failed, 36 skipped, 1 xfailed, 15:29, beside other sessions' suites.
+    The two failures were registry entries this work owed: the glob fixture
+    and the guard's joint-fit scope. Both are fixed in `b77d5fb4`, and their
+    files pass. The count cannot be squared against the session's first run
+    (10363 passed, 187 skipped, `[dev]`, before the merge): the extras changed
+    and main brought 25 commits. The added tests cost 20.1 s for the
+    564-setting gemmi table and under 3 s for every other test
+    (`tests.added_test_times`). The full selection was not run: texture code
+    runs only under a declared block, and the one shared change,
+    March-Dollase's column chain, moved verbatim under the goldens.
+- **Review.** `/code-review high --fix` found ten defects and all ten are
+  fixed, one commit each: a nearly symmetric cell refused a block; a P 1
+  restatement kept names that change meaning; GUI refusal probes; the Layer-2
+  action told a textured phase to add March-Dollase; the FullProf, TOPAS, CIF
+  and GSAS-II writers; compare's protocol; a wasted decode. Two were declined
+  as harmless: the guard computes P twice when it fires, and write-back adds
+  zero entries mid-walk. Not generalised: a GUI space-group change can keep a
+  name whose function changes meaning (c6_6 from 6/mmm to -3).
+- **Gotchas.** This session's first Write overwrote `tests/test_harmonics.py`,
+  and `0d043849` restored it. GSAS-II's harmonics return zeros until
+  `pytexture.pyqlmninit()` runs. On −3m1 a term like c4_3 is measured only
+  through |F(hkl)|² − |F(khl)|², so a one-atom structure leaves it at
+  0.93 ± 22.7.
+- **Not done.** GSAS-II's defects (§ Pinned by Task 1) are not reported
+  upstream; that is the maintainer's call. The `report/texture.py` follow-up
+  (the order scan in Non-goals) has no open owner: 0307 and 1054 are closed,
+  and 1931 and 1318 are other subjects. It is not filed yet.
+
+Next: Task 9's GSAS-II half first, because it needs nothing outside the
+session. `_hap` reads an SH entry's order and coefficients through § Pinned by
+Task 1's conversion. It refuses the classes the golden marks non-invariant,
+and a `Debye` histogram at default angles. It needs a `.gpx` fixture with an SH
+block, built through GSAS-II's scriptable API in its pixi environment. Then the
+TOPAS half, once the Technical Reference is readable offline. Then file the
+order-scan follow-up and close.
 
 ### 2026-10-14 — filed, and the fence moved
 

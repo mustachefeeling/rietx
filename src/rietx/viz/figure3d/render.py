@@ -15,6 +15,7 @@ has lines three times as wide as a 1000 px one and the same proportions.
 
 from __future__ import annotations
 
+import copy
 import struct
 import zlib
 from collections.abc import Mapping
@@ -51,6 +52,10 @@ MAX_SUPERSAMPLE = 4
 #: package's imports are the boundary WP-1505's split moves
 #: (``tests/test_figure_boundary.py``); ``tests/test_display.py`` holds them equal.
 NOTEBOOK_COLOURS = 256
+#: The ground a notebook's dark copy is drawn on (WP-1970): the fit figure's
+#: ``viz.plots.PALETTES["dark"]["ground"]``, restated for the same reason and
+#: held equal by the same test.
+NOTEBOOK_DARK_GROUND = "#1d1813"
 MODES = ("ball", "ellipsoid")
 #: The places tried for a site label, in order, as (right, up) signs: up and
 #: to the right first, which is where every label went before #666.
@@ -103,6 +108,10 @@ class StructureFigure:
     report: FigureReport | None = None
     candidates: list[dict] = field(default_factory=list)
     recipe: dict = field(default_factory=dict)
+    #: A copy of the first argument, taken at the call, which the notebook's
+    #: dark copy is drawn from (WP-1970).  A copy, so a structure edited after
+    #: the call cannot make the two pictures differ.
+    _drawn_from: object = field(default=None, repr=False, compare=False)
 
     def __array__(self, dtype=None, copy=None):
         image = self.image if dtype is None else self.image.astype(dtype, copy=False)
@@ -148,6 +157,31 @@ class StructureFigure:
         out = io.BytesIO()
         palette.save(out, format="PNG", optimize=True)
         return out.getvalue(), width
+
+    def _repr_mimebundle_(self, include=None, exclude=None):
+        """The picture, and on the default white ground a dark copy beside it
+        as HTML, of which the frontend's theme shows one (WP-1970).
+
+        The copy is drawn again from :attr:`recipe` on the dark page's
+        ground, which picks the dark cell and letters.  A raster cannot be
+        recoloured, as a fit figure is, because its antialiased edges blend
+        each ink into the ground.  A figure on any other ground is the
+        caller's choice, and shows alone."""
+        from .._notebook import no_dark_copy, pair_html, wants_html
+
+        png, meta = self._repr_png_()
+        data, metadata = {"image/png": png}, {"image/png": meta}
+        if (self._drawn_from is None or not wants_html(include, exclude)
+                or _colour(self.recipe.get("background")) != _colour("white")):
+            return data, metadata
+        try:
+            dark = render_structure(self._drawn_from, **{
+                **self.recipe, "background": NOTEBOOK_DARK_GROUND})
+        except Exception as exc:  # noqa: BLE001 - the light figure still shows
+            no_dark_copy(exc)
+            return data, metadata
+        data["text/html"] = pair_html(png, dark._repr_png_()[0], meta["width"])
+        return data, metadata
 
     def to_px(self, points) -> np.ndarray:
         """Where Cartesian points land in ``image``, in pixels.
@@ -712,6 +746,9 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     """
     from ...gui import structure3d as s3
 
+    # taken before anything reads it, for the notebook's dark copy (WP-1970)
+    drawn_from = (structure.model_copy(deep=True) if hasattr(structure, "model_copy")
+                  else copy.deepcopy(structure))
     if mode not in MODES:
         raise ValueError(f"mode {mode!r}: give one of {MODES}")
     s = int(supersample)
@@ -856,4 +893,5 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
                            pixels_per_angstrom=frame.ppa, origin=[float(frame.x0), float(frame.y0)],
                            atoms=atoms, letters=letters,
                            path=written, palette=_palette(geometry, scene), report=report,
-                           candidates=candidates, recipe=recipe)
+                           candidates=candidates, recipe=recipe,
+                           _drawn_from=drawn_from)

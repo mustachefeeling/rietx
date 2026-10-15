@@ -559,7 +559,8 @@ def test_every_surface_flag_names_a_real_export(caps):
 def test_the_documented_feature_keys_are_present(caps):
     """Removing a flag is a client-visible change, so make it a loud one."""
     expected = {
-        "anisotropic_adp", "preferred_orientation", "stephens_strain",
+        "anisotropic_adp", "preferred_orientation", "spherical_harmonics_texture",
+        "stephens_strain",
         "primary_extinction", "restraints", "satellites", "magnetic_moments",
         "magnetic_interchange", "surface_roughness",
         "capillary_absorption", "flat_plate_absorption", "anomalous_dispersion",

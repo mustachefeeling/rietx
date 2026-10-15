@@ -74,6 +74,12 @@ PET kernel method) and lists its costs and scaling; the literature is in
   extrapolation by each coordinate's range alone, so a 2-D point inside both
   ranges and far from every pattern is not flagged. A kernel's posterior
   variance would see it.
+- **From WP-1966 (2026-10-14): the `WP-1963:` commits of 2026-10-14 are not
+  this WP's.** WP-1966 was filed as 1963 the same afternoon this WP was, and
+  was renumbered at `7f7b44e0`. Every `WP-1963:`-prefixed commit up to that
+  one is the JupyterLite work, so `git log --grep WP-1963` finds it too. The
+  session-start hook read those commits as this WP's work and flagged a
+  repair. This note touches the file after them and clears the flag.
 
 ## Non-goals
 

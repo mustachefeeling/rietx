@@ -550,6 +550,29 @@ class PhaseAgreement(Base):
     n_reflections: int = 0
 
 
+class PhaseTexture(Base):
+    """One phase's spherical-harmonics texture at the answer (WP-1960).
+
+    These are the correction's evidence, because Rwp is not (root CLAUDE.md).
+    ``texture_index`` is J = 1 + Σ C²/(2l+1), 1 for a random powder, a lower
+    bound on the specimen's because the odd orders and those past the
+    declared order are not measured.  ``min_p_reflections`` is the lowest
+    multiplier over the phase's fitted reflections, and ``min_p_sphere`` the
+    lowest over directions sampled on the whole sphere, the reflections
+    included.  A negative ``min_p_sphere`` is what ``TEXTURE_NOT_POSITIVE``
+    reports.
+
+    Written by ``refine._phase_texture``, one row per phase that carries a
+    texture block in Rietveld mode.  Empty otherwise, and empty for a joint
+    fit, whose shared coefficients meet each histogram at its own ψ.
+    """
+
+    name: str                         # matches Phase.name
+    texture_index: float
+    min_p_reflections: float
+    min_p_sphere: float
+
+
 class RestraintRow(Base):
     """One soft restraint's computed-vs-target deviation (WP-0406).
 
@@ -1433,6 +1456,10 @@ class RefinementResult(Base):
     # see :class:`PhaseAgreement`.  Empty outside Rietveld mode, where the
     # partition would be circular, and empty for a result not built by a fit.
     phase_agreement: list[PhaseAgreement] = Field(default_factory=list)
+
+    # The spherical-harmonics texture's evidence, one row per textured phase
+    # (WP-1960) — see :class:`PhaseTexture`.
+    texture: list[PhaseTexture] = Field(default_factory=list)
 
     # Observation/parameter evidence (WP-1071) — see :class:`DataSupport`.
     # Present for anything with a compiled model behind it, ``replay``

@@ -147,8 +147,9 @@ profiles and time-of-flight data are not implemented today. They are planned
 for v2, behind seams the forward model already carries.
 The one exception is {ref}`sec-tof-positions`: the calibration relation a
 time-of-flight bank is read with, which puts a flight time on a d-spacing. No
-time-of-flight pattern is refined. Spherical-harmonics texture is not
-implemented yet.
+time-of-flight pattern is refined. Spherical-harmonics texture,
+{eq}`corr-sh`, assumes cylindrical sample symmetry: one histogram cannot see a
+pole figure.
 
 (sec-units)=
 ### Symbols and units

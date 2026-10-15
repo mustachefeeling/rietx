@@ -462,7 +462,12 @@ from .._nearmiss import did_you_mean
 #: rejects the declared form, by a score test at the answer.  Additive and
 #: defaulted to ``None``, as ``parametric`` is; an older build refuses a
 #: result carrying the field.
-#: 0.56 → 0.57 (WP-1325): ``RefinedParameter.equations``, the parametric
+#: 0.56 → 0.57 (WP-1960): ``Phase.texture``, a ``SphericalHarmonicTexture``
+#: (an even ``order`` and a name → ``Parameter`` map of coefficients), and
+#: ``RefinementResult.texture``, one ``PhaseTexture`` per textured phase.
+#: Additive and defaulted to ``None`` and empty, so every stored document
+#: loads and refines as before; an older build refuses either.
+#: 0.57 → 0.58 (WP-1325): ``RefinedParameter.equations``, the parametric
 #: equations whose coefficients set a row; ``ParametricFormTest.n_subset``,
 #: the subset's size beside the patterns tested; ``ParametricFormTest``'s
 #: ``dof``/``statistic``/``cut`` moved into two ``ParametricFormReading``s,
@@ -481,7 +486,7 @@ from .._nearmiss import did_you_mean
 #: ``equation`` on ``ParametricCoefficient``, ``ParametricFormTest`` and
 #: ``RefinedParametricEquation``; ``ParametricCoefficient`` still reads the
 #: 0.55 key ``tie``, so a 1.9.0 result opens and is written back as ``equation``.
-SCHEMA_VERSION = "0.57"
+SCHEMA_VERSION = "0.58"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated

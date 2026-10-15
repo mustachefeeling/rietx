@@ -25,11 +25,13 @@ construction (``io/CLAUDE.md`` § Adding a format, rule 4).
 
 from __future__ import annotations
 
+import json
 import math
 import pickle
 from pathlib import Path
 
 import gemmi
+import numpy as np
 import pytest
 
 import rietx as rx
@@ -41,6 +43,7 @@ from rietx.io.projects.gsas2 import (
     TREE_ITEM_STANCE,
     Gsas2GpxError,
     Gsas2Phase,
+    Gsas2Texture,
     _numpy_globals,
     _report_setting,
     item_kind,
@@ -1063,3 +1066,162 @@ def test_a_hexagonal_phase_gets_no_restatement_note(tmp_path):
     rx.write_gsas2_phase_cif(rx.Structure(phases=[phase]), tmp_path / "h.cif",
                              diagnostics=found)
     assert not [d for d in found if "RHOMBOHEDRAL" in d.code]
+
+
+# ------------------- a spherical-harmonics texture, through GSAS-II's own P (WP-1960)
+#
+# ``Pref.Ori.`` is [kind, MD ratio, flag, MD axis, SH order, {C(l,n): value},
+# penalty hkls, penalty tolerance], one flag serving either kind (GSAS-II 5.8.4
+# reads it so in ``GSASIIstrIO``; the committed projects carry the MD form).
+# No project in the corpus states an SH entry, so the trees are written here.
+# The numbers come from ``gsas2_sh_texture.json``: GSAS-II's ``SHPOcal`` P for
+# each Laue class, which the carried texture must reproduce.
+
+def _sh_golden() -> list[dict]:
+    with (DATA / "gsas2_sh_texture.json").open(encoding="utf-8") as handle:
+        return json.load(handle)["cases"]
+
+
+def _textured_project(symbol: str, cell, histograms: dict[str, tuple[str, list]]) -> list:
+    """A one-phase tree whose phase carries ``Pref.Ori.`` in each histogram."""
+    tree = _minimal_project(SGData={"SpGrp": symbol}, Cell=[False, *cell, 100.0])
+    phase = tree[1][1][1]
+    for name, (geometry, prefo) in histograms.items():
+        phase["Histograms"][name] = {"Pref.Ori.": prefo, "Use": True}
+        tree.append([
+            [name, [{"hId": len(tree), "ranId": len(tree)}, None]],
+            ["Instrument Parameters", [{"Type": ["PXC", "PXC", 0],
+                                        "Lam": [1.5406, 1.5406, 0]}, {}]],
+            ["Sample Parameters", {"Type": geometry}]])
+    return tree
+
+
+def _sh(order: int, coefficients: dict, refined: bool = True) -> list:
+    return ["SH", 1.0, refined, [0, 0, 1], order, dict(coefficients), [""], 0.1]
+
+
+def _rietx_symbol(case: dict) -> str:
+    """GSAS-II spells rhombohedral axes ``R -3 R``, gemmi ``R -3:R``."""
+    symbol = case["symbol"]
+    return symbol[:-2] + ":R" if symbol.endswith(" R") else symbol
+
+
+def _carried_p(phase, hkl, cell):
+    from rietx.crystallography.spherical_harmonics import texture_basis
+    from rietx.model.preferred_orientation import (
+        TEXTURE_SAMPLE_PSI_DEG,
+        texture_factors,
+        texture_term_weights,
+    )
+    basis = texture_basis(phase.space_group, phase.texture.order, cell)
+    weights = texture_term_weights([t.degree for t in basis.terms],
+                                   TEXTURE_SAMPLE_PSI_DEG["bragg_brentano"])
+    c = np.array([phase.texture.coefficients[name].value
+                  if name in phase.texture.coefficients else 0.0
+                  for name in basis.names])
+    k = basis.at_reflections(np.array(hkl), cell)
+    return np.asarray(texture_factors(k, weights, c))
+
+
+def test_an_sh_entry_reads_its_order_and_coefficients(tmp_path):
+    """The order and coefficients, where the record used to hold the stale MD slots."""
+    tree = _textured_project("P m m m", (4.0, 5.0, 6.0, 90.0, 90.0, 90.0), {
+        "PWDR a.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.3, "C(4,2)": -0.1})),
+        "PWDR b.xye": ("Bragg-Brentano",
+                       ["MD", 0.8, True, [0, 0, 1], 0, {}, [""], 0.1])})
+    model = read_gsas2_gpx(_write_gpx(tmp_path / "sh.gpx", tree))
+    sh = model.hap[("widget", "PWDR a.xye")]
+    assert sh.texture == Gsas2Texture(4, {"C(2,0)": 0.3, "C(4,2)": -0.1}, True)
+    assert sh.preferred_orientation is None
+    md = model.hap[("widget", "PWDR b.xye")]
+    assert md.texture is None
+    assert md.preferred_orientation == ("MD", 0.8, True, (0, 0, 1))
+
+
+@pytest.mark.parametrize("case", _sh_golden(), ids=lambda c: c["label"])
+def test_a_carried_texture_is_gsas2s_multiplier(tmp_path, case):
+    """P under `bragg_brentano` equals GSAS-II's `Bragg` P, to its single precision.
+
+    Where GSAS-II's own function takes two values on one orbit, the texture is
+    reported and not carried, and the report names exactly the terms the golden
+    measured as non-invariant.
+    """
+    cell = tuple(case["cell"])
+    tree = _textured_project(_rietx_symbol(case), cell, {
+        "PWDR t.xye": ("Bragg-Brentano", _sh(8, case["coefficients"]))})
+    notes: list = []
+    structure = to_structure(read_gsas2_gpx(_write_gpx(tmp_path / "t.gpx", tree)),
+                             diagnostics=notes)
+    phase = structure.phases[0]
+    if case["noninvariant"]:
+        assert phase.texture is None
+        (note,) = [d for d in notes if d.code == "GSAS2_GPX_TEXTURE_NOT_CARRIED"]
+        named = {g for g in case["names"] if g in note.message}
+        assert named == set(case["noninvariant"])
+        return
+    assert "GSAS2_GPX_TEXTURE_CONVERTED" in {d.code for d in notes}
+    assert all(p.vary for p in phase.texture.coefficients.values())
+    p = _carried_p(phase, case["hkl"], cell)
+    assert np.allclose(p, case["p"]["Bragg"], atol=2e-5)
+    assert np.max(np.abs(p - 1.0)) > 1e-3  # the texture moved P, 50× the tolerance
+
+
+def test_the_invariant_terms_of_a_defective_class_are_carried(tmp_path):
+    """In 2/m only GSAS-II's n ≠ 0 functions are defective, so n = 0 alone carries."""
+    tree = _textured_project("P 1 2/m 1", (5.0, 6.0, 7.0, 90.0, 104.0, 90.0), {
+        "PWDR t.xye": ("Bragg-Brentano",
+                       _sh(4, {"C(2,0)": 0.4, "C(2,2)": 0.0, "C(4,0)": -0.2}))})
+    structure = to_structure(read_gsas2_gpx(_write_gpx(tmp_path / "m.gpx", tree)))
+    coefficients = structure.phases[0].texture.coefficients
+    assert set(coefficients) == {"c2_0", "c4_0"}
+    assert coefficients["c2_0"].value == pytest.approx(0.4 * -0.5)
+    assert coefficients["c4_0"].value == pytest.approx(-0.2 * 3 / 8)
+
+
+@pytest.mark.parametrize("histograms, why", [
+    ({"PWDR d.xye": ("Debye-Scherrer", _sh(4, {"C(2,0)": 0.3}))}, "ψ = θ"),
+    ({"PWDR a.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.3})),
+      "PWDR b.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.2}))},
+     "different coefficients"),
+    ({"PWDR a.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.3})),
+      "PWDR b.xye": ("Bragg-Brentano", ["MD", 1.0, False, [0, 0, 1], 0, {}, [""], 0.1])},
+     "different coefficients"),
+    ({"PWDR a.xye": ("Bragg-Brentano", _sh(5, {"C(2,0)": 0.3}))}, "even orders"),
+], ids=["debye-scherrer", "two-histograms-disagree", "one-histogram-has-none",
+        "odd-order"])
+def test_a_texture_no_constant_converts_is_reported(tmp_path, histograms, why):
+    tree = _textured_project("P 4/m m m", (4.0, 4.0, 6.0, 90.0, 90.0, 90.0), histograms)
+    notes: list = []
+    structure = to_structure(read_gsas2_gpx(_write_gpx(tmp_path / "r.gpx", tree)),
+                             diagnostics=notes)
+    assert structure.phases[0].texture is None
+    (note,) = [d for d in notes if d.code == "GSAS2_GPX_TEXTURE_NOT_CARRIED"]
+    assert note.level == "warning" and why in note.message
+
+
+def test_two_histograms_stating_one_texture_carry_it(tmp_path):
+    """One flag set and one clear is one texture, and it merges free."""
+    tree = _textured_project("P 4/m m m", (4.0, 4.0, 6.0, 90.0, 90.0, 90.0), {
+        "PWDR a.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.3}, refined=False)),
+        "PWDR b.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.3}, refined=True))})
+    structure = to_structure(read_gsas2_gpx(_write_gpx(tmp_path / "two.gpx", tree)))
+    (c,) = structure.phases[0].texture.coefficients.values()
+    assert c.value == pytest.approx(-0.15) and c.vary
+
+
+def test_a_numpy_integer_order_is_read(tmp_path):
+    tree = _textured_project("P 4/m m m", (4.0, 4.0, 6.0, 90.0, 90.0, 90.0), {
+        "PWDR a.xye": ("Bragg-Brentano", _sh(np.int64(4), {"C(2,0)": 0.3}))})
+    model = read_gsas2_gpx(_write_gpx(tmp_path / "np.gpx", tree))
+    assert model.hap[("widget", "PWDR a.xye")].texture.order == 4
+
+
+def test_a_cubic_order_2_entry_loses_nothing_and_says_so(tmp_path):
+    tree = _textured_project("P m -3 m", (4.0, 4.0, 4.0, 90.0, 90.0, 90.0), {
+        "PWDR c.xye": ("Bragg-Brentano", _sh(2, {}))})
+    notes: list = []
+    structure = to_structure(read_gsas2_gpx(_write_gpx(tmp_path / "c.gpx", tree)),
+                             diagnostics=notes)
+    assert structure.phases[0].texture is None
+    (note,) = [d for d in notes if d.code == "GSAS2_GPX_TEXTURE_NOT_CARRIED"]
+    assert note.level == "info"

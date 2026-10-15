@@ -89,6 +89,20 @@ A joint multi-histogram fit reports them per histogram, on
 `HistogramResult.phase_agreement`: the partition is of one pattern's counts, so
 there is no pooled value.
 
+A phase carrying a spherical-harmonics texture gets one more row, on
+`RefinementResult.texture`, one `PhaseTexture` per textured phase. These are
+the correction's evidence, because Rwp is not.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `PhaseTexture.name` | the phase's name | the key, as on `PhaseAgreement`. |
+| `PhaseTexture.texture_index` | J = 1 + Σ C²/(2l+1) | 1 for a random powder. A lower bound on the specimen's, because odd orders and those past the declared order are not measured. |
+| `PhaseTexture.min_p_reflections` | the lowest multiplier P over the phase's reflections | the default driver holds it at 0 or above. |
+| `PhaseTexture.min_p_sphere` | the lowest P over directions sampled on the whole sphere | below zero, `TEXTURE_NOT_POSITIVE` fires and the coefficients are not a pole density. |
+
+A joint fit leaves `RefinementResult.texture` empty, because its shared
+coefficients meet each histogram at its own sample angle.
+
 Both are biased towards the model you are testing. A powder pattern does not
 measure individual reflection intensities, because overlapped peaks share their
 counts, so the "observed" intensity of each reflection is the observed pattern

@@ -55,6 +55,8 @@ second one.
 
 from __future__ import annotations
 
+from functools import partial
+
 import numpy as np
 
 from .._about import DIST_NAME
@@ -102,6 +104,25 @@ Y_SCALES = ("linear", "sqrt", "log", "asinh")
 #: categorical colour answers "which one of them", so it follows the phase and
 #: nothing else.  ``tick`` — the *single*-phase row — stays a role and stays
 #: per ground.
+#:
+#: The last five roles are :func:`plot_trajectory`'s (WP-1970): the measured
+#: series, a held or verdict-less point, a pattern refitted cold, one the
+#: ladder could not rescue, and an Rwp outlier.  Light's are the GUI's
+#: ``--accent``, ``--muted`` and ``--bad`` and two darker hues, and dark's
+#: are the same tokens' dark values.  ``unrecovered`` sits nearer the type
+#: than ``reseeded`` on both grounds, so the worse verdict carries more ink.
+#:
+#: The ``index_`` roles, ``absent``, ``unmatched`` and ``candidate`` are
+#: :mod:`rietx.viz.indexing`'s (WP-1972).  Light's are the hues those figures
+#: have always drawn.  A light hue this table already held (``series``,
+#: ``reseeded``, ``band``) keeps that role's dark colour.  Each new one keeps
+#: its OKLab hue and gains 0.19 in lightness, the mean lift of those three
+#: pairs, so the candidate rows keep the lightness steps that tell them apart.
+#: The two greys swap their order of ink, as ``obs`` and ``diff`` do, and
+#: ``absent``'s amber reads on both grounds as it is.  ``candidate`` is ranked
+#: like ``phase`` but is chosen per ground, because four of its hues are other
+#: roles' light colours, and a light colour takes one dark colour wherever it
+#: is drawn.
 PALETTES = {
     # `ground` is the page the figure sits on.  Dark's is the manual's and the
     # landing page's warm panel, which is what `_ground_rc` paints; light's is
@@ -110,12 +131,26 @@ PALETTES = {
     "light": {"obs": "#1a1a1a", "calc": "#ff7f0e", "bkg": "#b5793a",
               "diff": "#737373", "zero": "#c9c9c9", "band": "#2a9d2a",
               "tick": "#1a1a1a", "ground": "#ffffff",
-              "phase": list(PHASE_COLOURS)},
+              "phase": list(PHASE_COLOURS),
+              "series": "#1f5fa8", "held": "#6b6b6b", "reseeded": "#c23b22",
+              "unrecovered": "#8b1a1a", "outlier": "#b8860b",
+              "index_obs": "#1f5fa8", "index_calc": "#c23b22",
+              "index_bkg": "#7a7a7a", "index_diff": "#4a4a4a",
+              "absent": "#f2c14e", "unmatched": "#7a1fa8",
+              "candidate": ["#1f5fa8", "#c23b22", "#2a9d2a", "#7a1fa8",
+                            "#d17b0f", "#0f8c8c", "#a8195f", "#5a5a9d"]},
     "dark": {"obs": "#d2c9bd", "calc": "#ff9d4d", "bkg": "#c99a6a",
              "diff": "#8f8f8f", "zero": "#4a4a4a", "band": "#4fd44f",
              "tick": "#d2c9bd", "fg": "#f1ece5", "rule": "#d2c9bd",
              "ground": "#1d1813",
-             "phase": list(PHASE_COLOURS)},
+             "phase": list(PHASE_COLOURS),
+             "series": "#7fb2ea", "held": "#9a9a94", "reseeded": "#e8776a",
+             "unrecovered": "#ffb0a0", "outlier": "#d9a62e",
+             "index_obs": "#7fb2ea", "index_calc": "#e8776a",
+             "index_bkg": "#8a8a8a", "index_diff": "#b5b5b5",
+             "absent": "#f2c14e", "unmatched": "#b561e8",
+             "candidate": ["#7fb2ea", "#e8776a", "#4fd44f", "#b561e8",
+                           "#ffbd7c", "#60c8c7", "#eb5d97", "#9193db"]},
 }
 
 
@@ -284,11 +319,17 @@ def _nice_ticks(forward, inverse, lo: float, hi: float, n: int = 4):
     return out
 
 
+def _palette(style: str) -> dict:
+    """The palette ``style`` names, or a ``ValueError`` naming the choices."""
+    if style not in PALETTES:
+        raise ValueError(f"style must be one of {sorted(PALETTES)}, not {style!r}")
+    return PALETTES[style]
+
+
 def _check_panel_args(style: str, x_axis: str, y_scale: str,
                       wavelength: float | None) -> None:
     """The keyword checks every panel shares, raised before anything is drawn."""
-    if style not in PALETTES:
-        raise ValueError(f"style must be one of {sorted(PALETTES)}, not {style!r}")
+    _palette(style)
     if x_axis not in X_AXES:
         raise ValueError(f"x_axis must be one of {list(X_AXES)}, not {x_axis!r}")
     if y_scale not in Y_SCALES:
@@ -339,30 +380,52 @@ def _figure_class():
     """The ``Figure`` every rietx plot draws on: matplotlib's own, with a
     notebook encoding of its own (:data:`_NOTEBOOK_DPI`).
 
-    IPython ranks a PNG formatter registered for a type above any method on
-    the object, and the inline backend registers one for ``Figure``, which a
-    subclass inherits through its MRO. So the encoder is registered for this
-    subclass alone, in a running IPython: the caller's own figures keep the
-    backend's formatter. ``_repr_png_`` answers where no formatter is
-    registered at all. Built on first use, because this module imports
-    matplotlib lazily.
+    IPython builds a figure's output from ``_repr_mimebundle_``
+    (:func:`_notebook_bundle`): the PNG, and the light and dark pair as HTML
+    beside it, from one encode of the light figure (WP-1970).  It then ranks
+    a PNG formatter registered for a type above the bundle's PNG, and the
+    inline backend registers one for ``Figure``, which a subclass inherits
+    through its MRO.  So a PNG formatter returning ``None`` is registered for
+    this subclass alone, in a running IPython, which leaves the bundle's PNG
+    standing; the caller's own figures keep the backend's formatter.
+    ``_repr_png_`` answers a caller outside IPython. Built on first use,
+    because this module imports matplotlib lazily.
+
+    Pickle finds a class by its module and qualified name, so the class is
+    named as a module attribute, and the module's ``__getattr__`` builds it
+    when an unpickle in a fresh process asks for it (WP-1971).
     """
     global _FIGURE_CLASS
     if _FIGURE_CLASS is None:
         from matplotlib.figure import Figure
 
         class _NotebookFigure(Figure):
+            #: The palette the figure was drawn in, set by the plot that
+            #: drew it; ``None`` where the figure has no dark form.
+            _rietx_style = None
+
             def _repr_png_(self):
                 return _notebook_png(self)
 
+            def _repr_mimebundle_(self, include=None, exclude=None):
+                return _notebook_bundle(self, include, exclude)
+
+        _NotebookFigure.__qualname__ = "_NotebookFigure"
         _FIGURE_CLASS = _NotebookFigure
     _register_notebook_png(_FIGURE_CLASS)
     return _FIGURE_CLASS
 
 
+def __getattr__(name: str):
+    """``_NotebookFigure``, built on first use, for pickle to find."""
+    if name == "_NotebookFigure":
+        return _figure_class()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def _register_notebook_png(cls) -> None:
-    """Point a running IPython's PNG formatter at :func:`_notebook_png` for
-    ``cls``. Nothing happens outside IPython, or once it is done."""
+    """Stop a running IPython's PNG formatter encoding ``cls`` itself, so the
+    bundle's PNG stands. Nothing happens outside IPython, or once it is done."""
     import sys
     if "IPython" not in sys.modules:
         return
@@ -372,7 +435,7 @@ def _register_notebook_png(cls) -> None:
         return
     formatter = shell.display_formatter.formatters["image/png"]
     if cls not in formatter.type_printers:
-        formatter.for_type(cls, _notebook_png)
+        formatter.for_type(cls, lambda fig: None)
 
 
 def _notebook_png(fig) -> tuple[bytes, dict]:
@@ -400,7 +463,113 @@ def _notebook_png(fig) -> tuple[bytes, dict]:
     return out.getvalue(), {"width": image.size[0] // _NOTEBOOK_DENSITY}
 
 
-def _handed_back(fig):
+def _notebook_bundle(fig, include=None, exclude=None) -> tuple[dict, dict]:
+    """``fig`` as a notebook output: ``(data, metadata)`` by MIME type.
+
+    ``image/png`` is :func:`_notebook_png`, for a frontend that renders no
+    HTML, such as a PDF export.  A figure drawn light also carries
+    ``text/html`` (WP-1970): a light and a dark image, of which the
+    frontend's theme shows one (:mod:`rietx.viz._notebook`).  Every frontend
+    measured ranks HTML first.
+
+    The dark image is :func:`_darkened` on a copy, so whatever the caller
+    added to the returned figure shows in both.  The light one is encoded
+    first: its draw creates the tick artists the copy then recolours."""
+    from ._notebook import no_dark_copy, pair_html, wants_html
+
+    light, meta = _notebook_png(fig)
+    data, metadata = {"image/png": light}, {"image/png": meta}
+    if fig._rietx_style != "light" or not wants_html(include, exclude):
+        return data, metadata
+    import copy
+
+    # A figure pyplot still holds (any backend but the inline one) would
+    # register its copy with pyplot too, through Figure.__setstate__: one
+    # stray figure, or window, per display.  Detached, the copy is not.
+    manager = fig.canvas.manager
+    fig.canvas.manager = None
+    try:
+        twin = copy.deepcopy(fig)
+    except Exception as exc:  # noqa: BLE001 - the light figure still shows
+        no_dark_copy(exc)
+        return data, metadata
+    finally:
+        fig.canvas.manager = manager
+    try:
+        dark, _ = _notebook_png(_darkened(twin))
+    except Exception as exc:  # noqa: BLE001 - the light figure still shows
+        no_dark_copy(exc)
+        return data, metadata
+    data["text/html"] = pair_html(light, dark, meta["width"])
+    return data, metadata
+
+
+def _darkened(fig):
+    """``fig``, drawn light, recoloured in place to the dark palette.
+
+    Three maps, which are what :func:`_style_context` changes between the two
+    palettes.  A :data:`PALETTES` role takes the same role's dark colour, and
+    a ranked list's entry the same entry's.  Matplotlib's own black takes
+    ``fg`` on text and ``rule`` on every other line, as :func:`_ground_rc`
+    sets them.  White takes ``ground``.  So a rietx
+    figure comes out as the one drawn with ``style="dark"``, pixel for pixel,
+    and a caller's own ink in any other colour is left as drawn.  The
+    redraw it replaces would have dropped what the caller added (WP-1970).
+    """
+    from matplotlib.collections import Collection
+    from matplotlib.colors import to_hex, to_rgba
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    from matplotlib.text import Text
+
+    light, dark = PALETTES["light"], PALETTES["dark"]
+    roles = {}
+    for k, v in light.items():
+        if k != "ground":
+            pairs = zip(v, dark[k], strict=True) if isinstance(v, list) else [(v, dark[k])]
+            roles.update((one.lower(), two) for one, two in pairs)
+    ground, fg, rule = {"#ffffff": dark["ground"]}, {"#000000": dark["fg"]}, {
+        "#000000": dark["rule"]}
+
+    def ink(colour, *maps):
+        if isinstance(colour, str) and colour.lower() in ("none", "auto"):
+            return colour
+        rgba = to_rgba(colour)
+        key = to_hex(rgba[:3])
+        for table in maps:
+            if key in table and rgba[3] > 0:
+                return to_rgba(table[key], rgba[3])
+        return colour
+
+    def patch(p):
+        p.set_facecolor(ink(p.get_facecolor(), roles, ground, rule))
+        p.set_edgecolor(ink(p.get_edgecolor(), roles, rule))
+
+    for artist in fig.findobj():
+        if isinstance(artist, Text):
+            artist.set_color(ink(artist.get_color(), roles, fg))
+            for box in (artist.get_bbox_patch(), getattr(artist, "arrow_patch", None)):
+                if box is not None:
+                    patch(box)
+        elif isinstance(artist, Line2D):
+            artist.set_color(ink(artist.get_color(), roles, rule))
+            artist.set_markerfacecolor(ink(artist.get_markerfacecolor(), roles, rule))
+            artist.set_markeredgecolor(ink(artist.get_markeredgecolor(), roles, rule))
+        elif isinstance(artist, Patch):
+            patch(artist)
+        elif isinstance(artist, Collection):
+            for get, put, maps in ((artist.get_facecolor, artist.set_facecolor,
+                                    (roles, ground, rule)),
+                                   (artist.get_edgecolor, artist.set_edgecolor,
+                                    (roles, rule))):
+                old = get()
+                new = [ink(c, *maps) for c in old]
+                if any(to_rgba(a) != to_rgba(b) for a, b in zip(old, new, strict=True)):
+                    put(new)
+    return fig
+
+
+def _handed_back(fig, style: str | None = None):
     """``fig``, detached from pyplot when the backend is a notebook's inline one.
 
     The inline backend draws every figure pyplot holds when a cell ends, and
@@ -415,6 +584,9 @@ def _handed_back(fig):
     import matplotlib.pyplot as plt
     if "inline" in matplotlib.get_backend():
         plt.close(fig)
+    # the palette it was drawn in, which says whether a notebook may show a
+    # dark copy beside it (WP-1970); None, as for plot_for_vlm, says not
+    fig._rietx_style = style
     return fig
 
 
@@ -434,6 +606,16 @@ def _style_context(plt, style: str, font_size: float):
                              else ["dark_background", _rc(font_size), _ground_rc(hue)])
 
 
+def _ground_context(plt, style: str):
+    """The trajectory's and the indexing figures' style context: the page's
+    ground on dark, and on light nothing, since those figures predate the house
+    rc and keep their own type."""
+    if style == "light":
+        from contextlib import nullcontext
+        return nullcontext()
+    return plt.style.context(["dark_background", _ground_rc(PALETTES[style])])
+
+
 def _title(ax, title: str | None, font_size: float) -> None:
     """A caller's title, in the panel's own type, or nothing at all.
 
@@ -445,6 +627,58 @@ def _title(ax, title: str | None, font_size: float) -> None:
     """
     if title is not None:
         ax.set_title(title, fontsize=font_size, pad=0.6 * font_size)
+
+
+#: Where a gutter label starts, as a fraction of the axes width.
+_GUTTER_X = 1.012
+#: How far beside the axes :func:`_height_clip` reaches, in axes widths: far
+#: enough that a spine's own width is never cut.
+_CLIP_REACH = 100.0
+#: How far above and below the axes :func:`_height_clip` reaches, in axes
+#: heights, so a spine ending on the axes edge keeps its last row of pixels;
+#: at 0 three of the six pinned renders change.  It is also how far a spine
+#: can reach past the axes after a caller's ``set_ylim``: 15 px of 871.
+_CLIP_MARGIN = 0.02
+
+
+def _height_clip(artist, ax) -> None:
+    """Clip ``artist``, placed in data height beyond the axes, to their height.
+
+    A bounded spine is drawn on the axes edge, where matplotlib clips
+    nothing.  After a caller's ``set_ylim`` it can reach far above or below
+    the view, and a tight save then grows the canvas to reach it: 871 px tall
+    became 13 369 px (WP-1971).  A tight save measures a clipped artist by its
+    visible part, so this keeps the figure its designed size.
+    """
+    from matplotlib.transforms import Bbox, TransformedBbox
+
+    artist.set_clip_box(TransformedBbox(
+        Bbox([[-_CLIP_REACH, -_CLIP_MARGIN], [_CLIP_REACH, 1.0 + _CLIP_MARGIN]]),
+        ax.transAxes))
+    artist.set_clip_on(True)
+
+
+def _gutter_label(ax, y: float, text: str, colour) -> None:
+    """``text`` in the right-hand gutter of ``ax``, level with data height ``y``.
+
+    The x position is a fraction of the axes width, so the label stays beside
+    the axes under a caller's ``set_xlim``.  In data coordinates a zoom to a
+    tenth of the range put it nine axes widths away, and the notebook image
+    grew to reach it (WP-1971).  It is an annotation anchored at height ``y``
+    inside the axes, so a caller's ``set_ylim`` that leaves ``y`` outside the
+    view hides the whole label, which a tight save then does not measure.  A
+    clip box would slice a label straddling its edge instead.
+    """
+    gutter = ax.get_yaxis_transform()
+    ax.annotate(text, xy=(0.5, y), xycoords=gutter, xytext=(_GUTTER_X, y),
+                textcoords=gutter, annotation_clip=True, color=colour,
+                ha="left", va="center")
+
+
+def _tick_over(value: float, _pos, scale: float) -> str:
+    """A tick number divided by the power of ten its axis label carries.
+    Module-level, so the figure holding it pickles (WP-1971)."""
+    return f"{value / scale:g}"
 
 
 def _intensity_axis(ax, y_scale: str, forward, inverse, base: float, top: float,
@@ -506,15 +740,15 @@ def _intensity_axis(ax, y_scale: str, forward, inverse, base: float, top: float,
         # moves the origin without saying so, which a multiplier does not.
         k = int(np.floor(np.log10(abs(top)))) if top != 0.0 else 0
         if k >= 4 or k <= -3:
-            scale_10 = 10.0 ** k
             ax.yaxis.set_major_formatter(
-                FuncFormatter(lambda v, _p, m=scale_10: f"{v / m:g}"))
+                FuncFormatter(partial(_tick_over, scale=10.0 ** k)))
             y_label = f"Intensity ($10^{{{k}}}$ arb. units)"
         else:
             fmt = ScalarFormatter(useMathText=True)
             fmt.set_useOffset(False)
             ax.yaxis.set_major_formatter(fmt)
     ax.spines["left"].set_bounds(base, top)
+    _height_clip(ax.spines["left"], ax)
     # the label belongs over the region it labels, not centred on an axis
     # most of which carries no numbers.  ``y=`` moves it there and leaves
     # matplotlib's own horizontal placement alone, which is what keeps it
@@ -757,14 +991,15 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
                                    u_top, u_head)
 
         # fit statistics as a corner annotation, above the data ceiling so it
-        # can never collide with a peak
+        # can never collide with a peak; in axes coordinates, as the y label
+        # is, so a caller's zoom keeps it in the corner
         s = result.statistics
-        ax.text(x0, float(inverse(u_top + 0.055 * u_span)),
+        ax.text(0.0, (u_top + 0.055 * u_span - u_bottom) / (u_head - u_bottom),
                 f"{result.mode}    $R_\\mathrm{{wp}}$ = {s.rwp:.4f}"
-                f"    GoF = {s.gof:.2f}", ha="left", va="bottom")
+                f"    GoF = {s.gof:.2f}", ha="left", va="bottom",
+                transform=ax.transAxes)
 
         # one label convention for the whole figure: the right-hand gutter
-        x_gut = x1 + 0.012 * (x1 - x0)
         tail = slice(-max(5, x.size // 50), None)
         ends = [(float(y_obs[tail].mean()), "observed", hue["obs"]),
                 (float(y_calc[tail].mean()), "calculated", hue["calc"])]
@@ -801,13 +1036,11 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
                       else u_bottom + 0.55 * min_gap)
             placed = [u + max(0.0, lowest - min(placed)) for u in placed]
         for u_value, (_, text, colour) in zip(placed, ends, strict=True):
-            ax.text(x_gut, float(inverse(u_value)), text, color=colour,
-                    ha="left", va="center", clip_on=False)
+            _gutter_label(ax, float(inverse(u_value)), text, colour)
         for i, ((name, _), y) in enumerate(zip(rows, row_y, strict=True)):
             colour = (hue["tick"] if n_rows == 1
                       else hue["phase"][i % len(hue["phase"])])
-            row_axes.text(x_gut, y, name, color=colour, ha="left", va="center",
-                          clip_on=False)
+            _gutter_label(row_axes, y, name, colour)
 
         if inline:
             ax.set_xlabel(x_label)
@@ -817,14 +1050,14 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
             axd.set_yticks([t for t in MaxNLocator(nbins=3).tick_values(r_lo, r_hi)
                             if r_lo <= t <= r_hi])
             axd.spines["left"].set_bounds(r_lo, r_hi)
+            _height_clip(axd.spines["left"], axd)
             axd.set_ylabel(r"$\Delta/\sigma$" if weighted else "obs $-$ calc",
                            labelpad=6,
                            y=(0.5 * (r_lo + r_hi) - row_floor)
                            / (r_head - row_floor))
             axd.set_xlabel(x_label)
             if weighted:
-                axd.text(x_gut, 0.0, r"$\pm 3\sigma$", color=hue["band"],
-                         ha="left", va="center", clip_on=False)
+                _gutter_label(axd, 0.0, r"$\pm 3\sigma$", hue["band"])
             # separated, not butted: a butted join needs ticks on both sides to
             # earn its ink, and those ticks claim a shared axis the reader can
             # trace — which two different quantities are not
@@ -835,7 +1068,7 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
 
         if path is not None:
             fig.savefig(path)
-    return _handed_back(fig)
+    return _handed_back(fig, style)
 
 
 def _model_ticks(ref, data) -> dict[str, list[float]]:
@@ -995,21 +1228,18 @@ def plot_pattern(data, *, path: str | None = None,
         fig_h = fig.get_size_inches()[1]
         ax_h_in = ax.get_position().height * fig_h
         min_gap = 1.15 * font_size * (u_head - u_bottom) / (ax_h_in * 72.0)
-        x_gut = x1 + 0.012 * (x1 - x0)
-        ax.text(x_gut,
-                float(inverse(max(u_bottom, float(forward(floor))) + 0.55 * min_gap)),
-                "observed", color=hue["obs"], ha="left", va="center",
-                clip_on=False)
+        _gutter_label(ax,
+                      float(inverse(max(u_bottom, float(forward(floor))) + 0.55 * min_gap)),
+                      "observed", hue["obs"])
         for i, ((name, _), y) in enumerate(zip(rows, row_y, strict=True)):
             colour = (hue["tick"] if n_rows == 1
                       else hue["phase"][i % len(hue["phase"])])
-            ax.text(x_gut, y, name, color=colour, ha="left", va="center",
-                    clip_on=False)
+            _gutter_label(ax, y, name, colour)
         _title(ax, title, font_size)
 
         if path is not None:
             fig.savefig(path)
-    return _handed_back(fig)
+    return _handed_back(fig, style)
 
 
 def plot_for_vlm(result: RefinementResult, report=None, *,
@@ -1108,7 +1338,7 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
 
 def plot_trajectory(series, paths, *, path: str | None = None,
                     dpi: int = 150, mark_diagnostics: bool = True,
-                    title: str | None = None):
+                    title: str | None = None, style: str = "light"):
     """Parameter trajectories across a sequential series (WP-0505).
 
     One stacked panel per requested display path, resolved through
@@ -1141,7 +1371,11 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     ``title`` names the whole figure above its stacked panels, whose own
     left-hand titles stay the parameter each one draws; absent by default,
     and the default figure is unchanged by it.
+
+    ``style="dark"`` draws on the dark page's ground in the dark palette's
+    trajectory roles (WP-1970), as :func:`plot_result`'s does.
     """
+    hue = _palette(style)
     plt = _pyplot()
 
     if isinstance(paths, str):
@@ -1162,80 +1396,81 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     unrecovered = {e.label for e in series.entries if e.status == "diverged"}
     outliers = {e.label for e in series.entries if e.above_fence}
 
-    fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
-                             dpi=dpi, FigureClass=_figure_class(), sharex=True, squeeze=False)
-    for ax, name in zip(axes[:, 0], paths, strict=True):
-        traj = series.resolve_trajectory(name)
-        x, value, sd = traj.arrays()
-        yerr = np.where(np.isfinite(sd), sd, 0.0)
-        # A magnetic trajectory carries a per-point verdict, and the whole
-        # point of WP-1329 is that a held point must not look like a small
-        # measured moment: it is drawn hollow, with no bar (``stderr`` is
-        # already ``None`` there, so ``arrays()`` handed us NaN), and the onset
-        # bracket is shaded between the two patterns that straddle it.  The
-        # line runs through every point, while the filled marker is drawn only
-        # where the verdict is "supported" — otherwise the hollow square sits
-        # over a filled measurement mark.  Guarded on the attribute rather than
-        # on the type so an ordinary Trajectory takes exactly the path it took
-        # before.
-        supported = getattr(traj, "supported", None)
-        if supported:
-            ax.plot(x, value, "-", lw=1.0, color="#1f5fa8")
-            ax.errorbar(x, np.where(supported, value, np.nan), yerr=yerr,
-                        fmt="o", ms=4, capsize=2, color="#1f5fa8")
-        else:
-            ax.errorbar(x, value, yerr=yerr,
-                        fmt="o-", ms=4, lw=1.0, capsize=2, color="#1f5fa8")
-        if supported:
-            measured = getattr(traj, "measured", None) or [True] * len(supported)
-            held_ix = [i for i, ok in enumerate(supported)
-                       if not ok and measured[i]]
-            blind_ix = [i for i, m in enumerate(measured) if not m]
-            if held_ix:
-                ax.plot(x[held_ix], value[held_ix], "s", ms=7, mfc="none",
-                        mec="#6b6b6b", mew=1.2, ls="none",
-                        label="held (unsupported)")
-            # no verdict at all (no esd, or a diverged fit): not the data
-            # saying "no moment", so it gets its own mark
-            if blind_ix:
-                ax.plot(x[blind_ix], value[blind_ix], "x", ms=7,
-                        color="#6b6b6b", mew=1.2, ls="none",
-                        label="no verdict")
-            if held_ix or blind_ix:
-                ax.legend(fontsize=7, loc="best", frameon=False)
-            onset = getattr(traj, "onset", None)
-            if onset is not None and onset.x is not None:
-                ax.axvspan(onset.bracket[0], onset.bracket[1],
-                           color="#1f5fa8", alpha=0.10, lw=0)
-        if mark_diagnostics:
-            for i, label in enumerate(traj.labels):
-                if label in reseeded:
-                    ax.plot(x[i], value[i], "o", ms=10, mfc="none",
-                            mec="#c23b22", mew=1.2)
-                if label in unrecovered:
-                    ax.plot(x[i], value[i], "x", ms=11, color="#8b1a1a",
-                            mew=2.0)
-                if label in outliers:
-                    ax.plot(x[i], value[i], "s", ms=11, mfc="none",
-                            mec="#b8860b", mew=1.4)
-            if name in flagged:
-                first, last = flagged[name]
-                if first in traj.labels and last in traj.labels:
-                    ax.axvspan(x[traj.labels.index(first)],
-                               x[traj.labels.index(last)],
-                               color="#c23b22", alpha=0.10, lw=0)
-            elif name in jumps and len(x) > 1 and series.discontinuities is None:
-                # a document written before the record: what older versions drew
-                k = int(np.argmax(np.abs(np.diff(value))))
-                ax.axvspan(x[k], x[k + 1], color="#c23b22", alpha=0.10, lw=0)
-        flag = "  [path-dependent]" if name in unstable else ""
-        ax.set_ylabel(name.split(".")[-1] if len(name) > 24 else name, fontsize=8)
-        ax.set_title(f"{name}{flag}", fontsize=9, loc="left")
-        ax.tick_params(labelsize=8)
-    axes[-1, 0].set_xlabel(series.x_label)
-    if title is not None:
-        fig.suptitle(title, fontsize=10)
-    fig.tight_layout()
-    if path is not None:
-        fig.savefig(path)
-    return _handed_back(fig)
+    with _ground_context(plt, style):
+        fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
+                                 dpi=dpi, FigureClass=_figure_class(), sharex=True, squeeze=False)
+        for ax, name in zip(axes[:, 0], paths, strict=True):
+            traj = series.resolve_trajectory(name)
+            x, value, sd = traj.arrays()
+            yerr = np.where(np.isfinite(sd), sd, 0.0)
+            # A magnetic trajectory carries a per-point verdict, and the whole
+            # point of WP-1329 is that a held point must not look like a small
+            # measured moment: it is drawn hollow, with no bar (``stderr`` is
+            # already ``None`` there, so ``arrays()`` handed us NaN), and the onset
+            # bracket is shaded between the two patterns that straddle it.  The
+            # line runs through every point, while the filled marker is drawn only
+            # where the verdict is "supported" — otherwise the hollow square sits
+            # over a filled measurement mark.  Guarded on the attribute rather than
+            # on the type so an ordinary Trajectory takes exactly the path it took
+            # before.
+            supported = getattr(traj, "supported", None)
+            if supported:
+                ax.plot(x, value, "-", lw=1.0, color=hue["series"])
+                ax.errorbar(x, np.where(supported, value, np.nan), yerr=yerr,
+                            fmt="o", ms=4, capsize=2, color=hue["series"])
+            else:
+                ax.errorbar(x, value, yerr=yerr,
+                            fmt="o-", ms=4, lw=1.0, capsize=2, color=hue["series"])
+            if supported:
+                measured = getattr(traj, "measured", None) or [True] * len(supported)
+                held_ix = [i for i, ok in enumerate(supported)
+                           if not ok and measured[i]]
+                blind_ix = [i for i, m in enumerate(measured) if not m]
+                if held_ix:
+                    ax.plot(x[held_ix], value[held_ix], "s", ms=7, mfc="none",
+                            mec=hue["held"], mew=1.2, ls="none",
+                            label="held (unsupported)")
+                # no verdict at all (no esd, or a diverged fit): not the data
+                # saying "no moment", so it gets its own mark
+                if blind_ix:
+                    ax.plot(x[blind_ix], value[blind_ix], "x", ms=7,
+                            color=hue["held"], mew=1.2, ls="none",
+                            label="no verdict")
+                if held_ix or blind_ix:
+                    ax.legend(fontsize=7, loc="best", frameon=False)
+                onset = getattr(traj, "onset", None)
+                if onset is not None and onset.x is not None:
+                    ax.axvspan(onset.bracket[0], onset.bracket[1],
+                               color=hue["series"], alpha=0.10, lw=0)
+            if mark_diagnostics:
+                for i, label in enumerate(traj.labels):
+                    if label in reseeded:
+                        ax.plot(x[i], value[i], "o", ms=10, mfc="none",
+                                mec=hue["reseeded"], mew=1.2)
+                    if label in unrecovered:
+                        ax.plot(x[i], value[i], "x", ms=11, color=hue["unrecovered"],
+                                mew=2.0)
+                    if label in outliers:
+                        ax.plot(x[i], value[i], "s", ms=11, mfc="none",
+                                mec=hue["outlier"], mew=1.4)
+                if name in flagged:
+                    first, last = flagged[name]
+                    if first in traj.labels and last in traj.labels:
+                        ax.axvspan(x[traj.labels.index(first)],
+                                   x[traj.labels.index(last)],
+                                   color=hue["reseeded"], alpha=0.10, lw=0)
+                elif name in jumps and len(x) > 1 and series.discontinuities is None:
+                    # a document written before the record: what older versions drew
+                    k = int(np.argmax(np.abs(np.diff(value))))
+                    ax.axvspan(x[k], x[k + 1], color=hue["reseeded"], alpha=0.10, lw=0)
+            flag = "  [path-dependent]" if name in unstable else ""
+            ax.set_ylabel(name.split(".")[-1] if len(name) > 24 else name, fontsize=8)
+            ax.set_title(f"{name}{flag}", fontsize=9, loc="left")
+            ax.tick_params(labelsize=8)
+        axes[-1, 0].set_xlabel(series.x_label)
+        if title is not None:
+            fig.suptitle(title, fontsize=10)
+        fig.tight_layout()
+        if path is not None:
+            fig.savefig(path)
+    return _handed_back(fig, style)

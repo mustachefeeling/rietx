@@ -571,6 +571,7 @@ def _features() -> dict[str, bool]:
         # corrections and model extensions, asked of the schemas
         "anisotropic_adp": "aniso" in Atom.model_fields,
         "preferred_orientation": "preferred_orientation" in Phase.model_fields,
+        "spherical_harmonics_texture": "texture" in Phase.model_fields,
         "stephens_strain": "microstrain" in Phase.model_fields,
         "primary_extinction": "extinction" in Phase.model_fields,
         "restraints": "restraints" in Phase.model_fields,

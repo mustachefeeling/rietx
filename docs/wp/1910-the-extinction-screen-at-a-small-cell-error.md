@@ -1,6 +1,6 @@
 # WP-1910 — the extinction screen at a small cell error, and the other centring
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — PR #747 (`refine_cell=True`, opt-in, and the contract in the manual) merged from outside; the default and point 2 are open
+Milestone: unscheduled · Status: 🔄 2026-10-14 — the default decided: it flips, as PR #939 builds it (in review); point 2 is open
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — a silent wrong answer on a path few fits run: at +0.06 % the screen refutes certified corundum's class and returns one whose members exclude it, nothing names the cell, and the skill's own recipe screens the unrefined index cell
@@ -290,3 +290,16 @@ are out of its reach.
   - *Next:* the maintainer decision on the default (opting in moves the
     FAP, NAC and corundum rows only for callers who opt in), then task 1's
     margins and point 2.
+- **2026-10-14** — from the PR review (PR #939): the default is decided.
+  @yue-here takes the flip: the screen refines the cell by default, through
+  #939's cell-free `profile_only` Le Bail prefit, with a gate on the reference
+  fit (Toby 2006's background-subtracted R_wp, the net taken against the
+  picker's envelope). The condition is this WP's acceptance case pinned before
+  merge, corundum at ×1.0008 returning `R - c -`, with the margin either side.
+  The PR tests ×1.0012, and `profile_only`'s cell stage has no window slack
+  where the in-plan stage it removes had `validation_plan`'s. Round 1 at
+  `38ca3b8c` also asks for four fixes: a late cancel erases the gate's
+  `"unreliable"`, the prefit takes no cancel token, `auto_background` is
+  called without the caller's kind, and an empty screen drops
+  `EXTINCTION_SCREEN_UNRELIABLE`. Point 2 and the caution stay undecided.
+  *Next:* #939's round 2.

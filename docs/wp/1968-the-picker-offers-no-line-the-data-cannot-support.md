@@ -1,0 +1,146 @@
+# WP-1968 — the picker offers no line the data cannot support
+
+Milestone: unscheduled · Status: ⬜
+Track: What fires, and what stays silent
+Depends on: 1909 soft (the 1σ floor this bar succeeds, and its census)
+Priority: P2 2026-10-14 — a defect that fires wrongly: off-lattice components reach every engine as usable lines, and every benchmark harness filters them by hand
+
+## Goal
+
+`pick_peaks` tests each weak component against a bar the pattern sets for
+itself, and says how many false lines to expect among those it keeps. Two
+components closer than the data can resolve are reported as one line.
+
+## Context
+
+**Source.** Issue #934 (2026-10-13), corrected by its reporter the same day.
+It names two behaviours. The group fit keeps extra components, and the 5σ
+detection bar carries no expected count of false lines, so a user cannot tell
+three junk lines from three weak real ones. The proposal has three parts:
+
+- (a) A second component in a group only past ΔBIC ≥ 6 *and* a resolvability
+  bound at the fitted SNR. Otherwise one line, with σ widened to cover the
+  split.
+- (b) A Benjamini–Hochberg bar per pattern (q = 0.01), reported as
+  `PEAK_EXPECTED_FALSE_LINES`, with a null-pattern test.
+- (c) The filters every benchmark harness writes by hand (an intensity floor,
+  a width cap, the bound hit) as flags with a diagnostic each, kept in the
+  list and left out of the search's driven set.
+
+The correction places the two parts. On #916's flat synthetic Si the extra
+components are re-seeds in groups of their own, on tail maxima 1.8–2.6 FWHM
+from a line, at I/σ_I 1.6–2.6. That is (b)'s target. The 0.012°-apart splits
+belong to #728's flat-topped arm (each line three copies 0.012° apart), and
+that is (a)'s.
+
+**Checked against the tree at `ee589bab`.** `pick_peaks` is
+`indexing/pick.py:49`, `fit_group` is `indexing/peakfit.py:442`, and the 5σ
+detection bar is `PEAK_MIN_HEIGHT_SIGMA` at `indexing/peaks.py:478`. The
+issue's reproducer (#916's flat Si, seed 1, 12.1–60°, `pick_peaks` with
+`Instrument.debye_scherrer(0.825739)`) picks 23 components here, 17 usable
+(the issue says 18). One silicon line carries two usable components within
+one fitted FWHM (0.023°). Four usable components sit more than 1.5 FWHM from
+every silicon line. The window was the median fitted FWHM, so the per-line
+counts differ from the issue's in detail. The defect reproduces in kind.
+
+**Decided 2026-10-14** (the maintainer, answering the PR-review batch): yes to
+(a) and (b), as PRs #948 and #947 build them. The maintainer also gave a free
+hand on the picker beyond them ("go buck wild on the peak picker"), so (c) and
+the driven-set exclusion are welcome as follow-ups. The PRs' questions,
+answered:
+
+1. (#947) `weak_line` is reported and stays in `usable()` for now. Leaving it
+   out of the search's driven set (`engines.search_line_order`) follows
+   WP-1969.
+2. (#947) The look-elsewhere count is one trial per FWHM of scan
+   (∫ d2θ / FWHM), not one per channel. Channels inside one line are not
+   independent tests.
+3. (#948) The resolvability rule reuses `PEAK_SATELLITE_MAX_RATIO` (0.25) for
+   its comparable-area gate.
+4. (#948) `width_capped` makes a component unusable.
+
+**WP-1909 is the neighbour.** It landed a fixed floor on the same statistic
+(`PEAK_NO_INTENSITY_SIGMA`, the `no_intensity` flag) and still owes a census
+of usable counts on the round-robin lists. #947's bar is that floor's
+per-pattern successor, so the census baseline moves when #947 merges. WP-1909
+fences the detection bar out, and #947 leaves it at 5σ and tests the fitted
+I/σ_I instead.
+
+**Rules that bind the work.** `INDEXING_THRESHOLDS_VERSION` bumps when
+`pick_peaks`' answer can move. A new `PeakFlag` has the mirrors WP-1510
+listed for `duplicate_line`: `help.py`, `tests/data/gui/help_keys.json`,
+`gui/src/lib/rxt.ts` with a rebuilt dist, the manual's flag table, and the
+regenerated skill `api.md`. `tests/test_acceptance_indexing.py` runs before
+close, since the peak list feeds every engine.
+
+### Inherited
+
+- **2026-10-14, from the issue triage: issue #934 is in PRs #947 and #948
+  (theirs).** #947 (part b, head `d4b78965`) tests each component's I/σ_I by
+  Benjamini–Hochberg at q = 0.01 (`PEAK_FDR_Q`) over the pattern's resolution
+  elements, flags a component under the bar `weak_line`, and reports the
+  info code `PEAK_EXPECTED_FALSE_LINES`. It carries the null-pattern test.
+  Made unusable, the flag moved five acceptance rows, which is why it is
+  reported only. #948 (part a, head `87b90e43`) adds
+  `peakfit.unresolved_mates`. Two adjacent components of comparable area
+  showing no dip under Sparrow's criterion become one line, and the merged
+  one is flagged `unresolved_split` (unusable). It also flags `width_capped`,
+  a group whose width ends on its bound (5 × the width law). On the 16
+  round-robin lists usable components go from 789 to 782. Both take
+  `INDEXING_THRESHOLDS_VERSION` 1.10, and the second to merge renumbers.
+
+## Non-goals
+
+- The steep-flank envelope, and the 1σ floor's census (WP-1909).
+- The ghost screen's threshold (WP-1447).
+- The search's acceptance rule (WP-1969).
+
+## Tasks
+
+- [x] **Decision (maintainer):** the issue's (a)-(c), whole or in part,
+      recorded as `Decided YYYY-MM-DD:` here and answered on #934.
+      *Decided 2026-10-14: (a) and (b) as PRs #948 and #947 build them, and
+      a free hand beyond (Context).*
+- [ ] Review and merge PR #947 (part b).
+- [ ] Review and merge PR #948 (part a).
+- [ ] Follow-up, after WP-1969: keep `weak_line` and the other reported
+      flags in the list, and leave them out of the search's driven set, as
+      the issue's (c) asks.
+- [ ] Tests, with obs/calc/diff PNGs to `tests/output/`, and
+      `tests/test_acceptance_indexing.py` green.
+- [ ] Skill: the new flags' and code's `help.py` entries (both PRs add
+      them), which is where an agent reads a flag; a `references/` row only
+      where a flag needs a judgement the entry cannot carry.
+
+## Acceptance
+
+On #916's flat Si every usable component sits within one FWHM of a silicon
+line. On #728's flat-topped arm each line keeps one usable component. On the
+round-robin lists, usable counts move only by the components the PRs' tables
+name.
+
+```sh
+.venv/bin/python -m pytest tests/test_peak_picking.py tests/test_peak_picking_flank.py -n auto --dist loadgroup
+.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+- Issue #934 (body, and its same-day correction); PRs #947 and #948.
+- Benjamini, Y. & Hochberg, Y. (1995). *J. R. Stat. Soc. B* 57, 289: the
+  false-discovery rate.
+- Miller, C. J. et al. (2001). *AJ* 122, 3492, and Hopkins, A. M. et al.
+  (2002). *AJ* 123, 1086: the false-discovery rate in source detection.
+- den Dekker, A. J. & van den Bos, A. (1997). *JOSA A* 14, 547: resolution,
+  a survey (Sparrow's criterion).
+
+## Handover log
+
+- **2026-10-14** — created, from the 2026-10-14 issue triage (issue #934).
+  Checked against the tree at `ee589bab`: every symbol the issue names exists
+  where cited, and its reproducer gives 17 usable lines with five extra
+  components (Context). No open WP owns it. WP-1909 holds one false-line
+  mechanism (a steep flank) and fences the detection bar out. WP-1447's
+  threshold is the ghost screen's. The maintainer decided it the same day
+  (Context). *Next:* the reviews of PRs #947 and #948.
