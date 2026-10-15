@@ -1,6 +1,6 @@
 # WP-1922 — a rigid body the data reject is named
 
-Milestone: unscheduled · Status: 🔄 2026-10-11 — every task landed from outside (PR #822, merged as `f7ab7096`); the close is the maintainer's
+Milestone: unscheduled · Status: 🔄 2026-10-15 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: WP-1805 (the `RigidBody` schema)
 Priority: P3 2026-10-08 — down from P2: a wrong body converges with a worse GOF and nothing names it, but nothing can start until 1805 lands
