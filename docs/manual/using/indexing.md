@@ -141,9 +141,9 @@ mis-indexing a pattern later.
 
 ### The flags
 
-`ObservedPeak.flags` is a closed vocabulary of sixteen. Eight of them take a
+`ObservedPeak.flags` is a closed vocabulary of seventeen. Eight of them take a
 line out of `PeakList.usable`, and the rest are evidence a consumer weighs.
-Fifteen are below; the sixteenth, `unnamed_neighbour`, belongs to `fit_peaks`
+Sixteen are below; the seventeenth, `unnamed_neighbour`, belongs to `fit_peaks`
 and is described there.
 
 | Flag | Means | Usable? |
@@ -163,12 +163,14 @@ and is described there.
 | `background_extrapolated` | it stands where the background was extrapolated, not measured | yes |
 | `axial_tail` | it sits on a much stronger group-mate's axial-divergence tail side | yes |
 | `kalpha2_residual` | it sits at a stronger group-mate's predicted Kα2 maximum | yes |
+| `weak_line` | its I/σ_I is under the pattern's false-discovery bar (Benjamini–Hochberg at q = 0.01); on real lab data often a real weak line | yes |
 
 A contamination line is flagged and excluded, never subtracted, because
 Rachinger stripping redistributes the noise and biases what is left. The last
-three flags report evidence rather than refusing a line, since a real reflection
+four flags report evidence rather than refusing a line, since a real reflection
 can coincide with an extrapolated background, with a stronger line's axial tail
-or with a predicted Kα2 position, and one pattern cannot tell which it is. §7b
+or with a predicted Kα2 position, or sit under the false-discovery bar, and one
+pattern cannot tell which it is. §7b
 of the protocol says which ones are usually excluded before a search, and what
 that has been measured to cost.
 
