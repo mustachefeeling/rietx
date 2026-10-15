@@ -1,6 +1,6 @@
 # WP-1975 — the manual rebuilt: findings brief
 
-Milestone: unscheduled · Status: 🔄 2026-10-15 — brief and groundwork (§ G) landed; the re-plan waits on the maintainer's new concepts
+Milestone: unscheduled · Status: 🔄 2026-10-15 — layout, migration, evidence decided (§ F8, § H); next the toolchain spike and § E's remaining questions
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-15 — a scoping WP: the maintainer's re-plan of the whole manual starts from this file
@@ -691,6 +691,24 @@ Blocked: agentdocsspec.com, jamdesk, vercel, logrocket, pingidentity.
   change costs a test rewrite). WP-1412's measured couplings (`docs/wp/1412-*`) are the
   starting cost table.
 
+**Taken later the same day (fourth session), on § H's research:**
+- **Migration: a new tree beside the old.** The new structure is built in the same project;
+  each old chapter is retired once its content has been mined, so the guards stay green
+  throughout.
+- **Layout: the hybrid** (§ H1, layout 6). Tabs Start | Guides | Concepts | Reference | Theory |
+  Switching, with three audience cards on the front page: New to rietx, Coming from another
+  code, Supervising an agent.
+- **Toolchain: spike both, then choose.** The same three pages built in Sphinx with
+  pydata-sphinx-theme and in mystmd, with an attempt at the agent layer (`llms.txt` and a
+  markdown twin) in each; the choice is made from the built pages (§ H2).
+- **Evidence: the convergent pattern** (§ H3), for a stated reason. Part 2's `*Source:*` lines
+  and citations are valued because they *exist*, not for their form: they show the physics is
+  real. The rebuild carries **a visible trail from every physics claim to its paper, its code
+  and its validation**, in plain view because it persuades the newcomer and the switcher. The
+  diary (dates, venvs, timings, WP history) leaves the pages for `VALIDATION.md`, the WPs and
+  the release notes; `versionchanged` notes expire; the maturity badge is generated;
+  differences from other codes go in labelled callouts.
+
 ### F9. Hand-off
 The brief is to be copied into the repo as `docs/wp/1975-manual-rebuild-findings.md` with the
 template's header lines (Milestone: unscheduled, Status ⬜, Track: The repo's own process,
@@ -828,27 +846,182 @@ that ran the real one and added `sphinx_llm.txt`; nothing in the tree changed.
   admonition, mermaid, citation and figure-pair nodes, or a fork of the builder. That cost
   belongs in the re-plan beside § G4's table.
 
+## H. Layout, toolchain and evidence: what others do (2026-10-15, fourth session)
+
+The maintainer was asked which concepts the re-plan still needed, and answered three of § E's
+questions with questions of their own: what do the best docs use, what are the ways to lay a
+manual out, and is there precedent for where measurements and history go. Every claim below
+was read from a primary source (a repository file or the project's own docs page) unless
+marked otherwise. The decisions taken on it are at the end of § F8.
+
+### H1. Ways to lay out a manual
+
+Six shapes recur among well-regarded docs. Each sketch is what rietx's top level would be
+under it.
+
+1. **The four types as the top level.** Kubernetes's docs tree is `setup/`, `concepts/`,
+   `tasks/`, `tutorials/`, `reference/`, `contribute/` (kubernetes/website `content/en/docs`);
+   Python's contents page runs Tutorial, Using, Language reference, Library reference, HOWTOs,
+   FAQ (cpython `Doc/contents.rst`).
+   rietx: Tutorials | How-to guides | Concepts | Reference | Theory.
+   *For:* the type is never in doubt; writers know where a page goes. *Against:* the reader has
+   to know which type they want, and one topic (QPA) is spread over four tabs. Already ruled
+   out as the only top level (§ F).
+2. **The scientific-Python standard.** NumPy's front page is four cards, Getting started / User
+   guide / API reference / Contributor's guide (numpy `doc/source/index.rst`); xarray's toctree
+   (§ F2); uv's docs are `getting-started/`, `guides/`, `concepts/`, `reference/`; Pydantic's
+   nav is Get Started, Concepts, API Documentation, Internals, Examples, Error Messages (its
+   `mkdocs.yml`).
+   rietx: Get started | User guide | Reference | Theory | Development.
+   *For:* every scientific-Python user already knows where to look. *Against:* "User guide" is
+   a drawer anything fits in, which is how Part 1 got to 15 885 lines; uv and Pydantic avoid
+   that by splitting it into Guides and Concepts.
+3. **One guided path as the spine.** FastAPI puts its tutorial straight after the home page and
+   reference near the end; the Rust book is a narrative with reference in lettered appendices
+   (§ F2).
+   rietx: Introduction → a first Le Bail fit → Rietveld → constraints → series → … → Appendices.
+   *For:* cumulative in Write the Docs' sense, ideal for the newcomer. *Against:* poor for
+   lookup and for the switcher, who wants a verdict in two minutes, not a course.
+4. **By subsystem, each holding its own types.** Django's front page is thematic (model layer,
+   view layer, template layer …), with the four types as a second axis (§ F2); Stripe
+   organises by product area.
+   rietx: Data in | The model | Fitting | Reading results | Series | Indexing | Other codes'
+   files | GUI | Theory.
+   *For:* mirrors how a crystallographer thinks, and Diátaxis' "reference mirrors the
+   machinery". *Against:* tutorials fragment across sections, and each section needs its own
+   type labels or it recreates today's blur.
+5. **By audience.** Front-page doors per reader rather than per topic: New to rietx, Coming
+   from TOPAS/GSAS-II/FullProf, Supervising an agent. Common on product landing pages, rare as
+   a whole tree, because audiences overlap and pages end up duplicated.
+   *For:* matches § F8's priority order exactly. *Against:* works as the front page, not as
+   the tree.
+6. **Hybrid: needs on top, types inside, audiences on the front page.** uv's and Pydantic's
+   shape (Get started / Guides / Concepts / Reference) plus the two tabs a Rietveld code
+   needs, and § F8's three audiences as front-page cards:
+   rietx: **Start** (install, first fit, notebooks) | **Guides** (how-to, by topic) |
+   **Concepts** (explanation: how a fit works, parameters, the report, correlations) |
+   **Reference** (API, parameter map, files, CLI, GUI, diagnostics) | **Theory** (Part 2) |
+   **Switching** (rietx at a glance, coming from TOPAS / GSAS-II / FullProf, validation,
+   roadmap).
+   *For:* frequency first; every tab one Diátaxis type except Start (tutorial and set-up) and
+   Switching (a curated entrance); the switcher gets a tab rather than a buried page.
+   *Against:* six tabs, so the theme must carry a top bar (H2).
+
+**Chosen: 6** (§ F8). It is the shape the best-maintained Python docs converged on, it answers
+"prioritised, not just four types", and it gives the switcher a place of their own. The
+navigation patterns that go with it: top tabs plus a per-tab sidebar, front-page cards for the
+three audiences, "How to …" and "About …" titles doing the type labelling for free, and one
+self-contained answer sentence under every H1 (§ F4).
+
+### H2. What the best docs are built with
+
+Three tiers. The generator is not what separates the best docs from the rest: their
+information architecture, writing and interactivity are.
+
+- **Custom builds on a web framework**, by companies with a docs team. react.dev is Next.js 15
+  with MDX (`reactjs/react.dev` `package.json`, which has no llms.txt step); Stripe wrote and
+  open-sourced Markdoc for its own docs; svelte.dev serves `llms.txt`, `llms-full.txt`,
+  `llms-medium.txt` and `llms-small.txt`. Out of reach and unnecessary here.
+- **Hosted docs platforms**, the current choice of AI-tool companies. Mintlify ships llms.txt,
+  llms-full.txt, per-page markdown and an MCP server without set-up (vendor sources only).
+  Closed and hosted, with none of BibTeX, numbered cross-page equations or executed notebooks.
+- **Open frameworks.** Astro Starlight (the Astro docs, `@astrojs/starlight` ^0.42),
+  Docusaurus, Fumadocs; MkDocs Material (Pydantic: Material + `llmstxt` + `mkdocstrings`), in
+  maintenance mode with its successor Zensical in alpha (§ G4; the Scientific Python
+  development guide says Material is minimally maintained until late 2026); and the scientific
+  stack: Sphinx with pydata-sphinx-theme (NumPy, pandas) and Jupyter Book 2 / mystmd (an
+  official Jupyter subproject: The Turing Way, QuantEcon, Project Pythia, the SciPy
+  proceedings).
+- **The 2026 frontier is the agent layer, not the renderer**: a curated `llms.txt`, a clean
+  markdown twin of every page, sometimes an MCP server. Svelte, Pydantic and Mintlify sites
+  have it; react.dev does not. Sphinx has two packages: `sphinx-llm` (NVIDIA; fails this
+  manual's `-W`, § G5) and `sphinx-llms-txt` (writes llms.txt and llms-full.txt; its own docs
+  serve `.html.md` pages), not yet tried here.
+
+**Reading for rietx.** § G4 showed that only Sphinx and mystmd meet the manual's
+non-negotiables: numbered cross-page equations, BibTeX, executed notebooks, constants injected
+from the package, a strict build. Nothing at the frontier changes that. The frontier tools win
+on agent features and polish, both things this manual would add rather than lose. So the
+choice is **Sphinx with pydata-sphinx-theme** (top tabs, per-tab sidebar, the NumPy look;
+WP-1412's blocker was the flat tree, which layout 6 removes) **or mystmd**, with the agent
+layer a build step either way (try `sphinx-llms-txt` before writing one). § F8 records the
+decision to settle it by a spike.
+
+### H3. Where measurements and history go: the precedent
+
+Strong and convergent. No project in the sample keeps measurement diaries in its user docs.
+
+| What | Where others put it | Example | rietx equivalent |
+|---|---|---|---|
+| Current behaviour | the page, present tense | every reference manual | the page |
+| A recent change | a small self-contained note that expires | Sphinx `versionadded` / `versionchanged` / `deprecated`; Django keeps them two releases and writes them so they can be deleted without reflowing text; CPython writes `next` for an unreleased version | `versionchanged` notes, release notes |
+| Maturity | a badge generated from one source | Kubernetes' `feature-state` shortcode reads alpha/beta/stable from the feature-gate file | a badge from `PROVISIONAL_MODULES` |
+| Why it is so | a numbered design record, linked | PEPs, NEPs, KEPs, Rust RFCs, ADRs | WP files |
+| Test and validation evidence | its own page or dashboard | SQLite "How SQLite Is Tested"; CP2K's regression dashboard (whose paper warns its regtests check consistency, not accuracy) | `docs/VALIDATION.md` |
+| Behaviour that differs from a neighbour | a labelled callout | the Rust Reference's "Edition differences" blockquotes | "Differs from GSAS-II" callouts on Switching pages |
+| History | release notes, changelog | everyone | `docs/releases/` |
+
+**Part 2's `*Source:*` lines and citations matter because they exist, not for their form**
+(the maintainer, 2026-10-15). They are a convincing way to show that the physics is real:
+each equation is tied to the paper it comes from and to the code that computes it, and a guard
+keeps the tie true.
+- The rebuild extends that **trail** to every physics claim in the manual: its paper, its
+  code, and where one exists its validation (a `VALIDATION.md` row, an agreement under another
+  code's protocol, a measurement). The trail stays visible on the page: it is evidence for the
+  reader, the switcher deciding whether to trust rietx above all, not an archive.
+- What leaves the page is the *diary*: dates, venvs, best-of-three timings and WP history. A
+  `*Source:*`-style line is one possible form for the trail, not a requirement.
+- The Switching tab's validation page is the same trail seen whole.
+
+### H4. Sources (read 2026-10-15)
+- Layouts: kubernetes/website `content/en/docs`; python/cpython `Doc/contents.rst`;
+  numpy/numpy `doc/source/index.rst`; astral-sh/uv `docs/`; pydantic/pydantic `mkdocs.yml`.
+- Toolchains: reactjs/react.dev and withastro/docs `package.json`;
+  https://stripe.com/blog/markdoc ; https://svelte.dev/docs/llms ;
+  https://docs.pydantic.dev/dev/integrations/llms ; https://sphinx-llms-txt.readthedocs.io ;
+  https://learn.scientific-python.org/development/guides/docs/ ;
+  https://2i2c.org/blog/fosdem-jupyter-book-2/ ; Mintlify and Context7 comparison pages
+  (vendor-written, used only for what the platforms ship).
+- Evidence: https://kubernetes.io/docs/contribute/style/hugo-shortcodes ;
+  https://sqlite.org/testing.html ; https://manual.cp2k.org/trunk/development/regtesting.html ;
+  Sphinx paragraph-level markup; Django "Writing documentation"; python/cpython#121277.
+
 ## E. Open questions for the re-plan
-- Does Part 2 (Theory) count as Diátaxis explanation, and do some Part 1 explanations
-  move there?
-- Where does agent-facing material sit? Today it is the skill page (rendered whole), plus
-  "agent" admonitions and checklists in the notebooks. Is it a separate audience track?
-- Evidence folds (sphinx-design `dropdown`) or links out to milestone records? And who
-  reads measurements?
-- How far to generate the content (parameter map, plan ladder, API reference, diagnostic
-  index) versus authoring it, given the repo's one-authority rule?
-- Order: the report text (1976) is paid by every user on every fit, so does it come
-  before the docs work?
-- The maintainer's new concepts, still to be stated.
+Answered since the brief was written: the migration, the layout, the evidence (§ F8, end);
+Part 2's place (the Theory tab, and the home of the trail § H3 describes); the version stance
+(expiring `versionchanged` notes plus the release notes, no diary in prose); agent-facing
+material's track (the skill and the markdown twin, § F8). Still open:
+- **The toolchain**, by the spike in Tasks.
+- **The page contract as guards**: an answer sentence under every H1, self-contained
+  sections, at most 50 k characters a page (§ F4).
+- **Who the tutorials teach.** The first audience already knows Rietveld, so do they teach
+  rietx only, with Rietveld background a link away?
+- **The skill page** (`using/skill.md`, 702 k characters, § G5): drop it, link to it, or split
+  it; and do the `agent` admonitions survive?
+- **Generated or written**: which pages are projections of code registries (parameter map,
+  plan ladder, API reference, diagnostic index, project tree, foreign-name map, roadmap)?
+- **Terminology and style**: a term list, a public base style guide, Vale; does the register
+  guard (no em dash, no bold) carry over?
+- **Order of work** against the report-text rewrite (draft 1976). A suggestion: the Concepts
+  and Reference pages start now, the tutorials and Guides wait on 1976, since they show its
+  output.
+- **How far the trail's guard reaches**: today only Theory's equations are checked; does a
+  physics claim on a Concepts or Guides page have to cite its paper or link its Theory section?
 
 ## Tasks
 
 - [x] Check the brief against the tree and settle what it left unverified, before the
   re-plan (§ G: the findings recheck, the published source copies, GSAS-II's background,
   the toolchain weighed, sphinx-llm tried on this manual).
-- [ ] Re-plan the manual from this brief, in a session of its own, bringing in the
-  maintainer's new concepts; then rewrite Goal and Tasks here or file the WPs the plan
-  names and close this one into them.
+- [x] List the decisions the re-plan needs from the maintainer, research layout, toolchain
+  and evidence precedent, and record the four decisions taken (§ H, § F8).
+- [ ] Toolchain spike: the front page, one Guides page and one Theory page (numbered
+  equations, a citation, a light/dark figure pair) built in Sphinx with pydata-sphinx-theme and
+  in mystmd, each with an attempt at `llms.txt` and a markdown twin (`sphinx-llms-txt` first on
+  the Sphinx side). Choose from the built pages.
+- [ ] Settle § E's remaining questions with the maintainer.
+- [ ] File the WP slate for the new tree (layout 6, built beside the old) and close this one
+  into it.
 
 ## Acceptance
 
