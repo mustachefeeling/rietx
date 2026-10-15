@@ -1,6 +1,6 @@
 # WP-1419 — a child structure refined on its mode amplitudes
 
-Milestone: magnetic · Status: 🔄 2026-10-13 — the move #418 decided landed whole from outside (C0a PR #842, C0b PR #889); the entry point is open
+Milestone: magnetic · Status: 🔄 2026-10-15 — C1's mode basis landed from outside (PR #950), on C0a #842 and C0b #889; task 2 is next
 Depends on: 1418 (the mode vectors: irreps, projection, isotropy subgroups);
 1327 soft (the operator-list phase both would share)
 Priority: P3 2026-09-23 — waits on 1418's mode vectors; P2 when they land
@@ -572,6 +572,26 @@ every shipped fixture are bit-identical.
 
 ## Handover log
 
+- **2026-10-15** — PR #950 (outside contributor, chunk C1 of #286's proposal)
+  merged as `e517bb64`. A child structure can now be read as a displaced parent.
+  `crystallography.representation.distortion` builds the symmetry-adapted mode
+  basis in Å in the reference metric, with the translations removed, and
+  `mode_amplitudes` gives each irrep's amplitude, the unit decided on #286 on
+  2026-10-11. The module is not exported from `rx` yet. It does not tick a task
+  here: it is the engine `Phase.distortion_modes` (task 2) will stand on.
+  Round 1 found five defects, all fixed with tests: a k whose 2k is not
+  reciprocal crashed the count, two atoms on one site crashed it, an
+  unidentified probe read as "secondary", D did not pair with H, and the module
+  fixture was unpinned. Round 2 found the first fix halving a star's arms
+  wherever an operation takes k to −k, which includes every centrosymmetric
+  parent: `P -1` 3×1×1 gave 1 arm of 2, and `P 3` 3×3×1 split one star into
+  two components. The mode count stayed right, so nothing raised. Round 3 made
+  the skip per star, and every probe row now matches. When the module is
+  exported, `tests/api_surface.PROVISIONAL_MODULES` needs its key. Gated on
+  `main` `7650e3a4` with the PR merged (`1f40197b`). The fast suite gave 10672
+  passed, 120 skipped, 2 xfailed, and the whole `-m slow` suite gave 317
+  passed, 12 skipped (macOS arm64, `[dev,jax]`, Python 3.12.10). *Next:* task
+  2, on this basis.
 ### 2026-10-13 — C0b landed from outside: PR #889
 
 The move #418 decided is now whole. The kind-neutral half of the isotropy

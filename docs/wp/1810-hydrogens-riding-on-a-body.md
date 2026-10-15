@@ -1,6 +1,6 @@
 # WP-1810 — hydrogens riding on a body, CIF flags
 
-Milestone: rigid-bodies · Status: ⬜
+Milestone: rigid-bodies · Status: 🔄 2026-10-15 — all four tasks landed from outside (PR #955); closing is the maintainer's
 Depends on: 1805; 1806 soft (a real case to show it on)
 Priority: P4 2026-10-06 — a body refines without its hydrogens; this is completeness
 
@@ -30,10 +30,10 @@ CIF write records which atoms were constrained. This is chunk R9 of issue #561, 
 
 ## Tasks
 
-- [ ] Riding H lengths by class and radiation; `RigidBody.riding`
-- [ ] The CIF flags on write
-- [ ] Tests (the acceptance below)
-- [ ] Skill: none expected; say why at handover
+- [x] Riding H lengths by class and radiation; `RigidBody.riding`
+- [x] The CIF flags on write
+- [x] Tests (the acceptance below)
+- [x] Skill: none expected; say why at handover
 
 ## Acceptance
 
@@ -50,6 +50,19 @@ CIF write records which atoms were constrained. This is chunk R9 of issue #561, 
 
 ## Handover log
 
+- **2026-10-15** — PR #955 (outside contributor) merged as `719a0a74`.
+  All four tasks landed. `RigidBody.riding` carries the riding H at SHELXL's
+  X-ray lengths or ITC Vol. C Table 9.5.1.1's neutron means, and a joint fit
+  takes the neutron ones. A phase with a body writes
+  `_atom_site_refinement_flags_posn` and `_atom_site_calc_flag`. Schema is
+  0.58. Round 2 answered round 1's three items. The table does carry N–H rows,
+  so `NH` now has the neutron length 1.009 Å (H—N(3)). The refusal path keeps
+  its test by patching the entry to `None`, because no class lacks a length
+  today. The skill takes no row, since no diagnostic code landed. Nothing
+  under `src/` calls `set_riding_lengths` yet: the user-facing call is
+  WP-1812's, where `api_surface_deferred.txt` already parks the body fields.
+  The merge was gated in the stack on tree `2268e525` (counts in WP-1343's
+  entry of today). *Next:* close this WP at the maintainer's next handover.
 - **2026-10-15** — from the PR review (PR #955): @yue-here answered the PR's two
   questions. The round-trip acceptance is reworded to what a read can keep, and a riding
   H inside a body is flagged `R`. Both are recorded above, where a session working this

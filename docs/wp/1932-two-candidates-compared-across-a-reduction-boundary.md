@@ -1,6 +1,6 @@
 # WP-1932 — two candidates compared across a reduction boundary
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-15 — PR #949 merged; open: the bethanechol benchmark run alone
 Track: What fires, and what stays silent
 Depends on: — (1923 soft: the same `reduce.py` seam and the #797 cell; 1915 soft: the covariance the distance's esd reads)
 Priority: P2 2026-10-11 — the first task's count (#834, the reporter's, on 9219e886) finds dedup splitting one lattice 4 784 times on the bethanechol benchmark and 8 times on the acceptance file, changing groups in 157 of 429 bethanechol calls; no truth rank moved at the merge, so the cost is duplicate candidates and finder counts, not a wrong answer
@@ -143,21 +143,21 @@ equal to `equal_reduced_many` on every pair.
 
 ## Tasks
 
-- [ ] Measure first: on the WP-1518 acceptance corpus and
+- [x] Measure first: on the WP-1518 acceptance corpus and
       `tests/data/bethanechol_indexing.json`, count the pairs that one
       lattice's two descriptions reduce to across a boundary, and how many
       `equal_reduced` then calls distinct. Re-rate Priority from the count.
-- [ ] Choose NCDIST or S6, with the reason (boundary count, cost per pair
+- [x] Choose NCDIST or S6, with the reason (boundary count, cost per pair
       against `equal_reduced_many`'s stacked solve), and its esd's
       propagation from `cov_af`.
-- [ ] Replace the test in `equal_reduced`, `equal_reduced_many` and
+- [x] Replace the test in `equal_reduced`, `equal_reduced_many` and
       `same_lattice` from one implementation.
 - [ ] Run `tests/test_acceptance_indexing.py` and the bethanechol benchmark
       alone (root CLAUDE.md: engine budgets are wall-clock), listing every
       group and grade that moves.
-- [ ] Tests: the #797 `red` and `t @ af` at distance 0; a pair either side of
+- [x] Tests: the #797 `red` and `t @ af` at distance 0; a pair either side of
       each Niggli boundary type.
-- [ ] Skill: none expected, since a candidate list's shape does not change;
+- [x] Skill: none expected, since a candidate list's shape does not change;
       say so in the handover or add the row if a field lands.
 
 ## Acceptance
@@ -186,6 +186,22 @@ moves is listed in the handover with its cause.
 
 ## Handover log
 
+- **2026-10-15** — PR #949 (outside contributor) merged as `65fc6fe0`.
+  @yue-here answered the PR's three questions in round 1 (2026-10-14). A joined
+  pair reports the χ² of the description that joined it. The 1.35-1.63× dedup
+  wall clock is accepted, with the boundary search on every system.
+  Hand-writing Selling's reduction is within the module's rule, because
+  gemmi's keeps neither the four vectors nor a step through a boundary.
+  Round 1 asked for three more fixes, all made. The image test inverts Σ
+  with `_psd_pinv` at `CELL_PINV_RCOND`, the stacked-form test skips where
+  LAPACK rounds a stack differently, and Part 2 describes the comparison
+  with Andrews, Bernstein & Sauter (2019). Tasks 1-3, 5 and 6 are done. Task
+  4's acceptance half ran in the stack's slow gate (tree `2268e525`, counts
+  in WP-1343's entry of today). Its graded bethanechol benchmark has not run
+  on the merged tree. The contributor's 429-call dedup replay is a group
+  count, not the benchmark's grades. #834 stays open: this builds its
+  matching half. *Next:* the benchmark run alone, listing every grade that
+  moves, then close.
 - **2026-10-13** — Dedup and `same_lattice` no longer call one lattice two
   when its descriptions reduce either side of a Niggli boundary. A pair the χ²
   calls distinct is now asked again of the second cell's other descriptions in
