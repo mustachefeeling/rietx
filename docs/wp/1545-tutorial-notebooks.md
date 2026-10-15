@@ -106,6 +106,23 @@ British spelling):
   own cells passes every check. The nightly still executes them on 3.13 on
   three operating systems. A local run executes them as before. If PR #812
   rewrites that docstring, keep the paragraph.
+- **2026-10-16, from WP-1975 (the manual rebuild's slate).** The maintainer
+  decided a new direction for these notebooks, and this WP owns it rather
+  than a new one. Wait for WP-1985 (the report and diagnostic text rewrite),
+  so the notebooks show the new output from the start. Then:
+  - **Teach rietx, not Rietveld.** The first audience already knows the
+    method. Show rietx's moves one step a cell ("predict, then run"), and
+    link the new manual's Concepts and Theory pages for the why.
+  - **Notebook 02 splits** in two.
+  - **The "checking an agent's work" boxes leave the notebooks.** A
+    supervising person reads that material in the manual.
+  - Replace the python scaffolding with native displays (WP-1975 § B5 lists
+    it: the `diagnose` f-string prints in 01, about five print loops and a
+    `d.message.split(' — ')[0]` hack in 02, `show_microstructure` in 04, the
+    trajectory loops in 05). Unroll helper functions into atomic steps.
+  - The landing page's code box is pinned to notebook 02's first cell
+    (`test_tutorials.py`), so the split moves that pin.
+  - The new manual (WP-1978) renders the notebooks under its Start tab.
 
 ## Non-goals
 

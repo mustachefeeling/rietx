@@ -1,0 +1,94 @@
+# WP-1985 — Report and diagnostic text, rewritten in one voice
+
+Milestone: unscheduled · Status: ⬜
+Track: Render what the fit already knows
+Depends on: — (1133 soft: it adds a field to the same `Diagnostic`)
+Priority: P2 2026-10-16 — the maintainer asked for it, and the tutorials (1545) and Guides (1986) wait on it
+
+## Goal
+
+A diagnostic says what was observed and what to do in a sentence each. Its explanation is
+written once per code and folded away. `FitReport` and `Refinement.summary()` read as short
+text a person can scan in a notebook. The voice matches the manual's: Microsoft's style, with
+the repo's rules winning.
+
+## Context
+
+The maintainer found the report and feedback text "extremely dense and AI-sounding". It
+renders in huge chunks in the notebooks. They asked for it concise for humans and agents
+(WP-1975 § A). Answers they gave:
+- **Split a diagnostic into three fields**: observation, action, explanation.
+- **The explanation is written once per code**, rustc-style, never repeated per finding.
+  rustc keeps the headline short, puts the fix in a separate `help`, and holds a long-form
+  explanation per code (an example and a fix) in an index generated from source and reached
+  by `--explain`. Barik et al. (2018) report that developers prefer a message with a proper
+  argument structure, but accept a weaker one when a fix is offered (as summarised in
+  WP-1975 § C3).
+- **The headline stays in view and the evidence sits a fold away** (WP-1975 § C4): a
+  notebook shows message and suggestion, with the detail and the explanation collapsed.
+- **Microsoft's Writing Style Guide** is the base, as for the manual (WP-1982), so the
+  package's output and the manual speak in one voice.
+
+**Facts measured 2026-10-15** (WP-1975 § B6):
+- `Diagnostic(level, code, message, where, suggestion, value)` is in `schemas/common.py`.
+  There are 271 distinct codes across 41 files (`refine.py` 65 sites,
+  `indexing/diagnostics.py` 39, `sequential.py` 19). A message plus its suggestion usually
+  runs 250-1100 characters on one line.
+- Three line formats coexist. Results print `    LEVEL CODE: msg — suggestion`
+  (`schemas/results.py` `_diagnostic_lines`), indexing prints `  [warning] CODE: msg`, and the
+  peak list uses `at:`.
+- `FitReport` has no text view; `FitReport.summary` is a `;`-joined string
+  (`report/layer0.py`, `report/__init__.py`). `Refinement.summary()` is built in `refine.py`.
+  The Layer 1 abstention reason prints twice.
+- **Pins a rewrite must move on purpose:**
+  - `str(GuardFinding)` is pinned byte for byte to the pre-v1.0 text
+    (`test_capabilities.py`), and root CLAUDE.md § Guards states that rule. Changing it
+    changes the CLAUDE.md clause in the same commit;
+  - exact messages in `test_bound_hit_at_convergence.py` and
+    `test_high_correlation_dedup.py`;
+  - `tests/data/nac_termination_golden.txt` (slow, digits masked);
+  - the shape pinned by `test_termination_view.py` and `test_display.py`;
+  - `summary.txt == str(result)` in `test_joint_report.py`;
+  - about fifteen `report.summary` substring checks.
+- The skill's `references/diagnostics*.md` holds one agent-facing row per code. A code's
+  explanation and that row must not say two different things. Decide which one is the
+  authority at the start.
+- A display reads fields and never computes; a designed view is a `__str__` override
+  (`_display.py`, root CLAUDE.md § Conventions).
+
+## Non-goals
+
+- 1133's view pointer (a field naming the rendered view). Coordinate the schema change, since
+  both add a field to `Diagnostic`.
+- The tutorials (WP-1545) and Guides (WP-1986), which wait for this.
+
+## Tasks
+
+- [ ] Schema: observation, action, and an explanation looked up by code; a migration for
+      stored diagnostics (old files must always open).
+- [ ] The per-code explanations, with a meta-test that every code raised has one.
+- [ ] One line format for results, indexing and peak lists.
+- [ ] A text view for `FitReport`, and `Refinement.summary()` cut to what a person scans; the
+      abstention reason printed once.
+- [ ] Rewrite the messages in the new voice, by module, moving each pin on purpose.
+- [ ] Notebook HTML: headline shown, detail and explanation folded.
+- [ ] Skill: the diagnostics references re-synced to the new fields
+      (`rietx skill --install . --copy`).
+
+## Acceptance
+
+```sh
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+.venv/bin/python -m pytest tests/test_termination_view.py tests/test_display.py tests/test_capabilities.py -n auto --dist loadgroup
+```
+
+## References
+
+- Barik, T., Ford, D., Murphy-Hill, E., Parnin, C. (2018). How should compilers explain
+  problems to developers? ESEC/FSE.
+
+## Handover log
+
+- **2026-10-16** — filed from WP-1975's slate, where it was drafted as "1976" before that
+  number went to another WP. No open WP owns the text: 1133 adds a view pointer to the same
+  `Diagnostic`, and 1335 and 1421 are about the report's cost and its numbers.

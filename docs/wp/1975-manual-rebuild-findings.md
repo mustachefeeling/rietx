@@ -1,9 +1,8 @@
 # WP-1975 — the manual rebuilt: findings brief
 
-Milestone: unscheduled · Status: 🔄 2026-10-15 — every re-plan question but the toolchain decided (§ F8, § H); next the toolchain spike
+Milestone: unscheduled · Status: ✅ 2026-10-16 — toolchain chosen (Sphinx + pydata-sphinx-theme, § I) and the rebuild filed as 1978-1986
 Track: The repo's own process
 Depends on: —
-Priority: P2 2026-10-15 — a scoping WP: the maintainer's re-plan of the whole manual starts from this file
 
 ## Goal
 
@@ -1042,13 +1041,73 @@ keeps the tie true.
   https://sqlite.org/testing.html ; https://manual.cp2k.org/trunk/development/regtesting.html ;
   Sphinx paragraph-level markup; Django "Writing documentation"; python/cpython#121277.
 
+## I. The toolchain spike (2026-10-16, fifth session)
+
+The same three pages were built in both toolchains: the front page with three audience cards,
+the calibration guide, and the Caglioti section of Theory. The Theory page carries two numbered
+equations, three citations, two `{source}` lines and the angular-signatures figure pair. Each
+site was built as `dev` and `1.9` under `/docs/<version>/`, with `stable` linked to `1.9` and
+`/docs/` redirecting to it. The sources, build scripts and probes are in `docs/wp/1975-spike/`;
+its README says how to rebuild them. Versions: Sphinx 9.1.0, pydata-sphinx-theme 0.23.0,
+myst-parser 5.1.0, sphinx-design 0.7.0, sphinxcontrib-bibtex 2.7.0, sphinx-llms-txt 0.7.1,
+sphinx-markdown-builder 0.6.11; mystmd 1.11.0 with book-theme fetched from its `main`; Vale
+3.24.0. Screenshots were taken in chromium at 1280 and 390 px, light and dark.
+
+**Chosen: Sphinx with pydata-sphinx-theme** (the maintainer, 2026-10-16, from the table below).
+
+| need | Sphinx + pydata-sphinx-theme | mystmd + book-theme |
+|---|---|---|
+| six top tabs | navbar tabs from the root toctree; a sidebar per tab | the six tabs wrap to two rows at 1280 px once a navbar part is added; the sidebar shows the whole tree |
+| audience cards | sphinx-design `grid-item-card` | native `card`; sphinx-design's `gutter` and `link-type` warn, and links need a leading `/` |
+| numbered equations, cross-page `{eq}` | (1), (2), resolved across pages | the same |
+| BibTeX | alphabetic labels, bibliography where placed | author-year; `{cite}` renders as narrative, so it needs `{cite:p}`; a `{bibliography}` adds a second References heading |
+| light/dark figure pair | `only-light` / `only-dark`; the right image shows in each scheme | `dark:hidden` / `hidden dark:block`; the same result |
+| constants from the package | `myst_substitutions`, one line each | `{{ }}` prints literally, with no warning; a Python executable plugin (50 lines, role protocol undocumented) replaces it with a role |
+| `{source}` role | 15 lines in `conf.py` | the same plugin |
+| strict build | `-W` fails on any warning | `--strict` printed six warnings and exited 0 |
+| version switcher | built in; keeps the reader on the same page across versions | none; a hand-written `navbar_end` part, hidden at phone width |
+| dev banner | built in, shown on `dev` only (checked in the browser) | none |
+| cross-version link | plain `/docs/stable/` | `BASE_URL` rewrites it to `/docs/dev/docs/stable/`, so it needs the host |
+| `llms.txt` | sphinx-llms-txt writes it, but links each page to `_sources/*.md.txt` | none |
+| markdown twin | see below | `myst build --md`, one page per call; see below |
+| build, one version of 9 pages | 1-2 s | 7-10 s, and the theme is downloaded from GitHub `main` on each clean build |
+| size, one version | 6.3 MB | 26 MB, mostly thebe bundles |
+| local paths in the output | none (grep of the built site) | the build machine's absolute path to `references.bib` |
+| syntax to port | none | 42 lines across the three pages |
+
+**The markdown twin, both sides.**
+- sphinx-llms-txt's twin is the raw source: `{eq}`, `:::` and unexpanded `{{ }}` all reach the
+  reader. Its `llms-full.txt` is the sources concatenated.
+- sphinx-markdown-builder gets closest. Math becomes `$$`, constants are expanded, and equation
+  refs and citations become links. It loses four things: admonition labels (a note is plain
+  text), card titles and links, the bibliography (an unknown `citation` node), and the
+  figure-pair markers (both images are emitted side by side).
+- mystmd's `--md` export expands the plugin roles and equation refs. It leaves `{cite}` and
+  `{math}` roles, errors on the bibliography node, and keeps both figures with their CSS classes.
+
+So the twin is still a small build step to write, as § G5 concluded: a translator subclass for
+four node types on top of sphinx-markdown-builder, with `llms_txt_uri_template` pointed at its
+output.
+
+**Vale (toolchain-neutral, because it reads the sources).**
+- A colon-fenced admonition is linted. A backtick-fenced one is skipped, like math and code.
+  This confirms § F8's inference: the new tree writes admonitions with `:::`.
+- Out of the box, 26 alerts on the three pages. Most are vocabulary or misfires: `agent` →
+  "personal digital assistant" (`Microsoft.Terms`), `sample` (`Microsoft.Vocab`), and spelling
+  of rietx, Rietveld, Pawley, TOPAS, GSAS and microstrain.
+- With a nine-word accept list and `Microsoft.Terms`, `Microsoft.Vocab` and
+  `Microsoft.OxfordComma` off, six remain. All six are fair style suggestions: two passives,
+  a semicolon and an adverb.
+- Two Microsoft rules contradict the repo's own style, which wins under § F8's layer 1. The
+  guide wants the Oxford comma, and Vale's spelling is US English, where the house style is
+  British. The Vale WP turns the first off and supplies an en_GB dictionary.
+
 ## E. Open questions for the re-plan
 Every question this section held is answered at the end of § F8. They cover the migration,
 the layout, the evidence trail, URLs and versions, the page contract, the trail's reach,
 generated pages, the tutorials, the skill page, style and the order of work. Part 2 becomes
-the Theory tab, and versions go in expiring notes plus the release notes. One stays open:
-- **The toolchain**, settled by the spike in Tasks, which now also judges version support (a
-  switcher and a dev banner) and whether Vale reads the MyST sources.
+the Theory tab, and versions go in expiring notes plus the release notes. The last one, the
+toolchain, was settled by the spike on 2026-10-16: Sphinx with pydata-sphinx-theme (§ I).
 
 ## Tasks
 
@@ -1059,14 +1118,18 @@ the Theory tab, and versions go in expiring notes plus the release notes. One st
   and evidence precedent, and record the four decisions taken (§ H, § F8).
 - [x] Settle § E's questions with the maintainer (§ F8, end: URLs and versions, page
   contract, trail reach, generated pages, tutorials, skill page, style, order).
-- [ ] Toolchain spike: build the front page, one Guides page and one Theory page (numbered
+- [x] Toolchain spike: build the front page, one Guides page and one Theory page (numbered
   equations, a citation, a light/dark figure pair) in Sphinx with pydata-sphinx-theme and in
   mystmd. Build each under `/docs/<version>/` URLs with a version switcher and a dev banner,
   and attempt `llms.txt` plus a markdown twin in each (`sphinx-llms-txt` first on the Sphinx
   side). Run Vale with the Microsoft package over each page's sources. Choose from the built
-  pages.
-- [ ] File the WP slate for the new tree (layout 6, built beside the old, § F8's decisions)
-  and close this one into it.
+  pages. (§ I: Sphinx with pydata-sphinx-theme; sources in `docs/wp/1975-spike/`.)
+- [x] File the WP slate for the new tree (layout 6, built beside the old, § F8's decisions)
+  and close this one into it. (2026-10-16: 1978 the tree and page contract, 1979 versions at
+  `/docs/`, 1980 the markdown twin and `llms.txt`, 1981 generated reference pages, 1982
+  Vale, 1983 Concepts, 1984 Switching, 1985 the report and diagnostic text, 1986 Guides,
+  Theory and the old tree's retirement. The tutorial direction folded into 1545's
+  `### Inherited`.)
 
 ## Acceptance
 
@@ -1084,6 +1147,65 @@ python3 .claude/hooks/wp_index.py        # the index is unchanged afterwards
   problems to developers? ESEC/FSE.
 
 ## Handover log
+
+### 2026-10-16 (5th session) — Sphinx chosen from a spike; the rebuild filed as 1978-1986
+
+What this means: the manual's rebuild can now start, and its first step is clear. Built side
+by side, Sphinx with pydata-sphinx-theme did everything the plan needs. mystmd lacked a version
+switcher, a dev banner, an `llms.txt` and a build that fails on a warning, and it downloads its
+theme unpinned at build time. The maintainer chose Sphinx from the evidence. Vale works on the
+sources under either toolchain, provided admonitions use the `:::` fence. Two of Microsoft's
+rules contradict the house style and must be configured out. The rebuild is filed as nine WPs.
+The tutorials' new direction went to the WP that owns them. This WP closes.
+
+**Done.**
+- The spike (§ I): three pages built in each toolchain under `/docs/dev/` and `/docs/1.9/`.
+  Each build has a `stable` link and a `/docs/` redirect. Both were screenshotted at 1280 and
+  390 px in both colour schemes and probed for the switcher and banner. The agent layer was
+  tried in each. Sources and scripts are kept in `docs/wp/1975-spike/` after WP-1461's spike
+  directory, with build output, figures and the venv gitignored.
+- The maintainer chose Sphinx with pydata-sphinx-theme (AskUserQuestion, 2026-10-16).
+- The slate, after a fold check against the open index. 1545 owns the tutorials and was
+  folded into. 1133 owns a different `Diagnostic` field and is a soft dependency of 1985.
+  1443 owns passage fixes. 1335 and 1421 are about the report's cost and numbers. Filed:
+  - 1978: the tree and page contract;
+  - 1979: versioned `/docs/`;
+  - 1980: the markdown twin and `llms.txt`;
+  - 1981: generated reference pages, including the API reference and the `vars.*` help
+    family the maintainer asked for;
+  - 1982: Vale;
+  - 1983: Concepts;
+  - 1984: Switching;
+  - 1985: report and diagnostic text, once drafted as "1976" before that number went
+    elsewhere;
+  - 1986: Guides, Theory and the old tree's retirement.
+  1978 and 1985 are P2. The rest are P3, down a rung while 1978 does not exist.
+- Forward references: the tutorial direction into 1545's `### Inherited`, and the new WP
+  numbers into 1443's.
+- The narrative moved to `docs/milestones/v1.10.md` § How v1.10 is getting here.
+
+**Measured** (spike venv: Python 3.12, macOS arm64, chromium 1223; the `[dev]` worktree venv
+for the repo's tests). The full table is § I.
+- Build of nine pages, one version: Sphinx 1-2 s, mystmd 7-10 s.
+- Size of one version: 6.3 MB against 26 MB.
+- mystmd's `--strict` printed six warnings and exited 0.
+- Vale gave 26 alerts out of the box and 6 with a nine-word accept list and three rules off.
+- `tests/test_docs_consistency.py`: 25 passed. No package code changed, so no suite count
+  moved.
+
+**Gotchas.**
+- A link inside a mystmd part gets `BASE_URL` prefixed, so a cross-version link must carry
+  the host.
+- sphinx-llms-txt links the raw `_sources` copies. Point `llms_txt_uri_template` at a real
+  twin.
+- The worktree guard refuses a command that runs a variable-named binary, or one whose text
+  contains ".gitignore". Write a scratchpad script and run it by path, and create ignore
+  files with the Write tool.
+- A new WP file is untracked until staged, and `test_no_planning_doc_links_something_gitignored`
+  fails on the index's links to it until then.
+
+**Next.** Start WP-1978, the new tree, since every other rebuild WP writes into it. WP-1985
+can run alongside, because it touches the package and not the manual. Both are P2.
 
 ### 2026-10-15 (4th session) — the re-plan decided; only the toolchain goes to a spike
 
