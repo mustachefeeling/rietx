@@ -29,6 +29,10 @@ C(l, n) as `c4_0`, `c4_neg4`. The GSAS-II `.gpx` reader carries a texture
 through C·‖K_GSAS‖·P_l(0), measured against GSAS-II's `SHPOcal`
 (`io/projects/gsas2._gsas2_texture`).
 
+Two users who work in TOPAS asked for the texture: #131's author, with an SRM
+1976a plate refined at order 4, and the outside lab of WP-1325's 2026-10-13
+entry. Both reach it through this import.
+
 The TOPAS reader reports the macro and drops it: `io/projects/coverage.py`'s
 "preferred orientation" row lists `PO_Spherical_Harmonics` as REPORTED. A bare
 `spherical_harmonics_hkl` has its own "spherical-harmonics series" row,

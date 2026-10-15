@@ -1,10 +1,9 @@
 # WP-1960 — spherical-harmonics texture: preferred orientation with no single axis
 
-Milestone: unscheduled · Status: 🔄 2026-10-15 — claimed by @yue-here; #983 landed every task but 9, and
-Task 9's readers (GSAS-II `_hap`, the TOPAS import) remain
+Milestone: unscheduled · Status: ✅ 2026-10-15 — the texture model, its GSAS-II conversion
+and the `.gpx` import landed; the TOPAS import is WP-1973 and the order scan WP-1974
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (#131 is the design record this WP carries forward)
-Priority: P3 2026-10-14 — a workaround covers the single-fibre case (March-Dollase); two named users want the general one (#131's author, whose SRM 1976a plate was rejected as an acceptance case for want of it, and the outside lab of WP-1325's 2026-10-13 entry); no WP waits on it
 
 ## Goal
 
@@ -348,8 +347,6 @@ Technical Reference only. It is public at
 `https://topas-academic.com/technical_reference`, as WP-1433 had recorded on
 2026-09-16. Bunge's tables are published numbers.
 
-### Inherited
-
 ## Non-goals
 
 - **An orientation distribution refined from several sample orientations**
@@ -620,6 +617,66 @@ Appendix 3 tables.
   whose text is the `TECH_REF_HTML_PLAIN` string inside it.
 
 ## Handover log
+
+### 2026-10-15 (2nd session) — GSAS-II's texture reads in, and the WP closes
+
+A GSAS-II project's spherical-harmonics texture now comes across into rietx,
+converted, and reproduces GSAS-II's own multipliers to GSAS-II's single
+precision. Where GSAS-II's functions are wrong, or no constant converts the
+geometry, the reader says so and leaves the texture out. The TOPAS reference
+was read at the address the maintainer gave. It agrees with rietx on the
+sample angle, but it does not say how its harmonics are normalised, so the
+TOPAS import needs a TOPAS run and moved to its own WP. The maintainer decided
+that GSAS-II's defects are recorded here and in the manual, and not reported
+upstream.
+
+- **Done.** Task 9, except the TOPAS import. `Gsas2Hap.texture` and
+  `Gsas2Texture`; `to_structure` carries the texture onto `Phase.texture`;
+  `GSAS2_GPX_TEXTURE_CONVERTED` and `GSAS2_GPX_TEXTURE_NOT_CARRIED` with their
+  skill rows; the TOPAS coverage split; the manual's `.gpx` section and the
+  theory warning naming GSAS-II's non-invariant functions; the staged 1.10
+  notes. #983 had not staged the texture feature or schema 0.57, so this
+  session did. Filed: [1973](1973-a-topas-spherical-harmonics-texture-reads-in.md)
+  (the TOPAS import) and [1974](1974-the-texture-screen-says-which-order-the-misfit-needs.md)
+  (the order scan). No open WP owned either: 1455 reads a TCHZ profile, 1530
+  the reader's silences, and nothing open owns `report/texture.py`. Pushed a
+  note to 1962, whose texture-tomography non-goal waited on this.
+- **Measured.** darwin/arm64, `[dev,jax,torch]`:
+  - Twelve of the golden's sixteen settings are invariant in GSAS-II. In all
+    twelve, the carried texture under `bragg_brentano` gives `SHPOcal`'s `Bragg`
+    P to 2e-5. In the other four, the report names exactly the golden's
+    non-invariant terms. Dropping P_l(0) fails nine cases, and dropping the √2
+    fails three (4/m, −3, 6/m).
+  - No `.gpx` in the 68 readable local projects carries an SH entry or a
+    non-trivial March-Dollase one, so the trees are written in the test from
+    GSAS-II's layout, which `GSASIIstrIO` (5.8.4) reads and the committed
+    projects show in their MD form.
+  - Fast selection on this branch merged with main at `1c2563a1`: 10639
+    passed, 36 skipped, 1 xfailed, 6:02, no other suite running at the check.
+    This session added 26 cases (8 tests), all passes. The count cannot be
+    squared against #983's 10592 + 2 failed + 36 skipped, because main brought
+    other WPs' tests since. The added cases cost 0.40 s in all
+    (`tests.added_test_times`), so none joins the tail. The full selection was
+    not run: the change is a reader path no acceptance suite takes.
+- **Review.** `/code-review high --fix 703d3fbd..HEAD` found seven and fixed
+  six, landed as one commit because the pass applied them together: an odd
+  order raised a bare `ValueError`; a numpy-integer order was read as 0 and
+  dropped silently; histograms differing only in the flag counted as
+  disagreeing; a histogram fitted with no texture did not; a zero under an
+  unknown name dropped the whole texture; the √2 clause printed when no term
+  took it. Declined: the test rewrites the golden's `R -3 R` for gemmi, which
+  reads both spellings today. Not generalised: an odd order is refused, though
+  GSAS-II's `GenSHCoeffT` would evaluate it as the even order below; only a
+  hand-edited file can hold one.
+- **Gotchas.** The TOPAS reference was never missing. WP-1433 recorded
+  `https://topas-academic.com/technical_reference` on 2026-09-16, and this WP
+  looked only at an OneDrive placeholder. The page is a viewer: WebFetch sees
+  its help text, and the reference is the `TECH_REF_HTML_PLAIN` string inside.
+- **Not done.** A `.gpx` March-Dollase entry is still not carried by
+  `to_structure`. That was true before this WP, and it is left alone here.
+
+Next: nothing on this WP. WP-1973 waits on a TOPAS run, and WP-1974 can start
+any time.
 
 ### 2026-10-15 — every task but the readers landed
 
