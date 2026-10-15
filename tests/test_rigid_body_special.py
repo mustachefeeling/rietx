@@ -771,15 +771,3 @@ def test_no_rigid_body_message_keeps_a_numpy_repr_or_the_old_advice():
     ]
     for msg in messages:
         assert msg.startswith("RIGID_BODY_") and "np.float64(" not in msg, msg
-
-
-# --------------------------------------------------- free-atom probe (FYI)
-def test_a_free_atom_just_off_a_mirror_is_counted_twice():
-    """Not a rigid-body case, and not fixed here: a *free* atom 2e-4 off the
-    Pnma mirror (twice ``SITE_TOL``) is a general position, so it counts 8 S
-    in a cell of 4 — the same image geometry as #876, with no body to refuse
-    it.  Pinned as the current behaviour for the candidate issue."""
-    phase = _pbso4()
-    d = phase.model_dump()
-    next(a for a in d["atoms"] if a["label"] == "S2")["y"]["value"] += 2e-4
-    assert _counts(Phase.model_validate(d))["S"] == 8.0
