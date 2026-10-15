@@ -50,6 +50,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1975](1975-manual-rebuild-findings.md) | The manual rebuilt: findings brief | 2026-10-15 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
 
@@ -500,7 +501,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1535](1535-a-discarded-direction-reads-as-measured.md) | A direction the covariance discards reads as measured | ✅ 2026-10-02 | — | — |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 🔄 2026-10-03 | P4 | — |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | 🔄 2026-10-08 | P2 | — |
-| [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | ✅ 2026-10-13 | — | — |
+| [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | ✅ 2026-10-15 | — | — |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 🔄 2026-10-12 | P2 | — |
 | [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 🔄 2026-10-14 | P2 | — |
 | [1912](1912-a-polar-axis-has-no-origin.md) | A polar axis has no origin, and the fit walks along it | 🔄 2026-10-13 | P2 | — |
@@ -641,6 +642,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1941](1941-a-release-note-is-a-file-per-change.md) | A release note is a file per change | ⬜ | P3 | — |
 | [1954](1954-cut-1-8-0.md) | Cut 1.8.0 from what main holds | ✅ 2026-10-12 | — | [1546](1546-cut-1-7-0.md), [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) |
 | [1961](1961-cut-1-9-0.md) | Cut 1.9.0 from what main holds | ✅ 2026-10-14 | — | [1954](1954-cut-1-8-0.md), [1959](1959-the-dichotomy-grid-compiled-again.md) |
+| [1975](1975-manual-rebuild-findings.md) | The manual rebuilt: findings brief | 🔄 2026-10-15 | P2 | — |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 
