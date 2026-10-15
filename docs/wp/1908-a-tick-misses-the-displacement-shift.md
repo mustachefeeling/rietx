@@ -1,6 +1,6 @@
 # WP-1908 — a tick misses the displacement shift
 
-Milestone: unscheduled · Status: ✅ 2026-10-15 — a tick sits where the model draws its peak, at the refined wavelength and inside a window that follows the shift; the Layer 0 flank-lobe question it exposed has no owner
+Milestone: unscheduled · Status: ✅ 2026-10-15 — a tick sits where the model draws its peak, at the refined wavelength and inside a window that follows the shift; the Layer 0 flank-lobe question it exposed went to WP-1977, and review finding 5 to WP-1976
 Track: What fires, and what stays silent
 Depends on: —
 
