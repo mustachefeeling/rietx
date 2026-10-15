@@ -45,24 +45,6 @@ Checked against the tree at `5d1f5f67`: `hamilton_justified`
 (`optimize/statistics.py:381`) exist as named. No `RIGID_BODY_*` code exists
 yet, since 1805 has not landed. The GOF pair was not re-measured.
 
-### Inherited
-
-
-- **2026-10-11, from the issue triage (#775, in PR #822): this WP is open as
-  a PR, and its "nothing can start until 1805 lands" is stale.** PR #822 (the
-  reporter's, not a draft, updated 2026-10-10) adds
-  `report.body_misfit.rigid_body_misfit(ref, data, *, free, alpha=1e-3,
-  bic_threshold=10, bond_sigma=0.02, angle_sigma=2.0)` and
-  `RIGID_BODY_MISFIT` (a warning on the body's atoms, value ΔBIC). It runs a
-  released fit under template bond and angle restraints and fires on Hamilton
-  and ΔBIC at N_eff together, naming the three worst deviations. It does not
-  run inside `fit()`, its trials pass `telemetry=False`, and it adds an
-  `abstention.md` row and five tests. It follows #775's design point for
-  point; the verb name, module and `free=` are chosen in the PR where this
-  file leaves them to the maintainer. Checked against the tree at 7d9be3cb:
-  #801 (WP-1805) is an ancestor, four `RIGID_BODY_*` codes are under `src/`,
-  and none is `MISFIT`. The PR's code was not reviewed.
-
 ## Non-goals
 
 - Refinable internal geometry (#759, WP-1808's torsions and the Z-matrix
@@ -86,6 +68,10 @@ yet, since 1805 has not landed. The GOF pair was not re-measured.
 - [x] Skill: a reference row for `RIGID_BODY_MISFIT`
       (`test_every_engine_diagnostic_code_has_a_protocol_row`), saying to run
       the check before quoting a body's geometry or calling a solve solved.
+- [ ] Hamilton's F has one authority: `body_misfit` reads F and p off the
+      helper `hamilton_justified` uses, rather than writing the formula again.
+- [ ] `compile_phase_sites` runs once per phase in `rigid_body_misfit`, not
+      once per body.
 
 ## Acceptance
 
