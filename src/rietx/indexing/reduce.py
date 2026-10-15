@@ -47,6 +47,17 @@ the reduced vector, and each covariance is carried through its own map.  Weighed
 in the engine's frame instead, the difference met other components' variances.
 Two b-unique cells 0.1° apart in β merged at χ² 1.3, and 41 % of pairs drawn
 from one tetragonal lattice's covariance were split.
+
+**And the comparison does not stop at a reduction boundary** (WP-1932).  Niggli
+reduction is a canonical form with decision boundaries, so two descriptions of
+one lattice either side of one reduce to different sides, and comparing the two
+reduced vectors called them two lattices: 4 784 comparisons on the bethanechol
+benchmark and 8 on the LaB6 acceptance searches (#834), at χ² up to 81 000.  A
+pair the χ² calls distinct is asked again of b's other descriptions in Selling's
+form (:func:`_equal_across_boundaries`), the reduced cell staying the dedup key.
+Selling's reduction is written here although ``gemmi.GruberVector.selling`` exists,
+because that keeps neither the four vectors nor a step through a boundary, and
+the search needs both.
 """
 
 from __future__ import annotations
@@ -574,11 +585,37 @@ CELL_PINV_RCOND = 1e-15
 def equal_reduced(red_a: np.ndarray, red_b: np.ndarray, *,
                   cov_a: np.ndarray | None = None,
                   cov_b: np.ndarray | None = None) -> tuple[bool, float]:
-    """The χ² equality test on **already reduced** A..F vectors.
+    """The equality test on **already reduced** A..F vectors.  Returns
+    (verdict, χ²), the χ² NaN without covariances.
 
     The covariances must be in the reduced frame too.  An engine's ``cov_af`` is
     in the setting it refined in, so carry it with :func:`reduced_covariance`.
+
+    **First the two reduced vectors as they are**: χ² = ΔᵀΣ⁺Δ against
+    :data:`CELL_EQUALITY_CHI2`, or every component within
+    :data:`CELL_EQUALITY_RELATIVE` without covariances.  A pair this joins is
+    joined exactly as before WP-1932, χ² and all.
+
+    **Then, only for a pair it calls distinct, b's other descriptions across
+    the reduction's boundaries** (WP-1932, :func:`_equal_across_boundaries`).
+    Niggli reduction is a canonical form with decision boundaries, and two
+    descriptions of one lattice either side of one reduce to different sides:
+    measured on the bethanechol benchmark (#834), 4 784 comparisons split one
+    lattice so, at χ² up to 81 000.  The same χ² is then asked of each exact
+    image of b that the Selling form (Andrews, Bernstein & Sauter 2019, *Acta
+    Cryst.* A75, 115 and 593) puts within the pair's error of a, and the
+    returned χ² is that image's when one passes.
     """
+    same, chi2 = _equal_as_given(red_a, red_b, cov_a, cov_b)
+    if same:
+        return same, chi2
+    across = _equal_across_boundaries(red_a, red_b, cov_a, cov_b)
+    return (same, chi2) if across is None else across
+
+
+def _equal_as_given(red_a, red_b, cov_a, cov_b) -> tuple[bool, float]:
+    """:func:`equal_reduced`'s test on the two vectors as given (before WP-1932,
+    the whole of it)."""
     delta = np.asarray(red_a) - np.asarray(red_b)
     if cov_a is None or cov_b is None:
         scale = np.maximum(np.abs(red_a), np.abs(red_b))
@@ -591,6 +628,7 @@ def equal_reduced(red_a: np.ndarray, red_b: np.ndarray, *,
 
 def equal_reduced_many(red_a: np.ndarray, reds_b: Sequence[np.ndarray], *,
                        cov_a: np.ndarray, covs_b: Sequence[np.ndarray],
+                       gates: tuple | None = None,
                        ) -> list[tuple[bool, float]]:
     """:func:`equal_reduced` of one vector against many, the pseudo-inverses in
     one stacked solve (WP-1519).  Covariances are required on both sides.
@@ -600,6 +638,14 @@ def equal_reduced_many(red_a: np.ndarray, reds_b: Sequence[np.ndarray], *,
     answer is the pair's own **where** :func:`stacked_pinv_exact` **says so**.
     A caller asks it first.  One Σ that makes the stack raise raises for all
     of them, so a caller that catches it re-asks the pairs one at a time.
+    A pair the stack calls distinct is then asked across the reduction's
+    boundaries by the very function :func:`equal_reduced` asks (WP-1932), so
+    that half of the answer is the pair's own by construction.
+
+    ``gates`` is (a's, [each b's]) Selling gate inputs as :func:`_gate_inputs`
+    returns them, for a caller that already holds them: dedup asks each kept
+    group hundreds of times, and looking them up again was half of what the
+    boundary search added to its wall clock.  The answers are the same either way.
     """
     if not len(reds_b):
         return []
@@ -610,7 +656,326 @@ def equal_reduced_many(red_a: np.ndarray, reds_b: Sequence[np.ndarray], *,
     for delta, inverse in zip(deltas, _psd_pinv(sigmas, CELL_PINV_RCOND)):
         chi2 = float(delta @ inverse @ delta)
         out.append((chi2 <= CELL_EQUALITY_CHI2, chi2))
+    distinct = [k for k, (same, _chi2) in enumerate(out) if not same]
+    if distinct:
+        # the gate over the whole batch at once, element for element the
+        # arithmetic the pair's own call does (_selling_gate), so the
+        # survivors, and so the answers, are the pair's own
+        if gates is None:
+            mine = _gate_inputs(red_a, cov_a)
+            theirs = [_gate_inputs(np.asarray(reds_b[k]), np.asarray(covs_b[k]))
+                      for k in distinct]
+        else:
+            mine = gates[0]
+            theirs = [gates[1][k] for k in distinct]
+        live = [k for k, t in zip(distinct, theirs) if t is not None]
+        if mine is not None and live:
+            passed = _selling_gate(mine, np.array([t for t in theirs if t is not None]))
+            for k in (k for k, ok in zip(live, passed) if ok):
+                across = _equal_across_boundaries(red_a, reds_b[k], cov_a, covs_b[k],
+                                                  gated=True)
+                if across is not None:
+                    out[k] = across
     return out
+
+
+# ----------------------------------------------------------------------------
+# WP-1932: the comparison across the reduction's boundaries, in Selling's form
+# ----------------------------------------------------------------------------
+#: Multiples of a Selling scalar's own esd inside which the boundary-free test
+#: looks for b's other descriptions (WP-1932).  Where a pair passes the χ² test
+#: at :data:`CELL_EQUALITY_CHI2`, every linear function of its difference lies
+#: within √χ² of that function's own esd (Cauchy-Schwarz under the metric Σ⁺),
+#: to first order; a quarter more leaves room for the second.  Measured on two
+#: bethanechol dedup calls of 1 906 and 16 198 candidates: the groups are the
+#: same at 1.1, 1.25 and 2 times √χ², and 2 cost 3.3 and 1.6 times 1.25's wall
+#: clock.  A gate and a selector, never a verdict: the χ² on the image decides.
+SELLING_GATE_SIGMAS = 1.25 * float(np.sqrt(CELL_EQUALITY_CHI2))
+#: The same gate for a pair without covariances, as a fraction of the larger
+#: metric trace.  Ten times :data:`CELL_EQUALITY_RELATIVE`, because the gate
+#: reads the direct metric and the rule reads A..F: generous, and still only a
+#: gate, since the componentwise rule on the image decides.
+SELLING_GATE_RELATIVE = 0.05
+#: Boundaries crossed on a's side and on b's: one and two.  On the 608 split
+#: comparisons sampled from #834's count, one each side joined 604, and the
+#: other four (two right angles plus an obtuse α, Ba/manual) needed two steps
+#: on one side.
+_SELLING_DEPTH = (1, 2)
+#: Selling's six scalars s1..s6 = b·c, a·c, a·b, a·d, b·d, c·d of the four
+#: vectors a, b, c, d = −(a + b + c) (Andrews, Bernstein & Sauter 2019, A75,
+#: 115, § 2), as index pairs into the four.
+_SELLING_PAIRS = ((1, 2), (0, 2), (0, 1), (0, 3), (1, 3), (2, 3))
+_SELLING_ROWS = np.array([i for i, _ in _SELLING_PAIRS])
+_SELLING_COLS = np.array([j for _, j in _SELLING_PAIRS])
+_SELLING_START = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [-1, -1, -1]],
+                          dtype=np.int64)
+#: A reduction that has not finished in this many steps is not a lattice any
+#: engine returns; the pair keeps the answer of the vectors as given.
+_SELLING_STEPS = 1000
+
+
+def _four_permutations() -> tuple[np.ndarray, np.ndarray]:
+    """The 24 relabellings of a, b, c, d and where each sends the six scalars.
+
+    Relabelling the four vectors by σ gives s'_(ij) = s_(σi σj): every one of
+    the 24 is the same lattice, and in the six coordinates a permutation, so an
+    isometry (2019, A75, 115, § 3; A75, 593, § 2)."""
+    from itertools import permutations
+    index = {frozenset(p): k for k, p in enumerate(_SELLING_PAIRS)}
+    perms = np.array(list(permutations(range(4))), dtype=np.int64)
+    moved = np.array([[index[frozenset((int(sg[i]), int(sg[j])))]
+                       for i, j in _SELLING_PAIRS] for sg in perms])
+    return perms, moved
+
+
+_FOUR_PERMUTATIONS, _PERMUTED_SCALARS = _four_permutations()
+
+
+def _selling_scalars(v4: np.ndarray, g: np.ndarray) -> np.ndarray:
+    """The six scalars of four vectors (integer rows) under direct metric g."""
+    return (v4 @ g @ v4.T)[_SELLING_ROWS, _SELLING_COLS]
+
+
+def _selling_step(v4: np.ndarray, p: int) -> np.ndarray:
+    """Selling's step on the pair p = (i, j): v_i → −v_i, v_j kept, and the
+    other two each gain v_i, so the four still sum to zero.
+
+    On s1 > 0 it gives (−s1, s2 + s1, s5 + s1, s4 − s1, s3 + s1, s6 + s1),
+    which is the first form Andrews, Bernstein & Sauter (2019), A75, 115, § 4
+    print.  Applied while a scalar is positive it is the reduction; applied at
+    a scalar near zero it is the boundary the reduction turns on, where its
+    only effect is to exchange two of the other scalars."""
+    i, j = _SELLING_PAIRS[p]
+    k, m = (q for q in range(4) if q not in (i, j))
+    out = v4.copy()
+    out[i] = -v4[i]
+    out[k] = v4[k] + v4[i]
+    out[m] = v4[m] + v4[i]
+    return out
+
+
+def _selling_vectors(g: np.ndarray) -> np.ndarray | None:
+    """The four Selling-reduced vectors (integer rows in the input basis):
+    each step takes the largest positive scalar until none is, zero counting
+    as negative.  Each step lowers −Σs by 2s, so it terminates."""
+    v4 = _SELLING_START
+    tiny = 1e-12 * float(np.trace(g))
+    for _ in range(_SELLING_STEPS):
+        s = _selling_scalars(v4, g)
+        p = int(np.argmax(s))
+        if s[p] <= tiny:
+            return v4
+        v4 = _selling_step(v4, p)
+    return None
+
+
+@dataclass(frozen=True)
+class _SellingForm:
+    g: np.ndarray        # direct metric of the reduced A..F
+    dg: np.ndarray       # (6, 3, 3): dG/d(A..F), from dG = −G·dG*·G
+    v4: np.ndarray       # the Selling-reduced four vectors
+    s: np.ndarray        # their six scalars
+    order: np.ndarray    # argsort of s
+    jac: np.ndarray      # (6, 6): ds/d(A..F)
+    scale: float         # trace of g
+
+
+@lru_cache(maxsize=16384)
+def _selling_form(red: bytes) -> _SellingForm | None:
+    """The Selling form of a reduced A..F vector, or ``None`` for a metric
+    that is no lattice.  Keyed by the vector's bytes: dedup asks it of each
+    kept group over and over."""
+    from .qspace import gstar_from_af
+    gstar = gstar_from_af(np.frombuffer(red, dtype=np.float64))
+    if not np.all(np.isfinite(gstar)) or not np.all(np.linalg.eigvalsh(gstar) > 0.0):
+        return None
+    g = np.linalg.inv(gstar)
+    v4 = _selling_vectors(g)
+    if v4 is None:
+        return None
+    dg = np.stack([-g @ gstar_from_af(e) @ g for e in np.eye(6)])
+    s = _selling_scalars(v4, g)
+    jac = np.column_stack([_selling_scalars(v4, d) for d in dg])
+    return _SellingForm(g, dg, v4, s, np.argsort(s, kind="stable"), jac,
+                        float(np.trace(g)))
+
+
+@lru_cache(maxsize=16384)
+def _selling_variance(red: bytes, cov: bytes) -> np.ndarray:
+    """The six Selling scalars' variances, linearly propagated from cov."""
+    form = _selling_form(red)
+    c = np.frombuffer(cov, dtype=np.float64).reshape(6, 6)
+    return np.clip(np.einsum("ki,ij,kj->k", form.jac, c, form.jac), 0.0, None)
+
+
+def _option_variance(form: _SellingForm, v4: np.ndarray,
+                     cov: np.ndarray | None) -> np.ndarray | None:
+    if cov is None:
+        return None
+    # ds_p/d(A..F)_e = v_i·dG_e·v_j for each Selling pair p = (i, j)
+    jac = np.einsum("ai,eij,bj->abe", v4, form.dg, v4)[_SELLING_ROWS, _SELLING_COLS]
+    return np.clip(np.einsum("ki,ij,kj->k", jac, cov, jac), 0.0, None)
+
+
+def _selling_options(form: _SellingForm, near: float, depth: int
+                     ) -> list[np.ndarray]:
+    """The reduced four vectors and their images through every boundary whose
+    scalar lies within ``near`` of zero, to ``depth`` steps, without repeats
+    (one set of four up to order and overall sign is one description)."""
+    out, frontier, seen = [], [form.v4], set()
+    for level in range(depth + 1):
+        nxt = []
+        for v4 in frontier:
+            key = min(tuple(sorted(map(tuple, v4.tolist()))),
+                      tuple(sorted(map(tuple, (-v4).tolist()))))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(v4)
+            if level < depth:
+                s = _selling_scalars(v4, form.g)
+                nxt += [_selling_step(v4, p) for p in range(6) if abs(s[p]) <= near]
+        frontier = nxt
+    return out
+
+
+#: A..F slot → (row, column) of G*, and the factor 2 on D, E, F
+_AF_ROW = np.array([0, 1, 2, 1, 0, 0])
+_AF_COL = np.array([0, 1, 2, 2, 2, 1])
+_AF_TWO = np.array([1.0, 1.0, 1.0, 2.0, 2.0, 2.0])
+
+
+def _af_maps(ns: np.ndarray) -> np.ndarray:
+    """(k, 6, 6): :func:`af_map` of a stack of integer changes of basis.
+
+    G*' = A·G*·Aᵀ with A = N⁻ᵀ, so slot q of the new A..F takes slot p of the
+    old with weight (f_q / f_p)·(A_ik·A_jl + A_il·A_jk [k ≠ l]), (i, j) and
+    (k, l) the G* entries of q and p.  Held equal to :func:`af_map` by test."""
+    a = np.rint(np.linalg.inv(ns.astype(np.float64))).transpose(0, 2, 1)
+    ai, aj = a[:, _AF_ROW, :], a[:, _AF_COL, :]
+    t = ai[:, :, _AF_ROW] * aj[:, :, _AF_COL]
+    t += (ai[:, :, _AF_COL] * aj[:, :, _AF_ROW]) * (_AF_ROW != _AF_COL)
+    return t * (_AF_TWO[:, None] / _AF_TWO[None, :])
+
+
+@lru_cache(maxsize=16384)
+def _gate_inputs_of(red: bytes, cov: bytes | None) -> np.ndarray | None:
+    form = _selling_form(red)
+    if form is None:
+        return None
+    if cov is None:
+        var = np.full(6, np.nan)
+    else:
+        var = _selling_variance(red, cov)[form.order]
+    out = np.concatenate([form.s[form.order], var,
+                          [form.scale, float(np.max(var)) if cov is not None else np.nan]])
+    out.setflags(write=False)
+    return out
+
+
+def _gate_inputs(red, cov) -> np.ndarray | None:
+    """One reduced vector's Selling gate inputs, packed so a batch stacks in one
+    call: the six scalars sorted, their variances (NaN without a covariance), the
+    metric's trace, and the largest variance.  ``None`` for a metric that is no
+    lattice."""
+    red = np.ascontiguousarray(red, dtype=np.float64).tobytes()
+    if cov is None:
+        return _gate_inputs_of(red, None)
+    return _gate_inputs_of(red, np.ascontiguousarray(cov, dtype=np.float64).tobytes())
+
+
+def _selling_gate(mine: np.ndarray, theirs: np.ndarray) -> np.ndarray:
+    """Step 1 of :func:`_equal_across_boundaries`, for one pair (``theirs`` of
+    shape (14,)) or a stack ((k, 14)): does each sorted Selling scalar agree
+    within the gate?  Elementwise only, so a stack's answer is each pair's own."""
+    big = np.maximum(mine[12], theirs[..., 12])[..., None]
+    var = mine[6:12] + theirs[..., 6:12]
+    with np.errstate(invalid="ignore"):
+        tol = np.where(np.isnan(var), SELLING_GATE_RELATIVE * big,
+                       SELLING_GATE_SIGMAS * np.sqrt(var) + 1e-9 * big)
+    return np.all(np.abs(mine[:6] - theirs[..., :6]) <= tol, axis=-1)
+
+
+def _equal_across_boundaries(red_a, red_b, cov_a, cov_b, *, gated: bool = False
+                             ) -> tuple[bool, float] | None:
+    """Is some other description of b, across the reduction's boundaries, equal
+    to a by :func:`equal_reduced`'s own test?  (True, its χ²) if so, else
+    ``None``, and the caller keeps the answer of the vectors as given (WP-1932).
+
+    The comparison is made in **Selling's form** rather than Niggli's
+    (Andrews, Bernstein & Sauter 2019, *Acta Cryst.* A75, 115 and 593): its
+    reduced region is bounded by six hyperplanes of one kind, s_ij = 0, and
+    the 24 descriptions of one reduced lattice are permutations of the six
+    scalars, where Niggli's cone has fifteen boundaries of five kinds with
+    maps that stretch the space (Andrews & Bernstein 2014, *J. Appl. Cryst.*
+    47, 346).  Measured on #834's splits, the S6 images joined 608 of 608 and
+    an NCDIST-style set of Niggli boundary images 595.
+
+    1. **Gate.**  The six scalars sorted are a lattice invariant continuous
+       across every boundary: a relabelling permutes them, and the step at
+       s_ij = 0 only exchanges two others.  Unless each sorted scalar agrees
+       within :data:`SELLING_GATE_SIGMAS` of its esd (or
+       :data:`SELLING_GATE_RELATIVE` of the trace without covariances), no
+       description can pass, and the pair is not looked at again.
+    2. **Images.**  a's Selling vectors and their steps through each scalar
+       within the gate of zero (one step), against b's (two steps), under the
+       24 relabellings; those whose six scalars agree slot by slot within the
+       same gate are kept.  Each is an exact unimodular change of basis N of
+       b's reduced basis, carried to A..F by :func:`af_map`'s map.
+    3. **Verdict.**  :func:`equal_reduced`'s own test on (a, T·b) under
+       Σa + T·Σb·Tᵀ.  Never the distance over its esd: projected on one
+       direction, that merged pairs this χ² keeps apart (spike
+       wp1932-build-20261013: 76 of 76 such merges on real distinct pairs
+       were refused by an oracle that searches every basis).
+    """
+    try:
+        red_a = np.ascontiguousarray(red_a, dtype=np.float64)
+        red_b = np.ascontiguousarray(red_b, dtype=np.float64)
+        fa, fb = _selling_form(red_a.tobytes()), _selling_form(red_b.tobytes())
+        if fa is None or fb is None:
+            return None
+        floor = 1e-9 * max(fa.scale, fb.scale)
+        with_cov = cov_a is not None and cov_b is not None
+        mine = _gate_inputs(red_a, cov_a if with_cov else None)
+        theirs = _gate_inputs(red_b, cov_b if with_cov else None)
+        if not gated and not bool(_selling_gate(mine, theirs)):
+            return None
+        if with_cov:
+            cov_a = np.ascontiguousarray(cov_a, dtype=np.float64)
+            cov_b = np.ascontiguousarray(cov_b, dtype=np.float64)
+            near = SELLING_GATE_SIGMAS * float(np.sqrt(mine[13] + theirs[13])) + floor
+        else:
+            near = SELLING_GATE_RELATIVE * max(fa.scale, fb.scale)
+        ns = []
+        options_b = [(v4, _selling_scalars(v4, fb.g),
+                      _option_variance(fb, v4, cov_b if with_cov else None))
+                     for v4 in _selling_options(fb, near, _SELLING_DEPTH[1])]
+        for v4a in _selling_options(fa, near, _SELLING_DEPTH[0]):
+            s_a = _selling_scalars(v4a, fa.g)
+            v_a = _option_variance(fa, v4a, cov_a if with_cov else None)
+            back = np.rint(np.linalg.inv(v4a[:3].astype(np.float64))).astype(np.int64)
+            for v4b, s_b, v_b in options_b:
+                gap = np.abs(s_a - s_b[_PERMUTED_SCALARS])
+                lim = (SELLING_GATE_SIGMAS * np.sqrt(v_a + v_b[_PERMUTED_SCALARS])
+                       + floor if with_cov else near)
+                for k in np.flatnonzero(np.all(gap <= lim, axis=1)):
+                    ns.append(back @ v4b[_FOUR_PERMUTATIONS[k]][:3])
+        if not ns:
+            return None
+        ts = _af_maps(np.stack(ns))
+        images = ts @ red_b
+        deltas = red_a - images
+        if not with_cov:
+            scale = np.maximum(np.abs(red_a), np.abs(images))
+            ok = np.all(np.abs(deltas) <= CELL_EQUALITY_RELATIVE * scale, axis=1)
+            return (True, float("nan")) if bool(np.any(ok)) else None
+        sigmas = cov_a + ts @ cov_b @ ts.transpose(0, 2, 1)
+        chi2 = np.einsum("ki,kij,kj->k", deltas,
+                         _psd_pinv(sigmas, CELL_PINV_RCOND), deltas)
+        best = int(np.argmin(chi2))
+        return (True, float(chi2[best])) if chi2[best] <= CELL_EQUALITY_CHI2 else None
+    except (ValueError, np.linalg.LinAlgError):
+        return None
 
 
 _STACKED_PINV: bool | None = None
@@ -682,7 +1047,8 @@ def same_lattice(af_a: np.ndarray, af_b: np.ndarray, *,
 
 
 __all__ = ["BRAVAIS_OBLIQUITIES", "BRAVAIS_SYMPREC_SIGMAS",
-           "CELL_EQUALITY_CHI2", "CELL_EQUALITY_RELATIVE", "SYSTEM_RANK",
+           "CELL_EQUALITY_CHI2", "CELL_EQUALITY_RELATIVE", "SELLING_GATE_RELATIVE",
+           "SELLING_GATE_SIGMAS", "SYSTEM_RANK",
            "BravaisScreen", "ReducedCell", "af_map", "bravais_screen",
            "cell_from_vectors", "conventional_cell", "conventional_setting", "equal_reduced", "lattice_vectors",
            "reduce_cell", "reduced_af", "reduced_covariance", "reduction",

@@ -147,6 +147,7 @@ PRIORITIES = wp_index.PRIORITIES
 #   2026-09-28  src/rietx/indexing/CLAUDE.md  318 -> 321  for WP-1518
 #   2026-09-29  src/rietx/indexing/CLAUDE.md  321 -> 323  for WP-1519
 #   2026-10-11  src/rietx/indexing/CLAUDE.md  323 -> 328  for WP-1923
+#   2026-10-13  src/rietx/indexing/CLAUDE.md  328 -> 332  for WP-1932
 #   2026-09-01  tests/CLAUDE.md               253 -> 275  for the placement pass
 #   2026-09-01  docs/ROADMAP.md               589 -> 597  for the roadmap reorder: landed 573, cap landed + 24
 #   2026-09-02  docs/ROADMAP.md               597 -> 621  for the magnetic scattering track (1326-1329, out of
@@ -639,7 +640,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # not round as each matrix alone, so ``reduce.stacked_pinv_exact`` measures
     # it and the nightly prints both probes — and the replay harness named.
     # The timings stayed in the WP.  Landed at 323, no headroom.
-    "src/rietx/indexing/CLAUDE.md": 328,
+    # 328 -> 332 (WP-1932): one standing rule on comparing two reduced cells —
+    # across the reduction's boundaries, through the three functions, never a
+    # χ² of one's own on two reduced vectors.  The counts stayed in the WP.
+    # Landed at 332, no headroom.
+    "src/rietx/indexing/CLAUDE.md": 332,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather
     # than store them, that the *permissive* description can be the defective

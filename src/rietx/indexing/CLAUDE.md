@@ -286,6 +286,10 @@ roughly the shift (+1400 ppm).
   `reduce.reduction`'s map. Unmapped, it moved groups in all 99 bethanechol dedups (1518).
   Exact because **a reduced cell is the exact image of its input**: a sign gemmi picks
   inside ε is not a change of basis, so M·G·Mᵀ's replaces it (#797, WP-1923).
+- **Two reduced cells are compared across the reduction's boundaries** (WP-1932): call
+  `equal_reduced`, `equal_reduced_many` or `same_lattice`, never a ΔᵀΣ⁺Δ of your own on
+  two reduced vectors, which split one lattice 4 784 times on bethanechol (#834). The
+  Selling gate selects and the χ² decides; a distance over its esd is not that χ².
 - **A candidate is reported in its conventional setting, at `to_cell_candidate`**
   (WP-1923): `engines.conventional_fit` re-sets af, `cov_af`, cell and esds in one map. A
   new surface showing an engine's cell goes through it too, or one search speaks two.

@@ -357,6 +357,18 @@ Without it a lattice with two equal reduced axes reduces to $\beta$ and $\gamma$
 swapped depending on the setting it arrived in, so two descriptions of one
 lattice are declared two lattices.
 
+The tolerance cannot remove the other failure: Niggli reduction has decision
+boundaries, and two descriptions of one lattice that fall either side of one
+reduce to different vectors, however close they are
+{cite}`andrews2019selling`. A pair the $\chi^2$ test calls distinct is
+therefore asked again, in Selling's form, which has no boundary of that kind
+{cite}`andrews2019selling,andrews2019space`. Each of $b$'s other descriptions
+that the Selling scalars place within the pair's error of $a$'s is mapped to
+$A \ldots F$ exactly, and the same $\chi^2$, built from the same
+pseudo-inverse of the joint covariance, is asked of that image. A pair
+joined this way reports the $\chi^2$ of the description that joined it, and a
+pair the first test joined is answered exactly as before.
+
 Lattice symmetry is decided by two independent opinions: a Le Page 2-fold search
 {cite}`lepage1982` with a tolerance in degrees of obliquity, and a
 distance-tolerance standardisation {cite}`togo2024`. Both are swept over their
