@@ -128,14 +128,23 @@ from .structure import Cell
 #: list's flags are part of what this string stamps.  On #728's synthetic
 #: silicon with a steep background it marks 24 of the 26 off-lattice usable
 #: components and no silicon line.
-#: 1.11 (indexing C4, C6): a search that ends with no lattice two engines agree
+#: 1.11: ``PeakFlag`` gains ``unresolved_split`` and ``width_capped`` and
+#: ``PEAK_UNUSABLE_FLAGS`` gains both — the component count by resolvability
+#: (#934): comparable components of one group closer than Sparrow's limit for
+#: the group's fitted shape are reported as one line with a widened σ(2θ), and
+#: a component whose width ran into its bound is not a line.
+#: ``flag_duplicate_lines`` now reads a merged line's whole extent.  On #728's
+#: flat-topped synthetic silicon, 34 usable components on 11 lines become 18;
+#: over the 16 IUCr round-robin lab patterns 789 usable components become 782
+#: (``cpd-4`` 76 → 75).
+#: 1.12 (indexing C4, C6): a search that ends with no lattice two engines agree
 #: on is run again under the inlier rule, so a run that returned no cell, or
 #: single-engine cells, can now return the true one; and a picked list's search
 #: window is its lower-quartile fitted FWHM (capped at the old 0.05 degrees)
 #: where it was the constant, so a high-resolution list now matches within its
 #: own widths.  A run whose first pass finds an agreed lattice, and a lab list
 #: with lines 0.05 degrees or wider, answer as at 1.9.
-INDEXING_THRESHOLDS_VERSION = "1.11"
+INDEXING_THRESHOLDS_VERSION = "1.12"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
@@ -627,6 +636,20 @@ PEAK_ASSUMED_ESD_DEG = 0.02
 #: F2 (§ 3, G7) puts that exclusion.  A component a human placed
 #: (``origin="manual"``) is never tested: its position is the caller's claim,
 #: not detection's.
+#: ``unresolved_split`` — a component closer to a comparable group-mate (area
+#: ratio ≥ :data:`PEAK_SATELLITE_MAX_RATIO`) than two lines of the group's
+#: fitted shape can be and still show a dip — Sparrow's resolution limit
+#: (:func:`rietx.indexing.peakfit.unresolved_mates`).  The pair is one line:
+#: the stronger component reports it, its σ(2θ) widened to reach the merged
+#: component, and the merged one stays in ``peaks``, unusable, because it is
+#: part of the shape that let the line fit.
+#: ``width_capped`` — the group's fitted width ran into its upper bound
+#: (:data:`PEAK_WIDTH_BOUND_FACTORS`, 5 × the pattern's own width law at that
+#: angle per component): a hump the fit wanted broader still, not a line of
+#: the phase that set the law.  Unusable.  Raised on 6 components across the 16
+#: IUCr round-robin lab patterns, every one at I/σ_I ≤ 3.9 and three at the
+#: scan's opening degree (5.1–5.3°), and on 129 flank components of #728's
+#: steep-background silicon.
 #: ``unnamed_neighbour`` — only :func:`~rietx.indexing.fit_peaks` can raise it
 #: (WP-1101): detection saw a component inside this window that the caller's
 #: position list did not name, so the fit apportioned that intensity among the
@@ -655,6 +678,8 @@ PeakFlag = Literal[
     "position_unmeasured",
     "duplicate_line",
     "weak_line",
+    "unresolved_split",
+    "width_capped",
 ]
 
 #: FWHM multiple within which a weak component may be read as a stronger
@@ -691,7 +716,8 @@ PEAK_AXIAL_TAIL_MAX_FWHM = 3.5
 #: stops holding at ±1 961° (WP-1442).
 PEAK_UNUSABLE_FLAGS: frozenset[str] = frozenset(
     {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable",
-     "no_intensity", "position_unmeasured", "duplicate_line"})
+     "no_intensity", "position_unmeasured", "duplicate_line",
+     "unresolved_split", "width_capped"})
 
 #: Standard deviations above χ²_red = 1 at which a group's fit is **refuted**, and
 #: therefore above which a ΔBIC verdict on adding one more component to it cannot
@@ -780,6 +806,12 @@ class ObservedPeak(Base):
 
     two_theta: float               # ° 2θ of the **Kα1** (primary-line) component
     two_theta_esd: float           # ° 2θ, carrying the √max(χ²_red,1) inflation
+    #: The fit's own σ(2θ) before a merge widened ``two_theta_esd`` to reach
+    #: unresolved splits of this line (``unresolved_split``, #934); ``None`` on
+    #: a line nothing was merged into, where the two are one number.  Written by
+    #: :func:`rietx.indexing.pick.peaks_of_group`; read by the duplicate-line
+    #: ranking, which must not demote a line for having absorbed a split.
+    two_theta_esd_fit: float | None = None
     intensity: float               # integrated area of the primary line
     intensity_esd: float
     q: float                       # Å⁻², = 1/d²

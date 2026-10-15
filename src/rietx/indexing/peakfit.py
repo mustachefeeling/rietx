@@ -82,6 +82,7 @@ from ..schemas.indexing import (
     PEAK_MAX_RESEED_PASSES,
     PEAK_MIN_HEIGHT_SIGMA,
     PEAK_POSITION_BOUND_FWHM,
+    PEAK_SATELLITE_MAX_RATIO,
     PEAK_WIDTH_BOUND_FACTORS,
 )
 from ..schemas.instrument import Instrument
@@ -134,6 +135,19 @@ class GroupFit:
     #: needs, and it is tracked here because ``fit_group`` is the only place that
     #: knows: ``_fit_at`` sees positions, not where they came from.
     from_reseed: np.ndarray | None = None
+    #: Per component: the index of the group-mate whose line it is reported in,
+    #: or −1 when it is a line of its own (:func:`unresolved_mates`).  ``None``
+    #: on a fit nothing judged it for, as ``width_at_bound``.
+    merged_into: np.ndarray | None = None
+    #: Did a shared width (Γ_G or Γ_L) end on its upper bound,
+    #: ``PEAK_WIDTH_BOUND_FACTORS[1]`` × the group's seed width?  The fit wanted
+    #: a broader component than the pattern's own width law allows at this
+    #: angle by that factor: a hump, not a line of the phase that set the law.
+    #: ``None`` on a fit nothing judged (:func:`fit_group_at`'s, an empty group,
+    #: a stored fit redrawn): "not asked", which a ``False`` would read as "not
+    #: capped".  Written by :func:`_judge`, which :func:`fit_group` runs on its
+    #: accepted fit.
+    width_at_bound: bool | None = None
 
     def reseeded(self) -> np.ndarray:
         """``from_reseed``, or all-False for a fit that never re-seeded."""
@@ -391,6 +405,134 @@ def _asymmetry_t(m: _GroupModel, p: np.ndarray) -> np.ndarray:
     return out
 
 
+def _sparrow_dip(m: _GroupModel, p: np.ndarray, ia: int, ib: int,
+                 width: float) -> float:
+    """Depth of the dip between components ``ia`` and ``ib`` when both are
+    lines of the **weaker one's area**, as a fraction of their maximum —
+    Sparrow's (1916, *ApJ* 44, 76) two-equal-lines question, asked at this
+    pair's separation of the group's fitted shape.  Zero when the two sum to
+    one maximum (a flat top): below that separation no dip exists at any
+    signal, and two components there are told apart only through the profile
+    *shape*.
+
+    The two are drawn alone (every other component and the background left
+    out) on a fine grid a quarter FWHM beyond each; the lowest point between
+    the two is the dip, and its depth is the lower of the maxima either side
+    of it minus the dip.  **Equal areas, not the fitted ones**, because resolvability is
+    a property of the separation and the shape, and an unequal pair has no dip
+    well beyond the separation at which the fit does separate it (measured:
+    two real corundum reflections 1.08 FWHM apart at an area ratio of 0.63 sum
+    to one maximum).  **The primary emission line only**, because a Kα2 image
+    of the lower line lands on the upper one wherever the doublet splitting
+    matches their separation (0.17° at 61° in Cu Kα), and the doublet is
+    Bragg's law, not an approximation this rule guards against.  Not scaled by
+    σ: a single-channel prominence test ignores that a dip spans many channels
+    and merged that corundum pair at 1.6σ; the statistics are ΔBIC's, which
+    integrates over the window.
+    """
+    gg, gl, pos, inten = m.unpack(p)
+    a, b = sorted((float(pos[ia]), float(pos[ib])))
+    pair = np.zeros_like(inten)
+    pair[[ia, ib]] = min(float(inten[ia]), float(inten[ib]))
+    x0, gain0 = m.x, m.line_gain
+    pad = 0.25 * width
+    xf = np.linspace(a - pad, b + pad, 161)
+    try:
+        m.x = xf
+        m.line_gain = gain0.copy()
+        m.line_gain[:, 1:] = 0.0
+        y = m.model(m.pack(gg, gl, pos, pair))
+    finally:
+        m.x, m.line_gain = x0, gain0
+    inner = np.nonzero((xf >= a) & (xf <= b))[0]
+    k = int(inner[np.argmin(y[inner])])
+    top = float(np.max(y))
+    if k == 0 or k == len(y) - 1 or top <= 0.0:
+        return 0.0
+    return max(min(float(np.max(y[:k])), float(np.max(y[k + 1:])))
+               - float(y[k]), 0.0) / top
+
+
+def unresolved_mates(m: _GroupModel, p: np.ndarray, width: float
+                     ) -> np.ndarray:
+    """Which components are a **split the data cannot resolve** of a stronger
+    group-mate's line — the component count by resolvability (#934).
+
+    Adjacent components (in 2θ) of **comparable** area — the weaker at least
+    :data:`~rietx.schemas.indexing.PEAK_SATELLITE_MAX_RATIO` of the stronger;
+    a weaker one is a satellite, the business of ``not_separable`` and
+    ``axial_tail`` — are one line when two lines of the group's fitted shape
+    at their separation would show no dip at all (:func:`_sparrow_dip`).
+
+    **Why a resolution limit, and why ΔBIC is not enough.**  ΔBIC asks whether
+    n + 1 components fit better than n.  That is the statistically right,
+    SNR-dependent test of a known profile (the minimum resolvable separation
+    falls as the signal grows; Shahram & Milanfar 2004, *IEEE TIP* 13, 677),
+    and it stays the gate.  But at high counts any *shape* misfit also answers
+    yes: a flat-topped line is fitted by 2–3 components 0.6 FWHM apart, each
+    well measured (I/σ_I 50–200 on #728's synthetic silicon).  Below Sparrow's
+    separation the split is inferred only through the profile shape, which
+    this fitter models approximately (TCHZ pseudo-Voigt, FCJ held), so it is a
+    statement about the model, not the pattern (den Dekker & van den Bos 1997,
+    *JOSA A* 14, 547, on model-based resolution).  So a split must clear both:
+    the statistics, and a separation at which a dip can exist.
+
+    Returns, per component, the index of the strongest member of its
+    unresolved cluster when that is another component, else −1.
+    """
+    n = m.n
+    out = np.full(n, -1, dtype=np.int64)
+    if n < 2:
+        return out
+    _gg, _gl, pos, inten = m.unpack(p)
+    order = [int(j) for j in np.argsort(pos)]
+
+    def mergeable(a: int, b: int) -> bool:
+        lo, hi = sorted((float(inten[a]), float(inten[b])))
+        if hi <= 0.0 or lo < PEAK_SATELLITE_MAX_RATIO * hi:
+            return False
+        return _sparrow_dip(m, p, a, b, width) <= _SPARROW_DIP_MIN
+
+    # **The merge is transitive, on purpose.**  A flat-topped line is fitted by
+    # three copies a fraction of a FWHM apart whose outer pair, taken alone, is
+    # resolvable (#728's silicon: 0.012° copies on a 0.020° width); bounding a
+    # run by its outer pair's dip test keeps two of the three as lines (measured:
+    # 6 of 11 silicon lines reported once, against 10 or more).  What the rule
+    # costs is a genuine triple whose neighbours are each under the limit and
+    # whose outer pair is over it.  Measured on the 16 IUCr round-robin lab
+    # patterns that never happens: of 290 multi-component groups, 7 hold a
+    # merged pair and none a chain of three.
+    parent = list(range(n))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for a, b in zip(order[:-1], order[1:]):
+        if mergeable(a, b):
+            parent[root(a)] = root(b)
+    clusters: dict[int, list[int]] = {}
+    for j in range(n):
+        clusters.setdefault(root(j), []).append(j)
+    runs = list(clusters.values())
+    for members in runs:
+        if len(members) < 2:
+            continue
+        rep = max(members, key=lambda j: float(inten[j]))
+        for j in members:
+            if j != rep:
+                out[j] = rep
+    return out
+
+
+#: Relative dip depth below which two equal lines are one maximum.  Not a
+#: tuning knob: Sparrow's criterion is "a dip exists", and this only keeps a
+#: 1e-12 rounding ripple on a flat top from counting as one.
+_SPARROW_DIP_MIN = 1e-6
+
+
 def _solve(m: _GroupModel, pos: np.ndarray) -> tuple[np.ndarray, object]:
     m.freeze(pos)
     p0 = m.seed(pos)
@@ -413,6 +555,12 @@ def fit_group_at(det: Detection, group: PeakGroup, instrument: Instrument,
     ``from_reseed`` stays ``None`` — a component a human placed is not a
     residual's proposal, so :func:`~rietx.indexing.pick._not_separable` never
     fires on it by condition 1 alone.
+
+    **It makes neither resolvability judgement** (``merged_into`` and
+    ``width_at_bound`` stay ``None``): two named components 0.5 FWHM apart come
+    back as two lines, and a broadened sample's lines are not ``width_capped``.
+    Those are detection's judgements about components *it* proposed
+    (:func:`fit_group`); a caller who names positions has said what is there.
     """
     pos = np.sort(np.asarray(positions, dtype=np.float64))
     if pos.ndim != 1 or len(pos) == 0:
@@ -460,6 +608,9 @@ def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
     positive became a reported line with an esd and no evidence.  Every
     shoulder-seeded component now has to earn its two parameters against its own
     absence — for a singleton, against there being no peak there whatsoever.
+
+    The accepted fit alone is then judged for resolvability (:func:`_judge`:
+    ``merged_into``, ``width_at_bound``); the trial fits above are not.
     """
     pos = np.asarray(group.seed_two_theta, dtype=np.float64)
     shoulder = np.asarray(group.from_shoulder, dtype=bool)
@@ -479,6 +630,7 @@ def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
         added = np.insert(added, k, True)
         best = trial
     best.from_reseed = added
+    _judge(det, group, instrument, best)
     return best
 
 
@@ -616,3 +768,27 @@ def _fit_at(det: Detection, group: PeakGroup, instrument: Instrument,
         gamma_g=gg, gamma_l=gl, fwhm=float(fwhm), eta=float(eta),
         chi2_red=chi2_red, converged=bool(res.status > 0), at_bound=at_bound,
         asymmetry_t=_asymmetry_t(m, p), n_points=len(m.x), reseed_at=reseed)
+
+
+def _judge(det: Detection, group: PeakGroup, instrument: Instrument,
+           fit: GroupFit) -> None:
+    """Write the two resolvability judgements onto ``fit`` — detection's own.
+
+    Run once, on the fit :func:`fit_group` accepts, and not inside
+    :func:`_fit_at`: the trial fits of the shoulder prune and the re-seed passes
+    discard their answer, and a caller that names its own positions
+    (:func:`fit_group_at`, :func:`~rietx.indexing.pick.fit_peaks`, the peak
+    editor) has asked for exactly those components, so merging two of them or
+    flagging every named line on a broadened sample would answer a question it
+    did not ask.  The model is rebuilt at the fitted positions, not solved.
+    """
+    f_hi = PEAK_WIDTH_BOUND_FACTORS[1]
+    fit.width_at_bound = bool(
+        max(fit.gamma_g, fit.gamma_l) / (f_hi * group.seed_fwhm) >= 1.0 - 1e-6)
+    if fit.n < 2:
+        fit.merged_into = np.full(fit.n, -1, dtype=np.int64)
+        return
+    m = _GroupModel(det, group, instrument, fit.n, group.seed_fwhm)
+    m.freeze(fit.two_theta)
+    p = m.pack(fit.gamma_g, fit.gamma_l, fit.two_theta, fit.intensity)
+    fit.merged_into = unresolved_mates(m, p, fit.fwhm)
