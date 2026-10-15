@@ -116,6 +116,29 @@ def _build(source: Path, out: Path):
 BOTH_BUILDS = pytest.mark.parametrize("build", ["built_manual", "built_docs_tree"])
 
 
+def _stray_in_prose(build: str, request, pattern: str) -> list[str]:
+    """Each match of `pattern` in the rendered prose of a build's own pages.
+
+    The old tree's landing page is copied in and skipped (`_copied_in`); the new
+    tree copies nothing in, and its own `index.html` shares the landing page's
+    name.  `_static/` is skipped in both, being the theme's assets:
+    pydata-sphinx-theme ships a Jinja template there, `webpack-macros.html`,
+    that no page renders.
+    """
+    out, result = request.getfixturevalue(build)
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    copied_in = _copied_in() if build == "built_manual" else set()
+    stray: list[str] = []
+    for page in sorted(out.rglob("*.html")):
+        rel = page.relative_to(out)
+        if rel.as_posix() in copied_in or rel.parts[0] == "_static":
+            continue
+        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
+        for match in re.finditer(pattern, text, re.S):
+            stray.append(f"{rel.as_posix()}: …{match.group(0).strip()}…")
+    return stray
+
+
 @pytest.mark.xdist_group("manual-build")
 @BOTH_BUILDS
 def test_manual_builds_warning_free(build, request):
@@ -140,19 +163,7 @@ def test_no_unrendered_math_survives_the_build(build, request):
     other spans in Part 2 render correctly — so the rule is about the delimiters
     surviving, not about reflowing every equation onto one line.
     """
-    out, result = request.getfixturevalue(build)
-    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
-    # `_static/` is the theme's assets: pydata-sphinx-theme ships a Jinja template
-    # there, `webpack-macros.html`, that no page renders.
-    copied_in = _copied_in() if build == "built_manual" else set()
-    stray: list[str] = []
-    for page in sorted(out.rglob("*.html")):
-        rel = page.relative_to(out)
-        if rel.as_posix() in copied_in or rel.parts[0] == "_static":
-            continue        # the landing page — see _copied_in()
-        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
-        for match in re.finditer(r".{0,60}\$.{0,60}", text, re.S):
-            stray.append(f"{page.name}: …{match.group(0).strip()}…")
+    stray = _stray_in_prose(build, request, r".{0,60}\$.{0,60}")
     assert not stray, "unrendered TeX in the built prose:\n" + "\n".join(stray[:10])
 
 
@@ -177,19 +188,7 @@ def test_no_unrendered_markup_survives_the_build(build, request):
     table the pipes are escaped and the span dropped, which is what the manual's
     own tables already do (`\\|F\\|²`).
     """
-    out, result = request.getfixturevalue(build)
-    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
-    # `_static/` is the theme's assets: pydata-sphinx-theme ships a Jinja template
-    # there, `webpack-macros.html`, that no page renders.
-    copied_in = _copied_in() if build == "built_manual" else set()
-    stray: list[str] = []
-    for page in sorted(out.rglob("*.html")):
-        rel = page.relative_to(out)
-        if rel.as_posix() in copied_in or rel.parts[0] == "_static":
-            continue        # the landing page — see _copied_in()
-        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
-        for match in re.finditer(r".{0,60}`.{0,60}", text, re.S):
-            stray.append(f"{page.name}: …{match.group(0).strip()}…")
+    stray = _stray_in_prose(build, request, r".{0,60}`.{0,60}")
     assert not stray, (
         "a code span or role did not close, and its backtick is in the built "
         "prose:\n" + "\n".join(stray[:10])
@@ -214,19 +213,7 @@ def test_no_unsubstituted_substitution_survives_the_build(build, request):
     the symbol in the equation and state its value in the prose beside it,
     which is where `conf.py`'s injection works.
     """
-    out, result = request.getfixturevalue(build)
-    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
-    # `_static/` is the theme's assets: pydata-sphinx-theme ships a Jinja template
-    # there, `webpack-macros.html`, that no page renders.
-    copied_in = _copied_in() if build == "built_manual" else set()
-    stray: list[str] = []
-    for page in sorted(out.rglob("*.html")):
-        rel = page.relative_to(out)
-        if rel.as_posix() in copied_in or rel.parts[0] == "_static":
-            continue        # the landing page — see _copied_in()
-        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
-        for match in re.finditer(r".{0,60}\{\{.{0,60}", text, re.S):
-            stray.append(f"{page.name}: …{match.group(0).strip()}…")
+    stray = _stray_in_prose(build, request, r".{0,60}\{\{.{0,60}")
     assert not stray, (
         "a MyST substitution reached the page unexpanded (a `{{ NAME }}` inside "
         "a {math} directive is the usual cause):\n" + "\n".join(stray[:10])
@@ -896,7 +883,8 @@ def test_no_chapter_still_writes_a_source_line_by_hand():
     for page in CHAPTERS + DOCS_PAGES:
         for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
             if line.lstrip().startswith("*Source:*"):
-                offenders.append(f"{page.name}:{number}: {line.strip()[:60]}")
+                offenders.append(f"{page.relative_to(MANUAL_DIR.parent).as_posix()}:{number}: "
+                                 f"{line.strip()[:60]}")
     assert not offenders, (
         "write the source line as the `{source}` role, which resolves the name "
         "to a repository link at build time:\n" + "\n".join(offenders)
@@ -913,7 +901,8 @@ def test_source_lines_cover_every_labelled_equation():
         n_labels = len(re.findall(r"^:label:", text, re.MULTILINE))
         n_sources = len(SOURCE_LINE.findall(text))
         if n_labels:
-            assert n_sources > 0, f"{page.name}: {n_labels} labelled equations, no {{source}} lines"
+            assert n_sources > 0, (f"{page.relative_to(MANUAL_DIR.parent).as_posix()}: "
+                                   f"{n_labels} labelled equations, no {{source}} lines")
 
 
 def test_the_hump_table_agrees_with_the_refinement_that_produced_it():
@@ -1067,7 +1056,9 @@ def _contract_breaches(text: str) -> list[str]:
         breaches.append(f"{len(titles)} H1 headings: a page has exactly one title")
     else:
         line, _, paragraph = titles[0]
-        if not re.search(r"[.?!]", paragraph):
+        # A full stop inside a code span (`rx.fit`) or a dotted name is not
+        # the end of a sentence.
+        if not re.search(r"[.?!](?:\s|$)", re.sub(r"`[^`]*`", "", paragraph)):
             breaches.append(f"line {line}: no answer sentence under the title. "
                             "Say what the page answers before anything else")
     for line, _, paragraph in sections:
@@ -1093,6 +1084,7 @@ def test_every_page_of_the_new_tree_keeps_the_page_contract():
     ("(target)=\n# Title\n\nThe answer.\n\n## Part\n\nMore.\n", []),
     ("# Title\n\n```{toctree}\na\n```\n", ["no answer sentence"]),
     ("# Title\n\n- a list, not an answer.\n", ["no answer sentence"]),
+    ("# Title\n\nSee `rx.fit` on rietx.org\n", ["no answer sentence"]),
     ("# Title\n\nAn answer.\n\n# Second title\n\nAnother.\n", ["2 H1 headings"]),
     ("# Title\n\nAn answer.\n\n## Part\n\nAs described above, the cell moves.\n",
      ["back-reference"]),
@@ -1113,12 +1105,34 @@ def test_the_page_contract_fails_what_it_should(text, expected):
 #: A markdown link's target, `[text](target)`, outside an image.
 _MD_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)\)")
 
+#: `myst_heading_anchors` in `docs/docs/conf.py`: H1 to H3 get a slug.
+HEADING_ANCHOR_DEPTH = 3
+
+
+def _heading_slugs(source: Path) -> set[str]:
+    """The MyST anchor of each heading on a page, as `myst_heading_anchors` makes it.
+
+    A link may name a section by this slug or by its HTML id, and the two
+    differ wherever a heading carries punctuation or a non-ASCII letter: MyST
+    resolves `#size--strain-µr` to the section whose id is `size-strain-r`.
+    Only headings down to the depth `conf.py` sets get one.
+    """
+    from mdit_py_plugins.anchors.index import slugify
+
+    if not source.is_file():
+        return set()
+    lines = source.read_text(encoding="utf-8").splitlines()
+    return {slugify(lines[line - 1].lstrip("#").strip())
+            for line, level, _ in _sections("\n".join(lines))
+            if level <= HEADING_ANCHOR_DEPTH}
+
 
 def _theory_link_failures(page: Path, text: str, out: Path) -> list[str]:
     """Each link from `page` into the Theory tab that the build did not write.
 
-    The built page has to exist, and so does the id a fragment names.  Read off
-    the HTML, because that is what the reader's click lands on.
+    The built page has to exist, and so does the section a fragment names, by
+    its HTML id or by the MyST slug that resolves to one.  Read off the HTML,
+    because that is what the reader's click lands on.
     """
     failures = []
     for target in _MD_LINK.findall(text):
@@ -1130,12 +1144,13 @@ def _theory_link_failures(page: Path, text: str, out: Path) -> list[str]:
             rel = source.relative_to(DOCS_TREE.resolve())
         except ValueError:
             continue
-        if rel.parts[0] != "theory":
+        if not rel.parts or rel.parts[0] != "theory":
             continue
         built = out / rel.with_suffix(".html")
         if not built.is_file():
             failures.append(f"{target}: no page {rel.with_suffix('.html').as_posix()}")
-        elif fragment and f'id="{fragment}"' not in built.read_text(encoding="utf-8"):
+        elif (fragment and f'id="{fragment}"' not in built.read_text(encoding="utf-8")
+              and fragment not in _heading_slugs(source.with_suffix(".md"))):
             failures.append(f"{target}: {rel.with_suffix('.html').as_posix()} has no "
                             f"section #{fragment}")
     return failures
@@ -1157,15 +1172,26 @@ def test_every_theory_link_from_concepts_and_guides_resolves(built_docs_tree):
 @pytest.mark.xdist_group("manual-build")
 def test_the_theory_link_check_fails_what_it_should(built_docs_tree):
     """The check above, made to fail on a missing page and a missing section."""
-    out, _ = built_docs_tree
+    out, result = built_docs_tree
+    assert result.returncode == 0, "the new tree did not build"
     page = DOCS_TREE / "concepts" / "index.md"
     text = ("[ok](../theory/references.md) [ok](../theory/index.md#theory) "
             "[gone](../theory/no-such-page.md) [gone](../theory/index.md#no-such-section) "
-            "[elsewhere](../reference/index.md) [web](https://example.org/theory/x.md)")
+            "[elsewhere](../reference/index.md) [web](https://example.org/theory/x.md) "
+            "[root](../)")
     failures = _theory_link_failures(page, text, out)
     assert len(failures) == 2, failures
     assert "no page theory/no-such-page.html" in failures[0]
     assert "no section #no-such-section" in failures[1]
+
+
+def test_a_heading_slug_is_read_the_way_myst_makes_it(tmp_path):
+    """A slug and an HTML id part company on punctuation and non-ASCII letters."""
+    page = tmp_path / "page.md"
+    page.write_text("# Size & strain µR\n\nText.\n\n#### Too deep\n\nMore.\n\n"
+                    "```text\n# a comment\n```\n",
+                    encoding="utf-8")
+    assert _heading_slugs(page) == {"size--strain-µr"}
 
 
 #: The front page's audience cards, in the order WP-1975 § F8 set.

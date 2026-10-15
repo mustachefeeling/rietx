@@ -16,7 +16,7 @@ from rietx._about import DIST_NAME, REPO_URL
 _sys.path.append(str(_Path(__file__).resolve().parent.parent))
 import sphinx_shared as _shared  # noqa: E402
 
-project = "rietx"
+project = DIST_NAME
 author = "rietx developers"
 release = _dist_version(DIST_NAME)
 version = release
@@ -44,7 +44,7 @@ bibtex_reference_style = _shared.BIBTEX_REFERENCE_STYLE
 myst_enable_extensions = _shared.MYST_EXTENSIONS
 myst_substitutions = {**_shared.MYST_SUBSTITUTIONS, "release": release}
 # A markdown link to `page.md#a-heading` resolves, so a Concepts or Guides page
-# can point at the Theory section behind a claim (tests/test_docs_tree.py).
+# can point at the Theory section behind a claim (tests/test_manual.py).
 myst_heading_anchors = 3
 
 # Numbered sections and section-prefixed equation numbers ((3.2), not (2)).
@@ -54,7 +54,7 @@ math_numfig = True
 exclude_patterns = ["_build"]
 
 html_theme = "pydata_sphinx_theme"
-html_title = "rietx"
+html_title = DIST_NAME
 # The old tree's mark.  Without a favicon a browser falls back to the origin
 # root, which belongs to the user Pages site this project sits under.
 html_favicon = "../manual/_static/favicon.svg"
