@@ -651,8 +651,11 @@ upstream.
     non-trivial March-Dollase one, so the trees are written in the test from
     GSAS-II's layout, which `GSASIIstrIO` (5.8.4) reads and the committed
     projects show in their MD form.
-  - Fast selection on this branch merged with main at `1c2563a1`: 10639
-    passed, 36 skipped, 1 xfailed, 6:02, no other suite running at the check.
+  - Fast selection on this branch merged with main at `62fe61a3` (merge
+    `919702c3`): 10663 passed, 35 skipped, 1 xfailed, 10:53, with no other suite
+    running. A run one main earlier (`1c2563a1`) gave 10639 passed, 36 skipped,
+    1 xfailed. The 23 between them are WP-1971's, which main brought, and its
+    re-pinned pixel test is the skip that became a pass.
     This session added 26 cases (8 tests), all passes. The count cannot be
     squared against #983's 10592 + 2 failed + 36 skipped, because main brought
     other WPs' tests since. The added cases cost 0.40 s in all
