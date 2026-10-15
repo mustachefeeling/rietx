@@ -1,0 +1,59 @@
+WP-1325, the over-flexible arm on the ZrP2O7 ramp (Durham TOPAS tutorial 9.5)
+machine   Darwin arm64, 10 CPUs, python 3.12.10, numpy 2.5.4
+rietx     1.10.0.dev0 at 7d7cb7bc, compiled kernels on
+load      4.31 5.50 4.65
+
+chain     12.2 s (load 4.6); status ['converged']
+
+arm Q5: 117.9 s (load 10.2), status converged; χ² 197482.3 with 1610 free, χ²r 1.2226, f 1.232
+  law              deg tested |          freed (verdict)           |   freed, no f²   |          tied          | tied, no f² | chain points
+  zrp_a_lo_heat      3   5/5  |    0.1/ 1 p  0.718 keep      |    0.2 p  0.656 |    0.5/ 1 p  0.467 | p  0.370    | χ²r  0.14 p  0.707
+  zrp_a_hi_heat      5  14/14 |    7.1/ 8 p  0.525 keep      |   10.8 p  0.213 |    6.6/ 8 p  0.576 | p  0.260    | χ²r  0.93 p  0.493
+  si_a_heat          5  19/19 |    9.7/13 p  0.720 keep      |   14.7 p  0.327 |    8.5/13 p  0.813 | p  0.461    | χ²r  0.71 p  0.751
+  al_a_heat          5  19/19 |    7.4/13 p  0.878 keep      |   11.3 p  0.585 |    5.1/13 p  0.973 | p  0.860    | χ²r  0.59 p  0.866
+  al_c_heat          5  19/19 |    6.6/13 p  0.921 keep      |   10.0 p  0.690 |    5.6/13 p  0.959 | p  0.809    | χ²r  0.50 p  0.926
+  zrp_a_lo_cool      3   5/5  |    0.1/ 1 p  0.747 keep      |    0.2 p  0.691 |    0.4/ 1 p  0.503 | p  0.409    | χ²r  0.12 p  0.734
+  zrp_a_hi_cool      5  13/13 |    0.9/ 7 p  0.996 keep      |    1.4 p  0.986 |    2.4/ 7 p  0.932 | p  0.814    | χ²r  0.13 p  0.996
+  si_a_cool          5  18/18 |    4.2/12 p  0.979 keep      |    6.4 p  0.895 |    6.6/12 p  0.883 | p  0.614    | χ²r  0.29 p  0.991
+  al_a_cool          5  18/18 |   11.5/12 p  0.485 keep      |   17.5 p  0.132 |    8.1/12 p  0.780 | p  0.427    | χ²r  0.92 p  0.524
+  al_c_cool          5  18/18 |    8.6/12 p  0.738 keep      |   13.0 p  0.367 |    5.6/12 p  0.936 | p  0.747    | χ²r  0.63 p  0.816
+  joint                       |   53.5/92 p  1.000 keep      |   81.2 p  0.783 |
+  mean statistic per dof, freed: 0.511 (f² 1.518); joint 0.581
+  diagnostics ['BISO_UNUSUALLY_LARGE', 'FLOOR_HIT']
+
+arm Q4: 115.9 s (load 16.4), status converged; χ² 197501.3 with 1602 free, χ²r 1.2227, f 1.232
+  law              deg tested |          freed (verdict)           |   freed, no f²   |          tied          | tied, no f² | chain points
+  zrp_a_lo_heat      3   5/5  |    0.1/ 1 p  0.713 keep      |    0.2 p  0.650 |    0.5/ 1 p  0.480 | p  0.384    | χ²r  0.14 p  0.707
+  zrp_a_hi_heat      4  14/14 |    8.8/ 9 p  0.460 keep      |   13.3 p  0.150 |    7.8/ 9 p  0.558 | p  0.225    | χ²r  0.99 p  0.449
+  si_a_heat          4  19/19 |   12.6/14 p  0.559 keep      |   19.1 p  0.161 |    8.2/14 p  0.876 | p  0.564    | χ²r  0.87 p  0.590
+  al_a_heat          4  19/19 |    9.6/14 p  0.788 keep      |   14.7 p  0.402 |    8.0/14 p  0.888 | p  0.591    | χ²r  0.72 p  0.753
+  al_c_heat          4  19/19 |    7.3/14 p  0.925 keep      |   11.0 p  0.685 |    7.3/14 p  0.920 | p  0.673    | χ²r  0.50 p  0.935
+  zrp_a_lo_cool      3   5/5  |    0.1/ 1 p  0.748 keep      |    0.2 p  0.692 |    0.5/ 1 p  0.497 | p  0.403    | χ²r  0.12 p  0.734
+  zrp_a_hi_cool      4  13/13 |    0.9/ 8 p  0.999 keep      |    1.4 p  0.994 |    2.6/ 8 p  0.956 | p  0.859    | χ²r  0.12 p  0.999
+  si_a_cool          4  18/18 |    5.1/13 p  0.973 keep      |    7.8 p  0.859 |    6.9/13 p  0.907 | p  0.653    | χ²r  0.34 p  0.986
+  al_a_cool          4  18/18 |   14.0/13 p  0.376 keep      |   21.2 p  0.069 |   10.1/13 p  0.683 | p  0.283    | χ²r  1.05 p  0.400
+  al_c_cool          4  18/18 |    8.6/13 p  0.805 keep      |   13.0 p  0.447 |    5.9/13 p  0.951 | p  0.779    | χ²r  0.58 p  0.869
+  joint                       |   63.6/100 p  0.998 keep      |   96.6 p  0.579 |
+  mean statistic per dof, freed: 0.556 (f² 1.519); joint 0.636
+  diagnostics ['BISO_UNUSUALLY_LARGE', 'FLOOR_HIT']
+
+p-values against Uniform(0, 1)
+  Q5 verdicts (freed)                          n 10: rejected at 95 %  0; median p 0.743; KS D 0.518, p 0.00512
+  Q5 freed without f²                          n 10: rejected at 95 %  0; median p 0.621; KS D 0.185, p 0.822
+  Q5 tied                                      n 10: rejected at 95 %  0; median p 0.848; KS D 0.480, p 0.0121
+  Q5 chain points, same form                   n 10: rejected at 95 %  0; median p 0.784; KS D 0.507, p 0.00666
+  Q5 joint                                          p 1.000; without f² p 0.783
+  Q4 verdicts (freed)                          n 10: rejected at 95 %  0; median p 0.768; KS D 0.413, p 0.0468
+  Q4 freed without f²                          n 10: rejected at 95 %  0; median p 0.549; KS D 0.150, p 0.954
+  Q4 tied                                      n 10: rejected at 95 %  0; median p 0.882; KS D 0.480, p 0.0122
+  Q4 chain points, same form                   n 10: rejected at 95 %  0; median p 0.744; KS D 0.407, p 0.0524
+  Q4 joint                                          p 0.998; without f² p 0.579
+  Q5 and Q4 verdicts pooled (shared data)      n 20: rejected at 95 %  0; median p 0.747; KS D 0.463, p 0.000192
+  Q5 and Q4 pooled, without f²                 n 20: rejected at 95 %  0; median p 0.618; KS D 0.150, p 0.703
+
+Q5 verdict p-values: 0.718 0.525 0.720 0.878 0.921 0.747 0.996 0.979 0.485 0.738
+Q5 without f²:       0.656 0.213 0.327 0.585 0.690 0.691 0.986 0.895 0.132 0.367
+Q4 verdict p-values: 0.713 0.460 0.559 0.788 0.925 0.748 0.999 0.973 0.376 0.805
+Q4 without f²:       0.650 0.150 0.161 0.402 0.685 0.692 0.994 0.859 0.069 0.447
+
+total     246 s; load at end (16.35693359375, 10.037109375, 6.73583984375)

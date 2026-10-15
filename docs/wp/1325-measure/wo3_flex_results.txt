@@ -1,0 +1,315 @@
+WP-1325 out of sample: over-flexible laws on the WO3 ramp (false-alarm arm)
+machine   Darwin arm64, 10 CPUs, python 3.12.10, numpy 2.5.4
+rietx     1.10.0.dev0 at 7d7cb7bc, compiled kernels on
+load      7.91 8.92 7.06
+arm       5 windows of 20 patterns; degree 4 in T on all 14 cell targets per window; windows run [0, 1, 2, 3, 4]
+joint     plan ['scale_bkg', 'disp', 'cell', 'strain']; seeds from the better of the two chains per pattern; B held at the chain's
+
+window 0: patterns 0..19, T 300-259 K; 2422.3 s; status converged; iters [2, 4, 98, 65]; Rwp 13.169 %; χ²r 2.156, f 2.421
+  m_a      patterns  20 of  20  kept
+           freed       2.6 /  15 dof (cut   25.0,  0.17/dir, p 1) keep
+           tied        1.6 /  15 dof (cut   25.0,  0.11/dir, p 1) keep
+  m_b      patterns  20 of  20  kept
+           freed       1.6 /  15 dof (cut   25.0,  0.11/dir, p 1) keep
+           tied        1.3 /  15 dof (cut   25.0,  0.09/dir, p 1) keep
+  m_c      patterns  20 of  20  kept
+           freed       1.6 /  15 dof (cut   25.0,  0.10/dir, p 1) keep
+           tied        0.9 /  15 dof (cut   25.0,  0.06/dir, p 1) keep
+  m_beta   patterns  20 of  20  kept
+           freed       1.1 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+           tied        0.9 /  15 dof (cut   25.0,  0.06/dir, p 1) keep
+  t_a      patterns  20 of  20  kept
+           freed       1.7 /  15 dof (cut   25.0,  0.12/dir, p 1) keep
+           tied        1.7 /  15 dof (cut   25.0,  0.12/dir, p 1) keep
+  t_b      patterns  20 of  20  kept
+           freed       2.3 /  15 dof (cut   25.0,  0.15/dir, p 1) keep
+           tied        2.6 /  15 dof (cut   25.0,  0.17/dir, p 1) keep
+  t_c      patterns  20 of  20  kept
+           freed       4.5 /  15 dof (cut   25.0,  0.30/dir, p 0.996) keep
+           tied        2.6 /  15 dof (cut   25.0,  0.17/dir, p 1) keep
+  t_alpha  patterns  20 of  20  kept
+           freed       2.9 /  15 dof (cut   25.0,  0.19/dir, p 1) keep
+           tied        2.2 /  15 dof (cut   25.0,  0.15/dir, p 1) keep
+  t_beta   patterns  20 of  20  kept
+           freed       1.5 /  15 dof (cut   25.0,  0.10/dir, p 1) keep
+           tied        1.1 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+  t_gamma  patterns  20 of  20  kept
+           freed       1.9 /  15 dof (cut   25.0,  0.13/dir, p 1) keep
+           tied        2.3 /  15 dof (cut   25.0,  0.15/dir, p 1) keep
+  p_a      patterns  20 of  20  kept
+           freed      10.1 /  15 dof (cut   25.0,  0.67/dir, p 0.815) keep
+           tied       13.9 /  15 dof (cut   25.0,  0.92/dir, p 0.536) keep
+  p_b      patterns  20 of  20  kept
+           freed       4.6 /  15 dof (cut   25.0,  0.31/dir, p 0.995) keep
+           tied        9.3 /  15 dof (cut   25.0,  0.62/dir, p 0.86) keep
+  p_c      patterns  20 of  20  kept
+           freed       4.1 /  15 dof (cut   25.0,  0.27/dir, p 0.997) keep
+           tied        4.9 /  15 dof (cut   25.0,  0.33/dir, p 0.993) keep
+  p_beta   patterns  20 of  20  kept
+           freed       1.7 /  15 dof (cut   25.0,  0.11/dir, p 1) keep
+           tied        1.3 /  15 dof (cut   25.0,  0.09/dir, p 1) keep
+  joint        45.0 / 210 dof (cut  244.8,  0.21/dir, p 1) keep
+
+window 1: patterns 20..39, T 257-216 K; 1989.9 s; status converged; iters [2, 5, 19, 136]; Rwp 13.261 %; χ²r 2.189, f 2.466
+  m_a      patterns  20 of  20  kept
+           freed       1.2 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+           tied        1.0 /  15 dof (cut   25.0,  0.06/dir, p 1) keep
+  m_b      patterns  20 of  20  kept
+           freed       1.6 /  15 dof (cut   25.0,  0.11/dir, p 1) keep
+           tied        1.2 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+  m_c      patterns  20 of  20  kept
+           freed       0.7 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+           tied        1.4 /  15 dof (cut   25.0,  0.09/dir, p 1) keep
+  m_beta   patterns  20 of  20  kept
+           freed       1.1 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+           tied        1.1 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+  t_a      patterns  20 of  20  kept
+           freed       0.9 /  15 dof (cut   25.0,  0.06/dir, p 1) keep
+           tied        0.8 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+  t_b      patterns  20 of  20  kept
+           freed       1.3 /  15 dof (cut   25.0,  0.09/dir, p 1) keep
+           tied        1.2 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+  t_c      patterns  20 of  20  kept
+           freed       3.6 /  15 dof (cut   25.0,  0.24/dir, p 0.999) keep
+           tied        1.9 /  15 dof (cut   25.0,  0.12/dir, p 1) keep
+  t_alpha  patterns  20 of  20  kept
+           freed       1.2 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+           tied        1.5 /  15 dof (cut   25.0,  0.10/dir, p 1) keep
+  t_beta   patterns  20 of  20  kept
+           freed       0.9 /  15 dof (cut   25.0,  0.06/dir, p 1) keep
+           tied        0.8 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+  t_gamma  patterns  20 of  20  kept
+           freed       1.1 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+           tied        1.2 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+  p_a      patterns  20 of  20  kept
+           freed       1.4 /  15 dof (cut   25.0,  0.09/dir, p 1) keep
+           tied        2.0 /  15 dof (cut   25.0,  0.13/dir, p 1) keep
+  p_b      patterns  20 of  20  kept
+           freed       2.0 /  15 dof (cut   25.0,  0.13/dir, p 1) keep
+           tied        2.6 /  15 dof (cut   25.0,  0.17/dir, p 1) keep
+  p_c      patterns  20 of  20  kept
+           freed       6.6 /  15 dof (cut   25.0,  0.44/dir, p 0.968) keep
+           tied        4.7 /  15 dof (cut   25.0,  0.32/dir, p 0.994) keep
+  p_beta   patterns  20 of  20  kept
+           freed       1.2 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+           tied        1.2 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+  joint        23.7 / 210 dof (cut  244.8,  0.11/dir, p 1) keep
+
+window 2: patterns 40..59, T 214-174 K; 199.6 s; status converged; iters [2, 5, 12, 18]; Rwp 12.980 %; χ²r 2.103, f 2.468
+  m_a      patterns  20 of  20  kept
+           freed       1.4 /  15 dof (cut   25.0,  0.09/dir, p 1) keep
+           tied        1.6 /  15 dof (cut   25.0,  0.11/dir, p 1) keep
+  m_b      patterns  20 of  20  kept
+           freed       2.1 /  15 dof (cut   25.0,  0.14/dir, p 1) keep
+           tied        2.0 /  15 dof (cut   25.0,  0.13/dir, p 1) keep
+  m_c      patterns  20 of  20  kept
+           freed       1.9 /  15 dof (cut   25.0,  0.13/dir, p 1) keep
+           tied        2.2 /  15 dof (cut   25.0,  0.15/dir, p 1) keep
+  m_beta   patterns  20 of  20  kept
+           freed       0.8 /  15 dof (cut   25.0,  0.06/dir, p 1) keep
+           tied        1.1 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+  t_a      patterns  20 of  20  kept
+           freed       1.6 /  15 dof (cut   25.0,  0.11/dir, p 1) keep
+           tied        1.7 /  15 dof (cut   25.0,  0.12/dir, p 1) keep
+  t_b      patterns  20 of  20  kept
+           freed       1.0 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+           tied        0.6 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+  t_c      patterns  20 of  20  kept
+           freed       3.1 /  15 dof (cut   25.0,  0.20/dir, p 1) keep
+           tied        2.7 /  15 dof (cut   25.0,  0.18/dir, p 1) keep
+  t_alpha  patterns  20 of  20  kept
+           freed       1.1 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+           tied        0.9 /  15 dof (cut   25.0,  0.06/dir, p 1) keep
+  t_beta   patterns  20 of  20  kept
+           freed       2.1 /  15 dof (cut   25.0,  0.14/dir, p 1) keep
+           tied        2.0 /  15 dof (cut   25.0,  0.14/dir, p 1) keep
+  t_gamma  patterns  20 of  20  kept
+           freed       1.0 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+           tied        0.8 /  15 dof (cut   25.0,  0.06/dir, p 1) keep
+  p_a      patterns  20 of  20  kept
+           freed       1.1 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+           tied        0.7 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+  p_b      patterns  20 of  20  kept
+           freed       1.2 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+           tied        1.1 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+  p_c      patterns  20 of  20  kept
+           freed       1.8 /  15 dof (cut   25.0,  0.12/dir, p 1) keep
+           tied        1.9 /  15 dof (cut   25.0,  0.13/dir, p 1) keep
+  p_beta   patterns  20 of  20  kept
+           freed       1.3 /  15 dof (cut   25.0,  0.09/dir, p 1) keep
+           tied        1.4 /  15 dof (cut   25.0,  0.09/dir, p 1) keep
+  joint        20.9 / 210 dof (cut  244.8,  0.10/dir, p 1) keep
+
+window 3: patterns 60..79, T 172-132 K; 248.0 s; status converged; iters [2, 5, 6, 32]; Rwp 13.831 %; χ²r 2.403, f 3.247
+  m_a      patterns  20 of  20  kept
+           freed       0.6 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+           tied        1.1 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+  m_b      patterns  20 of  20  kept
+           freed       0.4 /  15 dof (cut   25.0,  0.02/dir, p 1) keep
+           tied        1.0 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+  m_c      patterns  20 of  20  kept
+           freed       1.0 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+           tied        0.7 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+  m_beta   patterns  20 of  20  kept
+           freed       0.6 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+           tied        0.4 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+  t_a      patterns  20 of  20  kept
+           freed       0.6 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+           tied        1.1 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+  t_b      patterns  20 of  20  kept
+           freed       0.6 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+           tied        0.7 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+  t_c      patterns  20 of  20  kept
+           freed       0.9 /  15 dof (cut   25.0,  0.06/dir, p 1) keep
+           tied        0.4 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+  t_alpha  patterns  20 of  20  kept
+           freed       0.7 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+           tied        0.6 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+  t_beta   patterns  20 of  20  kept
+           freed       0.6 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+           tied        0.7 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+  t_gamma  patterns  20 of  20  kept
+           freed       0.5 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+           tied        0.5 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+  p_a      patterns  20 of  20  kept
+           freed       0.7 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+           tied        0.5 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+  p_b      patterns  20 of  20  kept
+           freed       0.4 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+           tied        0.4 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+  p_c      patterns  20 of  20  kept
+           freed       0.8 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+           tied        0.8 /  15 dof (cut   25.0,  0.06/dir, p 1) keep
+  p_beta   patterns  20 of  20  kept
+           freed       0.5 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+           tied        0.7 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+  joint         9.4 / 210 dof (cut  244.8,  0.04/dir, p 1) keep
+
+window 4: patterns 80..99, T 130-90 K; 458.5 s; status converged; iters [2, 4, 5, 112]; Rwp 14.396 %; χ²r 2.614, f 3.506
+  m_a      patterns  20 of  20  kept
+           freed       0.7 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+           tied        1.1 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+  m_b      patterns  20 of  20  kept
+           freed       0.4 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+           tied        0.5 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+  m_c      patterns  20 of  20  kept
+           freed       1.3 /  15 dof (cut   25.0,  0.09/dir, p 1) keep
+           tied        1.4 /  15 dof (cut   25.0,  0.09/dir, p 1) keep
+  m_beta   patterns  20 of  20  kept
+           freed       0.3 /  15 dof (cut   25.0,  0.02/dir, p 1) keep
+           tied        0.3 /  15 dof (cut   25.0,  0.02/dir, p 1) keep
+  t_a      patterns  20 of  20  kept
+           freed       0.6 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+           tied        0.7 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+  t_b      patterns  20 of  20  kept
+           freed       0.4 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+           tied        0.5 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+  t_c      patterns  20 of  20  kept
+           freed       1.5 /  15 dof (cut   25.0,  0.10/dir, p 1) keep
+           tied        1.2 /  15 dof (cut   25.0,  0.08/dir, p 1) keep
+  t_alpha  patterns  20 of  20  kept
+           freed       0.5 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+           tied        0.5 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+  t_beta   patterns  20 of  20  kept
+           freed       0.4 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+           tied        0.3 /  15 dof (cut   25.0,  0.02/dir, p 1) keep
+  t_gamma  patterns  20 of  20  kept
+           freed       0.2 /  15 dof (cut   25.0,  0.01/dir, p 1) keep
+           tied        0.2 /  15 dof (cut   25.0,  0.01/dir, p 1) keep
+  p_a      patterns  20 of  20  kept
+           freed       0.6 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+           tied        0.6 /  15 dof (cut   25.0,  0.04/dir, p 1) keep
+  p_b      patterns  20 of  20  kept
+           freed       0.4 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+           tied        1.1 /  15 dof (cut   25.0,  0.07/dir, p 1) keep
+  p_c      patterns  20 of  20  kept
+           freed       0.3 /  15 dof (cut   25.0,  0.02/dir, p 1) keep
+           tied        0.5 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+  p_beta   patterns  20 of  20  kept
+           freed       0.8 /  15 dof (cut   25.0,  0.05/dir, p 1) keep
+           tied        0.5 /  15 dof (cut   25.0,  0.03/dir, p 1) keep
+  joint         8.6 / 210 dof (cut  244.8,  0.04/dir, p 1) keep
+
+SUMMARY (p over χ²_red·f², the shipped test; 'no f²' divides by χ²_red alone)
+  per-law freed (the verdict): 0 of 70 reject at 95 % (expected 3.5); KS D 0.967, p 1.02e-103; median p 1.000
+    p: 0.815 0.968 0.995 0.996 0.997 0.999 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+  per-law tied: 0 of 70 reject at 95 % (expected 3.5); KS D 0.964, p 1.04e-101; median p 1.000
+    p: 0.536 0.86 0.993 0.994 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+  joint, one per window: 0 of 5 reject at 95 % (expected 0.2); KS D 1.000, p 0; median p 1.000
+    p: 1 1 1 1 1
+  per-law freed, no f²: 4 of 70 reject at 95 % (expected 3.5); KS D 0.539, p 1.47e-19; median p 0.937
+    p: 3.69e-07 0.000422 0.0301 0.0338 0.0633 0.106 0.22 0.232 0.329 0.398 0.439 0.558 0.597 0.603 0.679 0.694 0.737 0.751 0.789 0.81 0.822 0.827 0.834 0.838 0.852 0.862 0.869 0.886 0.902 0.913 0.914 0.918 0.921 0.922 0.933 0.941 0.942 0.946 0.948 0.954 0.956 0.959 0.959 0.962 0.964 0.967 0.969 0.972 0.974 0.974 0.975 0.975 0.975 0.981 0.983 0.986 0.987 0.988 0.989 0.989 0.991 0.992 0.993 0.995 0.996 0.997 0.998 0.998 0.999 1
+  joint, no f²: 1 of 5 reject at 95 % (expected 0.2); KS D 0.800, p 0.000643; median p 1.000
+    p: 0.00692 1 1 1 1
+
+per law (window, law, patterns tested, verdict, freed p, tied p, freed p no f²):
+  0 m_a       20 False        1        1     0.439
+  0 m_b       20 False        1        1     0.862
+  0 m_c       20 False        1        1     0.869
+  0 m_beta    20 False        1        1     0.967
+  0 t_a       20 False        1        1      0.81
+  0 t_b       20 False        1        1     0.558
+  0 t_c       20 False    0.996        1    0.0338
+  0 t_alpha   20 False        1        1     0.329
+  0 t_beta    20 False        1        1     0.886
+  0 t_gamma   20 False        1        1     0.737
+  0 p_a       20 False    0.815    0.536  3.69e-07
+  0 p_b       20 False    0.995     0.86    0.0301
+  0 p_c       20 False    0.997    0.993    0.0633
+  0 p_beta    20 False        1        1     0.822
+  1 m_a       20 False        1        1     0.942
+  1 m_b       20 False        1        1     0.834
+  1 m_c       20 False        1        1     0.996
+  1 m_beta    20 False        1        1     0.969
+  1 t_a       20 False        1        1     0.986
+  1 t_b       20 False        1        1     0.922
+  1 t_c       20 False    0.999        1     0.106
+  1 t_alpha   20 False        1        1     0.946
+  1 t_beta    20 False        1        1     0.989
+  1 t_gamma   20 False        1        1     0.959
+  1 p_a       20 False        1        1     0.902
+  1 p_b       20 False        1        1     0.679
+  1 p_c       20 False    0.968    0.994  0.000422
+  1 p_beta    20 False        1        1     0.956
+  2 m_a       20 False        1        1     0.913
+  2 m_b       20 False        1        1     0.597
+  2 m_c       20 False        1        1     0.694
+  2 m_beta    20 False        1        1     0.991
+  2 t_a       20 False        1        1     0.838
+  2 t_b       20 False        1        1     0.972
+  2 t_c       20 False        1        1     0.232
+  2 t_alpha   20 False        1        1     0.962
+  2 t_beta    20 False        1        1     0.603
+  2 t_gamma   20 False        1        1     0.975
+  2 p_a       20 False        1        1     0.964
+  2 p_b       20 False        1        1     0.954
+  2 p_c       20 False        1        1     0.751
+  2 p_beta    20 False        1        1     0.918
+  3 m_a       20 False        1        1     0.981
+  3 m_b       20 False        1        1     0.998
+  3 m_c       20 False        1        1     0.789
+  3 m_beta    20 False        1        1     0.975
+  3 t_a       20 False        1        1     0.974
+  3 t_b       20 False        1        1     0.974
+  3 t_c       20 False        1        1     0.827
+  3 t_alpha   20 False        1        1     0.948
+  3 t_beta    20 False        1        1     0.975
+  3 t_gamma   20 False        1        1     0.987
+  3 p_a       20 False        1        1     0.941
+  3 p_b       20 False        1        1     0.997
+  3 p_c       20 False        1        1     0.914
+  3 p_beta    20 False        1        1     0.993
+  4 m_a       20 False        1        1     0.921
+  4 m_b       20 False        1        1     0.989
+  4 m_c       20 False        1        1     0.398
+  4 m_beta    20 False        1        1     0.998
+  4 t_a       20 False        1        1     0.959
+  4 t_b       20 False        1        1     0.995
+  4 t_c       20 False        1        1      0.22
+  4 t_alpha   20 False        1        1     0.983
+  4 t_beta    20 False        1        1     0.992
+  4 t_gamma   20 False        1        1         1
+  4 p_a       20 False        1        1     0.933
+  4 p_b       20 False        1        1     0.988
+  4 p_c       20 False        1        1     0.999
+  4 p_beta    20 False        1        1     0.852

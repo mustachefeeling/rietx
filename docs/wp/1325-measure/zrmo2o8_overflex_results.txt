@@ -1,0 +1,46 @@
+WP-1325: over-flexible laws on the ZrMo2O8 ramp
+machine   Darwin arm64, 10 CPUs, python 3.12.10, numpy 2.5.4
+rietx     1.10.0.dev0 at c4f9cdcb, compiled kernels on
+load      12.53 40.73 53.54
+window    ranges 35..67 (0-based), 33 patterns
+chain     32.3 s
+windows (cubic, 3 × 11): 950.5 s converged; χ²r 1.838, f 2.421 (χ²r·f² 10.771)
+  cubic_a_w0 tested 11/11
+  freed                      2.6/  7 p   0.922 keep   | no f²     15.0 ( 2.15/dir) p  0.0355 REJECT | over 1     27.6 ( 3.95/dir) p 0.000256 REJECT
+  tied                       2.5/  7 p   0.924 keep   | no f²     14.9 ( 2.12/dir) p  0.0379 REJECT | over 1     27.3 ( 3.90/dir) p 0.000294 REJECT
+  cubic_a_w1 tested 11/11
+  freed                      1.0/  7 p   0.995 keep   | no f²      5.9 ( 0.84/dir) p   0.556 keep   | over 1     10.8 ( 1.54/dir) p   0.149 keep  
+  tied                       0.9/  7 p   0.996 keep   | no f²      5.3 ( 0.75/dir) p   0.626 keep   | over 1      9.7 ( 1.39/dir) p   0.206 keep  
+  cubic_a_w2 tested 11/11
+  freed                      0.4/  7 p       1 keep   | no f²      2.4 ( 0.35/dir) p   0.931 keep   | over 1      4.5 ( 0.64/dir) p   0.721 keep  
+  tied                       1.0/  7 p   0.995 keep   | no f²      5.9 ( 0.84/dir) p   0.551 keep   | over 1     10.8 ( 1.55/dir) p   0.146 keep  
+  trig_a_w0 tested 11/11
+  freed                      1.1/  7 p   0.992 keep   | no f²      6.6 ( 0.95/dir) p   0.466 keep   | over 1     12.2 ( 1.75/dir) p  0.0936 keep  
+  tied                       0.5/  7 p   0.999 keep   | no f²      3.2 ( 0.45/dir) p    0.87 keep   | over 1      5.8 ( 0.83/dir) p   0.562 keep  
+  trig_a_w1 tested 11/11
+  freed                      1.3/  7 p   0.988 keep   | no f²      7.8 ( 1.12/dir) p    0.35 keep   | over 1     14.3 ( 2.05/dir) p  0.0454 REJECT
+  tied                       1.4/  7 p   0.984 keep   | no f²      8.4 ( 1.20/dir) p   0.296 keep   | over 1     15.5 ( 2.21/dir) p  0.0301 REJECT
+  trig_a_w2 tested 11/11
+  freed                      0.5/  7 p   0.999 keep   | no f²      3.0 ( 0.42/dir) p   0.888 keep   | over 1      5.4 ( 0.78/dir) p   0.606 keep  
+  tied                       0.9/  7 p   0.996 keep   | no f²      5.6 ( 0.79/dir) p   0.593 keep   | over 1     10.2 ( 1.46/dir) p   0.177 keep  
+  trig_c_w0 tested 11/11
+  freed                      1.6/  7 p   0.979 keep   | no f²      9.3 ( 1.33/dir) p   0.232 keep   | over 1     17.1 ( 2.44/dir) p  0.0169 REJECT
+  tied                       1.0/  7 p   0.995 keep   | no f²      5.8 ( 0.83/dir) p   0.559 keep   | over 1     10.7 ( 1.53/dir) p   0.151 keep  
+  trig_c_w1 tested 11/11
+  freed                      1.6/  7 p    0.98 keep   | no f²      9.2 ( 1.31/dir) p    0.24 keep   | over 1     16.9 ( 2.41/dir) p  0.0182 REJECT
+  tied                       1.7/  7 p   0.976 keep   | no f²      9.8 ( 1.39/dir) p   0.203 keep   | over 1     17.9 ( 2.56/dir) p  0.0123 REJECT
+  trig_c_w2 tested 11/11
+  freed                      0.7/  7 p   0.998 keep   | no f²      4.1 ( 0.58/dir) p    0.77 keep   | over 1      7.5 ( 1.07/dir) p   0.378 keep  
+  tied                       1.0/  7 p   0.995 keep   | no f²      5.9 ( 0.84/dir) p   0.556 keep   | over 1     10.8 ( 1.54/dir) p   0.149 keep  
+  joint                     10.9/ 63 p       1 keep   | no f²     63.8 ( 1.01/dir) p   0.448 keep   | over 1    117.3 ( 1.86/dir) p 4.01e-05 REJECT
+quintic (33): 290.7 s converged; χ²r 1.838, f 2.423 (χ²r·f² 10.790)
+  cubic_a_q5 tested 33/33
+  freed                      4.7/ 27 p       1 keep   | no f²     27.7 ( 1.03/dir) p   0.426 keep   | over 1     50.9 ( 1.89/dir) p 0.00354 REJECT
+  tied                       5.0/ 27 p       1 keep   | no f²     29.2 ( 1.08/dir) p    0.35 keep   | over 1     53.7 ( 1.99/dir) p 0.00166 REJECT
+  trig_a_q5 tested 33/33
+  freed                      5.7/ 27 p       1 keep   | no f²     33.5 ( 1.24/dir) p    0.18 keep   | over 1     61.6 ( 2.28/dir) p 0.000161 REJECT
+  tied                       4.8/ 27 p       1 keep   | no f²     28.2 ( 1.04/dir) p     0.4 keep   | over 1     51.8 ( 1.92/dir) p 0.00277 REJECT
+  trig_c_q5 tested 33/33
+  freed                      7.2/ 27 p       1 keep   | no f²     42.4 ( 1.57/dir) p  0.0304 REJECT | over 1     77.8 ( 2.88/dir) p 8.02e-07 REJECT
+  tied                       5.9/ 27 p       1 keep   | no f²     34.7 ( 1.29/dir) p   0.146 keep   | over 1     63.8 ( 2.36/dir) p 8.1e-05 REJECT
+  joint                     16.9/ 81 p       1 keep   | no f²     99.2 ( 1.22/dir) p  0.0831 keep   | over 1    182.2 ( 2.25/dir) p 9.17e-10 REJECT

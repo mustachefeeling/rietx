@@ -3,8 +3,8 @@
 ``kernel_ramp.py``'s ten-pattern ramp: LaB6 beside a minor CaF2 phase whose
 cell follows a line, a curve or a kink, in the weak (W) or overlapped (O)
 regime that script describes.  Per seed: the chain, for starting values; the
-joint fit with a straight-line law on the minor cell (``tie``); the same joint
-fit with no law (``untied``); and the score test at the tie's answer
+joint fit with a straight-line equation on the minor cell (``tie``); the same joint
+fit with no equation (``untied``); and the score test at the equation's answer
 (``form_score.score``).  A line truth measures how often the test fires on a
 right form, and the curve and kink how often it fires on a wrong one.
 
@@ -61,14 +61,14 @@ def _total(s) -> float:
     return s.chi2 * max(s.n_points - s.n_free_parameters, 1)
 
 
-def joint(series, patterns, law: bool):
-    ties = [rx.ParametricTie(name="am", target=MINOR, basis="polynomial",
-                             terms=[[], ["T"]])] if law else None
+def joint(series, patterns, equation: bool):
+    equations = [rx.ParametricEquation(name="am", target=MINOR, basis="polynomial",
+                             terms=[[], ["T"]])] if equation else None
     fit = rx.MultiHistogramRefinement(
         list(series.fitted_structures), list(series.fitted_instruments),
         sharing=SharingMap(per_histogram=["phases.*"]),
         coordinates=rx.CoordinateTable(columns={"T": TEMPS.tolist()}, units={"T": "K"}),
-        parametric=ties)
+        parametric=equations)
     result = fit.fit(patterns, plan="mccusker_default")
     return fit, result
 

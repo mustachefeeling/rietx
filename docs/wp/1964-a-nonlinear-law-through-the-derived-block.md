@@ -112,6 +112,33 @@ leaves the exponent to the user, fitted to the trajectory
 - `tests/test_cross_backend.py`: a row for the new derivative path (root
   CLAUDE.md § Backends; WP-1804's own toy-block row is still open).
 
+### Inherited
+
+- **2026-10-15, from [1325](1325-parametric-series.md), from @mustachefeeling's comments on PR #977: linear inside, scanned outside.** Every basis
+  they wanted is linear in its coefficients once one scalar is fixed:
+  polynomial, √t, a step per gas stage, a changepoint at T*, and Debye
+  B₀ + A·D(T/θ_D). A 1-D grid over θ_D or T* gives the nonlinear equation
+  with no nonlinear solver, and may be a cheaper first step than the derived
+  block. 1325's WO₃ measurement already holds TOPAS's Einstein temperature
+  fixed in a `design` equation, the grid's single point. Debye matters for
+  cryostat series: for O at θ_D = 500 K, a zero-point plateau of 0.36 Å², a
+  high-T slope of 0.0029 Å²/K, crossover near θ_D/2. Published practice
+  (Denault et al. 2015, ACS AMI 7, 7264; Brgoch et al. 2014, APL 105,
+  181904) refines Uiso freely and fits θ_D afterwards. Since 2026-10-15 the
+  names are `ParametricEquation` and `RefinedParametricEquation` (1325
+  decision 7), so read the entry below in those names.
+
+- **2026-10-14, from [1325](1325-parametric-series.md) (seventh session,
+  PR #977): three readers assume a law linear in its coefficients.**
+  - `ParametricLaw.evaluate` computes Σ x_j·c_j and √(x·Σ·xᵀ) from the
+    user-unit coefficients. A law through the derived block needs its own
+    evaluator, the block's local Jacobian at the coordinate in place of x.
+  - `params.parametric.target_columns` reads a pattern's own target column
+    as J_coef·Φ_kᵀ/‖Φ_k‖², which needs a constant Φ. The form test and its
+    `others_freed` reading both rest on it.
+  - `RefinedParameter.laws` is written from each table's `entry_reach`.
+    Check that a row the derived block reaches is marked.
+
 ## Non-goals
 
 - A general expression language. That is `Parameter.expr`'s design, a

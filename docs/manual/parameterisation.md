@@ -571,7 +571,7 @@ declaration is rejected when
 
 \frac{\min_\beta \lVert r - J\beta \rVert^2
       - \min_\beta \lVert r - J_{\mathrm{u}}\beta \rVert^2}
-     {\chi^2_{\mathrm{red}} \cdot S''/S} \;>\; c_k,
+     {\chi^2_{\mathrm{red}}} \;>\; c_k,
 \qquad F_k(c_k) = \gamma,
 ```
 
@@ -584,17 +584,36 @@ pattern that cannot see the target is left out of $J_{\mathrm{u}}$, as an
 untied fit would hold the target there. $k$ is the number of directions
 $J_{\mathrm{u}}$ adds past the covariance's cut, the subset's size less $m$
 when nothing is degenerate. $F_k$ is the $\chi^2_k$ distribution function,
-$S''/S$ the squared Bérar-Lelann factor of {eq}`est-berar-lelann`, and
-$\gamma$ = {{ PARAMETRIC_FORM_LEVEL }}. Each minimisation is one linear step,
-so the numerator is the score statistic of {eq}`est-suggest` for $k$ columns
-at once {cite}`rao1948`, and the test needs no refit. Serially correlated
-residuals inflate a $\chi^2$ difference as they inflate an esd, so the
-denominator carries the same factor.
+and $\gamma$ = {{ PARAMETRIC_FORM_LEVEL }}. Each minimisation is one linear
+step, so the numerator is the score statistic of {eq}`est-suggest` for $k$
+columns at once {cite}`rao1948`, and the test needs no refit. The denominator
+is the answer's own $\chi^2_{\mathrm{red}}$, the restricted estimate the score
+test takes. Dividing by the squared Bérar-Lelann factor of
+{eq}`est-berar-lelann` as well, as an esd is inflated, made the test far
+stricter than $\gamma$. On equations that must hold any smooth truth, over three
+real ramps, none of 261 readings rejected with that factor and 12 of 242
+(5.0 %) without it.
+
+A fit with several declarations reads each one a second time, with the other
+declarations' targets freed too. Let $J_{\mathrm{a}}$ swap every tested
+declaration's coefficient columns and $J_{\mathrm{o}}$ every one but this. The
+numerator is then the difference
+$\min_\beta \lVert r - J_{\mathrm{o}}\beta \rVert^2 - \min_\beta \lVert r - J_{\mathrm{a}}\beta \rVert^2$,
+and $k$ is the difference of their directions. That reading does not assume the other
+declarations' forms, and the declaration is rejected when it passes its cut.
+Two declarations whose target columns are nearly collinear can each pass this
+way while both are wrong, because each one's columns absorb the other's
+misfit. So the fit is also read once with $J_{\mathrm{a}}$ in place of
+$J_{\mathrm{u}}$, every tested declaration swapped at once and $k$ their
+directions together. That joint reading rejects the set and names no
+declaration in it.
 
 On the 33-pattern ZrMo₂O₈ ramp the numerator was 0.98-1.04 of the $\chi^2$ a
-full untied refit removed, for the strong phase's laws and for three laws
-together, and the verdict matched the refit's on all five laws tested. A
-pattern that cannot see the target adds nothing to the numerator, so the test
+full untied refit removed, for the strong phase's equations and for three equations
+together, and the verdict matched the refit's on all five equations tested. At the
+three-equation answer, the second reading of the cubic equation's numerator was 575.3,
+against the 576.1 a refit of that equation alone removed. A pattern that cannot see
+the target adds nothing to the numerator, so the test
 cannot check how a form carries through the patterns where the target is
 invisible. On synthetic ramps whose minor phase faded out, or was broad and
 overlapped, a bent truth went unrejected in 20 seeds of 20, as it did under a

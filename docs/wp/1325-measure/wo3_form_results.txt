@@ -1,0 +1,137 @@
+WP-1325 out of sample: TOPAS's laws on the WO3 ramp, the form test first
+machine   Darwin arm64, 10 CPUs, python 3.12.10, numpy 2.5.4
+rietx     1.10.0.dev0 at 7d7cb7bc, compiled kernels on
+load      7.91 8.92 7.06
+window    patterns 0..99 (0-based), 100 patterns, T 300 -> 90 K
+seeds     per pattern the better chain: 31 forward, 69 backward; Σχ² 1334689.0; Rwp 12.73-14.66 %
+laws      9 edges a0 + g/(exp(θ/T)-1), θ 125.370423 K held; 5 angles quadratic in T; joint plan ['scale_bkg', 'disp', 'cell', 'strain'], B held at the chain's
+anchor    TOPAS: 12.87 % for 184 parameters over 11 patterns, 12.81 % for 1163 over 100
+
+all laws  2176.1 s; status converged; iters [2, 7, 13, 23]; Rwp 13.694 %; χ² 1366201.0 with 1633 free; χ²r 2.344, f 2.890
+
+FORM TEST VERDICTS (recorded before any comparison)
+  m_a      phases.0.cell.a        patterns 100 of 100  verdict REJECTED
+           freed     215.0 /  98 dof (cut  122.1,  2.19/dir, p 9.55e-11) REJECT
+           tied      454.6 /  98 dof (cut  122.1,  4.64/dir, p 2.56e-47) REJECT
+  m_b      phases.0.cell.b        patterns 100 of 100  verdict REJECTED
+           freed     326.0 /  98 dof (cut  122.1,  3.33/dir, p 2.8e-26) REJECT
+           tied      378.7 /  98 dof (cut  122.1,  3.86/dir, p 1.28e-34) REJECT
+  m_c      phases.0.cell.c        patterns 100 of 100  verdict REJECTED
+           freed     137.2 /  98 dof (cut  122.1,  1.40/dir, p 0.00556) REJECT
+           tied      177.2 /  98 dof (cut  122.1,  1.81/dir, p 1.69e-06) REJECT
+  m_beta   phases.0.cell.beta     patterns 100 of 100  verdict kept
+           freed      29.0 /  97 dof (cut  121.0,  0.30/dir, p 1) keep
+           tied       60.9 /  97 dof (cut  121.0,  0.63/dir, p 0.998) keep
+  t_a      phases.1.cell.a        patterns 100 of 100  verdict kept
+           freed      12.9 /  98 dof (cut  122.1,  0.13/dir, p 1) keep
+           tied      304.5 /  98 dof (cut  122.1,  3.11/dir, p 5.11e-23) REJECT
+  t_b      phases.1.cell.b        patterns 100 of 100  verdict kept
+           freed     110.9 /  98 dof (cut  122.1,  1.13/dir, p 0.176) keep
+           tied       43.9 /  98 dof (cut  122.1,  0.45/dir, p 1) keep
+  t_c      phases.1.cell.c        patterns 100 of 100  verdict kept
+           freed     118.3 /  98 dof (cut  122.1,  1.21/dir, p 0.0795) keep
+           tied      112.0 /  98 dof (cut  122.1,  1.14/dir, p 0.158) keep
+  t_alpha  phases.1.cell.alpha    patterns 100 of 100  verdict kept
+           freed       8.5 /  97 dof (cut  121.0,  0.09/dir, p 1) keep
+           tied       10.0 /  97 dof (cut  121.0,  0.10/dir, p 1) keep
+  t_beta   phases.1.cell.beta     patterns 100 of 100  verdict kept
+           freed     110.1 /  97 dof (cut  121.0,  1.14/dir, p 0.171) keep
+           tied      130.4 /  97 dof (cut  121.0,  1.34/dir, p 0.0135) REJECT
+  t_gamma  phases.1.cell.gamma    patterns 100 of 100  verdict kept
+           freed      25.8 /  97 dof (cut  121.0,  0.27/dir, p 1) keep
+           tied       11.8 /  97 dof (cut  121.0,  0.12/dir, p 1) keep
+  p_a      phases.2.cell.a        patterns 100 of 100  verdict kept
+           freed     100.6 /  98 dof (cut  122.1,  1.03/dir, p 0.409) keep
+           tied       48.0 /  98 dof (cut  122.1,  0.49/dir, p 1) keep
+  p_b      phases.2.cell.b        patterns 100 of 100  verdict kept
+           freed      53.9 /  98 dof (cut  122.1,  0.55/dir, p 1) keep
+           tied       28.3 /  98 dof (cut  122.1,  0.29/dir, p 1) keep
+  p_c      phases.2.cell.c        patterns 100 of 100  verdict REJECTED
+           freed     383.1 /  98 dof (cut  122.1,  3.91/dir, p 2.42e-35) REJECT
+           tied      382.8 /  98 dof (cut  122.1,  3.91/dir, p 2.78e-35) REJECT
+  p_beta   phases.2.cell.beta     patterns 100 of 100  verdict kept
+           freed      27.0 /  97 dof (cut  121.0,  0.28/dir, p 1) keep
+           tied       61.6 /  97 dof (cut  121.0,  0.63/dir, p 0.998) keep
+  joint      1941.9 / 1367 dof (cut 1454.1,  1.42/dir, p 8.4e-23) REJECT
+  diag PARAMETRIC_FORM_REJECTED: parametric tie 'm_a' does not describe phases.0.cell.a across 100 of its 100 patterns with the other laws' targets freed: freeing the target in each would remove 215.0 times χ²_red·f² of χ², past the 95 % point 122.1 of χ² for 98 directions
+  diag PARAMETRIC_FORM_REJECTED: parametric tie 'm_b' does not describe phases.0.cell.b across 100 of its 100 patterns with the other laws' targets freed: freeing the target in each would remove 326.0 times χ²_red·f² of χ², past the 95 % point 122.1 of χ² for 98 directions
+  diag PARAMETRIC_FORM_REJECTED: parametric tie 'm_c' does not describe phases.0.cell.c across 100 of its 100 patterns with the other laws' targets freed: freeing the target in each would remove 137.2 times χ²_red·f² of χ², past the 95 % point 122.1 of χ² for 98 directions
+  diag PARAMETRIC_FORM_REJECTED: parametric tie 'p_c' does not describe phases.2.cell.c across 100 of its 100 patterns with the other laws' targets freed: freeing the target in each would remove 383.1 times χ²_red·f² of χ², past the 95 % point 122.1 of χ² for 98 directions
+
+VISIBILITY, from the seeding chain: per target, the patterns whose fit held the phase unseen, and those whose cell sat on the chain's window (±1.5 % edge, TOPAS's angle window)
+  m_a      unseen   0; on a bound   0
+  m_b      unseen   0; on a bound   0
+  m_c      unseen   0; on a bound   0
+  m_beta   unseen   0; on a bound   0
+  t_a      unseen   0; on a bound   0
+  t_b      unseen   0; on a bound   0
+  t_c      unseen   0; on a bound   0
+  t_alpha  unseen   0; on a bound   0
+  t_beta   unseen   0; on a bound   0
+  t_gamma  unseen   0; on a bound   0
+  p_a      unseen   0; on a bound   1 at T [293]
+  p_b      unseen   0; on a bound   4 at T [297, 293, 286, 284]
+  p_c      unseen   0; on a bound   0
+  p_beta   unseen   0; on a bound  35 at T [297, 295, 293, 290, 288, 286, 284, 282, 271, 263, 255, 250, 248, 246, 244, 242, 240, 238, 236, 233, 231, 229, 227, 225, 223, 221, 219, 216, 214, 212, 210, 208, 206, 204, 202]
+
+COMPARISONS
+untied    3501.0 s; status converged; iters [2, 3, 15, 165]; Rwp 13.531 %; χ² 1333788.3 with 3000 free; χ²r 2.294, f 2.897
+all laws    2176.1 s converged iters [2, 7, 13, 23] Rwp 13.694 % | refit Δχ²   32412.7 for 1367 fewer free; F/f²  1.23, p 7.69e-09
+          joint reading's gain   38014.5 for 1367 (refit Δχ² 32412.7 for 1367)
+diagnostics, all laws: ['BISO_NEGATIVE', 'BOUND_HIT', 'FLOOR_HIT', 'HIGH_CORRELATION', 'PARAMETRIC_FORM_REJECTED']
+diagnostics, untied:   ['BISO_NEGATIVE', 'BOUND_HIT', 'FLOOR_HIT']
+held in the all-laws fit (0): [] 
+
+coefficients (all-laws fit) beside TOPAS's
+  m_a      d0            7.30011 ± 0.000506
+  m_a      d1        0.001318485 ± 0.00032
+  m_b      d0           7.501368 ± 0.000503
+  m_b      d1         0.02031743 ± 0.00032
+  m_c      d0           7.659308 ± 0.000581
+  m_c      d1         0.01799176 ± 0.000364
+  m_beta   1            90.98944 ± 0.00282
+  m_beta   T        -0.001330715 ± 7.72e-05
+  m_beta   T^2      1.266974e-06 ± 7.47e-07
+  t_a      d0           7.318231 ± 0.000538
+  t_a      d1        -0.00658336 ± 0.00046
+  t_b      d0           7.488525 ± 0.000495
+  t_b      d1         0.01982781 ± 0.000419
+  t_c      d0           7.655819 ± 0.000827
+  t_c      d1         0.01944885 ± 0.000648
+  t_alpha  1            88.85969 ± 0.00363
+  t_alpha  T         0.001629811 ± 7.18e-05
+  t_alpha  T^2      1.875826e-05 ± 1.15e-06
+  t_beta   1             90.8388 ± 0.00405
+  t_beta   T         -0.00174269 ± 7.81e-05
+  t_beta   T^2     -4.485579e-05 ± 1.23e-06
+  t_gamma  1            90.77599 ± 0.0038
+  t_gamma  T        0.0007453797 ± 7.83e-05
+  t_gamma  T^2     -2.297921e-05 ± 1.22e-06
+  p_a      d0           5.274014 ± 0.000289
+  p_a      d1        0.006759397 ± 0.000404
+  p_b      d0           5.159135 ± 0.000271
+  p_b      d1        0.003322277 ± 0.000375
+  p_c      d0           7.660223 ± 0.000402
+  p_c      d1         0.01309255 ± 0.000586
+  p_beta   1            91.70281 ± 0.00546
+  p_beta   T         0.001085735 ± 0.000196
+  p_beta   T^2      9.996455e-06 ± 1.65e-06
+  TOPAS edges (a0 + g): m_a: 7.29683 + 0.00249, m_b: 7.50572 + 0.01699, m_c: 7.65825 + 0.01767, t_a: 7.31006 + -0.00010, t_b: 7.48913 + 0.01774, t_c: 7.65431 + 0.02119, p_a: 5.27377 + 0.00504, p_b: 5.15835 + 0.00331, p_c: 7.66032 + 0.01104
+
+each law against the chain's trajectory: weighted χ²_red of the chain points about the law's curve (points with an esd only)
+  m_a      n 100  χ²_red     2.68  max |z|   3.59  mean chain esd 0.00243
+  m_b      n 100  χ²_red     4.48  max |z|   4.25  mean chain esd 0.00235
+  m_c      n 100  χ²_red     1.19  max |z|   3.41  mean chain esd 0.00322
+  m_beta   n 100  χ²_red     0.51  max |z|   2.20  mean chain esd 0.04194
+  t_a      n 100  χ²_red     0.84  max |z|   1.51  mean chain esd 0.00202
+  t_b      n 100  χ²_red     1.50  max |z|   2.87  mean chain esd 0.00180
+  t_c      n 100  χ²_red     0.39  max |z|   1.39  mean chain esd 0.00290
+  t_alpha  n 100  χ²_red     1.02  max |z|   2.95  mean chain esd 0.03618
+  t_beta   n 100  χ²_red     5.89  max |z|   5.62  mean chain esd 0.03883
+  t_gamma  n 100  χ²_red     1.88  max |z|   4.08  mean chain esd 0.03900
+  p_a      n 100  χ²_red     4.30  max |z|   9.50  mean chain esd 0.00538
+  p_b      n 100  χ²_red     3.63  max |z|   9.71  mean chain esd 0.00474
+  p_c      n 100  χ²_red     1.33  max |z|   2.71  mean chain esd 0.00730
+  p_beta   n 100  χ²_red     0.58  max |z|   2.96  mean chain esd 0.11555
+
+figure    form_trajectories_0_99.png in the scratch directory
