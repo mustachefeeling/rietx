@@ -32,6 +32,12 @@ MomentEvidence.paired_magnitude
 MomentEvidence.paired_magnitude_esd
 MomentEvidence.paired_with
 ParameterRow.body
+ParentCell
+ParentCell.cell
+ParentCell.space_group
+ParentCell.strain
+ParentCell.transform
+Phase.parent_cell
 Phase.rigid_bodies
 RigidBody.atoms
 RigidBody.name
