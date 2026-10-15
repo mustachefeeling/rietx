@@ -60,24 +60,24 @@ on any MyST tree). `rietx.org/` is the landing page and the manual is `/manual.h
 
 ## Tasks
 
-- [ ] The tree: a directory (name it at the start; `docs/site/` or `docs/docs/`), `conf.py`
+- [x] The tree: a directory (`docs/docs/`, chosen over `docs/site/`), `conf.py`
       from the spike's, six tab indexes, the front page with its three cards, `-W` clean.
-- [ ] Theory tab infrastructure: `math_numfig`, the shared `references.bib`, the `{source}`
+- [x] Theory tab infrastructure: `math_numfig`, the shared `references.bib`, the `{source}`
       role and `myst_substitutions` shared with the old `conf.py` rather than copied, so one
       change reaches both trees. Importing the old `conf.py` runs `_write_glossary()` and
       `_copy_tutorials()` and sets its whole Sphinx config, so move the shared parts into a
       module both trees import.
-- [ ] Page-contract tests on the new tree: answer sentence, 50 000-character cap, no
+- [x] Page-contract tests on the new tree: answer sentence, 50 000-character cap, no
       back-reference opener.
-- [ ] Register guard and trail tests extended to the new tree; the Theory-link check for
+- [x] Register guard and trail tests extended to the new tree; the Theory-link check for
       Concepts and Guides pages.
-- [ ] `tests/test_manual_api.py`'s name resolution and partition read the new tree as well.
-- [ ] Skill: none. The skill is unchanged; WP-1981's "For agents" page links it.
+- [x] `tests/test_manual_api.py`'s name resolution and partition read the new tree as well.
+- [x] Skill: none. The skill is unchanged; WP-1981's "For agents" page links it.
 
 ## Acceptance
 
 ```sh
-.venv/bin/python -m sphinx -W -q -b html <new tree> <new tree>/_build/html
+.venv/bin/python -m sphinx -W -q -b html docs/docs docs/docs/_build/html
 .venv/bin/python -m pytest tests/test_manual.py tests/test_manual_api.py -n auto --dist loadgroup
 ```
 
