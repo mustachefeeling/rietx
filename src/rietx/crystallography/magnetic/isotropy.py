@@ -31,6 +31,7 @@ asserting it.
 
     magnetic_cell(space_group, k)                     -> MagneticCell
     candidates(space_group, site_xyz, k, ...)         -> CandidateSet
+    distortion_candidates(parent, k, sites=None)      -> tuple[DistortionCandidate, ...]
 
     compatible_cell(space_group)                      -> (3, 3) row-vector lattice, A
     reflections(lattice, d_min)                       -> ReflectionSet
