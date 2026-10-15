@@ -158,6 +158,12 @@ usable for the synthetic phantom's reconstruction, as a dev-only dependency.
     python for 3 000 points of a simple phase. Plan cross-pattern
     parallelism as processes, not threads (WP-1325 § Measured: where the
     joint Jacobian's time goes).
+- **2026-10-15, from WP-1960: the texture model this WP's Non-goals waits on
+  has landed.** `Phase.texture` refines a spherical-harmonics texture under
+  cylindrical sample symmetry, one sample angle per geometry. Texture
+  tomography stays a non-goal here, but its reason is now "not this WP" rather
+  than "texture does not exist". A per-voxel texture would need the
+  non-cylindrical sample symmetry that WP-1960 left out (its Non-goals).
 
 ## Non-goals
 
