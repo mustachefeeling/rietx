@@ -7,7 +7,7 @@ This is how you separate the instrument's peak widths from the sample's. The ins
 
 ## Calibrate on the standard
 
-Use the `lab_calibrate` plan. It frees the scale, background, zero shift, displacement, the five width terms and the emission-line weights. It never frees the cell.
+Use the `lab_calibrate` plan. It frees the scale, background, zero shift, specimen displacement, the five width terms, the emission-line weights, the two axial-divergence terms and the atoms' Biso. It never frees the cell.
 
 <!-- api-doc: no-exec — it refines a standard and writes a file -->
 ```python
@@ -19,7 +19,7 @@ rx.save_instrument_profile(ref.fitted_instrument, "cu_ka_10mm.json")
 ```
 
 :::{note}
-`save_instrument_profile` drops what belongs to one specimen: the background, the specimen displacement and transparency, the surface roughness and the absorption.
+`save_instrument_profile` drops what belongs to one specimen: the background, the specimen displacement and transparency, the surface roughness, the absorption and any extra components.
 :::
 
 ## Refine each sample from the saved profile
@@ -37,4 +37,4 @@ ref.fit(data, plan="lab_sample_refine")
 Don't free the instrument widths again on a sample. That undoes the separation the standard gave you.
 :::
 
-The widths can't go below a floor of {const}`MIN_GAMMA_G2` deg². Read why in [](#sec-caglioti).
+The squared Gaussian width can't go below a floor of {const}`MIN_GAMMA_G2` deg². Read why in [](#sec-caglioti).

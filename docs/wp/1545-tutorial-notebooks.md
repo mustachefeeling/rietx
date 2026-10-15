@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: 🔄 2026-10-07 — in the maintainer's review rounds (two done); every task done, PR #812 open
 Track: Render what the fit already knows
-Depends on: 1544 (readable objects in a notebook)
+Depends on: 1544 (readable objects in a notebook); 1985 (the report text the rewritten notebooks show)
 
 ## Goal
 
@@ -171,6 +171,11 @@ and what the difference curve shows; QPA.
   is that cell's committed output, and a test holds both there.
 - [x] Can uPlot replace matplotlib in the library? Answered no, with the
   measurements in the handover entry; nothing changed.
+
+**The rebuild's direction (folded 2026-10-16 from WP-1975; detail in `### Inherited`):**
+
+- [ ] After WP-1985 lands: the notebooks teach rietx one step a cell, 02 splits,
+  the agent-checking boxes leave, and native displays replace the scaffolding.
 
 ## Acceptance
 

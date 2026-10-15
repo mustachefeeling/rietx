@@ -10,8 +10,15 @@ from make_screenshots import chromium_path  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
 ROOT = str(Path(__file__).resolve().parents[1] / "site-sphinx")
-handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=ROOT)
-handler.log_message = lambda *a: None
+
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    # An attribute set on the partial never reaches the handler instance; a subclass does.
+    def log_message(self, *a):
+        pass
+
+
+handler = functools.partial(Quiet, directory=ROOT)
 httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 8813), handler)
 threading.Thread(target=httpd.serve_forever, daemon=True).start()
 with sync_playwright() as p:

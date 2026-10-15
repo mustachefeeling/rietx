@@ -606,7 +606,8 @@ is the second half of the two-step lab workflow:
 
 <!-- api-doc: no-exec — it refines a standard and writes a file -->
 ```python
-result = rx.refine(standard_data, standard, instrument, plan="lab_calibrate")
+ref = rx.Refinement(standard, instrument)
+ref.fit(standard_data, plan="lab_calibrate")
 rx.save_instrument_profile(ref.fitted_instrument, "cu_ka_10mm.json")
 
 instrument = rx.load_instrument_profile("cu_ka_10mm.json")

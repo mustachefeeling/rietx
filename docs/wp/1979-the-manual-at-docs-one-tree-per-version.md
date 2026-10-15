@@ -31,16 +31,31 @@ release lacked, and `docs/manual/using/compatibility.md` tells users to pin.
 - keeps the reader on the same page when they switch;
 - shows its own version-warning banner on `dev` only.
 A meta-refresh `index.html` at `/docs/` redirects to `stable/`. One built version of the
-spike's nine pages was 6.3 MB; measure the real manual before choosing how many minors to keep.
+spike's nine pages was 6.3 MB. The spike's build then wrote Sphinx's `.doctrees` pickles into
+the site, so that figure includes them. Measure the real manual without them, before
+choosing how many minors to keep.
 
 **Today's deploy** (`.github/workflows/pages.yml`) builds once and deploys one fresh site, so
 nothing from an earlier build survives. Keeping versions needs an accumulating deploy. Two
 options to weigh at the start: a `gh-pages` branch that each release adds a directory to, or a
 workflow that rebuilds every kept tag. The landing page stays at `/`.
 
-**The package's links.** `rietx._about.DOCS_URL` is `"https://rietx.org"` today, and
-`rietx.help` builds per-entry anchors on it (`help.py:84`). Under this WP they point into the
-installed version's tree: `dev` for a `.dev0` build, the `major.minor` otherwise.
+**The package's links.** `rietx._about.DOCS_URL` is `"https://rietx.org"` today. Each
+`HelpEntry.anchor` is a `page.html#id` relative to the old tree's root (`help.py:84`), and
+the GUI joins the two (`gui/session.py:265`, `gui/src/lib/help.ts`). Under this WP they point
+into the installed version's tree: `dev` for a `.dev0` build, the `major.minor` otherwise.
+Three things follow:
+- Every anchor today names an old-tree page (`profiles.html`, `background.html`,
+  `using/data.html` and six more). None of those paths exists under `/docs/<version>/` until
+  WP-1986 moves Theory. So the repoint waits for the anchors' pages, or the anchors move with
+  it. `tests/test_help.py::test_every_anchor_resolves_in_the_built_manual` checks the old
+  tree's build, so it stays green while every popover link 404s. Point it at the new tree in
+  the same change.
+- `DOCS_URL` is also quoted by the README, `pyproject.urls` and the skill's frontmatter, which
+  cannot follow the installed version. Keep it as the site root and add the versioned base
+  beside it.
+- The `{source}` role links `blob/main` (`docs/manual/conf.py` `_SOURCE_REF`). A tagged build
+  must link its tag, or its line numbers drift.
 
 ## Non-goals
 
@@ -54,8 +69,10 @@ installed version's tree: `dev` for a `.dev0` build, the `major.minor` otherwise
       the `/docs/` redirect, with the landing page untouched.
 - [ ] Redirect stubs: a generator for a retired chapter's old URL (meta-refresh plus
       `rel=canonical`), and a test that every retired path has one.
-- [ ] `DOCS_URL` and `help.py`'s anchors point at the installed version; a test pins the
-      mapping from `rietx.__version__` to the URL.
+- [ ] A versioned docs base beside `DOCS_URL`, and `help.py`'s anchors on it once their
+      pages exist in the new tree; a test pins the mapping from `rietx.__version__` to the
+      URL, and the anchor test builds the new tree.
+- [ ] The `{source}` role links the build's tag rather than `main`.
 - [ ] `docs/RELEASING.md` gains the step that adds a version, and the step that prunes one.
 - [ ] Skill: none; the skill links the docs through `DOCS_URL`.
 
