@@ -1,0 +1,44 @@
+version: 1
+project:
+  title: rietx
+  github: https://github.com/yue-here/rietx
+  bibliography:
+    - references.bib
+  numbering:
+    equation: true
+  plugins:
+    - type: executable
+      path: plugins/rx.py
+  toc:
+    - file: index.md
+    - file: start.md
+    - file: guides/index.md
+      children:
+        - file: guides/calibrate.md
+    - file: concepts.md
+    - file: reference.md
+    - file: theory/index.md
+      children:
+        - file: theory/profiles.md
+    - file: switching.md
+site:
+  template: book-theme
+  title: rietx
+  nav:
+    - title: Start
+      url: /start
+    - title: Guides
+      url: /guides
+    - title: Concepts
+      url: /concepts
+    - title: Reference
+      url: /reference
+    - title: Theory
+      url: /theory
+    - title: Switching
+      url: /switching
+  options:
+    folders: true
+    logo_text: rietx
+  parts:
+    navbar_end: parts/version.md

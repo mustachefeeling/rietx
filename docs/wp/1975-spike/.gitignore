@@ -1,0 +1,11 @@
+venv
+figures/
+myst/parts/
+site-sphinx/
+site-myst/
+shots/
+sphinx-md/
+_build/
+tools/myst/
+tools/vale
+vale/styles/Microsoft/
