@@ -1,9 +1,8 @@
 # WP-1922 — a rigid body the data reject is named
 
-Milestone: unscheduled · Status: 🔄 2026-10-15 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-15 — `check_rigid_bodies` shipped in 1.8.0 (PR #822); Hamilton's F written once (PR #988)
 Track: What fires, and what stays silent
 Depends on: WP-1805 (the `RigidBody` schema)
-Priority: P3 2026-10-08 — down from P2: a wrong body converges with a worse GOF and nothing names it, but nothing can start until 1805 lands
 
 ## Goal
 
@@ -91,6 +90,41 @@ among the worst three, and the right body does not fire.
 - Waser, J. (1963). *Acta Cryst.* 16, 1091; Watkin, D. (2008). *J. Appl. Cryst.* 41, 491.
 
 ## Handover log
+
+- **2026-10-15** — closed. The rigid-body check from #822 has shipped since
+  1.8.0, and this session tidied what its own handover left open. The check's
+  verdict and the F and p it reports now come from one function. Before, the
+  check wrote Hamilton's F a second time beside the package's test. The check's
+  numbers did not move: the refactor is algebraically the same arithmetic, and
+  the review confirmed it edge case by edge case.
+  - **Done.** `report.layer2._hamilton_f` returns F and its denominator
+    degrees of freedom, or `None` where the test is undefined.
+    `hamilton_justified` and `rigid_body_misfit` both read it.
+    `compile_phase_sites`, the atom labels and the `cartesian_frame` import run
+    once per phase, where they had run once per body. The statistics test now
+    pins `f_statistic`, `p_value` and the Hamilton verdict against the
+    package's functions. The acceptance command named
+    `tests/test_rigid_body_misfit.py`, which never existed. The tests are in
+    `tests/test_body_misfit.py`, and the command now says so.
+  - **Pruned.** The `### Inherited` entry (2026-10-11 triage) reported #822
+    open and 1805's block stale. #822 merged the same day, so nothing in it
+    was still true. #822's first left-open, the module docstring's stale
+    torsion sentence, had already gone in WP-1954 (`b1e4542f`).
+  - **Review.** `/code-review high --fix` found the test gap and three
+    per-body cleanups, all applied. It declined one finding: F is still
+    computed twice per body, once for the row and once inside
+    `hamilton_justified`, whose verdict compares F against `ppf(1 − α)`.
+    Folding that into one `p < α` call could flip a verdict at the threshold
+    for `indexing/extinction.py`. That would be a behaviour change, so it is
+    left.
+  - **Measured.** Fast selection on `b1a40a82` (`origin/main` `c7d2303a`
+    merged, nothing new), macOS arm64, `[dev]`, Python 3.12.10: 10476 passed,
+    191 skipped, 1 xfailed and 1 failed. The failure was
+    `test_the_wp_index_is_the_generators_output`, because this close edited
+    the status line mid-run; it passes on the final tree. The session added
+    no test, only assertions to an existing one, so no count should move. The
+    full selection did not run: nothing here can move a measured number.
+  - **Next.** Nothing on this WP. The maintainer merges PR #988.
 
 - **2026-10-11** — every task landed from outside: PR #822 (`mustachefeeling`),
   merged as `f7ab7096` after three review rounds. It closes #775.
