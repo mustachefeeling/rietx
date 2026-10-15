@@ -142,14 +142,14 @@ from .structure import Cell
 #: flat-topped synthetic silicon, 34 usable components on 11 lines become 18;
 #: over the 16 IUCr round-robin lab patterns 789 usable components become 782
 #: (``cpd-4`` 76 → 75).
-#: 1.12: ``determine_extinction_symbol(restrict=)`` takes declared facts
+#: Also 1.11 (#935, one bump per release cycle): ``determine_extinction_symbol(restrict=)`` takes declared facts
 #: (:class:`ExtinctionPrior`: Sohncke, centrosymmetric, polar) as a filter on
 #: each class's members; ``ExtinctionCandidate`` gains ``excluded_groups`` and
 #: ``laue_classes``, ``ExtinctionScreen`` gains ``prior``, and
 #: ``LAUE_CLASS_NOT_SEPARABLE`` fires on every screen whose leading class
 #: spans two Laue classes (a hexagonal ``P 63 - -``: 6/m and 6/mmm).  Without
 #: a declaration no ranking and no ``best_or_none`` moves.
-INDEXING_THRESHOLDS_VERSION = "1.12"
+INDEXING_THRESHOLDS_VERSION = "1.11"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
