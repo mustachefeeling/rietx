@@ -1545,8 +1545,9 @@ why, in four cases:
 
 - A Debye-Scherrer histogram. GSAS-II's sample angle there follows θ, so no
   constant converts it.
-- Histograms that disagree. A phase here has one texture, which a joint fit
-  shares.
+- Histograms that disagree, a histogram where the phase has no texture
+  included. A phase here has one texture, which a joint fit shares. Histograms
+  that differ only in the refine flag agree, and the texture is freed.
 - A term GSAS-II 5.8.4 evaluates wrongly. Its function takes two values on one
   set of equivalent reflections, so its coefficient matches no invariant
   function. This happens for every n ≠ 0 term in −1 and 2/m, for every term on

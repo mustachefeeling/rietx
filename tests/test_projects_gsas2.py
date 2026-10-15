@@ -1183,7 +1183,12 @@ def test_the_invariant_terms_of_a_defective_class_are_carried(tmp_path):
     ({"PWDR a.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.3})),
       "PWDR b.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.2}))},
      "different coefficients"),
-], ids=["debye-scherrer", "two-histograms-disagree"])
+    ({"PWDR a.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.3})),
+      "PWDR b.xye": ("Bragg-Brentano", ["MD", 1.0, False, [0, 0, 1], 0, {}, [""], 0.1])},
+     "different coefficients"),
+    ({"PWDR a.xye": ("Bragg-Brentano", _sh(5, {"C(2,0)": 0.3}))}, "even orders"),
+], ids=["debye-scherrer", "two-histograms-disagree", "one-histogram-has-none",
+        "odd-order"])
 def test_a_texture_no_constant_converts_is_reported(tmp_path, histograms, why):
     tree = _textured_project("P 4/m m m", (4.0, 4.0, 6.0, 90.0, 90.0, 90.0), histograms)
     notes: list = []
@@ -1195,12 +1200,20 @@ def test_a_texture_no_constant_converts_is_reported(tmp_path, histograms, why):
 
 
 def test_two_histograms_stating_one_texture_carry_it(tmp_path):
-    prefo = _sh(4, {"C(2,0)": 0.3})
+    """One flag set and one clear is one texture, and it merges free."""
     tree = _textured_project("P 4/m m m", (4.0, 4.0, 6.0, 90.0, 90.0, 90.0), {
-        "PWDR a.xye": ("Bragg-Brentano", prefo),
-        "PWDR b.xye": ("Bragg-Brentano", prefo)})
+        "PWDR a.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.3}, refined=False)),
+        "PWDR b.xye": ("Bragg-Brentano", _sh(4, {"C(2,0)": 0.3}, refined=True))})
     structure = to_structure(read_gsas2_gpx(_write_gpx(tmp_path / "two.gpx", tree)))
-    assert structure.phases[0].texture.coefficients["c2_0"].value == pytest.approx(-0.15)
+    (c,) = structure.phases[0].texture.coefficients.values()
+    assert c.value == pytest.approx(-0.15) and c.vary
+
+
+def test_a_numpy_integer_order_is_read(tmp_path):
+    tree = _textured_project("P 4/m m m", (4.0, 4.0, 6.0, 90.0, 90.0, 90.0), {
+        "PWDR a.xye": ("Bragg-Brentano", _sh(np.int64(4), {"C(2,0)": 0.3}))})
+    model = read_gsas2_gpx(_write_gpx(tmp_path / "np.gpx", tree))
+    assert model.hap[("widget", "PWDR a.xye")].texture.order == 4
 
 
 def test_a_cubic_order_2_entry_loses_nothing_and_says_so(tmp_path):

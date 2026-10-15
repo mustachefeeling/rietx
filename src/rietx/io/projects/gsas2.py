@@ -1091,7 +1091,8 @@ def _hap(phase: str, histogram: str, data: dict) -> Gsas2Hap:
             order = prefo[4] if len(prefo) > 4 else 0
             terms = prefo[5] if len(prefo) > 5 and isinstance(prefo[5], dict) else {}
             texture = Gsas2Texture(
-                order=int(order) if isinstance(order, (int, float)) else 0,
+                # a numpy integer is no ``int``, so read it as a number
+                order=int(o) if (o := _float(order)) is not None else 0,
                 coefficients={str(k): f for k, v in terms.items()
                               if (f := _float(v)) is not None},
                 refined=_flag(prefo[2]))
@@ -1575,9 +1576,9 @@ def _gsas2_texture(model: Gsas2Model, chosen: Gsas2Phase, sg,
         term_name,
         texture_names,
     )
-    entries = [(hist, hap.texture) for (owner, hist), hap in model.hap.items()
-               if owner == chosen.name and hap.used and not hap.lebail
-               and hap.texture is not None and hap.texture.order >= 2]
+    fitted = [(hist, hap.texture) for (owner, hist), hap in model.hap.items()
+              if owner == chosen.name and hap.used and not hap.lebail]
+    entries = [(hist, t) for hist, t in fitted if t is not None and t.order >= 2]
     if not entries:
         return None, []
     texture = entries[0][1]
@@ -1593,8 +1594,13 @@ def _gsas2_texture(model: Gsas2Model, chosen: Gsas2Phase, sg,
                 f"`model.hap[…].texture`"),
             where=["phases.0"])]
 
-    if any(t != texture for _, t in entries[1:]):
-        return note("the histograms state different coefficients, and a phase "
+    # The one flag is a protocol, not a texture: histograms that agree on the
+    # numbers and differ only in it merge free, as the writers merge a flag.
+    if len(entries) < len(fitted) or any(
+            (t.order, t.coefficients) != (texture.order, texture.coefficients)
+            for _, t in entries[1:]):
+        return note("the histograms state different coefficients (a histogram "
+                    "the phase is fitted in with none states all zero), and a phase "
                     "here has one texture, which a joint fit shares.  The phase "
                     "builds without it, so the intensities it explained are not")
     by_name = {h.name: h for h in model.histograms}
@@ -1609,6 +1615,10 @@ def _gsas2_texture(model: Gsas2Model, chosen: Gsas2Phase, sg,
                 f"its coefficients to a geometry this package models.  The "
                 f"phase builds without it, so the intensities it explained "
                 f"are not")
+    if texture.order % 2:
+        return note(f"GSAS-II generates even orders only, so order {texture.order} "
+                    f"names no series this package can build.  The phase builds "
+                    f"without it, so the intensities it explained are not")
     if texture.order < lowest_order(sg):
         return note(f"a cubic class has no term below order {lowest_order(sg)}, "
                     f"so GSAS-II's P is 1 at every reflection and nothing is lost",
@@ -1616,25 +1626,25 @@ def _gsas2_texture(model: Gsas2Model, chosen: Gsas2Phase, sg,
     allowed = set(texture_names(sg, texture.order, chosen.cell))
     laue = sg.laue_str()
     values: dict[str, float] = {}
+    root2 = False  # whether any carried term took GSAS-II's √2
     defects: dict[str, list[str]] = {}
     unknown: list[str] = []
     for gname, value in texture.coefficients.items():
         m = _GSAS2_TERM.fullmatch(gname.replace(" ", ""))
-        if m is None:
-            unknown.append(gname)
+        if m is not None and int(m[1]) > texture.order:
+            continue  # GSAS-II evaluates only the names its order generates
+        if m is None or term_name(int(m[1]), int(m[2])) not in allowed:
+            if value != 0.0:  # a zero loses nothing, as a defective term's does
+                unknown.append(gname)
             continue
         degree, n = int(m[1]), int(m[2])
-        if degree > texture.order:
-            continue  # GSAS-II evaluates only the names its order generates
-        if term_name(degree, n) not in allowed:
-            unknown.append(gname)
-            continue
         defect = _gsas2_texture_defect(sg, n)
         if defect:
             if value != 0.0:
                 defects.setdefault(defect, []).append(gname)
             continue
         norm = math.sqrt(2.0) if laue in _GSAS2_ROOT2_LAUE and n != 0 else 1.0
+        root2 = root2 or norm != 1.0
         p_l0 = float(np.polynomial.legendre.Legendre.basis(degree)(0.0))
         values[term_name(degree, n)] = value * norm * p_l0
     if unknown:
@@ -1659,11 +1669,11 @@ def _gsas2_texture(model: Gsas2Model, chosen: Gsas2Phase, sg,
             f"plate normal, ψ = 0°, so each C is GSAS-II's times P_l(0)"
             + (", and times √2 on the n ≠ 0 terms, whose GSAS-II functions "
                f"have norm √2 in Laue class {laue}"
-               if laue in _GSAS2_ROOT2_LAUE else "")
+               if root2 else "")
             + ".  Fitted under the `bragg_brentano` geometry, the multipliers "
               "are GSAS-II's.  The file's numbers are on `model.hap[…].texture`"),
         where=[f"phases.0.texture.{name}" for name in values])]
-    return (texture.order, values, texture.refined), notes
+    return (texture.order, values, any(t.refined for _, t in entries)), notes
 
 
 def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
