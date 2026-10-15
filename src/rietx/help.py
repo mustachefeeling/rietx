@@ -1478,6 +1478,28 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "evidence, not a verdict. A line a person placed is never tested."
         ),
     ),
+    "unresolved_split": HelpEntry(
+        title="Split the data cannot resolve",
+        label="split",
+        description=(
+            "This component sits closer to a comparable neighbour in its group "
+            "than two lines of the fitted shape can and still show a dip "
+            "between them. The split is told only through the peak shape, so "
+            "the pair is reported as one line: the stronger component, with "
+            "its position uncertainty widened to reach this one. Kept in the "
+            "list and unusable."
+        ),
+    ),
+    "width_capped": HelpEntry(
+        title="Width ran into its bound",
+        label="too wide",
+        description=(
+            "The fit wanted this group broader than five times the pattern's "
+            "own width law at its angle allows. It is a hump, such as "
+            "background the envelope did not follow, not a line of the phase "
+            "that set the width law. Kept in the list and unusable."
+        ),
+    ),
 }
 
 #: One entry per value of :attr:`~rietx.schemas.indexing.ObservedPeak.origin`
@@ -1564,6 +1586,22 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "component first. Components under the bar are flagged weak and "
             "stay usable. A component that absorbs a shape or "
             "background misfit carries real intensity and is not reached."
+        ),
+    ),
+    "PEAK_UNRESOLVED_SPLIT": HelpEntry(
+        title="Splits reported as one line",
+        description=(
+            "Pairs of comparable components closer than two lines of the "
+            "fitted shape can be and still show a dip. Each pair is reported "
+            "as one line whose position uncertainty reaches both."
+        ),
+    ),
+    "PEAK_WIDTH_CAPPED": HelpEntry(
+        title="Components broader than the width law allows",
+        description=(
+            "Components whose width ran into five times the pattern's own "
+            "width law. They are humps rather than lines and are withheld "
+            "from indexing."
         ),
     ),
     "PEAK_ASYMMETRY_UNMODELLED": HelpEntry(
