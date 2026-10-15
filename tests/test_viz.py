@@ -245,13 +245,15 @@ def test_the_vlm_montage_refuses_a_title_by_name(fitted, tmp_path):
 #: intensity-axis code into a helper and added ``title=`` — and matched by the
 #: tree after it.  Pinned where it was captured, as the bit-identity goldens
 #: are (``tests/test_backend_shim.py``): a PNG's bytes follow matplotlib's and
-#: FreeType's versions, not only this code.
+#: FreeType's versions, not only this code.  Re-captured under matplotlib
+#: 3.11.2 from ``origin/main`` at ``703d3fbd`` and matched by WP-1971's tree,
+#: because under the 3.11.1 pin the test had been skipping everywhere.
 PRE_TITLE_RENDER = {
-    "default": "16aa396da1565046be969cbca4e458c57598e5ac7055a53e67997bb1064a6077",
-    "weighted": "d19f16a14a49342cd105305fdb1a8b408b957076412621fbb9252b236ef9f459",
-    "log": "2b3d16a670d3462256bc64dcd3cad94dc262b04a9be527f4ae1e08efeffbf379",
+    "default": "5f6b7e318ea0aacaecd0dbaa16a334c9ef0fc1d687c2fe181b10ffdf3461c84f",
+    "weighted": "cff5d9a9368c173a6536a2ee51a58818faf88a471835998b1f33656c0fdab472",
+    "log": "1a7126b2edc25e1823efdf2eaf97dd49150b5160652737d99727aade1f550e12",
 }
-PINNED_ON = (("darwin", "arm64"), "3.11.1")
+PINNED_ON = (("darwin", "arm64"), "3.11.2")
 
 
 def _pinned_result(result):
@@ -396,6 +398,82 @@ def test_the_dark_copy_is_the_dark_figure_pixel_for_pixel(fitted, name):
     _pixels(light)
     twin = _darkened(copy.deepcopy(light))
     assert np.array_equal(_pixels(twin), _pixels(draw(*fitted, style="dark")))
+    plt.close("all")
+
+
+# -- WP-1971: the figure a plot hands back, once a caller has changed it ----
+
+def _notebook_size(fig) -> tuple[int, int]:
+    """The notebook image's size in pixels, as the encoder frames it."""
+    from PIL import Image
+
+    from rietx.viz.plots import _notebook_png
+
+    return Image.open(io.BytesIO(_notebook_png(fig)[0])).size
+
+
+def _zoom(ax, axis: str, lo: float, hi: float) -> None:
+    """Narrow ``ax`` to the fractions ``lo``-``hi`` of its own range."""
+    get, put = ((ax.get_xlim, ax.set_xlim) if axis == "x"
+                else (ax.get_ylim, ax.set_ylim))
+    a, b = get()
+    put(a + lo * (b - a), a + hi * (b - a))
+
+
+@pytest.mark.parametrize("name", ["result", "weighted", "sqrt, two phases", "pattern"])
+@pytest.mark.parametrize("zoom", [("x", 0.4, 0.5), ("y", 0.0, 0.05), ("y", 0.5, 1.0)])
+def test_a_callers_zoom_keeps_the_notebook_image_its_designed_size(fitted, name, zoom):
+    """The gutter labels and the statistics annotation stay beside the axes,
+    and a label or spine the zoom leaves outside them is clipped.  Placed in
+    data coordinates, a zoom to a tenth of the x range made the image 7.7
+    times wider and one to the lowest twentieth of y 15 times taller.  The
+    height may grow by the clip's margin, ``_CLIP_MARGIN`` of the axes
+    height at each end, which a clipped spine reaches: 15 px of 871."""
+    import matplotlib.pyplot as plt
+
+    fig = DRAWINGS[name](*fitted)
+    width, height = _notebook_size(fig)
+    _zoom(fig.axes[0], *zoom)
+    zoomed_width, zoomed_height = _notebook_size(fig)
+    assert zoomed_width <= width
+    assert zoomed_height <= 1.05 * height
+    plt.close("all")
+
+
+def test_a_gutter_label_the_zoom_leaves_outside_the_view_is_hidden_whole(fitted):
+    """A label whose height a ``set_ylim`` leaves just above the view is not
+    drawn at all, rather than drawn sliced by a clip edge."""
+    import matplotlib.pyplot as plt
+
+    fig = DRAWINGS["pattern"](*fitted)
+    ax = fig.axes[0]
+    (label,) = [t for t in ax.texts if t.get_text() == "observed"]
+    lo, _ = ax.get_ylim()
+    ax.set_ylim(lo, lo + (label.xy[1] - lo) / 1.018)
+    _notebook_size(fig)
+    assert not label.get_tightbbox().width > 0
+    plt.close("all")
+
+
+@pytest.mark.parametrize("name", list(DRAWINGS))
+def test_a_returned_figure_pickles_and_comes_back_the_same(fitted, name, monkeypatch):
+    """A figure pickles as any matplotlib figure does, and loads to the same
+    pixels.  The class is found by name through the module's ``__getattr__``.
+    The cached class is dropped before loading, as in a fresh process, so the
+    load has to build it."""
+    import pickle
+
+    import matplotlib.pyplot as plt
+
+    from rietx.viz import plots
+
+    fig = DRAWINGS[name](*fitted)
+    blob = pickle.dumps(fig)
+    monkeypatch.setattr(plots, "_FIGURE_CLASS", None)
+    back = pickle.loads(blob)
+    assert type(back) is plots._NotebookFigure
+    assert back._rietx_style == fig._rietx_style
+    assert np.array_equal(_pixels(back), _pixels(fig))
     plt.close("all")
 
 
