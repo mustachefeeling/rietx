@@ -79,6 +79,15 @@ from `SeriesResult`, so neither surface invents a second set of names.
 
 ### Inherited
 
+- **2026-10-15, from [1325](1325-parametric-series.md), from @mustachefeeling's comments on PR #977: the joint fit and long chains.** A joint fit
+  keeps no history (`multi.py:1051`), though it now emits events (#926).
+  With those, `rietx events` could print one line per parametric equation:
+  subset size, form verdict, and whether a detector fired inside the
+  subset. On long chains, pair events in order, never by
+  `(series_index, series_pass)`, since indices recur on reseeds and
+  restarted segments. One segmented chain summed 700 s of fit time against
+  148 s of wall time. On #207, 3 of 3 independent agents turned history off.
+
 - **2026-10-11, from the issue triage (#207, #223, in PR #902): Tasks 1 and 3
   are open as the reporter's PR.** PR #902 (opened 2026-10-11, fork) writes a
   `record: "run"` header line on every opened `EventStream` (#223) and adds

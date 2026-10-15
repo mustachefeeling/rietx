@@ -1227,7 +1227,8 @@ class SeriesResult(Base):
                     "parametric= takes a joint fit with parametric declarations "
                     "(refine_multi(..., coordinates=, parametric=[...])); this "
                     "result declared none, so it has no coefficients to print")
-            lines += _parametric_lines(parametric.parametric, parametric.parametric_form)
+            lines += _parametric_lines(parametric.parametric, parametric.parametric_form,
+                                       parametric.parametric_form_joint)
         if deliverable is not None:
             lines += self._deliverable_lines(deliverable, parametric)
         return "\n".join(lines)
@@ -1327,12 +1328,15 @@ class SeriesResult(Base):
         # through them afterwards weights each by an esd conditional on its
         # own pattern; a joint parametric fit measures the coefficients
         if parametric is not None:
-            ties = sorted({c.tie for c in parametric.parametric or []})
-            refused = [t.tie for t in parametric.parametric_form or [] if t.rejected]
+            names = sorted({c.equation for c in parametric.parametric or []})
+            refused = [t.equation for t in parametric.parametric_form or [] if t.rejected]
             line = (f"    functional form: measured jointly "
-                    f"({', '.join(ties)}; coefficients above)")
+                    f"({', '.join(names)}; coefficients above)")
+            joint = parametric.parametric_form_joint
             if refused:
                 line += f"; REJECTED by its data: {', '.join(refused)}"
+            elif joint is not None and joint.rejected:
+                line += "; REJECTED by its data jointly, though no equation alone"
             lines.append(line)
         else:
             lines.append("    functional form: NOT measured — a chain measures "

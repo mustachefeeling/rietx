@@ -55,7 +55,12 @@ from .params.multi import (
     _longest_wavelength,
     _unscoped,
 )
-from .params.parametric import FORM_TEST_LEVEL, coefficient_rows, form_tests
+from .params.parametric import (
+    FORM_TEST_LEVEL,
+    coefficient_rows,
+    form_tests,
+    parametric_equation,
+)
 from .params.vector import is_variable_path
 from .refine import (
     _PHASE_PREFIX,
@@ -115,7 +120,12 @@ from .report.magnetic import moment_angle_stationary_diagnostics
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
 from .schemas.instrument import Instrument
-from .schemas.parametric import CoordinateTable, ParametricFormTest, ParametricTie
+from .schemas.parametric import (
+    CoordinateTable,
+    ParametricEquation,
+    ParametricFormReading,
+    ParametricFormTest,
+)
 from .schemas.pattern import PatternData, require_two_theta
 from .schemas.results import (
     HistogramResult,
@@ -277,6 +287,10 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_parametric_form_diagnostics": (
         (FIT,), "joint-only (WP-1325): a declaration's form is tested against "
                 "every pattern of its subset at once"),
+    "_parametric_unseen_diagnostics": (
+        (FIT,), "joint-only (WP-1325): one equation sets its target across its "
+                "subset, so the patterns that cannot see it are told once per "
+                "declaration, naming each"),
     "_fixed_literal_diagnostics": (
         (FIT,), "a plan read (#803, WP-1341), through _joint_fixed_literals: "
                 "each histogram's table is asked under the joint matching rule, "
@@ -428,7 +442,7 @@ def _joint_column_reach(mtable) -> dict[str, list[str]]:
     spells it (``mtable._canonical``): a shared column is one name in every
     table, so a parametric coefficient (WP-1325) driving each pattern's own
     cell reaches ``hist.0.phases.0.cell.a``, ``hist.1.phases.0.cell.a`` …
-    rather than one bare name standing for all of them.  With no tie every
+    rather than one bare name standing for all of them.  With no parametric equation every
     column reaches itself and its symmetry dependents, which share its phase,
     so every freeze reading this decides exactly what the old name test did.
     """
@@ -906,7 +920,7 @@ class MultiHistogramRefinement:
     with each pattern's own starting values, agreeing on every shared path
     (:class:`~rietx.params.multi.MultiParameterTable`).  ``parametric``
     declares parameters as functions of each pattern's ``coordinates``
-    (:class:`~rietx.schemas.parametric.ParametricTie`,
+    (:class:`~rietx.schemas.parametric.ParametricEquation`,
     :class:`~rietx.schemas.parametric.CoordinateTable`); every refusal is
     made here, before any solve, and :attr:`parametric` holds the
     declarations as resolved.  The answer's coefficients are
@@ -918,7 +932,7 @@ class MultiHistogramRefinement:
                  instruments: list[Instrument], *,
                  sharing: SharingMap | None = None,
                  coordinates: CoordinateTable | None = None,
-                 parametric: list[ParametricTie] | None = None,
+                 parametric: list[ParametricEquation] | None = None,
                  backend: str = "numpy", solver: str = DEFAULT_SOLVER):
         if backend != "numpy":
             from .backend import resolve_backend
@@ -983,7 +997,7 @@ class MultiHistogramRefinement:
         return self.mtable.n_histograms
 
     @property
-    def parametric(self) -> list[ParametricTie]:
+    def parametric(self) -> list[ParametricEquation]:
         """The parametric declarations as resolved, reference and scale frozen.
 
         Resolved once, at construction, from the coordinates present then
@@ -992,7 +1006,7 @@ class MultiHistogramRefinement:
         reference and scale, never recomputed from whichever patterns are in
         it.  Empty when nothing was declared.
         """
-        return [r.tie for r in self.mtable.parametric]
+        return [r.equation for r in self.mtable.parametric]
 
     @property
     def fitted_structures(self) -> list[Structure]:
@@ -1773,10 +1787,17 @@ class MultiHistogramRefinement:
         # what a parametric declaration did to each pattern's dependent that
         # no bound the solve saw could stop (WP-1325, FIT)
         diagnostics = diagnostics + _parametric_range_diagnostics(mt)
+        # the subset patterns that cannot see each equation's target: there the
+        # value is the equation's alone, and the form test leaves them out (WP-1325)
+        unseen = _parametric_unseen(models, mt)
+        diagnostics = diagnostics + _parametric_unseen_diagnostics(mt, unseen)
         # whether each declared form survives its data, holding what the one
         # bound test found on a bound (WP-1325, FIT)
-        parametric_form = _parametric_form_tests(models, mt, at_bounds, weights)
-        diagnostics = diagnostics + _parametric_form_diagnostics(mt, parametric_form)
+        parametric_form, form_joint = _parametric_form_tests(models, mt, at_bounds,
+                                                             weights, unseen)
+        coefficients = self._parametric_rows(esd_hist0)
+        diagnostics = diagnostics + _parametric_form_diagnostics(mt, parametric_form,
+                                                                 form_joint)
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
                 stage_results[-1].name, outcome)
@@ -1881,16 +1902,33 @@ class MultiHistogramRefinement:
                              if absorption_table else None),
             # the declared coefficients in user units at the reference, read
             # off histogram 0's slice of the joint covariance (a coefficient
-            # is shared, so its marginal is the joint one); ``None`` when
-            # nothing was declared (WP-1325)
-            parametric=self._parametric_rows(esd_hist0),
+            # is shared, so its marginal is the joint one), and each equation with
+            # their covariance; ``None`` when nothing was declared (WP-1325)
+            parametric=coefficients,
             parametric_form=parametric_form,
+            parametric_form_joint=form_joint,
+            parametric_equations=self._parametric_equations(coefficients, corr),
             histograms=histograms)
+
+    def _parametric_equations(self, coefficients, corr):
+        """Each declaration as resolved, with its coefficients' covariance.
+
+        ``None`` when nothing was declared.  The covariance pairs the
+        ``coefficients``' own esds by the joint solve's correlation ``corr``,
+        the matrix those esds were read off (:func:`~rietx.params.parametric.parametric_equation`).
+        """
+        mt = self.mtable
+        if not mt.parametric:
+            return None
+        index = {p: i for i, p in enumerate(mt.free_paths)}
+        return [parametric_equation(r, [c for c in coefficients if c.equation == r.name],
+                                    [index.get(p) for p in r.paths], corr)
+                for r in mt.parametric]
 
     def _parametric_rows(self, esd0: dict[str, float]):
         """Every declared coefficient, in user units at the reference.
 
-        ``None`` when no parametric tie was declared, the honest empty state.
+        ``None`` when no parametric equation was declared, the honest empty state.
         A coefficient's value is histogram 0's entry (every table holds the
         same shared one), its esd ``esd0``'s, which omits a row the covariance
         marks unmeasured (``ParameterTable.stderr_physical``): no pattern in
@@ -1931,6 +1969,8 @@ class MultiHistogramRefinement:
         # on the row path and needs no second naming convention (WP-1076).
         tested = set(mt.free_paths)
         on_bound = {p for f in at_bounds for p in f.paths}
+        # which equation set each row, keyed on the same row path (WP-1325)
+        equations = _equation_rows(mt)
         # shared parameters reported once, from histogram 0's covariance (its
         # diagonal esd is the true combined marginal — cross-terms with the
         # other histograms' columns do not enter a single path's variance).
@@ -1939,7 +1979,8 @@ class MultiHistogramRefinement:
                 params.append(RefinedParameter(
                     path=e.path, value=e.value, vary=e.vary,
                     stderr=None if e.path in withheld[0] else esd0.get(e.path),
-                    at_bound=(e.path in on_bound) if e.path in tested else None))
+                    at_bound=(e.path in on_bound) if e.path in tested else None,
+                    equations=equations.get(e.path, [])))
         for h, table in enumerate(mt.tables):
             cm = mt.col_map(h)
             esd = (table.stderr_physical(thetas[h], stderr[cm],
@@ -1951,7 +1992,8 @@ class MultiHistogramRefinement:
                     params.append(RefinedParameter(
                         path=row, value=e.value, vary=e.vary,
                         stderr=None if e.path in withheld[h] else esd.get(e.path),
-                        at_bound=(row in on_bound) if row in tested else None))
+                        at_bound=(row in on_bound) if row in tested else None,
+                        equations=equations.get(row, [])))
         return params
 
     def _top_diagnostics(self, outcome, correlation_guard, bg_scoped,
@@ -2109,7 +2151,7 @@ def _parametric_range_diagnostics(mtable) -> list[Diagnostic]:
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_OUT_OF_RANGE",
             where=[f"hist.{h}.{r.target}" for h, *_ in bad], value=float(len(bad)),
-            message=(f"parametric tie {r.name!r} puts {r.target} outside its own "
+            message=(f"parametric equation {r.name!r} puts {r.target} outside its own "
                      f"bounds in {len(bad)} of {len(r.patterns)} patterns: "
                      f"{shown}{more}. The coefficients are unbounded, so no bound "
                      "the solve saw held the dependent"),
@@ -2120,56 +2162,204 @@ def _parametric_range_diagnostics(mtable) -> list[Diagnostic]:
     return out
 
 
-def _parametric_form_tests(models, mtable, at_bounds, weights
-                           ) -> list[ParametricFormTest] | None:
-    """Each declaration's lack-of-fit test at the answer (WP-1325).
+def _equation_rows(mtable) -> dict[str, list[str]]:
+    """Per row of the joint result, the declarations whose coefficients set it.
 
-    ``None`` when nothing was declared.  One Jacobian at the answer, blocked
+    A row is an equation's when one of the equation's coefficients moves it, read off
+    each table's :meth:`~rietx.params.vector.ParameterTable.entry_reach` (the
+    WP-1342 reading of **C**, through the declarations so a held coefficient
+    still counts) and spelled as ``_parameters`` spells the row
+    (``mtable._canonical``).  So: the target in each subset pattern, what
+    follows it there (a cubic cell's b and c), and the coefficient's own
+    ``vars.`` row.  Several equations reach one row only through a caller's tie
+    combining their targets, and then the row names each, in declaration
+    order.  Empty when nothing was declared (WP-1325).
+    """
+    out: dict[str, list[str]] = {}
+    if not mtable.parametric:
+        return out
+    for h, table in enumerate(mtable.tables):
+        reach = table.entry_reach()
+        for r in mtable.parametric:
+            for path in r.paths:
+                for q in reach.get(path, (path,)):
+                    names = out.setdefault(mtable._canonical(h, q), [])
+                    if r.name not in names:
+                        names.append(r.name)
+    return out
+
+
+def _parametric_unseen(models, mtable) -> dict[str, frozenset[int]]:
+    """Per declaration, the subset patterns that cannot see its target.
+
+    :func:`_unseen`, the predicate the stage's support hold uses (WP-1301),
+    asked of each subset pattern's own copy of the target at the answer.
+    Empty when nothing was declared (WP-1325).
+    """
+    if not mtable.parametric:
+        return {}
+    absent = _joint_unsupported_phases(models, mtable)
+    return {r.name: frozenset(k for k in r.patterns
+                              if _unseen(mtable, f"hist.{k}.{r.target}", absent))
+            for r in mtable.parametric}
+
+
+def _parametric_unseen_diagnostics(mtable, unseen: dict[str, frozenset[int]]
+                                   ) -> list[Diagnostic]:
+    """``PARAMETRIC_TARGET_UNSEEN`` — an equation setting its target in patterns that
+    cannot see it (WP-1325).
+
+    There the target is the equation's value at the pattern's coordinates and
+    nothing that pattern measured, its esd is the equation's, and the form test
+    leaves the pattern out (:func:`_parametric_form_tests`), so a wrong equation
+    is carried through it unchecked.  On synthetic ramps whose minor phase
+    faded out, the line's interval covered a bent truth in the gaps 0.03 of
+    the time (``docs/wp/1325-parametric-series.md`` § Measured: where one
+    pattern cannot see the parameter).  One warning per declaration with any
+    such pattern; ``where`` names each pattern's row, ``value`` counts them.
+    """
+    out: list[Diagnostic] = []
+    for r in mtable.parametric:
+        blind = sorted(unseen.get(r.name, ()))
+        if not blind:
+            continue
+        shown = ", ".join(str(h) for h in blind[:10])
+        more = f" and {len(blind) - 10} more" if len(blind) > 10 else ""
+        # with every pattern blind there is no seeing pattern to carry the equation
+        # from: the coefficients are held where they started (WP-1301)
+        whence = ("carried from the patterns that see the phase" if
+                  len(blind) < len(r.patterns) else
+                  "and no pattern of the subset sees the phase, so the equation itself "
+                  "is not measured")
+        out.append(Diagnostic(
+            level="warning", code="PARAMETRIC_TARGET_UNSEEN",
+            where=[f"hist.{h}.{r.target}" for h in blind], value=float(len(blind)),
+            message=(f"parametric equation {r.name!r} sets {r.target} in {len(blind)} of "
+                     f"its {len(r.patterns)} patterns that cannot see its phase "
+                     f"(histograms {shown}{more}). There the value and its esd are "
+                     f"the equation's, {whence}, and the form test cannot check the "
+                     "equation there"),
+            suggestion=("do not quote the target in those patterns as a "
+                        "measurement: quote the equation's coefficients, and narrow the "
+                        "subset to the patterns that see the phase if the equation "
+                        "should hold only where it is measured")))
+    return out
+
+
+def _parametric_form_tests(models, mtable, at_bounds, weights,
+                           unseen: dict[str, frozenset[int]]
+                           ) -> tuple[list[ParametricFormTest] | None,
+                                      ParametricFormReading | None]:
+    """Each declaration's lack-of-fit test at the answer, and the joint
+    reading of every tested declaration at once (WP-1325).
+
+    ``(None, None)`` when nothing was declared.  One Jacobian at the answer, blocked
     whatever layout the solve took, and :func:`~rietx.params.parametric.form_tests`
     reads it.  A pattern is left out of a declaration's alternative where
-    :func:`_unseen` holds its own copy of the target, the predicate the
+    ``unseen`` names it (:func:`_parametric_unseen`), the predicate the
     stage's support hold uses, so the alternative is the untied fit's.  The
     columns ``at_bounds`` names stay on their bounds on both sides.
     """
     if not mtable.parametric:
-        return None
+        return None, None
     residual, jacobian, n_data = _multi_closures(models, mtable, weights=weights,
                                                  layout="blocked")
     x = mtable.x0()
-    absent = _joint_unsupported_phases(models, mtable)
-    skip = {r.name: frozenset(k for k in r.patterns
-                              if _unseen(mtable, f"hist.{k}.{r.target}", absent))
-            for r in mtable.parametric}
     index = {p: i for i, p in enumerate(mtable.free_paths)}
     hold = sorted({index[p] for f in at_bounds for p in f.paths if p in index})
     return form_tests(mtable.parametric, jacobian(x), residual(x), n_data,
-                      mtable.free_paths, skip, hold)
+                      mtable.free_paths, unseen, hold)
 
 
-def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None
+def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
+                                 joint: ParametricFormReading | None = None
                                  ) -> list[Diagnostic]:
     """``PARAMETRIC_FORM_REJECTED`` — a declaration whose data refuses its
     form (WP-1325): one warning per rejected
     :class:`~rietx.schemas.parametric.ParametricFormTest`, ``where`` its
-    coefficients, whose esds assume the form, and ``value`` its statistic."""
+    coefficients, whose esds assume the form, and ``value`` the statistic of
+    the verdict's reading.  One more, ``where`` every tested equation's
+    coefficients, when the joint reading rejects and no equation's own verdict
+    does: then the data refuses the forms together and cannot say which.  It
+    names each equation whose freed reading had no direction, and what that
+    equation's tied reading said, because its own verdict is ``None`` and this
+    warning is the only one that carries it.  A
+    rejection beside another says its verdict is provisional
+    (``ParametricFormTest.provisional_on``), and each tells the reader to
+    read the other equations again after the refit."""
     paths = {r.name: r.paths for r in mtable.parametric}
     out: list[Diagnostic] = []
     for t in tests or []:
         if not t.rejected:
             continue
+        r = t.others_freed if t.others_freed is not None else t.tied
+        # the verdict is the freed reading wherever there is one; say what the
+        # tied one read when it passed, since a reader comparing refits will
+        # have run that one.  Tied, an equation may have had no direction to test
+        # while freed it had one, so the tied statistic can be None
+        how = ""
+        if r is t.others_freed:
+            how = " with the other equations' targets freed"
+            if t.tied.statistic is None:
+                how += " (with them tied it had no direction to test)"
+            elif not t.tied.rejected:
+                how += f" (with them tied it read {t.tied.statistic:.1f}, within the cut)"
+        # every reading steps from one answer, which a rejected equation has moved
+        also = ("" if not t.provisional_on else
+                ". The verdict is provisional: "
+                + ", ".join(repr(n) for n in t.provisional_on)
+                + " rejected too, and moved the answer this test steps from")
+        others = ("" if t.others_freed is None else
+                  "; the other equations' verdicts step from an answer this equation has "
+                  "moved, so read them again after the refit")
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_FORM_REJECTED",
-            where=list(paths[t.tie]), value=t.statistic,
-            message=(f"parametric tie {t.tie!r} does not describe {t.target} across "
-                     f"its {t.n_patterns} patterns: freeing the target in each "
-                     f"would remove {t.statistic:.1f} times χ²_red·f² of χ², past "
-                     f"the {100 * FORM_TEST_LEVEL:g} % point {t.cut:.1f} of χ² for "
-                     f"{t.dof} directions. The coefficients' esds assume the form, "
-                     "so they are too small"),
+            where=list(paths[t.equation]), value=r.statistic,
+            message=(f"parametric equation {t.equation!r} does not describe {t.target} across "
+                     f"{t.n_patterns} of its {t.n_subset} patterns{how}: freeing "
+                     f"the target in each would remove {r.statistic:.1f} times "
+                     f"χ²_red of χ², past the {100 * FORM_TEST_LEVEL:g} % point "
+                     f"{r.cut:.1f} of χ² for {r.dof} directions. The coefficients' "
+                     f"esds assume the form, so they are too small{also}"),
             suggestion=("do not quote the coefficients as they stand: add the next "
                         "term to the basis and refit, or narrow the subset to where "
                         "the form holds; the chain's trajectory shows where it "
-                        "bends")))
+                        f"bends{others}")))
+    if joint is not None and joint.rejected and not out:
+        # every equation tested at once had its own freed reading
+        tested = [t for t in tests or [] if t.others_freed is not None]
+        names = ", ".join(repr(t.equation) for t in tested)
+        # an equation the others' targets already cover has no direction of its
+        # own, so its verdict is None and only this warning carries it; say so,
+        # with what its tied reading said, since that reading cannot tell its
+        # misfit from theirs
+        blind = [t for t in tested if t.others_freed.dof == 0]
+        unseen = ""
+        if blind:
+            told = [f"{t.equation!r}" + ("" if t.tied is None or t.tied.statistic is None else
+                                         f" (tied {t.tied.statistic:.1f} for "
+                                         f"{t.tied.dof} directions, "
+                                         f"{'past' if t.tied.rejected else 'within'} "
+                                         f"the cut {t.tied.cut:.1f})")
+                    for t in blind]
+            unseen = (f". {', '.join(told)} add{'s' if len(blind) == 1 else ''} no "
+                      "direction beside the other equations' targets, so no reading of "
+                      f"{'its' if len(blind) == 1 else 'their'} own can test "
+                      f"{'it' if len(blind) == 1 else 'them'}, and the data cannot "
+                      "separate that misfit from the others'")
+        out.append(Diagnostic(
+            level="warning", code="PARAMETRIC_FORM_REJECTED",
+            where=[p for t in tested for p in paths[t.equation]], value=joint.statistic,
+            message=(f"parametric equations {names} together do not describe their "
+                     "targets: freeing every target in each pattern would remove "
+                     f"{joint.statistic:.1f} times χ²_red of χ², past the "
+                     f"{100 * FORM_TEST_LEVEL:g} % point {joint.cut:.1f} of χ² for "
+                     f"{joint.dof} directions. No equation's own reading rejects it, so "
+                     "the data does not say which form is wrong, and the "
+                     f"coefficients' esds assume them all{unseen}"),
+            suggestion=("do not quote the coefficients as they stand: add the next "
+                        "term to one equation at a time and refit, and compare each equation "
+                        "with the chain's trajectory")))
     return out
 
 
@@ -2238,8 +2428,8 @@ def _joint_fixed_literals(stages, mtable) -> list[Diagnostic]:
 
     A shared row is one column, so a shared path fixed in every table is one
     finding, keyed by its ``where``.  The message says which histograms' tables
-    hold it.  A joint fit has no tie verb; its one caller's tie is a
-    parametric target (WP-1325), spared as a single fit spares a user tie,
+    hold it.  A joint fit has no tie verb; its one caller's constraint is a
+    parametric equation's target (WP-1325), spared as a single fit spares a user tie,
     since a stage naming it frees its coefficients.
     """
     found: dict[str, tuple[Diagnostic, list[int]]] = {}
@@ -2295,7 +2485,7 @@ def refine_multi(data: list[PatternData], structure: Structure | list[Structure]
                  plan: RefinementPlan | str = "mccusker_default",
                  sharing: SharingMap | None = None,
                  coordinates: CoordinateTable | None = None,
-                 parametric: list[ParametricTie] | None = None,
+                 parametric: list[ParametricEquation] | None = None,
                  two_theta_limits=None,
                  weights: list[float] | None = None,
                  backend: str = "numpy", solver: str = DEFAULT_SOLVER,

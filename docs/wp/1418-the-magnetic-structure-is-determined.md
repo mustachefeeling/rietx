@@ -125,6 +125,15 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-15, from WP-1325: the moment-angle test divides by χ²_red·f².**
+  `least_squares.stationary_angle_test` scales its Δχ² by χ²_red·f², the
+  Bérar-Lelann factor squared. WP-1325's parametric form test dropped the f²
+  for χ²_red alone, the score test's textbook denominator (Rao 1948). On
+  three real ramps, readings that must hold any smooth truth rejected 0 of
+  261 times with f² and 12 of 242 (5.0 %) without it, so f² made a 95 % test
+  far stricter than its level. The angle test is unmeasured on this
+  question. With f², fewer angles reject the stationary point, so more
+  angle columns leave the covariance and lose their esd.
 - **2026-10-13, from WP-1953: whether `solve_magnetic` still needs its
   `moduli` stage.** `SOLVE_STAGE_NAMES` frees the moduli before the angles
   because LM crawled when both were freed together (WP-1938 D12: χ² 454 660

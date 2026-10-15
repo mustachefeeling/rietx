@@ -7070,6 +7070,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                 stderr=(None if e.path in withheld
                        else stderr_phys.get(e.path)),
                 at_bound=(e.path in on_bound) if e.path in tested else None,
+                # a single fit declares no parametric equation (WP-1325)
+                equations=[],
             ))
 
     # Tick positions cover **every** emission line, not just the primary one.

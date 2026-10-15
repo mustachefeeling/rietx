@@ -8,7 +8,7 @@ clock or a peak RSS).  The library is ``tests/test_parametric_series.py``'s
 ``library(n)``: n LaB6 patterns of 3 000 points (λ = 0.4139 Å, Poisson
 noise, ``tests/test_sequential.py``'s ``_simulate``) at random positions on a
 [0, 1]² wafer, the cell on a known surface a(x, y) = A0·(1 + 2e-3·x +
-1.5e-3·y + 1e-3·x·y), refined as one ``polynomial`` ``ParametricTie`` with
+1.5e-3·y + 1e-3·x·y), refined as one ``polynomial`` ``ParametricEquation`` with
 terms 1, x, y, x·y.  The instrument is **per pattern**: under
 ``mccusker_default`` each pattern frees ten own columns (scale, three
 background terms, zero, U, V, W, X, Y) beside the four shared coefficients,
@@ -117,12 +117,12 @@ def worker(n: int, layout: str) -> dict:
                 self.build_seconds = time.perf_counter() - t
 
     t = time.perf_counter()
-    patterns, coords, tie = library(n)
+    patterns, coords, equation = library(n)
     simulate = time.perf_counter() - t
     rss_before = vm("VmRSS")
     blocked.set_layout(layout)
     s, ins = _start_models()
-    ref = Probe(s, [ins] * n, coordinates=coords, parametric=[tie])
+    ref = Probe(s, [ins] * n, coordinates=coords, parametric=[equation])
     t = time.perf_counter()
     result = ref.fit(patterns, plan="mccusker_default")
     wall = time.perf_counter() - t

@@ -1,0 +1,610 @@
+WP-1325 out of sample: over-flexible laws on the WO3 ramp (false-alarm arm)
+machine   Darwin arm64, 10 CPUs, python 3.12.10, numpy 2.5.4
+rietx     1.10.0.dev0 at 506c340a, compiled kernels on
+load      17.02 33.61 43.72
+arm       10 windows of 10 patterns; degree 3 in T on all 14 cell targets per window; windows run [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+joint     plan ['scale_bkg', 'disp', 'cell', 'strain']; seeds from the better of the two chains per pattern; B held at the chain's
+
+window 0: patterns 0..9, T 300-280 K; 576.2 s; status converged; iters [2, 4, 43, 214]; Rwp 13.123 %; χ²r 2.142, f 2.387
+  m_a      patterns  10 of  10  kept
+           freed       1.3 /   6 dof (cut   12.6,  0.22/dir, p 0.969) keep
+           tied        0.7 /   6 dof (cut   12.6,  0.12/dir, p 0.993) keep
+  m_b      patterns  10 of  10  kept
+           freed       1.0 /   6 dof (cut   12.6,  0.16/dir, p 0.987) keep
+           tied        1.1 /   6 dof (cut   12.6,  0.18/dir, p 0.982) keep
+  m_c      patterns  10 of  10  kept
+           freed       0.9 /   6 dof (cut   12.6,  0.16/dir, p 0.988) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  m_beta   patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  t_a      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+  t_b      patterns  10 of  10  kept
+           freed       0.9 /   6 dof (cut   12.6,  0.15/dir, p 0.989) keep
+           tied        1.1 /   6 dof (cut   12.6,  0.18/dir, p 0.982) keep
+  t_c      patterns  10 of  10  kept
+           freed       3.0 /   6 dof (cut   12.6,  0.49/dir, p 0.815) keep
+           tied        1.8 /   6 dof (cut   12.6,  0.30/dir, p 0.935) keep
+  t_alpha  patterns  10 of  10  kept
+           freed       2.8 /   6 dof (cut   12.6,  0.46/dir, p 0.837) keep
+           tied        1.5 /   6 dof (cut   12.6,  0.26/dir, p 0.956) keep
+  t_beta   patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  t_gamma  patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.997) keep
+  p_a      patterns  10 of  10  kept
+           freed       0.9 /   6 dof (cut   12.6,  0.15/dir, p 0.989) keep
+           tied        2.4 /   6 dof (cut   12.6,  0.40/dir, p 0.882) keep
+  p_b      patterns  10 of  10  kept
+           freed       0.6 /   6 dof (cut   12.6,  0.11/dir, p 0.996) keep
+           tied        3.1 /   6 dof (cut   12.6,  0.52/dir, p 0.794) keep
+  p_c      patterns  10 of  10  kept
+           freed      10.7 /   6 dof (cut   12.6,  1.78/dir, p 0.0994) keep
+           tied        9.9 /   6 dof (cut   12.6,  1.66/dir, p 0.127) keep
+  p_beta   patterns  10 of  10  kept
+           freed       3.9 /   6 dof (cut   12.6,  0.65/dir, p 0.693) keep
+           tied        4.0 /   6 dof (cut   12.6,  0.66/dir, p 0.682) keep
+  joint        28.0 /  84 dof (cut  106.4,  0.33/dir, p 1) keep
+
+window 1: patterns 10..19, T 278-259 K; 139.5 s; status converged; iters [2, 4, 5, 51]; Rwp 13.220 %; χ²r 2.174, f 2.455
+  m_a      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+           tied        0.7 /   6 dof (cut   12.6,  0.11/dir, p 0.995) keep
+  m_b      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  m_c      patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  m_beta   patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.09/dir, p 0.997) keep
+           tied        0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+  t_a      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+  t_b      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+  t_c      patterns  10 of  10  kept
+           freed       0.6 /   6 dof (cut   12.6,  0.11/dir, p 0.996) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+  t_alpha  patterns  10 of  10  kept
+           freed       0.8 /   6 dof (cut   12.6,  0.13/dir, p 0.993) keep
+           tied        0.9 /   6 dof (cut   12.6,  0.15/dir, p 0.989) keep
+  t_beta   patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  t_gamma  patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.09/dir, p 0.998) keep
+           tied        0.7 /   6 dof (cut   12.6,  0.11/dir, p 0.995) keep
+  p_a      patterns  10 of  10  kept
+           freed       0.8 /   6 dof (cut   12.6,  0.13/dir, p 0.993) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.997) keep
+  p_b      patterns  10 of  10  kept
+           freed       1.2 /   6 dof (cut   12.6,  0.20/dir, p 0.977) keep
+           tied        0.9 /   6 dof (cut   12.6,  0.15/dir, p 0.988) keep
+  p_c      patterns  10 of  10  kept
+           freed       0.9 /   6 dof (cut   12.6,  0.15/dir, p 0.988) keep
+           tied        0.9 /   6 dof (cut   12.6,  0.15/dir, p 0.99) keep
+  p_beta   patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  joint         8.0 /  84 dof (cut  106.4,  0.10/dir, p 1) keep
+
+window 2: patterns 20..29, T 257-238 K; 558.1 s; status converged; iters [2, 4, 27, 117]; Rwp 13.269 %; χ²r 2.192, f 2.434
+  m_a      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  m_b      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  m_c      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+           tied        0.8 /   6 dof (cut   12.6,  0.13/dir, p 0.992) keep
+  m_beta   patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  t_a      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+  t_b      patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  t_c      patterns  10 of  10  kept
+           freed       1.3 /   6 dof (cut   12.6,  0.21/dir, p 0.974) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+  t_alpha  patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  t_beta   patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.997) keep
+  t_gamma  patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+  p_a      patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.7 /   6 dof (cut   12.6,  0.11/dir, p 0.995) keep
+  p_b      patterns  10 of  10  kept
+           freed       0.7 /   6 dof (cut   12.6,  0.12/dir, p 0.994) keep
+           tied        0.9 /   6 dof (cut   12.6,  0.16/dir, p 0.988) keep
+  p_c      patterns  10 of  10  kept
+           freed       6.0 /   6 dof (cut   12.6,  0.99/dir, p 0.427) keep
+           tied        4.1 /   6 dof (cut   12.6,  0.68/dir, p 0.662) keep
+  p_beta   patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.7 /   6 dof (cut   12.6,  0.12/dir, p 0.994) keep
+  joint        11.2 /  84 dof (cut  106.4,  0.13/dir, p 1) keep
+
+window 3: patterns 30..39, T 236-216 K; 751.0 s; status converged; iters [2, 5, 28, 122]; Rwp 13.249 %; χ²r 2.186, f 2.496
+  m_a      patterns  10 of  10  kept
+           freed       0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+  m_b      patterns  10 of  10  kept
+           freed       1.0 /   6 dof (cut   12.6,  0.17/dir, p 0.985) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.997) keep
+  m_c      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+  m_beta   patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+  t_a      patterns  10 of  10  kept
+           freed       0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.997) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+  t_b      patterns  10 of  10  kept
+           freed       0.9 /   6 dof (cut   12.6,  0.15/dir, p 0.99) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+  t_c      patterns  10 of  10  kept
+           freed       1.9 /   6 dof (cut   12.6,  0.32/dir, p 0.926) keep
+           tied        1.1 /   6 dof (cut   12.6,  0.18/dir, p 0.982) keep
+  t_alpha  patterns  10 of  10  kept
+           freed       1.0 /   6 dof (cut   12.6,  0.16/dir, p 0.986) keep
+           tied        1.2 /   6 dof (cut   12.6,  0.19/dir, p 0.979) keep
+  t_beta   patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+  t_gamma  patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.5 /   6 dof (cut   12.6,  0.09/dir, p 0.998) keep
+  p_a      patterns  10 of  10  kept
+           freed       0.7 /   6 dof (cut   12.6,  0.12/dir, p 0.994) keep
+           tied        0.7 /   6 dof (cut   12.6,  0.12/dir, p 0.994) keep
+  p_b      patterns  10 of  10  kept
+           freed       1.1 /   6 dof (cut   12.6,  0.18/dir, p 0.984) keep
+           tied        0.9 /   6 dof (cut   12.6,  0.15/dir, p 0.989) keep
+  p_c      patterns  10 of  10  kept
+           freed       0.7 /   6 dof (cut   12.6,  0.11/dir, p 0.995) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  p_beta   patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  joint         8.7 /  84 dof (cut  106.4,  0.10/dir, p 1) keep
+
+window 4: patterns 40..49, T 214-195 K; 171.0 s; status converged; iters [2, 5, 12, 20]; Rwp 12.944 %; χ²r 2.088, f 2.412
+  m_a      patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+  m_b      patterns  10 of  10  kept
+           freed       1.3 /   6 dof (cut   12.6,  0.22/dir, p 0.972) keep
+           tied        1.2 /   6 dof (cut   12.6,  0.20/dir, p 0.976) keep
+  m_c      patterns  10 of  10  kept
+           freed       1.1 /   6 dof (cut   12.6,  0.18/dir, p 0.984) keep
+           tied        1.1 /   6 dof (cut   12.6,  0.19/dir, p 0.98) keep
+  m_beta   patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  t_a      patterns  10 of  10  kept
+           freed       0.7 /   6 dof (cut   12.6,  0.11/dir, p 0.995) keep
+           tied        0.9 /   6 dof (cut   12.6,  0.15/dir, p 0.99) keep
+  t_b      patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+  t_c      patterns  10 of  10  kept
+           freed       0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+           tied        0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+  t_alpha  patterns  10 of  10  kept
+           freed       0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+           tied        0.5 /   6 dof (cut   12.6,  0.09/dir, p 0.998) keep
+  t_beta   patterns  10 of  10  kept
+           freed       1.6 /   6 dof (cut   12.6,  0.26/dir, p 0.956) keep
+           tied        1.5 /   6 dof (cut   12.6,  0.25/dir, p 0.958) keep
+  t_gamma  patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+  p_a      patterns  10 of  10  kept
+           freed       0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  p_b      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+           tied        0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+  p_c      patterns  10 of  10  kept
+           freed       0.7 /   6 dof (cut   12.6,  0.12/dir, p 0.994) keep
+           tied        1.0 /   6 dof (cut   12.6,  0.17/dir, p 0.984) keep
+  p_beta   patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+  joint         9.2 /  84 dof (cut  106.4,  0.11/dir, p 1) keep
+
+window 5: patterns 50..59, T 193-174 K; 110.0 s; status converged; iters [2, 5, 6, 15]; Rwp 13.012 %; χ²r 2.119, f 2.522
+  m_a      patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.09/dir, p 0.998) keep
+           tied        0.8 /   6 dof (cut   12.6,  0.14/dir, p 0.991) keep
+  m_b      patterns  10 of  10  kept
+           freed       0.6 /   6 dof (cut   12.6,  0.11/dir, p 0.996) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.09/dir, p 0.997) keep
+  m_c      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+  m_beta   patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  t_a      patterns  10 of  10  kept
+           freed       0.7 /   6 dof (cut   12.6,  0.11/dir, p 0.995) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.997) keep
+  t_b      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+  t_c      patterns  10 of  10  kept
+           freed       2.1 /   6 dof (cut   12.6,  0.35/dir, p 0.909) keep
+           tied        1.8 /   6 dof (cut   12.6,  0.30/dir, p 0.938) keep
+  t_alpha  patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  t_beta   patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  t_gamma  patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+  p_a      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.998) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  p_b      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+  p_c      patterns  10 of  10  kept
+           freed       0.8 /   6 dof (cut   12.6,  0.14/dir, p 0.991) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.09/dir, p 0.997) keep
+  p_beta   patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+  joint         7.8 /  84 dof (cut  106.4,  0.09/dir, p 1) keep
+
+window 6: patterns 60..69, T 172-153 K; 118.1 s; status converged; iters [2, 5, 6, 22]; Rwp 13.531 %; χ²r 2.299, f 3.097
+  m_a      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+  m_b      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+  m_c      patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.09/dir, p 0.998) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+  m_beta   patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  t_a      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+  t_b      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  t_c      patterns  10 of  10  kept
+           freed       0.6 /   6 dof (cut   12.6,  0.11/dir, p 0.996) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  t_alpha  patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+  t_beta   patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  t_gamma  patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+  p_a      patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+  p_b      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  p_c      patterns  10 of  10  kept
+           freed       0.6 /   6 dof (cut   12.6,  0.11/dir, p 0.996) keep
+           tied        0.7 /   6 dof (cut   12.6,  0.11/dir, p 0.995) keep
+  p_beta   patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+  joint         4.5 /  84 dof (cut  106.4,  0.05/dir, p 1) keep
+
+window 7: patterns 70..79, T 151-132 K; 158.8 s; status converged; iters [2, 4, 7, 25]; Rwp 14.122 %; χ²r 2.508, f 3.391
+  m_a      patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  m_b      patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+           tied        0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+  m_c      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  m_beta   patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+  t_a      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+           tied        0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+  t_b      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 1) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  t_c      patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+  t_alpha  patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+  t_beta   patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  t_gamma  patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  p_a      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  p_b      patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  p_c      patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  p_beta   patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  joint         3.4 /  84 dof (cut  106.4,  0.04/dir, p 1) keep
+
+window 8: patterns 80..89, T 130-111 K; 187.9 s; status converged; iters [2, 4, 5, 29]; Rwp 14.286 %; χ²r 2.573, f 3.456
+  m_a      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+  m_b      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+  m_c      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.07/dir, p 0.999) keep
+           tied        0.6 /   6 dof (cut   12.6,  0.10/dir, p 0.996) keep
+  m_beta   patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+           tied        0.0 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+  t_a      patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+  t_b      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  t_c      patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.8 /   6 dof (cut   12.6,  0.14/dir, p 0.991) keep
+  t_alpha  patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+  t_beta   patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+  t_gamma  patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+  p_a      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+  p_b      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.7 /   6 dof (cut   12.6,  0.12/dir, p 0.994) keep
+  p_c      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  p_beta   patterns  10 of  10  kept
+           freed       0.3 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  joint         3.3 /  84 dof (cut  106.4,  0.04/dir, p 1) keep
+
+window 9: patterns 90..99, T 109-90 K; 163.4 s; status converged; iters [2, 4, 6, 32]; Rwp 14.502 %; χ²r 2.657, f 3.548
+  m_a      patterns  10 of  10  kept
+           freed       0.4 /   6 dof (cut   12.6,  0.06/dir, p 0.999) keep
+           tied        0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+  m_b      patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  m_c      patterns  10 of  10  kept
+           freed       0.7 /   6 dof (cut   12.6,  0.11/dir, p 0.995) keep
+           tied        0.7 /   6 dof (cut   12.6,  0.11/dir, p 0.995) keep
+  m_beta   patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  t_a      patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+  t_b      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+  t_c      patterns  10 of  10  kept
+           freed       0.5 /   6 dof (cut   12.6,  0.08/dir, p 0.998) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+  t_alpha  patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+  t_beta   patterns  10 of  10  kept
+           freed       0.0 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+           tied        0.0 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+  t_gamma  patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+  p_a      patterns  10 of  10  kept
+           freed       0.1 /   6 dof (cut   12.6,  0.02/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+  p_b      patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+           tied        0.3 /   6 dof (cut   12.6,  0.05/dir, p 0.999) keep
+  p_c      patterns  10 of  10  kept
+           freed       0.0 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+           tied        0.1 /   6 dof (cut   12.6,  0.01/dir, p 1) keep
+  p_beta   patterns  10 of  10  kept
+           freed       0.2 /   6 dof (cut   12.6,  0.04/dir, p 1) keep
+           tied        0.2 /   6 dof (cut   12.6,  0.03/dir, p 1) keep
+  joint         3.2 /  84 dof (cut  106.4,  0.04/dir, p 1) keep
+
+SUMMARY (p over χ²_red·f², the shipped test; 'no f²' divides by χ²_red alone)
+  per-law freed (the verdict): 0 of 140 reject at 95 % (expected 7.0); KS D 0.912, p 5.38e-148; median p 0.999
+    p: 0.0994 0.427 0.693 0.815 0.837 0.909 0.926 0.956 0.969 0.972 0.974 0.977 0.984 0.984 0.985 0.986 0.987 0.988 0.988 0.989 0.989 0.99 0.991 0.993 0.993 0.994 0.994 0.994 0.995 0.995 0.995 0.995 0.996 0.996 0.996 0.996 0.996 0.996 0.996 0.996 0.996 0.997 0.997 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+  per-law tied: 0 of 140 reject at 95 % (expected 7.0); KS D 0.912, p 7.16e-148; median p 0.999
+    p: 0.127 0.662 0.682 0.794 0.882 0.935 0.938 0.956 0.958 0.976 0.979 0.98 0.982 0.982 0.982 0.984 0.988 0.988 0.989 0.989 0.99 0.99 0.991 0.991 0.992 0.993 0.994 0.994 0.994 0.995 0.995 0.995 0.995 0.995 0.996 0.996 0.996 0.996 0.996 0.996 0.996 0.996 0.997 0.997 0.997 0.997 0.997 0.997 0.997 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.998 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+  joint, one per window: 0 of 10 reject at 95 % (expected 0.5); KS D 1.000, p 1.58e-89; median p 1.000
+    p: 1 1 1 1 1 1 1 1 1 1
+  per-law freed, no f²: 6 of 140 reject at 95 % (expected 7.0); KS D 0.407, p 1.62e-21; median p 0.842
+    p: 3.22e-11 3.67e-06 0.00116 0.00996 0.015 0.0363 0.0618 0.172 0.192 0.262 0.276 0.28 0.302 0.365 0.387 0.397 0.405 0.407 0.409 0.432 0.461 0.469 0.482 0.483 0.497 0.503 0.521 0.527 0.547 0.55 0.593 0.596 0.599 0.606 0.624 0.654 0.654 0.665 0.665 0.67 0.692 0.693 0.695 0.703 0.722 0.725 0.726 0.729 0.731 0.731 0.736 0.748 0.762 0.766 0.77 0.773 0.786 0.791 0.793 0.795 0.797 0.799 0.799 0.814 0.818 0.833 0.834 0.839 0.839 0.842 0.842 0.843 0.848 0.852 0.853 0.853 0.853 0.859 0.86 0.862 0.863 0.864 0.866 0.868 0.873 0.874 0.876 0.878 0.879 0.884 0.885 0.887 0.889 0.896 0.896 0.898 0.901 0.903 0.906 0.912 0.914 0.914 0.917 0.923 0.924 0.93 0.933 0.935 0.935 0.939 0.941 0.942 0.948 0.948 0.951 0.952 0.952 0.957 0.96 0.965 0.965 0.968 0.968 0.97 0.971 0.972 0.972 0.976 0.978 0.981 0.981 0.985 0.991 0.991 0.992 0.993 0.995 0.996 0.996 0.998
+  joint, no f²: 1 of 10 reject at 95 % (expected 0.5); KS D 0.819, p 7.99e-08; median p 0.999
+    p: 1.26e-06 0.919 0.995 0.996 0.999 0.999 1 1 1 1
+
+per law (window, law, patterns tested, verdict, freed p, tied p, freed p no f²):
+  0 m_a       10 False    0.969    0.993     0.262
+  0 m_b       10 False    0.987    0.982     0.483
+  0 m_c       10 False    0.988    0.999     0.503
+  0 m_beta    10 False        1        1     0.965
+  0 t_a       10 False    0.999    0.996     0.885
+  0 t_b       10 False    0.989    0.982     0.521
+  0 t_c       10 False    0.815    0.935   0.00996
+  0 t_alpha   10 False    0.837    0.956     0.015
+  0 t_beta    10 False    0.998    0.999      0.86
+  0 t_gamma   10 False    0.998    0.997     0.834
+  0 p_a       10 False    0.989    0.882     0.527
+  0 p_b       10 False    0.996    0.794     0.722
+  0 p_c       10 False   0.0994    0.127  3.22e-11
+  0 p_beta    10 False    0.693    0.682   0.00116
+  1 m_a       10 False    0.999    0.995     0.914
+  1 m_b       10 False        1        1     0.972
+  1 m_c       10 False    0.998    0.999     0.842
+  1 m_beta    10 False    0.997    0.998     0.773
+  1 t_a       10 False    0.999    0.999     0.873
+  1 t_b       10 False        1    0.996      0.97
+  1 t_c       10 False    0.996    0.996     0.693
+  1 t_alpha   10 False    0.993    0.989     0.593
+  1 t_beta    10 False    0.999        1     0.923
+  1 t_gamma   10 False    0.998    0.995     0.799
+  1 p_a       10 False    0.993    0.997     0.606
+  1 p_b       10 False    0.977    0.988     0.302
+  1 p_c       10 False    0.988     0.99     0.469
+  1 p_beta    10 False    0.999    0.999     0.853
+  2 m_a       10 False    0.999        1     0.887
+  2 m_b       10 False        1    0.999      0.96
+  2 m_c       10 False    0.999    0.992     0.903
+  2 m_beta    10 False        1        1     0.942
+  2 t_a       10 False    0.999    0.999     0.901
+  2 t_b       10 False        1    0.999     0.991
+  2 t_c       10 False    0.974        1      0.28
+  2 t_alpha   10 False        1        1     0.978
+  2 t_beta    10 False    0.999    0.997     0.863
+  2 t_gamma   10 False        1    0.999     0.948
+  2 p_a       10 False    0.998    0.995     0.843
+  2 p_b       10 False    0.994    0.988     0.654
+  2 p_c       10 False    0.427    0.662  3.67e-06
+  2 p_beta    10 False    0.998    0.994     0.814
+  3 m_a       10 False    0.996        1     0.695
+  3 m_b       10 False    0.985    0.997     0.387
+  3 m_c       10 False        1    0.999     0.976
+  3 m_beta    10 False    0.999    0.999     0.859
+  3 t_a       10 False    0.997    0.999     0.736
+  3 t_b       10 False     0.99    0.996     0.482
+  3 t_c       10 False    0.926    0.982    0.0618
+  3 t_alpha   10 False    0.986    0.979     0.407
+  3 t_beta    10 False        1        1     0.993
+  3 t_gamma   10 False    0.998    0.998     0.786
+  3 p_a       10 False    0.994    0.994     0.596
+  3 p_b       10 False    0.984    0.989     0.365
+  3 p_c       10 False    0.995        1     0.665
+  3 p_beta    10 False    0.999        1     0.889
+  4 m_a       10 False    0.998    0.998     0.842
+  4 m_b       10 False    0.972    0.976     0.276
+  4 m_c       10 False    0.984     0.98     0.409
+  4 m_beta    10 False    0.999    0.999     0.935
+  4 t_a       10 False    0.995     0.99     0.692
+  4 t_b       10 False    0.998    0.999     0.818
+  4 t_c       10 False    0.996    0.998     0.748
+  4 t_alpha   10 False    0.996    0.998     0.731
+  4 t_beta    10 False    0.956    0.958     0.172
+  4 t_gamma   10 False    0.999    0.999     0.879
+  4 p_a       10 False    0.996        1     0.731
+  4 p_b       10 False    0.999    0.998     0.896
+  4 p_c       10 False    0.994    0.984     0.665
+  4 p_beta    10 False    0.999    0.996     0.876
+  5 m_a       10 False    0.998    0.991     0.766
+  5 m_b       10 False    0.996    0.997      0.67
+  5 m_c       10 False    0.999        1     0.898
+  5 m_beta    10 False    0.999    0.999     0.866
+  5 t_a       10 False    0.995    0.997     0.654
+  5 t_b       10 False        1        1     0.939
+  5 t_c       10 False    0.909    0.938    0.0363
+  5 t_alpha   10 False        1        1     0.968
+  5 t_beta    10 False    0.999    0.999     0.839
+  5 t_gamma   10 False    0.999    0.999     0.862
+  5 p_a       10 False    0.998        1     0.833
+  5 p_b       10 False    0.999        1     0.848
+  5 p_c       10 False    0.991    0.997     0.497
+  5 p_beta    10 False    0.999    0.996     0.912
+  6 m_a       10 False    0.999    0.999     0.791
+  6 m_b       10 False        1    0.999     0.878
+  6 m_c       10 False    0.998        1     0.547
+  6 m_beta    10 False    0.999        1     0.762
+  6 t_a       10 False        1    0.996     0.941
+  6 t_b       10 False        1        1     0.853
+  6 t_c       10 False    0.996        1     0.397
+  6 t_alpha   10 False        1        1     0.914
+  6 t_beta    10 False        1        1     0.906
+  6 t_gamma   10 False        1        1     0.968
+  6 p_a       10 False    0.998    0.999     0.624
+  6 p_b       10 False        1        1     0.853
+  6 p_c       10 False    0.996    0.995     0.405
+  6 p_beta    10 False        1        1     0.957
+  7 m_a       10 False        1    0.999     0.992
+  7 m_b       10 False        1    0.998     0.985
+  7 m_c       10 False        1        1      0.77
+  7 m_beta    10 False        1        1     0.952
+  7 t_a       10 False    0.999    0.998     0.729
+  7 t_b       10 False        1    0.999     0.793
+  7 t_c       10 False        1        1     0.972
+  7 t_alpha   10 False    0.999    0.999     0.703
+  7 t_beta    10 False    0.999    0.999     0.725
+  7 t_gamma   10 False    0.999        1     0.726
+  7 p_a       10 False        1        1     0.924
+  7 p_b       10 False        1        1     0.981
+  7 p_c       10 False        1        1     0.952
+  7 p_beta    10 False        1        1     0.852
+  8 m_a       10 False        1    0.999     0.864
+  8 m_b       10 False        1        1     0.884
+  8 m_c       10 False    0.999    0.996      0.55
+  8 m_beta    10 False        1        1     0.996
+  8 t_a       10 False        1    0.999     0.795
+  8 t_b       10 False        1        1      0.93
+  8 t_c       10 False    0.998    0.991     0.461
+  8 t_alpha   10 False        1        1     0.948
+  8 t_beta    10 False        1        1     0.981
+  8 t_gamma   10 False        1        1     0.991
+  8 p_a       10 False        1    0.999     0.874
+  8 p_b       10 False        1    0.994     0.935
+  8 p_c       10 False        1        1     0.917
+  8 p_beta    10 False        1        1     0.799
+  9 m_a       10 False    0.999    0.998     0.599
+  9 m_b       10 False        1        1     0.995
+  9 m_c       10 False    0.995    0.995     0.192
+  9 m_beta    10 False        1        1     0.933
+  9 t_a       10 False        1        1     0.965
+  9 t_b       10 False        1    0.999     0.839
+  9 t_c       10 False    0.998        1     0.432
+  9 t_alpha   10 False        1    0.999     0.896
+  9 t_beta    10 False        1        1     0.998
+  9 t_gamma   10 False        1        1     0.971
+  9 p_a       10 False        1        1     0.951
+  9 p_b       10 False        1    0.999     0.868
+  9 p_c       10 False        1        1     0.996
+  9 p_beta    10 False        1        1     0.797
