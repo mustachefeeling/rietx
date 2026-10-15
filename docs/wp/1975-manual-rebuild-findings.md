@@ -1,6 +1,6 @@
 # WP-1975 — the manual rebuilt: findings brief
 
-Milestone: unscheduled · Status: 🔄 2026-10-15 — every re-plan question but the toolchain decided (§ F8, § H); next the toolchain spike
+Milestone: unscheduled · Status: 🔄 2026-10-15 — claimed by @yue-here (the toolchain spike)
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-15 — a scoping WP: the maintainer's re-plan of the whole manual starts from this file
