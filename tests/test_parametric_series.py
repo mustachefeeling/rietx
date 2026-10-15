@@ -287,7 +287,7 @@ def test_two_declarations_may_share_neither_a_name_nor_a_pattern_of_one_target()
             one, one.model_copy(update={"target": "phases.0.atoms.0.biso"})])
 
 
-def test_two_phase_fields_take_a_equation_each_on_one_target():
+def test_two_phase_fields_take_an_equation_each_on_one_target():
     """Disjoint subsets: one equation per field, each pattern tied by its own."""
     s, _ = perturbed_inputs()
     lo = _equation(name="lo", basis="constant", terms=None, patterns=[0, 1])
@@ -301,7 +301,7 @@ def test_two_phase_fields_take_a_equation_each_on_one_target():
     assert {"vars.lo_0", "vars.hi_0"} <= set(freed)
 
 
-def test_each_row_a_equation_sets_names_it_and_no_other_row_does():
+def test_each_row_an_equation_sets_names_it_and_no_other_row_does():
     """``RefinedParameter.equations``' writer, read off C before anything is freed,
     so a held coefficient counts.  Two phase fields on one target: in each
     subset pattern the cubic cell's three edges name that field's equation, each
@@ -472,7 +472,7 @@ def test_coefficients_are_reported_per_unit_of_the_coordinates_at_the_reference(
     assert all(c.esd is None and not c.vary for c in fixed)
 
 
-def test_a_equation_evaluates_in_user_units_with_the_covariance_its_esds_came_from():
+def test_an_equation_evaluates_in_user_units_with_the_covariance_its_esds_came_from():
     """``parametric_equation`` and ``RefinedParametricEquation.evaluate`` without a fit: the
     table-unit equation Φ(u)·c at a coordinate is the user-unit one, and its esd is
     √(Φ Σ_table Φᵀ) from the correlation the esds were paired by."""
@@ -1140,7 +1140,7 @@ def test_the_form_tests_gain_is_the_dense_least_squares_gain():
     assert gain == pytest.approx(want, rel=1e-9)
 
 
-def test_a_equation_with_the_others_freed_is_the_difference_of_two_dense_gains():
+def test_an_equation_with_the_others_freed_is_the_difference_of_two_dense_gains():
     """``ParametricFormTest.others_freed``: two ``constant`` equations on the
     border's first two columns, each one's per-pattern copies its targets.
     With B freed too, A's gain is the χ² both swaps remove less what B's swap
@@ -1204,7 +1204,7 @@ def _two_readings(tied_stat: float, tied_p: float, freed_stat: float, freed_p: f
                  for x, p in ((tied_stat, tied_p), (freed_stat, freed_p)))
 
 
-def test_a_equation_the_freed_reading_rejects_is_printed_and_warned_as_such():
+def test_an_equation_the_freed_reading_rejects_is_printed_and_warned_as_such():
     """An equation that passes with the other equations tied and is rejected with them
     freed, as the ZrMo₂O₈ cubic equation read over the earlier χ²_red·f².  The
     freed reading is the verdict and prints first, and the warning quotes it

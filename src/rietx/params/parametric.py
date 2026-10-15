@@ -368,8 +368,8 @@ def coefficient_rows(resolved: ResolvedParametric, values: dict[str, float],
 
 
 def parametric_equation(resolved: ResolvedParametric, rows: list[ParametricCoefficient],
-                   columns: list[int | None], correlation: np.ndarray | None
-                   ) -> RefinedParametricEquation:
+                        columns: list[int | None], correlation: np.ndarray | None
+                        ) -> RefinedParametricEquation:
     """One declaration as resolved, with its coefficients' covariance.
 
     ``rows`` are the declaration's :func:`coefficient_rows`, ``columns`` each
@@ -473,8 +473,7 @@ def form_tests(resolved: list[ResolvedParametric], bj, resid: np.ndarray, n_data
     unless two or more equations were tested.
     """
     rd = resid[:n_data]
-    chi2_red = float(rd @ rd) / max(n_data - len(free_paths), 1)
-    scale = chi2_red
+    scale = float(rd @ rd) / max(n_data - len(free_paths), 1)    # χ²_red
     index = {p: i for i, p in enumerate(free_paths)}
     # the held side is one projection for every alternative tested here
     null = None

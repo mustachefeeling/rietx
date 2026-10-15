@@ -1917,7 +1917,7 @@ class MultiHistogramRefinement:
             return None
         index = {p: i for i, p in enumerate(mt.free_paths)}
         return [parametric_equation(r, [c for c in coefficients if c.equation == r.name],
-                               [index.get(p) for p in r.paths], corr)
+                                    [index.get(p) for p in r.paths], corr)
                 for r in mt.parametric]
 
     def _parametric_rows(self, esd0: dict[str, float]):
