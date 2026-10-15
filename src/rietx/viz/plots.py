@@ -632,7 +632,7 @@ def _title(ax, title: str | None, font_size: float) -> None:
 #: Where a gutter label starts, as a fraction of the axes width.
 _GUTTER_X = 1.012
 #: How far beside the axes :func:`_height_clip` reaches, in axes widths: far
-#: enough for any phase name, which grows the saved canvas rather than being cut.
+#: enough that a spine's own width is never cut.
 _CLIP_REACH = 100.0
 #: How far above and below the axes :func:`_height_clip` reaches, in axes
 #: heights, so a spine ending on the axes edge keeps its last row of pixels;
@@ -644,13 +644,11 @@ _CLIP_MARGIN = 0.02
 def _height_clip(artist, ax) -> None:
     """Clip ``artist``, placed in data height beyond the axes, to their height.
 
-    A gutter label and a bounded spine are drawn outside the axes, where
-    matplotlib clips nothing.  After a caller's ``set_ylim`` either can sit
-    far above or below the view, and a tight save then grows the canvas to
-    reach it: 871 px tall became 13 369 px (WP-1971).  A tight save measures a
-    clipped artist by its visible part, so this keeps the figure its designed
-    size.  It is set after the artist exists, because ``Axes.text`` replaces a
-    ``clip_box`` it is given with the axes' own.
+    A bounded spine is drawn on the axes edge, where matplotlib clips
+    nothing.  After a caller's ``set_ylim`` it can reach far above or below
+    the view, and a tight save then grows the canvas to reach it: 871 px tall
+    became 13 369 px (WP-1971).  A tight save measures a clipped artist by its
+    visible part, so this keeps the figure its designed size.
     """
     from matplotlib.transforms import Bbox, TransformedBbox
 
@@ -666,11 +664,15 @@ def _gutter_label(ax, y: float, text: str, colour) -> None:
     The x position is a fraction of the axes width, so the label stays beside
     the axes under a caller's ``set_xlim``.  In data coordinates a zoom to a
     tenth of the range put it nine axes widths away, and the notebook image
-    grew to reach it (WP-1971).
+    grew to reach it (WP-1971).  It is an annotation anchored at height ``y``
+    inside the axes, so a caller's ``set_ylim`` that leaves ``y`` outside the
+    view hides the whole label, which a tight save then does not measure.  A
+    clip box would slice a label straddling its edge instead.
     """
-    label = ax.text(_GUTTER_X, y, text, color=colour, ha="left", va="center",
-                    transform=ax.get_yaxis_transform())
-    _height_clip(label, ax)
+    gutter = ax.get_yaxis_transform()
+    ax.annotate(text, xy=(0.5, y), xycoords=gutter, xytext=(_GUTTER_X, y),
+                textcoords=gutter, annotation_clip=True, color=colour,
+                ha="left", va="center")
 
 
 def _tick_over(value: float, _pos, scale: float) -> str:
@@ -989,12 +991,10 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
                                    u_top, u_head)
 
         # fit statistics as a corner annotation, above the data ceiling so it
-        # can never collide with a peak
-        # in axes coordinates, so a caller's zoom keeps it in the corner
+        # can never collide with a peak; in axes coordinates, as the y label
+        # is, so a caller's zoom keeps it in the corner
         s = result.statistics
-        corner = (ax.transScale + ax.transLimits).transform(
-            (x0, float(inverse(u_top + 0.055 * u_span))))
-        ax.text(0.0, float(corner[1]),
+        ax.text(0.0, (u_top + 0.055 * u_span - u_bottom) / (u_head - u_bottom),
                 f"{result.mode}    $R_\\mathrm{{wp}}$ = {s.rwp:.4f}"
                 f"    GoF = {s.gof:.2f}", ha="left", va="bottom",
                 transform=ax.transAxes)

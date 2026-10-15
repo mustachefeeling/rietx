@@ -429,9 +429,8 @@ def test_a_callers_zoom_keeps_the_notebook_image_its_designed_size(fitted, name,
     height at each end, which a clipped spine reaches: 15 px of 871."""
     import matplotlib.pyplot as plt
 
-    draw = DRAWINGS[name]
-    width, height = _notebook_size(draw(*fitted))
-    fig = draw(*fitted)
+    fig = DRAWINGS[name](*fitted)
+    width, height = _notebook_size(fig)
     _zoom(fig.axes[0], *zoom)
     zoomed_width, zoomed_height = _notebook_size(fig)
     assert zoomed_width <= width
@@ -439,11 +438,27 @@ def test_a_callers_zoom_keeps_the_notebook_image_its_designed_size(fitted, name,
     plt.close("all")
 
 
+def test_a_gutter_label_the_zoom_leaves_outside_the_view_is_hidden_whole(fitted):
+    """A label whose height a ``set_ylim`` leaves just above the view is not
+    drawn at all, rather than drawn sliced by a clip edge."""
+    import matplotlib.pyplot as plt
+
+    fig = DRAWINGS["pattern"](*fitted)
+    ax = fig.axes[0]
+    (label,) = [t for t in ax.texts if t.get_text() == "observed"]
+    lo, _ = ax.get_ylim()
+    ax.set_ylim(lo, lo + (label.xy[1] - lo) / 1.018)
+    _notebook_size(fig)
+    assert not label.get_tightbbox().width > 0
+    plt.close("all")
+
+
 @pytest.mark.parametrize("name", list(DRAWINGS))
-def test_a_returned_figure_pickles_and_comes_back_the_same(fitted, name):
+def test_a_returned_figure_pickles_and_comes_back_the_same(fitted, name, monkeypatch):
     """A figure pickles as any matplotlib figure does, and loads to the same
-    pixels.  The class is found by name through the module's ``__getattr__``,
-    which is also what an unpickle in a fresh process reaches."""
+    pixels.  The class is found by name through the module's ``__getattr__``.
+    The cached class is dropped before loading, as in a fresh process, so the
+    load has to build it."""
     import pickle
 
     import matplotlib.pyplot as plt
@@ -451,7 +466,9 @@ def test_a_returned_figure_pickles_and_comes_back_the_same(fitted, name):
     from rietx.viz import plots
 
     fig = DRAWINGS[name](*fitted)
-    back = pickle.loads(pickle.dumps(fig))
+    blob = pickle.dumps(fig)
+    monkeypatch.setattr(plots, "_FIGURE_CLASS", None)
+    back = pickle.loads(blob)
     assert type(back) is plots._NotebookFigure
     assert back._rietx_style == fig._rietx_style
     assert np.array_equal(_pixels(back), _pixels(fig))
