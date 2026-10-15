@@ -219,7 +219,8 @@ def test_mccusker_structural_frees_po_after_displacement_before_extinction():
     assert names.index("preferred_orientation") < names.index("extinction")
     po = next(s for s in RefinementPlan.mccusker_structural().stages
               if s.name == "preferred_orientation")
-    assert po.turn_on == ["phases.*.preferred_orientation.r"]
+    # the spherical-harmonics texture is the same effect and frees beside it (WP-1960)
+    assert po.turn_on == ["phases.*.preferred_orientation.r", "phases.*.texture.*"]
 
 
 # -- analytic Jacobian -------------------------------------------------

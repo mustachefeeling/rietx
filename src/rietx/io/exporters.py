@@ -467,6 +467,14 @@ def _special_details(result: RefinementResult, structure: Structure) -> list[str
             out.append(f"Preferred orientation of {phase.name}: March-Dollase "
                        f"(Dollase 1986), axis the normal to ({hkl}), r="
                        f"{_value(po.r, '_pd_proc_ls_special_details')}.")
+        tex = phase.texture
+        terms = [f"{name}={_value(c, '_pd_proc_ls_special_details')}"
+                 for name, c in (tex.coefficients.items() if tex else ())
+                 if c.vary or c.value != 0.0]
+        if terms:
+            out.append(f"Preferred orientation of {phase.name}: spherical "
+                       f"harmonics (Von Dreele 1997) to order {tex.order}, "
+                       f"cylindrical sample symmetry, {', '.join(terms)}.")
     if st.rwp_background_subtracted is not None:
         out.append("Rwp with the background subtracted: "
                    f"{st.rwp_background_subtracted:.4f}.")

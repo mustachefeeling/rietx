@@ -231,6 +231,7 @@ and the rest describe what this specimen did to the peaks.
 | `Phase.gauss_strain` | `Parameter` | 0.0 deg², ≥ 0 | Gaussian strain broadening, tan²θ |
 | `Phase.extinction` | `Parameter` | 0.0 µm², fixed, ≥ 0 | primary extinction, the squared mosaic-block size D², {eq}`corr-sabine`; 0 is E ≡ 1 exactly |
 | `Phase.preferred_orientation` | `PreferredOrientation` or None | `None` | single-axis March-Dollase, {eq}`corr-md` |
+| `Phase.texture` | `SphericalHarmonicTexture` or None | `None` | spherical-harmonics texture, {eq}`corr-sh`; a phase declares this or March-Dollase |
 | `Phase.microstrain` | `StephensStrain` or None | `None` | anisotropic strain, width per hkl, {eq}`ms-sigma` |
 | `Phase.particle_radius_um` | float or None | `None` | Brindley microabsorption input, {eq}`corr-brindley`; a plain float, never refined |
 | `Phase.propagation_vector` | tuple of three rational strings, or None | `None` | commensurate k on the conventional reciprocal cell; adds satellites at Q = H ± k, {eq}`sat-position` |
@@ -438,6 +439,22 @@ subspace.
 `PreferredOrientation` is the March-Dollase correction: `PreferredOrientation.axis`
 is a fixed integer hkl and `PreferredOrientation.r` is the one refinable number,
 with r = 1 the identity.
+
+`SphericalHarmonicTexture` is the general correction, for a texture with no
+single axis. `SphericalHarmonicTexture.order` is the highest even degree, and
+`SphericalHarmonicTexture.coefficients` maps a term's name to its `Parameter`.
+The names follow GSAS-II's C(l, n): `c4_0`, `c4_3`, `c4_neg3`. Which terms
+exist depends on the Laue class, so a term you leave out is held at 0 and
+`ParameterTable` makes an entry for every allowed one. It refuses a name the
+class does not allow, and an order with no term (2, for a cubic phase).
+Every coefficient at 0 is the identity.
+
+```python
+from rietx.schemas.structure import SphericalHarmonicTexture
+
+texture = SphericalHarmonicTexture(order=4)
+assert texture.coefficients == {}   # every term starts held at 0
+```
 
 ## The instrument
 

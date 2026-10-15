@@ -45,12 +45,21 @@ The correction itself is geometry-agnostic (it only ever sees the angle to the
 scattering vector); it is the *interpretation of r* that flips.  Codes disagree
 on the sign convention, so this docstring — not the letter r — is the contract.
 
-This is the single-axis approximation.  Multi-axis and spherical-harmonics
-texture (Von Dreele 1997) are out of scope here.  WP-1960
-(``docs/wp/1960-spherical-harmonics-texture.md``) designs the harmonic block
-beside this one, carrying https://github.com/yue-here/rietx/issues/131 forward.
-March-Dollase stays either way — one refinable parameter against that model's
-2-44, and better conditioned for a genuine single fibre texture.
+This is the single-axis approximation.  The general one, spherical-harmonics
+texture (Von Dreele 1997, WP-1960), sits at the end of this module: its
+crystal half is ``crystallography.spherical_harmonics`` and its sample half
+the ψ table below.  March-Dollase stays beside it, one refinable parameter
+against that model's 2-44, and better conditioned for a single fibre texture.
+
+Spherical-harmonics texture
+---------------------------
+    P_h = 1 + Σ_t w_t·C_t·K_t(h),   w_t = (4π/(2l+1))·k_l(ψ) = √(4π/(2l+1))·P_l(cos ψ)
+
+(Von Dreele 1997, eq. 3, with cylindrical sample symmetry, so only the n = 0
+sample harmonic k_l = √((2l+1)/4π)·P_l survives).  ψ is the angle between the
+scattering vector and the specimen's symmetry axis.  In every geometry here
+it is one angle for every reflection, so each w_t is a constant of the stage.
+P is affine in C, and C = 0 gives exactly 1.
 
 References
 ----------
@@ -169,3 +178,66 @@ def orbit_layout(orbits: list[np.ndarray]
     members = np.vstack(orbits).astype(np.int64)
     seg = np.repeat(np.arange(len(orbits), dtype=np.int64), counts)
     return members, seg, counts
+
+
+#: ψ in degrees, the angle between the scattering vector and the specimen's
+#: symmetry axis, per ``Geometry.kind`` (WP-1960 D2).  Symmetric reflection
+#: puts the scattering vector on the plate normal.  Symmetric transmission and
+#: a spinning capillary put it perpendicular to the axis (Järvinen, 1993,
+#: J. Appl. Cryst. 26, 525, Table I; Ahtee et al., 1989, J. Appl. Cryst. 22,
+#: 261).  GSAS-II's ``Bragg`` uses 90° instead, so its coefficients differ by
+#: P_l(0) (WP-1960 § Pinned by Task 1).  ``tests/test_texture.py`` holds the
+#: keys equal to ``Geometry.kind``'s members.
+TEXTURE_SAMPLE_PSI_DEG = {
+    "bragg_brentano": 0.0,
+    "flat_plate_transmission": 90.0,
+    "debye_scherrer": 90.0,
+}
+
+
+def texture_term_weights(degrees, psi_deg: float) -> np.ndarray:
+    """w_t = √(4π/(2l+1))·P_l(cos ψ) for each term's degree l.
+
+    Frozen per stage.  cos ψ is snapped to zero at 90°, where floating point
+    leaves 6e-17, so a transmission weight is P_l(0) to the bit.
+    """
+    c = float(np.cos(np.radians(psi_deg)))
+    c = 0.0 if abs(c) < 1e-12 else c
+    return np.array([np.sqrt(4.0 * np.pi / (2 * degree + 1))
+                     * np.polynomial.legendre.Legendre.basis(degree)(c)
+                     for degree in degrees], dtype=np.float64)
+
+
+def texture_factors(harmonics, weights: np.ndarray, coefficients):
+    """P_h = 1 + Σ_t w_t·C_t·K_t(h), shape (N,).
+
+    ``harmonics`` is K, (N, n_terms), at the current cell; ``coefficients`` is
+    C in the same order.  The weights are lifted onto the backend, so no
+    frozen numpy array meets a traced value in a python operator.  C = 0 gives
+    a zero product and exactly 1.
+    """
+    xp = get_backend()
+    w = xp.asarray(weights, dtype=np.float64)
+    return 1.0 + xp.matmul(harmonics, w * coefficients)
+
+
+#: Below this, P counts as negative.  P is dimensionless with the random
+#: powder at 1, and the bounded-LM driver can leave a reflection's P on the
+#: face P = 0 to roundoff, which is a legal pole density.
+TEXTURE_POSITIVITY_TOL = 1e-9
+
+#: Directions sampled over the sphere for the minimum of P between
+#: reflections.  The terms run to l = 8 or so, whose features span about
+#: 180°/l; 2000 points sit about 4.5° apart.
+TEXTURE_SPHERE_SAMPLES = 2000
+
+
+def texture_index(degrees, coefficients) -> float:
+    """J = 1 + Σ C²/(2l+1) (Von Dreele 1997, eq. 16; Bunge 1982, 14.135).
+
+    Exact for orthonormal harmonics, which these are.  The odd orders are not
+    measured and the series stops at the declared order, so this is a lower
+    bound on the specimen's texture index.  J = 1 is a random powder.
+    """
+    return 1.0 + float(sum(c * c / (2 * degree + 1)
+                           for degree, c in zip(degrees, coefficients, strict=True)))

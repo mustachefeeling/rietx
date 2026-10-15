@@ -43,6 +43,7 @@ from ..crystallography.magnetic.moments import (
     MOMENT_DIRECTION_SUPPORT,
     MOMENT_DOF_PATH,
 )
+from ..crystallography.spherical_harmonics import reflection_directions
 from ..crystallography.stephens import S_NAMES
 from ..model import rows as row_layout
 from ..model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, DerivativeBases
@@ -92,6 +93,9 @@ _STRUCTURAL_PATH = re.compile(r"^phases\.(\d+)\.atoms\.(\d+)\.(dof|adp)\.\d+$")
 #: March-Dollase coefficient — an analytic intensity-multiplier column
 #: (``po_intensity_grad``), not the peak-chain FD path.
 _PO_PATH = re.compile(r"^phases\.(\d+)\.preferred_orientation\.r$")
+#: Spherical-harmonics texture coefficient (WP-1960): P is affine in it, so
+#: its column is analytic (``texture_intensity_grad``) and exact at any step.
+_TEXTURE_PATH = re.compile(r"^phases\.(\d+)\.texture\.c\d+_(?:neg)?\d+$")
 #: Phase scale — the one parameter the intensity is *exactly linear* in, so
 #: its column needs no perturbed ``phase_peaks`` at all (``_scale_column``).
 _SCALE_PATH = re.compile(r"^phases\.(\d+)\.scale$")
@@ -157,6 +161,7 @@ _INTENSITY_ONLY = (
     # the ADP components — all of them enter through |F|² alone
     re.compile(r"^phases\.\d+\.atoms\.\d+\."),
     re.compile(r"^phases\.\d+\.preferred_orientation\.r$"),
+    re.compile(r"^phases\.\d+\.texture\."),
     # a line weight and the polarization ratio scale the intensity of a peak
     # that is already placed.  The line's ``wavelength`` beside it is a table
     # entry since WP-1134 and is deliberately **absent** from this list: λ moves
@@ -1304,6 +1309,23 @@ def _po_column(model: CompiledModel, bases: DerivativeBases,
     return _accumulate(len(model.tt), [(pp.layout, terms)])
 
 
+def _texture_column(model: CompiledModel, bases: DerivativeBases,
+                    values: dict[str, float], ip: int, path: str) -> np.ndarray:
+    """∂y/∂C for one texture coefficient: only the intensity scalar moves.
+
+    The March-Dollase column's construction (:func:`_po_column`), with
+    ``texture_intensity_grad`` supplying ∂intensity/∂C, and its reach: a split
+    magnetic phase falls through to ``_peak_chain_column`` the same way.
+    """
+    dint = model.texture_intensity_grad(ip, path, values)
+    if dint is None:
+        return np.zeros(len(model.tt))
+    pp = bases.planes[ip]
+    coef = np.where(pp.finite, _gather_per_line(pp.layout, dint), 0.0)
+    terms = [(coef, pp.omega)] if np.any(coef != 0.0) else []
+    return _accumulate(len(model.tt), [(pp.layout, terms)])
+
+
 def _scale_column(model: CompiledModel, bases: DerivativeBases,
                   values: dict[str, float], ip: int) -> np.ndarray:
     """∂y/∂scale for phase ip: its own contribution, divided by the scale.
@@ -1629,6 +1651,11 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                     and not model.mag_split(int(po.group(1)))):
                 J[:n_data, c] = -sqrt_w * _po_column(
                     model, get_bases(), values, int(po.group(1)))
+            elif ((tex := _TEXTURE_PATH.match(path)) and model.mode == "rietveld"
+                    and own
+                    and not model.mag_split(int(tex.group(1)))):
+                J[:n_data, c] = -sqrt_w * _texture_column(
+                    model, get_bases(), values, int(tex.group(1)), path)
             elif ((sc := _SCALE_PATH.match(path)) and model.mode == "rietveld"
                     and own and values[path] > 0.0):
                 # exactly linear, so no perturbed ``phase_peaks``; the scale
@@ -1789,6 +1816,45 @@ def strain_cone_inequalities(model: CompiledModel, table: ParameterTable,
         if not np.any(T):                     # nothing free in this direction
             continue
         block = lm_mod.LinearInequality(T=T, c=c, label=f"phases.{ip}.microstrain")
+        if block.violated(x0).any():
+            continue
+        out.append(block)
+    return out
+
+
+def texture_positivity_inequalities(model: CompiledModel, table: ParameterTable,
+                                    x0: np.ndarray) -> list["lm_mod.LinearInequality"]:
+    """P ≥ 0 at every reflection of the stage, one block per textured phase.
+
+    P = 1 + (K·diag w)·c with c an affine function of θ, so the rows are linear
+    in θ (WP-1960 D4).  K is taken at the stage's **starting** cell, because K
+    follows the cell and a row must be a constant of the stage: a stage that
+    frees the cell beside the coefficients holds P ≥ 0 to first order only,
+    and ``TEXTURE_NOT_POSITIVE`` samples the answer.  Skipped as
+    :func:`strain_cone_inequalities` skips: nothing free in the direction, or
+    a start already outside.  C = 0 starts strictly inside, at P = 1.
+    """
+    from . import lm as lm_mod
+
+    if not table.free_paths or all(cp.tex_basis is None for cp in model.phases):
+        return []
+    C, d = table.constraint_block()
+    C = C.toarray()
+    values = table.decode(x0)
+    out: list[lm_mod.LinearInequality] = []
+    for ip, cp in enumerate(model.phases):
+        if cp.tex_basis is None:
+            continue
+        rows = [table._paths[p] for p in cp.tex_paths]
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        kw = np.asarray(cp.tex_basis.evaluate(reflection_directions(
+            cp.reflections.hkl, cp.tex_basis.rule, cell))) * cp.tex_weights
+        T = kw @ C[rows, :]
+        if not np.any(T):
+            continue
+        block = lm_mod.LinearInequality(T=T, c=1.0 + kw @ d[rows],
+                                        label=f"phases.{ip}.texture")
         if block.violated(x0).any():
             continue
         out.append(block)
@@ -2392,6 +2458,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         # restored (see the builders)
         ineqs = _pad_inequalities(
             strain_cone_inequalities(model, table, x0[:n_table])
+            + texture_positivity_inequalities(model, table, x0[:n_table])
             + gaussian_width_inequalities(model, table, x0[:n_table]), n_aux)
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
                           ftol=ftol, inequalities=ineqs, events=events, stage=stage,

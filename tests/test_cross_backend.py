@@ -763,7 +763,52 @@ def _state_bodies():
     return model, table, {}
 
 
+def _state_texture():
+    """Spherical-harmonics texture with the cell free beside it (WP-1960).
+
+    ``P -3`` because a mirror-free class carries the (cos nβ ± sin nβ)/√2
+    terms, ``c4_neg3`` among them, beside the n = 0 ones.  The coefficients
+    sit off zero, so the cell columns chain through a texture multiplier
+    that is not 1, and Bragg-Brentano makes every weight P_l(1).
+    """
+    from rietx.schemas.structure import (
+        Atom,
+        Cell,
+        Phase,
+        SphericalHarmonicTexture,
+        Structure,
+    )
+
+    p = Parameter
+    cell = Cell(a=p(value=3.147), b=p(value=3.147), c=p(value=4.769),
+                alpha=p(value=90.0), beta=p(value=90.0), gamma=p(value=120.0))
+    coefficients = {"c2_0": 0.6, "c4_neg3": 0.12, "c4_0": 0.25, "c4_3": -0.1}
+    structure = Structure(phases=[Phase(
+        name="textured", space_group="P -3", cell=cell, scale=p(value=1e-3),
+        atoms=[Atom(label="Mg", species="Mg", x=p(value=0.0), y=p(value=0.0),
+                    z=p(value=0.0), biso=p(value=0.5)),
+               Atom(label="O", species="O", x=p(value=1 / 3), y=p(value=2 / 3),
+                    z=p(value=0.22), biso=p(value=0.8))],
+        texture=SphericalHarmonicTexture(order=4, coefficients={
+            k: p(value=v) for k, v in coefficients.items()}))])
+    ins = Instrument.bragg_brentano()
+    ins.source.dispersion = None
+    tt = np.arange(15.0, 95.0, 0.02)
+    rng = np.random.default_rng(1960)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=(50.0 + 10.0 * rng.random(len(tt))).tolist())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for path in ("phases.0.scale", "phases.0.cell.a", "phases.0.cell.c",
+                 "phases.0.atoms.1.dof.0", "phases.0.texture.*"):
+        assert table.set_vary([path], True), path
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return model, table, {}
+
+
 CONFIGS = {"families": _state_families,
+           "texture": _state_texture,
            "bodies": _state_bodies,
            "families_voigt": _state_families_voigt,
            "axial_one_zero": _state_axial_one_zero,
@@ -799,6 +844,7 @@ def _config(name: str, *marks):
 CONFIG_PARAMS = [
     _config("families"),
     _config("families_voigt"),
+    _config("texture"),
     _config("axial_one_zero"),
     _config("sharp_widths"),
     _config("families_tied"),

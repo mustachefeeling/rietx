@@ -138,6 +138,7 @@ from .schemas.results import (
     AbsorptionCorrection,
     Identifiability,
     PhaseAgreement,
+    PhaseTexture,
     RefinedParameter,
     RefinementResult,
     StageResult,
@@ -326,9 +327,13 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     # already is here.
     # A rigid body's origin and rotation (WP-1805) move nothing but its atoms'
     # coordinates, so they are structural parameters too.
+    # A texture coefficient (WP-1960) multiplies |F|², which an intensity model
+    # does not compute, so its column is dead there: measured on March-Dollase's
+    # r, its single-axis sibling, which ended 1.7e-13 from its start.
     return (".atoms." in path or ".rigid_bodies." in path
             or (path.startswith("phases.") and path.endswith(".scale"))
             or ".source.lines." in path
+            or (path.startswith("phases.") and ".texture." in path)
             or _MAGNETIC_WIDTH_PATH.match(path) is not None)
 
 
@@ -5727,6 +5732,20 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "higher-symmetry Laue class has fewer), or extend the "
                        "fit range; do not report the S_HKL as measured",
         ))
+    for finding in guard.nonpositive_texture:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="TEXTURE_NOT_POSITIVE",
+            where=list(finding.paths), value=finding.value,
+            message=f"the spherical-harmonics texture of {msg} — P is a pole "
+                    "density, so a negative value is a truncated series outside "
+                    "the physical set, and the coefficients are not quotable as "
+                    "a pole density",
+            suggestion="lower the order, or hold the highest-order terms; the "
+                       "default LM driver holds P at the reflections, so under "
+                       "solver='trf' switch to it; say nothing from this about "
+                       "whether the specimen is textured",
+        ))
     for finding in guard.unsupported_resolution:
         msg = str(finding)
         out.append(Diagnostic(
@@ -6943,6 +6962,25 @@ def _phase_agreement(model: CompiledModel, values: dict[str, float],
 
 
 
+def _phase_texture(model: CompiledModel, values: dict[str, float],
+                   structure: Structure) -> list[PhaseTexture]:
+    """J and the two minima of P per textured phase at the answer (WP-1960).
+
+    The writer :class:`~rietx.schemas.results.PhaseTexture` names.  Empty
+    outside Rietveld mode, where no phase carries a compiled texture.
+    """
+    rows = []
+    for ip, cp in enumerate(model.phases):
+        summary = model.texture_summary(ip, values)
+        if summary is None:
+            continue
+        j, on_reflections, on_sphere = summary
+        rows.append(PhaseTexture(name=structure.phases[ip].name, texture_index=j,
+                                 min_p_reflections=on_reflections,
+                                 min_p_sphere=on_sphere))
+    return rows
+
+
 def _reflection_tick_support(model: CompiledModel, ip: int,
                              values: dict[str, float], n_rows: int) -> np.ndarray:
     """Each tick's support in σ, for phase ``ip``'s ``n_rows`` emission-line
@@ -7342,6 +7380,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         cell_volumes=volumes,
         microstructure=microstructure,
         phase_agreement=_phase_agreement(model, values, structure),
+        texture=_phase_texture(model, values, structure),
         data_support=support,
         absorption=absorption, identifiability=identifiability,
         # Declared, not measured, so it is written here rather than behind the

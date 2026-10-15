@@ -76,6 +76,7 @@ from rietx.schemas.structure import (
     Moment,
     Phase,
     PreferredOrientation,
+    SphericalHarmonicTexture,
     StephensStrain,
     Structure,
 )
@@ -195,6 +196,12 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
             background=BackgroundFixedPlusChebyshev(
                 fixed_two_theta=[10.0, 20.0, 30.0],
                 fixed_intensity=[120.0, 100.0, 95.0]))),
+        # A texture block (WP-1960): a phase declares it or March-Dollase,
+        # never both, so it takes a copy of the default phase.
+        (Structure(phases=[structure.phases[0].model_copy(update={
+            "preferred_orientation": None,
+            "texture": SphericalHarmonicTexture(order=4)})]),
+         Instrument(source=Source(lines=[EmissionLine(wavelength=1.540598)]))),
         # A moment block: it needs its own phase, because the default model's
         # Mg carries an ``aniso`` and a site may not have both, and because a
         # moment needs a magnetic space group on the phase beside it.  Every
