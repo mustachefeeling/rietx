@@ -1,8 +1,7 @@
 # WP-1960 — spherical-harmonics texture: preferred orientation with no single axis
 
-Milestone: unscheduled · Status: 🔄 2026-10-15 — every task but 9 landed; its writers
-are done, and GSAS-II's reader and the TOPAS import (blocked on the Technical
-Reference) remain
+Milestone: unscheduled · Status: 🔄 2026-10-15 — claimed by @yue-here; #983 landed every task but 9, and
+Task 9's readers (GSAS-II `_hap`, the TOPAS import) remain
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: — (#131 is the design record this WP carries forward)
 Priority: P3 2026-10-14 — a workaround covers the single-fibre case (March-Dollase); two named users want the general one (#131's author, whose SRM 1976a plate was rejected as an acceptance case for want of it, and the outside lab of WP-1325's 2026-10-13 entry); no WP waits on it
