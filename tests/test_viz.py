@@ -245,13 +245,15 @@ def test_the_vlm_montage_refuses_a_title_by_name(fitted, tmp_path):
 #: intensity-axis code into a helper and added ``title=`` — and matched by the
 #: tree after it.  Pinned where it was captured, as the bit-identity goldens
 #: are (``tests/test_backend_shim.py``): a PNG's bytes follow matplotlib's and
-#: FreeType's versions, not only this code.
+#: FreeType's versions, not only this code.  Re-captured under matplotlib
+#: 3.11.2 from ``origin/main`` at ``703d3fbd`` and matched by WP-1971's tree,
+#: because under the 3.11.1 pin the test had been skipping everywhere.
 PRE_TITLE_RENDER = {
-    "default": "16aa396da1565046be969cbca4e458c57598e5ac7055a53e67997bb1064a6077",
-    "weighted": "d19f16a14a49342cd105305fdb1a8b408b957076412621fbb9252b236ef9f459",
-    "log": "2b3d16a670d3462256bc64dcd3cad94dc262b04a9be527f4ae1e08efeffbf379",
+    "default": "5f6b7e318ea0aacaecd0dbaa16a334c9ef0fc1d687c2fe181b10ffdf3461c84f",
+    "weighted": "cff5d9a9368c173a6536a2ee51a58818faf88a471835998b1f33656c0fdab472",
+    "log": "1a7126b2edc25e1823efdf2eaf97dd49150b5160652737d99727aade1f550e12",
 }
-PINNED_ON = (("darwin", "arm64"), "3.11.1")
+PINNED_ON = (("darwin", "arm64"), "3.11.2")
 
 
 def _pinned_result(result):
