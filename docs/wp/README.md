@@ -50,7 +50,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1978](1978-the-new-manual-tree-and-its-page-contract.md) | The new manual's tree: six tabs beside the old, and its page contract | 2026-10-16 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
 
@@ -68,6 +67,12 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1967](1967-what-the-chemist-declares-reaches-the-extinction-screen.md) | What the chemist declares reaches the extinction screen | P2 | — ([1910](1910-the-extinction-screen-at-a-small-cell-error.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | P2 | — ([1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1981](1981-the-reference-pages-generated-from-their-authorities.md) | The reference pages, generated from their authorities | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1982](1982-vale-and-a-term-list-on-the-new-tree.md) | Vale and a term list on the new tree | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1983](1983-the-concepts-tab.md) | The Concepts tab | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1984](1984-the-switching-tab.md) | The Switching tab | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1985](1985-report-and-diagnostic-text-in-one-voice.md) | Report and diagnostic text, rewritten in one voice | P2 | — ([1133](1133-diagnostic-names-its-view.md) soft) | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
@@ -648,13 +653,13 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1954](1954-cut-1-8-0.md) | Cut 1.8.0 from what main holds | ✅ 2026-10-12 | — | [1546](1546-cut-1-7-0.md), [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) |
 | [1961](1961-cut-1-9-0.md) | Cut 1.9.0 from what main holds | ✅ 2026-10-14 | — | [1954](1954-cut-1-8-0.md), [1959](1959-the-dichotomy-grid-compiled-again.md) |
 | [1975](1975-manual-rebuild-findings.md) | The manual rebuilt: findings brief | ✅ 2026-10-16 | — | — |
-| [1978](1978-the-new-manual-tree-and-its-page-contract.md) | The new manual's tree: six tabs beside the old, and its page contract | 🔄 2026-10-16 | P2 | — |
-| [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
-| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
-| [1981](1981-the-reference-pages-generated-from-their-authorities.md) | The reference pages, generated from their authorities | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
-| [1982](1982-vale-and-a-term-list-on-the-new-tree.md) | Vale and a term list on the new tree | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
-| [1983](1983-the-concepts-tab.md) | The Concepts tab | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
-| [1984](1984-the-switching-tab.md) | The Switching tab | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
+| [1978](1978-the-new-manual-tree-and-its-page-contract.md) | The new manual's tree: six tabs beside the old, and its page contract | ✅ 2026-10-16 | — | — |
+| [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1981](1981-the-reference-pages-generated-from-their-authorities.md) | The reference pages, generated from their authorities | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1982](1982-vale-and-a-term-list-on-the-new-tree.md) | Vale and a term list on the new tree | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1983](1983-the-concepts-tab.md) | The Concepts tab | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
+| [1984](1984-the-switching-tab.md) | The Switching tab | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md), [1979](1979-the-manual-at-docs-one-tree-per-version.md) |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement

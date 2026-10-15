@@ -835,7 +835,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   exactly as a CIF whose angle contradicts its symbol is.
 - The **manual** (`docs/manual/`) is one `-W` Sphinx tree in two parts, guarded differently because
   each fails differently. **Part 2 — Theory** (`tests/test_manual.py`): fenced constants are MyST
-  substitutions injected from the live package in `conf.py`, every displayed equation carries a
+  substitutions injected from `docs/sphinx_shared.py` (both trees), every displayed equation carries a
   `*Source:*` line whose symbol must import, every bib entry is cited — so renaming a physics
   symbol or retuning a fenced constant means touching the manual in the same change, and **a WP
   that adds physics adds its equation there**, never only Part 1 prose (WP-1067). **Part 1 — Using

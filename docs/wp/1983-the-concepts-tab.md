@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1981 soft (the parameter map it links)
-Priority: P3 2026-10-16 — down a rung from P2: nothing can start until 1978's tree exists
+Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
 
 ## Goal
 
@@ -43,6 +43,20 @@ Mine these; do not move them whole.
 
 This tab shows no fit output, so it can start before the report-text rewrite (WP-1985). Where
 a page must show a report, quote the shape and link the Reference page.
+
+### Inherited
+
+- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
+  the fenced constants, the citation style, the mermaid theme and the `{source}` role from
+  `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
+  it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
+  `DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`).
+  `test_every_theory_link_from_concepts_and_guides_resolves` reads markdown links into
+  `../theory/` and checks the built page and the section a fragment names, by HTML id or by
+  MyST slug; `{ref}` and `{doc}` roles are left to `-W`. Heading anchors reach depth 3. The
+  page contract fails a
+  page with no answer sentence under its H1, one over 50 000 characters, and a section whose
+  first sentence leans back (`_BACK_REFERENCE`).
 
 ## Non-goals
 

@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1978 (the new tree)
-Priority: P3 2026-10-16 — down a rung from P2: nothing can start until 1978's tree exists
+Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
 
 ## Goal
 
@@ -39,6 +39,15 @@ The banned words are the maintainer's: "simply", "just", "easy", "it's important
 and marketing adjectives (the `yue-docs-style` skill's list). Read the current list from that
 skill at the start rather than from this line.
 
+### Inherited
+
+- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
+  the fenced constants, the citation style, the mermaid theme and the `{source}` role from
+  `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
+  it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
+  `DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`). Point Vale at
+  `docs/docs/`; `_build/` sits inside it and is gitignored. The stubs use no admonitions yet.
+
 ## Non-goals
 
 - The old tree. It is exempt until each chapter retires (WP-1986).
@@ -58,7 +67,7 @@ skill at the start rather than from this line.
 ## Acceptance
 
 ```sh
-vale --config=.vale.ini <new tree>      # no error-level alert
+vale --config=.vale.ini docs/docs      # no error-level alert
 ```
 
 ## References

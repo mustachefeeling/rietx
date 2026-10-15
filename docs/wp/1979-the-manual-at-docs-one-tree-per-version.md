@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1978 (the new tree)
-Priority: P3 2026-10-16 — down a rung from P2: nothing can start until 1978's tree exists
+Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
 
 ## Goal
 
@@ -56,6 +56,18 @@ Three things follow:
   beside it.
 - The `{source}` role links `blob/main` (`docs/manual/conf.py` `_SOURCE_REF`). A tagged build
   must link its tag, or its line numbers drift.
+
+### Inherited
+
+- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
+  the fenced constants, the citation style, the mermaid theme and the `{source}` role from
+  `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
+  it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
+  `DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`). Nothing about
+  versions is configured yet: no `DOCS_VERSION`, no `html_baseurl`, no switcher, no
+  `show_version_warning_banner`, and `navbar_end` lacks `version-switcher`. The spike's
+  `conf.py` has all four. `pages.yml` still builds only `docs/manual/`. The favicon is the old
+  tree's file, read through `../manual/_static/favicon.svg`.
 
 ## Non-goals
 

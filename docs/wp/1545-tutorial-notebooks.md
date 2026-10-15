@@ -123,6 +123,10 @@ British spelling):
   - The landing page's code box is pinned to notebook 02's first cell
     (`test_tutorials.py`), so the split moves that pin.
   - The new manual (WP-1978) renders the notebooks under its Start tab.
+- **2026-10-16, from WP-1978.** The new tree (`docs/docs/`, PR #1004) does
+  not render the notebooks yet. It loads `myst_nb`, but the copy step stays
+  in the old `conf.py` until WP-1986 retires that tree, so the Start tab is
+  a stub.
 
 ## Non-goals
 

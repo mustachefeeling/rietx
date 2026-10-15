@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1981 soft (the foreign-name map and the roadmap it links)
-Priority: P3 2026-10-16 — down a rung from P2: nothing can start until 1978's tree exists
+Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
 
 ## Goal
 
@@ -40,6 +40,16 @@ publishes such a comparison.
   validation row; a cell without evidence is not written.
 - Comparing against another code means adopting its protocol (root CLAUDE.md § Conventions).
   A page quoting an agreement quotes the protocol with it.
+
+### Inherited
+
+- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
+  the fenced constants, the citation style, the mermaid theme and the `{source}` role from
+  `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
+  it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
+  `DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`).
+  `switching/index.md` is a stub, and the front page's "Coming from another code" card links
+  it.
 
 ## Non-goals
 
