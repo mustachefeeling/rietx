@@ -518,7 +518,10 @@ class SearchSpec:
         need = math.ceil(INLIER_FRACTION * n - 1e-9)
         if system is not None:
             need = max(need, METRIC_DOF.get(system, 6) + INLIER_DOF_MARGIN)
-        return max(n - min(need, n), 0)
+        # never below the count a default run tolerates: on a short list the
+        # DOF term alone sets a budget of 0 or 1 (triclinic N = 10, monoclinic
+        # N = 9), stricter than the rule the retry stands in for (#951)
+        return max(n - min(need, n), DEFAULT_N_UNINDEXED)
 
     def volume_limit(self, system: str, fallback: float) -> float:
         if self.max_volume is None:
@@ -1522,6 +1525,13 @@ def scored_positions(peaks: PeakList, fit) -> tuple[np.ndarray, np.ndarray]:
     return q_of_two_theta(corrected, peaks.wavelength), corrected
 
 
+def _panel_trim(n_unindexed) -> int:
+    """The FoM panel's trim from a declared ``n_unindexed``: the int, or 0 for
+    ``None`` and :data:`INLIERS` (a caller handing ``spec.n_unindexed`` straight
+    through hands those; the trim is then the panel's own business)."""
+    return n_unindexed if isinstance(n_unindexed, int) else 0
+
+
 def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
                       k_sigma: float = MATCH_SIGMA, n_unindexed: int = 0,
                       diagnostics: Sequence[Diagnostic] = (),
@@ -1540,9 +1550,7 @@ def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
     engine's assignment, the candidate carries what the inlier rule leaves —
     ``n_search_unindexed`` and the residue ``unindexed_two_theta``.
     """
-    # a caller handing ``spec.n_unindexed`` straight through hands ``None``
-    # under the inlier rule; the trim is then the panel's own business
-    n_unindexed = int(n_unindexed or 0)
+    n_unindexed = _panel_trim(n_unindexed)
     engine_fit = cand.fit
     fit, change = conventional_fit(engine_fit, cand.system, cand.centring)
     tt_esd = peaks.two_theta_esd()
@@ -1972,7 +1980,7 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
     engine assigned lines with, or the panel judges these candidates by a window
     they were never selected under (:func:`~rietx.indexing.fom.fom_panel`).
     """
-    n_unindexed = int(n_unindexed or 0)
+    n_unindexed = _panel_trim(n_unindexed)
     # ``deduped``: the caller's list is exactly what :func:`dedup_candidates`
     # just returned, and a second pass over that is the identity — the survivors
     # come back in the same (stable) order, each meets the same first members in

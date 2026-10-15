@@ -134,8 +134,12 @@ def test_the_budget_is_a_fraction_of_the_driven_lines():
     assert spec.miss_budget(20) == 8
     # a short list: n_dof + 4 binds, and never past the list itself
     assert spec.miss_budget(10, "cubic") == 4
-    assert spec.miss_budget(10, "triclinic") == 0
-    assert spec.miss_budget(0, "cubic") == 0
+    assert spec.miss_budget(0, "cubic") == 2
+    # never below what a default run tolerates (#951): the DOF term alone would
+    # leave 0 at triclinic N = 10, 1 at monoclinic N = 9, 0 at cubic N = 5
+    assert spec.miss_budget(10, "triclinic") == 2
+    assert spec.miss_budget(9, "monoclinic") == 2
+    assert spec.miss_budget(5, "cubic") == 2
     # a declared count is the caller's statement, returned verbatim
     assert SearchSpec(n_unindexed=3).miss_budget(20, "cubic") == 3
     # and a list with no anchor (one intensity) keeps the absolute count
@@ -265,3 +269,64 @@ def test_the_retry_adds_to_the_first_pass_and_never_removes_from_it(monkeypatch)
     assert any(d.code == "INDEX_INLIER_RETRY" for d in res.diagnostics)
     assert any(_is_truth(c) for c in res.candidates), (
         [(c.centring, c.cell[0], c.found_by) for c in res.candidates[:3]])
+
+
+def test_a_retried_run_streams_a_ladder_that_never_overruns():
+    """The retry runs every (engine × system) unit again, so the ladder's total
+    grows with it: ``stage N of M`` never has N > M (#951 review, item 2)."""
+    from rietx.indexing import index_pattern
+
+    events = []
+    res = index_pattern(_peaks(impurities=True), spec=_spec(), preset="full",
+                        events=events.append)
+    assert any(d.code == "INDEX_INLIER_RETRY" for d in res.diagnostics)
+    starts = [e["data"] for e in events if e["kind"] == "stage_start"]
+    assert starts and all(d["n_stages"] >= d["index"] for d in starts)
+
+
+def test_a_retry_cut_short_keeps_what_the_first_pass_found(monkeypatch):
+    """The retry may be cut off before it reaches an engine (deadline, or the
+    person stopping the run): that engine's first-pass result, and the systems
+    it searched, stay in the answer (#951 review, item 1).  Here svd alone finds
+    the truth on the first pass, and the token trips when the first retry unit
+    starts, so svd has no retry unit at all."""
+    from rietx.indexing import engines, index_pattern
+    from rietx.indexing.engines import EngineResult
+    from rietx.optimize.cancel import CancelToken
+
+    real = engines.get_engine
+    token = CancelToken()
+
+    def stubbed(name):
+        def run(peaks, *, spec, **kw):
+            if spec.inliers:
+                token.cancel()
+                return EngineResult(engine=name, systems_searched=(),
+                                    search_complete={})
+            if name == "svd":
+                return real(name)(peaks, spec=spec, **kw)
+            return EngineResult(engine=name, systems_searched=(),
+                                search_complete={})
+        return run
+
+    monkeypatch.setattr(engines, "get_engine", stubbed)
+    res = index_pattern(_peaks(impurities=False), spec=_spec(), preset="full",
+                        cancel=token)
+    assert any(_is_truth(c) for c in res.candidates)
+    assert "cubic" in res.systems_searched
+
+
+def test_the_panel_trim_accepts_the_inlier_string():
+    """``spec.n_unindexed`` handed straight through is ``"inliers"`` under a
+    declared inlier search: the trim is 0, not ``int("inliers")`` (#951 review,
+    item 4)."""
+    from rietx.indexing.engines import rank_candidates, to_cell_candidate
+
+    peaks = _peaks(impurities=False)
+    spec = _spec(n_unindexed="inliers")
+    res = get_engine("dichotomy")(peaks, spec=spec)
+    assert res.candidates
+    assert rank_candidates(res.candidates, peaks,
+                           n_unindexed=spec.n_unindexed)
+    assert to_cell_candidate(res.candidates[0], peaks,
+                             n_unindexed=spec.n_unindexed) is not None

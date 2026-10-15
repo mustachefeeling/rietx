@@ -739,8 +739,9 @@ def supercell_chance(parent_cell: tuple[float, ...], parent_centring: str,
     measures over the same windows.  A phantom supercell's extras are seen at
     about p₀; a real superstructure's more often.  The one-sided binomial p is
     the chance of at least ``n_seen`` of ``n_extra`` at p₀.  Pass ``q_esd`` as the
-    window the search matched with (``engines.match_window``): the question is
-    whether a line would have been claimed as indexed.
+    window an absence test reads (``engines.absence_window``, not the search's
+    ``match_window``, whose width rule narrows p₀ and over-powers a refutation):
+    the question is whether a line would have been claimed as indexed.
 
     **Support asks a narrower count than refutation** (WP-1510).  Each seen
     extra is also asked whether the line it sits on is one the parent explains,

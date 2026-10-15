@@ -874,16 +874,33 @@ def index_pattern(peaks: PeakList | None = None, *,
         first = sum(len(r.candidates) for r in results)
         first_pass = {r.engine: r for r in results}
         spec = retry_spec
-        results = run_units(spec)
-        # the retry adds and never removes (#951): every first-pass candidate
-        # indexes all but two driven lines, so it passes the inlier rule too,
-        # and a single-engine truth the retry does not reach (a lab pattern's
-        # dichotomy-only cell, replaced by its a/2 subcell) must not leave the
-        # list.  First, so a lattice both passes found keeps the stricter fit
-        for r in results:
-            prev = first_pass.get(r.engine)
+        # the retry repeats every unit, so the ladder grows by the same count
+        progress.add(len(names) * len(ordered_systems))
+        retried = run_units(spec)
+        # the retry adds and never removes (#951): a first-pass candidate
+        # indexes all but two driven lines, which is what a single-engine truth
+        # (a lab pattern's dichotomy-only cell, replaced by its a/2 subcell)
+        # needs to stay in the list even where the retry's anchors would have
+        # refused it.  First, so a lattice both passes found keeps the stricter
+        # fit.  An engine the retry never reached (deadline, cancel) keeps its
+        # first-pass result whole, and one it reached only in part keeps the
+        # first pass's systems
+        results = []
+        for name in names:
+            prev = first_pass.get(name)
+            now = next((r for r in retried if r.engine == name), None)
+            if now is None:
+                if prev is not None:
+                    results.append(prev)
+                continue
             if prev is not None:
-                r.candidates[:0] = prev.candidates
+                now.candidates[:0] = prev.candidates
+                now.systems_searched += tuple(
+                    s for s in prev.systems_searched
+                    if s not in now.systems_searched)
+                now.search_complete = {**prev.search_complete,
+                                       **now.search_complete}
+            results.append(now)
         if results:
             results[0].diagnostics.append(inlier_retry_diagnostic(first))
     trial = next((r for r in results if r.engine == "trial_error"), None)
