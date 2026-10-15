@@ -68,9 +68,9 @@ yet, since 1805 has not landed. The GOF pair was not re-measured.
 - [x] Skill: a reference row for `RIGID_BODY_MISFIT`
       (`test_every_engine_diagnostic_code_has_a_protocol_row`), saying to run
       the check before quoting a body's geometry or calling a solve solved.
-- [ ] Hamilton's F has one authority: `body_misfit` reads F and p off the
+- [x] Hamilton's F has one authority: `body_misfit` reads F and p off the
       helper `hamilton_justified` uses, rather than writing the formula again.
-- [ ] `compile_phase_sites` runs once per phase in `rigid_body_misfit`, not
+- [x] `compile_phase_sites` runs once per phase in `rigid_body_misfit`, not
       once per body.
 
 ## Acceptance
@@ -79,7 +79,7 @@ On the issue's synthetic pair, the wrong body fires and names the long bond
 among the worst three, and the right body does not fire.
 
 ```sh
-.venv/bin/python -m pytest tests/test_rigid_body_misfit.py tests/test_skill.py tests/test_help.py
+.venv/bin/python -m pytest tests/test_body_misfit.py tests/test_skill.py tests/test_help.py
 .venv/bin/python -m ruff check src tests examples
 ```
 
