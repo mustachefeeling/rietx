@@ -368,8 +368,10 @@ DIAGNOSTIC_GROUPS = (
     ("diagnostics-projects", "Other programs' projects", ("rietx/io/projects/",)),
     ("diagnostics-files", "Reading files", ("rietx/io/",)),
     ("diagnostics-indexing", "Peaks and indexing", ("rietx/indexing/",)),
+    # not `rietx/schemas/`: the codes raised there are a result's capped
+    # correlation counts and a stored file's migrated ranges, not structure
     ("diagnostics-structures", "Structures and magnetism",
-     ("rietx/crystallography/", "rietx/schemas/", "rietx/strategy/magnetic",
+     ("rietx/crystallography/", "rietx/strategy/magnetic",
       "rietx/report/magnetic")),
     ("diagnostics-series", "Series and joint fits", ("rietx/sequential", "rietx/multi")),
     ("diagnostics-refinement", "Refinement", ("",)),
