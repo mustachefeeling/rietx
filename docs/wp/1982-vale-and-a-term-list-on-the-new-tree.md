@@ -44,9 +44,11 @@ skill at the start rather than from this line.
 - **2026-10-16, from WP-1981, the maintainer's review of the Reference tab.** Six style
   rules the maintainer confirmed, now in `yue-docs-style`. Their checkable halves belong in
   this WP's Vale rules and term list:
-  1. A heading is a label, never a claim and never empty. Flag a heading with a finite verb
-     ("The four answers are four different types"), and the bare "In" and "Out" headings of
-     the skill's API index (`make_api_index.SECTIONS`), which the API pages render.
+  1. A heading makes sense read alone, in the sidebar, the contents list and search
+     results. "The four answers are four different types" fails ("which four?"), and so
+     do the bare "In" and "Out" the skill's API index used (both renamed in WP-1981). A
+     heading with a finite verb is the cheap proxy for a claim heading; a one-word
+     heading is the proxy for a bare one. Neither proxy is the rule, so flag, never fail.
   2. The crystallographer's term leads: "lattice parameter" over "cell edge" and "cell
      angle". Add these to the term list.
   3. No programming concept before it is explained or linked: "glob", "dot-path",

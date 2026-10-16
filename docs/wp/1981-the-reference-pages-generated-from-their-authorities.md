@@ -176,9 +176,10 @@ npm --prefix gui test
   are labels in `make_api_index`, so the skill's `api*.md` and both copies were regenerated.
   The review produced six style rules: four are in the user-level `yue-docs-style` skill,
   and all six, with their checkable halves, are in WP-1982's Inherited. The help corpus
-  rewrite is folded into WP-1985. One conflict is open: `yue-prose` construction 7 says
-  "the heading carries the claim", which the new heading rule contradicts, and the
-  maintainer has not yet said which wins. Tests after the review: the manual, reference,
+  rewrite is folded into WP-1985. `yue-prose` construction 7 had said "the heading carries
+  the claim", which contradicted the heading rule. The maintainer settled it by the
+  heading's use: a heading is read alone in a contents list and must make sense there, so
+  construction 7, its examples and `yue-docs-style` now all say so. Tests after the review: the manual, reference,
   help, GUI-help and skill files all pass, 547 cases across the runs.
 
   Next: 1979 and 1983 can start at once. 1984 can link the foreign-name map and roadmap.
