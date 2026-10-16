@@ -293,6 +293,7 @@ def plan_ladder() -> str:
 # ----------------------------------------------------------------------
 
 _CODE_SHAPE = _re.compile(r"[A-Z][A-Z0-9_]+")
+_LEVELS = {"info", "warning", "error"}
 SOURCE_ROOT = _Path(__file__).resolve().parent.parent / "src" / "rietx"
 
 
@@ -344,6 +345,14 @@ def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]
             if name in {"cls", "GuardFinding"} and node.args:
                 for literal in _code_literals(node.args[0]):
                     add(literal, rel, None)
+            # a helper taking (level, code) positionally, `_note(d, "info", "CODE", ...)`
+            plain = [a.value for a in node.args
+                     if isinstance(a, _ast.Constant) and isinstance(a.value, str)]
+            levels = [s for s in plain if s in _LEVELS]
+            if len(levels) == 1:
+                for literal in plain:
+                    if _CODE_SHAPE.fullmatch(literal) and "_" in literal:
+                        add(literal, rel, levels[0])
     for code, files in tabled.items():
         if code not in out:
             for rel in files:

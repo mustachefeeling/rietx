@@ -20,7 +20,7 @@ default or a renamed unit fails a test rather than leaving a stale number in
 print.
 
 **Every arm is meta-tested against its live registry.**  The vocabularies are
-closed and derivable (``PeakFlag``, the ``PEAK_*`` diagnostic codes,
+closed and derivable (``PeakFlag``, the diagnostic codes,
 ``StageSpec``'s fields, ``READER_OPTIONS``, ``INSTRUMENT_PRESETS``,
 ``IndexingControls`` flattened one level), so a member added without an entry
 fails coverage the day it lands.  That is why the arms are
@@ -56,7 +56,7 @@ from fnmatch import fnmatchcase
 __all__ = [
     "HelpEntry",
     "PARAMETER_HELP",
-    "PEAK_DIAGNOSTIC_HELP",
+    "DIAGNOSTIC_HELP",
     "PEAK_FLAG_HELP",
     "PEAK_ORIGIN_HELP",
     "READER_OPTION_HELP",
@@ -64,6 +64,7 @@ __all__ = [
     "INSTRUMENT_FIELD_HELP",
     "STAGE_FIELD_HELP",
     "UNIT_DISPLAY",
+    "explain",
     "help_for",
     "help_key_for",
     "help_registry",
@@ -1555,11 +1556,15 @@ PEAK_ORIGIN_HELP: dict[str, HelpEntry] = {
     ),
 }
 
-#: One entry per ``PEAK_*`` diagnostic code the peak-picking route emits.  These
-#: are messages about the *list*, where a ``PeakFlag`` is a fact about one line;
-#: several codes are the list-level summary of a flag, and say how many lines
-#: carry it.
-PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
+#: One entry per diagnostic code the package raises: what the code means and
+#: why it fires, written once per code and never once per finding (WP-1985).
+#: A :class:`~rietx.schemas.common.Diagnostic` carries the observation and the
+#: action for its own case, and reads this entry as its ``explanation``.
+#: ``tests/test_help.py`` holds the keys equal to the codes the source tree
+#: raises, read by ``docs/reference_pages.diagnostic_index``.  A ``PEAK_*``
+#: code is about the peak *list*, where a ``PeakFlag`` is a fact about one
+#: line; several are the list-level summary of a flag.
+DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "PEAK_LIST_TOO_SHORT": HelpEntry(
         title="Too few usable lines to index",
         description=(
@@ -2329,6 +2334,16 @@ def help_for(path: str) -> HelpEntry | None:
     return None if key is None else PARAMETER_HELP[key]
 
 
+def explain(code: str) -> HelpEntry | None:
+    """What a diagnostic ``code`` means, or ``None`` for a code with no entry.
+
+    ``None`` covers a code a newer or older package raised, read from a stored
+    file: the registry describes this build's codes, and an old file must
+    always open.
+    """
+    return DIAGNOSTIC_HELP.get(code)
+
+
 def help_registry() -> dict[str, object]:
     """The whole corpus as JSON-able data, for ``GET /api/help``.
 
@@ -2355,7 +2370,7 @@ def help_registry() -> dict[str, object]:
     return {
         "parameters": grouped,
         "peak_flags": {k: asdict(v) for k, v in PEAK_FLAG_HELP.items()},
-        "peak_diagnostics": {k: asdict(v) for k, v in PEAK_DIAGNOSTIC_HELP.items()},
+        "diagnostics": {k: asdict(v) for k, v in DIAGNOSTIC_HELP.items()},
         "peak_origins": {k: asdict(v) for k, v in PEAK_ORIGIN_HELP.items()},
         "stage_fields": {k: asdict(v) for k, v in STAGE_FIELD_HELP.items()},
         "reader_options": {k: asdict(v) for k, v in READER_OPTION_HELP.items()},

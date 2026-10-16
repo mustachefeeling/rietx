@@ -21,8 +21,8 @@ deliberately has none.
 
 from __future__ import annotations
 
-import ast
 import dataclasses
+import importlib.util
 import json
 import re
 from pathlib import Path
@@ -35,9 +35,9 @@ import rietx as rx
 from rietx import _about
 from rietx.gui.imports import INSTRUMENT_PRESETS
 from rietx.help import (
+    DIAGNOSTIC_HELP,
     INSTRUMENT_FIELD_HELP,
     PARAMETER_HELP,
-    PEAK_DIAGNOSTIC_HELP,
     PEAK_FLAG_HELP,
     PEAK_ORIGIN_HELP,
     READER_OPTION_HELP,
@@ -84,7 +84,6 @@ from rietx.strategy.staged import PLAN_INFO
 from tests.test_manual import built_manual  # noqa: F401  (fixture, shared build)
 
 ROOT = Path(__file__).resolve().parents[1]
-INDEXING = ROOT / "src" / "rietx" / "indexing"
 
 
 # ------------------------------------------------------------------ vocabulary
@@ -294,27 +293,19 @@ def _vocabulary() -> list[str]:
     return list(seen)
 
 
-def _peak_diagnostic_codes() -> set[str]:
-    """Every ``PEAK_*`` diagnostic code constructed under ``indexing/``.
+def _raised_codes() -> set[str]:
+    """Every diagnostic code the source tree raises.
 
-    Derived by walking the source rather than listed, for the reason
-    ``tests/test_docs_consistency.py`` walks it too: a code added to a screen is
-    a message a person will read, and a curated list is what stops noticing.
-    All twelve live in ``indexing/diagnostics.py`` today; the walk covers the
-    package so one written elsewhere is still caught.
+    Read from ``docs/reference_pages.diagnostic_index``, the walk the Reference
+    tab's diagnostic index is built from, so the page and this registry cannot
+    disagree about which codes exist.  A curated list is what stops noticing a
+    new code.
     """
-    codes: set[str] = set()
-    for py in sorted(INDEXING.rglob("*.py")):
-        tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            for kw in node.keywords:
-                if (kw.arg == "code" and isinstance(kw.value, ast.Constant)
-                        and isinstance(kw.value.value, str)
-                        and kw.value.value.startswith("PEAK_")):
-                    codes.add(kw.value.value)
-    return codes
+    spec = importlib.util.spec_from_file_location(
+        "_reference_pages", ROOT / "docs" / "reference_pages.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return set(module.diagnostic_index())
 
 
 def _preset_fields() -> set[str]:
@@ -337,7 +328,7 @@ def _arms() -> dict[str, dict[str, HelpEntry]]:
     """Every named arm, so a test can sweep all of them at once."""
     return {
         "peak_flags": PEAK_FLAG_HELP,
-        "peak_diagnostics": PEAK_DIAGNOSTIC_HELP,
+        "diagnostics": DIAGNOSTIC_HELP,
         "peak_origins": PEAK_ORIGIN_HELP,
         "stage_fields": STAGE_FIELD_HELP,
         "reader_options": READER_OPTION_HELP,
@@ -441,14 +432,16 @@ def test_every_chip_arm_entry_carries_a_short_unique_label():
     assert not [g for g, e in PARAMETER_HELP.items() if e.label]
 
 
-def test_every_peak_diagnostic_code_has_an_entry():
-    codes = _peak_diagnostic_codes()
-    assert len(codes) >= 12, (
-        f"only {len(codes)} PEAK_* codes collected — the AST walk broke, it "
-        "does not mean the screens got quieter")
-    assert set(PEAK_DIAGNOSTIC_HELP) == codes, (
-        f"missing: {sorted(codes - set(PEAK_DIAGNOSTIC_HELP))}; "
-        f"describing nothing: {sorted(set(PEAK_DIAGNOSTIC_HELP) - codes)}")
+def test_every_diagnostic_code_has_an_entry():
+    codes = _raised_codes()
+    assert len(codes) >= 250, (
+        f"only {len(codes)} codes collected — the AST walk broke, it "
+        "does not mean the package got quieter")
+    peak = {c for c in codes if c.startswith("PEAK_")}
+    assert peak <= set(DIAGNOSTIC_HELP), (
+        f"missing: {sorted(peak - set(DIAGNOSTIC_HELP))}")
+    assert set(DIAGNOSTIC_HELP) <= codes, (
+        f"describing nothing: {sorted(set(DIAGNOSTIC_HELP) - codes)}")
 
 
 def test_every_stage_field_has_an_entry():
@@ -759,7 +752,7 @@ def test_every_row_of_a_real_model_carries_its_family_key():
 # ----------------------------------------------------------------- the registry
 def test_the_registry_is_json_and_carries_every_arm():
     registry = help_registry()
-    assert set(registry) == {"parameters", "peak_flags", "peak_diagnostics",
+    assert set(registry) == {"parameters", "peak_flags", "diagnostics",
                              "peak_origins", "stage_fields", "reader_options",
                              "instrument_fields", "search_fields", "plans"}
     payload = json.dumps(registry)  # raises on anything unserialisable

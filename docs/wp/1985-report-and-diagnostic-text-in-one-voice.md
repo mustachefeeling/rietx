@@ -85,6 +85,14 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
   shapes: a `code=` keyword, a `GuardFinding` constructor and a module-level `*_CODES`
   table. A registry built here would let the index read it instead of walking source.
 
+- **Decided 2026-10-16 with the maintainer.** The field names stay: `message` is the
+  observation and `suggestion` the action, so no stored history, result or peak file needs
+  a migration. The authority for what a code means is `rietx.help.DIAGNOSTIC_HELP`, which
+  grows from the 15 `PEAK_*` entries to every code (the GUI arm is `diagnostics`). The
+  skill's rows are then trimmed to agent policy and routing, and must not restate an
+  explanation. `docs/reference_pages.diagnostic_index` is the one walk deciding which codes
+  are raised; it reads the `_note(level, CODE)` helper shape too, so it finds 253 codes.
+
 ## Non-goals
 
 - 1133's view pointer (a field naming the rendered view). Coordinate the schema change, since
@@ -93,8 +101,11 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
 
 ## Tasks
 
-- [ ] Schema: observation, action, and an explanation looked up by code; a migration for
-      stored diagnostics (old files must always open).
+- [x] Schema: observation, action, and an explanation looked up by code. Decided
+      2026-10-16 with the maintainer: `message` and `suggestion` keep their names as the
+      observation and the action, so no stored file needs a migration.
+      `Diagnostic.explanation` reads `rietx.help.DIAGNOSTIC_HELP` (the `PEAK_*` arm grown
+      to every code) and is never stored.
 - [ ] The per-code explanations, with a meta-test that every code raised has one.
 - [ ] One line format for results, indexing and peak lists.
 - [ ] A text view for `FitReport`, and `Refinement.summary()` cut to what a person scans; the

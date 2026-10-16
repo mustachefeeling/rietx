@@ -3699,7 +3699,7 @@ def from_structure(structure: Structure, *,
     lines.extend(body)
     if diagnostics is not None and rhombohedral:
         diagnostics.append(rhombohedral_restated_diagnostic(
-            rhombohedral, "FULLPROF_RHOMBOHEDRAL_RESTATED", "FullProf"))
+            rhombohedral, code="FULLPROF_RHOMBOHEDRAL_RESTATED", program="FullProf"))
     # A neutron file writes the element for every ion, and rietx's b is the
     # element's too, so nothing was substituted there.
     if diagnostics is not None and not neutron:

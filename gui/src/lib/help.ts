@@ -45,7 +45,7 @@ export interface ParameterEntry extends HelpEntry {
 export interface HelpCorpus {
   parameters: ParameterEntry[];
   peak_flags: Record<string, HelpEntry>;
-  peak_diagnostics: Record<string, HelpEntry>;
+  diagnostics: Record<string, HelpEntry>;
   peak_origins: Record<string, HelpEntry>;
   stage_fields: Record<string, HelpEntry>;
   reader_options: Record<string, HelpEntry>;
@@ -62,7 +62,7 @@ export const ARMS = [
   "stage_fields",
   "plans",
   "peak_flags",
-  "peak_diagnostics",
+  "diagnostics",
   "peak_origins",
   "reader_options",
   "instrument_fields",

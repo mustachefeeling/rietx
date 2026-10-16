@@ -2036,7 +2036,7 @@ def from_structure(structure, *,
         _report_cif(structure, ambiguous, diagnostics, deuterium)
         if rhombohedral:
             diagnostics.append(rhombohedral_restated_diagnostic(
-                rhombohedral, "GSAS2_CIF_RHOMBOHEDRAL_RESTATED", "GSAS-II"))
+                rhombohedral, code="GSAS2_CIF_RHOMBOHEDRAL_RESTATED", program="GSAS-II"))
         from ...crystallography.scattering import written_neutral_diagnostics
         diagnostics.extend(written_neutral_diagnostics(
             structure, code="GSAS2_CIF_SPECIES_WRITTEN_NEUTRAL",
