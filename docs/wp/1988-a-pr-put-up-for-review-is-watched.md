@@ -71,10 +71,13 @@ subscription happen and says how this repo wants the events handled.
   *Gotchas*: filed as 1987, which main took the same day for the kernel-gate
   WP; renumbered, and the branch's two pushed commits were reworded (no PR
   existed yet), since `session_start.py` attributes commits by prefix and
-  would have charged them to the other WP. Settings reload with the session's
-  tree: the worktree's own `settings.json` hooks were live by the end of this
-  session, so the subscribe hook should fire on this PR's `gh pr ready`.
+  would have charged them to the other WP. **The hook did not fire on this
+  PR's own create**: a session's hooks come from the settings it started with,
+  here the main checkout's, which lack it until this merges. A worktree
+  entered mid-session does not swap them (a `no_top_level_cd` refusal late
+  in the session is no evidence otherwise, since main's settings carry that
+  hook too). So this PR was subscribed by hand, as step 11 now says.
   Next: (1) watch this PR under the skill and record what each wake cost;
-  (2) on the next cloud WP session, check the hook fires unprompted; (3) if a
+  (2) on the first cloud WP session after merge, check the hook fires unprompted; (3) if a
   wake is too dear, narrow the skill to merge conflicts and red CI and leave
   reviews to the person.
