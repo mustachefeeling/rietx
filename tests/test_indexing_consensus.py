@@ -263,8 +263,8 @@ def test_the_abstention_names_the_refuting_caveats_the_gate_uses():
         cand.confidence = "high"
     text = next(d.suggestion for d in index_diagnostics(_result([a, b]))
                 if d.code == "INDEX_ABSTAINED")
-    refuting_part, capping_part = text.split(" — ")
-    named = {w.strip() for w in refuting_part.split("(")[1].rstrip(")").split(",")}
+    refuting_part = text.split("(")[1].split(")")[0]
+    named = {w.strip() for w in refuting_part.split(",")}
     assert named == INDEX_REFUTING_CAVEATS
     assert "predicted_but_absent" not in refuting_part
 
