@@ -57,6 +57,7 @@ from rietx.schemas.instrument import (
 )
 from rietx.schemas.structure import AnisoU, StephensStrain
 from tests.api_surface import (
+    DEFERRED_CEILING,
     EXCLUDED_TYPES,
     EXCLUSIONS,
     PROVISIONAL_MODULES,
@@ -648,6 +649,20 @@ def test_derived_surface_is_partitioned():
     assert not overlap, (
         f"{len(overlap)} name(s) both documented and deferred — regenerate the bucket with "
         f"`python -m tests.api_surface --write-deferred`: {sorted(overlap)[:20]}"
+    )
+
+
+def test_deferred_bucket_does_not_grow():
+    """A ratchet: the bucket may shrink in any change and grow in none.
+
+    `DEFERRED_CEILING` is lowered at each release cut, not here, so a change
+    that documents names never has to edit it.
+    """
+    count = len(load_deferred())
+    assert count <= DEFERRED_CEILING, (
+        f"{count} names deferred, over the ceiling of {DEFERRED_CEILING}. Document the "
+        "new names in a manual page, or exclude them with a reason in tests/api_surface.py. "
+        "Raising DEFERRED_CEILING is a reviewed edit that says why in its commit."
     )
 
 
