@@ -43,6 +43,11 @@ publishes such a comparison.
 
 ### Inherited
 
+- **2026-10-17, from WP-1983 (closed).** The Concepts tab never says which data rietx
+  covers: neutron, time of flight, joint fits of several patterns. A newcomer check asked
+  for it, and the answer belongs in this WP's "rietx at a glance" table. Once that table
+  exists, link it from `docs/docs/concepts/fit.md` § Inputs, where the pattern and the
+  instrument are introduced, so the Concepts tab does not grow a second copy of the scope.
 - **2026-10-16, from WP-1982.** Vale reads every committed page of `docs/docs/` in CI's
   lint job, and an error-level alert fails it. The errors are British spelling against the
   en_GB dictionary plus the term list, the maintainer's banned words, "fnmatch" in prose and

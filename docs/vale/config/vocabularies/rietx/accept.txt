@@ -14,6 +14,7 @@ Altomare
 [aA]ttenuator
 [bB]ackend
 [bB]ackends
+[bB]cc
 [bB]eamline
 [bB]eamstop
 [bB]eamtime
@@ -55,6 +56,7 @@ Conograph
 [cC]ryostat
 [cC]rystallite
 [cC]rystallites
+[cC]rystallographer
 Debye
 [dD]ecorrelate
 [dD]ecorrelates
@@ -177,6 +179,7 @@ Niggli
 [oO]perando
 [oO]rthonormal
 [oO]rthorhombic
+[oO]xygens
 P1
 [pP]arameterisation
 [pP]arameterisations

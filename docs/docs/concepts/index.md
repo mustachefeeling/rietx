@@ -3,3 +3,21 @@
 Each concept page explains one idea behind how rietx refines, and its title begins "About …".
 
 A page here that makes a physics claim links the Theory section that derives it.
+
+- [About a fit](fit.md) follows one call to `Refinement.fit` from the pattern and models to the result and the history.
+- [About parameters](parameters.md) groups the parameters by what they belong to, and covers the background and humps.
+- [About the report](report.md) describes the report's three layers and what each can claim.
+- [About correlations and esds](correlations.md) says why parameters correlate and why some get no esd.
+- [About the project](project.md) says what each file in a `.rex` directory is for.
+- [About the calls most fits use](usage.md) ranks the API by how often the tutorials and examples call it.
+
+```{toctree}
+:hidden:
+
+fit
+parameters
+report
+correlations
+project
+usage
+```

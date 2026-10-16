@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+from rietx._about import DOCS_URL
+
 pytest.importorskip("sphinx")
 
 MANUAL_DIR = Path(__file__).resolve().parent.parent / "docs" / "manual"
@@ -1163,15 +1165,33 @@ def _heading_slugs(source: Path) -> set[str]:
             if level <= HEADING_ANCHOR_DEPTH}
 
 
-def _theory_link_failures(page: Path, text: str, out: Path) -> list[str]:
+#: Part 2 stays in the old tree until WP-1986 moves it, so until then a
+#: physics claim links the old tree's page on the site (WP-1983).
+_OLD_THEORY_LINK = re.compile(re.escape(DOCS_URL) + r"/([\w-]+\.html)(?:#(\S+))?$")
+
+
+def _theory_link_failures(page: Path, text: str, out: Path, old_out: Path) -> list[str]:
     """Each link from `page` into the Theory tab that the build did not write.
 
     The built page has to exist, and so does the section a fragment names, by
     its HTML id or by the MyST slug that resolves to one.  Read off the HTML,
-    because that is what the reader's click lands on.
+    because that is what the reader's click lands on.  A link to a Part 2
+    chapter on the site is read off the old tree's build `old_out`, by HTML id
+    alone, since that tree makes no heading slugs.
     """
     failures = []
     for target in _MD_LINK.findall(text):
+        if target.startswith(DOCS_URL + "/") and not _OLD_THEORY_LINK.match(target):
+            failures.append(f"{target}: not a link to a Part 2 chapter on the site")
+            continue
+        if old := _OLD_THEORY_LINK.match(target):
+            name, fragment = old.groups()
+            if (MANUAL_DIR / name).with_suffix(".md") not in _part_two():
+                failures.append(f"{target}: {name} is not a Part 2 chapter")
+            elif fragment and f'id="{fragment}"' not in (old_out / name).read_text(
+                    encoding="utf-8"):
+                failures.append(f"{target}: {name} has no section #{fragment}")
+            continue
         if "://" in target or target.startswith("#"):
             continue
         path, _, fragment = target.partition("#")
@@ -1193,32 +1213,49 @@ def _theory_link_failures(page: Path, text: str, out: Path) -> list[str]:
 
 
 @pytest.mark.xdist_group("manual-build")
-def test_every_theory_link_from_concepts_and_guides_resolves(built_docs_tree):
+def test_every_theory_link_from_concepts_and_guides_resolves(built_docs_tree, built_manual):
     """A physics claim on a Concepts or Guides page links the Theory section
     that derives it, and the link has to land (WP-1975 § F8)."""
     out, result = built_docs_tree
     assert result.returncode == 0, "the new tree did not build"
+    old_out, old_result = built_manual
+    assert old_result.returncode == 0, "the old tree did not build"
     failures = [f"{page.relative_to(DOCS_TREE).as_posix()}: {failure}"
                 for page in DOCS_PAGES
                 if page.relative_to(DOCS_TREE).parts[0] in {"concepts", "guides"}
-                for failure in _theory_link_failures(page, page.read_text(encoding="utf-8"), out)]
+                for failure in _theory_link_failures(
+                    page, page.read_text(encoding="utf-8"), out, old_out)]
     assert not failures, "links into the Theory tab that land nowhere:\n" + "\n".join(failures)
 
 
 @pytest.mark.xdist_group("manual-build")
-def test_the_theory_link_check_fails_what_it_should(built_docs_tree):
-    """The check above, made to fail on a missing page and a missing section."""
+def test_the_theory_link_check_fails_what_it_should(built_docs_tree, built_manual):
+    """The check above, made to fail on a missing page and a missing section,
+    in either tree, and on a site page that is not a Part 2 chapter."""
     out, result = built_docs_tree
     assert result.returncode == 0, "the new tree did not build"
+    old_out, old_result = built_manual
+    assert old_result.returncode == 0, "the old tree did not build"
     page = DOCS_TREE / "concepts" / "index.md"
     text = ("[ok](../theory/references.md) [ok](../theory/index.md#theory) "
             "[gone](../theory/no-such-page.md) [gone](../theory/index.md#no-such-section) "
             "[elsewhere](../reference/index.md) [web](https://example.org/theory/x.md) "
-            "[root](../)")
-    failures = _theory_link_failures(page, text, out)
-    assert len(failures) == 2, failures
-    assert "no page theory/no-such-page.html" in failures[0]
-    assert "no section #no-such-section" in failures[1]
+            "[root](../) "
+            f"[ok]({DOCS_URL}/background.html#explicit-humps) "
+            f"[ok]({DOCS_URL}/background.html) "
+            f"[gone]({DOCS_URL}/no-such-chapter.html) "
+            f"[gone]({DOCS_URL}/background.html#no-such-hump) "
+            f"[part one]({DOCS_URL}/manual.html) "
+            f"[typo]({DOCS_URL}/background.htm#explicit-humps)")
+    failures = _theory_link_failures(page, text, out, old_out)
+    expected = ("no page theory/no-such-page.html", "no section #no-such-section",
+                "no-such-chapter.html is not a Part 2 chapter",
+                "background.html has no section #no-such-hump",
+                "manual.html is not a Part 2 chapter",
+                "background.htm#explicit-humps: not a link to a Part 2 chapter")
+    assert len(failures) == len(expected), failures
+    for failure, words in zip(failures, expected):
+        assert words in failure, failures
 
 
 def test_a_heading_slug_is_read_the_way_myst_makes_it(tmp_path):

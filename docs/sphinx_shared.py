@@ -44,7 +44,7 @@ from rietx.indexing.engines import (
 )
 from rietx.indexing.reduce import NIGGLI_EPS_RELATIVE
 from rietx.model.absorption import CYLINDER_MU_R_MAX
-from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_AREA_TOL
+from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, PHASE_SUPPORT_SIGMA, WINDOW_AREA_TOL
 from rietx.model.geometry import (
     ANGLE_LINEARISATION_LIMIT_DEG,
     VARIANCE_CANCELLATION_FLOOR,
@@ -63,9 +63,17 @@ from rietx.optimize.statistics import (
 from rietx.params.parametric import FORM_TEST_LEVEL
 from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
 from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
+from rietx.report.layer0 import build_layer0
 from rietx.report.layer2 import IMPURITY_SIGMA
 from rietx.report.schemas import (
     MATURITY_MAX_RWP,
+    MATURITY_MIN_EXPLAINED_FRACTION,
+    MATURITY_MIN_MISFIT_SHARE,
+    MAX_GRAM_CONDITION,
+    MIN_COEF_SIGNIFICANCE,
+    MIN_REGION_CHI2_RED,
+    MIN_REGION_R2,
+    SEPARABILITY_MIN_SS_RATIO,
     THRESHOLDS_VERSION,
     VALIDITY_RADIUS_FWHM,
 )
@@ -222,6 +230,23 @@ MYST_SUBSTITUTIONS = {
     # `⚠ not a fit yet`.  The GUI chapters state it, so it is injected for the
     # same reason every other threshold here is: a retune must move the page.
     "MATURITY_MAX_RWP": MATURITY_MAX_RWP,
+    # Layer 1's other gates, which the Concepts page on the report states.
+    # Shares are quoted as percentages and the Gram bound as a whole number.
+    "MATURITY_MIN_EXPLAINED_PCT": f"{100 * MATURITY_MIN_EXPLAINED_FRACTION:g}",
+    "MATURITY_MIN_MISFIT_PCT": f"{100 * MATURITY_MIN_MISFIT_SHARE:g}",
+    "MAX_GRAM_CONDITION": f"{MAX_GRAM_CONDITION:,.0f}".replace(",", " "),
+    "MIN_COEF_SIGNIFICANCE": f"{MIN_COEF_SIGNIFICANCE:g}",
+    "MIN_REGION_CHI2_RED": MIN_REGION_CHI2_RED,
+    # How much better the best position trend must fit than the runner-up.
+    "SEPARABILITY_MIN_SS_RATIO": f"{SEPARABILITY_MIN_SS_RATIO:g}",
+    # The height in esds a residual peak needs to join Layer 0's unmatched
+    # list.  It is a keyword default, not a module constant, so it is read
+    # off the signature.
+    "LAYER0_PEAK_SIGMA":
+        f"{_inspect.signature(build_layer0).parameters['min_peak_sigma'].default:g}",
+    # A phase under this many esds of scale is held for the stage (WP-1523).
+    "PHASE_SUPPORT_SIGMA": f"{PHASE_SUPPORT_SIGMA:g}",
+    "MIN_REGION_R2": MIN_REGION_R2,
     "NEAR_EDGE_EV": NEAR_EDGE_EV,
     # where Y³⁺'s ITC fit hands over to neutral Y (WP-1527).  The package
     # computes it from the two curves, so the chapter quotes it.

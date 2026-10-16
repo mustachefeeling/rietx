@@ -23,6 +23,7 @@ antiparallel
 antiphase
 antisite
 attenuator
+bcc
 beamline
 beamstop
 beamtime
@@ -40,6 +41,7 @@ coset
 cryostat
 crystallite
 crystallites
+crystallographer
 deuterated
 deuteration
 diffractometer
@@ -91,6 +93,7 @@ octahedral
 octahedron
 operando
 orthorhombic
+oxygens
 pdCIF
 perovskite
 photoabsorption
