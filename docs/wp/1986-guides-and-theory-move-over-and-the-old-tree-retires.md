@@ -46,6 +46,23 @@ carries no instrument, so write the new one from a `Refinement`.
 
 ### Inherited
 
+- **2026-10-17, from WP-1983.** The six Concepts pages link Part 2 on the site, as
+  `https://rietx.org/<chapter>.html#<id>` (16 links into six chapters, nine of them
+  `estimation`). Moving a chapter
+  means rewriting its links to `../theory/<chapter>.md#<id>` in the same commit.
+  `tests/test_manual.py`'s `_OLD_THEORY_LINK` branch resolves the old form against the old
+  tree's build, by HTML id only. Delete it once the last chapter has moved, and the check
+  then reads `../theory/` links alone. Part 1 material the pages now cover, so a retiring
+  chapter can point there: `using/concepts.md` § The parameter groups and § Why the groups
+  correlate (concepts/parameters.md, concepts/correlations.md); `using/data.md` § Explicit
+  humps (parameters.md § Humps); the `.rex` part of `using/files.md` (concepts/project.md);
+  `using/report.md`'s layer descriptions (concepts/report.md). Stale in the old chapters,
+  for whoever mines them into Guides: `report.md` counts the Layer 1 gates as four where
+  the code has four region checks plus a global gate, and its `FitReport` table omits
+  `microstructure`; `files.md` says `Project.open` checks four bindings where the code has
+  nine refusals, and calls `history.jsonl` append-only though `RefinementTree.save`
+  rewrites it; `src/rietx/report/apply.py`'s docstring says "four of the sixteen" kinds
+  where `ActionKind` has 18.
 - **2026-10-16, from WP-1979 (closed).** The stub mechanism is `docs/docs_versions.py`.
   Retiring a chapter adds one row to its `RETIRED` map (old path to new page, both without
   `.html`, the new one may carry `#heading`) in the same commit that deletes the chapter.

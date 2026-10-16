@@ -37,6 +37,12 @@ admonition as a labelled blockquote. Mermaid sources stay as fenced `mermaid` bl
 
 ### Inherited
 
+- **2026-10-17, from WP-1983.** The Concepts tab adds three node types a twin must carry.
+  `concepts/parameters.md` has a sphinx-design `{dropdown}` holding the evidence a fold
+  away, `concepts/fit.md` a mermaid flowchart, and `concepts/usage.md` a `{literalinclude}`
+  sliced by `:start-at:` and `:end-before:` from `examples/tutorials/02_simple_rietveld.py`.
+  `tests/test_manual_api.py`'s `_included_slice` cuts such a slice the way Sphinx does and
+  can be reused.
 - **2026-10-16, from WP-1979 (closed).** Each version is one `docs/docs/` build. `main`'s is
   built into `site/docs/dev/` by pages.yml. A release's is built by release.yml's `docs` job
   and stored as a tarball on its GitHub release. `docs/docs_versions.py` lays them out under
