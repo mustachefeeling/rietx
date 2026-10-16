@@ -106,6 +106,36 @@ and is not proposed here. No code is ported.
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#726): two comments of 2026-10-15 are
+  in no WP, and one carries an unanswered PR offer.** The 2026-10-13 comment
+  (gate + prefit) is the 2026-10-14 entry's PR #939. The two after it are not
+  recorded; figures are the reporter's, not re-run. (1) **Ba2FeSbSe5** (Pnma
+  read as Pmcn, true class `P - c n`; lab Cu Kα; unpublished, so not a
+  fixture): the screen abstained after the cell-free `profile_only` Le Bail
+  prefit with `auto_background(seed=True)` (prefit Rwp 0.046). Every class
+  with a testable absence was refuted, `P - c n` at ΔBIC −13.9 (5 of 7
+  positions), its sub-classes at −91.8 and −84.1. The flagged positions
+  (0,1,0)/(1,0,0) at 9.63-9.68°, (0,0,3) at 21.07° are empty in the raw
+  counts; the background there is steep and high (5 600 and 3 450 counts) and
+  the 3σ test reads its misfit. So the prefit does not cure WP-1542's pedestal
+  mechanism where the background is steep. (2) **Proposed check, in their
+  harness:** a refutation stands only if a flagged position carries a line
+  against a local quadratic baseline (±6 FWHM, ±1.5 FWHM and picked peaks left
+  out, upward clipping; Z ≥ 3 or a picked peak within ½ FWHM), the residual
+  test staying the trigger; among survivors prefer the most testable absences
+  over lowest ΔBIC. Scored on 10 benchmark kits with the true cell
+  (Ba2FeSbSe5, PbSO4, Si x2, Al2O3 x3, Fe2O3, ZnO, CeO2, NiO): false
+  refutations 20 against 7, inconsistent classes refuted 127 of 131 against
+  123, pick consistent with the true group 10 of 10 (the screen: 4
+  abstentions). Its 7 remaining false refutations are weak real lines at
+  forbidden positions (Ba2FeSbSe5 40.50° and 49.80°, ZnO 52.69°, one on Al2O3
+  BT1), unexplained. They offered a PR against the screen; nobody has
+  answered. Tree: PR #939 (the gate and the default flip) is in review round 2
+  and edits `determine_extinction_symbol`, so a second PR on the same function
+  conflicts. Decision for the maintainer: take the check as a PR (suggest
+  after #939 merges, with the 10-kit table and a public-data-only fixture,
+  PbSO4 `tests/data/gsas2_pbso4.gpx`), or keep it in their harness.
+
 - **2026-10-11, from the issue triage (#726, the reporter's comment of
   2026-10-11 09:56Z): a second public case, PbSO₄, where both documented
   remedies together give a wrong class.** Both histograms of

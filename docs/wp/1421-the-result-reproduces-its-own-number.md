@@ -79,6 +79,20 @@ Le Bail and Pawley intensities are frozen per stage as well
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#774): the zero case is re-measured
+  after WP-1953 changed what zero means, and it did not move.** The 2026-10-11
+  entry says the free-against-fixed gap at exactly zero was "not re-run".
+  Re-run at `2c94d848` (the issue's rutile reproducer, `[dev]` venv of this
+  worktree, macOS arm64): both ratios at 0.0, `predict()` free against fixed:
+  max|dy|/max(y) = 1.66e-04, the 2026-10-08 figure to three digits; at 0.01
+  and 0.05 it is 0 (so the nonzero case, #776, holds). `5ba19a83` (WP-1953,
+  2026-10-12) made a zero axial aperture the limit of a vanishing one
+  (`fcj_live`) and left the compile-time sizing rule alone; WP-1953's own
+  handover calls the 0.02 sizing floor on a fixed zero beside a positive one
+  "#774's rule". The (a)/(b)/(c) ruling for the zero case, asked by the
+  reporter on 2026-10-06 and in no record as answered, is still the
+  maintainer's.
+
 **2026-09-23, from the issue triage (issue #272).** The reporter claimed this
 on the thread on 2026-09-23: a fix is in progress on their fork, off
 `ff56d956`, one PR per issue. No PR existed when this was written, so

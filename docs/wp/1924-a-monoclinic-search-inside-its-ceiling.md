@@ -47,6 +47,33 @@ Measured at `e1d19359`, `[dev]`, macOS arm64, on a machine shared with five othe
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#780): the reporter's 2026-10-14 02:33Z
+  measurements for this WP's scheduling task are in no WP file.** Figures are
+  the reporter's (32 GB Mac, load 2-8, `#930`'s head, numpy grid, before PR
+  #964's kernel; one engine per process), not re-run here. Each engine alone,
+  every system: svd 38-367 s and at most 0.34 GB; trial_error 606 s on #780's
+  case, over 1 358 s on devitrite (COD 1535730, 3.0 GB) and 1 696 s with **9.2
+  GB** on glutaric acid-isonicotinamide Form II (COD 1567181), its monoclinic
+  unit; dichotomy builds nothing on any of the monoclinic/triclinic cases and
+  its triclinic grid overflows `MAX_GRID_CELLS` at up to 6.4 GB on private
+  lists. Units overrun their own budget: trial_error's monoclinic unit 998 s
+  and 1 372 s against 600 s, dichotomy's orthorhombic 780 s. The starvation in
+  #780 comes from the per-unit budget equalling the run's ceiling, not from
+  dichotomy going first: they propose (1) cap each (engine x system) unit at a
+  share of `total_budget_seconds` (per-engine thirds, or today's 30 s slice,
+  which behaved the same on ten lists) and never let a declared ceiling become
+  `budget_seconds`; (2) read the clock inside trial_error's
+  monoclinic/triclinic loop and dichotomy's phase 2 so a unit stops within
+  seconds of its slice. A d cut and fewer driving lines do not prune
+  dichotomy's grid (273 871 survivors under every rule tried), so neither is
+  proposed. Two follow-ups they place outside this WP, which no WP names: the
+  consensus list's 12-cell cap can drop a cell its only finder ranks first
+  (devitrite), and trial_error's monoclinic unit is now the memory risk. This
+  postdates the comment's measurements: PR #964 (merged 2026-10-14T07:57Z,
+  after the comment at 02:33Z) put #780's cell at an 8 s CPU ceiling, so
+  re-measure the scheduling question on the kernel path, as the 2026-10-14
+  entry above already says.
+
 - **2026-10-14, from WP-1959 (PR #964): the grid was not what held the ceiling, and the scheduling task's premise has moved.** At load ~3 the grid cost 57 s of CPU, not 157 s (the Profile's figure was taken at load 110-180). Phase 2 then spent 387 s in one grid cell lying wholly outside the obliquity bound, with no leaf. WP-1959 refuses such a box, and compiles the box test (`rietx-kernels` 1.3). On #780 dichotomy now returns the cell at an 8 s CPU ceiling (none at 7 s), and at 120 s on the numpy loop. svd still never starts under these ceilings: dichotomy holds the whole ceiling until its unit completes, and the leaves are 82 % of phase 2 (WP-1520). So the scheduling task now asks a narrower question. A run returns a candidate, but no second engine corroborates it, so it cannot reach `high`. Re-measure before deciding.
 
 ## Non-goals
