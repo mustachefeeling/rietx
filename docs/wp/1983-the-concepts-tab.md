@@ -1,6 +1,6 @@
 # WP-1983 — The Concepts tab
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-16 — claimed by @yue-here
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1981 soft (the parameter map it links)
 Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
