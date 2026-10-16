@@ -166,6 +166,21 @@ npm --prefix gui test
   page paths), 1985 (the diagnostic index awaits its explanation column) and 1986 (which old
   pieces the new pages replace; the glossary's non-parameter arms have no new page yet).
 
+  *After the handover, the maintainer's review.* Five commits. The deferred bucket of the
+  manual's coverage partition may not grow (`DEFERRED_CEILING` = 39 in `tests/api_surface.py`,
+  failing on growth only), and `docs/RELEASING.md` step 2 now reads the list, records the
+  count and lowers the ceiling at every cut. The parameter map explains dotted names and
+  `*` before its tables. The cell entries in `rietx.help` are "Lattice parameter a, b, c"
+  and "α, β, γ". The atoms lead names what GSAS-II and FullProf do with a special position.
+  μ_B renders as a subscript on the generated pages (`_notation`). The API section headings
+  are labels in `make_api_index`, so the skill's `api*.md` and both copies were regenerated.
+  The review produced six style rules: four are in the user-level `yue-docs-style` skill,
+  and all six, with their checkable halves, are in WP-1982's Inherited. The help corpus
+  rewrite is folded into WP-1985. One conflict is open: `yue-prose` construction 7 says
+  "the heading carries the claim", which the new heading rule contradicts, and the
+  maintainer has not yet said which wins. Tests after the review: the manual, reference,
+  help, GUI-help and skill files all pass, 547 cases across the runs.
+
   Next: 1979 and 1983 can start at once. 1984 can link the foreign-name map and roadmap.
   The glossary's other arms (stage fields, peak flags, reader options, instrument fields,
   search fields) need a home in Reference before WP-1986 retires the old tree; that is
