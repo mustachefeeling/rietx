@@ -92,9 +92,9 @@ and so are "glob", "schema" and "column" until a page explains them.
 - [x] About the report: its three layers and what each can and cannot claim.
 - [x] About correlations and esds: why a direction the data does not move has no esd.
 - [x] About the project: what each file in a `.rex` is for, linking the generated tree.
-- [ ] Usage tiers: which calls most fits use, measured from the examples and tutorials, and a
+- [x] Usage tiers: which calls most fits use, measured from the examples and tutorials, and a
       newcomer check of the tab.
-- [ ] Skill: none.
+- [x] Skill: none.
 
 ## Acceptance
 

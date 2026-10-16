@@ -8,12 +8,13 @@ rietx leaves that esd empty because the arithmetic would otherwise print a small
 The esds come from the covariance matrix at the converged point, χ²<sub>red</sub> (JᵀJ)⁻¹, where J is the Jacobian of the weighted residuals.
 They are taken from the last stage of the plan, where every freed parameter refines together.
 Each esd is multiplied by the Bérar-Lelann factor, which accounts for neighbouring residuals that are correlated with each other and so carry less independent information.
+Not every program applies this factor, so divide it out before comparing esds with another program's: `FitReport.identifiability.esd_inflation` holds it.
 The correlation matrix is not inflated, so a degenerate pair reads |ρ| ≈ 1.
 The [esd section of the theory](https://rietx.org/estimation.html#esds-and-the-berar-lelann-inflation) gives both formulas.
 
 An esd describes the minimum the fit stopped in.
 A trace phase whose scale trades against its peak width can have several minima at one χ², each with a tight esd.
-`Refinement.profile_interval` refits with one parameter pinned at a series of values and reports the range the data allow.
+`Refinement.profile_interval` refits with one parameter pinned at a series of values, and reports the range over which χ² rises by less than the cut for the chosen confidence level.
 
 ## Why parameters correlate
 
@@ -23,10 +24,10 @@ Between 20° and 40° 2θ, the constant, cos θ, tan θ and 1/cos θ curves are 
 
 | Correlated parameters | Shapes in 2θ | What goes wrong |
 |---|---|---|
-| zero shift, specimen displacement, cell | constant, cos θ, tan θ | Over a narrow range these three are one parameter. A cell refined beside a free zero shift on 20° of data is not measured. |
+| zero shift, specimen displacement, cell | constant, cos θ, tan θ | Over a narrow range the three shapes are close to a constant and a slope, so the data fix two combinations of three parameters. A cell refined beside a free zero shift and specimen displacement on 20° of data is not measured. |
 | zero shift and the two capillary offsets | constant, sin 2θ, cos 2θ | The same problem in a capillary's shapes. Separable over 5-160°, not over 5-25°. |
 | crystallite size and microstrain | 1/cos θ and tan θ | The Williamson-Hall separation needs a wide range. |
-| scale, displacement parameters, background, absorption, surface roughness, extinction | all smooth in Q | Each raises or lowers intensity as a smooth function of angle, so any of them can take up another. |
+| scale, displacement parameters, background, specimen absorption, surface roughness, extinction | all smooth in angle | Each raises or lowers intensity as a smooth function of angle, so each can take up part of another's effect. Specimen absorption is calculated from the specimen and never refined for this reason. |
 | preferred orientation and occupancy | both rescale particular hkl | An occupancy refined against uncorrected texture measures the texture. |
 | overlapped intensities in Le Bail and Pawley fits | identical | The data fix the sum, not the split. |
 
@@ -57,7 +58,10 @@ rietx prevents this in three ways:
   A parameter's esd then does not depend on the units of another.
 - A parameter with no effect on the pattern at all is dropped from the inversion, and its esd is empty (`None`).
   Everything that depends on it has no esd either: a parameter tied to it, a bond length whose atoms it moves, and every weight fraction of the mixture.
-- A phase whose reflections in range cannot separate its scale from its displacement parameters has those parameters held for the stage, and `SCALE_B_INSEPARABLE` reports it.
+- A phase whose reflections in range cannot separate its scale from its displacement parameters has those parameters fixed for the stage, and `SCALE_B_INSEPARABLE` reports it.
+
+A combination the data move a little, but below that cutoff, is still discarded.
+Its parameters keep esds, and those esds are too small, so `COVARIANCE_DIRECTION_DISCARDED` marks them.
 
 The [scale-and-B section](https://rietx.org/estimation.html#a-scale-and-a-b-the-range-cannot-separate) derives the test.
 
@@ -81,12 +85,12 @@ The [bound section](https://rietx.org/estimation.html#an-interval-for-a-paramete
 
 ## What to do about a correlation
 
-A correlation does not go away by widening the bounds.
-Choose one of these:
+A correlation can be handled in five ways:
 
 - Hold one parameter at a value known from elsewhere, with `Refinement.hold`.
   Calibrating the instrument on a standard with a certified cell is this case.
-- Free the two in different stages, so the first is settled before the second joins.
+- Free the two in different stages, so the fit approaches the answer one parameter at a time.
+  The last stage still refines both, so its esds still show the correlation.
 - Measure a wider angular range, where the shapes separate.
 - Tie the two with `Refinement.tie_equal` or `Refinement.tie` where the chemistry says they are one quantity, such as the displacement parameters of three oxygens in one environment.
 - Restrain a quantity you know, such as a bond length, with a target and an uncertainty.

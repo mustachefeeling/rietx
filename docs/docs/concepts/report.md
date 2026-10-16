@@ -11,6 +11,9 @@ Pass the plan you ran as `plan=`, so the report does not suggest freeing what th
 Without the compiled model it can fill Layer 0 only, and its `layer1_available` is false.
 
 Printing a report shows Rwp, the goodness of fit, a short summary and each suggestion still active.
+Rwp counts every point, background included, and `FitReport.background` also gives the background-subtracted Rwp.
+R<sub>Bragg</sub> and R<sub>F</sub> are on the result, per phase, in `RefinementResult.phase_agreement`.
+They are computed from intensities the model itself partitioned, so they favour the model and are not evidence that a change helped.
 The report's thresholds carry a version, currently {{ THRESHOLDS_VERSION }}, in `FitReport.thresholds_version`.
 A report stored under another version was judged against other thresholds.
 
@@ -28,7 +31,7 @@ An observed peak must stand {{ IMPURITY_SIGMA }} esds clear of the noise to be l
 
 Layer 0 can say where the misfit is and how much of χ² it carries.
 It cannot say why.
-Its unmatched-peak list has one entry per point, so the length of the list measures how much of the pattern is unmatched, not how many peaks.
+Its unmatched-peak list has one entry per data point, so the length of the list measures how much of the pattern is unmatched, not how many peaks.
 
 ## Layer 1: what the misfit looks like
 
@@ -44,7 +47,7 @@ A region's reading is used only if it passes four checks:
 - the five shapes are distinguishable over this region, measured by the condition number of their scale-normalised Gram matrix, at most {{ MAX_GRAM_CONDITION }};
 - the position change is under {{ VALIDITY_RADIUS_FWHM }} times the peak's FWHM, where a first-order description holds.
 
-A single coefficient counts only when it is more than three times its esd.
+A single coefficient counts only when it is more than {{ MIN_COEF_SIGNIFICANCE }} times its esd.
 
 Layer 1 also judges the fit as a whole, and abstains when the fit is too far from right to read.
 It abstains above an Rwp of {{ MATURITY_MAX_RWP }}.
@@ -69,15 +72,16 @@ The shapes on offer depend on the geometry, so a capillary fit is never offered 
 Layer 2 turns the readings into `SuggestedAction` objects.
 Each has a kind, a confidence between 0 and 1, the reasoning, and the parameters it would free.
 When the evidence fits more than one kind, the action lists the alternatives.
-There are 18 kinds.
-Thirteen free parameters in a new stage, one asks for the cell to be re-indexed, and four are advice: add an impurity phase, make the background more flexible or less, or collect better data.
+Most kinds free parameters in a new stage.
+One asks for the cell to be re-indexed, and the rest are advice: add an impurity phase, make the background more flexible or less, or collect better data.
 
 A suggestion changes nothing by itself.
 `rietx.report.predict_then_verify` tries one on a branch of the refinement and accepts it if χ² falls by more than 1 %.
 The working state stays where it was.
 
-Whether a freed parameter is worth its place is a separate question, answered by the change in the Bayesian information criterion.
-`Refinement.suggest` predicts it for each held parameter before a fit, and `rietx.report.compare_freed` measures it after.
+Whether a freed parameter is worth its place is a separate question.
+rietx answers it with the change in the Bayesian information criterion (BIC), which weighs the fall in χ² against the extra parameter.
+`Refinement.suggest` predicts it for each parameter the plan has not freed, and `rietx.report.compare_freed` measures it once a refit has freed one.
 The [theory chapter](https://rietx.org/estimation.html#which-parameter-to-free-next) gives both.
 
 ## Evidence beside the layers

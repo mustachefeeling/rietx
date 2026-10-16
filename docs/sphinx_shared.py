@@ -44,7 +44,7 @@ from rietx.indexing.engines import (
 )
 from rietx.indexing.reduce import NIGGLI_EPS_RELATIVE
 from rietx.model.absorption import CYLINDER_MU_R_MAX
-from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_AREA_TOL
+from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, PHASE_SUPPORT_SIGMA, WINDOW_AREA_TOL
 from rietx.model.geometry import (
     ANGLE_LINEARISATION_LIMIT_DEG,
     VARIANCE_CANCELLATION_FLOOR,
@@ -69,6 +69,7 @@ from rietx.report.schemas import (
     MATURITY_MIN_EXPLAINED_FRACTION,
     MATURITY_MIN_MISFIT_SHARE,
     MAX_GRAM_CONDITION,
+    MIN_COEF_SIGNIFICANCE,
     MIN_REGION_CHI2_RED,
     MIN_REGION_R2,
     THRESHOLDS_VERSION,
@@ -232,7 +233,10 @@ MYST_SUBSTITUTIONS = {
     "MATURITY_MIN_EXPLAINED_PCT": f"{100 * MATURITY_MIN_EXPLAINED_FRACTION:g}",
     "MATURITY_MIN_MISFIT_PCT": f"{100 * MATURITY_MIN_MISFIT_SHARE:g}",
     "MAX_GRAM_CONDITION": f"{MAX_GRAM_CONDITION:,.0f}".replace(",", " "),
+    "MIN_COEF_SIGNIFICANCE": f"{MIN_COEF_SIGNIFICANCE:g}",
     "MIN_REGION_CHI2_RED": MIN_REGION_CHI2_RED,
+    # A phase under this many esds of scale is held for the stage (WP-1523).
+    "PHASE_SUPPORT_SIGMA": f"{PHASE_SUPPORT_SIGMA:g}",
     "MIN_REGION_R2": MIN_REGION_R2,
     "NEAR_EDGE_EV": NEAR_EDGE_EV,
     # where Y³⁺'s ITC fit hands over to neutral Y (WP-1527).  The package

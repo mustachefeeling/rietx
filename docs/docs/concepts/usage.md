@@ -7,9 +7,17 @@ The tiers below count which rietx functions the six tutorials and three worked e
 They count calls only, so reading a field such as `RefinementResult.statistics` does not appear.
 The [API reference](../reference/api.md) lists every name.
 
+This is how the second tutorial makes the first six of the eight calls:
+
+```{literalinclude} ../../../examples/tutorials/02_simple_rietveld.py
+:language: python
+:start-at: import rietx as rx
+:end-before: print(f"{result.status}
+```
+
 ## Every fit
 
-Seven or more of the nine scripts make these calls.
+Six or more of the nine scripts make these calls.
 
 | Call | Scripts | What it does |
 |---|---|---|
@@ -33,7 +41,7 @@ Three or four of the nine make these calls.
 | `Refinement.summary` | 3 | says whether a fit is finished, and why |
 | `Refinement.predict` | 3 | calculates the pattern from the current models without refining |
 | `Refinement.fitted_structure` | 3 | returns the structure with the refined values |
-| `RefinementTree.summary` | 3 | lists the history, one line a node |
+| `RefinementTree.summary` | 3 | lists the history in `Refinement.history`, one line a node |
 
 ## For a particular task
 

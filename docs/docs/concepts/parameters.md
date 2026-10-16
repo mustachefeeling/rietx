@@ -17,9 +17,9 @@ A calibrated instrument carries over to every sample measured on it, and a backg
 | [Phase amount and intensity corrections](../reference/parameters.md#phase-amount-and-intensity-corrections) | phase or specimen | how strong the phase is, and smooth or hkl-selective rescaling | smooth in Q |
 | [Microstructure](../reference/parameters.md#microstructure) | phase | the width the specimen adds | size as 1/cos θ, strain as tan θ |
 | [Instrument peak positions](../reference/parameters.md#peak-positions) | instrument and specimen position | where every peak sits | constant, cos θ, sin 2θ or cos 2θ |
-| [Instrument peak shape](../reference/parameters.md#peak-shape) | instrument | the instrument's own width and asymmetry | Caglioti U as tan²θ, V as tan θ, W constant |
+| [Instrument peak shape](../reference/parameters.md#peak-shape) | instrument | the instrument's own width and asymmetry | Gaussian FWHM² as U tan²θ + V tan θ + W |
 | [Background](../reference/parameters.md#background) | this measurement | the intensity under the peaks | smooth in 2θ, plus any declared humps |
-| [Named variables](../reference/parameters.md#named-variables) | the refinement | whatever is tied to them | that of what follows them |
+| [Named variables](../reference/parameters.md#named-variables) | the refinement | whatever is tied to them | none of their own |
 
 Symmetry decides how many parameters a group has.
 The space group ties the lattice parameters, and an atom refines only along the directions its site symmetry allows.
@@ -28,6 +28,23 @@ The [parameterisation chapter](https://rietx.org/parameterisation.html#site-symm
 The angular column decides which groups can be told apart.
 Two parameters whose effects have the same shape over the measured range cannot be separated by the data.
 [About correlations and esds](correlations.md) covers what rietx reports when that happens.
+
+## Which parameters refine
+
+`Refinement.parameters()` lists every parameter with its value, its bounds and whether a stage can free it.
+`ParameterRow.held_because` says why one cannot.
+These are the usual reasons:
+
+- it is locked, like an angle the space group fixes or a coordinate on a fixed special position;
+- it is tied, and follows another parameter;
+- the mode fixes it, as a Le Bail or Pawley fit fixes the atoms;
+- you hold it with `Refinement.hold`.
+
+An atom placed by a rigid body, and a wavelength that a free cell would make indistinguishable from the cell, are the other two.
+
+A named variable is a parameter you declare with `Refinement.add_variable`, outside the structure and instrument.
+Model parameters follow it through ties, so three oxygens can share one displacement parameter that belongs to none of them.
+TOPAS users know this as a named parameter.
 
 ## Instrument and specimen
 
@@ -42,8 +59,8 @@ Then load the calibrated instrument for each sample, with its parameters fixed, 
 The `lab_calibrate` and `lab_sample_refine` [plan presets](../reference/plans.md) do the two halves.
 
 Which position corrections exist depends on the geometry.
-A flat plate has a specimen displacement that goes as cos θ.
-A capillary off the centre of the diffractometer has two offsets instead, as sin 2θ and cos 2θ.
+A flat plate has a specimen displacement, which goes as cos θ, and a transparency, which goes as sin 2θ.
+A capillary off the centre of the diffractometer has two offsets instead, which go as sin 2θ and cos 2θ.
 A correction the geometry does not have is fixed, and a stage cannot free it.
 The [peak positions chapter](https://rietx.org/peak-positions.html#aberration-shifts) gives each law.
 
@@ -82,10 +99,10 @@ rietx never adds one by itself.
 A hump is named apart from the background curve, as `instrument.extra_components.*`, so a stage that frees the background does not free the hump.
 `mccusker_structural` frees declared humps in a stage of their own, after the peak positions are in place.
 
-A hump describes a broad feature with three parameters where the polynomial would need many more.
-On a synchrotron pattern of silicon in a Kapton capillary, one hump on a 3-term Chebyshev took Rwp from 0.120 to 0.083.
-Three more Chebyshev terms instead took it to 0.089.
-The hump also reduced the esd of the silicon displacement parameter sixfold, and left its value within one esd.
+Declare a hump for a scatterer you can name, and check it against a measurement of that scatterer alone.
+On a synchrotron pattern of silicon in a Kapton capillary, an empty capillary from the same beamtime shows a broad feature at 4.24° with a width of 6.2°.
+One hump on a 3-term Chebyshev background describes it.
+With the hump, the silicon displacement parameter stays within one esd of its value without it, and its esd falls sixfold.
 
 :::{dropdown} The silicon and Kapton comparison
 The pattern is APS 11-BM run 4918, NIST SRM 640c silicon in a Kapton capillary, 47 999 points over 2-50° 2θ.
@@ -98,8 +115,9 @@ The cell is held at the certificate value.
 | Chebyshev, 6 terms | 6 | 0.088596 | 0.422(25) |
 | Chebyshev, 6 terms, and one hump | 6 + 3 | 0.077152 | 0.4235(66) |
 
-An empty Kapton capillary from the same beamtime, fitted independently, shows the same feature at 4.24° with a width of 6.2°.
-The refined hump sits lower, at 4.18°, because it also absorbs the rise below 3° that a 3-term polynomial cannot follow.
+Three hump parameters lower Rwp more than three extra Chebyshev terms do.
+That shows only that the hump describes the curve more economically, and the empty capillary is the evidence for what it is.
+The refined hump sits at 4.18°, below the capillary's 4.24°, because it also takes up the rise below 3° that a 3-term polynomial cannot follow.
 Do not read a hump's position as a d-spacing.
 :::
 
@@ -113,5 +131,7 @@ The [humps section](https://rietx.org/background.html#explicit-humps) gives the 
 :class: note
 
 GSAS-II calls a hump a background peak, and TOPAS fits one as a peaks phase with no cell.
+GSAS-II states the Gaussian width terms as a variance in centidegrees², and X and Y in centidegrees.
+rietx states the Gaussian FWHM² in degrees² and X and Y in degrees.
 [Names in other programs](../reference/foreign-names.md) maps every rietx parameter to its name in GSAS-II, GSAS, TOPAS and FullProf.
 :::
