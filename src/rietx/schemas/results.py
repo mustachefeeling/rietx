@@ -1262,10 +1262,7 @@ def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
         return ["  diagnostics: none"]
     lines = [f"  diagnostics: {len(diagnostics)} unresolved"]
     for d in _cap_high_correlation(diagnostics):
-        line = f"    {d.level.upper()} {d.code}: {d.message}"
-        if d.suggestion:
-            line += f" — {d.suggestion}"
-        lines.append(line)
+        lines += [f"    {line}" for line in str(d).splitlines()]
     return lines
 
 

@@ -927,9 +927,7 @@ class PeakList(Base):
         # before the list was built, so it prints as IndexingResult's does
         tail = []
         for d in self.diagnostics:
-            tail.append(f"  [{d.level:^7}] {d.code}: {d.message}")
-            if d.where:
-                tail.append(f"           at: {', '.join(d.where)}")
+            tail += [f"  {line}" for line in str(d).splitlines()]
         return head, rows, tail
 
     def _repr_html_(self) -> str:
@@ -1906,17 +1904,15 @@ class IndexingResult(Base):
             lines.append(f"CELL: {best.system} {best.centring} "
                          f"{best.cell[0]:.5f} {best.cell[1]:.5f} {best.cell[2]:.5f} Å "
                          f"{best.cell[3]:.3f} {best.cell[4]:.3f} {best.cell[5]:.3f}°")
+        # ``where`` is load-bearing for the run-level codes: it names which
+        # systems INDEX_BUDGET_EXHAUSTED left truncated or unreached, which no
+        # message restates, and ``str(diag)`` prints it as ``at:``
         for diag in result.diagnostics:
-            lines.append(f"  [{diag.level:^7}] {diag.code}: {diag.message}")
-            # ``where`` is load-bearing for the run-level codes — it is the field
-            # that names which systems INDEX_BUDGET_EXHAUSTED left truncated or
-            # unreached, which no message prose restates
-            for entry in diag.where:
-                lines.append(f"           - {entry}")
+            lines += [f"  {line}" for line in str(diag).splitlines()]
         for c in result.candidates:
             for diag in c.diagnostics:
-                lines.append(f"  [{diag.level:^7}] {diag.code} (candidate "
-                             f"{c.system} {c.centring} V={c.volume:.1f}): {diag.message}")
+                lines += [f"  {line}" for line in str(diag).splitlines()]
+                lines.append(f"    candidate: {c.system} {c.centring} V={c.volume:.1f}")
         return head, candidates, lines
 
     def _repr_html_(self) -> str:

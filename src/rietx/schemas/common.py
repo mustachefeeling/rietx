@@ -932,6 +932,21 @@ class Diagnostic(Base):
     #: absent-for-cause rule as ``GuardFinding.value``, its usual source).
     value: float | None = None
 
+    def __str__(self) -> str:
+        """The one text form every printed view uses, after rustc's.
+
+        ``warning[CODE]: message`` heads it, then ``at:`` with the paths and
+        ``help:`` with the suggestion, each indented on its own line.  The
+        explanation is left out because it is the same for every finding; a
+        notebook folds it under the headline.
+        """
+        lines = [f"{self.level}[{self.code}]: {self.message}"]
+        if self.where:
+            lines.append(f"  at: {', '.join(self.where)}")
+        if self.suggestion:
+            lines.append(f"  help: {self.suggestion}")
+        return "\n".join(lines)
+
     @property
     def explanation(self) -> str | None:
         """What ``code`` means, from :func:`rietx.help.explain`.

@@ -128,12 +128,12 @@ def test_the_cap_is_never_applied_to_a_stored_diagnostics_list():
 
     # only the rendered view is bounded
     text = str(result)
-    assert text.count("HIGH_CORRELATION:") == HIGH_CORRELATION_MAX
+    assert text.count("[HIGH_CORRELATION]:") == HIGH_CORRELATION_MAX
     assert "HIGH_CORRELATION_OMITTED" in text
     assert "diagnostics: 15 unresolved" in text
 
     lines = _diagnostic_lines(result.diagnostics)
-    assert sum(1 for ln in lines if "HIGH_CORRELATION:" in ln) == HIGH_CORRELATION_MAX
+    assert sum(1 for ln in lines if "[HIGH_CORRELATION]:" in ln) == HIGH_CORRELATION_MAX
 
 
 # --- the routing (WP-1310) -----------------------------------------------

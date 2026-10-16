@@ -928,7 +928,7 @@ def test_auto_background_hands_the_cap_code_to_its_caller():
     reaches the caller as a warning that starts with it, and a chosen order
     raises none."""
     humpy = _peaky_pattern(background=_hump_bkg)
-    with pytest.warns(UserWarning, match=r"^BACKGROUND_ORDER_AT_CAP: "):
+    with pytest.warns(UserWarning, match=r"^info\[BACKGROUND_ORDER_AT_CAP\]: "):
         auto_background(rx.read_pattern(
             Path(__file__).parent / "data" / "11BM_Si640c.xy"), kind="chebyshev",
             two_theta_limits=(8.0, 30.0))

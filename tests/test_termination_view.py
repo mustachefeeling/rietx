@@ -88,7 +88,7 @@ def test_str_result_names_every_diagnostic_by_substring():
     assert result.diagnostics, "fixture stopped producing any — pick another"
     text = str(result)
     for d in result.diagnostics:
-        assert f"{d.level.upper()} {d.code}: " in text
+        assert f"{d.level}[{d.code}]: " in text
         assert d.message in text
 
 

@@ -107,7 +107,10 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
       `Diagnostic.explanation` reads `rietx.help.DIAGNOSTIC_HELP` (the `PEAK_*` arm grown
       to every code) and is never stored.
 - [ ] The per-code explanations, with a meta-test that every code raised has one.
-- [ ] One line format for results, indexing and peak lists.
+- [x] One line format for results, indexing and peak lists: `Diagnostic.__str__`, after
+      rustc (`warning[CODE]: message`, then `at:` and `help:` lines). The CLI's reader
+      notes, the background warning and the two NAC/SRM examples use it too. The slow NAC
+      golden is regenerated once, after the summary and the messages move.
 - [ ] A text view for `FitReport`, and `Refinement.summary()` cut to what a person scans; the
       abstention reason printed once.
 - [ ] Rewrite the messages in the new voice, by module, moving each pin on purpose.
