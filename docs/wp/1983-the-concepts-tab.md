@@ -87,7 +87,7 @@ and so are "glob", "schema" and "column" until a page explains them.
       tree's build, with a case that makes it fail on a missing page and a missing id.
 - [x] About a fit: the life of a fit, from pattern and models to result and history, as one
       diagram with a paragraph a box.
-- [ ] About parameters: the groups, what each is for, its scope (instrument, specimen, phase,
+- [x] About parameters: the groups, what each is for, its scope (instrument, specimen, phase,
       atom), and the background-and-humps story; the full tables live in WP-1981's map.
 - [ ] About the report: its three layers and what each can and cannot claim.
 - [ ] About correlations and esds: why a direction the data does not move has no esd.
