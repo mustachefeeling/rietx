@@ -3,7 +3,7 @@
 A fit is one call, `Refinement.fit`, which refines a structure and an instrument against a pattern in stages and records each stage in a history.
 
 ```{mermaid}
-flowchart TB
+flowchart LR
   P["Pattern"] --> R
   S["Structure"] --> R
   I["Instrument"] --> R

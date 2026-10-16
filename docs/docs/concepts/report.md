@@ -42,7 +42,7 @@ A region's reading is used only if it passes four checks:
 - its local reduced χ² is above {{ MIN_REGION_CHI2_RED }}, so there is misfit to describe;
 - the five shapes explain at least a fraction {{ MIN_REGION_R2 }} of the residual (R²);
 - the five shapes are distinguishable over this region, measured by the condition number of their scale-normalised Gram matrix, at most {{ MAX_GRAM_CONDITION }};
-- the position change is within {{ VALIDITY_RADIUS_FWHM }} of the peak width, where a first-order description holds.
+- the position change is under {{ VALIDITY_RADIUS_FWHM }} times the peak's FWHM, where a first-order description holds.
 
 A single coefficient counts only when it is more than three times its esd.
 
