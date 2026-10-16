@@ -90,7 +90,7 @@ and so are "glob", "schema" and "column" until a page explains them.
 - [x] About parameters: the groups, what each is for, its scope (instrument, specimen, phase,
       atom), and the background-and-humps story; the full tables live in WP-1981's map.
 - [x] About the report: its three layers and what each can and cannot claim.
-- [ ] About correlations and esds: why a direction the data does not move has no esd.
+- [x] About correlations and esds: why a direction the data does not move has no esd.
 - [ ] About the project: what each file in a `.rex` is for, linking the generated tree.
 - [ ] Usage tiers: which calls most fits use, measured from the examples and tutorials, and a
       newcomer check of the tab.
