@@ -85,7 +85,7 @@ and so are "glob", "schema" and "column" until a page explains them.
 
 - [x] The Theory-link check resolves `https://rietx.org/<chapter>.html#<id>` against the old
       tree's build, with a case that makes it fail on a missing page and a missing id.
-- [ ] About a fit: the life of a fit, from pattern and models to result and history, as one
+- [x] About a fit: the life of a fit, from pattern and models to result and history, as one
       diagram with a paragraph a box.
 - [ ] About parameters: the groups, what each is for, its scope (instrument, specimen, phase,
       atom), and the background-and-humps story; the full tables live in WP-1981's map.
