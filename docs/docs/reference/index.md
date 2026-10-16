@@ -9,6 +9,7 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [Plan presets](plans.md) draws each preset's stages.
 - [Diagnostic codes](diagnostics.md) lists every code with its level and source.
 - [Project directory](project.md) shows the files in a `.rex` project.
+- [Names in other programs](foreign-names.md) gives each parameter's name in GSAS-II, GSAS, TOPAS and FullProf.
 - [Roadmap](roadmap.md) lists the milestones in progress and planned.
 - [For agents](agents.md) says how an agent gets the rietx skill.
 
@@ -22,6 +23,7 @@ parameters
 plans
 diagnostics
 project
+foreign-names
 roadmap
 agents
 ```
