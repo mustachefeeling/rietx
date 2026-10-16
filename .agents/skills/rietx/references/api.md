@@ -19,7 +19,7 @@ gives any call's full docstring; `A -> B` is a return annotation; a
 `rx.Parameter(…)` default names the parameter's starting value and whether it
 is free.
 
-## In
+## Reading data
 
 Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities()` lists and takes the file's esd column when it has one; a wavelength comes from the instrument preset or the file, never from memory (§1). **A file extension does not name a format here**: dispatch is on content, and a declined `.raw` names the six vendors who write one and picks none, so read the refusal rather than the suffix (Measured: WP-1407). **Handed another program's file** — a TOPAS `.inp`, a FullProf `.pcr`, a GSAS `.EXP` or `.prm`, a GSAS-II `.gpx` or `.instprm`, a PowderLine recipe — or writing one for it: the readers and writers are in `api-io.md`.
 
@@ -36,7 +36,7 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.capabilities() -> Capabilities` — Everything this build can do — see the module docstring.
 - `rx.help_for(path: str) -> HelpEntry | None` — The entry for a parameter dot-path, or `None` if no family claims it.
 
-## The model objects
+## Model objects
 
 Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addressed by a dot-path such as `phases.0.cell.a` or `instrument.profile.w`; `rx.help_for(path)` says what any of them is. Each class below is its own constructor — the fields are the keyword arguments, a field with no default is required.
 
@@ -77,7 +77,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.PatternData` — A powder pattern.
   Fields: `two_theta: list[float] | None = None`, `tof: list[float] | None = None`, `intensity: list[float]`, `sigma: list[float] | None = None`, `excluded_regions: list[tuple[float, float]] = []`, `metadata: dict[str, str] = {}`
 
-## Refining
+## Refinement
 
 `rx.Refinement` is the stateful entry point and `rx.refine` the one-shot function form. Plans are named in `rx.PLAN_INFO` or built as a `rx.RefinementPlan` of `rx.Stage`s; `ref.parameters()` lists every entry, fixed, locked and tied included, and the editing verbs auto-commit a history node each. **`vary=False` is not a pin**: a plan replaces the vary flags rather than continuing them, so a stage's `turn_on` glob frees whatever it matches. Say it with `ref.hold(globs)`, which outranks the glob, survives a save and reopen, and makes the stage report what it could not free (§8.25, §7 `HOLD_BLOCKED_PLAN`).
 
@@ -108,7 +108,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.ParameterRow` — One row of the parameter table — the mirror of `params.vector.Entry`.
   Fields: `path: str`, `value: float`, `vary: bool = False`, `lo: float = -inf`, `hi: float = inf`, `tie: TieSpec | None = None`, `locked: bool = False`, `held: bool = False`, `esd: float | None = None`, `mode_fixed: bool = False`, `needs_held_cell: bool = False`, `origin_axis: tuple[int, int, int] | None = None`, `help_key: str | None = None`
 
-## The four answers are four different types
+## Results
 
 None nests inside another. An `rx.IndexingResult` carries no `cell` key by design: `best_or_none()` is the only way to one cell, and it returns `None` more often than not (§6). `RefinedParameter.at_bound` is three-valued — test `is True`.
 
@@ -139,7 +139,7 @@ None nests inside another. An `rx.IndexingResult` carries no `cell` key by desig
 - `rx.CandidateGroup` — One rankable unit: a single candidate, or a tie the data cannot split.
   Fields: `members: list[ParameterCandidate]`, `gain: float`, `resolved: bool`, `delta_bic: float`, `delta_bic_raw_n: float | None = None`
 
-## The report
+## Fit report
 
 `ref.report()` or `rx.build_report` gives the three-layer `rx.FitReport` §5 reads. `compare_rivals` and `predict_then_verify` are the two experiments §4 step 14 and §4b call for, and `compare_freed` prices a parameter you freed (§4).
 
@@ -174,7 +174,7 @@ None nests inside another. An `rx.IndexingResult` carries no `cell` key by desig
 - `rx.Project.save()` — Rewrite `project.json`.
 - `rx.CancelToken()` — A thread-safe "stop asking for evaluations" flag.
 
-## An unknown phase
+## Peaks and indexing
 
 Peaks, then a cell, then the extinction symbol — the closed loop of §7b-7f, each step returning a ranked list and never a singleton. `rx.fit_peaks` leaves that loop: it fits the positions *you* name, for a width analysis or a d-spacing, with no cell in the question.
 
@@ -183,7 +183,7 @@ Peaks, then a cell, then the extinction symbol — the closed loop of §7b-7f, e
 - `rx.index_pattern(peaks: PeakList | None = None, *, data: PatternData | None = None, instrument: Instrument | None = None, spec=None, preset: str | None = None, engines: Sequence[str] | None = None, quality=None, shift_from_pairs: bool = True, validate: bool = True, check_top: int | None = None, two_theta_limits: tuple[float, float] | None = None, formula: str | None = None, temperature: float = 298.0, events=None, cancel=None)` — Find the unit cell — or say, in the shape of the answer, that it cannot.
 - `rx.determine_extinction_symbol(data: PatternData, candidate: CellCandidate, instrument: Instrument, *, peaks: PeakList | None = None, two_theta_limits: tuple[float, float] | None = None, k_sigma: float = 3.0, max_classes: int | None = None, refine_cell: bool = False, cancel=None) -> ExtinctionScreen` — Rank the extinction classes of a lattice.
 
-## Out
+## Export and plots
 
 Files and figures. `rx.format_su` renders a value with its esd as `1.2345(12)`; `plot_for_vlm` is the montage §5 allows as a check on a conclusion already reached from numbers. A file for another program is written by `api-io.md`'s writers. A picture of the structure is `rx.viz.render_structure`, and of a pattern before any model `rx.viz.plot_pattern`, both in `api-figure.md`.
 

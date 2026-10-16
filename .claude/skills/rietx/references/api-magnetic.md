@@ -19,7 +19,7 @@ this; everything in `rx.` is `import rietx as rx`.*
 - `rx.MomentRow` — One site's refined moment inside one trial.
   Fields: `label: str`, `ion: str`, `magnitude: float`, `esd: float | None`, `crystalaxis: tuple[float, float, float]`, `supported: bool`, `unmeasured_directions: tuple[str, ...] = ()`, `paired_with: tuple[str, ...] = ()`, `paired_magnitude: float | None = None`, `paired_magnitude_esd: float | None = None`
 
-## Displacive modes of a stated child
+## Displacive mode amplitudes
 
 `mode_amplitudes(parent, child, (P, p))` from `rietx.crystallography.representation.distortion` decomposes a distorted child `Phase` (r_parent = P·r_child + p) into its parent's irreps, in Å: AMPLIMODES's unit, Σ mult·|ε|² = 1 over the child's primitive cell, in the unstrained reference metric Pᵀ·G_parent·P (`reference="average"` takes the parent-symmetric part of the child's cell, `"parent"` the parent's own). Every irrep the child admits is returned, secondary and Γ-point ones included, with the uniform translation removed, so Σ A_τ² is the field's squared norm and Σ `n_modes` its free coordinates. `irrep` is this package's small-irrep label: compare a published table on `isotropy_group`. `distortion_basis` returns the modes alone, per irrep. Provisional: refining them is a later WP-1419 chunk.
 
