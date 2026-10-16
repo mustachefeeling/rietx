@@ -155,7 +155,7 @@ vale --config=.vale.ini docs/docs      # no error-level alert
   `*` crosses `/`, so the section is `[docs/docs/[!_]*.md]` to skip `_build/` and
   `_generated/`, and an empty `BasedOnStyles` in a later section does not switch styles
   off. Hunspell has no possessive for most stems, so `rietx.Spelling` filters `'s` forms.
-  The dictionary's affix flags ("PXT…") match `test_no_stale_name`'s old-name pattern, so
+  The dictionary's affix flag strings match `test_no_stale_name`'s old-name pattern, so
   the file is on its allowlist. MyST `{{ NAME }}` substitutions and "et al." are token
   ignores. Root CLAUDE.md is at its size cap, so the run command lives in CONTRIBUTING.md.
 
