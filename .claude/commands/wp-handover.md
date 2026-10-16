@@ -77,7 +77,8 @@ re-reading its own diff.
    this WP; rubric in `docs/wp/TEMPLATE.md`). An unrated WP (`—`) stays
    unrated unless the move is the reason to rate it.
    **Then run `python3 .claude/hooks/closed_wp_writes.py`**. It lists every
-   WP this branch adds lines to that was already ✅/🛑 at the merge-base. No
+   WP this branch adds lines to that is ✅/🛑 at the merge-base or on
+   `origin/main` (closed by its owner since this branch forked). No
    session reads a closed WP again, so a note there that asks for work is
    lost: move it to the open owner, or file one. A correction to the closed
    WP's own record may stay, and the handover entry says which it was. Two

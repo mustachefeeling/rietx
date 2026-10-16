@@ -21,7 +21,7 @@ two ways a note got lost:
 
 - **Into a WP closed before the epoch.** WP-0406 deferred joint-fit soft
   restraints into WP-0308's `### Inherited` on 2026-07-27, after 0308 closed
-  (2026-07-23). `_multi_closures`' refusal pointed readers at that file for 81
+  (its Status reads ✅ 2026-07-24). `_multi_closures`' refusal pointed readers at that file for 81
   days. Three open WPs (1325, 1962, 1963) worked around the refusal, and none
   owned it. It is now [WP-1988](1988-soft-restraints-in-a-joint-fit.md).
 - **In prose rather than under the heading.** WP-1907's close (2026-10-07)
@@ -42,14 +42,18 @@ and 0406's backend notes), moot (1027, 1041), or records and pointers.
 ## Tasks
 
 - [x] `.claude/hooks/closed_wp_writes.py`: diff against the merge-base with
-      `origin/main` and report each WP file that was ✅/🛑 at the base, is
-      still closed, and gains lines net of what it loses. A sweep rewriting a
-      line in place adds nothing, and a reopened WP is not reported. Exit 1
-      when it reports.
+      `origin/main` and report each WP file that was ✅/🛑 at the base or is
+      at `origin/main`'s tip (closed by its owner after this branch forked),
+      was not reopened here, and gains lines net of what it loses. A sweep
+      rewriting a line in place adds nothing, a renamed file is compared with
+      its old name, and a reopened WP is not reported. Exit 1 when it
+      reports, 2 when git cannot answer.
 - [x] `/wp-handover` step 5 runs it after the forward references are pushed.
 - [x] `tests/test_closed_wp_writes.py`: a heading note, a prose note and a
-      committed note are each reported; a sweep, a reopening, an open WP, a
-      new WP and the session closing its own WP are not; the handover step
+      committed note are each reported, as are a note into a WP closed
+      upstream after the fork and one into a renamed closed WP; a sweep, a
+      reopening, an open WP, a new WP and the session closing its own WP are
+      not; the handover step
       that runs it is still there. Joined to CI's `docs` job, since it reads
       the handover command.
 - [x] Skill: none. This changes how the package is worked on, not how it is
@@ -77,7 +81,7 @@ python3 .claude/hooks/closed_wp_writes.py   # on this branch: reports 0308's poi
   adds to each ✅/🛑 WP, and the writer moves the note to an open owner or
   says why it stays. No open WP owned the guard, so it was filed and landed
   together.
-  *Measured:* `tests/test_closed_wp_writes.py` 9 passed (`[dev]`, Linux
+  *Measured:* `tests/test_closed_wp_writes.py` 11 passed (`[dev]`, Linux
   x86_64, python 3.12). Its first case is the guard failing on purpose: the
   wiring test went red before the handover step existed. On this branch the
   script reports one file, WP-0308, +2 lines. That is the pointer to
