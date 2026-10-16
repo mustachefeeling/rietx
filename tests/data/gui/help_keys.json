@@ -130,6 +130,7 @@
   "diagnostics:INDEX_DOMINANT_ZONE",
   "diagnostics:INDEX_GEOMETRIC_AMBIGUITY",
   "diagnostics:INDEX_IMPURITY_LINES",
+  "diagnostics:INDEX_INLIER_RETRY",
   "diagnostics:INDEX_MULTIPLE_SOLUTIONS",
   "diagnostics:INDEX_NOT_VALIDATED",
   "diagnostics:INDEX_PANEL_REDUCED",
