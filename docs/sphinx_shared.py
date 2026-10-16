@@ -66,6 +66,11 @@ from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG
 from rietx.report.layer2 import IMPURITY_SIGMA
 from rietx.report.schemas import (
     MATURITY_MAX_RWP,
+    MATURITY_MIN_EXPLAINED_FRACTION,
+    MATURITY_MIN_MISFIT_SHARE,
+    MAX_GRAM_CONDITION,
+    MIN_REGION_CHI2_RED,
+    MIN_REGION_R2,
     THRESHOLDS_VERSION,
     VALIDITY_RADIUS_FWHM,
 )
@@ -222,6 +227,13 @@ MYST_SUBSTITUTIONS = {
     # `⚠ not a fit yet`.  The GUI chapters state it, so it is injected for the
     # same reason every other threshold here is: a retune must move the page.
     "MATURITY_MAX_RWP": MATURITY_MAX_RWP,
+    # Layer 1's other gates, which the Concepts page on the report states.
+    # Shares are quoted as percentages and the Gram bound as a whole number.
+    "MATURITY_MIN_EXPLAINED_PCT": f"{100 * MATURITY_MIN_EXPLAINED_FRACTION:g}",
+    "MATURITY_MIN_MISFIT_PCT": f"{100 * MATURITY_MIN_MISFIT_SHARE:g}",
+    "MAX_GRAM_CONDITION": f"{MAX_GRAM_CONDITION:,.0f}".replace(",", " "),
+    "MIN_REGION_CHI2_RED": MIN_REGION_CHI2_RED,
+    "MIN_REGION_R2": MIN_REGION_R2,
     "NEAR_EDGE_EV": NEAR_EDGE_EV,
     # where Y³⁺'s ITC fit hands over to neutral Y (WP-1527).  The package
     # computes it from the two curves, so the chapter quotes it.
