@@ -452,12 +452,71 @@ def project_tree() -> str:
     return "\n".join(out + [""])
 
 
+# ----------------------------------------------------------------------
+# The roadmap
+#
+# Read from `docs/ROADMAP.md`'s milestone table, which is the planning set's
+# own authority.  A numbered release is a cut, not a direction, so only the
+# named milestones and the fence are shown.  A scope cell is cut at its first
+# " — ", after which the table speaks to maintainers (WP links, issue numbers),
+# and a "(was vX.Y)" note about an old number is dropped.
+# ----------------------------------------------------------------------
+
+DOCS_ROOT = _Path(__file__).resolve().parent
+_MD_LINK = _re.compile(r"\[([^\]]*)\]\(([^)]*)\)")
+
+
+def _milestone_rows(roadmap: str) -> list[dict[str, str]]:
+    section = _re.split(r"^## Milestones$", roadmap, maxsplit=1, flags=_re.M)[1]
+    section = _re.split(r"^## ", section, maxsplit=1, flags=_re.M)[0]
+    rows = []
+    for line in section.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) != 4 or cells[0] in {"Milestone", ""} or set(cells[0]) <= {"-"}:
+            continue
+        name, scope, status, _ = cells
+        if status.startswith("✅") or _re.fullmatch(r"v\d+\.\d+", name):
+            continue
+        record = next((url for _, url in _MD_LINK.findall(status)
+                       if url.startswith("milestones/")), None)
+        rows.append({
+            "name": name,
+            "scope": _re.sub(r"\s*\(was v[\d.]+\)", "", scope.split(" — ")[0]),
+            "status": _MD_LINK.sub("", status).replace("**", "").strip(" ()⬜🔄"),
+            "record": record,
+        })
+    return rows
+
+
+def roadmap_page() -> str:
+    """The body of `reference/roadmap.md`."""
+    from rietx import __version__
+    from rietx._about import REPO_URL
+
+    rows = _milestone_rows((DOCS_ROOT / "ROADMAP.md").read_text(encoding="utf-8"))
+    if "dev" in __version__:
+        release = ".".join(__version__.split(".")[:2])
+        built = (f"This manual was built from {__version__}, "
+                 f"a development build of the next release, {release}.")
+    else:
+        built = f"This manual was built from release {__version__}."
+    out = [_BANNER.format(source="docs/ROADMAP.md"), "", built, "",
+           "| Milestone | Scope | Status |", "| --- | --- | --- |"]
+    for row in rows:
+        status = row["status"]
+        if row["record"]:
+            status += f" ([record]({REPO_URL}/blob/main/docs/{row['record']}))"
+        out.append(f"| {row['name']} | {_cell(row['scope'])} | {status} |")
+    return "\n".join(out + [""])
+
+
 #: Generated body file name -> the function that writes it.
 BODIES = {
     "parameters.md": parameter_map,
     "plans.md": plan_ladder,
     "diagnostics.md": diagnostic_page,
     "project.md": project_tree,
+    "roadmap.md": roadmap_page,
 }
 
 

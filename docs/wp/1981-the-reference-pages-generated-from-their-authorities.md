@@ -84,7 +84,7 @@ Facts measured 2026-10-15 (WP-1975 § B2-B4):
       `tests/api_surface.py`'s partition reading it.
 - [x] Diagnostic index: every code, its level and where it is raised.
 - [x] Project tree from a built example, annotated from the writer constants.
-- [ ] Roadmap from the milestone records.
+- [x] Roadmap from the milestone records.
 - [ ] Foreign-name map with its test against the readers' constants.
 - [ ] The "For agents" page.
 - [ ] Skill: none; the skill keeps its own generated `api.md`.

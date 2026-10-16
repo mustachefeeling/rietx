@@ -174,3 +174,37 @@ def test_a_created_file_no_row_names_raises(monkeypatch):
     monkeypatch.setattr(reference_pages, "PROJECT_ENTRIES", rows)
     with pytest.raises(RuntimeError, match="history.jsonl"):
         reference_pages.project_tree()
+
+
+# ----------------------------------------------------------------------
+# The roadmap
+# ----------------------------------------------------------------------
+
+ROADMAP_SAMPLE = """\
+## Milestones
+
+| Milestone | Scope | Status | Acceptance |
+|---|---|---|---|
+| v1.9 | A cut | ✅ **shipped 2026-10-14** ([record](milestones/v1.9.md)) | rows |
+| v1.10 | The next release | 🔄 **accumulating since 2026-10-14** ([record](milestones/v1.10.md)) | x |
+| magnetic | The moment (was v1.6): the satellite — [§ m](#magnetic) | 🔄 **opened 2026-09-18** ([record](milestones/magnetic.md)) | rows |
+| rietview | rietview (was v1.7): the figure — [WPs](wp/README.md#x): 1801 | ⬜ **queued 2026-09-27** | x |
+
+## Work packages
+"""
+
+
+def test_the_roadmap_keeps_named_milestones_and_drops_maintainer_links():
+    rows = reference_pages._milestone_rows(ROADMAP_SAMPLE)
+    assert rows == [
+        {"name": "magnetic", "scope": "The moment: the satellite",
+         "status": "opened 2026-09-18", "record": "milestones/magnetic.md"},
+        {"name": "rietview", "scope": "rietview: the figure",
+         "status": "queued 2026-09-27", "record": None},
+    ]
+
+
+def test_the_roadmap_page_links_nothing_inside_the_planning_tree():
+    text = reference_pages.roadmap_page()
+    assert re.findall(r"\]\((?!https://)[^)]*\)", text) == []
+    assert "| magnetic |" in text
