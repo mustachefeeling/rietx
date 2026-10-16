@@ -107,9 +107,10 @@ def test_every_preset_has_a_ladder_with_every_stage_and_glob():
 
     text = reference_pages.plan_ladder()
     sections = re.split(r"^## ", text, flags=re.M)[1:]
-    assert [s.splitlines()[0] for s in sections] == list(PLAN_PRESETS)
-    for section in sections:
-        plan = PLAN_PRESETS[section.splitlines()[0]]()
+    heading = [s.splitlines()[0].strip('`') for s in sections]
+    assert heading == list(PLAN_PRESETS)
+    for name, section in zip(heading, sections):
+        plan = PLAN_PRESETS[name]()
         nodes = re.findall(r'^  s\d+\["(.*)"\]$', section, flags=re.M)
         assert len(nodes) == len(plan.stages)
         for node, stage in zip(nodes, plan.stages):

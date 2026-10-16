@@ -129,7 +129,7 @@ DUMMY_SPECIES = "C"
 
 
 class Cell(Base):
-    """Unit-cell lengths (Å) and angles (degrees).
+    """The lattice parameters: three lengths (Å) and three angles (degrees).
 
     Crystal-system constraints (e.g. cubic ``a=b=c``, α=β=γ=90°) are enforced
     by the parameter-vector compiler from the space group, not stored here.
@@ -170,7 +170,7 @@ class Cell(Base):
 
 
 class AnisoU(_InheritsDeclaredDefaults):
-    """Anisotropic displacement tensor in the CIF U^ij convention (Å²).
+    """Anisotropic displacement tensor in the CIF ``U^ij`` convention (Å²).
 
     The Debye-Waller factor is T(h) = exp(−2π² Σ_ij U^ij h_i h_j a*_i a*_j)
     — the ``_atom_site_aniso_U_ij`` definition, so these are exactly the
@@ -327,7 +327,7 @@ def _s() -> Parameter:
 
 
 class StephensStrain(_InheritsDeclaredDefaults):
-    """Anisotropic strain broadening coefficients S_HKL (Stephens, 1999).
+    """Anisotropic strain broadening coefficients ``S_HKL`` (Stephens, 1999).
 
     The variance of M = 1/d² across the crystallites is a homogeneous quartic
     in the Miller indices, σ²(M) = 10⁻¹²·Σ S_HKL h^H k^K l^L, which turns into
@@ -576,7 +576,7 @@ class BondRestraint(Base):
 
 class AngleRestraint(Base):
     """A soft restraint on the i–j–k bond angle (vertex = the **middle** atom
-    ``atom_j``), contributing √weight·(angle − target_deg)/sigma degrees.
+    ``atom_j``), contributing √weight·(angle − ``target_deg``)/sigma degrees.
 
     The angle is formed by u = x_i' − x_j and v = x_k' − x_j, where x_i' and
     x_k' are the (optionally symmetry-imaged) neighbour positions and x_j the
@@ -1516,7 +1516,7 @@ class Phase(_InheritsDeclaredDefaults):
 
 
 class Structure(Base):
-    """The phases refined against the same pattern(s) — possibly none.
+    """The phases refined against one pattern.  The list may be empty.
 
     A declared cell (``structure.phases[i].cell.a.value``, in Å) rather than
     a fitted one — read a phase's refined cell off the *result*'s

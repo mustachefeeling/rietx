@@ -201,6 +201,7 @@ Pitschke
 [qQ]uantile
 [qQ]uartic
 [qQ]uaternion
+Rachinger
 [rR]efinable
 [rR]enormalised
 [rR]eparameterisation
@@ -211,6 +212,7 @@ Pitschke
 Rexp
 [rR]hombohedral
 Rietveld
+[rR]ietview
 [rR]ietx
 Rigaku
 [rR]oadmap
@@ -269,6 +271,7 @@ Uiso
 [uU]npolarised
 [uU]nscaled
 Voigt
+Von
 [wW]alkthrough
 [wW]alkthroughs
 [wW]hitespace

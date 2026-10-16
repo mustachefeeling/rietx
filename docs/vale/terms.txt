@@ -163,6 +163,7 @@ Marquardt
 Maxwellian
 Pawley
 Pitschke
+Rachinger
 Rietveld
 Rodrigues
 Scherrer
@@ -170,6 +171,7 @@ Schwarzenbach
 Shirane
 Suortti
 Voigt
+Von
 
 # Mathematics and statistics.
 affinely
@@ -273,6 +275,7 @@ filesystem
 frontend
 lookups
 refinable
+rietview
 roadmap
 stderr
 stdout

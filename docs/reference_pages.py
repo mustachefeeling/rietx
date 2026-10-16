@@ -273,7 +273,7 @@ def plan_ladder() -> str:
     out.append("")
     for name, plan in plans.items():
         info = PLAN_INFO[name]
-        out += [f"## {name}", "", info.description, "", info.when_to_use, ""]
+        out += [f"## `{name}`", "", info.description, "", info.when_to_use, ""]
         if not shared:
             out += [_ftol_sentence(plan.intermediate_ftol), ""]
         out += _ladder(plan)

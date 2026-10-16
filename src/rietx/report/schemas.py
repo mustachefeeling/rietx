@@ -954,7 +954,7 @@ class GateFailure(Base):
 
 
 class RegionAttribution(Base):
-    """What a locally-linear model says is wrong in one region.
+    """What a locally linear model says is wrong in one region.
 
     ``gates_passed`` is the *only* field a consumer should branch on: when it
     is False the coefficients are reported for transparency but must not be
@@ -1193,7 +1193,7 @@ class FreedParameter(Base):
 
 
 class FreedComparison(Base):
-    """What freeing parameters bought, as ΔBIC with each one's t-ratio beside it.
+    """The effect of freeing parameters, as ΔBIC with each one's t-ratio beside it.
 
     Built by :func:`~rietx.report.compare_freed` from two fits the caller ran
     (WP-1417, issue #270).  ``delta_bic`` is charged at ``n_effective`` =

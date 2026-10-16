@@ -156,11 +156,11 @@ UNIT_DISPLAY: dict[str, str] = {
 _CELL_LENGTH = HelpEntry(
     title="Lattice parameter a, b, c",
     description=(
-        "A unit-cell length. It sets every reflection position through the "
-        "lattice metric, so it is the parameter a powder pattern determines "
-        "best and the one a systematic position error corrupts first. Edges "
-        "the space-group setting ties to another (b to a in a tetragonal cell) "
-        "are held and follow their source."
+        "A lattice parameter that gives the length of a unit-cell axis. It sets "
+        "every reflection position through the lattice metric. A powder pattern "
+        "determines it better than any other parameter, and a systematic position "
+        "error corrupts it first. An edge that the space-group setting ties to "
+        "another (b to a in a tetragonal cell) is held and follows its source."
     ),
     unit="Å", default=None,
     typical="3-40 Å for an inorganic phase; refined shifts are 10-1000 ppm",
@@ -169,9 +169,10 @@ _CELL_LENGTH = HelpEntry(
 _CELL_ANGLE = HelpEntry(
     title="Lattice parameter α, β, γ",
     description=(
-        "A unit-cell angle. An angle the space-group setting fixes at 90° or "
-        "120° is locked and cannot be freed; a monoclinic cell frees only its "
-        "unique-axis angle."
+        "A lattice parameter that gives the angle between two cell axes. The "
+        "space-group setting fixes some angles at 90° or 120°. Those angles are "
+        "locked and cannot be freed. A monoclinic cell frees only its unique-axis "
+        "angle."
     ),
     unit="deg", default=None,
     typical="90° or 120° when symmetry fixes it; 80-100° for a monoclinic β",
@@ -180,10 +181,10 @@ _CELL_ANGLE = HelpEntry(
 _BODY_ORIGIN = HelpEntry(
     title="Rigid-body origin",
     description=(
-        "Where a rigid body's template origin sits, as fractional "
-        "coordinates. A record, like an atom's x, y and z: it follows the "
-        "body's origin degrees of freedom and is written back after each "
-        "stage. Free it with `phases.*.rigid_bodies.*.origin.dof.*`."
+        "The position of a rigid body's origin, in fractional coordinates. Like an "
+        "atom's x, y and z, it follows the refined origin shifts and is written "
+        "back after each stage. Free those shifts with "
+        "`phases.*.rigid_bodies.*.origin.dof.*`."
     ),
     unit=None, default=None,
     typical="0 to 1",
@@ -194,11 +195,11 @@ _BODY_ORIGIN = HelpEntry(
 _ATOM_COORD = HelpEntry(
     title="Fractional coordinate",
     description=(
-        "An atom's position along a cell axis, in fractions of the edge. It is "
-        "not refined directly: `ParameterTable` ties x, y and z to the site's "
-        "symmetry degrees of freedom, so editing it means editing the "
-        "`dof.k` entries it follows. An atom on a fully fixed special position "
-        "has no free direction and its coordinates are locked."
+        "An atom's position along a cell axis, as a fraction of the lattice "
+        "parameter along that axis. You do not refine it directly. rietx ties x, y "
+        "and z to the shifts that the site symmetry allows, so editing a position "
+        "means editing the `dof.k` entries it follows. An atom on a fully fixed "
+        "special position has no free direction, and its coordinates are locked."
     ),
     unit=None, default=None,
     typical="0 to 1",
@@ -207,10 +208,10 @@ _ATOM_COORD = HelpEntry(
 _ATOM_ANISO_U = HelpEntry(
     title="Anisotropic displacement component",
     description=(
-        "One component of the stored CIF U^ij displacement tensor, in Å². Like "
-        "the coordinates it is tied rather than free: the refined quantities "
-        "are the `adp.k` entries of the site-symmetry-allowed subspace, and a "
-        "tensor outside that subspace is refused rather than symmetrised."
+        "One component of the anisotropic displacement tensor `U^ij`, as stored in "
+        "the CIF, in Å². Like the coordinates, it is tied to other entries. The "
+        "refined quantities are the `adp.k` entries, which span the tensors that "
+        "the site symmetry allows. rietx refuses a tensor outside that set."
     ),
     unit="Å²", default=None,
     typical="0.005-0.05 Å² on the diagonal; off-diagonal components are smaller",
@@ -219,12 +220,13 @@ _ATOM_ANISO_U = HelpEntry(
 _STEPHENS_S = HelpEntry(
     title="Stephens strain coefficient",
     description=(
-        "One S_HKL coefficient of the Stephens (1999) anisotropic strain "
-        "model, multiplying the literal monomial h^H k^K l^L. Coefficients are "
-        "in 10⁻¹² Å⁻⁴ because the physical Å⁻⁴ values near 10⁻⁸ would be "
-        "finite-differenced with a step 100 times their own size. Like the "
-        "ADP components these are tied: the refined quantities are the "
-        "`microstrain.dof.k` entries of the Laue-allowed subspace."
+        "One `S_HKL` coefficient of the Stephens (1999) anisotropic strain model. "
+        "It multiplies the monomial `h^H k^K l^L`, taken literally. The unit is "
+        "10⁻¹² Å⁻⁴. In Å⁻⁴ the physical values sit near 10⁻⁸, and a numerical "
+        "derivative would step 100 times further than the value itself. Like the "
+        "anisotropic displacement components, these coefficients are tied. The "
+        "refined quantities are the `microstrain.dof.k` entries of the Laue-allowed "
+        "subspace."
     ),
     unit="10⁻¹² Å⁻⁴", default="0.0",
     typical="0-500 for a sample with measurable anisotropic strain",
@@ -236,33 +238,31 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.zero_shift": HelpEntry(
         title="Zero-point shift",
         description=(
-            "A constant offset added to every calculated 2θ, absorbing the "
-            "goniometer's zero-point misalignment. It is a property of the "
-            "diffractometer, not of the specimen, so calibrate it on a "
-            "standard with a certified cell and hold it afterwards. Freed "
-            "alongside a free cell and a free sample displacement it is close "
-            "to degenerate with both, which is what makes calibration on a "
-            "held cell the step that separates the three."
+            "A constant offset added to every calculated 2θ. It absorbs the zero-point "
+            "misalignment of the goniometer. It is a property of the diffractometer. "
+            "Calibrate it on a standard with a certified cell, then hold it. Freed "
+            "together with the lattice parameters and the specimen displacement, it is "
+            "close to degenerate with both. Calibrating on a held cell is the step that "
+            "separates the three."
         ),
         unit="deg 2θ", default="0.0",
         typical="|Δ| < 0.05 deg on an aligned diffractometer",
         anchor="peak-positions.html#aberration-shifts",
     ),
     "instrument.polarization": HelpEntry(
-        title="Polarization factor",
+        title="Polarisation factor",
         description=(
-            "The K of the Lorentz-polarisation correction, whose polarisation "
-            "numerator is K + (1 − K)·cos²2θ. "
-            "`model.corrections.lorentz_polarization` is what computes it. K "
-            "is the fraction of the beam polarised perpendicular to the "
-            "diffraction plane. Beam optics fix it, so it is declared rather "
-            "than refined, and no plan frees it. An unpolarised laboratory "
-            "source gives 0.5. A diffracted-beam monochromator gives "
-            "1/(1 + cos²2θ_m), which is 0.556 for graphite (002) at Cu Kα and "
-            "0.630 for the same crystal at Cr Kα. The APS 11-BM "
-            "instrument-parameter files carry 0.99. A constant-wavelength "
-            "neutron source pins K = 1, where the numerator is identically 1 "
-            "and the factor is the bare Lorentz, and force-fixes the entry."
+            "The K of the Lorentz-polarisation correction. Its polarisation numerator "
+            "is K + (1 − K)·cos²2θ, computed by "
+            "`model.corrections.lorentz_polarization`. K is the fraction of the beam "
+            "polarised perpendicular to the diffraction plane. The beam optics fix it, "
+            "so you declare it and no plan frees it. An unpolarised laboratory source "
+            "gives 0.5. A diffracted-beam monochromator gives 1/(1 + cos²2θm), where "
+            "2θm is the monochromator angle. That is 0.556 for graphite (002) at Cu Kα "
+            "and 0.630 for the same crystal at Cr Kα. The APS 11-BM "
+            "instrument-parameter files carry 0.99. A constant-wavelength neutron "
+            "source has K = 1. The numerator is then 1, the factor is the bare Lorentz "
+            "factor, and rietx force-fixes the entry."
         ),
         unit=None, default="0.5",
         typical="0.5 unmonochromated lab; 0.51-0.63 monochromated lab "
@@ -272,12 +272,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.lines.*.wavelength": HelpEntry(
         title="Emission wavelength",
         description=(
-            "One emission line's wavelength. Bragg's law fixes only the "
-            "product of λ and the cell scale, so a free wavelength and a free "
-            "cell are an exactly flat direction: the row reports "
-            "`needs_held_cell` and `set_vary` refuses it while any cell is "
-            "free. Refine it against a standard whose cell is certified, or "
-            "leave it at the tabulated value."
+            "The wavelength of one emission line. Bragg's law fixes only the product of "
+            "the wavelength and the cell scale, so the two cannot be separated. A free "
+            "wavelength with a free lattice parameter is a flat direction. The row "
+            "reports `needs_held_cell`, and `set_vary` refuses to free the wavelength "
+            "while any cell parameter is free. Refine it against a standard with a "
+            "certified cell, or leave it at the tabulated value."
         ),
         unit="Å", default=None,
         typical="1.540598 Å Cu Kα1, 0.7093 Å Mo Kα1, 0.3-1.0 Å synchrotron",
@@ -286,12 +286,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.lines.*.weight": HelpEntry(
         title="Emission line weight",
         description=(
-            "One emission line's intensity relative to line 0. Line 0 is "
-            "structurally locked at 1 because it is degenerate with the phase "
-            "scales, so only a second or later line carries a refinable "
-            "weight. For a Kα doublet the value is the 2j+1 degeneracy ratio "
-            "and needs refining only when a monochromator or a filter has "
-            "changed it."
+            "The intensity of one emission line relative to line 0. Line 0 is locked at "
+            "1 because it is degenerate with the phase scales. Only a second or later "
+            "line has a refinable weight. For a Kα doublet the starting value is the "
+            "2j+1 degeneracy ratio. Refine it only when a monochromator or a filter has "
+            "changed that ratio."
         ),
         unit=None, default="1.0",
         typical="0.5 for Kα2 against Kα1",
@@ -300,18 +299,16 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.geometry.sample_displacement": HelpEntry(
         title="Specimen displacement",
         description=(
-            "How far the specimen surface sits off the goniometer axis, "
-            "positive toward the source and detector side of the focusing "
-            "circle. On a Bragg-Brentano mount it shifts every "
-            "line by −2s·cosθ/R (McCusker eq 3), which is the largest "
-            "systematic position error a laboratory pattern usually carries. "
-            "The cosθ shape is close to the constant shape of `zero_shift`, "
-            "so freeing both on one pattern usually reports a correlation. "
-            "The ±1 mm bound is a runaway guard rather than a physical "
-            "limit: it sits about twenty times above a carefully packed "
-            "plate, and because the shift goes as s/R the same bound "
-            "means three times more angle on a small goniometer than on "
-            "a large one. Declare a tighter bound if you know your mount."
+            "How far the specimen surface sits off the goniometer axis. It is positive "
+            "toward the source and detector side of the focusing circle. On a "
+            "Bragg-Brentano mount it shifts every line by −2s·cosθ/R (McCusker equation "
+            "3), where s is the displacement and R the goniometer radius. This is "
+            "usually the largest systematic position error in a laboratory pattern. Its "
+            "cosθ shape is close to the constant shape of `zero_shift`, so freeing both "
+            "on one pattern usually reports a correlation. The ±1 mm bound is a runaway "
+            "guard, set about twenty times above a well-packed plate. The shift goes as "
+            "s/R, so the same bound allows three times more angle on a small goniometer "
+            "than on a large one. Set a tighter bound if you know your mount."
         ),
         unit="mm", default="0.0",
         typical="|s| < 0.05 mm on a carefully packed flat plate",
@@ -320,11 +317,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.geometry.sample_transparency": HelpEntry(
         title="Specimen transparency",
         description=(
-            "The coefficient of the sin 2θ position shift a beam penetrating "
-            "into the specimen produces (McCusker eq 4). On a flat plate it is "
-            "the transparency aberration; on a capillary the same sin 2θ shape "
-            "is the along-beam offset instead, so this parameter belongs to a "
-            "flat-plate geometry and the report suggests it only there."
+            "The coefficient of the sin 2θ position shift that a beam penetrating the "
+            "specimen produces (McCusker equation 4). On a flat plate this is the "
+            "transparency aberration. On a capillary the same sin 2θ shape is the "
+            "along-beam offset instead. The parameter therefore belongs to a flat-plate "
+            "geometry, and the report suggests it only there."
         ),
         unit=None, default="0.0",
         typical="0-0.01 for a dense oxide; larger for a low-absorbing organic",
@@ -333,11 +330,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.geometry.axial_sl": HelpEntry(
         title="Axial divergence: specimen length",
         description=(
-            "The Finger-Cox-Jephcoat S/L, the illuminated specimen length "
-            "divided by the goniometer radius. It sets how strongly low-angle "
-            "peaks lean towards low 2θ. Fit it on a standard together with "
-            "`axial_hl`; the two are strongly correlated and are usually "
-            "reported as a pair."
+            "The Finger-Cox-Jephcoat axial-divergence ratio S/L. It is the illuminated "
+            "specimen length divided by the goniometer radius. It sets how strongly "
+            "low-angle peaks lean toward low 2θ. Fit it on a standard together with "
+            "`axial_hl`. The two are strongly correlated and are usually reported as a "
+            "pair."
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
@@ -346,12 +343,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.geometry.axial_hl": HelpEntry(
         title="Axial divergence: detector slit",
         description=(
-            "The Finger-Cox-Jephcoat H/L, the receiving slit height divided by "
-            "the goniometer radius. It is the second half of the axial "
-            "asymmetry and is correlated with `axial_sl` closely enough that "
-            "refining one while holding the other is a common protocol. One "
-            "ratio alone still smears the peaks, and only both at zero turn "
-            "the asymmetry off."
+            "The Finger-Cox-Jephcoat axial-divergence ratio H/L. It is the "
+            "receiving-slit height divided by the goniometer radius. It is the second "
+            "half of the axial asymmetry. It is so strongly correlated with `axial_sl` "
+            "that refining one and holding the other is a common protocol. One ratio "
+            "alone still smears the peaks. Only both at zero switch the asymmetry off."
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
@@ -360,10 +356,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.geometry.capillary_offset_along_beam": HelpEntry(
         title="Capillary offset along the beam",
         description=(
-            "How far the capillary axis sits from the rotation centre in the "
-            "beam direction. It shifts positions as sin 2θ, the same shape "
-            "flat-plate transparency has, and this is the parameter the report "
-            "suggests for a Debye-Scherrer geometry."
+            "How far the capillary axis sits from the rotation centre along the beam "
+            "direction. It shifts positions as sin 2θ, the same shape that flat-plate "
+            "transparency has. The report suggests this parameter for a Debye-Scherrer "
+            "geometry."
         ),
         unit="mm", default="0.0",
         typical="|d| < 0.05 mm on an aligned spinner",
@@ -372,10 +368,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.geometry.capillary_offset_across_beam": HelpEntry(
         title="Capillary offset across the beam",
         description=(
-            "How far the capillary axis sits from the rotation centre "
-            "perpendicular to the beam. It shifts positions as cos 2θ, so it "
-            "is separable from the along-beam offset by shape, unlike the "
-            "flat-plate pair."
+            "How far the capillary axis sits from the rotation centre perpendicular to "
+            "the beam. It shifts positions as cos 2θ. Its shape therefore separates it "
+            "from the along-beam offset, unlike the flat-plate pair."
         ),
         unit="mm", default="0.0",
         typical="|d| < 0.05 mm on an aligned spinner",
@@ -387,28 +382,29 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.geometry.surface_roughness.a": HelpEntry(
         title="Suortti roughness: surviving fraction",
         description=(
-            "The a of the Suortti (1972) surface-roughness correction, "
-            "R = [a + (1 − a)·exp(−b/sinθ)] / [a + (1 − a)·exp(−b)]. It is the "
-            "intensity fraction that survives even at grazing incidence, so "
-            "1 − a bounds how deep the low-angle depression can go. Refine it "
-            "with `b` and never alone: b = 0 is exactly the identity whatever "
-            "a is."
+            "The a of the Suortti (1972) surface-roughness correction, R = [a + (1 − "
+            "a)·exp(−b/sinθ)] / [a + (1 − a)·exp(−b)]. It is the fraction of intensity "
+            "that survives even at grazing incidence, so 1 − a bounds how deep the "
+            "low-angle depression can go. Refine it only together with `b`. At b = 0 "
+            "the correction is the identity whatever a is."
         ),
         unit=None, default="0.5",
-        typical="0.5-1; the default is interior because at a = 1 the gradient "
-                "of b vanishes identically and it could never lift off",
+        typical=(
+            "0.5-1. The default sits inside the range because at a = 1 the derivative "
+            "with respect to b vanishes, and b could never move off its start"
+        ),
         anchor="corrections.html#surface-roughness",
     ),
     "instrument.geometry.surface_roughness.b": HelpEntry(
         title="Suortti roughness: layer depth",
         description=(
-            "The dimensionless optical depth of the depleted surface layer in "
-            "the Suortti (1972) correction. It sets where in angle the "
-            "depression falls, not how deep it goes. Both limits return the "
-            "identity, so any one depression is reproducible by two values of "
-            "b, and `ROUGHNESS_UNCONSTRAINED` measures the modelled depression "
-            "rather than b itself. b = 0 is the identity, so a stage that "
-            "frees it starts it at 0.3, near where the data can see it."
+            "The dimensionless optical depth of the depleted surface layer in the "
+            "Suortti (1972) correction. It sets the angle at which the depression "
+            "falls. The depth of the depression comes from `a`. The correction is the "
+            "identity at b = 0 and again at large b, so two values of b can reproduce "
+            "the same depression. `ROUGHNESS_UNCONSTRAINED` therefore measures the "
+            "modelled depression and not b itself. A stage that frees b starts it at "
+            "0.3, near where the data can see it, because b = 0 is the identity."
         ),
         unit=None, default="0.0",
         typical="0.1-0.5; past about 3 the correction is dead and its gradient flat",
@@ -417,11 +413,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.geometry.surface_roughness.c": HelpEntry(
         title="Pitschke roughness: strength",
         description=(
-            "The strength of the Pitschke et al. (1993) surface-roughness "
-            "correction, R = 1 − c·u·(1 − u) with u = τ/sinθ. c = 0 is exactly "
-            "no correction. The paper's angle-independent porosity term is "
-            "deliberately absent here, because a constant prefactor is exactly "
-            "degenerate with the phase scale."
+            "The strength of the Pitschke et al. (1993) surface-roughness correction, R "
+            "= 1 − c·u·(1 − u), with u = τ/sinθ. At c = 0 there is no correction. The "
+            "paper's angle-independent porosity term is omitted here, because a "
+            "constant prefactor is degenerate with the phase scale."
         ),
         unit=None, default="0.0",
         typical="0-4; beyond 4 R can go negative inside the valid range",
@@ -430,12 +425,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.geometry.surface_roughness.tau": HelpEntry(
         title="Pitschke roughness: τ",
         description=(
-            "The dimensionless surface-roughness parameter τ = t₀/β of the "
-            "Pitschke et al. (1993) correction, refined directly rather than "
-            "through a particle size the diffraction data cannot constrain. "
-            "The correction is monotone only while sinθ ≥ 2τ and would amplify "
-            "beyond sinθ = τ, which `ROUGHNESS_OUTSIDE_REGIME` reports: a box "
-            "bound cannot express a fence that depends on the fitted range."
+            "The dimensionless roughness parameter τ = t₀/β of the Pitschke et al. "
+            "(1993) correction. You refine τ directly, because diffraction data cannot "
+            "constrain the particle size behind it. The correction is monotone only "
+            "while sinθ ≥ 2τ, and it would amplify intensity beyond sinθ = τ. "
+            "`ROUGHNESS_OUTSIDE_REGIME` reports that case, because a bound on τ cannot "
+            "express a limit that depends on the fitted range."
         ),
         unit=None, default="0.05",
         typical="0.005-0.12, the span of the paper's own four specimens",
@@ -444,12 +439,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.profile.u": HelpEntry(
         title="Caglioti U",
         description=(
-            "The tan²θ term of the Gaussian variance, "
-            "Γ_G² = U·tan²θ + V·tanθ + W. It is where instrumental strain-like "
-            "broadening lives, and a phase's `gauss_strain` adds to it: "
-            "variances add under convolution, so instrument and specimen stack "
-            "here rather than replacing each other. Refining U on a specimen "
-            "whose `gauss_strain` is also free fits one quantity twice."
+            "The tan²θ term of the Gaussian variance, `Γ_G² = U·tan²θ + V·tanθ + W`. It "
+            "carries the strain-like broadening of the instrument. A phase's "
+            "`gauss_strain` adds to it, because variances add under convolution. "
+            "Instrument and specimen therefore stack here, and neither replaces the "
+            "other. Refining U while the specimen's `gauss_strain` is also free fits "
+            "one quantity twice."
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 on a laboratory diffractometer",
@@ -458,15 +453,13 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.profile.v": HelpEntry(
         title="Caglioti V",
         description=(
-            "The tanθ term of the Gaussian variance Γ_G² = U·tan²θ + V·tanθ "
-            "+ W, which `model.profiles.caglioti.gaussian_fwhm` computes. It "
-            "is the Caglioti term that usually goes negative, and it carries "
-            "much the widest negative range. It is not the only one that may: "
-            "U's default bound admits a small negative value too, while W, X "
-            "and Y are bounded below and cannot go negative at all. The width "
-            "curve's minimum sits at tanθ = −V/(2U). Nothing "
-            "in the specimen reaches V, so it is purely instrumental, and a "
-            "phase's `gauss_strain` adds to U instead."
+            "The tanθ term of the Gaussian variance `Γ_G² = U·tan²θ + V·tanθ + W`, "
+            "which `model.profiles.caglioti.gaussian_fwhm` computes. It is the Caglioti "
+            "term that usually goes negative, and its bound has much the widest "
+            "negative range. U's default bound also admits a small negative value. W, X "
+            "and Y are bounded below and cannot go negative. The width curve has its "
+            "minimum at tanθ = −V/(2U). No specimen term adds to V, so V belongs to the "
+            "instrument. A phase's `gauss_strain` adds to U instead."
         ),
         unit="deg² 2θ", default="0.0",
         typical="−0.05 to 0",
@@ -475,12 +468,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.profile.w": HelpEntry(
         title="Caglioti W",
         description=(
-            "The constant term of the Gaussian variance, so it sets the width "
-            "the pattern would have at zero angle. Its lower bound is the "
-            "small variance the Gaussian width is clamped at, not 0. Under that "
-            "clamp the width stops responding to U, V and W, and a fit there "
-            "stops. Freeing W together with a free `gauss_size` fits the same "
-            "constant twice at low angle."
+            "The constant term of the Gaussian variance. It sets the width that the "
+            "pattern would have at zero angle. Its lower bound is a small positive "
+            "variance (1e-8 deg²) and is not 0. Below that clamp the width stops "
+            "responding to U, V and W, and the fit stalls. Freeing W together with a "
+            "free `gauss_size` fits the same constant twice at low angle."
         ),
         unit="deg² 2θ", default="0.001",
         typical="0.001-0.02 on a laboratory diffractometer",
@@ -489,11 +481,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.profile.x": HelpEntry(
         title="Lorentzian X",
         description=(
-            "The 1/cosθ term of the Lorentzian FWHM, Γ_L = X/cosθ + Y·tanθ. "
-            "The 1/cosθ shape is Scherrer size broadening, and a phase's "
-            "`lor_size` adds to it, since Lorentzian FWHMs add under "
-            "convolution. Document the physics rather than the letter: GSAS "
-            "and FullProf swap the X and Y assignment."
+            "The 1/cosθ term of the Lorentzian FWHM, `Γ_L = X/cosθ + Y·tanθ`. The "
+            "1/cosθ shape is Scherrer size broadening. A phase's `lor_size` adds to X, "
+            "because Lorentzian FWHMs add under convolution. GSAS and FullProf swap the "
+            "X and Y labels. Identify the term by its shape: 1/cosθ is size broadening."
         ),
         unit="deg 2θ", default="0.001",
         typical="0.001-0.05 on a laboratory diffractometer",
@@ -502,11 +493,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.profile.y": HelpEntry(
         title="Lorentzian Y",
         description=(
-            "The tanθ term of the Lorentzian FWHM. The tanθ shape is "
-            "microstrain broadening, and a phase's `lor_strain` adds to it. "
-            "An anisotropic strain block replaces the specimen half of this "
-            "term with an hkl-dependent width and locks `lor_strain`, but "
-            "leaves the instrumental Y alone."
+            "The tanθ term of the Lorentzian FWHM. The tanθ shape is microstrain "
+            "broadening, and a phase's `lor_strain` adds to it. An anisotropic strain "
+            "block replaces the specimen part of this term with an hkl-dependent width "
+            "and locks `lor_strain`. The instrumental Y stays as it was."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.05 on a laboratory diffractometer",
@@ -523,14 +513,13 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.difc": HelpEntry(
         title="TOF calibration DIFC",
         description=(
-            "The linear term of the flight-time relation, "
-            "TOF = DIFC·d + DIFA·d² + TZERO + DIFB/d. Geometrically it is "
-            "(m_N/h)(L1 + L2)·2 sin θ_bank, so it holds the whole flight path "
-            "and the bank angle, and d = TOF/DIFC at leading order divides by "
-            "it. Fixed by default because it is a calibration refined against "
-            "a standard: freeing it beside a free cell is the time-of-flight "
-            "spelling of the wavelength-cell degeneracy, so free one or the "
-            "other and never both."
+            "The linear term of the flight-time relation, `TOF = DIFC·d + DIFA·d² + "
+            "TZERO + DIFB/d`. It equals `(m_N/h)(L1 + L2)·2 sin θ_bank`, so it holds "
+            "the whole flight path and the bank angle. To leading order d = TOF/DIFC. "
+            "It is fixed by default because it is a calibration, refined against a "
+            "standard. Freeing it beside a free lattice parameter is the time-of-flight "
+            "form of the wavelength-cell degeneracy. Free one of the two and hold the "
+            "other."
         ),
         unit="µs/Å", default=None,
         typical="740 µs/Å on an 8.7° bank, 5000-13000 µs/Å at 90-150°",
@@ -539,12 +528,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.difa": HelpEntry(
         title="TOF calibration DIFA",
         description=(
-            "The quadratic term of the flight-time relation. Small and often "
-            "negative, and zero is a legitimate value on a well-behaved bank. "
-            "It is the term that most nearly imitates a cell scale over a "
-            "limited d range, so refining it beside a free cell opens a flat "
-            "direction that a single bank cannot close — calibrate it on a "
-            "standard with the certified cell held."
+            "The quadratic term of the flight-time relation. It is small and often "
+            "negative, and zero is a legitimate value on a well-behaved bank. Over a "
+            "limited d range it imitates a cell scale better than any other term does. "
+            "Refining it beside a free lattice parameter opens a flat direction that a "
+            "single bank cannot close. Calibrate it on a standard with the certified "
+            "cell held."
         ),
         unit="µs/Å²", default="0.0",
         typical="−20 to +2 µs/Å²; 0 on a bank that never needed one",
@@ -553,14 +542,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.tzero": HelpEntry(
         title="TOF calibration TZERO",
         description=(
-            "The constant offset of the flight-time relation — the moderator "
-            "emission-time origin, in microseconds. It is **not** "
-            "`instrument.zero_shift`, which is an offset in degrees 2θ and "
-            "which a bank's table does not carry: the two are different "
-            "quantities in different units. Three codes spell this one quantity three ways "
-            "(GSAS ZERO, GSAS-II Zero, Mantid TZERO); the field is Mantid's, "
-            "because it is the only one that cannot be confused with the "
-            "angular offset."
+            "The constant offset of the flight-time relation, in microseconds. It is "
+            "the emission-time origin of the moderator. It differs from "
+            "`instrument.zero_shift`, an offset in degrees 2θ that a bank's table does "
+            "not carry. GSAS ZERO, GSAS-II Zero and Mantid TZERO all name this "
+            "quantity. The field uses Mantid's name because no one can mistake it for "
+            "the angular offset."
         ),
         unit="µs", default="0.0",
         typical="|TZERO| < 100 µs on a calibrated bank",
@@ -569,11 +556,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.difb": HelpEntry(
         title="TOF calibration DIFB",
         description=(
-            "The 1/d term of the flight-time relation, GSAS-II's `difB`. "
-            "Neither the GSAS manual nor Mantid's documented relation carries "
-            "it and it is zero in most projects; it exists so that a reader "
-            "built to the three-term relation cannot drop a non-zero one "
-            "silently, which would move every peak with nothing said."
+            "The 1/d term of the flight-time relation, GSAS-II's `difB`. Neither the "
+            "GSAS manual nor Mantid's documented relation carries it, and it is zero in "
+            "most projects. It exists so that a reader built to the three-term relation "
+            "cannot drop a non-zero value without notice. Dropping one would move every "
+            "peak with nothing said."
         ),
         unit="µs·Å", default="0.0",
         typical="0 on almost every bank",
@@ -582,12 +569,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.profile_tof.alpha0": HelpEntry(
         title="TOF rise rate α₀",
         description=(
-            "The d-independent part of the leading exponential's rate, "
-            "α(d) = α₀ + α₁/d. It is the *rise* of the back-to-back pair — the "
-            "short-flight-time side of the peak — so a larger α is a sharper "
-            "leading edge. A rate, not a width: the shape has amplitude "
-            "αβ/(α+β) and infinite width as either goes to zero, so an "
-            "all-zero block is a profile nobody calibrated."
+            "The d-independent part of the rate of the leading exponential, α(d) = α₀ + "
+            "α₁/d. It describes the rise of the back-to-back pair, which is the "
+            "short-flight-time side of the peak. A larger α gives a sharper leading "
+            "edge. The shape has amplitude αβ/(α+β), and its width becomes infinite as "
+            "either rate goes to zero. An all-zero block is therefore a profile that "
+            "nobody calibrated."
         ),
         unit="µs⁻¹", default="0.0",
         typical="0-1 µs⁻¹; often left at 0 with all of α in α₁",
@@ -596,11 +583,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.profile_tof.alpha1": HelpEntry(
         title="TOF rise rate α₁",
         description=(
-            "The 1/d term of the rise rate, and usually the whole of it — "
-            "GSAS-II spells this one `alpha` on its own. Because it enters as "
-            "α₁/d the leading edge sharpens toward short d, which is the "
-            "moderator pulse seen through the flight-time map rather than a "
-            "specimen effect."
+            "The 1/d term of the rise rate, and usually the whole of it. GSAS-II spells "
+            "this one `alpha`. It enters as α₁/d, so the leading edge sharpens toward "
+            "short d. That trend is the moderator pulse seen through the flight-time "
+            "map. No specimen effect is involved."
         ),
         unit="Å/µs", default="0.0",
         typical="0.1-2 Å/µs",
@@ -609,11 +595,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.profile_tof.beta0": HelpEntry(
         title="TOF decay rate β₀",
         description=(
-            "The d-independent part of the trailing exponential's rate, "
-            "β(d) = β₀ + β₁/d⁴. β < α is the normal case, and it is what makes "
-            "a time-of-flight peak lean toward long flight times — the "
-            "asymmetry here is the moderator's, not an axial-divergence "
-            "aberration, so it has no angular analogue to borrow from."
+            "The d-independent part of the rate of the trailing exponential, β(d) = β₀ "
+            "+ β₁/d⁴. Normally β < α, and that makes a time-of-flight peak lean toward "
+            "long flight times. The asymmetry comes from the moderator, so it has no "
+            "angular analogue in an axial-divergence correction."
         ),
         unit="µs⁻¹", default="0.0",
         typical="0.01-0.2 µs⁻¹",
@@ -622,9 +607,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.profile_tof.beta1": HelpEntry(
         title="TOF decay rate β₁",
         description=(
-            "The 1/d⁴ term of the decay rate. The fourth power makes it act "
-            "only at the short-d end of a bank, so on a range that does not "
-            "reach there the data cannot see it."
+            "The 1/d⁴ term of the decay rate. The fourth power confines it to the "
+            "short-d end of a bank. On a range that does not reach there, the data "
+            "cannot see it."
         ),
         unit="Å⁴/µs", default="0.0",
         typical="0-0.05 Å⁴/µs",
@@ -633,12 +618,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.profile_tof.sig0": HelpEntry(
         title="TOF Gaussian variance σ₀²",
         description=(
-            "The constant term of the Gaussian **variance**, "
-            "σ²(d) = σ₀² + σ₁²·d² + σ₂²·d⁴. A variance, not a FWHM and not a "
-            "quantity to be squared again — a value read from a `.iparm` is "
-            "used as written. It is the flight-time counterpart of Caglioti W, "
-            "and like W it is the width the bank would show at the zero limit "
-            "of its own abscissa."
+            "The constant term of the Gaussian variance, σ²(d) = σ₀² + σ₁²·d² + σ₂²·d⁴. "
+            "It is a variance and is used as written, so do not square a value read "
+            "from a `.iparm` file again. It is the flight-time counterpart of Caglioti "
+            "W. Like W, it is the width that the bank would show as its own abscissa "
+            "goes to zero."
         ),
         unit="µs²", default="0.0",
         typical="0-500 µs²",
@@ -647,21 +631,20 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.profile_tof.sig1": HelpEntry(
         title="TOF Gaussian variance σ₁²",
         description=(
-            "The d² term of the Gaussian variance, and normally the dominant "
-            "one: √σ₁² is a constant Δd/d, which is what a time-of-flight "
-            "bank's resolution is. Its square root reads directly as µs per Å, "
-            "so a bank's resolution improves — √σ₁² falls — as the bank angle "
-            "goes back toward 180°."
+            "The d² term of the Gaussian variance, and normally the dominant one. Its "
+            "square root, √σ₁², reads directly as µs per Å and is a constant Δd/d. The "
+            "resolution of a time-of-flight bank improves (√σ₁² falls) as the bank "
+            "angle goes back toward 180°."
         ),
         unit="µs²/Å²", default="0.0",
-        typical="100-400 µs²/Å², i.e. √σ₁² ≈ 10-20 µs/Å",
+        typical="100-400 µs²/Å² (√σ₁² ≈ 10-20 µs/Å)",
         anchor="using/data.html#a-time-of-flight-bank",
     ),
     "instrument.source.profile_tof.sig2": HelpEntry(
         title="TOF Gaussian variance σ₂²",
         description=(
-            "The d⁴ term of the Gaussian variance, the instrument's share of a "
-            "variance that grows as d⁴."
+            "The d⁴ term of the Gaussian variance, σ²(d) = σ₀² + σ₁²·d² + σ₂²·d⁴. It is "
+            "the instrument's share of a variance that grows as d⁴."
         ),
         unit="µs²/Å⁴", default="0.0",
         typical="0-50 µs²/Å⁴",
@@ -670,9 +653,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.profile_tof.gam0": HelpEntry(
         title="TOF Lorentzian FWHM γ₀",
         description=(
-            "The constant term of the Lorentzian FWHM, γ(d) = γ₀ + γ₁·d + "
-            "γ₂·d². A FWHM, not a variance, unlike the σ terms beside it; all "
-            "three at zero is the pure-Gaussian (GSAS type 1) shape."
+            "The constant term of the Lorentzian FWHM, γ(d) = γ₀ + γ₁·d + γ₂·d². It is "
+            "a FWHM, unlike the σ terms beside it, which are variances. With all three "
+            "γ terms at zero the profile is pure Gaussian (GSAS type 1)."
         ),
         unit="µs", default="0.0",
         typical="0-20 µs; 0 on a type-1 bank",
@@ -681,10 +664,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.profile_tof.gam1": HelpEntry(
         title="TOF Lorentzian FWHM γ₁",
         description=(
-            "The d term of the Lorentzian FWHM — GSAS-II's `X` for a TOF bank, "
-            "its letters and not GSAS's. A FWHM linear in d is a constant "
-            "Δd/d, which is the shape Lorentzian strain-like broadening "
-            "takes on a bank."
+            "The d term of the Lorentzian FWHM. It is GSAS-II's `X` for a TOF bank. "
+            "GSAS-II's letters differ from GSAS's. A FWHM linear in d is a constant "
+            "Δd/d. Lorentzian strain-like broadening takes that shape on a bank."
         ),
         unit="µs/Å", default="0.0",
         typical="0-30 µs/Å",
@@ -693,9 +675,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.profile_tof.gam2": HelpEntry(
         title="TOF Lorentzian FWHM γ₂",
         description=(
-            "The d² term of the Lorentzian FWHM — GSAS-II's `Y` for a TOF "
-            "bank: the extra curvature of the Lorentzian width across d that "
-            "γ₀ and γ₁ together do not follow."
+            "The d² term of the Lorentzian FWHM. It is GSAS-II's `Y` for a TOF bank. It "
+            "carries the extra curvature of the Lorentzian width across d that γ₀ and "
+            "γ₁ together do not follow."
         ),
         unit="µs/Å²", default="0.0",
         typical="0-5 µs/Å²",
@@ -704,37 +686,36 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.source.incident_spectrum.p*": HelpEntry(
         title="Incident-spectrum coefficient",
         description=(
-            "One coefficient of the moderator spectrum a time-of-flight bank's "
-            "data still carries, numbered P1, P2, … as the GSAS manual numbers "
-            "them (p. 128-129). Which function they belong to is the source's "
-            "`incident_spectrum.itype`, read from the file's ITYP record: type "
-            "1 is a sum of exponentials of the flight time in milliseconds, "
-            "type 2 replaces its second term with a Maxwellian, types 3-5 are "
-            "Chebyshev polynomials. The units differ from coefficient to "
-            "coefficient — P1 is an intensity, the odd ones inside the "
-            "exponentials are reciprocal powers of milliseconds — which is why "
-            "no unit is declared for the family. "
-            "Held by default: the file's values were refined by GSAS against a "
-            "vanadium run, and a smooth envelope in wavelength is degenerate "
-            "with an isotropic displacement parameter."
+            "One coefficient of the moderator spectrum that a time-of-flight bank's "
+            "data still carries. The coefficients are numbered P1, P2, … as in the GSAS "
+            "manual (p. 128-129). The source's `incident_spectrum.itype`, read from the "
+            "ITYP record of the file, says which function they belong to. Type 1 is a "
+            "sum of exponentials of the flight time in milliseconds. Type 2 replaces "
+            "its second term with a Maxwellian. Types 3-5 are Chebyshev polynomials. "
+            "The units differ from coefficient to coefficient. P1 is an intensity, and "
+            "the odd ones inside the exponentials are reciprocal powers of "
+            "milliseconds, so the family declares no unit. The coefficients are held by "
+            "default. GSAS refined the file's values against a vanadium run, and a "
+            "smooth envelope in wavelength is degenerate with an isotropic displacement "
+            "parameter."
         ),
         unit=None, default=None,
-        typical="whatever the instrument-parameter file states; a bank whose "
-                "reduction already divided by vanadium declares ITYP 0 and has "
-                "no coefficients at all",
+        typical=(
+            "Whatever the instrument-parameter file states. A bank whose reduction "
+            "already divided by vanadium declares ITYP 0 and has no coefficients at all"
+        ),
         anchor="using/data.html#a-time-of-flight-bank",
     ),
     "instrument.background.c*": HelpEntry(
         title="Background coefficient",
         description=(
-            "One coefficient of the shifted-Chebyshev background, "
-            "y_bkg = Σ c_n T_n(x) over the fitted 2θ range normalised to "
-            "[−1, 1]. The model is linear in these, so their Jacobian columns "
-            "are the basis functions themselves and they can be freed from the "
-            "first stage. Adding terms until Rwp stops falling is the wrong "
-            "test: a background flexible enough to imitate the peaks biases "
-            "displacement parameters up and scales down while Rwp improves. "
-            "Read `FitReport.background` instead."
+            "One coefficient of the shifted-Chebyshev background, `y_bkg = Σ c_n "
+            "T_n(x)`, with x the fitted 2θ range normalised to [−1, 1]. The model is "
+            "linear in these coefficients, so their derivatives are the basis functions "
+            "themselves, and you can free them from the first stage. Adding terms until "
+            "Rwp stops falling is a poor test. A background flexible enough to imitate "
+            "the peaks biases displacement parameters up and scales down while Rwp "
+            "improves. Read `FitReport.background` instead."
         ),
         unit=None, default="0.0",
         typical="4-8 terms for a flat laboratory background; c0 is of the "
@@ -744,36 +725,34 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.background.scale": HelpEntry(
         title="Measured-background scale",
         description=(
-            "Multiplies the fixed curve the `fixed_plus_chebyshev` background "
-            "holds, y_bkg = Σ c_n T_n(x) + s·f(2θ). It is TOPAS's "
-            "`bkg_file(\"f.xy\", @, s)` against its `bkg_file(\"f.xy\")`, and "
-            "the number is comparable to TOPAS's digit for digit because it "
-            "scales the curve as stored. Hold it at 1 for an estimated "
-            "baseline, which has no scale to get wrong. Free it for a measured "
-            "blank, which is never on the specimen's scale: the two scans "
-            "differ in monitor normalisation and counting time, and the "
-            "specimen attenuates the container's own scattering. The "
-            "polynomial on top cannot do this job, because it is additive and "
-            "the error is multiplicative. Free it against a low-order "
-            "polynomial only, and read `HIGH_CORRELATION` against c0 as the "
-            "expected report rather than as a failure."
+            "Multiplies the fixed curve that the `fixed_plus_chebyshev` background "
+            "holds, `y_bkg = Σ c_n T_n(x) + s·f(2θ)`. In TOPAS terms, `bkg_file(\"f.xy\", "
+            "@, s)` refines s and `bkg_file(\"f.xy\")` holds it at 1. The number is "
+            "comparable to TOPAS's digit for digit because it scales the curve as "
+            "stored. Hold it at 1 for an estimated baseline, which has no scale to get "
+            "wrong. Free it for a measured blank. A blank is never on the specimen's "
+            "scale, because the two scans differ in monitor normalisation and counting "
+            "time, and the specimen attenuates the container's own scattering. The "
+            "polynomial on top cannot correct this, because it is additive and the "
+            "error is multiplicative. Free the scale only against a low-order "
+            "polynomial. Expect `HIGH_CORRELATION` against c0 and read it as an "
+            "expected report."
         ),
         unit=None, default="1.0",
-        typical="1 for an estimated baseline; within a few tens of a percent "
+        typical="1 for an estimated baseline; within 20-40 % "
                 "of 1 for a measured blank",
         anchor="background.html#a-measured-background",
     ),
     "instrument.background.air": HelpEntry(
         title="Air-scatter term",
         description=(
-            "Scales an additive 1/(2θ) term for the low-angle air-scatter "
-            "rise, carried by the P-spline background beside its spline "
-            "coefficients. Absent unless declared, and `auto_background` "
-            "declares it only when `rietx.background.diagnose` reports the "
-            "rise: the shape is broad, so freeing it without cause gives the "
-            "background one more way to imitate a peak. Absent, it has no "
-            "path, so no plan can free it, and a fit whose residual says the "
-            "term would have cut χ² reports `AIR_SCATTER_UNDECLARED`."
+            "Scales an additive 1/(2θ) term for the low-angle air-scatter rise. The "
+            "P-spline background carries it beside its spline coefficients. It is "
+            "absent unless declared, and `auto_background` declares it only when "
+            "`rietx.background.diagnose` reports the rise. The shape is broad, so "
+            "freeing it without cause gives the background one more way to imitate a "
+            "peak. An absent term has no path, so no plan can free it. A fit whose "
+            "residual says the term would have cut χ² reports `AIR_SCATTER_UNDECLARED`."
         ),
         unit=None, default="null",
         typical="absent unless the pattern diagnostics report a low-angle "
@@ -783,27 +762,26 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.extra_components.*.position": HelpEntry(
         title="Background-peak position",
         description=(
-            "The centre, in °2θ, of an explicit Gaussian background term — a "
-            "diffuse or amorphous hump, a cryostat or sample-container "
-            "contribution. Unbounded by default: it is not a Bragg position, so "
-            "nothing constrains it but the data, and a caller who knows the "
-            "fitted range may set min/max. A declared peak is inert (vary=False, "
-            "height 0) until a stage frees it — nothing in the package adds one "
-            "on its own. Freeing position, height and width together *is* a "
-            "reflection with no cell behind it, which is why the fitted width is "
-            "held to the resolution (`HUMP_TOO_NARROW`)."
+            "The centre, in °2θ, of an explicit Gaussian background term, such as a "
+            "diffuse or amorphous hump or a cryostat or sample-container contribution. "
+            "It has no default bounds. It is not a Bragg position, so only the data "
+            "constrain it. Set min and max if you know the fitted range. A declared "
+            "term is inert (`vary=False`, height 0) until a stage frees it, and nothing "
+            "in the package adds one on its own. Freeing position, height and width "
+            "together amounts to a reflection with no cell behind it. `HUMP_TOO_NARROW` "
+            "flags a fitted width near the instrumental resolution."
         ),
         unit="deg 2θ", default="0.0",
-        typical="wherever the diffuse feature sits, e.g. 14.4 on NIST BT-1",
+        typical="wherever the diffuse feature sits, for example 14.4 on NIST BT-1",
         anchor="background.html#explicit-humps",
     ),
     "instrument.extra_components.*.height": HelpEntry(
         title="Background-peak height",
         description=(
             "The peak intensity of an explicit Gaussian background term, in the "
-            "pattern's own count units. Bounded at min 0 because zero is the "
-            "off state: h = 0 makes the whole term identically zero, so a "
-            "declared-but-never-freed peak is bit-identical to no peak at all."
+            "pattern's count units. Its lower bound is 0, the off state. At height 0 "
+            "the term is zero everywhere, so a declared peak that no stage frees gives "
+            "the same result, bit for bit, as no peak."
         ),
         unit="counts", default="0.0",
         typical="of the order of the hump's rise above the smooth background",
@@ -815,19 +793,17 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.extra_components.*.fwhm": HelpEntry(
         title="Extra-component width",
         description=(
-            "The full width at half maximum, in °2θ, of a declared extra "
-            "component — and the two kinds want opposite things from it. For a "
-            "`hump` the width is what makes the term a *background* term: it "
-            "comes from disorder rather than the goniometer, so it is many "
-            "times the instrumental resolution, and a fitted width approaching "
-            "that resolution is a reflection being eaten, reported as "
-            "`HUMP_TOO_NARROW`. For a `peak` sharp is the whole point — it is a "
-            "real reflection from something that is not one of your phases — so "
-            "no width guard fires and the floor is only there because the "
-            "profile divides by Γ. In both cases it is floored at a small "
-            "positive value; the floor differs by kind (0.1 for a hump, 0.005 "
-            "for a peak) because the two are derived from the coarsest and the "
-            "finest scan step anything can be refined from."
+            "The full width at half maximum, in °2θ, of a declared extra component. The "
+            "two kinds treat it differently. A `hump` comes from disorder, so its width "
+            "is many times the instrumental resolution, and that breadth makes it a "
+            "background term. A fitted width that approaches the resolution is a "
+            "reflection being absorbed, and `HUMP_TOO_NARROW` reports it. A `peak` "
+            "stands for a real reflection from something that is not one of your "
+            "phases, so a sharp width is the point. No width guard fires for a peak. "
+            "Its floor exists only because the profile divides by Γ. Each kind has a "
+            "small positive floor, 0.1 for a hump and 0.005 for a peak. The floors come "
+            "from the coarsest and the finest scan step that anything can be refined "
+            "from."
         ),
         unit="deg 2θ", default="5.0 for a hump, 0.1 for a peak",
         typical="a hump: several times the instrumental FWHM at that angle, ~6 "
@@ -838,21 +814,19 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.extra_components.*.center": HelpEntry(
         title="Extra-peak centre",
         description=(
-            "The apparent centre, in °2θ, of a declared sharp peak your phases "
-            "cannot account for — a sample holder diffracting at its own "
-            "specimen distance, a mount, an unidentified impurity line. It is "
-            "the position of the *primary* emission line and it is **not** "
-            "corrected: no zero shift, no displacement or transparency shift, "
-            "no axial asymmetry. A holder sits at its own distance and its "
-            "aberrations are its own, so all of them are absorbed here, which "
-            "is also why you cannot read a d-spacing off this number. Unlike a "
-            "hump's position it must carry finite min/max: the evaluation "
-            "window is frozen at stage compile and sized from those bounds, "
-            "which is what lets the centre refine without leaving its window. "
-            "A declared peak is inert (vary=False, area 0) until a stage frees "
-            "it; of the presets only `mccusker_structural` does, in its "
-            "`extra_components` stage, and nothing ever adds a peak you did "
-            "not declare."
+            "The apparent centre, in °2θ, of a declared sharp peak that your phases "
+            "cannot explain, such as a sample holder diffracting at its own specimen "
+            "distance, a mount or an unidentified impurity line. It is the position of "
+            "the primary emission line. The zero-point shift, the displacement and "
+            "transparency shifts and the axial asymmetry are not applied to it. A "
+            "holder sits at its own distance and has its own aberrations, and this "
+            "parameter absorbs all of them. For the same reason you cannot read a "
+            "d-spacing from it. Unlike a hump's position, it needs finite min and max. "
+            "The evaluation window is frozen when the stage starts and is sized from "
+            "those bounds. That freezing lets the centre refine without leaving its "
+            "window. A declared peak is inert (`vary=False`, area 0) until a stage "
+            "frees it. Of the presets only `mccusker_structural` frees it, in its "
+            "`extra_components` stage. Nothing adds a peak that you did not declare."
         ),
         unit="deg 2θ", default=None,
         typical="where you can see the intruding line, bounded a few tenths "
@@ -862,17 +836,15 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.extra_components.*.area": HelpEntry(
         title="Extra-peak area",
         description=(
-            "The integrated intensity of a declared sharp peak, in the "
-            "pattern's count units times °2θ. An area and not a height because "
-            "that is what a reflection intensity is, and it is not called "
-            "`scale` on purpose: every `*.scale` path is force-fixed under Le "
-            "Bail and Pawley, where a declared peak still has to refine. "
-            "Bounded at min 0 because zero is the off state — area 0 makes "
-            "the term identically zero, so a declared-but-never-freed peak is "
-            "bit-identical to no peak at all. An area that refines to its zero "
-            "bound means the data does not see the peak, and its centre then "
-            "reports no esd at all rather than a small one: that absent esd is "
-            "the evidence the peak was not needed."
+            "The integrated intensity of a declared sharp peak, in the pattern's count "
+            "units times °2θ. It is an area because that is what a reflection intensity "
+            "is. The parameter is not called `scale` on purpose. Every `*.scale` path "
+            "is force-fixed under Le Bail and Pawley, and a declared peak still has to "
+            "refine there. Its lower bound is 0, the off state. At area 0 the term is "
+            "zero everywhere, so a declared peak that no stage frees gives the same "
+            "result, bit for bit, as no peak. An area that refines to its zero bound "
+            "means the data do not see the peak. The centre then reports no esd. That "
+            "absence is the evidence that the peak was not needed."
         ),
         unit="counts·deg 2θ", default="0.0",
         typical="the intruding line's integrated counts above the background",
@@ -881,15 +853,14 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.extra_components.*.eta": HelpEntry(
         title="Extra-peak mixing",
         description=(
-            "The Lorentzian fraction of a declared sharp peak's pseudo-Voigt: "
-            "0 is a pure Gaussian, 1 a pure Lorentzian, and both ends are "
-            "legitimate rather than poles, which is why it is bounded to "
-            "[0, 1] with no floor inside it. Its **upper bound** also sizes the "
-            "frozen evaluation window, because the half-width at which the "
-            "profile's discarded area stays within tolerance is a steep "
-            "function of η (about 1 FWHM at η = 0, about 16 at η = 1). A "
-            "caller who knows the intruder is near-Gaussian can say so with "
-            "eta.max and buy a much smaller window."
+            "The Lorentzian fraction of the pseudo-Voigt of a declared sharp peak. 0 is "
+            "a pure Gaussian and 1 is a pure Lorentzian. Both ends are legitimate "
+            "values, so the bound is [0, 1] with no floor inside it. The upper bound "
+            "also sizes the frozen evaluation window. The half-width at which the "
+            "discarded area of the profile stays within tolerance depends steeply on η: "
+            "about 1 FWHM at η = 0 and about 16 FWHM at η = 1. If you know the peak is "
+            "near-Gaussian, set the maximum of `eta` low and the window shrinks a great "
+            "deal."
         ),
         unit=None, default="0.5",
         typical="0.3-0.9 for a lab peak; leave it fixed unless the peak is "
@@ -906,13 +877,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.scale": HelpEntry(
         title="Phase scale",
         description=(
-            "The multiplier on this phase's calculated intensity, and the only "
-            "route by which the phase reaches the pattern at all. Quantitative "
-            "phase analysis is computed from it through the Hill-Howard ZMV "
-            "relation, so it carries the weight fractions. A scale that "
-            "refines onto its lower bound means the data does not see the "
-            "phase: the fit still reports convergence while the phase's cell "
-            "drifts unconstrained, which is what `PHASE_UNCONSTRAINED` names."
+            "The multiplier on this phase's calculated intensity. It is the only route "
+            "by which the phase reaches the pattern. Quantitative phase analysis is "
+            "computed from it through the Hill-Howard ZMV relation, so it carries the "
+            "weight fractions. A scale that refines onto its lower bound means the data "
+            "do not see the phase. The fit still reports convergence while the cell of "
+            "the phase drifts unconstrained, and `PHASE_UNCONSTRAINED` names that case."
         ),
         unit=None, default="1.0",
         typical="positive, spanning several orders of magnitude between phases",
@@ -921,12 +891,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.extinction": HelpEntry(
         title="Primary extinction",
         description=(
-            "The Sabine primary-extinction coefficient, a squared mosaic-block "
-            "size (a powder has no secondary extinction), attenuating the "
-            "strong low-angle reflections of a well-crystallised specimen. "
-            "0 is exactly no correction, so a phase that does not free it is "
-            "unaffected. Its column at 0 is the physical one, so the staged "
-            "plans free it from 0 with no seed."
+            "The Sabine primary-extinction coefficient, a squared mosaic-block size. A "
+            "powder has no secondary extinction. The coefficient attenuates the strong "
+            "low-angle reflections of a well-crystallised specimen. At 0 there is no "
+            "correction, so a phase that does not free it is unaffected. The calculated "
+            "pattern still responds to it at 0, so the staged plans free it from 0 "
+            "without a seed."
         ),
         unit="µm²", default="0.0",
         typical="0 for a ground powder; 0.1 to 100 (blocks of 0.3 to 10 µm) "
@@ -936,16 +906,16 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.lor_size": HelpEntry(
         title="Lorentzian size broadening",
         description=(
-            "The specimen's 1/cosθ contribution to the Lorentzian FWHM, which "
-            "is Scherrer broadening from finite crystallite size. It adds to "
-            "the instrumental X. Calibrate the instrument on a standard, hold "
-            "U V W X Y, then refine this and its three companions. "
-            "It carries a default upper bound — a floor on the crystallite at "
-            "2 nm, deliberately permissive so genuinely nanocrystalline "
-            "specimens refine freely — which reports BOUND_HIT if reached. "
-            "Setting max to any finite value is your own claim and switches "
-            "that default off. A refined size below 5 nm raises "
-            "SIZE_UNUSUALLY_SMALL, which flags rather than bounds."
+            "The specimen's 1/cosθ contribution to the Lorentzian FWHM. It is Scherrer "
+            "broadening from finite crystallite size, and it adds to the instrumental "
+            "X. Calibrate the instrument on a standard and hold U, V, W, X and Y. Then "
+            "refine this parameter with its three companions, `lor_strain`, "
+            "`gauss_size` and `gauss_strain`. It has a default upper bound that "
+            "corresponds to a smallest crystallite of 2 nm. The bound is permissive on "
+            "purpose, so that nanocrystalline specimens can refine, and `BOUND_HIT` "
+            "reports it if reached. Setting max to any finite value is your own claim "
+            "and switches that default off. A refined size below 5 nm raises "
+            "`SIZE_UNUSUALLY_SMALL`. That flag marks the value and does not bound it."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg; 0.1 deg is roughly a 100 nm domain at Cu Kα",
@@ -954,17 +924,16 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.lor_strain": HelpEntry(
         title="Lorentzian strain broadening",
         description=(
-            "The specimen's tanθ contribution to the Lorentzian FWHM, which is "
-            "isotropic microstrain. It adds to the instrumental Y. Declaring a "
-            "Stephens anisotropic strain block locks this parameter, because "
-            "the isotropic direction of that block is identically this column. "
-            "It carries a default upper bound derived from the fitted 2θ range "
-            "— a line cannot be wider than the interval it was measured over — "
-            "which sits two orders of magnitude above any specimen and reports "
-            "BOUND_HIT if reached. Setting max to any finite value, however "
-            "large, is your own claim and switches that default off. A width "
-            "past 1.5 deg raises STRAIN_UNUSUALLY_LARGE, which flags rather "
-            "than bounds."
+            "The specimen's tanθ contribution to the Lorentzian FWHM. It is isotropic "
+            "microstrain broadening, and it adds to the instrumental Y. Declaring a "
+            "Stephens anisotropic strain block locks this parameter, because the "
+            "isotropic direction of that block equals it. The default upper bound is "
+            "derived from the fitted 2θ range, since a line cannot be wider than the "
+            "interval it was measured over. It sits two orders of magnitude above any "
+            "specimen, and `BOUND_HIT` reports it if reached. Setting max to any finite "
+            "value, however large, is your own claim and switches that default off. A "
+            "width past 1.5 deg raises `STRAIN_UNUSUALLY_LARGE`. That flag marks the "
+            "value and does not bound it."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg",
@@ -973,14 +942,13 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.gauss_size": HelpEntry(
         title="Gaussian size broadening",
         description=(
-            "The specimen's 1/cos²θ contribution to the Gaussian variance. "
-            "Gaussian variances add, so it stacks on the instrumental W and "
-            "U rather than replacing them. Most specimens are better described "
-            "by the Lorentzian pair; free this one when the peak shape is "
-            "measurably more Gaussian than the standard's. "
-            "It carries the same default 2 nm floor as lor_size, squared: this "
-            "is a variance, so the cap on the width it contributes applies to "
-            "its square root."
+            "The specimen's 1/cos²θ contribution to the Gaussian variance. Gaussian "
+            "variances add, so it stacks on the instrumental U and W and does not "
+            "replace them. Most specimens are better described by the Lorentzian pair. "
+            "Free this parameter when the peak shape is measurably more Gaussian than "
+            "the standard's. It has the same default 2 nm limit as `lor_size`, squared. "
+            "This parameter is a variance, so the limit on the width it contributes "
+            "applies to its square root."
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 deg²",
@@ -989,12 +957,11 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.gauss_strain": HelpEntry(
         title="Gaussian strain broadening",
         description=(
-            "The specimen's tan²θ contribution to the Gaussian variance, "
-            "stacking on the instrumental U. Freeing it while U is also free "
-            "fits one quantity twice, and the guard reports the correlation. "
-            "It carries the same default upper bound as lor_strain, squared: "
-            "this is a variance, so the cap on the width it contributes "
-            "applies to its square root."
+            "The specimen's tan²θ contribution to the Gaussian variance, stacking on "
+            "the instrumental U. Freeing it while U is also free fits one quantity "
+            "twice, and the guard reports the correlation. It has the same default "
+            "upper bound as `lor_strain`, squared. This parameter is a variance, so the "
+            "limit on the width it contributes applies to its square root."
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 deg²",
@@ -1003,29 +970,28 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.magnetic_lor_size": HelpEntry(
         title="Magnetic Lorentzian size broadening",
         description=(
-            "Extra 1/cosθ Lorentzian FWHM applied to the **magnetic** part of "
-            "this phase's intensity and to nothing else, so the magnetic peaks "
-            "can be broader than the nuclear ones. It is Scherrer broadening "
-            "with the magnetic coherence length in place of the crystallite "
-            "size: antiphase and domain-wall boundaries, an incompletely grown "
-            "order parameter near T_N, and disorder that couples to the "
-            "exchange all cut the magnetic coherence below the structural one. "
-            "Zero is exactly off. Refine it **after** the moment and hold the "
-            "moment while it settles: both lower the calculated peak height, "
-            "so freed together from a cold start they trade against each "
-            "other and STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT says so. "
-            "Read MAGNETIC_WIDTH_MOVED_MOMENT before dropping the term: a "
-            "width whose esd exceeds its value can still be correlated with "
-            "the moment, and if releasing it moved the moment by more than "
-            "the moment's own error bar then holding it at zero biases the "
-            "moment rather than simplifying the model. "
-            "Only identifiable where the magnetic/nuclear intensity ratio "
-            "differs across reflections — a k ≠ 0 structure with "
-            "magnetic-only satellites measures it, a k = 0 collinear one "
-            "generally cannot, and then it comes back with an esd larger than "
-            "its value and MAGNETIC_WIDTH_UNMEASURED names it. Exists only on a phase that declares "
-            "magnetic_symmetry, and is held fixed wherever no magnetic "
-            "component is drawn: an X-ray histogram, and Le Bail or Pawley."
+            "Extra 1/cosθ Lorentzian FWHM applied to the magnetic part of this phase's "
+            "intensity and to nothing else. The magnetic peaks can therefore be broader "
+            "than the nuclear ones. It is Scherrer broadening with the magnetic "
+            "coherence length in place of the crystallite size. Antiphase and "
+            "domain-wall boundaries, an incompletely grown order parameter near the "
+            "Néel temperature and disorder that couples to the exchange all cut the "
+            "magnetic coherence below the structural one. Zero is off. Refine it after "
+            "the moment, and hold the moment while it settles. Both lower the "
+            "calculated peak height, so freed together from a cold start they trade "
+            "against each other, and `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` says so. "
+            "Read `MAGNETIC_WIDTH_MOVED_MOMENT` before dropping the term. A width whose "
+            "esd exceeds its value can still be correlated with the moment. If "
+            "releasing it moved the moment by more than the moment's own error bar, "
+            "holding it at zero biases the moment and does not simplify the model. The "
+            "width is identifiable only where the magnetic-to-nuclear intensity ratio "
+            "differs across reflections. A k ≠ 0 structure with magnetic-only "
+            "satellites measures it. A k = 0 collinear structure usually cannot, and "
+            "the width then comes back with an esd larger than its value. "
+            "`MAGNETIC_WIDTH_UNMEASURED` names that case. The parameter exists only on "
+            "a phase that declares `magnetic_symmetry`. It is held fixed wherever no "
+            "magnetic component is drawn, which means an X-ray histogram and Le Bail or "
+            "Pawley."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg; 0.1 deg is roughly a 100 nm magnetic domain at 2.4 Å",
@@ -1034,32 +1000,30 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.magnetic_lor_strain": HelpEntry(
         title="Magnetic Lorentzian strain broadening",
         description=(
-            "Extra tanθ Lorentzian FWHM applied to the **magnetic** part of "
-            "this phase's intensity alone — the strain partner of "
-            "magnetic_lor_size, and what a magnetic order parameter that "
-            "varies across the specimen produces. Zero is exactly off. The "
-            "same turn-on order and the same identifiability limits apply: "
-            "moment first, then this, then both, and it is measurable only "
-            "where some reflection is more magnetic than another. On a real "
-            "k != 0 dataset it can be this term rather than the size one that "
-            "carries the effect, which is why the magnetic_width plan frees "
-            "both and lets the report say which was measured. Exists only "
-            "on a phase that declares magnetic_symmetry, and is held fixed "
-            "on an X-ray histogram and under Le Bail or Pawley."
+            "Extra tanθ Lorentzian FWHM applied to the magnetic part of this phase's "
+            "intensity alone. It is the strain partner of `magnetic_lor_size`, and a "
+            "magnetic order parameter that varies across the specimen produces it. Zero "
+            "is off. The same turn-on order applies: refine the moment first, then this "
+            "term, then both. The same identifiability limits apply too. It is "
+            "measurable only where some reflection is more magnetic than another. On a "
+            "real k ≠ 0 dataset this term can carry the effect in place of the size "
+            "term. The `magnetic_width` plan therefore frees both and lets the report "
+            "say which was measured. The parameter exists only on a phase that declares "
+            "`magnetic_symmetry`. It is held fixed on an X-ray histogram and under Le "
+            "Bail or Pawley."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg",
         anchor="microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.preferred_orientation.r": HelpEntry(
-        title="March coefficient",
+        title="March-Dollase coefficient",
         description=(
-            "The March-Dollase coefficient for preferred orientation along the "
-            "declared hkl axis. r = 1 is exactly no correction. Which side of "
-            "1 means platy and which means needle-like flips between "
-            "reflection and transmission geometry, so read it against the "
-            "mount rather than from the number alone. The bound is 0.15 "
-            "rather than 0 because the March factor divides by r."
+            "The March-Dollase coefficient for preferred orientation along the declared "
+            "hkl axis. At r = 1 there is no correction. Whether a value above or below "
+            "1 means platy or needle-like crystallites flips between reflection and "
+            "transmission geometry, so read r against the mount and not from the number "
+            "alone. The lower bound is 0.15 because the March factor divides by r."
         ),
         unit=None, default="1.0",
         typical="0.6-1.4; a value outside 0.5-2 describes a texture few powder "
@@ -1069,17 +1033,15 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.texture.*": HelpEntry(
         title="Texture coefficient",
         description=(
-            "One coefficient C_l^n of the spherical-harmonics preferred-"
-            "orientation correction, named c<l>_<n> after GSAS-II's C(l,n). "
-            "Every coefficient at 0 is exactly no correction. The Laue class "
-            "decides which coefficients exist. The texture index "
-            "J = 1 + Σ C²/(2l+1) summarises their size, and J = 1 is a random "
-            "powder. A Bragg-Brentano coefficient is GSAS-II's multiplied by "
-            "P_l(0), because this package measures the sample angle from the "
-            "plate normal. Where the metric makes two inequivalent reflections "
-            "coincide (hkl and khl in -3m1), a term of opposite sign on the "
-            "pair is measured only through their |F|² difference, and its esd "
-            "says so."
+            "One coefficient `C_l^n` of the spherical-harmonics preferred-orientation "
+            "correction, named `c<l>_<n>` after GSAS-II's C(l,n). With every "
+            "coefficient at 0 there is no correction. The Laue class decides which "
+            "coefficients exist. The texture index J = 1 + Σ C²/(2l+1) summarises their "
+            "size, and J = 1 is a random powder. A Bragg-Brentano coefficient is "
+            "GSAS-II's multiplied by `P_l(0)`, because rietx measures the sample angle "
+            "from the plate normal. In -3m1 the metric makes hkl and `khl` coincide "
+            "although they are inequivalent. A term of opposite sign on that pair is "
+            "then measured only through their |F|² difference, and its esd says so."
         ),
         unit=None, default="0.0",
         typical="|C| under 1 at l = 2 for a lightly textured mount; several "
@@ -1090,19 +1052,20 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.atoms.*.y": _ATOM_COORD,
     "phases.*.atoms.*.z": _ATOM_COORD,
     "phases.*.atoms.*.dof.*": HelpEntry(
-        title="Site-symmetry coordinate degree of freedom",
+        title="Atom position shift",
         description=(
-            "One allowed direction of motion for an atom on its Wyckoff site. "
-            "This is the quantity that refines: x, y and z are affine-tied to "
-            "the site's degrees of freedom, so the site symmetry holds exactly "
-            "rather than approximately. A site with no allowed direction "
-            "produces no `dof` entry and its coordinates are locked. Free them "
-            "with the `phases.*.atoms.*.dof.*` glob. In a polar space group, "
-            "`Phase.floating_origin = \"hold\"` holds, per direction the origin "
-            "floats in, the first atom DOF a shift along it moves, and the row "
-            "says so; `\"centroid\"` holds nothing and restrains a "
-            "data-weighted centroid of the sites instead, so every DOF keeps "
-            "an esd."
+            "One direction in which an atom on its Wyckoff site is free to move. "
+            "GSAS-II and FullProf refine x, y and z under constraints that hold an atom "
+            "on its special position. rietx refines only the directions that the site "
+            "symmetry leaves free, so the site symmetry holds exactly. The coordinates "
+            "x, y and z are tied to these directions. Each value is a step from where "
+            "the fit began. A site with no free direction produces no `dof` entry, and "
+            "its coordinates are locked. Free these parameters with "
+            "`phases.*.atoms.*.dof.*`. In a polar space group, `Phase.floating_origin = "
+            "\"hold\"` holds, for each direction in which the origin floats, the first "
+            "atom shift along it that moves the origin, and the row says so. "
+            "`\"centroid\"` holds nothing and restrains a data-weighted centroid of the "
+            "sites instead, so every shift keeps an esd."
         ),
         unit=None, default=None,
         typical="0 to 1, in the same units as the coordinate it drives",
@@ -1112,40 +1075,40 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.rigid_bodies.*.origin.y": _BODY_ORIGIN,
     "phases.*.rigid_bodies.*.origin.z": _BODY_ORIGIN,
     "phases.*.rigid_bodies.*.origin.dof.*": HelpEntry(
-        title="Rigid-body origin degree of freedom",
+        title="Rigid-body origin shift",
         description=(
-            "One allowed direction of motion for a rigid body's origin, as for "
-            "an atom on its site: the body translates as one and every member "
-            "atom's coordinates follow. A step from where the fit began, like "
-            "an atom's coordinate degree of freedom."
+            "One direction in which a rigid body's origin is free to move, as for an "
+            "atom on its site. The body translates as one, and the coordinates of every "
+            "member atom follow. Each value is a step from where the fit began, as for "
+            "an atom's position shift."
         ),
         unit=None, default=None,
         typical="a few hundredths, in the units of the coordinate it drives",
         anchor="parameterisation.html#rigid-bodies",
     ),
     "phases.*.rigid_bodies.*.rotation.*": HelpEntry(
-        title="Rigid-body rotation increment",
+        title="Rigid-body rotation step",
         description=(
-            "One component of the rotation vector, in radians, that turns a "
-            "rigid body about its origin from the orientation it started the "
-            "fit at; the three together are the rotation Exp(δω) applied to "
-            "the stored orientation. Zero at the start of every fit, and "
-            "composed into the body's stored quaternion when the fit is "
-            "written back. Bounded to ±π per component."
+            "One component of the rotation vector, in radians, that turns a rigid body "
+            "about its origin from the orientation it had at the start of the fit. The "
+            "three components together give the rotation Exp(δω), applied to the stored "
+            "orientation. All three are zero at the start of every fit. When the fit is "
+            "written back, the rotation is composed into the body's stored quaternion. "
+            "Each component is bounded to ±π."
         ),
         unit=None, default=None,
         typical="under 0.5 rad from a sensible start",
         anchor="parameterisation.html#rigid-bodies",
     ),
     "phases.*.rigid_bodies.*.torsions.*.twist": HelpEntry(
-        title="Rigid-body torsion increment",
+        title="Rigid-body torsion step",
         description=(
-            "The turn, in degrees, of a body's declared moving atoms about the "
-            "line through its two axis atoms, from the torsion's stored angle. "
-            "A dihedral a–axis[0]–axis[1]–d whose d end is a moved atom changes by "
-            "the same amount, and one whose a end is moved by minus it. "
-            "Zero at the start of every fit, and added into the torsion's "
-            "stored angle (wrapped into (−180, 180]) at every stage's commit."
+            "The turn, in degrees, of a body's declared moving atoms about the line "
+            "through its two axis atoms, measured from the stored angle of the torsion. "
+            "A dihedral a–axis[0]–axis[1]–d whose d end is a moved atom changes by the "
+            "same amount. One whose a end is moved changes by minus that amount. The "
+            "value is zero at the start of every fit. At every stage's commit it is "
+            "added into the stored angle of the torsion, wrapped into (−180, 180]."
         ),
         unit=None, default=None,
         typical="a few degrees to a few tens of degrees from a sensible start",
@@ -1155,10 +1118,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         title="Site occupancy",
         description=(
             "The fraction of the site occupied by this species. It is close to "
-            "degenerate with the site's displacement parameter, since both "
-            "reduce scattered intensity, and X-rays separate the two poorly. "
-            "Refine one or the other unless the data reaches high Q, and "
-            "constrain occupancies that must sum to 1 with a user tie."
+            "degenerate with the displacement parameter of the site, because both "
+            "reduce the scattered intensity. X-rays have little power to separate the "
+            "two. Refine one or the other unless the data reach high Q. Constrain "
+            "occupancies that must sum to 1 with a user tie."
         ),
         unit=None, default="1.0",
         typical="0 to 1; the bound allows 1.5 so a shared site can be modelled",
@@ -1167,18 +1130,16 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.atoms.*.biso": HelpEntry(
         title="Isotropic displacement parameter",
         description=(
-            "The atom's isotropic B, related to the mean-square displacement "
-            "by B = 8π²·Uiso. It damps intensity as exp(−B·sin²θ/λ²), so it is "
-            "determined by the high-angle data and is the parameter a "
-            "too-flexible background biases first. A negative B is "
-            "unphysical, and a refined B above about 5 Å² for a heavy atom "
-            "usually means an absorption or background error rather than a "
-            "real displacement. There is no default bound, as in other "
-            "Rietveld codes: a negative B reports BISO_NEGATIVE, one past the "
-            "phase's melting estimate BISO_UNUSUALLY_LARGE, and a stage holds "
-            "B where the fitted range cannot separate it from the phase's "
-            "scale (SCALE_B_INSEPARABLE). Pass a Parameter with min or max to "
-            "bound it yourself."
+            "The isotropic B of the atom, related to the mean-square displacement by B "
+            "= 8π²·Uiso. It damps intensity as exp(−B·sin²θ/λ²), so the high-angle data "
+            "determine it, and a too-flexible background biases it first. A negative B "
+            "is unphysical. A refined B above about 5 Å² for a heavy atom usually "
+            "points to an absorption or background error and not to a real "
+            "displacement. There is no default bound. A negative B reports "
+            "`BISO_NEGATIVE`, and one past the melting estimate of the phase reports "
+            "`BISO_UNUSUALLY_LARGE`. A stage holds B where the fitted range cannot "
+            "separate it from the scale of the phase (`SCALE_B_INSEPARABLE`). Give the "
+            "parameter a min or max to bound it yourself."
         ),
         unit="Å²", default="0.5",
         typical="0.2-2 Å² for an inorganic framework at room temperature",
@@ -1191,17 +1152,16 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.atoms.*.u13": _ATOM_ANISO_U,
     "phases.*.atoms.*.u23": _ATOM_ANISO_U,
     "phases.*.atoms.*.adp.*": HelpEntry(
-        title="Site-symmetry ADP degree of freedom",
+        title="Anisotropic displacement parameter",
         description=(
-            "One allowed component of the anisotropic displacement tensor on "
-            "this Wyckoff site. Unlike a coordinate degree of freedom these "
-            "are absolute rather than incremental: U is the sum of θ_k times "
-            "the basis tensors, which enforces the site symmetry exactly. "
-            "Positive-definiteness couples all six components and so is not a "
-            "bound; a tensor that loses it raises "
-            "`ADP_NOT_POSITIVE_DEFINITE`, because the Debye-Waller factor "
-            "then diverges at high Q. Free them with the "
-            "`phases.*.atoms.*.adp.*` glob, alongside the `biso` glob every "
+            "One allowed component of the anisotropic displacement tensor on this "
+            "Wyckoff site. Unlike an atom's position shift, it is absolute. The tensor "
+            "is the sum of the refined values times basis tensors that the site "
+            "symmetry allows, so the site symmetry holds exactly. Positive-definiteness "
+            "couples all six components, so it cannot be a bound. A tensor that loses "
+            "it raises `ADP_NOT_POSITIVE_DEFINITE`, because the Debye-Waller factor "
+            "then diverges at high Q. Free these parameters with "
+            "`phases.*.atoms.*.adp.*`, alongside the `biso` pattern that every "
             "displacement stage carries."
         ),
         unit="Å²", default=None,
@@ -1211,59 +1171,58 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "phases.*.atoms.*.moment.crystalaxis_*": HelpEntry(
         title="Magnetic moment component",
         description=(
-            "One crystal-axis component of this site's magnetic moment, in "
-            "the magCIF `_atom_site_moment.crystalaxis_*` convention — a "
-            "right-handed basis of **unit vectors** along the cell edges, so "
-            "on hexagonal axes the moment (1, 1, 0) is 1 μ_B and not √2. "
-            "These are **derived**, not refined: the moment enters the fit as "
-            "`phases.*.atoms.*.moment.dof*`, a modulus and the angles the "
-            "site symmetry leaves free, and these three are written back from "
-            "those at the end of a stage. They carry no esd; the magnitude's "
-            "is on the modulus DOF."
+            "One crystal-axis component of this site's magnetic moment, in the magCIF "
+            "`_atom_site_moment.crystalaxis_*` convention. The basis is right-handed, "
+            "with unit vectors along the cell axes. On hexagonal axes the moment (1, 1, "
+            "0) is therefore 1 μB and not √2 μB. rietx derives these three components. "
+            "The moment enters the fit as `phases.*.atoms.*.moment.dof*`, a modulus and "
+            "the angles that the site symmetry leaves free, and the components are "
+            "written back from those at the end of a stage. They carry no esd. The esd "
+            "of the magnitude is on the modulus entry."
         ),
         unit="μ_B", default=None,
-        typical="1-5 μ_B for a 3d ion, up to 10 for a rare earth",
+        typical="1-5 μB for a 3d ion, up to 10 μB for a rare earth",
         anchor="intensities.html#the-magnetic-structure-factor",
     ),
     "phases.*.atoms.*.moment.dof*": HelpEntry(
-        title="Magnetic moment degree of freedom",
+        title="Magnetic moment parameter",
         description=(
-            "`dof0` is the moment's modulus in μ_B — the number a fit "
-            "measures, and the one that carries the esd. Any further entries "
-            "are angles in radians inside the subspace the site's magnetic "
-            "symmetry allows: one on a two-dimensional subspace, two on a "
-            "three-dimensional one. A powder average determines |m| and, on a "
-            "uniaxial structure, the angle to the unique axis — no more, so "
-            "the directions it cannot determine are **held** and named in "
-            "`StageResult.held` rather than returned as small numbers. "
-            "Where that axis is not the frame's pole (rhombohedral axes, "
-            "about [111]) the fit first turns the moment about it, which "
-            "changes the reported direction, and records the axis and the "
-            "turn in `StageResult.moment_flat_axes` and `.moment_turned`. "
-            "Seeding the modulus at exactly zero is refused: |F_m|² is "
-            "proportional to m², so the column is dead there."
+            "`dof0` is the modulus of the moment in μB. A fit measures it, and it "
+            "carries the esd. Any further entries are angles in radians inside the "
+            "subspace that the magnetic symmetry of the site allows. There is one angle "
+            "on a two-dimensional subspace and two on a three-dimensional one. A powder "
+            "average determines |m| and, on a uniaxial structure, the angle to the "
+            "unique axis. It determines no more. The directions it cannot determine are "
+            "held and named in `StageResult.held`, and they are not returned as small "
+            "numbers. Where the unique axis is not the pole of the frame (rhombohedral "
+            "axes, about [111]), the fit first turns the moment about that axis. That "
+            "changes the reported direction. The axis and the turn are recorded in "
+            "`StageResult.moment_flat_axes` and `StageResult.moment_turned`. Seeding "
+            "the modulus at exactly zero is refused, because the magnetic structure "
+            "factor squared is proportional to m² and the derivative is zero there."
         ),
         unit=None, default=None,
-        typical=("1-5 μ_B for the modulus; the angles are unbounded while a "
-                 "stage solves and reported with μ ≥ 0, the polar angle in "
-                 "[0, π] and the azimuth in (−π, π]"),
+        typical=(
+            "1-5 μB for the modulus. The angles are unbounded while a stage solves. "
+            "They are reported with μ ≥ 0, the polar angle in [0, π] and the azimuth in "
+            "(−π, π]"
+        ),
         anchor="parameterisation.html#moment-degrees-of-freedom",
     ),
     "phases.*.microstrain.s*": _STEPHENS_S,
     "phases.*.microstrain.dof.*": HelpEntry(
-        title="Stephens strain degree of freedom",
+        title="Stephens strain parameter",
         description=(
-            "One allowed direction of the Laue-permitted S_HKL subspace, "
-            "derived from the space-group operators rather than tabulated. "
-            "These are what refine; the fifteen `s` coefficients are tied to "
-            "them. Seed an all-zero block onto the isotropic ray with "
-            "`Stage.strain_seed`: at S = 0 the square root in the width has "
-            "unbounded slope. Positivity of σ²(M) is a cone coupling all "
-            "fifteen coefficients, so it cannot be a box bound. The default "
-            "LM solver holds it as a linear inequality. Under `solver=\"trf\"`, "
-            "and in a joint fit, it is reported by "
-            "`STEPHENS_STRAIN_NOT_POSITIVE` instead. Read that flag as 'these "
-            "coefficients are not quotable', not as evidence of anisotropy."
+            "One allowed direction of the Laue-permitted `S_HKL` subspace, derived from "
+            "the space-group operators. These are the quantities that refine, and the "
+            "fifteen `s` coefficients are tied to them. Seed an all-zero block onto the "
+            "isotropic limit with `Stage.strain_seed`, because at S = 0 the square root "
+            "in the width has unbounded slope. Positivity of σ²(M) couples all fifteen "
+            "coefficients as a cone, so it cannot be a bound on each coefficient. The "
+            "default Levenberg-Marquardt solver holds it as a linear inequality. Under "
+            "`solver=\"trf\"` and in a joint fit, `STEPHENS_STRAIN_NOT_POSITIVE` reports "
+            "it instead. Read that flag as 'these coefficients are not quotable'. It is "
+            "no evidence of anisotropy."
         ),
         unit=None, default=None,
         typical="the isotropic seed is ε²·[M²] for a strain ε of 1e-4 to 1e-3",
@@ -1273,15 +1232,15 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "vars.*": HelpEntry(
         title="Named variable",
         description=(
-            "A parameter of your own, declared with `Refinement.add_variable` "
-            "and named after it. It is TOPAS's `prm`. Model parameters follow it "
-            "through ties, so a constraint can name a shared quantity instead of "
-            "one parameter chosen as the master. The forward model never reads "
-            "it. It reaches the pattern only through the parameters tied to it. "
-            "Its unit and bounds are the ones it was declared with. Declared "
-            "with the bounds of the parameter it replaces, it gives the same "
-            "column and the same answer. Declared without them, it can go where "
-            "that parameter could not."
+            "A parameter of your own, declared with `Refinement.add_variable` and "
+            "addressed as `vars.<name>`. It corresponds to the `prm` of TOPAS. Model "
+            "parameters follow it through ties, so a constraint can name a shared "
+            "quantity and need not pick one parameter as the master. The diffraction "
+            "model reads no variable directly. A variable reaches the pattern only "
+            "through the parameters tied to it. Its unit and bounds are the ones it was "
+            "declared with. Declared with the bounds of the parameter it replaces, it "
+            "gives the same answer. Declared without them, it can go where that "
+            "parameter could not."
         ),
         unit=None, default=None,
         typical="the range of the parameters it drives",
@@ -1309,116 +1268,111 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
         title="Position never determined",
         label="no position",
         description=(
-            "The fit returned this line's position with an uncertainty of "
-            "180° or more, which is the whole span a 2θ axis has. It is not a "
-            "poorly-determined position, it is no position: any window built "
-            "from it matches whatever it is compared against. The line is "
-            "kept so a report can say why it went, and excluded from "
-            "everything that matches positions."
+            "The fit gave this line's position an uncertainty of 180° or more, the "
+            "whole span of a 2θ axis. That is no position at all, and any window built "
+            "from it matches whatever it is compared with. The line stays in the list "
+            "so a report can say why it went. It is excluded from everything that "
+            "matches positions."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
     "ghost_kbeta": HelpEntry(
-        title="Kβ contamination line",
+        title="Kβ line of a stronger reflection",
         label="Kβ ghost",
         description=(
-            "The line sits where the Kβ partner of a stronger reflection "
-            "would be, and several other strong reflections carry one at the "
-            "same ratio. That agreement is the evidence: a single line at a "
-            "predicted position is a coincidence and is not flagged. It is "
-            "excluded rather than stripped, because Rachinger stripping "
-            "redistributes the counting noise and biases what is left. The "
-            "line is unusable as evidence of a lattice."
+            "The line sits where the Kβ partner of a stronger reflection would be, and "
+            "several other strong reflections carry a partner at the same intensity "
+            "ratio. That agreement is the evidence. A single line at a predicted "
+            "position is a coincidence and is not flagged. The line is excluded and "
+            "Rachinger stripping is not applied, because stripping redistributes the "
+            "counting noise and biases what is left. The line is unusable as evidence "
+            "of a lattice."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
     "ghost_tungsten": HelpEntry(
-        title="Tungsten contamination line",
+        title="Tungsten L line from the tube",
         label="W ghost",
         description=(
-            "The line sits at a tungsten L emission position, which an aged "
-            "tube with a contaminated anode produces. Flagged jointly and "
-            "excluded for the same reasons as a Kβ ghost, and unusable."
+            "The line sits at a tungsten L emission position, which an aged tube with a "
+            "contaminated anode produces. Such lines are flagged jointly, as Kβ lines "
+            "are, and excluded for the same reasons. The line is unusable."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
     "excluded": HelpEntry(
-        title="Excluded by the caller",
+        title="Removed by hand",
         label="excluded",
         description=(
-            "Someone removed this line by hand. It stays in the list so a "
-            "report can say the line was seen and dropped, and it is not "
-            "offered as evidence."
+            "Someone removed this line by hand. It stays in the list so a report can "
+            "say the line was seen and dropped. It is not offered as evidence."
         ),
     ),
     "fit_failed": HelpEntry(
         title="Group fit did not converge",
         label="fit failed",
         description=(
-            "The solve over this line's group did not converge, so the "
-            "position and σ on the row are the detection seed rather than a "
-            "measurement. Unusable."
+            "The fit over this line's group of peaks did not converge. The position and "
+            "σ on the row are the starting values from peak detection, so they measure "
+            "nothing. The line is unusable."
         ),
     ),
     "sigma_assumed": HelpEntry(
-        title="σ assumed, not fitted",
+        title="Position uncertainty assumed",
         label="σ assumed",
         description=(
-            "The position uncertainty was supplied rather than measured, "
-            "which is what happens to a list read from a publication or "
-            "another program. The line is still evidence, and its σ already "
-            "says how good it is, so it stays usable. Treat the precision as "
-            "unknown rather than quoting it."
+            "The position uncertainty was supplied and not measured. This happens to a "
+            "list read from a publication or from another program. The line is still "
+            "evidence, and its σ says how good it is, so it stays usable. Treat the "
+            "precision as unknown and do not quote it."
         ),
     ),
     "unresolved_shoulder": HelpEntry(
         title="Never separated from its neighbour",
         label="shoulder",
         description=(
-            "The component was kept in a group where it never moved half a "
-            "FWHM away from its neighbour. It is less precise evidence rather "
-            "than none, so it stays usable."
+            "The component was kept in a group where it never moved half a FWHM away "
+            "from its neighbour. It is weaker evidence than a resolved line but still "
+            "evidence, so it stays usable."
         ),
     ),
     "position_at_bound": HelpEntry(
-        title="Position refined to its bound",
+        title="Position refined to its limit",
         label="at bound",
         description=(
-            "The fitted position reached the limit it was allowed to move "
-            "from its seed, which means detection put the seed in the wrong "
-            "place. The position is a bound, not a minimum."
+            "The fitted position reached the limit on how far it could move from its "
+            "starting value. That means peak detection put the starting value in the "
+            "wrong place. The reported position is the limit itself, and the fit did "
+            "not find a minimum there."
         ),
     ),
     "asymmetry_unmodelled": HelpEntry(
-        title="Asymmetry the shape does not carry",
+        title="Asymmetry the peak shape cannot fit",
         label="asymmetric",
         description=(
-            "The residual over this line is asymmetric beyond what the fitted "
-            "shape allows, so the position is biased towards the tail. Axial "
-            "divergence at low 2θ is the usual cause."
+            "The residual over this line is asymmetric beyond what the fitted peak "
+            "shape allows, so the position is biased towards the tail. Axial divergence "
+            "at low 2θ is the usual cause."
         ),
         anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "not_separable": HelpEntry(
-        title="Improves the group as a shape, not as a line",
+        title="Improves the fit as a shape only",
         label="not separable",
         description=(
-            "The component makes the group fit measurably better, but a "
-            "nested fit without it is not refuted, so it is not evidence of a "
-            "distinct reflection. It stays in the model, because removing it "
-            "would bias the position of the line it sits on, and it is never "
-            "offered to an indexing engine."
+            "The component improves the fit of its group, but the fit without it cannot "
+            "be ruled out, so there is no evidence of a distinct reflection. It stays "
+            "in the model because removing it would bias the position of the line it "
+            "sits on. It is never offered to an indexing engine."
         ),
     ),
     "background_extrapolated": HelpEntry(
         title="Standing on extrapolated background",
         label="bkg extrapolated",
         description=(
-            "The line's prominence is measured against a background level "
-            "that was extrapolated rather than observed. That is real "
-            "intensity which may not be a line. It is reported and not "
-            "refused, because a consumer that can weigh the evidence should "
-            "be given the chance."
+            "The line's prominence is measured against a background level that was "
+            "extrapolated and not observed. The intensity is real but may not belong to "
+            "a line. The line stays usable, so you can weigh the evidence yourself."
         ),
         anchor="background.html#model-free-estimation",
     ),
@@ -1426,11 +1380,12 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
         title="Possibly a stronger line's axial tail",
         label="axial tail",
         description=(
-            "A weak component within 3.5 fitted FWHM of a stronger group-mate, "
-            "on the side axial divergence points: towards low 2θ below 90° and "
-            "towards high 2θ above it. The screen is one-sided, because "
-            "nothing else in a powder pattern flips sign at 90°. Reported and "
-            "not refused, since a real line can coincide with a tail."
+            "A weak component lies within 3.5 fitted FWHM (`PEAK_AXIAL_TAIL_MAX_FWHM`) "
+            "of a stronger component in its group, on the side that axial divergence "
+            "points to. That side is low 2θ below 90° and high 2θ above it. The screen "
+            "looks on one side only, because nothing else in a powder pattern flips "
+            "sign at 90°. The line stays usable, since a real line can coincide with a "
+            "tail."
         ),
         anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
@@ -1438,12 +1393,11 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
         title="Sitting on a modelled Kα2 maximum",
         label="Kα2 residual",
         description=(
-            "The component sits at the Kα2 position of a stronger group-mate, "
-            "predicted from the declared doublet splitting as "
-            "δ(2θ) = 2·(λ₂/λ₁ − 1)·tanθ rather than found by a distance "
-            "threshold. It is the residual of a doublet the model already "
-            "carries. Reported and not refused, since a real line can "
-            "coincide with it."
+            "The component sits at the Kα2 position of a stronger component in its "
+            "group. The position is predicted from the declared doublet splitting as "
+            "δ(2θ) = 2·(λ₂/λ₁ − 1)·tanθ and is not found by a distance threshold. It is "
+            "the residual of a doublet that the model already carries. The line stays "
+            "usable, since a real line can coincide with it."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
@@ -1451,72 +1405,71 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
         title="An unnamed component shares this window",
         label="unnamed neighbour",
         description=(
-            "You named the components in this window, and detection found "
-            "another one you did not name. Its intensity had nowhere to go but "
-            "into the components that were fitted, so their positions are "
-            "biased towards it and χ²_red is the only other sign. Reported and "
-            "not refused: naming a subset is a legitimate request, and the esd "
-            "inflation by the square root of χ²_red already carries the cost. "
-            "Name the neighbour too, or narrow the range, if the position "
-            "matters."
+            "You named the components in this window, and peak detection found another "
+            "that you did not name. Its intensity went into the components you fitted, "
+            "so their positions are biased towards it. Reduced χ² is the only other "
+            "sign. The line stays usable, because naming a subset is a legitimate "
+            "request and the esd inflation by the square root of reduced χ² already "
+            "carries the cost. Name the neighbour too, or narrow the range, if the "
+            "position matters."
         ),
     ),
     "no_intensity": HelpEntry(
         title="Refined to zero intensity",
         label="no intensity",
         description=(
-            "The component reached its zero-intensity bound, or its fitted "
-            "intensity is under its own esd. It contributes nothing "
-            "measurable to the window and its own position is no longer "
-            "identifiable: a peak reaches the data only through intensity "
-            "times profile. Unusable, and unlike the reported flags there is "
-            "no judgement left to make."
+            "The component reached its zero-intensity bound, or its fitted intensity is "
+            "smaller than its own esd. It contributes nothing measurable to the window, "
+            "and its position cannot be identified, because a peak reaches the data "
+            "only through intensity times profile. The line is unusable. Unlike the "
+            "flags that leave a line usable, there is no judgement left to make."
         ),
     ),
     "duplicate_line": HelpEntry(
         title="Line another group already fitted",
         label="duplicate",
         description=(
-            "This component sits on a line that a neighbouring group fitted "
-            "with a better-measured component. It is one physical peak fitted "
-            "twice. The copy is kept in the list, because it let its own "
-            "group's window fit, and it is unusable: a list that offers one "
-            "line twice makes the second copy a line no candidate explains."
+            "This component sits on a line that a neighbouring group fitted with a "
+            "better-measured component, so it is one physical peak fitted twice. The "
+            "copy stays in the list because it let its own group's window fit. It is "
+            "unusable, because a list that offers one line twice gives a second line "
+            "that no candidate cell explains."
         ),
     ),
     "weak_line": HelpEntry(
-        title="Below the pattern's false-discovery bar",
+        title="Below the false-discovery bar",
         label="weak",
         description=(
-            "The component's fitted intensity over its esd is under the bar "
-            "the pattern's own false-discovery rate sets (Benjamini-Hochberg "
-            "at q = 0.01 over the pattern's resolution elements), so the list "
-            "cannot tell it from noise at the rate it promises for every "
-            "other line. It stays usable: on real lab data many such lines "
-            "are weak reflections the true cell indexes, so the flag is "
-            "evidence, not a verdict. A line a person placed is never tested."
+            "The component's fitted intensity over its esd is below the bar set by the "
+            "pattern's own false-discovery rate (Benjamini-Hochberg at q = 0.01, "
+            "`PEAK_FDR_Q`, over the pattern's resolution elements). The list cannot "
+            "tell such a line from noise at the rate it promises for every other line. "
+            "It stays usable, because on real laboratory data many such lines are weak "
+            "reflections that the true cell indexes. The flag is evidence to weigh and "
+            "is no verdict. A line you placed by hand is never tested."
         ),
     ),
     "unresolved_split": HelpEntry(
         title="Split the data cannot resolve",
         label="split",
         description=(
-            "This component sits closer to a comparable neighbour in its group "
-            "than two lines of the fitted shape can and still show a dip "
-            "between them. The split is told only through the peak shape, so "
-            "the pair is reported as one line: the stronger component, with "
-            "its position uncertainty widened to reach this one. Kept in the "
-            "list and unusable."
+            "This component sits closer to a comparable neighbour in its group than two "
+            "lines of the fitted shape can and still show a dip between them. The data "
+            "tell the pair apart only through the peak shape, so the pair is reported "
+            "as one line. That line is the stronger component, with its position "
+            "uncertainty widened to reach this one. This component stays in the list "
+            "and is unusable."
         ),
     ),
     "width_capped": HelpEntry(
         title="Width ran into its bound",
         label="too wide",
         description=(
-            "The fit wanted this group broader than five times the pattern's "
-            "own width law at its angle allows. It is a hump, such as "
-            "background the envelope did not follow, not a line of the phase "
-            "that set the width law. Kept in the list and unusable."
+            "The fit tried to make this group broader than the limit of five times the "
+            "pattern's own width law at that angle (`PEAK_WIDTH_BOUND_FACTORS`). It is "
+            "a hump, such as background that the envelope did not follow, and is not a "
+            "line of the phase that set the width law. It stays in the list and is "
+            "unusable."
         ),
     ),
 }
@@ -1527,31 +1480,30 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
 #: ``label``.
 PEAK_ORIGIN_HELP: dict[str, HelpEntry] = {
     "fitted": HelpEntry(
-        title="Proposed by detection",
+        title="Found by peak detection",
         label="fitted",
         description=(
-            "Detection found a maximum or a shoulder here and the group fit "
-            "kept it. Nobody has touched the line: its position, width and "
-            "area are the fitter's, and so are its flags."
+            "Peak detection found a maximum or a shoulder here and the group fit kept "
+            "it. Nobody has touched the line. Its position, width and area come from "
+            "the fit, and so do its flags."
         ),
     ),
     "manual": HelpEntry(
         title="Placed by a person",
         label="manual",
         description=(
-            "Someone added this line by clicking the plot or typing a 2θ. Its "
-            "position was still fitted, within the group it landed in, but "
-            "the decision that a line exists here is a person's, so the "
-            "picker's own screens never remove it."
+            "Someone added this line from the plot or by typing a 2θ. Its position was "
+            "still fitted, within the group it landed in. A person decided that a line "
+            "exists here, so the peak picker's own screens never remove it."
         ),
     ),
     "edited": HelpEntry(
         title="Moved by a person",
         label="moved",
         description=(
-            "Detection proposed this line and a person dragged it or typed a "
-            "new 2θ; the group was refitted from the new seed. The position "
-            "shown is the refit's, not the pointer's."
+            "Peak detection proposed this line, and a person dragged it or typed a new "
+            "2θ. The group was refitted from the new starting position. The position "
+            "shown comes from the refit and can differ from where you put the line."
         ),
     ),
 }
@@ -4129,69 +4081,69 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
     "name": HelpEntry(
         title="Stage name",
         description=(
-            "A label for the stage. It appears in the stage table, in the "
-            "history node this stage commits, and in any diagnostic that has "
-            "to say where a finding came from."
+            "A label for the stage. It appears in the stage table, in the history node "
+            "that the stage commits and in any diagnostic that says where a finding "
+            "came from."
         ),
     ),
     "turn_on": HelpEntry(
         title="Parameters freed this stage",
         description=(
-            "Dot-path globs freed when the stage starts, matched with "
-            "`fnmatch`: `phases.*.cell.*` frees every cell parameter of every "
-            "phase. Staging is cumulative, so a parameter freed here keeps "
-            "refining in every later stage. Paths never contain brackets, "
-            "because `fnmatch` reads them as a character class."
+            "Wildcard patterns for the parameter paths that the stage frees when it "
+            "starts. For example, `phases.*.cell.*` frees every lattice parameter of "
+            "every phase. Staging is cumulative, so a parameter freed here keeps "
+            "refining in every later stage. Paths contain no square brackets, because "
+            "the matching reads brackets as a character class."
         ),
         default="[]",
-        typical="one or two globs per stage",
+        typical="one or two patterns per stage",
         anchor="parameterisation.html#from-tree-to-vector",
     ),
     "max_iter": HelpEntry(
         title="Iteration budget",
         description=(
-            "Approximate solver iterations for this stage. Both solvers "
-            "cap function evaluations rather than iterations, so the "
-            "number is scaled by a measured worst-case rejection rate before "
-            "it reaches the solver."
+            "The approximate number of solver iterations for this stage. Both solvers "
+            "cap function evaluations, so the number is scaled by a measured worst-case "
+            "rejection rate (`NFEV_PER_ITERATION`) before it reaches the solver."
         ),
         default="100",
         typical="20-100",
         anchor="estimation.html#convergence",
     ),
     "ftol": HelpEntry(
-        title="Stage termination tolerance",
+        title="Stage stopping tolerance",
         description=(
-            "This stage's own relative cost-decrease tolerance, overriding "
-            "the plan's schedule. Null takes it from the plan, which runs "
-            "every stage but the last at `intermediate_ftol` and the last at "
-            "the solver's 1e-9. The record says what a stage ran at, never "
-            "what it declared, so a cherry-pick replays what happened."
+            "This stage's own relative tolerance on the decrease in cost. It overrides "
+            "the plan's schedule. Empty takes the value from the plan: every stage but "
+            "the last stops at the plan's `intermediate_ftol`, and the last stops at "
+            "the solver's 1e-9. The history records the tolerance a stage ran at and "
+            "not the one it declared, so a cherry-pick replays what happened."
         ),
         default="null",
-        typical="leave null unless reproducing a specific run",
+        typical="leave empty unless reproducing a specific run",
         anchor="estimation.html#convergence",
     ),
     "lebail_cycles": HelpEntry(
-        title="Le Bail cycles per evaluation",
+        title="Le Bail cycles",
         description=(
-            "How many intensity-partitioning cycles run before each solve in "
-            "`lebail` mode. Ignored in `rietveld` and `pawley` modes, where "
-            "intensities come from the structure or from the parameter vector."
+            "How many cycles of intensity partitioning run before each solve in "
+            "`lebail` mode. The setting is ignored in `rietveld` and `pawley` modes, "
+            "where the intensities come from the structure or from the fitted Pawley "
+            "intensities."
         ),
         default="3",
         typical="3",
         anchor="forward-model.html#three-intensity-models",
     ),
     "seed": HelpEntry(
-        title="Floor seed value",
+        title="Starting value for parameters at zero",
         description=(
-            "Starts every parameter this stage frees that sits exactly on a "
-            "lower bound of 0 or above at this value. A parameter that can go "
-            "negative is never seeded. Suortti b = 0 is the identity, so the "
-            "roughness stage uses it to start b near where the data can see "
-            "it. It is the only shipped stage that seeds. Use `strain_seed` "
-            "for a Stephens block: that one has the opposite problem."
+            "Sets the starting value of every parameter that the stage frees and that "
+            "sits exactly on a lower bound of 0 or above. A parameter that can go "
+            "negative is never seeded. The Suortti roughness correction is the identity "
+            "at b = 0, so the roughness stage uses this to start b near where the data "
+            "can see it. That is the only shipped stage that seeds. For a Stephens "
+            "strain block use `strain_seed`, which has the opposite problem."
         ),
         default="0.0",
         typical="0.3 where a stage frees surface roughness; 0 elsewhere",
@@ -4199,11 +4151,11 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
     "strain_seed": HelpEntry(
         title="Stephens strain seed",
         description=(
-            "Microstrain in ppm used to seed an all-zero Stephens block onto "
-            "the isotropic ray. At S = 0 the square root in the width law has "
-            "unbounded slope, and needs its own setting: `seed` reaches "
-            "parameters bounded below at 0 only, and these coefficients can "
-            "go negative."
+            "Microstrain in ppm that starts an all-zero Stephens block on the isotropic "
+            "limit. At S = 0 the square root in the width law has unbounded slope, so "
+            "the block needs a starting value of its own. `seed` cannot do this, "
+            "because it reaches only parameters bounded below at 0 and these "
+            "coefficients can go negative."
         ),
         unit="ppm", default="0.0",
         typical="100-1000 ppm where a stage frees an anisotropic strain block",
@@ -4212,27 +4164,27 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
     "restraint_weight_scale": HelpEntry(
         title="Restraint weight",
         description=(
-            "The c_w of S = S_y + c_w·S_G (McCusker eq 7), weighting the "
-            "geometric restraints against the diffraction data for this stage. "
-            "Hold it high early and reduce it as the model improves. 1.0 is "
-            "the identity and is bit-identical to no scaling; 0.0 silences the "
-            "rows without removing them, so the restraint count the statistics "
-            "rest on cannot move mid-plan."
+            "The weight `c_w` in `S = S_y + c_w·S_G` (McCusker et al. 1999, equation "
+            "7). It sets how strongly the geometric restraints count against the "
+            "diffraction data in this stage. Hold it high early and reduce it as the "
+            "model improves. A value of 1.0 leaves the restraints unscaled. A value of "
+            "0.0 silences them without removing them, so the restraint count behind the "
+            "statistics cannot change mid-plan."
         ),
         default="1.0",
         typical="1-100 early, falling to 1 in the last stage",
         anchor="parameterisation.html#weighting-the-restraints",
     ),
     "window_slack_deg": HelpEntry(
-        title="Window capture slack",
+        title="Peak window margin",
         description=(
-            "Extra 2θ on each side of a reflection's integration window, "
-            "replacing the default. Declared by fits whose starting model may "
-            "sit far from the data, such as the Le Bail validation an "
-            "indexing candidate goes through. Null takes the default."
+            "Extra 2θ on each side of a reflection's integration window, replacing the "
+            "default (`WINDOW_MIN_DEG`). A fit whose starting model may sit far from "
+            "the data declares it, such as the Le Bail validation that an indexing "
+            "candidate goes through. Empty takes the default."
         ),
         unit="deg 2θ", default="null",
-        typical="leave null outside indexing validation",
+        typical="leave empty outside indexing validation",
     ),
 }
 
@@ -4244,37 +4196,33 @@ READER_OPTION_HELP: dict[str, HelpEntry] = {
     "bank": HelpEntry(
         title="Detector bank",
         description=(
-            "Which detector bank of a GSAS file to read, by the number its "
-            "own `BANK` record declares — the same number the "
-            "instrument-parameter file's per-bank records use. A bank is a "
-            "detector, not a scan: it has its own scattering angle, its own "
-            "DIFC/DIFA/zero calibration and its own resolution, and a "
-            "time-of-flight diffractometer is several of them (ISIS GEM "
-            "writes six). A file holding more than one bank is refused until "
-            "one is named, because answering with the first would choose "
-            "silently."
+            "Which detector bank of a GSAS file to read, given as the number in the "
+            "file's own `BANK` record. The instrument-parameter file uses the same "
+            "number for its per-bank records. A bank is a detector and not a scan. It "
+            "has its own scattering angle, its own DIFC, DIFA and zero calibration, and "
+            "its own resolution. A time-of-flight diffractometer is several banks (ISIS "
+            "GEM writes six). A file with more than one bank is refused until you name "
+            "one, because answering with the first would choose for you."
         ),
         typical="unset for a single-bank file; the bank's own number otherwise",
     ),
     "block": HelpEntry(
         title="Data block",
         description=(
-            "Which block of a multi-block file to read, matched by substring "
-            "on the block name. A pdCIF carrying both a `_meas` and a `_calc` "
-            "block is a different pattern depending on this, which is why the "
-            "project records the option beside the file rather than only the "
-            "file name."
+            "Which block of a multi-block file to read, matched against part of the "
+            "block name. A pdCIF with both a `_meas` block and a `_calc` block gives a "
+            "different pattern for each. The project therefore records this option "
+            "beside the file name."
         ),
         typical="`_meas` for measured data in a pdCIF",
     ),
     "scan": HelpEntry(
         title="Scan index",
         description=(
-            "Which measurement to read from a file holding several, counting "
-            "from 0. A vendor file commonly stores a whole session. Scans are "
-            "selected and never concatenated: a multi-range file holds "
-            "separate measurements, and joining them mixes two weighting "
-            "regimes."
+            "Which measurement to read from a file that holds several, counting from 0. "
+            "A vendor file often stores a whole session. The scans of a multi-range "
+            "file are separate measurements, so rietx reads one of them and never joins "
+            "them. Joining would mix two weighting regimes."
         ),
         default="0",
         typical="0 unless a preview reports more than one scan",
@@ -4289,11 +4237,11 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "radiation": HelpEntry(
         title="Anode",
         description=(
-            "Which tube anode the pattern was measured with. It selects the "
-            "Kα1 and Kα2 wavelengths from the package's NIST-scale table and "
-            "the doublet weight, so it is the one entry a cell error of about "
-            "100 ppm hides behind. Read it off the instrument rather than "
-            "guessing from the peak positions."
+            "The tube anode that the pattern was measured with. It selects the Kα1 and "
+            "Kα2 wavelengths from the package's NIST-scale table, and the weight of the "
+            "doublet. An error of about 100 ppm in the cell can hide behind this "
+            "setting. Read it off the instrument, because the peak positions cannot "
+            "tell you."
         ),
         typical="`CuKa`, `MoKa`, `CoKa`, `CrKa`, `FeKa`, `AgKa`, or the "
                 "`…Ka1` variant of any of them for a Kα1-only beam",
@@ -4302,24 +4250,23 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "wavelength": HelpEntry(
         title="Wavelength",
         description=(
-            "The incident wavelength, asked for by the Debye-Scherrer preset "
-            "because it is the one geometry with no anode to read it from. A "
-            "synchrotron or neutron beamline states it in the data file or "
-            "the beamline record."
+            "The incident wavelength. The Debye-Scherrer preset asks for it because "
+            "that geometry has no anode to read it from. A synchrotron or neutron "
+            "beamline states it in the data file or the beamline record."
         ),
         unit="Å",
         typical="0.3-1.0 Å synchrotron, 1.0-2.5 Å constant-wavelength neutron",
         anchor="peak-positions.html#wavelength-scales",
     ),
     "polarization": HelpEntry(
-        title="Polarization",
+        title="Polarisation factor",
         description=(
-            "The K of the Lorentz-polarisation correction. Only the "
-            "Debye-Scherrer preset takes it, and leaving it empty there gives "
-            "0.99, the APS 11-BM instrument-parameter value, not the 0.5 of an "
-            "unpolarised laboratory beam. Neither flat-plate preset has the "
-            "field: Bragg-Brentano derives K from `monochromator_two_theta` "
-            "and transmission is unpolarised, K = 0.5."
+            "The factor K of the Lorentz-polarisation correction "
+            "(`lorentz_polarization`). Only the Debye-Scherrer preset takes it. Left "
+            "empty there, it is 0.99, the APS 11-BM instrument-parameter value, and not "
+            "the 0.5 of an unpolarised laboratory beam. Neither flat-plate preset has "
+            "the field. Bragg-Brentano derives K from `monochromator_two_theta`, and "
+            "transmission is unpolarised with K = 0.5."
         ),
         typical="0.99 is the preset default; 0.5 is an unpolarised lab beam",
         anchor="corrections.html#lorentz-polarisation",
@@ -4327,9 +4274,9 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "goniometer_radius_mm": HelpEntry(
         title="Goniometer radius",
         description=(
-            "The radius of the 2θ circle. The specimen-displacement shift "
-            "divides by it (McCusker eq 3), so declaring it is what turns a "
-            "refined displacement into millimetres instead of an arbitrary "
+            "The radius of the 2θ circle. The specimen-displacement shift divides by it "
+            "(McCusker et al. 1999, equation 3). Declaring it turns a refined "
+            "displacement into millimetres. Without it the displacement is an arbitrary "
             "coefficient."
         ),
         unit="mm",
@@ -4339,13 +4286,12 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "monochromator_two_theta": HelpEntry(
         title="Monochromator 2θ",
         description=(
-            "The take-off angle of a diffracted-beam monochromator crystal. "
-            "It fixes the polarisation factor K at 1/(1 + cos²2θ_m), which is "
-            "0.556 for graphite (002) at Cu Kα. `Instrument.bragg_brentano` "
-            "is what does that conversion. Leave it empty if there is no "
-            "monochromator, which leaves the unpolarised K = 0.5. The 26.6° "
-            "is a Cu number rather than a property of the graphite, so "
-            "compute it for the anode in use."
+            "The take-off angle of a diffracted-beam monochromator crystal. It fixes "
+            "the polarisation factor K at 1/(1 + cos²2θm), which is 0.556 for graphite "
+            "(002) at Cu Kα. `Instrument.bragg_brentano` does that conversion. Leave it "
+            "empty if there is no monochromator, which gives the unpolarised K = 0.5. "
+            "The angle 26.6° belongs to Cu Kα. Graphite (002) diffracts other anodes at "
+            "other angles, so compute it for your anode."
         ),
         unit="deg",
         typical="26.6° for graphite (002) at Cu Kα; 9.6-39.9° for the same "
@@ -4355,10 +4301,9 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "ka2_ratio": HelpEntry(
         title="Kα2 to Kα1 ratio",
         description=(
-            "The intensity of the Kα2 line relative to Kα1. 0.5 is the 2j+1 "
-            "degeneracy ratio and is the right starting value for every "
-            "anode. Change it only when a monochromator or a filter has "
-            "altered the doublet."
+            "The intensity of the Kα2 line relative to Kα1. 0.5 is the 2j+1 degeneracy "
+            "ratio and the right starting value for every anode. Change it only when a "
+            "monochromator or a filter has altered the doublet."
         ),
         default="0.5",
         typical="0.5",
@@ -4367,9 +4312,8 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "capillary_radius_mm": HelpEntry(
         title="Capillary radius",
         description=(
-            "The internal radius of the capillary bore, not its outside "
-            "diameter. It is an input to estimating µR and never a refined "
-            "quantity."
+            "The radius of the capillary bore, measured inside the glass. It is an "
+            "input for estimating µR and is never refined."
         ),
         unit="mm",
         typical="0.1-0.5 mm",
@@ -4378,9 +4322,9 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "packing_fraction": HelpEntry(
         title="Packing fraction",
         description=(
-            "The fraction of the bore or the specimen slab occupied by solid. "
-            "An input to estimating µR and µt, never refinable. 0.3-0.6 covers "
-            "a tapped powder and 0.64 is random close packing of spheres."
+            "The fraction of the bore, or of the specimen slab, that solid occupies. It "
+            "is an input for estimating µR and µt and is never refined. A tapped powder "
+            "falls at 0.3-0.6, and random close packing of spheres is 0.64."
         ),
         default="0.6",
         typical="0.3-0.6",
@@ -4389,12 +4333,11 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "mu_r": HelpEntry(
         title="µR",
         description=(
-            "The capillary absorption parameter, the linear attenuation "
-            "coefficient times the bore radius. Leave it empty for no "
-            "correction: µR = 0 is the off state. It is not refinable, "
-            "because it is exactly a reparameterisation of the phase scale "
-            "and the displacement parameters, so the fit statistic cannot "
-            "move. Its entire content is a shift of every B by "
+            "The capillary absorption parameter. It is the linear attenuation "
+            "coefficient times the bore radius. Leave it empty for no correction, "
+            "because µR = 0 is the off state. It cannot be refined. It is exactly a "
+            "reparameterisation of the phase scale and the displacement parameters, so "
+            "the fit statistic cannot move. Its whole effect is a shift of every B by "
             "c(µR)·λ²/2."
         ),
         typical="0-1 for a typical capillary mount",
@@ -4403,14 +4346,13 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "mu_t": HelpEntry(
         title="µt",
         description=(
-            "The flat-plate absorption parameter, the linear attenuation "
-            "coefficient times the specimen thickness. The off state belongs "
-            "to the geometry. On a Bragg-Brentano mount leaving it empty is "
-            "the thick specimen, and µt = 0 there is a specimen of no "
-            "thickness and is refused. In transmission µt = 0 is legal and is "
-            "what empty means: a non-absorbing plate, still carrying the sec θ "
-            "footprint factor. Declaring a thickness wrongly on a genuinely "
-            "thick specimen makes the fit worse and biases every B downwards."
+            "The flat-plate absorption parameter. It is the linear attenuation "
+            "coefficient times the specimen thickness. What an empty value means "
+            "depends on the geometry. On a Bragg-Brentano mount, empty is a thick "
+            "specimen. There µt = 0 is a specimen of no thickness, and it is refused. "
+            "In transmission, µt = 0 is legal and means a non-absorbing plate that "
+            "still carries the sec θ footprint factor. Declaring a thickness for a "
+            "genuinely thick specimen makes the fit worse and biases every B downwards."
         ),
         typical="empty for a thick reflection specimen; 1-5 for a thin "
                 "transmission mount",
@@ -4419,9 +4361,9 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "thickness_mm": HelpEntry(
         title="Specimen thickness",
         description=(
-            "For a reflection mount, the depth of the powder layer and not "
-            "the depth of the holder. An input to estimating µt only. Leave "
-            "it empty for a thick specimen."
+            "For a reflection mount, the depth of the powder layer, excluding the "
+            "holder. It is an input for estimating µt only. Leave it empty for a thick "
+            "specimen."
         ),
         unit="mm",
         typical="0.1-2 mm for a transmission mount",
@@ -4444,11 +4386,10 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "systems": HelpEntry(
         title="Crystal systems to search",
         description=(
-            "Which crystal systems the search covers, run in decreasing "
-            "symmetry so a cubic answer arrives in seconds and a triclinic "
-            "one in minutes. Restricting them is not a verdict about the "
-            "specimen: the result reports the systems it searched, and says "
-            "nothing about the ones it did not."
+            "Which crystal systems the search covers. They run in decreasing symmetry, "
+            "so a cubic answer arrives in seconds and a triclinic one in minutes. "
+            "Restricting the systems says nothing about the specimen. The result lists "
+            "the systems it searched and makes no claim about the others."
         ),
         typical="all seven; narrow only when a prior tells you the system",
         anchor="using/indexing.html#the-search-specification",
@@ -4456,9 +4397,9 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "centrings": HelpEntry(
         title="Bravais centrings",
         description=(
-            "Which lattice centrings to try within each system. Unticking one "
-            "narrows the search and is recorded in the result's spec notes. "
-            "At least one must stay in every system being searched."
+            "Which lattice centrings to try within each system. Clearing one tick "
+            "narrows the search, and the result records it. At least one must stay "
+            "ticked in every system you search."
         ),
         typical="all of them; a wrongly excluded centring costs the true cell",
         anchor="using/indexing.html#the-search-specification",
@@ -4466,10 +4407,10 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "preset": HelpEntry(
         title="Search preset",
         description=(
-            "The name of the whole-run ceiling. `quick`, the default, runs "
-            "every engine and system under a measured ceiling and reports "
-            "truncation loudly. `full` is unbounded. A typed whole-run budget "
-            "overrides the preset and the result records `custom`."
+            "The named ceiling on the whole run. `quick`, the default, runs every "
+            "engine and system under a measured ceiling and reports any truncation "
+            "prominently. `full` has no ceiling. A whole-run budget that you type "
+            "overrides the preset, and the result then records `custom`."
         ),
         typical="`quick` for a first look, `full` when the answer matters",
         anchor="using/indexing.html#presets-budgets-and-the-three-states-of-a-system",
@@ -4477,21 +4418,20 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "total_budget_seconds": HelpEntry(
         title="Whole-run budget",
         description=(
-            "Wall-clock ceiling for the whole run: search, probe and "
-            "validation together. Empty leaves it to the preset. Setting it "
-            "overrides the preset's ceiling and the result records the preset "
-            "as `custom`."
+            "Wall-clock ceiling on the whole run, covering search, probe and validation "
+            "together. Empty leaves the ceiling to the preset. A value here overrides "
+            "the preset's ceiling, and the result records the preset as `custom`."
         ),
         unit="s",
-        typical="empty; a few minutes if you are bounding an interactive click",
+        typical="empty; a few minutes to bound an interactive run",
         anchor="using/indexing.html#presets-budgets-and-the-three-states-of-a-system",
     ),
     "budget_seconds": HelpEntry(
-        title="Budget per search slice",
+        title="Time per engine and system",
         description=(
-            "Wall clock for one engine on one crystal system, not for the "
-            "run. An engine stopped by it reports that system as incomplete, "
-            "and a negative result from an incomplete search is not evidence "
+            "Wall-clock time for one engine on one crystal system. It does not bound "
+            "the whole run. An engine that this limit stops reports that system as "
+            "incomplete. A negative result from an incomplete search is no evidence "
             "against a cell."
         ),
         unit="s",
@@ -4502,9 +4442,9 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "min_d_axis": HelpEntry(
         title="Shortest principal d-spacing",
         description=(
-            "The shortest principal d-spacing a candidate cell may have. It "
-            "bounds d(100) rather than the axis a, which is slightly stronger "
-            "for an oblique cell."
+            "The shortest principal d-spacing a candidate cell may have. It bounds "
+            "d(100). For an oblique cell that is slightly stronger than a bound on the "
+            "axis a."
         ),
         unit="Å",
         default="2.0",
@@ -4514,9 +4454,9 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "max_d_axis": HelpEntry(
         title="Longest principal d-spacing",
         description=(
-            "The longest principal d-spacing a candidate cell may have. "
-            "Raising it costs exponentially, because the size of the domain "
-            "is what an exhaustive search pays for."
+            "The longest principal d-spacing a candidate cell may have. Raising it "
+            "costs exponentially, because the domain grows and an exhaustive search "
+            "covers all of it."
         ),
         unit="Å",
         default="25.0",
@@ -4526,8 +4466,8 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "min_volume": HelpEntry(
         title="Smallest cell volume",
         description=(
-            "The smallest cell volume a candidate may have. It removes the "
-            "degenerate small cells that index a few lines by coincidence."
+            "The smallest cell volume a candidate may have. It removes the tiny cells "
+            "that index a few lines by coincidence."
         ),
         unit="Å³",
         default="15.0",
@@ -4535,12 +4475,11 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         anchor="using/indexing.html#the-search-specification",
     ),
     "max_volume": HelpEntry(
-        title="Cell-volume ceiling",
+        title="Largest cell volume",
         description=(
-            "The largest cell volume a candidate may have, taken verbatim. "
-            "Empty takes Smith's per-system envelope from the data-quality "
-            "report, with the calibration slack the engines apply to a mean "
-            "line."
+            "The largest cell volume a candidate may have, used exactly as you give it. "
+            "Empty takes the per-system envelope of Smith (1977) from the data-quality "
+            "report, with the calibration slack that the engines apply to a mean line."
         ),
         unit="Å³",
         typical="empty; state it only when you know the volume",
@@ -4549,34 +4488,33 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "n_unindexed": HelpEntry(
         title="Unindexed lines allowed",
         description=(
-            "How many search lines a cell may leave unindexed and still be "
-            "accepted. Raising it manufactures cells: every tolerated line is "
-            "one more coincidence a wrong metric is allowed. Two is a "
-            "default; four is a statement about the specimen."
+            "How many search lines a cell may leave unindexed and still be accepted. "
+            "Raising it manufactures cells, because every tolerated line is one more "
+            "coincidence that a wrong metric is allowed. Two is the default. Four is a "
+            "statement that you know something about the specimen, such as an impurity."
         ),
         default="2",
         typical="2, or up to 4 on a pattern with a known impurity",
         anchor="using/indexing.html#the-search-specification",
     ),
     "n_search_lines": HelpEntry(
-        title="Lines the search is driven by",
+        title="Lines that drive the search",
         description=(
-            "How many of the strongest observed lines drive the search. It is "
-            "not free to raise: a cell must index all but the allowance of "
-            "these, so every extra foreign line can refute the true cell. "
-            "Measured on a 68-line list, the certified lattice is lost at 32."
+            "How many of the strongest observed lines drive the search. Raising it is "
+            "not free. A cell must index all but the allowance of these lines, so every "
+            "extra foreign line can refute the true cell. On a 68-line list the "
+            "certified lattice is lost at 32."
         ),
         default="20",
-        typical="20; the tail of a list is where foreign lines live",
+        typical="20; foreign lines live in the tail of a list",
         anchor="using/indexing.html#the-search-specification",
     ),
     "k_sigma": HelpEntry(
         title="Matching window in σ",
         description=(
-            "The matching window, in units of each line's own σ. Three is a "
-            "99.7 % window and a calibrated figure rather than a knob. The "
-            "systematic allowance below is the other half of the window, and "
-            "it is the half a displaced pattern needs."
+            "The matching window in units of each line's own σ. Three is a calibrated "
+            "99.7 % window and needs no tuning. The systematic 2θ allowance is the "
+            "other half of the window, and a displaced pattern needs that half."
         ),
         default="3.0",
         typical="3",
@@ -4585,12 +4523,12 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "shift_allowance_deg": HelpEntry(
         title="Systematic 2θ allowance",
         description=(
-            "A systematic 2θ allowance you have measured: the amplitude a "
-            "matching window has to span, never the residual scatter a "
-            "template leaves after fitting. The two differ by 4.3× on a "
-            "certified pattern, and declaring the scatter finds no cell at "
-            "all. Zero lets the engines assume their own allowance and caps "
-            "the confidence they may report."
+            "A systematic 2θ allowance that you have measured. It is the amplitude that "
+            "the matching window has to span. The residual scatter left after fitting a "
+            "template is a different quantity. The two differ by 4.3× on a certified "
+            "pattern, and declaring the scatter finds no cell at all. Zero lets the "
+            "engines assume their own allowance and caps the confidence they may "
+            "report."
         ),
         unit="deg 2θ",
         default="0.0",
@@ -4600,9 +4538,9 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "shift_template": HelpEntry(
         title="Shift template",
         description=(
-            "The physical cause of the 2θ shift, if you know it. A candidate "
-            "that survives the search is re-fitted with this column, which is "
-            "what stops a widened search reporting a biased cell."
+            "The physical cause of the 2θ shift, if you know it. A candidate that "
+            "survives the search is refitted with this correction. The refit stops a "
+            "widened search from reporting a biased cell."
         ),
         typical="`cos_theta` for specimen displacement, `constant` for a zero error",
         anchor="using/indexing.html#the-systematic-shift-and-the-window-it-opens",
@@ -4610,10 +4548,10 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "max_candidates": HelpEntry(
         title="Candidates reported",
         description=(
-            "How many candidates the reported list holds once the engines are "
-            "merged and ranked. It also prices validation, since every "
-            "reported candidate costs a Le Bail fit. Each engine hands the "
-            "merge five times this many, so the cap never decides a rank."
+            "How many candidates the final list holds after the engines are merged and "
+            "ranked. It also sets the validation cost, since every reported candidate "
+            "needs a Le Bail fit. Each engine hands five times this number to the "
+            "merge, so the cap never decides a rank."
         ),
         default="12",
         typical="12",
@@ -4622,8 +4560,8 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "seed": HelpEntry(
         title="Random seed",
         description=(
-            "The stochastic engine's RNG seed. It is recorded in every "
-            "result, so a run is reproducible from what it reports."
+            "The seed of the stochastic engine's random number generator. Every result "
+            "records it, so you can reproduce a run from what it reports."
         ),
         default="0",
         typical="0",
@@ -4632,11 +4570,11 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "prior_cells": HelpEntry(
         title="Analogue cells",
         description=(
-            "Cells from a structural analogue, each as a b c α β γ. The "
-            "system jumps the queue, the metric seeds the stochastic engine, "
-            "and the cell itself is checked against the lines. A prior "
-            "steers and never gates: a wrong one costs time rather than "
-            "truth, and the result records what it changed."
+            "Cells from a structural analogue, each given as a b c α β γ. The cell's "
+            "crystal system moves to the front of the queue, its metric seeds the "
+            "stochastic engine, and the cell itself is checked against the lines. A "
+            "prior steers the search. A wrong one costs time and cannot rule out the "
+            "true cell, and the result records what it changed."
         ),
         typical="empty; one analogue cell when the chemistry suggests one",
         anchor="using/indexing.html#the-search-specification",
@@ -4644,9 +4582,9 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "prior_spacegroups": HelpEntry(
         title="Analogue space groups",
         description=(
-            "Space-group symbols from a structural analogue, such as `R -3 c`. "
-            "Each contributes its crystal system to the queue jump and, "
-            "beside a matching prior cell, its centring."
+            "Space-group symbols from a structural analogue, such as `R -3 c`. Each "
+            "moves its crystal system to the front of the queue and, beside a matching "
+            "prior cell, supplies its centring."
         ),
         typical="empty",
         anchor="using/indexing.html#the-search-specification",
@@ -4654,9 +4592,9 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "engines": HelpEntry(
         title="Engines to run",
         description=(
-            "Which searches run. All of them is the default to keep, because "
-            "high confidence means every engine that ran found the same "
-            "lattice: a subset narrows what the answer is able to say."
+            "Which searches run. Keep the default of all of them. High confidence means "
+            "that every engine that ran found the same lattice, so a subset narrows "
+            "what the answer can say."
         ),
         typical="all of them",
         anchor="using/indexing.html#three-engines-and-why-the-default-is-all-of-them",
@@ -4664,22 +4602,21 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "validate_candidates": HelpEntry(
         title="Le Bail validation",
         description=(
-            "Whole-profile validation of the top candidates. Turning it off "
-            "caps every candidate at medium confidence, because the "
-            "figure-of-merit panel cannot see a reflection predicted where "
-            "the pattern has no intensity. Do it only to save time on a "
-            "first look."
+            "Whole-profile validation of the top candidates. Turning it off caps every "
+            "candidate at medium confidence, because the figure-of-merit panel cannot "
+            "see a reflection predicted where the pattern has no intensity. Turn it off "
+            "only to save time on a first look."
         ),
         default="true",
         typical="on",
         anchor="using/indexing.html#the-whole-profile-test",
     ),
     "check_top": HelpEntry(
-        title="Candidates given the expensive checks",
+        title="Candidates checked in depth",
         description=(
-            "How many candidates get the per-candidate checks, which are the "
-            "ambiguity search and the Le Bail fit. Empty takes the package "
-            "default plus every candidate the confidence gate could promote."
+            "How many candidates get the per-candidate checks: the ambiguity search and "
+            "the Le Bail fit. Empty takes the package default plus every candidate that "
+            "the confidence gate could promote."
         ),
         typical="empty",
         anchor="using/indexing.html#the-whole-profile-test",

@@ -339,7 +339,9 @@ class SeriesStep(Base):
 
 
 class SeriesFailure(Base):
-    """One pattern the chain could not fit at all — an uncaught exception out
+    """One pattern the chain could not fit at all.
+
+    The cause is an uncaught exception out
     of :meth:`~rietx.refine.Refinement.fit` on **every** rung of the ladder
     (WP-1333: a rung that raises escalates, so a pattern a later rung rescued
     is an entry with ``rungs_raised`` instead), not a converged-but-bad result

@@ -2226,8 +2226,8 @@ class Refinement:
 
     def edit(self, *, structure: Structure | None = None,
              instrument: Instrument | None = None, label: str = "") -> str | None:
-        """Record a change to the model itself — adding an impurity phase,
-        raising the background order, swapping the geometry.
+        """Record a change to the model itself, such as adding an impurity phase,
+        raising the background order or swapping the geometry.
 
         Structural edits are refinement moves too: they belong in the history
         beside the stages, so a branch that adds a phase can be compared
@@ -2379,7 +2379,7 @@ class Refinement:
         return refinement_html(self)
 
     def parameters(self, *, mode: Mode | None = None) -> list[ParameterRow]:
-        """Every parameter as data — fixed, locked and tied rows included.
+        """Every parameter as data, with fixed, locked and tied rows included.
 
         The counterpart of ``result_.parameters`` (which lists only what a fit
         refined): this is the whole table, in θ order, with the most recent
@@ -5185,7 +5185,7 @@ class Refinement:
 
     # ------------------------------------------------------------------
     def predict(self, two_theta=None) -> np.ndarray:
-        """y_calc at the current parameters — **the evaluate-only path**.
+        """Evaluate ``y_calc`` at the current parameters, without a fit.
 
         With a grid — an array of 2θ values, or a
         :class:`~rietx.PatternData` whose 2θ column is used — this compiles a

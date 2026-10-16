@@ -1310,8 +1310,8 @@ class ReflectionPairScreen(Base):
 
 
 class ShiftScreen(Base):
-    """Which physical cause a systematic 2θ shift has — or that it has no
-    nameable one over the range measured.
+    """Which physical cause a systematic 2θ shift has, or that it has none
+    that can be named over the range measured.
 
     ``best`` always names the template that fits best; ``separable`` says
     whether that name means anything.  The asymmetry is the point: when the
@@ -1674,7 +1674,7 @@ class IndexingControls(Base):
 
 
 class CaveatEvidence(Base):
-    """One caveat, carrying the half the gate never serialized: its **kind**.
+    """One caveat, with the half of it the gate never wrote out: its kind.
 
     ``confidence_caveats`` is a bare name list, and whether a member *refutes*
     the cell or merely *caps* its grade lives in
@@ -1801,7 +1801,7 @@ def _candidate_label(c: CellCandidate) -> str:
 
 
 class IndexingResult(Base):
-    """What :func:`rietx.index_pattern` returns — and what it *cannot* return.
+    """What :func:`rietx.index_pattern` returns: a list of candidates, with no ``.cell`` or ``.best``.
 
     **The founding rule is enforced by the type.**  There is no ``.cell``, no
     ``.best`` and no ``.solution`` attribute; :attr:`candidates` is always a list,

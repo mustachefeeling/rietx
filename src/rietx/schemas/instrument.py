@@ -1532,7 +1532,7 @@ class BackgroundChebyshev(Base):
 
 
 class BackgroundPSpline(Base):
-    """Penalized cubic P-spline background, co-refined with the structure.
+    """Penalised cubic P-spline background, co-refined with the structure.
 
     The background is linear in its B-spline coefficients (exact Jacobian
     columns), and a second-difference smoothness penalty on the coefficients
@@ -1602,8 +1602,8 @@ class BackgroundPSpline(Base):
 
 
 class BackgroundFixedPlusChebyshev(_InheritsDeclaredDefaults):
-    """A fixed curve (never subtracted; held additively) plus a small refinable
-    Chebyshev correction on top, and a scale on the curve itself.
+    """A fixed curve held in the model, a small refinable Chebyshev correction
+    on top, and a scale on the curve itself.
 
     The curve is either an estimate — :func:`rietx.background.estimate`, arPLS
     or SNIP — or a **measurement**: an empty vanadium can, a blank capillary, a

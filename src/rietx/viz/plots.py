@@ -1244,7 +1244,7 @@ def plot_pattern(data, *, path: str | None = None,
 
 def plot_for_vlm(result: RefinementResult, report=None, *,
                  path: str, n_regions: int = 4, dpi: int = 140):
-    """Annotated multi-panel montage rendered for what VLMs *can* read.
+    """Annotated multi-panel montage drawn for a vision-language model to read.
 
     VLM benchmarks (CharXiv, ChartMuseum) show frontier models fail precise
     value extraction from dense single-panel plots, so this montage trades

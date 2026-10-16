@@ -79,7 +79,7 @@ def _sha256(path: Path) -> str:
 
 
 class Project:
-    """An openable, savable refinement session on disk.
+    """A refinement session stored on disk, which you can open and save.
 
     ``project.refinement`` is the working state (positioned at the history head)
     and ``project.data`` the pattern it is fitted against; :meth:`fit` and

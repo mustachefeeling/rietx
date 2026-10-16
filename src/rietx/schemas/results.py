@@ -243,11 +243,12 @@ class CorrelationPair(Base):
 
 
 class SoftMode(Base):
-    """One near-null direction of the scale-normalised normal matrix
-    (WP-1056; Watkin, 2008, J. Appl. Cryst. 41, 491 §3.8 — the informative
+    """One near-null direction of the scale-normalised normal matrix.
+
+    WP-1056.  Watkin, 2008, J. Appl. Cryst. 41, 491 §3.8 — the informative
     object is the *combination*, not the pair; Prince, *Mathematical
     Techniques* 3rd ed. ch. 8 — remedies are "linear combinations of
-    parameters that are approximately eigenvectors of the Hessian matrix").
+    parameters that are approximately eigenvectors of the Hessian matrix".
 
     ``eigenvalue`` is of ĴᵀĴ with every column normalised to unit length, so
     it is dimensionless and transform-independent: for a single pair with
@@ -264,9 +265,9 @@ class SoftMode(Base):
 
 
 class ExchangeRow(Base):
-    """One held parameter's exchangeability with the fitted span (WP-1056).
+    """How well the fitted parameters can imitate one held parameter.
 
-    ``r2`` is the block projection R² of the held parameter's Jacobian
+    WP-1056.  ``r2`` is the block projection R² of the held parameter's Jacobian
     column — evaluated at the converged values with the candidate freed on a
     copy of the vary set, never refined — onto the span of the free columns:
     R² → 1 means the data cannot distinguish freeing it from what was
@@ -426,10 +427,9 @@ class MicroabsorptionCorrection(Base):
 
 
 class AbsorptionCorrection(Base):
-    """Record of the specimen absorption applied — WP-0501 (cylinder), WP-0508
-    (flat plate).
+    """Record of the specimen absorption applied (cylinder or flat plate).
 
-    Present only for Rietveld fits that actually carried a specimen dimension.
+    WP-0501 added the cylinder and WP-0508 the flat plate.  Present only for Rietveld fits that actually carried a specimen dimension.
     ``method`` says which geometry's expression ran; ``mu_r`` carries the
     dimensionless µ·(length) in every case — the capillary radius for
     ``rouse_cylinder``, the specimen thickness for the two flat-plate cases —

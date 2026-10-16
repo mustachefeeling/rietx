@@ -132,8 +132,14 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
 - [x] The per-code explanation reaches the Reference tab: `diagnostics.md` is a table of
       code, name and page, and six subsystem pages carry a section per code. One page
       broke the page contract's 50 000-character cap at 139 267.
-- [ ] The `rietx.help` corpus rewritten in the same voice, the GUI `label` chips checked.
-- [ ] `.vale.ini` widened to `_generated/`, and the generated pages clean under it.
+- [x] The `rietx.help` corpus rewritten in the same voice, the GUI `label` chips checked:
+      all 136 entries (two JSON lanes applied by an AST editor, verified field for field),
+      no `label` changed, the three pinned threshold spellings kept. The coordinate entry
+      is "Atom position shift" and says how GSAS-II and FullProf hold a special position.
+      `PLAN_INFO` and the docstring summaries the API pages quote were rewritten too.
+- [x] `.vale.ini` widened to `_generated/`, and the generated pages clean under it: CI
+      writes the bodies before Vale reads them. 0 errors over 38 pages (was 96 once
+      widened); 9 warnings remain (adverbs, the API pages' acronym headings).
 - [ ] Skill: the diagnostics references re-synced to the new fields
       (`rietx skill --install . --copy`).
 

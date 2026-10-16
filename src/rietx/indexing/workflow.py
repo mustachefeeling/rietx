@@ -610,7 +610,7 @@ def index_pattern(peaks: PeakList | None = None, *,
                   two_theta_limits: tuple[float, float] | None = None,
                   formula: str | None = None, temperature: float = 298.0,
                   events=None, cancel=None):
-    """Find the unit cell — or say, in the shape of the answer, that it cannot.
+    """Find the unit cell, or say in the shape of the answer that it cannot be found.
 
     Give it a :class:`~rietx.schemas.indexing.PeakList`, or a ``data`` +
     ``instrument`` pair it will pick peaks from.  Supplying ``data`` is what turns

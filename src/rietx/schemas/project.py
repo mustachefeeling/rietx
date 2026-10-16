@@ -82,7 +82,7 @@ def check_interval(kind: str, lo: float, hi: float) -> None:
 
 
 class DataRef(Base):
-    """The pattern a project is fitted against, as a checkable reference.
+    """The pattern a project is fitted against, held as a reference you can check.
 
     The bytes are copied into the project verbatim and *this* is what makes them
     trustworthy again on re-open.  Three quantities, deliberately not one:
@@ -122,7 +122,7 @@ class DataRef(Base):
 
 
 class ProjectDoc(Base):
-    """``project.json`` — the settings half of a project (see module docstring)."""
+    """The settings half of a project, stored as ``project.json`` (see the module docstring)."""
 
     format_version: str = PROJECT_FORMAT_VERSION
     package_version: str = ""
