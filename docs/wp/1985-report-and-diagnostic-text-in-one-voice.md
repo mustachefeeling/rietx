@@ -140,8 +140,11 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
 - [x] `.vale.ini` widened to `_generated/`, and the generated pages clean under it: CI
       writes the bodies before Vale reads them. 0 errors over 38 pages (was 96 once
       widened); 9 warnings remain (adverbs, the API pages' acronym headings).
-- [ ] Skill: the diagnostics references re-synced to the new fields
-      (`rietx skill --install . --copy`).
+- [x] Skill: the diagnostics references re-synced to the new fields
+      (`rietx skill --install . --copy`). Every code row in the five `diagnostics*.md`
+      files, `abstention.md`, `series.md` and `magnetic.md` keeps only agent policy,
+      routing and tagged measurements (about 49 KB cut over the eight files), and the
+      code-against-skill disagreements this WP's audit found are fixed in the rows.
 
 ## Acceptance
 

@@ -565,7 +565,7 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
             where=where + ([f"first at {tt[0]:.3f}°"] if tt else []),
             suggestion=("Compare the smaller cell that indexes the same lines, "
                         "and read this count beside lebail.rwp. Rwp moves "
-                        "little on an oversized cell (0.389 against 0.200 for "
+                        "little on an oversized cell (0.379 against 0.216 for "
                         "the correct one).")))
 
     refuting = [c for c in cand.supercell_checks or [] if c.verdict == "refuted"]
