@@ -423,6 +423,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1811](1811-bodies-in-a-series.md) | Bodies in a series | ⬜ | P3 | [1805](1805-the-rigid-body.md), [1333](1333-a-series-survives-one-pattern.md) |
 | [1812](1812-gui-textdoc-skill-and-manual-for-bodies.md) | GUI, textdoc, skill and manual for bodies | ⬜ | P4 | [1805](1805-the-rigid-body.md) |
 | [1813](1813-fragment-io.md) | Fragment I/O: XYZ, Z-matrix write, SMILES behind an extra | ⬜ | P4 | [1802](1802-the-fragment-type.md) |
+| [1814](1814-refinable-z-matrix-internals.md) | Refinable internal geometry: Z-matrix lengths, angles and dihedrals | ⬜ | P3 | [1815](1815-derived-geometry-torsions-and-a-request-form.md), [1805](1805-the-rigid-body.md) |
+| [1815](1815-derived-geometry-torsions-and-a-request-form.md) | Derived geometry: torsions, a request form, one table every writer reads | ⬜ | P3 | [1804](1804-the-derived-block.md) |
 
 ## <a id="structure-solution"></a>structure-solution — a map, a cost and a search
 
@@ -621,6 +623,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1919](1919-maximal-subgroups-generated-from-the-operators.md) | Maximal subgroups, their conjugacy classes, (P, p) and Wyckoff splittings, generated from the group's own operators | ⬜ | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
 | [1921](1921-the-users-own-structure-database-indexed.md) | The user's own structure database, indexed: is this phase or this cell already known? | ⬜ | P3 | — |
 | [1967](1967-what-the-chemist-declares-reaches-the-extinction-screen.md) | What the chemist declares reaches the extinction screen | ⬜ | P2 | — ([1910](1910-the-extinction-screen-at-a-small-cell-error.md) soft) |
+| [1992](1992-nw2-magnetic-superspace-groups.md) | N-W2 (group half): magnetic superspace groups generated from the operators | ⬜ | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
+| [1993](1993-nw3-satellites-at-a-real-q.md) | N-W3: satellites at a real q, to order m, with (h k l m) rows | ⬜ | P3 | — ([1992](1992-nw2-magnetic-superspace-groups.md) soft) |
 
 ### <a id="unscheduled-the-repo-s-own-process"></a>The repo's own process
 

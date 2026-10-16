@@ -44,6 +44,13 @@ Relevant rules, restated:
 
 ### Inherited
 
+- **Decided 2026-10-16 (maintainer, from the issue triage, #954): both
+  halves.** A phase with no reflection in the fitted range gets no QPA
+  fraction under every solver, and its scale is held so a walked value reaches
+  no later stage, chain or export. The remaining fractions are reported
+  relative to the phases seen in range, and the report says so. This carries
+  the absent-rather-than-zero rule (WP-1072, WP-1110 item 14) to the fraction.
+
 - **2026-10-16, from the issue triage (#954): the reporter's answer to task
   2's choice (2026-10-14) is not in the WP.** @mustachefeeling takes the QPA
   half as the required one: no fraction for a phase with no reflection in the

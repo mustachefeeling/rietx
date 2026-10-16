@@ -53,6 +53,14 @@ screenshots come from `docs/manual/make_screenshots.py`.
 
 ### Inherited
 
+- **Decided 2026-10-16 (maintainer, from the issue triage, #141): the
+  planted-events fixture goes ahead now.** The reporter opens it as a
+  tests-only PR against this WP, WP-1965 named as the second user: the seeded
+  generator, the full-length series, its `refine_sequential` result and
+  `to_table()` output, and a test that every planted event appears in the flag
+  vocabulary. The test says it checks recovery of planted events, since the
+  data come from the model being fitted.
+
 - **2026-10-16, from the issue triage (#141): the reporter asks to schedule
   the planted-events fixture now.** Posted 2026-10-16T07:00Z, after the
   2026-10-13 entry. They propose it as this WP's first task, or under

@@ -70,6 +70,11 @@ cell 0.2 s. Phase keys at 0.5 % cell tolerance: 149 373 for 136 727
 
 ### Inherited
 
+- **Decided 2026-10-16 (maintainer, from the issue triage, #990): search-match
+  stays behind the v2+ fence.** #990's request to unfence it is declined for
+  now, and this WP stays at lookup (stages 1a and 1b). Task 1's question (1)
+  is answered: stage 3 does not leave the fence.
+
 - **2026-10-16, from the issue triage (#813): the reporter split stage 3 out
   as #990 (their comment of 2026-10-15), and ROADMAP now names #990 at the v2+
   fence; WP-1921 does not.** #990 proposes search-match (`candidates()`) as

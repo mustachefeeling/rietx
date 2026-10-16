@@ -106,6 +106,12 @@ and is not proposed here. No code is ported.
 
 ### Inherited
 
+- **Decided 2026-10-16 (maintainer, from the issue triage, #726): the
+  local-baseline refutation check is welcome as a PR after #939 merges.** Its
+  fixture is public (PbSO4, `tests/data/gsas2_pbso4.gpx`), never the
+  unpublished pattern; the 10-kit table travels with it; the PR states what
+  the check still catches once the prefit has seeded the background.
+
 - **2026-10-16, from the issue triage (#726): two comments of 2026-10-15 are
   in no WP, and one carries an unanswered PR offer.** The 2026-10-13 comment
   (gate + prefit) is the 2026-10-14 entry's PR #939. The two after it are not

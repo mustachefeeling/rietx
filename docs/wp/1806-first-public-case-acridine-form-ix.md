@@ -32,6 +32,17 @@ of issue #561, sized M.
 
 ### Inherited
 
+- **Decided 2026-10-16 (maintainer, from the issue triage, #561): the bar is
+  option (c), and the body may be built from the deposited coordinates.** Each
+  body atom passes within the larger of its published esd and rietx's own esd
+  for that atom. The published esds come from a free-atom refinement with a
+  different profile and background, so they are one reference among two.
+  Option (b), removing the mean translation, was declined because it hides the
+  body's position. `body_from_atoms` on the deposited heavy atoms is allowed,
+  since an idealised template already sits 0.019 Å off. The Context line
+  holding the background at zero is wrong per the entry below and is corrected
+  when this WP starts.
+
 - **2026-10-16, from the issue triage (#561): the reporter's R4 groundwork
   contradicts two lines of this WP and asks the maintainer to choose the
   bar.** Three comments, 2026-10-15 23:20Z to 2026-10-16 07:06Z, none recorded

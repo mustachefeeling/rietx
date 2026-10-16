@@ -544,15 +544,15 @@ scope creep. Each item names what fenced it.
   maximum-entropy maps (McCusker §6; the partition input exists in `lebail_update`, the consumer is
   structure completion; #197); internal-standard and amorphous QPA; **modulated
   structures** (superspace — 1314 reads Jana's files without them; #258 the shared
-  design, #678 its cut, N-W1 landed as PR #682; **decided 2026-10-08:** N-W2's group half and
-  N-W3 open after T-1 merges, one WP per chunk). **Magnetic structures left this fence 2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
+  design, #678 its cut, N-W1 landed as PR #682; N-W2's group half and N-W3 cut 2026-10-16
+  after T-1 merged, as [1992](wp/1992-nw2-magnetic-superspace-groups.md) and [1993](wp/1993-nw3-satellites-at-a-real-q.md)). **Magnetic structures left this fence 2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
   case, polarised neutrons and magnetic X-rays stay fenced (1327's non-goals).
   **Rigid bodies (#195), direct-space solution and stacking faults left it
-  2026-09-28** for scoping in § Unscheduled (1514–1516; DESIGN.md has why).
+  2026-09-28** for scoping in § Unscheduled (1514–1516; DESIGN.md has why); body TLS and the TOPAS rigid import stay (#759, 2026-10-16).
   **Spherical-harmonics texture (#131) left it 2026-10-14** as [1960](wp/1960-spherical-harmonics-texture.md).
 - **Solution.** Charge flipping (#198; 1515 decides whether it follows, and
-  #197 with it); search-match phase identification (#990 asks to unfence it, held
-  2026-10-16; prior art: the 36-cell screen at `guillemot-study:studies/guillemot/match_hl2.py`).
+  #197 with it); search-match phase identification (#990 asked to unfence it; kept
+  fenced 2026-10-16; prior art: the 36-cell screen at `guillemot-study:studies/guillemot/match_hl2.py`).
 - **Indexing, fenced by 1018–1027.** Multi-phase indexing (index the residual
   after subtracting a solved phase); the full Bayesian extinction-symbol
   posterior (Markvardsen et al. 2001 — ΔBIC/Hamilton is the v1.0 form); a
