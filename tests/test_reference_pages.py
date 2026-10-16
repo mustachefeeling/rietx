@@ -156,3 +156,21 @@ def test_the_index_reaches_the_shapes_a_keyword_walk_misses(tmp_path):
     assert index["KW_CODE"]["levels"] == {"warning"}
     assert index["RUN_CODE"]["levels"] == {""}
     assert index["GUARD_CODE"]["levels"] == set()
+
+
+# ----------------------------------------------------------------------
+# The project tree
+# ----------------------------------------------------------------------
+
+def test_the_tree_names_every_writer_constant():
+    text = reference_pages.project_tree()
+    for module, constant, _ in reference_pages.PROJECT_ENTRIES + reference_pages.RUN_ENTRIES:
+        assert f"`{module}.{constant}`" in text
+
+
+def test_a_created_file_no_row_names_raises(monkeypatch):
+    """A new file in a fresh project fails the build until a row describes it."""
+    rows = tuple(r for r in reference_pages.PROJECT_ENTRIES if r[1] != "HISTORY_FILE")
+    monkeypatch.setattr(reference_pages, "PROJECT_ENTRIES", rows)
+    with pytest.raises(RuntimeError, match="history.jsonl"):
+        reference_pages.project_tree()

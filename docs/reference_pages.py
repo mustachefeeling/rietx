@@ -346,11 +346,118 @@ def diagnostic_page() -> str:
     return "\n".join(out + [""])
 
 
+# ----------------------------------------------------------------------
+# The project tree
+#
+# Walked from a project `build_example` creates, so the entries marked as
+# present at creation are ones that exist.  Every other name is read off the
+# constant its writer uses.  The descriptions are the one hand-written part,
+# keyed by constant, and a file in the built example that no row names raises.
+# ----------------------------------------------------------------------
+
+#: (module, constant, what the entry holds), project root first, then a run.
+PROJECT_ENTRIES = (
+    ("rietx.project", "PROJECT_JSON",
+     "Settings: the plan, the mode, the limits, the excluded regions and the GUI's own keys."),
+    ("rietx.project", "HISTORY_FILE",
+     "Every model state, one history node a line, appended. The last node is the working state."),
+    ("rietx.gui.peaks", "PEAKS_FILE",
+     "The peak list the GUI's peak picker edits, tied to the pattern's fingerprint."),
+    ("rietx.project", "LIVE_DIR", "One directory per recorded fit."),
+    ("rietx.project", "EXPORTS_DIR", "What the GUI's export verbs write."),
+)
+RUN_ENTRIES = (
+    ("rietx.runs", "GITIGNORE_FILE",
+     "Holds `*`, so recorded fits stay out of a repository's `git status`."),
+    ("rietx.runs", "META_FILE", "The run's description of itself."),
+    ("rietx.runs", "LOCK_FILE", "Held locked while the fitting process lives."),
+    ("rietx.runs", "STATUS_FILE", "Whether the run is running, done, failed or cancelled."),
+    ("rietx.runs", "EVENTS_FILE", "The event stream, one JSON object a line."),
+    ("rietx.runs", "SNAPSHOT_FILE", "The latest stage's curves and statistics, for a viewer."),
+    ("rietx.runs", "SUMMARY_FILE", "The result's text summary, once one exists."),
+    ("rietx.runs", "CANCEL_FILE", "A stop request. A viewer writes it and the fit reads it."),
+)
+#: A run id of the shape `runs.RUN_ID_RE` accepts.
+EXAMPLE_RUN_ID = "20261016-084102-4242"
+
+
+def _constant(module: str, name: str) -> str:
+    import importlib
+
+    return getattr(importlib.import_module(module), name)
+
+
+def _tree_lines(entries: list[tuple[str, list]], prefix: str = "") -> list[str]:
+    lines = []
+    for i, (name, children) in enumerate(entries):
+        last = i == len(entries) - 1
+        lines.append(f"{prefix}{'└── ' if last else '├── '}{name}")
+        lines += _tree_lines(children, prefix + ("    " if last else "│   "))
+    return lines
+
+
+def project_tree() -> str:
+    """The body of `reference/project.md`: the tree, then what each entry holds."""
+    import tempfile
+
+    from rietx.examples import build_example
+    from rietx.gui.session import EXPORT_DEFAULTS
+    from rietx.runs import RUN_ID_RE
+
+    if not RUN_ID_RE.match(EXAMPLE_RUN_ID):
+        raise RuntimeError(f"EXAMPLE_RUN_ID {EXAMPLE_RUN_ID!r} no longer matches runs.RUN_ID_RE")
+    with tempfile.TemporaryDirectory() as tmp:
+        project = build_example("fap", tmp)
+        created = {p.relative_to(project.path).as_posix() for p in project.path.rglob("*")}
+        name, pattern = project.path.name, project.data_ref.filename
+
+    named = {_constant(m, c): (m, c, what) for m, c, what in PROJECT_ENTRIES}
+    unnamed = sorted(created - set(named) - {pattern})
+    if unnamed:
+        raise RuntimeError(f"a new project has entries no row of PROJECT_ENTRIES names: {unnamed}")
+
+    live, exports = _constant("rietx.project", "LIVE_DIR"), _constant("rietx.project", "EXPORTS_DIR")
+    run_files = [(_constant(m, c), []) for m, c, _ in RUN_ENTRIES]
+    children = {
+        live: [run_files[0], (f"{EXAMPLE_RUN_ID}/", run_files[1:])],
+        exports: [(f, []) for f in EXPORT_DEFAULTS.values()],
+    }
+
+    def shown(entry: str) -> str:
+        return f"{entry}/" if entry in children else entry
+
+    root = [(shown(_constant("rietx.project", "PROJECT_JSON")), []), (pattern, [])]
+    root += [(shown(_constant(m, c)), children.get(_constant(m, c), []))
+             for m, c, _ in PROJECT_ENTRIES[1:]]
+    at_creation = [f"`{shown(e)}`" for e in [_constant("rietx.project", "PROJECT_JSON"), pattern,
+                                              *(_constant(m, c) for m, c, _ in PROJECT_ENTRIES[1:])]
+                   if e in created]
+    empty = [f"`{d}/`" for d in (live, exports)
+             if d in created and not any(p.startswith(f"{d}/") for p in created)]
+    starts_empty = {0: "", 1: f"{empty[0]} starts empty. " if empty else "",
+                    2: f"{' and '.join(empty)} start empty. "}[len(empty)]
+    out = [_BANNER.format(source="a project rietx.examples builds"), "",
+           "```text", f"{name}/", *_tree_lines(root), "```", "",
+           f"A new project holds {', '.join(at_creation[:-1])} and {at_creation[-1]}. "
+           + starts_empty + "A fit, the GUI or an export writes everything else.", "",
+           "| Entry | Named by | What it holds |", "| --- | --- | --- |",
+           f"| `{pattern}` | `DataRef.filename` | The pattern file, copied byte for byte. |"]
+    for module, constant, what in PROJECT_ENTRIES:
+        out.append(f"| `{_constant(module, constant)}` | `{module}.{constant}` | {what} |")
+    for i, (module, constant, what) in enumerate(RUN_ENTRIES):
+        where = f"{live}/" if i == 0 else f"{live}/<run id>/"
+        out.append(f"| `{where}{_constant(module, constant)}` | `{module}.{constant}` | {what} |")
+    out.append(f"| `{exports}/…` | `rietx.gui.session.EXPORT_DEFAULTS` "
+               "| One file per export kind, under these default names. |")
+    return "\n".join(out + [""])
+
+
 #: Generated body file name -> the function that writes it.
 BODIES = {
     "parameters.md": parameter_map,
     "plans.md": plan_ladder,
     "diagnostics.md": diagnostic_page,
+    "project.md": project_tree,
 }
 
 
