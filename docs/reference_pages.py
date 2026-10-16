@@ -361,23 +361,32 @@ def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]
 
 
 def diagnostic_page() -> str:
-    """The body of `reference/diagnostics.md`: one row per code."""
+    """The body of `reference/diagnostics.md`: one section per code.
+
+    Each section carries the code's explanation from `rietx.help.DIAGNOSTIC_HELP`,
+    so the page and a notebook's folded explanation are one text, and a heading
+    per code gives every code a link target.
+    """
     from rietx._about import REPO_URL
+    from rietx.help import explain
 
     index = diagnostic_index()
     out = [_BANNER.format(source="the source tree under src/rietx/"), "",
-           f"The package raises {len(index)} codes.", "",
-           "| Code | Level | Raised in |", "| --- | --- | --- |"]
+           f"The package raises {len(index)} codes.", ""]
     for code in sorted(index):
         entry = index[code]
         levels = sorted(lv for lv in entry["levels"] if lv)
         if "" in entry["levels"]:
             levels.append("set at run time")
-        level = ", ".join(levels) or "—"
-        files = "<br>".join(f"[`{rel}`]({REPO_URL}/blob/main/src/{rel})"
-                            for rel in sorted(entry["files"]))
-        out.append(f"| `{code}` | {level} | {files} |")
-    return "\n".join(out + [""])
+        level = ", ".join(levels) or "set by a helper"
+        files = ", ".join(f"[`{rel}`]({REPO_URL}/blob/main/src/{rel})"
+                          for rel in sorted(entry["files"]))
+        out += [f"## `{code}`", ""]
+        help_entry = explain(code)
+        if help_entry is not None:
+            out += [f"{help_entry.title}.", "", help_entry.description, ""]
+        out += [f"Level: {level}. Raised in {files}.", ""]
+    return "\n".join(out)
 
 
 # ----------------------------------------------------------------------
