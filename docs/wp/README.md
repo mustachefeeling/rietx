@@ -678,3 +678,4 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1964](1964-a-nonlinear-law-through-the-derived-block.md) | A nonlinear law over the pattern coordinates, through the derived block | ⬜ | P2 | [1325](1325-parametric-series.md), [1804](1804-the-derived-block.md) |
 | [1965](1965-a-law-declared-by-formula-condition-and-glob.md) | A parametric law declared by formula, condition and glob | ⬜ | P3 | [1325](1325-parametric-series.md) |
 | [1974](1974-the-texture-screen-says-which-order-the-misfit-needs.md) | The texture screen says which order the misfit needs | ⬜ | P3 | [1960](1960-spherical-harmonics-texture.md) |
+| [1988](1988-soft-restraints-in-a-joint-fit.md) | Soft restraints in a joint fit | ⬜ | P3 | — |

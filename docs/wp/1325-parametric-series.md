@@ -1042,7 +1042,8 @@ right, each freed gain is 0.92-1.10 of its refit.
   active**: a bounded local block (phase scales) leaves the identity once a
   bound binds.
 - **Soft restraints are refused in a joint fit**
-  (`least_squares.py:2424-2430`, deferred since WP-0406). So partial pooling
+  (`least_squares._multi_closures`, deferred since WP-0406; lifting it is
+  [1988](1988-soft-restraints-in-a-joint-fit.md)). So partial pooling
   or a smoothness penalty over the axis needs that refusal lifted first.
 - **Reusable bases:** `background/models.py` has `bspline_design_matrix`,
   `chebyshev_design_matrix` and `second_difference_matrix`, all 1-D. n-D
