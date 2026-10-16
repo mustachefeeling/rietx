@@ -1,0 +1,10 @@
+# Notation is rendered, never left as markup (WP-1981's review, rule 5):
+# μ_B and x^2 in prose are μ<sub>B</sub> and x², or an identifier in
+# backticks.  Vale skips code spans, so what this sees is prose.
+extends: existence
+message: "'%s' is notation left as markup. Render it, or put an identifier in backticks."
+level: warning
+nonword: true
+tokens:
+  - '\b[\p{L}\d]+_[\p{L}\d{}]+'
+  - '\b[\p{L}\d)]+\^[-\p{L}\d{}]+'

@@ -1,0 +1,12 @@
+# State the physical effect, never its price: "a narrower window", not "buys
+# a narrower window" (yue-docs-style, Never).  A warning, because computing
+# time is a real cost and "costs 50 ms" is a fact, not a metaphor.
+extends: existence
+message: "'%s' prices an effect. State the effect itself."
+level: warning
+ignorecase: true
+tokens:
+  - buys?
+  - bought
+  - pays? for
+  - paid for

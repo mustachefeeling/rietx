@@ -266,7 +266,7 @@ def test_each_histogram_gets_its_own_report(two_patterns):
         report = ref.report(h, plan="mccusker_default")
         assert report.layer1_available
         assert report.unmatched == []       # one phase, every peak ticked
-        assert f"Rwp={result.histograms[h].statistics.rwp:.4f}" in report.summary
+        assert report.rwp == result.histograms[h].statistics.rwp
         # the background section reads this histogram's own screen, which
         # the joint result carries ``hist.<h>.``-scoped
         mine = {k.split(".", 2)[2]: v for k, v in
@@ -411,10 +411,10 @@ def test_a_joint_plan_naming_a_fixed_literal_says_so(two_patterns, path, says):
     assert path not in result.stages[0].freed
     (found,) = _codes(result, "STAGE_PATH_NOT_FREE")
     assert found.level == "warning" and found.where == [path]
-    assert found.message == (f"stage 'only' asked for {path}, which {says}, so "
-                             "nothing was freed for it in every histogram")
+    assert found.message == (f"Stage 'only' asked for {path}, which {says}, so "
+                             "nothing was freed for it in every histogram.")
     if path == "phases.0.cell.b":
-        assert found.suggestion.startswith("free phases.0.cell.a instead")
+        assert found.suggestion.startswith("Free phases.0.cell.a instead")
     assert not _codes(result, "STAGE_PATH_UNKNOWN")
     assert not _codes(result, "STAGE_FREED_NOTHING")
 
@@ -439,8 +439,8 @@ def test_a_per_histogram_row_is_reported_on_its_own_histogram(two_patterns):
     scoped = _one_stage(two_patterns, ["hist.1.phases.0.cell.b"], sharing=sharing)
     (found,) = _codes(scoped, "STAGE_PATH_NOT_FREE")
     assert found.where == ["hist.1.phases.0.cell.b"]
-    assert found.message.endswith("in histogram 1")
-    assert found.suggestion.startswith("free hist.1.phases.0.cell.a instead")
+    assert found.message.endswith("in histogram 1.")
+    assert found.suggestion.startswith("Free hist.1.phases.0.cell.a instead")
 
     bare = _one_stage(two_patterns, ["phases.0.cell.b"], sharing=sharing)
     assert sorted(d.where[0] for d in _codes(bare, "STAGE_PATH_NOT_FREE")) == [

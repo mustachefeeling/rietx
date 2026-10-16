@@ -1099,7 +1099,7 @@ def test_the_declared_intensity_unit_is_a_claim_and_does_not_decide_sigma(tmp_pa
     assert data.sigma is None
     assert data.metadata["intensity_unit"] == "counts"          # recorded verbatim
     scaled = [d for d in notes if d.code == "PATTERN_INTENSITY_SCALED"]
-    assert len(scaled) == 1 and "wrong by √t" in scaled[0].message
+    assert len(scaled) == 1 and "0.12 s per step" in scaled[0].message
 
 
 def test_a_rocking_curve_is_refused_rather_than_refined_as_a_pattern(tmp_path):
@@ -1182,7 +1182,7 @@ def test_an_attenuator_column_is_reported_and_never_applied():
     assert data.intensity == [250.0, 310.5, 480.2, 390.7]     # column 2, untouched
     found = [d for d in notes if d.code == "RAS_ATTENUATOR_PRESENT"]
     assert len(found) == 1
-    assert "10–11.5" in found[0].message and "σ is affected" in found[0].message
+    assert "10–11.5" in found[0].message and found[0].where == ["intensity", "sigma"]
 
 
 def test_choosing_a_scan_and_enumerating_them_are_two_halves_of_one_fact():
@@ -1879,7 +1879,7 @@ def test_a_rate_with_no_counting_time_withholds_sigma_and_says_why(tmp_path):
 
     assert data.sigma is None
     assert [d.code for d in notes] == ["PATTERN_INTENSITY_SCALED"]
-    assert "√t" in notes[0].message
+    assert "<commonCountingTime>" in notes[0].message
 
 
 def test_a_fixed_two_theta_is_not_a_pattern_however_the_scan_axis_is_spelled(

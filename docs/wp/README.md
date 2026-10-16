@@ -50,6 +50,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-16 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
 
@@ -69,13 +70,10 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1981](1981-the-reference-pages-generated-from-their-authorities.md) | The reference pages, generated from their authorities | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1982](1982-vale-and-a-term-list-on-the-new-tree.md) | Vale and a term list on the new tree | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1983](1983-the-concepts-tab.md) | The Concepts tab | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1984](1984-the-switching-tab.md) | The Switching tab | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1985](1985-report-and-diagnostic-text-in-one-voice.md) | Report and diagnostic text, rewritten in one voice | P2 | — ([1133](1133-diagnostic-names-its-view.md) soft) | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
-| [1988](1988-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1989](1989-the-released-arm-keeps-riding-hydrogens-riding.md) | The rigid-body check's released arm keeps riding hydrogens riding | P2 | — ([1806](1806-first-public-case-acridine-form-ix.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -537,8 +535,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | ⬜ | P2 | — ([1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) soft) |
 | [1976](1976-a-correction-summary-judged-at-the-drawn-angle.md) | A correction summary judged at the drawn angle | ✅ 2026-10-15 | — | — |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | ⬜ | P2 | — |
-| [1988](1988-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | ⬜ | P2 | — |
 | [1989](1989-the-released-arm-keeps-riding-hydrogens-riding.md) | The rigid-body check's released arm keeps riding hydrogens riding | ⬜ | P2 | — ([1806](1806-first-public-case-acridine-form-ix.md) soft) |
+| [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | ⬜ | P2 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
@@ -604,8 +602,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1970](1970-a-notebook-figure-follows-the-frontends-theme.md) | A notebook figure follows the frontend's theme | ✅ 2026-10-14 | — | — |
 | [1971](1971-a-returned-figure-survives-a-zoom-and-a-pickle.md) | A returned figure survives a caller's zoom and a pickle | ✅ 2026-10-15 | — | — |
 | [1972](1972-the-indexing-figures-take-a-dark-palette.md) | The indexing figures take a dark palette | ✅ 2026-10-15 | — | — |
-| [1985](1985-report-and-diagnostic-text-in-one-voice.md) | Report and diagnostic text, rewritten in one voice | ⬜ | P2 | — ([1133](1133-diagnostic-names-its-view.md) soft) |
-| [1987](1987-the-correlation-matrix-reaches-the-result.md) | The correlation matrix reaches the result | ⬜ | P3 | — |
+| [1985](1985-report-and-diagnostic-text-in-one-voice.md) | Report and diagnostic text, rewritten in one voice | ✅ 2026-10-16 | — | — ([1133](1133-diagnostic-names-its-view.md) soft) |
+| [1990](1990-the-correlation-matrix-reaches-the-result.md) | The correlation matrix reaches the result | ⬜ | P3 | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 
@@ -661,11 +659,13 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | The new manual's tree: six tabs beside the old, and its page contract | ✅ 2026-10-16 | — | — |
 | [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
 | [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
-| [1981](1981-the-reference-pages-generated-from-their-authorities.md) | The reference pages, generated from their authorities | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
-| [1982](1982-vale-and-a-term-list-on-the-new-tree.md) | Vale and a term list on the new tree | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1981](1981-the-reference-pages-generated-from-their-authorities.md) | The reference pages, generated from their authorities | ✅ 2026-10-16 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1982](1982-vale-and-a-term-list-on-the-new-tree.md) | Vale and a term list on the new tree | ✅ 2026-10-16 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
 | [1983](1983-the-concepts-tab.md) | The Concepts tab | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
 | [1984](1984-the-switching-tab.md) | The Switching tab | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md), [1979](1979-the-manual-at-docs-one-tree-per-version.md) |
+| [1987](1987-the-kernel-gate-on-the-macos-intel-runner.md) | The kernel gate on the macOS Intel runner | ⬜ | P3 | — |
+| [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 🔄 2026-10-16 | P4 | — |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 

@@ -128,12 +128,12 @@ def test_the_cap_is_never_applied_to_a_stored_diagnostics_list():
 
     # only the rendered view is bounded
     text = str(result)
-    assert text.count("HIGH_CORRELATION:") == HIGH_CORRELATION_MAX
+    assert text.count("[HIGH_CORRELATION]:") == HIGH_CORRELATION_MAX
     assert "HIGH_CORRELATION_OMITTED" in text
     assert "diagnostics: 15 unresolved" in text
 
     lines = _diagnostic_lines(result.diagnostics)
-    assert sum(1 for ln in lines if "HIGH_CORRELATION:" in ln) == HIGH_CORRELATION_MAX
+    assert sum(1 for ln in lines if "[HIGH_CORRELATION]:" in ln) == HIGH_CORRELATION_MAX
 
 
 # --- the routing (WP-1310) -----------------------------------------------
@@ -220,6 +220,6 @@ def test_a_real_plan_reports_a_persistent_pair_once_naming_every_stage():
     assert len(axial) == 1
     # the four stages that re-measured it are named, which is what makes one
     # entry as informative as the four it replaces
-    assert "flagged in stages:" in axial[0].message
+    assert "Flagged in stages:" in axial[0].message
     for stage in ("axial", "cell", "profile", "biso"):
         assert stage in axial[0].message

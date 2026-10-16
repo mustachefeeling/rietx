@@ -244,8 +244,8 @@ def maturity_gate(rwp: float, attributions: list[RegionAttribution]
     where real misfit exists but cannot be read reliably.
     """
     if rwp > MATURITY_MAX_RWP:
-        return (f"fit is immature (Rwp={rwp:.3f} > {MATURITY_MAX_RWP}); "
-                "Layer 1 abstains — fix the model/starting values first")
+        return (f"The fit is immature (Rwp={rwp:.3f} > {MATURITY_MAX_RWP}). "
+                "Fix the model and starting values first.")
 
     misfitting = [a for a in attributions if a.has_significant_misfit]
     misfit_share = sum(a.chi2_share for a in misfitting)
@@ -254,10 +254,10 @@ def maturity_gate(rwp: float, attributions: list[RegionAttribution]
 
     usable_share = sum(a.chi2_share for a in misfitting if a.gates_passed)
     if usable_share < MATURITY_MIN_EXPLAINED_FRACTION * misfit_share:
-        return (f"regions carrying {misfit_share:.0%} of χ² misfit, but only "
+        return (f"Misfitting regions carry {misfit_share:.0%} of χ², but only "
                 f"{usable_share / misfit_share:.0%} of that sits in regions "
-                f"the local gates accept (need "
-                f"{MATURITY_MIN_EXPLAINED_FRACTION:.0%}); Layer 1 abstains")
+                f"the local gates accept. "
+                f"Layer 1 needs {MATURITY_MIN_EXPLAINED_FRACTION:.0%}.")
     return None
 
 
@@ -297,16 +297,17 @@ def abstention_flavour(rwp: float, attributions: list[RegionAttribution]
         median_r2 = float(np.median([a.r2 for a in gram_only]))
         if median_r2 >= RESOLUTION_LIMITED_MIN_R2:
             extra = (
-                f"the failures are collinearity on merged peaks, not "
-                f"unexplained misfit ({len(gram)} of {len(failing)} "
-                f"gate-failing region(s) fail the Gram condition; the "
-                f"{len(gram_only)} failing nothing else carry median local "
-                f"R²={median_r2:.2f}, so the shape basis explains the misfit "
-                f"but its edit directions are indistinguishable at this "
-                f"resolution).  Resolution-limited, not evidence the model "
-                f"is wrong: the misfit is readable in aggregate (Rwp, the "
-                f"Le Bail gap), not attributable per kind — on broad-peak "
-                f"data this can be a legitimate stopping point")
+                f"This abstention is resolution-limited. "
+                f"{len(gram)} of {len(failing)} gate-failing region(s) fail "
+                f"the Gram condition. "
+                f"The {len(gram_only)} failing nothing else carry median "
+                f"local R²={median_r2:.2f}. "
+                f"The shape basis explains the misfit, but its edit "
+                f"directions are indistinguishable at this resolution. "
+                f"That is not evidence the model is wrong. "
+                f"The misfit is readable in aggregate (Rwp, the Le Bail gap) "
+                f"but not attributable per kind. "
+                f"On broad-peak data this can be a legitimate stopping point.")
             return "resolution_limited", extra
     return "unreadable", None
 
@@ -345,14 +346,14 @@ def contents_signature(trends: list[TrendAnalysis],
         return None
     lo = min(abs(v) for v in sig)
     hi = max(abs(v) for v in sig)
-    return (f"intensity misfit is incoherent: {intensity.misfit_share:.0%} of "
-            f"χ² in {len(sig)} region(s) whose relative intensity errors "
+    return (f"Intensity misfit is incoherent: {intensity.misfit_share:.0%} of "
+            f"χ² sits in {len(sig)} region(s) whose relative intensity errors "
             f"alternate in sign (calculated too weak in {n_weak}, too strong "
-            f"in {n_strong}, |error| {lo:.0%}–{hi:.0%}) with no angular trend "
-            f"(best template R²={best_r2:.2f}) — structure-factor "
-            f"interference, the signature of un-modelled scattering contents "
-            f"(guest/pore species, wrong occupancy), not of scale, ADP or "
-            f"texture")
+            f"in {n_strong}, |error| {lo:.0%}–{hi:.0%}).\n"
+            f"No angular trend explains it (best template R²={best_r2:.2f}).\n"
+            f"That is structure-factor interference, the signature of "
+            f"un-modelled scattering contents (guest or pore species, wrong "
+            f"occupancy) rather than a scale, ADP or texture error.")
 
 
 # ----------------------------------------------------------------------

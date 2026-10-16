@@ -1956,7 +1956,7 @@ def test_a_declared_peak_on_a_predicted_line_is_named_as_a_degeneracy():
     fired = [d for d in result.diagnostics
              if d.code == "EXTRA_PEAK_ON_REFLECTION"]
     assert len(fired) == 1
-    assert "degeneracy" in fired[0].message
+    assert "deg from a position this model already predicts" in fired[0].message
     assert fired[0].level == "warning"
     assert any(p.endswith(".center") for p in fired[0].where)
     # reported, never refused: the fit completed and carries an answer

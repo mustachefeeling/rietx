@@ -794,7 +794,7 @@ def test_reseed_records_both_fits_and_emits_a_diagnostic(thermal_patterns):
     codes = [d.code for d in series.diagnostics]
     assert codes.count("SEQUENTIAL_RESEED") == len(reseeded)
     if reseeded:
-        assert all("did not come from its neighbour" in d.suggestion
+        assert all("was refitted from the initial model" in d.message
                    for d in series.diagnostics if d.code == "SEQUENTIAL_RESEED")
 
 
@@ -1211,7 +1211,7 @@ def test_a_pattern_every_rung_left_above_the_fence_says_so(thermal_patterns,
     assert outlier.level == "warning" and outlier.where == ["p001"]
     assert outlier.value == pytest.approx(0.28 / 0.125)
     # the evidence that separates the causes, against the pattern before it
-    assert "against p000, the last pattern before it inside the fence: GoF " in \
+    assert "Against p000, the last pattern before it inside the fence: GoF " in \
         outlier.message
     assert "Rexp" in outlier.message
     # …and the reseed text stops calling it a good fit
@@ -1299,12 +1299,12 @@ def test_the_outlier_verdict_is_read_off_the_entry():
     climbed.rungs_tried, climbed.rung = ["warm", "warm_staged", "cold"], "cold"
     (d,) = _rwp_outlier_diagnostics(climbed, None)
     assert "every rung the chain tried" in d.message
-    assert "no starting point" in d.suggestion
+    assert "No starting point" in d.message
     short = entry(1, 0.30, 0.05)
     short.rungs_tried, short.rung = ["warm"], "warm"
     (d,) = _rwp_outlier_diagnostics(short, None)
     assert "every rung" not in d.message and "cold rung" in d.message
-    assert "no starting point" not in d.suggestion
+    assert "No starting point" not in d.message
     assert d.value == pytest.approx(6.0) and "6.00× the fence" in d.message
 
 
@@ -1419,7 +1419,7 @@ def test_discontinuity_is_flagged_and_the_value_is_left_alone(jump_patterns):
              if d.code == "SEQUENTIAL_DISCONTINUITY"
              and d.where == ["phases.0.cell.a"]]
     assert len(jumps) == 1
-    assert "either the specimen genuinely changed" in jumps[0].suggestion
+    assert "Check this pattern's own fit" in jumps[0].suggestion
 
     # nothing was smoothed: the fitted step is still the injected one
     value = np.asarray(series.trajectory("phases.0.cell.a").value)
@@ -1435,7 +1435,7 @@ def test_discontinuity_verification_is_off_by_default(jump_patterns):
     jump = next(d for d in series.diagnostics
                 if d.code == "SEQUENTIAL_DISCONTINUITY")
     assert jump.value is None
-    assert "refitted cold" not in jump.message
+    assert "Refitted cold" not in jump.message
 
 
 @pytest.mark.slow
@@ -1450,8 +1450,8 @@ def test_verified_discontinuity_reproduces_a_real_step(jump_patterns):
                 if d.code == "SEQUENTIAL_DISCONTINUITY"
                 and d.where == ["phases.0.cell.a"])
     assert jump.value == pytest.approx(1.0, abs=0.1)
-    assert "refitted cold and independently" in jump.message
-    assert "a ratio near 1.0" in jump.suggestion
+    assert "Refitted cold and independently" in jump.message
+    assert "A ratio near 1.0" in jump.suggestion
 
 
 @pytest.mark.slow

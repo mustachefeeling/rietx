@@ -281,7 +281,7 @@ def test_trf_goes_negative_and_the_guard_says_so():
     (diag,) = [d for d in result.diagnostics if d.code == "TEXTURE_NOT_POSITIVE"]
     assert diag.where == ["phases.0.texture"]
     assert diag.value == pytest.approx(row.min_p_sphere)
-    assert "not quotable as a pole density" in diag.message
+    assert "goes below zero" in diag.message
 
 
 def test_the_record_matches_its_definition():

@@ -34,8 +34,11 @@ CHAPTERS = sorted(
 #: Its pages share the old tree's register and trail guards below, and carry the
 #: page contract of their own (§ The new tree).
 DOCS_TREE = MANUAL_DIR.parent / "docs"
+#: Build outputs, never pages.  `_generated/` holds the Reference tab's bodies,
+#: which a committed page includes (`docs/reference_pages.py`).
+NOT_PAGES = {"_build", "_generated"}
 DOCS_PAGES = sorted(
-    p for p in DOCS_TREE.rglob("*.md") if "_build" not in p.relative_to(DOCS_TREE).parts
+    p for p in DOCS_TREE.rglob("*.md") if not NOT_PAGES & set(p.relative_to(DOCS_TREE).parts)
 )
 
 # Everything on a built page that is *not* prose: a `$` inside a code block or
@@ -1069,13 +1072,46 @@ def _contract_breaches(text: str) -> list[str]:
     return breaches
 
 
+#: A committed page's include of a generated body (`docs/reference_pages.py`).
+_GENERATED_INCLUDE = re.compile(r"^```\{include\} [./]*_generated/(\S+)\n```$", re.M)
+
+
+def _reference_pages():
+    spec = importlib.util.spec_from_file_location(
+        "_reference_pages", MANUAL_DIR.parent / "reference_pages.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _as_rendered(text: str, bodies: dict | None = None) -> str:
+    """A page's source with each generated body it includes in place.
+
+    The contract binds what a reader gets, so a page that is one include line
+    is held to the size and sections of the body it pulls in.
+    """
+    if not _GENERATED_INCLUDE.search(text):
+        return text
+    bodies = _reference_pages().BODIES if bodies is None else bodies
+    return _GENERATED_INCLUDE.sub(lambda m: bodies[m.group(1)](), text)
+
+
+def test_the_contract_reads_a_generated_body_in_place():
+    """A one-line include of an over-long body breaks the cap (WP-1981)."""
+    page = "# Title\n\nAn answer.\n\n```{include} ../_generated/long.md\n```\n"
+    assert _contract_breaches(page) == []
+    rendered = _as_rendered(page, {"long.md": lambda: "A sentence. " * 5000})
+    assert ["over the 50000 cap" in b for b in _contract_breaches(rendered)] == [True]
+
+
 def test_every_page_of_the_new_tree_keeps_the_page_contract():
     """An answer sentence under the title, under 50 000 characters, and no
-    section opening on "as above" (WP-1975 § F8)."""
+    section opening on "as above" (WP-1975 § F8), generated bodies included."""
     assert len(DOCS_PAGES) >= 7, "the new tree's pages are not where this expects"
     breaches = [f"{page.relative_to(DOCS_TREE).as_posix()}: {message}"
                 for page in DOCS_PAGES
-                for message in _contract_breaches(page.read_text(encoding="utf-8"))]
+                for message in _contract_breaches(
+                    _as_rendered(page.read_text(encoding="utf-8")))]
     assert not breaches, "the page contract:\n" + "\n".join(breaches)
 
 

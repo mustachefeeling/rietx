@@ -82,7 +82,7 @@ TARGET = HERE / "rietx" / "references" / "api.md"
 #: paragraph is the authored part; every name is rendered from the package.
 SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     (
-        "In",
+        "Reading data",
         "Readers and constructors. `rx.read_pattern` opens every format "
         "`rx.capabilities()` lists and takes the file's esd column when it has "
         "one; a wavelength comes from the instrument preset or the file, never "
@@ -101,7 +101,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
          "rx.capabilities", "rx.help_for"),
     ),
     (
-        "The model objects",
+        "Model objects",
         "Every refinable quantity is a `rx.Parameter` (`value`, `vary`, "
         "bounds), addressed by a dot-path such as `phases.0.cell.a` or "
         "`instrument.profile.w`; `rx.help_for(path)` says what any of them is. "
@@ -114,7 +114,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
          "rx.BackgroundFixedPlusChebyshev", "rx.Dispersion", "rx.PatternData"),
     ),
     (
-        "Refining",
+        "Refinement",
         "`rx.Refinement` is the stateful entry point and `rx.refine` the "
         "one-shot function form. Plans are named in `rx.PLAN_INFO` or built as "
         "a `rx.RefinementPlan` of `rx.Stage`s; `ref.parameters()` lists every "
@@ -138,7 +138,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
          "rx.ParameterRow"),
     ),
     (
-        "The four answers are four different types",
+        "Results",
         "None nests inside another. An `rx.IndexingResult` "
         "carries no `cell` key by design: `best_or_none()` is the only way to "
         "one cell, and it returns `None` more often than not (§6). "
@@ -152,7 +152,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
          "rx.CandidateGroup"),
     ),
     (
-        "The report",
+        "Fit report",
         "`ref.report()` or `rx.build_report` gives the three-layer "
         "`rx.FitReport` §5 reads. `compare_rivals` and `predict_then_verify` "
         "are the two experiments §4 step 14 and §4b call for, and "
@@ -177,7 +177,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
          "rx.CancelToken"),
     ),
     (
-        "An unknown phase",
+        "Peaks and indexing",
         "Peaks, then a cell, then the extinction symbol — the closed loop of "
         "§7b-7f, each step returning a ranked list and never a singleton. "
         "`rx.fit_peaks` leaves that loop: it fits the positions *you* name, for "
@@ -186,7 +186,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
          "rx.determine_extinction_symbol"),
     ),
     (
-        "Out",
+        "Export and plots",
         "Files and figures. `rx.format_su` renders a value with its esd as "
         "`1.2345(12)`; `plot_for_vlm` is the montage §5 allows as a check on a "
         "conclusion already reached from numbers. A file for another program "
@@ -211,7 +211,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
         "pattern drawn before any model exists.",
         (
             (
-                "Drawing it",
+                "Drawing a structure",
                 "`rx.viz.render_structure(ref.structure)` draws one phase as the "
                 "GUI's structure viewer draws it, with no browser: an RGBA array "
                 "in `.image`, a PNG when `path=` is given. Look at the picture "
@@ -231,7 +231,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 ("rx.viz.render_structure", "rietx.viz.figure3d.StructureFigure"),
             ),
             (
-                "Reading the figure before looking",
+                "Figure report",
                 "`fig.report` holds the numbers a look would give, so read it "
                 "first. `hidden` is the share of atoms covered over 80 % by one "
                 "in front, and `hidden_atoms` names them. `dangling_bonds` "
@@ -280,7 +280,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 ("rietx.viz.figure3d.FigureReport",),
             ),
             (
-                "Part of the structure",
+                "Selecting part of a structure",
                 "A site is left out, or a slab or a motif kept, by a mask over "
                 "the dict's `atoms`: `g = build(structure)`, then "
                 "`rx.viz.keep(g, ~rx.viz.select(g, label=\"F2\"))`. `hidden=` "
@@ -309,7 +309,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                  "rx.viz.component", "rx.viz.periodicity", "rx.viz.recolour"),
             ),
             (
-                "The pattern before a model",
+                "Plotting a pattern",
                 "`data.plot()` on a `PatternData` just read draws it in the "
                 "result panel's style, keywords shared with `result.plot()`. "
                 "It shows the file, not a fit: judge a fit from the result's "
@@ -327,7 +327,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
         "for that program. A pattern file is `rx.read_pattern`'s, in `api.md`.",
         (
             (
-                "A recipe or an instrument file",
+                "Recipes and instrument files",
                 "**Handed another program's input "
                 "file** — a "
                 "PowderLine `GSASII_Rietveld` recipe — read it with `rx.read_recipe` "
@@ -362,7 +362,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                  "rx.read_gsas2_instprm", "rx.write_gsas2_instprm"),
             ),
             (
-                "Another program's whole refinement",
+                "Other programs' projects",
                 "**Handed another program's whole refinement** — a "
                 "TOPAS `.inp`, a FullProf `.pcr`, a GSAS `.EXP` — call "
                 "`rx.read_project_model`, which "
@@ -439,7 +439,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                  "rx.MomentRow"),
             ),
             (
-                "Displacive modes of a stated child",
+                "Displacive mode amplitudes",
                 "`mode_amplitudes(parent, child, (P, p))` from "
                 "`rietx.crystallography.representation.distortion` decomposes a "
                 "distorted child `Phase` (r_parent = P·r_child + p) into its "

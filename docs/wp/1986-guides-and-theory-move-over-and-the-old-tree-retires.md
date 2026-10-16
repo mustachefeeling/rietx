@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
-Priority: P3 2026-10-16 — waits on 1985 alone now that WP-1978's tree is built (PR #1004)
+Priority: P3 2026-10-16 — waits on 1979's redirect stubs alone now that WP-1985 has closed
 
 ## Goal
 
@@ -46,6 +46,27 @@ carries no instrument, so write the new one from a `Refinement`.
 
 ### Inherited
 
+- **2026-10-16, from WP-1985 (closed).** The report text a guide shows is rewritten (the
+  rustc-style line form, `FitReport.summary` one sentence a line, every message reworded).
+  The Reference tab's diagnostic page is now `reference/diagnostics.md`, a table linking
+  six subsystem pages (`diagnostics-refinement.md` and five more), each code a section
+  with its explanation from `rietx.help.DIAGNOSTIC_HELP`. The glossary's diagnostics arm
+  is `diagnostics` (was `peak_diagnostics`) and now holds all 253 codes. Vale reads
+  `docs/docs/_generated/` too, and CI writes the bodies before Vale runs.
+- **2026-10-16, from WP-1982.** A chapter moved into `docs/docs/` meets Vale in CI's lint
+  job, which fails on an error. Over the whole old manual the house configuration finds
+  463 errors: 417 spellings (code identifiers outside backticks such as `str` and `c_w`,
+  American forms such as "serializable", and words the term list may yet take), 14 banned
+  words ("just" 12) and 8 "fnmatch". It also prints 458 warnings, among them 101 notation
+  left as text, 62 "caller" and 35 prices. Expect each chapter's move to carry its share of
+  those fixes. A word that belongs in the domain goes in `docs/vale/terms.txt`.
+- **2026-10-16, from WP-1981.** Three old-tree pieces now have a replacement in the new
+  Reference tab. The glossary (`using/glossary.md`, written by the old `conf.py`'s
+  `_write_glossary`) is covered for parameters by `reference/parameters.md`. Its other arms
+  (stage fields, peak flags, reader options and the rest) have no new page yet. The plan
+  diagram in `using/concepts.md` is replaced by `reference/plans.md`. The old tree's
+  702 000-character rendering of the skill (`_write_skill`) is replaced by
+  `reference/agents.md`, which links the skill instead.
 - **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
   the fenced constants, the citation style, the mermaid theme and the `{source}` role from
   `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds

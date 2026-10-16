@@ -440,16 +440,13 @@ def read_gsas(path: str | Path, *, bank: int | None = None,
         diagnostics.append(Diagnostic(
             level="info", code="GSAS_BANK_COMMENTED",
             message=(
-                f"{p.name} has no live BANK record, and its commented one "
+                f"{p.name} has no live BANK record, so its commented one "
                 f"(line {line_no}: {lines[line_no - 1].strip()!r}) "
-                "was read as the bank record. GSAS writes 2θ in "
-                "centidegrees, so the same rows read as bare columns would "
-                "put the axis 100× too high."),
+                "was read as the bank record."),
             where=[f"line {line_no}"],
             suggestion=(
-                "Nothing to do if this file is the measurement. If the bank "
-                "was commented out to disable it, the file holds no live "
-                "bank to read instead."),
+                "Check that the bank was not commented out on purpose to "
+                "disable it."),
         ))
     return _read_bank(p, lines, records, which, diagnostics)
 

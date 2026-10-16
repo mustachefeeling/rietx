@@ -1,0 +1,12 @@
+# A programming concept before it is explained or linked loses a
+# crystallographer (WP-1981's review, rule 3).  Vale cannot see whether the
+# page explains it, so this asks rather than fails.
+extends: existence
+message: "'%s' is a programming term. Explain it or link the page that does."
+level: suggestion
+ignorecase: true
+tokens:
+  - globs?
+  - dot-paths?
+  - schemas?
+  - columns?

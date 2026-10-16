@@ -43,6 +43,23 @@ publishes such a comparison.
 
 ### Inherited
 
+- **2026-10-16, from WP-1982.** Vale reads every committed page of `docs/docs/` in CI's
+  lint job, and an error-level alert fails it. The errors are British spelling against the
+  en_GB dictionary plus the term list, the maintainer's banned words, "fnmatch" in prose and
+  a few Microsoft rules. Warnings are printed and do not fail: a synonym the term list
+  rejects ("cell edge", "thermal parameter"), notation left as text (`U_iso`), a program's
+  role ("caller") and a price ("buys"). Run `vale sync && vale docs/docs` before pushing
+  (`CONTRIBUTING.md`). A crystallographic word Vale does not know goes in
+  `docs/vale/terms.txt`, then `python docs/vale/terms.py`. A one-word section heading is
+  flagged as a suggestion, and so is "glob", "schema" or "column" until a page explains it.
+- **2026-10-16, from WP-1981.** The soft dependency is met. The foreign-name map is
+  `docs/docs/reference/foreign-names.md`, with GSAS-II, GSAS, TOPAS and FullProf columns
+  and a Conversions section (U, V, W units, FullProf's swapped X and Y, Uiso against B,
+  SH/L, polarization, TOPAS moments and scale). A test holds every foreign name to a
+  string literal in that format's reader or writer. The roadmap is
+  `reference/roadmap.md`. Link both, and do not restate the conversions.
+  One fact for the prose: the GSAS-II `.gpx` and TOPAS readers build a `Structure` only,
+  so the instrument names in those columns come from `.instprm` and from rietx's writers.
 - **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
   the fenced constants, the citation style, the mermaid theme and the `{source}` role from
   `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds

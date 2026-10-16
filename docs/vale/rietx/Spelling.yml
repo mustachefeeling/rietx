@@ -1,0 +1,13 @@
+# British spelling: the en_GB-ise Hunspell dictionary from SCOWL, in
+# docs/vale/config/dictionaries/ (licence beside it), in place of Vale's
+# American default.  The term list adds the words a crystallographer uses.
+#
+# A possessive is not checked: Hunspell knows "data" and not "data's", and
+# the base word is checked wherever it appears bare.
+extends: spelling
+message: "'%s' is in neither the British dictionary nor the term list."
+level: error
+dictionaries:
+  - en_GB
+filters:
+  - "[\\p{L}\\d]+'s\\b"

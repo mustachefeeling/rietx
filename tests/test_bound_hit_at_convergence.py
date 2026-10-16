@@ -126,7 +126,7 @@ def test_a_parameter_still_at_its_bound_at_convergence_reports(data):
     # the sentence is unchanged; WP-1434 appends the evidence for it.  The LM
     # driver's exact active set holds the row on its limit, so the evidence is
     # the angle alone, with no distance in esds (WP-1929)
-    assert hit.message == f"{ZERO} refined to its bound (\u03c1={hit.value:+.3f})"
+    assert hit.message == f"{ZERO} refined to its bound (\u03c1={hit.value:+.3f})."
     # at an upper limit the solver would still be raising the value, so the
     # residual keeps a negative angle with that column
     assert hit.value < 0.0
@@ -411,8 +411,8 @@ def test_a_width_on_its_floor_is_read_against_its_floor():
     assert [d.code for d in diags] == ["FLOOR_HIT", "BOUND_HIT", "BOUND_HIT"]
     assert [d.suggestion for d in diags] == [
         _ZERO_FLOOR_SUGGESTION,
-        "widen the bound or fix the parameter",
-        "widen the bound or fix the parameter"]
+        "Widen the bound or fix the parameter.",
+        "Widen the bound or fix the parameter."]
 
 
 # --- WP-1929: the driver's exact active set, and a floor's own code ---------
@@ -531,8 +531,8 @@ def test_a_floor_is_floor_hit_with_its_own_advice(limit):
 
     assert [d.code for d in diags] == ["FLOOR_HIT", "BOUND_HIT"]
     assert [f.code for f in report.findings()] == [d.code for d in diags]
-    assert diags[0].message == "instrument.profile.w refined to its floor (ρ=+0.040)"
+    assert diags[0].message == "instrument.profile.w refined to its floor (ρ=+0.040)."
     assert diags[0].suggestion == _ZERO_FLOOR_SUGGESTION
     assert diags[0].level == diags[1].level == "warning"
-    assert diags[1].message == "phases.0.cell.a refined to its bound (ρ=-0.040)"
-    assert diags[1].suggestion == "widen the bound or fix the parameter"
+    assert diags[1].message == "phases.0.cell.a refined to its bound (ρ=-0.040)."
+    assert diags[1].suggestion == "Widen the bound or fix the parameter."

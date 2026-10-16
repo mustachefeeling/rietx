@@ -205,15 +205,13 @@ def rigaku_attenuator(two_theta: np.ndarray, factors: np.ndarray | None, *,
     diagnostics.append(Diagnostic(
         level="warning", code="RAS_ATTENUATOR_PRESENT",
         message=(f"{path.name} carries an attenuator factor that is not 1 over "
-                 f"{int(off.sum())} point(s), 2θ = {affected.min():.4g}–"
-                 f"{affected.max():.4g}°, taking {len(np.unique(factors[off]))} "
-                 "distinct value(s). It was **not** applied: no specification "
-                 "states whether the intensity column is already corrected for "
-                 "it, and applying it twice or not at all are both wrong. σ is "
-                 "affected too — √counts·attn is not √y"),
+                 f"{int(off.sum())} point(s) at 2θ = {affected.min():.4g}–"
+                 f"{affected.max():.4g}°, taking "
+                 f"{len(np.unique(factors[off]))} distinct value(s). The "
+                 "factor was not applied."),
         where=["intensity", "sigma"],
-        suggestion=("check the export against the instrument software before "
-                    "trusting the relative intensities of the points named")))
+        suggestion=("Check the export against the instrument software before "
+                    "you trust the relative intensities of these points.")))
 
 
 def _axis(header: dict[str, str], *, path: Path,

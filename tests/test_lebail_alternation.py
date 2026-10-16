@@ -171,7 +171,7 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(worse)
     stop = _stop(result)
     assert stop.level == "warning"
     assert "did not lower Rwp" in stop.message
-    assert "pass 1 of 2 was kept" in stop.message
+    assert "Pass 1 of 2 was kept" in stop.message
     assert result.statistics.rwp == pytest.approx(WORSE_KEPT_RWP, abs=RWP_PLATFORM_SPREAD)
     assert stop.value == result.statistics.rwp
     # the per-pass table the message prints, read as numbers.  Pass 1 is the
@@ -215,7 +215,7 @@ def test_a_converging_run_is_not_cut_short_and_ends_at_a_fixed_point(converging)
     assert len(table) >= 4                       # not cut short
     assert all(b < a for a, b in zip(table[:-2], table[1:-1]))
     assert table[-1] <= table[-2] * (1 + LEBAIL_CONVERGED_REL) + 1e-3  # level, in %
-    kept = int(re.search(r"pass (\d+) of", stop.message).group(1))
+    kept = int(re.search(r"Pass (\d+) of", stop.message).group(1))
     assert kept in (len(table) - 1, len(table))
     # 0.139321 on macOS and 0.139050 on Linux: a spread of 2.7e-4, so the bar
     # is 1e-3, wider than RWP_PLATFORM_SPREAD, which a single pass carries
@@ -229,7 +229,7 @@ def test_the_cap_is_a_cap_and_says_it_truncated(pattern):
     stop = _stop(result)
     assert stop.level == "warning"
     assert "cap of 2 passes" in stop.message
-    assert "pass 2 of 2 was kept" in stop.message
+    assert "Pass 2 of 2 was kept" in stop.message
 
 
 @pytest.mark.slow       # ~40-80 s: the +2 % start wanders through four passes

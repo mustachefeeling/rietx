@@ -46,6 +46,23 @@ a page must show a report, quote the shape and link the Reference page.
 
 ### Inherited
 
+- **2026-10-16, from WP-1982.** Vale reads every committed page of `docs/docs/` in CI's
+  lint job, and an error-level alert fails it. The errors are British spelling against the
+  en_GB dictionary plus the term list, the maintainer's banned words, "fnmatch" in prose and
+  a few Microsoft rules. Warnings are printed and do not fail: a synonym the term list
+  rejects ("cell edge", "thermal parameter"), notation left as text (`U_iso`), a program's
+  role ("caller") and a price ("buys"). Run `vale sync && vale docs/docs` before pushing
+  (`CONTRIBUTING.md`). A crystallographic word Vale does not know goes in
+  `docs/vale/terms.txt`, then `python docs/vale/terms.py`. A one-word section heading is
+  flagged as a suggestion, and so is "glob", "schema" or "column" until a page explains it.
+- **2026-10-16, from WP-1981.** The soft dependency is met. The parameter map is
+  `docs/docs/reference/parameters.md` (grouped as cell and structure, phase amount and
+  intensity corrections, microstructure, instrument, time of flight, background, named
+  variables), and every preset's stages are drawn on `reference/plans.md`, generated from
+  the plan objects. A Concepts page that explains staging should link the plan page
+  instead of drawing a ladder by hand, since the old tree's hand-drawn one drifted.
+  `vars.*` now has a help entry, so a page about named variables can link the map's
+  "Named variables" group.
 - **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
   the fenced constants, the citation style, the mermaid theme and the `{source}` role from
   `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds

@@ -428,7 +428,7 @@ PROJECT_FORMATS: tuple[ProjectFormat, ...] = (
 
 
 def identify_project_format(path: str | Path) -> ProjectFormat:
-    """Which registered project format claims ``path`` — the dispatch, once.
+    """Name the registered project format that claims ``path``.  Dispatch happens once, here.
 
     Raises ``ValueError`` naming the formats this build does read.  Saying
     **which** is the whole difference between a message and a traceback, and it

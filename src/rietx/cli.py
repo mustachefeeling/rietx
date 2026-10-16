@@ -316,7 +316,7 @@ def _index(argv: list[str]) -> int:
     read_notes: list = []
     data = read_pattern(args.pattern, diagnostics=read_notes)
     for note in read_notes:
-        print(f"{note.level}: {note.code}: {note.message}", file=sys.stderr)
+        print(note, file=sys.stderr)
     instrument = Instrument.debye_scherrer(wavelength=args.wavelength)
     if args.geometry != "debye_scherrer":
         # built rather than assigned: Geometry's validator refuses a

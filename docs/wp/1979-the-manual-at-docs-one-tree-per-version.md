@@ -59,6 +59,13 @@ Three things follow:
 
 ### Inherited
 
+- **2026-10-16, from WP-1981.** The Reference tab's generated pages carry two facts a
+  versioned build must set. The diagnostic index links each source file at
+  `REPO_URL/blob/main/src/...` (`docs/reference_pages.py`, `diagnostic_page`), so a
+  per-version tree should link the tag it was built from. The roadmap page opens with the
+  build's own `rietx.__version__` and reads `docs/ROADMAP.md` at build time, so each version
+  shows the roadmap of its own day. `conf.py` writes the bodies into an ignored
+  `docs/docs/_generated/` on every build.
 - **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
   the fenced constants, the citation style, the mermaid theme and the `{source}` role from
   `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds

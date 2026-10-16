@@ -37,6 +37,13 @@ admonition as a labelled blockquote. Mermaid sources stay as fenced `mermaid` bl
 
 ### Inherited
 
+- **2026-10-16, from WP-1981.** Ten Reference pages exist. Seven of them are a committed
+  title and answer sentence followed by one `{include}` of a body that `conf.py` writes into
+  the ignored `docs/docs/_generated/` (`docs/reference_pages.py`, `BODIES`). A markdown twin
+  built from the sources must expand those includes, or it ships seven pages that are one
+  line long. `tests/test_manual.py`'s `_as_rendered` already does that expansion for the
+  page contract and can be reused. The plan page's diagrams are mermaid with
+  backslash-escaped stars (`\*`), which a markdown twin should unescape.
 - **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
   the fenced constants, the citation style, the mermaid theme and the `{source}` role from
   `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds

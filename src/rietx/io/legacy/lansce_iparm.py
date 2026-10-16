@@ -226,33 +226,30 @@ def read_lansce_iparm(path: str | Path, *,
         took = ", ".join(f"{n} = {v!r}" for (_, _, n), v in zip(_BNKPAR_FIELDS, values))
         _note(diagnostics, "info", "GSAS_IPARM_LEGACY_LAYOUT",
               f"{path.name}: record {i + 1} ({raw!r}) runs a value across a "
-              f"BNKPAR field boundary, which the strict column check refuses. "
-              f"This one record was re-read by whitespace tokens, the legacy "
-              f"LANSCE layout's third deviation, and took {took}; GSAS-II "
-              f"v5.8.2 reads the same record the same way. No other record is "
-              f"token-read.",
+              f"BNKPAR field boundary. It was re-read by whitespace tokens "
+              f"and took {took}. GSAS-II v5.8.2 reads the same record the "
+              f"same way, and no other record is token-read.",
               where=[f"bank {b}", "BNKPAR"])
     if legacy_banks:
         names = " ".join(LEGACY_PRCF1_SLOT_NAMES)
         _note(diagnostics, "info", "GSAS_IPARM_LEGACY_LAYOUT",
-              f"{path.name}: bank(s) {', '.join(map(str, legacy_banks))}: PRCF set 1 "
-              f"is the legacy LANSCE layout, profile function 1 with "
-              f"{LEGACY_PRCF1_NCOF} coefficients. It was read as slots 1-8 of the "
-              f"documented twelve ({names}; slots 9-12 zero) and handed to the "
-              f"strict reader, whose GSAS_IPARM_PROFILE_READ describes that "
-              f"restated 12-slot block. GSAS-II v5.8.2 reads an 8-slot and a "
-              f"12-slot type-1 block slot for slot alike: slots 2, 3, 4, 6, 7 land "
-              f"under alpha, beta-0, beta-1, sig-1, sig-2, and slots 1, 5, 8 under "
-              f"no name, so those three are named by the manual's order, which "
-              f"is the source.",
+              f"{path.name}: PRCF set 1 of bank(s) "
+              f"{', '.join(map(str, legacy_banks))} is the legacy LANSCE "
+              f"layout, profile function 1 with {LEGACY_PRCF1_NCOF} "
+              f"coefficients. It was read as slots 1-8 of the documented "
+              f"twelve ({names}; slots 9-12 zero) and handed to the strict "
+              f"reader. GSAS-II v5.8.2 reads an 8-slot and a 12-slot type-1 "
+              f"block slot for slot alike, so slots 2, 3, 4, 6, 7 land under "
+              f"alpha, beta-0, beta-1, sig-1, sig-2, and slots 1, 5, 8 under "
+              f"no name. Those three take the manual's order.",
               where=[f"bank {b}" for b in legacy_banks] + ["PRCF1"])
     if fifth:
         pairs = "; ".join(f"bank {b} ITYP {ityp[b]}: P10 = {p10!r}, P11 = {p11!r}"
                           for b, (p10, p11) in sorted(fifth.items()))
         _note(diagnostics, "info", "GSAS_IPARM_LEGACY_LAYOUT",
-              f"{path.name}: a non-zero fifth ICOFF pair, which the documented "
-              f"layout stops short of ({pairs}). Carried on the bank's "
-              f"incident_spectrum as written; the manual prints no law for "
-              f"the pair, and nothing in this build evaluates a spectrum.",
+              f"{path.name}: the documented layout stops short of a non-zero "
+              f"fifth ICOFF pair ({pairs}). The pair was carried on the "
+              f"bank's incident_spectrum as written, and nothing in this "
+              f"build evaluates a spectrum.",
               where=[f"bank {b}" for b in sorted(fifth)] + ["ICOFF3"])
     return out

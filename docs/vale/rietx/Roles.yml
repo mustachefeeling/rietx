@@ -1,0 +1,10 @@
+# A program's roles are not the reader's words (yue-docs-style, Never).
+# Name the person or the code that does it.
+extends: existence
+message: "'%s' is a program's role. Name who or what does it."
+level: warning
+ignorecase: true
+tokens:
+  - callers?
+  - clients?
+  - intruders?

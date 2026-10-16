@@ -572,17 +572,10 @@ def _unnamed_child(group: MagneticGroup, head: str, transform: str,
                 *_cosets_of_the_operation_list(group)),
         operations=triplets,
         reason=(
-            f"{detail}. That happens when a parent operation's translation "
-            f"along the doubled axis is a half, which becomes a quarter in the "
-            f"child cell and appears in no standard operation list. The child "
-            f"phase therefore carries its own {len(triplets)} symmetry "
-            f"operations ({', '.join(triplets)}) and its space_group is the "
-            f"label {label!r} — the site orbits, the site multiplicities and "
-            f"the systematic absences all come from the operation list, and "
-            f"the cell's metric constraints from {constraint_source}, so "
-            f"nothing is guessed from the label. What is *not* available for "
-            f"such a group is a Wyckoff letter and a setting-comparison "
-            f"warning, both of which are properties of a tabulated setting"))
+            f"{detail}. The child phase therefore carries its own "
+            f"{len(triplets)} symmetry operations ({', '.join(triplets)}) "
+            f"under the label {label!r}. Its cell's metric constraints come "
+            f"from {constraint_source}."))
 
 
 def resolve_child_group(group: MagneticGroup, symbol: str | None,
@@ -1377,12 +1370,9 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             where=["space_group"],
             message=f"magnetic_supercell(): {child_group.reason}",
             suggestion=(
-                "nothing to fix — the statement is complete. Quote the child "
-                "group as its operation list (or as the closest type with the "
-                "cell beside it), not as the bracketed label's leading symbol, "
-                "which names a different group. If a published assignment for "
-                "this superstructure names a symbol, it is naming the type in "
-                "another cell: check the transform before comparing"),
+                "Quote the child group as its operation list, or as the "
+                "closest type with the cell beside it. Check the transform "
+                "before comparing it with a published symbol."),
         ),)
 
     entries = _child_positions(parent, basis, origin, cosets)

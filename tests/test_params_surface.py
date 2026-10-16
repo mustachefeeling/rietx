@@ -947,7 +947,7 @@ def test_a_turn_on_that_reached_nothing_says_so_when_it_can(pattern, path, n_fre
         assert stage.unknown_paths == [path]
         assert len(unknown) == 1 and unknown[0].level == "warning"
         assert unknown[0].where == [path]
-        assert f"did you mean {WAVELENGTH!r}" in unknown[0].message
+        assert f"Did you mean {WAVELENGTH!r}" in unknown[0].message
         # decided at stage start, so a watcher sees it before the budget goes
         start = next(e for e in seen if e["kind"] == "stage_start")
         assert start["data"]["unknown_paths"] == [path]
@@ -984,8 +984,8 @@ def test_a_literal_repeated_across_stages_is_one_finding_naming_both(pattern):
     unknown = {d.where[0]: d for d in result.diagnostics
                if d.code == "STAGE_PATH_UNKNOWN"}
     assert set(unknown) == {WAVELENGTH_TYPO, "phases.0.cell.aa"}
-    assert "stages 'first', 'second'" in unknown[WAVELENGTH_TYPO].message
-    assert "did you mean 'phases.0.cell.a'" in unknown["phases.0.cell.aa"].message
+    assert "Stages 'first', 'second'" in unknown[WAVELENGTH_TYPO].message
+    assert "Did you mean 'phases.0.cell.a'" in unknown["phases.0.cell.aa"].message
     assert [s.unknown_paths for s in result.stages] == [
         [WAVELENGTH_TYPO], [WAVELENGTH_TYPO, "phases.0.cell.aa"]]
 
@@ -1019,14 +1019,14 @@ def test_a_literal_the_model_will_not_free_says_which_path_would(pattern, path, 
     found = [d for d in result.diagnostics if d.code == "STAGE_PATH_NOT_FREE"]
     assert len(found) == 1 and found[0].level == "warning"
     assert found[0].where == [path]
-    assert f"stage 'only' asked for {path}, which {says}" in found[0].message
+    assert f"Stage 'only' asked for {path}, which {says}" in found[0].message
     if path == "phases.0.atoms.1.x" or path == "phases.0.atoms.1.y":
         assert found[0].suggestion.startswith(
-            "free phases.0.atoms.1.dof.* (phases.0.atoms.1.dof.0)")
+            "Free phases.0.atoms.1.dof.* (phases.0.atoms.1.dof.0)")
     elif path == "phases.0.atoms.0.z":
-        assert "every coordinate of this site is fixed" in found[0].suggestion
+        assert found[0].suggestion is None
     else:
-        assert found[0].suggestion.startswith("free phases.0.cell.a instead")
+        assert found[0].suggestion.startswith("Free phases.0.cell.a instead")
     assert not [d for d in result.diagnostics if d.code == "STAGE_PATH_UNKNOWN"]
 
 
@@ -1072,7 +1072,7 @@ def test_a_declined_literal_is_one_finding_naming_its_stages_and_run_stage_says_
             rx.Stage("second", ["phases.*.scale", "phases.0.cell.b"], max_iter=5)]))
     found = [d for d in result.diagnostics if d.code == "STAGE_PATH_NOT_FREE"]
     assert len(found) == 1
-    assert found[0].message.startswith("stages 'first', 'second' asked for")
+    assert found[0].message.startswith("Stages 'first', 'second' asked for")
 
     single = ref.run_stage(pattern, rx.Stage("x", ["phases.0.atoms.1.x"], max_iter=5))
     assert [d.where for d in single.diagnostics
@@ -1128,8 +1128,8 @@ def test_a_glob_under_a_retired_spelling_is_named_with_the_current_one(pattern):
                if d.code == "STAGE_PATH_UNKNOWN"}
     assert set(unknown) == {RETIRED_HUMPS, literal}
     assert all(d.level == "warning" for d in unknown.values())
-    assert f"the current spelling is {HUMPS!r}" in unknown[RETIRED_HUMPS].message
-    assert ("the current spelling is 'instrument.extra_components.0.height'"
+    assert f"The current spelling is {HUMPS!r}" in unknown[RETIRED_HUMPS].message
+    assert ("The current spelling is 'instrument.extra_components.0.height'"
             in unknown[literal].message)
     assert "background.c0" not in unknown[literal].message
 

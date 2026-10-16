@@ -112,7 +112,7 @@ def test_1x_tail_below_the_first_reflection_fires():
     d = found[0]
     assert d.level == "warning"
     assert d.value is not None and d.value > LOW_ANGLE_UNMODELLED_RATIO
-    assert "raise" in d.suggestion and "air-scatter" in d.suggestion
+    assert "Raise" in d.suggestion and "air-scatter" in d.suggestion
 
 
 def test_same_pattern_with_the_tail_excluded_is_silent():

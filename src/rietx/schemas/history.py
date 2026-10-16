@@ -49,7 +49,7 @@ NodeKind = Literal["root", "stage", "set_vary", "set_value", "set_tie",
 
 
 class NodeAction(Base):
-    """The edge operation that produced a node from its parent(s).
+    """The edge operation that produced a node from its parent or parents.
 
     For a ``"stage"`` action the fields are the stage's *own* arguments, because
     ``Refinement.cherry_pick`` reconstructs a ``Stage`` from them and re-runs it

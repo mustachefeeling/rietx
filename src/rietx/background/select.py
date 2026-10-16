@@ -164,15 +164,12 @@ def select_chebyshev_order(data: PatternData, *, max_order: int = 16,
         d_last = scores[-1].durbin_watson
         diagnostics.append(Diagnostic(
             level="info", code="BACKGROUND_ORDER_AT_CAP",
-            message=(f"the Chebyshev order scan returned its cap, {max_order} "
-                     f"terms, with BIC still falling: Durbin-Watson d on the "
-                     f"{m} masked channels was {d_last:.3f} at the last order, "
-                     f"short of the {dw_stop:g} stop, so the order was not "
-                     f"chosen by the data"),
-            suggestion=("A higher max_order is not the cure: d under the stop at "
-                        "every order is profile misfit leaking into the masked "
-                        "channels.  Read the fit's BACKGROUND_ABSORPTION, or use "
-                        "the penalised P-spline (kind='pspline')."),
+            message=(f"The Chebyshev order scan returned its cap of {max_order} "
+                     f"terms with BIC still falling. Durbin-Watson d on the {m} "
+                     f"masked channels was {d_last:.3f} at the last order, short "
+                     f"of the {dw_stop:g} stop."),
+            suggestion=("Read the fit's BACKGROUND_ABSORPTION, or use the "
+                        "penalised P-spline (kind='pspline')."),
             value=d_last))
     return BackgroundSelection(method="chebyshev_order", selected=best.complexity,
                                n_masked_channels=m, scores=scores,

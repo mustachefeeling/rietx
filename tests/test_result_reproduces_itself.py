@@ -82,7 +82,7 @@ def test_the_finding_names_the_frozen_figure_when_the_windows_mattered(
     hit = hits[0]
     assert hit.level == "info"
     assert hit.value > FROZEN_COMPILE_CHI2_REL
-    assert "frozen" in hit.message and "esds" in hit.message
+    assert "frozen" in hit.message and "chi2" in hit.message
 
 
 def test_the_history_node_keeps_its_as_optimised_metrics(narrow_start):

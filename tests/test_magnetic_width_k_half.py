@@ -296,7 +296,7 @@ def test_a2_4x_the_diagnostic_fires_at_four_times_the_counts(arms):
     hits = [d for d in res.diagnostics if d.code == UNMODELLED]
     assert len(hits) == 1, sorted(_codes(res))
     print(f"A2-4x UNMODELLED z = {hits[0].value:.2f}")
-    assert "biased **low**" in hits[0].message
+    assert "biased low" in hits[0].message
     assert "magnetic_lor_size" in hits[0].where[0]
     assert "(0 0 1)" in hits[0].message
 

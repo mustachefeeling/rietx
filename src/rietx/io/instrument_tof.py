@@ -444,8 +444,8 @@ def _profile(path: Path, bank: int, headers: dict[int, _Record],
             raise ValueError(f"{path}: bank {bank} has PRCF coefficient records "
                              f"and no PRCF header")
         _note(diagnostics, "warning", "GSAS_IPARM_PROFILE_DECLINED",
-              f"bank {bank}: no PRCF profile set, so the profile coefficients "
-              f"are left at zero; a fit refuses such a bank by name",
+              f"Bank {bank} has no PRCF profile set, so the profile "
+              f"coefficients are left at zero.",
               where=[f"bank {bank}"])
         return ProfileTOF()
     if 1 not in headers:
@@ -480,9 +480,10 @@ def _profile(path: Path, bank: int, headers: dict[int, _Record],
                     + (_LEGACY_POINTER if (ptyp, ncof) == (1, 8) else ""))
         if n != 1:
             _note(diagnostics, "info", "GSAS_IPARM_PROFILE_DECLINED",
-                  f"bank {bank}: PRCF set {n} (profile function {ptyp}) is not "
-                  f"read — set 1 is the default whatever its function (GSAS "
-                  f"Technical Manual p. 223)", where=[f"bank {bank}", f"PRCF{n}"])
+                  f"Bank {bank}: PRCF set {n} (profile function {ptyp}) was "
+                  f"not read, because set 1 is the default whatever its "
+                  f"function (GSAS Technical Manual p. 223).",
+                  where=[f"bank {bank}", f"PRCF{n}"])
             continue
         if ptyp in _PRCF_NOT_EVALUATED:
             raise rec.fail(
@@ -519,13 +520,11 @@ def _profile(path: Path, bank: int, headers: dict[int, _Record],
         except ValidationError as exc:
             raise rec.fail(str(exc)) from None
         _note(diagnostics, "info", "GSAS_IPARM_PROFILE_READ",
-              f"bank {bank}: PRCF set 1, profile function {ptyp} with {ncof} "
-              f"coefficients, read in the order the GSAS Technical Manual lists "
-              f"them ({', '.join(names)}). The manual lists them 'respectively' "
-              f"against those names but never states that this is the record "
-              f"order, so the order is an assumption. CTOF = {ctof!r} is read "
-              f"and not used: the manual calls it 'a cutoff factor' and defines "
-              f"it no further.", where=[f"bank {bank}", "PRCF1"])
+              f"Bank {bank}: PRCF set 1, profile function {ptyp} with {ncof} "
+              f"coefficients, was read in the order the GSAS Technical Manual "
+              f"lists them ({', '.join(names)}). That order is an assumption. "
+              f"CTOF = {ctof!r} was read and not used.",
+              where=[f"bank {bank}", "PRCF1"])
     assert chosen is not None
     return chosen
 
@@ -676,12 +675,8 @@ def _banks_from_records(path: Path, records: list[tuple[str, str]],
                 dropped_all.append(key)
     if dropped_all:
         _note(diagnostics, "info", "GSAS_IPARM_FIELD_DROPPED",
-              f"{path.name}: records or fields with no slot in the schema were "
-              f"read and not carried: {', '.join(dropped_all)}. IECOR (the "
-              f"spectrum's correlation matrix) and CHKSUM (whose algorithm is "
-              f"not published) have nowhere to go; the others are not among the "
-              f"records the GSAS Technical Manual p. 221-223 gives a TOF bank a "
-              f"use for here.", where=dropped_all)
+              f"{path.name}: {', '.join(dropped_all)} have no slot in the "
+              f"schema and were not carried.", where=dropped_all)
     return out
 
 
@@ -786,7 +781,6 @@ def read_tof_instprm(path: str | Path, *,
         raise ValueError(f"{path}: {exc}") from None
     if dropped:
         _note(diagnostics, "info", "GSAS2_INSTPRM_FIELD_DROPPED",
-              f"{path.name}: keys read and not carried: {', '.join(dropped)} — "
-              f"metadata with no slot, or named coefficients whose law is not "
-              f"published and whose value here is 0.", where=dropped)
+              f"{path.name}: {', '.join(dropped)} were read and not carried.",
+              where=dropped)
     return Instrument(source=source)

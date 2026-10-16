@@ -168,13 +168,12 @@ def read_xy(path: str | Path, *,
             level="warning", code="PATTERN_ROWS_DROPPED",
             message=(
                 f"{p.name}: {len(dropped)} numeric row(s) have a column count "
-                f"other than the file's {arity}, and were not read as data "
+                f"other than the file's {arity} and were not read as data "
                 f"({shown}{more})."),
             where=[f"line {n}" for n, _ in dropped],
             suggestion=(
-                "A header table or a limits row reads this way. If a dropped "
-                "row is a measured point, the file mixes column counts: "
-                "re-export it with one count on every row."),
+                "Re-export the file with one column count on every row if a "
+                "dropped row is a measured point."),
             value=float(len(dropped)),
         ))
     # one column count, so every kept row parsed the same number of values
@@ -193,9 +192,9 @@ def read_xy(path: str | Path, *,
         hint = next((c for c in comments if _TOF_HINT_RE.search(c)), None)
         note = ("" if hint is None else
                 f" This file's comments mention a flight time "
-                f"({hint!r}) but state no x-axis unit, and a mention is not a "
-                f"declaration — export it with Mantid's header line "
-                f"(\"The X-axis unit is: Time-of-flight\") to read it as TOF.")
+                f"({hint!r}) but state no x-axis unit. Export it with Mantid's "
+                f"header line (\"The X-axis unit is: Time-of-flight\") to "
+                f"read it as TOF.")
         check_axis(stated or "", path=p, field="x-axis unit",
                    two_theta=False, other=other, note=note,
                    remedy=("Export the bank in time-of-flight or in 2θ: those "
