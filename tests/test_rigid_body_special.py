@@ -756,7 +756,7 @@ def test_no_rigid_body_message_keeps_a_numpy_repr_or_the_old_advice():
     root = Path(__file__).parents[1] / "src" / "rietx"
     for path in (root / "params" / "vector.py", root / "params" / "bodies.py",
                  root / "crystallography" / "bodies.py"):
-        assert "move the origin to a general position" not in path.read_text(), path
+        assert "move the origin to a general position" not in path.read_text(encoding="utf-8"), path
     off, on = _pbso4_with_o5_image(0.03), _pbso4_with_o5_image()
     pbso4 = _pbso4()
     twisted = body_from_atoms(pbso4, ["S2", "O3", "O4", "O5"], "SO4", origin="S2")
