@@ -83,7 +83,7 @@ and so are "glob", "schema" and "column" until a page explains them.
 
 ## Tasks
 
-- [ ] The Theory-link check resolves `https://rietx.org/<chapter>.html#<id>` against the old
+- [x] The Theory-link check resolves `https://rietx.org/<chapter>.html#<id>` against the old
       tree's build, with a case that makes it fail on a missing page and a missing id.
 - [ ] About a fit: the life of a fit, from pattern and models to result and history, as one
       diagram with a paragraph a box.
