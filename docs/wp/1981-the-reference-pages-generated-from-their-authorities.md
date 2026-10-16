@@ -60,10 +60,7 @@ Facts measured 2026-10-15 (WP-1975 § B2-B4):
   The map is hand-written and a test checks each foreign name against those constants.
 - **For agents.** A short page saying what the skill is, linking `/skill/rietx/`. The old
   tree rendered the whole skill as one 702 000-character page; the new one does not.
-
-### Inherited
-
-- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
+- **The tree (WP-1978).** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
   the fenced constants, the citation style, the mermaid theme and the `{source}` role from
   `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
   it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
