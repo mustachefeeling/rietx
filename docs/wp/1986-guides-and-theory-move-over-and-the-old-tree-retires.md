@@ -46,6 +46,13 @@ carries no instrument, so write the new one from a `Refinement`.
 
 ### Inherited
 
+- **2026-10-16, from WP-1982.** A chapter moved into `docs/docs/` meets Vale in CI's lint
+  job, which fails on an error. Over the whole old manual the house configuration finds
+  463 errors: 417 spellings (code identifiers outside backticks such as `str` and `c_w`,
+  American forms such as "serializable", and words the term list may yet take), 14 banned
+  words ("just" 12) and 8 "fnmatch". It also prints 458 warnings, among them 101 notation
+  left as text, 62 "caller" and 35 prices. Expect each chapter's move to carry its share of
+  those fixes. A word that belongs in the domain goes in `docs/vale/terms.txt`.
 - **2026-10-16, from WP-1981.** Three old-tree pieces now have a replacement in the new
   Reference tab. The glossary (`using/glossary.md`, written by the old `conf.py`'s
   `_write_glossary`) is covered for parameters by `reference/parameters.md`. Its other arms
