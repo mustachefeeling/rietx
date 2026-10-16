@@ -1908,8 +1908,10 @@ class IndexingResult(Base):
             lines += [f"  {line}" for line in str(diag).splitlines()]
         for c in result.candidates:
             for diag in c.diagnostics:
-                lines += [f"  {line}" for line in str(diag).splitlines()]
-                lines.append(f"    on: {_candidate_label(c)}")
+                # ``on:`` straight under the headline, where the HTML fold has it
+                first, *rest = str(diag).splitlines()
+                lines += [f"  {first}", f"    on: {_candidate_label(c)}",
+                          *(f"  {line}" for line in rest)]
         return head, candidates, lines
 
     def _verdict_lines(self) -> list[str]:
