@@ -659,6 +659,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1983](1983-the-concepts-tab.md) | The Concepts tab | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
 | [1984](1984-the-switching-tab.md) | The Switching tab | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md), [1979](1979-the-manual-at-docs-one-tree-per-version.md) |
+| [1987](1987-the-kernel-gate-on-the-macos-intel-runner.md) | The kernel gate on the macOS Intel runner | ⬜ | P3 | — |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 
