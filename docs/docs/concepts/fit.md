@@ -86,7 +86,9 @@ The [forward model](https://rietx.org/forward-model.html#discreteness-frozen-per
 Before it solves, the stage compares each phase's scale with its esd.
 A phase whose scale is under {{ PHASE_SUPPORT_SIGMA }} esds is too weak for the data to fix its cell and atoms, so the stage fixes them and tests the phase again at its answer.
 A magnetic moment direction the powder average cannot determine is fixed the same way.
-`StageResult.held` lists what was fixed, and the diagnostic `PHASE_UNCONSTRAINED` reports it.
+So is a phase's displacement parameter when its reflections in range cannot separate it from the scale.
+`StageResult.held` lists what was fixed.
+The diagnostic `PHASE_UNCONSTRAINED` reports a held phase, and `SCALE_B_INSEPARABLE` a held displacement parameter.
 This is separate from `Refinement.hold`, which you set and which lasts until you lift it.
 
 ### Solving

@@ -14,7 +14,7 @@ A calibrated instrument carries over to every sample measured on it, and a backg
 |---|---|---|---|
 | [Cell](../reference/parameters.md#cell) | phase | where each reflection falls | through d, as tan θ |
 | [Atoms](../reference/parameters.md#atoms) | atom | the relative intensities | per hkl, with no smooth angular form |
-| [Phase amount and intensity corrections](../reference/parameters.md#phase-amount-and-intensity-corrections) | phase or specimen | how strong the phase is, and smooth or hkl-selective rescaling | smooth in Q |
+| [Phase amount and intensity corrections](../reference/parameters.md#phase-amount-and-intensity-corrections) | phase or specimen | how strong the phase is, and smooth or hkl-selective rescaling | smooth in Q, or per hkl for texture |
 | [Microstructure](../reference/parameters.md#microstructure) | phase | the width the specimen adds | size as 1/cos θ, strain as tan θ |
 | [Instrument peak positions](../reference/parameters.md#peak-positions) | instrument and specimen position | where every peak sits | constant, cos θ, sin 2θ or cos 2θ |
 | [Instrument peak shape](../reference/parameters.md#peak-shape) | instrument | the instrument's own width and asymmetry | Gaussian FWHM² as U tan²θ + V tan θ + W |
@@ -40,7 +40,7 @@ These are the usual reasons:
 - the mode fixes it, as a Le Bail or Pawley fit fixes the atoms;
 - you hold it with `Refinement.hold`.
 
-An atom placed by a rigid body, and a wavelength that a free cell would make indistinguishable from the cell, are the other two.
+An atom placed by a rigid body is held too, and so is a wavelength while the cell is free, since d = λ/(2 sin θ) fixes only their ratio.
 
 A named variable is a parameter you declare with `Refinement.add_variable`, outside the structure and instrument.
 Model parameters follow it through ties, so three oxygens can share one displacement parameter that belongs to none of them.

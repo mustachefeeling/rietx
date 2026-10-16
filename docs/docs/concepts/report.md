@@ -27,11 +27,13 @@ Layer 0 makes no assumption about the model being right.
 It gives the agreement indices and the cumulative χ² along the pattern, whose steep stretches show where the misfit lies (David 2004).
 It cuts the pattern into regions around peak clusters and ranks them by their share of χ².
 It lists observed peaks no calculated reflection accounts for, and calculated reflections with no observed peak.
-An observed peak must stand {{ IMPURITY_SIGMA }} esds clear of the noise to be listed.
+An observed peak must stand {{ LAYER0_PEAK_SIGMA }} esds above the calculated curve to be listed.
+Layer 2 suggests an impurity phase only for a peak above {{ IMPURITY_SIGMA }} esds.
 
 Layer 0 can say where the misfit is and how much of χ² it carries.
 It cannot say why.
-Its unmatched-peak list has one entry per data point, so the length of the list measures how much of the pattern is unmatched, not how many peaks.
+Its unmatched-peak list has one entry per local maximum of the residual.
+A broad unindexed feature can give several entries, so the length of the list is not a count of peaks.
 
 ## Layer 1: what the misfit looks like
 
@@ -63,7 +65,7 @@ It also abstains when the misfitting regions carry more than {{ MATURITY_MIN_MIS
 A shift that varies with angle points at a cause.
 A constant shift suggests the zero, cos θ a flat-plate specimen displacement, and tan θ the cell.
 Layer 1 fits each such shape to the position shifts of all regions, one shape at a time, and reports the best.
-When the best fits less than twice as well as the runner-up, it reports the trend as not separable.
+When the runner-up leaves less than {{ SEPARABILITY_MIN_SS_RATIO }} times the best one's unexplained variance, it reports the trend as not separable.
 Over a short angular range these shapes are close to proportional, and a joint fit of all of them would split one error into large cancelling parts.
 The shapes on offer depend on the geometry, so a capillary fit is never offered a flat-plate correction.
 
