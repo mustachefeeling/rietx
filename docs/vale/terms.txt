@@ -32,6 +32,8 @@ carbonyl
 centring
 centrings
 centrosymmetric
+centrosymmetry
+chirality
 CIF
 CIFs
 collinear
@@ -209,6 +211,7 @@ moduli
 monomial
 monomials
 monotonicity
+multiplets
 multimodal
 normals
 nullspace
