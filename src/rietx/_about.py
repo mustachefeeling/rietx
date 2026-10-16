@@ -37,6 +37,8 @@ module on the audit's allowlist and blind it to exactly the stale literal it
 exists to catch.
 """
 
+import re as _re
+
 #: The distribution name — ``importlib.metadata.version`` argument, the
 #: ``pip install 'NAME[extra]'`` hints, and the manual's ``release``.
 DIST_NAME = "rietx"
@@ -127,6 +129,16 @@ SERVER_TOKEN = "rietx"
 #: with ``rietx.agent`` in WP-1303.  A brand token: a rename or a hosting move
 #: changes it here and nowhere else.
 DOCS_URL = "https://rietx.org"
+
+
+def docs_version(version: str) -> str:
+    """The directory under ``<DOCS_URL>/docs/`` holding a version's manual (WP-1979).
+
+    A release's manual is kept per minor, so ``1.10.2`` reads ``1.10``. Anything
+    else, a ``.dev0`` build included, reads ``dev``, the tree built from ``main``.
+    """
+    match = _re.fullmatch(r"(\d+)\.(\d+)\.\d+", version)
+    return f"{match[1]}.{match[2]}" if match else "dev"
 
 #: Root of the source repository, no trailing slash.  A brand token like
 #: :data:`DOCS_URL`, and the base the theory manual builds a per-equation

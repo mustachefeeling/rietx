@@ -105,7 +105,9 @@ bodies into an ignored `docs/docs/_generated/` on every build.
 - [ ] A versioned docs base beside `DOCS_URL`, and `help.py`'s anchors on it once their
       pages exist in the new tree; a test pins the mapping from `rietx.__version__` to the
       URL, and the anchor test builds the new tree.
-- [ ] The `{source}` role links the build's tag rather than `main`.
+- [x] The `{source}` role links the build's tag rather than `main`. So do the Reference tab's
+      two file links. `sphinx_shared.DOCS_VERSION` says which hosted version a build is, and
+      `SOURCE_REF` follows it.
 - [ ] `docs/RELEASING.md` gains the step that adds a version, and the step that prunes one.
 - [ ] Skill: none; the skill links the docs through `DOCS_URL`.
 
