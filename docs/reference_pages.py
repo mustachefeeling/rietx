@@ -8,6 +8,7 @@
 # `{include}`s it.  The tests call the same functions, so they read what the
 # build would render without running one.
 
+import dataclasses as _dataclasses
 from fnmatch import fnmatchcase as _fnmatchcase
 from pathlib import Path as _Path
 
@@ -190,9 +191,80 @@ def parameter_map() -> str:
     return "\n".join(out)
 
 
+# ----------------------------------------------------------------------
+# The plan ladder
+#
+# Drawn from the plan objects, because the old tree's hand-drawn diagram
+# drifted once: it left out the `extra_components` stage that
+# `mccusker_structural` runs sixth of eleven.
+# ----------------------------------------------------------------------
+
+def _stage_defaults() -> dict:
+    from rietx.strategy.staged import Stage
+
+    return {f.name: f.default for f in _dataclasses.fields(Stage)
+            if f.default is not _dataclasses.MISSING}
+
+
+def _stage_label(stage, defaults: dict) -> str:
+    lines = [stage.name, *stage.turn_on]
+    lines += [f"{name} = {getattr(stage, name)}" for name, default in defaults.items()
+              if getattr(stage, name) != default]
+    # Mermaid 11 reads `*` as markdown emphasis, and decodes `#42;` before it
+    # does, so only a backslash keeps a glob's stars (measured on 11.12.1).
+    return "<br>".join(line.replace('"', "#quot;").replace("*", "\\*") for line in lines)
+
+
+def _ladder(plan) -> list[str]:
+    defaults = _stage_defaults()
+    out = ["```{mermaid}", "flowchart TB"]
+    for i, stage in enumerate(plan.stages):
+        out.append(f'  s{i}["{_stage_label(stage, defaults)}"]')
+    if len(plan.stages) > 1:
+        out.append("  " + " --> ".join(f"s{i}" for i in range(len(plan.stages))))
+    return out + ["```", ""]
+
+
+def _ftol_sentence(ftol: float | None) -> str:
+    if ftol is None:
+        return "Every stage runs to the solver's own tolerance."
+    return (f"Every stage before the last stops at `ftol = {ftol:g}`. "
+            "The last runs to the solver's own tolerance.")
+
+
+def plan_ladder() -> str:
+    """The body of `reference/plans.md`: a summary table, then one ladder per preset."""
+    from rietx.strategy.staged import _MODE_SUBSTITUTES, PLAN_INFO, PLAN_PRESETS
+
+    plans = {name: build() for name, build in PLAN_PRESETS.items()}
+    out = [_BANNER.format(source="PLAN_PRESETS and PLAN_INFO"), "",
+           "| Preset | Title | Modes | Stages |", "| --- | --- | --- | --- |"]
+    for name, plan in plans.items():
+        info = PLAN_INFO[name]
+        modes = ", ".join(f"`{m}`" for m in info.modes)
+        out.append(f"| [`{name}`](#{name}) | {_cell(info.title)} | {modes} "
+                   f"| {len(plan.stages)} |")
+    out.append("")
+    for (name, mode), twin in _MODE_SUBSTITUTES.items():
+        out.append(f"Under `{mode}`, `{name}` runs as `{twin}`.")
+    ftols = {plan.intermediate_ftol for plan in plans.values()}
+    shared = len(ftols) == 1
+    if shared:
+        out.append(_ftol_sentence(next(iter(ftols))))
+    out.append("")
+    for name, plan in plans.items():
+        info = PLAN_INFO[name]
+        out += [f"## {name}", "", info.description, "", info.when_to_use, ""]
+        if not shared:
+            out += [_ftol_sentence(plan.intermediate_ftol), ""]
+        out += _ladder(plan)
+    return "\n".join(out)
+
+
 #: Generated body file name -> the function that writes it.
 BODIES = {
     "parameters.md": parameter_map,
+    "plans.md": plan_ladder,
 }
 
 

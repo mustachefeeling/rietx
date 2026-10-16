@@ -8,4 +8,5 @@ Each page is built from the code that owns its facts, so it matches the installe
 :hidden:
 
 parameters
+plans
 ```

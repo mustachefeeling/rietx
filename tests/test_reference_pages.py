@@ -89,3 +89,32 @@ def test_the_map_shows_every_entry_once_with_its_unit():
         if entry["unit"]:
             row = next(line for line in text.splitlines() if line.startswith(f"| {first}"))
             assert f"| {entry['unit']} |" in row, row
+
+
+# ----------------------------------------------------------------------
+# The plan ladder
+# ----------------------------------------------------------------------
+
+def test_every_preset_has_a_ladder_with_every_stage_and_glob():
+    """The old tree's hand-drawn ladder dropped a stage; a drawn one cannot."""
+    from rietx.strategy.staged import PLAN_PRESETS
+
+    text = reference_pages.plan_ladder()
+    sections = re.split(r"^## ", text, flags=re.M)[1:]
+    assert [s.splitlines()[0] for s in sections] == list(PLAN_PRESETS)
+    for section in sections:
+        plan = PLAN_PRESETS[section.splitlines()[0]]()
+        nodes = re.findall(r'^  s\d+\["(.*)"\]$', section, flags=re.M)
+        assert len(nodes) == len(plan.stages)
+        for node, stage in zip(nodes, plan.stages):
+            lines = node.replace("\\*", "*").split("<br>")
+            assert lines[:1 + len(stage.turn_on)] == [stage.name, *stage.turn_on]
+
+
+def test_the_mode_substitutions_are_what_resolve_plan_runs():
+    from rietx.strategy.staged import _MODE_SUBSTITUTES, PLAN_PRESETS, resolve_plan
+
+    text = reference_pages.plan_ladder()
+    for (name, mode), twin in _MODE_SUBSTITUTES.items():
+        assert resolve_plan(name, mode) == PLAN_PRESETS[twin]()
+        assert f"Under `{mode}`, `{name}` runs as `{twin}`." in text

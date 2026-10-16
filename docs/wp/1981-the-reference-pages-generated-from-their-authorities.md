@@ -79,7 +79,7 @@ Facts measured 2026-10-15 (WP-1975 § B2-B4):
 - [x] Parameter map: grouped tables from `PARAMETER_HELP`, with the grouping held in the docs
       build, and a test that every glob lands in exactly one group.
 - [x] `vars.*` help family in `help.py`, with the GUI `PLACES` row, vitest and dist rebuild.
-- [ ] Plan ladder from `PLAN_INFO`/`PLAN_PRESETS`, one diagram per preset.
+- [x] Plan ladder from `PLAN_INFO`/`PLAN_PRESETS`, one diagram per preset.
 - [ ] API reference: autodoc or a generator over `__all__`, grouped by likely use, and
       `tests/api_surface.py`'s partition reading it.
 - [ ] Diagnostic index: every code, its level and where it is raised.

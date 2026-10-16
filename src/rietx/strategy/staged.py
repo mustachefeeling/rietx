@@ -601,6 +601,14 @@ PLAN_PRESETS = {
     }.items()
 }
 
+#: (preset name, mode) -> the preset :func:`resolve_plan` runs in its place.
+#: Data, so the manual's plan page can say what each name runs as without a
+#: second copy of the mapping (WP-1981).
+_MODE_SUBSTITUTES: dict[tuple[str, str], str] = {
+    ("mccusker_default", "lebail"): "profile_only",
+    ("mccusker_default", "pawley"): "pawley_default",
+}
+
 
 def resolve_plan(plan: "RefinementPlan | PlanSpec | str", mode: Mode) -> RefinementPlan:
     """A preset name, a plan or its serializable mirror, as a concrete plan.
@@ -629,11 +637,7 @@ def resolve_plan(plan: "RefinementPlan | PlanSpec | str", mode: Mode) -> Refinem
         return plan.to_plan()
     if not isinstance(plan, str):
         return plan
-    name = plan
-    if name == "mccusker_default" and mode == "lebail":
-        name = "profile_only"
-    elif name == "mccusker_default" and mode == "pawley":
-        name = "pawley_default"
+    name = _MODE_SUBSTITUTES.get((plan, mode), plan)
     try:
         return PLAN_PRESETS[name]()
     except KeyError:
