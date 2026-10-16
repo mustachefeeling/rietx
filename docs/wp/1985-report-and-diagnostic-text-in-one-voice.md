@@ -1,6 +1,6 @@
 # WP-1985 — Report and diagnostic text, rewritten in one voice
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-16 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: — (1133 soft: it adds a field to the same `Diagnostic`)
 Priority: P2 2026-10-16 — the maintainer asked for it, and the tutorials (1545) and Guides (1986) wait on it
