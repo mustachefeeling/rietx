@@ -53,6 +53,17 @@ screenshots come from `docs/manual/make_screenshots.py`.
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#141): the reporter asks to schedule
+  the planted-events fixture now.** Posted 2026-10-16T07:00Z, after the
+  2026-10-13 entry. They propose it as this WP's first task, or under
+  1325/1965: the seeded generator, a full-length series (temperature ramp,
+  smooth cell expansion, four planted events), its `refine_sequential` result
+  and `to_table()` output, and a check that each planted event appears in the
+  flag vocabulary. Their reasons: series fits are joint since #969, and an
+  August detector's thresholds inverted by 1.9.0.dev0 (their comments on
+  #977). Awaiting the maintainer's go; checked against origin/main 138d55dc,
+  where no generator exists under `tests/`.
+
 - **2026-10-15, from [1325](1325-parametric-series.md), from @mustachefeeling's comments on PR #977: #141's planted-events series is wanted as a
   calibration fixture.** Their blind event detector's thresholds, tuned by
   hand on one positive and one null series in August, inverted by
