@@ -76,6 +76,12 @@ re-reading its own diff.
    gets its `Priority:` line rewritten (tier, today's date, one clause naming
    this WP; rubric in `docs/wp/TEMPLATE.md`). An unrated WP (`—`) stays
    unrated unless the move is the reason to rate it.
+   **Then run `python3 .claude/hooks/closed_wp_writes.py`**. It lists every
+   WP this branch adds lines to that was already ✅/🛑 at the merge-base. No
+   session reads a closed WP again, so a note there that asks for work is
+   lost: move it to the open owner, or file one. A correction to the closed
+   WP's own record may stay, and the handover entry says which it was. Two
+   notes were lost this way, one of them for 81 days (WP-1989).
 6. **Review the diff before it becomes a PR.** Run `/code-review high
    --fix` — it reads this session's work (a clean tree means the branch's own
    diff against `origin/main`) and applies what it accepts to the working
