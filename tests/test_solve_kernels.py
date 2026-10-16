@@ -151,12 +151,15 @@ def _orbit_sums_numpy(c: _Case, xyz: np.ndarray, atoms) -> tuple[np.ndarray, np.
     return s_re, s_im
 
 
-def _clash_numpy(pos, site_of, moved, G, r0, sigma, w_same) -> np.ndarray:
+def _clash_numpy(pos, site_of, moved, G, r0, sigma, w_same, reach=1) -> np.ndarray:
     """Term for term as the kernel sums it: the minimum image d − ⌊d + ½⌋,
     the 27 cells around it, the metric form in the kernel's association, and
-    an atom against itself in its own cell left out."""
-    shifts = np.array([(i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1)
-                       for k in (-1, 0, 1)], dtype=np.float64)
+    an atom against itself in its own cell left out.  ``reach`` > 1 widens the
+    cells to (2·reach + 1)³, the sum a thin cell needs and the kernel refuses."""
+    span = range(-reach, reach + 1)
+    shifts = np.array([(i, j, k) for i in span for j in span for k in span],
+                      dtype=np.float64)
+    own = len(shifts) // 2
     out = np.zeros(pos.shape[0])
     for r in range(pos.shape[0]):
         e = 0.0
@@ -170,7 +173,7 @@ def _clash_numpy(pos, site_of, moved, G, r0, sigma, w_same) -> np.ndarray:
             dist = np.where(q > 0.0, np.sqrt(np.maximum(q, 0.0)), 0.0)
             rr = r0[site_of[a], site_of][:, None]
             ov = np.where(dist < rr, (rr - dist) / sigma, 0.0)
-            ov[a, 13] = 0.0
+            ov[a, own] = 0.0
             w = np.where(site_of == moved[r], w_same, 1.0)[:, None]
             e += float(np.sum(w * ov * ov))
         out[r] = e
@@ -292,6 +295,69 @@ def test_an_atom_meets_its_own_images_and_never_itself():
     assert got is not None and got[0] == pytest.approx(0.5 * 6 * 25.0, rel=1e-14)
 
 
+def _thin(axis: int, x: float, r0: float = 3.4):
+    """One atom in a cell whose ``axis`` is r0/x long, the other two 6 Å, so
+    that r0·√(G*_kk) = x on that axis: the 27 cells around a minimum image
+    hold every contact closer than r0 exactly while x < 3/2."""
+    lengths = [6.0, 6.0, 6.0]
+    lengths[axis] = r0 / x
+    G = np.diag(np.square(lengths))
+    one = np.zeros(1, np.int64)
+    return np.full((1, 1, 3), 0.3), one, one, G, np.full((1, 1), r0)
+
+
+@needs_solve
+@pytest.mark.parametrize("axis", [0, 1, 2])
+def test_a_thin_cell_past_the_27_cells_is_refused_by_name(axis):
+    """r0·√(G*_kk) = 2.125 along one axis: the atom's images two cells away,
+    at 3.2 Å, are closer than r0 = 3.4 Å and outside the 27 cells, so the
+    sum the kernel would return misses them.  The numpy oracle over 5³ cells
+    shows the contacts it would miss; the kernel refuses rather than answer.
+    #1016's ``site_clash`` makes the same refusal at the same bound."""
+    pos, site_of, moved, G, r0 = _thin(axis, 2.125)
+    near = _clash_numpy(pos, site_of, moved, G, r0, 0.1, 0.5)
+    full = _clash_numpy(pos, site_of, moved, G, r0, 0.1, 0.5, reach=2)
+    assert full[0] > near[0], "the 27 cells miss nothing here, so nothing is tested"
+    compiled.set_enabled(True)
+    with pytest.raises(ValueError, match="r0 up to 3.4 Å reaches past the 27 cells"):
+        compiled.solve_clash(pos, site_of, moved, G, r0, 0.1, 0.5)
+
+
+@needs_solve
+@pytest.mark.parametrize("axis", [0, 1, 2])
+def test_a_cell_just_inside_the_bound_is_served_whole(axis):
+    """r0·√(G*_kk) = 1.49: the second neighbour along the axis sits at
+    2·r0/1.49 > r0, so the 27 cells hold every contact, the kernel answers,
+    and its answer is the wider sum's."""
+    pos, site_of, moved, G, r0 = _thin(axis, 1.49)
+    full = _clash_numpy(pos, site_of, moved, G, r0, 0.1, 0.5, reach=2)
+    compiled.set_enabled(True)
+    got = compiled.solve_clash(pos, site_of, moved, G, r0, 0.1, 0.5)
+    assert full[0] > 0 and got[0] == pytest.approx(full[0], rel=1e-14)
+
+
+@needs_solve
+def test_a_sheared_cell_is_bounded_by_its_plane_spacing_not_its_axis():
+    """√(G*_kk) is the inverse plane spacing, which a shear shrinks below
+    the axis length: two 2.5 Å axes at γ = 20° have planes 0.86 Å apart, so
+    r0 = 2.2 Å reaches 2.6 spacings and is refused, though a test on the
+    axis length alone would pass it (2.2/2.5 = 0.88).  The image at
+    2·(a − b), 1.74 Å away, lies two cells out on both axes, and the 5³-cell
+    oracle shows the 27 cells missing it."""
+    a, b, c, gam = 2.5, 2.5, 6.0, np.radians(20.0)
+    G = np.array([[a * a, a * b * np.cos(gam), 0.0],
+                  [a * b * np.cos(gam), b * b, 0.0],
+                  [0.0, 0.0, c * c]])
+    one = np.zeros(1, np.int64)
+    pos, r0 = np.full((1, 1, 3), 0.3), np.full((1, 1), 2.2)
+    near = _clash_numpy(pos, one, one, G, r0, 0.1, 0.5)
+    full = _clash_numpy(pos, one, one, G, r0, 0.1, 0.5, reach=2)
+    assert full[0] > near[0], "the 27 cells miss nothing here, so nothing is tested"
+    compiled.set_enabled(True)
+    with pytest.raises(ValueError, match="reaches past the 27 cells"):
+        compiled.solve_clash(pos, one, one, G, r0, 0.1, 0.5)
+
+
 # -- the pool --------------------------------------------------------------------
 @needs_solve
 def test_a_split_call_lands_on_the_inline_bits(monkeypatch):
@@ -406,6 +472,9 @@ CLASH_DEFECTS = {
     "site_of short": (lambda c: c.update(site_of=c["site_of"][:-1].copy()), "site_of has"),
     "r0 not square": (lambda c: c.update(r0=np.ones((4, 3))), "r0 has shape"),
     "g not 3 × 3": (lambda c: c.update(g=np.eye(2)), "g has shape"),
+    "g not positive definite": (lambda c: c.update(g=np.diag([25.0, 25.0, -25.0])),
+                                "g is not a positive-definite metric"),
+    "r0 not finite": (lambda c: c["r0"].__setitem__((0, 0), np.nan), "r0 holds NaN"),
     "zero sigma": (lambda c: c.update(sigma=0.0), "sigma 0"),
     "nan sigma": (lambda c: c.update(sigma=float("nan")), "sigma NaN"),
     "infinite w_same": (lambda c: c.update(w_same=float("inf")), "w_same inf"),

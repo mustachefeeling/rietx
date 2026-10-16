@@ -35,6 +35,21 @@
 //! an exact half.  The metric form is summed as written.  Its loop is serial
 //! over the replica range `[lo, hi)`, each replica one output element.
 //!
+//! **The 27 cells are a bound, and the kernel refuses past it.**  A sphere of
+//! radius r spans |x_k| ≤ r·√(G*_kk) along fractional axis k (the plane
+//! spacing is 1/√(G*_kk), G* = G⁻¹), and a minimum-image component already
+//! lies in [−½, ½), so the shifts needed are |n_k| ≤ ⌊r·√(G*_kk) + ½⌋.  The
+//! loop's ±1 holds every contact closer than the largest r0 exactly while
+//! that is at most 1 on every axis, r0 under 1.5 plane spacings.  Past it a
+//! thin cell, or a large r0, would lose contacts in silence, so
+//! `check_cells` refuses, with the bound and the words of the numpy
+//! `site_clash` in the engine's `chemistry.py` (#1016), and the engine can
+//! treat both refusals alike.  It sits here and not in `compiled.py`
+//! because the limit is this loop's, and the wheel's function is callable
+//! without the wrapper.  G* comes from the cofactors here and from
+//! `np.linalg.inv` there, so the two can disagree only within a few ulps of
+//! the bound.
+//!
 //! The checks are `lib.rs`'s, by name and before the GIL is released: every
 //! plane C-contiguous and of the shape the loops index it by, every index in
 //! range, every output writeable and disjoint from every other array.
@@ -85,6 +100,40 @@ fn out<D: Dimension>(name: &str, a: &Bound<'_, PyArray<f64, D>>, like: &[usize])
 fn shape_is(name: &str, got: &[usize], want: &[usize]) -> PyResult<()> {
     if got != want {
         return err(format!("{name} has shape {got:?}, the kernel reads {want:?}"));
+    }
+    Ok(())
+}
+
+/// `r` to three significant figures, as Python's `{:.3g}` writes a distance
+/// of order ångströms: no trailing zeros, no exponent.
+fn sig3(r: f64) -> String {
+    if r == 0.0 || !r.is_finite() {
+        return format!("{r}");
+    }
+    let decimals = (2 - r.abs().log10().floor() as i32).max(0) as usize;
+    let s = format!("{r:.decimals$}");
+    if s.contains('.') { s.trim_end_matches('0').trim_end_matches('.').to_string() } else { s }
+}
+
+/// Refuse a metric `g` (row-major 3 × 3) and contact radii `r0` for which
+/// the 27 cells around a minimum image would miss a contact: the module
+/// header's bound, ⌊r·√(G*_kk) + ½⌋ ≤ 1 on every axis for r the largest r0.
+fn check_cells(g: &[f64], r0: &[f64]) -> PyResult<()> {
+    if let Some(v) = r0.iter().find(|v| !v.is_finite()) {
+        return err(format!("r0 holds {v}, not a finite distance"));
+    }
+    let r = r0.iter().copied().fold(0.0, f64::max);
+    // Sylvester's criterion, then the diagonal of G* = G⁻¹ from cofactors
+    let c00 = g[4] * g[8] - g[5] * g[7];
+    let c11 = g[0] * g[8] - g[2] * g[6];
+    let c22 = g[0] * g[4] - g[1] * g[3];
+    let det = g[0] * c00 - g[1] * (g[3] * g[8] - g[5] * g[6]) + g[2] * (g[3] * g[7] - g[4] * g[6]);
+    if !(g[0] > 0.0 && c22 > 0.0 && det > 0.0) {
+        return err("g is not a positive-definite metric tensor");
+    }
+    if [c00, c11, c22].iter().any(|&c| (r * (c / det).sqrt() + 0.5).floor() > 1.0) {
+        return err(format!("r0 up to {} Å reaches past the 27 cells around a minimum image \
+                            in this cell; the term would miss contacts", sig3(r)));
     }
     Ok(())
 }
@@ -344,6 +393,7 @@ pub(crate) fn solve_clash(
         return err(format!("r0 has shape {sr:?}, the kernel reads (n_sites, n_sites)"));
     }
     let n_sites = sr[0];
+    check_cells(g, r0)?;
     if site_of.len() != n_at {
         return err(format!("site_of has {} entries, pos has {n_at} atoms", site_of.len()));
     }
