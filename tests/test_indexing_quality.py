@@ -230,7 +230,7 @@ def test_short_list_is_searchable_but_not_scorable():
     assert "INDEX_DATA_INSUFFICIENT" not in codes
     d = next(x for x in report.diagnostics if x.code == "INDEX_PANEL_REDUCED")
     assert d.level == "warning"
-    assert "cubic" in d.suggestion
+    assert "cubic" in d.message
 
 
 def test_a_list_below_every_systems_support_abstains():
@@ -285,7 +285,7 @@ def test_an_abstention_names_an_undeclared_instrument_first():
     bare = bare.model_copy(update={"profile": ProfileTCHZ()})
     d = next(x for x in assess_peak_list(coarse, instrument=bare).diagnostics
              if x.code == "INDEX_DATA_INSUFFICIENT")
-    assert d.suggestion.startswith("declare the instrument")
+    assert d.suggestion.startswith("Declare the instrument")
     assert "axial_sl" in d.suggestion and "ProfileTCHZ" in d.suggestion
     assert "instrument.profile" in d.where
 
@@ -307,7 +307,7 @@ def test_an_abstention_names_an_undeclared_instrument_first():
     for ins in (declared, None):
         d = next(x for x in assess_peak_list(coarse, instrument=ins).diagnostics
                  if x.code == "INDEX_DATA_INSUFFICIENT")
-        assert d.suggestion.startswith("abstention is the result here")
+        assert d.suggestion.startswith("Extend the 2θ range")
         assert "instrument.profile" not in d.where
 
 
@@ -366,7 +366,7 @@ def test_assumed_sigma_is_reported_as_unmeasured():
     report = assess_peak_list(_peak_list(WIDE))
     assert report.source == "positions"
     d = next(x for x in report.diagnostics if x.code == "PEAK_POSITION_PRECISION")
-    assert "ASSUMED" in d.message
+    assert "were assumed" in d.message
     assert "pick_peaks" in d.suggestion
 
 

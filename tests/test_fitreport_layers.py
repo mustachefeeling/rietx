@@ -938,7 +938,7 @@ def test_broad_abstention_is_resolution_limited():
     report = _report_for(structure, perturbed, data)
     assert report.abstained_reason
     assert report.abstained_kind == "resolution_limited"
-    assert "Resolution-limited" in report.abstained_reason
+    assert "resolution-limited" in report.abstained_reason
     assert "not evidence the model is wrong" in report.abstained_reason
     assert "indistinguishable" in report.abstained_reason
 
@@ -1021,7 +1021,7 @@ def test_wrong_cell_abstentions_classify_as_model_error(truth):
     p2.phases[0].cell = rx.Cell.cubic(4.1568 * 1.001)
     report2 = _report_for(p2, ins, data)
     assert report2.abstained_kind == "unreadable"
-    assert "Resolution-limited" not in (report2.abstained_reason or "")
+    assert "resolution-limited" not in (report2.abstained_reason or "")
     assert any(a.kind == "reindex_or_recheck_cell"
                for a in report2.suggested_actions)
 
@@ -1126,8 +1126,8 @@ def _assert_exchange_clause_shape(summary):
     """
     from rietx.report import RIVAL_DECISIVE_MIN_CHI2_RATIO
 
-    assert "this fit cannot tell" in summary          # the claim's level
-    assert "never by freeing both" in summary         # the forbidden action
+    assert "This fit cannot tell" in summary          # the claim's level
+    assert "Do not free both into one fit" in summary  # the forbidden action
     assert "ridge" in summary
     assert "held at its null" in summary              # which value
     assert "compare χ²" in summary                    # the experiment
@@ -1294,7 +1294,7 @@ def test_e2_converged_report_names_the_exchange(truth):
     # the same sentence beside the numbers (WP-1108): one render, two writes,
     # pinned as the exact appended substring — the shim projection's needle
     clause = result.statistics.identifiability_clause
-    assert clause is not None and ("; " + clause) in report.summary
+    assert clause is not None and clause in report.summary.splitlines()
 
 
 def test_clean_reference_stays_quiet_and_delta_r_calibrates(truth):
@@ -1434,7 +1434,7 @@ def test_license_rides_statistics_and_summary_from_one_render(truth):
     report = build_report(result)
     clause = result.statistics.identifiability_clause
     assert clause is not None
-    assert report.summary.endswith("; " + clause)         # bit-identical pair
+    assert report.summary.endswith("\n" + clause)        # bit-identical pair
     assert clause == identifiability_clause(report.identifiability)
     # the license is in the statistics block: the grep an agent runs on the
     # serialized document returns the sentence itself, not a pointer
@@ -1445,7 +1445,7 @@ def test_license_rides_statistics_and_summary_from_one_render(truth):
     # fresh summary carries the same appended substring
     report2 = build_report(result)
     assert result.statistics.identifiability_clause == clause
-    assert report2.summary.endswith("; " + clause)
+    assert report2.summary.endswith("\n" + clause)
 
 
 def test_license_field_stays_none_when_nothing_fires(truth):
@@ -1502,7 +1502,7 @@ def test_a_serialized_answer_delivers_the_license_beside_the_numbers():
                                             .model_validate(
                                                 response["report"]
                                                 ["identifiability"]))
-    assert ("; " + clause) in response["report"]["summary"]
+    assert clause in response["report"]["summary"].splitlines()
     assert "data has chosen" in clause             # the license, greppable
 
 

@@ -23,6 +23,7 @@ uv pip install --python .venv/bin/python -e ".[dev,jax,torch]"   # + optional ja
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
+.venv/bin/python -m sphinx -W -q -b html docs/docs docs/docs/_build/html      # the new manual, beside the old until WP-1986
 .venv/bin/rietx gui my_sample.rex [--scratch]      # the refinement GUI (localhost:8731); --scratch works on a temp-dir copy
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
 npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-scene/splitter/theme/plot/peaks logic; count: § Numbers) + svelte-check
@@ -834,7 +835,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   exactly as a CIF whose angle contradicts its symbol is.
 - The **manual** (`docs/manual/`) is one `-W` Sphinx tree in two parts, guarded differently because
   each fails differently. **Part 2 — Theory** (`tests/test_manual.py`): fenced constants are MyST
-  substitutions injected from the live package in `conf.py`, every displayed equation carries a
+  substitutions injected from `docs/sphinx_shared.py` (both trees), every displayed equation carries a
   `*Source:*` line whose symbol must import, every bib entry is cited — so renaming a physics
   symbol or retuning a fenced constant means touching the manual in the same change, and **a WP
   that adds physics adds its equation there**, never only Part 1 prose (WP-1067). **Part 1 — Using

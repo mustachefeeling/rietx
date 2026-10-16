@@ -1,6 +1,6 @@
 # WP-1908 — a tick misses the displacement shift
 
-Milestone: unscheduled · Status: ✅ 2026-10-13 — a tick sits where the model draws its peak; the Layer 0 flank-lobe question it exposed has no owner
+Milestone: unscheduled · Status: ✅ 2026-10-15 — a tick sits where the model draws its peak, at the refined wavelength and inside a window that follows the shift; the Layer 0 flank-lobe question it exposed went to WP-1977, and review finding 5 to WP-1976
 Track: What fires, and what stays silent
 Depends on: —
 
@@ -111,6 +111,192 @@ hundredth of a degree of its reflection's fitted peak.
 
 ## Handover log
 
+### 2026-10-15 — review round finished on main, a refined wavelength fixed
+
+The follow-up PR #942 has now run the whole suite on current main and passed.
+A second review found one more case of the WP's own defect. The ticks were
+placed at the wavelength fixed when the model was built, while the curve uses
+the refined one. So any fit that refines λ, such as a calibration on a
+standard with its cell held, drew its ticks away from its peaks: about 0.43°
+at 150° for a 0.1 % change, by 2·tan θ·Δλ/λ. Ticks now read the refined
+wavelength, and nothing else that was measured moves.
+
+*Done.* The worktree the 2026-10-13 entry names had been deleted, so the branch
+was checked out again in `.claude/worktrees/wp1908-review-followups`. Main was
+merged in (442 commits, clean, `895f54a9`). The TOF axis (WP-1927) landed in
+that range and added no tick builder of its own. `/code-review high --fix` on
+the branch's diff returned ten findings and fixed five in `fbac3d06`:
+`reflection_positions` walks `line_lambdas(values)` as `phase_peaks` does (new
+test, red with the fix removed); `compile_model`'s widened `hi_eff` is capped at
+180°, past which `d_min` folds back; the `REFLECTION_MARGIN_DEG` comment says
+the window follows the shift at compile-time values only; two unused loop
+variables and a duplicate test line went, and `mag_row` is an `np.tile`.
+Declined, with reasons: the satellite arm's low edge in the wrong line's frame
+and its second copy of the window scan (findings 4 and 6) are outside this
+diff and went to WP-1326's Inherited; `refine._reflection_positions` says
+"Bragg 2θ" but returns `phase_peaks` positions, which already carry the shift,
+and judges the absorption summary there (finding 5). That helper predates this
+WP, no open WP owns it, and whether the absorption summary should read Bragg or
+drawn angles is unverified. The window widening by the largest shift anywhere
+in the range rather than at each edge (finding 7) over-generates safely, so it
+stays. The rename of one test was cosmetic and skipped.
+
+*Measured.* `[dev]` venv (no jax or torch), darwin/arm64, Python 3.12,
+rietx 1.10.0.dev0. Collect-only of `-m "not slow"`: 10790 on `origin/main`
+(`git archive` snapshot) and 10794 here, +4, the three tests of the 2026-10-13
+round plus the one this round added. The fast selection on the final tree:
+10609 passed, 191 skipped, 2 xfailed, in about 4-5 min at load 3-5. The four
+added tests cost 0.02-0.04 s each in that run, far from the tail. The full
+selection ran twice on the merged tree. Before the review fixes it gave 10921
+passed, 200 skipped, 2 xfailed, 0 failed (about 21 min, load 3-5). On the
+final tree it gave 10920 passed, 202 skipped, 2 xfailed, 0 failed (about
+24 min, with the load average reaching 45 from other sessions). Passed plus
+skipped moved by +1, the added test. Two passes became skips, and they are not
+named, because neither log prints reasons. The likely cause is WP-1449's
+budget skip in `test_acceptance_indexing.py`, which fires when the clock cuts
+an indexing unit and which this branch's code does not reach. The slow
+selection that the 2026-10-13 entry left pending is therefore discharged.
+
+*Gotchas.* (1) The worktree guard refuses a command that `cd`s or loops over a
+path variable; a `git archive` base is collected with `-c` and `--rootdir`
+pointing into the snapshot. (2) A full-suite skip count can move under load,
+so a delta in skips between two runs on one tree is load until named with
+`-rs`.
+
+*Next.* Mark #942 ready, let the required checks run, and merge it (the
+maintainer authorised that on 2026-10-15). The open Layer 0 flank-lobe question
+from the first entry still has no owner; WP-1909 is the indexing picker's, not
+Layer 0's. Finding 5 above is a candidate line for whoever next touches the
+absorption summary.
+
+### 2026-10-13 (2nd session) — post-merge review round, handed off
+
+PR #927 merged, and a `/code-review medium` pass on its diff then returned
+eight findings. All eight are fixed on the branch `wp1908-review-followups`
+(cut from `1307cb2f`, main merged in at `325aaffd`). The one that matters
+closes the class the WP opened on. The window that decides which reflections
+the model generates still assumed a geometry shift under half a degree, so a
+shift larger than that at a range edge left a peak out of the model, its
+ticks and Layer 0's picture. The window now follows the shift. The three tick
+builders also each carried their own copy of the position walk, which is how
+the shift was forgotten in the first place, so there is now one method they
+call. What is left is a check, not a fix: the slow (acceptance) selection did
+not finish on the final tree, because this session was stopped at 92 %.
+
+*The eight findings, verbatim from the review, with where each stands.*
+Commits: `56982424` is the code, `8cfdc743` the tests, and the commit that
+carries this entry has the WP-file edits.
+
+1. `src/rietx/model/forward.py:3504` compile_model's reflection-generation
+   window still subtracts the zero alone with a fixed 0.5° margin, so a
+   geometry shift above 0.5° at a range edge leaves a reflection whose drawn
+   peak lies inside the fitted range ungenerated (absent from model, ticks and
+   on_data; Layer 0 then calls it an impurity). `satellites._generation_window`
+   now widens by the measured shift; take the same bound in compile_model, or
+   state the 0.5° as a named constant with its validator and say in the
+   handover why it is left. This is the unfixed sibling of the defect the WP
+   closed (root CLAUDE.md: a reported defect is a sample; fix the class).
+   **Fixed** in `56982424`. `compile_model` widens the Bragg window by the
+   largest and smallest shift beyond the zero over 33 points of the fitted
+   range, using the existing `_shift_est`, and never narrows it. For a geometry
+   with no shift the widening is exactly 0.0, so the window is bit for bit the
+   old one. The 0.5° is now `REFLECTION_MARGIN_DEG`, a tail allowance on top of
+   the shift. It has no validator and is not tied to the peak width: a broad
+   profile centred 0.5° outside the range may want more, and that is
+   unmeasured. The test is red with the widening disabled (7 ticks against 8,
+   the 60.72° tick missing).
+2. `refine.py:6718`, `multi.py:1301`, `viz/snapshot.py:147` still each
+   re-derive the per-line position list (cell tuple → two_theta →
+   apparent_two_theta → concat → tile hklm → isfinite → argsort). One
+   `CompiledModel.reflection_positions(ip, values) -> (pos_per_line, hklm)` the
+   three call, or read the positions `phase_peaks` already memoises, so a fifth
+   builder (WP-1927's TOF axis) cannot forget the shift. **Fixed** in
+   `56982424`. `reflection_positions` returns the concatenated positions and
+   the tiled `(H, m)` rows, paired by index. The three builders keep their own
+   filter, sort and cap. `multi.py`'s `_CELL_KEYS` was unused afterwards and is
+   gone. `report.satellites` enumerates differently and calls
+   `apparent_two_theta` itself.
+3. `tests/test_tick_positions.py:191, 243, 265` five of six refinements write
+   no obs/calc/diff PNG (tests/CLAUDE.md § Running); add `_plot_with_zoom` to
+   each. **Fixed** in `8cfdc743`: the doublet case, the three geometry cases and
+   both joint histograms. I looked at the doublet zoom: four ticks on four
+   peaks.
+4. `forward.py:1010` `apparent_two_theta`'s docstring names three builders but
+   the review commit added a fourth (`report/satellites`); `multi.py:1287`
+   still says "the second builder"; WP-1927's Inherited note says "the three
+   tick builders". Make all three say four, or point them at the one function
+   from item 2. **Fixed** in `56982424`: all three point at
+   `reflection_positions` and `apparent_two_theta`.
+5. WP handover line 154: wall clock quoted as single figures ("6:45", "36
+   minutes", "62 minutes", "933 s", "6.95 s", "3.0 s"); quote ranges with load,
+   and give the fast-selection passed+skipped delta for the new tests against a
+   base run on origin/main. **Fixed** in this commit. The first entry's figures
+   are now ranges with the load. The delta is in *Measured* below.
+6. `tests/test_tick_positions.py:312` compares `stage_ticks` output rounded to
+   `TWO_THETA_DECIMALS` against unrounded values at atol=1e-5; round the
+   expectation with the same constant or take the unrounded ticks from
+   `refine._build_result`. **Fixed** in `8cfdc743`. The test compares the
+   unrounded walk to 1e-12, and the live view within half a unit of
+   `TWO_THETA_DECIMALS`. A new case also checks that rows and Miller indices
+   stay paired through the filter, sort and rounding.
+7. `tests/test_tick_positions.py:333` the satellite arm tests only
+   `_lattice_positions`; add a case with a propagation vector so
+   `_satellite_positions` (satellites.py:170) is held too. **Fixed** in
+   `8cfdc743`: a phase with k = (0, 0, 1/2) draws 121 satellites and the arm
+   lists the same 121. Handing the arm a zero-only position leaves 119 listed
+   and the worst drawn satellite 0.2585° from any of them, so the case is
+   sensitive.
+8. `tests/test_tick_positions.py:128` `_tick_offsets` calls `np.min` on an
+   empty array when a phase has one tick; guard with `ticks.size > 1`.
+   **Fixed** in `8cfdc743`. The guard has no test of its own, because it sits
+   in a test helper.
+
+*Measured.* `[dev]` venv (no jax or torch), darwin/arm64, Python 3.12.10, the
+load average between about 20 and 160 from other sessions. The base is
+`1307cb2f` (this branch's parent), run in a detached git worktree:
+`-m "not slow"` gave 9339 passed, 181 skipped, 1 xfailed in about 7 minutes.
+This branch gave 9342 passed, 181 skipped, 1 xfailed in about 13 minutes. So
+passed plus skipped moved by exactly +3, the three cases this round added. For
+PR #927's own tests, collect-only counts of the same selection are 9502 on
+`a3987d6a` (before), 9513 on `1307cb2f` (+11) and 9516 here (+3). A first base
+attempt on a `git archive` copy had 27 failures and errors, all in tests that
+call git on a tree with no `.git`, so it is not a base. After the merge of main
+(22 docs-only commits, none in these files), ruff is clean and
+`test_tick_positions.py`, `test_snapshot.py`, `test_multi_histogram.py`,
+`test_satellites.py`, `test_magnetic_tick_row.py` and
+`test_docs_consistency.py` gave 135 passed in about 13 s.
+
+*Pending.* One thing. Item 1 moves a window, so it can move a number in an
+acceptance fit with a displaced geometry. The slow selection on the final tree
+was running and had passed 92 % of its items with no failure when it was
+stopped. It has not finished. The fast selection passed with the new window,
+so no fast-tier pinned number moved, and the slow tier is the one that fits
+real data under a displaced geometry.
+
+*Gotchas.* (1) Three slow tests are load-sensitive and fail on a loaded
+machine without any link to ticks: the two monoclinic indexing searches
+(`test_dichotomy_recovers_a_monoclinic_cell`,
+`test_trial_error_recovers_a_monoclinic_cell`) and the GUI boot test
+`test_a_real_gui_boots_on_a_scratch_copy_and_the_project_is_untouched`. Rerun a
+red one alone before reading anything into it. The first one failed the same
+way on the tree before this WP. (2) A base run needs a real git worktree, not
+`git archive`. (3) Root CLAUDE.md sits at its 978-line cap, so a new clause
+there has to move one out. (4) Not generalised, deliberately:
+`extra_peak_tick_positions` (a declared peak carries no shift by declaration)
+and the GUI's `index_ticks` (an indexing candidate on the observed axis).
+
+*Next.* From the worktree
+`/Users/yue/Code/rietx/.claude/worktrees/ancient-foraging-umbrella/.claude/worktrees/agent-a91809515a9c88e76`
+on `wp1908-review-followups`, check nothing else is mid-suite (`ps aux | grep
+'[p]ython -m pytest'`), then run in the background
+`.venv/bin/python -m pytest -n auto --dist loadgroup -m slow > /tmp/slow.txt 2>&1`
+and wait on the pid. Green apart from the three load-sensitive rows above:
+`gh pr ready` on the follow-up PR, mirror the result into its body, and stop.
+A red acceptance row that reads a position (a cell, a count of reflections)
+means item 1 moved a number: compare it with the same test on `1307cb2f`
+before touching anything. The first action of the earlier entry's *Next*, the
+open Layer 0 flank-lobe question, is unchanged.
+
 - **2026-10-13** — A reflection tick now sits where the model draws its
   peak. A result used to put each tick at its Bragg angle plus the zero shift.
   A fit with a refined sample displacement, transparency or capillary offset
@@ -145,24 +331,26 @@ hundredth of a degree of its reflection's fitted peak.
   functions) and 9 of the first 10 were red on the tree before the fix. The
   satellite case is red on the tree before the review commit. Layer 0 and the
   suggested actions on twelve fits: Tasks 4. Tests, `[dev]` venv (no jax or
-  torch), darwin/arm64, Python 3.12.10, the load average between 140 and 150
-  from other sessions: `-m "not slow"` gave 9314 passed, 181 skipped and 3
-  xfailed before the review commit, in 6:45 beside one other suite. After it
-  the same selection gave 9314 passed, 181 skipped, 3 xfailed and 1 failed in
-  36 minutes. The failure was `test_docs_consistency`'s CLAUDE.md cap, which
-  my four-line clause broke and I removed, so passed plus failed moved by
-  exactly the one test the review added. The added tests cost 6.95 s locally
-  over 7 functions (the longest, 3.0 s, is a fit), none joins the tail.
-  `-m slow` before the review fix: 296 passed, 21 skipped, 3 failed, in 62
-  minutes. Two were the monoclinic indexing searches
-  (`search_complete` False, a wall-clock-bound search cut short) and one a GUI
-  boot socket timeout. Rerun alone, the GUI boot and `test_dichotomy…` passed
-  and `test_trial_error_recovers_a_monoclinic_cell` failed again, and it
-  failed the same way on the tree before this WP (933 s). The indexing package
-  reads no tick and no position shift. After the review fix,
-  `test_satellites_acceptance.py` and `test_acceptance_magnetic.py` gave 10
-  passed. Another session ran suites throughout, so none of the wall clock is
-  quotable beyond those ranges.
+  torch), darwin/arm64, Python 3.12.10. The machine was shared throughout, with
+  the load average between about 115 and 160, so every wall clock here is a
+  range (amended in the post-merge review round, which has the base-run delta).
+  `-m "not slow"` took 7 to 36 minutes on the same tree, depending on the load.
+  It gave 9314 passed, 181 skipped and 3 xfailed before the review commit.
+  After the review commit it gave the same counts and 1 failed. The failure
+  was `test_docs_consistency`'s CLAUDE.md cap, which my four-line clause broke
+  and I removed, so passed plus failed moved by exactly the one test the review
+  added. The added tests cost about 7 s locally over 7 functions, and the
+  longest, a fit, took 3 to 7 s across runs. None joins the tail.
+  `-m slow` before the review fix: 296 passed, 21 skipped, 3 failed, in about an
+  hour. Two failures were the monoclinic indexing searches (`search_complete`
+  False, a wall-clock-bound search cut short) and one a GUI boot socket
+  timeout. Rerun alone, the GUI boot and `test_dichotomy…` passed and
+  `test_trial_error_recovers_a_monoclinic_cell` failed again. It failed the same
+  way on the tree before this WP, taking about 15 minutes against about 90 s on
+  a quiet machine. The indexing package reads no tick and no position shift.
+  After the review fix, `test_satellites_acceptance.py` and
+  `test_acceptance_magnetic.py` gave 10 passed. Another session ran suites
+  throughout, so the wall clock is quotable only as those ranges.
 
   *Review.* `/code-review high --fix` found one defect, the satellite arm
   adding the zero alone. It is fixed in `80624b67` and nothing was declined.

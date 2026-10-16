@@ -46,7 +46,7 @@ SHIFT_CAUSE: dict[str, str] = {
     "constant": "a detector zero-point error (instrument.zero_shift)",
     "cos_theta": ("specimen displacement from the focusing circle "
                   "(instrument.geometry.sample_displacement)"),
-    "sin_2theta": ("specimen transparency — the beam penetrating a weakly "
+    "sin_2theta": ("specimen transparency, where the beam penetrates a weakly "
                    "absorbing specimen (instrument.geometry.sample_transparency)"),
 }
 
@@ -74,125 +74,100 @@ def peak_diagnostics(peaks: PeakList, detection: Detection | None = None,
     if len(usable) < PEAK_MIN_USABLE_LINES:
         out.append(Diagnostic(
             level="warning", code="PEAK_LIST_TOO_SHORT",
-            message=(f"{len(usable)} usable lines; the classical figures of "
+            message=(f"The list has {len(usable)} usable lines, below the "
+                     f"{PEAK_MIN_USABLE_LINES} that the classical figures of "
                      "merit (M20, F_N) and Smith's volume envelope are scored "
-                     f"on {PEAK_MIN_USABLE_LINES}, so this list can be "
-                     "searched but not scored (WP-1043)"),
+                     "on, so this list can be searched but not scored."),
             where=[f"2θ {peaks.two_theta_min:.2f}-{peaks.two_theta_max:.2f}°"],
-            suggestion=("the search runs over the systems the line count "
-                        "supports (MIN_LINES_PER_DOF per system) and ranks on "
-                        "the reduced panel — coverage in both directions and "
-                        "the reversed figures — with confidence capped by the "
-                        "fom_panel_reduced caveat.  To score against published "
-                        "thresholds, extend the 2θ range, count longer, or "
-                        "lower PEAK_MIN_HEIGHT_SIGMA until twenty lines are "
-                        "usable")))
+            suggestion=("Extend the 2θ range, count for longer or lower "
+                        f"PEAK_MIN_HEIGHT_SIGMA until {PEAK_MIN_USABLE_LINES} "
+                        "lines are usable.")))
 
     if peaks.source == "positions":
         out.append(Diagnostic(
             level="warning", code="PEAK_SIGMA_ASSUMED",
-            message=("every σ(2θ) in this list was assumed, not measured, so "
-                     "any per-line weighting downstream is weighting by a "
-                     "constant"),
+            message=("Every σ(2θ) in this list is an assumed value, so any "
+                     "per-line weighting downstream weights every line equally."),
             where=[f"{len(peaks.peaks)} lines"],
-            suggestion=("if the pattern is available, run "
-                        "rietx.indexing.pick_peaks(data, instrument) instead "
-                        "— the fitted σ is what makes the tolerance model "
-                        "per-line rather than global")))
+            suggestion=("Run rietx.indexing.pick_peaks(data, instrument) on the "
+                        "pattern, if you have it, to replace them with fitted "
+                        "values.")))
 
     shoulders = [p for p in peaks.peaks if "unresolved_shoulder" in p.flags]
     if shoulders:
         out.append(Diagnostic(
             level="info", code="PEAK_UNRESOLVED_SHOULDER",
             message=(f"{len(shoulders)} line(s) never separated from a "
-                     "neighbour by half a FWHM, so their positions are "
-                     "correlated with it and their σ says so"),
+                     "neighbour by half a FWHM."),
             where=[f"{p.two_theta:.4f}°" for p in shoulders],
-            suggestion=("keep them — their σ already carries the penalty — but "
-                        "do not quote one of a pair as an independent line")))
+            suggestion=("Keep them, since their σ already carries the penalty. "
+                        "Quote neither line of a pair as an independent "
+                        "line.")))
 
     repair = [p for p in peaks.peaks if "not_separable" in p.flags]
     if repair:
         out.append(Diagnostic(
             level="warning", code="PEAK_NOT_SEPARABLE",
-            message=(f"{len(repair)} component(s) are profile-shape repair "
-                     "rather than lines: a re-seed pass added each one inside a "
-                     "much stronger neighbour's own profile, in a group whose "
-                     "fit is still refuted — so the ΔBIC gain that bought it "
-                     "cannot be told from the neighbour's shape being wrong"),
+            message=(f"{len(repair)} component(s) were added by a re-seed pass "
+                     "inside a much stronger neighbour's own profile, in a "
+                     "group whose fit is still refuted."),
             where=[f"{p.two_theta:.4f}°" for p in repair],
-            suggestion=("they are kept in peaks and excluded from usable(), "
-                        "because removing one from the *model* displaces the "
-                        "real line it sits on.  If many fire, suspect the "
-                        "declared instrument profile rather than the specimen — "
-                        "undeclared axial divergence reproduces this exactly")))
+            suggestion=("Leave them in the model, because removing one "
+                        "displaces the real line it sits on. If many fire, "
+                        "check the declared instrument profile, since "
+                        "undeclared axial divergence reproduces this.")))
 
     split = [p for p in peaks.peaks if "unresolved_split" in p.flags]
     if split:
         out.append(Diagnostic(
             level="info", code="PEAK_UNRESOLVED_SPLIT",
-            message=(f"{len(split)} component(s) sit closer to a comparable "
-                     "group-mate than two lines of the fitted shape can and "
-                     "still show a dip (Sparrow's limit), so each pair is "
-                     "reported as one line whose σ(2θ) reaches both"),
+            message=(f"{len(split)} component(s) lie within Sparrow's limit of "
+                     "a comparable group-mate, so each pair is reported as one "
+                     "line whose σ(2θ) reaches both."),
             where=[f"{p.two_theta:.4f}°" for p in split],
-            suggestion=("below that separation the split is told only through "
-                        "the profile shape, which the picker models "
-                        "approximately; many of them on one pattern usually "
-                        "mean flat-topped or otherwise non-pseudo-Voigt lines, "
-                        "and a finer step or a declared instrument profile is "
-                        "what resolves real close pairs")))
+            suggestion=("Collect with a finer step, or declare the instrument "
+                        "profile, to resolve real close pairs. If many appear, "
+                        "suspect flat-topped or other non-pseudo-Voigt "
+                        "lines.")))
 
     capped = [p for p in peaks.peaks if "width_capped" in p.flags]
     if capped:
         out.append(Diagnostic(
             level="info", code="PEAK_WIDTH_CAPPED",
-            message=(f"{len(capped)} component(s) ran into the width bound, "
-                     "five times the pattern's own width law at their angle: "
-                     "humps rather than lines of the phase that set the law, "
-                     "excluded from usable()"),
+            message=(f"{len(capped)} component(s) ran into the width bound of "
+                     "five times the pattern's own width law at their angle, "
+                     "and are excluded from usable()."),
             where=[f"{p.two_theta:.4f}°" for p in capped],
-            suggestion=("on a steep or structured background they are usually "
-                        "the background the envelope did not follow; a broad "
-                        "second phase is the other reading, and needs its own "
-                        "pick at its own width")))
+            suggestion=("On a steep or structured background, check whether "
+                        "the background envelope followed it. For a broad "
+                        "second phase, pick it separately at its own "
+                        "width.")))
 
     tails = [p for p in peaks.peaks if "axial_tail" in p.flags]
     if tails:
         out.append(Diagnostic(
             level="info", code="PEAK_AXIAL_TAIL",
             message=(f"{len(tails)} weak component(s) sit on the "
-                     "axial-divergence tail side of a much stronger group-mate "
-                     "— the low-2θ side below 90° and the high-2θ side above "
-                     "it, the one sign flip nothing else in a powder pattern "
-                     "has (WP-1043)"),
+                     "axial-divergence tail side of a much stronger "
+                     "group-mate."),
             where=[f"{p.two_theta:.4f}°" for p in tails],
-            suggestion=("kept usable: the side test is evidence, not proof, "
-                        "and a real weak line can sit there too.  Measured on "
-                        "SRM 660c, five such components carried 125 ppm of "
-                        "certified-cell bias, and excluding exactly the "
-                        "flagged ones (use_for_indexing=False) plus measuring "
-                        "the shift took the gate to high at −2 ppm — so on a "
-                        "well-aligned Bragg-Brentano pattern excluding them "
-                        "is usually right, but look at the group's fit first "
-                        "on a pattern whose answer you do not know")))
+            suggestion=("Check each group's fit, then exclude the flagged "
+                        "components with use_for_indexing=False on a "
+                        "well-aligned Bragg-Brentano pattern. On SRM 660c, "
+                        "five such components carried 125 ppm of cell "
+                        "bias.")))
 
     residuals = [p for p in peaks.peaks if "kalpha2_residual" in p.flags]
     if residuals:
         out.append(Diagnostic(
             level="info", code="PEAK_KALPHA2_RESIDUAL",
             message=(f"{len(residuals)} weak component(s) sit at a strong "
-                     "group-mate's predicted Kα2 maximum at a few per cent of "
-                     "its area — the residual of a *modelled* doublet, "
-                     "re-created by a re-seed pass after detection dropped "
-                     "the alias candidate (WP-1043)"),
+                     "group-mate's predicted Kα2 maximum, at a few per cent of "
+                     "its area."),
             where=[f"{p.two_theta:.4f}°" for p in residuals],
-            suggestion=("kept usable for the same reason as axial_tail — a "
-                        "real line can coincide with an alias position in one "
-                        "pattern.  It is not a lattice line of anything: "
-                        "exclude it before indexing unless the pattern gives "
-                        "you a reason to believe a genuine reflection hides "
-                        "under the doublet")))
+            suggestion=("Exclude them before indexing, unless the pattern "
+                        "gives you a reason to believe a genuine reflection "
+                        "hides under the doublet.")))
 
     ghosts = [p for p in peaks.peaks
               if {"ghost_kbeta", "ghost_tungsten"} & set(p.flags)]
@@ -200,26 +175,20 @@ def peak_diagnostics(peaks: PeakList, detection: Detection | None = None,
         out.append(Diagnostic(
             level="info", code="PEAK_CONTAMINATION_LINE",
             message=(f"{len(ghosts)} line(s) sit at the Kβ or W Lα position of "
-                     "a strong reflection and are excluded from usable(); they "
-                     "are flagged, never subtracted"),
+                     "a strong reflection and are excluded from usable()."),
             where=[f"{p.two_theta:.4f}°" for p in ghosts],
-            suggestion=("fit a monochromator or filter rather than stripping — "
-                        "Rachinger stripping redistributes the counting noise, "
-                        "so what is left has neither the position nor the σ it "
-                        "appears to have")))
+            suggestion=("Install a monochromator or filter on the "
+                        "diffractometer to remove the line at source.")))
 
     asym = [p for p in peaks.peaks if "asymmetry_unmodelled" in p.flags]
     if asym:
         out.append(Diagnostic(
             level="warning", code="PEAK_ASYMMETRY_UNMODELLED",
             message=(f"{len(asym)} line(s) leave a significant odd residual "
-                     "after fitting, i.e. an asymmetry the declared profile "
-                     "does not carry; an unmodelled one-sided aberration biases "
-                     "the centroid in one direction, which σ cannot see"),
+                     "after fitting."),
             where=[f"{p.two_theta:.4f}°" for p in asym],
-            suggestion=("set instrument.geometry.axial_sl and axial_hl to the "
-                        "real aperture ratios and re-pick — the lowest-angle "
-                        "lines are the ones indexing depends on most")))
+            suggestion=("Set instrument.geometry.axial_sl and axial_hl to the "
+                        "real aperture ratios, then re-pick.")))
 
     if detection is not None and peaks.source == "fitted":
         out.append(_false_line_diagnostic(peaks, detection))
@@ -240,22 +209,18 @@ def _false_line_diagnostic(peaks: PeakList, det: Detection) -> Diagnostic:
     message = (f"{screen.n_kept} of {screen.n_tested} fitted component(s) clear "
                f"the pattern's false-discovery bar (I/σ_I ≥ "
                f"{screen.z_threshold:.2f}, Benjamini–Hochberg at q = "
-               f"{screen.q:g} over {screen.n_trials:.0f} resolution elements); "
-               f"at least about {screen.expected_false:.2f} of those kept are "
-               "expected to be noise (every component was first selected by "
-               "detection, so the bound understates)")
+               f"{screen.q:g} over {screen.n_trials:.0f} resolution elements). "
+               f"The expected number of noise lines among those kept is at "
+               f"least {screen.expected_false:.2f}.")
     if weak:
-        message += (f", and {len(weak)} weaker one(s) are flagged "
-                    "weak_line")
+        message += (f" {len(weak)} weaker component(s) are flagged "
+                    "weak_line.")
     return Diagnostic(
         level="info", code="PEAK_EXPECTED_FALSE_LINES", message=message,
         where=[f"{p.two_theta:.4f}°" for p in weak],
-        suggestion=("a weak_line component is not distinguishable from noise "
-                    "at the rate the rest of the list keeps.  It stays "
-                    "usable, because on real lab data many are weak lines the "
-                    "true cell indexes; exclude them before a search only "
-                    "where the list is known to carry flank or tail junk, "
-                    "and count longer to tell the two apart"),
+        suggestion=("Keep weak_line components unless the list is known to "
+                    "carry flank or tail junk. Count longer to tell weak "
+                    "lines from noise."),
         value=screen.expected_false)
 
 
@@ -268,37 +233,35 @@ def _width_diagnostics(det: Detection) -> list[Diagnostic]:
     if ratio >= WIDTH_MISMATCH_RATIO or ratio <= 1.0 / WIDTH_MISMATCH_RATIO:
         out.append(Diagnostic(
             level="warning", code="PEAK_WIDTH_LAW_MISMATCH",
-            message=(f"measured FWHM {det.fwhm_measured:.4f}° against "
-                     f"{det.fwhm_predicted:.4f}° from the instrument's U,V,W,"
-                     f"X,Y — a factor of {ratio:.1f}; seeds and windows were "
-                     f"scaled by {det.width_scale:.2f} to match the data"),
+            message=(f"The measured FWHM of {det.fwhm_measured:.4f}° differs "
+                     f"by a factor of {ratio:.1f} from the "
+                     f"{det.fwhm_predicted:.4f}° that the instrument's U, V, "
+                     f"W, X and Y predict. Seeds and windows were scaled by "
+                     f"{det.width_scale:.2f} to match the data."),
             where=[f"median of the {PEAK_WIDTH_CENSUS_N} most prominent lines"],
-            suggestion=("check instrument.profile: the ProfileTCHZ default "
-                        "W = 1e-3 deg² is a synchrotron line (FWHM ≈ 0.03°) "
-                        "and lands near 13 on lab data.  Run lab_calibrate on "
-                        "a standard, or set U,V,W,X,Y from one")))
+            suggestion=("Run lab_calibrate on a standard, or set U, V, W, X "
+                        "and Y from one. A factor near 13 means the "
+                        "ProfileTCHZ default (W = 1e-3 deg²), a synchrotron "
+                        "line, is still in place.")))
     if len(det.alias_two_theta):
         out.append(Diagnostic(
             level="info", code="PEAK_KALPHA2_ALIAS",
-            message=(f"{len(det.alias_two_theta)} candidate(s) dropped as the "
-                     "Kα2 maximum of a stronger line rather than lines of their "
-                     "own; the doublet is fitted as a constrained pair, so each "
-                     "reported position is a Kα1 position"),
+            message=(f"{len(det.alias_two_theta)} candidate(s) were dropped as "
+                     "the Kα2 maximum of a stronger line, so each reported "
+                     "position is a Kα1 position."),
             where=[f"{t:.4f}°" for t in det.alias_two_theta],
-            suggestion=("a genuine line coincident with a stronger line's Kα2 "
-                        "position is indistinguishable from an alias in one "
-                        "pattern — confirm with an incident-side "
-                        "monochromator (Instrument.bragg_brentano with a "
-                        "Kα1-only radiation) if one of these matters")))
+            suggestion=("Confirm with an incident-side monochromator "
+                        "(Instrument.bragg_brentano with Kα1-only radiation) "
+                        "if one of these lines matters.")))
     if det.n_shoulder_seeds:
         out.append(Diagnostic(
             level="info", code="PEAK_SHOULDER_SEEDED",
-            message=(f"{det.n_shoulder_seeds} curvature seed(s) offered for "
-                     "components with no local maximum; survival was decided by "
-                     "ΔBIC, not by detection"),
+            message=(f"{det.n_shoulder_seeds} curvature seed(s) were offered "
+                     "for components with no local maximum, and ΔBIC decided "
+                     "which survived."),
             where=[f"{len(det.groups)} groups"],
-            suggestion=("pass shoulders=False to pick_peaks to see the list "
-                        "without them, if a comparison needs maxima only")))
+            suggestion=("Pass shoulders=False to pick_peaks to see the list "
+                        "without them.")))
     return out
 
 
@@ -352,27 +315,22 @@ def refinement_width_diagnostics(measured: float,
     name, fw = modelled[ip]
     others = "" if len(modelled) == 1 else ", the closest of the model's phases"
     if ratio >= WIDTH_MISMATCH_RATIO:
-        suggestion = ("the data's lines are broader than anything the model "
-                      "can make: either the specimen is broadened (free the "
-                      "phase's lor_size / lor_strain, a finding) or the "
-                      "declared instrument.profile is too narrow for this "
-                      "diffractometer (a setup error: calibrate on a standard "
-                      "and load the profile).  Do not quote intensities, "
-                      "occupancies or ADPs until the widths agree")
+        suggestion = ("Free the phase's lor_size and lor_strain if the "
+                      "specimen is broadened, or calibrate on a standard and "
+                      "load the profile if instrument.profile is too narrow "
+                      "for this diffractometer. Do not quote intensities, "
+                      "occupancies or ADPs until the widths agree.")
     else:
-        suggestion = ("the model's lines are broader than the data's: a "
-                      "width term ran away (read SIZE_UNUSUALLY_SMALL, "
-                      "STRAIN_UNUSUALLY_LARGE and BOUND_HIT) or the declared "
-                      "instrument.profile is broader than this diffractometer "
-                      "— the ProfileTCHZ default W = 1e-3 deg² is a "
-                      "synchrotron line")
+        suggestion = ("Read SIZE_UNUSUALLY_SMALL, STRAIN_UNUSUALLY_LARGE and "
+                      "BOUND_HIT for a width term that ran away, then check "
+                      "that instrument.profile is not broader than this "
+                      "diffractometer.")
     return [Diagnostic(
         level="warning", code="PEAK_WIDTH_LAW_MISMATCH",
-        message=(f"measured FWHM {measured:.4f}° (median of the "
-                 f"{PEAK_WIDTH_CENSUS_N} most prominent lines) against "
-                 f"{fw:.4f}° from the fitted widths of phase {ip} ({name}"
-                 f"{others}: instrument U,V,W,X,Y plus its size and strain "
-                 f"terms) — a factor of {ratio:.1f}"),
+        message=(f"The measured FWHM of {measured:.4f}° (median of the "
+                 f"{PEAK_WIDTH_CENSUS_N} most prominent lines) differs by a "
+                 f"factor of {ratio:.1f} from the {fw:.4f}° that the fitted "
+                 f"widths of phase {ip} ({name}{others}) give."),
         where=[f"phases.{ip}", "instrument.profile"],
         suggestion=suggestion, value=ratio)]
 
@@ -419,10 +377,8 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
     where_range = [f"2θ {report.two_theta_min:.2f}-{report.two_theta_max:.2f}°"]
 
     if report.abstained_reason is not None:
-        suggestion = ("abstention is the result here — extend the 2θ range, "
-                      "count longer, or re-pick with a lower "
-                      "PEAK_MIN_HEIGHT_SIGMA.  Running a search anyway "
-                      "returns a rank order with nothing behind it")
+        suggestion = ("Extend the 2θ range, count for longer or re-pick with "
+                      "a lower PEAK_MIN_HEIGHT_SIGMA.")
         # the instrument is named first because it is the cheapest of the
         # remedies: a re-pick, where the others are a new measurement
         # only a fitted list was picked with an instrument; a position list
@@ -430,10 +386,10 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
         missing = ({} if instrument is None or peaks.source != "fitted"
                    else undeclared_instrument(instrument))
         if missing:
-            suggestion = ("declare the instrument before re-picking: "
-                          + "; ".join(missing.values()) + ".  The picker fits every "
-                          "line with these held, so a default widens each "
-                          "position's esd.  Otherwise " + suggestion)
+            suggestion = ("Declare the instrument before re-picking, because "
+                          "a default widens each position's esd: "
+                          + "; ".join(missing.values()) + ". Otherwise "
+                          + suggestion[0].lower() + suggestion[1:])
         out.append(Diagnostic(
             level="error", code="INDEX_DATA_INSUFFICIENT",
             message=report.abstained_reason,
@@ -444,40 +400,32 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
                            for name, why in sorted(report.fom_undefined.items()))
         out.append(Diagnostic(
             level="warning", code="INDEX_PANEL_REDUCED",
-            message=(f"{report.n_usable} usable lines is below the "
-                     f"{PEAK_MIN_USABLE_LINES} the classical figures of merit "
-                     f"are defined on, so the ranking panel is reduced — "
-                     f"absent: {absent}"),
+            message=(f"The list has {report.n_usable} usable lines, below the "
+                     f"{PEAK_MIN_USABLE_LINES} that the classical figures of "
+                     "merit are defined on. The search runs over "
+                     f"{', '.join(report.systems_supported) or 'no system'} "
+                     f"and the ranking panel omits: {absent}."),
             where=where_range,
-            suggestion=("the search still runs, over "
-                        f"{', '.join(report.systems_supported) or 'no system'} "
-                        "(the systems MIN_LINES_PER_DOF supports at this line "
-                        "count), and Borda ranks on the members that remain — "
-                        "the same members for every candidate, so the order "
-                        "means what it always does.  Each absent figure is "
-                        "reported with its reason on quality.fom_undefined "
-                        "rather than computed at a different N, where it would "
-                        "not be the published quantity; confidence is capped "
-                        "by the fom_panel_reduced caveat")))
+            suggestion=("Read quality.fom_undefined for the reason each "
+                        "figure is absent, or add lines to restore the full "
+                        "panel.")))
 
     if np.isfinite(report.relative_sigma_q_median):
         level = ("warning" if report.relative_sigma_q_median
                  > 0.3 * MAX_RELATIVE_SIGMA_Q else "info")
         out.append(Diagnostic(
             level=level, code="PEAK_POSITION_PRECISION",
-            message=(f"median σ(2θ) {report.sigma_two_theta_median:.4f}°, worst "
-                     f"{report.sigma_two_theta_worst:.4f}°; median σ(Q)/Q = "
-                     f"{report.relative_sigma_q_median:.2e} and σ(Q) is "
-                     f"{report.sigma_over_spacing:.3f} of the mean line spacing"
-                     + ("  (σ was ASSUMED, not measured)"
+            message=(f"The median σ(2θ) is {report.sigma_two_theta_median:.4f}° "
+                     f"and the worst is {report.sigma_two_theta_worst:.4f}°. "
+                     f"The median σ(Q)/Q is {report.relative_sigma_q_median:.2e} "
+                     f"and σ(Q) is {report.sigma_over_spacing:.3f} of the mean "
+                     "line spacing."
+                     + (" All σ values were assumed."
                         if report.source == "positions" else "")),
             where=where_range,
-            suggestion=("read this as the resolving power of the list: it is "
-                        "what decides whether two candidate cells can be told "
-                        "apart at all, and it bounds every tolerance downstream"
-                        + (".  Re-pick from the pattern with "
-                           "rietx.pick_peaks to replace the assumed σ with a "
-                           "fitted one" if report.source == "positions" else ""))))
+            suggestion=("Re-pick from the pattern with rietx.pick_peaks to "
+                        "replace the assumed σ with a fitted one."
+                        if report.source == "positions" else None)))
 
     shift = report.shift
     if shift is not None and shift.source == "measured" and shift.best:
@@ -485,38 +433,34 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
         if shift.separable:
             out.append(Diagnostic(
                 level="warning", code="INDEX_SHIFT_DETECTED",
-                message=(f"a systematic 2θ shift of {best.coefficient:+.4f}° "
+                message=(f"A systematic 2θ shift of {best.coefficient:+.4f}° "
                          f"± {best.stderr:.4f} follows the {shift.best} "
-                         f"template, i.e. {SHIFT_CAUSE.get(shift.best, shift.best)}"
-                         f"; the runner-up leaves "
-                         f"{shift.separability_ratio:.1f}× more unexplained"),
+                         "template, the signature of "
+                         f"{SHIFT_CAUSE.get(shift.best, shift.best)}. "
+                         f"The runner-up leaves "
+                         f"{shift.separability_ratio:.1f}× more unexplained."),
                 where=where_range,
-                suggestion=("carry this template — not a constant zeropoint — "
-                            "into the candidate refinement, and correct the "
-                            "instrument rather than the cell: the three causes "
-                            "differ in angular dependence, so absorbing one "
-                            "into another biases the cell systematically")))
+                suggestion=(f"Carry the {shift.best} template into the "
+                            "candidate refinement and correct the matching "
+                            "instrument parameter.")))
         else:
             out.append(Diagnostic(
                 level="warning", code="INDEX_SHIFT_MODEL_AMBIGUOUS",
-                message=(f"a shift is present ({shift.best} fits at "
-                         f"{best.coefficient:+.4f}°) but the templates are not "
-                         f"separable over this range: the runner-up leaves only "
-                         f"{shift.separability_ratio:.2f}× more unexplained and "
-                         f"the largest template collinearity is "
-                         f"{shift.max_collinearity:.3f}.  The cause is not "
-                         f"claimed; the templates that fit comparably disagree "
-                         f"by up to {shift.prediction_spread_deg:.4f}° over the "
-                         "angles sampled, which is what choosing the wrong one "
-                         "would cost"),
+                message=(f"A shift is present ({shift.best} fits at "
+                         f"{best.coefficient:+.4f}°), but the templates are "
+                         "not separable over this range. The runner-up leaves "
+                         f"only {shift.separability_ratio:.2f}× more "
+                         "unexplained, the largest template collinearity is "
+                         f"{shift.max_collinearity:.3f}, and the templates "
+                         "that fit comparably disagree by up to "
+                         f"{shift.prediction_spread_deg:.4f}° over the angles "
+                         "sampled."),
                 where=where_range,
-                suggestion=("extend the 2θ range: cos θ and sin 2θ separate "
-                            "from a constant only when high-angle lines are "
-                            "measured.  Meanwhile the *cell* is safe to the "
-                            f"{shift.prediction_spread_deg:.4f}° above — carry "
-                            "that as a systematic on every position — but the "
-                            "instrument fault is not identified, so do not "
-                            "correct one from this data")))
+                suggestion=("Extend the 2θ range to high angle, where cos θ "
+                            "and sin 2θ separate from a constant. Carry "
+                            f"{shift.prediction_spread_deg:.4f}° as a "
+                            "systematic on every position, and correct no "
+                            "instrument fault from these data.")))
 
     return out
 
@@ -585,18 +529,13 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
         out.append(Diagnostic(
             level="warning", code="INDEX_GEOMETRIC_AMBIGUITY",
             message=(f"{len(cand.ambiguity)} distinct lattice(s) explain these "
-                     "line positions as well as this one does, and a powder "
-                     "pattern carries only the length of each reciprocal vector "
-                     "(Mighell & Santoro 1975) — so the information that would "
-                     "separate them is absent from the measurement, not buried "
-                     "in noise"),
+                     "line positions as well as this one does."),
             where=where,
-            suggestion=("this is reported, never resolved: collect to the 2θ in "
-                        "each partner's discriminating_two_theta and look for the "
-                        "reflections it names"
+            suggestion=("Collect to the 2θ in each partner's "
+                        "discriminating_two_theta and look for the reflections "
+                        "it names"
                         + (f" (nearest: {min(tt):.2f}°)" if tt else "")
-                        + ".  Quoting either cell before that is a coin toss with "
-                        "a confidence attached")))
+                        + ".")))
 
     if cand.bravais is not None and (cand.bravais.ambiguous
                                      or cand.bravais.methods_disagree):
@@ -610,15 +549,10 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
                           f"{b.system_spglib} at their tightest tolerances")
         out.append(Diagnostic(
             level="warning", code="INDEX_BRAVAIS_AMBIGUOUS",
-            message="the lattice symmetry is not settled: " + "; ".join(detail),
+            message="The lattice symmetry is not settled: " + "; ".join(detail) + ".",
             where=where,
-            suggestion=("the reported system is the conservative one.  A "
-                        "disagreement between the two methods is information "
-                        "rather than a bug — their tolerances are different kinds "
-                        "of number (a Le Page obliquity in degrees against a "
-                        "symprec in Å) — and it is what genuine pseudosymmetry "
-                        "looks like.  Refine in the lower symmetry and test the "
-                        "higher one, never the reverse")))
+            suggestion=("Refine in the lower symmetry and test the higher "
+                        "one.")))
 
     lebail = cand.lebail
     if lebail is not None and lebail.predicted_but_absent:
@@ -627,16 +561,12 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
             level="warning", code="INDEX_PREDICTED_BUT_ABSENT",
             message=(f"{lebail.predicted_but_absent} of {lebail.n_reflections} "
                      "reflections this lattice predicts have no net intensity "
-                     "above the fitted background — the oversized-cell "
-                     "signature, and the one M20 cannot see (its N_poss "
-                     "denominator penalises it only weakly, Oishi-Tomiyasu 2013)"),
+                     "above the fitted background."),
             where=where + ([f"first at {tt[0]:.3f}°"] if tt else []),
-            suggestion=("prefer the smaller cell that indexes the same lines: a "
-                        "cell whose extra reflections are systematically absent "
-                        "has a translation it is not using, so the lattice is the "
-                        "sublattice.  Read this beside lebail.rwp — Rwp is nearly "
-                        "silent on an oversized cell (measured 0.389 against a "
-                        "correct 0.200) and this count is what sees it")))
+            suggestion=("Compare the smaller cell that indexes the same lines, "
+                        "and read this count beside lebail.rwp. Rwp moves "
+                        "little on an oversized cell (0.379 against 0.216 for "
+                        "the correct one).")))
 
     refuting = [c for c in cand.supercell_checks or [] if c.verdict == "refuted"]
     if refuting:
@@ -644,25 +574,24 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
         # below the lowest-ranked parent that refutes it, which is the last
         check = refuting[-1]
         chance = check.p0 * check.n_extra
-        others = (f"  {len(refuting) - 1} other candidate(s) refute it the same "
-                  "way" if len(refuting) > 1 else "")
+        others = (f" {len(refuting) - 1} other candidate(s) refute it the same "
+                  "way." if len(refuting) > 1 else "")
         out.append(Diagnostic(
             level="warning", code="INDEX_SUPERCELL_REFUTED",
-            message=(f"this lattice is an index-{check.index} superlattice of the "
-                     f"{check.parent_system} {check.parent_centring} candidate "
-                     f"{_cell_str(check.parent_cell)}, and of the "
-                     f"{check.n_extra} extra line(s) it predicts that no "
-                     f"extinction could remove, {check.n_seen} sit on an "
-                     f"observed line, where chance alone puts {chance:.1f} "
-                     f"(p = {check.p_value:.2g}).  So it is ranked below that "
-                     "candidate." + others),
+            message=(f"This lattice is an index-{check.index} superlattice of "
+                     f"the {check.parent_system} {check.parent_centring} "
+                     f"candidate {_cell_str(check.parent_cell)} and ranks "
+                     f"below it. Of the {check.n_extra} extra line(s) it "
+                     f"predicts that no extinction could remove, "
+                     f"{check.n_seen} sit on an observed line, against "
+                     f"{chance:.1f} expected by chance (p = "
+                     f"{check.p_value:.2g})." + others),
             where=where + ([f"first missing extra at {check.absent_two_theta[0]:.3f}°"]
                            if check.absent_two_theta else []),
-            suggestion=("read the smaller cell as the lattice: this one repeats "
-                        "its lines and adds ones the pattern does not show.  A "
-                        "real superstructure whose extra lines are too weak to "
-                        "pick is the case this cannot see — look at the pattern "
-                        "at absent_two_theta before discarding it")))
+            suggestion=("Read the smaller cell as the lattice. If the "
+                        "chemistry suggests a superstructure, look at the "
+                        "pattern at absent_two_theta before you discard "
+                        "this cell.")))
 
     if lebail is not None and lebail.unmatched_observed:
         tt = lebail.unmatched_observed_two_theta
@@ -670,29 +599,21 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
             level="warning", code="INDEX_IMPURITY_LINES",
             message=(f"{lebail.unmatched_observed} observed peak(s) have no "
                      "calculated reflection nearby after a whole-pattern Le Bail "
-                     "fit of this cell"),
+                     "fit of this cell."),
             where=where + ([f"strongest region near {tt[0]:.3f}°" ] if tt else []),
-            suggestion=("two readings, and they are not the same action: a second "
-                        "phase (index the residual — but note that this package "
-                        "does not index multi-phase patterns, so subtract the "
-                        "solved phase first), or a wrong cell.  A handful of "
-                        "lines is an impurity; most of the pattern is a wrong "
-                        "metric — measured, 87 of a 17-reflection cell's list "
-                        "when the metric was 1 % off")))
+            suggestion=("If a handful of lines remain, subtract the solved "
+                        "phase and index the remainder. If most of the "
+                        "pattern is unmatched, treat the cell as wrong.")))
 
     if "volume_unphysical" in cand.confidence_caveats:
         out.append(Diagnostic(
             level="warning", code="INDEX_VOLUME_UNPHYSICAL",
-            message=(f"the cell volume {cand.volume:.1f} Å³ is outside what these "
-                     "data can support — either below a single atom's exclusion "
-                     "volume (a numerical artefact of the metric cone rather than "
-                     "a lattice) or clear of Smith's (1977) envelope for the "
-                     "number of lines observed"),
+            message=(f"The cell volume {cand.volume:.1f} Å³ is below a single "
+                     "atom's exclusion volume or clear of Smith's (1977) "
+                     "envelope for the number of lines observed."),
             where=where,
-            suggestion=("a search only reaches here if max_volume was widened "
-                        "past the envelope assess_peak_list supplied; narrow it, "
-                        "or measure more lines — the envelope is a statement "
-                        "about how many lines a cell of that size would show")))
+            suggestion=("Narrow max_volume to the envelope assess_peak_list "
+                        "supplied, or measure more lines.")))
     return out
 
 
@@ -711,19 +632,15 @@ def _z_not_integer(cand, formula: str, temperature: float,
         return None
     return Diagnostic(
         level="warning", code="INDEX_Z_NOT_INTEGER", value=z,
-        message=(f"this cell holds {z:.2f} formula units of {formula} "
+        message=(f"This cell holds {z:.2f} formula units of {formula} "
                  f"({cand.volume:.1f} Å³ over {v_fu:.1f} Å³ per unit at "
-                 f"{temperature:g} K, Hofmann 2002).  The nearest whole number, "
+                 f"{temperature:g} K, Hofmann 2002). The nearest whole number, "
                  f"{n}, needs a formula unit {abs(off) * 100:.0f} % "
                  f"{'larger' if off > 0 else 'smaller'} than the estimate, "
-                 f"past the {Z_INTEGER_TOLERANCE * 100:.0f} % that twice one "
-                 "crystal's scatter allows"),
+                 f"past the {Z_INTEGER_TOLERANCE * 100:.0f} % tolerance."),
         where=where + [f"formula {formula}"],
-        suggestion=("weigh it beside the figures of merit, never as a refusal.  "
-                    "A fractional Z means a sub- or supercell of the truth, or a "
-                    "formula that misses something (solvent, a counter-ion), or "
-                    "an ionic specimen, where the volumes run large.  Check the "
-                    "formula first"))
+        suggestion=("Check the formula for a missing solvent or counter-ion, "
+                    "then weigh this beside the figures of merit."))
 
 
 def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
@@ -747,16 +664,12 @@ def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
         out.append(Diagnostic(
             level="warning", code="INDEX_MULTIPLE_SOLUTIONS",
             message=(f"{len(high)} candidate lattices each satisfy the whole "
-                     "confidence gate, so the evidence does not choose between "
-                     "them"),
+                     "confidence gate, so best_or_none() returns None."),
             where=[f"{c.system} {c.centring}, V = {c.volume:.1f} Å³"
                    for c in high],
-            suggestion=("best_or_none() returns None by construction here — a "
-                        "singleton would be the confident wrong answer this API "
-                        "exists to prevent.  Compare their figure-of-merit panels "
-                        "and their lebail.rwp, and extend the 2θ range: two cells "
-                        "that both explain a range this wide are usually "
-                        "separated by one high-angle reflection")))
+            suggestion=("Compare their figure-of-merit panels and their "
+                        "lebail.rwp, and extend the 2θ range to reach a "
+                        "high-angle reflection that separates them.")))
 
     if result.best_or_none() is None:
         top = result.candidates[0] if result.candidates else None
@@ -764,52 +677,38 @@ def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
         out.append(Diagnostic(
             level="warning" if result.candidates else "error",
             code="INDEX_ABSTAINED",
-            message=(("no cell reached the confidence gate; the best candidate "
-                      f"({top.system} {top.centring}, V = {top.volume:.1f} Å³) is "
-                      f"{top.confidence} because of: {caveats}")
+            message=(("No cell reached the confidence gate. The best candidate "
+                      f"({top.system} {top.centring}, V = {top.volume:.1f} Å³) "
+                      f"has {top.confidence} confidence because of: {caveats}.")
                      if top else
-                     ("no candidate cell was found in the systems searched — "
-                      "which is not the same statement as none existing, see "
-                      "search_complete")),
+                     "No candidate cell was found in the systems searched."),
             where=[f"searched: {', '.join(result.systems_searched) or 'nothing'}"],
-            suggestion=("abstention is the result.  Read each candidate's "
-                        "confidence_caveats and act on the refuting ones first "
-                        "(geometric_ambiguity, predicted_but_absent, "
-                        "fom_panel_disagrees, indexed_fraction_low, "
-                        "volume_unphysical, validation_failed, "
-                        "supercell_refuted) — the others cap confidence rather "
-                        "than arguing against the cell, and most of them are "
-                        "closed by better data rather than by a different search")))
+            suggestion=(("Read each candidate's confidence_caveats and act on "
+                         "the refuting ones first (geometric_ambiguity, "
+                         "predicted_but_absent, fom_panel_disagrees, "
+                         "indexed_fraction_low, volume_unphysical, "
+                         "validation_failed, supercell_refuted). The others "
+                         "cap confidence, and better data closes most of them.")
+                        if top else
+                        "Read search_complete before you treat the absence as "
+                        "evidence.")))
 
     if not result.validated:
         out.append(Diagnostic(
             level="warning", code="INDEX_NOT_VALIDATED",
-            message=("no pattern was supplied, so no candidate was tested against "
-                     "the whole profile; the figure-of-merit panel is computed on "
-                     "at most 20 lines and is blind to lines beyond them, to "
-                     "impurity content, and to reflections predicted where there "
-                     "is no intensity"),
+            message=("No pattern was supplied, so no candidate was tested "
+                     "against the whole profile."),
             where=[f"{len(result.candidates)} candidate(s) from a peak list only"],
-            suggestion=("pass data= (and instrument=) to index_pattern.  Every "
-                        "candidate caps at medium without it — the result "
-                        "abstains rather than one field being quietly "
-                        "downgraded")))
+            suggestion="Pass data= and instrument= to index_pattern."))
 
     missing = [s for s in SYSTEM_ORDER if s not in result.systems_searched]
     if missing:
         out.append(Diagnostic(
             level="info", code="INDEX_SYSTEMS_NOT_COVERED",
-            message=(f"{len(missing)} crystal system(s) were not searched, so "
-                     "this result says nothing about them"),
+            message=f"{len(missing)} crystal system(s) were not searched.",
             where=missing,
-            suggestion=("read a failure as 'no cell found in the systems "
-                        "searched', never as a statement about the specimen — and "
-                        "in particular never as 'this pattern is multiphase'.  "
-                        "Measured on this repo's own data, a restricted engine's "
-                        "coverage bands overlap between single-phase "
-                        "low-symmetry patterns (47-60 %) and a genuine mixture "
-                        "(69 %), and a multiphase claim built on that ambiguity "
-                        "was withdrawn")))
+            suggestion=("Search the missing systems before you conclude "
+                        "anything about the specimen.")))
 
     systematic = _cell_systematic(instrument, bool(result.candidates))
     if systematic is not None:
@@ -833,30 +732,28 @@ def _cell_systematic(instrument, have_candidates: bool) -> Diagnostic | None:
     if instrument is None:
         return Diagnostic(
             level="info", code="INDEX_CELL_SYSTEMATIC_UNQUANTIFIED",
-            message=("no instrument was supplied, so the geometry that would "
-                     "determine the cell's systematic error is unknown; the "
-                     "reported cell_esd is a *precision* from the line positions "
-                     "and says nothing about accuracy"),
+            message=("No instrument was supplied, so the geometry that sets "
+                     "the cell's systematic error is unknown. The reported "
+                     "cell_esd is a precision from the line positions and says "
+                     "nothing about accuracy."),
             where=["geometry unknown"],
-            suggestion=("pass instrument= — on a Bragg-Brentano diffractometer "
-                        f"the goniometer radius alone carries ≈ ±"
-                        f"{BRAGG_BRENTANO_CELL_PPM:.0f} ppm onto the cell"))
+            suggestion=("Pass instrument= to index_pattern. On a "
+                        "Bragg-Brentano diffractometer the goniometer radius "
+                        f"alone carries about ±{BRAGG_BRENTANO_CELL_PPM:.0f} "
+                        "ppm onto the cell."))
     if instrument.geometry.kind != "bragg_brentano":
         return None
     return Diagnostic(
         level="info", code="INDEX_CELL_SYSTEMATIC_UNQUANTIFIED",
-        message=(f"a Bragg-Brentano cell carries ≈ ±{BRAGG_BRENTANO_CELL_PPM:.0f} "
-                 "ppm that no esd reports: sweeping the goniometer radius over "
-                 "180-320 mm moves Rwp by only 0.029 points, so the data cannot "
-                 "identify it, while specimen displacement absorbs the change 4.6× "
-                 "and the rest lands on the lattice parameters"),
+        message=(f"A Bragg-Brentano cell carries about ±{BRAGG_BRENTANO_CELL_PPM:.0f} "
+                 "ppm that no esd reports. Sweeping the goniometer radius over "
+                 "180-320 mm moves Rwp by only 0.029 points, and specimen "
+                 "displacement absorbs the change 4.6×."),
         where=[f"R = {instrument.geometry.goniometer_radius_mm:g} mm (declared, "
                "not measured by the fit)"],
-        suggestion=("quote the cell to no better than this, or calibrate against "
-                    "a certified standard (lab_calibrate with the certified cell "
-                    "held fixed) and carry the correction.  It bites hardest here "
-                    "of anywhere in the package, because indexing produces a cell "
-                    "with nothing to compare it against"))
+        suggestion=("Quote the cell to no better than this level, or calibrate "
+                    "against a certified standard (lab_calibrate with the "
+                    "certified cell held fixed) and carry the correction."))
 
 
 # ----------------------------------------------------------------------
@@ -879,45 +776,31 @@ def extinction_class_diagnostics(cand) -> list[Diagnostic]:
             level="warning", code="EXTINCTION_FORBIDDEN_INTENSITY",
             message=(f"{cand.n_present} of the {cand.n_testable} forbidden "
                      "position(s) this class could be tested at carry intensity "
-                     "its own Le Bail fit cannot account for — the absences it "
-                     "claims are not in the pattern"),
+                     "its own Le Bail fit cannot account for."),
             where=where + [pairs],
-            suggestion=("look at those 2θ in the pattern: the test is a 3σ "
-                        "integral over ±½ FWHM of the fit residual, so it sees "
-                        "what the class's allowed reflections and the background "
-                        "leave over.  A single flagged position can also be an "
-                        "impurity line — check it against "
-                        "IndexingResult's unmatched_observed before dropping the "
-                        "class.  Or a container halo: an excess about a degree "
-                        "wide is not a line — declare it as a HumpComponent "
-                        "(fit it in the Le Bail pre-fit), which the screen "
-                        "refits per class")))
+            suggestion=("Check those 2θ positions against IndexingResult's "
+                        "unmatched_observed for an impurity line before you "
+                        "drop the class. Declare an excess about a degree wide "
+                        "as a HumpComponent in the Le Bail pre-fit.")))
     if cand.n_absent and cand.n_testable == 0:
         out.append(Diagnostic(
             level="info", code="EXTINCTION_SYMBOL_AMBIGUOUS",
-            message=(f"none of the {cand.n_absent} line(s) this class forbids "
-                     "can be tested by these data: each is outside the fitted "
-                     "range, coincides with a line the class still allows, or "
-                     "sits where this class's own fit already puts a "
-                     "neighbour's tail"),
+            message=(f"None of the {cand.n_absent} line(s) this class forbids "
+                     "can be tested by these data: each lies outside the "
+                     "fitted range, coincides with a line the class still "
+                     "allows, or sits in a neighbour's tail."),
             where=where,
-            suggestion=("this class is indistinguishable from a less restrictive "
-                        "one here, and it is *not* preferred on parsimony — the "
-                        "nested comparison counts only testable lines, so an "
-                        "absence nobody could see earns nothing.  Extending the "
-                        "range or resolving the overlap is what would separate "
-                        "them")))
+            suggestion=("Extend the range or resolve the overlap to separate "
+                        "this class from a less restrictive one. The nested "
+                        "comparison counts only testable lines, so an absence "
+                        "nobody could see earns this class no preference.")))
     if not cand.conditions_complete:
         out.append(Diagnostic(
             level="info", code="EXTINCTION_CONDITIONS_PARTIAL",
-            message=("the reflection conditions printed for this class do not "
-                     "name every absence in it — the screen used the absence set "
-                     "itself, which is unaffected, but the human-readable list is "
-                     "incomplete"),
+            message=("The reflection conditions printed for this class do not "
+                     "name every absence in it."),
             where=where + [f"conditions: {'; '.join(cand.conditions) or 'none'}"],
-            suggestion=("read space_groups rather than conditions here; the "
-                        "derivation covers 549 of gemmi's 550 settings and says "
-                        "so rather than guessing")))
+            suggestion="Use space_groups as the reliable statement."))
     return out
 
 
@@ -940,30 +823,24 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
     if not screen.candidates:
         return [Diagnostic(
             level="warning", code="EXTINCTION_SYMBOL_AMBIGUOUS",
-            message=("no extinction class could be screened: the lattice "
+            message=("No extinction class could be screened: the lattice "
                      f"{screen.lattice_group} produced no fittable reflections in "
                      f"{screen.two_theta_range[0]:.1f}-"
-                     f"{screen.two_theta_range[1]:.1f}° 2θ"),
+                     f"{screen.two_theta_range[1]:.1f}° 2θ."),
             where=[f"{screen.system} {screen.centring}"],
-            suggestion="check the cell and the wavelength before reading further")]
+            suggestion="Check the cell and the wavelength.")]
 
     top = alive[0] if alive else screen.candidates[0]
     if len(top.space_groups) > 1:
         out.append(Diagnostic(
             level="info", code="EXTINCTION_GROUPS_NOT_SEPARABLE",
-            message=(f"extinction symbol {top.symbol} is compatible with "
-                     f"{len(top.space_groups)} space groups, and a powder pattern "
-                     "cannot separate them: they differ only by symmetry elements "
-                     "that produce no systematic absences (centre of symmetry, "
-                     "enantiomorph, a mirror), so the patterns are identical by "
-                     "construction rather than for want of counting time"),
+            message=(f"Extinction symbol {top.symbol} is compatible with "
+                     f"{len(top.space_groups)} space groups."),
             where=[", ".join(top.space_groups)],
-            suggestion=("choose between them with chemistry, not with these data "
-                        "— an optically active or polar compound cannot be "
-                        "centrosymmetric, |E²−1| statistics are indicative at "
-                        "best, and a structure solution that works in one is the "
-                        "usual arbiter.  Any of them can be handed to "
-                        "structure_from_candidate for the next fit")))
+            suggestion=("Choose between them with chemistry (an optically "
+                        "active or polar compound cannot be centrosymmetric) "
+                        "or a structure solution. Pass any of them to "
+                        "structure_from_candidate for the next fit.")))
 
     reasons = []
     if len(alive) > 1 and alive[1].delta_bic - top.delta_bic < DECISIVE_DELTA_BIC:
@@ -977,21 +854,16 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
                        "standing is unknown")
     if not alive:
         reasons.append("every class was refuted, including the absence-free "
-                       "lattice — which means the fit itself failed, not the "
-                       "symmetry")
+                       "lattice, so the fit itself failed")
     if reasons:
         out.append(Diagnostic(
             level="warning", code="EXTINCTION_SYMBOL_AMBIGUOUS",
-            message=("the extinction symbol is not settled by these data: "
-                     + "; ".join(reasons)),
+            message=("The extinction symbol is not settled by these data: "
+                     + "; ".join(reasons) + "."),
             where=[f"leading: {top.symbol}"]
             + [f"then: {c.symbol} (ΔBIC {c.delta_bic:+.1f})" for c in alive[1:3]],
-            suggestion=("best_or_none() returns None for exactly this reason.  "
-                        "The discriminating evidence is the forbidden positions "
-                        "the leading classes disagree about — count longer at "
-                        "those 2θ, or extend the range, rather than picking the "
-                        "better Rwp, which always favours the class with more "
-                        "reflections")))
+            suggestion=("Count longer at the forbidden positions where the "
+                        "leading classes disagree, or extend the 2θ range.")))
     return out
 
 

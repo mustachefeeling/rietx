@@ -2,77 +2,26 @@
 # Part 2 (the theory chapters, WP-0604) in one tree.
 #
 # Anti-divergence rule (WP-0604): a threshold or fenced constant is never
-# typed into a chapter.  It is imported here from the live package and exposed
-# as a MyST substitution ({{ BRINDLEY_MU_R_FENCE }} etc.), so a renamed or
-# retuned constant fails the -W build instead of leaving a stale number in
-# print.  Prose derivations stay in the module docstrings; chapters carry the
-# numbered equations and point at their source symbols.  Part 1's own guard is
-# name resolution rather than constant injection (tests/test_manual_api.py).
+# typed into a chapter.  It is injected from the live package as a MyST
+# substitution, defined in `docs/sphinx_shared.py` since WP-1978 so that the
+# new tree in docs/docs/ quotes the same numbers.  Part 1's own guard is name
+# resolution rather than constant injection (tests/test_manual_api.py).
 
-import dataclasses as _dataclasses
-import importlib as _importlib
-import inspect as _inspect
 import re as _re
 import shutil as _shutil
+import sys as _sys
 from importlib import util as _importlib_util
 from importlib.metadata import version as _dist_version
 from pathlib import Path as _Path
 
-import sphinxcontrib.bibtex.plugin as _bibtex_plugin
-from docutils import nodes as _nodes
-from sphinxcontrib.bibtex.style.referencing import BracketStyle
-from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferenceStyle
-
-from rietx._about import DIST_NAME, DOCS_URL, REPO_URL
-from rietx.crystallography.atomic_volume import VOLUME_RATIO_BOUNDS, VOLUME_SCATTER
-from rietx.crystallography.dispersion import NEAR_EDGE_EV
-from rietx.crystallography.magnetic.moments import MOMENT_DIRECTION_SUPPORT
-from rietx.crystallography.scattering import _itc_handover
-from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
-from rietx.examples import list_examples
-from rietx.gui.textdoc import FORMAT_VERSION as RXT_FORMAT_VERSION
-from rietx.gui.textdoc import VALUE_DIGITS as RXT_VALUE_DIGITS
+from rietx._about import DIST_NAME, DOCS_URL
 from rietx.help import help_registry
-from rietx.indexing.ambiguity import MAX_AMBIGUITY_INDEX, SUPERCELL_CHANCE_ALPHA
-from rietx.indexing.dichotomy import ANGLE_STEP_DEG, AXIS_STEP
-from rietx.indexing.diagnostics import Z_INTEGER_TOLERANCE
-from rietx.indexing.engines import (
-    DEFAULT_N_UNINDEXED,
-    DEFAULT_SEARCH_LINES,
-    SEARCH_POOL_MULTIPLE,
-)
-from rietx.indexing.reduce import NIGGLI_EPS_RELATIVE
-from rietx.model.absorption import CYLINDER_MU_R_MAX
-from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_AREA_TOL
-from rietx.model.geometry import (
-    ANGLE_LINEARISATION_LIMIT_DEG,
-    VARIANCE_CANCELLATION_FLOOR,
-)
-from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
-from rietx.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
-from rietx.optimize.least_squares import STATIONARY_ANGLE_LEVEL
-from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
-from rietx.optimize.statistics import (
-    EFFECTIVE_OBS_ALPHA,
-    MAX_SHIFT_CONVERGED,
-    OBS_PER_PARAMETER_MIN,
-    OBS_PER_PARAMETER_PREFERRED,
-    PINV_RCOND,
-)
-from rietx.params.parametric import FORM_TEST_LEVEL
-from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
-from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
-from rietx.report.layer2 import IMPURITY_SIGMA
-from rietx.report.schemas import (
-    MATURITY_MAX_RWP,
-    THRESHOLDS_VERSION,
-    VALIDITY_RADIUS_FWHM,
-)
-from rietx.schemas.fraction import FRACTION_PROFILE_DCHI2, FRACTION_PROFILE_EXCESS
-from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
-from rietx.schemas.interval import PARAMETER_INTERVAL_MAX_REFITS
-from rietx.schemas.suggest import SUGGEST_MIN_GAIN
-from rietx.strategy.staged import HUMP_MIN_WIDTH_MULT
+
+# The parts this tree shares with the new one in docs/docs/ (WP-1978): the
+# fenced constants, the citation style, the diagram theme and the `{source}`
+# role.  A module both conf.py files import, so one change reaches both trees.
+_sys.path.append(str(_Path(__file__).resolve().parent.parent))
+import sphinx_shared as _shared  # noqa: E402
 
 project = "rietx manual"
 author = "rietx developers"
@@ -88,23 +37,9 @@ extensions = [
     "sphinxcontrib.mermaid",
 ]
 
-# Diagrams render in the browser (`raw` output needs no mermaid-cli at build
-# time).  The extension detects the active theme itself and re-renders on a
-# MutationObserver when the toggle moves, so these two names are the whole
-# light/dark story.  It reads a `dark`/`light` class or `data-theme` on *either*
-# `html` or `body` and falls back to `prefers-color-scheme`, which is wider than
-# furo's own `body[data-theme]`: WP-1412 drove all four of its spellings and the
-# diagrams followed every one.  mermaid.js itself comes from a CDN when the page
-# is *viewed*; set `mermaid_use_local` if a built copy of the manual has to
-# render diagrams offline.
-mermaid_light_theme = "default"
-mermaid_dark_theme = "dark"
-# Without the title margin, a subgraph label is drawn on the cluster border and
-# collides with the first node inside it.
-mermaid_init_config = {
-    "startOnLoad": False,
-    "flowchart": {"subGraphTitleMargin": {"top": 6, "bottom": 12}},
-}
+mermaid_light_theme = _shared.MERMAID_LIGHT_THEME
+mermaid_dark_theme = _shared.MERMAID_DARK_THEME
+mermaid_init_config = _shared.MERMAID_INIT_CONFIG
 
 # The tutorial notebooks render with the outputs they were committed with.
 # `examples/tutorials/build.py` writes those outputs and
@@ -114,135 +49,11 @@ mermaid_init_config = {
 nb_execution_mode = "off"
 
 bibtex_bibfiles = ["references.bib"]
-# `alpha` still formats and sorts the list, by author then year, which is the
-# order an author-year reference list wants.  What changes is the citation:
-# `author_year` renders it as [Boultif and Louër, 1991] instead of [BL91a].
-# The manual cites 105 distinct works across 150 citations, so a reader meets
-# almost every label once and builds no memory of it, and 143 of those
-# citations carry no author name in the prose beside them.  The bibliography
-# also sits on a different page from all but one citation, so decoding a label
-# costs a navigation.  61 % of the entries are crystallography journals, whose
-# own house style is name-date.  WP-1408 § G3 has the numbers, the numeric
-# styles it rules out and what each renders.
-bibtex_default_style = "alpha"
-bibtex_reference_style = "author_year_semicolon"
+bibtex_default_style = _shared.BIBTEX_DEFAULT_STYLE
+bibtex_reference_style = _shared.BIBTEX_REFERENCE_STYLE
 
-
-def _bracket_style() -> BracketStyle:
-    """A semicolon between works in one citation, and square brackets kept.
-
-    Registering a subclassed reference style from `conf.py` is what
-    sphinxcontrib-bibtex § Custom Formatting documents for this. Fourteen of
-    the 150 citations name more than one work, and `BracketStyle.sep` defaults
-    to a comma, which is also what separates an author from its year: three
-    works came out as one flat list of six comma-separated fragments.
-
-    The brackets stay square, which is the library default. Name-date
-    convention is round, and round was measured on this tree first: ten
-    citations sit inside a parenthetical the prose already opened, so round
-    brackets print `((Prince, 2004) eq. 6.3.3.1)` and nine more like it. A
-    square bracket nests inside a parenthesis without collision, which is why
-    house styles that cite by name-date inside parentheses use one.
-    """
-    return BracketStyle(sep="; ", sep2="; ", last_sep="; ")
-
-
-@_dataclasses.dataclass
-class _AuthorYearSemicolon(AuthorYearReferenceStyle):
-    bracket_textual: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
-    bracket_parenthetical: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
-    bracket_author: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
-    bracket_label: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
-    bracket_year: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
-
-
-_bibtex_plugin.register_plugin(
-    "sphinxcontrib.bibtex.style.referencing", "author_year_semicolon", _AuthorYearSemicolon
-)
-
-myst_enable_extensions = ["dollarmath", "amsmath", "substitution", "colon_fence",
-                          "deflist"]
-myst_substitutions = {
-    # An angle's esd is withheld this close to 0°/180°; the raw value carries
-    # fifteen digits of an arccos clamp, so it is formatted rather than typed —
-    # still derived, and a retuned clamp still moves the printed number.
-    "ANGLE_LINEARISATION_LIMIT_DEG": f"{ANGLE_LINEARISATION_LIMIT_DEG:.1e}",
-    "HUMP_MIN_WIDTH_MULT": HUMP_MIN_WIDTH_MULT,
-    "BRINDLEY_MU_R_FENCE": BRINDLEY_MU_R_FENCE,
-    "FRACTION_PROFILE_DCHI2": FRACTION_PROFILE_DCHI2,
-    "FRACTION_PROFILE_EXCESS": FRACTION_PROFILE_EXCESS,
-    "PARAMETER_INTERVAL_MAX_REFITS": PARAMETER_INTERVAL_MAX_REFITS,
-    "CYLINDER_MU_R_MAX": CYLINDER_MU_R_MAX,
-    "EFFECTIVE_OBS_ALPHA": EFFECTIVE_OBS_ALPHA,
-    "MAX_SHIFT_CONVERGED": MAX_SHIFT_CONVERGED,
-    # the Γ_G² clamp, which is also the Caglioti W's floor and the LM rows' bound
-    "MIN_GAMMA_G2": f"{_MIN_GAMMA_G2:.0e}",
-    "OBS_PER_PARAMETER_MIN": OBS_PER_PARAMETER_MIN,
-    "OBS_PER_PARAMETER_PREFERRED": OBS_PER_PARAMETER_PREFERRED,
-    "VARIANCE_CANCELLATION_FLOOR": VARIANCE_CANCELLATION_FLOOR,
-    # the covariance's pinv cut and the scale-B floor derived from it
-    # (WP-1534); formatted, the floor being an irrational sqrt
-    "PINV_RCOND": f"{PINV_RCOND:.0e}",
-    # the moment-direction floor both the hold and the stationary-angle test
-    # read, and that test's level (WP-1929)
-    "MOMENT_DIRECTION_SUPPORT": f"{MOMENT_DIRECTION_SUPPORT:.0e}",
-    "STATIONARY_ANGLE_LEVEL": STATIONARY_ANGLE_LEVEL,
-    # the parametric form test's level (WP-1325)
-    "PARAMETRIC_FORM_LEVEL": FORM_TEST_LEVEL,
-    "SCALE_B_SEPARATION_FLOOR": f"{SCALE_B_SEPARATION_FLOOR:.1e}",
-    "DEFAULT_N_UNINDEXED": DEFAULT_N_UNINDEXED,
-    "DEFAULT_SEARCH_LINES": DEFAULT_SEARCH_LINES,
-    "SEARCH_POOL_MULTIPLE": SEARCH_POOL_MULTIPLE,
-    "IMPURITY_SIGMA": IMPURITY_SIGMA,
-    "ANGLE_STEP_DEG": ANGLE_STEP_DEG,
-    "AXIS_STEP": AXIS_STEP,
-    "MAX_AMBIGUITY_INDEX": MAX_AMBIGUITY_INDEX,
-    "MAX_RELATIVE_SIGMA_Q": MAX_RELATIVE_SIGMA_Q,
-    "MIN_LINES_PER_DOF": MIN_LINES_PER_DOF,
-    # the formula-volume window and the Z check (WP-1510): the scatter of one
-    # crystal, the ratio bounds the window takes, the tolerance at twice the
-    # scatter, and the Z above which every value is within it of a whole number
-    "VOLUME_SCATTER_PCT": f"{VOLUME_SCATTER * 100:.2f}",
-    "VOLUME_RATIO_LOW": f"{VOLUME_RATIO_BOUNDS[0]:g}",
-    "VOLUME_RATIO_HIGH": f"{VOLUME_RATIO_BOUNDS[1]:g}",
-    "Z_INTEGER_TOLERANCE_PCT": f"{Z_INTEGER_TOLERANCE * 100:g}",
-    "Z_CHECK_SILENT_ABOVE": f"{0.5 / Z_INTEGER_TOLERANCE:g}",
-    # How many example projects the wheel carries.  A *count* in prose is the
-    # same class of stale number as a retuned threshold, and it rots the same
-    # silent way: `using/first-refinement.md` said "Three" while the page's own
-    # listing showed two, because a standard whose data may not ship in the
-    # wheel leaves `list_examples()` and nothing reads the sentence again.
-    "N_EXAMPLES": len(list_examples()),
-    # The `.rxt` document's own version and precision (WP-1009 asked for this
-    # explicitly: a format bump that misses the manual must fail the docs
-    # build).  `gui-power.md` states the grammar normatively, so both numbers
-    # are quoted from the parser rather than typed beside it.
-    "RXT_FORMAT_VERSION": RXT_FORMAT_VERSION,
-    "RXT_VALUE_DIGITS": RXT_VALUE_DIGITS,
-    # The Rwp past which Layer 1 abstains and the GUI header wears
-    # `⚠ not a fit yet`.  The GUI chapters state it, so it is injected for the
-    # same reason every other threshold here is: a retune must move the page.
-    "MATURITY_MAX_RWP": MATURITY_MAX_RWP,
-    "NEAR_EDGE_EV": NEAR_EDGE_EV,
-    # where Y³⁺'s ITC fit hands over to neutral Y (WP-1527).  The package
-    # computes it from the two curves, so the chapter quotes it.
-    "Y3_HANDOVER_STOL": f"{_itc_handover('Y3+'):.3f}",
-    "NIGGLI_EPS_RELATIVE": NIGGLI_EPS_RELATIVE,
-    "NODES_PER_FWHM": NODES_PER_FWHM,
-    "PAWLEY_OVERLAP_FWHM_FRAC": PAWLEY_OVERLAP_FWHM_FRAC,
-    "SKIP_EXTENT_FWHM_RATIO": SKIP_EXTENT_FWHM_RATIO,
-    "STRAIN_CAP_RANGE_FRACTION": STRAIN_CAP_RANGE_FRACTION,
-    "STRAIN_FLAG_WIDTH": STRAIN_FLAG_WIDTH,
-    "SIZE_CAP_MIN_SIZE_NM": SIZE_CAP_MIN_SIZE_A / 10.0,
-    "SIZE_FLAG_SIZE_NM": SIZE_FLAG_SIZE_A / 10.0,
-    "SUGGEST_MIN_GAIN": SUGGEST_MIN_GAIN,
-    "SUPERCELL_CHANCE_ALPHA": SUPERCELL_CHANCE_ALPHA,
-    "SYMMETRY_ANGLE_TOL_DEG": SYMMETRY_ANGLE_TOL_DEG,
-    "THRESHOLDS_VERSION": THRESHOLDS_VERSION,
-    "VALIDITY_RADIUS_FWHM": VALIDITY_RADIUS_FWHM,
-    "WINDOW_AREA_TOL": WINDOW_AREA_TOL,
-    "release": release,
-}
+myst_enable_extensions = _shared.MYST_EXTENSIONS
+myst_substitutions = {**_shared.MYST_SUBSTITUTIONS, "release": release}
 
 # Numbered sections and section-prefixed equation numbers ((3.2), not (2)).
 numfig = True
@@ -331,9 +142,9 @@ _ARMS = [
      "What is known about one fitted line. Whether a flag also makes the line "
      "unusable as evidence of a lattice is served beside the vocabulary as "
      "`unusable_flags`, so no client re-derives it."),
-    ("peak_diagnostics", "Peak-list diagnostics",
-     "Messages about the list rather than about one line. Several are the "
-     "list-level summary of a flag and say how many lines carry it."),
+    ("diagnostics", "Diagnostic codes",
+     "What each diagnostic code means and why it fires. A finding's own "
+     "message and suggestion say what this case found and what to do."),
     ("peak_origins", "Peak origins",
      "Where one line came from: detection, or a person. Provenance and not a "
      "judgement; no gate in the package branches on it."),
@@ -548,113 +359,11 @@ def _write_skill() -> None:
 _write_skill()
 
 
-# ----------------------------------------------------------------------
-# The `{source}` role (WP-1408)
-#
-# Every displayed equation in Part 2 carries a *Source:* line naming the
-# symbol its docstring was transcribed from.  The name resolving is the
-# manual's oldest guard (WP-0604), and the role turns the same resolution into
-# a link: `inspect` gives the file and the line, so a reader goes from the
-# equation to the code that runs it in one click, and a renamed symbol breaks
-# the **build** rather than leaving a dead link on the page.
-#
-# The link goes to `main`, not to a tag of `release`.  A tag would pin the
-# line number to a tree it is certainly true of, which is the better property
-# — and it was measured not to hold: `pyproject.version` is the last *shipped*
-# milestone whether or not that milestone was tagged, and on 2026-09-14 the
-# version read 1.4.0 while `git ls-remote --tags` stopped at v1.3.0, so every
-# link would have been a 404.  `main` is also the tree the published manual is
-# built from, so the page and its links agree; the cost is a line number that
-# can drift by a few lines between a build and a later reading.
-# ----------------------------------------------------------------------
 
-#: The repository root, which is what a blob URL's path is relative to.
-_REPO_ROOT = _Path(__file__).resolve().parents[2]
-
-#: What to link at — see the note above for why this is a branch and not a tag.
-_SOURCE_REF = "main"
-
-
-def _assignment_line(path: _Path, name: str) -> int:
-    """Where a module-level constant is bound.
-
-    `inspect.getsourcelines` works on anything with code behind it and raises
-    on a float, so a `*Source:*` line naming a threshold — and several do —
-    needs the assignment found by reading.  Falling back to the top of the
-    file would be worse than useless: it would look like a working link.
-    """
-    pattern = _re.compile(rf"^{_re.escape(name)}\s*[:=]")
-    matches = [number
-               for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
-               if pattern.match(line)]
-    if len(matches) == 1:
-        return matches[0]
-    if matches:
-        # Two column-0 bindings of one name: a real rebind, or a line inside a
-        # module docstring that reads like one.  Guessing picks a link that
-        # looks right and is not, so refuse and name the lines.
-        raise LookupError(f"{name}: {len(matches)} module-level bindings in "
-                          f"{path.name}, lines {matches}")
-    raise LookupError(f"{name}: no module-level assignment in {path.name}")
-
-
-def _resolve_source(dotted: str) -> tuple[str, int]:
-    """(path relative to the repository root, 1-based line) for a dotted name."""
-    parts = dotted.split(".")
-    for split in range(len(parts), 0, -1):
-        try:
-            module = _importlib.import_module(".".join(parts[:split]))
-        except ImportError:
-            continue
-        break
-    else:
-        raise LookupError(f"{dotted}: no importable module prefix")
-
-    obj = module
-    for attr in parts[split:]:
-        if not hasattr(obj, attr):
-            raise LookupError(f"{dotted}: {obj!r} has no attribute {attr!r}")
-        obj = getattr(obj, attr)
-
-    # The file has to be the one the *line* was read out of.  `getsourcelines`
-    # reports where the object was **defined**, which for a re-exported name
-    # (`schemas.history` re-exports `StageSpec`, and the package does that on
-    # purpose) is not the module the dotted name went through — taking the path
-    # from the module and the line from the object then links a real file at a
-    # line belonging to another one, and every guard here still passes because
-    # the name imports.  A constant has no code behind it, so it falls back to
-    # the module's own file, which is where `_assignment_line` reads.
-    try:
-        line = _inspect.getsourcelines(obj)[1] or 1
-        path = _Path(_inspect.getsourcefile(obj) or _inspect.getsourcefile(module)).resolve()
-    except (TypeError, OSError):
-        path = _Path(_inspect.getsourcefile(module)).resolve()
-        line = _assignment_line(path, parts[-1]) if parts[split:] else 1
-    try:
-        return path.relative_to(_REPO_ROOT).as_posix(), line
-    except ValueError:
-        # The imported package is not this checkout's — a non-editable install,
-        # or a venv belonging to another worktree.  Say so: `relative_to`'s own
-        # message reaches the reader as an unexplained `-W` build failure.
-        raise LookupError(
-            f"{dotted}: resolved to {path}, which is outside {_REPO_ROOT} — "
-            "build the manual against an editable install of this checkout"
-        ) from None
-
-
-def _source_role(name, rawtext, text, lineno, inliner, options=None, content=None):
-    dotted = text.strip().strip("`")
-    try:
-        path, line = _resolve_source(dotted)
-    except Exception as exc:                      # noqa: BLE001 — reported, not raised
-        message = inliner.reporter.error(f"{{source}}: {exc}", line=lineno)
-        return [inliner.problematic(rawtext, rawtext, message)], [message]
-    url = f"{REPO_URL}/blob/{_SOURCE_REF}/{path}#L{line}"
-    link = _nodes.reference("", "", _nodes.literal(text=dotted), refuri=url,
-                            classes=["source-link"])
-    return [_nodes.emphasis(text="Source: "), link], []
+# The `{source}` role (WP-1408) lives in `docs/sphinx_shared.py`, which says
+# why it resolves the way it does.
 
 
 def setup(app):
-    app.add_role("source", _source_role)
+    app.add_role("source", _shared.source_role)
     return {"version": release, "parallel_read_safe": True, "parallel_write_safe": True}

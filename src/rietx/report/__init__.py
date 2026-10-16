@@ -282,7 +282,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # unconditional so the field is always the renderer's current answer.
     result.statistics.identifiability_clause = clause
     if clause is not None:
-        report.summary += "; " + clause
+        report.summary += "\n" + clause
     if model is None or values is None:
         return report
     # The moment arm (WP-1327) is computed **above** the Layer-1 gate, because
@@ -355,11 +355,12 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     gap = report.lebail_gap
     if gap is not None and gap.ratio >= LEBAIL_GAP_NOTABLE:
         report.summary += (
-            f"; a Le Bail partition at the frozen converged state reaches "
+            f"\nA Le Bail partition at the frozen converged state reaches "
             f"Rwp={gap.rwp_lebail:.4f} against the Rietveld "
-            f"Rwp={gap.rwp_rietveld:.4f} (×{gap.ratio:.1f}): positions and "
-            f"profile account for the pattern — the intensity model carries "
-            f"the misfit, and phase ID does not rest on it")
+            f"Rwp={gap.rwp_rietveld:.4f} (×{gap.ratio:.1f}).\n"
+            f"Positions and profile account for the pattern, and the "
+            f"intensity model carries the misfit.\n"
+            f"Phase identification does not rest on that misfit.")
 
     ticks = [t for positions in result.ticks.values() for t in positions]
     reason = maturity_gate(result.statistics.rwp, attributions)
@@ -374,7 +375,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         # that could not receive it.
         kind, extra = abstention_flavour(result.statistics.rwp, attributions)
         if extra is not None:
-            reason += " — " + extra
+            reason += " " + extra
         report.abstained_reason = reason
         report.abstained_kind = kind
         actions = layer0_actions(report.unmatched, attributions, ticks=ticks)
@@ -395,7 +396,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         if plan is not None or free_paths is not None:
             actions = apply_strategy_veto(actions, plan, free_paths=free_paths)
         report.suggested_actions = _stamped(actions)
-        report.summary += f"; Layer 1 abstained — {reason}"
+        report.summary += f"\nLayer 1 abstained ({kind}). {reason}"
         return report
 
     report.layer1_available = True
@@ -416,9 +417,9 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     clause = contents_signature(report.trends, attributions)
     if clause is not None:
         if report.lebail_gap is not None:
-            clause += (f"; the Le Bail gap (×{report.lebail_gap.ratio:.1f}) "
-                       f"is the deciding statistic")
-        report.summary += "; " + clause
+            clause += (f"\nThe Le Bail gap (×{report.lebail_gap.ratio:.1f}) "
+                       f"is the deciding statistic.")
+        report.summary += "\n" + clause
     actions = suggest_actions(attributions, report.trends, report.unmatched,
                               rwp=result.statistics.rwp, ticks=ticks,
                               geometry=model.geometry_kind,
@@ -439,6 +440,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     report.suggested_actions = _stamped(actions)
 
     n_active = sum(1 for a in actions if a.active)
-    report.summary += (f"; Layer 1 on {len([a for a in attributions if a.gates_passed])}"
-                       f"/{len(attributions)} regions, {n_active} active suggestion(s)")
+    report.summary += (f"\nLayer 1 read {len([a for a in attributions if a.gates_passed])}"
+                       f" of {len(attributions)} regions.\n"
+                       f"{n_active} suggestion(s) are active.")
     return report

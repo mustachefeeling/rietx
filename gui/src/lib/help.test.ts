@@ -51,7 +51,7 @@ function corpus(): HelpCorpus {
       { paths: ["instrument.zero_shift"], ...entry("Zero-point shift") },
     ],
     peak_flags: { excluded: entry("Excluded") },
-    peak_diagnostics: { PEAK_LIST_TOO_SHORT: entry("Too few lines") },
+    diagnostics: { PEAK_LIST_TOO_SHORT: entry("Too few lines") },
     peak_origins: { manual: entry("Placed by a person", { label: "manual" }) },
     stage_fields: { seed: entry("Stage seed"), max_iter: entry("Iteration cap") },
     reader_options: { block: entry("Data block") },
@@ -229,7 +229,7 @@ describe("every key the app writes down names something", () => {
       // leaves free, so its loop runs over names rather than all six edges
       "panels/Model.svelte: parameters:phases.*.cell.{name}",
       "panels/Model.svelte: reader_options:{opt.name}",
-      "panels/Peaks.svelte: peak_diagnostics:{d.code}",
+      "panels/Peaks.svelte: diagnostics:{d.code}",
       "panels/Peaks.svelte: peak_flags:{f}",
       // the origin chip (WP-1209): `ObservedPeak.origin`'s Literal, keyed both
       // ways from python, so the chip's words are the corpus's

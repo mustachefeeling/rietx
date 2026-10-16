@@ -24,7 +24,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | 2026-10-13 | P2 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-10-15 | P2 | [magnetic](#magnetic) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-14 | P2 | [magnetic](#magnetic) |
-| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 2026-10-13 | P3 | [magnetic](#magnetic) |
+| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 2026-10-15 | P3 | [magnetic](#magnetic) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-10-03 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 2026-10-04 | P3 | [rietview](#rietview) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
@@ -38,6 +38,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1805](1805-the-rigid-body.md) | `RigidBody`: schema, collector, anchored rotation, the body's own rows | 2026-10-08 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 2026-10-08 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 2026-10-12 | P3 | [rigid-bodies](#rigid-bodies) |
+| [1810](1810-hydrogens-riding-on-a-body.md) | Hydrogens riding on a body, CIF flags | 2026-10-15 | P4 | [rigid-bodies](#rigid-bodies) |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 2026-10-12 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 2026-10-14 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-12 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
@@ -46,7 +47,9 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | 2026-10-13 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1927](1927-tof-t1-the-axis-and-its-readers.md) | TOF T-1: the time-of-flight axis and its readers | 2026-10-13 | P2 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 2026-10-12 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
+| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## Next, by priority
 
@@ -59,12 +62,15 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1918](1918-a-magcif-read-in-its-own-cell-and-validated.md) | A magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out | P2 | — ([1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) soft) | [Unscheduled](#unscheduled-coming-from-another-code) |
-| [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | P2 | — ([1923](1923-a-candidate-in-its-conventional-setting.md), [1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) | A cell pays for the lines it predicts and the pattern lacks | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1511](1511-which-cell-does-this-powder-support.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1964](1964-a-nonlinear-law-through-the-derived-block.md) | A nonlinear law over the pattern coordinates, through the derived block | P2 | [1325](1325-parametric-series.md), [1804](1804-the-derived-block.md) | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
 | [1967](1967-what-the-chemist-declares-reaches-the-extinction-screen.md) | What the chemist declares reaches the extinction screen | P2 | — ([1910](1910-the-extinction-screen-at-a-small-cell-error.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
-| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | P2 | — ([1909](1909-a-line-on-a-falling-flank.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | P2 | — ([1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1983](1983-the-concepts-tab.md) | The Concepts tab | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1984](1984-the-switching-tab.md) | The Switching tab | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -381,7 +387,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 🔄 2026-10-01 | P3 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 🔄 2026-10-15 | P2 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-10-14 | P2 | #290, [1326](1326-satellites-without-a-moment.md), [1327](1327-magnetic-structure.md) |
-| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 🔄 2026-10-13 | P3 | [1418](1418-the-magnetic-structure-is-determined.md) ([1327](1327-magnetic-structure.md) soft) |
+| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 🔄 2026-10-15 | P3 | [1418](1418-the-magnetic-structure-is-determined.md) ([1327](1327-magnetic-structure.md) soft) |
 
 ## <a id="rietview"></a>rietview — the structure figure an agent composes
 
@@ -410,7 +416,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 🔄 2026-10-08 | P2 | [1805](1805-the-rigid-body.md) |
 | [1808](1808-torsions-on-named-rotatable-bonds.md) | Torsions on named rotatable bonds | ✅ 2026-10-11 | — | [1802](1802-the-fragment-type.md), [1805](1805-the-rigid-body.md) |
 | [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 🔄 2026-10-12 | P3 | — |
-| [1810](1810-hydrogens-riding-on-a-body.md) | Hydrogens riding on a body, CIF flags | ⬜ | P4 | [1805](1805-the-rigid-body.md) ([1806](1806-first-public-case-acridine-form-ix.md) soft) |
+| [1810](1810-hydrogens-riding-on-a-body.md) | Hydrogens riding on a body, CIF flags | 🔄 2026-10-15 | P4 | [1805](1805-the-rigid-body.md) ([1806](1806-first-public-case-acridine-form-ix.md) soft) |
 | [1811](1811-bodies-in-a-series.md) | Bodies in a series | ⬜ | P3 | [1805](1805-the-rigid-body.md), [1333](1333-a-series-survives-one-pattern.md) |
 | [1812](1812-gui-textdoc-skill-and-manual-for-bodies.md) | GUI, textdoc, skill and manual for bodies | ⬜ | P4 | [1805](1805-the-rigid-body.md) |
 | [1813](1813-fragment-io.md) | Fragment I/O: XYZ, Z-matrix write, SMILES behind an extra | ⬜ | P4 | [1802](1802-the-fragment-type.md) |
@@ -499,7 +505,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1535](1535-a-discarded-direction-reads-as-measured.md) | A direction the covariance discards reads as measured | ✅ 2026-10-02 | — | — |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 🔄 2026-10-03 | P4 | — |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | 🔄 2026-10-08 | P2 | — |
-| [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | ✅ 2026-10-13 | — | — |
+| [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | ✅ 2026-10-15 | — | — |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 🔄 2026-10-12 | P2 | — |
 | [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 🔄 2026-10-14 | P2 | — |
 | [1912](1912-a-polar-axis-has-no-origin.md) | A polar axis has no origin, and the fit walks along it | 🔄 2026-10-13 | P2 | — |
@@ -510,7 +516,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) | An esd follows where the solver stopped beside a flat column | ✅ 2026-10-12 | — | [1938](1938-every-parameter-refined-in-its-own-units.md) |
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | ✅ 2026-10-13 | — | — |
 | [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 🔄 2026-10-12 | P3 | — ([1542](1542-a-le-bail-background-left-at-its-seed.md) soft) |
-| [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | ⬜ | P2 | — ([1923](1923-a-candidate-in-its-conventional-setting.md), [1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) |
+| [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | 🔄 2026-10-15 | P2 | — ([1923](1923-a-candidate-in-its-conventional-setting.md), [1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) |
 | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md) | A forward-difference step sized by its parameter | ✅ 2026-10-09 | — | — |
 | [1937](1937-a-bounded-step-solved-exactly.md) | A bounded step solved exactly | ✅ 2026-10-10 | — | — ([1936](1936-a-forward-difference-step-sized-by-its-parameter.md) soft) |
 | [1938](1938-every-parameter-refined-in-its-own-units.md) | Every parameter refined in its own units | ✅ 2026-10-11 | — | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md), [1937](1937-a-bounded-step-solved-exactly.md) ([1940](1940-the-kernel-tier-in-a-wheel.md) soft) |
@@ -522,8 +528,10 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1955](1955-a-column-at-a-zero-aperture-and-a-column-the-matrix-cannot-see.md) | A column at a zero aperture, and a column the agreement matrix cannot see | ⬜ | P3 | — |
 | [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) | A cell pays for the lines it predicts and the pattern lacks | ⬜ | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1511](1511-which-cell-does-this-powder-support.md) soft) |
 | [1958](1958-a-phase-with-no-reflection-walks-its-scale-under-trf.md) | A phase with no reflection in range walks its scale under TRF | ⬜ | P3 | — |
-| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | ⬜ | P2 | — ([1909](1909-a-line-on-a-falling-flank.md) soft) |
+| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 🔄 2026-10-15 | P2 | — ([1909](1909-a-line-on-a-falling-flank.md) soft) |
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | ⬜ | P2 | — ([1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) soft) |
+| [1976](1976-a-correction-summary-judged-at-the-drawn-angle.md) | A correction summary judged at the drawn angle | ✅ 2026-10-15 | — | — |
+| [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | ⬜ | P2 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
@@ -579,7 +587,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1531](1531-what-the-promo-figures-found.md) | What the promo figures found: a trimmed cell the report calls fine, a bond through a face, labels on atoms, polyhedra without their far ends | ✅ 2026-10-02 | — | — |
 | [1533](1533-what-the-promo-agent-reached-around.md) | What the promo agent reached around: a cell frame with no switch, a stick width in a module constant, a score that argues against the axis view, and the furniture every script rebuilds | ✅ 2026-10-02 | — | — ([1531](1531-what-the-promo-figures-found.md) soft) |
 | [1544](1544-a-model-reads-in-a-notebook.md) | A model reads in a notebook | ✅ 2026-10-07 | — | — |
-| [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 🔄 2026-10-07 | — | [1544](1544-a-model-reads-in-a-notebook.md) |
+| [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 🔄 2026-10-07 | — | [1544](1544-a-model-reads-in-a-notebook.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md) |
 | [1916](1916-the-tutorials-in-the-manual.md) | The tutorials in the manual, and the quickstart is a notebook | ✅ 2026-10-08 | — | [1545](1545-tutorial-notebooks.md) |
 | [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | ✅ 2026-10-14 | — | [1916](1916-the-tutorials-in-the-manual.md) |
 | [1947](1947-the-model-read-at-its-values-without-a-solve.md) | The model read at its values, without a solve | ⬜ | P3 | — |
@@ -589,6 +597,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1970](1970-a-notebook-figure-follows-the-frontends-theme.md) | A notebook figure follows the frontend's theme | ✅ 2026-10-14 | — | — |
 | [1971](1971-a-returned-figure-survives-a-zoom-and-a-pickle.md) | A returned figure survives a caller's zoom and a pickle | ✅ 2026-10-15 | — | — |
 | [1972](1972-the-indexing-figures-take-a-dark-palette.md) | The indexing figures take a dark palette | ✅ 2026-10-15 | — | — |
+| [1985](1985-report-and-diagnostic-text-in-one-voice.md) | Report and diagnostic text, rewritten in one voice | ✅ 2026-10-16 | — | — ([1133](1133-diagnostic-names-its-view.md) soft) |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 
@@ -640,6 +649,16 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1941](1941-a-release-note-is-a-file-per-change.md) | A release note is a file per change | ⬜ | P3 | — |
 | [1954](1954-cut-1-8-0.md) | Cut 1.8.0 from what main holds | ✅ 2026-10-12 | — | [1546](1546-cut-1-7-0.md), [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) |
 | [1961](1961-cut-1-9-0.md) | Cut 1.9.0 from what main holds | ✅ 2026-10-14 | — | [1954](1954-cut-1-8-0.md), [1959](1959-the-dichotomy-grid-compiled-again.md) |
+| [1975](1975-manual-rebuild-findings.md) | The manual rebuilt: findings brief | ✅ 2026-10-16 | — | — |
+| [1978](1978-the-new-manual-tree-and-its-page-contract.md) | The new manual's tree: six tabs beside the old, and its page contract | ✅ 2026-10-16 | — | — |
+| [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1981](1981-the-reference-pages-generated-from-their-authorities.md) | The reference pages, generated from their authorities | ✅ 2026-10-16 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1982](1982-vale-and-a-term-list-on-the-new-tree.md) | Vale and a term list on the new tree | ✅ 2026-10-16 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1983](1983-the-concepts-tab.md) | The Concepts tab | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
+| [1984](1984-the-switching-tab.md) | The Switching tab | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
+| [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md), [1979](1979-the-manual-at-docs-one-tree-per-version.md) |
+| [1987](1987-the-kernel-gate-on-the-macos-intel-runner.md) | The kernel gate on the macOS Intel runner | ⬜ | P3 | — |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 

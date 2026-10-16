@@ -288,9 +288,10 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
     if len(q_all) < 2:
         result.diagnostics.append(Diagnostic(
             level="error", code="INDEX_DATA_INSUFFICIENT",
-            message="a lattice cannot be constrained by fewer than two lines",
+            message=(f"Only {len(q_all)} usable line(s) are available, and a "
+                     "lattice needs at least two."),
             where=[f"{len(q_all)} usable lines"],
-            suggestion="run assess_peak_list before searching"))
+            suggestion="Run assess_peak_list before searching."))
         return result
 
     raw: list[EngineCandidate] = []
@@ -557,20 +558,14 @@ def _dominant_zone_probe(peaks: PeakList, spec: SearchSpec, q_all: np.ndarray,
             if found:
                 hit = Diagnostic(
                     level="warning", code="INDEX_DOMINANT_ZONE",
-                    message=(f"no cell was found with base-line indices up to "
+                    message=(f"No cell was found with base-line indices up to "
                              f"{BASE_INDEX_MAX}, but {len(found)} appeared at "
-                             f"indices up to {wider} in {system}: the lowest "
-                             "observed lines carry large indices along one axis, "
-                             "which is a dominant zone (one short real axis) or a "
-                             "dominant row (one long one)"),
+                             f"indices up to {wider} in {system}."),
                     where=[f"{system}, lowest line {lowest:.2f}° 2θ"],
                     suggestion=(
-                        "the lines that would pin the short direction are below "
-                        "the measured range or too weak to detect — extend it "
-                        "downward if you can.  Otherwise use the dichotomy "
-                        "engine, which bounds the metric instead of assuming "
-                        "indices and so is indifferent to how large they are, or "
-                        f"raise BASE_INDEX_MAX past {wider} for this pattern"))
+                        "Extend the measured range to lower angle if you can. "
+                        "Otherwise use the dichotomy engine, or raise "
+                        f"BASE_INDEX_MAX past {wider} for this pattern."))
                 break
         if progress is not None:
             progress.end(f"probe:{system}", engine="trial_error",

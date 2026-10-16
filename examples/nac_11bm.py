@@ -4,6 +4,7 @@ Data: GSAS-II tutorials, 11BM_NAC.fxye (λ = 0.4139090 Å from 11bm_gsas.prm).
 Structure: COD 1000236 (Courbion & Ferey, 1988), cubic I2₁3, a = 10.257 Å.
 """
 
+import textwrap
 from pathlib import Path
 
 import rietx as rx
@@ -82,7 +83,7 @@ def run() -> tuple[rx.PatternData, rx.Refinement, rx.RefinementResult, rx.Refine
     print(f"          a = {a:.6f} +/- {a_err if a_err else float('nan'):.6f} A "
           f"(COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)")
     for d in result.diagnostics:
-        print(f"          [{d.level}] {d.code}: {d.message}")
+        print(textwrap.indent(str(d), " " * 10))
 
     return data, ref, lebail, result
 

@@ -1512,35 +1512,28 @@ def _cell_runaway_diagnostic(
             f"{'' if len(clamped) == 1 else 's'} left "
             f"{window_clause} of this stage's starting cell "
             f"during solving and {'was' if len(clamped) == 1 else 'were'} "
-            f"pulled back to the window edge rather than left to reach "
-            f"an unphysical value: {_detail(clamped)}")
+            f"pulled back to the window edge: {_detail(clamped)}")
     if reverted:
         sentences.append(
             f"{len(reverted)} free cell parameter"
             f"{'' if len(reverted) == 1 else 's'} of a phase whose clamped "
             f"cell had no volume {'was' if len(reverted) == 1 else 'were'} "
-            f"restored to this stage's starting values rather than pulled "
-            f"to the window edge (solved -> restored): {_detail(reverted)}")
+            f"restored to this stage's starting values "
+            f"(solved -> restored): {_detail(reverted)}")
     if unresolved:
         driver_detail = "; ".join(
             f"{driver} drives {', '.join(escaped)} outside its window"
             for driver, escaped in unresolved)
+        sentences.append(driver_detail)
         sentences.append(
-            f"{driver_detail}, and {'was' if len(unresolved) == 1 else 'were'} "
-            f"not pulled back: a variable driving a cell has no single "
-            f"clamp target, and clamping the driver would move every other "
-            f"value it also reaches, so this is reported rather than "
-            f"corrected")
+            f"{'It was' if len(unresolved) == 1 else 'They were'} not "
+            f"pulled back")
     return Diagnostic(
         level="warning", code="CELL_RUNAWAY", where=paths, value=value,
-        message=". ".join(sentences),
+        message=". ".join(sentences) + ".",
         suggestion=(
-            "a value this diagnostic names is not a measurement: this "
-            "phase's own cell is degenerate with another free phase's, "
-            "with another free parameter, or with the variable driving it, "
-            "along this direction; fix one phase's cell, hold the other "
-            "free phase, or free the cell in its own stage away from the "
-            "degenerate pairing"),
+            "Fix one phase's cell, hold the other free phase, or free the "
+            "cell in its own stage away from the degenerate pairing."),
     )
 
 
@@ -2233,8 +2226,8 @@ class Refinement:
 
     def edit(self, *, structure: Structure | None = None,
              instrument: Instrument | None = None, label: str = "") -> str | None:
-        """Record a change to the model itself — adding an impurity phase,
-        raising the background order, swapping the geometry.
+        """Record a change to the model itself, such as adding an impurity phase,
+        raising the background order or swapping the geometry.
 
         Structural edits are refinement moves too: they belong in the history
         beside the stages, so a branch that adds a phase can be compared
@@ -2386,7 +2379,7 @@ class Refinement:
         return refinement_html(self)
 
     def parameters(self, *, mode: Mode | None = None) -> list[ParameterRow]:
-        """Every parameter as data — fixed, locked and tied rows included.
+        """Every parameter as data, with fixed, locked and tied rows included.
 
         The counterpart of ``result_.parameters`` (which lists only what a fit
         refined): this is the whole table, in θ order, with the most recent
@@ -4963,14 +4956,11 @@ class Refinement:
         return fresh, [Diagnostic(
             level="info", code="FROZEN_COMPILE_STALE",
             message=(
-                f"the reported statistics and curves come from a compile at "
-                f"the returned parameters, chi2 = {chi2_fresh:.6g}; the last "
-                f"stage's own compile, whose peak windows and FCJ node counts "
-                f"were frozen at the values it started from, gives "
+                f"A fresh compile at the returned parameters gives "
+                f"chi2 = {chi2_fresh:.6g}. The last stage's own compile gives "
                 f"{chi2_frozen:.6g} at the same parameters, "
-                f"{100 * rel:.2g} % apart. The fit is not biased by it; the "
-                f"history node keeps the frozen figure, the result the fresh "
-                f"one, and the esds are the last solve's either way"),
+                f"{100 * rel:.2g} % apart. The result reports the fresh "
+                f"figure and the history node keeps the frozen one."),
             value=rel)]
 
     def _stage_report(self, name, plan, data, mode, table, model, outcome,
@@ -5195,7 +5185,7 @@ class Refinement:
 
     # ------------------------------------------------------------------
     def predict(self, two_theta=None) -> np.ndarray:
-        """y_calc at the current parameters — **the evaluate-only path**.
+        """Evaluate ``y_calc`` at the current parameters, without a fit.
 
         With a grid — an array of 2θ values, or a
         :class:`~rietx.PatternData` whose 2θ column is used — this compiles a
@@ -5354,17 +5344,14 @@ class Refinement:
 
     def _report_stop_condition_lines(self, report) -> list[str]:
         """Section 2b: the second stop condition — is the misfit explained?"""
-        lines = [f"  layer0/1: {report.summary}"]
-        if report.abstained_kind:
-            lines.append(f"    abstained: {report.abstained_kind} "
-                         f"— {report.abstained_reason}")
+        # the report's own sentences, one a line; its abstention sentence
+        # names the kind, so it is printed here once (WP-1985)
+        lines = ["  report:"] + [f"    {line}" for line in report.summary.splitlines()]
         worst = sorted(report.regions, key=lambda r: r.chi2_share, reverse=True)[:3]
         for r in worst:
             lines.append(f"    region {r.two_theta_lo:.1f}-{r.two_theta_hi:.1f}°: "
                          f"{r.chi2_share:.0%} of χ², "
                          f"max|Δ|/σ={r.max_abs_delta_over_sigma:.1f}")
-        n_unmatched_obs = sum(1 for u in report.unmatched if u.kind == "unmatched_obs")
-        lines.append(f"    unmatched obs peaks: {n_unmatched_obs}")
         stats = self.result_.statistics
         if stats.durbin_watson is not None:
             note = (f", esds inflated ×{stats.esd_inflation:.2f}"
@@ -5660,10 +5647,9 @@ _REVISABLE_CODES = ("BOUND_HIT", "FLOOR_HIT", "RESOLUTION_NOT_POSITIVE",
 #: what a negative B stands in for (``BISO_NEGATIVE``'s list) beside the
 #: scale's and the width's.
 _ZERO_FLOOR_SUGGESTION = (
-    "the data push this parameter below zero, where it cannot go. The usual "
-    "reasons are a phase or term the data do not support, a width the "
-    "instrument already supplies, or, for a displacement parameter, "
-    "absorption or a wrong species or occupancy. Fix it at 0")
+    "Quote an upper limit instead of a value, or remove the parameter if its "
+    "phase or term is unsupported. For a displacement parameter, check "
+    "absorption, species and occupancy.")
 
 
 def _guard_diagnostics(guard) -> list[Diagnostic]:
@@ -5674,15 +5660,17 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
     *nothing* for a correlation, since its rendered form leads with no single
     path — so ``where`` was empty on exactly the finding a client most wants to
     make clickable.  ``finding.value`` rides along as ``Diagnostic.value``
-    (WP-1003) for the same reason.  Every ``message`` is unchanged, byte for
-    byte: it is built from ``str(finding)``, which is the old list entry.
+    (WP-1003) for the same reason.  Each ``message`` is a sentence built around
+    ``str(finding)``, which is the old list entry and is pinned byte for byte.
     """
     out: list[Diagnostic] = []
     for finding in guard.high_correlations:
         out.append(Diagnostic(
-            level="warning", code="HIGH_CORRELATION", message=str(finding),
+            level="warning", code="HIGH_CORRELATION",
+            message=f"Correlated pair: {finding}.",
             where=list(finding.paths), value=finding.value,
-            suggestion="consider fixing one of the correlated parameters",
+            suggestion="Fix one of the two at a known value, or free them in "
+                       "separate stages.",
         ))
     for finding in guard.at_bounds:
         path = str(finding)
@@ -5693,185 +5681,137 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
             out.append(Diagnostic(
                 level="warning", code="FLOOR_HIT", where=list(finding.paths),
                 value=finding.value,
-                message=f"{path} refined to its floor{finding.detail}",
+                message=f"{path} refined to its floor{finding.detail}.",
                 suggestion=_ZERO_FLOOR_SUGGESTION,
             ))
             continue
         out.append(Diagnostic(
             level="warning", code="BOUND_HIT", where=list(finding.paths),
             value=finding.value,
-            message=f"{path} refined to its bound{finding.detail}",
-            suggestion="widen the bound or fix the parameter",
+            message=f"{path} refined to its bound{finding.detail}.",
+            suggestion="Widen the bound or fix the parameter.",
         ))
     for finding in guard.nonpositive_adps:
         msg = str(finding)
         out.append(Diagnostic(
             level="warning", code="ADP_NOT_POSITIVE_DEFINITE",
             where=list(finding.paths), value=finding.value,
-            message=f"the anisotropic displacement tensor of {msg} is not "
-                    "positive definite — it is not an ellipsoid, and its "
-                    "Debye-Waller factor grows without bound at high Q",
-            suggestion="the data probably do not support this many "
-                       "displacement parameters: revert the site to an "
-                       "isotropic biso, check the occupancy and species "
-                       "assignment, or extend the fit range; do not report "
-                       "the tensor as measured",
+            message=f"The anisotropic displacement tensor of {msg} is not "
+                    "positive definite.",
+            suggestion="Revert the site to an isotropic biso, check its "
+                       "occupancy and species, or extend the fit range. Do "
+                       "not report the tensor as measured.",
         ))
     for finding in guard.nonpositive_strain:
         msg = str(finding)
         out.append(Diagnostic(
             level="warning", code="STEPHENS_STRAIN_NOT_POSITIVE",
             where=list(finding.paths), value=finding.value,
-            message=f"the Stephens strain coefficients of {msg} — σ²(M) is a "
-                    "variance, so a negative value is not a large anisotropy "
-                    "but coefficients outside the physical cone, and those "
-                    "reflections silently get no strain broadening at all",
-            suggestion="the data do not support this many strain patterns in "
-                       "this direction: restart from the isotropic limit "
-                       "(StephensStrain.isotropic), refine fewer patterns (a "
-                       "higher-symmetry Laue class has fewer), or extend the "
-                       "fit range; do not report the S_HKL as measured",
+            message=f"The Stephens strain coefficients of {msg} lie outside "
+                    "the physical cone.",
+            suggestion="Restart from the isotropic limit "
+                       "(StephensStrain.isotropic), refine fewer patterns "
+                       "(a higher-symmetry Laue class has fewer), or extend "
+                       "the fit range. Do not report the S_HKL as measured.",
         ))
     for finding in guard.nonpositive_texture:
         msg = str(finding)
         out.append(Diagnostic(
             level="warning", code="TEXTURE_NOT_POSITIVE",
             where=list(finding.paths), value=finding.value,
-            message=f"the spherical-harmonics texture of {msg} — P is a pole "
-                    "density, so a negative value is a truncated series outside "
-                    "the physical set, and the coefficients are not quotable as "
-                    "a pole density",
-            suggestion="lower the order, or hold the highest-order terms; the "
-                       "default LM driver holds P at the reflections, so under "
-                       "solver='trf' switch to it; say nothing from this about "
-                       "whether the specimen is textured",
+            message=f"The spherical-harmonics texture of {msg} goes below "
+                    "zero.",
+            suggestion="Lower the order, or hold the highest-order terms. "
+                       "Under solver='trf' switch to the default LM driver, "
+                       "which holds P positive at the reflections.",
         ))
     for finding in guard.unsupported_resolution:
         msg = str(finding)
         out.append(Diagnostic(
             level="warning", code="RESOLUTION_UNCONSTRAINED",
             where=list(finding.paths), value=finding.value,
-            message=f"{msg} — on a pattern of this character the Gaussian "
-                    "resolution terms are not determined by the data, so what "
-                    "they converged to is a fitted artefact rather than a "
-                    "measurement of the instrument",
-            suggestion="measure the instrument instead of refining it here: "
-                       "lab_calibrate on a standard with its certified cell "
-                       "held fixed, save_instrument_profile, then "
-                       "load_instrument_profile before this fit, which holds "
-                       "U, V and W at the instrumental values. Do not quote "
-                       "the widths, and treat any crystallite size or strain "
-                       "read off this profile as unmeasured",
+            message=f"{msg}.",
+            suggestion="Calibrate on a standard with lab_calibrate (certified "
+                       "cell held fixed) and save_instrument_profile, then "
+                       "load_instrument_profile before this fit. Until then, "
+                       "do not quote the widths, or any size or strain read "
+                       "from them.",
         ))
     for finding in guard.flat_directions:
-        msg = str(finding)
         out.append(Diagnostic(
             level="warning", code="FLAT_DIRECTION",
             where=list(finding.paths), value=finding.value,
-            message=f"{msg} — at this |ρ| the pair is a statement about the "
-                    "rank of the data rather than a strong correlation: one "
-                    "direction of the two is not measured at all, and each "
-                    "esd is conditional on the other parameter being right",
-            suggestion="quote neither as measured from this fit — one is "
-                       "as unmeasured as the other and the report cannot say "
-                       "which. Fix one at an independently known "
-                       "value and refine the other, or free them in "
-                       "different stages, and say in the result which one was "
-                       "held. Widening the fitted range or adding a second "
-                       "histogram is what actually separates them",
+            message=f"Flat direction: {finding}.",
+            suggestion="Fix one at an independently known value and refine "
+                       "the other, or free them in different stages, and say "
+                       "in the result which one was held. Do not quote "
+                       "either as measured from this fit.",
         ))
     for finding in guard.discarded_directions:
         out.append(Diagnostic(
             level="warning", code="COVARIANCE_DIRECTION_DISCARDED",
             where=list(finding.paths), value=finding.value,
-            message=f"{finding.message} — the data measure none of that "
-                    "combination, and the esd of each is the variance of the "
-                    "directions that *were* measured, so each is at least "
-                    "√2 too small and may be far more",
-            suggestion="quote none of these esds as measured from this fit. "
-                       "No pair among them is a flat direction on its own, so "
-                       "free fewer of them in one stage, hold the ones known "
-                       "independently, or widen the fitted range; the esds of "
-                       "parameters not named here are unaffected",
+            message=f"{finding.message}.",
+            suggestion="Free fewer of these parameters in one stage, hold the "
+                       "ones known independently, or widen the fitted range. "
+                       "Do not quote their esds as measured from this fit.",
         ))
     for finding in guard.large_biso:
         msg = str(finding)
         out.append(Diagnostic(
             level="warning", code="BISO_UNUSUALLY_LARGE",
             where=list(finding.paths), value=finding.value,
-            message=f"{msg} — at that amplitude an atom in a cell this "
-                    "dense would have melted, so the number is evidence "
-                    "about the model rather than a displacement",
-            suggestion="a large B is what a wrong model does: check the "
-                       "species and occupancy on that site, the absorption "
-                       "correction and the background flexibility before "
-                       "reading it as motion. If the site is genuinely "
-                       "mobile (a cavity cation, a superionic sublattice) "
-                       "the number may be real, and saying so is part of "
-                       "quoting it",
+            message=f"The displacement parameter {msg} is implausibly large.",
+            suggestion="Check the species and occupancy on that site, the "
+                       "absorption correction and the background flexibility "
+                       "before you read it as motion. If the site is "
+                       "genuinely mobile (a cavity cation, a superionic "
+                       "sublattice), say so when you quote it.",
         ))
     for finding in guard.negative_biso:
         msg = str(finding)
         out.append(Diagnostic(
             level="warning", code="BISO_NEGATIVE",
             where=list(finding.paths), value=finding.value,
-            message=f"{msg} is below zero — no displacement does that: the "
-                    "Debye-Waller factor grows with sinθ/λ instead of "
-                    "falling, so the column is standing in for something "
-                    "else",
-            suggestion="a negative B usually absorbs an uncorrected "
-                       "absorption or surface-roughness effect, a wrong "
-                       "species or occupancy on that site, or a background "
-                       "that bends at high angle. Correct that, or hold B at "
-                       "a physical value and say so in the result",
+            message=f"The displacement parameter {msg} is below zero.",
+            suggestion="Correct the likely cause (uncorrected absorption or "
+                       "roughness, a wrong species or occupancy, a background "
+                       "that bends at high angle), or hold B at a physical "
+                       "value and say so in the result.",
         ))
     for finding in guard.nonpositive_resolution:
         msg = str(finding)
         out.append(Diagnostic(
             level="warning", code="RESOLUTION_NOT_POSITIVE",
             where=list(finding.paths), value=finding.value,
-            message=f"{msg} goes negative inside the fitted range — Γ_G² is a "
-                    "variance, so this is not a narrow instrument but U, V, W "
-                    "outside the physical set, and the forward model clamps "
-                    "Γ_G to a 1e-4° floor there rather than raising",
-            suggestion="the resolution parameters are not quotable and "
-                       "anything judged against them is unsafe: refit the "
-                       "resolution on a standard with its certified cell held "
-                       "fixed (lab_calibrate), or hold a loaded instrument "
-                       "profile rather than refining U, V and W on this "
-                       "pattern; do not report the widths or the "
-                       "microstructure derived from them",
+            message=f"{msg[:1].upper()}{msg[1:]} goes negative inside the "
+                    "fitted range.",
+            suggestion="Refit the resolution on a standard with its certified "
+                       "cell held fixed (lab_calibrate), or hold a loaded "
+                       "instrument profile instead of refining U, V and W on "
+                       "this pattern. Do not report the widths, or the "
+                       "microstructure derived from them.",
         ))
     for finding in guard.narrow_humps:
         msg = str(finding)
         out.append(Diagnostic(
             level="warning", code="HUMP_TOO_NARROW",
             where=list(finding.paths), value=finding.value,
-            message=f"the declared background peak {msg} is no longer "
-                    "describing a broad feature: at that width it is a "
-                    "reflection with no cell and no structure factor behind "
-                    "it, and a free peak improves Rwp whether or not anything "
-                    "is there",
-            suggestion="a background peak is for diffuse or amorphous "
-                       "scattering, a cryostat or sample-container "
-                       "contribution — features whose width comes from "
-                       "disorder and is many times the resolution. If there "
-                       "is a real unindexed line here, the honest answers are "
-                       "a second phase or the unmatched-peak report in the "
-                       "FitReport's Layer 0, not a background peak; do not "
-                       "report these peak parameters as measured",
+            message=f"The declared background peak {msg} has narrowed "
+                    "towards the instrumental resolution.",
+            suggestion="Add a second phase for a real unindexed line, or read "
+                       "the unmatched-peak report in the FitReport's Layer 0. "
+                       "Do not report these peak parameters as measured.",
         ))
     for finding in guard.background_correlations:
         msg = str(finding)
         out.append(Diagnostic(
             level="warning", code="BACKGROUND_ABSORPTION",
             where=list(finding.paths), value=finding.value,
-            message=f"the background can reproduce most of {msg}",
-            suggestion="stiffen the background (fewer Chebyshev terms, larger "
-                       "P-spline lambda_smooth, coarser knots) or hold an "
-                       "estimated curve additively; ADPs, scales and any QPA "
-                       "fractions from this fit are biased even though Rwp "
-                       "looks good",
+            message=f"The background can reproduce most of {msg}.",
+            suggestion="Stiffen the background (fewer Chebyshev terms, a "
+                       "larger P-spline lambda_smooth, coarser knots), or hold "
+                       "an estimated curve additively.",
         ))
     for finding in guard.roughness_correlations:
         msg = str(finding)
@@ -5879,20 +5819,13 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
         out.append(Diagnostic(
             level="warning", code="ROUGHNESS_ABSORPTION",
             where=list(finding.paths), value=finding.value,
-            message=(f"surface roughness is not separable from the "
-                     f"displacement/scale/background block here — {msg} of the "
-                     f"roughness column is reproducible by it"
+            message=(f"The displacement, scale and background block "
+                     f"reproduces most of the roughness column {msg}."
                      if rough else
-                     f"most of {msg} is reproducible by the surface-roughness "
-                     f"block: this displacement parameter is hiding in it"),
-            suggestion=("extend the fit to lower 2θ, where roughness has a "
-                        "lever arm the displacement parameters do not, or hold "
-                        "roughness fixed at an independently measured value; "
-                        "refining both against this range reports two numbers "
-                        "where the data support one, and their esds understate "
-                        "it (Pitschke et al. 1993 Table III: uncorrected "
-                        "roughness drives Biso negative, so neither leaving it "
-                        "out nor freeing it blind is safe)"),
+                     f"The surface-roughness block reproduces most of {msg}."),
+            suggestion="Extend the fit to lower 2θ, where roughness has "
+                       "leverage the displacement parameters lack, or hold "
+                       "roughness at an independently measured value.",
         ))
     return out
 
@@ -5975,20 +5908,14 @@ def _stage_order_diagnostics(plan, table,
                 level="warning", code="STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT",
                 where=[widths[ip], f"phases.{ip}.atoms.*.moment.dof*"],
                 message=(
-                    f"stage {stage.name!r} frees phase {ip}'s magnetic "
+                    f"Stage {stage.name!r} frees phase {ip}'s magnetic "
                     f"broadening in the same stage that first frees its "
-                    f"moment. Both lower the calculated magnetic peak's "
-                    f"height — the moment because p^2|F_perp|^2 goes as m^2, "
-                    f"the width because it spreads the same integrated area — "
-                    f"so from a cold start they trade against each other and "
-                    f"the answer is whichever pair the first step happened to "
-                    f"like. Neither number that comes back is a measurement "
-                    f"of its own quantity"),
+                    f"moment."),
                 suggestion=(
-                    "use the three-step order: the moment with the widths "
-                    "held at zero, then the widths freed beside the converged "
-                    "moment, then both together — plan=\"magnetic_width\", or "
-                    "strategy.staged.MAGNETIC_WIDTH_STAGE_PATHS as stages")))
+                    "Use the three-step order: the moment with the widths "
+                    "held at zero, then the widths beside the converged "
+                    "moment, then both together. Use plan=\"magnetic_width\" "
+                    "or strategy.staged.MAGNETIC_WIDTH_STAGE_PATHS as stages.")))
     return out
 
 
@@ -6068,28 +5995,18 @@ def _moved_moment_diagnostics(stage_name: str, off_state: dict, released: dict,
             level="warning", code="MAGNETIC_WIDTH_MOVED_MOMENT",
             where=[path, *sorted(widths)], value=float(z),
             message=(
-                f"releasing this phase's magnetic broadening moved the moment: "
-                f"|m| = {m1:.4g}"
+                f"Releasing this phase's magnetic broadening moved |m| from "
+                f"{m1:.4g}"
                 + ("" if e1 is None else f" +- {e1:.4g}")
-                + f" with the widths held at zero, {m3:.4g}"
+                + f" with the widths held at zero to {m3:.4g}"
                 + ("" if e3 is None else f" +- {e3:.4g}")
-                + f" with them free in stage {stage_name!r} — a shift of "
+                + f" with them free in stage {stage_name!r}. The shift is "
                 f"{z:.2f}x the tighter of the two esds. The widths are "
-                f"{wtxt}. **This is the measurement, and it is not the same "
-                f"question as whether the width is significant.** A width "
-                f"whose esd exceeds its value can still be strongly "
-                f"correlated with the moment, and a shift this size says it "
-                f"is: the term is correlated with the moment, not absent. So "
-                f"do not read MAGNETIC_WIDTH_UNMEASURED here as licence to "
-                f"drop it — holding it at zero puts the moment back where "
-                f"stage 1 had it, which is the bias this term exists to remove. "
-                f"Quote the released moment, and quote the width as bounded "
-                f"rather than measured"),
+                f"{wtxt}."),
             suggestion=(
-                "quote |m| from the stage that freed the widths, and report "
-                "the width as an upper bound (value + esd) rather than a "
-                "coherence length; a pattern carrying magnetic-only "
-                "reflections is what would separate the two")))
+                "Quote |m| from the stage that freed the widths, and report "
+                "the width as an upper bound (value + esd). Do not drop the "
+                "width on the strength of MAGNETIC_WIDTH_UNMEASURED.")))
     return out
 
 
@@ -6118,7 +6035,7 @@ def _dedup_high_correlations(
         stage_names = list(dict.fromkeys(name for name, _ in stage_hits))
         worst = max(stage_hits, key=lambda sd: abs(sd[1].value))[1]
         message = worst.message if len(stage_names) == 1 else (
-            f"{worst.message} — flagged in stages: {', '.join(stage_names)}")
+            f"{worst.message} Flagged in stages: {', '.join(stage_names)}.")
         out.append(Diagnostic(
             # worst.where, never list(pair): the dict key is a frozenset for
             # dedup only, and its iteration order is hash-randomized per
@@ -6150,25 +6067,22 @@ def _constraint_diagnostics(stage_name: str, outcome) -> list[Diagnostic]:
     # ``instrument.profile``
     by = getattr(outcome, "truncated_by", None) or {}
     which = "; ".join(f"{label}: {k}" for label, k in sorted(by.items()))
-    suggestion = ("the constrained values are admissible, not measured: vary "
-                  "the starting seed and quote them only if they survive")
+    suggestion = ("Vary the starting seed and quote the values only if they "
+                  "survive.")
     if any(label.endswith(".microstrain") for label in by):
-        suggestion += ("; for the Stephens strain cone the "
-                       "STEPHENS_STRAIN_NOT_POSITIVE protocol row applies even "
-                       "though that guard is silent while the default LM "
-                       "driver holds the cone")
+        suggestion += (" The STEPHENS_STRAIN_NOT_POSITIVE protocol row "
+                       "applies to the strain cone, although that guard stays "
+                       "silent while the default LM driver holds the cone.")
     if any(label.startswith("instrument.profile") for label in by):
-        suggestion += ("; for the Γ_G² floor (1e-8 deg², Γ_G = 1e-4°) the data "
-                       "asked for no Gaussian width at some reflection, so U, V, "
-                       "W and the phase's Gaussian size and strain describe that "
-                       "floor rather than a measured resolution")
+        suggestion += (" At some reflection the data asked for no Gaussian "
+                       "width (the Γ_G² floor, 1e-8 deg²), so U, V, W and the "
+                       "phase's Gaussian size and strain describe that floor.")
     return [Diagnostic(
         level="info", code="CONSTRAINT_ACTIVE",
-        message=(f"the bounded-LM driver held {n} step(s) on a linear "
+        message=(f"The bounded-LM driver held {n} step(s) on a linear "
                  f"inequality constraint"
                  + (f" ({which})" if which else "")
-                 + f" in stage {stage_name!r} — the optimum sits on or near a "
-                 "constraint face"),
+                 + f" in stage {stage_name!r}."),
         suggestion=suggestion,
     )]
 
@@ -6194,28 +6108,19 @@ def _covariance_diagnostics(stage_name: str, outcome, *,
     if error is None:
         return []
     if answer:
-        consequence = ("every esd on this result is absent (None), as are the "
-                       "correlations and everything propagated from them")
-        suggestion = ("the refined values stand — the solve had returned "
-                      "before the esd computation failed — but quote none of them "
-                      "with an uncertainty from this fit; refit from these "
-                      "values (a near-singular normal matrix is the usual "
-                      "cause, so fixing or restraining the most correlated "
-                      "block is the usual cure) and read the esds from that")
+        consequence = ("Every esd, correlation and derived uncertainty on "
+                       "this result is absent (None).")
+        suggestion = ("Fix or restrain the most correlated parameters, refit "
+                      "from the returned values, and quote the esds from "
+                      "that fit.")
     else:
-        consequence = ("this intermediate stage's guards ran without a "
-                       "covariance; the result's esds are the answer-producing "
-                       "stage's, so this stage's failure is not why any of "
-                       "them would be absent")
-        suggestion = ("whatever this stage's guards would have read off the "
-                      "covariance — a HIGH_CORRELATION or FLAT_DIRECTION "
-                      "finding, an esd-scaled bound test — is unknown rather "
-                      "than absent on its stage report and history node; the "
-                      "result's own findings are the last stage's")
+        consequence = ("This intermediate stage's guards ran without a "
+                       "covariance.")
+        suggestion = None
     return [Diagnostic(
         level="warning", code="COVARIANCE_UNAVAILABLE", where=[stage_name],
-        message=(f"stage {stage_name!r} returned ({outcome.status}), but its "
-                 f"esd computation raised {error}: {consequence}"),
+        message=(f"Stage {stage_name!r} returned ({outcome.status}), but its "
+                 f"esd computation raised {error}. {consequence}"),
         suggestion=suggestion,
     )]
 
@@ -6244,11 +6149,10 @@ def _degenerate_cell_diagnostics(rows: list[tuple[str, int]]) -> list[Diagnostic
     where = [name for name, _ in hits]
     return [Diagnostic(
         level="info", code="CELL_DEGENERATE_PROBE",
-        message=(f"the search reached {total} degenerate cell trial(s) "
+        message=(f"The search reached {total} degenerate cell trial(s) "
                  f"(zero or negative volume) in stage(s) "
-                 f"{', '.join(repr(n) for n in where)} and was pushed back "
-                 "out rather than crashing (issue #283) — the reported "
-                 "values were never a degenerate point"),
+                 f"{', '.join(repr(n) for n in where)} and pushed each one "
+                 "back out."),
         where=where, value=float(total),
     )]
 
@@ -6320,32 +6224,25 @@ def _origin_diagnostics(table: ParameterTable,
             named = ", ".join(f"{name(p)} ({rec.labels[p]})" for p in held)
             out.append(Diagnostic(
                 level="info", code="ORIGIN_FIXED_ON_POLAR_AXIS",
-                message=(f"phase {ip} ({rec.space_group}) has a floating "
-                         f"origin along {axes}: shifting every atom that way "
-                         f"changes no intensity, so {named} "
-                         f"{'is' if len(held) == 1 else 'are'} held and the "
-                         f"other coordinates along it are read relative to "
-                         f"{'that atom' if len(held) == 1 else 'those'}"),
+                message=(f"Phase {ip} ({rec.space_group}) has a floating "
+                         f"origin along {axes}, and {named} "
+                         f"{'is' if len(held) == 1 else 'are'} held."),
                 where=[name(p) for p in held],
-                suggestion=("this is Phase.floating_origin working, and the "
-                            "held coordinate has no esd because it was not "
-                            "refined. unhold() it to let the whole structure "
-                            "slide again; the fit then has a flat direction "
-                            "(FLAT_DIRECTION)")))
+                suggestion=("Call unhold() to let the whole structure slide "
+                            "again. The fit then has a flat direction "
+                            "(FLAT_DIRECTION).")))
         lost = unfixed.get(ip, [])
         if lost and report_lost:
             axes = ", ".join(str(list(f)) for f in lost)
             out.append(Diagnostic(
                 level="warning", code="ORIGIN_NOT_FIXED",
-                message=(f"phase {ip} ({rec.space_group}) floats along {axes} "
+                message=(f"Phase {ip} ({rec.space_group}) floats along {axes}, "
                          f"and no atom has an untied, unheld coordinate DOF "
-                         f"that a shift along it moves, so nothing was held "
-                         f"there and the fit keeps a flat direction"),
+                         f"that a shift along it moves."),
                 where=[f"phases.{ip}"],
-                suggestion=("hold() what the tied coordinates follow (a "
-                            "variable, say), or tie one of them to a "
-                            "constant; its coordinates along that direction "
-                            "are otherwise not measurements")))
+                suggestion=("Call hold() on what the tied coordinates follow "
+                            "(a variable, say), or tie one of them to a "
+                            "constant.")))
     return out
 
 
@@ -6375,30 +6272,30 @@ def _centroid_finding(rec, stages: list[str], rows: OriginPhaseRows,
     if len(named) > _CENTROID_SITES_NAMED:
         named = named[:_CENTROID_SITES_NAMED] + [
             f"and {len(named) - _CENTROID_SITES_NAMED} more"]
-    message = (f"phase {rows.phase} ({rows.space_group}) has a floating origin "
-               f"along {axes}: shifting every atom that way changes no "
-               f"intensity, so {_stage_list(stages)} restrained the weighted "
-               f"centroid of its sites to where it stood (Flack & "
-               f"Schwarzenbach 1988), with weights {', '.join(named)}; every "
-               f"coordinate along it is refined and keeps an esd")
+    message = (f"Phase {rows.phase} ({rows.space_group}) has a floating origin "
+               f"along {axes}. {_stage_list(stages).capitalize()} "
+               f"restrained the weighted centroid of its sites to where it "
+               f"stood (Flack & Schwarzenbach 1988), with weights "
+               f"{', '.join(named)}. Every coordinate along it is refined and "
+               f"keeps an esd.")
     if rows.clipped is not None:
-        message += (f". No weighting met eq 21 exactly ((A5) fails: "
+        message += (f" No weighting met eq 21 exactly: (A5) fails because "
                     f"{rows.clipped}'s curvature exceeds the others' "
-                    f"combined), so it was clipped to just below them and the "
-                    f"restraint is close to a hold on {rows.clipped}")
+                    f"combined. {rows.clipped} was clipped to just below "
+                    f"them, so the restraint is close to a hold on "
+                    f"{rows.clipped}.")
     elif not rows.converged:
-        message += (". The weights met eq 21 only approximately, which moves "
-                    "the esds' spread and never the fixed origin")
+        message += (" The weights met eq 21 only approximately. This changes "
+                    "the spread of the esds and leaves the fixed origin "
+                    "alone.")
     where = list(dict.fromkeys(name(p) for f in rows.axes
                                for p in rec.candidates[f]))
     return Diagnostic(
         level="info", code="ORIGIN_FIXED_ON_POLAR_AXIS",
         message=message, where=where,
-        suggestion=("this is Phase.floating_origin = 'centroid' working: the "
-                    "coordinates along the axis are quoted against a centroid "
-                    "that does not move. Set it to 'hold' to quote them "
-                    "against one atom instead, or to None to let the "
-                    "structure slide (FLAT_DIRECTION)"))
+        suggestion=("Set Phase.floating_origin to 'hold' to quote the "
+                    "coordinates against one atom, or to None to let the "
+                    "structure slide (FLAT_DIRECTION)."))
 
 
 def _hold_diagnostics(stage_results: list[StageResult],
@@ -6454,13 +6351,9 @@ def _hold_diagnostics(stage_results: list[StageResult],
                  f"{'was' if n == 1 else 'were'} matched by the turn_on glob "
                  f"of stage{'' if len(stages) == 1 else 's'} "
                  f"{', '.join(repr(s) for s in stages)} and stayed fixed: "
-                 f"{', '.join(where[:5])}{'…' if n > 5 else ''}. The hold you "
-                 "declared outranks the plan's glob"),
+                 f"{', '.join(where[:5])}{'…' if n > 5 else ''}."),
         where=where, value=float(n),
-        suggestion=("this is the hold working. If you meant the plan to "
-                    "refine these, unhold() them first; if you meant them "
-                    "held, the plan is doing less than its name suggests and "
-                    "a narrower one would say so"),
+        suggestion="Call unhold() on them first if you meant the plan to refine them.",
     )]
 
 
@@ -6545,25 +6438,21 @@ def _fixed_literal_diagnostics(stages, table: ParameterTable, user_ties, *,
         dofs = ([name_of(p) for p in by_path
                  if p.startswith(f"{site.group(1)}.dof.")] if site else [])
         if site and dofs:
-            fix = (f"free {name_of(site.group(1))}.dof.* ({', '.join(dofs)}): "
-                   "a site's coordinates are refined along the directions its "
-                   "site symmetry allows, and x, y and z follow them")
+            fix = (f"Free {name_of(site.group(1))}.dof.* ({', '.join(dofs)}) "
+                   "instead.")
         elif site:
-            fix = ("nothing to free: every coordinate of this site is fixed by "
-                   "its site symmetry")
+            fix = None      # every coordinate of the site is fixed by symmetry
         elif sources:
-            fix = (f"free {', '.join(sources)} instead; {name_of(row)} moves "
-                   "with it")
+            fix = f"Free {', '.join(sources)} instead."
         elif canonical is None:
-            fix = ("nothing to free: ref.parameters() gives the row's "
-                   "held_because")
+            fix = "Read held_because for this row in ref.parameters()."
         else:
             # a joint fit has no parameters() to point at
-            fix = "nothing to free: the model holds this row fixed"
+            fix = None
         out.append(Diagnostic(
             level="warning", code="STAGE_PATH_NOT_FREE",
-            message=(f"{which} asked for {path}, which {why}, so nothing was "
-                     "freed for it"),
+            message=(f"{which[:1].upper()}{which[1:]} asked for {path}, which "
+                     f"{why}, so nothing was freed for it."),
             where=[name_of(row)], suggestion=fix))
     return out
 
@@ -6622,26 +6511,24 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
         if current is not None:
             out.append(Diagnostic(
                 level="warning", code="STAGE_PATH_UNKNOWN",
-                message=(f"{which} asked for {path}, a spelling retired after "
-                         "v1.2, so nothing was freed for it; the current "
-                         f"spelling is {current!r}"),
+                message=(f"{which[:1].upper()}{which[1:]} asked for {path}, a "
+                         "spelling retired after v1.2, so nothing was freed "
+                         f"for it. The current spelling is {current!r}."),
                 where=[path],
-                suggestion=(f"write {current!r} in the plan: a stored project, "
-                            "history or .rxt is migrated as it is read, and a "
-                            "plan built in code is not"),
+                suggestion=f"Write {current!r} in the plan.",
             ))
             continue
         hint = did_you_mean(path, known, n=1)
         out.append(Diagnostic(
             level="warning", code="STAGE_PATH_UNKNOWN",
-            message=(f"{which} asked for {path}, which names no parameter of "
-                     "this model, so nothing was freed for it"
-                     + (f"; {hint}" if hint else "")),
+            message=(f"{which[:1].upper()}{which[1:]} asked for {path}, which "
+                     "names no parameter of this model, so nothing was freed "
+                     "for it."
+                     + (f" {hint[:1].upper()}{hint[1:]}" if hint else "")),
             where=[path],
-            suggestion=("a literal path names exactly one parameter: correct "
-                        f"it ({listing} lists every path this model "
-                        "has), or write a glob if the stage is meant to reach "
-                        "a component some models do not declare"),
+            suggestion=(f"Correct the path ({listing} lists every path this "
+                        "model has), or write a glob if the stage should "
+                        "reach a component that only some models declare."),
         ))
     return out
 
@@ -6676,11 +6563,9 @@ def _apply_esds(table: ParameterTable, result: RefinementResult,
 #: of λ, so one µ per histogram is not even well defined there.  An explicit
 #: ``mu_r``/``mu_t`` is always honoured, whatever the source.
 _NO_ATTENUATION_TABLE_ESTIMATE = (
-    "specimen absorption was not estimated: there is no attenuation table for "
-    "this source kind (the composition estimator carries X-ray McMaster and "
-    "constant-wavelength neutron Sears tables, and neither describes this "
-    "radiation). Declare Geometry.mu_r (capillary) or Geometry.mu_t (flat "
-    "plate) explicitly to apply the correction."
+    "there is no attenuation table for this source kind, so the composition "
+    "estimator cannot run; declare Geometry.mu_r (capillary) or Geometry.mu_t "
+    "(flat plate) explicitly"
 )
 
 
@@ -6755,6 +6640,10 @@ def _absorption_record(model: CompiledModel, source: str, skipped: str | None,
     if model.mode != "rietveld":
         return None
     lam = model.line_wavelengths[0] if model.line_wavelengths else model.wavelength
+    if values is not None and model.line_wavelengths:
+        # the λ the Bragg angles below are found at (WP-1976), so the
+        # sin²θ basis and ΔB = β·λ²/2 read one wavelength
+        lam = model.line_lambdas(values)[0]
     if model.geometry_kind == "debye_scherrer":
         if not model.mu_r and skipped is None:
             return None
@@ -6771,7 +6660,7 @@ def _absorption_record(model: CompiledModel, source: str, skipped: str | None,
         return None
     mu_t = 0.0 if model.mu_t is None else float(model.mu_t)
     delta_biso = unabsorbed = identifiable = None
-    positions = _reflection_positions(model, values)
+    positions = _reflection_bragg_angles(model, values)
     if (model.mu_t is not None or transmission) and positions.size:
         a = np.asarray(model._absorption(positions), dtype=np.float64)
         delta_biso, unabsorbed = equivalent_delta_biso_from_transmission(
@@ -6788,22 +6677,33 @@ def _absorption_record(model: CompiledModel, source: str, skipped: str | None,
             transmission_intensity_fraction(mu_t) if transmission else None))
 
 
-def _reflection_positions(model: CompiledModel,
-                          values: dict[str, float] | None) -> np.ndarray:
-    """In-range Bragg 2θ of every modelled reflection, primary line.
+def _reflection_bragg_angles(model: CompiledModel,
+                             values: dict[str, float] | None) -> np.ndarray:
+    """Bragg 2θ of every modelled reflection drawn in range, primary line.
 
     Where an intensity correction is *judged* — never on the fitted grid, which
     can start far below the first peak and make a correction look enormous that
     no modelled reflection ever experienced (WP-0502 measured exactly that on
     the round-robin patterns).
+
+    Two angles per reflection, and each test takes its own.  *Which*
+    reflections count is read at the drawn angle, because that is where the
+    pattern shows them.  The value returned is the Bragg angle, because the
+    forward model evaluates absorption and roughness there (``phase_peaks``
+    passes ``tt_bragg``).  Until WP-1976 this returned the drawn
+    angle, so a refined displacement judged both corrections at angles no
+    reflection was corrected at.
     """
-    if not model.phases or values is None:
+    if not model.phases or not model.line_wavelengths or values is None:
         return np.empty(0)
-    positions = np.concatenate(
-        [np.asarray(model.phase_peaks(ip, values)[0][0], dtype=np.float64)
-         for ip in range(len(model.phases))])
-    positions = positions[np.isfinite(positions)]
-    return positions[(positions >= model.tt_min) & (positions <= model.tt_max)]
+    out = []
+    for ip in range(len(model.phases)):
+        bragg, drawn = (np.asarray(a, dtype=np.float64)
+                        for a in model.reflection_angles(ip, values)[0])
+        keep = (np.isfinite(bragg) & np.isfinite(drawn)
+                & (drawn >= model.tt_min) & (drawn <= model.tt_max))
+        out.append(bragg[keep])
+    return np.concatenate(out)
 
 
 def _capillary_offset_diagnostics(model: CompiledModel,
@@ -6865,14 +6765,10 @@ def _capillary_offset_diagnostics(model: CompiledModel,
     return [Diagnostic(
         level="info", code="CAPILLARY_OFFSET_UNAVAILABLE",
         where=["instrument.geometry.goniometer_radius_mm"],
-        message=("this capillary geometry declares no goniometer radius, so the "
-                 "eq (4) specimen-offset aberrations are held at zero — which is "
-                 "not the same statement as having measured them to be zero"),
-        suggestion=("set instrument.geometry.goniometer_radius_mm if the "
-                    "diffractometer's is known; an unmodelled offset of this "
-                    "kind lands in the cell as a uniform d-scale error, moving "
-                    "both axes together, which leaves an axial ratio looking "
-                    "better than either axis deserves"))]
+        message=("This capillary geometry declares no goniometer radius, so the "
+                 "eq (4) specimen-offset aberrations are held at zero."),
+        suggestion=("Set instrument.geometry.goniometer_radius_mm if you "
+                    "know the diffractometer's."))]
 
 
 def _absorption_diagnostics(record) -> list[Diagnostic]:
@@ -6887,23 +6783,20 @@ def _absorption_diagnostics(record) -> list[Diagnostic]:
             message=(("a specimen thickness" if flat else "a capillary radius")
                      + " was given but "
                      + ("µt" if flat else "µR")
-                     + f" could not be estimated ({record.skipped}); the "
-                     "pattern was fitted with NO absorption correction"),
-            suggestion=(f"set {where[0]} explicitly (measured, or computed "
-                        "by hand for this specimen); on an X-ray source a "
+                     + f" could not be estimated ({record.skipped}). The "
+                     "pattern was fitted with no absorption correction."),
+            suggestion=(f"Set {where[0]} explicitly, measured or computed by "
+                        "hand for this specimen. On an X-ray source, a "
                         "wavelength away from an absorption edge of the "
-                        "specimen also lets the estimate run, while a neutron "
-                        "resonant absorber (Cd, Sm, Eu, Gd, Yb) is refused at "
-                        "every wavelength")))
+                        "specimen also lets the estimate run.")))
     if record.out_of_range:
         out.append(Diagnostic(
             level="warning", code="ABSORPTION_MU_R_OUT_OF_RANGE", where=where,
-            message=(f"µR = {record.mu_r:.2f} is outside the Rouse et al. "
-                     f"(1970) fit's range (µR ≤ {CYLINDER_MU_R_MAX:g}); the "
-                     "transmission factor is an extrapolation there"),
-            suggestion=("dilute the specimen, use a narrower capillary, or a "
-                        "shorter wavelength — rietx.estimate_mu_r() shows "
-                        "what each choice buys")))
+            message=(f"µR = {record.mu_r:.2f} is outside the range of the "
+                     f"Rouse et al. (1970) fit (µR ≤ {CYLINDER_MU_R_MAX:g})."),
+            suggestion=("Dilute the specimen, use a narrower capillary, or "
+                        "use a shorter wavelength. Call rietx.estimate_mu_r() "
+                        "to see what each choice buys.")))
     if flat and abs(record.equivalent_delta_biso) > FLAT_PLATE_BIAS_MIN:
         # Not a fence — the opposite.  It says the correction is doing something
         # to the displacement parameters that is worth the user knowing the size
@@ -6917,25 +6810,19 @@ def _absorption_diagnostics(record) -> list[Diagnostic]:
             message=(f"µt = {record.mu_r:.3f} shifts every Biso by at least "
                      f"{record.equivalent_delta_biso:+.3f} Å², and "
                      f"{100 * residue:.0f} % of its angular signature is not "
-                     "reproducible by the scale and the ADPs — so an error in "
-                     "the specimen thickness or packing lands partly in the fit "
-                     "and partly in the displacement parameters"),
-            suggestion=("measure the specimen thickness rather than assuming a "
-                        "nominal one; µt is held fixed by design (it is not "
-                        "refinable) precisely because it would otherwise "
-                        "re-apportion the ADPs")))
+                     "reproducible by the scale and the displacement "
+                     "parameters."),
+            suggestion=("Measure the specimen thickness and packing density "
+                        "instead of assuming nominal values.")))
     if record.method == "flat_plate_transmission" \
             and record.intensity_fraction_of_optimal is not None \
             and record.intensity_fraction_of_optimal < 0.7:
         out.append(Diagnostic(
             level="info", code="ABSORPTION_PLATE_THICKNESS", where=where,
-            message=(f"a transmission plate is brightest at µt = 1, so this one "
-                     f"(µt = {record.mu_r:.3f}) delivered "
+            message=(f"This transmission plate (µt = {record.mu_r:.3f}) "
+                     f"delivered "
                      f"{100 * record.intensity_fraction_of_optimal:.0f} % of the "
-                     "counts it could have"),
-            suggestion=("a plate far from t = 1/µ fits just as well and simply "
-                        "measures fewer counts — a specimen-preparation note, "
-                        "not a fit problem")))
+                     "counts it could have at µt = 1.")))
     return out
 
 
@@ -7099,20 +6986,15 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         name = structure.phases[ip].name
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        # where the forward model puts the peak: Bragg angle, zero shift and
-        # the geometry's own shift (sample displacement, transparency,
-        # capillary offset), by the one method both read (WP-1908)
-        rows = [model.apparent_two_theta(cp.reflections.two_theta(cell, lam),
-                                         values)
-                for lam in model.line_wavelengths]
-        pos = np.concatenate(rows) if rows else np.array([])
-        # one reflection list per emission line, in the same order each time,
-        # so the index list is that list tiled — the Kα2 image of a peak is
-        # the same hkl and says so.
+        # where the forward model puts each peak, and which reflection each
+        # position is, from the one walk every tick builder shares
+        # (`CompiledModel.reflection_positions`, WP-1908): the zero shift and
+        # the geometry's own shift are in it, and `hkl` is the reflection list
+        # tiled once per emission line, so a Kα2 image says it is the same hkl
         # (H, m), not H: a satellite is labelled by its order (WP-1326)
-        hkl = (np.tile(cp.reflections.hklm, (len(rows), 1)) if rows
-               else np.zeros((0, 4), dtype=np.int64))
-        sup = _reflection_tick_support(model, ip, values, len(rows))
+        pos, hkl = model.reflection_positions(ip, values)
+        n_lines = len(model.line_wavelengths)
+        sup = _reflection_tick_support(model, ip, values, n_lines)
         keep = np.isfinite(pos)
         if cp.magnetic is not None:
             # issue #278: a magnetic phase's reflections are drawn as their
@@ -7120,9 +7002,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
             # cut on the magnetic fraction (MAGNETIC_TICK_PURITY: see its
             # docstring for why the mask on ``CompiledPhase`` is not enough
             # on a k != 0 supercell).  One
-            # fraction per *reflection*, tiled across ``rows`` (one row per
-            # emission line, each already ``cp.reflections``-ordered) before
-            # the positions are concatenated and sorted.
+            # fraction per *reflection*, tiled once per emission line (each
+            # line already ``cp.reflections``-ordered, as ``pos`` is) before
+            # the positions are sorted.
             # ``tick_hkl`` and ``tick_support`` are carried through the same
             # mask and the same sort as the positions, so a split row keeps its
             # Miller indices and its support.
@@ -7135,8 +7017,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
             with np.errstate(invalid="ignore", divide="ignore"):
                 frac = np.where(total > 0.0, f_mag / total, 0.0)
             mag_hkl = frac >= 1.0 - MAGNETIC_TICK_PURITY
-            mag_row = (np.concatenate([mag_hkl for _ in rows])
-                       if rows else np.zeros(0, dtype=bool))
+            mag_row = np.tile(mag_hkl, n_lines)
             rows_out = ((name, keep & ~mag_row),
                         (f"{name} (magnetic)", keep & mag_row))
         else:
@@ -7420,16 +7301,14 @@ def _lebail_stop_diagnostic(reason: str, kept: int, rows: list[float],
     return Diagnostic(
         level="info" if reason == "converged" else "warning",
         code="LEBAIL_ALTERNATION_STOPPED", where=[],
-        message=(f"the Le Bail alternation {said}; pass {kept} of {len(rows)} "
-                 f"was kept (Rwp % per pass: {table})"),
+        message=(f"The Le Bail alternation {said}. Pass {kept} of {len(rows)} "
+                 f"was kept (Rwp % per pass: {table})."),
         suggestion={
             "converged": None,
-            "non_monotone": ("the result depends on the start state: a poor "
-                             "start wanders and a good one converges. Check the "
-                             "cell and the background before reading the kept "
-                             "pass"),
-            "cap": ("raise plan.lebail_passes, or continue from this state "
-                    "with another fit(); the answer is not yet a fixed point"),
+            "non_monotone": ("Check the cell and the background before you "
+                             "read the kept pass."),
+            "cap": ("Raise plan.lebail_passes, or continue from this state "
+                    "with another fit()."),
         }[reason],
         value=float(rows[kept - 1]))
 
@@ -7602,12 +7481,11 @@ def _pawley_unresolved_diagnostics(model: CompiledModel,
         total = float(np.sum(inten))
         out.append(Diagnostic(
             level="info", code="PAWLEY_OVERLAP_UNRESOLVED", where=labels,
-            message=(f"{len(g)} reflections overlap too strongly to split: their "
-                     f"summed intensity ({total:.4g}) is determined but at least "
-                     f"one individual value is not (relative esd up to "
-                     f"{float(np.max(rel)):.0%})"),
-            suggestion="treat the group's summed intensity as the datum; the "
-                       "per-reflection split is not resolved by these data",
+            message=(f"{len(g)} reflections overlap too strongly to split. "
+                     f"Their summed intensity ({total:.4g}) is determined, and "
+                     f"the relative esd of an individual value reaches "
+                     f"{float(np.max(rel)):.0%}."),
+            suggestion="Use the group's summed intensity as the datum.",
         ))
     return out
 
@@ -7634,11 +7512,10 @@ def _pawley_off_data_diagnostics(model: CompiledModel,
     return [Diagnostic(
         level="info", code="PAWLEY_OFF_DATA_RIDGED", where=labels,
         message=(f"{len(labels)} reflection(s) of {structure.phases[ip].name} have "
-                 f"no emission line centred on the fitted data; their "
-                 f"intensities were ridged toward zero and are the ridge's "
-                 f"value, not a measurement"),
-        suggestion="do not export or use these intensities; widen the fitted "
-                   "range if they are needed",
+                 f"no emission line centred on the fitted data, so their "
+                 f"intensities come from the restraint."),
+        suggestion="Do not export or use these intensities. Widen the fitted "
+                   "range if you need them.",
     ) for ip, labels in by_phase.items()]
 
 
@@ -7774,15 +7651,11 @@ def _dispersion_diagnostics(structure: Structure,
     return [Diagnostic(
         level="warning" if worst >= DISPERSION_NEGLECT_SEVERE else "info",
         code="DISPERSION_NEGLECTED",
-        message=(f"anomalous scattering is off, but at lambda = {lam:.5f} A it "
-                 f"changes the scattering power of {named}"),
-        suggestion="this model sets instrument.source.dispersion = None, "
-                   "declining a correction that is on by default; restore it "
-                   "with Dispersion() — it is a fixed constant, not a refined "
-                   "parameter, and unequal effects across phases bias QPA "
-                   "weight fractions directly. If it was declined because the "
-                   "wavelength sits in an absorption-edge interval, supply the "
-                   "measured pair through Dispersion.overrides instead",
+        message=(f"Anomalous scattering is off, but at lambda = {lam:.5f} A it "
+                 f"changes the scattering power of {named}."),
+        suggestion="Restore it with Dispersion(). If the wavelength sits in "
+                   "an absorption-edge interval, supply the measured pair "
+                   "through Dispersion.overrides instead.",
     )]
 
 
@@ -7857,21 +7730,13 @@ def _resonant_absorber_diagnostics(structure: Structure,
         level=("warning" if worst >= RESONANT_ABSORBER_SEVERE_BARN else "info"),
         code="NEUTRON_RESONANT_ABSORBER",
         where=sorted(where),
-        message=(f"this structure contains a resonant absorber ({named}); the "
-                 f"tabulated b is the real part of the thermal value and is "
-                 f"incomplete near the resonance (lowest resonance: {sits}; "
-                 f"this source's wavelength is "
-                 f"{instrument.source.primary_wavelength:.4g} A)"),
-        suggestion="at one constant wavelength away from the resonance the "
-                   "thermal value is the right number and nothing is owed. "
-                   "Check that this wavelength is away from it before quoting "
-                   "an occupancy or a displacement parameter on that site: b "
-                   "is complex there, and this table carries only its real "
-                   "part, so both the amplitude and the phase of that species' "
-                   "contribution are wrong near a resonance in a way no "
-                   "agreement index will show. A wavelength-resolved fit "
-                   "(a range of wavelengths, or TOF) may not use one thermal "
-                   "value at all",
+        message=(f"This structure contains a resonant absorber ({named}). The "
+                 f"lowest resonance is at {sits}, and this source's "
+                 f"wavelength is {instrument.source.primary_wavelength:.4g} A."),
+        suggestion="Check that this wavelength is away from the resonance "
+                   "before you quote an occupancy or a displacement parameter "
+                   "on that site. A wavelength-resolved fit (a range of "
+                   "wavelengths, or TOF) may not use one thermal value at all.",
     )]
 
 
@@ -7934,26 +7799,18 @@ def _species_fallback_diagnostics(structure: Structure,
         # being compared against SPECIES_FALLBACK_MIN_DELTA_FRAC.
         if delta is not None and abs(delta) < SPECIES_FALLBACK_MIN_DELTA_FRAC:
             continue
-        frac_text = ("undefined — the ion's own electron count is zero"
+        frac_text = ("undefined because the ion's own electron count is zero"
                      if delta is None else f"{delta:+.1%}")
         out.append(Diagnostic(
             level="warning", code="SPECIES_FALLBACK_NEUTRAL", where=where,
             value=delta,
             message=(f"{fb.species!r} is absent from the Waasmaier-Kirfel "
-                     f"table and was scattered as neutral {fb.element} "
-                     f"instead — {fb.returned_electrons:.4g} electrons "
-                     f"against the ion's {fb.true_electrons:.0f} "
-                     f"({frac_text})"),
-            suggestion=(f"this changes every reflection {fb.species!r} "
-                        "contributes to by that fraction and biases site "
-                        "occupancies, ADPs and QPA fractions together, "
-                        "without moving Rwp much because the model "
-                        "rescales; there is no override table for this "
-                        "lookup the way Dispersion.overrides covers f'/f'', "
-                        f"so either accept that neutral {fb.element} is what "
-                        "was fitted or substitute a tabulated ion of the "
-                        "same element and a nearby charge as a deliberate "
-                        "approximation"),
+                     f"table and was scattered as neutral {fb.element}, with "
+                     f"{fb.returned_electrons:.4g} electrons against the "
+                     f"ion's {fb.true_electrons:.0f} ({frac_text})."),
+            suggestion=(f"Accept neutral {fb.element} as the model, or "
+                        "substitute a tabulated ion of the same element with "
+                        "a nearby charge as a deliberate approximation."),
         ))
     return out
 
@@ -8028,49 +7885,37 @@ def _harmonic_diagnostics(model: CompiledModel, values: dict[str, float],
         pct = 100.0 * frac
         where = [path]
         esd_txt = f" ± {100.0 * esd:.2f}" if esd is not None else ""
-        head = (f"lambda/{order} = {lam:.5f} A carries {pct:.2f}{esd_txt} % of "
-                f"the fundamental")
+        head = (f"The lambda/{order} line ({lam:.5f} A) carries "
+                f"{pct:.2f}{esd_txt} % of the fundamental")
         if path not in free_paths:
             out.append(Diagnostic(
                 level="info", code="HARMONIC_HELD", where=where,
-                message=(f"{head}, but the weight was never refined -- that is "
-                         f"the declared value, not a measured one"),
-                suggestion=("free instrument.source.lines.*.weight in a stage "
-                            "after the profile and the scale have settled; a "
-                            "held harmonic weight must not be quoted as a "
-                            "property of the beam")))
+                message=(f"{head}, but the weight was never refined, so this "
+                         f"is the declared value."),
+                suggestion=("Free instrument.source.lines.*.weight in a stage "
+                            "after the profile and the scale have settled.")))
             continue
         if frac < HARMONIC_ABSENT_FRAC:
             out.append(Diagnostic(
                 level="info", code="HARMONIC_ABSENT", where=where,
-                message=(f"the declared lambda/{order} line refined to "
-                         f"{pct:.3f}{esd_txt} % of the fundamental, i.e. to "
-                         f"nothing"),
-                suggestion=("this is a result, not a failure: the beam carries "
-                            "no measurable order-n contamination, which is what "
-                            "a monochromator whose nth order is extinct should "
-                            "give. Dropping the declaration reproduces the fit "
-                            "and removes a parameter the data does not support")))
+                message=(f"The declared lambda/{order} line refined to "
+                         f"{pct:.3f}{esd_txt} % of the fundamental."),
+                suggestion=("Drop the declaration to remove a parameter the "
+                            "data do not support.")))
             continue
         implausible = frac > HARMONIC_IMPLAUSIBLE_FRAC
         out.append(Diagnostic(
             level="warning" if implausible else "info",
             code="HARMONIC_FRACTION", where=where,
-            message=(head + (", which is far above the few per cent a "
-                             "monochromator harmonic is reported at"
-                             if implausible else "")),
-            suggestion=(("a fraction this large is evidence about the model "
-                         "rather than about the beam -- the line is absorbing "
-                         "intensity the model puts nowhere (an unindexed "
-                         "impurity, a magnetic contribution, a background too "
-                         "stiff to follow). Check the tick marks against the "
-                         "unfitted peaks before believing it")
+            message=(head + "." + (" That is far above the few per cent a "
+                                   "monochromator harmonic is reported at."
+                                   if implausible else "")),
+            suggestion=("Check the tick marks against the unfitted peaks "
+                        "before you believe it."
                         if implausible else
-                        ("quote this as a property of this beam on this "
-                         "monochromator, never as one of the specimen, and "
-                         "never transfer it to another histogram -- it is a "
-                         "refined scale ratio between two wavelength "
-                         "components of one measurement"))))
+                        "Quote this as a property of this beam on this "
+                        "monochromator, and do not transfer it to another "
+                        "histogram.")))
     return out
 
 
@@ -8135,17 +7980,12 @@ def _wavelength_calibration_diagnostics(
         where = [e.path] if h is None else [f"hist.{h}.{e.path}"]
         out.append(Diagnostic(
             level="info", code="WAVELENGTH_CALIBRATION",
-            message=(f"{head}: wavelength refined from the "
-                     f"declared {lam0:.6f} A to {lam:.6f} A, {ppm:+.1f} ppm"
-                     f"{resolved}.  This is a measurement of that "
-                     f"monochromator's calibration error, {pinned_by}"),
+            message=(f"{head[:1].upper()}{head[1:]}: wavelength refined from "
+                     f"the declared {lam0:.6f} A to {lam:.6f} A, {ppm:+.1f} "
+                     f"ppm{resolved}. The shift is {pinned_by}."),
             where=where, value=float(ppm),
-            suggestion=("compare it with the instrument's own calibration "
-                        "history before quoting the cell: a wavelength that "
-                        "moved further than the beamline's known drift is more "
-                        "likely a modelling error in this histogram (an "
-                        "unmodelled harmonic, a zero-shift traded against λ) "
-                        "than a real calibration shift")))
+            suggestion=("Compare it with the instrument's own calibration "
+                        "history before you quote the cell.")))
     return out
 
 
@@ -8190,12 +8030,11 @@ def _restraint_tension_diagnostics(report, structure: Structure) -> list[Diagnos
         out.append(Diagnostic(
             level="warning", code="RESTRAINT_TENSION",
             where=_restraint_where(row, structure),
-            message=(f"{row.kind} restraint deviates "
+            message=(f"The {row.kind} restraint deviates "
                      f"{row.deviation_over_sigma:+.1f}σ from its target "
-                     f"({row.computed:.4g} vs {row.target:.4g})"),
-            suggestion="the data and this restraint disagree: loosen its sigma, "
-                       "correct the target, or accept that the measured pattern "
-                       "should override the prior (raise sigma so it does)",
+                     f"({row.computed:.4g} vs {row.target:.4g})."),
+            suggestion="Loosen its sigma, correct the target, or raise sigma "
+                       "so the measured pattern overrides the prior.",
         ))
     return out
 
@@ -8247,18 +8086,16 @@ def _far_from_data_diagnostics(model: CompiledModel, y_calc, y_bkg,
     obs_excess = float(np.sum(np.asarray(model.y_obs) - np.asarray(y_bkg)))
     share = ""
     if obs_excess > 0.0:
-        share = (f"; the model accounts for {bragg_calc / obs_excess:.1%} of "
-                 f"the observed above-background intensity")
+        share = (f" The model accounts for {bragg_calc / obs_excess:.1%} of "
+                 f"the observed above-background intensity.")
     return [Diagnostic(
         level="error", code="MODEL_FAR_FROM_DATA",
-        message=(f"Rwp = {stats.rwp:.1%} — this is a mismatch between the "
-                 f"model and the data, not a converged refinement{share}"),
+        message=f"Rwp = {stats.rwp:.1%}.{share}",
         where=[],
-        suggestion="do not read the status, the parameter values or their "
-                   "esds: check the cell (the method needs it within ~1 %, "
-                   "and further off puts every reflection outside its frozen "
-                   "evaluation window), the wavelength, the zero shift and "
-                   "the 2θ range, then re-index if the cell is the doubt",
+        suggestion="Do not read the status, the parameter values or their "
+                   "esds. Check the cell (it must lie within about 1 % of "
+                   "the true one), the wavelength, the zero shift and the "
+                   "2θ range, then re-index if the cell is in doubt.",
     )]
 
 
@@ -8343,17 +8180,12 @@ def _extra_peak_diagnostics(model: CompiledModel, values: dict,
             out.append(Diagnostic(
                 level="warning", code="EXTRA_PEAK_NO_INTENSITY",
                 message=(
-                    f"declared peak {name!r} refined to no intensity "
-                    f"(area {area:.3g} at its zero bound) — the data does not "
-                    "see it, and its centre is therefore unmeasured rather "
-                    "than precisely measured: a peak reaches the pattern only "
-                    "through area x profile, so at zero area nothing "
-                    "constrains where it sits"),
+                    f"Declared peak {name!r} refined to no intensity "
+                    f"(area {area:.3g} at its zero bound)."),
                 where=[pc.paths["center"], area_path],
                 suggestion=(
-                    "quote neither the centre nor its esd; drop the component, "
-                    "or check that its centre bounds bracket the feature you "
-                    "meant")))
+                    "Drop the component, or check that its centre bounds "
+                    "bracket the feature you meant.")))
             continue
 
         if len(predicted_arr):
@@ -8362,18 +8194,13 @@ def _extra_peak_diagnostics(model: CompiledModel, values: dict,
                 out.append(Diagnostic(
                     level="warning", code="EXTRA_PEAK_ON_REFLECTION",
                     message=(
-                        f"declared peak {name!r} sits {gap:.3f} deg from a "
-                        "position this model already predicts — the two "
-                        "describe one peak between them, so the intensity "
-                        "split between phase and component is a degeneracy "
-                        "rather than a measurement"),
+                        f"Declared peak {name!r} sits {gap:.3f} deg from a "
+                        "position this model already predicts."),
                     where=[pc.paths["center"], pc.paths["area"]],
                     suggestion=(
-                        "if the overlap is real (a holder line on a sample "
-                        "peak) this is expected and the component is doing its "
-                        "job; if the component was a shortcut for a misfitting "
-                        "reflection, fix the model instead — check the phase's "
-                        "scale, profile and preferred orientation")))
+                        "If the component stands in for a misfitting "
+                        "reflection, fix the phase's scale, profile and "
+                        "preferred orientation instead.")))
     return out
 
 
@@ -8406,16 +8233,13 @@ def _data_support_diagnostics(support, model: CompiledModel) -> list[Diagnostic]
                 f"{ratio:.1f} effective observations per structural parameter "
                 f"({support.n_effective_observations:.1f} from "
                 f"{support.n_unique_reflections} measured reflections, against "
-                f"{support.n_structural_parameters} free) — the guideline is "
-                f"at least {OBS_PER_PARAMETER_MIN:g} and preferably "
-                f"{OBS_PER_PARAMETER_PREFERRED:g}"),
+                f"{support.n_structural_parameters} free), below the "
+                f"guideline of at least {OBS_PER_PARAMETER_MIN:g} and "
+                f"preferably {OBS_PER_PARAMETER_PREFERRED:g}."),
             suggestion=(
-                "the esds are the place this shows: an over-parameterised "
-                "refinement reports large ones rather than wrong values. Hold "
-                "the least determined parameters (start from the report's "
-                "identifiability section), restrain the geometry, or extend "
-                "the 2θ range — the reflection count, not the point count, is "
-                "what rises"),
+                "Hold the least determined parameters (start from the "
+                "report's identifiability section), restrain the geometry, "
+                "or extend the 2θ range."),
         ))
 
     steps, n_measured = sampling_steps_per_fwhm(
@@ -8424,14 +8248,11 @@ def _data_support_diagnostics(support, model: CompiledModel) -> list[Diagnostic]
         out.append(Diagnostic(
             level="warning", code="PATTERN_UNDERSAMPLED",
             message=(
-                f"{steps:.1f} steps across the FWHM (median over {n_measured} "
-                f"fitted peaks) — below the {STEPS_PER_FWHM_MIN:g} the "
-                "guidelines ask for"),
-            suggestion=("a data-collection limit, not a refinement one: the "
-                        "integrated intensities were not measured finely "
-                        "enough and no choice made here recovers them. "
-                        "Re-collect at a step size near FWHM/5 if the "
-                        "intensities have to be quotable"),
+                f"The median fitted peak spans {steps:.1f} steps across its "
+                f"FWHM ({n_measured} peaks), below the {STEPS_PER_FWHM_MIN:g} "
+                "the guidelines ask for."),
+            suggestion=("Re-collect at a step near FWHM/5 if the intensities "
+                        "must be quotable."),
         ))
 
     # Reported on the fitted channels, because that is the question: a dead
@@ -8451,16 +8272,10 @@ def _data_support_diagnostics(support, model: CompiledModel) -> list[Diagnostic]
                     f"{run.level_fraction:.2%} of the local background with an "
                     f"esd that fell with them, so each carries about "
                     f"{run.weight_ratio:,.0f}× the weight of a live channel "
-                    "there"),
+                    "there."),
                 where=[f"{lo:.3f}-{hi:.3f}"],
                 suggestion=(
-                    "a dead or masked detector cell, not a feature of the "
-                    "specimen: weights are 1/σ², so these channels pull the "
-                    "background down to meet them and the symptoms surface "
-                    "elsewhere — parameters at their bounds, a background "
-                    "driven negative. Exclude the interval "
-                    f"({lo:.3f}, {hi:.3f}) and "
-                    "refit. Nothing here excludes it for you"),
+                    f"Exclude the interval ({lo:.3f}, {hi:.3f}) and refit."),
             ))
     return out
 
@@ -8662,13 +8477,11 @@ def _low_angle_diagnostics(model: CompiledModel, values: dict[str, float],
             f"{n} channels below the first reflection ({first_tick:.2f}° "
             f"− 2×FWHM = {boundary:.2f}°) carry a mean "
             f"weighted-squared residual {local_stat:.2f}, {ratio:.2f}× "
-            f"the whole-pattern reduced χ² ({chi2_red:.2f}) — "
-            "there are no reflections in this region to explain it"),
+            f"the whole-pattern reduced χ² ({chi2_red:.2f})."),
         suggestion=(
-            f"either raise the pattern's lower limit to {suggested:.2f}° "
-            "(the channel where the residual falls under 2σ) or add "
-            "the background's air-scatter term; this diagnostic does not "
-            "choose between them"),
+            f"Raise the pattern's lower limit to {suggested:.2f}° "
+            "(the channel where the residual falls under 2σ), or add "
+            "the background's air-scatter term."),
         value=ratio,
     )]
 
@@ -8746,17 +8559,15 @@ def _air_scatter_undeclared_diagnostics(model: CompiledModel,
     return [Diagnostic(
         level="warning", code="AIR_SCATTER_UNDECLARED",
         message=(
-            "the P-spline background declares no 1/(2θ) air-scatter term, "
-            "and re-fitting the background with one, the Bragg model held, "
+            "The P-spline background declares no 1/(2θ) air-scatter term. "
+            "Re-fitting the background with one, the Bragg model held, "
             f"would remove at least {fraction:.1%} of this fit's χ² "
-            f"({removed / stats.chi2:.0f}× its reduced χ²; a score test on "
-            "the fit's own residual) — "
-            "auto_background's envelope trigger declines the term on a "
-            "humped or line-dense pattern"),
+            f"({removed / stats.chi2:.0f}× its reduced χ², from a score test "
+            "on the fit's own residual)."),
         suggestion=(
-            "declare the term and refit: instrument.background.air_scatter = "
-            "Parameter(value=1e-3, min=0.0); if the "
-            "rise is not air scatter, raise the pattern's lower limit instead"),
+            "Declare the term with instrument.background.air_scatter = "
+            "Parameter(value=1e-3, min=0.0) and refit. If the rise is not "
+            "air scatter, raise the pattern's lower limit instead."),
         value=fraction,
     )]
 
@@ -8841,17 +8652,16 @@ def _qpa_esd_unavailable_diagnostics(structure: Structure,
     return [Diagnostic(
         level="warning", code="QPA_ESD_UNAVAILABLE",
         where=[where_of(p) for p in blind],
-        message=("no weight fraction carries an esd: " + "; ".join(named)
+        message=("No weight fraction carries an esd: " + "; ".join(named)
                  + (" and could not be measured there" if len(named) == 1
                     else ", and none could be measured there")
                  + ", and every fraction divides by a sum that includes "
-                 + ("it" if len(named) == 1 else "them")),
+                 + ("it" if len(named) == 1 else "them") + "."),
         suggestion=(
-            "a scale at zero usually means the phase is not in this specimen, "
-            "and removing it gives the other fractions their esds. For an "
-            "interval without an esd on a single-pattern fit, "
-            f"Refinement.profile_fraction(data, {phase}) returns the "
-            "admissible range of one fraction"),
+            "Remove the phase if its scale sits at zero, which gives the "
+            "other fractions their esds. On a single-pattern fit, "
+            f"call Refinement.profile_fraction(data, {phase}) for the "
+            "admissible range of one fraction."),
     )]
 
 
@@ -8869,14 +8679,13 @@ def _qpa_unavailable_diagnostics(structure: Structure,
     return [Diagnostic(
         level="warning", code="QPA_UNAVAILABLE",
         where=dead,
-        message=("the refined phase scales give a non-positive Σ S·ZMV, so "
+        message=("The refined phase scales give a non-positive Σ S·ZMV, so "
                  "weight fractions cannot be formed"
-                 + (f" ({', '.join(dead)} at or below zero)" if dead else "")),
-        suggestion="this is a statement about the fit, not the specimen: a "
-                   "phase scale at zero means that phase contributed nothing, "
-                   "so check whether it belongs in the model, whether its "
-                   "starting cell put its peaks where the data has none, and "
-                   "the other diagnostics from this run",
+                 + (f" ({', '.join(dead)} at or below zero)" if dead else "")
+                 + "."),
+        suggestion="Check whether the phase belongs in the model and whether "
+                   "its starting cell put its peaks where the data have none. "
+                   "Read the other diagnostics from this run.",
     )]
 
 
@@ -8905,16 +8714,14 @@ def _max_iter_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
         return []
     return [Diagnostic(
         level="warning", code="STAGE_MAX_ITER",
-        message=("stage " + ", ".join(repr(n) for n in hit)
-                 + (" stopped on its iteration budget rather than converging"
+        message=(("Stage " if len(hit) == 1 else "Stages ")
+                 + ", ".join(repr(n) for n in hit)
+                 + (" stopped on its iteration budget."
                     if len(hit) == 1 else
-                    " stopped on their iteration budgets rather than converging")),
+                    " stopped on their iteration budgets.")),
         where=[],
-        suggestion="the parameters freed there are probably degenerate "
-                   "(the agent skill §3) rather than merely slow: free fewer "
-                   "at once, or check the diagnostics for a correlation or "
-                   "bound hit in the same stage — raising max_iter buys "
-                   "solver evaluations, not a different minimum",
+        suggestion="Free fewer parameters at once, or check the diagnostics "
+                   "for a correlation or bound hit in the same stage.",
     )]
 
 
@@ -9057,37 +8864,34 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
             continue
         name = structure.phases[ip].name
         if no_lines:
-            cause = (f"no reflection of phase {ip} ({name}) lies in the fitted "
-                     f"range {tt_range[0]:.4g}-{tt_range[1]:.4g}°, so nothing "
-                     f"about it is measurable here")
+            cause = (f"No reflection of phase {ip} ({name}) lies in the fitted "
+                     f"range {tt_range[0]:.4g}-{tt_range[1]:.4g}°.")
         elif held and decided:
             # a held phase quotes the reading the last stage's answer kept or
             # took its hold on, which a second solve at the restored values
             # can since have moved; a hold taken at a stage start read
             # min(screen, prior) instead, and the answer is what kept it
-            cause = (f"phase {ip} ({name})'s scale was at most {support:.2g}σ "
-                     f"from zero {basis} at the last stage's answer, which "
-                     f"kept it held, under the {PHASE_SUPPORT_SIGMA:g}σ a "
-                     f"phase needs to count as seen, so the stage could not "
-                     f"distinguish it from absent")
+            cause = (f"Phase {ip} ({name})'s scale was at most "
+                     f"{support:.2g}σ from zero {basis} at the last stage's "
+                     f"answer, under the {PHASE_SUPPORT_SIGMA:g}σ a phase "
+                     f"needs to count as seen.")
         else:
-            cause = (f"phase {ip} ({name})'s scale is at most {support:.2g}σ "
+            cause = (f"Phase {ip} ({name})'s scale is at most {support:.2g}σ "
                      f"from zero {basis}, under the {PHASE_SUPPORT_SIGMA:g}σ "
-                     f"a phase needs to count as seen, so the data cannot "
-                     f"distinguish it from absent")
+                     f"a phase needs to count as seen.")
         clauses = []
         if held:
             stages = held_stages[ip]
-            clauses.append(f"its {len(held)} structural parameter"
+            clauses.append(f"Its {len(held)} structural parameter"
                            f"{'' if len(held) == 1 else 's'} "
                            f"{'was' if len(held) == 1 else 'were'} held for "
                            f"stage{'' if len(stages) == 1 else 's'} "
-                           f"{', '.join(stages)}")
+                           f"{', '.join(stages)}.")
         if unconstrained:
             clauses.append(f"{len(unconstrained)} of its parameters "
                            f"{'was' if len(unconstrained) == 1 else 'were'} "
-                           f"refined against it")
-        message = cause if not clauses else f"{cause} — {'; and '.join(clauses)}"
+                           f"refined without signal.")
+        message = " ".join([cause, *clauses])
         out.append(Diagnostic(
             level="warning", code="PHASE_UNCONSTRAINED",
             # the held paths as well as the still-free ones: a held value is
@@ -9097,15 +8901,12 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
             value=support,
             message=message,
             suggestion=(
-                "this specimen or this fitted range cannot measure the phase: "
-                "either it is not present and belongs out of the model, or the "
-                "range must cover a reflection of it"
+                "Take the phase out of the model, or widen the fitted range "
+                "to cover one of its reflections."
                 if no_lines else
-                "treat those values as unmeasured, not as results: a held one "
-                "is what you handed in, a refined one moved in a flat "
-                "direction. Either the phase is not in this specimen and "
-                "belongs out of the model, or its scale is stuck at its floor "
-                "and needs seeding before anything else of it is freed"),
+                "Treat those values as unmeasured. Take the phase out of the "
+                "model, or seed its scale off the floor before you free "
+                "anything else of it."),
         ))
     return out
 
@@ -9221,34 +9022,31 @@ def _scale_b_ridge_diagnostics(models: list[CompiledModel],
         at = ", ".join(f"{p} = {v:.4g}" for p in held[:3]
                        if (v := value_of(p)) is not None)
         message = (
-            f"the fitted range {tt_min:.4g}-{tt_max:.4g}° cannot "
+            f"The fitted range {tt_min:.4g}-{tt_max:.4g}° cannot "
             f"separate phase {ip} ({name})'s scale from its displacement "
             f"parameters: their columns are {least[ip]:.1e} apart, under the "
-            f"{SCALE_B_SEPARATION_FLOOR:.1e} the covariance can resolve. A "
-            f"phase gives this when it has fewer reflections in range than it "
-            f"has scale and displacement parameters. So {n} displacement "
+            f"{SCALE_B_SEPARATION_FLOOR:.1e} the covariance can resolve. "
+            f"{n} displacement "
             f"parameter{'' if n == 1 else 's'} {'was' if n == 1 else 'were'} "
             f"held for stage{'' if len(names) == 1 else 's'} "
             f"{', '.join(names)}"
             + (f" ({at}{'…' if n > 3 else ''})" if at else "")
-            + ", and the phase's weight fraction is conditional on "
-            + ("that value" if n == 1 else "those values"))
+            + ". The phase's weight fraction is conditional on "
+            + ("that value." if n == 1 else "those values."))
         s2 = _intensity_weighted_s2(models, ip, per_values)
         if s2 is not None:
-            message += (f": each 1 Å² of error in B moves it by about "
+            message += (f" Each 1 Å² of error in B moves it by about "
                         f"{100.0 * math.expm1(2.0 * s2):.2g} % "
                         f"(intensity-weighted mean s² = {s2:.3g} Å⁻² over its "
-                        f"reflections in range)")
+                        f"reflections in range).")
         out.append(Diagnostic(
             level="warning", code="SCALE_B_INSEPARABLE",
             where=held, value=least[ip], message=message,
             suggestion=(
-                "quote this phase's weight fraction as conditional on the held "
-                "B — its esd carries none of B's uncertainty — or supply B "
-                "from elsewhere (a fit over a wider range, or a published "
-                "value for this material at this temperature); or widen the "
-                "fitted range to reach a second d-spacing of the phase, which "
-                "separates the pair and lifts the hold"),
+                "Supply B from elsewhere (a fit over a wider range, or a "
+                "published value for this material at this temperature). "
+                "Widening the fitted range to a second d-spacing of the "
+                "phase also lifts the hold."),
         ))
     return out
 
@@ -9326,23 +9124,13 @@ def _strain_flag_diagnostics(model: CompiledModel, values: dict[str, float],
             out.append(Diagnostic(
                 level="warning", code="STRAIN_UNUSUALLY_LARGE",
                 where=[path], value=float(width),
-                message=(f"phase {ip} ({name}) refined {term} to a strain "
+                message=(f"Phase {ip} ({name}) refined {term} to a strain "
                          f"broadening of {width:.4g} deg (FWHM coefficient of "
                          f"tanθ), {width / STRAIN_FLAG_WIDTH:.0f}× the "
-                         f"{STRAIN_FLAG_WIDTH} that solved refinements stay "
-                         f"under — of 1213 strain records in our archive of 606 "
-                         f"TOPAS refinements, 8 sit above it and every one is a "
-                         f"divergence signature rather than a material"),
-                suggestion="physically possible, so this is a number to check "
-                           "rather than a failure: confirm the broad lines are "
-                           "really this phase's and not an unmodelled peak "
-                           "shape, an amorphous component or a second phase it "
-                           "is absorbing, and check whether BOUND_HIT fired on "
-                           "the same path — at the cap the width is held by the "
-                           "fitted range and is not a measurement. If the "
-                           "specimen really is this defective, declare the "
-                           "bound you mean (a finite Parameter.max outranks "
-                           "both tiers and silences them)",
+                         f"flag threshold of {STRAIN_FLAG_WIDTH}."),
+                suggestion="Check whether BOUND_HIT fired on the same path. "
+                           "If the specimen really is this defective, declare "
+                           "a finite Parameter.max to silence this.",
             ))
     return out
 
@@ -9461,13 +9249,9 @@ def _rigid_body_unsupported(table: ParameterTable,
             blind.setdefault(owner[row.path], []).append(row.path)
     return [Diagnostic(
         level="warning", code="RIGID_BODY_UNSUPPORTED", where=paths,
-        message=(f"rigid body {name!r}: {len(paths)} free degree(s) of freedom "
-                 f"measured nothing ({', '.join(paths)}); the pattern does not "
-                 "move with them, so their values and every body atom's esd are "
-                 "not measurements"),
-        suggestion=("hold them (Refinement.hold) and refit, or check the body: "
-                    "a zero-occupancy atom, or a template symmetric about the "
-                    "axis, leaves a turn the data cannot see"))
+        message=(f"Rigid body {name!r}: {len(paths)} free degree(s) of freedom "
+                 f"measured nothing ({', '.join(paths)})."),
+        suggestion="Hold them (Refinement.hold) and refit.")
         for name, paths in blind.items()]
 
 
@@ -9524,25 +9308,13 @@ def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],
             out.append(Diagnostic(
                 level="warning", code="SIZE_UNUSUALLY_SMALL",
                 where=[path], value=float(size_nm),
-                message=(f"phase {ip} ({name}) refined {term} to an apparent "
+                message=(f"Phase {ip} ({name}) refined {term} to an apparent "
                          f"crystallite size of {size_nm:.3g} nm "
                          f"(Scherrer K={SCHERRER_K}, λ={lam:.4g} Å), below the "
-                         f"{floor_nm:.0f} nm that solved refinements stay above "
-                         f"— of 606 TOPAS refinements in our archive the "
-                         f"smallest well-determined crystallite is ≈ 33 nm, and "
-                         f"every refined size below ~2 nm is a divergence or "
-                         f"placeholder signature rather than a material"),
-                suggestion="physically possible — real nanocrystals reach a few "
-                           "nm — so this is a number to check rather than a "
-                           "failure: confirm the broad lines are really size "
-                           "broadening and not an unmodelled peak shape, strain, "
-                           "an amorphous component or a second phase it is "
-                           "absorbing, and check whether BOUND_HIT fired on the "
-                           "same path — at the cap the width is held at the 2 nm "
-                           "floor and is not a measurement. If the specimen "
-                           "really is this small, declare the bound you mean (a "
-                           "finite Parameter.max outranks both tiers and "
-                           "silences them)",
+                         f"flag threshold of {floor_nm:.0f} nm."),
+                suggestion="Check whether BOUND_HIT fired on the same path. "
+                           "If the specimen really is this small, declare a "
+                           "finite Parameter.max to silence this.",
             ))
     return out
 
@@ -9586,17 +9358,18 @@ def _roughness_regime_diagnostics(model: CompiledModel,
     # reported a 27 % depression that no modelled peak ever experienced.
     # Roughness is constrained by low-angle reflections, so that is where it
     # has to be judged.
-    positions = np.concatenate(
-        [np.asarray(pos) for ip in range(len(model.phases))
-         for pos, *_ in [model.phase_peaks(ip, values)[0]]]) \
-        if model.phases else np.empty(0)
-    positions = positions[np.isfinite(positions)]
-    positions = positions[(positions >= model.tt_min) & (positions <= model.tt_max)]
+    positions = _reflection_bragg_angles(model, values)
     if not positions.size:
         return []
     tt_min = float(np.min(positions))
     factor = np.asarray(model._roughness_factor(positions, values))
     depression = float(1.0 - np.min(factor))
+
+    def drawn(tt: float) -> float:
+        # the checks read Bragg angles; a message quotes the pattern's own axis,
+        # which is where a reader looks and where a fit range is set
+        return float(np.asarray(model.apparent_two_theta(np.array([tt]), values),
+                                dtype=np.float64).reshape(-1)[0])
 
     out: list[Diagnostic] = []
     if model.roughness == "pitschke":
@@ -9608,12 +9381,10 @@ def _roughness_regime_diagnostics(model: CompiledModel,
                 where=[f"{base}.tau"],
                 message=(f"Pitschke roughness tau={tau:.4f} exceeds "
                          f"sin(theta) = {sin_min:.4f} at the lowest fitted "
-                         f"angle ({tt_min:.2f}° 2θ): past that point the model "
-                         f"amplifies rather than depresses intensity"),
-                suggestion="restrict the fit to 2θ above "
-                           f"{2 * np.degrees(np.arcsin(min(tau, 1.0))):.1f}°, or "
-                           "switch to kind='suortti', which is bounded ≤ 1 "
-                           "everywhere (Pitschke et al. 1993 Eq 18)",
+                         f"angle ({drawn(tt_min):.2f}° 2θ)."),
+                suggestion="Restrict the fit to 2θ above "
+                           f"{drawn(2 * np.degrees(np.arcsin(min(tau, 1.0)))):.1f}°, or "
+                           "switch to kind='suortti'.",
             ))
         elif tau > 0.5 * sin_min:
             out.append(Diagnostic(
@@ -9621,11 +9392,9 @@ def _roughness_regime_diagnostics(model: CompiledModel,
                 where=[f"{base}.tau"],
                 message=(f"Pitschke roughness is past its turnover at the low "
                          f"end of the fit (tau={tau:.4f} vs sin(theta)="
-                         f"{sin_min:.4f} at {tt_min:.2f}° 2θ): the depression "
-                         f"stops deepening there"),
-                suggestion="the model is empirical rather than geometric in "
-                           "this range (the paper says so); treat tau as a "
-                           "fitting parameter, not a measured roughness",
+                         f"{sin_min:.4f} at {drawn(tt_min):.2f}° 2θ)."),
+                suggestion="Treat tau as a fitting parameter, or restrict the "
+                           "fit to higher angle.",
             ))
 
     if depression < ROUGHNESS_MIN_DEPRESSION:
@@ -9633,13 +9402,11 @@ def _roughness_regime_diagnostics(model: CompiledModel,
             level="warning", code="ROUGHNESS_UNCONSTRAINED",
             where=[f"{base}.{n}" for n in ("a", "b", "c", "tau")
                    if f"{base}.{n}" in values],
-            message=(f"the refined surface roughness depresses intensity by at "
+            message=(f"The refined surface roughness depresses intensity by at "
                      f"most {depression:.2%} at any modelled reflection "
-                     f"(lowest at {tt_min:.2f}° 2θ) — the data cannot see it"),
-            suggestion="drop the roughness block, or extend the measurement to "
-                       "lower 2θ where the depression has a lever arm; note "
-                       "the Suortti model reaches the identity from both ends, "
-                       "so a large b is as inert as a zero one",
+                     f"(lowest at {drawn(tt_min):.2f}° 2θ)."),
+            suggestion="Drop the roughness block, or extend the measurement "
+                       "to lower 2θ.",
         ))
     return out
 

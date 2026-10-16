@@ -81,7 +81,7 @@ RefinementResult: converged (rietveld)
   ...
   stage profile: converged (8 evals, ftol=solver default), max|Δθ|/esd=0.000
   diagnostics: 1 unresolved
-    INFO CAPILLARY_OFFSET_UNAVAILABLE: ...
+    info[CAPILLARY_OFFSET_UNAVAILABLE]: ...
   provenance: rietx 1.8.0.dev0, backend=numpy, solver=lm
   Rwp 0.1337 / Rexp 0.0357 (GoF 3.75), Rp 0.0723, χ² 14.1, DW 0.11
 ```
@@ -270,8 +270,10 @@ phase: Na2Ca3Al2F14, I 21 3, a=10.257 A, 6 asymmetric atoms
 Le Bail:  status=converged  Rwp=0.1435  GoF=5.44  a=10.251214 A
 Rietveld: status=converged  Rwp=0.0933  GoF=3.54
           a = 10.251216 +/- 0.000040 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
-          [warning] FLOOR_HIT: phases.1.atoms.0.biso refined to its floor (ρ=+0.187)
-          [info] CAPILLARY_OFFSET_UNAVAILABLE: ...
+          warning[FLOOR_HIT]: phases.1.atoms.0.biso refined to its floor (ρ=+0.187).
+            at: phases.1.atoms.0.biso
+            help: ...
+          info[CAPILLARY_OFFSET_UNAVAILABLE]: ...
 ```
 
 It goes on to print the report summary, its five worst regions, and the history

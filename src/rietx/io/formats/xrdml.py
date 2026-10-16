@@ -308,13 +308,10 @@ def _scale(unit: str, attenuation: np.ndarray | None,
                     message=(f"{path.name} declares its intensities as counts "
                              "per second but carries no usable counting time "
                              "(<commonCountingTime> or <countingTimes>) to undo "
-                             "the division. No σ was supplied, so the Poisson "
-                             "fallback √max(y,1) will be applied to a rate and "
-                             "the weights are wrong by √t"),
+                             "the division. No σ was supplied."),
                     where=["sigma"],
-                    suggestion=("re-export with counts, or supply the esds; the "
-                                "fit runs either way but its esds and χ² are "
-                                "not quotable")))
+                    suggestion=("Export the file in counts, or supply the "
+                                "esds.")))
             return None
         scale = scale / np.asarray(count_time, dtype=np.float64)
     elif unit != _COUNTS:
@@ -322,12 +319,10 @@ def _scale(unit: str, attenuation: np.ndarray | None,
             diagnostics.append(Diagnostic(
                 level="warning", code="PATTERN_INTENSITY_SCALED",
                 message=(f"{path.name} declares its intensity unit as {unit!r}, "
-                         f"which is neither {_COUNTS!r} nor {_CPS!r}. The scale "
-                         "could not be established, so no σ was supplied and the "
-                         "Poisson fallback √max(y,1) is being applied to a "
-                         "quantity that may already be divided by something"),
+                         f"which is neither {_COUNTS!r} nor {_CPS!r}. No σ was "
+                         "supplied."),
                 where=["sigma"],
-                suggestion="re-export in counts, or supply the esds yourself"))
+                suggestion="Export the file in counts, or supply the esds."))
         return None
     return scale
 
@@ -342,17 +337,11 @@ def _attenuator(attenuation: np.ndarray, two_theta: np.ndarray, *, path: Path,
     diagnostics.append(Diagnostic(
         level="info", code="XRDML_ATTENUATOR_APPLIED",
         message=(f"{path.name} carries a beam attenuation factor over "
-                 f"{int(off.sum())} point(s), 2θ = {affected.min():.4g}–"
-                 f"{affected.max():.4g}°, up to {attenuation.max():.6g}×, and it "
-                 "**was** applied: the stored counts are what the detector saw "
-                 "behind the foil, so the reported intensity is counts × factor "
-                 "and σ is √counts × factor, not √y. Unlike the Rigaku .ras "
-                 "attenuator column, this one is settled — a real file shows the "
-                 "raw series dipping at exactly the attenuated point of a "
-                 "substrate reflection"),
+                 f"{int(off.sum())} point(s) at 2θ = {affected.min():.4g}–"
+                 f"{affected.max():.4g}°, up to {attenuation.max():.6g}×. It "
+                 "was applied to the intensities and to σ."),
         where=["intensity", "sigma"],
-        suggestion=("nothing to do; the note exists because the correction is "
-                    "large and invisible in the file's own numbers")))
+        suggestion=None))
 
 
 def _axis(scan: ET.Element, *, path: Path,

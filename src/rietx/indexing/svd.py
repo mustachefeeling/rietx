@@ -667,9 +667,10 @@ def search_svd(peaks: PeakList, *, spec: SearchSpec | None = None,
     if len(q_all) < 2:
         result.diagnostics.append(Diagnostic(
             level="error", code="INDEX_DATA_INSUFFICIENT",
-            message="a lattice cannot be constrained by fewer than two lines",
+            message=(f"Only {len(q_all)} usable line(s) are available, and a "
+                     "lattice needs at least two."),
             where=[f"{len(q_all)} usable lines"],
-            suggestion="run assess_peak_list before searching"))
+            suggestion="Run assess_peak_list before searching."))
         return result
 
     search_lines = search_line_order(peaks, spec)

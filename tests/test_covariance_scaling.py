@@ -288,7 +288,7 @@ def test_a_fit_whose_covariance_raises_returns_its_values(monkeypatch,
     # one that says the result's esds are gone
     assert [d.where for d in fired] == [[name] for name in stages]
     assert all(d.level == "warning" for d in fired)
-    assert "every esd on this result is absent" in fired[-1].message
+    assert "Every esd, correlation and derived uncertainty" in fired[-1].message
     assert all("intermediate stage" in d.message for d in fired[:-1])
     assert not any(d.code == "COVARIANCE_UNAVAILABLE"
                    for d in reference.diagnostics)

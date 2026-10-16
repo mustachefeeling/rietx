@@ -179,14 +179,12 @@ def rhombohedral_restated_diagnostic(where: list[str], code: str,
     """The report a writer makes for each phase :func:`restate_in_hexagonal_axes` moved."""
     return Diagnostic(
         level="warning", code=code, where=list(where),
-        message=(f"{len(where)} phase(s) were on rhombohedral axes, which "
-                 f"{program} cannot state, and are written in hexagonal axes "
-                 f"(a, a, c, 90, 90, 120) with every cell edge and coordinate "
-                 f"held and the scale divided by 9: the same crystal and the "
-                 f"same pattern"),
-        suggestion=f"free what you mean to refine in {program}; the "
-                   f"rhombohedral parameters are now several hexagonal ones "
-                   f"and the ties between them are not stated")
+        message=(f"{len(where)} phase(s) were on rhombohedral axes and are "
+                 f"written for {program} in hexagonal axes "
+                 f"(a, a, c, 90, 90, 120). Every lattice parameter and "
+                 f"coordinate is held, and the scale is divided by 9."),
+        suggestion=f"Free the hexagonal parameters you mean to refine in "
+                   f"{program}.")
 
 
 def refuse_magnetic_phase(phase, fmt: str, why: str | None = None) -> None:
@@ -1054,18 +1052,11 @@ def snap_diagnostics(sg: gemmi.SpaceGroup, sites, *, source: str,
     return [Diagnostic(
         level="warning", code="SITE_SNAPPED_TO_SPECIAL_POSITION",
         where=[path for *_, path in moved],
-        message=(f"{len(moved)} site(s) in {source} sit within {tol:g} of a "
-                 f"special position of {sg.xhm()!r} without being on it, and "
-                 f"were expanded at it: {named}. Largest shift {worst:.2e} in "
-                 f"fractional coordinates"),
-        suggestion="the stored coordinates are unchanged and the fit is "
-                   "unaffected, but the multiplicity is the special one — it "
-                   "is what decides how many atoms the site puts in the cell, "
-                   "hence ZMV and every weight fraction. Check these sites "
-                   "against the source's own multiplicities: if they agree, "
-                   "nothing is wrong and the coordinates are simply rounded; "
-                   "if they disagree, the coordinates and the space group are "
-                   "telling you different things",
+        message=(f"{len(moved)} site(s) in {source} lie within {tol:g} of a "
+                 f"special position of {sg.xhm()!r} and were expanded there: "
+                 f"{named}. The largest shift is {worst:.2e} in fractional "
+                 f"coordinates."),
+        suggestion="Check these multiplicities against the source file.",
     )]
 
 
@@ -1145,39 +1136,30 @@ def setting_diagnostics(symbol: str, *, source: str, where: list[str],
 
     if separated:
         detail = "; ".join(f"{s} → {f}" for s, f in zip(settings, formulas))
-        body = f"Cell contents each setting implies: {detail}"
-        closing = ("The site multiplicities differ between settings, so the "
-                   "choice changes ZMV and every weight fraction while leaving "
-                   "Rwp alone")
+        body = f"Cell contents each setting implies: {detail}."
     elif multiplicities:
         detail = "; ".join(f"{s} → {m}" for s, m in multiplicities.items())
         body = (f"Both settings imply the same cell contents ({formulas[0]}), "
-                f"so the composition does not separate them — the site "
-                f"multiplicities do: {detail}")
-        closing = ("The sites exchange multiplicities between settings without "
-                   "changing the cell contents, so ZMV and the weight fractions "
-                   "cannot tell you which is right — what moves is which site "
-                   "carries which multiplicity, and with it the calculated "
-                   "pattern")
+                f"so the composition does not separate them. The site "
+                f"multiplicities do: {detail}. The sites exchange "
+                f"multiplicities between settings without changing the cell "
+                f"contents, so the choice moves the calculated pattern.")
     else:
-        detail = (f"{taken}, against {', '.join(others)}"
-                  + ("" if same_axes else " — hexagonal against rhombohedral "
-                     "axes, so the cell and the coordinates belong to one of "
-                     "them and no composition compares the two"))
-        body = f"The alternatives are {detail}"
-        closing = ("The site multiplicities differ between settings, so the "
-                   "choice changes ZMV and every weight fraction while leaving "
-                   "Rwp alone")
+        detail = f"{taken}, against {', '.join(others)}"
+        body = f"The alternatives are {detail}."
+        if not same_axes:
+            body += (" These are hexagonal against rhombohedral axes, so the "
+                     "cell and the coordinates belong to one of them and no "
+                     "composition compares the two.")
 
     return [Diagnostic(
         level="warning", code="SPACE_GROUP_SETTING_ASSUMED", where=list(where),
         message=(f"{source} names space group {symbol!r}, which the tables hold "
-                 f"in {1 + len(others)} settings; it was resolved to {taken}. "
+                 f"in {1 + len(others)} settings. It was resolved to {taken}. "
                  + body),
-        suggestion=("if that is the setting you meant, nothing is wrong — write "
-                    f"it into the symbol ({taken!r}) to say so. If it is not, "
-                    "the coordinates belong to another setting: name it instead "
-                    f"({', '.join(repr(s) for s in others)}). " + closing),
+        suggestion=("Write the setting into the symbol: "
+                    f"{taken!r} if that is the one you meant, otherwise "
+                    f"{', '.join(repr(s) for s in others)}."),
     )]
 
 

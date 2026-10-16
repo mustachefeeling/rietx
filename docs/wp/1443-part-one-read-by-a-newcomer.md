@@ -131,7 +131,16 @@ problem here, undefined words are.
 
 ### Inherited
 
-(none yet)
+- **From WP-1975 (2026-10-15): the manual is to be rebuilt as a new tree beside the old one,
+  with each old chapter retired once its content has been mined** (WP-1975 § F8, § H1). The
+  layout is Start | Guides | Concepts | Reference | Theory | Switching. A fix made in an old
+  `data.md` or `concepts.md` passage is lost when that chapter is retired, unless the new page
+  that holds the content also gets it. Before starting, check how far the rebuild has got.
+  Where a passage's content already has a home in the new tree, fix it there. These eleven
+  passages are also a ready-made acceptance check for the new Start and Concepts pages.
+- **From WP-1975 (2026-10-16): the rebuild is filed.** WP-1978 builds the new tree (Sphinx
+  with pydata-sphinx-theme), WP-1983 writes Concepts, and WP-1986 mines the old chapters into
+  Guides and retires them. Check those three for how far each has got.
 
 ## Non-goals
 

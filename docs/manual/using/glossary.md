@@ -53,7 +53,7 @@ None
 
 `help_registry` returns the whole corpus as JSON-able data, and the GUI's
 `GET /api/help` serves it. Its keys are `parameters`, `peak_flags`,
-`peak_diagnostics`, `peak_origins`, `stage_fields`, `reader_options`,
+`diagnostics`, `peak_origins`, `stage_fields`, `reader_options`,
 `instrument_fields`, `search_fields` and `plans`. Each object in `parameters`
 lists every glob that reaches it, so a `help_key` looks up there.
 
@@ -66,7 +66,7 @@ print(registry["peak_flags"]["axial_tail"]["title"])
 ```
 
 ```text
-['instrument_fields', 'parameters', 'peak_diagnostics', 'peak_flags', 'peak_origins', 'plans', 'reader_options', 'search_fields', 'stage_fields']
+['diagnostics', 'instrument_fields', 'parameters', 'peak_flags', 'peak_origins', 'plans', 'reader_options', 'search_fields', 'stage_fields']
 Possibly a stronger line's axial tail
 ```
 

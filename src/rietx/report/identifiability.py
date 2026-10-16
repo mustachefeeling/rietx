@@ -145,7 +145,8 @@ def _render_mode(mode: SoftMode) -> str:
 def identifiability_clause(evidence: IdentifiabilityEvidence | None
                            ) -> str | None:
     """The summary's identifiability clause(s), or None when nothing crosses
-    a comment threshold.
+    a comment threshold.  One line, with no newline inside: the eval shim
+    excises it as the exact substring ``"\\n" + clause``.
 
     At most two statements: the strongest firing exchange (others counted,
     never listed — the exchanges table has them), and the softest notable
@@ -205,24 +206,27 @@ def identifiability_clause(evidence: IdentifiabilityEvidence | None
         others = (f" (and {len(firing) - 1} more held candidate(s), "
                   f"see identifiability.exchanges)" if len(firing) > 1 else "")
         clauses.append(
-            f"fitted {worst.partner} = {worst.partner_value:.6g} stands "
+            f"Fitted {worst.partner} = {worst.partner_value:.6g} stands "
             f"{worst.partner_significance:.0f}σ from {worst.partner_null:g} "
             f"but is exchangeable with the held {worst.held} "
-            f"(R² = {worst.r2:.4f}){others} — this fit cannot tell which is "
-            f"physical; resolve it by measurement, never by freeing both into "
-            f"one fit (that is a ridge): fit each of the pair alone with the "
-            f"other held at its null and compare χ²; a χ² gap of "
-            f"≥ {RIVAL_DECISIVE_MIN_CHI2_RATIO - 1:.0%} means the data has "
-            f"chosen — the winning rival's fit is the answer, quoted without "
-            f"caveat; a smaller gap means the pair is genuinely unresolved: "
-            f"fix it by protocol (a calibrant-fixed zero, a wider window) or "
-            f"say the data has not chosen")
+            f"(R² = {worst.r2:.4f}){others}. "
+            f"This fit cannot tell which is physical. "
+            f"Fit each of the pair alone with the other held at its null, "
+            f"and compare χ². "
+            f"Do not free both into one fit, because that gives a ridge. "
+            f"A χ² gap of ≥ {RIVAL_DECISIVE_MIN_CHI2_RATIO - 1:.0%} means "
+            f"the data has chosen, and the winning rival's fit is the answer, "
+            f"quoted without caveat. "
+            f"A smaller gap leaves the pair unresolved. "
+            f"Fix it by protocol (a calibrant-fixed zero, a wider window) or "
+            f"say the data has not chosen.")
     softest = min((m for m in (evidence.soft_modes or [])
                    if m.eigenvalue < SOFT_MODE_NOTABLE_EIGENVALUE),
                   key=lambda m: m.eigenvalue, default=None)
     if softest is not None:
         clauses.append(
-            f"the combination {_render_mode(softest)} is unconstrained at "
-            f"the {softest.eigenvalue:.1e} level — these parameters trade "
-            f"freely and their individual esds are not independent")
-    return "; ".join(clauses) if clauses else None
+            f"The combination {_render_mode(softest)} is unconstrained at "
+            f"the {softest.eigenvalue:.1e} level. "
+            f"These parameters trade freely, so their individual esds are "
+            f"not independent.")
+    return " ".join(clauses) if clauses else None

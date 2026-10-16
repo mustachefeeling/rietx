@@ -57,6 +57,7 @@ from rietx.schemas.instrument import (
 )
 from rietx.schemas.structure import AnisoU, StephensStrain
 from tests.api_surface import (
+    DEFERRED_CEILING,
     EXCLUDED_TYPES,
     EXCLUSIONS,
     PROVISIONAL_MODULES,
@@ -74,7 +75,14 @@ from tests.test_schemas import make_lab6
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANUAL_DIR = REPO_ROOT / "docs" / "manual"
 USING_DIR = MANUAL_DIR / "using"
+#: The new manual (WP-1978), every tab of it.  A name it spells resolves, and a
+#: name it documents counts toward the partition, exactly as Part 1's do.  Its
+#: Theory tab is included, which the old tree's Part 2 is not: a code span
+#: there is a name a reader may type, wherever the page sits.
+DOCS_TREE = REPO_ROOT / "docs" / "docs"
 PAGES = sorted(USING_DIR.rglob("*.md")) if USING_DIR.exists() else []
+PAGES += sorted(p for p in DOCS_TREE.rglob("*.md")
+                if not {"_build", "_generated"} & set(p.relative_to(DOCS_TREE).parts))
 
 CODE_SPAN = re.compile(r"`([^`\n]+)`")
 FENCE = re.compile(r"^```\{?([\w-]+)\}?[^\n]*\n(.*?)^```", re.S | re.M)
@@ -94,6 +102,11 @@ PATH_ROOTS = ("phases.", "instrument.")
 # drift the way two paragraphs saying the same thing would.
 PROVISIONAL_TARGET = "provisional-by-declaration"
 COMPATIBILITY_PAGE = USING_DIR / "compatibility.md"
+
+
+def _where(page: Path) -> str:
+    """A page's path under `docs/`, since the new tree has an `index.md` per tab."""
+    return page.relative_to(REPO_ROOT / "docs").as_posix()
 
 
 def _pages() -> list[tuple[Path, str]]:
@@ -129,7 +142,7 @@ def _included_sources(page: Path, text: str) -> list[str]:
     sources = []
     for target in LITERALINCLUDE.findall(text):
         path = (page.parent / target).resolve()
-        assert path.exists(), f"{page.name}: literalinclude target does not exist: {target}"
+        assert path.exists(), f"{_where(page)}: literalinclude target does not exist: {target}"
         sources.append(path.read_text(encoding="utf-8"))
     return sources
 
@@ -283,7 +296,7 @@ def _step(obj: object, attr: str) -> tuple[bool, object]:
 
 
 def _resolve_absolute(page: Path, dotted: str) -> None:
-    resolve_dotted(dotted, page.name)
+    resolve_dotted(dotted, _where(page))
 
 
 def test_every_dotted_name_resolves():
@@ -316,10 +329,10 @@ def test_every_dotted_name_resolves():
             if head not in roots:
                 continue
             obj = types_by_name.get(head) or getattr(rietx, head, None)
-            assert obj is not None, f"{page.name}: `{token}` — nothing named {head!r}"
+            assert obj is not None, f"{_where(page)}: `{token}` — nothing named {head!r}"
             for attr in tail.split("."):
                 ok, obj = _step(obj, attr)
-                assert ok, f"{page.name}: `{token}` — {head} has no member {attr!r}"
+                assert ok, f"{_where(page)}: `{token}` — {head} has no member {attr!r}"
                 if obj is None:  # a field of a non-rietx type: nothing further to walk
                     break
 
@@ -340,7 +353,7 @@ def test_every_rx_dot_name_is_exported():
     """
     import rietx as rx
 
-    missing = {(page.name, name)
+    missing = {(_where(page), name)
                for page, text in _pages()
                for name in RX_DOT_NAME.findall(_code_text(page, text))
                if name not in rx.__all__}
@@ -371,7 +384,7 @@ def test_imports_shown_in_part_one_exist():
                     except ModuleNotFoundError:
                         pass
                 assert hasattr(module, imported), (
-                    f"{page.name}: `from {module_name} import {imported}` — "
+                    f"{_where(page)}: `from {module_name} import {imported}` — "
                     f"{module_name} exports no {imported!r}"
                 )
 
@@ -391,7 +404,7 @@ def test_every_figure_reference_exists():
         for target in targets:
             if target.startswith(("http://", "https://")):
                 continue
-            assert (page.parent / target).exists(), f"{page.name}: missing image: {target}"
+            assert (page.parent / target).exists(), f"{_where(page)}: missing image: {target}"
 
 
 def test_every_closed_vocabulary_member_is_named_where_its_table_is():
@@ -567,11 +580,11 @@ def test_parameter_dot_paths_resolve():
             if not token.startswith(PATH_ROOTS):
                 continue
             assert "[" not in token and "]" not in token, (
-                f"{page.name}: parameter path `{token}` uses brackets; fnmatch reads them "
+                f"{_where(page)}: parameter path `{token}` uses brackets; fnmatch reads them "
                 "as a character class"
             )
             assert any(fnmatch(path, token) for path in paths), (
-                f"{page.name}: parameter path `{token}` matches nothing on a real table"
+                f"{_where(page)}: parameter path `{token}` matches nothing on a real table"
             )
 
 
@@ -586,7 +599,7 @@ def test_every_python_block_parses():
             try:
                 ast.parse(block)
             except SyntaxError as exc:  # pragma: no cover - the message is the point
-                pytest.fail(f"{page.name}: python block does not parse: {exc}")
+                pytest.fail(f"{_where(page)}: python block does not parse: {exc}")
 
 
 def test_python_blocks_execute_or_say_why():
@@ -600,13 +613,13 @@ def test_python_blocks_execute_or_say_why():
     for page, text in _pages():
         for block, reason in _python_blocks(page, text):
             if reason is not None:
-                assert len(reason.split()) >= 3, f"{page.name}: no-exec reason is a shrug: {reason}"
+                assert len(reason.split()) >= 3, f"{_where(page)}: no-exec reason is a shrug: {reason}"
                 continue
             try:
-                exec(compile(block, f"{page.name}:python", "exec"), {"__name__": "manual_block"})
+                exec(compile(block, f"{_where(page)}:python", "exec"), {"__name__": "manual_block"})
             except Exception as exc:  # pragma: no cover - the message is the point
                 pytest.fail(
-                    f"{page.name}: python block raised {type(exc).__name__}: {exc}\n"
+                    f"{_where(page)}: python block raised {type(exc).__name__}: {exc}\n"
                     f"--- block ---\n{block}\n"
                     "Add `<!-- api-doc: no-exec — <reason> -->` above it if it cannot run."
                 )
@@ -636,6 +649,20 @@ def test_derived_surface_is_partitioned():
     assert not overlap, (
         f"{len(overlap)} name(s) both documented and deferred — regenerate the bucket with "
         f"`python -m tests.api_surface --write-deferred`: {sorted(overlap)[:20]}"
+    )
+
+
+def test_deferred_bucket_does_not_grow():
+    """A ratchet: the bucket may shrink in any change and grow in none.
+
+    `DEFERRED_CEILING` is lowered at each release cut, not here, so a change
+    that documents names never has to edit it.
+    """
+    count = len(load_deferred())
+    assert count <= DEFERRED_CEILING, (
+        f"{count} names deferred, over the ceiling of {DEFERRED_CEILING}. Document the "
+        "new names in a manual page, or exclude them with a reason in tests/api_surface.py. "
+        "Raising DEFERRED_CEILING is a reviewed edit that says why in its commit."
     )
 
 

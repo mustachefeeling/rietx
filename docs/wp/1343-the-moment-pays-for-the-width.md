@@ -1,6 +1,6 @@
 # WP-1343 — the magnetic peaks are broader, and the moment pays for it
 
-Milestone: magnetic · Status: 🔄 2026-10-15 — 9 of 12 tasks done; open: a synthetic k = 0 no-esd case, the PNGs and acceptance 4's synthetic k ≠ 0 fallback (PR #943 in review), and the width diagnostic's self-inflated noise (decided 2026-10-15)
+Milestone: magnetic · Status: 🔄 2026-10-15 — 9 of 12 tasks done; PR #943 merged (acceptance 4's synthetic k ≠ 0 fallback); open: a synthetic k = 0 no-esd case with its PNGs, and the width diagnostic's self-inflated noise
 Depends on: 1327 (the moment, the magnetic |F_⊥|², the shared scale);
 1326 soft (the satellites that make the term identifiable)
 Priority: P2 2026-10-05 — was P3: `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` fires on a warm refit under `fit` (#729), a flag firing wrongly whose workaround is `run_stage`
@@ -452,6 +452,21 @@ the cheaper of the two at the time; the skill row is required either way.
 
 ## Handover log
 
+- **2026-10-15** — PR #943 (outside contributor) merged as `2e5b5eb8`.
+  It adds `tests/test_magnetic_width_k_half.py`, acceptance 4's synthetic
+  fallback: CrSBr at k = (0, 0, ½), from a published structure, with a
+  nuclear-only control and obs/calc/diff PNGs to `tests/output/` with
+  magnetic-only zooms. So acceptance 4 is met by the synthetic stand-in, and
+  the test's docstring says which was used. Real k ≠ 0 CW data (Ba₂FeSbSe₅)
+  is still the better row whenever it arrives. Round 2 made the A2 arm
+  `xfail(strict=False)`, since z = 2.99 sits 0.3 % under the 3.0 bar. That arm
+  records the width-diagnostic task above, and it becomes a pass when that
+  task lands. The merge was gated in a stack with #949, #955 and #947 on tree
+  `2268e525`. The fast suite gave 10632 passed, 120 skipped, 2 xfailed, and
+  the whole `-m slow` suite gave 317 passed, 12 skipped (macOS arm64,
+  `[dev,jax]`, Python 3.12.10). The Tests row stays open for its k = 0
+  no-esd case. *Next:* the width diagnostic's noise estimate (Tasks, last
+  row).
 - **2026-10-15** — from the PR review (PR #943): the width diagnostic can stay
   silent on the case it exists for. On #943's synthetic CrSBr the moment came
   back 25 % low with the width held at zero, and `MAGNETIC_WIDTH_UNMODELLED`

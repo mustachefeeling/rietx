@@ -30,6 +30,17 @@ CHAPTERS = sorted(
     p for p in MANUAL_DIR.rglob("*.md") if "_build" not in p.relative_to(MANUAL_DIR).parts
 )
 
+#: The new manual (WP-1978), built beside the old one until WP-1986 retires it.
+#: Its pages share the old tree's register and trail guards below, and carry the
+#: page contract of their own (§ The new tree).
+DOCS_TREE = MANUAL_DIR.parent / "docs"
+#: Build outputs, never pages.  `_generated/` holds the Reference tab's bodies,
+#: which a committed page includes (`docs/reference_pages.py`).
+NOT_PAGES = {"_build", "_generated"}
+DOCS_PAGES = sorted(
+    p for p in DOCS_TREE.rglob("*.md") if not NOT_PAGES & set(p.relative_to(DOCS_TREE).parts)
+)
+
 # Everything on a built page that is *not* prose: a `$` inside a code block or
 # a script is not a rendering failure, and MathJax's own delimiters are `\(…\)`.
 MARKUP_WITHOUT_PROSE = re.compile(
@@ -68,8 +79,9 @@ BIB_KEY = re.compile(r"^@\w+\{([^,\s]+)\s*,", re.MULTILINE)
 
 
 def _cited_keys() -> set[str]:
+    """Both trees cite from the one `references.bib` (`docs/sphinx_shared.py`)."""
     keys: set[str] = set()
-    for page in CHAPTERS:
+    for page in CHAPTERS + DOCS_PAGES:
         for role in CITE_ROLE.findall(page.read_text(encoding="utf-8")):
             keys.update(k.strip() for k in role.split(","))
     return keys
@@ -85,25 +97,63 @@ def built_manual(tmp_path_factory):
     completed process, so the build's own failure is reported by the test named
     for it rather than as a fixture error.
     """
-    out = tmp_path_factory.mktemp("manual") / "html"
+    return _build(MANUAL_DIR, tmp_path_factory.mktemp("manual") / "html")
+
+
+@pytest.fixture(scope="session")
+def built_docs_tree(tmp_path_factory):
+    """The new tree's `-W` build, on the old tree's worker: a few seconds."""
+    return _build(DOCS_TREE, tmp_path_factory.mktemp("docs-tree") / "html")
+
+
+def _build(source: Path, out: Path):
     result = subprocess.run(
         [sys.executable, "-m", "sphinx", "-W", "-q", "-E", "-b", "html",
-         str(MANUAL_DIR), str(out)],
+         str(source), str(out)],
         capture_output=True, text=True, timeout=300,
     )
     return out, result
 
 
+#: Each built-HTML guard below reads both trees.
+BOTH_BUILDS = pytest.mark.parametrize("build", ["built_manual", "built_docs_tree"])
+
+
+def _stray_in_prose(build: str, request, pattern: str) -> list[str]:
+    """Each match of `pattern` in the rendered prose of a build's own pages.
+
+    The old tree's landing page is copied in and skipped (`_copied_in`); the new
+    tree copies nothing in, and its own `index.html` shares the landing page's
+    name.  `_static/` is skipped in both, being the theme's assets:
+    pydata-sphinx-theme ships a Jinja template there, `webpack-macros.html`,
+    that no page renders.
+    """
+    out, result = request.getfixturevalue(build)
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    copied_in = _copied_in() if build == "built_manual" else set()
+    stray: list[str] = []
+    for page in sorted(out.rglob("*.html")):
+        rel = page.relative_to(out)
+        if rel.as_posix() in copied_in or rel.parts[0] == "_static":
+            continue
+        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
+        for match in re.finditer(pattern, text, re.S):
+            stray.append(f"{rel.as_posix()}: …{match.group(0).strip()}…")
+    return stray
+
+
 @pytest.mark.xdist_group("manual-build")
-def test_manual_builds_warning_free(built_manual):
+@BOTH_BUILDS
+def test_manual_builds_warning_free(build, request):
     """sphinx-build -W: warnings (incl. undefined substitutions, missing
     citations, broken eq refs) are errors."""
-    _, result = built_manual
+    _, result = request.getfixturevalue(build)
     assert result.returncode == 0, f"sphinx-build -W failed:\n{result.stdout}\n{result.stderr}"
 
 
 @pytest.mark.xdist_group("manual-build")
-def test_no_unrendered_math_survives_the_build(built_manual):
+@BOTH_BUILDS
+def test_no_unrendered_math_survives_the_build(build, request):
     """No `$` reaches the rendered prose.  `-W` cannot see this class of bug:
     the page builds cleanly and prints the TeX.
 
@@ -116,21 +166,13 @@ def test_no_unrendered_math_survives_the_build(built_manual):
     other spans in Part 2 render correctly — so the rule is about the delimiters
     surviving, not about reflowing every equation onto one line.
     """
-    out, result = built_manual
-    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
-    copied_in = _copied_in()
-    stray: list[str] = []
-    for page in sorted(out.rglob("*.html")):
-        if page.relative_to(out).as_posix() in copied_in:
-            continue        # the landing page — see _copied_in()
-        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
-        for match in re.finditer(r".{0,60}\$.{0,60}", text, re.S):
-            stray.append(f"{page.name}: …{match.group(0).strip()}…")
+    stray = _stray_in_prose(build, request, r".{0,60}\$.{0,60}")
     assert not stray, "unrendered TeX in the built prose:\n" + "\n".join(stray[:10])
 
 
 @pytest.mark.xdist_group("manual-build")
-def test_no_unrendered_markup_survives_the_build(built_manual):
+@BOTH_BUILDS
+def test_no_unrendered_markup_survives_the_build(build, request):
     """No backtick reaches the rendered prose.  The `$` guard above, one
     delimiter over, and the same blind spot: the page builds clean and prints
     the markup.
@@ -149,16 +191,7 @@ def test_no_unrendered_markup_survives_the_build(built_manual):
     table the pipes are escaped and the span dropped, which is what the manual's
     own tables already do (`\\|F\\|²`).
     """
-    out, result = built_manual
-    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
-    copied_in = _copied_in()
-    stray: list[str] = []
-    for page in sorted(out.rglob("*.html")):
-        if page.relative_to(out).as_posix() in copied_in:
-            continue        # the landing page — see _copied_in()
-        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
-        for match in re.finditer(r".{0,60}`.{0,60}", text, re.S):
-            stray.append(f"{page.name}: …{match.group(0).strip()}…")
+    stray = _stray_in_prose(build, request, r".{0,60}`.{0,60}")
     assert not stray, (
         "a code span or role did not close, and its backtick is in the built "
         "prose:\n" + "\n".join(stray[:10])
@@ -166,7 +199,8 @@ def test_no_unrendered_markup_survives_the_build(built_manual):
 
 
 @pytest.mark.xdist_group("manual-build")
-def test_no_unsubstituted_substitution_survives_the_build(built_manual):
+@BOTH_BUILDS
+def test_no_unsubstituted_substitution_survives_the_build(build, request):
     """No `{{ NAME }}` reaches the rendered page.  The guard above, one
     delimiter over, and the same blind spot: `-W` sees nothing.
 
@@ -182,16 +216,7 @@ def test_no_unsubstituted_substitution_survives_the_build(built_manual):
     the symbol in the equation and state its value in the prose beside it,
     which is where `conf.py`'s injection works.
     """
-    out, result = built_manual
-    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
-    copied_in = _copied_in()
-    stray: list[str] = []
-    for page in sorted(out.rglob("*.html")):
-        if page.relative_to(out).as_posix() in copied_in:
-            continue        # the landing page — see _copied_in()
-        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
-        for match in re.finditer(r".{0,60}\{\{.{0,60}", text, re.S):
-            stray.append(f"{page.name}: …{match.group(0).strip()}…")
+    stray = _stray_in_prose(build, request, r".{0,60}\{\{.{0,60}")
     assert not stray, (
         "a MyST substitution reached the page unexpanded (a `{{ NAME }}` inside "
         "a {math} directive is the usual cause):\n" + "\n".join(stray[:10])
@@ -706,7 +731,8 @@ def _authored_chapters() -> list[Path]:
     pages = [p for p in CHAPTERS
              if "_generated" not in p.relative_to(MANUAL_DIR).parts]
     assert len(pages) > 20, "the manual's chapters are not where this expects"
-    return pages
+    assert DOCS_PAGES, "the new tree's pages are not where this expects"
+    return pages + DOCS_PAGES
 
 
 #: A directive option (``:class:``, ``:alt:``, ``:language:``) and an ``:::``
@@ -781,7 +807,7 @@ def test_the_manual_keeps_its_register():
     italic maxims (WP-1408), and Part 1 to carry 363 em dashes and 400 bold
     marks over 73 699 words (WP-1409, `yue-prose`).
 
-    Both parts, since WP-1409.  Part 2 was already at zero when Part 1 was
+    Both parts since WP-1409, and the new tree in docs/docs/ since WP-1978.  Part 2 was already at zero when Part 1 was
     swept, so widening the page list and `_prose_lines`' zones cost Part 2 no
     edit — which is the evidence that the zones were a hole rather than an
     exemption.
@@ -797,7 +823,7 @@ def test_the_manual_keeps_its_register():
         for number, line in _prose_lines(page):
             for mark, fix in REGISTER_MARKS:
                 if mark in line:
-                    rel = page.relative_to(MANUAL_DIR).as_posix()
+                    rel = page.relative_to(MANUAL_DIR.parent).as_posix()
                     offenders.append(f"{rel}:{number}: {fix}\n    {line.strip()[:70]}")
     assert not offenders, (
         "the manual carries the maintainer register:\n" + "\n".join(offenders)
@@ -829,7 +855,7 @@ def test_every_source_symbol_imports():
     """Each equation's *Source:* line names a live module or attribute; a
     rename breaks this test rather than the reader's trust."""
     symbols: set[str] = set()
-    for page in CHAPTERS:
+    for page in CHAPTERS + DOCS_PAGES:
         symbols.update(SOURCE_LINE.findall(page.read_text(encoding="utf-8")))
     assert symbols, "no {source} lines found — pattern or chapters moved?"
     for dotted in sorted(symbols):
@@ -857,10 +883,11 @@ def test_no_chapter_still_writes_a_source_line_by_hand():
     rather than silent on the page.
     """
     offenders = []
-    for page in CHAPTERS:
+    for page in CHAPTERS + DOCS_PAGES:
         for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
             if line.lstrip().startswith("*Source:*"):
-                offenders.append(f"{page.name}:{number}: {line.strip()[:60]}")
+                offenders.append(f"{page.relative_to(MANUAL_DIR.parent).as_posix()}:{number}: "
+                                 f"{line.strip()[:60]}")
     assert not offenders, (
         "write the source line as the `{source}` role, which resolves the name "
         "to a repository link at build time:\n" + "\n".join(offenders)
@@ -870,13 +897,15 @@ def test_no_chapter_still_writes_a_source_line_by_hand():
 def test_source_lines_cover_every_labelled_equation():
     """Every {math} directive with a :label: sits in a section that carries
     at least one `{source}` line — an equation with no named source is a
-    transcription with no audit trail."""
-    for page in CHAPTERS:
+    transcription with no audit trail.  Every page of the new tree is held to
+    it, not only its Theory tab (WP-1978)."""
+    for page in CHAPTERS + DOCS_PAGES:
         text = page.read_text(encoding="utf-8")
         n_labels = len(re.findall(r"^:label:", text, re.MULTILINE))
         n_sources = len(SOURCE_LINE.findall(text))
         if n_labels:
-            assert n_sources > 0, f"{page.name}: {n_labels} labelled equations, no {{source}} lines"
+            assert n_sources > 0, (f"{page.relative_to(MANUAL_DIR.parent).as_posix()}: "
+                                   f"{n_labels} labelled equations, no {{source}} lines")
 
 
 def test_the_hump_table_agrees_with_the_refinement_that_produced_it():
@@ -948,3 +977,273 @@ def test_the_hump_table_agrees_with_the_refinement_that_produced_it():
     assert seen == set(terms_to_key.values()), (
         f"the HumpComponent docstring table is missing rows: "
         f"{set(terms_to_key.values()) - seen}")
+
+
+# ----------------------------------------------------------------------
+# The new tree (WP-1978)
+#
+# The page contract holds on `docs/docs/` only.  The old chapters are exempt
+# until WP-1986 retires them, since most of them were written before it and
+# would fail it.  Each rule is a function of the text, so the tests that hold
+# the tree to it are paired with tests that make it fail on purpose.
+# ----------------------------------------------------------------------
+
+#: A page longer than this is two pages (WP-1975 § F8).
+PAGE_CHAR_CAP = 50_000
+
+#: What a paragraph cannot begin with: a heading, a fence, a directive, a role,
+#: an HTML tag, a table, a list, a quote or an image.
+_NOT_PROSE = re.compile(r"^(#|```|:::|\{|<|\||[-*+] |\d+[.)] |>|!\[)")
+
+#: A MyST target, `(label)=`, which sits above the heading it names.
+_TARGET = re.compile(r"^\([\w.:-]+\)=$")
+
+#: A back-reference: a section that leans on what came before it reads wrong to
+#: anyone who arrived at it from a search or a link, which is most readers.
+_BACK_REFERENCE = re.compile(
+    r"\bas (?:\w+ )?(?:above|earlier|before|previously)\b"
+    r"|\b(?:see|shown|described|mentioned|discussed|noted) (?:above|earlier|previously)\b"
+    r"|\bthe above\b|\b(?:previous|last|preceding) (?:section|page|chapter)\b"
+    r"|^recall\b",
+    re.IGNORECASE,
+)
+
+
+def _sections(text: str) -> list[tuple[int, int, str]]:
+    """(line, heading level, the paragraph that opens the section) per heading.
+
+    The paragraph is "" when the section opens on something other than prose.
+    Headings inside a fenced block are code, not structure.
+    """
+    lines = text.splitlines()
+    sections: list[tuple[int, int, str]] = []
+    fence = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if fence is None and stripped.startswith("```"):
+            fence = stripped[: len(stripped) - len(stripped.lstrip("`"))]
+            continue
+        if fence is not None:
+            if stripped.startswith(fence):
+                fence = None
+            continue
+        heading = re.match(r"^(#{1,6}) \S", line)
+        if not heading:
+            continue
+        j = i + 1
+        while j < len(lines) and not lines[j].strip():
+            j += 1
+        paragraph: list[str] = []
+        while j < len(lines) and lines[j].strip():
+            if not paragraph and (_NOT_PROSE.match(lines[j].strip())
+                                  or _TARGET.match(lines[j].strip())):
+                break
+            paragraph.append(lines[j].strip())
+            j += 1
+        sections.append((i + 1, len(heading.group(1)), " ".join(paragraph)))
+    return sections
+
+
+def _first_sentence(paragraph: str) -> str:
+    return re.split(r"(?<=[.?!])\s", paragraph, maxsplit=1)[0]
+
+
+def _contract_breaches(text: str) -> list[str]:
+    """Every way a page's text breaks the page contract, as messages."""
+    breaches = []
+    if len(text) > PAGE_CHAR_CAP:
+        breaches.append(f"{len(text)} characters, over the {PAGE_CHAR_CAP} cap: split it")
+    sections = _sections(text)
+    titles = [s for s in sections if s[1] == 1]
+    if len(titles) != 1:
+        breaches.append(f"{len(titles)} H1 headings: a page has exactly one title")
+    else:
+        line, _, paragraph = titles[0]
+        # A full stop inside a code span (`rx.fit`) or a dotted name is not
+        # the end of a sentence.
+        if not re.search(r"[.?!](?:\s|$)", re.sub(r"`[^`]*`", "", paragraph)):
+            breaches.append(f"line {line}: no answer sentence under the title. "
+                            "Say what the page answers before anything else")
+    for line, _, paragraph in sections:
+        if _BACK_REFERENCE.search(_first_sentence(paragraph)):
+            breaches.append(f"line {line}: the section opens on a back-reference "
+                            f"({_first_sentence(paragraph)[:60]!r}). A reader may "
+                            "arrive here first, so restate what it needs")
+    return breaches
+
+
+#: A committed page's include of a generated body (`docs/reference_pages.py`).
+_GENERATED_INCLUDE = re.compile(r"^```\{include\} [./]*_generated/(\S+)\n```$", re.M)
+
+
+def _reference_pages():
+    spec = importlib.util.spec_from_file_location(
+        "_reference_pages", MANUAL_DIR.parent / "reference_pages.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _as_rendered(text: str, bodies: dict | None = None) -> str:
+    """A page's source with each generated body it includes in place.
+
+    The contract binds what a reader gets, so a page that is one include line
+    is held to the size and sections of the body it pulls in.
+    """
+    if not _GENERATED_INCLUDE.search(text):
+        return text
+    bodies = _reference_pages().BODIES if bodies is None else bodies
+    return _GENERATED_INCLUDE.sub(lambda m: bodies[m.group(1)](), text)
+
+
+def test_the_contract_reads_a_generated_body_in_place():
+    """A one-line include of an over-long body breaks the cap (WP-1981)."""
+    page = "# Title\n\nAn answer.\n\n```{include} ../_generated/long.md\n```\n"
+    assert _contract_breaches(page) == []
+    rendered = _as_rendered(page, {"long.md": lambda: "A sentence. " * 5000})
+    assert ["over the 50000 cap" in b for b in _contract_breaches(rendered)] == [True]
+
+
+def test_every_page_of_the_new_tree_keeps_the_page_contract():
+    """An answer sentence under the title, under 50 000 characters, and no
+    section opening on "as above" (WP-1975 § F8), generated bodies included."""
+    assert len(DOCS_PAGES) >= 7, "the new tree's pages are not where this expects"
+    breaches = [f"{page.relative_to(DOCS_TREE).as_posix()}: {message}"
+                for page in DOCS_PAGES
+                for message in _contract_breaches(
+                    _as_rendered(page.read_text(encoding="utf-8")))]
+    assert not breaches, "the page contract:\n" + "\n".join(breaches)
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("# Title\n\nThis page answers one question.\n", []),
+    ("(target)=\n# Title\n\nThe answer.\n\n## Part\n\nMore.\n", []),
+    ("# Title\n\n```{toctree}\na\n```\n", ["no answer sentence"]),
+    ("# Title\n\n- a list, not an answer.\n", ["no answer sentence"]),
+    ("# Title\n\nSee `rx.fit` on rietx.org\n", ["no answer sentence"]),
+    ("# Title\n\nAn answer.\n\n# Second title\n\nAnother.\n", ["2 H1 headings"]),
+    ("# Title\n\nAn answer.\n\n## Part\n\nAs described above, the cell moves.\n",
+     ["back-reference"]),
+    ("# Title\n\nAn answer.\n\n## Part\n\nThe above holds for a plate.\n", ["back-reference"]),
+    ("# Title\n\nAn answer.\n\n## Part\n\nRecall that a plate is flat.\n", ["back-reference"]),
+    ("# Title\n\nAn answer.\n\n## Part\n\nPeaks above 90° shift. As above, so below.\n", []),
+    ("# Title\n\nAn answer.\n\n```text\n# not a heading\n```\n", []),
+    ("# Title\n\n" + "A sentence. " * 5000, ["over the 50000 cap"]),
+])
+def test_the_page_contract_fails_what_it_should(text, expected):
+    """Each rule, made to fail once, with the message that names it."""
+    breaches = _contract_breaches(text)
+    assert len(breaches) == len(expected), breaches
+    for breach, fragment in zip(breaches, expected):
+        assert fragment in breach, (fragment, breach)
+
+
+#: A markdown link's target, `[text](target)`, outside an image.
+_MD_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)\)")
+
+#: `myst_heading_anchors` in `docs/docs/conf.py`: H1 to H3 get a slug.
+HEADING_ANCHOR_DEPTH = 3
+
+
+def _heading_slugs(source: Path) -> set[str]:
+    """The MyST anchor of each heading on a page, as `myst_heading_anchors` makes it.
+
+    A link may name a section by this slug or by its HTML id, and the two
+    differ wherever a heading carries punctuation or a non-ASCII letter: MyST
+    resolves `#size--strain-µr` to the section whose id is `size-strain-r`.
+    Only headings down to the depth `conf.py` sets get one.
+    """
+    from mdit_py_plugins.anchors.index import slugify
+
+    if not source.is_file():
+        return set()
+    lines = source.read_text(encoding="utf-8").splitlines()
+    return {slugify(lines[line - 1].lstrip("#").strip())
+            for line, level, _ in _sections("\n".join(lines))
+            if level <= HEADING_ANCHOR_DEPTH}
+
+
+def _theory_link_failures(page: Path, text: str, out: Path) -> list[str]:
+    """Each link from `page` into the Theory tab that the build did not write.
+
+    The built page has to exist, and so does the section a fragment names, by
+    its HTML id or by the MyST slug that resolves to one.  Read off the HTML,
+    because that is what the reader's click lands on.
+    """
+    failures = []
+    for target in _MD_LINK.findall(text):
+        if "://" in target or target.startswith("#"):
+            continue
+        path, _, fragment = target.partition("#")
+        source = (page.parent / path).resolve()
+        try:
+            rel = source.relative_to(DOCS_TREE.resolve())
+        except ValueError:
+            continue
+        if not rel.parts or rel.parts[0] != "theory":
+            continue
+        built = out / rel.with_suffix(".html")
+        if not built.is_file():
+            failures.append(f"{target}: no page {rel.with_suffix('.html').as_posix()}")
+        elif (fragment and f'id="{fragment}"' not in built.read_text(encoding="utf-8")
+              and fragment not in _heading_slugs(source.with_suffix(".md"))):
+            failures.append(f"{target}: {rel.with_suffix('.html').as_posix()} has no "
+                            f"section #{fragment}")
+    return failures
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_every_theory_link_from_concepts_and_guides_resolves(built_docs_tree):
+    """A physics claim on a Concepts or Guides page links the Theory section
+    that derives it, and the link has to land (WP-1975 § F8)."""
+    out, result = built_docs_tree
+    assert result.returncode == 0, "the new tree did not build"
+    failures = [f"{page.relative_to(DOCS_TREE).as_posix()}: {failure}"
+                for page in DOCS_PAGES
+                if page.relative_to(DOCS_TREE).parts[0] in {"concepts", "guides"}
+                for failure in _theory_link_failures(page, page.read_text(encoding="utf-8"), out)]
+    assert not failures, "links into the Theory tab that land nowhere:\n" + "\n".join(failures)
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_the_theory_link_check_fails_what_it_should(built_docs_tree):
+    """The check above, made to fail on a missing page and a missing section."""
+    out, result = built_docs_tree
+    assert result.returncode == 0, "the new tree did not build"
+    page = DOCS_TREE / "concepts" / "index.md"
+    text = ("[ok](../theory/references.md) [ok](../theory/index.md#theory) "
+            "[gone](../theory/no-such-page.md) [gone](../theory/index.md#no-such-section) "
+            "[elsewhere](../reference/index.md) [web](https://example.org/theory/x.md) "
+            "[root](../)")
+    failures = _theory_link_failures(page, text, out)
+    assert len(failures) == 2, failures
+    assert "no page theory/no-such-page.html" in failures[0]
+    assert "no section #no-such-section" in failures[1]
+
+
+def test_a_heading_slug_is_read_the_way_myst_makes_it(tmp_path):
+    """A slug and an HTML id part company on punctuation and non-ASCII letters."""
+    page = tmp_path / "page.md"
+    page.write_text("# Size & strain µR\n\nText.\n\n#### Too deep\n\nMore.\n\n"
+                    "```text\n# a comment\n```\n",
+                    encoding="utf-8")
+    assert _heading_slugs(page) == {"size--strain-µr"}
+
+
+#: The front page's audience cards, in the order WP-1975 § F8 set.
+FRONT_CARDS = ("New to rietx", "Coming from another code", "Supervising an agent")
+TABS = ("Start", "Guides", "Concepts", "Reference", "Theory", "Switching")
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_the_front_page_offers_three_audiences_and_six_tabs(built_docs_tree):
+    """The cards in their order, and every tab in the header rather than
+    folded into a "More" menu."""
+    out, result = built_docs_tree
+    assert result.returncode == 0, "the new tree did not build"
+    html = (out / "index.html").read_text(encoding="utf-8")
+    cards = re.findall(r'class="sd-card-title[^"]*"[^>]*>\s*(.*?)\s*<', html, re.S)
+    assert tuple(cards) == FRONT_CARDS, cards
+    header = html.split('class="bd-header', 1)[1].split("</header>", 1)[0]
+    tabs = re.findall(r'class="nav-link nav-internal"[^>]*>\s*(.*?)\s*</a>', header, re.S)
+    assert tuple(dict.fromkeys(tabs)) == TABS, tabs

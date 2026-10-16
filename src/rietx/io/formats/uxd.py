@@ -211,14 +211,13 @@ def _sigma(marker: str, y: np.ndarray, header: dict[str, str], *, path: Path,
     if diagnostics is not None:
         diagnostics.append(Diagnostic(
             level="warning", code="PATTERN_INTENSITY_SCALED",
-            message=(f"{path.name} stores this range as {marker} — counts per "
-                     "second — but gives no usable _STEPTIME to undo the "
+            message=(f"{path.name} stores this range as {marker} (counts per "
+                     "second) but gives no usable _STEPTIME to undo the "
                      f"division (_STEPTIME={header.get('STEPTIME', '(absent)')}). "
-                     "No σ was supplied, so the Poisson fallback √max(y,1) will "
-                     "be applied to a rate, and the weights are wrong by √t"),
+                     "No σ was supplied, so the Poisson fallback applies to "
+                     "a rate."),
             where=["sigma"],
-            suggestion=("re-export with counts, or supply the esds; the fit runs "
-                        "either way but its esds and χ² are not quotable")))
+            suggestion=("Re-export the file in counts, or supply the esds.")))
     return None, t
 
 
@@ -231,8 +230,8 @@ def _axis(header: dict[str, str], *, path: Path,
                       two_theta=key in _TWO_THETA_DRIVES,
                       other=_OTHER_DRIVES.get(key),
                       remedy="Export the coupled θ–2θ range instead.",
-                      note=(" The block marker is not evidence either — a "
-                            "rocking curve is stored under _2THETACOUNTS too."),
+                      note=(" The block marker does not settle it. A rocking "
+                            "curve is also stored under _2THETACOUNTS."),
                       diagnostics=diagnostics)
 
 

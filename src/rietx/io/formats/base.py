@@ -259,13 +259,11 @@ def reader_options_for(fmt: PatternFormat, requested: dict[str, Any], *,
             if diagnostics is not None:
                 diagnostics.append(Diagnostic(
                     level="info", code="READER_OPTION_IGNORED",
-                    message=(f"{name}={value!r} was not applied: {fmt.title} takes "
-                             f"{list(fmt.options) or 'no reader options'}, so the "
-                             "file was read as if it had not been given"),
+                    message=(f"{name}={value!r} was not applied. {fmt.title} takes "
+                             f"{list(fmt.options) or 'no reader options'}."),
                     where=[name],
-                    suggestion=("drop the option, or check that the file is the "
-                                "format you meant to open — identify_format names "
-                                "the reader that claimed it")))
+                    suggestion=("Drop the option, or run identify_format to check "
+                                "which reader claimed the file.")))
             continue
         out[name] = option.coerce(value)
     return out
@@ -285,12 +283,11 @@ def multiscan_default(n_scans: int, requested: int | None, *, path: str | Path,
         return
     diagnostics.append(Diagnostic(
         level="warning", code="PATTERN_MULTISCAN_DEFAULTED",
-        message=(f"{Path(path).name} holds {n_scans} scans and none was named; "
-                 f"scan 0 of {n_scans} was read. The others are not in this "
-                 "pattern"),
+        message=(f"{Path(path).name} holds {n_scans} scans and none was named, "
+                 f"so scan 0 of {n_scans} was read."),
         where=["scan"],
-        suggestion=(f"pass scan=<0…{n_scans - 1}> to choose, or list_scans(path) "
-                    "to see what each one is")))
+        suggestion=(f"Pass scan=<0…{n_scans - 1}> to choose, or run "
+                    "list_scans(path) to see what each one is.")))
 
 
 #: How much of a file a *sniff* may look at.  Every text dispatch goes through
@@ -388,9 +385,8 @@ def ascending(x: Any, intensity: Any, sigma: Any = None, *,
         if diagnostics is not None:
             diagnostics.append(Diagnostic(
                 level="info", code="PATTERN_SCAN_REVERSED",
-                message=(f"{name} stores its points from high {noun} to low; they "
-                         "were reversed. The same measurement, stored backwards "
-                         "— reversing loses nothing"),
+                message=(f"{name} stores its points from high {noun} to low, "
+                         "and they were reversed."),
                 where=[axis]))
 
     if tt.size > 1 and not np.all(step > 0):
@@ -413,7 +409,7 @@ def ascending(x: Any, intensity: Any, sigma: Any = None, *,
                 diagnostics.append(Diagnostic(
                     level="info", code="PATTERN_DUPLICATE_POINTS",
                     message=(f"{name} repeats {int(repeat.size)} {noun} value(s) with "
-                             "the same intensity; the repeats were dropped"),
+                             "the same intensity, and the repeats were dropped."),
                     where=[axis]))
         else:
             i = int(np.flatnonzero(step <= 0)[0])
@@ -467,12 +463,10 @@ def check_axis(stated: str, *, path: str | Path, field: str, two_theta: bool,
         says = f"gives {field} = {stated!r}" if stated else f"states no {field}"
         diagnostics.append(Diagnostic(
             level="warning", code="PATTERN_X_AXIS_ASSUMED",
-            message=(f"{name} {says}, which is not an axis this reader "
-                     f"recognises; the x column was read as 2θ in degrees.{note}"),
+            message=(f"{name} {says}, so the axis is not one this reader "
+                     f"recognises. The x column was read as 2θ in degrees.{note}"),
             where=["two_theta"],
-            suggestion=(f"check {field} in the file — an axis that is not 2θ, "
-                        "read as 2θ, gives a cell that is wrong by a geometry or "
-                        "a factor, not by a tolerance")))
+            suggestion=(f"Check {field} in the file.")))
     return stated or None
 
 
@@ -595,23 +589,17 @@ def sigma_by_arithmetic(intensity: Any, count_time_s: float | None,
     if count_time_s is not None and count_time_s > 0 and integral(y * count_time_s):
         return sigma_from_cps(y, count_time_s)
     if diagnostics is not None:
-        derived = ("no counting time either: the header gives no scan speed with "
-                   "a unit" if count_time_s is None else
+        derived = ("the header gives no scan speed with a unit to derive a "
+                   "counting time from" if count_time_s is None else
                    f"a counting time of {count_time_s:.6g} s per step does not "
                    "make them whole numbers either")
         diagnostics.append(Diagnostic(
             level="warning", code="PATTERN_INTENSITY_SCALED",
             message=(f"{Path(path).name} declares its intensity unit as "
-                     f"{declared or 'nothing'} but the stored values are not "
-                     f"whole numbers, and {derived}. The scale could not be "
-                     "verified, so no σ was supplied and the Poisson fallback "
-                     "√max(y,1) will be applied to a quantity that may already "
-                     "be divided by a counting time — in which case the weights "
-                     "are wrong by √t"),
+                     f"{declared or 'nothing'}, but the stored values are not "
+                     f"whole numbers and {derived}. No σ was supplied."),
             where=["sigma"],
-            suggestion=("export the scan in counts, or supply the esds yourself; "
-                        "the fit will run either way but its esds and χ² are "
-                        "only as good as the weights")))
+            suggestion=("Export the scan in counts, or supply the esds.")))
     return None
 
 

@@ -467,7 +467,7 @@ flowchart LR
   end
   subgraph b ["mccusker_structural adds"]
     direction TB
-    F["coordinates"] --> G["displacement"] --> H["preferred orientation"]
+    X["extra components"] --> F["coordinates"] --> G["displacement"] --> H["preferred orientation"]
     H --> I["extinction"] --> J["surface roughness"]
   end
   a --> b

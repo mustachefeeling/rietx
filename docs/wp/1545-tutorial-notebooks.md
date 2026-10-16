@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: 🔄 2026-10-07 — in the maintainer's review rounds (two done); every task done, PR #812 open
 Track: Render what the fit already knows
-Depends on: 1544 (readable objects in a notebook)
+Depends on: 1544 (readable objects in a notebook); 1985 (the report text the rewritten notebooks show)
 
 ## Goal
 
@@ -99,6 +99,18 @@ British spelling):
 
 ### Inherited
 
+- **2026-10-16, from WP-1985 (closed).** The report text the notebooks show is rewritten.
+  A diagnostic prints as `warning[CODE]: message` with indented `at:` and `help:` lines
+  (`Diagnostic.__str__`), and in a notebook as one `<details>` a finding with the code's
+  explanation folded in. `FitReport` has a designed `__str__`. `FitReport.summary` is one
+  sentence a line, and `Refinement.summary()` prints it under `report:` (the `layer0/1:`
+  label, the `abstained:` line and the `unmatched obs peaks:` line are gone). Every message
+  and suggestion was reworded. Four places in the tutorial scripts still assume the old
+  forms: `02_simple_rietveld.py:52` and `05_sequential_fits.py:218` print
+  `[level] CODE: message` by hand (print `d` instead), `02_simple_rietveld.py:152` splits a
+  message on `' — '` (no message carries one now), and its markdown around line 259
+  explains `layer0/1` and `unmatched obs peaks`. The committed notebooks' stored outputs
+  (02, 03, 05) show the old text until they are regenerated.
 - **2026-10-09, from WP-1547.** CI now executes the notebooks on the py3.14
   leg alone. The other legs set `RIETX_TUTORIALS=skip`, which skips
   `test_tutorial_executes_clean` and nothing else. `test_tutorials.py`'s
@@ -106,6 +118,27 @@ British spelling):
   own cells passes every check. The nightly still executes them on 3.13 on
   three operating systems. A local run executes them as before. If PR #812
   rewrites that docstring, keep the paragraph.
+- **2026-10-16, from WP-1975 (the manual rebuild's slate).** The maintainer
+  decided a new direction for these notebooks, and this WP owns it rather
+  than a new one. Wait for WP-1985 (the report and diagnostic text rewrite),
+  so the notebooks show the new output from the start. Then:
+  - **Teach rietx, not Rietveld.** The first audience already knows the
+    method. Show rietx's moves one step a cell ("predict, then run"), and
+    link the new manual's Concepts and Theory pages for the why.
+  - **Notebook 02 splits** in two.
+  - **The "checking an agent's work" boxes leave the notebooks.** A
+    supervising person reads that material in the manual.
+  - Replace the python scaffolding with native displays (WP-1975 § B5 lists
+    it: the `diagnose` f-string prints in 01, about five print loops and a
+    `d.message.split(' — ')[0]` hack in 02, `show_microstructure` in 04, the
+    trajectory loops in 05). Unroll helper functions into atomic steps.
+  - The landing page's code box is pinned to notebook 02's first cell
+    (`test_tutorials.py`), so the split moves that pin.
+  - The new manual (WP-1978) renders the notebooks under its Start tab.
+- **2026-10-16, from WP-1978.** The new tree (`docs/docs/`, PR #1004) does
+  not render the notebooks yet. It loads `myst_nb`, but the copy step stays
+  in the old `conf.py` until WP-1986 retires that tree, so the Start tab is
+  a stub.
 
 ## Non-goals
 
@@ -154,6 +187,11 @@ and what the difference curve shows; QPA.
   is that cell's committed output, and a test holds both there.
 - [x] Can uPlot replace matplotlib in the library? Answered no, with the
   measurements in the handover entry; nothing changed.
+
+**The rebuild's direction (folded 2026-10-16 from WP-1975; detail in `### Inherited`):**
+
+- [ ] After WP-1985 lands: the notebooks teach rietx one step a cell, 02 splits,
+  the agent-checking boxes leave, and native displays replace the scaffolding.
 
 ## Acceptance
 

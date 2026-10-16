@@ -243,11 +243,12 @@ class CorrelationPair(Base):
 
 
 class SoftMode(Base):
-    """One near-null direction of the scale-normalised normal matrix
-    (WP-1056; Watkin, 2008, J. Appl. Cryst. 41, 491 §3.8 — the informative
+    """One near-null direction of the scale-normalised normal matrix.
+
+    WP-1056.  Watkin, 2008, J. Appl. Cryst. 41, 491 §3.8 — the informative
     object is the *combination*, not the pair; Prince, *Mathematical
     Techniques* 3rd ed. ch. 8 — remedies are "linear combinations of
-    parameters that are approximately eigenvectors of the Hessian matrix").
+    parameters that are approximately eigenvectors of the Hessian matrix".
 
     ``eigenvalue`` is of ĴᵀĴ with every column normalised to unit length, so
     it is dimensionless and transform-independent: for a single pair with
@@ -264,9 +265,9 @@ class SoftMode(Base):
 
 
 class ExchangeRow(Base):
-    """One held parameter's exchangeability with the fitted span (WP-1056).
+    """How well the fitted parameters can imitate one held parameter.
 
-    ``r2`` is the block projection R² of the held parameter's Jacobian
+    WP-1056.  ``r2`` is the block projection R² of the held parameter's Jacobian
     column — evaluated at the converged values with the candidate freed on a
     copy of the vary set, never refined — onto the span of the free columns:
     R² → 1 means the data cannot distinguish freeing it from what was
@@ -426,10 +427,9 @@ class MicroabsorptionCorrection(Base):
 
 
 class AbsorptionCorrection(Base):
-    """Record of the specimen absorption applied — WP-0501 (cylinder), WP-0508
-    (flat plate).
+    """Record of the specimen absorption applied (cylinder or flat plate).
 
-    Present only for Rietveld fits that actually carried a specimen dimension.
+    WP-0501 added the cylinder and WP-0508 the flat plate.  Present only for Rietveld fits that actually carried a specimen dimension.
     ``method`` says which geometry's expression ran; ``mu_r`` carries the
     dimensionless µ·(length) in every case — the capillary radius for
     ``rouse_cylinder``, the specimen thickness for the two flat-plate cases —
@@ -1215,10 +1215,9 @@ def _cap_one_code(diagnostics: list[Diagnostic], code: str, omitted_code: str,
         level="info", code=omitted_code, where=[],
         value=float(len(omitted)),
         message=f"{len(omitted)} more {noun}(s) below the "
-                f"{HIGH_CORRELATION_MAX} shown here, weaker than all of them",
-        suggestion="result.identifiability carries the full correlation "
-                   "matrix and top_correlations list — nothing here was "
-                   "dropped from the fit, only from this message",
+                f"{HIGH_CORRELATION_MAX} shown here, weaker than all of them.",
+        suggestion="Read result.identifiability for the full correlation "
+                   "matrix and top_correlations list.",
     )]
     return out
 
@@ -1262,10 +1261,7 @@ def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
         return ["  diagnostics: none"]
     lines = [f"  diagnostics: {len(diagnostics)} unresolved"]
     for d in _cap_high_correlation(diagnostics):
-        line = f"    {d.level.upper()} {d.code}: {d.message}"
-        if d.suggestion:
-            line += f" — {d.suggestion}"
-        lines.append(line)
+        lines += [f"    {line}" for line in str(d).splitlines()]
     return lines
 
 
@@ -1768,7 +1764,7 @@ class RefinementResult(Base):
         """The termination view, then the refined parameters as a table
         (WP-1544). The text is what ``print`` gives; the table is the same
         numbers as ``parameters``."""
-        from .._display import _number, pre_html, table_html
+        from .._display import _number, diagnostics_html, pre_html, table_html
         rows = [(p.path, _number(p.value, p.stderr),
                  "" if p.at_bound is None else str(p.at_bound).lower())
                 for p in self.parameters]
@@ -1780,7 +1776,11 @@ class RefinementResult(Base):
             rows = [(*row, ", ".join(p.equations or ()))
                     for row, p in zip(rows, self.parameters, strict=True)]
         table = table_html(header, rows) if rows else ""
-        return pre_html(str(self)) + table
+        before, after = self._text_parts()
+        before.append(_diagnostic_lines(self.diagnostics)[0])
+        return (pre_html("\n".join(before))
+                + diagnostics_html(_cap_high_correlation(self.diagnostics))
+                + pre_html("\n".join(after)) + table)
 
     def __str__(self) -> str:
         """The termination view a bare result can answer (WP-1302): per-stage
@@ -1793,11 +1793,16 @@ class RefinementResult(Base):
         is what a caller holding only the result — the return value of
         ``fit()``, or one read back from a project — can print without it.
         """
-        lines = [f"RefinementResult: {self.status} ({self.mode})"]
-        lines += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
-        lines += _diagnostic_lines(self.diagnostics)
-        lines += _parametric_lines(self.parametric, self.parametric_form,
-                                   self.parametric_form_joint)
-        lines.append(_provenance_line(self.provenance))
-        lines.append(_agreement_line(self.statistics))
-        return "\n".join(lines)
+        before, after = self._text_parts()
+        return "\n".join(before + _diagnostic_lines(self.diagnostics) + after)
+
+    def _text_parts(self) -> tuple[list[str], list[str]]:
+        """The lines before the diagnostics and the lines after them, so the
+        HTML view can fold each diagnostic between the two."""
+        before = [f"RefinementResult: {self.status} ({self.mode})"]
+        before += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
+        after = _parametric_lines(self.parametric, self.parametric_form,
+                                  self.parametric_form_joint)
+        after.append(_provenance_line(self.provenance))
+        after.append(_agreement_line(self.statistics))
+        return before, after

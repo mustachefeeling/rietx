@@ -808,15 +808,14 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         screen.status = "failed"
         screen.diagnostics = [Diagnostic(
             level="error", code="EXTINCTION_SCREEN_FAILED",
-            message=(f"the reference Le Bail fit of the lattice group {symbol} "
-                     f"raised {type(exc).__name__}: {exc}, so no class could be "
-                     "screened against it"),
+            message=(f"The reference Le Bail fit of the lattice group {symbol} "
+                     f"raised {type(exc).__name__}: {str(exc).rstrip('.')}, so no class could be "
+                     "screened against it."),
             where=[f"{candidate.system} {candidate.centring}, cell "
                    f"{tuple(round(v, 4) for v in candidate.cell)}"],
-            suggestion=("this is about the cell, the instrument or the data — "
-                        "every class would fail the same way.  Validate the cell "
-                        "first (index_pattern's validate_by_lebail), and check "
-                        "the wavelength is not on an absorption edge"))]
+            suggestion=("Validate the cell first with index_pattern's "
+                        "validate_by_lebail, and check that the wavelength is "
+                        "not on an absorption edge."))]
         return screen
 
     rows = ref_fit.reflection_table()
@@ -831,15 +830,14 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         screen.status = "failed"
         screen.diagnostics = [Diagnostic(
             level="error", code="EXTINCTION_SCREEN_FAILED",
-            message=(f"the lattice group {symbol} predicts no reflections in "
-                     f"the measured 2θ range, so there is nothing for any "
-                     f"absence class to be screened against"),
+            message=(f"The lattice group {symbol} predicts no reflections in "
+                     f"the measured 2θ range, so no absence class could be "
+                     f"screened."),
             where=[f"{candidate.system} {candidate.centring}, cell "
                    f"{tuple(round(v, 4) for v in candidate.cell)}"],
-            suggestion=("this is about the cell and the range, not the classes — "
-                        "every class would fail the same way.  Check the cell is "
-                        "not far too small for the range measured, and that the "
-                        "wavelength is the one the pattern was collected at"))]
+            suggestion=("Check that the cell is not far too small for the "
+                        "range measured, and that the wavelength is the one "
+                        "the pattern was collected at."))]
         return screen
     tt_ref = np.array([r.two_theta for r in primary], dtype=np.float64)
     hkl_ref = np.array([(r.h, r.k, r.l) for r in primary], dtype=np.int64)

@@ -1,0 +1,9 @@
+# The python function behind a glob is never a reason a reader is given
+# (WP-1981's review, rule 3).  Inside backticks it is an identifier, which
+# Vale does not read.
+extends: existence
+message: "Say what the pattern matches instead of naming fnmatch."
+level: error
+ignorecase: true
+tokens:
+  - fnmatch\w*

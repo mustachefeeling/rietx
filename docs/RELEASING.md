@@ -52,6 +52,11 @@ which is the backlog this rule exists to prevent.
    so it is written for a reader upgrading, not for a maintainer. The
    precedents are [1.0.0](releases/1.0.0.md), a milestone, and
    [1.0.1](releases/1.0.1.md), a patch that changed no source file.
+   In the same change, read the names the manual still owes prose for, in
+   `tests/api_surface_deferred.txt`. `python -m tests.api_surface` prints the
+   count beside its ceiling. Record the count in the release record's ship
+   block, and lower `DEFERRED_CEILING` in `tests/api_surface.py` to it, so no
+   later change can defer a name without a reviewed edit (WP-1981).
 3. Land both on `main` and let CI go green. Branch protection requires `lint`
    and `ci-ok`, which passes only when the fast suite passed on py3.11, py3.14
    and jax (WP-1506, WP-1547). So a commit on `main` has already passed them,

@@ -9,9 +9,10 @@ name: CI
 #
 # What runs per push, and per PR once it is out of draft:
 #
-#   lint                          ruff over src/tests/examples, and on a PR
-#                                 the skill size limits against its base; the
-#                                 one job a draft PR runs (~40 s)
+#   lint                          ruff over src/tests/examples, Vale over the
+#                                 new manual, and on a PR the skill size
+#                                 limits against its base; the one job a
+#                                 draft PR runs (~40 s)
 #   changes                       `scope`: docs when a PR changes only the
 #                                 planning set, else code; a push is code
 #   docs                          scope docs: the tests that read the planning
@@ -105,6 +106,23 @@ jobs:
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[dev]"
       - run: .venv/bin/python -m ruff check src tests examples
+      - name: Vale over the new manual
+        # The prose linter over docs/docs/ (WP-1982; rules and layers in
+        # .vale.ini).  An error-level alert fails the job, and a warning is
+        # printed for whoever edits the page; suggestions are left to a local
+        # run.  Here rather than in the suite because Vale is a Go binary, not
+        # a Python dependency: pinned by version and checksum, as the
+        # Microsoft package is by the URL `vale sync` reads.
+        env:
+          VALE: vale_3.24.0_Linux_64-bit.tar.gz
+          VALE_SHA256: 867534ddb678abca7f214bc4706ead0922bd5252ffe8035fc227013f66c8b214
+        run: |
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/$VALE" "https://github.com/errata-ai/vale/releases/download/v3.24.0/$VALE"
+          echo "$VALE_SHA256  $RUNNER_TEMP/$VALE" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$VALE" -C "$RUNNER_TEMP" vale
+          "$RUNNER_TEMP/vale" sync
+          .venv/bin/python -c "import sys; sys.path.insert(0, 'docs'); import reference_pages; reference_pages.write_bodies()"
+          "$RUNNER_TEMP/vale" --minAlertLevel=warning docs/docs
       - name: Skill size limits
         # Here rather than in the suite because a draft runs this job alone,
         # and a WP branch lives as a draft: the author sees each capped file's
@@ -180,6 +198,10 @@ jobs:
     # listed.  Ten unrelated test files show an `os.listdir` of .claude/hooks
     # itself.  That is the import system listing a sys.path entry
     # test_workflow_hooks added in the same worker, not a read.
+    #
+    # WP-1981's manual Reference tab builds its roadmap page from ROADMAP.md
+    # (docs/reference_pages.py), so test_reference_pages reads it, and so does
+    # test_manual's page-contract check, which renders the generated bodies.
     needs: changes
     if: needs.changes.outputs.scope == 'docs'
     runs-on: ubuntu-latest
@@ -197,6 +219,7 @@ jobs:
           .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
           tests/test_docs_consistency.py tests/test_workflow_hooks.py
           tests/test_no_stale_name.py tests/test_portability.py
+          tests/test_reference_pages.py tests/test_manual.py
 
   fast:
     name: fast py${{ matrix.python }} ${{ matrix.shard }}/2

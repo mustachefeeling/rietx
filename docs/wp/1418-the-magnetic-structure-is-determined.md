@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-14 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829), #565's certificates part 4 (PR #853), #820's option (a) (PR #953); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-14 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829), #565's certificates part 4 (PR #853), #820's option (a) (PR #953), #565's certificates part 5 (PR #936); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -814,6 +814,22 @@ no magnetic model declared.
 
 ## Handover log
 
+- **2026-10-15** — PR #936 (outside contributor) merged as `50b21045`, and
+  with it #565's certificates are complete (part 5 of 5), so #565 is closed. A
+  class of magnetic candidates that union-find joined is now split where a proof
+  says two of its irreps are distinguishable: `CandidateSet.classes` is the split
+  partition, and `merged_classes` the old one. On the `F m -3 m` Γ general-site
+  set, four classes became six. Round 1's five defects were all fixed with
+  tests: the consistency cap was below its own supply, stale `refuted_by` marks
+  outlived a split, the transfer-fit cache was keyed on a freeable `id`, a
+  pair's other direction stayed `joined`, and the table header was wrong.
+  Round 2 moved the release notes from the shipped 1.9.0 file to 1.10.0. The
+  redraw now seeds per direction, which moves redrawn amplitudes, and no pinned
+  class count moved. #455 stays open: its cubic residue measured 3 partitions in
+  9 runs, and that protocol has not been repeated on this code. Left for the
+  maintainer: the third union-find copy in `_rejoin`, and `analyse` recomputing
+  `_partitions`. Gated in a stack with the other on `main` `e517bb64` (tree `a66be65c`). The fast suite gave 10688 passed, 120 skipped, 2 xfailed, and the whole `-m slow` suite gave 319 passed, 12 skipped (macOS arm64, `[dev,jax]`, Python 3.12.10). *Next:* M-8, M-9's `help.py` entries, Part 2 and the
+  M-9 PNGs.
 - **2026-09-15** — created, from the 2026-09-15 issue triage (issue #256).
   Checked against the tree: M-5 is on `main` as PR #290 and nothing in
   `docs/` recorded it until this round; spglib 2.7.0 in the venv carries the

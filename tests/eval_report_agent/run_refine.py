@@ -195,7 +195,7 @@ def _project_license_placement(response: dict) -> dict | None:
 
     The clause is re-rendered from the *delivered* evidence by the package's
     own renderer — one authority for the sentence, so the excision target is
-    the exact appended substring (``"; " + clause``, report/__init__.py) and
+    the exact appended substring (``"\\n" + clause``, report/__init__.py) and
     never string surgery on prose.  A render/excise mismatch returns a
     refusal envelope: the registration invalidates the cell loudly, never a
     silent fallback.  Returns None on success (including the no-clause case,
@@ -224,7 +224,7 @@ def _project_license_placement(response: dict) -> dict | None:
         if evidence is not None else None)
     if clause is None:
         return None
-    needle = "; " + clause
+    needle = "\n" + clause
     summary = report.get("summary", "")
     if needle not in summary:
         return _refusal(

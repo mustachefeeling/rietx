@@ -95,7 +95,7 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     if kind == "chebyshev":
         sel = select_chebyshev_order(data)
         for d in sel.diagnostics:
-            warnings.warn(f"{d.code}: {d.message}. {d.suggestion}",
+            warnings.warn(str(d),
                           UserWarning, stacklevel=2)
         cheb = BackgroundChebyshev.with_terms(int(sel.selected))
         if seed and cheb.coefficients:

@@ -18,6 +18,11 @@ from .._nearmiss import did_you_mean
 #: Data-contract version of the pydantic schemas (``Capabilities.schema_version``).
 #: Any change a consumer could observe bumps the last component by one, and
 #: the comment says what changed — no classification, no digest (WP-1117).
+#: The number moves once per release cycle.  The first change after a release
+#: bumps it, and each later change before the next release adds its own line
+#: under that number, so a PR rebased onto a ``main`` already bumped keeps
+#: ``main``'s number.  Decided 2026-10-15, after six concurrent PRs had
+#: renumbered one another after every merge.
 #: 0.1 → 0.2 (WP-1076): ``RefinedParameter.initial`` and
 #: ``RefinementResult.correlation_warnings`` removed, both fields nothing wrote.
 #: 0.2 → 0.3 (WP-1112): ``StageSpec.window_slack_deg`` added — a stage's
@@ -910,7 +915,15 @@ class Provenance(Base):
 
 
 class Diagnostic(Base):
-    """A structured, actionable message produced by the engine."""
+    """A structured, actionable message produced by the engine.
+
+    Three texts, each written once (WP-1985).  ``message`` is the observation:
+    one sentence on what this case found, carrying its numbers.  ``suggestion``
+    is the action: one sentence on what to do next.  :attr:`explanation` is
+    what the code means and why it fires.  It is the same for every finding,
+    so it is looked up by ``code`` in :data:`rietx.help.DIAGNOSTIC_HELP` and
+    never stored.
+    """
 
     level: Literal["info", "warning", "error"]
     code: str
@@ -923,3 +936,30 @@ class Diagnostic(Base):
     #: there is no single number, which is not zero (WP-1003; the same
     #: absent-for-cause rule as ``GuardFinding.value``, its usual source).
     value: float | None = None
+
+    def __str__(self) -> str:
+        """The one text form every printed view uses, after rustc's.
+
+        ``warning[CODE]: message`` heads it, then ``at:`` with the paths and
+        ``help:`` with the suggestion, each indented on its own line.  The
+        explanation is left out because it is the same for every finding; a
+        notebook folds it under the headline.
+        """
+        lines = [f"{self.level}[{self.code}]: {self.message}"]
+        if self.where:
+            lines.append(f"  at: {', '.join(self.where)}")
+        if self.suggestion:
+            lines.append(f"  help: {self.suggestion}")
+        return "\n".join(lines)
+
+    @property
+    def explanation(self) -> str | None:
+        """What ``code`` means, from :func:`rietx.help.explain`.
+
+        ``None`` for a code this build does not describe, such as one read
+        from a file a different version wrote.
+        """
+        from ..help import explain
+
+        entry = explain(self.code)
+        return None if entry is None else entry.description

@@ -442,13 +442,13 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
             n_reflections=0, status="failed",
             diagnostics=[Diagnostic(
                 level="warning", code="INDEX_VALIDATION_FAILED",
-                message=(f"the Le Bail validation of {candidate.system} "
-                         f"{symbol} raised {type(exc).__name__}: {exc}"),
+                message=(f"The Le Bail validation of {candidate.system} "
+                         f"{symbol} raised {type(exc).__name__}: "
+                         f"{str(exc).rstrip('.')}."),
                 where=[f"cell {candidate.cell}"],
-                suggestion=("this is evidence about the candidate, not about the "
-                            "search — but check the instrument first: a "
-                            "mis-declared profile or a wavelength on an "
-                            "absorption edge fails for every candidate alike"))])
+                suggestion=("Check the instrument first, since a mis-declared "
+                            "profile or a wavelength on an absorption edge "
+                            "fails every candidate alike."))])
         return (failed, None) if with_result else failed
 
     rows = [r for r in ref.reflection_table() if r.line == 0]
@@ -610,7 +610,7 @@ def index_pattern(peaks: PeakList | None = None, *,
                   two_theta_limits: tuple[float, float] | None = None,
                   formula: str | None = None, temperature: float = 298.0,
                   events=None, cancel=None):
-    """Find the unit cell — or say, in the shape of the answer, that it cannot.
+    """Find the unit cell, or say in the shape of the answer that it cannot be found.
 
     Give it a :class:`~rietx.schemas.indexing.PeakList`, or a ``data`` +
     ``instrument`` pair it will pick peaks from.  Supplying ``data`` is what turns
