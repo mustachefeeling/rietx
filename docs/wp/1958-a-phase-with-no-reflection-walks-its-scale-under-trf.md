@@ -42,6 +42,24 @@ Relevant rules, restated:
   (WP-1110 item 14): the covariance already drops the zero column; the QPA
   marks its block unmeasured. The fraction is the open half.
 
+### Inherited
+
+- **2026-10-16, from the issue triage (#954): the reporter's answer to task
+  2's choice (2026-10-14) is not in the WP.** @mustachefeeling takes the QPA
+  half as the required one: no fraction for a phase with no reflection in the
+  fitted range, under every solver, with the scale held beside it so a TRF fit
+  does not hand a walked 164.7 to a later stage, a chain or an export. Reason:
+  LM already holds the scale and QPA prints 0.61 wt%, the start value, so
+  holding alone leaves the same unmeasured number. They add that the other
+  fractions are normalised over the unseen phase too (moved by 99.99 wt% under
+  TRF, 0.61 wt% under LM in the fixture), so the report should say "relative
+  to the phases seen in range; phase N not measured". Their test asserts both
+  under both solvers: scale unchanged, no fraction for that phase. DECISION
+  (maintainer, task 2): recommend taking both, since it is the package's
+  "absent rather than zero" rule (WP-1072, WP-1110 item 14, `qpa` marking the
+  block unmeasured) carried to the fraction. Checked at `2c94d848`: no code
+  moved, no PR.
+
 ## Non-goals
 
 - Whether a phase is seen at all: WP-1523's significance, closed.
