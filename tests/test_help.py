@@ -285,6 +285,12 @@ def _vocabulary() -> list[str]:
     for structure, instrument in _all_models():
         for e in ParameterTable(structure, instrument).entries:
             seen.setdefault(e.path, None)
+    # A named variable lives outside the model tree, so no model above can
+    # produce one; a Refinement declares it.
+    ref = rx.Refinement(*_default_models())
+    ref.add_variable("B_shared", 0.5)
+    for row in ref.parameters():
+        seen.setdefault(row.path, None)
     return list(seen)
 
 

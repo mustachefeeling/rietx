@@ -82,6 +82,15 @@ import rietx
 TESTS_DIR = Path(__file__).resolve().parent
 DEFERRED_PATH = TESTS_DIR / "api_surface_deferred.txt"
 
+#: The most names the deferred bucket may hold.  Regenerating the bucket is one
+#: command, so without a ceiling a new public name could be deferred as easily
+#: as documented and the bucket would only grow.  The test fails on growth
+#: alone, so concurrent pull requests that each document a name do not collide
+#: on this line.  Each release cut lowers it to the bucket's size then
+#: (docs/RELEASING.md step 2), which is where the list is read.  Raising it is
+#: a reviewed edit with a reason in its commit (WP-1981, 2026-10-16).
+DEFERRED_CEILING = 39
+
 
 # --- what is off the surface, and why -------------------------------------
 #
@@ -627,7 +636,7 @@ def _main() -> None:
     print(f"{len(surface)} names on the derived public surface")
     for kind, count in sorted(kinds.items()):
         print(f"  {kind:>9}: {count}")
-    print(f"  deferred: {len(load_deferred())}")
+    print(f"  deferred: {len(load_deferred())} (ceiling {DEFERRED_CEILING})")
     provisional = provisional_names()
     print(f"  provisional by declaration: {len(provisional)}")
     for prefix in sorted(PROVISIONAL_MODULES):

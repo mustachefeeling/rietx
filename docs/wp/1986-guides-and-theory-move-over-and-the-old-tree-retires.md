@@ -46,6 +46,13 @@ carries no instrument, so write the new one from a `Refinement`.
 
 ### Inherited
 
+- **2026-10-16, from WP-1981.** Three old-tree pieces now have a replacement in the new
+  Reference tab. The glossary (`using/glossary.md`, written by the old `conf.py`'s
+  `_write_glossary`) is covered for parameters by `reference/parameters.md`. Its other arms
+  (stage fields, peak flags, reader options and the rest) have no new page yet. The plan
+  diagram in `using/concepts.md` is replaced by `reference/plans.md`. The old tree's
+  702 000-character rendering of the skill (`_write_skill`) is replaced by
+  `reference/agents.md`, which links the skill instead.
 - **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
   the fenced constants, the citation style, the mermaid theme and the `{source}` role from
   `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds

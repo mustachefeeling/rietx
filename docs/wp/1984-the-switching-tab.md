@@ -43,6 +43,14 @@ publishes such a comparison.
 
 ### Inherited
 
+- **2026-10-16, from WP-1981.** The soft dependency is met. The foreign-name map is
+  `docs/docs/reference/foreign-names.md`, with GSAS-II, GSAS, TOPAS and FullProf columns
+  and a Conversions section (U, V, W units, FullProf's swapped X and Y, Uiso against B,
+  SH/L, polarization, TOPAS moments and scale). A test holds every foreign name to a
+  string literal in that format's reader or writer. The roadmap is
+  `reference/roadmap.md`. Link both, and do not restate the conversions.
+  One fact for the prose: the GSAS-II `.gpx` and TOPAS readers build a `Structure` only,
+  so the instrument names in those columns come from `.instprm` and from rietx's writers.
 - **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
   the fenced constants, the citation style, the mermaid theme and the `{source}` role from
   `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds

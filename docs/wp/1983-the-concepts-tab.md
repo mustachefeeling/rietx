@@ -46,6 +46,14 @@ a page must show a report, quote the shape and link the Reference page.
 
 ### Inherited
 
+- **2026-10-16, from WP-1981.** The soft dependency is met. The parameter map is
+  `docs/docs/reference/parameters.md` (grouped as cell and structure, phase amount and
+  intensity corrections, microstructure, instrument, time of flight, background, named
+  variables), and every preset's stages are drawn on `reference/plans.md`, generated from
+  the plan objects. A Concepts page that explains staging should link the plan page
+  instead of drawing a ladder by hand, since the old tree's hand-drawn one drifted.
+  `vars.*` now has a help entry, so a page about named variables can link the map's
+  "Named variables" group.
 - **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
   the fenced constants, the citation style, the mermaid theme and the `{source}` role from
   `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds

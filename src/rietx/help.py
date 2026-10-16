@@ -153,9 +153,9 @@ UNIT_DISPLAY: dict[str, str] = {
 # ----------------------------------------------------------------------
 
 _CELL_LENGTH = HelpEntry(
-    title="Cell edge",
+    title="Lattice parameter a, b, c",
     description=(
-        "A unit-cell edge length. Sets every reflection position through the "
+        "A unit-cell length. It sets every reflection position through the "
         "lattice metric, so it is the parameter a powder pattern determines "
         "best and the one a systematic position error corrupts first. Edges "
         "the space-group setting ties to another (b to a in a tetragonal cell) "
@@ -166,7 +166,7 @@ _CELL_LENGTH = HelpEntry(
     anchor="peak-positions.html#lattice-metric-and-bragg-s-law",
 )
 _CELL_ANGLE = HelpEntry(
-    title="Cell angle",
+    title="Lattice parameter α, β, γ",
     description=(
         "A unit-cell angle. An angle the space-group setting fixes at 90° or "
         "120° is locked and cannot be freed; a monoclinic cell frees only its "
@@ -1267,6 +1267,24 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default=None,
         typical="the isotropic seed is ε²·[M²] for a strain ε of 1e-4 to 1e-3",
         anchor="microstructure.html#the-positivity-cone-the-seed-and-the-guard",
+    ),
+    # A caller's own parameter, outside the model tree (WP-1981).
+    "vars.*": HelpEntry(
+        title="Named variable",
+        description=(
+            "A parameter of your own, declared with `Refinement.add_variable` "
+            "and named after it. It is TOPAS's `prm`. Model parameters follow it "
+            "through ties, so a constraint can name a shared quantity instead of "
+            "one parameter chosen as the master. The forward model never reads "
+            "it. It reaches the pattern only through the parameters tied to it. "
+            "Its unit and bounds are the ones it was declared with. Declared "
+            "with the bounds of the parameter it replaces, it gives the same "
+            "column and the same answer. Declared without them, it can go where "
+            "that parameter could not."
+        ),
+        unit=None, default=None,
+        typical="the range of the parameters it drives",
+        anchor="using/concepts.html#naming-a-variable-of-your-own",
     ),
 }
 
