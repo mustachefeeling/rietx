@@ -638,7 +638,7 @@ def test_defaults_are_the_schemas_own():
     Absent is the honest state for a cell edge or a coordinate, which arrive
     with the structure and have no default to quote.  What this catches is the
     other case: a retuned schema default leaving a stale number in print, which
-    is the failure the fenced constants in ``docs/manual/conf.py`` exist for.
+    is the failure the fenced constants in ``docs/sphinx_shared.py`` exist for.
     """
     wrong = []
     for path, param in _schema_parameters().items():

@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
-Priority: P3 2026-10-16 — down a rung from P2: waits on 1978 and 1985
+Priority: P3 2026-10-16 — waits on 1985 alone now that WP-1978's tree is built (PR #1004)
 
 ## Goal
 
@@ -43,6 +43,22 @@ carries no instrument, so write the new one from a `Refinement`.
 (`tests/test_gui_manual.py`), which partitions routes and panels. Move it with them.
 
 **Agent admonitions** stay only where a supervising person needs them (§ F8).
+
+### Inherited
+
+- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
+  the fenced constants, the citation style, the mermaid theme and the `{source}` role from
+  `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
+  it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
+  `DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`). Theory moves into
+  `docs/docs/theory/`, whose `references.md` already renders the shared bibliography.
+  `test_every_bib_entry_is_cited` counts citations across both trees, so an entry stays cited
+  while its chapter is half moved. The `{source}` coverage test holds on every page of the new
+  tree, not only Theory. Nothing renders the tutorial notebooks under Start yet: `myst_nb` is
+  loaded, but the copy step (`_copy_tutorials`) stays in the old `conf.py`, and retiring that
+  tree is when it moves. `DOCS_PAGES` globs `.md` only, so once a notebook lands under Start
+  the page contract, the register guard and name resolution skip it until the glob widens.
+  Whether a notebook keeps the page contract is a decision for that move.
 
 ## Non-goals
 

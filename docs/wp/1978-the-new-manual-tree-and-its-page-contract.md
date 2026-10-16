@@ -1,9 +1,8 @@
 # WP-1978 — The new manual's tree: six tabs beside the old, and its page contract
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-10-16 — `docs/docs/` builds with six tabs and the page contract is tested, PR #1004
 Track: The repo's own process
 Depends on: —
-Priority: P2 2026-10-16 — a feature the maintainer asked for, and the tree every other rebuild WP (1979-1986) writes into
 
 ## Goal
 
@@ -60,24 +59,24 @@ on any MyST tree). `rietx.org/` is the landing page and the manual is `/manual.h
 
 ## Tasks
 
-- [ ] The tree: a directory (name it at the start; `docs/site/` or `docs/docs/`), `conf.py`
+- [x] The tree: a directory (`docs/docs/`, chosen over `docs/site/`), `conf.py`
       from the spike's, six tab indexes, the front page with its three cards, `-W` clean.
-- [ ] Theory tab infrastructure: `math_numfig`, the shared `references.bib`, the `{source}`
+- [x] Theory tab infrastructure: `math_numfig`, the shared `references.bib`, the `{source}`
       role and `myst_substitutions` shared with the old `conf.py` rather than copied, so one
       change reaches both trees. Importing the old `conf.py` runs `_write_glossary()` and
       `_copy_tutorials()` and sets its whole Sphinx config, so move the shared parts into a
       module both trees import.
-- [ ] Page-contract tests on the new tree: answer sentence, 50 000-character cap, no
+- [x] Page-contract tests on the new tree: answer sentence, 50 000-character cap, no
       back-reference opener.
-- [ ] Register guard and trail tests extended to the new tree; the Theory-link check for
+- [x] Register guard and trail tests extended to the new tree; the Theory-link check for
       Concepts and Guides pages.
-- [ ] `tests/test_manual_api.py`'s name resolution and partition read the new tree as well.
-- [ ] Skill: none. The skill is unchanged; WP-1981's "For agents" page links it.
+- [x] `tests/test_manual_api.py`'s name resolution and partition read the new tree as well.
+- [x] Skill: none. The skill is unchanged; WP-1981's "For agents" page links it.
 
 ## Acceptance
 
 ```sh
-.venv/bin/python -m sphinx -W -q -b html <new tree> <new tree>/_build/html
+.venv/bin/python -m sphinx -W -q -b html docs/docs docs/docs/_build/html
 .venv/bin/python -m pytest tests/test_manual.py tests/test_manual_api.py -n auto --dist loadgroup
 ```
 
@@ -88,5 +87,60 @@ on any MyST tree). `rietx.org/` is the landing page and the manual is `/manual.h
 
 ## Handover log
 
+- **2026-10-16** — closed. The rebuild now has a tree to write into. `docs/docs/` builds
+  under pydata-sphinx-theme with six tabs and a front page of three audience cards. Each tab
+  is a one-paragraph stub. The fenced constants, the citation style and the `{source}` role
+  now live in one module that both trees import, so a retuned threshold reaches both. Tests
+  hold every new page to the page contract, and the old tree's register, trail and
+  name-resolution guards read the new tree too. Nothing is deployed yet.
+
+  *Done.* `docs/sphinx_shared.py` holds what both conf.py files share: the substitutions
+  (minus `release` and `N_TUTORIALS`, which are per build), the author-year citation style
+  and its registration, the mermaid theme, and the `{source}` role. The old `conf.py` keeps
+  its glossary writer, tutorial copy and skill page. It reaches the module through a
+  `sys.path` append, since `docs/` is not a package. `docs/docs/` was chosen over
+  `docs/site/` because `docs/landing/site/` and `docs/lite/site/` are both gitignored build
+  outputs. In `tests/test_manual.py`, `built_docs_tree` builds the new tree in the
+  `manual-build` group. The four built-HTML guards run on both builds. The register guard,
+  the citation sets and the three `{source}` tests read `DOCS_PAGES` too. New tests cover
+  the page contract (`_contract_breaches`), the Theory-link check and the front page's
+  cards and tabs. Each rule has a parametrised case that makes it fail on purpose.
+  `tests/test_manual_api.py` reads every new page, Theory included, because a code span on
+  any page is a name a reader may type. `pydata-sphinx-theme>=0.23` joined the `docs`
+  extra, at the version the spike measured.
+
+  *Review.* `/code-review high --fix` found nine issues and fixed eight in one commit. A
+  Theory link may name its section by MyST slug as well as by HTML id; I limited that to
+  H1 to H3, the depth `conf.py` gives anchors. A link to the tree root crashed the check. A
+  dot inside a code span passed as an answer sentence. Messages named pages by file name,
+  and the new tree has seven `index.md`. The three built-HTML scans became one helper.
+  `conf.py` now takes the distribution name from `_about`. Declined: holding notebooks to
+  the page contract. None exists in the tree yet, so the decision went to WP-1986's
+  `### Inherited`.
+
+  *Measured.* Venv `[dev]`, macOS arm64. The new tree builds `-W` in about 2 s and the old
+  one in about 13 s, one run each. `tests/test_manual.py` went from 23 tests to 44.
+  `tests/test_manual_api.py` stays at 17. Probes confirmed both guards reach the new tree:
+  a planted `rx.no_such_export` failed name resolution, and a planted em dash and bold mark
+  failed the register guard. The fast selection after the review, run alone, gave 10630
+  passed, 2 failed, 191 skipped and 2 xfailed in 3:50. Both failures were this handover's
+  own edits to `test_docs_consistency.py`'s inputs: CLAUDE.md one line over its cap, and an
+  example link in 1983's `### Inherited` read as a real one. After the fix that file and
+  `test_help.py` pass, so the tree stands at 10632 passed. The six added test functions cost
+  0.07 s in total in that run.
+
+  *Gotchas.* pydata-sphinx-theme writes a Jinja template, `_static/webpack-macros.html`, into
+  the build output, so the built-HTML guards skip `_static/`. The new tree's `index.html`
+  has the landing page's name, so the landing exclusion applies to the old build only. The
+  phone-width screenshot from headless Chrome was clipped, so the layout at 390 px is
+  unverified. The desktop front page was checked by eye.
+
+  *Forward references.* Written into the `### Inherited` of 1979, 1980, 1981, 1982, 1983,
+  1984, 1986 and 1545. 1545 had been told the new tree renders its notebooks, and it does
+  not yet. 1979 to 1984 are back to P2 now the tree exists, and 1986 waits on 1985 alone.
+
+  Next: 1979 (deployment and versions) and 1981 (the generated reference pages) can start
+  at once. 1983 and 1984 can start too, since neither shows fit output. Guides and Theory
+  (1986) wait for 1985's report text.
 - **2026-10-16** — filed from WP-1975's slate. No open WP owned a new tree: 1443 fixes
   passages in the old chapters, and its `### Inherited` already says the rebuild is coming.

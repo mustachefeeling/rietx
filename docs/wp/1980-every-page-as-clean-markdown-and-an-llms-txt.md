@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1978 (the new tree)
-Priority: P3 2026-10-16 — down a rung from P2: nothing can start until 1978's tree exists
+Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
 
 ## Goal
 
@@ -35,6 +35,18 @@ So the twin is a translator subclass over sphinx-markdown-builder for those four
 with sphinx-llms-txt pointed at its output. Keep only the light image of a pair, and write an
 admonition as a labelled blockquote. Mermaid sources stay as fenced `mermaid` blocks.
 
+### Inherited
+
+- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
+  the fenced constants, the citation style, the mermaid theme and the `{source}` role from
+  `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
+  it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
+  `DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`). No
+  `sphinx_llms_txt` extension is configured. `myst_heading_anchors = 3`. The theme ships a
+  Jinja template into `_static/` (`webpack-macros.html`) that no page renders, and the
+  built-HTML guards skip `_static/` for it, so a walk over a markdown build may meet the same
+  file.
+
 ## Non-goals
 
 - An MCP server. The skill is the agent's entry point.
@@ -54,7 +66,7 @@ admonition as a labelled blockquote. Mermaid sources stay as fenced `mermaid` bl
 ## Acceptance
 
 ```sh
-.venv/bin/python -m sphinx -W -q -b markdown <new tree> <new tree>/_build/md
+.venv/bin/python -m sphinx -W -q -b markdown docs/docs docs/docs/_build/md
 .venv/bin/python -m pytest tests/test_manual.py -k twin -n auto --dist loadgroup
 ```
 
