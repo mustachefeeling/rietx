@@ -5354,17 +5354,14 @@ class Refinement:
 
     def _report_stop_condition_lines(self, report) -> list[str]:
         """Section 2b: the second stop condition — is the misfit explained?"""
-        lines = [f"  layer0/1: {report.summary}"]
-        if report.abstained_kind:
-            lines.append(f"    abstained: {report.abstained_kind} "
-                         f"— {report.abstained_reason}")
+        # the report's own sentences, one a line; its abstention sentence
+        # names the kind, so it is printed here once (WP-1985)
+        lines = ["  report:"] + [f"    {line}" for line in report.summary.splitlines()]
         worst = sorted(report.regions, key=lambda r: r.chi2_share, reverse=True)[:3]
         for r in worst:
             lines.append(f"    region {r.two_theta_lo:.1f}-{r.two_theta_hi:.1f}°: "
                          f"{r.chi2_share:.0%} of χ², "
                          f"max|Δ|/σ={r.max_abs_delta_over_sigma:.1f}")
-        n_unmatched_obs = sum(1 for u in report.unmatched if u.kind == "unmatched_obs")
-        lines.append(f"    unmatched obs peaks: {n_unmatched_obs}")
         stats = self.result_.statistics
         if stats.durbin_watson is not None:
             note = (f", esds inflated ×{stats.esd_inflation:.2f}"

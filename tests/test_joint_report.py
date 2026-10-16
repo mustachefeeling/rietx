@@ -266,7 +266,7 @@ def test_each_histogram_gets_its_own_report(two_patterns):
         report = ref.report(h, plan="mccusker_default")
         assert report.layer1_available
         assert report.unmatched == []       # one phase, every peak ticked
-        assert f"Rwp={result.histograms[h].statistics.rwp:.4f}" in report.summary
+        assert report.rwp == result.histograms[h].statistics.rwp
         # the background section reads this histogram's own screen, which
         # the joint result carries ``hist.<h>.``-scoped
         mine = {k.split(".", 2)[2]: v for k, v in

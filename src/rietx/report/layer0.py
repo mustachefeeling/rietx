@@ -239,14 +239,15 @@ def build_layer0(result: RefinementResult, *, top_n: int = 15,
     n_total = len(regions)
     kept = regions[:top_n]
     rest = regions[top_n:]
-    summary = (
-        f"Rwp={stats.rwp:.4f} GoF={stats.gof:.2f}; {n_total} regions, "
-        f"top {len(kept)} shown ({sum(r.chi2_share for r in kept):.0%} of χ²); "
-        f"{len([u for u in unmatched if u.kind == 'unmatched_obs'])} unmatched observed peak(s)"
-    )
+    # One sentence a line (WP-1985): a reader scans the lines, and the
+    # statistics this used to open with are the report's own rwp and gof.
+    summary = (f"{n_total} misfit regions; the top {len(kept)} carry "
+               f"{sum(r.chi2_share for r in kept):.0%} of χ²")
     if rest:
-        summary += (f"; remaining {len(rest)} regions carry "
-                    f"{sum(r.chi2_share for r in rest):.0%} of χ²")
+        summary += (f" and the other {len(rest)} carry "
+                    f"{sum(r.chi2_share for r in rest):.0%}")
+    summary += (f".\n{len([u for u in unmatched if u.kind == 'unmatched_obs'])} "
+                "observed peak(s) match no reflection.")
 
     # The background section takes the *full* segmentation, not the top-N kept
     # above: a channel outside the fifteen largest regions is in a small one,
@@ -255,7 +256,7 @@ def build_layer0(result: RefinementResult, *, top_n: int = 15,
     if background is not None:
         clause = background_clause(background)
         if clause is not None:
-            summary += "; " + clause
+            summary += "\n" + clause
 
     return FitReport(
         rwp=stats.rwp, gof=stats.gof,

@@ -282,7 +282,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # unconditional so the field is always the renderer's current answer.
     result.statistics.identifiability_clause = clause
     if clause is not None:
-        report.summary += "; " + clause
+        report.summary += "\n" + clause
     if model is None or values is None:
         return report
     # The moment arm (WP-1327) is computed **above** the Layer-1 gate, because
@@ -355,7 +355,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     gap = report.lebail_gap
     if gap is not None and gap.ratio >= LEBAIL_GAP_NOTABLE:
         report.summary += (
-            f"; a Le Bail partition at the frozen converged state reaches "
+            f"\na Le Bail partition at the frozen converged state reaches "
             f"Rwp={gap.rwp_lebail:.4f} against the Rietveld "
             f"Rwp={gap.rwp_rietveld:.4f} (×{gap.ratio:.1f}): positions and "
             f"profile account for the pattern — the intensity model carries "
@@ -395,7 +395,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         if plan is not None or free_paths is not None:
             actions = apply_strategy_veto(actions, plan, free_paths=free_paths)
         report.suggested_actions = _stamped(actions)
-        report.summary += f"; Layer 1 abstained — {reason}"
+        report.summary += f"\nLayer 1 abstained ({kind}): {reason}"
         return report
 
     report.layer1_available = True
@@ -418,7 +418,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         if report.lebail_gap is not None:
             clause += (f"; the Le Bail gap (×{report.lebail_gap.ratio:.1f}) "
                        f"is the deciding statistic")
-        report.summary += "; " + clause
+        report.summary += "\n" + clause
     actions = suggest_actions(attributions, report.trends, report.unmatched,
                               rwp=result.statistics.rwp, ticks=ticks,
                               geometry=model.geometry_kind,
@@ -439,6 +439,6 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     report.suggested_actions = _stamped(actions)
 
     n_active = sum(1 for a in actions if a.active)
-    report.summary += (f"; Layer 1 on {len([a for a in attributions if a.gates_passed])}"
+    report.summary += (f"\nLayer 1 on {len([a for a in attributions if a.gates_passed])}"
                        f"/{len(attributions)} regions, {n_active} active suggestion(s)")
     return report

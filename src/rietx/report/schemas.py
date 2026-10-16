@@ -1681,6 +1681,16 @@ class FitReport(Base):
     # -- Layer 2
     suggested_actions: list[SuggestedAction] = Field(default_factory=list)
 
+    def __str__(self) -> str:
+        """The report as a person scans it: the agreement, ``summary`` one
+        sentence a line, then each active suggestion (WP-1985).  ``repr``
+        keeps every field."""
+        lines = [f"FitReport: Rwp {self.rwp:.4f}, GoF {self.gof:.2f}"]
+        lines += [f"  {line}" for line in self.summary.splitlines()]
+        lines += [f"  suggestion: {a.kind}, confidence {a.confidence:.2f}"
+                  for a in self.suggested_actions if a.active]
+        return "\n".join(lines)
+
     def action(self, kind: str) -> SuggestedAction:
         for a in self.suggested_actions:
             if a.kind == kind:

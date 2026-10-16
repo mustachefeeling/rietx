@@ -113,8 +113,11 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
       rustc (`warning[CODE]: message`, then `at:` and `help:` lines). The CLI's reader
       notes, the background warning and the two NAC/SRM examples use it too. The slow NAC
       golden is regenerated once, after the summary and the messages move.
-- [ ] A text view for `FitReport`, and `Refinement.summary()` cut to what a person scans; the
-      abstention reason printed once.
+- [x] A text view for `FitReport`, and `Refinement.summary()` cut to what a person scans; the
+      abstention reason printed once. `FitReport.summary` is one sentence a line (was
+      `; `-joined), `FitReport.__str__` prints it under the agreement (FAP: 7 lines, was a
+      168-line field tree), and the summary's `report:` block prints it with the abstention
+      naming its kind. The clauses' own wording is the message rewrite's.
 - [ ] Rewrite the messages in the new voice, by module, moving each pin on purpose.
 - [x] Notebook HTML: headline shown, detail and explanation folded
       (`_display.diagnostics_html`, one `<details>` a finding) in the result, the

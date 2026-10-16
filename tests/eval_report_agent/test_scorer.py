@@ -605,7 +605,7 @@ def _stub_response():
 def _firing_report():
     """A stub report whose identifiability round-trips through the package
     schema and fires the exchange clause, its summary carrying the exact
-    appended substring (``"; " + clause`` — report/__init__.py) and one
+    appended substring (``"\\n" + clause`` — report/__init__.py) and one
     execution-stamped action: the delivered shape both 2.2 projections act
     on.  Returns ``(report, clause)``."""
     from rietx.report import identifiability_clause
@@ -622,7 +622,7 @@ def _firing_report():
     return {
         "layer1_available": True,
         "identifiability": evidence.model_dump(mode="json"),
-        "summary": "Rwp=0.0100 GoF=1.00; 3 regions; " + clause,
+        "summary": "3 misfit regions; the top 3 carry 90% of χ².\n" + clause,
         "suggested_actions": [{"kind": "add_impurity_phase",
                                "confidence": 0.9, "execution": "advice"}],
     }, clause
@@ -795,7 +795,7 @@ def test_shim_moves_the_clause_beside_the_statistics(tmp_path, monkeypatch):
     monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", lambda request: stub)
     response = run_episode(edir)
     assert response["result"]["statistics"]["identifiability_clause"] == clause
-    assert response["report"]["summary"] == "Rwp=0.0100 GoF=1.00; 3 regions"
+    assert response["report"]["summary"] == "3 misfit regions; the top 3 carry 90% of χ²."
     logged = json.loads(
         (edir / "calls.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert (logged["response"]["result"]["statistics"]

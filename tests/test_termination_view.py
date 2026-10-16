@@ -117,7 +117,7 @@ def test_summary_default_prints_the_three_stop_conditions_only():
     ref, _result = _fit()
     text = ref.summary()
     assert "diagnostics:" in text
-    assert "layer0/1:" in text
+    assert "  report:" in text
     assert _next_line(text)
     assert "deliverable:" not in text
 
@@ -127,7 +127,7 @@ def test_summary_the_three_stop_condition_lines_survive_zero_diagnostics():
     assert not result.diagnostics
     text = ref.summary()
     assert "diagnostics: none" in text
-    assert "layer0/1:" in text
+    assert "  report:" in text
     assert _next_line(text)
 
 

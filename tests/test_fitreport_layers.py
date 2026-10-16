@@ -1294,7 +1294,7 @@ def test_e2_converged_report_names_the_exchange(truth):
     # the same sentence beside the numbers (WP-1108): one render, two writes,
     # pinned as the exact appended substring — the shim projection's needle
     clause = result.statistics.identifiability_clause
-    assert clause is not None and ("; " + clause) in report.summary
+    assert clause is not None and clause in report.summary.splitlines()
 
 
 def test_clean_reference_stays_quiet_and_delta_r_calibrates(truth):
@@ -1434,7 +1434,7 @@ def test_license_rides_statistics_and_summary_from_one_render(truth):
     report = build_report(result)
     clause = result.statistics.identifiability_clause
     assert clause is not None
-    assert report.summary.endswith("; " + clause)         # bit-identical pair
+    assert report.summary.endswith("\n" + clause)        # bit-identical pair
     assert clause == identifiability_clause(report.identifiability)
     # the license is in the statistics block: the grep an agent runs on the
     # serialized document returns the sentence itself, not a pointer
@@ -1445,7 +1445,7 @@ def test_license_rides_statistics_and_summary_from_one_render(truth):
     # fresh summary carries the same appended substring
     report2 = build_report(result)
     assert result.statistics.identifiability_clause == clause
-    assert report2.summary.endswith("; " + clause)
+    assert report2.summary.endswith("\n" + clause)
 
 
 def test_license_field_stays_none_when_nothing_fires(truth):
@@ -1502,7 +1502,7 @@ def test_a_serialized_answer_delivers_the_license_beside_the_numbers():
                                             .model_validate(
                                                 response["report"]
                                                 ["identifiability"]))
-    assert ("; " + clause) in response["report"]["summary"]
+    assert clause in response["report"]["summary"].splitlines()
     assert "data has chosen" in clause             # the license, greppable
 
 

@@ -154,7 +154,8 @@ condition marker gains `license_placement: "summary" | "statistics"`
 - **`report_stat`**: the shim re-renders the identifiability clause from the
   *delivered* `report.identifiability` with the package's own renderer
   (`rietx.report.identifiability_clause` — one authority for the sentence),
-  excises that exact appended substring (`"; " + clause`) from
+  excises that exact appended substring (`"; " + clause`; `"\n" + clause`
+  since WP-1985 made the summary one sentence a line, 2026-10-16) from
   `report.summary`, and injects it as `result.statistics
   ["identifiability_clause"]` — inside the block the miners proved agents
   grep.  The moved unit is the whole identifiability clause (the soft-mode
