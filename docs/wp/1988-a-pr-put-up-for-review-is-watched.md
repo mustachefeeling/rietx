@@ -54,6 +54,27 @@ subscription happen and says how this repo wants the events handled.
   gets told to subscribe to it, with the number filled in, and the repo says
   how conflicts and red checks on it are handled. Nothing has been watched
   under it yet, so whether the cost of being woken at handover-size context is
-  worth it is unmeasured. Next: the acceptance task, on the next cloud WP
-  session; if a wake proves too expensive, narrow the skill to merge conflicts
-  and red CI and leave reviews to the person.
+  worth it is unmeasured; this WP's own PR is the first candidate.
+  *Done*: the hook, its registration and tests; the steward skill; the two
+  commands. `/code-review high --fix` found seven real misses in the hook's
+  command reading (multi-line commands, heredoc bodies, shell keywords and
+  subshells, an escaped newline joining the owner name, a cited PR URL in an
+  MCP body winning over the new PR's own) and fixed all seven, reusing
+  `no_top_level_cd.py`'s heredoc stripper and keyword list rather than a second
+  splitter. Declined: the matcher includes `Bash`, so every Bash call starts
+  one more python3; narrowing it means a matcher on the command, which the
+  harness does not offer, and the two PreToolUse Bash hooks already pay it.
+  *Measured* (Linux x86-64, 4 cores, `[dev]`, main merged in at `0367ccb`,
+  alone on the machine): fast selection 10684 passed, 203 skipped, 2 xfailed;
+  this WP added 19 cases, all passes, no skip, 0.17 s in total
+  (`tests.added_test_times`, local junit; the PR has had no CI run yet).
+  *Gotchas*: filed as 1987, which main took the same day for the kernel-gate
+  WP; renumbered, and the branch's two pushed commits were reworded (no PR
+  existed yet), since `session_start.py` attributes commits by prefix and
+  would have charged them to the other WP. Settings reload with the session's
+  tree: the worktree's own `settings.json` hooks were live by the end of this
+  session, so the subscribe hook should fire on this PR's `gh pr ready`.
+  Next: (1) watch this PR under the skill and record what each wake cost;
+  (2) on the next cloud WP session, check the hook fires unprompted; (3) if a
+  wake is too dear, narrow the skill to merge conflicts and red CI and leave
+  reviews to the person.
