@@ -437,10 +437,8 @@ def test_every_diagnostic_code_has_an_entry():
     assert len(codes) >= 250, (
         f"only {len(codes)} codes collected — the AST walk broke, it "
         "does not mean the package got quieter")
-    peak = {c for c in codes if c.startswith("PEAK_")}
-    assert peak <= set(DIAGNOSTIC_HELP), (
-        f"missing: {sorted(peak - set(DIAGNOSTIC_HELP))}")
-    assert set(DIAGNOSTIC_HELP) <= codes, (
+    assert set(DIAGNOSTIC_HELP) == codes, (
+        f"missing: {sorted(codes - set(DIAGNOSTIC_HELP))}; "
         f"describing nothing: {sorted(set(DIAGNOSTIC_HELP) - codes)}")
 
 

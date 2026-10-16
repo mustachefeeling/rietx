@@ -106,7 +106,9 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
       observation and the action, so no stored file needs a migration.
       `Diagnostic.explanation` reads `rietx.help.DIAGNOSTIC_HELP` (the `PEAK_*` arm grown
       to every code) and is never stored.
-- [ ] The per-code explanations, with a meta-test that every code raised has one.
+- [x] The per-code explanations, with a meta-test that every code raised has one: 253
+      entries, held equal to `diagnostic_index()` both ways (`test_help.py`). 238 were
+      written in five subagent lanes against one spec, each read off its raise site.
 - [x] One line format for results, indexing and peak lists: `Diagnostic.__str__`, after
       rustc (`warning[CODE]: message`, then `at:` and `help:` lines). The CLI's reader
       notes, the background warning and the two NAC/SRM examples use it too. The slow NAC
@@ -115,8 +117,9 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
       abstention reason printed once.
 - [ ] Rewrite the messages in the new voice, by module, moving each pin on purpose.
 - [ ] Notebook HTML: headline shown, detail and explanation folded.
-- [ ] The per-code explanation reaches the Reference tab's diagnostic index, read from the
-      registry rather than a source walk.
+- [x] The per-code explanation reaches the Reference tab: `diagnostics.md` is a table of
+      code, name and page, and six subsystem pages carry a section per code. One page
+      broke the page contract's 50 000-character cap at 139 267.
 - [ ] The `rietx.help` corpus rewritten in the same voice, the GUI `label` chips checked.
 - [ ] `.vale.ini` widened to `_generated/`, and the generated pages clean under it.
 - [ ] Skill: the diagnostics references re-synced to the new fields

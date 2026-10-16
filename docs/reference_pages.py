@@ -360,8 +360,56 @@ def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]
     return out
 
 
+#: The diagnostic pages: (page stem, title, the source areas it takes).  One
+#: page of every code passed the page contract's 50 000-character cap once each
+#: code carried its explanation, so codes are filed by where they are raised.
+#: The first area prefix a code's first file matches decides; "" takes the rest.
+DIAGNOSTIC_GROUPS = (
+    ("diagnostics-projects", "Other programs' projects", ("rietx/io/projects/",)),
+    ("diagnostics-files", "Reading files", ("rietx/io/",)),
+    ("diagnostics-indexing", "Peaks and indexing", ("rietx/indexing/",)),
+    ("diagnostics-structures", "Structures and magnetism",
+     ("rietx/crystallography/", "rietx/schemas/", "rietx/strategy/magnetic",
+      "rietx/report/magnetic")),
+    ("diagnostics-series", "Series and joint fits", ("rietx/sequential", "rietx/multi")),
+    ("diagnostics-refinement", "Refinement", ("",)),
+)
+
+
+def diagnostic_group(files: set[str]) -> str:
+    """The page stem a code with these raising files is listed on."""
+    first = sorted(files)[0]
+    return next(stem for stem, _title, areas in DIAGNOSTIC_GROUPS
+                if any(first.startswith(area) for area in areas))
+
+
+def _levels(entry: dict[str, set[str]]) -> str:
+    levels = sorted(lv for lv in entry["levels"] if lv)
+    if "" in entry["levels"]:
+        levels.append("set at run time")
+    return ", ".join(levels) or "set by a helper"
+
+
 def diagnostic_page() -> str:
-    """The body of `reference/diagnostics.md`: one section per code.
+    """The body of `reference/diagnostics.md`: every code, its name and its page."""
+    from rietx.help import explain
+
+    index = diagnostic_index()
+    titles = {stem: title for stem, title, _areas in DIAGNOSTIC_GROUPS}
+    out = [_BANNER.format(source="the source tree under src/rietx/"), "",
+           f"The package raises {len(index)} codes.", "",
+           "| Code | Name | Page |", "| --- | --- | --- |"]
+    for code in sorted(index):
+        stem = diagnostic_group(index[code]["files"])
+        entry = explain(code)
+        name = "" if entry is None else entry.title
+        out.append(f"| [`{code}`]({stem}.md#{code.lower()}) "
+                   f"| {name} | {titles[stem]} |")
+    return "\n".join(out + [""])
+
+
+def diagnostic_group_page(stem: str) -> str:
+    """The body of `reference/<stem>.md`: one section per code on that page.
 
     Each section carries the code's explanation from `rietx.help.DIAGNOSTIC_HELP`,
     so the page and a notebook's folded explanation are one text, and a heading
@@ -371,21 +419,16 @@ def diagnostic_page() -> str:
     from rietx.help import explain
 
     index = diagnostic_index()
-    out = [_BANNER.format(source="the source tree under src/rietx/"), "",
-           f"The package raises {len(index)} codes.", ""]
-    for code in sorted(index):
-        entry = index[code]
-        levels = sorted(lv for lv in entry["levels"] if lv)
-        if "" in entry["levels"]:
-            levels.append("set at run time")
-        level = ", ".join(levels) or "set by a helper"
+    codes = [c for c in sorted(index) if diagnostic_group(index[c]["files"]) == stem]
+    out = [_BANNER.format(source="the source tree under src/rietx/"), ""]
+    for code in codes:
         files = ", ".join(f"[`{rel}`]({REPO_URL}/blob/main/src/{rel})"
-                          for rel in sorted(entry["files"]))
+                          for rel in sorted(index[code]["files"]))
         out += [f"## `{code}`", ""]
         help_entry = explain(code)
         if help_entry is not None:
             out += [f"{help_entry.title}.", "", help_entry.description, ""]
-        out += [f"Level: {level}. Raised in {files}.", ""]
+        out += [f"Level: {_levels(index[code])}. Raised in {files}.", ""]
     return "\n".join(out)
 
 
@@ -662,6 +705,8 @@ BODIES = {
     "parameters.md": parameter_map,
     "plans.md": plan_ladder,
     "diagnostics.md": diagnostic_page,
+    **{f"{stem}.md": _functools.partial(diagnostic_group_page, stem)
+       for stem, _title, _areas in DIAGNOSTIC_GROUPS},
     "project.md": project_tree,
     "roadmap.md": roadmap_page,
     "api.md": api_everyday,

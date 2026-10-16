@@ -1,15 +1,31 @@
 # Diagnostic codes
 
-This page lists every diagnostic code rietx can raise.
-Each code has a short name, an explanation of what it means and why it fires, its level, and the source files that raise it.
+This page lists every diagnostic code rietx can raise, with its name and the page that explains it.
 
 A `Diagnostic` carries a `level` of `info`, `warning` or `error`, a `code`, a `message` and a `suggestion`.
 The message says what one case found, with its numbers.
 The suggestion says what to do about it.
-The explanation is the same for every case, so the package looks it up by code: `Diagnostic.explanation` returns the text on this page.
+The explanation is the same for every case, so the package looks it up by code: `Diagnostic.explanation` returns the text the linked page shows.
 
-Where the source computes a level from a variable, the level reads "set at run time".
-Where a helper function receives the code and sets the level, the level reads "set by a helper".
+The codes are filed by the part of the package that raises them:
+
+- [Refinement](diagnostics-refinement.md): the stages, the guards, the corrections and the report.
+- [Series and joint fits](diagnostics-series.md): a chain of fits, or one fit over several patterns.
+- [Peaks and indexing](diagnostics-indexing.md): peak picking, the indexing search and the extinction screen.
+- [Reading files](diagnostics-files.md): patterns, instrument files and recipes.
+- [Other programs' projects](diagnostics-projects.md): GSAS-II, GSAS, FullProf and TOPAS files.
+- [Structures and magnetism](diagnostics-structures.md): structures, symmetry and magnetic structures.
+
+```{toctree}
+:hidden:
+
+diagnostics-refinement
+diagnostics-series
+diagnostics-indexing
+diagnostics-files
+diagnostics-projects
+diagnostics-structures
+```
 
 ```{include} ../_generated/diagnostics.md
 ```
