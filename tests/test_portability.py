@@ -72,8 +72,9 @@ _TEXT_IO = {"read_text", "write_text", "open"}
 #: The match is on the receiver's source text, so it is a name list and will go
 #: stale; it goes stale in the safe direction, since a new non-file ``.open``
 #: fails this test until someone adds the row — and the ``zip`` entry is why a
-#: reader names its archive handle ``zip_*``.
-_NOT_FILE_IO = ("webbrowser", "urllib", "request", "Project", "zip")
+#: reader names its archive handle ``zip_*``.  ``tarfile.open`` is the same case:
+#: its mode (``"w:gz"``) names a compression, never a text stream.
+_NOT_FILE_IO = ("webbrowser", "urllib", "request", "Project", "zip", "tarfile")
 
 #: Standard-library modules that exist on POSIX and not on Windows.  ``fcntl``
 #: is the only one this package reaches for; the rest are here because the next

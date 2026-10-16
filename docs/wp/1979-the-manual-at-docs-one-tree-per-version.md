@@ -1,9 +1,9 @@
 # WP-1979 — The manual at rietx.org/docs/, one tree per version
 
-Milestone: unscheduled · Status: 🔄 2026-10-16 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-16 — PR #1023; the first deploy runs on merge,
+and the first stable tree is v1.10.0's
 Track: The repo's own process
 Depends on: 1978 (the new tree)
-Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
 
 ## Goal
 
@@ -129,4 +129,50 @@ gh run list --workflow pages.yml --limit 1     # the deploy that published /docs
 
 ## Handover log
 
+- **2026-10-16** — The manual can now be hosted per release. Each release keeps its built
+  manual on its GitHub release, and every Pages deploy lays out `dev`, `stable` and the last
+  six minors under `rietx.org/docs/`, with a version menu on each page. Dev and older releases
+  show a banner. A release's pages link the code at its own tag. Old-tree pages get redirect
+  stubs as they retire, and a test fails if one is lost. Nothing is live until this merges, and
+  the first stable tree will be v1.10.0's. Read the Docs was weighed with the user and set aside
+  for now; it would serve `docs.rietx.org`.
+
+  *Done.* `docs/docs_versions.py` chooses, fetches and lays out the kept trees, writes
+  `switcher.json`, `/docs/index.html` and the stubs. release.yml's new `docs` job builds at
+  the tag after `publish`, attaches `rietx-docs-X.Y.Z.tar.gz` and dispatches pages.yml.
+  pages.yml builds `main`'s tree at `/docs/dev/` and runs the script. The new tree's conf has
+  the switcher (`check_switcher: False`, since the file is written after the build), the
+  banner, and a canonical URL at `stable/` for releases. `sphinx_shared.DOCS_VERSION` is `dev`
+  unless release.yml sets the minor, and `SOURCE_REF` follows it. RELEASING.md gains step 8
+  and a section on versions. Task 4's package half moved to WP-1986 (its `### Inherited`).
+
+  *Measured* (`[dev]` venv, darwin/arm64). One version of the new tree is 7.4 MB without
+  doctrees. Today's Pages artifact is 24 MB compressed. In chromium, against a site assembled
+  from a dev build and a faked 1.9 tarball: `/docs/` and a stub redirect, the banner shows on
+  dev only, and switching keeps the reader's page. Fast suite on the final tree: 10838 passed,
+  185 skipped, 2 xfailed, 2 failed. The two failures were the stale WP index and a false
+  positive on `tarfile.open(path, "w:gz")` in `test_portability.py`, both fixed after the run,
+  and those files then passed 61 of 61. This session added 22 cases (14 functions, 0.23 s in
+  all). The full suite did not run, because nothing here moves a measured number.
+
+  *Review* (`/code-review high`). Applied five:
+  - the old manual's step builds as `dev` too;
+  - a stub points into `dev/` until a release holds its page;
+  - `assemble` can run twice over one site;
+  - an unset `DOCS_VERSION` now means `main`'s build;
+  - the mapping moved out of `_about.py`, which imports nothing by design.
+
+  Tests now pin the ref each build links and the refusal of a mismatched version. Declined
+  three: a `.post` release (none is cut here); the `sys.path` line in
+  `reference_pages._source_ref` (the conf adds the same path); and a failed asset download
+  failing the whole deploy. That last one is a choice for the maintainer. Today the deploy
+  stops loudly rather than dropping a version.
+
+  *Gotchas.* pydata's switcher navigates only after checking the target page exists, so a
+  probe must wait for the URL to change. The Pages upload skips hidden files, so the old
+  tree's `.doctrees` never reached the site, but a tarball would carry them without `-d`.
+
+  *Next.* Merge, then read `gh run list --workflow pages.yml --limit 1` and open
+  `rietx.org/docs/` (it should land on `dev/`). Cutting v1.10.0 exercises the `docs` job; check
+  it with RELEASING.md step 8. WP-1986 is unblocked and holds the rest.
 - **2026-10-16** — filed from WP-1975's slate. No open WP owns docs hosting or versions.

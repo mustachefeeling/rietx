@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
-Priority: P3 2026-10-16 — waits on 1979's redirect stubs alone now that WP-1985 has closed
+Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
 
 ## Goal
 
@@ -46,6 +46,21 @@ carries no instrument, so write the new one from a `Refinement`.
 
 ### Inherited
 
+- **2026-10-16, from WP-1979 (closed).** The stub mechanism is `docs/docs_versions.py`.
+  Retiring a chapter adds one row to its `RETIRED` map (old path to new page, both without
+  `.html`, the new one may carry `#heading`) in the same commit that deletes the chapter.
+  `OLD_PAGES` freezes the 48 pages the old tree published, and
+  `tests/test_docs_versions.py` fails while one is neither built nor in `RETIRED`. pages.yml
+  writes each stub at deploy time. It points into `stable/` once a release holds the page, and
+  into `dev/` until then. Three pieces of WP-1979's task 4 move here, because none of the 13
+  pages `help.py`'s anchors name exists in the new tree yet:
+  - a versioned docs base beside `_about.DOCS_URL`, from `dev` for a `.dev0` build and `X.Y`
+    otherwise (the mapping is `docs_versions.docs_version`, which then moves into the
+    package, since `_about.py` imports nothing);
+  - `help.py`'s anchors and the GUI's `docs_url` (`gui/session.py:265`) on that base;
+  - `tests/test_help.py::test_every_anchor_resolves_in_the_built_manual` pointed at the new
+    tree's build.
+  When the old tree goes, its `pages.yml` build step goes too, and the stubs remain.
 - **2026-10-16, from WP-1985 (closed).** The report text a guide shows is rewritten (the
   rustc-style line form, `FitReport.summary` one sentence a line, every message reworded).
   The Reference tab's diagnostic page is now `reference/diagnostics.md`, a table linking
