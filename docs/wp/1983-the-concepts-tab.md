@@ -44,36 +44,37 @@ Mine these; do not move them whole.
 This tab shows no fit output, so it can start before the report-text rewrite (WP-1985). Where
 a page must show a report, quote the shape and link the Reference page.
 
-### Inherited
+**The tree and its guards** (WP-1978, PR #1004). The new tree is `docs/docs/`.
+`tests/test_manual.py` builds it as the `built_docs_tree` fixture (xdist group
+`manual-build`), reads its pages as `DOCS_PAGES` and holds each to the page contract
+(`_contract_breaches`). The contract fails a page with no answer sentence under its H1, a page
+over 50 000 characters, and a section whose first sentence leans back (`_BACK_REFERENCE`).
+`test_every_theory_link_from_concepts_and_guides_resolves` reads markdown links into
+`../theory/` and checks the built page and the section a fragment names, by HTML id or by MyST
+slug. `{ref}` and `{doc}` roles are left to `-W`. Heading anchors reach depth 3.
 
-- **2026-10-16, from WP-1982.** Vale reads every committed page of `docs/docs/` in CI's
-  lint job, and an error-level alert fails it. The errors are British spelling against the
-  en_GB dictionary plus the term list, the maintainer's banned words, "fnmatch" in prose and
-  a few Microsoft rules. Warnings are printed and do not fail: a synonym the term list
-  rejects ("cell edge", "thermal parameter"), notation left as text (`U_iso`), a program's
-  role ("caller") and a price ("buys"). Run `vale sync && vale docs/docs` before pushing
-  (`CONTRIBUTING.md`). A crystallographic word Vale does not know goes in
-  `docs/vale/terms.txt`, then `python docs/vale/terms.py`. A one-word section heading is
-  flagged as a suggestion, and so is "glob", "schema" or "column" until a page explains it.
-- **2026-10-16, from WP-1981.** The soft dependency is met. The parameter map is
-  `docs/docs/reference/parameters.md` (grouped as cell and structure, phase amount and
-  intensity corrections, microstructure, instrument, time of flight, background, named
-  variables), and every preset's stages are drawn on `reference/plans.md`, generated from
-  the plan objects. A Concepts page that explains staging should link the plan page
-  instead of drawing a ladder by hand, since the old tree's hand-drawn one drifted.
-  `vars.*` now has a help entry, so a page about named variables can link the map's
-  "Named variables" group.
-- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
-  the fenced constants, the citation style, the mermaid theme and the `{source}` role from
-  `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
-  it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
-  `DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`).
-  `test_every_theory_link_from_concepts_and_guides_resolves` reads markdown links into
-  `../theory/` and checks the built page and the section a fragment names, by HTML id or by
-  MyST slug; `{ref}` and `{doc}` roles are left to `-W`. Heading anchors reach depth 3. The
-  page contract fails a
-  page with no answer sentence under its H1, one over 50 000 characters, and a section whose
-  first sentence leans back (`_BACK_REFERENCE`).
+**Theory links point at the old tree until WP-1986** (decided 2026-10-16). The new Theory tab
+holds only its index and `references.md`. Part 2 is still `docs/manual/*.md` (14 chapters,
+5 415 lines), served at `rietx.org/<chapter>.html`. Moving it here would mean re-pointing 27
+cross-references from Part 1 and porting the equation guards and `check_equations.py`, which
+is WP-1986's Theory item. So a Concepts page links `https://rietx.org/<chapter>.html#<id>`,
+and the link check learns to resolve that form against the old tree's build. WP-1986 rewrites
+each such link to `../theory/` as it moves the chapter.
+
+**What the pages link instead of restating** (WP-1981). The parameter map is
+`docs/docs/reference/parameters.md`, grouped as cell and structure, phase amount and intensity
+corrections, microstructure, instrument, time of flight, background, and named variables
+(`vars.*`). Every preset's stages are drawn on `reference/plans.md`, generated from the plan
+objects. A page that explains staging links that page and draws no ladder by hand, since the
+old tree's hand-drawn one drifted.
+
+**Vale** (WP-1982). CI's lint job runs Vale on every committed page of `docs/docs/`, and an
+error fails it: British spelling against en_GB plus the term list, the banned words, "fnmatch"
+in prose, and a few Microsoft rules. Warnings print and pass: a synonym the term list rejects
+("cell edge", "thermal parameter"), notation left as text (`U_iso`), "caller" and "buys". Run
+`vale sync && vale docs/docs` before pushing. A crystallographic word Vale does not know goes
+in `docs/vale/terms.txt`, then `python docs/vale/terms.py`. A one-word heading is a suggestion,
+and so are "glob", "schema" and "column" until a page explains them.
 
 ## Non-goals
 
@@ -82,6 +83,8 @@ a page must show a report, quote the shape and link the Reference page.
 
 ## Tasks
 
+- [ ] The Theory-link check resolves `https://rietx.org/<chapter>.html#<id>` against the old
+      tree's build, with a case that makes it fail on a missing page and a missing id.
 - [ ] About a fit: the life of a fit, from pattern and models to result and history, as one
       diagram with a paragraph a box.
 - [ ] About parameters: the groups, what each is for, its scope (instrument, specimen, phase,
