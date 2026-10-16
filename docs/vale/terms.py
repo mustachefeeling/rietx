@@ -25,6 +25,11 @@ ACCEPT = HERE / "config" / "vocabularies" / "rietx" / "accept.txt"
 #: spell-check.
 _WORD = re.compile(r"[A-Za-z][A-Za-z0-9']*")
 
+#: The American spelling patterns, each beside its British form:
+#: polarization, analyze, color, center, license, catalog.
+_AMERICAN = (("iz", "is"), ("yz", "ys"), ("or", "our"), ("er", "re"),
+             ("ense", "ence"), ("og", "ogue"))
+
 
 def dictionary_forms() -> set[str]:
     """Every form the en_GB Hunspell dictionary accepts, affixes expanded.
@@ -75,6 +80,12 @@ def dictionary_forms() -> set[str]:
     return forms
 
 
+def is_american(word: str, forms: set[str]) -> bool:
+    """Whether `word` is an American spelling of a form the dictionary knows."""
+    lower = word.lower()
+    return any(us in lower and lower.replace(us, gb) in forms for us, gb in _AMERICAN)
+
+
 def help_words(forms: set[str]) -> dict[str, bool]:
     """Each word of a help title or label that the dictionary lacks.
 
@@ -82,7 +93,8 @@ def help_words(forms: set[str]) -> dict[str, bool]:
     title, which is the only place its capital could be a sentence's rather
     than a name's.  An American spelling whose British form the dictionary
     knows is left out: the package's text is WP-1985's to rewrite, and the
-    term list must not accept "polarization" because a title spells it so.
+    term list must not accept "polarization" or "center" because a title
+    spells it so.
     """
     from rietx.help import help_registry
 
@@ -96,7 +108,7 @@ def help_words(forms: set[str]) -> dict[str, bool]:
             word = match.group(0).removesuffix("'s")
             if word in forms or word.lower() in forms:
                 continue
-            if "iz" in word.lower() and word.lower().replace("iz", "is") in forms:
+            if is_american(word, forms):
                 continue
             words[word] = words.get(word, False) or position > 0
     return words

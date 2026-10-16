@@ -1,5 +1,6 @@
-# Microsoft.Vocab (package v0.15.1), copied because Vale cannot switch off one
-# token of a rule.  Dropped, each for a stated reason:
+# Microsoft.Vocab (package v0.15.1), copied for the reason rietx/Terms.yml
+# gives: an accept-list word would exempt its phrases from every rule.
+# Dropped, each for a stated reason:
 #   sample, against   a powder sample, a fit against the data: domain words
 #   above             the page contract already refuses a section that opens
 #                     on "as above"; "above 90°" is a position

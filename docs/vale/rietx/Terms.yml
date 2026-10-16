@@ -8,15 +8,19 @@
 # parameter" and "temperature factor").  The crystallographer's term leads
 # (WP-1981's review, rule 2).
 #
-# The second block is Microsoft.Terms (package v0.15.1) whole, copied because
-# Vale cannot switch off one entry of a rule, less six entries:
+# The second block is Microsoft.Terms (package v0.15.1) whole, less six
+# entries.  It is copied because the one way Vale switches off a single entry,
+# an accept-list word, exempts every phrase holding that word from every rule:
+# accepting "sample" silenced this file's "sample displacement" (12 alerts
+# over the old manual, measured 2026-10-16).  The six:
 #   agent -> personal digital assistant   this manual writes for AI agents
 #   afterwards -> afterward               British spelling wins (layer 1)
 #   licensing terms -> license terms      British "licence" for the noun
 #   numerical -> numeric                  "numerical absorption correction"
 #   home directory -> root directory      two different directories
 #   kb, mb, gb ... -> KB, MB, GB ...      SI writes kB, and with ignorecase
-#                                         the rule flagged it
+#                                         the rule flagged it; Pb is lead
+#                                         (K byte and KByte went with them)
 extends: substitution
 message: "Use '%s' instead of '%s'."
 level: warning

@@ -6,6 +6,7 @@ inputs it reads to their authorities.  The accept list is generated from
 generator, the `tokens.css` pattern (WP-1429).
 """
 
+import functools
 import importlib.util
 import re
 from pathlib import Path
@@ -15,11 +16,17 @@ import pytest
 VALE = Path(__file__).resolve().parent.parent / "docs" / "vale"
 
 
+@functools.cache
 def _terms():
     spec = importlib.util.spec_from_file_location("_vale_terms", VALE / "terms.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@functools.cache
+def _forms() -> frozenset[str]:
+    return frozenset(_terms().dictionary_forms())
 
 
 def _swap_keys() -> list[str]:
@@ -44,10 +51,14 @@ def test_the_accept_list_is_its_generators_output():
 
 
 def test_no_term_is_both_accepted_and_rejected():
-    """One concept, one term: a word on the accept side is no synonym or banned word."""
-    terms = _terms()
+    """One concept, one term: a word on the accept side is no synonym or banned word.
+
+    Both halves of the accept side, the hand-kept file and the words
+    `rietx.help` brings, so a help title cannot carry a rejected synonym in.
+    """
+    accepted = [re.sub(r"^\[(.)(.)\]", r"\1", line) for line in _terms().accept_lines()]
     rejected = [re.compile(key, re.I) for key in _swap_keys() + _banned()]
-    both = [(word, pattern.pattern) for word in terms.hand_kept()
+    both = [(word, pattern.pattern) for word in accepted
             for pattern in rejected if pattern.fullmatch(word)]
     assert not both, f"accepted and rejected at once: {both}"
 
@@ -72,7 +83,7 @@ def test_the_dictionary_is_british_with_its_affixes_expanded(word, known):
     "normalised" and "unrefined" exist only through the affix rules, so a
     stem-only reading of the .dic file fails them.
     """
-    assert (word in _terms().dictionary_forms()) is known
+    assert (word in _forms()) is known
 
 
 def test_a_lower_case_term_may_open_a_sentence():
@@ -80,3 +91,14 @@ def test_a_lower_case_term_may_open_a_sentence():
     "Anisotropic strain is…" without the bracket."""
     lines = _terms().accept_lines()
     assert "[aA]nisotropic" in lines and "Rietveld" in lines and "TOPAS" in lines
+
+
+@pytest.mark.parametrize("word, american", [
+    ("Polarization", True), ("analyze", True), ("color", True),
+    ("center", True), ("license", True), ("catalog", True),
+    ("Rietveld", False), ("microstrain", False),
+])
+def test_an_american_help_word_never_reaches_the_accept_list(word, american):
+    """`help_words` drops a word the dictionary knows in British spelling, in
+    each of the six American patterns, and keeps a word it lacks outright."""
+    assert _terms().is_american(word, _forms()) is american
