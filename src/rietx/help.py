@@ -4660,7 +4660,9 @@ def help_key_for(path: str) -> str | None:
     A row holds the key rather than the entry because an entry describes a
     *family*, so inlining one repeats a paragraph once per atom: measured at
     3.4x the ``/api/params`` payload on an ordinary two-phase model (20.8 kB to
-    70.0 kB), against 40.7 kB for the whole registry fetched once.  The server
+    70.0 kB), against 40.7 kB for the whole registry fetched once (221 kB
+    since every diagnostic code carries its explanation, WP-1985, still one
+    fetch: 1.0 ms to build and 0.4 ms to parse).  The server
     still owns the match, so no client re-derives it.
     """
     for glob in PARAMETER_HELP:

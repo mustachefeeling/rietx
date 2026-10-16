@@ -656,9 +656,8 @@ def test_diagnostics_keep_their_messages_and_gain_their_paths():
         "HIGH_CORRELATION", "BOUND_HIT", "ADP_NOT_POSITIVE_DEFINITE"]
 
     corr = diags[0]
-    assert corr.message == (
-        "instrument.zero_shift and instrument.geometry.sample_displacement "
-        "are correlated (ρ=+1.000).")
+    # the message is built around the pinned rendering, so ρ is formatted once
+    assert corr.message == f"Correlated pair: {report.high_correlations[0]}."
     assert corr.where == ["instrument.zero_shift",
                           "instrument.geometry.sample_displacement"]
     assert diags[1].where == ["phases.0.scale"]

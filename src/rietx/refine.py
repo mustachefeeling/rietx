@@ -5665,10 +5665,9 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
     """
     out: list[Diagnostic] = []
     for finding in guard.high_correlations:
-        pair = " and ".join(finding.paths)
         out.append(Diagnostic(
             level="warning", code="HIGH_CORRELATION",
-            message=f"{pair} are correlated (ρ={finding.value:+.3f}).",
+            message=f"Correlated pair: {finding}.",
             where=list(finding.paths), value=finding.value,
             suggestion="Fix one of the two at a known value, or free them in "
                        "separate stages.",
@@ -5739,12 +5738,10 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "from them.",
         ))
     for finding in guard.flat_directions:
-        pair = " and ".join(finding.paths)
         out.append(Diagnostic(
             level="warning", code="FLAT_DIRECTION",
             where=list(finding.paths), value=finding.value,
-            message=f"The data do not separate {pair} "
-                    f"(ρ={finding.value:+.3f}).",
+            message=f"Flat direction: {finding}.",
             suggestion="Fix one at an independently known value and refine "
                        "the other, or free them in different stages, and say "
                        "in the result which one was held. Do not quote "
