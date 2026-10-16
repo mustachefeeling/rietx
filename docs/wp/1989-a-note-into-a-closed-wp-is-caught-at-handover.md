@@ -77,12 +77,33 @@ python3 .claude/hooks/closed_wp_writes.py   # on this branch: reports 0308's poi
 ## Handover log
 
 - **2026-10-16** — Closed in the session that filed it. A note written into
-  a closed WP is now named at handover: the script lists what the branch
-  adds to each ✅/🛑 WP, and the writer moves the note to an open owner or
-  says why it stays. No open WP owned the guard, so it was filed and landed
-  together.
-  *Measured:* `tests/test_closed_wp_writes.py` 11 passed (`[dev]`, Linux
-  x86_64, python 3.12). Its first case is the guard failing on purpose: the
-  wiring test went red before the handover step existed. On this branch the
-  script reports one file, WP-0308, +2 lines. That is the pointer to
-  WP-1990, a record note that stays. Next: none.
+  a closed WP is now named at handover: the script lists what the branch adds
+  to each WP that is ✅/🛑 at the merge-base or on `origin/main`, and the
+  writer moves the note to an open owner or says why it stays. Before this,
+  one such note had sat unread for 81 days. No open WP owned the guard, so it
+  was filed and landed together, beside the owner for that note
+  ([WP-1990](1990-soft-restraints-in-a-joint-fit.md)).
+  *Done:* the script, `/wp-handover` step 5, 11 tests, the test in CI's
+  `docs` job, and WP-1990 filed with the code comment and 1325/1962/1963's
+  seams pointed at it.
+  *Review* (`/code-review high --fix`): seven findings, six fixed. A WP
+  closed on main after the fork is now counted. `--base` names the target,
+  and the diff is against the merge-base with it. Renamed and oddly named
+  files survive. A failure of the underlying diff exits 2. The test fixtures
+  strip the environment's repository variables. The wiring test resolves the
+  command's path. One finding declined by design: a note that rewrites
+  existing lines one for one adds nothing net, so it is not reported.
+  *Measured* (`[dev]`, Linux x86_64, python 3.12, no other suite running):
+  the fast suite with main merged in (main was 7 commits newer than the fork)
+  was 10695 passed, 203 skipped, 2 xfailed. The branch adds 11 tests, all
+  passing. The bare branch before the review had 10674 passed and 203
+  skipped with 9 added, so the merged total also carries main's new tests and
+  is not a sum. The 11 added tests take 0.45 s together
+  (`tests.added_test_times`, local junit), far below the fast tier's tail.
+  The full suite did not run: nothing here can move a measured number. The
+  guard was seen failing on purpose: the wiring test went red before the
+  handover step existed.
+  *Gotchas:* main took 1988 the same day, so the filed WP is 1990. On this
+  branch the script reports one file, WP-0308, +2 lines. That is the pointer
+  to WP-1990, a record note that stays.
+  Next: none. WP-1990 is the follow-up, P3.
