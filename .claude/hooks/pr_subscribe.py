@@ -10,7 +10,7 @@ merge conflicts into the session that opened it, and
 ``.claude/skills/steward/SKILL.md`` says how this repo wants them handled.
 
 A hook cannot call an MCP tool, so this one does the part prose kept losing
-(WP-1987): it notices the PR going up and puts the subscription in front of the
+(WP-1988): it notices the PR going up and puts the subscription in front of the
 model, with the owner, repo and number already read off the tool's output.
 
 It fires on the two acts that make a PR **reviewable**, never on a draft:

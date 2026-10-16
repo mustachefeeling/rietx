@@ -1,6 +1,6 @@
 ---
 name: steward
-description: Drive a WP pull request this session put up for review to green and mergeable — merge conflicts, red CI, review comments — read before acting on any GitHub event on it, and after subscribing to it (WP-1987)
+description: Drive a WP pull request this session put up for review to green and mergeable — merge conflicts, red CI, review comments — read before acting on any GitHub event on it, and after subscribing to it (WP-1988)
 ---
 
 A PR this session readied (`/wp-handover` step 11) is this session's until it

@@ -251,7 +251,7 @@ re-reading its own diff.
       the call, number filled in, in front of you after `gh pr ready`. From
       here the session is the PR's steward until it merges or closes, and
       handles each CI result, review and merge conflict by
-      `.claude/skills/steward/SKILL.md` (WP-1987): main moves under every
+      `.claude/skills/steward/SKILL.md` (WP-1988): main moves under every
       open PR all day, and an unwatched one sits red or conflicted until the
       maintainer finds it.
 12. **Report**, to the person and not to the log: **first the same

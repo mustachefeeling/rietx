@@ -1,4 +1,4 @@
-# WP-1987 — A PR put up for review is watched by the session that opened it
+# WP-1988 — A PR put up for review is watched by the session that opened it
 
 Milestone: unscheduled · Status: 🔄 2026-10-16 — hook, steward skill and command edits landed; the first real subscribed handover is the acceptance
 Track: The repo's own process

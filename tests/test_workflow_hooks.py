@@ -1471,7 +1471,7 @@ def test_a_week_old_release_tag_with_merges_since_owes_a_release(repo: Path) -> 
 
 
 # --------------------------------------------------------------------------- #
-# The PR-subscribe nudge (.claude/hooks/pr_subscribe.py, WP-1987): a PR this
+# The PR-subscribe nudge (.claude/hooks/pr_subscribe.py, WP-1988): a PR this
 # session puts up for review is one it watches.
 # --------------------------------------------------------------------------- #
 
