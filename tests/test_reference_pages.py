@@ -204,6 +204,19 @@ def test_the_roadmap_keeps_named_milestones_and_drops_maintainer_links():
     ]
 
 
+def test_every_export_has_one_tier_in_the_api_reference():
+    """`rietx.__all__` is the floor: a new export lands in the third tier
+    until the skill's index places it, and none is listed twice."""
+    import rietx
+
+    tiers = reference_pages.api_tiers()
+    heads = [name.split(".")[1] for _, sections, _ in tiers for _, names in sections
+             for name in names if name.count(".") == 1]
+    assert set(rietx.__all__) <= set(heads), sorted(set(rietx.__all__) - set(heads))
+    third = [n for _, names in tiers[-1][1] for n in names]
+    assert not set(third) & {n for _, s, _ in tiers[:-1] for _, ns in s for n in ns}
+
+
 def test_the_roadmap_page_links_nothing_inside_the_planning_tree():
     text = reference_pages.roadmap_page()
     assert re.findall(r"\]\((?!https://)[^)]*\)", text) == []

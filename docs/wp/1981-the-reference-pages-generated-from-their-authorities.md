@@ -80,8 +80,10 @@ Facts measured 2026-10-15 (WP-1975 § B2-B4):
       build, and a test that every glob lands in exactly one group.
 - [x] `vars.*` help family in `help.py`, with the GUI `PLACES` row, vitest and dist rebuild.
 - [x] Plan ladder from `PLAN_INFO`/`PLAN_PRESETS`, one diagram per preset.
-- [ ] API reference: autodoc or a generator over `__all__`, grouped by likely use, and
-      `tests/api_surface.py`'s partition reading it.
+- [x] API reference: autodoc or a generator over `__all__`, grouped by likely use, and
+      `tests/api_surface.py`'s partition reading it. *Done as a generator over the skill
+      index's own selection, with `__all__` as its floor; the partition does not count it
+      as documentation (see the handover).*
 - [x] Diagnostic index: every code, its level and where it is raised.
 - [x] Project tree from a built example, annotated from the writer constants.
 - [x] Roadmap from the milestone records.

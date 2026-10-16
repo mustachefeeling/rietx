@@ -510,6 +510,101 @@ def roadmap_page() -> str:
     return "\n".join(out + [""])
 
 
+# ----------------------------------------------------------------------
+# The API reference
+#
+# Grouped by how likely each call is to be used, and the grouping is not
+# authored here.  The skill's index generator (`docs/skill/make_api_index.py`)
+# already decides it: `SECTIONS` is what every session calling rietx needs,
+# `TECHNIQUES` what a session doing one technique needs, and every other name
+# in `rietx.__all__` is the third tier.  Each entry is rendered by that
+# script's own `_entry`, so a signature here and in the skill cannot differ.
+# The skill's section paragraphs are written to an agent and are left out.
+#
+# This page does not count as documenting a name: `tests/test_manual_api.py`
+# skips `_generated/`, so its coverage partition still asks for prose.
+# ----------------------------------------------------------------------
+
+def _api_index():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "_make_api_index", DOCS_ROOT / "skill" / "make_api_index.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+#: `make_api_index._entry`'s bullet: the code span, then " — " and the summary.
+_ENTRY = _re.compile(r"^- (`[^`]+`)(?: — (.*))?$", _re.S)
+
+
+def _api_entry(index, dotted: str, technique: str | None = None) -> str:
+    """One name as a definition: its signature as the term, then its summary
+    line and, for a model or a dataclass, its fields."""
+    import inspect
+
+    obj = index._resolve(dotted)
+    if inspect.isclass(obj) and issubclass(obj, BaseException):
+        doc = index._doc_line(obj)
+        return f"`{dotted}`\n: An exception. {doc}\n"
+    if not (inspect.isclass(obj) or callable(obj) or isinstance(obj, dict)):
+        return f"`{dotted}`\n: A constant, `{obj!r}`.\n"
+    head, _, fields = index._entry(dotted, technique).partition("\n  Fields: ")
+    term, summary = _ENTRY.match(head).groups()
+    lines = [term, f": {summary or ''}".rstrip()]
+    if fields:
+        lines += ["", f"  Fields: {fields}"]
+    return "\n".join(lines) + "\n"
+
+
+def api_tiers() -> list[tuple[str, list[tuple[str, list[str]]], str | None]]:
+    """(tier heading, [(section title, dotted names)], technique key) in reading order."""
+    import rietx
+
+    index = _api_index()
+    everyday = [(title, list(names)) for title, _, names in index.SECTIONS]
+    techniques = []
+    for key, (title, _, sections) in index.TECHNIQUES.items():
+        techniques.append((title, [(t, list(names)) for t, _, names in sections], key))
+    placed = {name.split(".")[1] for _, sections in [("", everyday)] + [(t, s) for t, s, _ in techniques]
+              for _, names in sections for name in names if name.startswith("rx.")}
+    rest = sorted(set(rietx.__all__) - placed, key=str.lower)
+    return ([("Everyday calls", everyday, None)]
+            + [(title, sections, key) for title, sections, key in techniques]
+            + [("Everything else in rx", [("", [f"rx.{name}" for name in rest])], None)])
+
+
+def _api_body(tiers) -> str:
+    index = _api_index()
+    out = [_BANNER.format(source="docs/skill/make_api_index.py's selection and rietx.__all__"), ""]
+    # One tier is the page itself, so its sections take the H2 level.
+    level = "##" if len(tiers) == 1 else "###"
+    for heading, sections, technique in tiers:
+        if len(tiers) > 1:
+            out += [f"## {heading}", ""]
+        for title, names in sections:
+            if title:
+                out += [f"{level} {title}", ""]
+            out += [_api_entry(index, name, technique) for name in names] + [""]
+    return "\n".join(out)
+
+
+def api_everyday() -> str:
+    """The body of `reference/api.md`: the calls a session making a fit needs."""
+    return _api_body(api_tiers()[:1])
+
+
+def api_techniques() -> str:
+    """The body of `reference/api-techniques.md`: one tier per technique."""
+    return _api_body(api_tiers()[1:-1])
+
+
+def api_everything_else() -> str:
+    """The body of `reference/api-types.md`: the rest of `rietx.__all__`."""
+    return _api_body(api_tiers()[-1:])
+
+
 #: Generated body file name -> the function that writes it.
 BODIES = {
     "parameters.md": parameter_map,
@@ -517,6 +612,9 @@ BODIES = {
     "diagnostics.md": diagnostic_page,
     "project.md": project_tree,
     "roadmap.md": roadmap_page,
+    "api.md": api_everyday,
+    "api-techniques.md": api_techniques,
+    "api-types.md": api_everything_else,
 }
 
 
