@@ -19,9 +19,10 @@ import math
 import os
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import ClassVar, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, PrivateAttr, field_validator, model_validator
 
 from .common import Base, Parameter, _InheritsDeclaredDefaults
 
@@ -973,6 +974,23 @@ def refuse_moment_model_with_k(phase_name: str, present: Sequence[str]) -> None:
             "or drop the moment model to test the k")
 
 
+@dataclass(frozen=True)
+class _SiteTwinMerge:
+    """One site :meth:`Phase._site_twins_merged` moved onto its special position.
+
+    ``stated`` is the coordinate the phase was given, ``position`` where it
+    now is, ``gap`` the distance (Å) between two images of the stated
+    coordinate, and ``before``/``after`` the multiplicity at each.
+    """
+
+    label: str
+    stated: tuple[float, float, float]
+    position: tuple[float, float, float]
+    gap: float
+    before: int
+    after: int
+
+
 class Phase(_InheritsDeclaredDefaults):
     """A crystalline phase: symmetry, cell, atoms, scale, sample broadening."""
 
@@ -1159,6 +1177,10 @@ class Phase(_InheritsDeclaredDefaults):
     # Rigid bodies over this phase's own atoms (WP-1805).  Empty default ⇒
     # exactly off: a phase declaring none builds the table it always built.
     rigid_bodies: list[RigidBody] = Field(default_factory=list)
+    # The sites ``_site_twins_merged`` moved at construction, for a
+    # ``Refinement`` to report (``SITE_TWINS_MERGED``); not part of the
+    # document, since the stored coordinates already say where the site is.
+    _site_twin_merges: list = PrivateAttr(default_factory=list)  # of _SiteTwinMerge
     # What fixes the origin of a polar group (WP-1912, issue #727).  In
     # P 6₃ m c, P 4 m m, Cc or P 1 the whole structure can shift along the
     # polar axis without changing any intensity
@@ -1295,6 +1317,63 @@ class Phase(_InheritsDeclaredDefaults):
             None if bracket is not None else self.space_group)
         if refusal is not None:
             raise ValueError(f"phase {self.name!r}{refusal}")
+        return self
+
+    @model_validator(mode="after")
+    def _site_twins_merged(self) -> "Phase":
+        """Put a site whose own images coincide on its special position (#1007).
+
+        ``site_orbit`` snaps a site within ``SITE_TOL`` (1e-4, fractional) of a
+        special position, and on a mirror that is 5e-5 of the coordinate,
+        since the test compares the 2δ displacement.  Past it the site is
+        general and each image has a twin a few ten-thousandths of an ångström
+        away: PbSO₄'s S2 moved 1e-4 off the Pnma mirror puts 8 S in a cell of
+        4, the second copy absorbed by the scale and the displacement
+        parameter.  Where two images of a site are closer than
+        :data:`~rietx.crystallography.symmetry.TWIN_DISTANCE` (0.02 Å) the
+        site is moved onto the position its orbit collapses to
+        (:func:`~rietx.crystallography.symmetry.site_twin_merge`, the rule
+        #765 applied to CIF reads only), so a project file, a hand-edited
+        document and a structure built in code count the atoms a CIF read
+        does.  A split site, whose images are ≥ 0.20 Å apart, is untouched.
+
+        Here, at construction, because every route builds a ``Phase`` and the
+        moved coordinate is then what every consumer — the forward model,
+        QPA, a writer — and every fit starts from.  The schema has no
+        diagnostics channel, so the move is recorded on the phase
+        (``_site_twin_merges``) and a ``Refinement`` reports it as
+        ``SITE_TWINS_MERGED``.  Atoms of a rigid body are left to the body,
+        whose pose writes them: a body across a symmetry element is the body's
+        own question (#876).
+        """
+        from ..crystallography.symmetry import resolve_group, site_twin_merge
+
+        try:
+            sg = resolve_group(self.space_group, self.symmetry_operations)
+        except (ValueError, RuntimeError):
+            return self          # the symbol's own refusal is someone else's
+        bodied = {label for body in self.rigid_bodies for label in body.atoms}
+        cell = self.cell.lengths_angles()
+        for j, atom in enumerate(self.atoms):
+            if atom.label in bodied:
+                continue
+            xyz = (atom.x.value, atom.y.value, atom.z.value)
+            try:
+                merge = site_twin_merge(sg, cell, xyz)
+            except ValueError:
+                continue         # an orbit refusal speaks at compile
+            if merge is None:
+                continue
+            moved = [float(v) for v in merge.position]
+            # in place on the list: an assignment to ``self.atoms`` would
+            # re-run every validator through ``validate_assignment``
+            self.atoms[j] = atom.model_copy(update={
+                n: getattr(atom, n).model_copy(update={"value": v})
+                for n, v in zip("xyz", moved, strict=True)})
+            self._site_twin_merges.append(_SiteTwinMerge(
+                label=atom.label, stated=tuple(float(v) for v in xyz),
+                position=tuple(moved), gap=merge.gap,
+                before=merge.before, after=merge.after))
         return self
 
     @field_validator("propagation_vector", mode="before")

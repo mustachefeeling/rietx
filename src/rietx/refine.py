@@ -1888,6 +1888,11 @@ class Refinement:
         self._backend = backend
         self._solver = solver
         self.structure = structure.model_copy(deep=True)
+        # A coordinate assigned after its ``Phase`` was built never met the
+        # twin merge (#1007): the copy meets it here, and the fit reports it
+        # as ``SITE_TWINS_MERGED``.  Nothing to do for any other phase.
+        for phase in self.structure.phases:
+            phase._site_twins_merged()
         # A magnetic group has to be a symmetry of the structure it decorates
         # (issue #597).  Judged here, where a statement enters a fit, and not
         # on the schema or at compile: a refined phase whose group-related
@@ -7530,6 +7535,41 @@ DISPERSION_NEGLECT_FRAC = 0.02
 DISPERSION_NEGLECT_SEVERE = 0.05
 
 
+def _twin_merge_diagnostics(phase, index: int) -> list[Diagnostic]:
+    """``SITE_TWINS_MERGED`` for the sites ``Phase`` construction moved (#1007).
+
+    A site whose own images sat closer than ``TWIN_DISTANCE`` (0.02 Å) is put
+    on the special position its orbit collapses to when the ``Phase`` is
+    built (``Phase._site_twins_merged``).  The schema has no diagnostics
+    channel, so this is where the move is said: it decides how many atoms the
+    site puts in the cell, and therefore ZMV and every weight fraction.  A CIF
+    read has already said it on the reader's channel (``CIF_SITE_TWINS_MERGED``)
+    and left nothing for the phase to move, so the two never both fire.
+    """
+    merges = getattr(phase, "_site_twin_merges", None) or []
+    if not merges:
+        return []
+    labels = [a.label for a in phase.atoms]
+    out: list[Diagnostic] = []
+    for m in merges:
+        where = ([f"phases.{index}.atoms.{labels.index(m.label)}"]
+                 if m.label in labels else [f"phases.{index}"])
+        out.append(Diagnostic(
+            level="warning", code="SITE_TWINS_MERGED", where=where, value=m.gap,
+            message=(
+                f"site {m.label!r} of phase {phase.name!r} was given at "
+                f"{[round(v, 6) for v in m.stated]}, where it puts "
+                f"{m.before} atoms in the cell in pairs {m.gap:.2g} Å apart; "
+                f"it was moved onto the special position "
+                f"{[round(v, 6) for v in m.position]}, {m.after} atoms"),
+            suggestion=(
+                "check the coordinate against its source: a special position "
+                "stated a few 1e-5 off (a hand edit, a rounded project file) "
+                "is the usual cause. To keep a genuinely displaced atom, "
+                "state it at least 0.02 Å from its own images")))
+    return out
+
+
 def _symmetry_silence_diagnostics(structure: Structure,
                                   mode: str = "rietveld") -> list[Diagnostic]:
     """The two ways a structure's symmetry can be wrong without saying so.
@@ -7570,6 +7610,7 @@ def _symmetry_silence_diagnostics(structure: Structure,
     for i, phase in enumerate(structure.phases):
         sg = resolve_group(phase.space_group, phase.symmetry_operations)
         if structural:
+            out.extend(_twin_merge_diagnostics(phase, i))
             out.extend(snap_diagnostics(
                 sg,
                 [(a.label, (a.x.value, a.y.value, a.z.value)) for a in phase.atoms],

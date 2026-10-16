@@ -1956,7 +1956,7 @@ def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
     import gemmi
     import numpy as np
 
-    from ...crystallography.symmetry import expand_positions
+    from ...crystallography.symmetry import expand_positions, site_twin_merge
 
     where = where or f"phase {phase.index} ({phase.name!r})"
     try:
@@ -1971,10 +1971,16 @@ def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
             f"structure factor from — and dropping it would leave its R_Bragg "
             f"reporting for a phase the Structure lacks")
     general = len(list(sg.operations()))
+    # a site whose own images coincide is counted on the special position it
+    # collapses to, as the ``Phase`` built from it will hold it (#1007)
+    cell = (tuple(phase.cell[k].value for k in _CELL_COLUMNS)
+            if all(k in phase.cell for k in _CELL_COLUMNS) else None)
     ratios: list[float] = []
     for atom in phase.atoms:
         xyz = np.array([atom.values[k].value for k in ("x", "y", "z")], float)
-        multiplicity = len(expand_positions(sg, xyz))
+        merge = None if cell is None else site_twin_merge(sg, cell, xyz)
+        multiplicity = (merge.after if merge is not None
+                        else len(expand_positions(sg, xyz)))
         ratios.append(atom.values["occ"].value * general / multiplicity)
     reference = max(ratios, key=abs)
     if reference == 0.0 or any(
