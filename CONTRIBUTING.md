@@ -59,6 +59,13 @@ fails before review reads it.
   bibliography entry is cited, and every displayed equation carries a
   source symbol that imports. A new public name fails the coverage
   partition until it is documented, excluded with a reason, or deferred.
+- The new manual (`docs/docs/`) is also read by Vale, in CI's lint job:
+  British spelling, Microsoft's style guide as the base, and the house rules
+  in `docs/vale/rietx/`. An error fails the job. Run it locally with
+  `vale sync && vale docs/docs` (Vale 3.24, installed separately, e.g.
+  `brew install vale`). A word Vale does not know goes in
+  `docs/vale/terms.txt`, then `python docs/vale/terms.py` rewrites the
+  accept list.
 - Worked examples live in `examples/`, are included verbatim by the manual
   and executed by the suite. Never write a second copy of a walkthrough.
 - A new correction ships with a record field or a diagnostic stating what

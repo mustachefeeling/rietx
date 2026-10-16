@@ -89,9 +89,12 @@ gitignored. The stubs use no admonitions yet.
       as `Headings` (a one-word section heading, suggestion), 2 in `Terms`, 3 as
       `Programming` (suggestion) and `Fnmatch` (error), 5 as `Notation`, 6 as `Metaphor`
       and `Roles` (warnings). Rule 4 is review only.
-- [ ] Decide whether Vale reads the generated Reference bodies, from a measured run.
-- [ ] A CI step over the new tree, failing on errors and reporting warnings; decide the
-      level at which it fails from a run over the pages that exist then.
+- [x] Decide whether Vale reads the generated Reference bodies, from a measured run.
+      Not yet: 107 errors over their 20 915 words (55 spellings, 46 em dashes), all in the
+      package's strings. `.vale.ini`'s section skips `_generated/`, and WP-1985 widens it.
+- [x] A CI step over the new tree, failing on errors and reporting warnings; decide the
+      level at which it fails from a run over the pages that exist then. The lint job, so
+      a draft runs it. It fails on an error and prints warnings: 0 and 5 over 18 pages.
 - [ ] Skill: none.
 
 ## Acceptance
