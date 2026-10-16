@@ -41,6 +41,13 @@ skill at the start rather than from this line.
 
 ### Inherited
 
+- **2026-10-16, from WP-1981.** The register guard reads committed sources, so the
+  Reference tab's generated bodies in `docs/docs/_generated/` are not checked by it. That
+  was deliberate: their prose is the package's own text (`rietx.help` descriptions,
+  `PLAN_INFO`, docstring first lines), which carries em dashes and bold, and some API
+  summary lines name WP numbers ("WP-0501 (cylinder)" on `AbsorptionCorrection`). Decide
+  whether Vale reads the generated bodies. If it does, the fixes land in the package's
+  strings, not in the pages.
 - **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
   the fenced constants, the citation style, the mermaid theme and the `{source}` role from
   `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
