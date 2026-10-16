@@ -76,8 +76,11 @@ gitignored. The stubs use no admonitions yet.
 ## Tasks
 
 - [ ] `.vale.ini` and the vocabulary in the repo, the Microsoft package pinned by version.
-- [ ] The term list: generated from `help.py`'s labels and titles plus a hand-kept IUCr
+- [x] The term list: generated from `help.py`'s labels and titles plus a hand-kept IUCr
       file; one concept, one term, with the rejected synonyms on the reject side.
+      `docs/vale/terms.py` writes the accept list from `rietx.help` and
+      `docs/vale/terms.txt`; `docs/vale/rietx/Terms.yml` is the reject side;
+      `tests/test_vale.py` holds both.
 - [ ] en_GB spelling, `OxfordComma` off, `Terms`/`Vocab` reviewed rule by rule against this
       domain rather than switched off wholesale.
 - [ ] The checkable halves of the six style rules above, as `rietx.*` Vale rules.

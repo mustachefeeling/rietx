@@ -486,3 +486,10 @@ they were built from. Their licence texts ship in the wheel and sdist as
   colours the same colour to a person".
 - Test patterns under `tests/data/` — see `tests/data/README.md` for per-file
   provenance (NIST / APS 11-BM public data are works of the U.S. Government).
+- `docs/vale/config/dictionaries/en_GB.dic` and `en_GB.aff` — the en_GB-ise
+  Hunspell dictionary derived from SCOWL by Kevin Atkinson (version
+  2020.12.07, http://wordlist.sourceforge.net), as packaged in the npm
+  package `dictionary-en-gb` 3.0.0 by Titus Wormer (fetched 2026-10-16).
+  Unmodified, with the licence beside them as `en_GB.license` (MIT and BSD
+  terms). Vale reads them to check the manual's British spelling (WP-1982).
+  Repository tooling only: nothing under `docs/vale/` enters the wheel.
