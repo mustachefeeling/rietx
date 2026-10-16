@@ -23,7 +23,7 @@ two ways a note got lost:
   restraints into WP-0308's `### Inherited` on 2026-07-27, after 0308 closed
   (its Status reads ✅ 2026-07-24). `_multi_closures`' refusal pointed readers at that file for 81
   days. Three open WPs (1325, 1962, 1963) worked around the refusal, and none
-  owned it. It is now [WP-1988](1988-soft-restraints-in-a-joint-fit.md).
+  owned it. It is now [WP-1990](1990-soft-restraints-in-a-joint-fit.md).
 - **In prose rather than under the heading.** WP-1907's close (2026-10-07)
   wrote "WP-1903's Inherited has both" about two lane-tool defects, after
   1903's ✅. It reached a reader only because 1903 was worked again the next
@@ -85,4 +85,4 @@ python3 .claude/hooks/closed_wp_writes.py   # on this branch: reports 0308's poi
   x86_64, python 3.12). Its first case is the guard failing on purpose: the
   wiring test went red before the handover step existed. On this branch the
   script reports one file, WP-0308, +2 lines. That is the pointer to
-  WP-1988, a record note that stays. Next: none.
+  WP-1990, a record note that stays. Next: none.

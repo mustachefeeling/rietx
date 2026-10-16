@@ -67,7 +67,7 @@ only Rietveld histograms contribute rows. The single-histogram seam
 (`optimize/least_squares.py`, `model/restraints.py`) is the reference.
 
 *2026-10-16:* written after this WP closed, so no session read it. The work
-is [WP-1988](1988-soft-restraints-in-a-joint-fit.md), which owns it now.
+is [WP-1990](1990-soft-restraints-in-a-joint-fit.md), which owns it now.
 
 ## Design (audit + decisions — 2026-07-24)
 

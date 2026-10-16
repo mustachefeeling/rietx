@@ -8,7 +8,7 @@ written into a closed WP is a note no one will read. `/wp-handover` step 5 and
 
 * WP-0406 put its joint-fit restraint deferral into WP-0308's
   `### Inherited` three days after 0308 closed. The code's refusal pointed
-  readers at that closed file for 81 days, until WP-1988 took it.
+  readers at that closed file for 81 days, until WP-1990 took it.
 * WP-1907's handover wrote "WP-1903's Inherited has both" about two tool
   defects after 1903 was marked ✅. It was read only because 1903 happened to
   be worked again the next day.
