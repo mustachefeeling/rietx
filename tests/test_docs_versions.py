@@ -115,6 +115,22 @@ def test_a_retired_page_gets_a_stub_pointing_into_the_hosted_tree(tmp_path, monk
     assert 'rel="canonical" href="https://rietx.org/docs/dev/theory/profiles.html#tchz"' in stub
 
 
+def test_a_stub_points_at_stable_only_once_stable_has_the_page(tmp_path, monkeypatch):
+    monkeypatch.setattr(versions, "RETIRED", {"profiles": "index", "background": "theory/bg"})
+    site = _site(tmp_path / "site")
+    versions.assemble(site, [("1.11", "1.11.1")], lambda version: _tarball(tmp_path, version))
+    # The release's tarball holds index.html and nothing under theory/.
+    assert "url=/docs/stable/index.html" in (site / "profiles.html").read_text(encoding="utf-8")
+    assert "url=/docs/dev/theory/bg.html" in (site / "background.html").read_text(encoding="utf-8")
+
+
+def test_assemble_runs_twice_over_one_site(tmp_path):
+    site = _site(tmp_path / "site")
+    for _ in range(2):
+        versions.assemble(site, [("1.11", "1.11.1")], lambda version: _tarball(tmp_path, version))
+    assert (site / "docs" / "stable" / "index.html").read_text(encoding="utf-8") == "1.11.1"
+
+
 def _old_tree_pages():
     manual = ROOT / "docs" / "manual"
     pages = {path.relative_to(manual).with_suffix("").as_posix()

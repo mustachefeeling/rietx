@@ -123,6 +123,9 @@ def assemble(site: _Path, kept: list[tuple[str, str]], fetch) -> None:
     docs = site / "docs"
     if not (docs / "dev" / "index.html").is_file():
         raise SystemExit(f"{docs / 'dev'} holds no built tree; build main's first")
+    # A second run over the same site replaces each tree rather than merging into it.
+    for name in [minor for minor, _ in kept] + ["stable"]:
+        _shutil.rmtree(docs / name, ignore_errors=True)
     for minor, version in kept:
         with _tarfile.open(fetch(version)) as archive:
             archive.extractall(docs / minor, filter="data")
@@ -136,7 +139,10 @@ def assemble(site: _Path, kept: list[tuple[str, str]], fetch) -> None:
         redirect_page(f"{target}/", f"{DOCS_URL}/docs/{target}/"), encoding="utf-8")
     for old, new in RETIRED.items():
         page, _, heading = new.partition("#")
-        path = f"/docs/{target}/{page}.html" + (f"#{heading}" if heading else "")
+        # A page retired on main is in dev at once and in stable only from the next
+        # release, so until then the stub sends the reader to dev.
+        tree = target if (docs / target / f"{page}.html").is_file() else "dev"
+        path = f"/docs/{tree}/{page}.html" + (f"#{heading}" if heading else "")
         stub = site / f"{old}.html"
         stub.parent.mkdir(parents=True, exist_ok=True)
         stub.write_text(redirect_page(path, DOCS_URL + path), encoding="utf-8")
