@@ -46,6 +46,14 @@ carries no instrument, so write the new one from a `Refinement`.
 
 ### Inherited
 
+- **2026-10-17, from WP-1983.** Two questions a newcomer check asked of the Concepts tab
+  have no page yet, and both belong in Guides. Neither has been checked against the code.
+  First, does a fit's first stage estimate the phase scale, or start from the stored value
+  (the parameter map gives a default of 1.0)? That belongs in the guide on starting a fit.
+  Second, do excluded regions survive a `Refinement.checkout` or a `rx.replay`? They live
+  in `project.json` and no history node records them (`schemas/project.py`), so a checkout
+  should keep the current ones and a replay should use whatever the pattern carries. That
+  belongs in the guide on excluding a region.
 - **2026-10-17, from WP-1983.** The six Concepts pages link Part 2 on the site, as
   `https://rietx.org/<chapter>.html#<id>` (16 links into six chapters, nine of them
   `estimation`). Moving a chapter
