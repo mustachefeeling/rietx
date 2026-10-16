@@ -140,11 +140,39 @@ def _included_sources(page: Path, text: str) -> list[str]:
     reader of the chapter sees.
     """
     sources = []
-    for target in LITERALINCLUDE.findall(text):
+    for match in LITERALINCLUDE.finditer(text):
+        target = match.group(1)
         path = (page.parent / target).resolve()
         assert path.exists(), f"{_where(page)}: literalinclude target does not exist: {target}"
-        sources.append(path.read_text(encoding="utf-8"))
+        sources.append(_included_slice(path.read_text(encoding="utf-8"),
+                                       text[match.end():], page, target))
     return sources
+
+
+def _included_slice(source: str, after: str, page: Path, target: str) -> str:
+    """The part of ``source`` the directive's options show, as Sphinx cuts it.
+
+    Only the four text markers are read; a reader sees the slice, so a name
+    elsewhere in the file is not one the page wrote.
+    """
+    options = dict(re.findall(r"^:([a-z-]+):[ \t]*(.*)$",
+                              after.split("```", 1)[0], re.M))
+    for key, keep_marker, from_start in (("start-at", True, True),
+                                         ("start-after", False, True),
+                                         ("end-before", False, False),
+                                         ("end-at", True, False)):
+        marker = options.get(key)
+        if marker is None:
+            continue
+        if len(marker) > 1 and marker[0] == marker[-1] and marker[0] in "\"'":
+            marker = marker[1:-1]  # MyST reads an option as YAML, quotes and all
+        at = source.find(marker)
+        assert at >= 0, f"{_where(page)}: {target} has no :{key}: {marker!r}"
+        if from_start:
+            source = source[at if keep_marker else at + len(marker):]
+        else:
+            source = source[:at + len(marker) if keep_marker else at]
+    return source
 
 
 def _code_text(page: Path, text: str) -> str:
