@@ -1,6 +1,6 @@
 # WP-1984 — The Switching tab
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-17 — claimed by @yue-here
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1981 soft (the foreign-name map and the roadmap it links)
 Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
