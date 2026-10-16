@@ -36,9 +36,25 @@ the site, so that figure includes them. Measure the real manual without them, be
 choosing how many minors to keep.
 
 **Today's deploy** (`.github/workflows/pages.yml`) builds once and deploys one fresh site, so
-nothing from an earlier build survives. Keeping versions needs an accumulating deploy. Two
-options to weigh at the start: a `gh-pages` branch that each release adds a directory to, or a
-workflow that rebuilds every kept tag. The landing page stays at `/`.
+nothing from an earlier build survives. Keeping versions needs an accumulating deploy. The
+landing page stays at `/`.
+
+**Decided 2026-10-16: each release stores its own tree as a release asset.** Three stores
+were weighed:
+- a storage branch (`gh-pages`, as mike and NumPy do);
+- rebuilding every kept tag on each deploy;
+- a tarball attached to each GitHub release.
+
+Rebuilding fails here. Every conf.py imports the live package, and sphinx-multiversion builds
+each tag against the one installed package. Read the Docs was weighed too and declined for
+now: it would serve `docs.rietx.org`, and moving later only needs the stubs this WP builds.
+
+**Measured 2026-10-16** (`sphinx -b html -d <elsewhere>`, doctrees excluded). One version of
+the new tree is 7.4 MB. The old tree, which WP-1986 moves in, adds about 14 MB, so a full
+version is about 21 MB. Six minors, stable and dev come to about 170 MB. Today's whole Pages
+artifact is 24 MB compressed. Size does not bind against the 1 GB cap, so the last **6** minors
+are kept. The first release whose tag holds `docs/docs/` is v1.10.0. Until it ships, `/docs/`
+sends readers to `dev/`.
 
 **The package's links.** `rietx._about.DOCS_URL` is `"https://rietx.org"` today. Each
 `HelpEntry.anchor` is a `page.html#id` relative to the old tree's root (`help.py:84`), and
@@ -81,7 +97,7 @@ bodies into an ignored `docs/docs/_generated/` on every build.
 
 ## Tasks
 
-- [ ] Measure one version of the real new tree, and choose how many minors to keep.
+- [x] Measure one version of the real new tree, and choose how many minors to keep.
 - [ ] The accumulating deploy: `stable`, `dev` and the kept minors, plus `switcher.json` and
       the `/docs/` redirect, with the landing page untouched.
 - [ ] Redirect stubs: a generator for a retired chapter's old URL (meta-refresh plus
