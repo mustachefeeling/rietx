@@ -21,6 +21,7 @@ Altomare
 Biso
 [bB]kg
 Bravais
+Brentano
 Brindley
 [bB]rucite
 Bruker
@@ -38,6 +39,8 @@ Caglioti
 Chebyshev
 CIF
 CIFs
+[cC]odeword
+[cC]odewords
 Coelho
 [cC]ollinear
 [cC]ollinearity
@@ -121,7 +124,9 @@ Jmol
 Jupyter
 JupyterLab
 Kapton
+Landé
 Langford
+LANSCE
 [lL]anthanide
 Levenberg
 [lL]igand
@@ -136,6 +141,8 @@ Lindemann
 Lorentzian
 [mM]acromolecular
 [mM]agCIF
+[mM]agneton
+[mM]agnetons
 Mantid
 Marquardt
 [mM]atplotlib
@@ -170,6 +177,7 @@ Niggli
 [oO]perando
 [oO]rthonormal
 [oO]rthorhombic
+P1
 [pP]arameterisation
 [pP]arameterisations
 Pawley
@@ -184,6 +192,8 @@ Pitschke
 [pP]olyimide
 [pP]ositivity
 [pP]refactor
+[pP]rm
+[pP]seudosymmetry
 [pP]x
 [pP]ydantic
 [pP]ytest
@@ -202,6 +212,7 @@ Rexp
 [rR]hombohedral
 Rietveld
 [rR]ietx
+Rigaku
 [rR]oadmap
 Rodrigues
 [rR]oundoff
