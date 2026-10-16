@@ -82,6 +82,23 @@ the whole surface with real agents.
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#998): `solve_seed` checkpoint,
+  resume and progress.** The reporter's blind kit (36 atoms, 4 species, lab
+  X-ray) ran single seeds at `budget=3` past 1 h and then 8 h timeouts, and
+  each kill lost the whole deterministic trajectory. Asked for: an atomic
+  checkpoint at `_race`'s natural boundaries (RNG state, stage and round,
+  `alive`, `rec`/`best_u`, ladders, `evals`/`swaps`, finished records);
+  resume refused on a cost, spec or version mismatch; best-so-far
+  candidates flagged `partial=True`; a progress callback with a real
+  fraction done. Acceptance: an interrupted-then-resumed run is
+  byte-identical to an uninterrupted one. The reporter is building it in
+  their WP-1515 spike and will PR it against whichever chunk brings the
+  engine to `main`. Checked at `138d55dc`: only `solve/cost.py` (WP-1902) is
+  on `main`; `solve_seed` is not. So it is a requirement on the chunk that
+  lands the engine, and the root CLAUDE.md's cancel and telemetry rules
+  (`CancelToken`, `runs.py`) are the seams to reuse rather than a new
+  channel.
+
 - **2026-10-05, from the issue triage (issue #677, follow-up to #562): a
   second blind prototype run, and the design restated with space-group
   competition before any `high`.** 89 cases from a private corpus (counts

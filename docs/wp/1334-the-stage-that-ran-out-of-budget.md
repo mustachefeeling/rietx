@@ -15,6 +15,21 @@ computed.
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#538): option (1) is mostly on main,
+  from WP-1937, so the task is smaller than the entry says.** `614f24a8`
+  (2026-10-10) documents `StageResult.n_iterations` as residual evaluations
+  (`schemas/results.py:899-903`) and `SeriesEntry.n_iterations` as "Total
+  residual evaluations" (`schemas/sequential.py:125`), `_stage_lines` prints
+  "N evals" (`results.py:1167`), and Part 1 says evaluations
+  (`refining.md:1072`, `series.md:253,273`, `history.md:196`). No schema
+  change, as decided. Still open: the epsilon / p90 rule stated in that unit,
+  and the test constant `RAMP_MAIN_UNBOUNDED_ITERATIONS`
+  (`tests/test_held_phase.py:695`, comment still says "iterations") renamed,
+  as the 2026-09-30 reply on #538 asked. Tick the first two clauses of the
+  task at line 173 once the rule is written. Checked at origin/main 138d55dc
+  by reading; the reporter's reproduction (`max_iter=1` gives 4) was not
+  re-run, and under the documented unit its output is correct.
+
 - **2026-10-10, from WP-1937: `"diverged"` now has no writer.** scipy's TRF
   never returns a negative status for a valid input (−1 comes only from
   MINPACK's `method="lm"`), and WP-1937 stopped the LM driver returning one

@@ -72,6 +72,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1983](1983-the-concepts-tab.md) | The Concepts tab | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1984](1984-the-switching-tab.md) | The Switching tab | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1989](1989-the-released-arm-keeps-riding-hydrogens-riding.md) | The rigid-body check's released arm keeps riding hydrogens riding | P2 | — ([1806](1806-first-public-case-acridine-form-ix.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -421,6 +423,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1811](1811-bodies-in-a-series.md) | Bodies in a series | ⬜ | P3 | [1805](1805-the-rigid-body.md), [1333](1333-a-series-survives-one-pattern.md) |
 | [1812](1812-gui-textdoc-skill-and-manual-for-bodies.md) | GUI, textdoc, skill and manual for bodies | ⬜ | P4 | [1805](1805-the-rigid-body.md) |
 | [1813](1813-fragment-io.md) | Fragment I/O: XYZ, Z-matrix write, SMILES behind an extra | ⬜ | P4 | [1802](1802-the-fragment-type.md) |
+| [1814](1814-refinable-z-matrix-internals.md) | Refinable internal geometry: Z-matrix lengths, angles and dihedrals | ⬜ | P3 | [1815](1815-derived-geometry-torsions-and-a-request-form.md), [1805](1805-the-rigid-body.md) |
+| [1815](1815-derived-geometry-torsions-and-a-request-form.md) | Derived geometry: torsions, a request form, one table every writer reads | ⬜ | P3 | [1804](1804-the-derived-block.md) |
 
 ## <a id="structure-solution"></a>structure-solution — a map, a cost and a search
 
@@ -533,6 +537,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | ⬜ | P2 | — ([1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) soft) |
 | [1976](1976-a-correction-summary-judged-at-the-drawn-angle.md) | A correction summary judged at the drawn angle | ✅ 2026-10-15 | — | — |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | ⬜ | P2 | — |
+| [1989](1989-the-released-arm-keeps-riding-hydrogens-riding.md) | The rigid-body check's released arm keeps riding hydrogens riding | ⬜ | P2 | — ([1806](1806-first-public-case-acridine-form-ix.md) soft) |
+| [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | ⬜ | P2 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
@@ -599,6 +605,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1971](1971-a-returned-figure-survives-a-zoom-and-a-pickle.md) | A returned figure survives a caller's zoom and a pickle | ✅ 2026-10-15 | — | — |
 | [1972](1972-the-indexing-figures-take-a-dark-palette.md) | The indexing figures take a dark palette | ✅ 2026-10-15 | — | — |
 | [1985](1985-report-and-diagnostic-text-in-one-voice.md) | Report and diagnostic text, rewritten in one voice | ✅ 2026-10-16 | — | — ([1133](1133-diagnostic-names-its-view.md) soft) |
+| [1990](1990-the-correlation-matrix-reaches-the-result.md) | The correlation matrix reaches the result | ⬜ | P3 | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 
@@ -616,6 +623,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1919](1919-maximal-subgroups-generated-from-the-operators.md) | Maximal subgroups, their conjugacy classes, (P, p) and Wyckoff splittings, generated from the group's own operators | ⬜ | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
 | [1921](1921-the-users-own-structure-database-indexed.md) | The user's own structure database, indexed: is this phase or this cell already known? | ⬜ | P3 | — |
 | [1967](1967-what-the-chemist-declares-reaches-the-extinction-screen.md) | What the chemist declares reaches the extinction screen | ⬜ | P2 | — ([1910](1910-the-extinction-screen-at-a-small-cell-error.md) soft) |
+| [1992](1992-nw2-magnetic-superspace-groups.md) | N-W2 (group half): magnetic superspace groups generated from the operators | ⬜ | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
+| [1993](1993-nw3-satellites-at-a-real-q.md) | N-W3: satellites at a real q, to order m, with (h k l m) rows | ⬜ | P3 | — ([1992](1992-nw2-magnetic-superspace-groups.md) soft) |
 
 ### <a id="unscheduled-the-repo-s-own-process"></a>The repo's own process
 

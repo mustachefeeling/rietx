@@ -75,6 +75,23 @@ close, since the peak list feeds every engine.
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#934): PR #993 (theirs, head
+  `d34597c9`, opened 2026-10-15 13:32) is part (c)'s diagnostics, and WP-1968
+  does not name it.** Part (c) asked for three filters as flags with a
+  diagnostic each. The flags already landed with #947 (`weak_line`) and #948
+  (`width_capped`, `unresolved_split`). #993 adds `PEAK_POSITION_AT_BOUND` and
+  `PEAK_NO_INTENSITY`, and puts each component's value and bound in
+  `PEAK_WIDTH_CAPPED` and `PEAK_EXPECTED_FALSE_LINES`; no flag, threshold or
+  `usable()` moves (census identical on the flat Si and the 16 round-robin
+  patterns). It takes `INDEXING_THRESHOLDS_VERSION` 1.11 to 1.12, so it
+  renumbers against #951 and #940. It leaves out the driven-set exclusion,
+  which matches the task already in this WP. It asks one thing of the
+  maintainer: `PEAK_POSITION_AT_BOUND` as a warning when an offered line sits
+  on its bound (10 of 16 round-robin patterns). It also reports 24 usable
+  components on the position bound whose reported position is the bound's, and
+  offers a re-seeded second solve as a separate PR. Checked against the PR
+  body, code not reviewed.
+
 - **2026-10-14, from the issue triage: issue #934 is in PRs #947 and #948
   (theirs).** #947 (part b, head `d4b78965`) tests each component's I/σ_I by
   Benjamini–Hochberg at q = 0.01 (`PEAK_FDR_Q`) over the pattern's resolution

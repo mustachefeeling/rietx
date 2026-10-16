@@ -87,6 +87,22 @@ spglib convention, as PRs against the migration branch once it exists.
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#426): the spglib call-site count is
+  now 15 in 8 files, not 14 in 7.**
+  `crystallography/representation/distortion.py:546` (PR #950, merged
+  2026-10-15, WP-1419 chunk C1) calls `spglib.get_symmetry_dataset` to name
+  each mode component's isotropy subgroup (`_probe_group`, symprec
+  `_PROBE_SYMPREC`), catching `SPGLIB_REFUSALS`. It is a nuclear
+  identification call, so it belongs in the port's step 2, and its
+  `data.international` / `data.number` / `len(data.rotations)` reads are what
+  moyo's `MoyoDataset` must reproduce. WP-1419's later chunks may add more;
+  recount before the port. `pyproject.toml:56` still reads `spglib>=2.8`.
+  Nothing else on #426 moved since the 2026-10-11 reply. Checked at
+  origin/main 138d55dc with `git grep -E 'spglib\.[a-z_]+\('` over `src`
+  (magcif 1, magnetic/operators 7, magnetic/supercell 1,
+  representation/distortion 1, superspace/generation 1, superspace/operators
+  1, wyckoff 1, indexing/reduce 2).
+
 - **2026-10-10, from the fix for main's red CI: spglib 2.8.0 fixed the
   round trip, and rietx now requires it.** 2.8.0 (PyPI 2026-10-10) corrects
   the time-reversal flags of UNI 282-284. All 1651 groups now round-trip, and

@@ -43,6 +43,13 @@ here (2026-10-03, at the maintainer's request).
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#726): a second case where the seeded
+  `profile_only` prefit was not enough.** The 2026-10-11 PbSO₄ neutron entry
+  below now has a companion: #726's comment of 2026-10-15, on a lab
+  Bragg-Brentano pattern with a steep background. The facts and the reporter's
+  PR offer are in WP-1910's Inherited section. Read it beside the
+  seed-versus-SNIP measurement task.
+
 - **2026-10-11, from the issue triage (#726, the reporter's comment of
   2026-10-11 09:56Z): the extinction screen's shared fit does not seed the
   background, and on a neutron pattern it never recovers.** Checked at
