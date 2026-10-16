@@ -112,8 +112,9 @@ bodies into an ignored `docs/docs/_generated/` on every build.
 - [x] The `{source}` role links the build's tag rather than `main`. So do the Reference tab's
       two file links. `sphinx_shared.DOCS_VERSION` says which hosted version a build is, and
       `SOURCE_REF` follows it.
-- [ ] `docs/RELEASING.md` gains the step that adds a version, and the step that prunes one.
-- [ ] Skill: none; the skill links the docs through `DOCS_URL`.
+- [x] `docs/RELEASING.md` gains the step that adds a version, and the step that prunes one.
+      Adding is step 8's check. Pruning is automatic, so its section says how to change it.
+- [x] Skill: none; the skill links the docs through `DOCS_URL`.
 
 ## Acceptance
 
