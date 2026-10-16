@@ -140,12 +140,12 @@ def test_each_matcher_is_specific_to_its_own_event(planted):
 def test_the_committed_output_carries_the_same_mapping():
     """The committed 248-pattern ``signals.json`` says what this module's
     rules say about it, so the file and the rules cannot drift apart."""
-    record = json.loads((DATA / "signals.json").read_text())
+    record = json.loads((DATA / "signals.json").read_text(encoding="utf-8"))
     assert record["length"] == 248
     assert set(record["events"]) == set(EVENTS)
     assert record["surfaced"]["transition"] is None
     assert all(record["surfaced"][k] for k in ("background", "bad", "second_phase"))
-    null_record = json.loads((DATA / "null_signals.json").read_text())
+    null_record = json.loads((DATA / "null_signals.json").read_text(encoding="utf-8"))
     assert null_record["events"] == {}
     assert null_record["signals"]["above_fence"] == null_record["signals"]["steps"] == []
 
@@ -157,7 +157,7 @@ def test_the_full_length_series_reproduces_its_committed_signals():
     rung budget and mark no event — equals the committed record, and the
     null's is empty."""
     series = generate(248, seed=0)
-    record = json.loads((DATA / "signals.json").read_text())
+    record = json.loads((DATA / "signals.json").read_text(encoding="utf-8"))
     result = refine(series)
     got = signals(result)
     for key in ("above_fence", "steps", "unrecovered", "phase_unconstrained"):
@@ -167,7 +167,7 @@ def test_the_full_length_series_reproduces_its_committed_signals():
 
     null_result = refine(null_series(248, seed=0))
     assert signals(null_result) == json.loads(
-        (DATA / "null_signals.json").read_text())["signals"]
+        (DATA / "null_signals.json").read_text(encoding="utf-8"))["signals"]
 
 
 _LOOK_ELSEWHERE = (

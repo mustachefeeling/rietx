@@ -30,7 +30,7 @@ fixture: a capillary at λ = 0.4139 Å (the wavelength of the LaB6 series in
 
 Why here: ``tests/`` already holds the package's forward-modelled fixtures
 (``_synthetic_silicon.py``, ``_synthetic_crsbr.py``) and the runnable
-benchmark (``python -m tests.bethanechol_benchmark``), it is outside the
+scoreboard (``python -m tests.indexing_gallery``), it is outside the
 wheel, and the fast suite imports it to regenerate a short series rather
 than vendoring patterns (#141, 13 Oct).  A full-length run with its
 ``to_table()``::
@@ -403,7 +403,8 @@ def write_outputs(series: PlantedSeries, result: rx.SeriesResult,
         "surfaced": {k: surfaced(result, k, i) for k, i in series.events.items()},
         "signals": signals(result),
     }
-    (out / "signals.json").write_text(json.dumps(record, indent=1) + "\n")
+    (out / "signals.json").write_text(json.dumps(record, indent=1) + "\n",
+                                     encoding="utf-8", newline="\n")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -446,7 +447,8 @@ def main(argv: list[str] | None = None) -> int:
     wall = time.perf_counter() - t0
     write_outputs(series, result, args.out)
     if args.json:
-        (args.out / "series.json").write_text(result.model_dump_json())
+        (args.out / "series.json").write_text(result.model_dump_json(),
+                                             encoding="utf-8", newline="\n")
     print(f"{len(series.patterns)} patterns refined in {wall:.1f} s")
     for kind, index in series.events.items():
         print(f"{kind} at {index}: {surfaced(result, kind, index)}")
