@@ -63,20 +63,16 @@ def test_the_grouping_fails_what_it_should(paths, fragment):
         reference_pages.parameter_groups(entries)
 
 
-def test_a_glob_two_leaves_claim_raises():
+def test_a_glob_two_leaves_claim_raises(monkeypatch):
     """`*` crosses dots, so a careless leaf glob can claim another leaf's paths."""
     entries = [{"paths": ["phases.*.atoms.*.moment.dof*"]}]
     claimed = [glob for _, _, leaves in reference_pages.PARAMETER_GROUPS
                for _, _, globs in leaves for glob in globs]
     assert "phases.*.atoms.*.moment.*" in claimed
-    original = reference_pages.PARAMETER_GROUPS
-    try:
-        reference_pages.PARAMETER_GROUPS = original + (
-            ("Extra", "Lead.", ((None, None, ("phases.*.atoms.*",)),)),)
-        with pytest.raises(RuntimeError, match="claimed by 2 leaves"):
-            reference_pages.parameter_groups(entries)
-    finally:
-        reference_pages.PARAMETER_GROUPS = original
+    monkeypatch.setattr(reference_pages, "PARAMETER_GROUPS", reference_pages.PARAMETER_GROUPS + (
+        ("Extra", "Lead.", ((None, None, ("phases.*.atoms.*",)),)),))
+    with pytest.raises(RuntimeError, match="claimed by 2 leaves"):
+        reference_pages.parameter_groups(entries)
 
 
 def test_the_map_shows_every_entry_once_with_its_unit():
@@ -141,7 +137,8 @@ def test_the_index_holds_every_code_the_skill_walk_finds():
 
 
 def test_the_index_reaches_the_shapes_a_keyword_walk_misses(tmp_path):
-    """A `GuardFinding` constructor's code, a `*_CODES` table, and a level."""
+    """A `GuardFinding` constructor's code, a `*_CODES` table (annotated too),
+    and a level."""
     pkg = tmp_path / "rietx"
     (pkg / "gui").mkdir(parents=True)
     (pkg / "a.py").write_text(
@@ -151,11 +148,16 @@ def test_the_index_reaches_the_shapes_a_keyword_walk_misses(tmp_path):
         '    Diagnostic(level="warning", code="KW_CODE", message="")\n'
         '    Diagnostic(level=lv, code="RUN_CODE", message="")\n', encoding="utf-8")
     (pkg / "gui" / "b.py").write_text('E(code="GUI_CODE")\n', encoding="utf-8")
+    (pkg / "c.py").write_text('_Y_CODES: tuple = ("KW_CODE", "TYPED_CODE")\n', encoding="utf-8")
     index = reference_pages.diagnostic_index(pkg)
-    assert sorted(index) == ["GUARD_CODE", "KW_CODE", "ONE_CODE", "ONE_OMITTED", "RUN_CODE"]
+    assert sorted(index) == ["GUARD_CODE", "KW_CODE", "ONE_CODE", "ONE_OMITTED", "RUN_CODE",
+                             "TYPED_CODE"]
     assert index["KW_CODE"]["levels"] == {"warning"}
     assert index["RUN_CODE"]["levels"] == {""}
     assert index["GUARD_CODE"]["levels"] == set()
+    # A table that only lists a code raised elsewhere does not raise it.
+    assert index["KW_CODE"]["files"] == {"rietx/a.py"}
+    assert index["TYPED_CODE"]["files"] == {"rietx/c.py"}
 
 
 # ----------------------------------------------------------------------
@@ -246,6 +248,21 @@ def _string_constants(rel: str) -> set[str]:
             and id(node) not in docstrings}
 
 
+#: A FullProf column header the reader's module quotes, ``#: ``! Lambda1 ...``.
+_PCR_HEADER = re.compile(r"``!([^`]*)")
+
+
+def _pcr_header_names(rel: str) -> set[str]:
+    """Every name on a ``!`` column header the module quotes from a `.pcr`.
+
+    The FullProf reader cuts at ``!``, so the format's own names live in these
+    quoted headers rather than in string constants, and its constants are
+    mostly rietx's lowercase keys (`x`, `biso`, `scale`).
+    """
+    text = (reference_pages.SOURCE_ROOT / rel).read_text(encoding="utf-8")
+    return {name for header in _PCR_HEADER.findall(text) for name in header.split()}
+
+
 def _foreign_table() -> tuple[list[str], list[list[str]]]:
     text = (REFERENCE_DIR / "foreign-names.md").read_text(encoding="utf-8")
     rows = [[c.strip() for c in line.strip().strip("|").split("|")]
@@ -259,11 +276,12 @@ def test_every_foreign_name_is_one_its_reader_or_writer_uses():
     unknown = []
     for column, modules in FOREIGN_CODE.items():
         known = set().union(*(_string_constants(m) for m in modules))
-        folded = {k.lower() for k in known}
+        if column == "FullProf":
+            # Exact case: folded, `X` matched rietx's own `x` key, not FullProf's.
+            known = set().union(*(_pcr_header_names(m) for m in modules))
         for row in rows:
             for name in re.findall(r"`([^`]+)`", row[header.index(column)]):
-                found = (name.lower() in folded if column == "FullProf"
-                         else name in known or any(k.startswith(f"{name}(") for k in known))
+                found = name in known or any(k.startswith(f"{name}(") for k in known)
                 if not found:
                     unknown.append(f"{column} {name!r} (row {row[0]})")
     assert not unknown, "names no reader or writer of the format uses:\n" + "\n".join(unknown)

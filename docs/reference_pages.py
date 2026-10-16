@@ -10,6 +10,7 @@
 
 import ast as _ast
 import dataclasses as _dataclasses
+import functools as _functools
 import re as _re
 from fnmatch import fnmatchcase as _fnmatchcase
 from pathlib import Path as _Path
@@ -287,9 +288,12 @@ def _code_literals(node) -> set[str]:
 def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]]:
     """Code -> {"levels": the literal `level=` values beside it, "files": where}.
 
-    A level computed at run time is recorded as "".
+    A level computed at run time is recorded as "".  A `*_CODES` table often
+    lists codes raised elsewhere, to filter or cap them, so a table names a
+    code's file only when nothing else in the tree does.
     """
     out: dict[str, dict[str, set[str]]] = {}
+    tabled: dict[str, set[str]] = {}
 
     def add(code: str, rel: str, level: str | None) -> None:
         entry = out.setdefault(code, {"levels": set(), "files": set()})
@@ -303,11 +307,12 @@ def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]
             continue
         tree = _ast.parse(path.read_text(encoding="utf-8"), filename=rel)
         for node in tree.body:
-            if (isinstance(node, _ast.Assign) and len(node.targets) == 1
-                    and isinstance(node.targets[0], _ast.Name)
-                    and node.targets[0].id.endswith("_CODES")):
+            targets = (node.targets if isinstance(node, _ast.Assign)
+                       else [node.target] if isinstance(node, _ast.AnnAssign) and node.value
+                       else [])
+            if any(isinstance(t, _ast.Name) and t.id.endswith("_CODES") for t in targets):
                 for code in _code_literals(node.value):
-                    add(code, rel, None)
+                    tabled.setdefault(code, set()).add(rel)
         for node in _ast.walk(tree):
             if not isinstance(node, _ast.Call):
                 continue
@@ -323,6 +328,10 @@ def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]
             if name in {"cls", "GuardFinding"} and node.args:
                 for literal in _code_literals(node.args[0]):
                     add(literal, rel, None)
+    for code, files in tabled.items():
+        if code not in out:
+            for rel in files:
+                add(code, rel, None)
     return out
 
 
@@ -417,35 +426,42 @@ def project_tree() -> str:
         raise RuntimeError(f"a new project has entries no row of PROJECT_ENTRIES names: {unnamed}")
 
     live, exports = _constant("rietx.project", "LIVE_DIR"), _constant("rietx.project", "EXPORTS_DIR")
-    run_files = [(_constant(m, c), []) for m, c, _ in RUN_ENTRIES]
+    gitignore = _constant("rietx.runs", "GITIGNORE_FILE")
+    per_run = [(_constant(m, c), []) for m, c, _ in RUN_ENTRIES if c != "GITIGNORE_FILE"]
     children = {
-        live: [run_files[0], (f"{EXAMPLE_RUN_ID}/", run_files[1:])],
+        live: [(gitignore, []), (f"{EXAMPLE_RUN_ID}/", per_run)],
         exports: [(f, []) for f in EXPORT_DEFAULTS.values()],
     }
 
     def shown(entry: str) -> str:
         return f"{entry}/" if entry in children else entry
 
-    root = [(shown(_constant("rietx.project", "PROJECT_JSON")), []), (pattern, [])]
-    root += [(shown(_constant(m, c)), children.get(_constant(m, c), []))
-             for m, c, _ in PROJECT_ENTRIES[1:]]
-    at_creation = [f"`{shown(e)}`" for e in [_constant("rietx.project", "PROJECT_JSON"), pattern,
-                                              *(_constant(m, c) for m, c, _ in PROJECT_ENTRIES[1:])]
-                   if e in created]
+    # The pattern file sits beside project.json, whatever order the rows take.
+    entries = []
+    for m, c, _ in PROJECT_ENTRIES:
+        entries.append(_constant(m, c))
+        if c == "PROJECT_JSON":
+            entries.append(pattern)
+    root = [(shown(e), children.get(e, [])) for e in entries]
+    at_creation = [f"`{shown(e)}`" for e in entries if e in created]
     empty = [f"`{d}/`" for d in (live, exports)
              if d in created and not any(p.startswith(f"{d}/") for p in created)]
-    starts_empty = {0: "", 1: f"{empty[0]} starts empty. " if empty else "",
-                    2: f"{' and '.join(empty)} start empty. "}[len(empty)]
+
+    def listed(items: list[str]) -> str:
+        return " and ".join(filter(None, [", ".join(items[:-1]), items[-1]])) if items else ""
+
+    starts_empty = (f"{listed(empty)} {'starts' if len(empty) == 1 else 'start'} empty. "
+                    if empty else "")
     out = [_BANNER.format(source="a project rietx.examples builds"), "",
            "```text", f"{name}/", *_tree_lines(root), "```", "",
-           f"A new project holds {', '.join(at_creation[:-1])} and {at_creation[-1]}. "
+           f"A new project holds {listed(at_creation)}. "
            + starts_empty + "A fit, the GUI or an export writes everything else.", "",
            "| Entry | Named by | What it holds |", "| --- | --- | --- |",
            f"| `{pattern}` | `DataRef.filename` | The pattern file, copied byte for byte. |"]
     for module, constant, what in PROJECT_ENTRIES:
-        out.append(f"| `{_constant(module, constant)}` | `{module}.{constant}` | {what} |")
-    for i, (module, constant, what) in enumerate(RUN_ENTRIES):
-        where = f"{live}/" if i == 0 else f"{live}/<run id>/"
+        out.append(f"| `{shown(_constant(module, constant))}` | `{module}.{constant}` | {what} |")
+    for module, constant, what in RUN_ENTRIES:
+        where = f"{live}/" if constant == "GITIGNORE_FILE" else f"{live}/<run id>/"
         out.append(f"| `{where}{_constant(module, constant)}` | `{module}.{constant}` | {what} |")
     out.append(f"| `{exports}/…` | `rietx.gui.session.EXPORT_DEFAULTS` "
                "| One file per export kind, under these default names. |")
@@ -495,7 +511,8 @@ def roadmap_page() -> str:
 
     rows = _milestone_rows((DOCS_ROOT / "ROADMAP.md").read_text(encoding="utf-8"))
     if "dev" in __version__:
-        release = ".".join(__version__.split(".")[:2])
+        # 1.10.0.dev0 is 1.10's build, and 1.9.1.dev0 is 1.9.1's, not 1.9's.
+        release = _re.sub(r"\.0$", "", __version__.split(".dev")[0])
         built = (f"This manual was built from {__version__}, "
                  f"a development build of the next release, {release}.")
     else:
@@ -525,6 +542,7 @@ def roadmap_page() -> str:
 # skips `_generated/`, so its coverage partition still asks for prose.
 # ----------------------------------------------------------------------
 
+@_functools.cache
 def _api_index():
     import importlib.util
 
@@ -619,6 +637,10 @@ BODIES = {
 
 
 def write_bodies(into: _Path = GENERATED_DIR) -> None:
+    """Write each body, leaving an unchanged one untouched: Sphinx re-reads a
+    page whose included file has a newer mtime."""
     into.mkdir(exist_ok=True)
     for name, build in BODIES.items():
-        (into / name).write_text(build(), encoding="utf-8")
+        path, text = into / name, build()
+        if not path.exists() or path.read_text(encoding="utf-8") != text:
+            path.write_text(text, encoding="utf-8")
