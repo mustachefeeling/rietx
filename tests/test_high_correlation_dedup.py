@@ -220,6 +220,6 @@ def test_a_real_plan_reports_a_persistent_pair_once_naming_every_stage():
     assert len(axial) == 1
     # the four stages that re-measured it are named, which is what makes one
     # entry as informative as the four it replaces
-    assert "flagged in stages:" in axial[0].message
+    assert "Flagged in stages:" in axial[0].message
     for stage in ("axial", "cell", "profile", "biso"):
         assert stage in axial[0].message

@@ -1265,7 +1265,7 @@ def test_equations_the_joint_reading_alone_rejects_are_warned_together_naming_no
     (d,) = _parametric_form_diagnostics(mt, passing, joint)
     assert (d.code, d.value, d.where) == (
         "PARAMETRIC_FORM_REJECTED", 90.0, ["vars.A_0", "vars.B_0"])
-    assert "parametric equations 'A', 'B' together" in d.message
+    assert "Parametric equations 'A', 'B' together" in d.message
     assert "No equation's own reading rejects it" in d.message
     (d,) = _parametric_form_diagnostics(mt, [equation("A", 50.0), equation("B", 41.0)], joint)
     assert d.where == ["vars.A_0"]

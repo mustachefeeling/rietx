@@ -130,15 +130,11 @@ def _constant_sigma_diagnostics(data: PatternData, fmt: PatternFormat,
         level="warning", code="PATTERN_SIGMA_CONSTANT",
         message=(
             f"{name}: σ is {v:g} on every one of its {sigma.size} points, as "
-            f"{fmt.title} read it. An esd identical on every point weights "
-            "every point equally, so the fit is unweighted. Its χ² and "
-            f"goodness of fit mean something only if every point's error "
-            f"really is {v:g}."),
+            f"{fmt.title} read it."),
         suggestion=(
-            "Nothing was changed, and the σ is kept. If the column is a "
-            "placeholder or a flag, set pattern.sigma = None to fall back to "
-            "Poisson weights √max(y, 1), or re-export the file with its esd "
-            "where this reader looks for it."),
+            "If the column is a placeholder or a flag, set pattern.sigma = "
+            "None to fall back to Poisson weights √max(y, 1). Otherwise "
+            "re-export the file with its esd where this reader looks for it."),
         value=v,
     )]
 
@@ -190,15 +186,13 @@ def _axis_diagnostics(data: PatternData, fmt: PatternFormat,
         level="warning", code="PATTERN_X_AXIS_IMPLAUSIBLE",
         message=(
             f"{name}: the x axis starts at {lo:g}°, and {at_or_below.size} of "
-            f"its {tt.size} points sit at or below 0°. No Bragg reflection "
-            f"lies there. The file was read as {fmt.title}, which takes the "
-            "axis to be 2θ in degrees."),
+            f"its {tt.size} points sit at or below 0°. The file was read as "
+            f"{fmt.title}, and that reader takes the axis to be 2θ in "
+            f"degrees."),
         where=[f"{ex_lo:.3f}-{ex_hi:.3f}"],
         suggestion=(
             "Check that the axis is 2θ in degrees. If it is, exclude the "
-            f"interval ({ex_lo:.3f}, {ex_hi:.3f}) before fitting. A point there is "
-            "the direct beam, the far side of the detector, or a header row "
-            "read as data."),
+            f"interval ({ex_lo:.3f}, {ex_hi:.3f}) before fitting."),
         value=lo,
     )]
 
@@ -218,15 +212,12 @@ def _dead_channel_diagnostics(data: PatternData, name: str) -> list[Diagnostic]:
             level="warning", code="PATTERN_DEAD_CHANNELS",
             message=(
                 f"{name}: {run.n_channels} channel(s) at "
-                f"{lo:.3f}-{hi:.3f}° carry "
-                f"{run.level_fraction:.2%} of the local background with an esd "
-                f"that fell with them — about {run.weight_ratio:,.0f}× the "
-                "weight of a live channel there"),
+                f"{lo:.3f}-{hi:.3f}° carry {run.level_fraction:.2%} of the "
+                "local background, with an esd that fell with them. They "
+                f"weigh about {run.weight_ratio:,.0f}× a live channel there."),
             where=[f"{lo:.3f}-{hi:.3f}"],
             suggestion=(
-                "a dead or masked detector cell. Nothing was changed in the "
-                f"pattern: exclude the interval ({lo:.3f}, {hi:.3f}) before "
-                "fitting, or the background will be pulled down to meet it"),
+                f"Exclude the interval ({lo:.3f}, {hi:.3f}) before fitting."),
         ))
     return out
 

@@ -263,10 +263,10 @@ def test_the_skipped_block_reports_through_the_channel_but_still_refuses_at_buil
     # missing, and the remedy must not ask for a `space_group` it has
     ('str\nmag_space_group 62.448\na 5.5\nb 7.7\nc 5.5\n'
      'site Mn1 x 0 y 0 z 0.5 occ Mn+3 1 beq 0.5\n',
-     ['add a `phase_name "…"` line to it'], ['`space_group "…"` line']),
+     ['add a phase_name "…" line to it'], ['space_group "…" line']),
     # nothing to name it by and no group: both lines are asked for
     ('str\na 4.0\nb 4.0\nc 4.0\nsite B1 x 0 y 0 z 0 occ La 1. beq !b 0.5\n',
-     ['`phase_name "…"` line and a `space_group "…"` line'], []),
+     ['phase_name "…" line and a space_group "…" line'], []),
 ])
 def test_a_skipped_block_says_which_line_would_make_it_a_phase(
         tmp_path, block, wanted, unwanted):
@@ -282,7 +282,10 @@ def test_a_skipped_block_says_which_line_would_make_it_a_phase(
     (skipped,) = [d for d in diags if d.code == "TOPAS_BLOCK_SKIPPED"]
     with pytest.raises(TopasInpError) as exc:
         to_structure(model)
-    for said in (skipped.suggestion, str(exc.value)):
+    suggestion = (skipped.suggestion.replace("Add ", "add ")
+                  .replace("to the block", "to it"))
+    for said in (suggestion, str(exc.value)):
+        said = said.replace("`", "")
         assert all(w in said for w in wanted), said
         assert not any(u in said for u in unwanted), said
 
@@ -3673,7 +3676,7 @@ def test_two_edges_naming_one_parameter_report_the_dropped_coupling(tmp_path):
     assert phase.cell["a"] == phase.cell["b"] == pytest.approx(5.0)
     assert phase.vary["a"] is True and phase.vary["b"] is True
     (drop,) = [d for d in diags if d.code == "TOPAS_CELL_COUPLING_DROPPED"]
-    assert "`edge`" in drop.message and drop.where == ["phases.P.cell.b"]
+    assert "parameter edge" in drop.message and drop.where == ["phases.P.cell.b"]
 
 
 def test_the_shared_parameter_coupling_stays_silent_where_symmetry_ties_it(
@@ -3710,7 +3713,7 @@ def test_the_get_arm_is_unchanged(tmp_path):
     assert phase.cell["b"] == pytest.approx(5.0)
     assert phase.vary.get("b") is None
     (drop,) = [d for d in diags if d.code == "TOPAS_CELL_COUPLING_DROPPED"]
-    assert "`Get(a)`" in drop.message
+    assert "Get(a)" in drop.message
 
 
 # ------------------------- the origin the file did not state (issue #101)
@@ -4371,7 +4374,7 @@ def test_a_call_to_a_name_nothing_defines_is_reported(tmp_path, line, name):
     assert model.coverage.unread_calls == (name,)
     assert model.coverage.partial
     hits = [d for d in diagnostics if d.code == "TOPAS_FEATURES_NOT_IMPORTED"]
-    assert len(hits) == 1 and f"`{name}(…)`" in hits[0].message
+    assert len(hits) == 1 and f"{name}(…)" in hits[0].message
 
 
 def test_a_defined_macro_a_read_macro_and_an_equation_are_not_unread_calls(tmp_path):

@@ -657,11 +657,12 @@ def test_diagnostics_keep_their_messages_and_gain_their_paths():
 
     corr = diags[0]
     assert corr.message == (
-        "instrument.zero_shift ~ instrument.geometry.sample_displacement (ρ=+1.000)")
+        "instrument.zero_shift and instrument.geometry.sample_displacement "
+        "are correlated (ρ=+1.000).")
     assert corr.where == ["instrument.zero_shift",
                           "instrument.geometry.sample_displacement"]
     assert diags[1].where == ["phases.0.scale"]
-    assert diags[1].message == "phases.0.scale refined to its bound"
+    assert diags[1].message == "phases.0.scale refined to its bound."
     assert diags[2].where == ["phases.0.atoms.0"]
     assert "not positive definite" in diags[2].message
 

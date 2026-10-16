@@ -682,13 +682,13 @@ def test_the_ramp_reports_both_codes_with_the_counts_and_the_bracket(ramp):
     assert hold.value == pytest.approx(2.0), "two patterns above T_N"
     assert "2 of 6 pattern(s)" in hold.message and "33%" in hold.message
     assert hold.where == ["phases.0.atoms.0.moment.dof0"]
-    assert "never as \"a small moment\"" in hold.message
+    assert "at or below" in hold.message
 
     onset = codes["SEQUENTIAL_MOMENT_ONSET"]
     assert onset.level == "info"
     assert onset.value == pytest.approx(67.5)
     assert "60 → 75" in onset.message
-    assert "not a fitted critical point" in onset.message
+    assert "set by the spacing of the patterns" in onset.message
 
 
 @pytest.mark.xdist_group("wp1329-ramp")
@@ -732,11 +732,11 @@ def test_both_directions_agree_on_the_onset_and_the_row_says_so():
     row = next(d for d in series.diagnostics
                if d.code == "SEQUENTIAL_MOMENT_ONSET")
     assert row.level == "info"
-    assert "the backward chain brackets it 60 → 75" in row.message
-    assert "not the ordering's" in row.message
+    assert "backward chain brackets it 60 → 75" in row.message
+    assert "the onset is the data's" in row.message
     # the comparison has been made, so the row no longer asks for it
     assert "direction='both'" not in row.suggestion
-    assert "quote the bracket" in row.suggestion
+    assert "Quote the bracket" in row.suggestion
     # the reverse pass carries its own reading, not the forward one's
     assert any(d.code == "SEQUENTIAL_MOMENT_ONSET"
                for d in series.backward.diagnostics)
@@ -822,25 +822,25 @@ def test_the_mixed_onset_row_blames_the_chain_that_located_none():
     (row,) = _agreement(_INTERLEAVED, _BRACKETED)
     assert row.level == "warning"
     assert "located no onset" not in row.message
-    assert "the backward chain brackets it 60 → 75 (67.5 ± 7.5)" in row.message
+    assert "backward chain brackets it 60 → 75 (67.5 ± 7.5)" in row.message
     assert "switches 3 times" in row.message
 
     (row,) = _agreement(_BRACKETED, _EVERYWHERE)
     assert row.level == "warning"
-    assert "the backward chain located no onset at all" in row.message
+    assert "backward chain located no onset at all" in row.message
     assert "every one of the 5 pattern(s) supports a moment" in row.message
 
     # an interleaved backward chain has boundaries, just not one of them
     (row,) = _agreement(_BRACKETED, _INTERLEAVED)
     assert "located no onset at all" not in row.message
-    assert "the backward chain located no single onset" in row.message
+    assert "backward chain located no single onset" in row.message
 
     (row,) = _agreement(_INTERLEAVED, _INTERLEAVED)
     assert row.level == "warning"
-    assert "the backward chain located no single onset either" in row.message
+    assert "backward chain located no single onset either" in row.message
 
     (row,) = _agreement(_BRACKETED, _BRACKETED)
-    assert row.level == "info" and "not the ordering's" in row.message
+    assert row.level == "info" and "the onset is the data's" in row.message
 
 
 _RISES = (False, False, False, True, True)          # 60 → 75, other side
@@ -854,9 +854,9 @@ def test_brackets_in_one_place_agree_only_when_they_order_the_same_side(
     it and the other above, overlap and still disagree about which side is
     ordered; the row called that agreement (#522 review, follow-up 2)."""
     (row,) = _agreement(_BRACKETED, backward_flags)
-    assert "the backward chain brackets it 60 → 75" in row.message
+    assert "backward chain brackets it 60 → 75" in row.message
     assert (row.level == "info") is agrees
-    assert ("not the ordering's" in row.message) is agrees
+    assert ("the onset is the data's" in row.message) is agrees
     assert ("disagree about which side is ordered" in row.message) is not agrees
 
 
@@ -920,7 +920,7 @@ def test_a_chain_that_gave_no_verdict_is_said_to_and_gets_no_cause(
     common, and blamed a warm start or a floor that nothing checked (review
     round 3, item 1)."""
     (row,) = _fold(forward(), back())
-    assert f"the {silent} chain gave no verdict on any pattern" in row.message
+    assert f"{silent} chain gave no verdict on any pattern" in row.message
     for cause in ("warm start", "never climbed", "disagree on every pattern"):
         assert cause not in row.message, cause
     assert "series.backward.magnetic_trajectory()" not in row.suggestion
@@ -934,7 +934,7 @@ def test_an_overlap_with_one_unquotable_bracket_names_it_and_asks_for_max_iter()
     the stopped fit, and the fix is ``max_iter`` (review round 3, item 2)."""
     (row,) = _fold(_verdicts(_BRACKETED), _early(_BRACKETED))
     assert row.level == "warning"
-    assert "not the ordering's" not in row.message
+    assert "the onset is the data's" not in row.message
     assert "the backward bracket" in row.message
     assert "stopped early" in row.message
     assert "max_iter" in row.suggestion
@@ -943,10 +943,10 @@ def test_an_overlap_with_one_unquotable_bracket_names_it_and_asks_for_max_iter()
     (row,) = _fold(_early(_BRACKETED), _verdicts(_BRACKETED))
     assert row.level == "warning" and "max_iter" in row.suggestion
     assert "the forward bracket" in row.message
-    assert "not the ordering's" not in row.message
+    assert "the onset is the data's" not in row.message
 
 
-_OPEN_THE_SWITCHES = "open the patterns either side of each switch"
+_OPEN_THE_SWITCHES = "Open the patterns either side of each switch"
 
 
 @pytest.mark.parametrize("backward_flags", [_INTERLEAVED, _BRACKETED])

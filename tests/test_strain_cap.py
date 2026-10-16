@@ -306,8 +306,7 @@ def test_the_flag_names_the_phase_and_the_value():
     assert d.where == ["phases.0.lor_strain"]
     assert d.value == pytest.approx(2.2e5)
     assert "mayenite" in d.message and "2.2e+05" in d.message
-    # the register: a number to check, not a refusal and not a certificate
-    assert "physically possible" in d.suggestion
+    assert "BOUND_HIT" in d.suggestion
     assert d.level == "warning"
 
 
@@ -508,7 +507,7 @@ def test_the_size_flag_names_the_phase_and_the_size():
     assert d.where == ["phases.0.lor_size"]
     assert d.value == pytest.approx(1.5, rel=1e-3)     # reported in nm
     assert "Cu" in d.message and "1.5 nm" in d.message
-    assert "physically possible" in d.suggestion
+    assert "BOUND_HIT" in d.suggestion
     assert d.level == "warning"
 
 

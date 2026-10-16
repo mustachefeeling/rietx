@@ -1229,7 +1229,7 @@ def test_background_absorption_guard_fires_on_slack_background():
     codes = {d.code for d in result.diagnostics}
     assert "BACKGROUND_ABSORPTION" in codes, f"guard silent; got {codes}"
     msg = next(d for d in result.diagnostics if d.code == "BACKGROUND_ABSORPTION")
-    assert "biased" in (msg.suggestion or "")
+    assert "R²=" in msg.message
     assert msg.where and msg.where[0].endswith((".biso", ".scale"))
 
 
@@ -1389,7 +1389,7 @@ def test_stiff_background_reports_the_misfit_between_the_peaks():
     # to imitate anything, which is the whole point of measuring both
     assert bg.worst_absorption < 0.1, bg
 
-    assert "systematic, not noise" in report.summary
+    assert "the residual is systematic" in report.summary
     action = report.action("increase_background_flexibility")
     assert action.active and 0.0 < action.confidence <= 0.6
     assert "amorphous hump" in action.rationale

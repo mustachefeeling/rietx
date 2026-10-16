@@ -1215,10 +1215,9 @@ def _cap_one_code(diagnostics: list[Diagnostic], code: str, omitted_code: str,
         level="info", code=omitted_code, where=[],
         value=float(len(omitted)),
         message=f"{len(omitted)} more {noun}(s) below the "
-                f"{HIGH_CORRELATION_MAX} shown here, weaker than all of them",
-        suggestion="result.identifiability carries the full correlation "
-                   "matrix and top_correlations list — nothing here was "
-                   "dropped from the fit, only from this message",
+                f"{HIGH_CORRELATION_MAX} shown here, weaker than all of them.",
+        suggestion="Read result.identifiability for the full correlation "
+                   "matrix and top_correlations list.",
     )]
     return out
 

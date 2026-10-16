@@ -328,8 +328,8 @@ Rwp falls 3.18 → 1.04 → 0.168 → 0.159 → 0.144, and over the last three t
 accepted share falls with it, 32 % → 27 % → 16 %:
 
 ```text
-regions carrying 53% of χ² misfit, but only 16% of that sits in regions
-the local gates accept (need 40%); Layer 1 abstains
+Misfitting regions carry 53% of χ², but only 16% of that sits in regions
+the local gates accept. Layer 1 needs 40%.
 ```
 
 Reading that as a regression is the mistake. What changed is that the profile

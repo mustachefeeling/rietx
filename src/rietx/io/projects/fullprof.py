@@ -2909,21 +2909,19 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                     for j in sorted(reading.moments)],
                 value=ph.r_bragg,
                 message=(f"{named}: magnetic phase {ph.index} ({ph.name!r}, "
-                         f"Jbt {ph.jbt}) read as the moments of nuclear phase "
-                         f"{built.name!r}: {len(reading.operations)} SYMM/MSYM "
-                         f"pairs as a magnetic group ({group}), moments on "
-                         f"{len(reading.moments)} of {len(built.atoms)} sites, "
-                         f"in crystal-axis mu_B"
+                         f"Jbt {ph.jbt}) was read as the moments of nuclear "
+                         f"phase {built.name!r}. {len(reading.operations)} "
+                         f"SYMM/MSYM pairs became a magnetic group ({group}), "
+                         f"with moments on {len(reading.moments)} of "
+                         f"{len(built.atoms)} sites in crystal-axis mu_B"
                          + (" converted from (M, phi, theta)"
                             if ph.jbt == -1 else "")
-                         + (f"; the file frees only part of the moment at "
-                            f"{', '.join(partial)}, read here with the whole "
-                            f"moment free, the one refine flag a moment carries"
+                         + "."
+                         + (f" The file frees only part of the moment at "
+                            f"{', '.join(partial)}. It is read with the whole "
+                            f"moment free."
                             if partial else "")),
-                suggestion=("the file's two phases are one here: the magnetic "
-                            "phase's own Scale, positions and Biso were checked "
-                            "equal to its counterpart's and are not carried "
-                            "separately, so refine the one phase")))
+                suggestion="Refine the merged phase as one."))
         # `nuclear_only=True` makes the omission the *caller's* declared choice,
         # which is not the same as the omission being invisible (WP-1328): the
         # channel still says which phases went, what each stated, and its
@@ -2946,17 +2944,18 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                          f"{', '.join(moment_columns) or 'none'}"
                          + (f", R_Bragg {ph.r_bragg}" if ph.r_bragg is not None
                             else "")
-                         + ") and nuclear_only=True omitted it"),
-                suggestion=MAGNETIC_PHASE_REFUSAL))
+                         + ") and nuclear_only=True omitted it."),
+                suggestion="Leave nuclear_only off to read the magnetic "
+                           "phase, or to be told why it cannot be read."))
         for raw, (canonical, wheres) in rewrites.items():
             user = model.user_scatterers.get(raw.upper())
-            why = (f"its LINE-12 user scattering length, b = {user[0]!r} fm, "
-                   f"is that isotope's Sears b" if user is not None else
-                   "FullProf writes the scattering token in the author's case; "
-                   "normalised to IUCr spelling")
+            why = (f"Its LINE-12 user scattering length, b = {user[0]!r} fm, "
+                   f"is that isotope's Sears b." if user is not None else
+                   "The label is now in IUCr spelling.")
             diagnostics.append(Diagnostic(
                 level="info", code="FULLPROF_SPECIES_NORMALISED",
-                message=f"species {raw!r} in {named} read as {canonical!r} — {why}",
+                message=f"Species {raw!r} in {named} was read as "
+                        f"{canonical!r}. {why}",
                 where=wheres))
         # The origin/axes choice is a *repair* on a value that reaches the
         # Structure, exactly as the species spelling is, so it is reported on
@@ -2965,32 +2964,26 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
         for path, raw, resolved in origin_choices:
             diagnostics.append(Diagnostic(
                 level="info", code="FULLPROF_ORIGIN_CHOICE",
-                message=(f"space group {raw!r} in {named} read as {resolved!r} "
-                         f"— FullProf writes no origin-choice or axes suffix, so "
-                         f"the setting was chosen here (origin choice 2 where the "
-                         f"bare symbol resolves to 1; rhombohedral axes where the "
-                         f"cell says so) and licensed by the occupancy-ratio "
-                         f"check, which a wrong setting fails"),
+                message=(f"Space group {raw!r} in {named} was read as "
+                         f"{resolved!r}. The occupancy-ratio check accepted "
+                         f"this setting."),
                 where=[f"{path}.space_group"]))
         for path, sg in unchecked_occupancy:
             diagnostics.append(Diagnostic(
                 level="warning", code="FULLPROF_OCCUPANCY_UNCHECKED",
-                message=(f"the occupancy-ratio check on {path} of {named} "
-                         f"compared a single site with itself, so it passed for "
-                         f"{sg!r} without discriminating — with one site there "
-                         f"is one equation and two unknowns (the chemical "
-                         f"occupancy and FullProf's arbitrary per-phase Occ "
-                         f"factor), so it cannot license this phase's setting "
-                         f"the way it does a multi-site one"),
+                message=(f"The occupancy-ratio check on {path} of {named} "
+                         f"compared a single site with itself, so it passed "
+                         f"for {sg!r} without testing the setting."),
+                suggestion="Check the setting against the published "
+                           "structure.",
                 where=[f"{path}.atoms.0.occ"]))
         for path, group in dropped_ties:
             diagnostics.append(Diagnostic(
                 level="warning", code="FULLPROF_TIE_DROPPED",
                 message=(f"drop_parameter_ties=True: the codeword tie {group} in "
-                         f"{named} is not carried onto the Structure, which "
-                         f"therefore has more free parameters than the "
-                         f"refinement the file records. Re-declare it with "
-                         f"Refinement.tie_equal/tie to recover the constraint"),
+                         f"{named} is not carried onto the Structure."),
+                suggestion="Re-declare it with Refinement.tie_equal or "
+                           "Refinement.tie.",
                 where=[path]))
         # The cell arm of the same code: a cell codeword tie the space group does
         # not reproduce. No `drop_parameter_ties=True` prefix — this is not gated
@@ -3000,29 +2993,23 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
         for path, group in recoverable_ties:
             diagnostics.append(Diagnostic(
                 level="warning", code="FULLPROF_TIE_DROPPED",
-                message=(f"the codeword tie {group} in {named} is not carried "
-                         f"onto the Structure, which therefore has more free "
-                         f"parameters than the refinement the file records. It "
-                         f"is dropped rather than refused because it can be "
-                         f"re-declared in one unambiguous call: "
-                         f"Refinement.tie_equal on the two parameter paths — "
-                         f"the column paths (phases.i.atoms.j.biso, .occ) for a "
-                         f"Biso or Occ group, but the DOF paths "
-                         f"(phases.i.atoms.j.dof.k) for a coordinate group, "
-                         f"because a coordinate column already follows its own "
-                         f"dof by site symmetry and tie_equal refuses to "
-                         f"outrank that — or Refinement.tie(path, source, "
-                         f"scale=multiplier) for a signed group"),
+                message=(f"The codeword tie {group} in {named} is not carried "
+                         f"onto the Structure."),
+                suggestion=("Re-declare it with Refinement.tie_equal on the "
+                            "column paths (phases.i.atoms.j.biso or .occ) for "
+                            "a Biso or Occ group, and on the DOF paths "
+                            "(phases.i.atoms.j.dof.k) for a coordinate group. "
+                            "Use Refinement.tie(path, source, scale=multiplier) "
+                            "for a signed group."),
                 where=[path]))
         for path, group in dropped_cell_ties:
             diagnostics.append(Diagnostic(
                 level="warning", code="FULLPROF_TIE_DROPPED",
-                message=(f"the cell codeword tie {group} in {named} is not "
-                         f"carried onto the Structure: the space group does not "
-                         f"tie these cell parameters, so the built cell has more "
-                         f"free parameters than the refinement the file records. "
-                         f"Re-declare it with Refinement.tie_equal/tie to recover "
-                         f"the constraint"),
+                message=(f"The cell codeword tie {group} in {named} is not "
+                         f"carried onto the Structure, and the space group "
+                         f"does not tie these lattice parameters."),
+                suggestion="Re-declare it with Refinement.tie_equal or "
+                           "Refinement.tie.",
                 where=[path]))
     try:
         structure = rx.Structure(phases=phases)

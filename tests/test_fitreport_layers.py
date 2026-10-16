@@ -938,7 +938,7 @@ def test_broad_abstention_is_resolution_limited():
     report = _report_for(structure, perturbed, data)
     assert report.abstained_reason
     assert report.abstained_kind == "resolution_limited"
-    assert "Resolution-limited" in report.abstained_reason
+    assert "resolution-limited" in report.abstained_reason
     assert "not evidence the model is wrong" in report.abstained_reason
     assert "indistinguishable" in report.abstained_reason
 
@@ -1021,7 +1021,7 @@ def test_wrong_cell_abstentions_classify_as_model_error(truth):
     p2.phases[0].cell = rx.Cell.cubic(4.1568 * 1.001)
     report2 = _report_for(p2, ins, data)
     assert report2.abstained_kind == "unreadable"
-    assert "Resolution-limited" not in (report2.abstained_reason or "")
+    assert "resolution-limited" not in (report2.abstained_reason or "")
     assert any(a.kind == "reindex_or_recheck_cell"
                for a in report2.suggested_actions)
 
@@ -1126,8 +1126,8 @@ def _assert_exchange_clause_shape(summary):
     """
     from rietx.report import RIVAL_DECISIVE_MIN_CHI2_RATIO
 
-    assert "this fit cannot tell" in summary          # the claim's level
-    assert "never by freeing both" in summary         # the forbidden action
+    assert "This fit cannot tell" in summary          # the claim's level
+    assert "Do not free both into one fit" in summary  # the forbidden action
     assert "ridge" in summary
     assert "held at its null" in summary              # which value
     assert "compare χ²" in summary                    # the experiment

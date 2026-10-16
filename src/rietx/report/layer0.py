@@ -139,7 +139,7 @@ def too_stiff(bg: BackgroundEvidence) -> bool:
 
 
 def background_clause(bg: BackgroundEvidence) -> str | None:
-    """The one summary sentence, or None when neither failure mode fires.
+    """The summary lines (one per failure mode), or None when neither fires.
 
     A threshold here decides whether the summary *comments*, never whether the
     section publishes: :class:`~rietx.report.schemas.BackgroundEvidence` is
@@ -150,18 +150,18 @@ def background_clause(bg: BackgroundEvidence) -> str | None:
     parts: list[str] = []
     if too_flexible(bg):
         parts.append(
-            f"the background can reproduce {bg.worst_absorption:.0%} of "
-            f"{bg.worst_absorption_path} (block projection R², which a "
-            f"pairwise ρ cannot see) — ADPs, scales and any QPA fractions "
-            f"from this fit are biased, in the one direction Rwp improves in")
+            f"The background can reproduce {bg.worst_absorption:.0%} of "
+            f"{bg.worst_absorption_path} (block projection R²).\n"
+            f"ADPs, scales and any QPA fractions from this fit are biased, "
+            f"and the bias lowers Rwp.")
     if too_stiff(bg):
         parts.append(
-            f"between the peak regions the residual is systematic, not noise "
-            f"— χ²_red={bg.off_region_chi2_reduced:.1f} over "
-            f"{bg.off_region_points} channels at Durbin-Watson "
-            f"d={bg.off_region_durbin_watson:.2f} (2 = uncorrelated), misfit "
-            f"no region entry covers")
-    return "; ".join(parts) if parts else None
+            f"Between the peak regions the residual is systematic "
+            f"(χ²_red={bg.off_region_chi2_reduced:.1f} over "
+            f"{bg.off_region_points} channels, Durbin-Watson "
+            f"d={bg.off_region_durbin_watson:.2f} where 2 is uncorrelated).\n"
+            f"No region entry covers this misfit.")
+    return "\n".join(parts) if parts else None
 
 
 #: How near a predicted position an observed peak must be to count as
@@ -241,7 +241,7 @@ def build_layer0(result: RefinementResult, *, top_n: int = 15,
     rest = regions[top_n:]
     # One sentence a line (WP-1985): a reader scans the lines, and the
     # statistics this used to open with are the report's own rwp and gof.
-    summary = (f"{n_total} misfit regions; the top {len(kept)} carry "
+    summary = (f"{n_total} misfit regions. The top {len(kept)} carry "
                f"{sum(r.chi2_share for r in kept):.0%} of χ²")
     if rest:
         summary += (f" and the other {len(rest)} carry "

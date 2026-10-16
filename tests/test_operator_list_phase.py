@@ -486,7 +486,7 @@ def test_the_ba2fesbse5_s3ab_child_is_built_instead_of_refused():
     assert "CHILD_GROUP_UNNAMED" in codes
     note = next(d for d in statement.diagnostics
                 if d.code == "CHILD_GROUP_UNNAMED")
-    assert "quarter" in note.message
+    assert "its own 4 symmetry operations" in note.message
     # the child compiles and predicts, which is the whole point of stating it
     y = rx.Refinement(Structure(phases=[statement.phase]),
                       INSTRUMENT.model_copy(deep=True)).predict(TWO_THETA)

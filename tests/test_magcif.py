@@ -2375,7 +2375,7 @@ def test_a_topas_moment_in_the_tutorials_syntax_is_fractional(tmp_path):
     codes = {d.code: d for d in built}
     assert "TOPAS_MOMENT_CONVENTION" in codes
     assert "fractional" in codes["TOPAS_MOMENT_CONVENTION"].message
-    assert "it is measured" in codes["TOPAS_MOMENT_CONVENTION"].suggestion
+    assert "MM_CrystalAxis_Display" in codes["TOPAS_MOMENT_CONVENTION"].suggestion
     read = codes["TOPAS_MAGNETIC_GROUP_READ"]
     assert read.where == ["phases.0.magnetic_symmetry", "phases.0.space_group"]
     assert "'P 1'" in read.message

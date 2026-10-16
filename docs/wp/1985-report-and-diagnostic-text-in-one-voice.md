@@ -118,7 +118,14 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
       `; `-joined), `FitReport.__str__` prints it under the agreement (FAP: 7 lines, was a
       168-line field tree), and the summary's `report:` block prints it with the abstention
       naming its kind. The clauses' own wording is the message rewrite's.
-- [ ] Rewrite the messages in the new voice, by module, moving each pin on purpose.
+- [x] Rewrite the messages in the new voice, by module, moving each pin on purpose: six
+      subagent lanes over disjoint file sets (refine and the guards, foreign projects,
+      indexing, file readers, the rest, the report's clauses). The message is the
+      observation with its numbers, the suggestion one action, the explanation gone to
+      the registry. About 300 constructions in 41 files; about 150 assertions moved in
+      about 45 test files. `str(GuardFinding)` is untouched, so its byte pin and root
+      CLAUDE.md § Guards still hold. FAP's `Refinement.summary()` falls from 4778 to 3606
+      characters.
 - [x] Notebook HTML: headline shown, detail and explanation folded
       (`_display.diagnostics_html`, one `<details>` a finding) in the result, the
       indexing result and the peak list.

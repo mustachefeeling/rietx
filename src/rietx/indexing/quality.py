@@ -428,8 +428,8 @@ def assess_peak_list(peaks: PeakList, *,
             sigma_two_theta_worst=float("nan"),
             relative_sigma_q_median=float("nan"), sigma_over_spacing=float("nan"),
             supports_indexing=False,
-            abstained_reason=(f"{len(usable)} usable line(s): a lattice cannot "
-                              "be constrained by fewer than two"))
+            abstained_reason=(f"The list has {len(usable)} usable line(s), "
+                              "fewer than the two a lattice needs."))
         return report.model_copy(update={
             "diagnostics": quality_diagnostics(report, peaks, instrument)})
 
@@ -477,12 +477,13 @@ def assess_peak_list(peaks: PeakList, *,
     # refused for a whole milestone by exactly this conflation.
     reason = None
     if not supported:
-        reason = (f"{n} usable lines is fewer than {MIN_LINES_PER_DOF:g} per "
-                  "metric degree of freedom in every crystal system")
+        reason = (f"The list has {n} usable lines, fewer than "
+                  f"{MIN_LINES_PER_DOF:g} per metric degree of freedom in "
+                  "every crystal system.")
     elif rel_sigma > MAX_RELATIVE_SIGMA_Q and peaks.source == "fitted":
-        reason = (f"median σ(Q)/Q = {rel_sigma:.2e}, above "
-                  f"{MAX_RELATIVE_SIGMA_Q:.0e}: cells differing by 0.1 % in a "
-                  "lattice parameter are not distinguishable at this precision")
+        reason = (f"The median σ(Q)/Q is {rel_sigma:.2e}, above "
+                  f"{MAX_RELATIVE_SIGMA_Q:.0e}, so cells that differ by 0.1 % "
+                  "in a lattice parameter cannot be told apart.")
 
     report = DataQualityReport(
         n_usable=n, n_total=len(peaks.peaks),

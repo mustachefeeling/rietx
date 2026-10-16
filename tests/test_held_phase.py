@@ -188,7 +188,7 @@ def test_the_message_counts_what_it_names(held_fit):
     _, result = held_fit
     finding = next(d for d in result.diagnostics
                    if d.code == "PHASE_UNCONSTRAINED")
-    assert f"its {len(finding.where)} structural parameter" in finding.message
+    assert f"Its {len(finding.where)} structural parameter" in finding.message
 
 
 # ----------------------------------------------------------------------
@@ -264,7 +264,7 @@ def test_no_reflection_in_range_is_reported_rather_than_silent(no_reflection_fit
     _, result = no_reflection_fit
     fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
     assert len(fired) == 1, [d.code for d in result.diagnostics]
-    assert "no reflection of phase 0" in fired[0].message
+    assert "No reflection of phase 0" in fired[0].message
     assert "LaB6" in fired[0].message
 
 
@@ -803,7 +803,7 @@ def test_an_intensity_model_holds_a_phase_with_no_line_in_range(mode):
     assert result.stages[-1].held == ["phases.0.cell.a"]
     assert ref.structure.phases[0].cell.a.value == 4.1568
     fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
-    assert len(fired) == 1 and "no reflection of phase 0" in fired[0].message
+    assert len(fired) == 1 and "No reflection of phase 0" in fired[0].message
 
 
 @pytest.mark.parametrize("mode", ["lebail", "pawley"])

@@ -329,12 +329,9 @@ def _scale(columns: _Columns, absorption: np.ndarray | None, *, path: Path,
             level="warning", code="PATTERN_INTENSITY_SCALED",
             message=(f"{Path(path).name} declares its recorded channel's unit as "
                      f"{columns.unit!r}, which this reader does not recognise as "
-                     "counts. No σ was supplied, so the Poisson fallback "
-                     "√max(y,1) is being applied to a quantity that may already "
-                     "be divided by a counting time — in which case the weights "
-                     "are wrong by √t"),
+                     "counts. No σ was supplied."),
             where=["sigma"],
-            suggestion="re-export in counts, or supply the esds yourself"))
+            suggestion="Export the file in counts, or supply the esds."))
     return None
 
 
@@ -350,16 +347,12 @@ def _absorber(absorption: np.ndarray | None, two_theta: np.ndarray, *, path: Pat
     diagnostics.append(Diagnostic(
         level="info", code="BRML_ABSORBER_ENGAGED",
         message=(f"{Path(path).name} used an automatic absorber over "
-                 f"{int(off.sum())} point(s), 2θ = {affected.min():.4g}–"
+                 f"{int(off.sum())} point(s) at 2θ = {affected.min():.4g}–"
                  f"{affected.max():.4g}°, up to {absorption.max():.6g}×. The "
-                 "stored intensity is **already** corrected for it — measured on "
-                 "the real file: y/a is integral and the stored series is "
-                 "continuous across the transition — so nothing was multiplied. "
-                 "σ was still derived through it, because the counted quantity "
-                 "is y/a: σ = √(y/a)·a, not √y"),
+                 "stored intensities already include the correction, and σ was "
+                 "derived through it."),
         where=["sigma"],
-        suggestion=("nothing to do; the note exists because these points carry "
-                    "a factor fewer counts than their height suggests")))
+        suggestion=None))
 
 
 def _axis(columns: _Columns, scan_name: str, *, path: Path,

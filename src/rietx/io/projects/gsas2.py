@@ -1256,15 +1256,14 @@ def read_gsas2_gpx(path: str | Path, *,
             if isinstance(payload, dict) and any(
                     bool(v) for v in payload.values() if isinstance(v, dict)):
                 reported.append(
-                    "the project states restraints, which this reader does not "
-                    "carry; rietx has its own restraint model and the file's "
-                    "targets and weights are not translated")
+                    "the project states restraints. This reader does not "
+                    "carry their targets and weights.")
         elif stance is Stance.REPORTED:
-            reported.append(f"{label!r} is {what}, which this reader does not carry")
+            reported.append(f"{label!r} is {what}. This reader does not carry it.")
         elif stance is None:
             reported.append(
-                f"{label!r} is a tree item this reader has no stance on, so "
-                f"nothing of it reached the model")
+                f"{label!r} is a tree item this reader has no stance on. "
+                f"Nothing of it reached the model.")
 
     for phase_name, (hist_label, entry) in hap_source:
         hap[(phase_name, str(hist_label))] = _hap(phase_name, str(hist_label), entry)
@@ -1276,14 +1275,12 @@ def read_gsas2_gpx(path: str | Path, *,
         if named is None:
             reported.append(
                 f"histogram {hist.name!r} states the type {hist.kind!r}, which "
-                f"this reader cannot name, so its coefficients are carried "
-                f"under the file's own keys and nothing is assumed about them")
+                f"this reader cannot name. Its coefficients are on the model "
+                f"under the file's own keys.")
         else:
             reported.append(
-                f"histogram {hist.name!r} is {named} rather than "
-                f"constant-wavelength; its coefficients are on the model under "
-                f"the file's own names, but they are a different profile "
-                f"function from the one this build fits")
+                f"histogram {hist.name!r} is {named} data. Its coefficients "
+                f"are on the model under the file's own names.")
 
     ran_phases = {}
     ran_atoms: dict[int, tuple[str, int]] = {}
@@ -1369,22 +1366,16 @@ def _report_setting(named: str, phase: Gsas2Phase,
         settled = phase.space_group_from_operators
         assumed, _ = setting_alternatives(phase.space_group)
         tail = (f"The bare symbol resolves to {settled!r} too, so the "
-                f"operators confirm that reading rather than overturn it."
+                f"operators confirm that reading."
                 if settled == assumed else
-                f"That is what the phase is built under, rather than the "
-                f"{assumed!r} the bare symbol resolves to.")
+                f"The bare symbol would have resolved to {assumed!r}.")
         diagnostics.append(Diagnostic(
             level="info", code="GSAS2_GPX_SETTING_FROM_OPERATORS",
             where=where,
             message=(
                 f"{named}: phase {phase.name!r} names space group "
-                f"{phase.space_group!r}, which the tables hold in more than one "
-                f"setting, and the project's own operators state "
-                f"{settled!r}. " + tail),
-            suggestion="nothing is needed: GSAS-II stores the operations "
-                       "themselves (`SGData['SGOps']`), so the setting is read "
-                       "from the file rather than assumed. `model.phases[…]"
-                       ".space_group` is still the symbol the file wrote"))
+                f"{phase.space_group!r} and the project's operators state "
+                f"{settled!r}. " + tail)))
         return
     try:
         diagnostics.extend(setting_diagnostics(
@@ -1418,8 +1409,9 @@ def _report(model: Gsas2Model, diagnostics: list[Diagnostic]) -> None:
                    if hist.background.n_debye else "")
                 + (f" and {hist.background.n_peaks} fitted peak(s)"
                    if hist.background.n_peaks else "")
-                + " — the coefficients are on `model.histograms[…].background` "
-                  "and the background to fit with is yours to choose"),
+                + ". The coefficients are on "
+                  "model.histograms[...].background."),
+            suggestion="Choose a background and refine it.",
             where=[f"histograms.{hist.number}.background"]))
     magnetic_phases = [p.name for p in model.phases if p.magnetic]
     histogram_names = {h.name for h in model.histograms}
@@ -1430,13 +1422,12 @@ def _report(model: Gsas2Model, diagnostics: list[Diagnostic]) -> None:
                 level="warning", code="GSAS2_GPX_PHASE_MAGNETIC",
                 message=(
                     f"{named}: phase {phase.name!r} is a magnetic phase "
-                    f"(GSAS-II phase type {phase.kind!r}), and this reader "
-                    f"does not read a `.gpx` magnetic block yet — a magCIF of "
-                    f"the structure is the route that does "
-                    f"(`Structure.from_cif`).  The project's other phases "
-                    f"build, but where they share a histogram with this one "
-                    f"the file's figures include its magnetic scattering, so "
-                    f"a fit of them alone is not comparable with the file's"),
+                    f"(GSAS-II phase type {phase.kind!r}). The project's "
+                    f"other phases build, and the file's figures for any "
+                    f"histogram they share with this one include its "
+                    f"magnetic scattering."),
+                suggestion="Read a magCIF of the structure with "
+                           "Structure.from_cif.",
                 where=[f"phases.{phase.number}"]))
         elif phase.magnetic_partner:
             # Issue #606.  What `magPhases` means is GSAS-II's and is not
@@ -1448,23 +1439,21 @@ def _report(model: Gsas2Model, diagnostics: list[Diagnostic]) -> None:
             # is reported by the arm above, which is where the comparison
             # warning is true.
             names_histogram = phase.magnetic_partner in histogram_names
-            held = (f"holds {len(magnetic_phases)} phase(s) GSAS-II types "
-                    f"`magnetic` ({', '.join(map(repr, magnetic_phases))}), "
-                    f"reported on their own"
+            held = (f"holds {len(magnetic_phases)} phase(s) that GSAS-II "
+                    f"types magnetic ({', '.join(map(repr, magnetic_phases))})"
                     if magnetic_phases else
-                    "holds no phase GSAS-II types `magnetic`, so nothing "
-                    "magnetic is modelled in it")
+                    "holds no phase that GSAS-II types magnetic")
             diagnostics.append(Diagnostic(
                 level="warning" if magnetic_phases else "info",
                 code="GSAS2_GPX_PHASE_MAGNETIC",
                 message=(
                     f"{named}: phase {phase.name!r} is nuclear and carries "
-                    f"GSAS-II's `magPhases` entry "
+                    f"GSAS-II's magPhases entry "
                     f"({phase.magnetic_partner!r}"
                     + (", one of this project's histogram names"
                        if names_histogram else "")
-                    + f").  The project {held}.  The entry is kept verbatim "
-                      f"on `Gsas2Phase.magnetic_partner` and not interpreted"),
+                    + f"). The project {held}. The entry is kept on "
+                      f"Gsas2Phase.magnetic_partner."),
                 where=[f"phases.{phase.number}"]))
     if model.constraints:
         equivalences = sum(1 for c in model.constraints if c.is_equivalence)
@@ -1472,11 +1461,10 @@ def _report(model: Gsas2Model, diagnostics: list[Diagnostic]) -> None:
             level="warning", code="GSAS2_GPX_CONSTRAINT_NOT_CARRIED",
             message=(
                 f"{named}: the refinement carried {len(model.constraints)} "
-                f"constraint(s), of which {equivalences} are equivalences that "
-                f"`Refinement.tie_equal` could restore one call each.  None is "
-                f"applied by `to_structure`, because a tie between parameters "
-                f"this build has not built yet is not a tie — they are on "
-                f"`model.constraints`, each printing as the relation it states"),
+                f"constraint(s), of which {equivalences} are equivalences. "
+                f"None is applied. They are on model.constraints."),
+            suggestion="Restore each equivalence with Refinement.tie_equal "
+                       "and match the other constraints by hand.",
             where=["constraints"]))
 
 
@@ -1589,9 +1577,11 @@ def _gsas2_texture(model: Gsas2Model, chosen: Gsas2Phase, sg,
             level=level, code="GSAS2_GPX_TEXTURE_NOT_CARRIED",
             message=(
                 f"{named}: phase {chosen.name!r} carries a spherical-harmonics "
-                f"texture of order {texture.order} in histogram(s) {hists}, and "
-                f"it is not carried: {why}.  The file's numbers are on "
-                f"`model.hap[…].texture`"),
+                f"texture of order {texture.order} in histogram(s) {hists}. "
+                f"It was not carried because {why}. The file's numbers are "
+                f"on model.hap[...].texture."),
+            suggestion=("Declare a texture yourself and refine it from zero."
+                        if level == "warning" else None),
             where=["phases.0"])]
 
     # The one flag is a protocol, not a texture: histograms that agree on the
@@ -1600,28 +1590,22 @@ def _gsas2_texture(model: Gsas2Model, chosen: Gsas2Phase, sg,
             (t.order, t.coefficients) != (texture.order, texture.coefficients)
             for _, t in entries[1:]):
         return note("the histograms state different coefficients (a histogram "
-                    "the phase is fitted in with none states all zero), and a phase "
-                    "here has one texture, which a joint fit shares.  The phase "
-                    "builds without it, so the intensities it explained are not")
+                    "the phase is fitted in with none states all zero)")
     by_name = {h.name: h for h in model.histograms}
     for hist_name, _ in entries:
         hist = by_name.get(hist_name)
         if hist is None or "Bragg" not in hist.geometry or not hist.constant_wavelength:
             return note(
-                f"GSAS-II's sample angle for histogram {hist_name!r} "
-                f"({hist.geometry if hist else 'absent from the file'}) is not "
-                f"the Bragg-Brentano one.  It follows θ and the goniometer "
-                f"angles (ψ = θ at its default ones), so no constant converts "
-                f"its coefficients to a geometry this package models.  The "
-                f"phase builds without it, so the intensities it explained "
-                f"are not")
+                f"histogram {hist_name!r} "
+                f"({hist.geometry if hist else 'absent from the file'}) has "
+                f"a sample angle that follows θ and the goniometer angles "
+                f"(ψ = θ at its default ones)")
     if texture.order % 2:
-        return note(f"GSAS-II generates even orders only, so order {texture.order} "
-                    f"names no series this package can build.  The phase builds "
-                    f"without it, so the intensities it explained are not")
+        return note(f"order {texture.order} is odd and GSAS-II generates "
+                    f"even orders only")
     if texture.order < lowest_order(sg):
         return note(f"a cubic class has no term below order {lowest_order(sg)}, "
-                    f"so GSAS-II's P is 1 at every reflection and nothing is lost",
+                    f"so GSAS-II's P is 1 at every reflection",
                     level="info")
     allowed = set(texture_names(sg, texture.order, chosen.cell))
     laue = sg.laue_str()
@@ -1648,30 +1632,21 @@ def _gsas2_texture(model: Gsas2Model, chosen: Gsas2Phase, sg,
         p_l0 = float(np.polynomial.legendre.Legendre.basis(degree)(0.0))
         values[term_name(degree, n)] = value * norm * p_l0
     if unknown:
-        return note(f"{', '.join(unknown)} name no term Laue class {laue} allows "
-                    f"to order {texture.order}.  The phase builds without it, "
-                    f"so the intensities it explained are not")
+        return note(f"{', '.join(unknown)} name no term Laue class {laue} "
+                    f"allows to order {texture.order}")
     if defects:
         return note(
             "GSAS-II 5.8.4's function for "
-            + "; for ".join(f"{', '.join(terms)}, {why}" for why, terms in defects.items())
-            + ".  Each takes two values on one set of symmetry-equivalent "
-              "reflections, so its coefficient is not a pole density any "
-              "invariant function can match (WP-1960).  The phase builds "
-              "without the texture, so the intensities it explained are not")
+            + "; for ".join(f"{', '.join(terms)}, {why}" for why, terms in defects.items()))
     notes = [Diagnostic(
         level="info", code="GSAS2_GPX_TEXTURE_CONVERTED",
         message=(
             f"{named}: phase {chosen.name!r}'s spherical-harmonics texture "
-            f"(histogram(s) {hists}, order {texture.order}) is carried with "
-            f"each coefficient converted.  GSAS-II evaluates a Bragg-Brentano "
-            f"histogram's sample harmonic at ψ = 90° and this package at the "
-            f"plate normal, ψ = 0°, so each C is GSAS-II's times P_l(0)"
-            + (", and times √2 on the n ≠ 0 terms, whose GSAS-II functions "
-               f"have norm √2 in Laue class {laue}"
+            f"(histogram(s) {hists}, order {texture.order}) was carried with "
+            f"each coefficient multiplied by P_l(0)"
+            + (f" and by √2 on the n ≠ 0 terms (Laue class {laue})"
                if root2 else "")
-            + ".  Fitted under the `bragg_brentano` geometry, the multipliers "
-              "are GSAS-II's.  The file's numbers are on `model.hap[…].texture`"),
+            + ". The file's numbers are on model.hap[...].texture."),
         where=[f"phases.0.texture.{name}" for name in values])]
     return (texture.order, values, any(t.refined for _, t in entries)), notes
 
@@ -1858,14 +1833,14 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
     if diagnostics is not None:
         for raw, (canonical, wheres) in rewrites.items():
             choice = chosen.isotope.get(raw, _NATURAL)
-            why = (f"the phase's General['Isotope'] chooses isotope {choice} "
-                   f"for that type, which GSAS-II keeps outside the atom type"
+            why = (f"The phase's General['Isotope'] sets isotope {choice} "
+                   f"for that type."
                    if choice != _NATURAL and raw not in ("D", "T") else
-                   "GSAS-II writes an ionic charge sign first; normalised to "
-                   "IUCr spelling")
+                   "The label is now in IUCr spelling.")
             diagnostics.append(Diagnostic(
                 level="info", code="GSAS2_GPX_SPECIES_NORMALISED",
-                message=f"species {raw!r} in {named} read as {canonical!r} — {why}",
+                message=f"Species {raw!r} in {named} was read as "
+                        f"{canonical!r}. {why}",
                 where=wheres))
         if frozen:
             diagnostics.append(Diagnostic(
@@ -1873,22 +1848,18 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                 message=(
                     f"{named}: {len(frozen)} site(s) carry GSAS-II's X refine "
                     f"flag but sit on fully fixed special positions "
-                    f"({', '.join(frozen)}), so nothing of them was free in "
-                    f"GSAS-II either — its flag means 'refine as permitted by "
-                    f"symmetry', and symmetry permits none"),
+                    f"({', '.join(frozen)})."),
                 where=[f"phases.0.atoms.{i}.x"
                        for i, a in enumerate(chosen.atoms)
                        if a.label in frozen]))
         diagnostics.append(Diagnostic(
             level="info", code="GSAS2_GPX_SCALE_NOT_COMPARABLE",
             message=(
-                f"{named}: phase {chosen.name!r}'s scale is seeded at 1e-3 and "
-                f"not taken from the file.  GSAS-II's histogram scale and its "
-                f"per-phase scale fold their own normalisation into one "
-                f"number, so neither is a rietx scale — refine it rather than "
-                f"trusting a converted value.  The file's own numbers are on "
-                f"`model.histograms[…].sample['Scale']` and "
-                f"`model.hap[…].scale`"),
+                f"{named}: phase {chosen.name!r}'s scale is seeded at 1e-3. "
+                f"The file's own scales are on "
+                f"model.histograms[...].sample['Scale'] and "
+                f"model.hap[...].scale."),
+            suggestion="Refine the scale before you trust it.",
             where=["phases.0.scale"]))
         diagnostics.extend(texture_notes)
     return structure
@@ -2147,35 +2118,25 @@ def _report_cif(structure, ambiguous: list[str],
         diagnostics.append(Diagnostic(
             level="info", code="GSAS2_CIF_DEUTERIUM_AS_D",
             message=(
-                f"{len(deuterium)} deuterium site(s) are written as D, the one "
-                f"isotope label GSAS-II's CIF import takes"
+                f"{len(deuterium)} deuterium site(s) are written as D"
                 + (f" ({', '.join(respelled)} respelled from 2H)"
                    if respelled else "")
-                + ".  GSAS-II scatters D at its own b = 6.681 fm against the "
-                  "6.671 fm (Sears) rietx uses, so a GSAS-II refinement of "
-                  "this file starts 0.15 % away on those sites"),
+                + ". GSAS-II scatters D at b = 6.681 fm and rietx uses "
+                  "6.671 fm (Sears)."),
             where=[path for path, _ in deuterium]))
     if ambiguous:
         diagnostics.append(Diagnostic(
             level="info", code="GSAS2_CIF_SETTING_IN_OPERATORS",
             message=(
-                f"{'; '.join(ambiguous)}.  The two programs read such a symbol "
-                f"opposite ways — GSAS-II takes a bare two-origin symbol as "
-                f"origin choice 2 and gemmi as choice 1 — so the setting is "
-                f"stated in the symmetry operations, which "
-                f"GSAS-II checks its own reading against, and in "
-                f"_space_group_name_H-M_alt, which this package reads.  "
-                f"_symmetry_space_group_name_H-M carries the bare symbol "
-                f"because GSAS-II's symbol grammar has no suffix and answers "
-                f"one by setting the phase to P 1"),
+                f"{'; '.join(ambiguous)}. The setting is stated in "
+                f"_symmetry_space_group_name_H-M (bare), "
+                f"_space_group_name_H-M_alt (full) and the symmetry "
+                f"operations."),
             where=[f"phases.{i}.space_group"
                    for i in range(len(structure.phases))]))
     clauses = [
-        "the refine flags: a CIF states none, so a GSAS-II project built from "
-        "this file starts from that program's own defaults rather than from "
-        "the protocol this model carries",
-        "the phase scale and the sample broadening, which belong to a phase "
-        "and a histogram together and live in GSAS-II's own HAP tables",
+        "the refine flags",
+        "the phase scale and the sample broadening",
     ]
     extras = {
         "microstrain": "the Stephens anisotropic strain coefficients",
@@ -2186,10 +2147,11 @@ def _report_cif(structure, ambiguous: list[str],
     }
     for name, what in extras.items():
         if any(getattr(p, name, None) for p in structure.phases):
-            clauses.append(what + ", which a phase CIF has no tags for")
+            clauses.append(what)
     diagnostics.append(Diagnostic(
         level="warning", code="GSAS2_CIF_FIELD_NOT_WRITTEN",
-        message="a phase CIF cannot state: " + "; ".join(clauses),
+        message="The phase CIF does not state " + ", ".join(clauses) + ".",
+        suggestion="Set these in GSAS-II before you compare results.",
         where=["phases"]))
 
 

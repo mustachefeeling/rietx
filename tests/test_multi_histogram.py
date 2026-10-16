@@ -380,7 +380,7 @@ def test_a_joint_plan_that_reaches_one_histogram_says_which_it_missed(two_patter
     assert result.stages[1].unknown_paths == ["instrument.zero"]
     unknown = [d for d in result.diagnostics if d.code == "STAGE_PATH_UNKNOWN"]
     assert [u.where for u in unknown] == [["instrument.zero"]]
-    assert "did you mean 'instrument.zero_shift'" in unknown[0].message
+    assert "Did you mean 'instrument.zero_shift'" in unknown[0].message
 
     # the record round-trips: histogram keys are ints in JSON's string keys
     again = type(result).model_validate_json(result.model_dump_json())

@@ -837,7 +837,7 @@ def test_the_diagnostic_fires_on_a_planted_width_and_not_without_one():
             if d.code == "MAGNETIC_WIDTH_UNMODELLED"]
     assert len(hits) == 1, [d.code for d in magnetic_width_findings(narrow, vn)]
     assert hits[0].value > MAGNETIC_WIDTH_SIGMA
-    assert "biased **low**" in hits[0].message
+    assert "too narrow" in hits[0].message
     assert "magnetic_lor_size" in hits[0].where[0]
     assert not _HOLD_CLAIM.search(hits[0].message + hits[0].suggestion)  # #609
 
@@ -1067,7 +1067,7 @@ def test_the_moved_moment_bar_reads_the_tighter_of_the_two_esds():
     assert got[0].value == pytest.approx(0.14 / 0.100, abs=1e-9)
     assert got[0].value > MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA
     assert 0.14 / 0.150 < MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA   # the other choice
-    assert "correlated with the moment, not absent" in got[0].message
+    assert "1.40x the tighter" in got[0].message
     assert "2.14" in got[0].message
     assert "0.3" in got[0].message
     # a shift inside the tighter bar says nothing
@@ -1090,10 +1090,10 @@ def test_the_support_row_withholds_its_licence_when_the_moment_moved():
     guarded = next(d for d in magnetic_width_findings(
         model, v, esds={path: 0.05}, free=[path], moved=[path])
         if d.code == "MAGNETIC_WIDTH_UNMEASURED")
-    assert "hold" in plain.suggestion and "at zero" in plain.suggestion
+    assert "Hold" in plain.suggestion and "at zero" in plain.suggestion
     assert "not licence to drop the term" in guarded.message
     assert "MAGNETIC_WIDTH_MOVED_MOMENT" in guarded.message
-    assert "keep" in guarded.suggestion and "free" in guarded.suggestion
+    assert "Keep" in guarded.suggestion and "free" in guarded.suggestion
     assert "at zero" not in guarded.suggestion
     # the ratio itself is the same measurement either way
     assert plain.value == guarded.value

@@ -437,13 +437,16 @@ def _skipped_remedy(blocks) -> str:
     — "no phase carries a cell" about a file carrying one sent a caller looking
     for a missing cell.
     """
-    lacked = {w for sb in blocks for w in sb.lacked.split(" or ")}
-    want = [line for word, line in (("phase_name", 'a `phase_name "…"` line'),
-                                    ("space_group", 'a `space_group "…"` line'))
-            if word in lacked]
+    want = [f'a `{word} "…"` line' for word in _skipped_wants(blocks)]
     return ("a `str` block is read as a phase once it states a `phase_name` and "
             "a `space_group` (or a `mag_space_group`), so add "
             + " and ".join(want) + (" to it" if len(blocks) == 1 else " to each"))
+
+
+def _skipped_wants(blocks) -> list[str]:
+    """The keywords a skipped block lacks, in the order a phase states them."""
+    lacked = {w for sb in blocks for w in sb.lacked.split(" or ")}
+    return [word for word in ("phase_name", "space_group") if word in lacked]
 
 
 @dataclass
@@ -3150,12 +3153,12 @@ def read_topas_inp(path: str | Path, *,
                 if g["name"] in _CELL_KEYS and g["name"] != key:
                     cell_couplings.append(
                         (phase.name, phase.space_group, key, g["name"],
-                         f"`Get({g['name']})`"))
+                         f"Get({g['name']})"))
             for ref in read.refs:
                 if (twin := from_symbol.get(ref)) is not None and twin != key:
                     cell_couplings.append(
                         (phase.name, phase.space_group, key, twin,
-                         f"the parameter `{ref}` that {twin} also names"))
+                         f"the parameter {ref} that {twin} also names"))
                 from_symbol.setdefault(ref, key)
             # TOPAS bounds a cell explicitly (`min 3.61 max 3.66;`). Those
             # are part of the author's model: without them a phase the data
@@ -3438,21 +3441,18 @@ def read_topas_inp(path: str | Path, *,
         # here is run 0's — said, because nothing in the model shows it.
         runs = _num_runs(active, conditionals.params)
         if conditionals.run_dependent and runs != 1:
-            stated = ("a `num_runs` this reader could not evaluate"
+            stated = ("a num_runs this reader could not evaluate"
                       if runs is None else f"num_runs = {runs:g}")
             diagnostics.append(Diagnostic(
                 level="warning", code="TOPAS_FIRST_RUN_READ",
-                message=(f"{path}: a `#if`/`#elseif` here tests `Run_Number`, "
-                         f"and the file states {stated}; the branches were "
-                         f"read as the first run (Run_Number 0) reads them. "
-                         f"A later run pre-processes the same file into other "
-                         f"text, so this is run 0's model"),
+                message=(f"{path}: a #if or #elseif here tests Run_Number, "
+                         f"and the file states {stated}. The branches were "
+                         f"read as the first run (Run_Number 0) reads them."),
                 where=["Run_Number"]))
         for raw, (canonical, where) in species_rewrites.items():
             diagnostics.append(Diagnostic(
                 level="info", code="TOPAS_SPECIES_NORMALISED",
-                message=(f"species {raw!r} in {path} read as {canonical!r} "
-                         f"(IUCr digit-first order)"),
+                message=f"Species {raw!r} in {path} was read as {canonical!r}.",
                 where=where))
         # The coupled-edge arm. `b = Get(a);` is *read* now where it used to
         # refuse the whole file, and the trade costs the tie: resolution copies
@@ -3469,13 +3469,12 @@ def read_topas_inp(path: str | Path, *,
                 continue
             diagnostics.append(Diagnostic(
                 level="warning", code="TOPAS_CELL_COUPLING_DROPPED",
-                message=(f"{path}: {phase_name}: {key} is written through "
-                         f"{via}, so the file ties it to {source}; the value "
-                         f"was copied but the tie was not, and space group "
-                         f"{sg!r} does not tie them either. The two edges are "
-                         f"independent in the built model and may refine apart. "
-                         f"Tie them in the refinement plan, or read "
-                         f"`model.phases` for what the file states"),
+                message=(f"{path}: {phase_name}: {key} is tied to {source} in "
+                         f"the file ({via}). The value was copied and the tie "
+                         f"was not, and space group {sg!r} does not tie them "
+                         f"either."),
+                suggestion=f"Tie {key} to {source} on the refinement before "
+                           f"you fit.",
                 where=[f"phases.{phase_name}.cell.{key}"]))
         # The coverage arm (:mod:`.coverage`): a `.inp` states more than a
         # structure, and the constructs in between used to be dropped exactly as
@@ -3485,26 +3484,21 @@ def read_topas_inp(path: str | Path, *,
         if model.coverage.reported:
             diagnostics.append(Diagnostic(
                 level="warning", code="TOPAS_FEATURES_NOT_IMPORTED",
-                message=(f"{path}: this import is partial — the file states "
+                message=(f"{path}: this import is partial. The file states "
                          f"{model.coverage.summary_of(model.coverage.reported)}"
-                         f", and none of it reaches the built structure. The "
-                         f"numbers that do are unaffected; what is missing is "
-                         f"the model around them. Read `model.coverage` for the "
-                         f"list, and `model.phases` for what the file states"),
+                         f", and none of it reaches the built structure."),
+                suggestion="Read model.coverage for the list and "
+                           "model.phases for what the file states.",
                 where=[f"coverage.reported.{h.feature.name}"
                        for h in model.coverage.reported]))
         if model.coverage.unread_calls:
-            names = ", ".join(f"`{n}(…)`" for n in model.coverage.unread_calls)
+            names = ", ".join(f"{n}(…)" for n in model.coverage.unread_calls)
             diagnostics.append(Diagnostic(
                 level="warning", code="TOPAS_FEATURES_NOT_IMPORTED",
-                message=(f"{path}: the file calls {names}, which it does not "
-                         f"define and this reader does not read. A macro from "
-                         f"an include this reader has not seen and a misspelt "
-                         f"name look the same from here, and either way "
-                         f"whatever the call states is missing from the built "
-                         f"structure. A name this reader has no row for is listed "
-                         f"too, so a real library macro can appear here. "
-                         f"Read `model.coverage.unread_calls`"),
+                message=(f"{path}: the file calls {names} without defining "
+                         f"it, and this reader has no row for it."),
+                suggestion="Check the name for a misspelling, then read "
+                           "model.coverage.unread_calls.",
                 where=[f"coverage.unread_calls.{n}"
                        for n in model.coverage.unread_calls]))
         if model.coverage.refused:
@@ -3512,11 +3506,8 @@ def read_topas_inp(path: str | Path, *,
                 level="warning", code="TOPAS_FEATURE_REFUSED",
                 message=(f"{path}: the file states "
                          f"{model.coverage.summary_of(model.coverage.refused)}"
-                         f", which `to_structure` refuses rather than drops — "
-                         f"building the phase without it would misrepresent the "
-                         f"refinement, not merely simplify it. The model is "
-                         f"still an honest account of the text: read "
-                         f"`model.phases`"),
+                         f", and to_structure refuses to build without it."),
+                suggestion="Read model.phases for what the file states.",
                 where=[f"coverage.refused.{h.feature.name}"
                        for h in model.coverage.refused]))
         for k, constructs in model.time_of_flight.items():
@@ -3526,18 +3517,15 @@ def read_topas_inp(path: str | Path, *,
                          f"{'the file' if k is None else f'dataset {k}'} is "
                          f"time of flight (it states {', '.join(constructs)}), "
                          f"and this build models constant-wavelength "
-                         f"diffraction only — time of flight is issue #193 — "
-                         f"so `to_structure` refuses its phases rather than "
-                         f"build them as if from a constant-wavelength "
-                         f"pattern. Read `model.phases` for what the file "
-                         f"states and `model.time_of_flight` for which "
-                         f"datasets are time of flight"),
+                         f"diffraction only (issue #193)."),
+                suggestion="Read model.phases for what the file states and "
+                           "model.time_of_flight for the datasets.",
                 where=[f"time_of_flight.{k}"]))
         for phase_name, raw, canonical in origin_translations:
             diagnostics.append(Diagnostic(
                 level="info", code="TOPAS_ORIGIN_TRANSLATED",
-                message=(f"space group {raw!r} on phase {phase_name!r} in {path} "
-                         f"read as {canonical!r} — the suffix selects the origin"),
+                message=(f"Space group {raw!r} on phase {phase_name!r} in "
+                         f"{path} was read as {canonical!r}."),
                 where=[f"phases.{phase_name}.space_group"]))
         # The other half of the same question (issue #101).  A trailing `Z`/`S`/
         # `R`/`H` is TOPAS saying which setting it meant, and the line above
@@ -3578,10 +3566,11 @@ def read_topas_inp(path: str | Path, *,
         for i, sb in enumerate(model.skipped_blocks):
             diagnostics.append(Diagnostic(
                 level="warning", code="TOPAS_BLOCK_SKIPPED",
-                message=(f"{path}: {sb} — read onto `model.skipped_blocks`, not "
-                         f"built as a phase"),
+                message=f"{path}: {sb}. It is on model.skipped_blocks.",
                 where=[f"skipped_blocks.{i}"],
-                suggestion=_skipped_remedy([sb])))
+                suggestion="Add " + " and ".join(
+                    f'a {word} "…" line' for word in _skipped_wants([sb]))
+                + " to the block."))
     return model
 
 
@@ -3855,27 +3844,22 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
             parts = []
             if ph.name in group_from_file:
                 parts.append(
-                    f"magnetic group from the file's mag_space_group "
-                    f"{ph.mag_space_group!r} as a BNS/OG number, operators in "
-                    f"its standard setting")
+                    f"The mag_space_group {ph.mag_space_group!r} was read as "
+                    f"a BNS or OG number with operators in its standard "
+                    f"setting.")
             if derived is not None:
                 parts.append(
-                    f"no space_group stated, so the positions refine under "
-                    f"{derived.xhm()!r}, the magnetic group's operators with time "
-                    f"reversal dropped")
+                    f"The file states no space_group, so the positions "
+                    f"refine under {derived.xhm()!r}, the magnetic group's "
+                    f"operators with time reversal dropped.")
             out.append(Diagnostic(
                 level="info", code="TOPAS_MAGNETIC_GROUP_READ",
                 where=[f"phases.{ip}.magnetic_symmetry"] * (
                     ph.name in group_from_file)
                 + [f"phases.{ip}.space_group"] * (derived is not None),
-                message=f"{path}: phase {ph.name!r}: " + "; ".join(parts),
-                suggestion=("the file's coordinates and moments are taken to "
-                            "be in the standard setting of that number (a "
-                            "setting whose operations are not a symmetry of "
-                            "the file's space_group and cell is refused, not "
-                            "read); pass to_structure(magnetic_symmetry=...) "
-                            "with an operator list if the file uses another "
-                            "setting")))
+                message=f"{path}: phase {ph.name!r}: " + " ".join(parts),
+                suggestion="Pass to_structure(magnetic_symmetry=...) with an "
+                           "operator list if the file uses another setting."))
         if ph.name not in specs:
             continue
         moment_sites = [s for s in ph.sites if s.moment is not None]
@@ -3883,19 +3867,12 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
             level="info", code="TOPAS_MOMENT_CONVENTION",
             where=[f"phases.{ip}.atoms.{j}.moment"
                    for j, s in enumerate(ph.sites) if s.moment is not None],
-            message=(f"{path}: phase {ph.name!r}: mlx/mly/mlz on "
-                     f"{', '.join(repr(s.label) for s in moment_sites)} read as "
-                     f"fractional-basis components (m = mlx*a + mly*b + "
-                     f"mlz*c) and stored as crystal-axis mu_B, (mlx*|a|, "
-                     f"mly*|b|, mlz*|c|)"),
-            suggestion=("the reading is the TOPAS 6 Technical Reference § 9, "
-                        "p. 65 (Fmagc = L*Fmag, m = {mlx, mly, mlz}), and it "
-                        "is measured: TOPAS 6's own calculated "
-                        "magnetic intensities on a monoclinic cell match it "
-                        "pair by pair and in |m|, and match neither a "
-                        "crystal-axis nor a Cartesian reading; a file's "
-                        "MM_CrystalAxis_Display values are the stored "
-                        "components, to check against")))
+            message=(f"{path}: phase {ph.name!r}: mlx, mly and mlz on "
+                     f"{', '.join(repr(s.label) for s in moment_sites)} were "
+                     f"read as fractional-basis components and stored as "
+                     f"crystal-axis mu_B (mlx*|a|, mly*|b|, mlz*|c|)."),
+            suggestion="Check the stored components against the file's "
+                       "MM_CrystalAxis_Display values."))
         # `mg` is refinable in TOPAS (Technical Reference § 9, p. 66: "The Lande
         # splitting factor can be refined using the site-dependent parameter
         # mg") and `Moment.g` is a plain float, so a refined g arrives held at
@@ -3909,17 +3886,12 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
                 level="warning", code="TOPAS_MOMENT_G_HELD",
                 where=[f"phases.{ip}.atoms.{j}.moment.g" for j, _ in g_free],
                 message=(f"{path}: phase {ph.name!r}: the file refines the "
-                         f"Landé g (`mg`) on "
+                         f"Landé g (mg) on "
                          + ", ".join(f"{s.label!r} (g = {s.moment['mg']:g})"
                                      for _, s in g_free)
-                         + "; rietx's Moment.g is a fixed number, so g is "
-                           "read as held at that value and the built model "
-                           "has fewer free parameters than the file's "
-                           "refinement"),
-                suggestion=("g enters only the ⟨j₂⟩ weight of the form factor, "
-                            "(2/g − 1); set Atom.moment.g on the built "
-                            "structure to try another value, and compare with "
-                            "the file's figures knowing g did not move")))
+                         + ". It is read as held at that value."),
+                suggestion="Set Atom.moment.g on the built structure to try "
+                           "another value."))
         bare =[s for s in moment_sites if re.fullmatch(r"[A-Za-z]{1,2}",
                                                         s.species)]
         if bare:
@@ -3929,11 +3901,9 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
                        for j, s in enumerate(ph.sites) if s in bare],
                 message=(f"{path}: phase {ph.name!r}: "
                          f"{', '.join(repr(s.label) for s in bare)} state a "
-                         f"moment and an uncharged species, so the magnetic "
-                         f"form factor is the neutral atom's"),
-                suggestion="the magnetic form factor is keyed by oxidation "
-                           "state; write the site's `occ` with its charge "
-                           "(`occ Cr+3`) so the ion resolves"))
+                         f"moment and an uncharged species."),
+                suggestion="Write the site's occ with its charge (occ Cr+3) "
+                           "so the ion resolves."))
     return out
 
 
@@ -4385,29 +4355,23 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                 where=[f"phases.{ip}.magnetic_symmetry"] + [
                     f"phases.{ip}.atoms.{j}.moment"
                     for j, s in enumerate(ph.sites) if s.label in labels],
-                message=(f"{model.path or '<model>'}: str {part.name!r} read as "
-                         f"the magnetic half of {ph.name!r} and merged into it: "
-                         f"its moments on {len(labels)} sites, its charge "
-                         f"state and its mag_space_group {part.mag_space_group!r}. "
-                         f"Its scale, cell, space group and each site's "
-                         f"position, element and occupancy were checked equal "
-                         f"to {ph.name!r}'s and are not carried separately"),
-                suggestion=("the file's two strs are one phase here, so refine "
-                            "the one scale; a file whose two disagree is "
-                            "refused, not merged")))
+                message=(f"{model.path or '<model>'}: str {part.name!r} was "
+                         f"read as the magnetic half of {ph.name!r} and merged "
+                         f"into it, with its moments on {len(labels)} sites, "
+                         f"its charge state and its mag_space_group "
+                         f"{part.mag_space_group!r}. Its scale, cell, space "
+                         f"group and each site's position, element and "
+                         f"occupancy were checked equal to {ph.name!r}'s."),
+                suggestion="Refine the merged phase as one."))
         for ip, term in reserved_read:
             diagnostics.append(Diagnostic(
                 level="info", code="TOPAS_PHASE_TERM_READ",
                 where=[f"phases.{ip}.{term}"],
-                message=(f"{model.path or '<model>'}: prm p{ip}_{term} read as "
-                         f"phase {ip}'s {term}. TOPAS has no keyword for it; "
-                         f"this reader takes the name p<i>_{term} to mean it "
-                         f"(the name a rietx-written file will give it), so a "
-                         f"file whose own parameter happens to carry that name "
-                         f"is read as this phase term"),
-                suggestion=("if the name is the file's own and means something "
-                            "else, set the phase term back on the built "
-                            "Structure")))
+                message=(f"{model.path or '<model>'}: prm p{ip}_{term} was "
+                         f"read as phase {ip}'s {term}."),
+                suggestion="If the name is the file's own and means something "
+                           "else, set the phase term back on the built "
+                           "Structure."))
     if constraints is not None:
         found = derive_ties(model, phases_in, structure)
         constraints.ties.extend(found.ties)
@@ -5074,12 +5038,12 @@ def _not_written_diagnostics(structure: Structure, *,
         return []
     return [Diagnostic(
         level="warning", code="TOPAS_FIELD_NOT_WRITTEN",
-        message=("the file states no "
+        message=("The file states no "
                  + ("texture" if whole else
                     "magnetic-only width, extinction or texture")
                  + ", so TOPAS computes each phase without what it "
-                 "carries here (" + "; ".join(named) + "); state them in "
-                 "TOPAS before comparing its pattern or its fit with rietx's"),
+                 "carries here (" + "; ".join(named) + ")."),
+        suggestion="State them in TOPAS before you compare results.",
         where=where)]
 
 
