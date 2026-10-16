@@ -422,7 +422,9 @@ def test_perhydropyrene_half_molecule_on_the_centre_recovers_its_orientation(off
     assert contact == pytest.approx(1.505, abs=1e-3)
     assert contact > RIGID_BODY_OVERLAP_FACTOR * 2 * 0.76 - 1e-6
     tt = np.arange(8.0, 60.0, 0.02)
-    pattern = _synthesize(truth, LAB, tt, peak=2e4, background=50.0, seed=11)
+    # 1e5 counts at the strongest line: at 2e4 the noise alone put the answer
+    # 0.05-0.08° off over five seeds, against the 0.1° bar; here 0.013-0.039°
+    pattern = _synthesize(truth, LAB, tt, peak=1e5, background=50.0, seed=11)
     d = truth.phases[0].model_dump()
     d["rigid_bodies"][0]["orientation"] = tuple(
         float(v) for v in _quat(off_deg, (0.3, 0.8, -0.5)))
