@@ -1468,3 +1468,108 @@ def test_a_week_old_release_tag_with_merges_since_owes_a_release(repo: Path) -> 
     assert hook.release_flag(repo, today=tagged + datetime.timedelta(days=6)) is None
     flag = hook.release_flag(repo, today=tagged + datetime.timedelta(days=7))
     assert flag is not None and "v1.0.0 is 7 days old, 1 merges since" in flag
+
+
+# --------------------------------------------------------------------------- #
+# The PR-subscribe nudge (.claude/hooks/pr_subscribe.py, WP-1987): a PR this
+# session puts up for review is one it watches.
+# --------------------------------------------------------------------------- #
+
+_sub_spec = importlib.util.spec_from_file_location(
+    "pr_subscribe_hook", ROOT / ".claude" / "hooks" / "pr_subscribe.py"
+)
+pr_subscribe = importlib.util.module_from_spec(_sub_spec)
+_sub_spec.loader.exec_module(pr_subscribe)
+
+_PR_URL = "https://github.com/yue-here/rietx/pull/1013\n"
+_READY = '✓ Pull request yue-here/rietx#1013 is marked as "ready for review"\n'
+
+
+def _ran(command: str, stdout: str = "", stderr: str = "") -> dict:
+    return {"tool_name": "Bash", "tool_input": {"command": command},
+            "tool_response": {"stdout": stdout, "stderr": stderr}}
+
+
+@pytest.mark.parametrize(
+    "command, stdout, stderr",
+    [
+        ('gh pr create --title "WP-9001: x" --body y', _PR_URL, ""),
+        ("gh pr ready", "", _READY),
+        ("git push origin HEAD && gh pr ready 1013", "", _READY),
+        ("gh -R yue-here/rietx pr ready 1013", "", _READY),
+    ],
+)
+def test_a_pr_put_up_for_review_is_named(command: str, stdout: str, stderr: str) -> None:
+    assert pr_subscribe.target(_ran(command, stdout, stderr)) == ("yue-here", "rietx", 1013)
+
+
+@pytest.mark.parametrize(
+    "command, stdout",
+    [
+        # /wp-start step 4b's claim: still in flight, so not watched yet
+        ('gh pr create --draft --title "WP-9001: x" --body y', _PR_URL),
+        ("gh pr create -d --title x", _PR_URL),
+        ("gh pr ready --undo", _READY),
+        # names a PR without making one reviewable
+        ("gh pr view --json url", _PR_URL),
+        ("echo gh pr ready", _READY),
+        # a create that failed prints no PR, and a nudge about none is noise
+        ("gh pr create --title x", ""),
+    ],
+)
+def test_a_draft_a_read_or_a_failure_is_silent(command: str, stdout: str) -> None:
+    assert pr_subscribe.target(_ran(command, stdout)) is None
+
+
+def test_the_mcp_calls_read_the_draft_flag() -> None:
+    created = {"tool_name": "mcp__github__create_pull_request",
+               "tool_input": {"owner": "o", "repo": "r", "title": "t", "head": "h"},
+               "tool_response": [{"type": "text", "text": '{"number": 7, "state": "open"}'}]}
+    assert pr_subscribe.target(created) == ("o", "r", 7)
+    created["tool_input"]["draft"] = True
+    assert pr_subscribe.target(created) is None
+
+    readied = {"tool_name": "mcp__github__update_pull_request",
+               "tool_input": {"owner": "o", "repo": "r", "pullNumber": 7, "draft": False}}
+    assert pr_subscribe.target(readied) == ("o", "r", 7)
+    readied["tool_input"].pop("draft")  # a title edit, not a ready
+    assert pr_subscribe.target(readied) is None
+
+
+def test_the_nudge_reaches_the_model_and_fails_open_visibly() -> None:
+    """``additionalContext`` on exit 0 is what the model reads; exit 1 is what the user does."""
+    hook_path = ROOT / ".claude" / "hooks" / "pr_subscribe.py"
+    proc = subprocess.run(
+        [sys.executable, str(hook_path)],
+        input=json.dumps(_ran("gh pr ready", "", _READY)), text=True, capture_output=True,
+    )
+    assert proc.returncode == 0
+    out = json.loads(proc.stdout)["hookSpecificOutput"]
+    assert out["hookEventName"] == "PostToolUse"
+    assert "subscribe_pr_activity" in out["additionalContext"]
+    assert "pullNumber=1013" in out["additionalContext"]
+    assert ".claude/skills/steward/SKILL.md" in out["additionalContext"]
+    assert (ROOT / ".claude" / "skills" / "steward" / "SKILL.md").is_file()
+
+    quiet = subprocess.run(
+        [sys.executable, str(hook_path)],
+        input=json.dumps(_ran("gh pr view")), text=True, capture_output=True,
+    )
+    assert (quiet.returncode, quiet.stdout) == (0, "")
+
+    broken = subprocess.run(
+        [sys.executable, str(hook_path)], input="not json", text=True, capture_output=True,
+    )
+    assert broken.returncode == 1 and "failed open" in broken.stderr
+
+
+def test_the_nudge_is_registered_for_every_call_it_reads() -> None:
+    settings = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    matchers = [
+        group["matcher"] for group in settings["hooks"]["PostToolUse"]
+        if any("pr_subscribe.py" in h["command"] for h in group["hooks"])
+    ]
+    assert len(matchers) == 1
+    assert set(matchers[0].split("|")) >= {
+        "Bash", "mcp__github__create_pull_request", "mcp__github__update_pull_request"
+    }

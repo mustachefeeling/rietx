@@ -44,6 +44,18 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|mcp__github__create_pull_request|mcp__github__update_pull_request",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pr_subscribe.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
