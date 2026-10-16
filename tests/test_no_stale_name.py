@@ -77,6 +77,9 @@ ALLOWED = {
     # the TiO₂ phase, not the old package: a vendored COMCIFS dictionary's
     # _pd_prep example names an anatase specimen (WP-1319)
     "tests/data/cif_dictionaries/cif_pd.dic",
+    # not a name at all: Hunspell affix flags, as in `black/PXTGMDNRYS`, in the
+    # vendored en_GB dictionary Vale spell-checks the manual with (WP-1982)
+    "docs/vale/config/dictionaries/en_GB.dic",
 }
 
 

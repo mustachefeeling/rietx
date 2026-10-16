@@ -58,6 +58,15 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
 
 ### Inherited
 
+- **2026-10-16, from WP-1982.** Vale is set up and reads the new tree's committed pages;
+  the generated Reference bodies are left out until this WP. Over their 20 915 words the
+  house configuration finds 107 errors, all in the package's strings: 55 spellings (American
+  forms such as "Polarization factor" and "Penalized", identifiers outside backticks such as
+  `lor_size` and `mccusker_default`) and 46 em dashes, plus 57 notation warnings (`y_calc`,
+  `c_n`). To read them, build the tree and widen `.vale.ini`'s section
+  `[docs/docs/[!_]*.md]` to take `_generated/`; that widening is this WP's to land. The
+  term list's generator skips a help title's American spelling, so fixing "Polarization"
+  in `rietx.help` needs no term-list change. The style rules now sit in WP-1982's Context.
 - **2026-10-16, from WP-1981, folded at the maintainer's ask.** The `rietx.help` corpus
   joins this WP's scope: it is the other text a reader meets in the manual and the GUI, and
   it has the same voice problem. Its 159 entries feed the parameter map, the glossary and

@@ -1,0 +1,20 @@
+# The maintainer's banned words, read from the `yue-docs-style` skill's
+# Never list on 2026-10-16.  That skill is the authority; a word it adds
+# belongs here too.
+extends: existence
+message: "Cut '%s': the house style bans it."
+level: error
+ignorecase: true
+tokens:
+  - simply
+  - just
+  - easy
+  - easily
+  - obviously
+  - please note
+  - it's important to note
+  - it is important to note
+  - blazing
+  - seamless
+  - seamlessly
+  - powerful

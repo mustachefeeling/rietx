@@ -103,6 +103,9 @@ docs/docs/_build/
 docs/manual/_generated/
 # Generated at Sphinx build time by docs/reference_pages.py (WP-1981).
 docs/docs/_generated/
+# The Microsoft style package, fetched by `vale sync` at the version .vale.ini
+# pins (WP-1982).
+docs/vale/Microsoft/
 # Copied at Sphinx build time from examples/tutorials/ (docs/manual/conf.py).
 docs/manual/using/tutorials/
 

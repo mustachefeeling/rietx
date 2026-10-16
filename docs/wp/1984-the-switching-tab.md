@@ -43,6 +43,15 @@ publishes such a comparison.
 
 ### Inherited
 
+- **2026-10-16, from WP-1982.** Vale reads every committed page of `docs/docs/` in CI's
+  lint job, and an error-level alert fails it. The errors are British spelling against the
+  en_GB dictionary plus the term list, the maintainer's banned words, "fnmatch" in prose and
+  a few Microsoft rules. Warnings are printed and do not fail: a synonym the term list
+  rejects ("cell edge", "thermal parameter"), notation left as text (`U_iso`), a program's
+  role ("caller") and a price ("buys"). Run `vale sync && vale docs/docs` before pushing
+  (`CONTRIBUTING.md`). A crystallographic word Vale does not know goes in
+  `docs/vale/terms.txt`, then `python docs/vale/terms.py`. A one-word section heading is
+  flagged as a suggestion, and so is "glob", "schema" or "column" until a page explains it.
 - **2026-10-16, from WP-1981.** The soft dependency is met. The foreign-name map is
   `docs/docs/reference/foreign-names.md`, with GSAS-II, GSAS, TOPAS and FullProf columns
   and a Conversions section (U, V, W units, FullProf's swapped X and Y, Uiso against B,

@@ -1,0 +1,13 @@
+# A heading makes sense read alone, in the sidebar, the contents list and a
+# search result (WP-1981's review, rule 1).  A one-word section heading is the
+# cheap proxy for a bare one ("In", "Out").  The proxy is not the rule, so it
+# asks.  A page title is left alone: a tab's index page is named for its tab.
+extends: occurrence
+message: "A one-word heading: does it make sense read alone, in the contents list?"
+scope:
+  - heading.h2
+  - heading.h3
+  - heading.h4
+level: suggestion
+min: 2
+token: '[^\s]+'
