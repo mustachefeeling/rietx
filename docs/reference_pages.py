@@ -8,7 +8,9 @@
 # `{include}`s it.  The tests call the same functions, so they read what the
 # build would render without running one.
 
+import ast as _ast
 import dataclasses as _dataclasses
+import re as _re
 from fnmatch import fnmatchcase as _fnmatchcase
 from pathlib import Path as _Path
 
@@ -261,10 +263,94 @@ def plan_ladder() -> str:
     return "\n".join(out)
 
 
+# ----------------------------------------------------------------------
+# The diagnostic index
+#
+# There is no registry of codes, so the index walks the source.  A code is an
+# UPPER_SNAKE literal in one of three places: a `code=` keyword (every
+# `Diagnostic(...)`), the first argument of a `GuardFinding` constructor, or a
+# module-level `*_CODES` table.  `tests/skill_surface.py` walks the first
+# shape for the skill, and a test holds this walk to a superset of it.  The GUI
+# server's session codes share the shape and are a separate namespace, so
+# `gui/` is skipped, as the skill skips it.
+# ----------------------------------------------------------------------
+
+_CODE_SHAPE = _re.compile(r"[A-Z][A-Z0-9_]+")
+SOURCE_ROOT = _Path(__file__).resolve().parent.parent / "src" / "rietx"
+
+
+def _code_literals(node) -> set[str]:
+    return {n.value for n in _ast.walk(node) if isinstance(n, _ast.Constant)
+            and isinstance(n.value, str) and _CODE_SHAPE.fullmatch(n.value)}
+
+
+def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]]:
+    """Code -> {"levels": the literal `level=` values beside it, "files": where}.
+
+    A level computed at run time is recorded as "".
+    """
+    out: dict[str, dict[str, set[str]]] = {}
+
+    def add(code: str, rel: str, level: str | None) -> None:
+        entry = out.setdefault(code, {"levels": set(), "files": set()})
+        entry["files"].add(rel)
+        if level is not None:
+            entry["levels"].add(level)
+
+    for path in sorted(root.rglob("*.py")):
+        rel = path.relative_to(root.parent).as_posix()
+        if "gui" in rel.split("/")[1:]:
+            continue
+        tree = _ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+        for node in tree.body:
+            if (isinstance(node, _ast.Assign) and len(node.targets) == 1
+                    and isinstance(node.targets[0], _ast.Name)
+                    and node.targets[0].id.endswith("_CODES")):
+                for code in _code_literals(node.value):
+                    add(code, rel, None)
+        for node in _ast.walk(tree):
+            if not isinstance(node, _ast.Call):
+                continue
+            keywords = {k.arg: k.value for k in node.keywords}
+            code = keywords.get("code")
+            if (isinstance(code, _ast.Constant) and isinstance(code.value, str)
+                    and _CODE_SHAPE.fullmatch(code.value)):
+                level = keywords.get("level")
+                add(code.value, rel, level.value if isinstance(level, _ast.Constant)
+                    else "" if level is not None else None)
+            callee = node.func
+            name = callee.id if isinstance(callee, _ast.Name) else getattr(callee, "attr", "")
+            if name in {"cls", "GuardFinding"} and node.args:
+                for literal in _code_literals(node.args[0]):
+                    add(literal, rel, None)
+    return out
+
+
+def diagnostic_page() -> str:
+    """The body of `reference/diagnostics.md`: one row per code."""
+    from rietx._about import REPO_URL
+
+    index = diagnostic_index()
+    out = [_BANNER.format(source="the source tree under src/rietx/"), "",
+           f"The package raises {len(index)} codes.", "",
+           "| Code | Level | Raised in |", "| --- | --- | --- |"]
+    for code in sorted(index):
+        entry = index[code]
+        levels = sorted(lv for lv in entry["levels"] if lv)
+        if "" in entry["levels"]:
+            levels.append("set at run time")
+        level = ", ".join(levels) or "—"
+        files = "<br>".join(f"[`{rel}`]({REPO_URL}/blob/main/src/{rel})"
+                            for rel in sorted(entry["files"]))
+        out.append(f"| `{code}` | {level} | {files} |")
+    return "\n".join(out + [""])
+
+
 #: Generated body file name -> the function that writes it.
 BODIES = {
     "parameters.md": parameter_map,
     "plans.md": plan_ladder,
+    "diagnostics.md": diagnostic_page,
 }
 
 

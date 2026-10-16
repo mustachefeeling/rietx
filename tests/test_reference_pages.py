@@ -118,3 +118,41 @@ def test_the_mode_substitutions_are_what_resolve_plan_runs():
     for (name, mode), twin in _MODE_SUBSTITUTES.items():
         assert resolve_plan(name, mode) == PLAN_PRESETS[twin]()
         assert f"Under `{mode}`, `{name}` runs as `{twin}`." in text
+
+
+# ----------------------------------------------------------------------
+# The diagnostic index
+# ----------------------------------------------------------------------
+
+def test_the_index_holds_every_code_the_skill_walk_finds():
+    """Two walks of one source; the index's must not be the narrower."""
+    import ast
+
+    from tests.skill_surface import diagnostic_codes, is_engine_source
+
+    root = reference_pages.SOURCE_ROOT.parent.parent
+    skill = set()
+    for path in (root / "src" / "rietx").rglob("*.py"):
+        rel = path.relative_to(root).as_posix()
+        if is_engine_source(rel):
+            skill |= diagnostic_codes(ast.parse(path.read_text(encoding="utf-8")))
+    index = reference_pages.diagnostic_index()
+    assert skill <= set(index), sorted(skill - set(index))
+
+
+def test_the_index_reaches_the_shapes_a_keyword_walk_misses(tmp_path):
+    """A `GuardFinding` constructor's code, a `*_CODES` table, and a level."""
+    pkg = tmp_path / "rietx"
+    (pkg / "gui").mkdir(parents=True)
+    (pkg / "a.py").write_text(
+        'X_CODES = (("ONE_CODE", "ONE_OMITTED"),)\n'
+        "def f():\n"
+        '    GuardFinding("GUARD_CODE", (), 0.0, "")\n'
+        '    Diagnostic(level="warning", code="KW_CODE", message="")\n'
+        '    Diagnostic(level=lv, code="RUN_CODE", message="")\n', encoding="utf-8")
+    (pkg / "gui" / "b.py").write_text('E(code="GUI_CODE")\n', encoding="utf-8")
+    index = reference_pages.diagnostic_index(pkg)
+    assert sorted(index) == ["GUARD_CODE", "KW_CODE", "ONE_CODE", "ONE_OMITTED", "RUN_CODE"]
+    assert index["KW_CODE"]["levels"] == {"warning"}
+    assert index["RUN_CODE"]["levels"] == {""}
+    assert index["GUARD_CODE"]["levels"] == set()

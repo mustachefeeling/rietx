@@ -82,7 +82,7 @@ Facts measured 2026-10-15 (WP-1975 § B2-B4):
 - [x] Plan ladder from `PLAN_INFO`/`PLAN_PRESETS`, one diagram per preset.
 - [ ] API reference: autodoc or a generator over `__all__`, grouped by likely use, and
       `tests/api_surface.py`'s partition reading it.
-- [ ] Diagnostic index: every code, its level and where it is raised.
+- [x] Diagnostic index: every code, its level and where it is raised.
 - [ ] Project tree from a built example, annotated from the writer constants.
 - [ ] Roadmap from the milestone records.
 - [ ] Foreign-name map with its test against the readers' constants.
