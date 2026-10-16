@@ -1497,6 +1497,15 @@ def _ran(command: str, stdout: str = "", stderr: str = "") -> dict:
         ("gh pr ready", "", _READY),
         ("git push origin HEAD && gh pr ready 1013", "", _READY),
         ("gh -R yue-here/rietx pr ready 1013", "", _READY),
+        # a newline separates commands as `;` does
+        ("git push origin HEAD\ngh pr ready 1013", "", _READY),
+        ("if true; then gh pr ready; fi", "", _READY),
+        ("(gh pr ready)", "", _READY),
+        # a heredoc body is data: an apostrophe or a "--draft" in it is not shell
+        ("gh pr create --title x --body-file - <<'EOF'\ndon't\nEOF", _PR_URL, ""),
+        ("gh pr create --title x --body-file - <<'EOF'\nnot --draft\nEOF", _PR_URL, ""),
+        # a ref after a newline in the output keeps its owner
+        ("gh pr ready", "", "note\n" + _READY.removeprefix("✓ Pull request ")),
     ],
 )
 def test_a_pr_put_up_for_review_is_named(command: str, stdout: str, stderr: str) -> None:
@@ -1526,6 +1535,12 @@ def test_the_mcp_calls_read_the_draft_flag() -> None:
                "tool_input": {"owner": "o", "repo": "r", "title": "t", "head": "h"},
                "tool_response": [{"type": "text", "text": '{"number": 7, "state": "open"}'}]}
     assert pr_subscribe.target(created) == ("o", "r", 7)
+    # the PR object carries `body` ahead of `html_url`: a cited PR must not win
+    cited = json.dumps({"number": 7, "body": "see https://github.com/o/r/pull/3",
+                        "html_url": "https://github.com/o/r/pull/7"})
+    assert pr_subscribe.target(
+        {**created, "tool_response": [{"type": "text", "text": cited}]}
+    ) == ("o", "r", 7)
     created["tool_input"]["draft"] = True
     assert pr_subscribe.target(created) is None
 

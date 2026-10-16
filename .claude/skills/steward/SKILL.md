@@ -24,7 +24,7 @@ loosens. Outside PRs are `/pr-review`'s, never this.
 
 Work in the WP's worktree (`EnterWorktree` with its `path` when the session
 has left it): the main checkout is read-only, and `git push origin HEAD`
-from there is the only push. `git fetch origin main` first, every time — a
+from the worktree is the only push. `git fetch origin main` first, every time — a
 concurrent `/pr-review` merges all day, so a main fetched at the last event is
 stale. Then read the whole PR on its current head (mergeable state, CI on the
 latest commit, open threads) and act on every open item, in this order.

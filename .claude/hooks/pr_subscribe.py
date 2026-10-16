@@ -42,7 +42,13 @@ import json
 import re
 import shlex
 import sys
+from pathlib import Path
 from typing import Optional
+
+_HOOKS = str(Path(__file__).resolve().parent)  # appended, never inserted: a
+if _HOOKS not in sys.path:  # loose script here must not shadow a stdlib module
+    sys.path.append(_HOOKS)
+from no_top_level_cd import KEYWORDS, strip_heredocs  # noqa: E402  (sibling hook)
 
 _URL_RE = re.compile(r"https://github\.com/([\w.-]+)/([\w.-]+)/pull/(\d+)")
 _REF_RE = re.compile(r"\b([\w.-]+)/([\w.-]+)#(\d+)\b")
@@ -58,16 +64,26 @@ person to watch the run instead (/wp-handover step 12)."""
 
 
 def _segments(command: str) -> list[list[str]]:
-    """The command's simple commands, split on ``;``, ``&&``, ``||`` and ``|``."""
+    """The command's simple commands, split on newlines, ``;``, ``&&``, ``||``,
+    ``|`` and parentheses.
+
+    Heredoc bodies are data (``no_top_level_cd.strip_heredocs``): a PR body
+    saying "--draft" is not the flag, and an apostrophe in one must not leave
+    shlex an unclosed quote.  A command shlex still cannot read is split
+    naively rather than dropped, since silence here is the miss this hook exists
+    to prevent.
+    """
+    src = strip_heredocs(command).replace("\\\n", " ").replace("\n", ";")
+    seps = set(";&|()")
     try:
-        lex = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+        lex = shlex.shlex(src, posix=True, punctuation_chars="();&|")
         lex.whitespace_split = True
         tokens = list(lex)
     except ValueError:
-        return []
+        tokens = [t for t in re.split(r"([;&|()]+)|\s+", src) if t]
     out: list[list[str]] = [[]]
     for tok in tokens:
-        if tok and set(tok) <= set(";&|"):
+        if tok and set(tok) <= seps:
             out.append([])
         else:
             out[-1].append(tok)
@@ -77,8 +93,8 @@ def _segments(command: str) -> list[list[str]]:
 def _gh_pr_verb(seg: list[str]) -> Optional[str]:
     """``create``/``ready`` when ``seg`` makes a PR reviewable, else None."""
     words = list(seg)
-    while words and re.match(r"^\w+=", words[0]):  # FOO=bar gh …
-        words.pop(0)
+    while words and (words[0] in KEYWORDS or re.match(r"^\w+=", words[0])):
+        words.pop(0)  # FOO=bar gh …, then gh …
     if words[:1] != ["gh"]:  # the command word, never an argument (`echo gh pr ready`)
         return None
     rest = words[1:]
@@ -95,23 +111,48 @@ def _gh_pr_verb(seg: list[str]) -> Optional[str]:
 
 
 def _text(response: object) -> str:
-    """The response as one string, an MCP content list's text blocks unescaped."""
+    """The response's strings joined, never JSON-escaped.
+
+    ``json.dumps`` would turn a newline into the two characters ``\\n``, and the
+    ``n`` then joins the next word: ``…\\nyue-here/rietx#1013`` read as owner
+    ``nyue-here``.
+    """
     if isinstance(response, str):
         return response
+    if isinstance(response, dict):
+        if isinstance(response.get("text"), str):  # an MCP content block
+            return response["text"]
+        return "\n".join(_text(v) for v in response.values())
     if isinstance(response, list):
-        return "\n".join(
-            b["text"] if isinstance(b, dict) and isinstance(b.get("text"), str) else _text(b)
-            for b in response
-        )
-    try:
-        return json.dumps(response)
-    except (TypeError, ValueError):
-        return str(response)
+        return "\n".join(_text(b) for b in response)
+    return str(response)
 
 
 def _ref_in(text: str) -> Optional[tuple[str, str, int]]:
     m = _URL_RE.search(text) or _REF_RE.search(text)
     return (m.group(1), m.group(2), int(m.group(3))) if m else None
+
+
+def _created_pr(text: str, owner: object, repo: object) -> Optional[tuple[str, str, int]]:
+    """The PR a create call returned, read by key before any free-text search.
+
+    The full PR object carries ``body`` ahead of ``html_url``, so a body citing
+    another PR's URL would win a search of the whole text.
+    """
+    for line in [text, *text.splitlines()]:
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        for key in ("html_url", "url"):
+            m = _URL_RE.fullmatch(str(obj.get(key, "")))
+            if m:
+                return (m.group(1), m.group(2), int(m.group(3)))
+        if isinstance(obj.get("number"), int) and owner and repo:
+            return (str(owner), str(repo), obj["number"])
+    return _ref_in(text)
 
 
 def target(payload: dict) -> Optional[tuple[str, str, int]]:
@@ -125,12 +166,7 @@ def target(payload: dict) -> Optional[tuple[str, str, int]]:
     if tool == "mcp__github__create_pull_request":
         if tin.get("draft") is True:
             return None
-        ref = _ref_in(out)
-        if ref is None:
-            m = re.search(r'"number"\s*:\s*(\d+)', out)
-            if m and tin.get("owner") and tin.get("repo"):
-                ref = (tin["owner"], tin["repo"], int(m.group(1)))
-        return ref
+        return _created_pr(out, tin.get("owner"), tin.get("repo"))
     if tool == "mcp__github__update_pull_request":
         if tin.get("draft") is not False:
             return None
