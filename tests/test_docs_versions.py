@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from rietx._about import DIST_NAME, docs_version
+from rietx._about import DIST_NAME
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -43,7 +43,7 @@ def _release(tag, *, docs=True, draft=False, prerelease=False):
     ("1.10.0", "1.10"), ("1.10.2", "1.10"), ("2.0.0", "2.0"),
 ])
 def test_a_version_maps_to_its_minor_or_to_dev(version, directory):
-    assert docs_version(version) == directory
+    assert versions.docs_version(version) == directory
 
 
 def test_the_newest_patch_of_each_recent_minor_is_kept():
@@ -166,4 +166,38 @@ def test_the_workflows_agree_with_the_script():
     # release.yml attaches the asset under the name the script fetches.
     assert versions.asset_name("${version}") in release
     assert "docs/docs_versions.py site" in pages
-    assert "DOCS_VERSION: dev" in pages
+    assert 'export DOCS_VERSION="${version%.*}"' in release
+
+
+def _shared(monkeypatch, installed, docs_version=None):
+    """Import docs/sphinx_shared.py afresh, as a build under this version would."""
+    import rietx
+
+    monkeypatch.setattr(rietx, "__version__", installed)
+    if docs_version is None:
+        monkeypatch.delenv("DOCS_VERSION", raising=False)
+    else:
+        monkeypatch.setenv("DOCS_VERSION", docs_version)
+    monkeypatch.syspath_prepend(str(ROOT / "docs"))
+    spec = importlib.util.spec_from_file_location("_sphinx_shared", ROOT / "docs" / "sphinx_shared.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize(("installed", "docs_version", "ref"), [
+    ("1.10.0.dev0", None, "main"),
+    # main at the commit a release is cut from, before its tag exists.
+    ("1.10.0", None, "main"),
+    ("1.10.2", "1.10", "v1.10.2"),
+])
+def test_a_build_links_its_tag_only_when_it_is_a_release_build(monkeypatch, installed,
+                                                                docs_version, ref):
+    assert _shared(monkeypatch, installed, docs_version).SOURCE_REF == ref
+
+
+@pytest.mark.parametrize(("installed", "docs_version"), [("1.10.2", "1.9"), ("1.10.0.dev0", "1.10")])
+def test_a_build_refuses_a_docs_version_that_is_not_the_installed_release(monkeypatch, installed,
+                                                                         docs_version):
+    with pytest.raises(RuntimeError, match="names another release"):
+        _shared(monkeypatch, installed, docs_version)

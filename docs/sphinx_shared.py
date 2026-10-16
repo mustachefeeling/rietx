@@ -19,12 +19,13 @@ import re as _re
 from pathlib import Path as _Path
 
 import sphinxcontrib.bibtex.plugin as _bibtex_plugin
+from docs_versions import docs_version
 from docutils import nodes as _nodes
 from sphinxcontrib.bibtex.style.referencing import BracketStyle
 from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferenceStyle
 
 from rietx import __version__
-from rietx._about import REPO_URL, docs_version
+from rietx._about import REPO_URL
 from rietx.crystallography.atomic_volume import VOLUME_RATIO_BOUNDS, VOLUME_SCATTER
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
 from rietx.crystallography.magnetic.moments import MOMENT_DIRECTION_SUPPORT
@@ -262,11 +263,11 @@ MYST_SUBSTITUTIONS = {
 # ----------------------------------------------------------------------
 
 #: Which hosted manual this build is: ``dev`` for `main`, ``X.Y`` for a
-#: release (`rietx._about.docs_version`).  pages.yml sets ``DOCS_VERSION=dev``,
-#: because `main` at the commit a release is cut from carries that release's
-#: version and still deploys to ``dev/``.  Unset, it follows the installed
-#: version, which is what release.yml's build at the tag relies on.
-DOCS_VERSION = _os.environ.get("DOCS_VERSION") or docs_version(__version__)
+#: release (`docs_versions.docs_version`).  Unset, it is ``dev``: every build but
+#: release.yml's is `main`'s, even at the commit a release is cut from, whose
+#: tag is pushed hours later.  release.yml sets it from the tag, and a value
+#: that is not the installed release's refuses to build.
+DOCS_VERSION = _os.environ.get("DOCS_VERSION", "dev")
 if DOCS_VERSION not in ("dev", docs_version(__version__)):
     raise RuntimeError(f"DOCS_VERSION={DOCS_VERSION} names another release than "
                        f"the installed {__version__}")

@@ -188,10 +188,13 @@ jobs:
       - run: uv venv --python 3.13
       # The package too: the manual quotes constants from the live package.
       - run: uv pip install -e ".[docs]"
-      # No DOCS_VERSION: unset, it follows the installed version, which the
-      # build job has matched to the tag.  -d keeps the doctrees out of the tarball.
+      # DOCS_VERSION names the minor this tree is hosted as; unset, a build is
+      # main's (docs/sphinx_shared.py).  -d keeps the doctrees out of the tarball.
       - name: Build the manual at the tag (-W)
-        run: .venv/bin/python -m sphinx -W -b html -d "$RUNNER_TEMP/doctrees" docs/docs "$RUNNER_TEMP/docs"
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          export DOCS_VERSION="${version%.*}"
+          .venv/bin/python -m sphinx -W -b html -d "$RUNNER_TEMP/doctrees" docs/docs "$RUNNER_TEMP/docs"
       - name: Attach it to the release, then redeploy the site
         env:
           GH_TOKEN: ${{ github.token }}

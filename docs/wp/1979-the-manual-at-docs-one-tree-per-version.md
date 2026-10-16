@@ -105,7 +105,7 @@ bodies into an ignored `docs/docs/_generated/` on every build.
 - [x] Redirect stubs: a generator for a retired chapter's old URL (meta-refresh plus
       `rel=canonical`), and a test that every retired path has one. `OLD_PAGES` freezes the
       48 pages the old tree published, and WP-1986 fills `RETIRED`.
-- [x] The mapping from a version to its hosted directory, `_about.docs_version`, pinned by a
+- [x] The mapping from a version to its hosted directory, `docs_versions.docs_version`, pinned by a
       test. The rest moves to WP-1986: the versioned base beside `DOCS_URL`, `help.py`'s
       anchors on it, and the anchor test on the new tree. None of the 13 pages the anchors name
       exists in the new tree yet, so a base built now would have no reader.

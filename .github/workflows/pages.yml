@@ -40,11 +40,6 @@ jobs:
     runs-on: ubuntu-latest
     # 15 until WP-1966: an uncached run adds ~6 min of WebAssembly builds.
     timeout-minutes: 25
-    # Both trees are main's (docs/sphinx_shared.py, DOCS_VERSION).  main, at the commit a
-    # release is cut from, carries that release's version, and its tag is pushed hours
-    # later (docs/RELEASING.md step 5), so unset every `{source}` link would 404 until then.
-    env:
-      DOCS_VERSION: dev
     steps:
       - uses: actions/checkout@v7
       # The release tags, each at depth 1: the landing page's Jupyter quickstart links the

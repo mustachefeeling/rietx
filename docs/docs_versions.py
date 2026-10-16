@@ -63,6 +63,16 @@ RETIRED: dict[str, str] = {}
 _TAG = _re.compile(r"v(\d+)\.(\d+)\.(\d+)")
 
 
+def docs_version(version: str) -> str:
+    """The directory under docs/ holding a version's manual.
+
+    A release's manual is kept per minor, so `1.10.2` reads `1.10`.  Anything
+    else, a `.dev0` build included, reads `dev`, the tree built from `main`.
+    """
+    match = _TAG.fullmatch(f"v{version}")
+    return f"{match[1]}.{match[2]}" if match else "dev"
+
+
 def asset_name(version: str) -> str:
     """The release asset holding one release's built tree."""
     return f"{DIST_NAME}-docs-{version}.tar.gz"
