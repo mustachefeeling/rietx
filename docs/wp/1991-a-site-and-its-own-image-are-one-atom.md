@@ -1,4 +1,4 @@
-# WP-1988 — a site and its own image are one atom on every route
+# WP-1991 — a site and its own image are one atom on every route
 
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
