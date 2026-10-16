@@ -668,6 +668,11 @@ def _arc_spread(angles: list[float]) -> float:
     return turn - max(gaps)
 
 
+def _clause(message: str) -> str:
+    """A diagnostic's one-sentence message, as a clause inside another sentence."""
+    return message[:1].lower() + message[1:].rstrip(".")
+
+
 class SeriesResult(Base):
     """The result of a sequential refinement over an ordered set of patterns.
 
@@ -1285,10 +1290,12 @@ class SeriesResult(Base):
             paths = ", ".join(p for d in depend for p in d.where) or "none"
             lines.append(f"    ordering artefact: measured both ways, "
                          f"{len(depend)} parameter(s) disagree ({paths})")
+            # a message is a sentence of its own (WP-1985): spliced into this
+            # one, it loses its capital and its full stop
             for d in partial:
-                lines.append(f"      but {d.message}")
+                lines.append(f"      but {_clause(d.message)}")
         elif self.direction == "both":
-            why = (not_run[0].message if not_run else
+            why = (_clause(not_run[0].message) if not_run else
                    "direction='both' was asked for but the chain was "
                    "cancelled before the two directions could be compared")
             lines.append(f"    ordering artefact: NOT measured — {why}, so an "
