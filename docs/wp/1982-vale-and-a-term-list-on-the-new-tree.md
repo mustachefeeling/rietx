@@ -39,40 +39,34 @@ The banned words are the maintainer's: "simply", "just", "easy", "it's important
 and marketing adjectives (the `yue-docs-style` skill's list). Read the current list from that
 skill at the start rather than from this line.
 
-### Inherited
+**The maintainer's six style rules** (WP-1981's review, 2026-10-16, now in `yue-docs-style`).
+Their checkable halves belong in this WP's Vale rules and term list:
+1. A heading makes sense read alone, in the sidebar, the contents list and search results.
+   "The four answers are four different types" fails ("which four?"), and so do the bare
+   "In" and "Out" the skill's API index used (both renamed in WP-1981). A heading with a
+   finite verb is the cheap proxy for a claim heading; a one-word heading is the proxy for a
+   bare one. Neither proxy is the rule, so flag, never fail.
+2. The crystallographer's term leads: "lattice parameter" over "cell edge" and "cell angle".
+3. No programming concept before it is explained or linked: "glob", "dot-path", "schema",
+   "column". "fnmatch" never appears in reader prose.
+4. Where rietx models something differently from GSAS-II, TOPAS or FullProf, the page names
+   the familiar form. Not checkable by Vale; review only.
+5. Notation is rendered: no `μ_B` or `x^2` as text.
+6. No economic metaphor for an effect ("buy", "pays for") and no "caller", "client" or
+   "intruder" in reader prose.
 
-- **2026-10-16, from WP-1981, the maintainer's review of the Reference tab.** Six style
-  rules the maintainer confirmed, now in `yue-docs-style`. Their checkable halves belong in
-  this WP's Vale rules and term list:
-  1. A heading makes sense read alone, in the sidebar, the contents list and search
-     results. "The four answers are four different types" fails ("which four?"), and so
-     do the bare "In" and "Out" the skill's API index used (both renamed in WP-1981). A
-     heading with a finite verb is the cheap proxy for a claim heading; a one-word
-     heading is the proxy for a bare one. Neither proxy is the rule, so flag, never fail.
-  2. The crystallographer's term leads: "lattice parameter" over "cell edge" and "cell
-     angle". Add these to the term list.
-  3. No programming concept before it is explained or linked: "glob", "dot-path",
-     "schema", "column". "fnmatch" never appears in reader prose.
-  4. Where rietx models something differently from GSAS-II, TOPAS or FullProf, the page
-     names the familiar form. Not checkable by Vale; review only.
-  5. Notation is rendered: no `μ_B` or `x^2` as text.
-  6. No economic metaphor for an effect ("buy", "pays for") and no "caller", "client" or
-     "intruder" in reader prose.
-  The `rietx.help` corpus breaks rules 2, 3 and 6 in places, measured 2026-10-16 over its
-  159 entries: "caller" 3, "glob" 3, "fnmatch" 1, "column" 6. Its rewrite is WP-1985's.
-- **2026-10-16, from WP-1981.** The register guard reads committed sources, so the
-  Reference tab's generated bodies in `docs/docs/_generated/` are not checked by it. That
-  was deliberate: their prose is the package's own text (`rietx.help` descriptions,
-  `PLAN_INFO`, docstring first lines), which carries em dashes and bold, and some API
-  summary lines name WP numbers ("WP-0501 (cylinder)" on `AbsorptionCorrection`). Decide
-  whether Vale reads the generated bodies. If it does, the fixes land in the package's
-  strings, not in the pages.
-- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
-  the fenced constants, the citation style, the mermaid theme and the `{source}` role from
-  `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
-  it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
-  `DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`). Point Vale at
-  `docs/docs/`; `_build/` sits inside it and is gitignored. The stubs use no admonitions yet.
+The `rietx.help` corpus breaks rules 2, 3 and 6 in places, measured 2026-10-16 over its 159
+entries: "caller" 3, "glob" 3, "fnmatch" 1, "column" 6. Its rewrite is WP-1985's.
+
+**The generated Reference bodies** (`docs/docs/_generated/`, WP-1981) are the package's own
+text: `rietx.help` descriptions, `PLAN_INFO`, docstring first lines. The register guard reads
+committed sources only, so it does not see them, and they carry em dashes and bold. This WP
+decides whether Vale reads them. If it does, the fixes land in the package's strings, never in
+the pages.
+
+**The tree** is `docs/docs/` (WP-1978, PR #1004). `tests/test_manual.py` builds it as the
+`built_docs_tree` fixture and reads its pages as `DOCS_PAGES`. `_build/` sits inside it and is
+gitignored. The stubs use no admonitions yet.
 
 ## Non-goals
 
@@ -86,6 +80,8 @@ skill at the start rather than from this line.
       file; one concept, one term, with the rejected synonyms on the reject side.
 - [ ] en_GB spelling, `OxfordComma` off, `Terms`/`Vocab` reviewed rule by rule against this
       domain rather than switched off wholesale.
+- [ ] The checkable halves of the six style rules above, as `rietx.*` Vale rules.
+- [ ] Decide whether Vale reads the generated Reference bodies, from a measured run.
 - [ ] A CI step over the new tree, failing on errors and reporting warnings; decide the
       level at which it fails from a run over the pages that exist then.
 - [ ] Skill: none.
