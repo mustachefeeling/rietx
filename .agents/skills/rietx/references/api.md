@@ -33,7 +33,7 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.diagnose(data: PatternData, *, wavelength: float | None = None, baseline_lambda: float | None = None, source: object | None = None) -> PatternDiagnostics` — `PatternDiagnostics` of a raw pattern.
 - `rx.load_instrument_profile(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Instrument` — Read a profile file back as a **frozen** instrument.
 - `rx.save_instrument_profile(instrument: Instrument, path: str | Path)` — Write the instrument's calibrated state to a JSON profile file.
-- `rx.capabilities() -> Capabilities` — Everything this build can do — see the module docstring.
+- `rx.capabilities() -> Capabilities` — Everything this build can do.
 - `rx.help_for(path: str) -> HelpEntry | None` — The entry for a parameter dot-path, or `None` if no family claims it.
 
 ## Model objects
@@ -42,19 +42,19 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 
 - `rx.Parameter` — A single refinable scalar.
   Fields: `value: float`, `vary: bool = False`, `min: float = -inf`, `max: float = inf`, `expr: str | None = None`, `unit: str | None = None`, `stderr: float | None = None`
-- `rx.Structure` — The phases refined against the same pattern(s) — possibly none.
+- `rx.Structure` — The phases refined against one pattern.
   Fields: `phases: list[Phase]`
 - `rx.Phase` — A crystalline phase: symmetry, cell, atoms, scale, sample broadening.
   Fields: `name: str`, `space_group: str`, `symmetry_operations: list[str] | None = None`, `cell: Cell`, `atoms: list[Atom]`, `scale: Parameter = Parameter(1.0, min=0.0)`, `extinction: Parameter = Parameter(0.0, min=0.0)`, `preferred_orientation: PreferredOrientation | None = None`, `texture: SphericalHarmonicTexture | None = None`, `lor_size: Parameter = Parameter(0.0, min=0.0)`, `lor_strain: Parameter = Parameter(0.0, min=0.0)`, `magnetic_lor_size: Parameter = Parameter(0.0, min=0.0)`, `magnetic_lor_strain: Parameter = Parameter(0.0, min=0.0)`, `gauss_size: Parameter = Parameter(0.0, min=0.0)`, `gauss_strain: Parameter = Parameter(0.0, min=0.0)`, `microstrain: StephensStrain | None = None`, `particle_radius_um: float | None = None`, `propagation_vector: tuple[str, str, str] | None = None`, `magnetic_symmetry: MagneticSymmetry | None = None`, `restraints: list[BondRestraint | AngleRestraint | ValueRestraint] = []`, `floating_origin: Literal['hold', 'centroid'] | None = None`
 - `rx.Atom` — One site in the asymmetric unit.
   Fields: `label: str`, `species: str`, `x: Parameter`, `y: Parameter`, `z: Parameter`, `occ: Parameter = Parameter(1.0, min=0.0, max=1.5)`, `biso: Parameter = Parameter(0.5)`, `aniso: AnisoU | None = None`, `moment: Moment | None = None`, `disorder_assembly: str | None = None`, `disorder_group: str | None = None`
-- `rx.Cell` — Unit-cell lengths (Å) and angles (degrees).
+- `rx.Cell` — The lattice parameters: three lengths (Å) and three angles (degrees).
   Fields: `a: Parameter`, `b: Parameter`, `c: Parameter`, `alpha: Parameter`, `beta: Parameter`, `gamma: Parameter`
-- `rx.AnisoU` — Anisotropic displacement tensor in the CIF U^ij convention (Å²).
+- `rx.AnisoU` — Anisotropic displacement tensor in the CIF `U^ij` convention (Å²).
   Fields: `u11: Parameter`, `u22: Parameter`, `u33: Parameter`, `u12: Parameter = Parameter(0.0)`, `u13: Parameter = Parameter(0.0)`, `u23: Parameter = Parameter(0.0)`
 - `rx.PreferredOrientation` — Single-axis March-Dollase preferred-orientation correction (Dollase 1986).
   Fields: `axis: tuple[int, int, int]`, `r: Parameter = Parameter(1.0, min=0.15, max=6.0)`
-- `rx.StephensStrain` — Anisotropic strain broadening coefficients S_HKL (Stephens, 1999).
+- `rx.StephensStrain` — Anisotropic strain broadening coefficients `S_HKL` (Stephens, 1999).
   Fields: `s400: Parameter = Parameter(0.0)`, `s310: Parameter = Parameter(0.0)`, `s301: Parameter = Parameter(0.0)`, `s220: Parameter = Parameter(0.0)`, `s211: Parameter = Parameter(0.0)`, `s202: Parameter = Parameter(0.0)`, `s130: Parameter = Parameter(0.0)`, `s121: Parameter = Parameter(0.0)`, `s112: Parameter = Parameter(0.0)`, `s103: Parameter = Parameter(0.0)`, `s040: Parameter = Parameter(0.0)`, `s031: Parameter = Parameter(0.0)`, `s022: Parameter = Parameter(0.0)`, `s013: Parameter = Parameter(0.0)`, `s004: Parameter = Parameter(0.0)`
 - `rx.Instrument` — Everything about the measurement except the sample.
   Fields: `source: Source | NeutronSource | TOFSource`, `geometry: Geometry = Geometry(…)`, `zero_shift: Parameter = Parameter(0.0, min=-0.5, max=0.5)`, `profile: ProfileTCHZ = ProfileTCHZ(…)`, `background: BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline = BackgroundChebyshev(…)`, `extra_components: list[HumpComponent | PeakComponent] = []`
@@ -68,9 +68,9 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
   Fields: `shape: Literal['tchz_pv', 'voigt'] = 'tchz_pv'`, `u: Parameter = Parameter(0.0, min=-0.05, max=1.0)`, `v: Parameter = Parameter(0.0, min=-0.5, max=0.5)`, `w: Parameter = Parameter(0.001, min=1e-08, max=1.0)`, `x: Parameter = Parameter(0.001, min=0.0, max=1.0)`, `y: Parameter = Parameter(0.0, min=0.0, max=1.0)`
 - `rx.BackgroundChebyshev` — Shifted-Chebyshev background, linear in its coefficients.
   Fields: `kind: Literal['chebyshev'] = 'chebyshev'`, `coefficients: list[Parameter] = [Parameter(0.0) × 4]`
-- `rx.BackgroundPSpline` — Penalized cubic P-spline background, co-refined with the structure.
+- `rx.BackgroundPSpline` — Penalised cubic P-spline background, co-refined with the structure.
   Fields: `kind: Literal['pspline'] = 'pspline'`, `breakpoints: list[float]`, `coefficients: list[Parameter]`, `lambda_smooth: float = 1.0`, `lambda_units: Literal['dimensionless', 'intensity'] = 'dimensionless'`, `air_scatter: Parameter | None = None`
-- `rx.BackgroundFixedPlusChebyshev` — A fixed curve (never subtracted; held additively) plus a small refinable Chebyshev correction on top, and a scale on the curve itself.
+- `rx.BackgroundFixedPlusChebyshev` — A fixed curve held in the model, a small refinable Chebyshev correction on top, and a scale on the curve itself.
   Fields: `kind: Literal['fixed_plus_chebyshev'] = 'fixed_plus_chebyshev'`, `fixed_two_theta: list[float]`, `fixed_intensity: list[float]`, `fixed_sigma: list[float] | None = None`, `fixed_source: str | None = None`, `scale: Parameter = Parameter(1.0, min=0.0)`, `chebyshev: BackgroundChebyshev = BackgroundChebyshev(…)`
 - `rx.Dispersion` — Anomalous scattering corrections f′, f″ at the source wavelengths.
   Fields: `table: Literal['cromer_liberman'] = 'cromer_liberman'`, `overrides: dict[str, tuple[float, float]] = {}`
@@ -86,9 +86,9 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Refinement.report(*, plan: RefinementPlan | str | None = None, **kw)` — The full `rietx.report.FitReport` for the last fit.
 - `rx.Refinement.summary(*, deliverable: str | None = None, plot: str | None = None, plan: RefinementPlan | str | None = None, report: FitReport | None = None) -> str` — The termination view (WP-1302): "done, or not, and why" from one call.
 - `rx.Refinement.suggest(data: PatternData, *, top_n: int = 5, include: str | list[str] = '*', exclude: list[str] | tuple[str, ...] = (), mode: Mode | None = None, two_theta_limits: tuple[float, float] | None = None, report=None) -> SuggestionResult` — Which held parameter should be freed next?
-- `rx.Refinement.predict(two_theta=None) -> np.ndarray` — y_calc at the current parameters — **the evaluate-only path**.
+- `rx.Refinement.predict(two_theta=None) -> np.ndarray` — Evaluate `y_calc` at the current parameters, without a fit.
 - `rx.Refinement.run_stage(data: PatternData, stage: Stage, *, mode: Mode | None = None, two_theta_limits: tuple[float, float] | None = None, correlation_guard: float = 0.98, events=None, cancel=None, telemetry=None, label: str | None = None) -> RefinementResult` — Run a single stage from the current state, recording a child node.
-- `rx.Refinement.parameters(*, mode: Mode | None = None) -> list[ParameterRow]` — Every parameter as data — fixed, locked and tied rows included.
+- `rx.Refinement.parameters(*, mode: Mode | None = None) -> list[ParameterRow]` — Every parameter as data, with fixed, locked and tied rows included.
 - `rx.Refinement.set_vary(path_globs: list[str] | str, vary: bool = True) -> list[str]` — Free (or hold) every parameter matching `path_globs`.
 - `rx.Refinement.set_values(values: dict[str, float])` — Set parameter values by dot-path, recording a `set_value` node.
 - `rx.Refinement.tie(path: str, source: str | dict[str, float] | Sequence[tuple[str, float]], *, scale: float = 1.0, offset: float = 0.0) -> str` — Constrain `path` to `scale·source + offset`, recording a node.
@@ -98,14 +98,14 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Refinement.remove_variable(name: str) -> str` — Delete a named variable, refusing while anything follows it.
 - `rx.Refinement.hold(path_globs: list[str] | str) -> list[str]` — Declare that these parameters do not move, whatever a plan asks.
 - `rx.Refinement.unhold(path_globs: list[str] | str) -> list[str]` — Take back a hold.
-- `rx.Refinement.edit(*, structure: Structure | None = None, instrument: Instrument | None = None, label: str = '') -> str | None` — Record a change to the model itself — adding an impurity phase, raising the background order, swapping the geometry.
+- `rx.Refinement.edit(*, structure: Structure | None = None, instrument: Instrument | None = None, label: str = '') -> str | None` — Record a change to the model itself, such as adding an impurity phase, raising the background order or swapping the geometry.
 - `rx.refine(data: PatternData, structure: Structure, instrument: Instrument, *, mode: Mode = 'rietveld', plan: RefinementPlan | str = 'mccusker_default', two_theta_limits: tuple[float, float] | None = None, backend: str = 'numpy', solver: str = 'lm', history: bool | str | Path | RefinementTree = False, events=None, cancel=None, telemetry=None, label: str | None = None) -> RefinementResult` — One-shot functional API: `refine(data, structure, instrument)`.
 - `rx.RefinementPlan`
   Fields: `stages: list[Stage]`, `correlation_guard: float = 0.98`, `intermediate_ftol: float | None = 1e-06`, `lebail_passes: int = 1`
-- `rx.Stage` — One turn-on group of a staged plan — a declaration, not a result.
+- `rx.Stage` — One turn-on group of a staged plan.
   Fields: `name: str`, `turn_on: list[str]`, `max_iter: int = 100`, `ftol: float | None = None`, `lebail_cycles: int = 3`, `seed: float = 0.0`, `strain_seed: float = 0.0`, `restraint_weight_scale: float = 1.0`, `window_slack_deg: float | None = None`
 - `rx.PLAN_INFO` — keys: `mccusker_default`, `mccusker_structural`, `lab_bragg_brentano`, `lab_calibrate`, `lab_sample_refine`, `profile_only`, `pawley_default`, `magnetic_width`
-- `rx.ParameterRow` — One row of the parameter table — the mirror of `params.vector.Entry`.
+- `rx.ParameterRow` — One row of the parameter table, mirroring `params.vector.Entry`.
   Fields: `path: str`, `value: float`, `vary: bool = False`, `lo: float = -inf`, `hi: float = inf`, `tie: TieSpec | None = None`, `locked: bool = False`, `held: bool = False`, `esd: float | None = None`, `mode_fixed: bool = False`, `needs_held_cell: bool = False`, `origin_axis: tuple[int, int, int] | None = None`, `help_key: str | None = None`
 
 ## Results
@@ -130,13 +130,13 @@ None nests inside another. An `rx.IndexingResult` carries no `cell` key by desig
 - `rx.SeriesResult.summary(*, max_entries: int = 5, deliverable: str | None = None, parametric: RefinementResult | None = None) -> str` — The series termination view (WP-1302): the trajectory table, the `SEQUENTIAL_*` rows, first and last `max_entries` with the count.
 - `rx.SeriesEntry` — One pattern's place in the series: what was fitted and how it went.
   Fields: `index: int`, `label: str = ''`, `x: float | None = None`, `status: Literal['converged', 'max_iter', 'diverged'] = 'converged'`, `statistics: Statistics | None = None`, `parameters: list[RefinedParameter] = []`, `qpa: QuantitativePhaseAnalysis | None = None`, `phase_agreement: list[PhaseAgreement] = []`, `magnetic: list[MomentEvidence] = []`, `diagnostics: list[Diagnostic] = []`, `n_iterations: int = 0`, `reseeded: bool = False`, `rwp_warm: float | None = None`, `rung: Literal['warm', 'warm_staged', 'cold'] = 'warm'`, `rungs_tried: list[str] = []`, `rungs_raised: dict[str, str] = {}`, `rwp_fence: float | None = None`, `node_id: str | None = None`, `tree_id: str | None = None`
-- `rx.IndexingResult` — What `rietx.index_pattern` returns — and what it *cannot* return.
+- `rx.IndexingResult` — What `rietx.index_pattern` returns: a list of candidates, with no `.cell` or `.best`.
   Fields: `candidates: list[CellCandidate] = []`, `engines_run: list[str] = []`, `systems_searched: list[str] = []`, `search_complete: dict[str, bool] = {}`, `engine_stats: dict[str, float] = {}`, `fom_panel_disagrees: bool = False`, `quality: DataQualityReport | None = None`, `validated: bool = False`, `wavelength: float = 0.0`, `n_usable_lines: int = 0`, `provenance: Provenance`, `preset: str | None = None`, `thresholds_version: str = '1.11'`, `diagnostics: list[Diagnostic] = []`
 - `rx.IndexingResult.best_or_none() -> CellCandidate | None` — The single candidate, or None.
 - `rx.IndexingResult.evidence() -> IndexingEvidence` — The machine-readable evidence view (WP-1043).
 - `rx.SuggestionResult` — Ranked, gated answer to "which parameter should be freed next?".
   Fields: `groups: list[CandidateGroup] = []`, `non_separable: list[ParameterCandidate] = []`, `skipped: list[str] = []`, `n_evaluated: int = 0`, `chi2_red: float`, `noise_floor: float`, `summary: str`, `n_effective: float | None = None`
-- `rx.CandidateGroup` — One rankable unit: a single candidate, or a tie the data cannot split.
+- `rx.CandidateGroup` — One candidate, or a tie of candidates the data cannot split.
   Fields: `members: list[ParameterCandidate]`, `gain: float`, `resolved: bool`, `delta_bic: float`, `delta_bic_raw_n: float | None = None`
 
 ## Fit report
@@ -149,7 +149,7 @@ None nests inside another. An `rx.IndexingResult` carries no `cell` key by desig
 - `rx.report.compare_rivals(refinement, data, finding: ExchangeFinding | tuple[str, str]) -> RivalComparison` — Fit each member of an exchangeable pair alone, the other at its null.
 - `rx.report.predict_then_verify(refinement, data, action: SuggestedAction, *, min_improvement: float = 0.01) -> VerificationOutcome` — Try an action on a branch, keep it only if χ² actually improves.
 - `rx.report.compare_freed(restricted, full) -> FreedComparison` — ΔBIC of the parameters `full` frees beyond `restricted`, each one's t beside it.
-- `rx.report.FreedComparison` — What freeing parameters bought, as ΔBIC with each one's t-ratio beside it.
+- `rx.report.FreedComparison` — The effect of freeing parameters, as ΔBIC with each one's t-ratio beside it.
   Fields: `freed: list[FreedParameter]`, `n_added: int`, `n_points: int`, `chi2_restricted: float`, `chi2_full: float`, `esd_inflation: float | None = None`, `n_effective: float`, `delta_bic: float`, `delta_bic_raw_n: float`
 - `rx.report.FreedParameter` — One parameter the fuller fit frees and the restricted fit held.
   Fields: `path: str`, `held_at: float | None = None`, `value: float`, `esd: float | None = None`, `t_ratio: float | None = None`
@@ -168,7 +168,7 @@ None nests inside another. An `rx.IndexingResult` carries no `cell` key by desig
 - `rx.Refinement.merge(other: str, *, prefer: str = 'theirs', label: str = '') -> str` — Three-way merge of another branch into the current state.
 - `rx.Refinement.cherry_pick(node_id: str, data: PatternData) -> RefinementResult` — Re-run another node's *stage action* on top of the current state.
 - `rx.replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementResult` — Recompute the curves and statistics of a recorded node.
-- `rx.Project(path: str | Path, doc: ProjectDoc, data: PatternData, refinement: Refinement, data_diagnostics: list[Diagnostic] | None = None, history_diagnostics: list[Diagnostic] | None = None)` — An openable, savable refinement session on disk.
+- `rx.Project(path: str | Path, doc: ProjectDoc, data: PatternData, refinement: Refinement, data_diagnostics: list[Diagnostic] | None = None, history_diagnostics: list[Diagnostic] | None = None)` — A refinement session stored on disk, which you can open and save.
 - `rx.Project.create(path: str | Path, *, pattern: str | Path, structure: Structure | None = None, instrument: Instrument, mode: Mode = 'rietveld', plan: Any = None, two_theta_limits: tuple[float, float] | None = None, excluded_regions: list[tuple[float, float]] | None = None, reader_options: dict[str, Any] | None = None, ui: dict[str, Any] | None = None, backend: str = 'numpy', solver: str = 'lm') -> Project` — Create a project directory around a pattern file and a model.
 - `rx.Project.open(path: str | Path, *, backend: str = 'numpy', solver: str = 'lm') -> Project` — Open an existing project, resuming at the history head.
 - `rx.Project.save()` — Rewrite `project.json`.
@@ -179,8 +179,8 @@ None nests inside another. An `rx.IndexingResult` carries no `cell` key by desig
 Peaks, then a cell, then the extinction symbol — the closed loop of §7b-7f, each step returning a ranked list and never a singleton. `rx.fit_peaks` leaves that loop: it fits the positions *you* name, for a width analysis or a d-spacing, with no cell in the question.
 
 - `rx.pick_peaks(data: PatternData, instrument: Instrument, *, two_theta_range: tuple[float, float] | None = None, shoulders: bool = True, flag_contamination: bool = True) -> PeakList` — Every resolvable line in `data`, with a fitted position and its esd.
-- `rx.fit_peaks(data: PatternData, instrument: Instrument, positions: np.ndarray | list[float], *, two_theta_range: tuple[float, float] | None = None) -> PeakList` — Profile-fit **exactly** the peaks at `positions` — no structure, no space group, no refinement.
-- `rx.index_pattern(peaks: PeakList | None = None, *, data: PatternData | None = None, instrument: Instrument | None = None, spec=None, preset: str | None = None, engines: Sequence[str] | None = None, quality=None, shift_from_pairs: bool = True, validate: bool = True, check_top: int | None = None, two_theta_limits: tuple[float, float] | None = None, formula: str | None = None, temperature: float = 298.0, events=None, cancel=None)` — Find the unit cell — or say, in the shape of the answer, that it cannot.
+- `rx.fit_peaks(data: PatternData, instrument: Instrument, positions: np.ndarray | list[float], *, two_theta_range: tuple[float, float] | None = None) -> PeakList` — Profile-fit the peaks at `positions` and nothing else, with no structure, space group or refinement.
+- `rx.index_pattern(peaks: PeakList | None = None, *, data: PatternData | None = None, instrument: Instrument | None = None, spec=None, preset: str | None = None, engines: Sequence[str] | None = None, quality=None, shift_from_pairs: bool = True, validate: bool = True, check_top: int | None = None, two_theta_limits: tuple[float, float] | None = None, formula: str | None = None, temperature: float = 298.0, events=None, cancel=None)` — Find the unit cell, or say in the shape of the answer that it cannot be found.
 - `rx.determine_extinction_symbol(data: PatternData, candidate: CellCandidate, instrument: Instrument, *, peaks: PeakList | None = None, two_theta_limits: tuple[float, float] | None = None, k_sigma: float = 3.0, max_classes: int | None = None, refine_cell: bool = False, cancel=None) -> ExtinctionScreen` — Rank the extinction classes of a lattice.
 
 ## Export and plots
@@ -193,5 +193,5 @@ Files and figures. `rx.format_su` renders a value with its esd as `1.2345(12)`; 
 - `rx.reflection_table(model: CompiledModel, values: dict[str, float], structure: Structure) -> list[ReflectionRow]` — Reflection rows for every (emission line, reflection) of every phase.
 - `rx.format_su(value: float, esd: float | None, *, decimals: int = 6) -> str` — A number with its standard uncertainty in `value(su)` notation.
 - `rx.viz.plot_result(result: RefinementResult, *, path: str | None = None, two_theta_range: tuple[float, float] | None = None, show_background: bool = True, weighted: bool = False, style: str = 'light', wavelength: float | None = None, x_axis: str = 'two_theta', y_scale: str = 'linear', label_align: str = 'bottom', figsize: tuple[float, float] | None = None, font_size: float = 11.0, dpi: int = 300, title: str | None = None)` — Standard Rietveld panel: observed, calculated, difference, tick rows.
-- `rx.viz.plot_for_vlm(result: RefinementResult, report=None, *, path: str, n_regions: int = 4, dpi: int = 140)` — Annotated multi-panel montage rendered for what VLMs *can* read.
+- `rx.viz.plot_for_vlm(result: RefinementResult, report=None, *, path: str, n_regions: int = 4, dpi: int = 140)` — Annotated multi-panel montage drawn for a vision-language model to read.
 - `rietx.viz.html.write_html(result: RefinementResult, path: str, *, weighted: bool = False, max_points: int | None = None)` — Render a `RefinementResult` to a self-contained HTML file.

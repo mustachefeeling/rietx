@@ -217,9 +217,8 @@ def _naming_the_file(error: type[ValueError]):
                         level="warning", code="GSAS_FIELD_OVERFLOW",
                         message=(
                             f"{name}: record {key!r} holds only asterisks in "
-                            f"columns {lo}-{hi}, a Fortran overflow: GSAS had "
-                            f"the value and it was too wide for its field.  "
-                            f"The field is optional and is read as absent"),
+                            f"columns {lo}-{hi}, a Fortran overflow. The "
+                            f"field is optional and is read as absent."),
                         where=[key]))
             return result
         return read
@@ -1188,20 +1187,17 @@ def read_gsas_exp(path: str | Path, *,
                 # readable on the record; what is declined is naming them.
                 reported.append(
                     f"histogram {n} states no HTYP record, so its radiation "
-                    f"type and whether it is constant-wavelength are unknown; "
-                    f"its profile coefficients are left unnamed rather than "
-                    f"read under a function order nothing establishes")
+                    f"type is unknown. Its profile coefficients are left "
+                    f"unnamed.")
             elif kind[:1] == "S":
                 reported.append(
-                    f"histogram {n} is single-crystal data ({kind!r}), which "
-                    f"this reader does not carry")
+                    f"histogram {n} is single-crystal data ({kind!r}). Its "
+                    f"profile coefficients are left unnamed.")
             else:
                 reported.append(
-                    f"histogram {n} is {kind!r} rather than "
-                    f"constant-wavelength, and the time-of-flight profile "
-                    f"functions have a different coefficient order from the "
-                    f"CW ones this build names, so its profile coefficients "
-                    f"are left unnamed")
+                    f"histogram {n} has type {kind!r}, and only "
+                    f"constant-wavelength types are named. Its profile "
+                    f"coefficients are left unnamed.")
             block = {k: v for k, v in block.items() if not k.startswith("PRCF")}
         histograms.append(_read_histogram(n, block, kind, p.name))
 
@@ -1329,10 +1325,9 @@ def _report(model: GsasModel, diagnostics: list[Diagnostic]) -> None:
                 f"{named}: histogram {hist.number} fitted GSAS background "
                 f"function {bkg.function}"
                 + (f" ({what})" if what else "")
-                + f" with {bkg.n_coefficients} terms, which has no rietx "
-                f"counterpart — the coefficients are on "
-                f"`model.histograms[…].background` and the background to fit "
-                f"with is yours to choose"),
+                + f" with {bkg.n_coefficients} terms. The coefficients are "
+                f"on model.histograms[...].background."),
+            suggestion="Choose a background and refine it.",
             where=[f"histograms.{hist.number}.background"],
             value=float(bkg.function)))
     for phase in model.phases:
@@ -1341,10 +1336,10 @@ def _report(model: GsasModel, diagnostics: list[Diagnostic]) -> None:
                 level="warning", code="GSAS_EXP_PHASE_MAGNETIC",
                 message=(
                     f"{named}: phase {phase.number} ({phase.name!r}) is a "
-                    f"magnetic phase (GSAS phase type {phase.kind}), and this "
-                    f"reader does not read a `.EXP` magnetic block yet — a "
-                    f"magCIF of the structure is the route that does "
-                    f"(`Structure.from_cif`)"),
+                    f"magnetic phase (GSAS phase type {phase.kind}). Its cell "
+                    f"and sites are on model.phases."),
+                suggestion="Read a magCIF of the structure with "
+                           "Structure.from_cif.",
                 where=[f"phases.{phase.number}"]))
         # A `.EXP` states `SG SYM` and no operators, so where the symbol names
         # two settings the file has not chosen between them and neither can this
@@ -1625,14 +1620,13 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
     if diagnostics is not None:
         named = model.path or "<model>"
         for raw, (canonical, wheres) in rewrites.items():
-            why = ("GSAS writes the type as 'aasv_nnn' (symbol, valence, then "
-                   "the isotope number after '_'); the isotope number is "
-                   "rietx's mass number, in front" if "_" in raw else
-                   "GSAS writes the scattering token in upper case; "
-                   "normalised to IUCr spelling")
+            why = ("The isotope number after the underscore is the mass "
+                   "number, now in front." if "_" in raw else
+                   "The upper-case token is now in IUCr spelling.")
             diagnostics.append(Diagnostic(
                 level="info", code="GSAS_EXP_SPECIES_NORMALISED",
-                message=f"species {raw!r} in {named} read as {canonical!r} — {why}",
+                message=f"Species {raw!r} in {named} was read as "
+                        f"{canonical!r}. {why}",
                 where=wheres))
         if frozen:
             diagnostics.append(Diagnostic(
@@ -1640,21 +1634,17 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
                 message=(
                     f"{named}: {len(frozen)} site(s) carry GSAS's X refine "
                     f"flag but sit on fully fixed special positions "
-                    f"({', '.join(frozen)}), so nothing of them was free in "
-                    f"GSAS either — its flag means 'refine as permitted by "
-                    f"symmetry', and symmetry permits none"),
+                    f"({', '.join(frozen)})."),
                 where=[f"phases.0.atoms.{i}.x"
                        for i, a in enumerate(chosen.atoms)
                        if a.label in frozen]))
         diagnostics.append(Diagnostic(
             level="info", code="GSAS_EXP_SCALE_NOT_COMPARABLE",
             message=(
-                f"{named}: phase {chosen.number}'s scale is seeded at 1e-3 and "
-                f"not taken from the file.  GSAS's histogram scale "
-                f"({model.histograms[0].scale if model.histograms else '?'}) "
-                f"folds its own normalisation and the phase fraction into one "
-                f"number, so it is not a rietx scale — refine it rather than "
-                f"trusting a converted value"),
+                f"{named}: phase {chosen.number}'s scale is seeded at 1e-3. "
+                f"The file's GSAS histogram scale is "
+                f"{model.histograms[0].scale if model.histograms else '?'}."),
+            suggestion="Refine the scale before you trust it.",
             where=["phases.0.scale"]))
     return structure
 
@@ -2028,24 +2018,18 @@ def from_structure(structure: Structure, *, title: str = "",
                 level="info", code="GSAS_EXP_VALUE_NARROWED",
                 message=(
                     f"{len(narrowed)} value(s) need more than "
-                    f"{_WRITE_NUMBER} characters and were written to what a "
-                    f".EXP's fixed columns hold; the largest change is {what} "
-                    f"{value!r} → {written!r}.  A converged refinement's "
-                    f"numbers are full-precision doubles, so this is the "
-                    f"ordinary case rather than a warning sign — the format "
-                    f"reads by column and a column is the budget"),
+                    f"{_WRITE_NUMBER} characters and were narrowed to fit "
+                    f"the fixed columns of a .EXP. The largest change is "
+                    f"{what} {value!r} → {written!r}."),
                 where=[row[0] for row in narrowed]))
         if merged:
             diagnostics.append(Diagnostic(
                 level="warning", code="GSAS_EXP_REFINE_FLAG_MERGED",
                 message=(
-                    f"GSAS states one refine flag for a whole cell and one for "
-                    f"a site's three coordinates, meaning 'refine as permitted "
-                    f"by symmetry'.  {len(merged)} group(s) here disagree "
-                    f"internally ({', '.join(merged)}) and were written "
-                    f"**free**, so the file frees a parameter this structure "
-                    f"holds.  Reading it back gives every member of the group "
-                    f"the one flag"),
+                    f"{len(merged)} group(s) hold some members and free "
+                    f"others ({', '.join(merged)}). They were written free, "
+                    f"so the file frees a parameter this structure holds."),
+                suggestion="Hold or free the whole group before you write.",
                 where=list(merged)))
         from ...crystallography.scattering import written_neutral_diagnostics
         diagnostics.extend(written_neutral_diagnostics(

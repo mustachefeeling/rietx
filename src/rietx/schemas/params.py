@@ -43,7 +43,7 @@ from .common import Base
 
 
 class TieSpec(Base):
-    """Serializable form of ``params.vector.AffineTie``: value = Σ c·src + k.
+    """The JSON form of ``params.vector.AffineTie``, value = Σ c·src + k.
 
     :attr:`user` separates the two populations that share this shape.  A
     **symmetry** tie is derived: ``ParameterTable`` rebuilds it from the space
@@ -87,7 +87,7 @@ class TieSpec(Base):
 
 
 class ParameterRow(Base):
-    """One row of the parameter table — the mirror of ``params.vector.Entry``.
+    """One row of the parameter table, mirroring ``params.vector.Entry``.
 
     ``.value``/``.esd`` are the numbers; the whole table, held rows included,
     comes from ``Refinement.parameters()``, never from re-deriving one here.

@@ -398,7 +398,7 @@ def test_the_flat_finding_reaches_the_diagnostics():
     assert len(diags) == 1
     assert diags[0].level == "warning"
     assert diags[0].where == [free[0], free[1]]
-    assert "rank of the data" in diags[0].message
+    assert "ρ=-1.000" in diags[0].message
 
 
 def test_the_two_codes_do_not_evict_each_other_in_the_dedup():

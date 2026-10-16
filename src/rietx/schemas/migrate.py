@@ -301,15 +301,14 @@ def _restored_note(candidate: dict, document: str, ids: list[str]) -> Diagnostic
         level="warning" if bound else "info",
         code="DECLARED_RANGE_RESTORED",
         message=(
-            f"{_where(candidate)}: stored as {_describe(before)} — the range a "
-            f"caller's own Parameter was left with before schema "
-            f"{candidate['since']} (issue #204) — and restored to the declared "
-            f"{_describe(after)} in {_in(document, ids)}. No value moved."),
+            f"{_where(candidate)} was stored as {_describe(before)} before "
+            f"schema {candidate['since']} (issue #204) and was restored to the "
+            f"declared {_describe(after)} in {_in(document, ids)}. No value "
+            f"moved."),
         where=[candidate["path"]],
         suggestion=(
-            "Nothing to do if the declared range is what you meant. A range of "
-            "your own goes on the Parameter explicitly (e.g. max=60 for a hot "
-            "specimen's biso), and wins."))
+            "Set a range on the Parameter explicitly to keep a different one "
+            "(for example max=60 for a hot specimen's biso)."))
 
 
 def _not_restored_note(candidate: dict, document: str, ids: list[str],
@@ -320,17 +319,14 @@ def _not_restored_note(candidate: dict, document: str, ids: list[str],
         level="warning",
         code="DECLARED_RANGE_NOT_RESTORED",
         message=(
-            f"{_where(candidate)}: stored as {_describe(candidate['before'])} — "
-            f"the range a caller's own Parameter was left with before schema "
-            f"{candidate['since']} (issue #204) — and left so in "
-            f"{_in(document, ids)}: {value!r} in {place}{more} lies outside the "
-            f"declared {_describe(candidate['after'])}, and a range that "
-            "refused the record would lose it. This parameter still refines "
-            "unbounded."),
+            f"{_where(candidate)} was stored as {_describe(candidate['before'])} "
+            f"before schema {candidate['since']} (issue #204) and was left so "
+            f"in {_in(document, ids)}: {value!r} in {place}{more} lies outside "
+            f"the declared {_describe(candidate['after'])}. This parameter "
+            "still refines unbounded."),
         where=[candidate["path"]],
         value=float(value),
         suggestion=(
             "If the value is right, give the Parameter a range that holds it "
-            "before the next fit (a coarse instrument's widths: the box "
-            "ProfileTCHZ.coarse builds). If it is not, it is the walk issue "
-            "#204 describes and not a measurement to quote."))
+            "before the next fit (for a coarse instrument's widths, the box "
+            "ProfileTCHZ.coarse builds)."))

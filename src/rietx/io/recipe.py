@@ -263,10 +263,8 @@ def _apply(param: Parameter, entry: Any, path: str, *,
         diagnostics.append(Diagnostic(
             level="info", code="RECIPE_BOUND_HONOURED",
             message=(
-                f"{path} declares min/max, which PowderLine documents as not "
-                f"implemented in GSAS-II; this refinement honours them, so a "
-                f"bound hit here is a difference from the reference engine, "
-                f"not a bug"),
+                f"{path} declares min/max, and this refinement applies "
+                f"them."),
             where=[path]))
     return param
 
@@ -319,11 +317,9 @@ def read_recipe(source: str | Path | dict,
         diags.append(Diagnostic(
             level="warning", code="RECIPE_SCHEMA_UNTESTED",
             message=(
-                f"recipe declares schema_version {version!r}; this reader was "
-                f"checked against {', '.join(KNOWN_SCHEMA_VERSIONS)}. Reading "
-                f"it anyway — PowderLine's models allow extra fields on "
-                f"purpose — but a field whose meaning moved will be read with "
-                f"its old meaning"),
+                f"The recipe declares schema_version {version!r}, and this "
+                f"reader was checked against "
+                f"{', '.join(KNOWN_SCHEMA_VERSIONS)}."),
             where=["schema_version"]))
 
     payload = doc.get("payload")
@@ -404,10 +400,8 @@ def _read_pattern(payload: dict,
         diags.append(Diagnostic(
             level="info", code="RECIPE_ZERO_WEIGHT_EXCLUDED",
             message=(
-                f"{int(zero.sum())} channel(s) carry weight 0, which is how a "
-                f"recipe excludes a point; they are carried as "
-                f"{len(excluded)} excluded region(s) rather than as an "
-                f"infinite sigma"),
+                f"{int(zero.sum())} channel(s) carry weight 0 and became "
+                f"{len(excluded)} excluded region(s)."),
             value=float(zero.sum())))
     else:
         sigma = 1.0 / np.sqrt(w)
@@ -469,10 +463,11 @@ def _report_fitted_channels(tth: np.ndarray, w: np.ndarray,
         message=(
             f"fit_range {list(limits)} selects {n} of {tth.size} channels, "
             f"{inside[0]:.6f} to {inside[-1]:.6f} deg, on an inclusive mask at "
-            f"both ends. A recipe states angles and an engine fits channels, "
-            f"and the two need not agree to the channel — check this count "
-            f"against the reference engine's before comparing any Rwp"),
-        where=["payload.fit_range"], value=float(n)))
+            f"both ends."),
+        where=["payload.fit_range"],
+        suggestion=("Check this count against the reference engine's before "
+                    "you compare any Rwp."),
+        value=float(n)))
 
 
 def _runs(x: np.ndarray, mask: np.ndarray) -> list[tuple[float, float]]:
@@ -549,9 +544,8 @@ def _drop_neutron_polarization(iparm: dict, par: dict,
             level="info", code="RECIPE_FIELD_DROPPED",
             message=(
                 "Polariz. on a 'PNC' (constant-wavelength neutron) instrument "
-                "is inert: GSAS-II applies the polarization factor only to an "
-                "X-ray type, and NeutronSource pins K = 1, the bare Lorentz "
-                "factor"),
+                "was dropped. GSAS-II applies the polarization factor to an "
+                "X-ray type only, and NeutronSource pins K = 1."),
             where=["payload.instrument.initialization[0].Polariz."]))
 
 
@@ -650,10 +644,8 @@ def _read_instrument(payload: dict, pattern: PatternData,
         diags.append(Diagnostic(
             level="info", code="RECIPE_CONVENTION_ASSUMED",
             message=(
-                f"SH/L = {float(shl):g} is GSAS-II's combined (S+H)/L; it is "
-                f"split evenly into axial_sl = axial_hl = {half:g}, the "
-                f"symmetric Finger-Cox-Jephcoat reading. No committed recipe "
-                f"can distinguish that from an uneven split"),
+                f"SH/L = {float(shl):g} is GSAS-II's combined (S+H)/L. It was "
+                f"split evenly into axial_sl = axial_hl = {half:g}."),
             where=["instrument.geometry.axial_sl",
                    "instrument.geometry.axial_hl"],
             value=half))
@@ -700,12 +692,8 @@ def _decline_dispersion_off_table(instrument: Instrument, structure: Structure,
         diags.append(Diagnostic(
             level="info", code="RECIPE_DISPERSION_DECLINED",
             message=(
-                f"anomalous scattering is declined for this recipe and f = f0 "
-                f"is used: {exc}. Every absorption edge of these species is far "
-                f"below this energy, so f' and f'' are negligible there and the "
-                f"table's band is the limit rather than the physics — but the "
-                f"result carries DISPERSION_NEGLECTED, as any dispersion=None "
-                f"fit does"),
+                f"Anomalous scattering was declined and f = f0 is used: "
+                f"{exc}."),
             where=["instrument.source.dispersion"]))
 
 
@@ -818,20 +806,16 @@ def _refuse_constant_lorentzian(iparm: dict, broadening: dict,
         diags.append(Diagnostic(
             level="warning", code="RECIPE_FLAG_DROPPED",
             message=(
-                "instrument Z is flagged for refinement and this package's "
-                "Lorentzian width has no constant term (X/cosθ + Y·tanθ), so "
-                "the flag is not honoured: this fit runs one free parameter "
-                "short of the reference engine's and whatever Z would have "
-                "absorbed lands in X and Y. Z = 0 is the identity, so the "
-                "starting model is unchanged"),
+                "Instrument Z is flagged for refinement, and this package's "
+                "Lorentzian width (X/cosθ + Y·tanθ) has no constant term, so "
+                "the flag was not honoured."),
             where=["instrument.profile.x", "instrument.profile.y"]))
     else:
         diags.append(Diagnostic(
             level="info", code="RECIPE_FIELD_DROPPED",
             message=(
-                "instrument Z = 0 fixed is no constant Lorentzian term at all, "
-                "so it is dropped rather than translated; this package's "
-                "Lorentzian width is X/cosθ + Y·tanθ with no constant"),
+                "Instrument Z = 0 fixed states no constant Lorentzian term, "
+                "so it was dropped."),
             where=["payload.instrument.initialization[0].Z"]))
 
 
@@ -877,10 +861,8 @@ def _read_background(payload: dict, pattern: PatternData,
         diags.append(Diagnostic(
             level="info", code="RECIPE_BACKGROUND_RESEEDED",
             message=(
-                f"the recipe's {n} Chebyshev coefficients are carried as a "
-                f"count and a refine flag, not as values: the two codes scale "
-                f"the polynomial's domain differently, so the numbers are not "
-                f"the same numbers. They start at zero and refine"),
+                f"The recipe's {n} Chebyshev coefficients came across as a "
+                f"count and a refine flag. Their values start at zero."),
             where=["instrument.background"], value=float(n)))
 
     peaks = bg.get("single_peaks")
@@ -941,19 +923,17 @@ def _read_extra_components(peaks: dict, pattern: PatternData,
             diags.append(Diagnostic(
                 level="info", code="RECIPE_FIELD_DROPPED",
                 message=(
-                    f"background peak {i}'s Lorentzian gamma is a FWHM of "
+                    f"Background peak {i}'s Lorentzian gamma is a FWHM of "
                     f"{gam_fwhm:.3g} deg, under the pattern's {step:.3g} deg "
-                    f"step, so it is dropped: this package's background peak "
-                    f"is Gaussian and nothing narrower than a channel could "
-                    f"be seen anyway"),
+                    f"step, so it was dropped."),
                 where=[f"instrument.extra_components.{i}"], value=gam_fwhm))
         if g_vary:
             diags.append(Diagnostic(
                 level="warning", code="RECIPE_FLAG_DROPPED",
                 message=(
-                    f"background peak {i}'s Lorentzian gamma is flagged for "
-                    f"refinement and has no counterpart here, so that flag is "
-                    f"not honoured; the Gaussian fwhm carries the width"),
+                    f"Background peak {i}'s Lorentzian gamma is flagged for "
+                    f"refinement and has no counterpart here, so the flag was "
+                    f"not honoured."),
                 where=[f"instrument.extra_components.{i}.fwhm"]))
 
         fwhm = (5.0 if sig is None
@@ -999,15 +979,11 @@ def _warn_peak_is_a_polynomial(i: int, peak: HumpComponent, span: float,
     diags.append(Diagnostic(
         level="warning", code="RECIPE_BACKGROUND_PEAK_DEGENERATE",
         message=(
-            f"background peak {i} starts at a FWHM of {peak.fwhm.value:.3g} "
-            f"deg over a fitted range of {span:.3g} deg, so it never reaches "
-            f"half height inside the window and carries no curvature the "
-            f"Chebyshev terms have not got. Expect it to correlate with the "
-            f"low-order background at |rho| = 1 and the stage to spend its "
-            f"whole budget walking that valley — both reference engines did, "
-            f"in opposite directions. A background peak is a substitute for "
-            f"polynomial terms, not an addition to them"),
+            f"Background peak {i} starts at a FWHM of {peak.fwhm.value:.3g} "
+            f"deg over a fitted range of {span:.3g} deg."),
         where=[f"instrument.extra_components.{i}.fwhm"],
+        suggestion=("Use a background peak or extra Chebyshev terms, not "
+                    "both."),
         value=peak.fwhm.value))
 
 
@@ -1216,20 +1192,16 @@ def _split(key: str, spec: dict | None, block_key: str, magnitude_key: str,
                 level="warning", code="RECIPE_FLAG_DROPPED",
                 message=(
                     f"{base} is flagged for refinement, but LG_eta = {share:g} "
-                    f"puts phases.*.{attr} at exactly its off state, on its "
-                    f"lower bound of zero. It is held rather than declared free "
-                    f"there; the other half refines, so this fit has one free "
-                    f"parameter fewer than the reference engine's"),
+                    f"puts phases.*.{attr} at its off state, so it is held "
+                    f"fixed."),
                 where=[f"phases.*.{attr}"]))
     if eta_vary and lor.vary and gauss.vary:
         diags.append(Diagnostic(
             level="info", code="RECIPE_FLAG_TRANSLATED",
             message=(
-                f"{base}.LG_eta is flagged for refinement; this package has no "
-                f"single mixing parameter, so the recipe's (magnitude, eta) "
-                f"pair becomes two free coefficients — phases.*.{lor_attr} and "
-                f"phases.*.{gauss_attr} — which is the same two degrees of "
-                f"freedom written differently"),
+                f"{base}.LG_eta is flagged for refinement, so the recipe's "
+                f"(magnitude, eta) pair became two free coefficients: "
+                f"phases.*.{lor_attr} and phases.*.{gauss_attr}."),
             where=[f"phases.*.{lor_attr}", f"phases.*.{gauss_attr}"]))
 
 
@@ -1260,12 +1232,9 @@ def _seed_scales(structure: Structure, instrument: Instrument,
     diags.append(Diagnostic(
         level="info", code="RECIPE_SCALE_RESEEDED",
         message=(
-            f"the recipe's phase scale(s) are re-seeded to match the summed "
+            f"The recipe's phase scale(s) were re-seeded to match the summed "
             f"calculated intensity to the data (factor {ratio:.4g}, split "
-            f"evenly): a scale factor's normalisation is each code's own — on "
-            f"the committed fixtures GSAS-II and TOPAS converge four orders of "
-            f"magnitude apart for the same specimen — so a recipe's scale is a "
-            f"start, never a value to carry across"),
+            f"evenly)."),
         where=["phases.*.scale"], value=ratio))
 
 
@@ -1302,16 +1271,13 @@ def _report_engine_default(base: str, magnitude_key: str, mag_vary: bool,
     diags.append(Diagnostic(
         level="info", code="RECIPE_ENGINE_DEFAULT_DECLINED",
         message=(
-            f"{base}.{magnitude_key} is present but null, which GSAS-II fills "
-            f"with its own project default of {default:g} {unit} (measured off "
-            f"the committed LaB6 reference peak list). This package reads a "
-            f"null as silence and leaves the sample broadening at zero rather "
-            f"than adopting another engine's default — so this fit's model has "
-            f"no sample broadening where the reference engine's has some, and "
-            f"the instrument terms will differ by however much that was"
-            + ("; the recipe also flags it for refinement, which needs a "
-               "non-zero start" if mag_vary else "")),
-        where=[base], value=default))
+            f"{base}.{magnitude_key} is present but null, and GSAS-II fills "
+            f"that with its own project default of {default:g} {unit}. This "
+            f"fit leaves the sample broadening at zero."),
+        where=[base],
+        suggestion=("Give the block a non-zero start, because the recipe "
+                    "flags it for refinement." if mag_vary else None),
+        value=default))
 
 
 def _read_plan(payload: dict, structure: Structure, instrument: Instrument,
@@ -1334,10 +1300,9 @@ def _read_plan(payload: dict, structure: Structure, instrument: Instrument,
         diags.append(Diagnostic(
             level="info", code="RECIPE_FIELD_DROPPED",
             message=(
-                f"refinement_controls.refinement_cycles = {cycles} is not "
-                f"translated: it is GSAS-II's cycle count, while a Stage's "
-                f"max_iter here is a runaway guard and the stopping rule is "
-                f"the solver's ftol. The fit converges rather than counting"),
+                f"refinement_controls.refinement_cycles = {cycles} was not "
+                f"translated, because a Stage's max_iter here is a runaway "
+                f"guard and the solver's ftol stops the fit."),
             where=["payload.refinement_controls.refinement_cycles"],
             value=float(cycles)))
     algorithm = controls.get("refinement_algorithm")
@@ -1345,20 +1310,20 @@ def _read_plan(payload: dict, structure: Structure, instrument: Instrument,
         diags.append(Diagnostic(
             level="warning", code="RECIPE_FIELD_DROPPED",
             message=(
-                f"refinement_controls.refinement_algorithm = {algorithm!r} is "
-                f"not read; this fit runs the package's own solver "
-                f"(the bounded Levenberg-Marquardt by default, "
-                f"`solver=\"trf\"` for scipy's Trust Region Reflective)"),
-            where=["payload.refinement_controls.refinement_algorithm"]))
+                f"refinement_controls.refinement_algorithm = {algorithm!r} "
+                f"was not read, and this fit runs the package's own solver "
+                f"(bounded Levenberg-Marquardt by default)."),
+            where=["payload.refinement_controls.refinement_algorithm"],
+            suggestion=("Set solver=\"trf\" for scipy's Trust Region "
+                        "Reflective.")))
 
     flagged = _flagged_paths(structure, instrument)
     if not flagged:
         diags.append(Diagnostic(
             level="warning", code="RECIPE_NOTHING_REFINED",
             message=(
-                "no parameter in this recipe is flagged for refinement, so the "
-                "plan has one stage that frees nothing — a simulation. The "
-                "answer is the model evaluated at its declared values"),
+                "No parameter in this recipe is flagged for refinement, so "
+                "the plan has one stage that frees nothing."),
             where=["payload"]))
         return RefinementPlan(stages=[Stage("recipe", [])])
 
@@ -1375,16 +1340,9 @@ def _read_plan(payload: dict, structure: Structure, instrument: Instrument,
         diags.append(Diagnostic(
             level="info", code="RECIPE_PLAN_STAGED",
             message=(
-                f"the recipe's {len(flagged)} flagged parameters are freed over "
-                f"{len(stages)} stages ({', '.join(s.name for s in stages)}) "
-                f"in the McCusker (1999) turn-on order, not all at once. "
-                f"Staging here is cumulative — every stage keeps what the "
-                f"earlier ones freed — so the last stage *is* the recipe's "
-                f"single pass over everything flagged, reached by a route that "
-                f"survives a cold start. A recipe declares which parameters "
-                f"refine; the order is the engine's, and this one measured a "
-                f"two-phase recipe walk a monoclinic cell to a = 4 231 A when "
-                f"freed in one step"),
+                f"The recipe's {len(flagged)} flagged parameters are freed "
+                f"over {len(stages)} stages ({', '.join(s.name for s in stages)}) "
+                f"in the McCusker (1999) turn-on order."),
             where=["payload.refinement_controls"], value=float(len(stages))))
     return RefinementPlan(stages=stages)
 

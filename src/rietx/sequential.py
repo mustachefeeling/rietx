@@ -1867,14 +1867,14 @@ class SequentialRefinement:
                 # A check the caller asked for is not worth the finished
                 # series it is checking (WP-1333): the step stays unmeasured,
                 # ``value`` absent, and the message says why.
-                d.message += (f"; an independent cold refit raised "
+                d.message += (f" An independent cold refit raised "
                               f"{exc.original!r}, so the step could not be "
-                              f"re-measured")
+                              f"re-measured.")
                 continue
             if va is None or vb is None or not s.record.step:
-                d.message += ("; an independent cold refit of both patterns "
+                d.message += (" An independent cold refit of both patterns "
                               "does not determine this parameter, so the step "
-                              "could not be re-measured")
+                              "could not be re-measured.")
                 continue
             # signed, both sides: a cold pair stepping as far the *other* way
             # is not a reproduction, and two magnitudes divided would call it
@@ -1884,14 +1884,14 @@ class SequentialRefinement:
                 # measured as the fence measured the step it re-measures (#604)
                 cold_step = float(_angle_difference(cold_step))
             d.value = cold_step / s.record.step
-            d.message += (f"; refitted cold and independently the two patterns "
+            d.message += (f" Refitted cold and independently, the two patterns "
                           f"step by {cold_step:.4g}, {d.value:.2f}× the "
-                          f"chain's")
-            d.suggestion += ("; that check has been run, and a ratio near 1.0 "
-                             "means the step is in the data while one near 0 "
-                             "means the chain made it — a negative one is a "
-                             "cold pair that moved the other way, which is "
-                             "neither")
+                          f"chain's.")
+            d.suggestion += (" That check has been run. A ratio near 1.0 "
+                             "means the step is in the data, and one near 0 "
+                             "means the chain made it. A negative ratio is a "
+                             "cold pair that moved the other way. That is "
+                             "neither.")
 
     def _history_spec(self, label: str):
         """Per-pattern history target: a file under the given directory.
@@ -2018,23 +2018,24 @@ def _reseed_diagnostics(entry: SeriesEntry) -> list[Diagnostic]:
     # …and neither is a cold rung kept only as the least diverged of several,
     # which SEQUENTIAL_UNRECOVERED calls a failed fit on the same pattern
     if entry.status == "diverged":
-        fit = ("the cold fit is kept only as the best attempt and diverged "
-               "too — read SEQUENTIAL_UNRECOVERED on this pattern first — and")
+        fit = (" The cold fit is kept only as the best attempt and diverged "
+               "too.")
+        advice = "Read SEQUENTIAL_UNRECOVERED on this pattern first."
     elif entry.above_fence:
-        fit = ("the cold fit is kept only as the best attempt and is still "
-               "above the fence — read SEQUENTIAL_RWP_OUTLIER on this pattern "
-               "first — and")
+        fit = (" The cold fit is kept only as the best attempt and is still "
+               "above the fence.")
+        advice = "Read SEQUENTIAL_RWP_OUTLIER on this pattern first."
     else:
-        fit = "this point is a good fit but"
+        fit = ""
+        advice = ("Check whether the specimen or the model changed at this "
+                  "point of the series.")
     return [Diagnostic(
         level="warning", code="SEQUENTIAL_RESEED",
         where=[entry.label or str(entry.index)],
-        message=(f"pattern {entry.index} ({entry.label}) was refitted from the "
-                 f"initial model: warm-starting from its neighbour {how}"),
-        suggestion=(f"{fit} its starting values did not "
-                    "come from its neighbour, so it is not evidence that the "
-                    "trajectory is continuous here; check whether the specimen "
-                    "or the model changed at this point of the series"),
+        message=(f"Pattern {entry.index} ({entry.label}) was refitted from the "
+                 f"initial model, because warm-starting from its neighbour "
+                 f"{how}.{fit}"),
+        suggestion=advice,
     )]
 
 
@@ -2092,39 +2093,28 @@ def _rwp_outlier_diagnostics(entry: SeriesEntry,
     against = ""
     if before is not None and before.statistics is not None:
         s, r = entry.statistics, before.statistics
-        against = (f"; against {before.label or before.index}, the last pattern "
+        against = (f" Against {before.label or before.index}, the last pattern "
                    f"before it inside the fence: GoF {s.gof:.2f} to its "
-                   f"{r.gof:.2f}, Rexp {s.rexp:.4f} to its {r.rexp:.4f}")
+                   f"{r.gof:.2f}, Rexp {s.rexp:.4f} to its {r.rexp:.4f}.")
     return [Diagnostic(
         level="warning", code="SEQUENTIAL_RWP_OUTLIER",
         where=[entry.label or str(entry.index)], value=ratio,
-        message=(f"pattern {entry.index} ({entry.label}) reached Rwp {rwp:.4f} "
-                 f"on its best rung{times} at {fence:.4f} "
-                 f"(the reseed factor × the median Rwp of the patterns accepted "
-                 f"before it), after "
+        message=(f"Pattern {entry.index} ({entry.label}) reached Rwp {rwp:.4f} "
+                 f"on its best rung{times} at {fence:.4f}, after "
                  + ("every rung the chain tried" if climbed else
                     "the rungs the chain tried before stopping short of its "
                     "cold rung (reseed off, or a cancel)")
-                 + f" ({tried}){against}"),
-        suggestion=(("no starting point brought this fit near its neighbours', "
-                     "so the pattern itself differs from them"
-                     if climbed else
-                     "the ladder was not climbed, so a cold start may still "
-                     "bring this fit near its neighbours'; refit it with "
-                     "reseed on before reading it as a difference in the "
-                     "pattern")
-                    + "; open its own fit "
-                    "before reading its values.  GoF says which way: well above "
-                    "theirs is a model the pattern has outgrown — a specimen "
-                    "change the model lacks, or a bad frame; like theirs, with a "
-                    "higher Rexp, is fewer counts — a short or blank frame, a "
-                    "weaker beam — where the fit may be sound, so check that each "
-                    "phase is still in the pattern (a scale within a few esds of "
-                    "zero is one it does not contain).  The fence follows the "
-                    "median of the accepted patterns, so a run of these that "
-                    "stops is a lasting change the median caught up with, not "
-                    "one that went away.  The steps into and out of this pattern "
-                    "are left out of the discontinuity scan"),
+                 + f" ({tried}).{against}"
+                 + (" No starting point brought this fit near its "
+                    "neighbours'." if climbed else
+                    " The ladder was not climbed, so a cold start may still "
+                    "bring this fit near its neighbours'.")
+                 + " The steps into and out of this pattern are left out of "
+                 "the discontinuity scan."),
+        suggestion=("Open this pattern's own fit before reading its values."
+                    if climbed else
+                    "Refit with reseed on, then open this pattern's own fit "
+                    "before reading its values."),
     )]
 
 
@@ -2144,17 +2134,11 @@ def _unrecovered_diagnostics(entry: SeriesEntry) -> list[Diagnostic]:
     return [Diagnostic(
         level="warning", code="SEQUENTIAL_UNRECOVERED",
         where=[entry.label or str(entry.index)],
-        message=(f"pattern {entry.index} ({entry.label}) diverged and was still "
-                 f"diverged after every rung the chain tried ({tried}); it "
+        message=(f"Pattern {entry.index} ({entry.label}) diverged and was still "
+                 f"diverged after every rung the chain tried ({tried}). It "
                  f"seeded no successor and its Rwp was left out of the series "
-                 f"median"),
-        suggestion=("the values on this point are not a measurement — read it as "
-                    "a failed fit, not as a datum, and do not interpolate across "
-                    "it; the chain continued from the last pattern that "
-                    "converged, so its neighbours are unaffected.  Fit this "
-                    "pattern on its own to find out why: a specimen change the "
-                    "model does not have, a bad scan, or a starting model that "
-                    "no longer suits this end of the series"),
+                 f"median."),
+        suggestion="Fit this pattern on its own to find out why.",
     )]
 
 
@@ -2168,13 +2152,10 @@ def _cancelled_diagnostic(n_done: int, n_total: int, *,
     """
     return Diagnostic(
         level="warning", code="SEQUENTIAL_CANCELLED", where=[],
-        message=(f"the {pass_name} chain was cancelled after {n_done} of "
-                 f"{n_total} patterns; the pattern in flight was abandoned "
-                 "(no node, no commit) and the rest were never started"),
-        suggestion=("the entries reported are complete fits and stand on their "
-                    "own, but the trajectory is truncated, not finished: "
-                    "re-run the series to extend it, and do not read the last "
-                    "point as the end of the ramp"),
+        message=(f"The {pass_name} chain was cancelled after {n_done} of "
+                 f"{n_total} patterns. The pattern in flight was abandoned "
+                 "(no node, no commit) and the rest were never started."),
+        suggestion="Re-run the series to extend the trajectory.",
     )
 
 
@@ -2193,14 +2174,11 @@ def _path_check_not_run(reason: str) -> Diagnostic:
     """
     return Diagnostic(
         level="warning", code="SEQUENTIAL_PATH_CHECK_INCOMPLETE", where=[],
-        message=(f"the forward/backward path-dependence comparison did not "
-                 f"run: {reason}"),
-        suggestion=("zero SEQUENTIAL_PATH_DEPENDENT findings on this series is "
-                    "not a clean bill but no reading at all: no trajectory "
-                    "here has been shown independent of the order it was "
-                    "refined in.  Re-run with direction='both' to completion "
-                    "before quoting a trajectory's per-pattern esds as its "
-                    "uncertainty"),
+        message=(f"The forward/backward path-dependence comparison did not "
+                 f"run: {reason}."),
+        suggestion=("Re-run with direction='both' to completion before "
+                    "quoting a trajectory's per-pattern esds as its "
+                    "uncertainty."),
     )
 
 
@@ -2234,27 +2212,23 @@ def _path_check_coverage(missing: list[tuple[int, str, str]], n_patterns: int,
             level="info", code="SEQUENTIAL_PATH_CHECK_INCOMPLETE",
             where=list(dict.fromkeys(label for _, label, _ in missing)),
             value=float(n_compared),
-            message=(f"the path-dependence comparison ran on {n_compared} of "
-                     f"{n_patterns} patterns: {named}"),
-            suggestion=("a SEQUENTIAL_PATH_DEPENDENT finding still stands, but "
-                        "its absence says nothing about the patterns named "
-                        "here — they were compared on no path"),
+            message=(f"The path-dependence comparison ran on {n_compared} of "
+                     f"{n_patterns} patterns: {named}."),
+            suggestion="Treat the patterns named here as unchecked.",
         ))
     if unjudged:
         out.append(Diagnostic(
             level="info", code="SEQUENTIAL_PATH_CHECK_INCOMPLETE",
             where=list(unjudged),
-            message=(f"the path-dependence comparison could judge "
+            message=(f"The path-dependence comparison could judge "
                      f"{len(unjudged)} path(s) on no pattern, because no "
                      f"pattern has an esd for it in both chains: "
                      f"{', '.join(unjudged[:6])}"
-                     + (" …" if len(unjudged) > 6 else "")),
-            suggestion=("silence about these paths is not agreement: a path "
-                        "held, fixed or tied to an unmeasured source in either "
-                        "chain cannot be compared.  Read its two trajectories "
+                     + (" …" if len(unjudged) > 6 else "") + "."),
+            suggestion=("Read the two trajectories of each path "
                         "(result.trajectory(path) and "
-                        "result.backward.trajectory(path)) before quoting it as "
-                        "independent of the refinement order"),
+                        "result.backward.trajectory(path)) before quoting it "
+                        "as independent of the refinement order."),
         ))
     return out
 
@@ -2279,29 +2253,20 @@ def _series_pattern_failed_diagnostic(failure: "SeriesFailure", *,
     fewer pattern the path-dependence comparison can judge.
     """
     if pass_name == "backward":
-        consequence = ("in the backward (verification) chain and was never "
-                       "fitted there; the reported forward entry stands, and "
+        consequence = (" in the backward (verification) chain. It was never "
+                       "fitted there. The reported forward entry stands, and "
                        "the path-dependence comparison cannot judge this "
-                       "pattern")
+                       "pattern.")
     else:
-        consequence = ("and was never fitted; it carries no entry in this "
-                       "series")
+        consequence = (". It was never fitted and carries no entry in this "
+                       "series.")
     return Diagnostic(
         level="warning", code="SERIES_PATTERN_FAILED",
         where=[failure.label or str(failure.index)], value=None,
-        message=(f"pattern {failure.index} ({failure.label}) raised "
-                 f"{failure.exception} on every rung the chain tried "
+        message=(f"Pattern {failure.index} ({failure.label}) raised "
+                 f"{failure.exception} on every rung the chain tried"
                  f"{consequence}"),
-        suggestion=("this pattern is missing from the trajectory, not a zero "
-                    "or a held value on it.  Unless the series ran with "
-                    "reseed=False, or this was the first pattern walked, the "
-                    "ladder's last rung was already a cold fit from the "
-                    "initial models, so what failed is this pattern rather "
-                    "than the state its neighbour handed it: fit it on its own "
-                    "and read the exception — a scan the model cannot be "
-                    "compiled against, a specimen change the model lacks, or a "
-                    "near-singular parameterisation at this point of the "
-                    "series"),
+        suggestion="Fit this pattern on its own and read the exception.",
     )
 
 
@@ -2461,12 +2426,10 @@ def _discontinuity_steps(series: SeriesResult,
                 message=(f"{path} steps by {step[k]:.4g} between "
                          f"{traj.labels[k]} and {traj.labels[k + 1]} "
                          f"({traj.x_label} {xv[k]:g} → {xv[k + 1]:g}), "
-                         f"{step[k] / scale:.0f}× its median step over the series"),
-                suggestion=("either the specimen genuinely changed here (a "
-                            "transition, a phase appearing) or the chain failed "
-                            "at this point and carried the error onward — check "
-                            "this pattern's own fit before reading the jump as "
-                            "physics"),
+                         f"{step[k] / scale:.0f}× its median step over the "
+                         f"series."),
+                suggestion=("Check this pattern's own fit before reading the "
+                            "jump as physics."),
             )))
     return out
 
@@ -2534,12 +2497,8 @@ def _persistent_diagnostics(series: SeriesResult) -> list[Diagnostic]:
             level=levels[(code, path)], code="SEQUENTIAL_PERSISTENT_FINDING",
             where=where, value=count / n,
             message=(f"{code} fired on {subject} in {count} of {n} patterns "
-                     f"({count / n:.0%} of the series)"),
-            suggestion=(f"read this as a property of the model rather than of "
-                        f"any one pattern: {code} in most of a series is the "
-                        f"same finding repeated, and the thing to change is "
-                        f"the model or the plan, not the individual fits. The "
-                        f"per-pattern diagnostics carry each occurrence"),
+                     f"({count / n:.0%} of the series)."),
+            suggestion="Change the model or the plan.",
         ))
     return out
 
@@ -2646,18 +2605,12 @@ def _width_growth_diagnostics(series: SeriesResult) -> list[Diagnostic]:
                      f"{traj.labels[k0]} to {traj.labels[k1]} "
                      f"({value[k0]:.4g} → {value[k1]:.4g}) while GoF rose "
                      f"{s1.gof / s0.gof:.1f}× (Rwp {s0.rwp:.2%} → "
-                     f"{s1.rwp:.2%}); it passes both thresholds on "
+                     f"{s1.rwp:.2%}). It passes both thresholds on "
                      f"{len(flagged) - 1} of the {later} patterns after "
-                     f"it{peak}"),
-            suggestion=("a phase width that grows while the fit gets worse is "
-                        "usually the phase standing in for something the "
-                        "model lacks — a second phase, a diffuse signal, or "
-                        "background the function cannot follow — rather "
-                        "than broadening that was measured. Fit the pattern "
-                        "at the onset with the missing component before "
-                        "reading this width, or this phase's scale and cell, "
-                        "as physics. A width may grow for real; if the model "
-                        "had kept up, GoF would not have risen with it"),
+                     f"it{peak}."),
+            suggestion=("Fit the pattern at the onset with the missing "
+                        "component before reading this width, or this phase's "
+                        "scale and cell, as physics."),
         )
         out.append(finding)
     return out
@@ -2696,32 +2649,28 @@ def _moment_diagnostics(series: SeriesResult,
         if n_held or blind:
             message = (
                 f"{name}: the moment is unsupported on {n_held} of {n} pattern(s) "
-                f"({100.0 * n_held / n:.0f}% of the series) — |m| at or below "
-                f"{MOMENT_SUPPORT_SIGMA:g}× its own esd, which reads as \"not "
-                f"distinguishable from none\" and never as \"a small moment\"")
+                f"({100.0 * n_held / n:.0f}% of the series), with |m| at or "
+                f"below {MOMENT_SUPPORT_SIGMA:g}× its own esd.")
             if blind:
                 message += (
-                    f"; {len(blind)} more pattern(s) give no verdict at all "
+                    f" {len(blind)} more pattern(s) give no verdict at all "
                     f"({', '.join(blind[:4])}{' …' if len(blind) > 4 else ''}"
-                    f") — the modulus has no esd there, because it was held "
-                    f"or the phase was not seen, or the fit diverged — and "
-                    f"are left out of the onset")
+                    f"), because the modulus has no esd there. They are left "
+                    f"out of the onset.")
             if reseeded:
                 message += (
-                    f"; the modulus was reseeded to its floor "
+                    f" The modulus was reseeded to its floor "
                     f"({MOMENT_FLOOR_MU_B:g} μ_B) on {len(reseeded)} successor "
                     f"pattern(s) ({', '.join(sorted(reseeded)[:4])}"
-                    f"{' …' if len(reseeded) > 4 else ''}) rather than "
-                    f"warm-started from a value the pattern before did not "
-                    f"support")
+                    f"{' …' if len(reseeded) > 4 else ''}) instead of "
+                    f"warm-starting from a value the pattern before did not "
+                    f"support.")
             out.append(Diagnostic(
                 level="warning", code="SEQUENTIAL_MOMENT_HOLD", where=[site],
                 value=float(n_held), message=message,
                 suggestion=(
-                    "plot the trajectory from series.magnetic_trajectory(), "
-                    "which withholds the esd on exactly these points, and "
-                    "quote them as held rather than as small; a held point's "
-                    "value is the modulus the fit reached, not zero")))
+                    "Plot the trajectory from series.magnetic_trajectory() "
+                    "and quote these points as held.")))
         onset = traj.onset
         if onset is None:                        # pragma: no cover - shape
             continue
@@ -2731,15 +2680,15 @@ def _moment_diagnostics(series: SeriesResult,
                 f"{onset.bracket_labels[0]} and {onset.bracket_labels[1]} "
                 f"({series.x_label} {onset.bracket[0]:g} → "
                 f"{onset.bracket[1]:g}), so the onset is "
-                f"{onset.x:g} ± {onset.x_esd:g} — a bracket set by the "
-                f"spacing of the patterns, not a fitted critical point")
+                f"{onset.x:g} ± {onset.x_esd:g}. The bracket is set by the "
+                f"spacing of the patterns.")
             spans = onset.note.partition(". The bracket spans ")[2]
             if spans:
-                message += ". The bracket spans " + spans.partition(". ")[0]
+                message += " The bracket spans " + spans.partition(". ")[0] + "."
             unquotable = onset.bracket_verdicts_final is False
             if unquotable:
-                message += (". Do not quote it: "
-                            + onset.note.split(". Do not quote it: ")[-1])
+                message += (" Do not quote it: "
+                            + onset.note.split(". Do not quote it: ")[-1] + ".")
             out.append(Diagnostic(
                 level="warning" if unquotable else "info",
                 code="SEQUENTIAL_MOMENT_ONSET", where=[site],
@@ -2748,36 +2697,26 @@ def _moment_diagnostics(series: SeriesResult,
         elif not onset.monotone:
             out.append(Diagnostic(
                 level="warning", code="SEQUENTIAL_MOMENT_ONSET", where=[site],
-                message=f"{name}: {onset.note}",
+                message=f"{name}: {onset.note}.",
                 suggestion=(
-                    "open the patterns either side of each switch: an "
-                    "interleaved verdict is usually one pattern the ladder "
-                    "rescued cold, or a moment carried across the transition "
-                    "by a warm start, and both are visible in that entry's "
-                    "rung and its magnetic row")))
+                    "Open the patterns either side of each switch, and check "
+                    "each entry's rung and magnetic row.")))
     return out
 
 
-_RAISE_MAX_ITER = (
-    "raise the moment stage's max_iter and re-run: a bracket whose supported "
-    "side stopped early is not a measurement of an onset")
+_RAISE_MAX_ITER = "Raise the moment stage's max_iter and re-run."
 
-_RUN_BOTH = (
-    "run the series direction='both': one chain's onset is the boundary its "
-    "own warm start reached, and the two together are the only check that it "
-    "is the data's")
+_RUN_BOTH = ("Run the series with direction='both' to check this onset "
+             "against the reverse chain.")
 
-_NO_VERDICT = (
-    "read the entries of the chain that gave no verdict (status and magnetic "
-    "row): each pattern was held, did not see the phase, or diverged, and "
-    "the two chains can only be compared on patterns both gave a verdict on")
+_NO_VERDICT = ("Read the status and magnetic row of the entries in the chain "
+               "that gave no verdict.")
 
 _COMPARE_CHAINS = (
-    "compare the two chains' magnetic rows pattern by pattern "
+    "Compare the two chains' magnetic rows pattern by pattern "
     "(series.magnetic_trajectory() against "
-    "series.backward.magnetic_trajectory()): the pattern one chain supports "
-    "and the other holds is where a warm start carried a moment the data does "
-    "not, or where a floor never climbed out to a moment the data does carry")
+    "series.backward.magnetic_trajectory()). Look for the pattern that one "
+    "chain supports and the other holds.")
 
 
 def _supported_kind(onset) -> tuple[bool, bool]:
@@ -2838,41 +2777,41 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
         if _no_verdict(other):
             out.append(d.model_copy(update={
                 "level": "warning",
-                "message": (f"{d.message}; the backward chain gave no verdict "
+                "message": (f"{d.message} The backward chain gave no verdict "
                             f"on any pattern ({other.note}), so this reading "
-                            f"has not been checked against it"),
+                            f"has not been checked against it."),
                 **advise(_NO_VERDICT)}))
             continue
         # three ways of lacking an onset, each blaming the chain that lacks it
         if mine.x is None and other.x is None:
             out.append(d.model_copy(update={
                 "level": "warning",
-                "message": (f"{d.message}; the backward chain located no "
+                "message": (f"{d.message} The backward chain located no "
                             f"single onset either ({other.note}), so neither "
-                            f"pass has a bracket to quote"),
+                            f"pass has a bracket to quote."),
                 **advise(_COMPARE_CHAINS)}))
             continue
         if mine.x is None:
             out.append(d.model_copy(update={
                 "level": "warning",
-                "message": (f"{d.message}; the backward chain brackets it "
+                "message": (f"{d.message} The backward chain brackets it "
                             f"{other.bracket[0]:g} → {other.bracket[1]:g} "
                             f"({other.x:g} ± {other.x_esd:g}), so the two "
                             f"passes do not agree on whether there is one "
-                            f"onset"), **advise(_COMPARE_CHAINS)}))
+                            f"onset."), **advise(_COMPARE_CHAINS)}))
             continue
         if other.x is None:
             out.append(d.model_copy(update={
                 "level": "warning",
-                "message": (f"{d.message}; the backward chain located no "
+                "message": (f"{d.message} The backward chain located no "
                             f"{'onset at all' if other.monotone else 'single onset'}"
                             f" ({other.note}), so the two passes do not agree "
-                            f"on whether there is one"),
+                            f"on whether there is one."),
                 **advise(_COMPARE_CHAINS)}))
             continue
         overlap = (max(mine.bracket[0], other.bracket[0])
                    <= min(mine.bracket[1], other.bracket[1]))
-        text = (f"{d.message}; the backward chain brackets it "
+        text = (f"{d.message} The backward chain brackets it "
                 f"{other.bracket[0]:g} → {other.bracket[1]:g} "
                 f"({other.x:g} ± {other.x_esd:g})")
         # agreement can only *keep* the row at info: an unconverged bracket is
@@ -2885,31 +2824,30 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
         same_side = mine.sense == other.sense
         agrees = overlap and same_side and not early
         if agrees:
-            tail = (", which overlaps the forward bracket — the onset is the "
-                    "data's, not the ordering's")
-            advice = ("quote the bracket, with the pattern spacing as its "
-                      "uncertainty: the two chains reaching it from opposite "
-                      "ends is the check that it is the data's")
+            tail = (". It overlaps the forward bracket, so the onset is the "
+                    "data's.")
+            advice = ("Quote the bracket, with the pattern spacing as its "
+                      "uncertainty.")
         elif overlap and not same_side:
             side = {"falls": "below", "rises": "above"}
-            tail = (f", which overlaps the forward bracket, but the forward "
+            tail = (f". It overlaps the forward bracket, but the forward "
                     f"chain supports the moment {side[mine.sense]} it and the "
-                    f"backward chain {side[other.sense]} it: the two disagree "
+                    f"backward chain {side[other.sense]} it. The two disagree "
                     f"about which side is ordered, so neither bracket is a "
-                    f"measurement of the onset")
+                    f"measurement of the onset.")
             advice = _COMPARE_CHAINS
         elif overlap:
-            tail = (f", which overlaps the forward bracket, but the "
+            tail = (f". It overlaps the forward bracket, but the "
                     f"{' and the '.join(early)} bracket"
-                    f"{' is' if len(early) == 1 else 's are'} not quotable: "
-                    f"a supported side stopped early, so the two chains agree "
-                    f"about an unfinished fit, not yet about the data")
+                    f"{' is' if len(early) == 1 else 's are'} not quotable "
+                    f"because a supported side stopped early. The two chains "
+                    f"agree about an unfinished fit.")
             advice = _RAISE_MAX_ITER
         else:
-            tail = (". The two do NOT overlap: one chain carried a moment "
-                    "across the transition that the other never found, so "
-                    "this onset is path-dependent and neither bracket is a "
-                    "measurement of it")
+            tail = (". The two brackets do not overlap. One chain carried a "
+                    "moment across the transition that the other never found, "
+                    "so this onset is path-dependent and neither bracket is a "
+                    "measurement of it.")
             advice = _COMPARE_CHAINS
         out.append(d.model_copy(update={
             "level": "info" if agrees else "warning",
@@ -2950,9 +2888,9 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
                     message=(
                         f"{name}: the {silent[0]} chain gave no verdict on any "
                         f"pattern ({silent[1].note}), while the {spoke[0]} "
-                        f"chain {reading(spoke[1])}, so the two passes share "
-                        f"no pattern to compare and neither has a bracket to "
-                        f"quote"),
+                        f"chain {reading(spoke[1])}. The two passes share "
+                        f"no pattern to compare, so neither has a bracket to "
+                        f"quote."),
                     suggestion=_NO_VERDICT))
                 continue
 
@@ -2960,12 +2898,12 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
                 level="warning", code="SEQUENTIAL_MOMENT_ONSET", where=[site],
                 message=(
                     f"{name}: the backward chain {reading(other)}, while the "
-                    f"forward chain {reading(mine)}, so the two passes "
-                    f"disagree on every pattern they both judged and neither "
-                    f"has a bracket to quote — each chain's verdict followed "
-                    f"its own starting value: either one warm start carried "
+                    f"forward chain {reading(mine)}. The two passes "
+                    f"disagree on every pattern they both judged, so neither "
+                    f"has a bracket to quote. Each chain's verdict followed "
+                    f"its own starting value. Either one warm start carried "
                     f"a moment the data does not hold, or the other never "
-                    f"climbed out of the floor to one the data does carry"),
+                    f"climbed out of the floor to one the data does carry."),
                 suggestion=_COMPARE_CHAINS))
             continue
         found = (f"brackets the onset {other.bracket[0]:g} → "
@@ -2978,8 +2916,8 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
                 value=None if other.x is None else float(other.x),
                 message=(
                     f"{name}: the backward chain {found}, while the forward "
-                    f"chain gave no verdict on any pattern ({mine.note}), so "
-                    f"this reading has not been checked against it"),
+                    f"chain gave no verdict on any pattern ({mine.note}). "
+                    f"This reading has not been checked against it."),
                 suggestion=_NO_VERDICT))
             continue
         out.append(Diagnostic(
@@ -2987,10 +2925,8 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
             value=None if other.x is None else float(other.x),
             message=(
                 f"{name}: the backward chain {found}, while the forward chain "
-                f"located none ({mine.note}), so the two passes do not agree "
-                f"on whether there is an onset — a moment one chain's warm "
-                f"start carried across the transition reads as supported "
-                f"there"),
+                f"located none ({mine.note}). The two passes do not agree "
+                f"on whether there is an onset."),
             suggestion=_COMPARE_CHAINS))
     return out
 
@@ -3108,12 +3044,9 @@ def _path_dependence_diagnostics(forward: SeriesResult,
             level="warning", code="SEQUENTIAL_PATH_DEPENDENT", where=[path],
             message=(f"{path} differs between the forward and backward chains "
                      f"by up to {n_sigma[k]:.1f}σ (at {labels[k]}: "
-                     f"{vf[k]:.6g} vs {vb[k]:.6g})"),
-            suggestion=("this parameter's trajectory depends on the order the "
-                        "series was refined in, so it is not determined by the "
-                        "data alone: hold it fixed, restrain it, or report the "
-                        "spread between the two directions as its uncertainty "
-                        "— its per-pattern esd understates it"),
+                     f"{vf[k]:.6g} vs {vb[k]:.6g})."),
+            suggestion=("Hold it fixed, restrain it, or report the spread "
+                        "between the two directions as its uncertainty."),
         ))
     return out + _path_check_coverage(missing, len(known), unjudged)
 

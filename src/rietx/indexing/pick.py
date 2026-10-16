@@ -113,8 +113,8 @@ def fit_peaks(data: PatternData, instrument: Instrument,
               positions: np.ndarray | list[float], *,
               two_theta_range: tuple[float, float] | None = None,
               ) -> PeakList:
-    """Profile-fit **exactly** the peaks at ``positions`` — no structure, no
-    space group, no refinement.
+    """Profile-fit the peaks at ``positions`` and nothing else, with no structure,
+    space group or refinement.
 
     The peer of :func:`pick_peaks` for the case where the caller already knows
     where the peaks are: a Williamson-Hall analysis over a chosen set of lines,

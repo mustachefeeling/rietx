@@ -639,83 +639,70 @@ def read_gsas_prm(path: str | Path, *, profile_set: int | None = None,
         blank = "blank"
         ratio = blank if icons.ka2_ratio is None else icons.ka2_ratio
         ratio_note = (
-            f"KRATIO = {ratio}, carried as the second emission line's weight"
+            f"KRATIO = {ratio} is carried as the second emission line's weight."
             if icons.lam2 else
-            f"KRATIO = {ratio}, read and not applied (it weights a second "
-            f"line, and LAM2 states none here)")
+            f"KRATIO = {ratio}, read and not applied (LAM2 states no second "
+            f"line).")
         # A neutron file still writes POLA (HB-2A's says 0.990), and the
         # NeutronSource pins the polarisation term at 1, so the value is the
         # file's and is not carried — which is a drop, and says so.
         pola = blank if icons.polarization is None else icons.polarization
         pola_note = (
-            f"POLA = {pola}, read and not applied (HTYPE PNCR "
-            f"is a neutron source, whose polarisation term NeutronSource "
-            f"pins at 1), " if neutron else "")
+            f"POLA = {pola}, read and not applied (HTYPE PNCR is a neutron "
+            f"source, and NeutronSource pins the polarisation term at 1). "
+            if neutron else "")
         dropped = [
             ("ICONS", f"{pola_note}IPOLA (the polarization type) = "
                       f"{blank if icons.polarization_type is None else icons.polarization_type}, "
                       f"the refine flags and IDAMP = "
                       f"{blank if icons.damping is None else icons.damping} "
-                      f"(refinement controls, which a frozen calibration has "
-                      f"no use for), and {ratio_note}"),
+                      f"were not kept. {ratio_note}"),
         ]
-        past_8 = (f", and {len(rest)} coefficient(s) past position "
+        past_8 = (f" and {len(rest)} coefficient(s) past position "
                   f"{len(_PRCF_MAPPED)} = 0" if rest else "")
         dropped.append(
-            ("PRCF", f"GP (position 4) = 0{past_8} — this reader maps "
-                     f"positions 1-3 and 5-6 onto ProfileTCHZ and 7-8 "
-                     f"(S/L, H/L) onto Geometry"))
+            ("PRCF", f"GP (position 4) = 0{past_8} were not kept. Positions "
+                     f"1-3 and 5-6 map onto ProfileTCHZ and 7-8 "
+                     f"(S/L, H/L) onto Geometry."))
         if any(name.endswith(("IRAD", "ITYP")) for name, _ in records):
             dropped.append(
-                ("IRAD/ITYP", "ignored by design: the wavelength is read from "
-                              "ICONS rather than looked up from IRAD's table, "
-                              "and an angular range belongs to the pattern, "
-                              "not the instrument"))
+                ("IRAD/ITYP", "read and not kept. The wavelength comes from "
+                              "ICONS, and an angular range belongs to the "
+                              "pattern."))
         for record, what in dropped:
             diagnostics.append(Diagnostic(
                 level="info", code="GSAS_PRM_FIELD_DROPPED",
-                message=f"{p.name}: {record} — {what}",
+                message=f"{p.name}, {record}: {what}",
                 where=[record]))
         if profile_set is None and len(sets) > 1:
             offered = ", ".join(f"set {n} (type {h.function})"
                                 for n, h in sorted(sets.items()))
             diagnostics.append(Diagnostic(
                 level="warning", code="GSAS_PRM_PROFILE_SET_DEFAULTED",
-                message=(f"{p.name}: bank 1 offers {len(sets)} profile sets, "
-                         f"{offered}, and set {chosen} was read because "
-                         f"none was named (GSAS-II's importer reads set 1 "
-                         f"too)"),
+                message=(f"{p.name}: bank 1 offers {len(sets)} profile sets "
+                         f"({offered}) and none was named, so set {chosen} "
+                         f"was read."),
                 where=[f"PRCF{chosen}"],
-                suggestion=("name the set with read_gsas_prm(..., "
-                            "profile_set=N); only type 3 is read")))
+                suggestion=("Name the set with read_gsas_prm(..., "
+                            "profile_set=N).")))
 
     if diagnostics is not None:
         why = (
-            "HTYPE PNCR, so this instrument came back debye_scherrer, which "
-            "is what Instrument.constant_wavelength_neutron builds (a CW "
-            "neutron diffractometer is a can of powder in the beam with "
-            "detectors on a circle)"
+            "HTYPE PNCR gave debye_scherrer, as "
+            "Instrument.constant_wavelength_neutron builds it."
             if neutron else
-            "HTYPE PXCR spans Bragg-Brentano and Debye-Scherrer, so this "
-            "instrument came back debye_scherrer (packing_fraction=0.6, a "
-            "capillary offset pair) because that is what the corpus this "
-            "reader was built against is")
+            "HTYPE PXCR spans Bragg-Brentano and Debye-Scherrer, so "
+            "debye_scherrer was chosen (packing_fraction=0.6, a capillary "
+            "offset pair).")
         diagnostics.append(Diagnostic(
             level="warning", code="GSAS_PRM_GEOMETRY_ASSUMED",
-            message=(f"{p.name}: a GSAS .prm states no geometry; {why} — it "
-                     f"was not read from the file"),
+            message=(f"{p.name}: the geometry was not read from the file, "
+                     f"because a GSAS .prm states none. {why}"),
             where=["instrument.geometry.kind"],
-            suggestion=("if this calibration is from a flat-plate "
-                        "diffractometer, set the geometry yourself: "
-                        "Geometry.kind selects the position correction and "
-                        "the two geometries' absorption corrections have "
-                        "different off states (mu_r = 0 against mu_t = inf).  "
-                        "Carry geometry.axial_sl and geometry.axial_hl over "
-                        "to the replacement first: PRCF positions 7-8 "
-                        "(S/L, H/L) were read from THIS file and land on the "
-                        "geometry, so a fresh Geometry starts at 0 for both "
-                        "and models an instrument with no axial divergence "
-                        "at all")))
+            suggestion=("For a flat-plate calibration, set the geometry "
+                        "yourself. Carry geometry.axial_sl and "
+                        "geometry.axial_hl over first, because a fresh "
+                        "Geometry has no axial divergence.")))
     return instrument
 
 
@@ -1223,37 +1210,30 @@ def from_instrument(instrument: Instrument, *, header: str = "",
                 level="info", code="GSAS_PRM_VALUE_NARROWED",
                 message=(
                     f"{len(narrowed)} value(s) need more characters than a "
-                    f".prm's fixed columns hold and were written to what fits; "
-                    f"the largest change is {what} {value!r} -> {written!r}.  "
-                    f"A converged calibration's numbers are full-precision "
-                    f"doubles and a centidegree conversion adds the product's "
-                    f"own float noise, so this is the ordinary case rather "
-                    f"than a warning sign"),
+                    f".prm's fixed columns hold and were written to what fits. "
+                    f"The largest change is {what} {value!r} -> {written!r}."),
                 where=[row[0] for row in narrowed]))
         clauses = [
-            "the geometry: a .prm states none at all, so the kind, the sample "
-            "displacement and transparency and the specimen absorption stay "
-            "here and reading this file back gives debye_scherrer.  S/L and "
-            "H/L are the two geometry numbers that do cross"]
+            "The geometry, the specimen displacement and transparency and "
+            "the specimen absorption were not written, so reading this file "
+            "back gives debye_scherrer. S/L and H/L are the two geometry "
+            "numbers that do cross."]
         if profile.shape != "tchz_pv":
             clauses.append(
-                f"the peak shape: this profile is {profile.shape!r} and GSAS's "
-                f"PRCF type 3 is a pseudo-Voigt with no Voigt option, so the "
-                f"widths cross and the shape model becomes the target's")
+                f"The peak shape is {profile.shape!r}. PRCF type 3 cannot "
+                f"state it, so the widths were written and the shape model "
+                f"was not.")
         if instrument.extra_components:
             clauses.append(
-                f"{len(instrument.extra_components)} extra component(s), which "
-                f"belong to a specimen rather than to a goniometer and which "
-                f"this format cannot state")
+                f"{len(instrument.extra_components)} extra component(s) were "
+                f"not written.")
         if any(p.vary for p in _iter_parameters(instrument)):
             clauses.append(
-                "every refine flag: an instrument-parameter file is a "
-                "calibration rather than a starting guess, so the PRCF "
-                "header's flag columns are blank and read_gsas_prm returns "
-                "everything vary=False")
+                "The PRCF header's flag columns are blank, so every refine "
+                "flag reads back as vary=False.")
         diagnostics.append(Diagnostic(
             level="warning", code="GSAS_PRM_FIELD_NOT_WRITTEN",
-            message=("a GSAS-I .prm cannot state: " + "; ".join(clauses)),
+            message="The .prm omits part of the instrument. " + " ".join(clauses),
             where=["instrument.geometry"]))
     return "\r\n".join(cards) + "\r\n"
 
@@ -1573,22 +1553,17 @@ def _instprm_reports(items: dict[str, str], read: list[str],
         diagnostics.append(Diagnostic(
             level="warning", code="GSAS2_INSTPRM_VALUE_DEFAULTED",
             message=(
-                f"this file states no {', '.join(absent)}, so "
+                f"This file states no {', '.join(absent)}, so "
                 f"{'those came' if len(absent) > 1 else 'that came'} back at "
-                f"this package's own default rather than from the file.  "
-                f"GSAS-II writes every item of a bank and its header says not "
-                f"to delete any, so a missing one is a hand-edited file"),
+                f"this package's own default."),
             where=["instrument.profile"]))
     if geometry.axial_sl.value:
         half = geometry.axial_sl.value
         diagnostics.append(Diagnostic(
             level="info", code="GSAS2_INSTPRM_CONVENTION_ASSUMED",
             message=(
-                f"SH/L = {2.0 * half:g} is GSAS-II's combined (S+H)/L; it is "
-                f"split evenly into axial_sl = axial_hl = {half:g}, the "
-                f"symmetric Finger-Cox-Jephcoat reading.  A single number "
-                f"admits no other, and rietx's read_recipe makes the same "
-                f"split for the same field"),
+                f"SH/L = {2.0 * half:g} is GSAS-II's combined (S+H)/L. It was "
+                f"split evenly into axial_sl = axial_hl = {half:g}."),
             where=["instrument.geometry.axial_sl",
                    "instrument.geometry.axial_hl"],
             value=half))
@@ -1596,34 +1571,27 @@ def _instprm_reports(items: dict[str, str], read: list[str],
         diagnostics.append(Diagnostic(
             level="warning", code="GSAS2_INSTPRM_GEOMETRY_ASSUMED",
             message=(
-                f"this file states no Diff-type, so its geometry came back "
-                f"{geometry.kind} — GSAS-II's own fallback, which reads a "
-                f"stated doublet as Bragg-Brentano and anything else as "
-                f"Debye-Scherrer.  It was not read from the file, and the two "
-                f"geometries differ in more than a name: the position "
-                f"correction is a different function and the absorption "
-                f"corrections have different off states (mu_r = 0 against "
-                f"mu_t = inf)"),
+                f"This file states no Diff-type, so its geometry was not read "
+                f"from the file. It came back {geometry.kind}, GSAS-II's own "
+                f"fallback."),
             where=["instrument.geometry.kind"],
-            suggestion=("set geometry.kind yourself if you know the "
-                        "diffractometer; carry geometry.axial_sl and "
-                        "axial_hl over first, since SH/L was read from this "
-                        "file and a fresh Geometry starts at 0 for both")))
+            suggestion=("Set geometry.kind if you know the diffractometer. "
+                        "Carry geometry.axial_sl and axial_hl over first, "
+                        "because a fresh Geometry starts at 0 for both.")))
     not_read = [k for k in items if k not in read]
     if not_read:
         why = {
-            "Bank": "the bank number, which names a detector rather than "
-                    "describing one",
-            "Polariz.": ("inert on a neutron bank in both packages: GSAS-II "
-                         "applies the polarization factor only to an XC or XB "
-                         "type, and NeutronSource pins K = 1"),
-            "InstrName": "a name, which Instrument has no field for",
+            "Bank": "the bank number",
+            "Polariz.": ("inert on a neutron bank, since GSAS-II applies it "
+                         "to an XC or XB type only and NeutronSource pins "
+                         "K = 1"),
+            "InstrName": "a name",
             "Diff-type": "not one of the two sample types GSAS-II names",
         }
         clauses = [f"{k} ({why[k]})" if k in why else k for k in not_read]
         diagnostics.append(Diagnostic(
             level="info", code="GSAS2_INSTPRM_FIELD_NOT_READ",
-            message=("this file states items this Instrument has no place "
+            message=("This file states items the Instrument has no place "
                      "for: " + ", ".join(clauses)),
             where=["instrument"]))
 
@@ -1839,10 +1807,9 @@ def _instprm_write_reports(instrument: Instrument, shl: float,
             level="warning", code="GSAS2_INSTPRM_VALUE_MERGED",
             message=(
                 f"axial_sl = {geometry.axial_sl.value:g} and axial_hl = "
-                f"{geometry.axial_hl.value:g} are written as one SH/L = "
-                f"{shl:g}, GSAS-II modelling their sum.  Reading this file "
-                f"back splits it evenly, so the pair comes home as "
-                f"{0.5 * shl:g} twice"),
+                f"{geometry.axial_hl.value:g} were written as one SH/L = "
+                f"{shl:g}. Reading this file back gives {0.5 * shl:g} for "
+                f"each."),
             where=["instrument.geometry.axial_sl",
                    "instrument.geometry.axial_hl"],
             value=shl))
@@ -1850,38 +1817,29 @@ def _instprm_write_reports(instrument: Instrument, shl: float,
         diagnostics.append(Diagnostic(
             level="warning", code="GSAS2_INSTPRM_VALUE_FLOORED",
             message=(
-                f"SH/L = {shl:g} is written as it stands and GSAS-II floors it "
-                f"at {INSTPRM_SHL_FLOOR} when it evaluates a profile, so the "
-                f"axial divergence this file describes is not the one that "
-                f"program will model.  A round trip through rietx cannot show "
-                f"it: the floor is the reader's, not the file's"),
+                f"SH/L = {shl:g} was written as it stands, and GSAS-II floors "
+                f"it at {INSTPRM_SHL_FLOOR} when it evaluates a profile."),
             where=["instrument.geometry.axial_sl"],
             value=shl))
     clauses = [
-        "the background, which belongs to a measurement rather than to a "
-        "goniometer and which this format has no items for",
-        "the specimen absorption, the sample displacement and the "
-        "transparency, for the same reason: GSAS-II keeps those in its own "
-        "sample parameters rather than in an instrument file",
+        "An .instprm has no items for the background, the specimen "
+        "absorption, the specimen displacement or the transparency.",
     ]
     if profile.shape != "tchz_pv":
         clauses.append(
-            f"the peak shape: this profile is {profile.shape!r} and GSAS-II's "
-            f"constant-wavelength function is a TCH pseudo-Voigt with no Voigt "
-            f"option, so the widths cross and the shape model becomes the "
-            f"target's")
+            f"The peak shape is {profile.shape!r}. An .instprm cannot state "
+            f"it, so the widths were written and the shape model was not.")
     if instrument.extra_components:
         clauses.append(
-            f"{len(instrument.extra_components)} extra component(s), which "
-            f"belong to a specimen rather than to a goniometer")
+            f"{len(instrument.extra_components)} extra component(s) were not "
+            f"written.")
     if any(p.vary for p in _iter_parameters(instrument)):
         clauses.append(
-            "every refine flag: an .instprm states none, a calibration having "
-            "refined nothing by the time it ships, so read_gsas2_instprm "
-            "returns everything vary=False")
+            "An .instprm states no refine flags, so every refine flag reads "
+            "back as vary=False.")
     diagnostics.append(Diagnostic(
         level="warning", code="GSAS2_INSTPRM_FIELD_NOT_WRITTEN",
-        message="a GSAS-II .instprm cannot state: " + "; ".join(clauses),
+        message="The .instprm omits part of the instrument. " + " ".join(clauses),
         where=["instrument"]))
 
 

@@ -1511,8 +1511,8 @@ def test_a_recoverable_coordinate_tie_restores_on_the_dof_path(tmp_path):
     assert reported[0].level == "warning"
     assert reported[0].where == ["phases.0"]
     assert "drop_parameter_ties=True:" not in reported[0].message
-    # The message must name the DOF spelling, because the column one raises.
-    assert "dof.k" in reported[0].message
+    # The suggestion must name the DOF spelling, because the column one raises.
+    assert "dof.k" in reported[0].suggestion
 
     instrument = rx.Instrument(source=NeutronSource(wavelength=1.5406))
     # The path a reader would copy out of the group description is refused...

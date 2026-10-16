@@ -321,6 +321,28 @@ def pre_html(text: str) -> str:
     return f"<pre>{escape(text)}</pre>"
 
 
+def diagnostics_html(diagnostics, context: str | None = None) -> str:
+    """Each diagnostic as a ``<details>``: the headline shown, the rest folded.
+
+    The summary is ``str(d)``'s first line.  The fold holds what the text form
+    prints under it (``at:``, ``help:``) and the code's explanation, which
+    the text form leaves out because it is the same for every finding
+    (WP-1985).  ``context`` names what the findings are about, such as one
+    indexing candidate.
+    """
+    from html import escape
+    parts = []
+    for d in diagnostics:
+        head, *rest = str(d).splitlines()
+        if context:
+            rest.insert(0, f"  on: {context}")
+        body = "".join(f"<p>{escape(line.strip())}</p>" for line in rest)
+        if d.explanation:
+            body += f"<p>{escape(d.explanation)}</p>"
+        parts.append(f"<details><summary>{escape(head)}</summary>{body}</details>")
+    return "".join(parts)
+
+
 # ---------------------------------------------------------------------------
 # Refinement (not a schema, so it has no tree)
 # ---------------------------------------------------------------------------

@@ -35,7 +35,7 @@ ARMS = (
     "stage_fields",
     "plans",
     "peak_flags",
-    "peak_diagnostics",
+    "diagnostics",
     "peak_origins",
     "reader_options",
     "instrument_fields",

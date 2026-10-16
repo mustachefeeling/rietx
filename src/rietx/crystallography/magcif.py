@@ -527,11 +527,9 @@ def read_magnetic_symmetry(block, text: str, path: str, *,
                 message=(f"{path} states no "
                          f"_space_group_symop_magn_centering.xyz loop, so the "
                          f"magnetic group is its operation list with the "
-                         f"trivial centring x,y,z,+1 alone"),
-                suggestion=("if the group has a centring or an anti-centring "
-                            "(a translation with time reversal, x,y,z+1/2,-1), "
-                            "add the loop: without it this is a different "
-                            "magnetic group")))
+                         f"trivial centring x,y,z,+1 alone."),
+                suggestion=("Add the loop if the group has a centring or an "
+                            "anti-centring (for example x,y,z+1/2,-1).")))
     found = None
     try:
         found = identify(MagneticGroup.from_xyz(operations, centerings))
@@ -589,7 +587,7 @@ def _check_stated_numbers(found, bns: str | None, og: str | None,
     if diagnostics is not None:
         named = "; ".join(f"_space_group_magn.{tag} {s!r} against {d!r}"
                           for tag, (s, d) in wrong.items())
-        dropped = (f", and the stated name_BNS {symbol!r} is dropped with it"
+        dropped = (f" and the stated name_BNS {symbol!r} is dropped"
                    if symbol is not None else "")
         diagnostics.append(Diagnostic(
             level="warning", code="CIF_MAGNETIC_NUMBER_MISMATCH",
@@ -597,17 +595,11 @@ def _check_stated_numbers(found, bns: str | None, og: str | None,
             message=(f"{path} states a magnetic group its own operators are "
                      f"not: {named} (the operators' own, BNS "
                      f"{found.bns_number}, UNI {found.uni_number}). The "
-                     f"operators are what is refined, so their numbers are "
-                     f"stored{dropped}"),
+                     f"operators' numbers are stored{dropped}."),
             suggestion=(
-                "one of the two is wrong and the file cannot say which: a "
-                "mistyped number leaves the operators right, but an "
-                "incomplete operator or centring loop (this file lists "
-                f"{n_centerings} centring translation"
-                f"{'' if n_centerings == 1 else 's'}; a forgotten "
-                "anti-centring such as x,y,z+1/2,-1 halves the group) makes "
-                "the operators a different group. Check the loops against "
-                "the source of the file")))
+                "Check the operator and centring loops against the source "
+                f"of the file (this file lists {n_centerings} centring "
+                f"translation{'' if n_centerings == 1 else 's'}).")))
     return found.bns_number, found.og_number, None
 
 
@@ -1006,20 +998,12 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
                 where=["phases.0.space_group"], value=float(index),
                 message=(
                     f"{path}: positions refine under {sg.xhm()!r}, "
-                    f"{relation}; moments under {moments}. {hm_symbol!r} is "
-                    f"the parent the file names, and it contains the file's "
-                    f"magnetic operators with time reversal dropped and "
-                    f"gives every listed site the same orbit they do, so it "
-                    f"is the highest tabulated group the file's atoms "
-                    f"satisfy."),
+                    f"{relation}; moments under {moments}. The parent the "
+                    f"file names is {hm_symbol!r}."),
                 suggestion=(
-                    "nothing to change where the parent is the structure's "
-                    "nuclear symmetry; Structure.from_cif(..., "
-                    "nuclear_group='file') refines the positions under the "
-                    "file's own group instead"
-                    if index != 1 else
-                    "nothing to change: the parent and the file's own group "
-                    "are the same operations")))
+                    "Pass nuclear_group='file' to Structure.from_cif to "
+                    "refine the positions under the file's own group."
+                    if index != 1 else None)))
         return sg
     if mismatch is not None:
         why = (f"site {mismatch[0]!r} has {mismatch[1]} images under "
@@ -1048,13 +1032,10 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
                 where=["phases.0.space_group"],
                 message=(
                     f"{path}: positions refine under {taken.xhm()!r}, the "
-                    f"file's own group — the tabulated setting whose "
-                    f"operations are exactly this file's magnetic operators "
-                    f"with time reversal dropped — and not under the parent "
+                    f"file's own group, instead of the parent "
                     f"{hm_symbol!r} it names, because {why}; moments under "
                     f"{moments}."),
-                suggestion="the file is read in the group and setting its "
-                           "own operators state: nothing to change here"))
+                suggestion=None))
         return taken
     unnamed = _unnamed_nuclear_group(own_triplets, path, why)
     if diagnostics is not None:
@@ -1064,17 +1045,13 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
             message=(
                 f"{path}: positions refine under the file's own group, "
                 f"carried as its own list of {len(unnamed.xyz)} operations "
-                f"under {unnamed.label!r} — the file's magnetic operators "
-                f"with time reversal dropped, in a setting (an origin or axis "
-                f"choice) no tabulated symbol names — and not under the "
-                f"parent {hm_symbol!r} it names, because {why}; moments under "
-                f"{moments}."),
+                f"under {unnamed.label!r} (no tabulated symbol names this "
+                f"setting), instead of the parent {hm_symbol!r} it names, "
+                f"because {why}; moments under {moments}."),
             suggestion=(
-                "the file is read in the group and setting its own operators "
-                "state; the bracketed label names the closest type and "
-                "Phase.symmetry_operations is the group, so a writer whose "
-                "format states a group only as a symbol refuses this phase "
-                "(a CIF carries the list)")))
+                "Write this phase to a CIF. A CIF carries the operation "
+                "list, and a format that states a group only as a symbol "
+                "refuses it.")))
     return unnamed
 
 
@@ -1823,11 +1800,10 @@ def magnetic_diagnostics(path: str, moments, magnetic, atoms_by_label,
                 where=[f"phases.0.atoms.{index}.moment.ion"],
                 message=(f"{path} states no oxidation state for the magnetic "
                          f"site {label!r}, and this table has no neutral-atom "
-                         f"⟨j0⟩ for {element!r}; its form factor defaulted to "
-                         f"{assumed_ion!r} ({reason})"),
-                suggestion=(f"pass moment_ions={{{label!r}: '<ion>'}} to "
-                            f"Structure.from_cif to state the ion explicitly "
-                            f"and silence this default")))
+                         f"⟨j0⟩ for {element!r}. Its form factor defaulted to "
+                         f"{assumed_ion!r} ({reason})."),
+                suggestion=(f"Pass moment_ions={{{label!r}: '<ion>'}} to "
+                            f"Structure.from_cif to state the ion.")))
             if label in assumed_g:
                 g_value = assumed_g[label]
                 out.append(Diagnostic(
@@ -1835,12 +1811,11 @@ def magnetic_diagnostics(path: str, moments, magnetic, atoms_by_label,
                     where=[f"phases.0.atoms.{index}.moment.g"],
                     value=g_value,
                     message=(f"{path} states no Landé g for the magnetic site "
-                             f"{label!r}, and {assumed_ion!r} is itself an "
-                             f"assumed ion needing one; its free-ion "
-                             f"Hund's-rule g_J = {g_value:g} was used"),
-                    suggestion=(f"pass moment_g={{{label!r}: {g_value:g}}} to "
-                                f"Structure.from_cif to state g explicitly "
-                                f"and silence this default")))
+                             f"{label!r}. The assumed ion {assumed_ion!r} "
+                             f"needs one, so its free-ion Hund's-rule "
+                             f"g_J = {g_value:g} was used."),
+                    suggestion=(f"Pass moment_g={{{label!r}: {g_value:g}}} to "
+                                f"Structure.from_cif to state g.")))
         elif re.fullmatch(r"[A-Za-z]{1,2}", moment.ion):
             from .magnetic.form_factor import magnetic_ions
 
@@ -1851,28 +1826,23 @@ def magnetic_diagnostics(path: str, moments, magnetic, atoms_by_label,
                 where=[f"phases.0.atoms.{index}.moment.ion"],
                 message=(f"{path} states no oxidation state for the magnetic "
                          f"site {label!r}, so its form factor is the neutral "
-                         f"atom {moment.ion!r}"),
-                suggestion=(f"magCIF has no item for the magnetic ion; pass "
-                            f"moment_ions={{{label!r}: '<ion>'}} to state it. "
-                            f"This table also carries "
-                            f"{', '.join(near)} for {moment.ion}"
+                         f"atom {moment.ion!r}."),
+                suggestion=(f"Pass moment_ions={{{label!r}: '<ion>'}} to "
+                            f"state the ion. This table carries "
+                            f"{', '.join(near)} for {moment.ion}."
                             if near else
-                            "magCIF has no item for the magnetic ion; pass "
-                            "moment_ions= to state it")))
+                            "Pass moment_ions= to state the ion.")))
         if row.get("magnitude_su") is not None:
             out.append(Diagnostic(
                 level="info", code="CIF_MAGNETIC_MAGNITUDE_ESD_NOT_STORED",
                 where=[f"phases.0.atoms.{index}.moment"],
                 value=parse_su(row["magnitude_su"])[0],
                 message=(f"{path} states _atom_site_moment.magnitude_su = "
-                         f"{row['magnitude_su']} mu_B for site {label!r}; a "
-                         f"Structure has nowhere to put it and it is not "
-                         f"carried"),
-                suggestion="the esd of a moment's modulus is a property of the "
-                           "fit that produced it, not of the structure: rietx "
-                           "keeps it in FitReport.magnetic[i].magnitude_esd, "
-                           "written back into this tag by the refinement "
-                           "exporter"))
+                         f"{row['magnitude_su']} mu_B for site {label!r}. A "
+                         f"Structure has nowhere to put it, so it is not "
+                         f"carried."),
+                suggestion="Read the refined esd from "
+                           "FitReport.magnetic[i].magnitude_esd."))
         dropped = _spherical_su_dropped(row)
         if dropped:
             out.append(Diagnostic(
@@ -1880,13 +1850,10 @@ def magnetic_diagnostics(path: str, moments, magnetic, atoms_by_label,
                 where=[f"phases.0.atoms.{index}.moment"],
                 message=(f"{path} states site {label!r}'s moment in the "
                          f"spherical form only, with standard uncertainties "
-                         f"({'; '.join(dropped)}); the conversion to "
-                         f"crystal-axis components is nonlinear, so they are "
-                         f"not propagated and the components carry no esd"),
-                suggestion="a component's stderr of None here means the file's "
-                           "su was not carried, not that the moment was not "
-                           "refined; restate the row in the crystal-axis or "
-                           "Cartesian form, whose su this reader keeps"))
+                         f"({'; '.join(dropped)}). They are not propagated, "
+                         f"so the crystal-axis components carry no esd."),
+                suggestion="Restate the row in the crystal-axis or Cartesian "
+                           "form, whose su this reader keeps."))
         symmform = row.get("symmform")
         if symmform:
             stated = symmform_rank(symmform)
@@ -1901,22 +1868,17 @@ def magnetic_diagnostics(path: str, moments, magnetic, atoms_by_label,
                 message=(f"{path} states symmform {symmform!r} for site "
                          f"{label!r} ({'unreadable' if stated is None else stated} "
                          f"free parameter"
-                         f"{'' if stated == 1 else 's'}); the subspace derived "
-                         f"from this file's own operators has {derived}"),
-                suggestion=("rietx constrains a moment from the operator list, "
-                            "not from symmform, so symmform is carried as a "
-                            "record only" if level == "info" else
-                            "the two disagree: check that the operator loop and "
-                            "the symmform in this file describe the same site "
-                            "symmetry, because rietx will refine under the "
-                            "operators")))
+                         f"{'' if stated == 1 else 's'}). The subspace derived "
+                         f"from this file's own operators has {derived}."),
+                suggestion=(None if level == "info" else
+                            "Check that the operator loop and the symmform in "
+                            "this file describe the same site symmetry.")))
     if magnetic.uni_number is None:
         out.append(Diagnostic(
             level="info", code="CIF_MAGNETIC_UNIDENTIFIED",
             where=["phases.0.magnetic_symmetry.uni_number"],
             message=(f"{path}'s operator list did not resolve to one of the "
                      f"1651 magnetic space groups in spglib's database, so no "
-                     f"UNI number is recorded"),
-            suggestion="the operator list is the model and is unaffected; the "
-                       "number is metadata"))
+                     f"UNI number is recorded."),
+            suggestion=None))
     return out

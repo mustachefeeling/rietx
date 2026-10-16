@@ -304,10 +304,8 @@ def microabsorption_diagnostics(qpa: QuantitativePhaseAnalysis) -> list[Diagnost
             level="warning", code="MICROABSORPTION_SKIPPED",
             where=[r.name for r in qpa.phases],
             message=qpa.microabsorption_skipped,
-            suggestion="supply particle_radius_um on every phase (from a "
-                       "micrograph or particle-size analysis, not from "
-                       "profile broadening) and use a wavelength inside the "
-                       "attenuation tables",
+            suggestion="Supply particle_radius_um on every phase, and use a "
+                       "wavelength inside the attenuation tables.",
         ))
         return out
     offenders = [r for r in qpa.phases
@@ -318,14 +316,10 @@ def microabsorption_diagnostics(qpa: QuantitativePhaseAnalysis) -> list[Diagnost
             level="warning", code="BRINDLEY_OUTSIDE_REGIME",
             where=[r.name for r in offenders],
             message=(f"µ·R exceeds Brindley's medium-powder limit of "
-                     f"{BRINDLEY_MU_R_FENCE} (= µ·D of 0.1) for {listing}; the "
-                     "particle-absorption correction is being applied outside "
-                     "the regime it is derived for, and the corrected "
-                     "fractions may be further from the truth than the "
-                     "uncorrected ones"),
-            suggestion="grind the sample finer, use a shorter wavelength "
-                       "(µ ∝ λ³), or quote the uncorrected fractions with "
-                       "microabsorption named as an unquantified systematic",
+                     f"{BRINDLEY_MU_R_FENCE} (= µ·D of 0.1) for {listing}."),
+            suggestion="Grind the sample finer, use a shorter wavelength, or "
+                       "quote the uncorrected fractions with microabsorption "
+                       "named as an unquantified systematic.",
         ))
     return out
 
@@ -576,25 +570,24 @@ def _apply_microabsorption(qpa: QuantitativePhaseAnalysis, structure: Structure,
     if missing:
         qpa.microabsorption_skipped = (
             "Brindley correction skipped: no particle_radius_um on phase(s) "
-            f"{', '.join(missing)} — τ compares each phase to the mixture "
-            "average, so every phase needs a radius")
+            f"{', '.join(missing)}.")
         return
     if wavelength is None:
         qpa.microabsorption_skipped = (
             "Brindley correction skipped: no wavelength available to evaluate "
-            "attenuation coefficients")
+            "attenuation coefficients.")
         return
     attenuation = LINEAR_ATTENUATION_BY_SOURCE.get(source_kind)
     if attenuation is None:
         qpa.microabsorption_skipped = (
             f"Brindley correction skipped: no attenuation table for a "
-            f"{source_kind!r} source")
+            f"{source_kind!r} source.")
         return
     try:
         mus = [attenuation(z, wavelength) for z in zmvs]
     except (KeyError, ValueError) as exc:
         qpa.microabsorption_skipped = (
-            f"Brindley correction skipped: attenuation unavailable — {exc}")
+            f"Brindley correction skipped: attenuation unavailable ({exc}).")
         return
     w_corr, taus, mu_bar = brindley_correction(
         w, [z.density for z in zmvs], mus, radii)

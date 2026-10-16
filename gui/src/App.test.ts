@@ -62,7 +62,7 @@ const HELP = {
                      unit: null, default: null, typical: null, anchor: null,
                      label: "not separable" },
   },
-  peak_diagnostics: {},
+  diagnostics: {},
   peak_origins: {
     manual: { title: "Placed by a person", description: "Someone added this line.",
               unit: null, default: null, typical: null, anchor: null, label: "manual" },

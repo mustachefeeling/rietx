@@ -340,8 +340,8 @@ def test_a_half_translation_along_the_doubled_axis_is_stated_as_an_operator_list
     # relative to the returned phase: the statement cannot know its index
     assert note.where == ["space_group"]
     assert "2a,b,c" in note.message
-    assert "quarter" in note.message
-    assert "site orbits" in note.message
+    assert "its own 4 symmetry operations" in note.message
+    assert "metric constraints" in note.message
 
 
 def test_the_parent_route_is_refused_when_the_magnetic_orbit_is_smaller():

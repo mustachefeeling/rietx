@@ -884,11 +884,10 @@ def from_structure_refined(structure, *, free: Any = None, scale: str | None = N
                     diagnostics.append(Diagnostic(
                         level="info", code="TOPAS_PHASE_RESTATED_IN_P1",
                         where=[f"phases.{ip}"],
-                        message=(f"phase {phase.name!r}: TOPAS has no "
-                                 f"mag_space_group for it as it stands (a k ≠ 0 "
-                                 f"supercell, an untabulated family group or a "
-                                 f"non-standard setting), so it is written in P1, "
-                                 f"every copy tied to the parameter it copies")))
+                        message=(f"Phase {phase.name!r} has no mag_space_group "
+                                 f"in TOPAS as it stands, so it was written "
+                                 f"in P1 with every copy tied to the "
+                                 f"parameter it copies.")))
         if not want_p1 and not neutron:
             _magnetic_group_line(phase)    # main's refusal of a species ≠ ion
         if want_p1:

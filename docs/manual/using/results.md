@@ -797,11 +797,14 @@ absorbs runs 1.06 to 1.5× the predicted one, tracking
 
 `RefinementResult.diagnostics` is the channel for "your answer is wrong although
 Rwp is fine". Each entry is a `Diagnostic` with a `Diagnostic.code`, a
-`Diagnostic.level`, a human-readable `Diagnostic.message`, a
-`Diagnostic.suggestion`, `Diagnostic.where` naming the parameter paths
-involved, and `Diagnostic.value` carrying the headline number where the
-diagnostic has one (a correlation's ρ, an absorption's block R²). `None`
-means "no single number", not zero.
+`Diagnostic.level`, a `Diagnostic.message` saying what this case found, a
+`Diagnostic.suggestion` saying what to do, `Diagnostic.where` naming the
+parameter paths involved, and `Diagnostic.value` carrying the headline number
+where the diagnostic has one (a correlation's ρ, an absorption's block R²).
+`None` means "no single number", not zero. `Diagnostic.explanation` says what
+the code means and why it fires. It is the same for every finding with that
+code, so it is looked up in `rietx.help.DIAGNOSTIC_HELP` rather than stored,
+and it is `None` for a code this version does not describe.
 
 The codes are an open vocabulary, deliberately: a new correction ships with the
 diagnostic that states what it changed. Read them before the statistics, every

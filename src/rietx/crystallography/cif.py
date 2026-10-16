@@ -92,13 +92,10 @@ def _correct_symmetry_angles(sg, angles: dict[str, float], path: str,
                 where=[f"phases.0.cell.{name}"],
                 message=(f"{path} stores {name} = {angles[name]}° under space "
                          f"group {sg.xhm()!r}, whose symmetry fixes it at "
-                         f"{target}°; read as {target}° "
-                         f"({delta:+.6g}° corrected)"),
-                suggestion="the deviation is information about the specimen or "
-                           "the refinement that produced this file, not noise: "
-                           "if it is real, the symmetry is lower than the "
-                           "symbol claims and the phase wants the space group "
-                           "that leaves this angle free",
+                         f"{target}°. It was read as {target}° "
+                         f"({delta:+.6g}° corrected)."),
+                suggestion="If the deviation is real, give the phase a space "
+                           "group that leaves this angle free.",
             ))
     return out
 
@@ -386,15 +383,11 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
                 message=(
                     f"{path}: site {atom.label!r} at "
                     f"{[round(float(v), 6) for v in xyz]} puts {tight.multiplicity} "
-                    f"atoms in the cell in pairs {gap:.2g} Å apart; it is read "
-                    f"on the special "
-                    f"position {[round(v, 6) for v in snapped]}, "
-                    f"{loose.multiplicity} atoms, which is what the file's "
-                    f"coordinates miss by their rounding"),
-                suggestion=("check the coordinates against the source: a "
-                            "special-position relation (x, 2x, z) printed "
-                            "with one coordinate rounded is the usual "
-                            "cause")))
+                    f"atoms in the cell in pairs {gap:.2g} Å apart. It was read "
+                    f"on the special position "
+                    f"{[round(v, 6) for v in snapped]} "
+                    f"({loose.multiplicity} atoms)."),
+                suggestion="Check the coordinates against the source."))
     return out
 
 
@@ -513,13 +506,12 @@ def _drop_listed_twice(path, cell, atoms, twice, moment_labels, diagnostics,
                 level="warning", code="CIF_SITE_LISTED_TWICE",
                 where=[atoms[i].label],
                 message=(f"{what}, with the same occupancy"
-                         f"{' and the image moment' if has_moment else ''}: "
-                         f"the file lists that orbit twice, which would count "
-                         f"every atom of it twice, so {b.label!r} is dropped"),
-                suggestion=("nothing to change if the two labels are one "
-                            "site; if they are meant as two sites, their "
-                            "coordinates are closer than any two atoms can "
-                            "be")))
+                         f"{' and the image moment' if has_moment else ''}. "
+                         f"The file lists that orbit twice, so {b.label!r} "
+                         f"was dropped."),
+                suggestion=("Keep the file if the two labels are one site. "
+                            "Otherwise check their coordinates against the "
+                            "source.")))
     return dropped
 
 
@@ -890,14 +882,11 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
                         message=(
                             f"{path}: site {label!r}'s moment "
                             f"{[round(v, 6) for v in before]} mu_B lies off "
-                            f"the subspace its site symmetry allows by no more "
-                            f"than the file's printed precision, and was put "
-                            f"on it: {[round(v, 6) for v in components]} "
-                            f"(largest component moved {shift:.2g} mu_B)"),
-                        suggestion=(
-                            "nothing to change: the file printed the "
-                            "components to fewer decimals than the symmetry "
-                            "relation between them needs")))
+                            f"the subspace its site symmetry allows, within "
+                            f"the file's printed precision. It was moved onto "
+                            f"it: {[round(v, 6) for v in components]} "
+                            f"(largest component moved {shift:.2g} mu_B)."),
+                        suggestion=None))
             # The ion is the one quantity a magCIF cannot state (there is no
             # such item in ``cif_mag.dic``), so it falls back on the site's own
             # type symbol and ``magnetic_diagnostics`` reports that it did. A
@@ -948,8 +937,8 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
         for raw, (canonical, note, labels) in rewrites.items():
             diagnostics.append(Diagnostic(
                 level="info", code="CIF_SPECIES_NORMALISED",
-                message=(f"species {raw!r} in {path} read as "
-                         f"{canonical!r} ({note})"),
+                message=(f"Species {raw!r} in {path} was read as "
+                         f"{canonical!r} ({note})."),
                 where=[f"phases.0.atoms.{index[label]}.species"
                        for label in labels if label in index]))
         diagnostics.extend(snap_diagnostics(
@@ -1118,15 +1107,11 @@ def _snap_to_stated_multiplicity(sg, atoms: list[Atom], stated: dict[str, dict],
             level="warning", code="SITE_SNAPPED_TO_SPECIAL_POSITION",
             where=[w for *_, w in moved],
             message=(f"{len(moved)} site(s) in {path} state a multiplicity "
-                     f"their coordinates did not reach, and were moved onto "
-                     f"the special position that does: {named}. Largest shift "
-                     f"{max(s for _, s, _, _ in moved):.2e} in fractional "
-                     f"coordinates"),
-            suggestion="the stored coordinates are now the special position's "
-                       "own, as the file's `_atom_site_symmetry_multiplicity` "
-                       "(or Wyckoff symbol) states; each coordinate of the "
-                       "file was rounded on its own, so the shift is within "
-                       "what its quoted precision allows"))
+                     f"their coordinates did not reach and were moved onto "
+                     f"the special position that does: {named}. The largest "
+                     f"shift is {max(s for _, s, _, _ in moved):.2e} in "
+                     f"fractional coordinates."),
+            suggestion="Check these multiplicities against the source file."))
     if disagree:
         named = ", ".join(f"{lbl} (file {want}, computed {have})"
                           for lbl, want, have, _ in disagree[:4])
@@ -1139,12 +1124,9 @@ def _snap_to_stated_multiplicity(sg, atoms: list[Atom], stated: dict[str, dict],
                      f"that differs from the one their coordinates give under "
                      f"the stated space group, and moving them by at most "
                      f"{CIF_STATED_MULTIPLICITY_SNAP_TOL:g} does not reach it: "
-                     f"{named}"),
-            suggestion="the coordinates and the stated multiplicity (or the "
-                       "space group's setting) tell different things, and the "
-                       "number of atoms in the cell, hence ZMV and every "
-                       "weight fraction, follows the coordinates. Check the "
-                       "setting and the site against the source"))
+                     f"{named}."),
+            suggestion="Check the space group setting and these sites against "
+                       "the source file."))
     return out
 
 

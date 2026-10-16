@@ -2093,26 +2093,19 @@ def _size_sharing_diagnostics(mtable) -> list[Diagnostic]:
             level="info", code="SIZE_NORMALISED_ACROSS_WAVELENGTHS",
             where=[path], value=float(max(factors) / min(factors)),
             message=(
-                f"{path} is a size term, which goes as {power}, and this joint "
+                f"{path} is a size term that goes as {power}, and this joint "
                 f"fit spans λ = {min(lams):.5g}-{max(lams):.5g} Å. The shared "
-                f"column is therefore the coefficient at λ = {ref:.5g} Å "
-                f"(histogram 0), and each histogram's own copy carries "
+                f"column is the coefficient at λ = {ref:.5g} Å "
+                f"(histogram 0). Each histogram's own copy carries "
                 f"{', '.join(f'{f:.4g}' for f in factors)}× it respectively: "
                 f"{', '.join(f'{v:.6g}' for v in values)} deg"
-                f"{'²' if term.startswith('gauss') else ''}. The specimen "
-                f"quantity being shared is the crystallite size, not the "
-                f"number of degrees — one number, {len(values)} coefficients"),
+                f"{'²' if term.startswith('gauss') else ''}."),
             suggestion=(
-                "nothing to do: this is what makes one specimen one size across "
-                "wavelengths, and a joint fit that shared the degrees instead "
-                "would land the two histograms' implied sizes a factor "
-                f"{max(lams) / min(lams):.4g} apart. Read the size rather than "
-                "the coefficient (rietx.model.profiles.caglioti."
-                "apparent_size_from_size_coefficient with each histogram's own "
-                "λ — they agree by construction). To refine an independent size "
-                "per histogram instead, say so: "
+                "Read the size with rietx.model.profiles.caglioti."
+                "apparent_size_from_size_coefficient and each histogram's own "
+                "λ. To refine an independent size per histogram, use "
                 'SharingMap(per_histogram=["phases.*.lor_size", '
-                '"phases.*.gauss_size"])'),
+                '"phases.*.gauss_size"]).'),
         ))
     return out
 
@@ -2145,14 +2138,12 @@ def _parametric_range_diagnostics(mtable) -> list[Diagnostic]:
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_OUT_OF_RANGE",
             where=[f"hist.{h}.{r.target}" for h, *_ in bad], value=float(len(bad)),
-            message=(f"parametric equation {r.name!r} puts {r.target} outside its own "
+            message=(f"Parametric equation {r.name!r} puts {r.target} outside its own "
                      f"bounds in {len(bad)} of {len(r.patterns)} patterns: "
-                     f"{shown}{more}. The coefficients are unbounded, so no bound "
-                     "the solve saw held the dependent"),
-            suggestion=("do not quote the dependent there as a measurement: "
-                        "narrow the subset to where the form holds, lower the "
+                     f"{shown}{more}."),
+            suggestion=("Narrow the subset to where the form holds, lower the "
                         "polynomial's order, or declare a design basis that "
-                        "stays inside the range")))
+                        "stays inside the range.")))
     return out
 
 
@@ -2221,22 +2212,20 @@ def _parametric_unseen_diagnostics(mtable, unseen: dict[str, frozenset[int]]
         more = f" and {len(blind) - 10} more" if len(blind) > 10 else ""
         # with every pattern blind there is no seeing pattern to carry the equation
         # from: the coefficients are held where they started (WP-1301)
-        whence = ("carried from the patterns that see the phase" if
+        whence = ("carried from the patterns that see the phase." if
                   len(blind) < len(r.patterns) else
-                  "and no pattern of the subset sees the phase, so the equation itself "
-                  "is not measured")
+                  "so the equation itself is not measured: no pattern of the "
+                  "subset sees the phase.")
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_TARGET_UNSEEN",
             where=[f"hist.{h}.{r.target}" for h in blind], value=float(len(blind)),
-            message=(f"parametric equation {r.name!r} sets {r.target} in {len(blind)} of "
+            message=(f"Parametric equation {r.name!r} sets {r.target} in {len(blind)} of "
                      f"its {len(r.patterns)} patterns that cannot see its phase "
                      f"(histograms {shown}{more}). There the value and its esd are "
-                     f"the equation's, {whence}, and the form test cannot check the "
-                     "equation there"),
-            suggestion=("do not quote the target in those patterns as a "
-                        "measurement: quote the equation's coefficients, and narrow the "
-                        "subset to the patterns that see the phase if the equation "
-                        "should hold only where it is measured")))
+                     f"the equation's, {whence}"),
+            suggestion=("Quote the equation's coefficients. Narrow the subset to "
+                        "the patterns that see the phase if the equation should "
+                        "hold only where it is measured.")))
     return out
 
 
@@ -2300,25 +2289,23 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
                 how += f" (with them tied it read {t.tied.statistic:.1f}, within the cut)"
         # every reading steps from one answer, which a rejected equation has moved
         also = ("" if not t.provisional_on else
-                ". The verdict is provisional: "
+                " The verdict is provisional: "
                 + ", ".join(repr(n) for n in t.provisional_on)
-                + " rejected too, and moved the answer this test steps from")
+                + " rejected too, and moved the answer this test steps from.")
         others = ("" if t.others_freed is None else
-                  "; the other equations' verdicts step from an answer this equation has "
-                  "moved, so read them again after the refit")
+                  " The other equations' verdicts step from an answer this "
+                  "equation has moved, so read them again after the refit.")
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_FORM_REJECTED",
             where=list(paths[t.equation]), value=r.statistic,
-            message=(f"parametric equation {t.equation!r} does not describe {t.target} across "
+            message=(f"Parametric equation {t.equation!r} does not describe {t.target} across "
                      f"{t.n_patterns} of its {t.n_subset} patterns{how}: freeing "
                      f"the target in each would remove {r.statistic:.1f} times "
                      f"χ²_red of χ², past the {100 * FORM_TEST_LEVEL:g} % point "
-                     f"{r.cut:.1f} of χ² for {r.dof} directions. The coefficients' "
-                     f"esds assume the form, so they are too small{also}"),
-            suggestion=("do not quote the coefficients as they stand: add the next "
-                        "term to the basis and refit, or narrow the subset to where "
-                        "the form holds; the chain's trajectory shows where it "
-                        f"bends{others}")))
+                     f"{r.cut:.1f} of χ² for {r.dof} directions.{also}"),
+            suggestion=("Add the next term to the basis and refit, or narrow the "
+                        "subset to where the form holds. The chain's trajectory "
+                        f"shows where it bends.{others}")))
     if joint is not None and joint.rejected and not out:
         # every equation tested at once had its own freed reading
         tested = [t for t in tests or [] if t.others_freed is not None]
@@ -2336,24 +2323,23 @@ def _parametric_form_diagnostics(mtable, tests: list[ParametricFormTest] | None,
                                          f"{'past' if t.tied.rejected else 'within'} "
                                          f"the cut {t.tied.cut:.1f})")
                     for t in blind]
-            unseen = (f". {', '.join(told)} add{'s' if len(blind) == 1 else ''} no "
+            unseen = (f" {', '.join(told)} add{'s' if len(blind) == 1 else ''} no "
                       "direction beside the other equations' targets, so no reading of "
                       f"{'its' if len(blind) == 1 else 'their'} own can test "
-                      f"{'it' if len(blind) == 1 else 'them'}, and the data cannot "
-                      "separate that misfit from the others'")
+                      f"{'it' if len(blind) == 1 else 'them'}. The data cannot "
+                      "separate that misfit from the others'.")
         out.append(Diagnostic(
             level="warning", code="PARAMETRIC_FORM_REJECTED",
             where=[p for t in tested for p in paths[t.equation]], value=joint.statistic,
-            message=(f"parametric equations {names} together do not describe their "
+            message=(f"Parametric equations {names} together do not describe their "
                      "targets: freeing every target in each pattern would remove "
                      f"{joint.statistic:.1f} times χ²_red of χ², past the "
                      f"{100 * FORM_TEST_LEVEL:g} % point {joint.cut:.1f} of χ² for "
                      f"{joint.dof} directions. No equation's own reading rejects it, so "
-                     "the data does not say which form is wrong, and the "
-                     f"coefficients' esds assume them all{unseen}"),
-            suggestion=("do not quote the coefficients as they stand: add the next "
-                        "term to one equation at a time and refit, and compare each equation "
-                        "with the chain's trajectory")))
+                     f"the data does not say which form is wrong.{unseen}"),
+            suggestion=("Add the next term to one equation at a time and refit, "
+                        "and compare each equation with the chain's "
+                        "trajectory.")))
     return out
 
 
@@ -2393,18 +2379,14 @@ def _unreached_histogram_diagnostics(stage_results: list[StageResult],
         out.append(Diagnostic(
             level="info", code="STAGE_FREED_NOTHING",
             where=where, value=float(h),
-            message=(f"stage{'' if len(stages) == 1 else 's'} {names} freed "
+            message=(f"Stage{'' if len(stages) == 1 else 's'} {names} freed "
                      f"nothing in histogram {h} ({label}): "
                      f"{', '.join(where)} matched rows of another histogram "
-                     "and none of this one, so its instrument parameters for "
-                     "those stages kept their starting values"),
-            suggestion=("if this histogram declares no such component, "
-                        "nothing is wrong. Otherwise its parameters go by "
-                        "other names: list them with "
+                     "and none of this one."),
+            suggestion=("List this histogram's parameters with "
                         f"[e.path for e in ref.mtable.tables[{h}].entries] "
-                        "and add a glob that reaches them, or "
-                        "scope the stage (hist.<k>.…) if one histogram was "
-                        "the intent"),
+                        "and add a glob that reaches them. Scope the stage "
+                        "(hist.<k>.…) if one histogram was the intent."),
         ))
     return out
 
@@ -2442,7 +2424,8 @@ def _joint_fixed_literals(stages, mtable) -> list[Diagnostic]:
         scope = ("every histogram" if n > 1 and len(hs) == n else
                  f"histogram{'' if len(hs) == 1 else 's'} "
                  f"{', '.join(str(h) for h in hs)}")
-        out.append(d.model_copy(update={"message": f"{d.message} in {scope}"}))
+        out.append(d.model_copy(
+            update={"message": f"{d.message.rstrip('.')} in {scope}."}))
     return out
 
 

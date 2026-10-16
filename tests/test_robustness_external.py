@@ -641,7 +641,7 @@ def test_a_fit_nowhere_near_the_data_is_reported_however_the_solver_exited(
     # the cause is *measured*, not asserted: with every reflection outside its
     # frozen window the calculated pattern is nearly all background
     assert "above-background intensity" in far[0].message
-    assert "frozen" in far[0].suggestion
+    assert "2θ range" in far[0].suggestion
 
 
 def test_the_bar_sits_below_the_zero_scale_attractor_not_above_it():
@@ -947,8 +947,7 @@ def test_the_missing_qpa_arrives_as_a_diagnostic_naming_the_dead_scales(
     diags = _qpa_unavailable_diagnostics(structure, values)
     assert [d.code for d in diags] == ["QPA_UNAVAILABLE"]
     assert diags[0].where == ["phases.0.scale", "phases.1.scale"]
-    # a statement about the fit, not the specimen
-    assert "not the specimen" in diags[0].suggestion
+    assert "belongs in the model" in diags[0].suggestion
 
 
 def test_a_stage_that_stopped_on_its_budget_is_surfaced_as_a_diagnostic():
@@ -967,10 +966,10 @@ def test_a_stage_that_stopped_on_its_budget_is_surfaced_as_a_diagnostic():
     one = _max_iter_diagnostics([stage("scale", "converged"),
                                  stage("profile", "max_iter")])
     assert [d.code for d in one] == ["STAGE_MAX_ITER"]
-    assert "'profile'" in one[0].message and "budget rather" in one[0].message
+    assert "'profile'" in one[0].message and "iteration budget" in one[0].message
 
     both = _max_iter_diagnostics([stage("scale", "max_iter"),
                                   stage("profile", "max_iter")])
     assert "'scale', 'profile'" in both[0].message
-    assert "budgets rather" in both[0].message
+    assert "iteration budgets" in both[0].message
 

@@ -610,7 +610,7 @@ can rise when validation and ambiguity run, never fall">
       {peaks.n_usable} of {peaks.n_total} lines usable for indexing
       {#if peaks.source === "positions"}
         · <span class="chip warn"
-          ><Help for="peak_diagnostics:PEAK_SIGMA_ASSUMED">σ assumed</Help></span>
+          ><Help for="diagnostics:PEAK_SIGMA_ASSUMED">σ assumed</Help></span>
       {/if}
     </p>
 
@@ -629,7 +629,7 @@ can rise when validation and ambiguity run, never fall">
           {#each diagnostics as d (d.code + d.message)}
             <li class={d.level}>
               <span class="mono">
-                <Help for="peak_diagnostics:{d.code}">{d.code}</Help>
+                <Help for="diagnostics:{d.code}">{d.code}</Help>
               </span> {d.message}
             </li>
           {/each}
