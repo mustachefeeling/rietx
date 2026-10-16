@@ -184,13 +184,27 @@ The skill's rows keep agent policy and routing only. The GUI's help arm is `diag
 (was `peak_diagnostics`); Report keeps the summary's line breaks.
 
 *Measured* (`[dev]` venv, darwin arm64, `.venv/bin/python -m pytest -n auto --dist
-loadgroup -m "not slow"`): 10677 passed, 191 skipped, 2 xfailed on the final source tree,
+loadgroup -m "not slow"`): 10677 passed, 191 skipped, 2 xfailed on the final tree (main merged),
 from 10676/191/2 before the one added test
 (`test_display.py::test_a_diagnostic_prints_its_headline_and_folds_the_rest`); GUI vitest
 586 passed. FAP's `Refinement.summary()` went from 4778 to 3606 characters. Vale over the
 widened tree: 0 errors, 9 warnings in 38 files (96 errors when first widened). The full
 selection was not run: the change moves text, never a fitted number, and the one slow
 text pin (`tests/data/nac_termination_golden.txt`) was regenerated and run.
+
+*Review* (`/code-review high --fix`, eight findings): four fixed by the pass (a series
+summary splicing a capitalised message mid-sentence; four schema-raised codes filed on the
+structures page; the indexing text putting a candidate's `on:` after `help:`; the Reference
+index's stale sentence) and one by hand (the pair messages built around `str(GuardFinding)`
+again, so ρ is formatted once and root CLAUDE.md § Guards stays true). Declined: the
+tutorials (WP-1545's, pushed); the GUI Report panel printing the abstention in its summary
+and again in its warning paragraph, which predates this WP and wants the panel to stop
+filtering nothing; and `/api/help` growing from 41 kB to 221 kB, measured at 1.0 ms to
+build and 0.4 ms to parse, fetched once a load over loopback.
+
+*Added-test cost* (`tests.added_test_times`, one run beside another session's pytest,
+darwin arm64): `test_help.py::test_every_diagnostic_code_has_an_entry` 1.58 s (it walks
+the source tree; renamed from the `PEAK_*`-only test), the display test 0.00 s.
 
 *Gotchas*: `ast` column offsets are UTF-8 bytes, so a source editor indexing characters
 eats a comma on any line holding β or μ (the scratch editor that applied the help corpus
