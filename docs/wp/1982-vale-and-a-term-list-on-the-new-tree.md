@@ -1,6 +1,6 @@
 # WP-1982 — Vale and a term list on the new tree
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-16 — claimed by @yue-here
 Track: The repo's own process
 Depends on: 1978 (the new tree)
 Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
