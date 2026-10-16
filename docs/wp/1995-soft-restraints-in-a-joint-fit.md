@@ -1,4 +1,4 @@
-# WP-1990 — Soft restraints in a joint fit
+# WP-1995 — Soft restraints in a joint fit
 
 Milestone: unscheduled · Status: ⬜
 Track: Candidates — named on a use case, not yet on a measurement
@@ -114,9 +114,9 @@ restraint rows on the penalty side of it.
 
 ## Handover log
 
-- **2026-10-16** — Renumbered from 1988 when this branch merged main, which
-  had taken 1988 for WP-1988 (a PR put up for review is watched) the same day.
-  No 1988-numbered commit is this WP's.
+- **2026-10-16** — Renumbered twice as this branch merged main, which took
+  1988 and then 1990 for other WPs the same day: filed as 1988, then 1990,
+  now 1995. No commit naming 1988 or 1990 is this WP's.
 - **2026-10-16** — Filed from the audit of notes written into closed WPs. No
   open WP owned the deferral: 1325, 1962 and 1963 each name it only as a seam
   to get past, and 1963 may close as moot before reaching it. So it became

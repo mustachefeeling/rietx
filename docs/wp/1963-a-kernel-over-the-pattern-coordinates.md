@@ -55,7 +55,7 @@ PET kernel method) and lists its costs and scaling; the literature is in
 **Seams.**
 - Soft restraints are refused in a joint fit
   (`optimize.least_squares._multi_closures`, deferred since WP-0406; lifting
-  it is [1990](1990-soft-restraints-in-a-joint-fit.md)). Prior
+  it is [1995](1995-soft-restraints-in-a-joint-fit.md)). Prior
   rows need that lifted or a block of their own; `kernel_ramp.py` appends
   them in a script-only replacement of `_multi_closures`.
 - Whether prior rows take the χ²_red·f² covariance factor: the script gave

@@ -204,7 +204,7 @@ jobs:
     # test_manual's page-contract check, which renders the generated bodies.
     #
     # test_closed_wp_writes reads .claude/commands/wp-handover.md, to check that
-    # the handover step that runs closed_wp_writes.py is still there (WP-1989).
+    # the handover step that runs closed_wp_writes.py is still there (WP-1994).
     needs: changes
     if: needs.changes.outputs.scope == 'docs'
     runs-on: ubuntu-latest

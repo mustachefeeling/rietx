@@ -1,4 +1,4 @@
-"""`.claude/hooks/closed_wp_writes.py`: lines a branch adds to a closed WP (WP-1989).
+"""`.claude/hooks/closed_wp_writes.py`: lines a branch adds to a closed WP (WP-1994).
 
 The hook is stdlib-only and lives outside the package, so it is loaded by path
 and driven against tmp_path git fixtures, like `test_workflow_hooks.py`.

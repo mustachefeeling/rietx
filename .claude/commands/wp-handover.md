@@ -82,7 +82,7 @@ re-reading its own diff.
    session reads a closed WP again, so a note there that asks for work is
    lost: move it to the open owner, or file one. A correction to the closed
    WP's own record may stay, and the handover entry says which it was. Two
-   notes were lost this way, one of them for 81 days (WP-1989).
+   notes were lost this way, one of them for 81 days (WP-1994).
 6. **Review the diff before it becomes a PR.** Run `/code-review high
    --fix` — it reads this session's work (a clean tree means the branch's own
    diff against `origin/main`) and applies what it accepts to the working

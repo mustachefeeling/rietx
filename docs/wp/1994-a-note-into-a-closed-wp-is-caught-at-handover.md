@@ -1,4 +1,4 @@
-# WP-1989 — A note written into a closed WP is caught at handover
+# WP-1994 — A note written into a closed WP is caught at handover
 
 Milestone: unscheduled · Status: ✅ 2026-10-16 — `closed_wp_writes.py` lists what a branch adds to a ✅/🛑 WP, and `/wp-handover` step 5 runs it
 Track: The repo's own process
@@ -23,7 +23,7 @@ two ways a note got lost:
   restraints into WP-0308's `### Inherited` on 2026-07-27, after 0308 closed
   (its Status reads ✅ 2026-07-24). `_multi_closures`' refusal pointed readers at that file for 81
   days. Three open WPs (1325, 1962, 1963) worked around the refusal, and none
-  owned it. It is now [WP-1990](1990-soft-restraints-in-a-joint-fit.md).
+  owned it. It is now [WP-1995](1995-soft-restraints-in-a-joint-fit.md).
 - **In prose rather than under the heading.** WP-1907's close (2026-10-07)
   wrote "WP-1903's Inherited has both" about two lane-tool defects, after
   1903's ✅. It reached a reader only because 1903 was worked again the next
@@ -82,9 +82,9 @@ python3 .claude/hooks/closed_wp_writes.py   # on this branch: reports 0308's poi
   writer moves the note to an open owner or says why it stays. Before this,
   one such note had sat unread for 81 days. No open WP owned the guard, so it
   was filed and landed together, beside the owner for that note
-  ([WP-1990](1990-soft-restraints-in-a-joint-fit.md)).
+  ([WP-1995](1995-soft-restraints-in-a-joint-fit.md)).
   *Done:* the script, `/wp-handover` step 5, 11 tests, the test in CI's
-  `docs` job, and WP-1990 filed with the code comment and 1325/1962/1963's
+  `docs` job, and WP-1995 filed with the code comment and 1325/1962/1963's
   seams pointed at it.
   *Review* (`/code-review high --fix`): seven findings, six fixed. A WP
   closed on main after the fork is now counted. `--base` names the target,
@@ -103,7 +103,7 @@ python3 .claude/hooks/closed_wp_writes.py   # on this branch: reports 0308's poi
   The full suite did not run: nothing here can move a measured number. The
   guard was seen failing on purpose: the wiring test went red before the
   handover step existed.
-  *Gotchas:* main took 1988 the same day, so the filed WP is 1990. On this
+  *Gotchas:* main took 1988-1993 the same day, so this WP is 1994 and the filed one 1995. On this
   branch the script reports one file, WP-0308, +2 lines. That is the pointer
-  to WP-1990, a record note that stays.
-  Next: none. WP-1990 is the follow-up, P3.
+  to WP-1995, a record note that stays.
+  Next: none. WP-1995 is the follow-up, P3.

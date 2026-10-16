@@ -2544,7 +2544,7 @@ def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
     if any(m.restraints is not None for m in models):
         # The stacked layout sizes the below-data slot from the background
         # penalty rows only, and a shared structure's restraints would land
-        # once per histogram.  Deferred since WP-0406; owned by WP-1990.
+        # once per histogram.  Deferred since WP-0406; owned by WP-1995.
         raise NotImplementedError(
             "soft restraints are not yet supported in a multi-histogram joint "
             "refinement; run each restrained phase in a single-histogram fit")
