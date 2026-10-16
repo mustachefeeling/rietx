@@ -4,14 +4,19 @@
 #
 # What this tree shares with the old one (the fenced constants, the citation
 # style, the diagram theme and the `{source}` role) is in
-# `docs/sphinx_shared.py`, which both conf.py files import.  Versions, the
-# switcher and deployment are WP-1979's; the markdown twin is WP-1980's.
+# `docs/sphinx_shared.py`, which both conf.py files import.  The markdown
+# twin is WP-1980's.
+#
+# Each version is hosted at <DOCS_URL>/docs/<version>/ (WP-1979):
+# `sphinx_shared.DOCS_VERSION` says which one this build is, and
+# `docs/docs_versions.py` assembles the kept versions and writes the
+# switcher file every version's menu reads.
 
 import sys as _sys
 from importlib.metadata import version as _dist_version
 from pathlib import Path as _Path
 
-from rietx._about import DIST_NAME, REPO_URL
+from rietx._about import DIST_NAME, DOCS_URL, REPO_URL
 
 _sys.path.append(str(_Path(__file__).resolve().parent.parent))
 import reference_pages as _reference  # noqa: E402
@@ -64,10 +69,22 @@ html_title = DIST_NAME
 # The old tree's mark.  Without a favicon a browser falls back to the origin
 # root, which belongs to the user Pages site this project sits under.
 html_favicon = "../manual/_static/favicon.svg"
+# A release's pages name stable/ as their canonical copy, so a search engine
+# sends a reader to the newest release rather than to an old one.
+html_baseurl = f"{DOCS_URL}/docs/{'dev' if _shared.DOCS_VERSION == 'dev' else 'stable'}/"
 html_theme_options = {
     # Six tabs, so none folds into a "More" dropdown.
     "header_links_before_dropdown": 6,
-    "navbar_end": ["theme-switcher", "navbar-icon-links"],
+    "navbar_end": ["version-switcher", "theme-switcher", "navbar-icon-links"],
+    "switcher": {
+        "json_url": "/docs/switcher.json",
+        "version_match": _shared.DOCS_VERSION,
+    },
+    # The switcher file is the deploy's, written after every build, so the
+    # build has none to check.
+    "check_switcher": False,
+    # Dev, and each release older than the newest, says so above every page.
+    "show_version_warning_banner": True,
     "icon_links": [
         {"name": "GitHub", "url": REPO_URL, "icon": "fa-brands fa-github"},
     ],

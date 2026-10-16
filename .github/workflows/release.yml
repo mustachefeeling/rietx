@@ -170,3 +170,33 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  docs:
+    name: Attach the release's manual and redeploy the site
+    # GitHub Pages keeps nothing between deploys, so each release stores its
+    # own built manual as an asset, and pages.yml lays the kept ones out under
+    # /docs/ (WP-1979, docs/docs_versions.py).  After `publish`, so /docs/stable/
+    # never documents a version pip cannot install yet.
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # gh release upload
+      actions: write   # gh workflow run
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv venv --python 3.13
+      # The package too: the manual quotes constants from the live package.
+      - run: uv pip install -e ".[docs]"
+      # No DOCS_VERSION: unset, it follows the installed version, which the
+      # build job has matched to the tag.  -d keeps the doctrees out of the tarball.
+      - name: Build the manual at the tag (-W)
+        run: .venv/bin/python -m sphinx -W -b html -d "$RUNNER_TEMP/doctrees" docs/docs "$RUNNER_TEMP/docs"
+      - name: Attach it to the release, then redeploy the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          tar -czf "rietx-docs-${version}.tar.gz" -C "$RUNNER_TEMP/docs" .
+          gh release upload "$GITHUB_REF_NAME" "rietx-docs-${version}.tar.gz" --clobber
+          gh workflow run pages.yml --ref main

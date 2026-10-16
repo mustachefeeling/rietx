@@ -58,6 +58,19 @@ jobs:
         run: .venv/bin/python docs/landing/build.py --site
       - name: Build the manual (-W, as the test suite does)
         run: .venv/bin/python -m sphinx -W -b html docs/manual site
+      # The new manual (WP-1978) at /docs/dev/, then each kept release's tree beside it
+      # (WP-1979; docs/docs_versions.py says how they are chosen and laid out).  DOCS_VERSION
+      # is set because main, at the commit a release is cut from, carries that release's
+      # version and still deploys here.  release.yml dispatches this workflow once a new
+      # release's tree is attached.
+      - name: Build main's new manual as /docs/dev/ (-W)
+        env:
+          DOCS_VERSION: dev
+        run: .venv/bin/python -m sphinx -W -b html -d "$RUNNER_TEMP/doctrees" docs/docs site/docs/dev
+      - name: Add the kept releases, the version switcher and /docs/
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: .venv/bin/python docs/docs_versions.py site
       - name: The agent skill, verbatim, beside the manual
         run: |
           mkdir -p site/skill

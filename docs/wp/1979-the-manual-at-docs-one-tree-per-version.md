@@ -98,13 +98,17 @@ bodies into an ignored `docs/docs/_generated/` on every build.
 ## Tasks
 
 - [x] Measure one version of the real new tree, and choose how many minors to keep.
-- [ ] The accumulating deploy: `stable`, `dev` and the kept minors, plus `switcher.json` and
-      the `/docs/` redirect, with the landing page untouched.
-- [ ] Redirect stubs: a generator for a retired chapter's old URL (meta-refresh plus
-      `rel=canonical`), and a test that every retired path has one.
-- [ ] A versioned docs base beside `DOCS_URL`, and `help.py`'s anchors on it once their
-      pages exist in the new tree; a test pins the mapping from `rietx.__version__` to the
-      URL, and the anchor test builds the new tree.
+- [x] The accumulating deploy: `stable`, `dev` and the kept minors, plus `switcher.json` and
+      the `/docs/` redirect, with the landing page untouched. `release.yml`'s `docs` job
+      attaches the tree after `publish` and dispatches `pages.yml`, which builds `dev` and runs
+      `docs/docs_versions.py`.
+- [x] Redirect stubs: a generator for a retired chapter's old URL (meta-refresh plus
+      `rel=canonical`), and a test that every retired path has one. `OLD_PAGES` freezes the
+      48 pages the old tree published, and WP-1986 fills `RETIRED`.
+- [x] The mapping from a version to its hosted directory, `_about.docs_version`, pinned by a
+      test. The rest moves to WP-1986: the versioned base beside `DOCS_URL`, `help.py`'s
+      anchors on it, and the anchor test on the new tree. None of the 13 pages the anchors name
+      exists in the new tree yet, so a base built now would have no reader.
 - [x] The `{source}` role links the build's tag rather than `main`. So do the Reference tab's
       two file links. `sphinx_shared.DOCS_VERSION` says which hosted version a build is, and
       `SOURCE_REF` follows it.
