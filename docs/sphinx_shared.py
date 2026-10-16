@@ -63,6 +63,7 @@ from rietx.optimize.statistics import (
 from rietx.params.parametric import FORM_TEST_LEVEL
 from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
 from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
+from rietx.report.layer0 import build_layer0
 from rietx.report.layer2 import IMPURITY_SIGMA
 from rietx.report.schemas import (
     MATURITY_MAX_RWP,
@@ -72,6 +73,7 @@ from rietx.report.schemas import (
     MIN_COEF_SIGNIFICANCE,
     MIN_REGION_CHI2_RED,
     MIN_REGION_R2,
+    SEPARABILITY_MIN_SS_RATIO,
     THRESHOLDS_VERSION,
     VALIDITY_RADIUS_FWHM,
 )
@@ -235,6 +237,13 @@ MYST_SUBSTITUTIONS = {
     "MAX_GRAM_CONDITION": f"{MAX_GRAM_CONDITION:,.0f}".replace(",", " "),
     "MIN_COEF_SIGNIFICANCE": f"{MIN_COEF_SIGNIFICANCE:g}",
     "MIN_REGION_CHI2_RED": MIN_REGION_CHI2_RED,
+    # How much better the best position trend must fit than the runner-up.
+    "SEPARABILITY_MIN_SS_RATIO": f"{SEPARABILITY_MIN_SS_RATIO:g}",
+    # The height in esds a residual peak needs to join Layer 0's unmatched
+    # list.  It is a keyword default, not a module constant, so it is read
+    # off the signature.
+    "LAYER0_PEAK_SIGMA":
+        f"{_inspect.signature(build_layer0).parameters['min_peak_sigma'].default:g}",
     # A phase under this many esds of scale is held for the stage (WP-1523).
     "PHASE_SUPPORT_SIGMA": f"{PHASE_SUPPORT_SIGMA:g}",
     "MIN_REGION_R2": MIN_REGION_R2,

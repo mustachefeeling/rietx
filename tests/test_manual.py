@@ -1181,6 +1181,9 @@ def _theory_link_failures(page: Path, text: str, out: Path, old_out: Path) -> li
     """
     failures = []
     for target in _MD_LINK.findall(text):
+        if target.startswith(DOCS_URL + "/") and not _OLD_THEORY_LINK.match(target):
+            failures.append(f"{target}: not a link to a Part 2 chapter on the site")
+            continue
         if old := _OLD_THEORY_LINK.match(target):
             name, fragment = old.groups()
             if (MANUAL_DIR / name).with_suffix(".md") not in _part_two():
@@ -1242,12 +1245,14 @@ def test_the_theory_link_check_fails_what_it_should(built_docs_tree, built_manua
             f"[ok]({DOCS_URL}/background.html) "
             f"[gone]({DOCS_URL}/no-such-chapter.html) "
             f"[gone]({DOCS_URL}/background.html#no-such-hump) "
-            f"[part one]({DOCS_URL}/manual.html)")
+            f"[part one]({DOCS_URL}/manual.html) "
+            f"[typo]({DOCS_URL}/background.htm#explicit-humps)")
     failures = _theory_link_failures(page, text, out, old_out)
     expected = ("no page theory/no-such-page.html", "no section #no-such-section",
                 "no-such-chapter.html is not a Part 2 chapter",
                 "background.html has no section #no-such-hump",
-                "manual.html is not a Part 2 chapter")
+                "manual.html is not a Part 2 chapter",
+                "background.htm#explicit-humps: not a link to a Part 2 chapter")
     assert len(failures) == len(expected), failures
     for failure, words in zip(failures, expected):
         assert words in failure, failures
