@@ -75,15 +75,20 @@ gitignored. The stubs use no admonitions yet.
 
 ## Tasks
 
-- [ ] `.vale.ini` and the vocabulary in the repo, the Microsoft package pinned by version.
+- [x] `.vale.ini` and the vocabulary in the repo, the Microsoft package pinned by version.
+      v0.15.1, by the release URL `vale sync` reads; the synced copy is gitignored.
 - [x] The term list: generated from `help.py`'s labels and titles plus a hand-kept IUCr
       file; one concept, one term, with the rejected synonyms on the reject side.
       `docs/vale/terms.py` writes the accept list from `rietx.help` and
       `docs/vale/terms.txt`; `docs/vale/rietx/Terms.yml` is the reject side;
       `tests/test_vale.py` holds both.
-- [ ] en_GB spelling, `OxfordComma` off, `Terms`/`Vocab` reviewed rule by rule against this
-      domain rather than switched off wholesale.
-- [ ] The checkable halves of the six style rules above, as `rietx.*` Vale rules.
+- [x] en_GB spelling, `OxfordComma` off, `Terms`/`Vocab` reviewed rule by rule against this
+      domain rather than switched off wholesale. `Quotes` and `HeadingColons` are off too
+      (British usage), and `Contractions` is a suggestion: welcome, never required.
+- [x] The checkable halves of the six style rules above, as `rietx.*` Vale rules: rule 1
+      as `Headings` (a one-word section heading, suggestion), 2 in `Terms`, 3 as
+      `Programming` (suggestion) and `Fnmatch` (error), 5 as `Notation`, 6 as `Metaphor`
+      and `Roles` (warnings). Rule 4 is review only.
 - [ ] Decide whether Vale reads the generated Reference bodies, from a measured run.
 - [ ] A CI step over the new tree, failing on errors and reporting warnings; decide the
       level at which it fails from a run over the pages that exist then.

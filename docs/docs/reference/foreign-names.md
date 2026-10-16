@@ -67,13 +67,13 @@ Axial divergence
   Reading one splits it evenly between `axial_sl` and `axial_hl`, and writing one sums them.
   GSAS states `S/L` and `H/L` separately.
 
-Polarization
+Polarisation
 : GSAS-II's `Polariz.` is rietx's K.
   TOPAS states an angle c in `LP_Factor(c)`, and K = 1/(1 + cos² c).
 
 Magnetic moment
 : TOPAS's `mlx`, `mly` and `mlz` are components along the fractional axes.
-  rietx's crystal-axis component is each one times its own cell edge in Å.
+  rietx's crystal-axis component is each one times its own lattice parameter in Å.
 
 Phase scale
 : A GSAS-II or GSAS scale does not compare with rietx's, so rietx seeds its own on reading.
