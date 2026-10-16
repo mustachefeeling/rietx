@@ -86,7 +86,7 @@ Facts measured 2026-10-15 (WP-1975 § B2-B4):
 - [x] Project tree from a built example, annotated from the writer constants.
 - [x] Roadmap from the milestone records.
 - [ ] Foreign-name map with its test against the readers' constants.
-- [ ] The "For agents" page.
+- [x] The "For agents" page.
 - [ ] Skill: none; the skill keeps its own generated `api.md`.
 
 ## Acceptance
