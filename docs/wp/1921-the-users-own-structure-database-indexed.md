@@ -68,6 +68,25 @@ cell 0.2 s. Phase keys at 0.5 % cell tolerance: 149 373 for 136 727
   one's licence before reading its code. A GPL source is concepts only
   (root CLAUDE.md § Licensing).
 
+### Inherited
+
+- **Decided 2026-10-16 (maintainer, from the issue triage, #990): search-match
+  stays behind the v2+ fence.** #990's request to unfence it is declined for
+  now, and this WP stays at lookup (stages 1a and 1b). Task 1's question (1)
+  is answered: stage 3 does not leave the fence.
+
+- **2026-10-16, from the issue triage (#813): the reporter split stage 3 out
+  as #990 (their comment of 2026-10-15), and ROADMAP now names #990 at the v2+
+  fence; WP-1921 does not.** #990 proposes search-match (`candidates()`) as
+  its own WP, sourced from the user's CIFs, a local COD mirror or this index
+  "when one exists". It makes WP-1921's task 1 question (1), "does stage 3
+  leave the fence or does the module stop at lookup", a question #990 owns
+  (its question 1 asks "own WP or this WP's stage 3"). The reporter's reading:
+  WP-1921 can stay at lookup (stages 1a and 1b). ROADMAP.md line 555 records
+  #990 as held for the maintainer, 2026-10-16. Nothing in the tree moved (no
+  `refdb`, `landed references: none`, checked at `2c94d848`). Task 1 question
+  (1) should point at #990 and be answered with it.
+
 ## Non-goals
 
 - `candidates()`, search-match against a pattern (stage 3). It stays behind

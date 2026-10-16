@@ -131,6 +131,36 @@ problem here, undefined words are.
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#407): the reporter's symptom is gone
+  from the release; the manual still does not say which version it
+  describes.** `Refinement.hold` is in the `v1.6.0` tag (tagged 2026-10-04;
+  `git grep "def hold" v1.6.0 -- src/rietx/refine.py` hits) and in every tag
+  after it. No 1.5.1 was cut, so this file's "`docs/releases/1.5.1.md`" and "a
+  1.5.1 release carrying `hold`" point at a release that does not exist; the
+  `RELEASING.md` walk it mentions is moot for this issue. What is still open
+  and still this WP's: `install.md` says nothing of the manual describing
+  `main` or how to install it (its only version line is `{{ release }}` at
+  line 79), no verb or field carries a "since" note (`git grep 'since [0-9]'`
+  finds one unrelated row), and WP-1979 plans the versioned `/docs/<version>/`
+  tree that would make the note unnecessary. Decide whether 1443's #407 task
+  is paid by 1979 or by a short `install.md` paragraph in the meantime.
+  Checked at origin/main 138d55dc.
+
+- **2026-10-16, from the issue triage (#395): passage 1's quoted sentence is
+  no longer in the tree, and the maintainer's public answer on #395 is
+  stale.** WP-1938 D6 (`c7cadcc1`, schema 0.45 to 0.46) removed
+  `Parameter.transform`. The block at `data.md:37-43` now ends `assert
+  width.min == 0.0` with no output, and the prose says only that
+  `Parameter.positive` "sets `min=0.0`". The reporter's confusion stands (an
+  unexplained `assert` in an API example), but the task's wording (`assert
+  width.transform == "softplus" and width.min == 0.0`, "show what
+  `Parameter.positive` set") needs re-reading against the new block, and the
+  comment on #395 said `Parameter.positive` "sets the softplus transform",
+  which is now false. Same drift, smaller: `grep -w shipped docs/manual/using`
+  finds 15 hits in 8 files, against this file's 9 in 7 (quickstart,
+  `refining.md` x5 and `results.md` are new or moved). Checked at origin/main
+  138d55dc; the other nine passages are still in `data.md`/`concepts.md`.
+
 - **From WP-1975 (2026-10-15): the manual is to be rebuilt as a new tree beside the old one,
   with each old chapter retired once its content has been mined** (WP-1975 § F8, § H1). The
   layout is Start | Guides | Concepts | Reference | Theory | Switching. A fix made in an old
