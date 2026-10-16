@@ -1,6 +1,6 @@
 # WP-1981 — The reference pages, generated from their authorities
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-16 — claimed by @yue-here
 Track: The repo's own process
 Depends on: 1978 (the new tree)
 Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
