@@ -108,6 +108,10 @@ PARAMETER_GROUPS = (
        "crosses dots. "
        "Nested there, every extra component would be freed with the curve.",
        ("instrument.extra_components.*",)))),
+    ("Named variables",
+     "A named variable is a parameter you declare yourself, outside the model. "
+     "Model parameters follow it through ties.",
+     ((None, None, ("vars.*",)),)),
 )
 
 

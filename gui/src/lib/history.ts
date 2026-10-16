@@ -471,6 +471,9 @@ export const PLACES: Readonly<Record<string, Format>> = {
   // WP-1808: a torsion's increment is degrees, like a cell angle
   "phases.*.rigid_bodies.*.torsions.*.twist": 3,
   "phases.*.scale": "exp",
+  // WP-1981: a named variable is whatever quantity its caller declared, a Biso
+  // or a cell edge, so it has no natural place count
+  "vars.*": "exp",
 };
 
 /**
