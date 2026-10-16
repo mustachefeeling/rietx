@@ -75,6 +75,16 @@ def test_a_glob_two_leaves_claim_raises(monkeypatch):
         reference_pages.parameter_groups(entries)
 
 
+@pytest.mark.parametrize("text, rendered", [
+    ("1-5 μ_B for a 3d ion", "1-5 μ<sub>B</sub> for a 3d ion"),
+    ("in `μ_B` as code", "in `μ_B` as code"),
+    ("a `crystalaxis_*` path", "a `crystalaxis_*` path"),
+    ("lor_size", "lor_size"),
+])
+def test_notation_renders_outside_code_spans(text, rendered):
+    assert reference_pages._notation(text) == rendered
+
+
 def test_the_map_shows_every_entry_once_with_its_unit():
     """One table row and one definition per registry entry."""
     text = reference_pages.parameter_map()
@@ -84,7 +94,7 @@ def test_the_map_shows_every_entry_once_with_its_unit():
         assert f"\n{entry['title']}\n: " in text, entry["title"]
         if entry["unit"]:
             row = next(line for line in text.splitlines() if line.startswith(f"| {first}"))
-            assert f"| {entry['unit']} |" in row, row
+            assert f"| {reference_pages._notation(entry['unit'])} |" in row, row
 
 
 # ----------------------------------------------------------------------

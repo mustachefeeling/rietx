@@ -45,19 +45,25 @@ PARAMETER_GROUPS = (
      "These are the parameters a CIF holds. "
      "They set where each reflection falls and how strong it is.",
      (("Cell",
-       "Space-group symmetry ties the cell edges and angles. "
-       "A cubic phase refines one length, and a symmetry-fixed angle is locked.",
+       "The space group ties the lattice parameters together. "
+       "A cubic phase refines one length, and an angle the symmetry fixes is locked.",
        ("phases.*.cell.*",)),
       ("Atoms",
-       "A coordinate refines through its site-symmetry degrees of freedom, the `dof.*` paths. "
-       "The `x`, `y` and `z` rows follow from them. "
-       "An anisotropic atom refines its `adp.*` paths the same way, and `u11` to `u23` follow.",
+       "An atom's coordinates x, y and z refine within its site symmetry. "
+       "rietx refines the directions the site lets the atom move, the `dof` parameters, "
+       "and x, y and z follow from them. "
+       "A general position has three such directions, a special position fewer, "
+       "and a fixed point none. "
+       "GSAS-II applies the same restriction behind its X refine flag, and in FullProf you "
+       "tie the coordinates with codewords. "
+       "Anisotropic displacement parameters work the same way: "
+       "the `adp` parameters refine, and `u11` to `u23` follow from them.",
        ("phases.*.atoms.*.x", "phases.*.atoms.*.y", "phases.*.atoms.*.z",
         "phases.*.atoms.*.dof.*", "phases.*.atoms.*.occ", "phases.*.atoms.*.biso",
         "phases.*.atoms.*.u??", "phases.*.atoms.*.adp.*")),
       ("Magnetic moments",
        "A magnetic site carries a moment. "
-       "It refines through its own degrees of freedom, as a coordinate does.",
+       "It refines along the directions the magnetic symmetry allows, as a coordinate does.",
        ("phases.*.atoms.*.moment.*",)),
       ("Rigid bodies",
        "A rigid body moves a group of atoms as one unit. "
@@ -66,7 +72,7 @@ PARAMETER_GROUPS = (
     ("Phase amount and intensity corrections",
      "The phase scale carries how much of the phase the pattern shows. "
      "The others correct intensities for the specimen. "
-     "Surface roughness is a path under `instrument.geometry`. "
+     "Surface roughness is named under `instrument.geometry`. "
      "It changes intensities, so it is listed here.",
      ((None, None,
        ("phases.*.scale", "phases.*.extinction", "phases.*.preferred_orientation.*",
@@ -84,7 +90,7 @@ PARAMETER_GROUPS = (
      "Calibrate them on a standard with a certified cell, then hold them for a sample.",
      (("Peak positions",
        "Each shifts every calculated 2θ by its own angular law. "
-       "Which ones apply depends on `Geometry.kind`.",
+       "Which ones apply depends on the geometry, a flat plate or a capillary.",
        ("instrument.zero_shift", "instrument.geometry.sample_*",
         "instrument.geometry.capillary_offset_*")),
       ("Peak shape",
@@ -93,7 +99,7 @@ PARAMETER_GROUPS = (
        "The two axial terms set the low-angle asymmetry.",
        ("instrument.profile.*", "instrument.geometry.axial_*")),
       ("Source",
-       "Line 0's weight is locked at 1. "
+       "The first emission line's weight is locked at 1. "
        "Every other line's weight is relative to it.",
        ("instrument.source.lines.*", "instrument.polarization")))),
     ("Time of flight",
@@ -103,14 +109,12 @@ PARAMETER_GROUPS = (
       ("Incident spectrum", None, ("instrument.source.incident_spectrum.*",)))),
     ("Background",
      "The background is a smooth curve plus any extra components declared beside it. "
-     "A hump joins the background curve. "
-     "A declared peak joins the ticks under `(extra)`.",
+     "A hump is drawn as part of the background curve. "
+     "A declared peak gets tick marks of its own, labelled `(extra)`.",
      (("Curve", None, ("instrument.background.*",)),
       ("Extra components",
-       "These are not nested under `instrument.background`. "
-       "Most presets open with a stage freeing `instrument.background.*`, and fnmatch's `*` "
-       "crosses dots. "
-       "Nested there, every extra component would be freed with the curve.",
+       "These are named apart from the background curve, "
+       "so a stage that frees the background does not free them too.",
        ("instrument.extra_components.*",)))),
     ("Named variables",
      "A named variable is a parameter you declare yourself, outside the model. "
@@ -158,12 +162,24 @@ def parameter_groups(entries: list[dict] | None = None) -> list[tuple]:
     return out
 
 
+#: A Greek symbol and a subscript written as text, `μ_B`, outside a code span.
+_SUBSCRIPT = _re.compile(r"(?<![\w`])([α-ωΑ-Ωµ])_([A-Za-z0-9]+)\b")
+
+
+def _notation(text: str) -> str:
+    """Render `μ_B` as μ<sub>B</sub>: the help corpus stores notation as text,
+    and the GUI reads the same strings."""
+    parts = _re.split(r"(`[^`]*`)", text)
+    return "".join(p if p.startswith("`") else _SUBSCRIPT.sub(r"\1<sub>\2</sub>", p)
+                   for p in parts)
+
+
 def _cell(text: str | None) -> str:
-    return "" if text is None else str(text).replace("|", "\\|")
+    return "" if text is None else _notation(str(text)).replace("|", "\\|")
 
 
 def _parameter_table(members: list[dict]) -> list[str]:
-    lines = ["| Path | Parameter | Unit | Default | Typical |",
+    lines = ["| Name | Parameter | Unit | Default | Typical |",
              "| --- | --- | --- | --- | --- |"]
     for entry in members:
         paths = "<br>".join(f"`{p}`" for p in entry["paths"])
@@ -176,7 +192,7 @@ def _parameter_table(members: list[dict]) -> list[str]:
 def _parameter_definitions(members: list[dict]) -> list[str]:
     lines = []
     for entry in members:
-        lines += [entry["title"], f": {entry['description']}", ""]
+        lines += [entry["title"], f": {_notation(entry['description'])}", ""]
     return lines
 
 
@@ -570,7 +586,7 @@ def _api_entry(index, dotted: str, technique: str | None = None) -> str:
         return f"`{dotted}`\n: A constant, `{obj!r}`.\n"
     head, _, fields = index._entry(dotted, technique).partition("\n  Fields: ")
     term, summary = _ENTRY.match(head).groups()
-    lines = [term, f": {summary or ''}".rstrip()]
+    lines = [term, f": {_notation(summary or '')}".rstrip()]
     if fields:
         lines += ["", f"  Fields: {fields}"]
     return "\n".join(lines) + "\n"

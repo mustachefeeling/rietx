@@ -41,6 +41,23 @@ skill at the start rather than from this line.
 
 ### Inherited
 
+- **2026-10-16, from WP-1981, the maintainer's review of the Reference tab.** Six style
+  rules the maintainer confirmed, now in `yue-docs-style`. Their checkable halves belong in
+  this WP's Vale rules and term list:
+  1. A heading is a label, never a claim and never empty. Flag a heading with a finite verb
+     ("The four answers are four different types"), and the bare "In" and "Out" headings of
+     the skill's API index (`make_api_index.SECTIONS`), which the API pages render.
+  2. The crystallographer's term leads: "lattice parameter" over "cell edge" and "cell
+     angle". Add these to the term list.
+  3. No programming concept before it is explained or linked: "glob", "dot-path",
+     "schema", "column". "fnmatch" never appears in reader prose.
+  4. Where rietx models something differently from GSAS-II, TOPAS or FullProf, the page
+     names the familiar form. Not checkable by Vale; review only.
+  5. Notation is rendered: no `μ_B` or `x^2` as text.
+  6. No economic metaphor for an effect ("buy", "pays for") and no "caller", "client" or
+     "intruder" in reader prose.
+  The `rietx.help` corpus breaks rules 2, 3 and 6 in places, measured 2026-10-16 over its
+  159 entries: "caller" 3, "glob" 3, "fnmatch" 1, "column" 6. Its rewrite is WP-1985's.
 - **2026-10-16, from WP-1981.** The register guard reads committed sources, so the
   Reference tab's generated bodies in `docs/docs/_generated/` are not checked by it. That
   was deliberate: their prose is the package's own text (`rietx.help` descriptions,

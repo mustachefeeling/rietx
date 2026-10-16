@@ -153,9 +153,9 @@ UNIT_DISPLAY: dict[str, str] = {
 # ----------------------------------------------------------------------
 
 _CELL_LENGTH = HelpEntry(
-    title="Cell edge",
+    title="Lattice parameter a, b, c",
     description=(
-        "A unit-cell edge length. Sets every reflection position through the "
+        "A unit-cell length. It sets every reflection position through the "
         "lattice metric, so it is the parameter a powder pattern determines "
         "best and the one a systematic position error corrupts first. Edges "
         "the space-group setting ties to another (b to a in a tetragonal cell) "
@@ -166,7 +166,7 @@ _CELL_LENGTH = HelpEntry(
     anchor="peak-positions.html#lattice-metric-and-bragg-s-law",
 )
 _CELL_ANGLE = HelpEntry(
-    title="Cell angle",
+    title="Lattice parameter α, β, γ",
     description=(
         "A unit-cell angle. An angle the space-group setting fixes at 90° or "
         "120° is locked and cannot be freed; a monoclinic cell frees only its "
