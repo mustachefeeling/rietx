@@ -6,13 +6,22 @@ Refinement.summary: converged (rietveld)
   stage profile: converged (# evals, ftol=#e#)
   stage biso: converged (# evals, ftol=solver default), max|Δθ|/esd=#
   diagnostics: # unresolved
-    WARNING FLOOR_HIT: phases.#atoms.#biso refined to its floor (ρ=#) — the data push this parameter below zero, where it cannot go. The usual reasons are a phase or term the data do not support, a width the instrument already supplies, or, for a displacement parameter, absorption or a wrong species or occupancy. Fix it at #
-    INFO CAPILLARY_OFFSET_UNAVAILABLE: this capillary geometry declares no goniometer radius, so the eq (#) specimen-offset aberrations are held at zero — which is not the same statement as having measured them to be zero — set instrument.geometry.goniometer_radius_mm if the diffractometer's is known; an unmodelled offset of this kind lands in the cell as a uniform d-scale error, moving both axes together, which leaves an axial ratio looking better than either axis deserves
-  layer#/#: Rwp=# GoF=#; # regions, top # shown (#% of χ²); # unmatched observed peak(s); remaining # regions carry #% of χ²; between the peak regions the residual is systematic, not noise — χ²_red=# over # channels at Durbin-Watson d=# (# = uncorrelated), misfit no region entry covers; Layer # on #/# regions, # active suggestion(s)
+    warning[FLOOR_HIT]: phases.#atoms.#biso refined to its floor (ρ=#).
+      at: phases.#atoms.#biso
+      help: Quote an upper limit instead of a value, or remove the parameter if its phase or term is unsupported. For a displacement parameter, check absorption, species and occupancy.
+    info[CAPILLARY_OFFSET_UNAVAILABLE]: This capillary geometry declares no goniometer radius, so the eq (#) specimen-offset aberrations are held at zero.
+      at: instrument.geometry.goniometer_radius_mm
+      help: Set instrument.geometry.goniometer_radius_mm if you know the diffractometer's.
+  report:
+    # misfit regions. The top # carry #% of χ² and the other # carry #%.
+    # observed peak(s) match no reflection.
+    Between the peak regions the residual is systematic (χ²_red=# over # channels, Durbin-Watson d=# where # is uncorrelated).
+    No region entry covers this misfit.
+    Layer # read # of # regions.
+    # suggestion(s) are active.
     region ##°: #% of χ², max|Δ|/σ=#
     region ##°: #% of χ², max|Δ|/σ=#
     region ##°: #% of χ², max|Δ|/σ=#
-    unmatched obs peaks: #
     serial correlation (DW): #, esds inflated ×#
   next: free phases.#lor_strain, predicted ΔBIC # at N_eff # (Δχ² #e#)
   deliverable: qpa
