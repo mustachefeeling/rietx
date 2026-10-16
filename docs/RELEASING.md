@@ -104,6 +104,31 @@ which is the backlog this rule exists to prevent.
    `rietx skill --path` resolves into the wheel, and `rietx.gui.textdoc` imports
    with its static dist present. The last of those caught an sdist exclude that
    had silently dropped the GUI's Python modules from every wheel.
+8. Check the release's manual. After `publish`, the workflow's `docs` job builds
+   `docs/docs/` at the tag and attaches it to the release as
+   `rietx-docs-X.Y.Z.tar.gz`. It then starts `pages.yml`, which puts the tree at
+   `/docs/X.Y/` and `/docs/stable/`:
+
+   ```sh
+   gh release view vX.Y.Z --json assets --jq '.assets[].name'
+   gh run list --workflow pages.yml --limit 1
+   curl -s https://rietx.org/docs/switcher.json
+   ```
+
+   The switcher should name X.Y as stable. A transient failure of the `docs`
+   job is re-run alone. A failure in the tagged tree needs a patch release, and
+   until one ships the previous minor stays stable. A patch release replaces its
+   minor's tree, because the deploy keeps the newest patch of each minor.
+
+## The hosted manual's versions
+
+`rietx.org/docs/` holds `dev` (built from `main` on every push), `stable`, and
+the newest patch of each of the last six minor releases. `docs/docs_versions.py`
+chooses them on every deploy from the releases that carry a manual asset.
+Pruning needs no step: a minor older than the sixth newest is simply not
+fetched. To keep more or fewer, change `KEEP_MINORS` there. To drop one
+release's manual early, delete its asset (`gh release delete-asset vX.Y.Z
+rietx-docs-X.Y.Z.tar.gz`) and re-run `pages.yml`.
 
 ## Trusted publishing
 

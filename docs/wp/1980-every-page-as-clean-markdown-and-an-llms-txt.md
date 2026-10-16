@@ -37,6 +37,14 @@ admonition as a labelled blockquote. Mermaid sources stay as fenced `mermaid` bl
 
 ### Inherited
 
+- **2026-10-16, from WP-1979 (closed).** Each version is one `docs/docs/` build. `main`'s is
+  built into `site/docs/dev/` by pages.yml. A release's is built by release.yml's `docs` job
+  and stored as a tarball on its GitHub release. `docs/docs_versions.py` lays them out under
+  `/docs/`. So a twin written into the HTML build's output reaches every version with no
+  deploy change. A twin built by a second builder needs a step in both workflows, inside the
+  tarball. The `llms.txt` proposal puts the file at the site root, and today's root is the
+  landing page. A root `llms.txt` would point at `/docs/stable/` (`dev/` before v1.10.0, as
+  `/docs/index.html` does). Each version's own copy then sits under its directory.
 - **2026-10-16, from WP-1981.** Ten Reference pages exist. Seven of them are a committed
   title and answer sentence followed by one `{include}` of a body that `conf.py` writes into
   the ignored `docs/docs/_generated/` (`docs/reference_pages.py`, `BODIES`). A markdown twin
