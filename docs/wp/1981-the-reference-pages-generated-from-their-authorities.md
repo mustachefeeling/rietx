@@ -76,7 +76,7 @@ Facts measured 2026-10-15 (WP-1975 § B2-B4):
 
 ## Tasks
 
-- [ ] Parameter map: grouped tables from `PARAMETER_HELP`, with the grouping held in the docs
+- [x] Parameter map: grouped tables from `PARAMETER_HELP`, with the grouping held in the docs
       build, and a test that every glob lands in exactly one group.
 - [ ] `vars.*` help family in `help.py`, with the GUI `PLACES` row, vitest and dist rebuild.
 - [ ] Plan ladder from `PLAN_INFO`/`PLAN_PRESETS`, one diagram per preset.
@@ -92,7 +92,7 @@ Facts measured 2026-10-15 (WP-1975 § B2-B4):
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_help.py tests/test_manual_api.py -n auto --dist loadgroup
+.venv/bin/python -m pytest tests/test_help.py tests/test_manual_api.py tests/test_reference_pages.py tests/test_manual.py -n auto --dist loadgroup
 npm --prefix gui test
 ```
 

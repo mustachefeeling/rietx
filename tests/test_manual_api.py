@@ -81,7 +81,7 @@ USING_DIR = MANUAL_DIR / "using"
 DOCS_TREE = REPO_ROOT / "docs" / "docs"
 PAGES = sorted(USING_DIR.rglob("*.md")) if USING_DIR.exists() else []
 PAGES += sorted(p for p in DOCS_TREE.rglob("*.md")
-                if "_build" not in p.relative_to(DOCS_TREE).parts)
+                if not {"_build", "_generated"} & set(p.relative_to(DOCS_TREE).parts))
 
 CODE_SPAN = re.compile(r"`([^`\n]+)`")
 FENCE = re.compile(r"^```\{?([\w-]+)\}?[^\n]*\n(.*?)^```", re.S | re.M)
