@@ -7535,7 +7535,7 @@ DISPERSION_NEGLECT_FRAC = 0.02
 DISPERSION_NEGLECT_SEVERE = 0.05
 
 
-def _twin_merge_diagnostics(phase, index: int) -> list[Diagnostic]:
+def _twin_merge_findings(phase, index: int) -> list[Diagnostic]:
     """``SITE_TWINS_MERGED`` for the sites ``Phase`` construction moved (#1007).
 
     A site whose own images sat closer than ``TWIN_DISTANCE`` (0.02 Å) is put
@@ -7610,7 +7610,7 @@ def _symmetry_silence_diagnostics(structure: Structure,
     for i, phase in enumerate(structure.phases):
         sg = resolve_group(phase.space_group, phase.symmetry_operations)
         if structural:
-            out.extend(_twin_merge_diagnostics(phase, i))
+            out.extend(_twin_merge_findings(phase, i))
             out.extend(snap_diagnostics(
                 sg,
                 [(a.label, (a.x.value, a.y.value, a.z.value)) for a in phase.atoms],
