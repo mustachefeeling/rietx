@@ -116,7 +116,9 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
 - [ ] A text view for `FitReport`, and `Refinement.summary()` cut to what a person scans; the
       abstention reason printed once.
 - [ ] Rewrite the messages in the new voice, by module, moving each pin on purpose.
-- [ ] Notebook HTML: headline shown, detail and explanation folded.
+- [x] Notebook HTML: headline shown, detail and explanation folded
+      (`_display.diagnostics_html`, one `<details>` a finding) in the result, the
+      indexing result and the peak list.
 - [x] The per-code explanation reaches the Reference tab: `diagnostics.md` is a table of
       code, name and page, and six subsystem pages carry a section per code. One page
       broke the page contract's 50 000-character cap at 139 267.

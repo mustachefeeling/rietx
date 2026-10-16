@@ -1765,7 +1765,7 @@ class RefinementResult(Base):
         """The termination view, then the refined parameters as a table
         (WP-1544). The text is what ``print`` gives; the table is the same
         numbers as ``parameters``."""
-        from .._display import _number, pre_html, table_html
+        from .._display import _number, diagnostics_html, pre_html, table_html
         rows = [(p.path, _number(p.value, p.stderr),
                  "" if p.at_bound is None else str(p.at_bound).lower())
                 for p in self.parameters]
@@ -1777,7 +1777,11 @@ class RefinementResult(Base):
             rows = [(*row, ", ".join(p.equations or ()))
                     for row, p in zip(rows, self.parameters, strict=True)]
         table = table_html(header, rows) if rows else ""
-        return pre_html(str(self)) + table
+        before, after = self._text_parts()
+        before.append(_diagnostic_lines(self.diagnostics)[0])
+        return (pre_html("\n".join(before))
+                + diagnostics_html(_cap_high_correlation(self.diagnostics))
+                + pre_html("\n".join(after)) + table)
 
     def __str__(self) -> str:
         """The termination view a bare result can answer (WP-1302): per-stage
@@ -1790,11 +1794,16 @@ class RefinementResult(Base):
         is what a caller holding only the result — the return value of
         ``fit()``, or one read back from a project — can print without it.
         """
-        lines = [f"RefinementResult: {self.status} ({self.mode})"]
-        lines += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
-        lines += _diagnostic_lines(self.diagnostics)
-        lines += _parametric_lines(self.parametric, self.parametric_form,
-                                   self.parametric_form_joint)
-        lines.append(_provenance_line(self.provenance))
-        lines.append(_agreement_line(self.statistics))
-        return "\n".join(lines)
+        before, after = self._text_parts()
+        return "\n".join(before + _diagnostic_lines(self.diagnostics) + after)
+
+    def _text_parts(self) -> tuple[list[str], list[str]]:
+        """The lines before the diagnostics and the lines after them, so the
+        HTML view can fold each diagnostic between the two."""
+        before = [f"RefinementResult: {self.status} ({self.mode})"]
+        before += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
+        after = _parametric_lines(self.parametric, self.parametric_form,
+                                  self.parametric_form_joint)
+        after.append(_provenance_line(self.provenance))
+        after.append(_agreement_line(self.statistics))
+        return before, after
