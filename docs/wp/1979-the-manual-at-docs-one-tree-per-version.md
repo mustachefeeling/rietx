@@ -57,24 +57,22 @@ Three things follow:
 - The `{source}` role links `blob/main` (`docs/manual/conf.py` `_SOURCE_REF`). A tagged build
   must link its tag, or its line numbers drift.
 
-### Inherited
+**The new tree** (WP-1978, PR #1004; checked against the tree 2026-10-16) is `docs/docs/`. Its
+`conf.py` takes the fenced constants, the citation style, the mermaid theme and the `{source}`
+role from `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py`
+builds it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
+`DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`). Nothing about
+versions is configured yet: no `DOCS_VERSION`, no `html_baseurl`, no switcher, no
+`show_version_warning_banner`, and `navbar_end` lacks `version-switcher`. The spike's `conf.py`
+has all four. `pages.yml` still builds only `docs/manual/`. The favicon is the old tree's file,
+read through `../manual/_static/favicon.svg`.
 
-- **2026-10-16, from WP-1981.** The Reference tab's generated pages carry two facts a
-  versioned build must set. The diagnostic index links each source file at
-  `REPO_URL/blob/main/src/...` (`docs/reference_pages.py`, `diagnostic_page`), so a
-  per-version tree should link the tag it was built from. The roadmap page opens with the
-  build's own `rietx.__version__` and reads `docs/ROADMAP.md` at build time, so each version
-  shows the roadmap of its own day. `conf.py` writes the bodies into an ignored
-  `docs/docs/_generated/` on every build.
-- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
-  the fenced constants, the citation style, the mermaid theme and the `{source}` role from
-  `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
-  it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
-  `DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`). Nothing about
-  versions is configured yet: no `DOCS_VERSION`, no `html_baseurl`, no switcher, no
-  `show_version_warning_banner`, and `navbar_end` lacks `version-switcher`. The spike's
-  `conf.py` has all four. `pages.yml` still builds only `docs/manual/`. The favicon is the old
-  tree's file, read through `../manual/_static/favicon.svg`.
+**Two more `blob/main` links** (WP-1981). The Reference tab's diagnostic index links each
+source file at `REPO_URL/blob/main/src/...` (`docs/reference_pages.py:427`), and the roadmap
+page links each milestone record the same way (`:604`). A tagged build links its tag in both.
+The roadmap page opens with the build's own `rietx.__version__` and reads `docs/ROADMAP.md` at
+build time, so each version shows the roadmap of its own day. `conf.py` writes the generated
+bodies into an ignored `docs/docs/_generated/` on every build.
 
 ## Non-goals
 
