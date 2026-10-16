@@ -1,9 +1,8 @@
 # WP-1985 — Report and diagnostic text, rewritten in one voice
 
-Milestone: unscheduled · Status: 🔄 2026-10-16 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-16 — 253 codes explained once, every message rewritten, Vale reads the generated pages
 Track: Render what the fit already knows
 Depends on: — (1133 soft: it adds a field to the same `Diagnostic`)
-Priority: P2 2026-10-16 — the maintainer asked for it, and the tutorials (1545) and Guides (1986) wait on it
 
 ## Goal
 
@@ -159,6 +158,55 @@ renders in huge chunks in the notebooks. They asked for it concise for humans an
   problems to developers? ESEC/FSE.
 
 ## Handover log
+
+### 2026-10-16 (2nd session) — closed: one explanation per code, every message rewritten
+
+Every diagnostic rietx raises now reads as one observation and one action, and what the
+code means is written once and folded away. A notebook shows the headline and hides the
+detail. A printed result shows `warning[CODE]: message` with `at:` and `help:` lines under
+it. The fit report reads one sentence a line instead of one 1100-character line, and its
+abstention is said once. The parameter help, the plan text and the API summaries were
+rewritten in the same voice, and Vale now gates the generated Reference pages as well as
+the written ones. Nothing about a fit's numbers moved. The cost was about 3.8 M subagent
+tokens over 18 agents (one survey, 17 Sonnet lanes over disjoint files), summed from
+their own usage reports.
+
+*Done* (decisions with the maintainer, 2026-10-16, are in Context): `message`/`suggestion`
+keep their names, so no stored file needs a migration. `rietx.help.DIAGNOSTIC_HELP`
+holds 253 entries, held equal both ways to `docs/reference_pages.diagnostic_index()`,
+which now also reads the `_note(level, CODE)` helper shape. `Diagnostic.explanation` and
+`help.explain` look it up. `Diagnostic.__str__` is the one text form; results, indexing,
+the peak list, the CLI's reader notes and `auto_background`'s warning call it.
+`_display.diagnostics_html` folds each finding in a `<details>`. `FitReport.summary` is
+one sentence a line and `FitReport.__str__` prints it (FAP: 7 lines, was a 168-line field
+tree). The Reference tab's diagnostic page splits into a table plus six subsystem pages.
+The skill's rows keep agent policy and routing only. The GUI's help arm is `diagnostics`
+(was `peak_diagnostics`); Report keeps the summary's line breaks.
+
+*Measured* (`[dev]` venv, darwin arm64, `.venv/bin/python -m pytest -n auto --dist
+loadgroup -m "not slow"`): 10677 passed, 191 skipped, 2 xfailed on the final source tree,
+from 10676/191/2 before the one added test
+(`test_display.py::test_a_diagnostic_prints_its_headline_and_folds_the_rest`); GUI vitest
+586 passed. FAP's `Refinement.summary()` went from 4778 to 3606 characters. Vale over the
+widened tree: 0 errors, 9 warnings in 38 files (96 errors when first widened). The full
+selection was not run: the change moves text, never a fitted number, and the one slow
+text pin (`tests/data/nac_termination_golden.txt`) was regenerated and run.
+
+*Gotchas*: `ast` column offsets are UTF-8 bytes, so a source editor indexing characters
+eats a comma on any line holding β or μ (the scratch editor that applied the help corpus
+hit it once). A per-code explanation must not quote a threshold number: no test can hold
+a sentence to a retuned constant (`help.py` rule 3). The report-agent eval shim excises
+the identifiability clause as the exact substring `"\n" + clause`, so that clause stays one
+line.
+
+*Not done, on purpose*: the tutorial scripts and notebooks still print the old forms
+(WP-1545's, pushed to its Inherited). Two comments in `refine.py` (near
+`STRAIN_FLAG_WIDTH` and `SIZE_FLAG_SIZE_A`) still quote private-archive counts; they
+predate this WP and are raised with the maintainer rather than edited. Four Vale
+warnings on the parameter map (adverbs) and the API pages' acronym headings stay.
+
+Next: WP-1545 regenerates the tutorials over the new text, then WP-1986 moves the Guides
+once WP-1979 lands.
 
 - **2026-10-16** — filed from WP-1975's slate, where it was drafted as "1976" before that
   number went to another WP. No open WP owns the text: 1133 adds a view pointer to the same
