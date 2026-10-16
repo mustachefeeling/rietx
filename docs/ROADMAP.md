@@ -551,10 +551,8 @@ scope creep. Each item names what fenced it.
   2026-09-28** for scoping in § Unscheduled (1514–1516; DESIGN.md has why).
   **Spherical-harmonics texture (#131) left it 2026-10-14** as [1960](wp/1960-spherical-harmonics-texture.md).
 - **Solution.** Charge flipping (#198; 1515 decides whether it follows, and
-  #197 with it); search-match phase identification (prior art: the 36-cell
-  screen at `guillemot-study:studies/guillemot/match_hl2.py`; #990 asks to
-  unfence it as its own WP, sourced from the user's CIFs, a COD mirror or
-  1921's index, null-calibrated; held for the maintainer 2026-10-16).
+  #197 with it); search-match phase identification (#990 asks to unfence it, held
+  2026-10-16; prior art: the 36-cell screen at `guillemot-study:studies/guillemot/match_hl2.py`).
 - **Indexing, fenced by 1018–1027.** Multi-phase indexing (index the residual
   after subtracting a solved phase); the full Bayesian extinction-symbol
   posterior (Markvardsen et al. 2001 — ΔBIC/Hamilton is the v1.0 form); a
