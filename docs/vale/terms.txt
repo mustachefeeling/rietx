@@ -98,6 +98,7 @@ polycrystal
 polycrystalline
 polyhedra
 polyimide
+pseudosymmetry
 rhombohedral
 rutile
 scatterer
@@ -138,6 +139,7 @@ Uiso
 
 # Methods and functions named after people.
 Altomare
+Brentano
 Brindley
 Caglioti
 Chebyshev
@@ -152,6 +154,7 @@ Guinier
 Hofmann
 Jacobian
 Jacobians
+Landé
 Langford
 Levenberg
 Lindemann
@@ -160,6 +163,7 @@ Marquardt
 Maxwellian
 Pawley
 Pitschke
+Rachinger
 Rietveld
 Rodrigues
 Scherrer
@@ -167,6 +171,7 @@ Schwarzenbach
 Shirane
 Suortti
 Voigt
+Von
 
 # Mathematics and statistics.
 affinely
@@ -238,6 +243,8 @@ unscaled
 # Programs, libraries and formats.
 Bruker
 cctbx
+codeword
+codewords
 Conograph
 Fortran
 FullProf
@@ -253,6 +260,7 @@ numpy
 pydantic
 pytest
 rietx
+Rigaku
 scipy
 spglib
 TOPAS
@@ -267,6 +275,7 @@ filesystem
 frontend
 lookups
 refinable
+rietview
 roadmap
 stderr
 stdout
@@ -282,6 +291,8 @@ whitespace
 centidegree
 centidegrees
 fm
+magneton
+magnetons
 nm
 px
 ulp

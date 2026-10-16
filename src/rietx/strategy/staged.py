@@ -99,7 +99,7 @@ def _dataclass_attr_hint(cls: type, name: str) -> AttributeError:
 
 @dataclass
 class Stage:
-    """One turn-on group of a staged plan — a declaration, not a result.
+    """One turn-on group of a staged plan.  It declares what to free and carries no result.
 
     What a stage *did* comes back as a ``StageResult`` (``StageResult.freed``,
     ``.rwp``, ``.n_iterations``, …) on ``RefinementResult.stages``, never on
@@ -671,23 +671,25 @@ PLAN_INFO: dict[str, PlanInfo] = {
     "mccusker_default": PlanInfo(
         title="Standard (profile only)",
         description=(
-            "The IUCr-guideline turn-on order (McCusker et al., 1999): scale + "
-            "background, zero shift, cell, then the profile widths. Leaves every "
-            "structural parameter fixed."),
+            "The IUCr guideline's turn-on order (McCusker et al., 1999). It "
+            "frees the scale and background, then the zero shift, then the "
+            "lattice parameters, then the profile widths. Every structural "
+            "parameter stays fixed."),
         modes=("rietveld",),
         when_to_use=(
-            "The default first fit of a known structure, and the plan to reach "
-            "for whenever a structural refinement has gone wrong — it converges "
-            "the parameters everything else depends on."),
+            "The first fit of a known structure. Return to it whenever a "
+            "structural refinement has gone wrong, because it converges the "
+            "parameters everything else depends on."),
     ),
     "mccusker_structural": PlanInfo(
         title="Standard + structure",
         description=(
-            "The standard order continued into the structure: coordinates as "
-            "site-symmetry DOFs, then displacement parameters (biso or the "
-            "anisotropic patterns, whichever each site declares), then preferred "
-            "orientation (March-Dollase or the spherical-harmonics texture), "
-            "extinction and surface roughness where declared."),
+            "The standard order continued into the structure. It frees the "
+            "atomic coordinates along the directions the site symmetry leaves "
+            "free. Displacement parameters follow (Biso, or the anisotropic "
+            "tensor each site declares). Then come preferred orientation "
+            "(March-Dollase or spherical-harmonics texture), extinction and "
+            "surface roughness, where the structure declares them."),
         modes=("rietveld",),
         when_to_use=(
             "A structure worth refining against data good enough to carry it. "
@@ -696,91 +698,97 @@ PLAN_INFO: dict[str, PlanInfo] = {
     "lab_bragg_brentano": PlanInfo(
         title="Lab diffractometer (one pass)",
         description=(
-            "Bragg-Brentano flat-plate order: the sample displacement and "
-            "transparency corrections join the zero shift, and the axial "
+            "Bragg-Brentano flat-plate order. The specimen displacement and "
+            "transparency corrections join the zero shift. The axial "
             "(Finger-Cox-Jephcoat) apertures refine with the widths."),
         modes=("rietveld",),
         when_to_use=(
-            "A lab pattern where something outside the fit pins the zero or "
-            "the displacement (a calibrated goniometer, an internal "
-            "standard). It frees both in one stage, and unpinned they are "
-            "collinear with the cell, so on one uncalibrated pattern use "
-            "mccusker_default or mccusker_structural, which free the zero "
-            "alone. It refines specimen and instrument effects together, so "
-            "read the correlation guards before quoting a width."),
+            "A lab pattern where something outside the fit pins the zero shift "
+            "or the specimen displacement, such as a calibrated goniometer or "
+            "an internal standard. This plan frees both in one stage. Unpinned, "
+            "they are collinear with the lattice parameters. On one "
+            "uncalibrated pattern, use `mccusker_default` or "
+            "`mccusker_structural`, which free the zero shift alone. This plan "
+            "refines specimen and instrument effects together, so read the "
+            "correlation guards before quoting a width."),
     ),
     "lab_calibrate": PlanInfo(
         title="Lab: calibrate on a standard",
         description=(
-            "Step 1 of the two-step lab workflow. Refines the instrument "
+            "Step 1 of the two-step lab workflow. It refines the instrument "
             "profile and the position corrections on a line-position standard "
-            "**with its certified cell held fixed** — which is what decorrelates "
-            "zero shift, displacement and cell."),
+            "with its certified lattice parameters held fixed. Holding them "
+            "fixed decorrelates the zero shift, the specimen displacement and "
+            "the lattice parameters from one another."),
         modes=("rietveld",),
         when_to_use=(
-            "On a standard (LaB6, Si, corundum), once per instrument "
-            "configuration. Follow it with save_instrument_profile."),
+            "A standard (LaB6, Si or corundum), once per instrument "
+            "configuration. Follow it with `save_instrument_profile`."),
     ),
     "lab_sample_refine": PlanInfo(
         title="Lab: refine a specimen",
         description=(
-            "Step 2 of the two-step lab workflow. The instrument profile is "
-            "held at its calibrated values and only the sample's own broadening "
-            "(size and strain, isotropic or Stephens-anisotropic) refines, "
-            "instrument ⊕ sample."),
+            "Step 2 of the two-step lab workflow. The instrument profile stays "
+            "at its calibrated values. Only the specimen's own broadening "
+            "refines (size and strain, isotropic or Stephens-anisotropic). It "
+            "combines with the instrument's by adding Gaussian variances and "
+            "Lorentzian widths."),
         modes=("rietveld",),
         when_to_use=(
-            "Any specimen measured on a calibrated instrument, and the only "
-            "plan whose size/strain numbers mean what they say — an "
-            "uncalibrated fit absorbs the instrument into them."),
+            "Any specimen measured on a calibrated instrument. This is the "
+            "only plan whose size and strain values mean what they say, "
+            "because an uncalibrated fit absorbs the instrument into them."),
     ),
     "profile_only": PlanInfo(
         title="Cell + profile, no structure",
         description=(
-            "Background, zero shift, cell and widths only. In Le Bail mode the "
-            "per-hkl intensities are extracted by iterated partitioning instead "
-            "of being computed from a structure."),
+            "Background, zero shift, lattice parameters and widths only. In "
+            "Le Bail mode, the plan extracts the per-hkl intensities by "
+            "iterated partitioning instead of computing them from a "
+            "structure."),
         modes=("lebail", "rietveld"),
         when_to_use=(
-            "A known cell with an unknown or untrusted structure — indexing "
-            "checks, extracted intensities for structure solution, or a "
-            "cell/width measurement you want independent of any structural model."),
+            "A known lattice with an unknown structure, or one you do not trust. Use it "
+            "for indexing checks, for intensities to feed structure solution, "
+            "or for a lattice parameter and width measurement that does not "
+            "depend on any structural model."),
     ),
     "pawley_default": PlanInfo(
         title="Pawley whole-pattern",
         description=(
-            "The same order as the Le Bail plan, but the per-hkl intensities "
-            "are refined *inside* the least squares, so they carry esds. "
-            "Overlapped groups are conditioned by an equal-split restraint and "
-            "come back flagged rather than confidently split."),
+            "The same order as the Le Bail plan. The per-hkl intensities "
+            "refine inside the least squares, so they carry esds. An "
+            "equal-split restraint conditions overlapped groups. The plan "
+            "flags them instead of splitting them with false confidence."),
         modes=("pawley",),
         when_to_use=(
-            "Extracted intensities that need uncertainties — feeding structure "
-            "solution or a peak-shape study. Read PAWLEY_OVERLAP_UNRESOLVED "
-            "before using an intensity from an overlapped group."),
+            "Intensities that need uncertainties, for structure solution or a "
+            "peak-shape study. Read `PAWLEY_OVERLAP_UNRESOLVED` before using "
+            "an intensity from an overlapped group."),
     ),
     "magnetic_width": PlanInfo(
         title="Magnetic broadening (three steps)",
         description=(
             "The turn-on order for a phase whose magnetic peaks are broader "
-            "than its nuclear ones: the moment with the magnetic width held "
-            "at zero, then the width freed beside the converged moment (the "
-            "moment keeps refining; staging is cumulative), then both "
-            "together to the final tolerance. Frees nothing else — the "
-            "confound it stages around is between those two alone, since "
-            "both lower the calculated magnetic peak's height, and the order "
-            "makes the moment enter the width stage converged rather than "
-            "cold."),
+            "than its nuclear peaks. The first stage refines the moment with "
+            "the magnetic width held at zero. The second frees the width "
+            "beside the converged moment, and the moment keeps refining "
+            "because staging is cumulative. The third frees both together and "
+            "runs to the final tolerance. The plan frees nothing else. The "
+            "moment and the width confound each other, since both lower the "
+            "calculated magnetic peak's height. This order brings the moment "
+            "into the width stage already converged."),
         modes=("rietveld",),
         when_to_use=(
             "After a magnetic structure has converged and "
-            "MAGNETIC_WIDTH_UNMODELLED says its magnetic reflections are "
-            "fitted too narrow. It frees both width terms, because which of "
-            "the two carries the effect is a property of the dataset; expect "
-            "the other one back unmeasured, and expect the last stage to "
-            "report max_iter when it is, since a dead direction is what the "
-            "solver walks. Read MAGNETIC_WIDTH_MOVED_MOMENT before dropping "
-            "an 'unmeasured' term: the shift it names is the measurement."),
+            "`MAGNETIC_WIDTH_UNMODELLED` says its magnetic reflections fit too "
+            "narrow. The plan frees both width terms, because the dataset "
+            "decides which of the two carries the effect. Expect the other "
+            "term back unmeasured. Expect the last stage to report `max_iter` "
+            "in that case, since the solver keeps walking a direction the data "
+            "cannot constrain. Read `MAGNETIC_WIDTH_MOVED_MOMENT` before "
+            "dropping an unmeasured term, because the shift it names is the "
+            "measurement."),
     ),
 }
 

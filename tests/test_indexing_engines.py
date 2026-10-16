@@ -898,10 +898,10 @@ def test_an_unfinished_search_says_so_rather_than_reporting_nothing_found():
     assert "INDEX_SEARCH_INCOMPLETE" in codes
     message = next(d for d in result.diagnostics
                    if d.code == "INDEX_SEARCH_INCOMPLETE")
-    assert "not evidence" in message.message
+    assert "did not finish orthorhombic" in message.message
     # the clock stopped it, so the clock is what it names and what it offers
     assert "within 0.5 s per system" in message.message
-    assert message.suggestion.startswith("raise budget_seconds")
+    assert message.suggestion.startswith("Raise budget_seconds")
 
 
 def test_a_search_the_ceiling_stopped_does_not_blame_its_own_budget():
@@ -919,7 +919,7 @@ def test_a_search_the_ceiling_stopped_does_not_blame_its_own_budget():
     assert "by the run's ceiling or a cancel" in message.message, message.message
     assert "within" not in message.message, message.message
     assert "total_budget_seconds" in message.suggestion
-    assert "raise budget_seconds" not in message.suggestion
+    assert "Raise budget_seconds" not in message.suggestion
 
 
 def test_a_restricted_search_reports_only_the_systems_it_searched():

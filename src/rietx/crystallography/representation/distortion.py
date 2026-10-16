@@ -192,7 +192,7 @@ class ModeAmplitude:
 
 @dataclass(frozen=True, eq=False)
 class ModeDecomposition:
-    """A child decomposed against its parent: A_τ per (k, irrep, direction).
+    """A child decomposed against its parent into ``A_τ`` per (k, irrep, direction).
 
     ``total`` is the norm of the displacement field over the child's primitive
     cell in the reference metric, after ``translation`` (the mean
@@ -747,7 +747,7 @@ def _child_atoms(child) -> tuple[np.ndarray, tuple[str, ...]]:
 
 def mode_amplitudes(parent, child, transform, *, reference: str = "average",
                     tolerance: float = 1.5) -> ModeDecomposition:
-    """Decompose a child structure into A_τ per (k, irrep, direction), in Å.
+    """Decompose a child structure into ``A_τ`` per (k, irrep, direction), in Å.
 
     The child's atoms are paired one to one with the parent's images in the
     child cell (same element, nearest in the reference metric, at most

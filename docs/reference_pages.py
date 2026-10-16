@@ -273,7 +273,7 @@ def plan_ladder() -> str:
     out.append("")
     for name, plan in plans.items():
         info = PLAN_INFO[name]
-        out += [f"## {name}", "", info.description, "", info.when_to_use, ""]
+        out += [f"## `{name}`", "", info.description, "", info.when_to_use, ""]
         if not shared:
             out += [_ftol_sentence(plan.intermediate_ftol), ""]
         out += _ladder(plan)
@@ -293,6 +293,7 @@ def plan_ladder() -> str:
 # ----------------------------------------------------------------------
 
 _CODE_SHAPE = _re.compile(r"[A-Z][A-Z0-9_]+")
+_LEVELS = {"info", "warning", "error"}
 SOURCE_ROOT = _Path(__file__).resolve().parent.parent / "src" / "rietx"
 
 
@@ -344,6 +345,14 @@ def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]
             if name in {"cls", "GuardFinding"} and node.args:
                 for literal in _code_literals(node.args[0]):
                     add(literal, rel, None)
+            # a helper taking (level, code) positionally, `_note(d, "info", "CODE", ...)`
+            plain = [a.value for a in node.args
+                     if isinstance(a, _ast.Constant) and isinstance(a.value, str)]
+            levels = [s for s in plain if s in _LEVELS]
+            if len(levels) == 1:
+                for literal in plain:
+                    if _CODE_SHAPE.fullmatch(literal) and "_" in literal:
+                        add(literal, rel, levels[0])
     for code, files in tabled.items():
         if code not in out:
             for rel in files:
@@ -351,24 +360,78 @@ def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]
     return out
 
 
+#: The diagnostic pages: (page stem, title, the source areas it takes).  One
+#: page of every code passed the page contract's 50 000-character cap once each
+#: code carried its explanation, so codes are filed by where they are raised.
+#: The first area prefix a code's first file matches decides; "" takes the rest.
+DIAGNOSTIC_GROUPS = (
+    ("diagnostics-projects", "Other programs' projects", ("rietx/io/projects/",)),
+    ("diagnostics-files", "Reading files", ("rietx/io/",)),
+    ("diagnostics-indexing", "Peaks and indexing", ("rietx/indexing/",)),
+    # not `rietx/schemas/`: the codes raised there are a result's capped
+    # correlation counts and a stored file's migrated ranges, not structure
+    ("diagnostics-structures", "Structures and magnetism",
+     ("rietx/crystallography/", "rietx/strategy/magnetic",
+      "rietx/report/magnetic")),
+    ("diagnostics-series", "Series and joint fits", ("rietx/sequential", "rietx/multi")),
+    ("diagnostics-refinement", "Refinement", ("",)),
+)
+
+
+def diagnostic_group(files: set[str]) -> str:
+    """The page stem a code with these raising files is listed on."""
+    first = sorted(files)[0]
+    return next(stem for stem, _title, areas in DIAGNOSTIC_GROUPS
+                if any(first.startswith(area) for area in areas))
+
+
+def _levels(entry: dict[str, set[str]]) -> str:
+    levels = sorted(lv for lv in entry["levels"] if lv)
+    if "" in entry["levels"]:
+        levels.append("set at run time")
+    return ", ".join(levels) or "set by a helper"
+
+
 def diagnostic_page() -> str:
-    """The body of `reference/diagnostics.md`: one row per code."""
-    from rietx._about import REPO_URL
+    """The body of `reference/diagnostics.md`: every code, its name and its page."""
+    from rietx.help import explain
 
     index = diagnostic_index()
+    titles = {stem: title for stem, title, _areas in DIAGNOSTIC_GROUPS}
     out = [_BANNER.format(source="the source tree under src/rietx/"), "",
            f"The package raises {len(index)} codes.", "",
-           "| Code | Level | Raised in |", "| --- | --- | --- |"]
+           "| Code | Name | Page |", "| --- | --- | --- |"]
     for code in sorted(index):
-        entry = index[code]
-        levels = sorted(lv for lv in entry["levels"] if lv)
-        if "" in entry["levels"]:
-            levels.append("set at run time")
-        level = ", ".join(levels) or "—"
-        files = "<br>".join(f"[`{rel}`]({REPO_URL}/blob/main/src/{rel})"
-                            for rel in sorted(entry["files"]))
-        out.append(f"| `{code}` | {level} | {files} |")
+        stem = diagnostic_group(index[code]["files"])
+        entry = explain(code)
+        name = "" if entry is None else entry.title
+        out.append(f"| [`{code}`]({stem}.md#{code.lower()}) "
+                   f"| {name} | {titles[stem]} |")
     return "\n".join(out + [""])
+
+
+def diagnostic_group_page(stem: str) -> str:
+    """The body of `reference/<stem>.md`: one section per code on that page.
+
+    Each section carries the code's explanation from `rietx.help.DIAGNOSTIC_HELP`,
+    so the page and a notebook's folded explanation are one text, and a heading
+    per code gives every code a link target.
+    """
+    from rietx._about import REPO_URL
+    from rietx.help import explain
+
+    index = diagnostic_index()
+    codes = [c for c in sorted(index) if diagnostic_group(index[c]["files"]) == stem]
+    out = [_BANNER.format(source="the source tree under src/rietx/"), ""]
+    for code in codes:
+        files = ", ".join(f"[`{rel}`]({REPO_URL}/blob/main/src/{rel})"
+                          for rel in sorted(index[code]["files"]))
+        out += [f"## `{code}`", ""]
+        help_entry = explain(code)
+        if help_entry is not None:
+            out += [f"{help_entry.title}.", "", help_entry.description, ""]
+        out += [f"Level: {_levels(index[code])}. Raised in {files}.", ""]
+    return "\n".join(out)
 
 
 # ----------------------------------------------------------------------
@@ -644,6 +707,8 @@ BODIES = {
     "parameters.md": parameter_map,
     "plans.md": plan_ladder,
     "diagnostics.md": diagnostic_page,
+    **{f"{stem}.md": _functools.partial(diagnostic_group_page, stem)
+       for stem, _title, _areas in DIAGNOSTIC_GROUPS},
     "project.md": project_tree,
     "roadmap.md": roadmap_page,
     "api.md": api_everyday,

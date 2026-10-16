@@ -375,6 +375,8 @@ mispositioned or absent phase, not an impurity">
   .summary {
     margin: 3px 0;
     color: var(--muted);
+    /* one sentence a line (WP-1985) */
+    white-space: pre-line;
   }
 
   .abstain {

@@ -142,9 +142,9 @@ _ARMS = [
      "What is known about one fitted line. Whether a flag also makes the line "
      "unusable as evidence of a lattice is served beside the vocabulary as "
      "`unusable_flags`, so no client re-derives it."),
-    ("peak_diagnostics", "Peak-list diagnostics",
-     "Messages about the list rather than about one line. Several are the "
-     "list-level summary of a flag and say how many lines carry it."),
+    ("diagnostics", "Diagnostic codes",
+     "What each diagnostic code means and why it fires. A finding's own "
+     "message and suggestion say what this case found and what to do."),
     ("peak_origins", "Peak origins",
      "Where one line came from: detection, or a person. Provenance and not a "
      "judgement; no gate in the package branches on it."),

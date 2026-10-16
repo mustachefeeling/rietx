@@ -1212,14 +1212,13 @@ def _descend(parent, winner_trial: "MagneticTrial",
         margin, candidate = beat[0]
         diagnostics = (Diagnostic(
             level="warning", code="MAGNETIC_SUBGROUP_PREFERRED",
-            message=(f"the descent audit found {candidate.label} "
+            message=(f"The descent audit found {candidate.label} "
                      f"({candidate.bns_number}), a subgroup of the winner "
                      f"{winner_trial.label} ({winner_trial.bns_number}), "
-                     f"beats it by {margin:.1f} BIC (tie width "
+                     f"that beats it by {margin:.1f} BIC (tie width "
                      f"{tie_width:.1f}) once refit from the winner's own "
-                     f"converged solution -- the ranking above never "
-                     f"considered it a competitor and the data prefers it; "
-                     f"re-rank by hand"),
+                     f"converged solution."),
+            suggestion="Choose between the two groups by hand.",
             value=margin),)
         note = (f"MAGNETIC_SUBGROUP_PREFERRED: {candidate.label} "
                 f"({candidate.bns_number}) beats the winner by {margin:.1f} BIC")
@@ -1776,11 +1775,9 @@ def _score_k_trials(k_runs: list[tuple[tuple, list["MagneticTrial"]]],
                         message=(
                             f"k = {_label(top[0])} (ΔBIC {top[2]:.1f}) and "
                             f"k = {_label(runner[0])} (ΔBIC {runner[2]:.1f}) "
-                            f"are within {k_tie_width:.1f} BIC of each other "
-                            "-- the satellite step could not separate them "
-                            "either (both index the same peaks to within the "
-                            "offset margin) and the moment refinement's "
-                            "intensity does not clearly separate them"),
+                            f"are within {k_tie_width:.1f} BIC of each other, "
+                            "and the satellite step could not separate them "
+                            "either."),
                         where=[f"phases.{phase_name}"], value=gap))
             else:
                 caveats.append(
@@ -2104,11 +2101,10 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                 where=[f"phases.{phase}.atoms.{_j}.moment.ion"],
                 message=(f"solve_magnetic(): site {label!r} states no "
                          f"oxidation state and this table has no "
-                         f"neutral-atom ⟨j0⟩ for it; its form factor "
-                         f"defaulted to {assumed_ion!r} ({reason})"),
-                suggestion=(f"pass ion={{{label!r}: '<ion>'}} to "
-                            f"solve_magnetic() to state the ion explicitly "
-                            f"and silence this default")))
+                         f"neutral-atom ⟨j0⟩ for it. Its form factor "
+                         f"defaulted to {assumed_ion!r} ({reason})."),
+                suggestion=(f"Pass ion={{{label!r}: '<ion>'}} to "
+                            f"solve_magnetic() to state the ion.")))
         if label in g_assumed:
             g_value = g_assumed[label]
             ion_g_diagnostics.append(Diagnostic(
@@ -2116,11 +2112,10 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                 where=[f"phases.{phase}.atoms.{_j}.moment.g"],
                 value=g_value,
                 message=(f"solve_magnetic(): site {label!r} states no Landé "
-                         f"g and its ion was not stated by the caller; its "
-                         f"free-ion Hund's-rule g_J = {g_value:g} was used"),
-                suggestion=(f"pass g={{{label!r}: {g_value:g}}} to "
-                            f"solve_magnetic() to state g explicitly and "
-                            f"silence this default")))
+                         f"g and its ion was not stated by the caller. Its "
+                         f"free-ion Hund's-rule g_J = {g_value:g} was used."),
+                suggestion=(f"Pass g={{{label!r}: {g_value:g}}} to "
+                            f"solve_magnetic() to state g.")))
 
     if refinement.result_.status != "converged":
         caveats.append(
@@ -2351,9 +2346,9 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                                     "tie_to_parent: a k != 0 trial holds the "
                                     "child cell at the parent-derived cell and "
                                     "ties the child Biso of one parent atom to "
-                                    "one another, for the trial and for its "
-                                    "nuclear reference; coordinates stay held "
-                                    "as before")))
+                                    "one another, in the trial and in its "
+                                    "nuclear reference. Coordinates stay held "
+                                    "as before.")))
                 trial_plan = _without_cell(plan) if extra else plan
                 reference_of[(kk, index)] = reference_for(child_structure, extra)
                 chi2_ref, p_ref = reference_of[(kk, index)][:2]

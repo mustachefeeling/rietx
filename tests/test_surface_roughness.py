@@ -681,9 +681,9 @@ def test_guard_report_carries_roughness_and_the_diagnostic_is_actionable():
     assert rough
     for d in rough:
         assert d.level == "warning" and d.where and d.suggestion
-    # both directions get their own wording, not one generic sentence
+    # both directions get their own wording
     msgs = " ".join(d.message for d in rough)
-    assert "not separable" in msgs or "hiding in it" in msgs
+    assert "reproduces most of" in msgs
 
 
 def test_unconstrained_roughness_is_flagged_rather_than_reported_as_measured():
@@ -723,7 +723,7 @@ def test_pitschke_outside_its_regime_is_flagged_not_clamped():
     diags = [d for d in _roughness_regime_diagnostics(model, values)
              if d.code == "ROUGHNESS_OUTSIDE_REGIME"]
     assert diags and diags[0].level == "warning"
-    assert "amplifies" in diags[0].message
+    assert "exceeds sin(theta)" in diags[0].message
 
     # the forward model is *not* clamped — clamping would kink the Jacobian
     factor = model._roughness_factor(model.tt, values)

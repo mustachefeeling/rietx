@@ -99,6 +99,18 @@ British spelling):
 
 ### Inherited
 
+- **2026-10-16, from WP-1985 (closed).** The report text the notebooks show is rewritten.
+  A diagnostic prints as `warning[CODE]: message` with indented `at:` and `help:` lines
+  (`Diagnostic.__str__`), and in a notebook as one `<details>` a finding with the code's
+  explanation folded in. `FitReport` has a designed `__str__`. `FitReport.summary` is one
+  sentence a line, and `Refinement.summary()` prints it under `report:` (the `layer0/1:`
+  label, the `abstained:` line and the `unmatched obs peaks:` line are gone). Every message
+  and suggestion was reworded. Four places in the tutorial scripts still assume the old
+  forms: `02_simple_rietveld.py:52` and `05_sequential_fits.py:218` print
+  `[level] CODE: message` by hand (print `d` instead), `02_simple_rietveld.py:152` splits a
+  message on `' — '` (no message carries one now), and its markdown around line 259
+  explains `layer0/1` and `unmatched obs peaks`. The committed notebooks' stored outputs
+  (02, 03, 05) show the old text until they are regenerated.
 - **2026-10-09, from WP-1547.** CI now executes the notebooks on the py3.14
   leg alone. The other legs set `RIETX_TUTORIALS=skip`, which skips
   `test_tutorial_executes_clean` and nothing else. `test_tutorials.py`'s

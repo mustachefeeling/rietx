@@ -336,7 +336,7 @@ class Capabilities(Base):
 
 
 def capabilities() -> Capabilities:
-    """Everything this build can do — see the module docstring."""
+    """Everything this build can do.  The module docstring says what each field means."""
     # Local, and not for cost: ``rietx.gui`` imports the session, which imports
     # this module, so a top-level import here would be a cycle.  By call time the
     # package is initialised and the constant is reachable — still quoted from

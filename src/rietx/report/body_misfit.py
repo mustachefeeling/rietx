@@ -305,18 +305,17 @@ def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
                     f"{lab} {t:.3f} → {r:.3f} ({s:+.1f}σ)" for lab, t, r, s in devs[:3])
                 diagnostics.append(Diagnostic(
                     level="warning", code="RIGID_BODY_MISFIT",
-                    message=(f"rigid body {body.name!r} (phase {ip}): released as "
-                             f"restrained free atoms it fits the data better than as "
-                             f"a body — χ² {chi_a:.4g} → {chi_b:.4g} for {added} more "
+                    message=(f"Rigid body {body.name!r} (phase {ip}) fits the data "
+                             f"better released as restrained free atoms: "
+                             f"χ² {chi_a:.4g} → {chi_b:.4g} for {added} more "
                              f"parameters, Hamilton p = {p:.2g}, ΔBIC = {dbic:.1f} at "
-                             f"N_eff = {n_eff:.0f}.  Largest released deviations "
-                             f"from the template: {worst}"
-                             + (f".  Not carried into the released arm: "
-                                f"{'; '.join(dropped)}" if dropped else "")),
+                             f"N_eff = {n_eff:.0f}. Largest released deviations "
+                             f"from the template: {worst}."
+                             + (f" Not carried into the released arm: "
+                                f"{'; '.join(dropped)}." if dropped else "")),
                     where=[f"phases.{ip}.atoms.{j}" for j in members],
-                    suggestion=("the template is the likeliest cause: check the "
-                                "named bond and angle values against their source, "
-                                "or a wrong atom assignment; a profile or background "
-                                "misfit moves every arm alike and does not fire this"),
+                    suggestion=("Check the named bond and angle values in the "
+                                "template against their source, and check the "
+                                "atom assignment."),
                     value=dbic))
     return BodyMisfitResult(rows=rows, diagnostics=diagnostics)

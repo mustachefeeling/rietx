@@ -1105,18 +1105,14 @@ def shift_allowance_diagnostic(allowance_deg: float) -> Diagnostic:
     because it biases the cell it finds."""
     return Diagnostic(
         level="info", code="INDEX_SHIFT_ALLOWANCE",
-        message=(f"no systematic 2θ shift has been measured, so {allowance_deg:.3f}° "
-                 "was added in quadrature to every line's fitted σ.  Measured on "
-                 "a certified pattern, the fitted σ alone is ~11× too tight: the "
-                 "true cell indexed no lines at all and the search returned "
-                 "nothing"),
+        message=(f"No systematic 2θ shift was measured, so {allowance_deg:.3f}° "
+                 "was added in quadrature to every line's fitted σ."),
         where=[f"σ_sys = {allowance_deg:.3f}° 2θ (assumed)"],
-        suggestion=("the cell a widened search finds absorbs the shift, so refine "
-                    "the winner with a shift template "
-                    "(refine_candidate(..., shift_template=...), or pass "
-                    "shift_template in the SearchSpec) and quote *that* cell; "
-                    "supply reference positions to assess_peak_list if you have "
-                    "an internal standard"))
+        suggestion=("Refine the winning cell with a shift template "
+                    "(refine_candidate(..., shift_template=...), or "
+                    "shift_template in the SearchSpec) and quote that cell. "
+                    "Pass reference positions to assess_peak_list if you have "
+                    "an internal standard."))
 
 
 def shift_from_pairs_diagnostic(shift) -> Diagnostic:
@@ -1130,24 +1126,20 @@ def shift_from_pairs_diagnostic(shift) -> Diagnostic:
     which is why they are separate codes rather than one code with a flag.
     """
     p = shift.pairs
-    named = ("; the cause is not named: "
-             + ("no template was refuted" if not p.refuted_templates
+    named = (" The cause is not named: "
+             + ("no template was refuted." if not p.refuted_templates
                 else f"{', '.join(p.refuted_templates)} refuted, "
-                     "the rest indistinguishable over this range"))
+                     "the rest indistinguishable over this range."))
     return Diagnostic(
         level="info", code="INDEX_SHIFT_FROM_PAIRS",
-        message=(f"a systematic shift of {shift.allowance_deg:.4f}° 2θ was "
+        message=(f"A systematic shift of {shift.allowance_deg:.4f}° 2θ was "
                  f"measured from {p.n_clustered} harmonic reflection pairs "
                  f"agreeing to {p.scatter_deg:.4f}° (of {p.n_pairs} admitted, "
                  f"z = {p.z:.1f} against {p.null_replicates} structureless "
-                 f"replicates, p = {p.p_value:.3f}) — no reference positions "
-                 "were needed" + named),
+                 f"replicates, p = {p.p_value:.3f})." + named),
         where=[f"allowance = {shift.allowance_deg:.4f}° 2θ (measured)",
                f"best template = {shift.best}"],
-        suggestion=("this is the window the search used; if the cause matters, "
-                    "extending the 2θ range is what separates a zero-point error "
-                    "from a specimen displacement — they are collinear over a "
-                    "short range and no amount of counting can attribute them"))
+        suggestion="Extend the 2θ range if the cause matters.")
 
 
 def refine_with_shift(fit, spec: SearchSpec, system: str, q_all: np.ndarray,
@@ -1845,25 +1837,22 @@ def incomplete_diagnostic(engine: str, systems: Sequence[str],
     dof = ", ".join(f"{s} {METRIC_DOF[s]}" for s in everything if s in METRIC_DOF)
     advice = []
     if systems:
-        advice.append("raise budget_seconds, or narrow the search — a smaller "
-                      "max_volume or a shorter d-axis range costs exponentially "
-                      "less than more time buys.")
+        advice.append("Raise budget_seconds, or narrow the search with a "
+                      "smaller max_volume or a shorter d-axis range.")
     if capped:
-        advice.append(f"On {', '.join(capped)}, narrow the search — a smaller "
+        advice.append(f"Narrow the search on {', '.join(capped)} with a smaller "
                       "max_volume, a shorter d-axis range or a peak list ending "
-                      "at a lower angle shrinks what the cap counts; more time "
-                      "changes nothing.")
+                      "at a lower angle, since more time changes nothing there.")
     if stopped:
-        advice.append(f"On {', '.join(stopped)}, raise total_budget_seconds or "
-                      "narrow the search; INDEX_BUDGET_EXHAUSTED names what the "
-                      "ceiling left.")
+        advice.append(f"Raise total_budget_seconds, or narrow the search on "
+                      f"{', '.join(stopped)}. INDEX_BUDGET_EXHAUSTED names what "
+                      "the ceiling left.")
     return Diagnostic(
         level="warning", code="INDEX_SEARCH_INCOMPLETE",
-        message=(f"the {engine} search {' and '.join(parts)}, so finding no "
-                 "cell there is not evidence that none exists"),
+        message=f"The {engine} search {' and '.join(parts)}.",
         where=everything,
-        suggestion=("  ".join(advice) + "  Cost grows with the metric degrees "
-                    f"of freedom ({dof})"))
+        suggestion=(" ".join(advice) + " Cost grows with the metric degrees "
+                    f"of freedom ({dof})."))
 
 
 def candidates_truncated_diagnostic(n_merged: int, n_reported: int,
@@ -1896,19 +1885,17 @@ def candidates_truncated_diagnostic(n_merged: int, n_reported: int,
     if n_merged > n_reported:
         parts.append(f"{n_merged} distinct lattices were merged and the "
                      f"reported list holds the top {n_reported}, so "
-                     f"{n_merged - n_reported} ranked below it")
+                     f"{n_merged - n_reported} ranked below it.")
     if pool_capped:
         parts.append(f"{', '.join(pool_capped)} returned a full pool of "
                      f"{pool}, so more may have been found there than were "
-                     "handed to the merge")
+                     "handed to the merge.")
     return Diagnostic(
         level="info", code="INDEX_CANDIDATES_TRUNCATED",
-        message="; ".join(parts) if parts else "nothing was truncated",
+        message=" ".join(parts) if parts else "Nothing was truncated.",
         where=list(pool_capped),
-        suggestion=("raise max_candidates to report more — it also raises the "
-                    "per-unit pool, and it is what prices validation "
-                    "(estimate_ceiling), so the cost is the Le Bail fits and "
-                    "not the search"))
+        suggestion=("Raise max_candidates to report more of the ranking. It "
+                    "also raises the per-unit pool."))
 
 
 def single_engine_diagnostic(name: str) -> Diagnostic:
@@ -1923,14 +1910,10 @@ def single_engine_diagnostic(name: str) -> Diagnostic:
     """
     return Diagnostic(
         level="info", code="INDEX_SINGLE_ENGINE",
-        message=(f"only the {name} engine ran, and agreement between "
-                 "independent searches is what confidence measures here — so "
-                 "every candidate grades low structurally (fewer than two "
-                 "finders), which means 'unconfirmed', not 'refuted'"),
+        message=(f"Only the {name} engine ran, so every candidate grades low "
+                 "(fewer than two finders)."),
         where=[f"engines: {name}"],
-        suggestion=("run the default engine set for a gradeable answer; a "
-                    "single-engine run is a probe, and its ranking is still "
-                    "the panel's"))
+        suggestion="Run the default engine set for a graded answer.")
 
 
 def budget_exhausted_diagnostic(total_seconds: float,
@@ -1966,19 +1949,15 @@ def budget_exhausted_diagnostic(total_seconds: float,
         where.append(f"{candidates_not_validated} candidate(s) not validated")
     return Diagnostic(
         level="warning", code="INDEX_BUDGET_EXHAUSTED",
-        message=((f"the run hit its declared ceiling of {total_seconds:g} s, "
-                  "so the answer covers what was reached rather than the "
-                  "whole requested search") if ceiling_hit else
-                 (f"the declared ceiling of {total_seconds:g} s bound the "
-                  "shortlist's validation: one or more fits exhausted their "
-                  "slice of the remaining clock and their candidates read "
-                  "not_validated")),
+        message=((f"The run hit its declared ceiling of {total_seconds:g} s, "
+                  "so the answer covers what was reached.") if ceiling_hit else
+                 (f"One or more validation fits exhausted their slice of the "
+                  f"clock under the declared ceiling of {total_seconds:g} s, "
+                  "and their candidates read not_validated.")),
         where=where,
-        suggestion=("what was reached is still ranked and gated honestly — "
-                    "read systems_searched and search_complete before treating "
-                    "an absence as evidence.  Raise total_budget_seconds, or "
-                    "narrow systems= to where the answer can live, which costs "
-                    "exponentially less than more time buys"))
+        suggestion=("Read systems_searched and search_complete before you "
+                    "treat an absence as evidence. Raise total_budget_seconds, "
+                    "or narrow systems= to where the answer can live."))
 
 
 # ----------------------------------------------------------------------

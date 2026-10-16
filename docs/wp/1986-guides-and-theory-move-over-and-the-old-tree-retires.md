@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
-Priority: P3 2026-10-16 — waits on 1985 alone now that WP-1978's tree is built (PR #1004)
+Priority: P3 2026-10-16 — waits on 1979's redirect stubs alone now that WP-1985 has closed
 
 ## Goal
 
@@ -46,6 +46,13 @@ carries no instrument, so write the new one from a `Refinement`.
 
 ### Inherited
 
+- **2026-10-16, from WP-1985 (closed).** The report text a guide shows is rewritten (the
+  rustc-style line form, `FitReport.summary` one sentence a line, every message reworded).
+  The Reference tab's diagnostic page is now `reference/diagnostics.md`, a table linking
+  six subsystem pages (`diagnostics-refinement.md` and five more), each code a section
+  with its explanation from `rietx.help.DIAGNOSTIC_HELP`. The glossary's diagnostics arm
+  is `diagnostics` (was `peak_diagnostics`) and now holds all 253 codes. Vale reads
+  `docs/docs/_generated/` too, and CI writes the bodies before Vale runs.
 - **2026-10-16, from WP-1982.** A chapter moved into `docs/docs/` meets Vale in CI's lint
   job, which fails on an error. Over the whole old manual the house configuration finds
   463 errors: 417 spellings (code identifiers outside backticks such as `str` and `c_w`,

@@ -324,7 +324,7 @@ def test_a_magphases_entry_is_reported_as_what_the_file_shows():
     (d,) = [d for d in found if d.code == "GSAS2_GPX_PHASE_MAGNETIC"]
     assert d.level == "info"
     assert "one of this project's histogram names" in d.message
-    assert "holds no phase GSAS-II types `magnetic`" in d.message
+    assert "holds no phase that GSAS-II types magnetic" in d.message
     assert "Rwp" not in d.message and "not comparable" not in d.message
 
 
@@ -337,7 +337,7 @@ def test_the_comparison_warning_rides_on_the_magnetic_phase():
     assert [p.magnetic_partner for p in model.phases] == [None, None]
     (d,) = [d for d in found if d.code == "GSAS2_GPX_PHASE_MAGNETIC"]
     assert d.level == "warning" and d.where == ["phases.1"]
-    assert "not comparable" in d.message
+    assert "include its magnetic scattering" in d.message
 
 
 # ------------------------------------------------------------- through the door

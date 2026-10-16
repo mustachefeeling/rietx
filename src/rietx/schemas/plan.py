@@ -66,7 +66,7 @@ INTERMEDIATE_FTOL = 1e-6
 
 
 class StageSpec(Base):
-    """One stage of a staged plan; the serializable mirror of ``Stage``."""
+    """One stage of a staged plan as data that round-trips through JSON, mirroring ``Stage``."""
 
     name: str
     turn_on: list[str] = Field(
@@ -128,7 +128,7 @@ class StageSpec(Base):
 
 
 class PlanSpec(Base):
-    """A staged plan; the serializable mirror of ``RefinementPlan``.
+    """A staged plan as data that round-trips through JSON, mirroring ``RefinementPlan``.
 
     ``stages`` is deliberately *not* ``min_length=1`` here, because this schema
     also has to read history trees written by earlier versions and a header is

@@ -11,6 +11,7 @@ goniometer is angle-calibrated, so the zero point is held at 0 and the
 specimen displacement refines instead.
 """
 
+import textwrap
 from pathlib import Path
 
 import rietx as rx
@@ -99,7 +100,7 @@ def main() -> None:
           f"{ref.fitted_instrument.source.lines[1].weight.value:.3f} "
           f"(Holzer integrated 0.52)")
     for d in result.diagnostics:
-        print(f"          [{d.level}] {d.code}: {d.message}")
+        print(textwrap.indent(str(d), " " * 10))
 
     # --- FitReport, all three layers (needs the compiled model → ref.report())
     report = ref.report(plan=nist_protocol_plan())

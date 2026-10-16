@@ -420,14 +420,14 @@ def test_the_message_drops_the_composition_where_it_separates_nothing() -> None:
     assert "same cell contents (Mn12 O16)" in message
     assert "I 41/a m d:1 → 8, 4, 16" in message
     assert "I 41/a m d:2 → 4, 8, 16" in message
-    assert "changes ZMV and every weight fraction" not in suggestion
-    assert "exchange multiplicities" in suggestion
+    assert "changes ZMV and every weight fraction" not in message + suggestion
+    assert "exchange multiplicities" in message
 
     # and the case where the composition *does* separate them still leads with it
     spinel = [d for d in _symmetry_silence_diagnostics(_spinel("F d -3 m"))
               if d.code == "SPACE_GROUP_SETTING_ASSUMED"]
     assert "Cell contents each setting implies" in spinel[0].message
-    assert "changes ZMV and every weight fraction" in spinel[0].suggestion
+    assert "F d -3 m:2" in spinel[0].suggestion
 
 
 def test_a_reader_and_a_fit_report_the_same_fact_from_one_builder() -> None:

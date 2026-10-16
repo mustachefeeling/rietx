@@ -102,10 +102,11 @@ to where the answer can live costs exponentially less than more time buys.
 $ rietx index corundum.prn --wavelength 1.540596 --systems trigonal --total-budget 45
 ...
 NO CELL: the result abstains — see the diagnostics below.
-  [warning] INDEX_ABSTAINED: no cell reached the confidence gate; the best
-            candidate (trigonal R, V = 127.5 Å³) is low because of:
-            geometric_ambiguity, fom_panel_disagrees, not_validated,
-            indexed_fraction_low, search_incomplete, shift_allowance_assumed
+  warning[INDEX_ABSTAINED]: no cell reached the confidence gate; the best
+    candidate (trigonal R, V = 127.5 Å³) is low because of:
+    geometric_ambiguity, fom_panel_disagrees, not_validated,
+    indexed_fraction_low, search_incomplete, shift_allowance_assumed
+    help: ...
 $ echo $?
 1
 ```

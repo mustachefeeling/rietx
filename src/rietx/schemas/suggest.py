@@ -81,7 +81,7 @@ class ParameterCandidate(Base):
 
 
 class CandidateGroup(Base):
-    """One rankable unit: a single candidate, or a tie the data cannot split.
+    """One candidate, or a tie of candidates the data cannot split.
 
     ``resolved`` is ``False`` exactly when the group has more than one member
     — the pairwise-ρ² union-find merged candidates whose projected columns

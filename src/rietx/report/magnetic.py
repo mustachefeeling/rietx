@@ -214,10 +214,9 @@ def moment_pair_diagnostics(rows: list[MomentEvidence]) -> list[Diagnostic]:
         out.append(Diagnostic(
             level="info", code="MOMENT_PAIR_DEGENERATE",
             message=(f"{r.path} and {other} are a powder-degenerate moment "
-                     f"pair: the fit determines their quadrature sum, "
+                     f"pair. Only their quadrature sum is determined: "
                      f"sqrt(m_a^2 + m_b^2) = {r.paired_magnitude:.3f} +/- "
-                     f"{r.paired_magnitude_esd:.3f}, and not each modulus "
-                     f"separately"),
+                     f"{r.paired_magnitude_esd:.3f}."),
             where=[r.path, other], value=r.paired_magnitude))
     return out
 
@@ -244,29 +243,26 @@ def moment_angle_stationary_diagnostics(stage) -> list[Diagnostic]:
             if p not in passed.paths]
     message = (
         f"{', '.join(passed.paths)} {'sits' if k == 1 else 'sit'} at a "
-        f"direction the site symmetry fixes, where the pattern is even in the "
-        f"angle and its column vanishes. Moving {'it' if k == 1 else 'them'} "
+        f"direction the site symmetry fixes. Moving {'it' if k == 1 else 'them'} "
         f"onto that direction, the other parameters refitted, changes the data "
         f"chi2 by {passed.statistic:.3g} x chi2_red x f^2, within the cut of "
         f"{passed.cut:.3g} for {k} one-sided "
         f"{'direction' if k == 1 else 'directions'} at "
         f"{100 * STATIONARY_ANGLE_LEVEL:g} %. "
         f"{'Its column' if k == 1 else 'Their columns'} left the covariance, "
-        f"so {'it carries' if k == 1 else 'they carry'} no esd and the other "
-        f"esds no longer depend on where the solver stopped beside "
-        f"{'it' if k == 1 else 'them'}. The values are kept")
+        f"so {'it carries' if k == 1 else 'they carry'} no esd. "
+        f"The values are kept.")
     if kept:
-        message += (f". Tested and kept with an esd, as determined: "
-                    f"{', '.join(kept)}")
+        message += (f" Tested and kept with an esd, as determined: "
+                    f"{', '.join(kept)}.")
     return [Diagnostic(
         level="info", code="MOMENT_ANGLE_STATIONARY", where=list(passed.paths),
         value=passed.statistic, message=message,
-        suggestion=("quote the moment direction as along the symmetry "
-                    "direction, not as an angle with an esd. For an interval "
-                    "on one of these angles, call "
-                    "Refinement.profile_interval(data, path); it steps from "
+        suggestion=("Quote the moment direction as lying along the symmetry "
+                    "direction. For an interval on one of these angles, call "
+                    "Refinement.profile_interval(data, path). It steps from "
                     "the angle's half-width in "
-                    "StageResult.moment_angle_tests"))]
+                    "StageResult.moment_angle_tests."))]
 
 
 def _row(model, values, ip, j, cp, msites, phase_name, cell, held_set,
@@ -541,69 +537,59 @@ def _width_support_findings(model, values, esds, free,
                 # and the width sitting on its floor.  Neither checked
                 # true, the message names no cause rather than guess one
                 if _magnetic_intensity(model, ip, values) <= 0.0:
-                    cause = ("the magnetic component carries no intensity "
-                             "here — every p^2|F_perp|^2 is zero, so the "
-                             "width broadens nothing at any value")
-                    advice = (f"report {path} as not measured; a width needs "
-                              f"a nonzero moment to broaden, so refine the "
-                              f"moment first (plan=\"magnetic_width\")")
+                    cause = ("The magnetic component carries no intensity "
+                             "here, so the width broadens nothing at any "
+                             "value.")
+                    advice = (f"Report {path} as not measured. Refine the "
+                              f"moment first (plan=\"magnetic_width\"), since "
+                              f"a width needs a nonzero moment to broaden.")
                 elif val <= _MAGNETIC_WIDTH_FLOOR_DEG:
-                    cause = "this term sits on its zero floor"
-                    advice = (f"report {path} as not measured; hold it at "
+                    cause = "This term sits on its zero floor."
+                    advice = (f"Report {path} as not measured. Hold it at "
                               f"zero if the partner term carries the "
-                              f"broadening")
+                              f"broadening.")
                 else:
-                    cause = ("the magnetic component carries intensity and "
+                    cause = ("The magnetic component carries intensity and "
                              "the value is off its floor, so the data is "
                              "flat in this direction for a reason this "
-                             "report has not identified")
-                    advice = f"report {path} as not measured"
+                             "report has not identified.")
+                    advice = f"Report {path} as not measured."
                 out.append(Diagnostic(
                     level="info", code="MAGNETIC_WIDTH_UNMEASURED",
                     where=[path], value=None,
                     message=(
                         f"{path} was free and came back at {val:.3g} deg with "
-                        f"**no esd**: its column carried no gradient at the "
-                        f"answer — {cause}. It is **not measured** — not "
-                        f"measured to be zero"),
+                        f"no esd, because its column carried no gradient at "
+                        f"the answer. {cause} The width is not measured, and "
+                        f"that does not make it zero."),
                     suggestion=advice))
                 continue
             if esd <= 0.0 or val >= MOMENT_SUPPORT_SIGMA * esd:
                 continue
             head = (f"{path} refined to {val:.4g} deg with an esd of "
-                    f"{esd:.4g} — {val / esd:.2f}x its own uncertainty, below "
-                    f"the {MOMENT_SUPPORT_SIGMA:g}-sigma bar this package uses "
-                    f"for a moment. **Do not quote it as a magnetic coherence "
-                    f"length.** The term enters the magnetic component alone, "
-                    f"so it is identifiable only where the magnetic/nuclear "
-                    f"intensity ratio differs across reflections: a k != 0 "
-                    f"structure with magnetic-only satellites measures it, a "
-                    f"k = 0 collinear one whose magnetic and nuclear "
-                    f"intensities track each other does not, and a "
-                    f"paramagnetic pattern has no magnetic component at all. ")
+                    f"{esd:.4g}. That is {val / esd:.2f}x its own uncertainty, "
+                    f"below the {MOMENT_SUPPORT_SIGMA:g}-sigma bar this "
+                    f"package uses for a moment. ")
             if path in moved:
                 tail = (
-                    "**But this is not licence to drop the term**: "
                     "MAGNETIC_WIDTH_MOVED_MOMENT fired on it in this same "
-                    "fit, which means releasing it moved the moment by more "
-                    "than the moment's own error bar. Unmeasured here means "
-                    "**correlated with the moment**, not absent — holding it "
-                    "at zero puts the moment back where the off-state stage "
-                    "had it, which is the bias this term exists to remove. "
-                    "Report it as an upper bound (value + esd) and quote the "
-                    "released moment")
+                    "fit: releasing it moved the moment by more than the "
+                    "moment's own error bar. This is not licence to drop the "
+                    "term. Unmeasured here means correlated with the moment, "
+                    "and setting it to zero puts the moment back where the "
+                    "off-state stage had it.")
                 suggestion = (
-                    f"keep {path} free, quote the moment from the stage that "
-                    f"freed it, and report the width as an upper bound; see "
-                    f"MAGNETIC_WIDTH_MOVED_MOMENT for the shift")
+                    f"Keep {path} free, quote the moment from the stage that "
+                    f"freed it, and report the width as an upper bound "
+                    f"(value + esd). See MAGNETIC_WIDTH_MOVED_MOMENT for the "
+                    f"shift.")
             else:
-                tail = ("The measurement this fit made is of the moment; the "
-                        "width is a direction the data is flat in, and the "
-                        "number above is where the solver stopped in it")
+                tail = ("The number above is where the solver stopped in a "
+                        "direction the data is flat in.")
                 suggestion = (
-                    f"hold {path} at zero and quote the moment from that fit, "
+                    f"Hold {path} at zero and quote the moment from that fit, "
                     f"or measure the width on a pattern that carries "
-                    f"magnetic-only reflections")
+                    f"magnetic-only reflections.")
             out.append(Diagnostic(
                 level="info", code="MAGNETIC_WIDTH_UNMEASURED",
                 where=[path], value=float(val / esd),
@@ -704,31 +690,18 @@ def magnetic_width_findings(model, values, *, esds=None, free=(),
                    f"phases.{ip}.magnetic_lor_strain"],
             value=float(z),
             message=(
-                f"the magnetic reflections of phase {ip} are fitted by "
-                f"peaks that are too **narrow**, and the moment has paid for "
-                f"it. "
+                f"The magnetic reflections of phase {ip} are fitted by "
+                f"peaks that are too narrow, so the refined moment is biased "
+                f"low. "
                 f"The weighted residual under {names}{more} is negative at "
                 f"the centre and positive in both tails "
                 f"(centre-vs-tails split {split_m:+.3f}), while the same "
                 f"statistic at this phase's {len(used_n)} nuclear-only "
-                f"reflection(s) is {split_n:+.3f} — a difference of "
-                f"{z:.1f}x its own noise. Only a width that belongs to the "
-                f"magnetic component alone survives that subtraction: a wrong "
-                f"instrument profile, a wrong lor_size or a wrong background "
-                f"moves both sets together. Because p^2|F_perp|^2 goes as "
-                f"m^2, the only way a too-narrow calculated peak matches a "
-                f"broad observed one's height is by taking the moment DOWN, "
-                f"so the refined moment is biased **low** here. Free "
-                f"phases.{ip}.magnetic_lor_size (and its strain partner if "
-                f"the excess grows with angle) after the moment has "
-                f"converged, so the moment enters the width stage at its own "
-                f"answer rather than cold"),
+                f"reflection(s) is {split_n:+.3f}. The difference is "
+                f"{z:.1f}x its own noise."),
             suggestion=(
-                f"fit(data, plan=\"magnetic_width\") — the three-step order "
-                f"(moment, then phases.{ip}.magnetic_lor_size freed from its "
-                f"zero floor beside the converged moment, then both to the "
-                f"final tolerance). A "
-                f"single stage freeing the width beside the moment is "
-                f"reported as STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"),
+                f"Run fit(data, plan=\"magnetic_width\"). It frees "
+                f"phases.{ip}.magnetic_lor_size from its zero floor after the "
+                f"moment has converged."),
         ))
     return out

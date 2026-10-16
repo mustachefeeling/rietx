@@ -207,6 +207,25 @@ def test_a_peak_list_prints_one_row_per_peak():
     assert html.count("<tr>") == 4 and "26.2200" in html
 
 
+def test_a_diagnostic_prints_its_headline_and_folds_the_rest():
+    """The text form is rustc's; the HTML shows the headline and folds the
+    suggestion, the paths and the code's explanation (WP-1985)."""
+    from rietx._display import diagnostics_html
+    from rietx.help import explain
+    from rietx.schemas.common import Diagnostic
+    d = Diagnostic(level="warning", code="BOUND_HIT", message="a refined to its upper bound",
+                   where=["phases.0.cell.a"], suggestion="check the tie")
+    assert str(d).splitlines() == ["warning[BOUND_HIT]: a refined to its upper bound",
+                                   "  at: phases.0.cell.a", "  help: check the tie"]
+    html = diagnostics_html([d], context="candidate cubic P")
+    head, fold = html.split("</summary>")
+    assert head == "<details><summary>warning[BOUND_HIT]: a refined to its upper bound"
+    assert fold.index("on: candidate") < fold.index("at: phases") < fold.index("help: check")
+    assert explain("BOUND_HIT").description in fold
+    unknown = Diagnostic(level="info", code="NOT_A_CODE_HERE", message="from another version")
+    assert unknown.explanation is None and "<p>" not in diagnostics_html([unknown])
+
+
 def test_pre_fit_ticks_are_where_the_fit_puts_its_own(fap):
     """One answer to where a tick goes: drawn from the fitted refinement, the
     pre-fit rows are the result's own ticks over the same range."""

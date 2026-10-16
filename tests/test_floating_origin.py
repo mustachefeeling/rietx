@@ -408,7 +408,7 @@ def test_the_fit_says_once_which_atom_holds_the_origin(zincite_fits):
               if d.code == "ORIGIN_FIXED_ON_POLAR_AXIS"]
     assert len(origin) == 1 and origin[0].level == "info"
     assert origin[0].where == ["phases.0.atoms.0.dof.0"]
-    for part in ("phase 0", "P 63 m c", "[0, 0, 1]", "(Zn)"):
+    for part in ("Phase 0", "P 63 m c", "[0, 0, 1]", "(Zn)"):
         assert part in origin[0].message
     codes = {d.code for d in result.diagnostics}
     # the hold's own report replaces the generic one, and the pair is not flat
@@ -787,7 +787,7 @@ def test_the_centroid_keeps_every_esd_and_the_hold_s_answer(zincite_fits,
               if d.code == "ORIGIN_FIXED_ON_POLAR_AXIS"]
     assert len(origin) == 1 and origin[0].level == "info"
     assert origin[0].where == ["phases.0.atoms.0.dof.0", "phases.0.atoms.1.dof.0"]
-    for part in ("phase 0", "P 63 m c", "[0, 0, 1]", "Zn 0.500", "O 0.500",
+    for part in ("Phase 0", "P 63 m c", "[0, 0, 1]", "Zn 0.500", "O 0.500",
                  "'coordinates'"):
         assert part in origin[0].message
     assert not any(sr.blocked_by_hold for sr in result.stages)

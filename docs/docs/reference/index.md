@@ -7,7 +7,7 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [API: everyday calls](api.md), [API: techniques](api-techniques.md) and [API: everything else](api-types.md) give each exported name with its signature or fields.
 - [Parameter map](parameters.md) lists every refinable parameter, grouped by what it does.
 - [Plan presets](plans.md) draws each preset's stages.
-- [Diagnostic codes](diagnostics.md) lists every code with its level and source.
+- [Diagnostic codes](diagnostics.md) lists every code with its name, and links the page that explains it.
 - [Project directory](project.md) shows the files in a `.rex` project.
 - [Names in other programs](foreign-names.md) gives each parameter's name in GSAS-II, GSAS, TOPAS and FullProf.
 - [Roadmap](roadmap.md) lists the milestones in progress and planned.

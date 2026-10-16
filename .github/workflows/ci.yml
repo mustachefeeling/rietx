@@ -121,6 +121,7 @@ jobs:
           echo "$VALE_SHA256  $RUNNER_TEMP/$VALE" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/$VALE" -C "$RUNNER_TEMP" vale
           "$RUNNER_TEMP/vale" sync
+          .venv/bin/python -c "import sys; sys.path.insert(0, 'docs'); import reference_pages; reference_pages.write_bodies()"
           "$RUNNER_TEMP/vale" --minAlertLevel=warning docs/docs
       - name: Skill size limits
         # Here rather than in the suite because a draft runs this job alone,

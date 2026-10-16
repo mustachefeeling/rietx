@@ -72,6 +72,12 @@ variables, and no pooling across rounds.
 
 ### Inherited
 
+- **2026-10-16, from WP-1985 (closed).** `Diagnostic` gained no field: `message` is the
+  observation, `suggestion` the action, and `Diagnostic.explanation` is a property that
+  looks the code up in `rietx.help.DIAGNOSTIC_HELP` (never stored). `Diagnostic.__str__`
+  is the one text form and `_display.diagnostics_html` the notebook fold, so a view
+  pointer added here renders in those two places. A new field still needs its writer
+  named, and a default that reads as an answer is the trap root CLAUDE.md names.
 - **2026-09-28, from [1338](1338-the-skills-own-gates.md): a real-agent round here launches with
   `--setting-sources project,local`.** `~/.claude/skills/rietx` is a
   symlink to the maintainer's checkout, and a user-level skill shadows a

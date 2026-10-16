@@ -137,7 +137,7 @@ def test_constraint_active_diagnostic_units():
     assert d.code == "CONSTRAINT_ACTIVE"
     assert d.level == "info"           # admissible, not wrong — never a warning
     assert "3 step(s)" in d.message and "sample_profile" in d.message
-    assert "vary the starting seed" in d.suggestion
+    assert "Vary the starting seed" in d.suggestion
 
 
 def test_outcome_records_which_driver_ran(pattern):

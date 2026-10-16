@@ -273,9 +273,9 @@ def fraction_diagnostics(profile: FractionProfile) -> list[Diagnostic]:
     ends = (f"{widths[0]:.3g}°" if len(widths) == 1
             else f"{widths[0]:.3g}° to {widths[-1]:.3g}°") if widths else "none"
     fit = ("" if profile.fit_admissible else
-           f"; a pinned refit found χ² lower than the fit's by "
+           f" A pinned refit found χ² lower than the fit's by "
            f"{profile.chi2_fit - profile.chi2_best:.3g}, so the fit did not reach "
-           "the lowest basin along this ridge")
+           "the lowest basin along this ridge.")
     return [Diagnostic(
         level="warning", code="QPA_FRACTION_UNDETERMINED",
         where=[f"phases.{profile.phase_index}.scale", *profile.axes],
@@ -283,16 +283,12 @@ def fraction_diagnostics(profile: FractionProfile) -> list[Diagnostic]:
         message=(
             f"{profile.phase}'s weight fraction "
             f"{100 * profile.weight_fraction:.3g} % ± "
-            f"{100 * profile.weight_fraction_stderr:.2g} % describes one basin: "
-            f"pinning {', '.join(profile.axes)} and refitting admits fractions "
+            f"{100 * profile.weight_fraction_stderr:.2g} % describes one basin. "
+            f"Pinning {', '.join(profile.axes)} and refitting admits fractions "
             f"from {100 * profile.range_low:.3g} % to "
             f"{100 * profile.range_high:.3g} % within Δχ² "
             f"{profile.delta_chi2_cut:.3g} of the lowest χ² (95 %, scaled by "
-            f"χ²_red and the Bérar-Lelann factor), at FWHM {ends}; the farthest "
-            f"is {profile.excess:.3g} times the esd's 95 % half-width{fit}"),
-        suggestion=(
-            "quote the range and the widths that produced it, never the point. "
-            "Only information the fit lacks separates the basins: a width held "
-            "at a value the specimen justifies, a background able to take the "
-            "hump itself, or more counts on the phase's strongest lines"),
+            f"χ²_red and the Bérar-Lelann factor), at FWHM {ends}. The farthest "
+            f"is {profile.excess:.3g} times the esd's 95 % half-width.{fit}"),
+        suggestion="Quote the range and the widths that produced it.",
     )]
