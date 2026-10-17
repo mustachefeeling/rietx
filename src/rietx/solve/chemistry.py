@@ -1,4 +1,4 @@
-"""What the chemist knows, as terms beside the solve cost (#562 S3; WP number pending).
+"""What the chemist knows, as terms beside the solve cost (#562 S3; WP-1997).
 
 A direct-space search minimising the data χ² alone can reach a low χ² with
 chemically absurd coordination: the source run's prior was necessary (WP-1515
@@ -40,15 +40,20 @@ species by the rule of :func:`contact_radius`: Shannon (1976) crystal radii for
 an ion, Pauling (1960) R₁ for a neutral metal in an anion-free phase, and
 Pyykkö & Atsumi (2009) r₁ for any other neutral atom
 (:mod:`rietx.crystallography.radii`).  A species with no row, or a pair whose
-two radii come from different tables, carries **no clash term**, and the
+two radii come from different tables, carries **no radius-derived clash term**, and the
 compiled priors say so in :attr:`CompiledChemistry.notes`.  Nothing falls back
-to a typed or a floor radius.
+to a typed or a floor radius.  A prior that matches nothing (an
+element no site holds, a ``cn``/``spin`` key naming no species) is said there
+too, so it never reads as a satisfied one.  A radius that reaches past the 27
+cells :func:`site_clash` searches is refused at compile.
 
 **Occupancy.**  Two sites whose occupancies sum to at most 1 need not coexist
 — a split site overlaps its partner on purpose — and nothing here knows which
 atoms of a disordered model coexist.  Such a pair carries no clash term and
 is named in the notes (WP-1513's first cut); a configuration-aware check waits
-for a representation of configurations.  The coordination count weighs each
+for a representation of configurations.  **A declared** :class:`ExcludedContact`
+**outranks this rule**: the chemist named the pair, so it keeps its own
+distance (never the radius-derived r₀) and the notes say it was kept.  The coordination count weighs each
 neighbour by its occupancy.
 
 **Thresholds are provisional.**  :data:`CLASH_FRACTION`,
@@ -206,7 +211,9 @@ class Composition:
     def volume_window(self, z: int | None = None) -> tuple[float, float]:
         """(V_min, V_max) for ``z`` (default: the declared Z), Å³: Z·V_fu
         times Hofmann's 0.8-1.25 (WP-1510).  His table is fitted to organic
-        and metal-organic crystals; an ionic specimen runs large."""
+        and metal-organic crystals; an ionic specimen runs large.
+
+        Hofmann, D. W. M. (2002) *Acta Cryst.* B58, 489-493."""
         z = self.z if z is None else z
         if z is None:
             raise ValueError("volume_window needs a Z: declare one or pass z=")
@@ -460,6 +467,14 @@ def contact_radius(species: str, *, cn: int | str | None = None, spin: str | Non
        metal–metal radius of #677.
     3. **Any other neutral atom**: Pyykkö & Atsumi's (2009a) single-bond
        covalent radius r₁.
+
+    A ``cn`` that matches two of Shannon's rows (Cu²⁺ at 4: ``IV`` and
+    ``IVSQ``) raises :class:`ValueError` naming both: the choice is the
+    caller's, and ``None`` would read as "no tabulated radius".
+
+    References: Shannon, R. D. (1976) *Acta Cryst.* A32, 751-767; Pauling, L.
+    (1960) *The Nature of the Chemical Bond*, 3rd ed., Cornell University
+    Press; Pyykkö, P. & Atsumi, M. (2009) *Chem. Eur. J.* 15, 186-197.
     """
     import gemmi
 
@@ -468,18 +483,23 @@ def contact_radius(species: str, *, cn: int | str | None = None, spin: str | Non
     if _is_charged(species):
         cn = DEFAULT_CN if cn is None else cn
         rows = []
+        refused = None
         for s in ((None, "HS", "LS") if spin is None else (spin,)):
             try:
                 rows.append(radii.ionic_radius(species, cn, spin=s, kind="crystal"))
-            except (KeyError, ValueError):   # untabulated, or both spins printed
+            except KeyError:                 # untabulated
                 continue
+            except ValueError as err:        # both spins printed (the HS and LS
+                refused = refused or err     # tries below answer it), or ambiguous
         if not rows:
+            if refused is not None:
+                raise refused                # a choice the caller has to make
             return None
         row = min(rows, key=lambda r: r.radius)
         sp = f" {row.spin}" if row.spin else ""
         return ContactRadius(species, row.radius, "shannon_crystal",
-                             f"Shannon (1976) crystal radius, {row.ion}"
-                             f"{abs(row.charge)}{'+' if row.charge > 0 else '-'} "
+                             f"Shannon (1976) crystal radius, "
+                             f"{radii._label(row.ion, row.charge)} "
                              f"CN {row.cn}{sp}, p. {row.page}")
     el = element_symbol(species)
     if anion_free and gemmi.Element(el).is_metal:
@@ -719,7 +739,8 @@ def compile_chemistry(phase, priors: SolvePriors | None = None) -> CompiledChemi
                      "term for any pair holding it")
     n = len(species)
     r0 = np.zeros((n, n))
-    mixed, split = set(), []
+    declared = np.zeros((n, n))      # the exclusions' own d, per site pair
+    mixed, split = {}, []
     for i in range(n):
         for j in range(n):
             ri, rj = radii_[i], radii_[j]
@@ -727,22 +748,55 @@ def compile_chemistry(phase, priors: SolvePriors | None = None) -> CompiledChemi
                 if ri.table == rj.table:
                     r0[i, j] = priors.fraction * (ri.radius + rj.radius)
                 else:
-                    mixed.add(tuple(sorted((species[i], species[j]))))
+                    mixed.setdefault(tuple(sorted((species[i], species[j]))), []
+                                     ).append((i, j))
             for ex in priors.exclude:
                 pair = {element_symbol(ex.a), element_symbol(ex.b)}
                 if {elements[i], elements[j]} == pair:
                     r0[i, j] = max(r0[i, j], ex.d)
-    for a, b in sorted(mixed):
+                    declared[i, j] = max(declared[i, j], ex.d)
+    for (a, b), sites in sorted(mixed.items()):
+        d = max(declared[i, j] for i, j in sites)
         notes.append(f"{a}–{b}: the two radii come from different tables, so the "
-                     "pair carries no clash term")
+                     "pair carries no radius-derived clash term"
+                     + (f"; the declared exclusion at {d:g} Å is its clash term"
+                        if d > 0.0 else ""))
+    kept = []
     for i in range(n):
         for j in range(i, n):
             if occ[i] + occ[j] <= 1.0 + 1e-9 and r0[i, j] > 0.0:
-                r0[i, j] = r0[j, i] = 0.0
-                split.append(f"{phase.atoms[i].label}–{phase.atoms[j].label}")
+                r0[i, j] = r0[j, i] = declared[i, j]
+                lab = f"{phase.atoms[i].label}–{phase.atoms[j].label}"
+                (kept if declared[i, j] > 0.0 else split).append(lab)
     if split:
         notes.append("occupancies summing to at most 1, so the atoms need not "
                      f"coexist; no clash term for: {', '.join(split)}")
+    if kept:
+        notes.append("occupancies summing to at most 1, but a declared exclusion "
+                     "names the pair and outranks the occupancy rule, so only its "
+                     f"own distance applies to: {', '.join(kept)}")
+    if not clash_cells_suffice(g, r0):
+        raise ValueError(
+            f"the largest clash radius, {float(np.max(r0)):.3f} Å, reaches past the "
+            "27 cells around a minimum image on this cell, which would miss "
+            "contacts: shorten the ExcludedContact distance or use a larger cell")
+    present = set(elements)
+    for prior in priors.coordination:
+        for el in (prior.a, prior.b):
+            if element_symbol(el) not in present:
+                notes.append(f"CoordinationPrior {prior.a}–{prior.b}: no site holds "
+                             f"{el}, so the term is "
+                             f"{'0 and reads as satisfied' if el == prior.a else 'a count of 0'}")
+    for ex in priors.exclude:
+        for el in (ex.a, ex.b):
+            if element_symbol(el) not in present:
+                notes.append(f"ExcludedContact {ex.a}–{ex.b}: no site holds {el}, "
+                             "so it excludes nothing here")
+    for name, mapping in (("cn", priors.cn), ("spin", priors.spin)):
+        for key in mapping:
+            if key not in species:
+                notes.append(f"SolvePriors.{name}[{key!r}]: no site has that species, "
+                             "so it names no radius here")
     return CompiledChemistry(priors=priors, g=g, species=species, elements=elements,
                              occupancy=occ, multiplicity=mult, ops=ops, site_of=site_of,
                              first=first, r0=r0, radii=radii_, notes=notes)
