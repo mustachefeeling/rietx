@@ -127,6 +127,37 @@ def test_switching_example_reproduces_what_the_pages_quote():
     assert "reproduced" in out, f"switching.py printed no 'reproduced' line:\n{out}"
 
 
+GUIDE_SCRIPTS = sorted((EXAMPLES / "guides").glob("*.py"))
+GUIDE_PAGES = REPO_ROOT / "docs" / "docs" / "guides"
+#: What a guide page shows a script printing, marked so a text block that is
+#: not output (a file's contents, a shell line) is never compared.
+GUIDE_OUTPUT = re.compile(r"^<!-- output of (\S+) -->\n+```text\n(.*?)^```", re.S | re.M)
+
+
+@pytest.mark.parametrize("script", GUIDE_SCRIPTS, ids=lambda path: path.stem)
+def test_every_guide_script_prints_what_its_page_quotes(script):
+    """One script per Guides page (WP-1986), named after the page.
+
+    The script asserts every number the page quotes; this checks the page's
+    output blocks against what the script printed, so neither can be edited
+    alone.  A new script joins by being written, with no test of its own.
+    """
+    page = GUIDE_PAGES / f"{script.stem}.md"
+    assert page.exists(), f"{script.name} has no page: write docs/docs/guides/{page.name}"
+    text = page.read_text(encoding="utf-8")
+    quoted = GUIDE_OUTPUT.findall(text)
+    assert quoted, f"{page.name} quotes no output of {script.name}"
+    out = _run(f"guides/{script.name}").stdout
+    for source, block in quoted:
+        assert source == f"examples/guides/{script.name}", (
+            f"{page.name} marks output of {source}, not of its own script")
+        # Anchored at a line start, so a quoted line cannot match the tail
+        # of a longer printed one.
+        assert "\n" + block in "\n" + out, (
+            f"{page.name} quotes output {script.name} did not print:\n"
+            f"{block}\n--- printed ---\n{out}")
+
+
 @pytest.mark.xdist_group("example-nac")
 def test_nac_example_writes_its_plot(nac_run):
     """`nac_11bm.py` swallows an ImportError around plotting so it still runs

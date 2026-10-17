@@ -111,6 +111,15 @@ default. A default change moves the reported origin and the spread of esds,
 never the structure, Rwp or any interatomic distance, and goes in the release
 notes.
 
+### Inherited
+
+- From WP-1986 (2026-10-17): the new manual's Guides tab has no page on fixing the
+  origin of a polar space group, deliberately, because this WP still owns the default.
+  The old `using/concepts.md` § Holding a parameter against the plan carries the text
+  (zincite numbers, both values of `Phase.floating_origin`). When the default settles,
+  say so in WP-1986's Guides notes, so a guide `docs/docs/guides/<page>.md` with its
+  script in `examples/guides/` can be written against the settled behaviour.
+
 ## Non-goals
 
 - Discrete origin choices of non-polar groups (`:1`/`:2`); nothing floats.

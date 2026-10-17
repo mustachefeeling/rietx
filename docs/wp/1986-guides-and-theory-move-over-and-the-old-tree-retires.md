@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-17 — Theory moved (task 1); Guides, GUI chapters, retirement and skill links remain
+Milestone: unscheduled · Status: 🔄 2026-10-17 — Guides: 6 of 25 written; GUI chapters, retirement and skill links remain
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -101,6 +101,29 @@ the tree that day.
   to a moved chapter's old address, and no longer checks any other link to the site.
 
 **Guides.**
+- How a guide is built (2026-10-17). A guide `docs/docs/guides/<page>.md` runs its fits in
+  `examples/guides/<page>.py`, same stem. The page `{literalinclude}`s the slice between
+  `# guide: start` and `# guide: end` (marker above the imports, `:language: python`), and
+  quotes printed output in a `text` fence under `<!-- output of examples/guides/<page>.py -->`.
+  The script asserts every number the page quotes, below the end marker.
+  `tests/test_examples.py::test_every_guide_script_prints_what_its_page_quotes` globs the
+  scripts, so a new one joins with no test of its own, and fails a quoted block the script did
+  not print. A block that only builds objects runs inline against `rietx.examples`'
+  fluorapatite (`test_python_blocks_execute_or_say_why`). Each fluorapatite fit takes under a
+  second. A number that differs between the compiled and numpy paths (`RIETX_COMPILED=0`) is
+  quoted as a bound: the hold guide's unheld cell moved 318 ppm on one and 332 on the other.
+- The guide map is WP-1975's 25 tasks (§ "The 25 most-needed how-tos"; its line numbers
+  are from 2026-10-15). Done 2026-10-17, from `using/concepts.md`: 1 `hold.md`, 2 `tie.md`
+  (named variables folded in), 3 `restrain.md` (the c_w schedule folded in), 4 `plan.md`
+  (the presets' order folded in, without the heavy-atoms departure and the Stephens rule).
+  From `using/refining.md` and `using/cli.md`: 5 `stage.md` (with `stage_reports=True`), 23
+  `watch.md` (watching, stopping from the page or a `CancelToken`, `events=`, telemetry off).
+  Left: 6-22, 24, 25. Item 10 has the spike's page to start from, but no LaB6 pattern ships in
+  `rietx.examples`, so its fit needs bundled data or a no-exec reason. Two candidates outside
+  the list: fixing the origin of a polar space group (`Phase.floating_origin`, after WP-1912
+  lands, which owns that behaviour), and the plan's "one departure" paragraph.
+- `using/concepts.md` is mined except § The parameter groups and § Why the groups correlate,
+  which the Concepts pages already cover. The old chapter stays up until retirement.
 - `theory/intensities.md` § The magnetic structure factor lost its link to
   `using/refining.md` § When the magnetic peaks are broader (label `sec-magnetic-width`),
   because the new tree has no such page yet. Link the guide that replaces it.
@@ -157,7 +180,8 @@ the tree that day.
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
-      the whole old tree retires (task 4); see Context, 2026-10-17.
+      the whole old tree retires (task 4); see Context, 2026-10-17. Six of 25 written
+      (2026-10-17, map under Notes by task).
 - [ ] GUI chapters moved with `test_gui_manual.py`.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.
@@ -170,6 +194,62 @@ the tree that day.
 ```
 
 ## Handover log
+
+### 2026-10-17 (2nd session) — the Guides tab begins, six guides and the pattern for the rest
+
+The new manual's Guides tab now holds six "How to" pages: keep a parameter fixed through a
+plan, tie parameters, restrain a bond or an angle, add a stage to a plan, run a plan one
+stage at a time, and watch or stop a running fit. Every fit a guide shows is a short script
+run against the fluorapatite tutorial data rietx ships, so a reader can run it as written,
+and every number a page quotes is checked by the test suite against what the script
+printed. The old chapters they came from are untouched, as decided. Nineteen of WP-1975's
+25 planned guides remain, and the way to write each is now settled.
+
+*Done.* Pages `docs/docs/guides/{hold,tie,restrain,plan,stage,watch}.md`, each with
+`examples/guides/<same>.py`; the convention and the guide map are under Notes by task,
+Guides. One test, `test_every_guide_script_prints_what_its_page_quotes`, runs every script
+in `examples/guides/` and fails a quoted output block the script did not print. Blocks
+that only build objects run inline against `rietx.examples`, so the new pages carry two
+no-exec blocks (a mixed-site occupancy tie, a series hook) and no other. The Parameter map
+said `*` matches one part of a name; it crosses dots, and the page now says so. A
+`### Inherited` note went to WP-1912: the polar-origin guide waits for its default.
+`/code-review high --fix` found 9 and fixed 6 (one by hand): the hold page quoted 318
+ppm, which the numpy path prints as 332, so the line now rounds to 100 ppm; the watch
+guide denied that a run holds the observed intensities, which `snapshot.json` does; the
+stage guide named a mechanism its comparison does not show; a series must call
+`add_variable` in its constrain hook; quoted blocks now match at a line start; `watch.py`
+names a token that never fired. Declined: a marker over a non-`text` fence (none exists),
+and declaring the compiled or numpy path in the tie, restrain and stage scripts, whose
+printed values agree on both paths on darwin. If CI's Linux legs disagree, round those
+lines as the hold line was.
+
+*Measured* (`[dev]`, darwin/arm64). Each fluorapatite fit takes 0.7-1.0 s. The three
+scripts that quote exact values print the same on `RIETX_COMPILED=0`. The restraint guide's
+three P-O restraints at sigma 0.01 Å move each bond by 0.0011 Å at most against a fit
+where they pull on nothing, so on 5 751 points the data place the bonds. The synthetic c_w
+case in `tests/test_restraints.py` re-run: 4.837 Å and 148.6 sigma under a flat weight, as
+the old chapter said (that test's docstring truncates them to 4.83 and 148). Fast
+selection on the final tree: 10 903 passed, 185 skipped, 2 xfailed, one run of 5:50 with
+no other suite running. This session added six items, the six guide cases; main moved
+during the session, so no before-and-after pair is quoted. `tests.added_test_times`: the
+six cases total 96.8 s in that run, six subprocesses under full `-n auto` load (17.9 s
+wall for the six alone). They stay in the fast tier beside `switching.py`'s case, for
+the reason `test_examples.py`'s docstring gives. The full selection did not run: docs,
+examples and one test cannot move a measured number. Acceptance command plus
+`test_examples`: 131 passed. Vale over the guides: 0 errors, 0 warnings.
+
+*Gotchas.* A `literalinclude` needs `:language: python`, or the twin and the page show
+the code unhighlighted. Put `# guide: start` above the imports so a reader sees where
+`data` and `structure` come from. A fitted value from an ill-conditioned fit (the unheld
+cell) moves by percent between the compiled and numpy paths; quote it as a rounded figure.
+Python unbinds an `except ... as` name after the block, so a script that asserts on the
+exception keeps its own reference.
+
+Next: Guides from `using/data.md` (items 6, 7, 8 and 25: fit range and excluded regions,
+a hump, a measured blank, checking a pattern before fitting), since it is the next largest
+source and its items share a fixture. Item 8 needs a blank, and none ships in
+`rietx.examples`; decide between bundling one and a no-exec reason before writing it.
+Then `using/report.md` (13), `using/series.md` (14-17) and `using/history.md` (21).
 
 - **2026-10-17** — Theory now lives in the new manual. The fourteen chapters are pages
   of the Theory tab, numbered as before, each opening with a sentence saying what it

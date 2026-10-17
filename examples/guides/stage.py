@@ -1,0 +1,47 @@
+"""The fits behind `docs/docs/guides/stage.md`: a plan run by hand, and a report per stage.
+
+The page shows the lines between each pair of `guide:` markers and quotes what
+they print; every quoted number is asserted at the end, so a change that moves
+one fails `tests/test_examples.py`.
+
+Data: the GSAS-II `LabData` tutorial fluorapatite, shipped in `rietx.examples`.
+"""
+
+# guide: start
+
+import rietx as rx
+from rietx.examples import examples_dir
+
+data = rx.read_pattern(examples_dir() / "FAP.XRA")
+structure = rx.Structure.from_cif(examples_dir() / "fluorapatite.cif")
+instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
+instrument.background = rx.BackgroundChebyshev.with_terms(6)
+ref = rx.Refinement(structure, instrument)
+
+stages = [
+    rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+    rx.Stage("cell", ["instrument.zero_shift", "phases.*.cell.*"]),
+    rx.Stage("profile", ["instrument.profile.*"]),
+]
+for stage in stages:
+    result = ref.run_stage(data, stage, two_theta_limits=(15, 130))
+    print(f"{stage.name:<10} {result.status}  Rwp {result.statistics.rwp:.4f}")
+# guide: end
+
+# guide: reports start
+structure = rx.Structure.from_cif(examples_dir() / "fluorapatite.cif")
+plan_ref = rx.Refinement(structure, instrument)
+plan_ref.fit(data, plan="mccusker_default", two_theta_limits=(15, 130), stage_reports=True)
+
+for report in plan_ref.stage_reports_:
+    print(f"{report.stage:<10} Rwp {report.rwp:.4f}")
+# guide: reports end
+
+assert [s.name for s in result.stages] == ["profile"]
+assert [r.stage for r in plan_ref.stage_reports_] == [
+    "scale_bkg", "zero", "cell", "profile_w", "profile"]
+# The page quotes each Rwp, and compares the two ends: the hand-run plan frees
+# all five widths in one stage, the preset frees `w` first.
+assert f"{result.statistics.rwp:.4f}" == "0.1022"
+assert [f"{r.rwp:.4f}" for r in plan_ref.stage_reports_] == [
+    "0.6050", "0.4921", "0.4920", "0.1932", "0.0988"]
