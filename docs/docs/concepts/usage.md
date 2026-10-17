@@ -12,7 +12,7 @@ This is how the second tutorial makes the first six of the eight calls:
 ```{literalinclude} ../../../examples/tutorials/02_simple_rietveld.py
 :language: python
 :start-at: import rietx as rx
-:end-before: print(f"{result.status}
+:end-before: print(result)
 ```
 
 ## Every fit

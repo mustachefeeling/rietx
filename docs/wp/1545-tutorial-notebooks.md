@@ -191,7 +191,7 @@ agent-checking box, links Concepts and Theory for the why, and builds a native
 view only where its own cells need one.
 
 - [x] 01 quickstart.
-- [ ] 02 split in two, the landing pin kept or moved.
+- [x] 02 split in two, the landing pin kept or moved.
 - [ ] 03 peaks, indexing, Le Bail.
 - [ ] 04 peak shape and microstructure.
 - [ ] 05 sequential fits.

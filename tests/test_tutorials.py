@@ -99,11 +99,12 @@ def test_tutorial_executes_clean(path):
         kinds = {k for out in cell.outputs for k in out.get("data", {})}
         assert "image/png" in kinds, f"{path.stem}: {cell.source.splitlines()[-1]!r} showed no image"
     if path.stem == LANDING_TUTORIAL:
-        printed = _printed(nb.cells)
+        printed = _flat(_printed(nb.cells))
         out = _landing_box()[1]
-        codes = re.findall(r"\] ([A-Z_]+):", out)
+        # a diagnostic prints as `warning[CODE]: message` (WP-1985)
+        codes = re.findall(r"\[([A-Z_]+)\]:", out)
         assert codes, "found no diagnostic code in the landing page's output panel"
-        quoted = [out.split()[0], *codes]  # the status word, then each code
+        quoted = [_flat(out.splitlines()[0]), *codes]  # the status line, then each code
         missing = [code for code in quoted if code not in printed]
         assert missing == [], f"{path.stem} no longer prints {missing}, which the landing page quotes"
 

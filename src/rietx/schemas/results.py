@@ -87,6 +87,12 @@ class RefinedParameter(Base):
     at_bound: bool | None = None
     equations: list[str] | None = None
 
+    def __str__(self) -> str:
+        """``path  value(esd)  state`` on one line, so a list of rows reads as
+        a table (WP-1545)."""
+        from .._display import refined_parameter_text
+        return refined_parameter_text(self)
+
 
 class Statistics(Base):
     """Agreement indices, defined per Toby (2006), Powder Diffraction 21, 67.
@@ -658,6 +664,12 @@ class GeometryDistance(Base):
     symmetry_1: str = "."
     symmetry_2: str | None = "."
     bonded: bool = True               # covalent-radius criterion (BOND_SLACK_ANG)
+
+    def __str__(self) -> str:
+        """The pair, the distance with its esd, and the image's symmetry code
+        on one line, so a list of bonds reads as a table (WP-1545)."""
+        from .._display import distance_text
+        return distance_text(self)
 
 
 class GeometryAngle(Base):

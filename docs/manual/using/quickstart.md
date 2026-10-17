@@ -15,7 +15,8 @@ pattern with an impurity phase.
 | Notebook | What it teaches | Download |
 |---|---|---|
 | [](tutorials/01_quickstart.ipynb) | Look at a pattern, check a model against it, fit the cell and peak shapes with Le Bail, and read the summary in order | {download}`01_quickstart.ipynb <tutorials/01_quickstart.ipynb>` |
-| [](tutorials/02_simple_rietveld.ipynb) | A staged Rietveld refinement, two parameters the data cannot separate, ties, bond lengths, the refined structure drawn, and the history | {download}`02_simple_rietveld.ipynb <tutorials/02_simple_rietveld.ipynb>` |
+| [](tutorials/02_simple_rietveld.ipynb) | A staged Rietveld refinement, the parameter table, bond lengths, the refined structure drawn, and a project | {download}`02_simple_rietveld.ipynb <tutorials/02_simple_rietveld.ipynb>` |
+| [](tutorials/02b_steering_a_refinement.ipynb) | Tying three atoms' Biso, two parameters the data cannot separate, going back in the history and holding one, and the verdict for a structure | {download}`02b_steering_a_refinement.ipynb <tutorials/02b_steering_a_refinement.ipynb>` |
 | [](tutorials/03_peaks_indexing_lebail.ipynb) | Picking peaks, indexing with a narrowed search, why the indexer abstains, and checking a candidate cell with Le Bail | {download}`03_peaks_indexing_lebail.ipynb <tutorials/03_peaks_indexing_lebail.ipynb>` |
 | [](tutorials/04_peak_shape_and_microstructure.ipynb) | Calibrating an instrument on a standard, then measuring crystallite size and strain against a known truth | {download}`04_peak_shape_and_microstructure.ipynb <tutorials/04_peak_shape_and_microstructure.ipynb>` |
 | [](tutorials/05_sequential_fits.ipynb) | Fitting a heating ramp pattern by pattern, a parameter's trajectory, and what the series reports when one frame fails | {download}`05_sequential_fits.ipynb <tutorials/05_sequential_fits.ipynb>` |
@@ -39,6 +40,7 @@ examples/tutorials/ at build, and each is generated from the .py of its name. --
 
 tutorials/01_quickstart
 tutorials/02_simple_rietveld
+tutorials/02b_steering_a_refinement
 tutorials/03_peaks_indexing_lebail
 tutorials/04_peak_shape_and_microstructure
 tutorials/05_sequential_fits

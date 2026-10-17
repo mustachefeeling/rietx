@@ -287,6 +287,32 @@ def parameter_cells(row) -> tuple[str, str, str]:
     return row.path, _number(row.value, row.esd), row_state(row)
 
 
+def refined_parameter_text(p) -> str:
+    """A ``RefinedParameter`` on one line, as a ``ParameterRow`` prints:
+    ``path  value(esd)  state``.  The state is ``vary``, or ``tied`` for a row
+    that did not vary, since a result lists only rows that varied or were
+    tied.  ``at_bound`` follows when the bound guard found the row there, and
+    the equations that set it when any did."""
+    cells = [p.path, _number(p.value, p.stderr), "vary" if p.vary else "tied"]
+    if p.at_bound:
+        cells.append("at_bound")
+    if p.equations:
+        cells.append("equations: " + ", ".join(p.equations))
+    return "  ".join(cells)
+
+
+def distance_text(d) -> str:
+    """A ``GeometryDistance`` on one line: ``P3–O5  1.5331(50) Å  2_554``.
+    The symmetry code is the second atom's, left out when it is the identity
+    (``.``) or unknown (``None``); ``contact`` ends a nonbonded row."""
+    cells = [f"{d.atom_1}–{d.atom_2}", _number(d.distance, d.stderr) + " Å"]
+    if d.symmetry_2 not in (".", None):
+        cells.append(d.symmetry_2)
+    if not d.bonded:
+        cells.append("contact")
+    return "  ".join(cells)
+
+
 def table_text(header: tuple[str, ...], rows: list[tuple[str, ...]], indent: str = "") -> list[str]:
     """Left-aligned columns, two spaces apart, header first."""
     widths = [max(len(c) for c in col) for col in zip(header, *rows)]

@@ -96,6 +96,26 @@ def test_a_parameter_row_prints_on_one_line(fap):
     assert str(tied).endswith("tied = 1·phases.0.cell.a")
 
 
+def test_a_refined_parameter_prints_on_one_line_as_a_row_does(fap):
+    from rietx.schemas.results import RefinedParameter
+    a = fap["result"].parameter("phases.0.cell.a")
+    row = next(r for r in fap["ref"].parameters() if r.path == a.path)
+    assert str(a) == str(row), "a result's row and the table's row read alike"
+    tied = RefinedParameter(path="p", value=1.0, stderr=0.1, vary=False, at_bound=True,
+                            equations=["ramp"])
+    assert str(tied) == "p  1.00(10)  tied  at_bound  equations: ramp"
+
+
+def test_a_distance_prints_on_one_line_and_so_does_its_table():
+    from rietx.schemas.results import GeometryDistance, GeometryTable
+    bond = GeometryDistance(phase_index=0, atom_1="P3", atom_2="O7", atom_index_1=2,
+                            atom_index_2=6, distance=1.5331, stderr=0.005, symmetry_2="2_554")
+    assert str(bond) == "P3–O7  1.5331(50) Å  2_554"
+    contact = bond.model_copy(update={"bonded": False, "symmetry_2": ".", "stderr": None})
+    assert str(contact) == "P3–O7  1.5331 Å  contact"
+    assert "    [0] P3–O7  1.5331(50) Å  2_554" in str(GeometryTable(distances=[bond])).splitlines()
+
+
 def test_displaying_a_refinement_runs_nothing(fap, monkeypatch):
     """IPython builds text/plain and text/html for every displayed value, so a
     view that called ``summary()`` would build a report, and a report's layer

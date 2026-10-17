@@ -1,7 +1,8 @@
 """Build the tutorial notebooks from their percent-format sources (WP-1545).
 
 Each tutorial is a script, ``NN_slug.py``, and its notebook ``NN_slug.ipynb``
-is generated from it, executed, and committed beside it (a template in
+is generated from it (a letter after the number, as in ``02b_``, files a
+notebook straight after the one it continues), executed, and committed beside it (a template in
 ``UNEXECUTED`` is executed and committed without its outputs).  The script is the
 authority (root CLAUDE.md: a walkthrough has one, and it is ``examples/``), so
 an edit goes to the ``.py`` and this file regenerates the notebook.
@@ -38,7 +39,7 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SOURCES = "[0-9][0-9]_*.py"
+SOURCES = "[0-9][0-9]*_*.py"
 #: Notebooks committed with their cells and no outputs (WP-1957).  A template
 #: is run by its reader on their own data, so an output drawn from the example
 #: files would read as theirs.  Its build still executes it and refuses to
