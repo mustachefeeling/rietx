@@ -23,6 +23,7 @@ from rietx import Instrument, PatternData
 from rietx.crystallography.bodies import add_body, place_body_atoms
 from rietx.model.forward import compile_model
 from rietx.model.restraints import (
+    anti_bump_contact_keys,
     anti_bump_restraints,
     stale_anti_bump_pairs,
     summarise_restraints,
@@ -38,6 +39,7 @@ from rietx.schemas.structure import (
     PlanarityRestraint,
     Structure,
 )
+from tests.test_one_sided_restraints import _save_fit_png
 
 P = Parameter
 LAB = Instrument.debye_scherrer(wavelength=1.5406)
@@ -218,6 +220,7 @@ def test_the_restraint_flattens_a_ring_the_data_hold_buckled():
             assert [r.kind for r in rep.rows] == ["planarity"] * 6
     assert rms[False] > 0.1, rms
     assert rms[True] < 3e-3, rms
+    _save_fit_png(result, "planarity_restraints_ring")
 
 
 # ------------------------------------------------- RESTRAINT_PAIRS_STALE
@@ -318,6 +321,7 @@ def test_the_plan_end_names_a_pair_that_entered_from_outside_the_list(listed_o2)
                       "phases.*.atoms.2.dof.0"], max_iter=100)]))
     li_o2 = abs(ref.structure.phases[0].atoms[2].x.value - 0.20) * 6.0
     assert li_o2 < 2.0, li_o2                     # the pair did enter r₀
+    _save_fit_png(result, f"planarity_restraints_stale_{int(listed_o2)}")
     stale = [d for d in result.diagnostics if d.code == "RESTRAINT_PAIRS_STALE"]
     if listed_o2:
         assert stale == []
@@ -349,3 +353,145 @@ def test_restraint_rows_survive_a_json_round_trip():
                            translations=[(0, 0, 0)] * 3 + [(1, 0, 0)])
     ph = _phase([(0.1, 0.2, 0.3)] * 3, r)
     assert Phase.model_validate_json(ph.model_dump_json()).restraints[0] == r
+
+
+# ------------------------------------- review round 1 (yue-here, #995)
+def _pattern_of(structure: Structure, ins, seed: int) -> PatternData:
+    tt = np.arange(10.0, 90.0, 0.01)
+    blank = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, ins, blank, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    y = model.evaluate(table.decode(table.x0())) + 30.0
+    y = np.random.default_rng(seed).poisson(np.maximum(y, 1.0)).astype(float)
+    return PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+
+
+def _bonded_c(listed_bond: bool) -> Structure:
+    """Five carbons in a 12 Å cell: C1–C2 bonded at 1.5 Å, C3–C4 3.0 Å apart,
+    C5 4.0 Å from C3 (past r₀ + margin, so unlisted).  A 3.3 Å C–C rule; the list drops the bonded pair unless ``listed_bond``."""
+    ang = [(0.30, 0.30, 0.30), (0.30 + 1.5 / 12, 0.30, 0.30),
+           (0.70, 0.70, 0.70), (0.70 + 3.0 / 12, 0.70, 0.70),
+           (0.70, 0.70 + 4.0 / 12, 0.70)]
+    ph = Phase(name="p", space_group="P1", cell=_cell(12.0, 12.0, 12.0),
+               atoms=[Atom(label=f"C{k + 1}", species="C", x=P(value=x),
+                           y=P(value=y), z=P(value=z))
+                      for k, (x, y, z) in enumerate(ang)],
+               scale=P(value=1e-3, min=0.0))
+    rows = anti_bump_restraints(ph, {("C", "C"): 3.3}, margin=0.5)
+    if not listed_bond:
+        rows = [r for r in rows if {r.atom_i, r.atom_j} != {0, 1}]
+    assert any({r.atom_i, r.atom_j} == {2, 3} for r in rows)
+    return Structure(phases=[ph.model_copy(update={"restraints": rows})])
+
+
+def test_a_pair_left_out_on_purpose_is_not_named_but_a_drifted_one_is():
+    """The bond C1–C2 (1.5 Å, inside the 3.3 Å rule) was dropped from the list
+    by the caller; without ``since`` the search names it, with the contacts of
+    the starting coordinates it does not.  C5 walking in from 4 Å to 2.5 Å of C3
+    is named either way."""
+    ph = _bonded_c(False).phases[0]
+    assert [(i, j) for i, j, _, _ in stale_anti_bump_pairs(ph)] == [(0, 1)]
+    since = anti_bump_contact_keys(ph)
+    assert stale_anti_bump_pairs(ph, since=since) == []
+    moved = ph.model_copy(update={"atoms": [
+        *ph.atoms[:4],
+        ph.atoms[4].model_copy(update={"y": P(value=0.70 + 2.5 / 12)})]})
+    stale = stale_anti_bump_pairs(moved, since=since)
+    assert [(i, j) for i, j, _, _ in stale] == [(2, 4)]
+    assert stale[0][2] == pytest.approx(2.5)
+
+
+def test_a_bond_left_out_of_the_list_raises_no_warning_through_a_fit():
+    from rietx import Refinement
+    from rietx.strategy.staged import RefinementPlan, Stage
+
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 8e-3
+    s = _bonded_c(False)
+    pattern = _pattern_of(s, ins, 11)
+    ref = Refinement(s, ins, history=False)
+    result = ref.fit(pattern, plan=RefinementPlan(stages=[
+        Stage("scale", ["phases.*.scale", "instrument.background.*"],
+              max_iter=30)]))
+    assert [d for d in result.diagnostics if d.code == "RESTRAINT_PAIRS_STALE"] == []
+    _save_fit_png(result, "planarity_restraints_bond_left_out")
+
+
+def test_run_stage_names_a_pair_that_entered_from_outside_the_list():
+    """The ``fit`` test's fixture, driven one stage at a time: the warning
+    comes from ``run_stage`` too."""
+    from rietx import Refinement
+    from rietx.strategy.staged import Stage
+
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 8e-3
+    pattern = _pattern_of(_li_o_o(1.8, False), ins, 3)
+    ref = Refinement(_li_o_o(2.3, False), ins, history=False)
+    result = ref.run_stage(pattern, Stage(
+        "xyz", ["phases.*.scale", "instrument.background.*",
+                "phases.*.atoms.2.dof.0"], max_iter=100))
+    stale = [d for d in result.diagnostics if d.code == "RESTRAINT_PAIRS_STALE"]
+    assert len(stale) == 1 and stale[0].where == ["p Li1", "p O2"]
+    _save_fit_png(result, "planarity_restraints_run_stage")
+
+
+def _ten_ring_beside_its_image() -> Phase:
+    """Ten C on a 2 Å circle in the b–c plane about (0.09, 0, 0), under P-1 in
+    a 20 Å cell: the inversion image of the ring is a parallel ring 3.6 Å
+    away, so atom 5's copy there sits 3.6 Å from atom 0 and atom 5 itself
+    4.0 Å from it."""
+    atoms = []
+    for k in range(10):
+        t = 2 * math.pi * k / 10
+        atoms.append(Atom(label=f"C{k}", species="C", x=P(value=0.09),
+                          y=P(value=2.0 * math.cos(t) / 20.0),
+                          z=P(value=2.0 * math.sin(t) / 20.0)))
+    return Phase(name="p", space_group="P-1", cell=_cell(20.0, 20.0, 20.0),
+                 atoms=atoms, scale=P(value=1e-3),
+                 restraints=[PlanarityRestraint(atoms=list(range(10)), sigma=0.01)])
+
+
+def test_a_big_plane_stays_in_one_molecule_beside_a_close_neighbour():
+    model, table = _compiled(_ten_ring_beside_its_image())
+    plane = model.restraints.items[0]
+    assert all(np.array_equal(R, np.eye(3)) for R in plane.R)
+    rep = summarise_restraints(model.restraints, table.decode(table.x0()))
+    assert max(abs(r.computed) for r in rep.rows) < 1e-12
+
+
+def test_planarity_indices_are_range_checked_like_bond_indices():
+    for bad in (-1, 4):
+        with pytest.raises(ValueError, match="atoms\\[3\\]"):
+            _phase([(0.1, 0.2, 0.3), (0.2, 0.3, 0.4), (0.3, 0.1, 0.2),
+                    (0.4, 0.4, 0.1)],
+                   PlanarityRestraint(atoms=[0, 1, 2, bad], sigma=0.01))
+
+
+def test_a_translation_with_no_operation_is_refused_rather_than_ignored():
+    with pytest.raises(ValueError, match="no op_index"):
+        PlanarityRestraint(atoms=[0, 1, 2, 3], sigma=0.01,
+                           translations=[(0, 0, 0), (1, 0, 0), (0, 0, 0), (0, 0, 0)])
+    # the first entry's translation is honoured, so it stays legal
+    PlanarityRestraint(atoms=[0, 1, 2, 3], sigma=0.01,
+                       translations=[(1, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)])
+
+
+def test_a_normal_perpendicular_to_the_frozen_one_keeps_its_rows():
+    """``xp.sign(0)`` was 0, so a plane whose current normal is perpendicular
+    to the compile-time one lost every row; the host path takes +1 there.  The
+    frozen normal is turned a quarter turn by hand: the rows must still be the
+    distances to the plane, whose sum of squares is the smallest scatter
+    eigenvalue."""
+    from rietx.model.restraints import _plane_distances
+
+    xyz = np.array([(0.4, 0.4, 0.53), (0.6, 0.4, 0.47), (0.6, 0.6, 0.53),
+                    (0.4, 0.6, 0.47)])      # the scatter is diagonal: normal = ±z
+    model, table = _compiled(_phase(
+        [tuple(v) for v in xyz], PlanarityRestraint(atoms=[0, 1, 2, 3], sigma=0.01)))
+    plane = model.restraints.items[0]
+    plane.normal = np.array([1.0, 0.0, 0.0])        # the true normal is ~z
+    d = np.asarray(_plane_distances(plane, table.decode(table.x0())), dtype=float)
+    cart = xyz * 10.0
+    cart -= cart.mean(axis=0)
+    assert np.sum(d * d) == pytest.approx(np.linalg.eigvalsh(cart.T @ cart)[0],
+                                          rel=1e-9)

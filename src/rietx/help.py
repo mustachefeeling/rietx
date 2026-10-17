@@ -3619,11 +3619,12 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "RESTRAINT_PAIRS_STALE": HelpEntry(
         title="Some contacts have no anti-bump row",
         description=(
-            "At the end of the plan, a phase's anti-bump restraints were checked against "
+            "At the end of the run, a phase's anti-bump restraints were checked against "
             "the final coordinates, and some contacts closer than their minimum distance "
             "have no row in the pair list. The list is built once, from the starting "
             "coordinates, so a pair that drifted inside its minimum from outside the list "
-            "is not restrained. Rebuild the list with `anti_bump_restraints` from these "
+            "is not restrained. A contact already inside its minimum when the run "
+            "started, such as a bond you left out of the list, is not reported. Rebuild the list with `anti_bump_restraints` from these "
             "coordinates, or with a wider margin, and refit before you judge the contact."
         ),
     ),
