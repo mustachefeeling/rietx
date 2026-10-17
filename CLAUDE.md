@@ -828,7 +828,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   refine flags, held parameters and excluded regions, then check the channel count matches before
   believing any Rwp comparison. **Two references are an envelope, not a second tolerance**
   (WP-1306): two engines' answers in one fixture may disagree by more than any bar worth setting
-  (2665 ppm on a cell against the FAP suite's ±300), and agreement with both is then
+  (2668 ppm on a cell against the FAP suite's ±300), and agreement with both is then
   arithmetically impossible, so the gate is the span they bracket and the spread itself is
   reported. **A foreign format's unit is measured against that format's own reference output, never
   adopted from its prose**, and a row the format states two ways is **refused** rather than chosen,

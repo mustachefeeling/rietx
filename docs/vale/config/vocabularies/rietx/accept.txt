@@ -143,6 +143,7 @@ Lindemann
 [lL]ookups
 Lorentzian
 [mM]acromolecular
+Madsen
 [mM]agCIF
 [mM]agneton
 [mM]agnetons

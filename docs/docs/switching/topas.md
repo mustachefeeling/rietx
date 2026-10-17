@@ -58,12 +58,12 @@ rietx has three calls for the same jobs:
 | an equation: `b = 2*a + 1;` | `Refinement.tie(path, source, scale=2, offset=1)` |
 | a named parameter: `prm w 0.1` | `Refinement.add_variable` |
 
-The three oxygen sites of fluorapatite share one displacement parameter in TOPAS like this (lines from a file rietx wrote, with the numbers rounded):
+The three oxygen sites of fluorapatite share one displacement parameter in TOPAS like this (lines from a file rietx wrote, with each number cut to six significant figures):
 
 ```text
-site O5 x O5_x 0.3247 y O5_y 0.4848 z ! 0.25 occ O ! 1.0 beq O5_biso 0.3827
-site O6 x O6_x 0.5910 y O6_y 0.4690 z ! 0.25 occ O ! 1.0 beq O5_biso 0.3827
-site O7 x O7_x 0.3399 y O7_y 0.2577 z O7_z 0.0704 occ O ! 1.0 beq O5_biso 0.3827
+site O5 x O5_x 0.324667 y O5_y 0.484845 z ! 0.25 occ O ! 1.0 beq O5_biso 0.382724
+site O6 x O6_x 0.591017 y O6_y 0.468992 z ! 0.25 occ O ! 1.0 beq O5_biso 0.382724
+site O7 x O7_x 0.339851 y O7_y 0.257709 z O7_z 0.0704395 occ O ! 1.0 beq O5_biso 0.382724
 ```
 
 In rietx it is one call:
@@ -149,7 +149,7 @@ apply_ties(ref, cons)
 ['phases.0.cell.a', 'phases.0.cell.c', 'phases.0.scale', 'phases.0.extinction']
 ```
 
-The reader builds a `Structure` and not an instrument.
+The reader builds a `Structure` alone.
 The wavelength, the emission lines, the background terms and the data file it finds are on `model.stated`, so you can build the `Instrument` to match.
 Both calls that read a file take a `diagnostics=` list, and the reader says what it did not carry:
 
@@ -173,19 +173,21 @@ rx.write_topas_inp(ref.fitted_structure, "refined.inp", free=ref, scale="topas",
 ```
 
 The file names each free parameter after its path, which in TOPAS is also its refine flag.
-It holds the zero shift with `!`, and states the refined specimen displacement as an equation in `th2_offset`.
-These lines are an excerpt, with the background coefficients cut to six figures:
+This file comes from the refinement above that held the zero shift at 0.
+It holds the zero shift with `!`, and states the specimen displacement that took its place as an equation in `th2_offset`.
+The held zero also moves the cell: the same fit with the zero free gives a = 9.37228 Å, 110 ppm lower.
+These lines are an excerpt, with each number cut to six significant figures:
 
 ```text
 xdd "refined.xye" xye_format
   weighting = 1 / SigmaYobs^2;
-  bkg @ 154.768 -172.225 123.706 -71.995 35.247 -15.310
+  bkg @ 154.768 -172.225 123.706 -71.9946 35.2465 -15.3096
   th2_offset ! 0
-  th2_offset = -2*Rad*(0.06318714552786679)*Cos(Th)/217.5;
+  th2_offset = -2*Rad*(0.0631871)*Cos(Th)/217.5;
 str
-  scale p0_scale 0.00047006976846450323 min 0
-  a p0_cell_a 9.37331330915648
-  b p0_cell_a 9.37331330915648
+  scale p0_scale 0.00047007 min 0
+  a p0_cell_a 9.37331
+  b p0_cell_a 9.37331
 ```
 
 The data go beside it as `refined.xye`, with the esd rietx weights by.

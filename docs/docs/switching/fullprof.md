@@ -21,7 +21,8 @@ rietx's plan decides which parameters refine in each stage, so a flag set by han
 FullProf marks a refined parameter with a codeword, a number on the line under the values.
 Two values carrying the same number follow one refined parameter, and a minus sign reverses the sign, so `11.00` and `-11.00` on two magnetic atoms are an antiferromagnetic pair.
 rietx's writer gives every free parameter its own number and never writes a shared one.
-Here the fluorapatite structure is written with the lattice parameters a and c, the scale, one displacement parameter and one coordinate flagged, and the lines that carry no codeword are elided:
+Here the fluorapatite structure is written with the lattice parameters a and c, the scale, one displacement parameter and one coordinate flagged.
+The lines that carry no codeword are elided, and each number is cut to six significant figures:
 
 <!-- api-doc: no-exec — needs a structure with refine flags set and writes a file; examples/switching.py runs it and asserts these lines -->
 ```python
@@ -29,10 +30,10 @@ rx.write_fullprof_pcr(structure, "flags.pcr")
 ```
 
 ```text
-Ca1 CA 0.3333333333 0.6666666667 0.001913 0.47997860123377767 0.3333333333333333
+Ca1 CA 0.333333 0.666667 0.001913 0.479979 0.333333
 0.0 0.0 0.0 11.0 0.0
 ...
-O7 O 0.33951 0.258126 0.070641 0.5300372347561029 1.0
+O7 O 0.33951 0.258126 0.070641 0.530037 1.0
 0.0 0.0 21.0 0.0 0.0
 1.0 0.0 0.0 0.0 0.0 0.0 0
 31.0 0.0 0.0 0.0 0.0 0.0
@@ -43,7 +44,10 @@ O7 O 0.33951 0.258126 0.070641 0.5300372347561029 1.0
 
 Each atom's second line holds the codewords for its x, y, z, B and occupancy.
 `11.0` frees the B of Ca1, `21.0` the z of O7, `31.0` the scale, and `41.0` and `51.0` the lattice parameters a and c.
-The parameter b has no codeword because the space group ties it to a.
+The parameter b has no codeword.
+FullProf applies the cell constraints of the Laue class itself.
+Run on this file, FullProf 8.20 (February 2025) reports `Cell constraints according to Laue symmetry: 6/m` and gives b and γ the codeword of a.
+Files written by hand often give a and b the same codeword, and the reader accepts both forms.
 The reader maps the file back to the same free set:
 
 <!-- api-doc: no-exec — reads the flags.pcr the previous block writes; examples/switching.py runs both and asserts the free set -->
@@ -83,7 +87,7 @@ rietx's exporters write FullProf's profile names, and nothing reads them back.
 
 FullProf folds the unit-cell content, the occupancy normalisation and its own profile normalisation into one scale.
 rietx carries the file's scale through as a starting value and a refine flag, and it does not equal a rietx scale.
-Reading a `.pcr` therefore gives a scale to refine from, and not one to compare.
+Reading a `.pcr` therefore gives a scale to refine from, and the value is no basis for a comparison.
 
 ### The species follow the radiation
 
