@@ -1,9 +1,11 @@
 # Validation against other codes
 
 This page lists each comparison of rietx with another program, the protocol it used and how far the two agreed.
+A section at the end gives the comparisons with a certificate or a weighed composition.
 
-Every row is a test in the repository, run in CI against the real data.
-The [validation matrix](https://github.com/yue-here/rietx/blob/main/docs/VALIDATION.md) holds all of them, including the ones that compare rietx with a certificate or with its own results.
+Every row is a test in the repository.
+The [validation matrix](https://github.com/yue-here/rietx/blob/main/docs/VALIDATION.md) lists the rows on measured data, with every comparison against a certificate or against rietx's own results.
+The texture and calculated-pattern rows compare calculated data, and their tests sit outside the matrix.
 
 | Comparison | Other code | Data | Agreement |
 | --- | --- | --- | --- |
@@ -19,11 +21,12 @@ The [validation matrix](https://github.com/yue-here/rietx/blob/main/docs/VALIDAT
 
 A comparison with another code holds only when rietx runs under that code's protocol.
 That means the same refined parameters, the same held parameters, the same excluded regions and the same weights.
-Each comparison below checks that the number of channels fitted matches before it compares any other number.
+The fluorapatite, LaB<sub>6</sub> and cBN, and silicon tests check that rietx fitted the same channels as the other code before they compare any other number.
 
 A protocol guessed from the other code's output does not work.
-An early comparison on a guessed protocol gave Rwp 16 % and a cell 390 ppm off.
-The same data under the mirrored protocol gave 9.73 % and 116 ppm.
+In version 0.2, fluorapatite under a guessed protocol gave Rwp 16 % and a cell 390 ppm from GSAS's.
+The same version under the mirrored protocol gave 9.73 % and 116 ppm.
+Later versions moved the mirrored result to the figures in the table above.
 
 Where two codes disagree with each other, the bar is the span between them.
 A second code reproduces the first only as far as the two codes' own models allow.
@@ -53,8 +56,10 @@ The test allows 300 ppm on the cell and 10 % on the R-factors.
 rietx's esds carry the Bérar–Lelann inflation and GSAS's do not, so the esds are not compared.
 
 GSAS's file frees 28 parameters, and the plan used here frees 20.
-The plan leaves out the 12 coordinate parameters and frees four that the file does not.
-Freeing them moves Rwp from 0.092498 to 0.092314 and the cell by less than 1 ppm.
+The plan leaves out the 12 coordinate parameters.
+It frees the axial divergence, which GSAS held, and a six-term Chebyshev background where GSAS refined a three-term reciprocal expansion.
+That accounts for the four extra.
+Freeing the coordinates as well moved Rwp from 0.092498 to 0.092314 and the cell by less than 1 ppm, measured on 2026-10-08.
 The page [Names in other programs](../reference/foreign-names.md) maps the parameters one to one.
 
 ## LaB6 and cBN against TOPAS
@@ -90,7 +95,7 @@ The instrument and the phases then split one broadening three ways, and the data
 
 The specimen is a disordered rock-salt cathode with Li<sub>4</sub>MgWO<sub>6</sub>, measured at NSLS-II 28-ID-1 and set up as a PowderLine recipe.
 Two codes' refinements of it are committed with the recipe, and they disagree.
-They differ by 2665 ppm on the cubic cell and by 386 to 1770 ppm on the four free parameters of the monoclinic phase.
+They differ by 2668 ppm on the cubic cell and by 386 to 1770 ppm on the four free parameters of the monoclinic phase.
 GSAS-II reports its own fit singular and returns a negative crystallite size for the first phase.
 
 The bar is the span the two codes leave, widened by 300 ppm at each end.
@@ -108,7 +113,8 @@ The absolute scales are not compared, because each code normalises its own.
 A second recipe holds the cell of SRM 660c LaB<sub>6</sub> at its certificate value and fits only the instrument profile.
 The held cell comes back exactly as stated, as it does in both codes.
 rietx's peak widths match the width of GSAS-II's own calculated profile within 5 %, with a median of 1.2 % and a worst case of 2.3 % on the first ten reflections.
-The widths are compared and not the coefficients, because GSAS-II's model carries a constant Lorentzian term that rietx has not, and a negative Y that GSAS-II clamps on 26 of its 49 reflections.
+The test compares widths.
+The coefficients cannot agree, because GSAS-II's model carries a constant Lorentzian term that rietx has not, and a negative Y that GSAS-II clamps on 26 of its 49 reflections.
 
 | | rietx | TOPAS | GSAS-II |
 | --- | --- | --- | --- |
@@ -172,10 +178,26 @@ TOPAS integrates the whole of each Lorentzian tail.
 rietx's windows hold 98 % of a peak's area, and that accounts for the difference.
 Each test also changes one term of the input and checks that the comparison then fails, so the comparison can see the term it is about.
 
+## Against a certificate or a weighed composition
+
+These tests compare rietx with a known answer and with no other code.
+
+| Comparison | Reference | Agreement |
+| --- | --- | --- |
+| LaB<sub>6</sub>, NIST SRM 660c, laboratory Cu Kα | the certified cell, recomputed for the measurement's temperature | +25 ppm, inside the test's ±2×10<sup>−4</sup> Å |
+| Corundum, NIST SRM 676a, laboratory Cu Kα | the certified a and c | c/a +30 ppm; a and c −312 and −282 ppm |
+| Quantitative phase analysis, IUCr CPD round robin, sample 1 | the weighed composition of eight mixtures | worst 4.92 wt %, RMS 2.19 wt %, against the participants' spread of 6.0 wt % on a major phase |
+
+The certificate's own uncertainty on SRM 660c is ±8×10<sup>−6</sup> Å, and rietx does not reach it.
+The remaining offset varies as cot θ and sin 2θ, which is the shape of instrument aberrations a fundamental-parameters peak would model.
+On corundum the two axes are off by the same fraction, within 3×10<sup>−5</sup> of each other.
+An offset equal on both axes is a lab d-scale error, so the ratio c/a is the figure the certificate checks.
+The round-robin tolerance is the spread of the published participants' results (Madsen *et al.*, 2001), because the esds of the fractions are several times smaller than the measured errors.
+
 ## What has no comparison
 
 These parts of rietx have no comparison with another code.
 Nothing here compares rietx's refined numbers with FullProf's, and the [FullProf page](fullprof.md) says what its file readers were checked against.
 Le Bail and Pawley fits are checked against rietx's own results.
-Magnetic refinement is checked on two tutorial data sets for the shape of the moment, with no reference value.
+A magnetic phase's calculated pattern is compared with TOPAS 6 above, but a refined moment is checked only on two tutorial data sets, for the shape of the moment, with no reference value.
 Neutron time of flight and a fundamental-parameters peak shape are fenced for a 2.0 series, and the [roadmap](roadmap.md) lists them.

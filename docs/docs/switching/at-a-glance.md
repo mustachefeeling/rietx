@@ -32,26 +32,27 @@ The [roadmap](roadmap.md) lists it among the work fenced for a 2.0 series.
 
 | Feature | What rietx has | Checked against | Read more |
 | --- | --- | --- | --- |
-| Rietveld, laboratory X-ray | flat-plate, capillary and transmission geometry | GSAS, on [fluorapatite](validation.md#fluorapatite-against-gsas) | [About a fit](../concepts/fit.md) |
-| Rietveld, synchrotron X-ray | multi-phase fits with several emission lines | TOPAS on [LaB6 and cBN](validation.md#lab6-and-cbn-against-topas), TOPAS and GSAS-II on [two phases](validation.md#two-phases-against-topas-and-gsas-ii), XND on [silicon](validation.md#silicon-against-xnd) | [About a fit](../concepts/fit.md) |
+| Rietveld, laboratory X-ray | flat-plate, capillary and transmission geometry, with the Kα doublet | GSAS on [fluorapatite](validation.md#fluorapatite-against-gsas), a flat plate; the NIST [certificates](validation.md#against-a-certificate-or-a-weighed-composition) of LaB<sub>6</sub> and corundum | [About a fit](../concepts/fit.md) |
+| Rietveld, synchrotron X-ray | multi-phase fits and a refinable wavelength | TOPAS on [LaB6 and cBN](validation.md#lab6-and-cbn-against-topas), TOPAS and GSAS-II on [two phases](validation.md#two-phases-against-topas-and-gsas-ii), XND on [silicon](validation.md#silicon-against-xnd) | [About a fit](../concepts/fit.md) |
 | Rietveld, constant-wavelength neutron | the same model with neutron scattering lengths | a [published refinement](validation.md#one-specimen-two-radiations), and TOPAS 6 on [calculated patterns](validation.md#calculated-patterns-against-topas-6) | [About a fit](../concepts/fit.md) |
 | Joint fit of several patterns | one structure, one instrument per pattern, a refinable wavelength | the [published combined refinement](validation.md#one-specimen-two-radiations) of one specimen | [API: everything else](../reference/api-types.md) |
 | Le Bail and Pawley | intensities refined per reflection, atoms held | rietx's own Rietveld results, since no other code was compared | [About a fit](../concepts/fit.md) |
-| Peak shape and axial divergence | pseudo-Voigt (TCHZ) and Voigt, with Finger–Cox–Jephcoat axial divergence | TOPAS 6, on [calculated patterns](validation.md#calculated-patterns-against-topas-6) | [About parameters](../concepts/parameters.md) |
+| Peak shape and axial divergence | pseudo-Voigt (TCHZ) and Voigt, with Finger–Cox–Jephcoat axial divergence | TOPAS 6, on [calculated patterns](validation.md#calculated-patterns-against-topas-6) with the pseudo-Voigt | [About parameters](../concepts/parameters.md) |
 | Anisotropic strain | Stephens's model, with the allowed terms derived from the space group | TOPAS 6, on [calculated patterns](validation.md#calculated-patterns-against-topas-6) | [About parameters](../concepts/parameters.md) |
-| Background | Chebyshev, P-spline and declared humps | TOPAS 6, on [calculated patterns](validation.md#calculated-patterns-against-topas-6) | [About parameters](../concepts/parameters.md#background) |
+| Background | Chebyshev, P-spline and declared humps | TOPAS 6, on [calculated patterns](validation.md#calculated-patterns-against-topas-6) with Chebyshev and P-spline backgrounds | [About parameters](../concepts/parameters.md#background) |
 | Extinction | Sabine extinction | TOPAS 6, on [calculated patterns](validation.md#calculated-patterns-against-topas-6) | [Parameter map](../reference/parameters.md) |
 | Texture | March–Dollase and spherical harmonics | spherical harmonics against [GSAS-II](validation.md#spherical-harmonic-texture-against-gsas-ii) | [Parameter map](../reference/parameters.md) |
-| Phase fractions | weight fractions with esds | TOPAS on [LaB6 and cBN](validation.md#lab6-and-cbn-against-topas) | [About correlations and esds](../concepts/correlations.md) |
+| Phase fractions | weight fractions with esds | the weighed compositions of the IUCr [round robin](validation.md#against-a-certificate-or-a-weighed-composition), and TOPAS on [LaB6 and cBN](validation.md#lab6-and-cbn-against-topas) | [About correlations and esds](../concepts/correlations.md) |
 | Files from other programs | TOPAS `.inp`, FullProf `.pcr` and GSAS `.EXP` read in with their refine flags, and GSAS-II `.gpx` read in | the free set GSAS states in `FAP.EXP`, [rebuilt exactly](validation.md#fluorapatite-against-gsas) | [Names in other programs](../reference/foreign-names.md) |
 
-Magnetic structures are in development and have no comparison with another code yet.
-The [roadmap](roadmap.md) lists them.
+Magnetic structures are in development.
+The pattern rietx calculates for a magnetic phase matches TOPAS 6's on one [calculated pattern](validation.md#calculated-patterns-against-topas-6).
+A refined moment has no comparison with another code yet.
+The [roadmap](roadmap.md) lists the work.
 
 ## What the report adds
 
-Other codes report an Rwp and a table of refined values.
-rietx also returns a report of where the fit misses the data and what that misfit looks like, and a list of diagnostics.
+Beside Rwp and the table of refined values, rietx returns a report of where the fit misses the data and what that misfit looks like, and a list of diagnostics.
 A diagnostic names a parameter that sits on a bound, two parameters the data cannot separate, or a phase the data cannot see.
 [About the report](../concepts/report.md) describes the three layers.
 Each refinement stage is also kept as a node in a history, so a stage can be restored and the plan forked.

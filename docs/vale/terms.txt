@@ -164,6 +164,7 @@ Langford
 Levenberg
 Lindemann
 Lorentzian
+Madsen
 Marquardt
 Maxwellian
 Pawley
