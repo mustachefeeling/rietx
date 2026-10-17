@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-17 — claimed by @yue-here for Guides (task 2); Theory moved (task 1)
+Milestone: unscheduled · Status: 🔄 2026-10-17 — Guides: 6 of 25 written; GUI chapters, retirement and skill links remain
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -194,6 +194,62 @@ the tree that day.
 ```
 
 ## Handover log
+
+### 2026-10-17 (2nd session) — the Guides tab begins, six guides and the pattern for the rest
+
+The new manual's Guides tab now holds six "How to" pages: keep a parameter fixed through a
+plan, tie parameters, restrain a bond or an angle, add a stage to a plan, run a plan one
+stage at a time, and watch or stop a running fit. Every fit a guide shows is a short script
+run against the fluorapatite tutorial data rietx ships, so a reader can run it as written,
+and every number a page quotes is checked by the test suite against what the script
+printed. The old chapters they came from are untouched, as decided. Nineteen of WP-1975's
+25 planned guides remain, and the way to write each is now settled.
+
+*Done.* Pages `docs/docs/guides/{hold,tie,restrain,plan,stage,watch}.md`, each with
+`examples/guides/<same>.py`; the convention and the guide map are under Notes by task,
+Guides. One test, `test_every_guide_script_prints_what_its_page_quotes`, runs every script
+in `examples/guides/` and fails a quoted output block the script did not print. Blocks
+that only build objects run inline against `rietx.examples`, so the new pages carry two
+no-exec blocks (a mixed-site occupancy tie, a series hook) and no other. The Parameter map
+said `*` matches one part of a name; it crosses dots, and the page now says so. A
+`### Inherited` note went to WP-1912: the polar-origin guide waits for its default.
+`/code-review high --fix` found 9 and fixed 6 (one by hand): the hold page quoted 318
+ppm, which the numpy path prints as 332, so the line now rounds to 100 ppm; the watch
+guide denied that a run holds the observed intensities, which `snapshot.json` does; the
+stage guide named a mechanism its comparison does not show; a series must call
+`add_variable` in its constrain hook; quoted blocks now match at a line start; `watch.py`
+names a token that never fired. Declined: a marker over a non-`text` fence (none exists),
+and declaring the compiled or numpy path in the tie, restrain and stage scripts, whose
+printed values agree on both paths on darwin. If CI's Linux legs disagree, round those
+lines as the hold line was.
+
+*Measured* (`[dev]`, darwin/arm64). Each fluorapatite fit takes 0.7-1.0 s. The three
+scripts that quote exact values print the same on `RIETX_COMPILED=0`. The restraint guide's
+three P-O restraints at sigma 0.01 Å move each bond by 0.0011 Å at most against a fit
+where they pull on nothing, so on 5 751 points the data place the bonds. The synthetic c_w
+case in `tests/test_restraints.py` re-run: 4.837 Å and 148.6 sigma under a flat weight, as
+the old chapter said (that test's docstring truncates them to 4.83 and 148). Fast
+selection on the final tree: 10 903 passed, 185 skipped, 2 xfailed, one run of 5:50 with
+no other suite running. This session added six items, the six guide cases; main moved
+during the session, so no before-and-after pair is quoted. `tests.added_test_times`: the
+six cases total 96.8 s in that run, six subprocesses under full `-n auto` load (17.9 s
+wall for the six alone). They stay in the fast tier beside `switching.py`'s case, for
+the reason `test_examples.py`'s docstring gives. The full selection did not run: docs,
+examples and one test cannot move a measured number. Acceptance command plus
+`test_examples`: 131 passed. Vale over the guides: 0 errors, 0 warnings.
+
+*Gotchas.* A `literalinclude` needs `:language: python`, or the twin and the page show
+the code unhighlighted. Put `# guide: start` above the imports so a reader sees where
+`data` and `structure` come from. A fitted value from an ill-conditioned fit (the unheld
+cell) moves by percent between the compiled and numpy paths; quote it as a rounded figure.
+Python unbinds an `except ... as` name after the block, so a script that asserts on the
+exception keeps its own reference.
+
+Next: Guides from `using/data.md` (items 6, 7, 8 and 25: fit range and excluded regions,
+a hump, a measured blank, checking a pattern before fitting), since it is the next largest
+source and its items share a fixture. Item 8 needs a blank, and none ships in
+`rietx.examples`; decide between bundling one and a no-exec reason before writing it.
+Then `using/report.md` (13), `using/series.md` (14-17) and `using/history.md` (21).
 
 - **2026-10-17** — Theory now lives in the new manual. The fourteen chapters are pages
   of the Theory tab, numbered as before, each opening with a sentence saying what it
