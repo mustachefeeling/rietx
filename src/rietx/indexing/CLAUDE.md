@@ -189,8 +189,10 @@ a correction** — it finds lines, only `shift_template` moves the cell.
 is the right *weight* and the wrong *matching window*: certified corundum's
 lines sit a median 0.060° from truth (a cos θ displacement) against a median
 fitted σ of 0.0056° — the 11σ — so at 3σ the true cell indexes zero lines.
-Hence `DEFAULT_UNKNOWN_SHIFT_DEG`, 0.05° 2θ, the fallback when the pair screen
-declines, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must
+Hence `DEFAULT_UNKNOWN_SHIFT_DEG`, 0.05° 2θ, the ceiling when the pair screen
+declines (a picked list's window is its lower-quartile FWHM, `width_allowance`,
+C6 — safe only behind the C4 retry, the 0.05° having absorbed picker junk),
+reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must
 never look like a measured one; and `refine_with_shift` runs *after* a
 candidate survives, because the shift's *shape* needs reference positions,
 which a candidate cell supplies — a cell never shift-refined is biased by
@@ -327,6 +329,12 @@ roughly the shift (+1400 ppm).
 - **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
   rule this package cannot have** (WP-1039, `engines.search_line_order`). *Which*
   twenty beats *how many* (NAC: 6 of the truth's lines in 2θ order, 18 by intensity
-  over a `SEARCH_POOL_MULTIPLE` low-Q pool), and raising N *loses* answers, since
-  `indexes_the_search_lines` is an **absolute** budget. Ties fall back to Q, so
-  position-only lists are untouched.
+  over a `SEARCH_POOL_MULTIPLE` low-Q pool), and under a *declared* `n_unindexed`
+  raising N *loses* answers, that count being an **absolute** budget. Ties fall
+  back to Q, so position-only lists are untouched.
+- **No agreement → the whole run again on inliers** (C4, `INDEX_INLIER_RETRY`):
+  `SearchSpec.miss_budget`/`engines.search_acceptance` is the one authority for
+  acceptance, the dichotomy prunes (anchor included) and the panel trim. Never
+  the default for every run — it moves the pool Borda ranks (LaB6 rank 1 → 3);
+  no anchor (one intensity), no fraction. Candidates report
+  `n_search_unindexed`/`unindexed_two_theta` under every rule.

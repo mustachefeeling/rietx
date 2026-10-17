@@ -128,6 +128,7 @@ Hofmann
 [iI]dentifiability
 [iI]nequivalent
 [iI]njective
+[iI]nlier
 [iI]ntegrand
 [iI]nteratomic
 [iI]ntermetallic

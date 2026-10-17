@@ -58,6 +58,7 @@ from .engines import (
     reflection_ceiling_ok,
     register_engine,
     row_local_product,
+    search_acceptance,
     search_line_order,
     search_volume_ceiling,
     shift_allowance_diagnostic,
@@ -278,7 +279,7 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    allowance, assumed = effective_shift_allowance(spec, quality)
+    allowance, assumed = effective_shift_allowance(spec, quality, peaks)
     sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     tt_max = float(peaks.two_theta_max)
 
@@ -337,7 +338,9 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
 
     # the hand-off pool, not the reported cap — see ``SearchSpec.engine_pool``
     result.candidates = rank_candidates(raw, peaks, k_sigma=spec.k_sigma,
-                                        n_unindexed=spec.n_unindexed,
+                                        n_unindexed=search_acceptance(
+                                            peaks, search_line_order(peaks, spec),
+                                            spec)[0],
                                         max_candidates=spec.engine_pool(),
                                         q_match=sigma)
     result.stats["candidates.raw"] = float(len(raw))
@@ -376,6 +379,7 @@ def _search_system(peaks: PeakList, system: str, basis: np.ndarray,
                    ) -> tuple[list[EngineCandidate], dict[str, float], bool]:
     n_dof = basis.shape[0]
     search_lines = search_line_order(peaks, spec)
+    accept = search_acceptance(peaks, search_lines, spec, system)
     # The base-line pool is a *prefix of the search lines*, not of the whole list.
     # It has to be: the exact solve assumes small indices, so the pool must be the
     # lowest-Q lines **the search was given** rather than the lowest-Q lines full
@@ -432,7 +436,8 @@ def _search_system(peaks: PeakList, system: str, basis: np.ndarray,
                 cand = _score(basis, system, centring, spec, af, hkl_full,
                               dm_full, index_full, q_all, sigma,
                               peaks.wavelength, tt_max,
-                              vol_max, hkl_tab[combo], search_lines, tt_all)
+                              vol_max, hkl_tab[combo], search_lines, tt_all,
+                              accept)
                 if cand is not None:
                     found.append(cand)
             if len(found) > 2000:
@@ -456,8 +461,13 @@ def _score(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
            index: TrialIndex | None, q_all: np.ndarray,
            sigma: np.ndarray, wavelength: float, tt_max: float, vol_max: float,
            base_hkl: np.ndarray, search_lines: np.ndarray,
-           two_theta: np.ndarray) -> EngineCandidate | None:
+           two_theta: np.ndarray,
+           accept: tuple[int, np.ndarray] | None = None,
+           ) -> EngineCandidate | None:
     """Check one exact solution against **every** usable line, then refine.
+
+    ``accept`` is (miss budget, anchor lines) — ``SearchSpec.miss_budget`` and
+    ``engines.search_anchors`` for this system, computed once by the caller.
 
     The exact solve used n lines and no tolerance; this is where the tolerance is
     spent, and it is the step that makes a poisoned base set harmless — a metric
@@ -491,7 +501,9 @@ def _score(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
         af, cell = fit.af, fit.cell
     if fit is None or fit.chi2_red > spec.k_sigma ** 2:
         return None
-    if not indexes_the_search_lines(line_index, search_lines, spec.n_unindexed):
+    n_miss, anchors = accept if accept is not None else (
+        spec.miss_budget(len(search_lines), system, anchored=False), None)
+    if not indexes_the_search_lines(line_index, search_lines, n_miss, anchors):
         return None
     fit = refine_with_shift(fit, spec, system, q_all, sigma, two_theta,
                             wavelength, line_index, assigned)
@@ -578,7 +590,7 @@ def dominant_zone_probe(peaks: PeakList, *, systems: list[str] | tuple[str, ...]
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    allowance, _assumed = effective_shift_allowance(spec, quality)
+    allowance, _assumed = effective_shift_allowance(spec, quality, peaks)
     sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     return _dominant_zone_probe(peaks, spec, q_all, sigma, tt_all,
                                 float(peaks.two_theta_max), list(systems),

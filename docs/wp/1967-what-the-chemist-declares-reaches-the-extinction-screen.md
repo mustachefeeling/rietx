@@ -1,6 +1,6 @@
 # WP-1967 — what the chemist declares reaches the extinction screen
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-17 — PR #940 merged from outside (`c93c4213`); the Z and density filter remains
 Track: Data and metadata in, a structure out
 Depends on: 1910 soft (the screen's default, PR #939, shares this work's functions)
 Priority: P2 2026-10-14 — was P3 (a workaround covers it: the user drops the groups by hand after the screen); up a rung because PR #940 builds it and what remains is its review
@@ -77,14 +77,14 @@ vector shared by every rotation. A new diagnostic code needs its skill row.
 - [x] **Decision (maintainer):** the issue's proposal, whole or in part,
       recorded as `Decided YYYY-MM-DD:` here and answered on #935.
       *Decided 2026-10-14: yes, as PR #940 builds it (Context).*
-- [ ] Review and merge PR #940 against the two conditions: answers with
+- [x] Review and merge PR #940 against the two conditions: answers with
       nothing declared stay as on `main`, and `restrict` stays optional on
       every surface.
 - [ ] Follow-up: Z and density as a member filter, from Wyckoff
       multiplicities derived off the operators.
-- [ ] Tests (#940 carries `tests/test_extinction_prior.py`), and
+- [x] Tests (#940 carries `tests/test_extinction_prior.py`), and
       `tests/test_acceptance_indexing.py` green.
-- [ ] Skill: the two new codes' rows (#940 puts them in
+- [x] Skill: the two new codes' rows (#940 puts them in
       `references/abstention.md`, since `diagnostics-indexing.md` is over its
       budget).
 
@@ -119,3 +119,24 @@ on `main`.
   cell"). WP-1510's chemistry reaches the search, not the screen, and every
   task there has landed. The maintainer decided it the same day (Context).
   *Next:* PR #940's review.
+- **2026-10-17** — PR #940 merged from outside (`c93c4213`, head `53094b28`),
+  after four review rounds. Gated with PR #951 and the one-word test fix #1031
+  on one merged tree (`8b8287fb`), macOS arm64, `[dev,jax]` venv, alone on the
+  machine: ruff clean; the fast suite 10 854 passed, 120 skipped, 2 xfailed
+  and 1 failed; the full `-m slow` suite 321 passed and 12 skipped, which
+  includes `tests/test_acceptance_indexing.py`. The fast failure was a
+  wall-clock margin in `test_events_aggregator.py` missed by 5 ms under load.
+  It passes alone, and neither PR touches the events code. After #951 merged,
+  `main` was the gated tree byte for byte. Both conditions hold: with nothing
+  declared no ranking and no `best_or_none` moves, and `restrict` is optional
+  on every surface. The merge lets a caller declare chirality, centrosymmetry
+  or polarity to `determine_extinction_symbol` and get the contradicting
+  members named in `excluded_groups`. It deliberately does not carry
+  `restrict` on to `IndexingResult` or `structure_from_candidate` (decision
+  3), and does not filter on Z or density. A gotcha for the next PR here: #940
+  and #951 each added a history line under `INDEXING_THRESHOLDS_VERSION` 1.11,
+  and the two lines conflicted as adjacent text. A sync commit on #951 kept
+  both, #940's first. PR #939 (WP-1910) now conflicts with `main` and has a
+  rebase request. Issue #935 stays open for the Z and density half.
+  *Next:* the Z and density filter, from Wyckoff multiplicities derived off
+  the operators.

@@ -232,6 +232,7 @@ functionals
 identifiability
 injective
 integrand
+inlier
 invariants
 isometry
 iteratively

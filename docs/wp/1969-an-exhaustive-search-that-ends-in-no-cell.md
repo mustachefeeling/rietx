@@ -1,6 +1,6 @@
 # WP-1969 — an exhaustive search that ends in no cell
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-17 — PR #951 merged from outside (`ed1c1958`); three measured follow-ups remain
 Track: What fires, and what stays silent
 Depends on: 1956 soft (the line screen, PR #941, may let the inlier rule become the default)
 Priority: P2 2026-10-14 — a defect that fires wrongly: a completed search abstains on a list with three or more stray lines, and raising the count returns oversized cells; declaring the count by hand is the workaround
@@ -85,7 +85,7 @@ second pass on the residue. Both are tasks below.
       recorded as `Decided YYYY-MM-DD:` here and answered on #933.
       *Decided 2026-10-14: yes, as PR #951 builds it, and a free hand
       beyond (Context).*
-- [ ] Review and merge PR #951.
+- [x] Review and merge PR #951.
 - [ ] Follow-up, after WP-1956 lands: widen the retry's trigger or make the
       inlier rule the default, measured, with LaB6's certified cell kept at
       rank 1.
@@ -94,8 +94,8 @@ second pass on the residue. Both are tasks below.
       capped by its own impurities.
 - [ ] Follow-up: a second pass on the residue, picked at the first cell's
       width law and indexed again, reported as a second result.
-- [ ] Tests, and `tests/test_acceptance_indexing.py` green.
-- [ ] Skill: the `INDEX_INLIER_RETRY` row (#951 puts it in
+- [x] Tests, and `tests/test_acceptance_indexing.py` green.
+- [x] Skill: the `INDEX_INLIER_RETRY` row (#951 puts it in
       `references/abstention.md`).
 
 ## Acceptance
@@ -126,3 +126,22 @@ rank 1. Every indexing acceptance row ranks as on `main`.
   not the engines' acceptance). WP-1511 compares cells a person or a search
   proposes, and the search itself is outside it. The maintainer decided it
   the same day (Context). *Next:* PR #951's review.
+- **2026-10-17** — PR #951 merged from outside (`ed1c1958`), closing issue
+  #933. Gated with PR #940 and the one-word test fix #1031 on one merged tree
+  (`8b8287fb`), macOS arm64, `[dev,jax]` venv, alone on the machine: ruff
+  clean; the fast suite 10 854 passed, 120 skipped, 2 xfailed and 1 failed;
+  the full `-m slow` suite 321 passed and 12 skipped, which includes
+  `tests/test_acceptance_indexing.py`. The fast failure was a wall-clock
+  margin in `test_events_aggregator.py` missed by 5 ms under load. It passes
+  alone, and neither PR touches the events code. #940 merged first, and the
+  two PRs' history lines under `INDEXING_THRESHOLDS_VERSION` 1.11 then
+  conflicted as adjacent text. Sync commit `c1d0a785` on the PR's branch kept
+  both, #940's first, and after the merge `main` was the gated tree byte for
+  byte. The merge makes it possible for a search in which no two engines agree
+  to retry under the inlier rule (`INDEX_INLIER_RETRY`), and sizes a
+  high-resolution list's search window from its own peak widths. It
+  deliberately leaves the inlier rule off as the default (decision 1), and
+  `"inliers"` stays API-only. PR #941 (WP-1956) now conflicts with `main` and
+  has a rebase request.
+  *Next:* the three follow-ups above, each measured with LaB6's certified cell
+  kept at rank 1.
