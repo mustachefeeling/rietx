@@ -151,6 +151,14 @@ def add_body(phase: Phase, name: str, labels: Sequence[str],
             f"space group places {dropped} as images of the atoms kept; the "
             f"body lists {len(keep)} of the template's {len(labels)} points",
             UserWarning, stacklevel=2)
+        for t in torsions:
+            named = {*t.axis, *t.moves} & set(dropped)
+            if named:
+                raise ValueError(
+                    f"add_body {name!r}: its torsion {t.name!r} names "
+                    f"{sorted(named)[0]!r}, which the space group places as an "
+                    "image of an atom kept; a twist of one image is not a twist "
+                    "of its set — name the kept atom in the torsion instead")
         labels = [labels[k] for k in keep]
         species = [species[k] for k in keep]
         frac = frac[keep]

@@ -773,3 +773,97 @@ def test_no_rigid_body_message_keeps_a_numpy_repr_or_the_old_advice():
     ]
     for msg in messages:
         assert msg.startswith("RIGID_BODY_") and "np.float64(" not in msg, msg
+
+
+# ------------------------------------- Yue's round 1 on #1005 (items 1-4)
+def _p21c() -> Phase:
+    P = Parameter
+    cell = Cell(a=P(value=7.1), b=P(value=9.2), c=P(value=8.3), alpha=P(value=90.0),
+                beta=P(value=101.0), gamma=P(value=90.0))
+    return Phase(name="p21c", space_group="P 1 21/c 1", cell=cell, atoms=[
+        Atom(label="Na", species="Na", x=P(value=0.1), y=P(value=0.2), z=P(value=0.3))])
+
+
+def test_a_body_spanning_two_inversion_centres_is_refused_not_built_with_three_dofs():
+    """Item 1: -1 fixes (0,0,0) and (1/2,0,0) alike modulo the lattice, so the
+    old test saw one site symmetry for both and let the body build with three
+    turns; any turn takes the second atom off its centre, one lattice vector
+    from where -1 holds it.  The exact test in unwrapped body coordinates,
+    R·(p − o) = p − o, refuses it; the positive arm, the origin's centre with
+    a general atom beside it, still builds."""
+    P = Parameter
+    base = _p21c()
+    for second, ok in (((0.5, 0.0, 0.0), False), ((0.2, 0.1, 0.15), True)):
+        atoms = [base.atoms[0], Atom(label="A", species="C", x=P(value=0.0),
+                                     y=P(value=0.0), z=P(value=0.0)),
+                 Atom(label="B", species="O", x=P(value=second[0]),
+                      y=P(value=second[1]), z=P(value=second[2]))]
+        phase = Phase.model_validate({**base.model_dump(),
+                                      "atoms": [a.model_dump() for a in atoms]})
+        body = body_from_atoms(phase, ["A", "B"], "pair", origin="A")
+        if ok:
+            ParameterTable(_with_body(phase, body), LAB)
+            continue
+        with pytest.raises(ValueError, match=(
+                r"RIGID_BODY_NOT_INVARIANT: rigid body 'pair' has its atom 'B' at "
+                r"\(0.5, 0.0, 0.0\).*-x,-y,-z.*lattice")):
+            ParameterTable(_with_body(phase, body), LAB)
+
+
+def test_two_fold_axes_a_lattice_vector_apart_are_refused_on_c2c():
+    """Item 1's other cases: C2/c's 2-folds at x = 0 and x = 1/2 are the same
+    element modulo the lattice and different elements for a turn."""
+    P = Parameter
+    base = _c2c()
+    atoms = [Atom(label="A", species="N", x=P(value=0.0), y=P(value=0.3), z=P(value=0.25)),
+             Atom(label="B", species="O", x=P(value=0.5), y=P(value=0.3), z=P(value=0.25))]
+    phase = Phase.model_validate({**base.model_dump(),
+                                  "atoms": [a.model_dump() for a in atoms]})
+    body = body_from_atoms(phase, ["A", "B"], "pair", origin="A")
+    with pytest.raises(ValueError, match=r"RIGID_BODY_NOT_INVARIANT.*atom 'B'.*lattice"):
+        ParameterTable(_with_body(phase, body), LAB)
+
+
+def test_a_linear_body_off_its_site_axis_by_cif_precision_is_accepted():
+    """Item 2: the site check snaps within SITE_TOL, so a linear body whose
+    end is typed 4e-5 (fractional) off the mirror passes it and must not then
+    be refused at 89.99° by a 1e-9 axis test; a tilt of 3e-2 still is."""
+    ref = _diacetylene()
+    for dy, ok in ((4e-5, True), (3e-2, False)):
+        d = ref.model_dump()
+        d["atoms"][0]["y"]["value"] += dy
+        phase = Phase.model_validate(d)
+        try:
+            body = _diacetylene_body(phase, rotation_vary=True)
+            table = ParameterTable(_with_body(phase, body), LAB)
+        except ValueError as exc:
+            assert not ok, exc
+            continue
+        assert ok and _dofs(table) == (2, 1)
+
+
+def test_add_body_refuses_a_torsion_naming_an_atom_it_dropped():
+    """Item 3: on the C2/c 2-fold ``add_body`` drops Cp, an image of C.  A
+    torsion that moves Cp used to ride through to a later, unrelated error;
+    now the call refuses naming the torsion and the dropped atom."""
+    torsion = BodyTorsion(name="t0", axis=("N", "O"), moves=["Cp"], angle=0.0)
+    with pytest.warns(UserWarning, match=r"places \['Cp'\] as images"):
+        with pytest.raises(ValueError, match=(
+                r"add_body 'c2': its torsion 't0' names 'Cp', which the space group "
+                r"places as an image of an atom kept")):
+            add_body(_c2c(), "c2", ["N", "O", "C", "Cp"], ["N", "O", "C", "C"],
+                     C2_TEMPLATE, (0.0, 0.31, 0.25), centre=False,
+                     torsions=[torsion])
+
+
+def test_a_disorder_group_exempts_a_body_across_the_mirror_from_the_overlap_refusal():
+    """Item 4: the skill's remedy for IMAGE_OVERLAP, tested.  The whole SO₄ on
+    the mirror at its centroid is refused (test above); with a disorder_group
+    on its atoms the same body builds."""
+    d = _pbso4_with_o5_image().model_dump()
+    for a in d["atoms"]:
+        if a["label"] in SO4_5:
+            a["disorder_group"] = "1"
+    phase = Phase.model_validate(d)
+    body = body_from_atoms(phase, SO4_5, "SO4")
+    ParameterTable(_with_body(phase, body), LAB)
