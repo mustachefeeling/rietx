@@ -5,7 +5,10 @@ the files this script writes and numbers from the objects it reads back, and
 none of them is typed from memory.  Every figure a page quotes is asserted
 here, so a change that moves one fails `tests/test_examples.py` and the page
 is corrected in the same change.  A page prints a long number cut to six
-significant figures (`cut`), and the assertion compares it in that form.
+significant figures (`cut`).  The assertion compares each number within
+`REL_TOL`, because a fitted value moves in its fifth figure between the
+compiled and numpy paths: `th2_offset` by 2.9e-5 relative, measured
+2026-10-17 with `RIETX_COMPILED=0`.
 
 Data: the GSAS-II `LabData` tutorial fluorapatite and GSAS's converged fit of
 it, `FAP.EXP`, both shipped in `rietx.examples`.  Everything it writes goes
@@ -45,16 +48,21 @@ INSTPRM = [
     "Type:PXC", "Lam1:1.54059", "Lam2:1.54443", "Zero:-0.0365483", "I(L2)/I(L1):0.5",
     "Polariz.:0.5", "U:-1.57858", "V:2.93235", "W:2.29048", "X:2.74538", "Y:3.9936",
 ]
+# fullprof.md prints these runs with `...` between them; each run is
+# consecutive in the file, so an atom's codeword line is the one under it.
 PCR = [
-    "Ca1 CA 0.333333 0.666667 0.001913 0.479979 0.333333",
-    "0.0 0.0 0.0 11.0 0.0",
-    "O7 O 0.33951 0.258126 0.070641 0.530037 1.0",
-    "0.0 0.0 21.0 0.0 0.0",
-    "1.0 0.0 0.0 0.0 0.0 0.0 0",
-    "31.0 0.0 0.0 0.0 0.0 0.0",
-    "9.3717 9.3717 6.8859 90.0 90.0 120.0",
-    "41.0 0.0 51.0 0.0 0.0 0.0",
+    ["Ca1 CA 0.333333 0.666667 0.001913 0.479979 0.333333",
+     "0.0 0.0 0.0 11.0 0.0"],
+    ["O7 O 0.33951 0.258126 0.070641 0.530037 1.0",
+     "0.0 0.0 21.0 0.0 0.0",
+     "1.0 0.0 0.0 0.0 0.0 0.0 0",
+     "31.0 0.0 0.0 0.0 0.0 0.0"],
+    ["9.3717 9.3717 6.8859 90.0 90.0 120.0",
+     "41.0 0.0 51.0 0.0 0.0 0.0"],
 ]
+
+NUMBER = re.compile(r"-?\d+\.\d+")
+REL_TOL = 1e-3      # 34x the measured path-to-path spread (module docstring)
 
 
 def cut(text: str) -> str:
@@ -63,17 +71,38 @@ def cut(text: str) -> str:
         number = match.group()
         digits = number.lstrip("-").replace(".", "").lstrip("0")
         return number if len(digits) <= 6 else f"{float(number):.6g}"
-    return re.sub(r"-?\d+\.\d+", one, text)
+    return NUMBER.sub(one, text)
 
 
 def lines_of(path: Path) -> list[str]:
     return [cut(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
-def in_order(quoted: list[str], lines: list[str]) -> bool:
-    """Whether every quoted line is in the file, in the order quoted."""
-    rest = iter(lines)
-    return all(line in rest for line in quoted)
+def same(quoted: str, line: str) -> bool:
+    """Whether a file line reads as the page quotes it: the text equal, and
+    each number within `REL_TOL`."""
+    if NUMBER.sub("#", quoted) != NUMBER.sub("#", line):
+        return False
+    return all(math.isclose(float(q), float(f), rel_tol=REL_TOL)
+               for q, f in zip(NUMBER.findall(quoted), NUMBER.findall(line)))
+
+
+def in_order(runs: list[list[str]], lines: list[str]) -> bool:
+    """Whether every quoted run is in the file, in the order quoted, with the
+    lines of one run consecutive."""
+    start = 0
+    for run in runs:
+        found = next((i for i in range(start, len(lines) - len(run) + 1)
+                      if all(map(same, run, lines[i:i + len(run)]))), None)
+        if found is None:
+            return False
+        start = found + len(run)
+    return True
+
+
+def each(quoted: list[str]) -> list[list[str]]:
+    """Quoted lines that may sit anywhere after the one before."""
+    return [[line] for line in quoted]
 
 
 def build() -> tuple[rx.PatternData, rx.Refinement]:
@@ -109,12 +138,14 @@ def gsas2_page(out: Path) -> None:
     path = out / "refined.instprm"
     rx.write_gsas2_instprm(ref.fitted_instrument, path)
     lines = lines_of(path)
-    assert lines[1:12] == INSTPRM
+    assert in_order([INSTPRM], lines[1:12])
     assert "SH/L:0.04" in lines          # axial_sl + axial_hl, 0.02 each
-    u_instprm = float(INSTPRM[6].split(":")[1])
+    u_instprm = next(float(line.split(":")[1])
+                     for line in path.read_text(encoding="utf-8").splitlines()
+                     if line.startswith("U:"))
     u_rietx = rx.read_gsas2_instprm(path).profile.u.value
-    assert cut(repr(u_rietx)) == "-0.000875351"
-    assert math.isclose(u_instprm * 8 * math.log(2) * 1e-4, u_rietx, rel_tol=1e-5)
+    assert same("-0.000875351", cut(repr(u_rietx)))
+    assert math.isclose(u_instprm * 8 * math.log(2) * 1e-4, u_rietx, rel_tol=1e-6)
 
 
 def topas_page(out: Path) -> None:
@@ -140,8 +171,8 @@ def topas_page(out: Path) -> None:
                        instrument=ref.fitted_instrument, pattern=data)
     lines = lines_of(path)
     # topas.md prints the site lines without the file's indent.
-    assert in_order(TOPAS_SITES, [line.strip() for line in lines])
-    assert in_order(TOPAS_EXCERPT, lines)
+    assert in_order(each(TOPAS_SITES), [line.strip() for line in lines])
+    assert in_order(each(TOPAS_EXCERPT), lines)
 
     notes: list = []
     model = rx.read_project_model(path, diagnostics=notes)
@@ -194,9 +225,21 @@ def fullprof_page(out: Path) -> None:
 
     model = rx.read_project_model(path)
     ref = rx.Refinement(model.to_structure(), rx.Instrument.bragg_brentano(radiation="CuKa"))
-    assert free_paths(ref) == [
+    expected = [
         "phases.0.cell.a", "phases.0.cell.c", "phases.0.scale", "phases.0.atoms.0.biso",
         "phases.0.atoms.6.dof.0", "phases.0.atoms.6.dof.1", "phases.0.atoms.6.dof.2"]
+    assert free_paths(ref) == expected
+
+    # fullprof.md: the reader also accepts b sharing a's codeword, by hand or
+    # as FullProf rewrites it (b and gamma on a's).
+    text = path.read_text(encoding="utf-8")
+    for codes in ("41.0 41.0 51.0 0.0 0.0 0.0", "41.0 41.0 51.0 0.0 0.0 41.0"):
+        shared = out / "shared.pcr"
+        shared.write_text(text.replace(PCR[-1][-1], codes), encoding="utf-8")
+        model = rx.read_project_model(shared)
+        back = rx.Refinement(model.to_structure(),
+                             rx.Instrument.bragg_brentano(radiation="CuKa"))
+        assert free_paths(back) == expected
 
 
 def main() -> None:

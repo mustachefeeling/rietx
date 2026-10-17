@@ -21,7 +21,7 @@ The texture and calculated-pattern rows compare calculated data, and their tests
 
 A comparison with another code holds only when rietx runs under that code's protocol.
 That means the same refined parameters, the same held parameters, the same excluded regions and the same weights.
-The fluorapatite, LaB<sub>6</sub> and silicon tests check that rietx fitted the same channels as the other code before they compare any other number.
+The fluorapatite, LaB<sub>6</sub> and cBN, and silicon tests check that rietx fitted the same channels as the other code before they compare any other number.
 
 A protocol guessed from the other code's output does not work.
 In version 0.2, fluorapatite under a guessed protocol gave Rwp 16 % and a cell 390 ppm from GSAS's.
