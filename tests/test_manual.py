@@ -1349,7 +1349,8 @@ def test_llms_txt_links_every_twin_once(built_docs_tree):
     text = (out / "llms.txt").read_text(encoding="utf-8")
     lines = text.splitlines()
     front = _sections((DOCS_TREE / "index.md").read_text(encoding="utf-8"))[0][2]
-    assert lines[:3] == ["# rietx", "", f"> {_first_sentence(front)}"]
+    from rietx._about import DIST_NAME
+    assert lines[:3] == [f"# {DIST_NAME}", "", f"> {_first_sentence(front)}"]
     assert [line[3:] for line in lines if line.startswith("## ")] == list(TABS)
     twins = _twins(out)
     links = re.findall(r"^- \[[^\]]+\]\(([^)]+)\): \S", text, re.M)

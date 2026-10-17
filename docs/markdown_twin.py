@@ -38,13 +38,14 @@ TWIN_SUFFIX = ".md"
 #: An internal link to a page, split before its anchor.
 _PAGE_LINK = _re.compile(r"^(?P<page>[^:#?]*\.html)(?P<rest>[#?].*)?$")
 
-#: The first sentence of a paragraph.  A full stop inside a code span is not
-#: the end of one (the page contract's rule, tests/test_manual.py).
+#: The first sentence of a paragraph, split as `_first_sentence` in
+#: tests/test_manual.py splits it.  A full stop ends one only before
+#: whitespace, so a dotted name such as `rx.fit` does not.
 _SENTENCE_END = _re.compile(r"(?<=[.?!])\s")
 
 
-def _is_component(node, name: str) -> bool:
-    return isinstance(node, _nodes.Element) and node.get("design_component") == name
+def _is_component(node, *names: str) -> bool:
+    return isinstance(node, _nodes.Element) and node.get("design_component") in names
 
 
 def _bold(children) -> _nodes.paragraph:
@@ -92,8 +93,9 @@ def _normalise(doctree: _nodes.document) -> None:
                     key: link[key] for key in ("refuri", "refid", "internal") if key in link})]
             out.append(_bold(text))
             title.parent.remove(title)
-        for body in card.findall(lambda n: _is_component(n, "card-body")):
-            out.extend(body.children)
+        for part in card.findall(
+                lambda n: _is_component(n, "card-header", "card-body", "card-footer")):
+            out.extend(part.children)
         card.replace_self(out)
     for node in list(doctree.findall(lambda n: type(n).__name__ == "dropdown_main")):
         title, *body = node.children
@@ -136,16 +138,19 @@ class TwinTranslator(_MarkdownTranslator):
         self._page_uri = builder.get_target_uri(docname)
 
     def _push_box(self, title: str):
+        # The base calls this for its own kinds, named in capitals ("SEE ALSO").
+        self._push_label(title.capitalize())
+
+    def _push_label(self, label: str):
         # A labelled blockquote, where the base writes a heading: a heading
         # would open a section of its own in the page the twin copies.
-        # The base names its own kinds in capitals ("SEE ALSO"); an author's
-        # title is kept as written.
         self._push_context(_IndentContext("> ", empty=True, params=_SubContextParams(2, 2)))
-        self.add(f"**{title.capitalize() if title.isupper() else title}**", suffix_eol=2)
+        self.add(f"**{label}**", suffix_eol=2)
 
     @_pushing_context
     def visit_admonition(self, node):
-        self._push_box(node.get("twin_label", "Note"))
+        # An author's title is kept as written, an acronym ("TOPAS") included.
+        self._push_label(node.get("twin_label", "Note"))
 
     @_pushing_context
     def visit_table(self, _node):
@@ -189,7 +194,8 @@ def answer_sentence(twin: str) -> str:
     """
     paragraphs = [p.strip() for p in twin.split("\n\n")]
     for heading, paragraph in zip(paragraphs, paragraphs[1:]):
-        if heading.startswith("# "):
+        # The title's line is the block's last: its section's anchors precede it.
+        if heading.rpartition("\n")[2].startswith("# "):
             return _SENTENCE_END.split(" ".join(paragraph.split()), maxsplit=1)[0]
     return ""
 
@@ -246,27 +252,38 @@ def write_llms_txt(app) -> None:
         lines += [f"## {app.env.titles[tab].astext()}", ""]
         for docname in _reading_order(app.env, tab):
             path, twin = twins[docname]
-            lines.append(f"- [{app.env.titles[docname].astext()}]({path}): {answer_sentence(twin)}")
+            # The sentence's own links start from its twin, not from the root.
+            summary = _from_root(answer_sentence(twin), path)
+            lines.append(f"- [{app.env.titles[docname].astext()}]({path}): {summary}")
         lines.append("")
     (out / "llms.txt").write_text("\n".join(lines), encoding="utf-8")
     full = "\n\n".join(_from_root(twin, path).strip() for path, twin in twins.values())
     (out / "llms-full.txt").write_text(full + "\n", encoding="utf-8")
 
 
+# Only the `html` builder: a page of `dirhtml` or `singlehtml` is not
+# `<docname>.html`, so `TWIN_SUFFIX` would not name a file beside it.
 def _on_doctree_resolved(app, doctree, docname: str) -> None:
-    if app.builder.format == "html":
+    if app.builder.name == "html":
         write_twin(app, doctree, docname)
 
 
 def _on_build_finished(app, exception) -> None:
-    if exception is None and app.builder.format == "html":
+    if exception is None and app.builder.name == "html":
         write_llms_txt(app)
+
+
+def _on_config_inited(_app, config) -> None:
+    # A link into a twin keeps the HTML page's fragment, which names a
+    # section's id, so every section writes its ids as anchors.
+    config.markdown_anchor_sections = True
 
 
 def setup(app):
     # The translator reads sphinx-markdown-builder's `markdown_*` settings,
     # so its extension is loaded for them; the builder it adds is not used.
     app.setup_extension("sphinx_markdown_builder")
+    app.connect("config-inited", _on_config_inited)
     # Late, so every other handler has finished with the doctree first.
     app.connect("doctree-resolved", _on_doctree_resolved, priority=900)
     app.connect("build-finished", _on_build_finished)
