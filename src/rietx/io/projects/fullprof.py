@@ -166,6 +166,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ...crystallography.twins import merge_site_twins
 from ...schemas.common import Diagnostic, Parameter
 from ..formats.base import decode
 
@@ -3021,7 +3022,10 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
         structure = rx.Structure(phases=phases)
     except Exception as exc:
         raise FullProfPcrError(f"{model.path or '<model>'}: {exc}") from exc
-    return structure
+    # a site whose own images coincide is one atom on its special position
+    # (#1007), said here because this is the channel the schema lacks
+    return merge_site_twins(structure, diagnostics=diagnostics,
+                            source=model.path or "<model>")
 
 
 # ------------------------------------------------------------------- the writer
