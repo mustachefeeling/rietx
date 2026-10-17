@@ -18,6 +18,13 @@ chapter is retired once its content has been mined, so the guards stay green thr
 chapters keep their URLs until they retire, then get an HTML redirect stub (WP-1979 provides
 the mechanism; GitHub Pages has no server-side redirects).
 
+**Superseded in part, 2026-10-17 (the maintainer's decision).** The old tree retires all at
+once, when the last guide lands, never chapter by chapter. The old chapters link each other
+densely (`using/refining`, `using/files` and `using/data` each have 20-24 inbound links), so
+retiring one at a time would mean rewriting links in chapters that are themselves about to
+go. Until then each mined chapter stays up beside its guide, and nothing in the old tree
+changes as a guide is written.
+
 **Order** (§ F8): Concepts, Reference and Switching start first because they show no fit
 output. Guides and the tutorials wait for the report-text rewrite (WP-1985), so they show the
 new output from the start.
@@ -149,8 +156,8 @@ the tree that day.
       ported. (2026-10-17. The old tree keeps a one-line include at each old path, so Part
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
-- [ ] Guides: one page per task, mined chapter by chapter; each mined chapter retired behind
-      its stub in the same commit.
+- [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
+      the whole old tree retires (task 4); see Context, 2026-10-17.
 - [ ] GUI chapters moved with `test_gui_manual.py`.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.
@@ -215,12 +222,8 @@ the tree that day.
   numbering and the new tree's agree only while both toctrees list the chapters in the
   same order.
 
-  Next: Guides (task 2), one Part 1 chapter at a time. Each mined chapter can retire
-  only once the other old chapters stop linking it; `using/qpa`, `using/constraints`,
-  `using/recipe` and `using/quickstart` have at most two inbound links each, and
-  `using/refining`, `using/files` and `using/data` have 20-24. Decide first whether
-  mined chapters retire one by one, rewriting each one's inbound links, or all at once
-  when the last guide lands; the second costs no link rewrites and leaves duplicate
-  pages up for longer.
+  Next: Guides (task 2), one Part 1 chapter at a time. Decided after this entry was
+  written: the old tree retires all at once when the last guide lands, so a guide
+  leaves its old chapter untouched (Context, 2026-10-17).
 - **2026-10-16** — filed from WP-1975's slate. No open WP owns the migration; 1443's passage
   fixes land here as each chapter is mined.
