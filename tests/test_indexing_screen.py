@@ -19,7 +19,7 @@ import pytest
 import rietx as rx
 from rietx.indexing.ambiguity import SupercellEvidence
 from rietx.indexing.consensus import caveats_for, grade
-from rietx.indexing.engines import engine_names, match_window
+from rietx.indexing.engines import absence_window, engine_names, match_window
 from rietx.indexing.fom import RESOLUTION_FWHM, fom_panel
 from rietx.indexing.pick import pick_peaks
 from rietx.schemas.indexing import (
@@ -117,7 +117,7 @@ def tet():
 def _screens(data, ins, peaks, cells):
     from rietx.indexing.screen import PatternScreen, screen_candidate
 
-    pattern = PatternScreen.from_peaks(peaks, q_match=match_window(peaks),
+    pattern = PatternScreen.from_peaks(peaks, q_match=absence_window(peaks),
                                        data=data, instrument=ins)
     return pattern, {name: screen_candidate(pattern, cell, system, centring)
                      for name, (system, centring, cell) in cells.items()}
@@ -305,12 +305,15 @@ def test_the_reversed_member_is_asked_at_the_resolution(si, tet):
     was supposed to prevent it.  The unresolved split reads as the truth.
     """
     def member(peaks, system, centring, cell, *, resolution: bool):
+        # the window the record was measured in: the assumed bound, since the
+        # width-set search window (indexing C6) is narrower on this list and
+        # no longer shows the inversion the build removes
         usable = peaks.usable()
         fwhm = np.array([p.fwhm for p in usable]) if resolution else None
         panel = fom_panel(peaks.q(), peaks.q_esd(), peaks.intensity(),
                           peaks.two_theta(), peaks.two_theta_esd(), cell,
                           system, centring, peaks.wavelength,
-                          q_match=match_window(peaks), fwhm_obs=fwhm)
+                          q_match=absence_window(peaks), fwhm_obs=fwhm)
         return next(f.value for f in panel if f.name == "predicted_seen_fraction")
 
     peaks = si[2]
@@ -456,7 +459,7 @@ def test_a_direct_validation_screens_the_fitted_range_and_the_search_window(si, 
     assert all(t <= limits[1] for t in cut.predicted_but_absent_two_theta)
     pattern = seen["screen"]
     assert pattern.two_theta_max == limits[1]
-    assert np.allclose(pattern.q_match, match_window(peaks))
+    assert np.allclose(pattern.q_match, absence_window(peaks))
     assert not np.allclose(pattern.q_match, peaks.q_esd())
 
 
