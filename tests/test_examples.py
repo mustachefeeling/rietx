@@ -41,7 +41,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = REPO_ROOT / "examples"
 
 
-def _run(script: str) -> subprocess.CompletedProcess[str]:
+def _run(script: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     """As a subprocess, because `python examples/x.py` is what a reader types."""
     result = subprocess.run(
         [sys.executable, str(EXAMPLES / script)],
@@ -53,7 +53,7 @@ def _run(script: str) -> subprocess.CompletedProcess[str]:
         # dies encoding χ — so pin the pipe to what the console already does,
         # on both ends of it.
         encoding="utf-8",
-        env={**os.environ, "PYTHONUTF8": "1"},
+        env={**os.environ, "PYTHONUTF8": "1", **(env or {})},
         timeout=900,  # a runaway guard, not a timer (tests/CLAUDE.md): ~250x the measured cost
         cwd=REPO_ROOT,
     )
@@ -134,8 +134,24 @@ GUIDE_PAGES = REPO_ROOT / "docs" / "docs" / "guides"
 GUIDE_OUTPUT = re.compile(r"^<!-- output of (\S+) -->\n+```text\n(.*?)^```", re.S | re.M)
 
 
+@pytest.fixture(scope="session")
+def fetched_state(tmp_path_factory):
+    """A state directory holding every `rietx.examples.fetch` file, copied from
+    `tests/data/`, so a guide that fetches one reads it and never the network."""
+    import shutil
+
+    from rietx._about import STATE_DIR_ENV
+    from rietx.examples import REMOTE_FILES
+
+    state = tmp_path_factory.mktemp("state")
+    (state / "data").mkdir()
+    for name in REMOTE_FILES:
+        shutil.copyfile(REPO_ROOT / "tests" / "data" / name, state / "data" / name)
+    return {STATE_DIR_ENV: str(state)}
+
+
 @pytest.mark.parametrize("script", GUIDE_SCRIPTS, ids=lambda path: path.stem)
-def test_every_guide_script_prints_what_its_page_quotes(script):
+def test_every_guide_script_prints_what_its_page_quotes(script, fetched_state):
     """One script per Guides page (WP-1986), named after the page.
 
     The script asserts every number the page quotes; this checks the page's
@@ -147,7 +163,7 @@ def test_every_guide_script_prints_what_its_page_quotes(script):
     text = page.read_text(encoding="utf-8")
     quoted = GUIDE_OUTPUT.findall(text)
     assert quoted, f"{page.name} quotes no output of {script.name}"
-    out = _run(f"guides/{script.name}").stdout
+    out = _run(f"guides/{script.name}", env=fetched_state).stdout
     for source, block in quoted:
         assert source == f"examples/guides/{script.name}", (
             f"{page.name} marks output of {source}, not of its own script")
