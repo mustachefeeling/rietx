@@ -41,9 +41,11 @@ assert [(s.name, s.blocked_by_hold) for s in result.stages if s.blocked_by_hold]
 # The same fit without the hold moves the cell: the plan's `cell` stage frees it.
 free = rx.Refinement(rx.Structure.from_cif(examples_dir() / "fluorapatite.cif"), instrument)
 free.fit(data, plan="lab_bragg_brentano", two_theta_limits=(15, 130))
+a_held = ref.fitted_structure.phases[0].cell.a.value
 a_free = free.fitted_structure.phases[0].cell.a.value
-ppm = round(1e6 * (9.3717 - a_free) / 9.3717)
-print(f"without the hold: a = {a_free:.4f}, {ppm} ppm from the held value")
+ppm = 1e6 * (a_held - a_free) / a_held
 # 318 ppm on the compiled path and 332 on the numpy one (RIETX_COMPILED=0),
-# measured 2026-10-17: the page says "more than 300".
-assert ppm > 300
+# measured 2026-10-17, so the line rounds to 100 ppm and the page quotes
+# that: an unrounded figure would differ between platforms.
+print(f"without the hold: a moves about {round(ppm, -2):.0f} ppm")
+assert 250 <= ppm < 350

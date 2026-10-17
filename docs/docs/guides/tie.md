@@ -160,7 +160,8 @@ There is no expression language, and a string such as `"2*A + 0.5"` is not accep
 
 A tie belongs to one `Refinement`, and a sequential refinement builds a new one for each pattern.
 Declare the tie inside the function you pass as `SequentialRefinement.fit`'s `constrain` argument, which rietx calls with each pattern's index and `Refinement` before that pattern's fit.
-A variable's value is carried from one pattern to the next like any other parameter's.
+A variable belongs to one `Refinement` too, so call `add_variable` in the same function.
+Its value is then carried from one pattern to the next like any other parameter's.
 
 ## See also
 

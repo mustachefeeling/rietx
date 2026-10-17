@@ -22,6 +22,7 @@ instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
 ref = rx.Refinement(structure, instrument)
 
 token = rx.CancelToken()
+stopped = None
 
 
 def on_event(event):
@@ -42,6 +43,7 @@ except rx.RefinementCancelled as cancelled:
     print("working state at node", stopped.node_id)
 # guide: end
 
+assert stopped is not None, "the fit finished: the token never stopped it"
 assert stopped.stage == "zero"
 assert [stage.name for stage in stopped.completed_stages] == ["scale_bkg"]
 assert stopped.node_id is not None

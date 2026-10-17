@@ -151,8 +151,11 @@ def test_every_guide_script_prints_what_its_page_quotes(script):
     for source, block in quoted:
         assert source == f"examples/guides/{script.name}", (
             f"{page.name} marks output of {source}, not of its own script")
-        assert block in out, (f"{page.name} quotes output {script.name} did not print:\n"
-                              f"{block}\n--- printed ---\n{out}")
+        # Anchored at a line start, so a quoted line cannot match the tail
+        # of a longer printed one.
+        assert "\n" + block in "\n" + out, (
+            f"{page.name} quotes output {script.name} did not print:\n"
+            f"{block}\n--- printed ---\n{out}")
 
 
 @pytest.mark.xdist_group("example-nac")

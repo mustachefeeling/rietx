@@ -39,7 +39,7 @@ If a stage made things worse, `Refinement.checkout` returns the model to an earl
 
 The `profile` stage above frees all five width terms together.
 `mccusker_default` frees `w` alone first and then `u`, `v`, `x` and `y`, and on this pattern it ends lower.
-To see why, ask the preset for a report at each stage:
+To see where the preset pulls ahead, ask it for a report at each stage:
 
 ```{literalinclude} ../../../examples/guides/stage.py
 :language: python
@@ -57,7 +57,8 @@ profile    Rwp 0.0988
 ```
 
 The preset reaches Rwp 0.0988 where the hand-run plan stopped at 0.1022.
-The presets free `w` first for this reason: freed with it, the angle-dependent terms tend to take up part of the constant width.
+The last stage of each plan refines the same parameters, so the difference comes from the order in which they were freed.
+Started from a width fitted with `w` alone, the five terms settle at a lower Rwp.
 The full script is `examples/guides/stage.py`.
 
 ## Read a report at every stage

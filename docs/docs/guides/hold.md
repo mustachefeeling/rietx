@@ -57,11 +57,12 @@ The fit also reports [`HOLD_BLOCKED_PLAN`](../reference/diagnostics-refinement.m
 Nothing is wrong when it appears.
 It records that your hold overrode the plan.
 
-Without the hold, the same plan moves `a` by more than 300 ppm:
+Without the hold, the same plan moves `a` by about 300 ppm.
+The script rounds the figure to 100 ppm, because its last digits differ between platforms:
 
 <!-- output of examples/guides/hold.py -->
 ```text
-without the hold: a = 9.3687, 318 ppm from the held value
+without the hold: a moves about 300 ppm
 ```
 
 The full script is `examples/guides/hold.py`.

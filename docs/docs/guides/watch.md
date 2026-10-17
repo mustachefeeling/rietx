@@ -111,8 +111,8 @@ A run that is not recorded can't be watched, and has no stop button.
 
 :::{warning}
 A run directory holds every free parameter's value at every recorded evaluation.
-Set `RIETX_TELEMETRY=0` where the refinement is confidential and the working directory is shared.
-No bytes of the pattern file are copied into a run.
+It also holds the observed intensities at most of the pattern's points, so that the page can draw the plot.
+Set `RIETX_TELEMETRY=0` where the refinement or the data are confidential and the working directory is shared.
 :::
 
 A failure to write a run never stops the fit.
