@@ -450,6 +450,17 @@ def test_the_file_states_a_wider_free_set_than_this_plan(fap_inputs, fap_fit):
     assert len(free_in_gsas) == 21          # 2 cell + 12 DOF + 7 Biso
     assert result.statistics.n_free_parameters == 20
 
+    # The file's other seven are the histogram's scale, three background terms
+    # and LX, LY, shft.  This plan frees their counterparts, plus four the file
+    # does not: axial_sl, which GSAS held, and three more background terms
+    # (a six-term Chebyshev against function 5's three).
+    beyond_the_structure = free_here - free_in_gsas
+    assert beyond_the_structure == {
+        "phases.0.scale", "phases.0.lor_size", "phases.0.lor_strain",
+        "instrument.geometry.sample_displacement", "instrument.geometry.axial_sl",
+        *(f"instrument.background.c{k}" for k in range(6))}
+    assert EXP.profile().refined_names == ("LX", "LY", "shft")
+
 
 def test_a_pawley_fit_past_the_bvls_cut_converges_every_stage(fap_inputs):
     """WP-1953: the default plan's Pawley fit solves 335-343 columns, past

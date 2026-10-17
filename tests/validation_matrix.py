@@ -58,9 +58,9 @@ TIERS: dict[str, str] = {
         "same excluded regions, and a channel count checked to match before "
         "any number is compared.  A cross-code figure computed over "
         "different channels with a different free set is not a comparison "
-        "(v0.2 learned this the expensive way: a plausible guessed protocol "
-        "gave Rwp 16 % and +390 ppm; the mirrored one gives 9.73 % and "
-        "+116 ppm)."
+        "(v0.2 learned this the expensive way on fluorapatite: a plausible "
+        "guessed protocol gave Rwp 16 % and +390 ppm; the mirrored one gave "
+        "9.73 % and +116 ppm in that version)."
     ),
     "spread": (
         "Referenced to a published inter-laboratory spread — what "
@@ -171,7 +171,7 @@ DATASETS: dict[str, Dataset] = {
         "powderline/example_DRX_33/input.json",
         "NSLS-II 28-ID-1 disordered-rocksalt cathode + Li4MgWO6, two phases, "
         "as a PowderLine recipe.  The only dataset here with TWO committed "
-        "reference engines, and they disagree by 2665 ppm on the cubic cell",
+        "reference engines, and they disagree by 2668 ppm on the cubic cell",
         "cross_code"),
     "hl2": Dataset(
         "hl2_peaks.txt",
@@ -550,7 +550,7 @@ CLAIMS: tuple[Claim, ...] = (
         "engines bracket, widened by the FAP band at each end",
         reference="GSAS-II and TOPAS, both committed by upstream for this "
                   "specimen, and the bar is the SPAN they leave rather than "
-                  "either of them: they differ by 2665 ppm on the cubic a "
+                  "either of them: they differ by 2668 ppm on the cubic a "
                   "and 386-1770 ppm on the monoclinic phase's four free "
                   "parameters, so the WP's original +/-300 ppm against both "
                   "is arithmetically impossible.  +/-300 ppm of slack at "
@@ -780,10 +780,13 @@ CLAIMS: tuple[Claim, ...] = (
                   "terms and 3 profile terms.  This is an identity check "
                   "against a number the file states somewhere else, not a "
                   "tolerance",
-        measured="this plan frees 20 parameters and GSAS freed 28; the whole "
-                 "difference is the 12 coordinate DOFs, which no stage here "
-                 "turns on.  Everything else the file frees, this plan frees "
-                 "too.  Freeing them measured 2026-10-08: Rwp 0.092498 -> "
+        measured="this plan frees 20 parameters and GSAS freed 28.  It leaves "
+                 "out the 12 coordinate DOFs, which no stage here turns on, "
+                 "and frees four more: axial_sl, which GSAS held, and a "
+                 "six-term Chebyshev where GSAS refined three terms of its "
+                 "function 5.  Every other structural parameter the file "
+                 "frees, this plan frees too.  Freeing the DOFs measured "
+                 "2026-10-08: Rwp 0.092498 -> "
                  "0.092314, cell +82.5/+82.3 -> +82.3/+81.9 ppm, no "
                  "wall-clock change, still converged — so closing the gap is "
                  "nearly free and is a deliberate change with its own numbers "
@@ -2775,7 +2778,7 @@ SUITE_INTROS: dict[str, str] = {
         "tutorial, with its protocol mirrored parameter for parameter.",
     "test_acceptance_powderline":
         "The only fixtures carrying **two** reference engines, and they "
-        "disagree: 2665 ppm on a cell where the FAP band is 300, because "
+        "disagree: 2668 ppm on a cell where the FAP band is 300, because "
         "GSAS-II reports its own fit singular. So the bar is the envelope "
         "the two engines bracket, and where this package falls inside it is "
         "the finding rather than the gate.",
