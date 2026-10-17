@@ -98,6 +98,21 @@ rule.
 (`schemas/indexing.py` `max_d_axis` now :1204 and `CellCandidate` :932,
 `diagnostics.py` `INDEX_DATA_INSUFFICIENT` :327, `priors.py` refusal :237).
 
+### Inherited
+
+- **2026-10-18, from WP-1986 (writing the indexing guide): the formula's volume
+  window excludes the true cell of most inorganic solids.** Hofmann's (2002)
+  volumes come from organic and organometallic structures. Measured with
+  `SearchSpec.from_formula(formula, z=…)` against each known cell (window
+  midpoint over true V): NaCl 1.18 (inside), CaF₂ 1.69, Al₂O₃ (z 6) 2.74,
+  ZnO 2.17, fluorapatite Ca5P3O12F (z 2) 1.81, LaB₆ 1.96, Si (z 8) 1.91,
+  NAC Na2Ca3Al2F14 (z 8) 3.22, all **outside**; paracetamol C8H9NO2 (z 4)
+  1.05, inside. On the shipped fluorapatite pattern the windowed search took
+  127 s, ranked only cells of 1000-1050 Å³ and abstained, while the same
+  search unwindowed put the true 523.6 Å³ cell first. `INDEX_Z_NOT_INTEGER`
+  rests on the same volume, so on the true cell it would imply Z = 1.14.
+  The skill's §7d recommends `from_formula` before the first search.
+
 ## Non-goals
 
 - Widening the default box for everyone.
