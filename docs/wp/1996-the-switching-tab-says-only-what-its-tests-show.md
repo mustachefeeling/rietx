@@ -72,7 +72,7 @@ vale docs/docs
 
 - **2026-10-17** — The Switching tab now says only what its tests show. A user of TOPAS,
   GSAS-II or FullProf reading it no longer meets two pages that contradict each other on
-  magnetic structures, a five-year-old fluorapatite result quoted as current, or an
+  magnetic structures, v0.2's fluorapatite result quoted as current, or an
   instrument file taken from a different fit than the one beside it. The validation page now
   also gives the comparisons with a certificate and with weighed compositions, the strongest
   evidence rietx has. Running FullProf on a file rietx wrote showed that the writer's handling
