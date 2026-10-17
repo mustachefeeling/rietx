@@ -1657,7 +1657,10 @@ class ParameterTable:
         """``RIGID_BODY_NOT_INVARIANT``: the invariance rule (WP-1807, D4a, D7, D8).
 
         Every member atom's site symmetry G_i must lie inside its origin's
-        G_o, as operations of the group (mod lattice): a turn about an axis
+        G_o, as operations of the group (mod lattice), **and** fix the atom's
+        offset from the origin exactly, R(p − o) = p − o in unwrapped body
+        coordinates (-1 at (0,0,0) and (½,0,0) is one operation mod the
+        lattice and two elements to a turn): a turn about an axis
         G_o allows commutes with G_o, so it carries an atom on an element of
         G_o along that element, but an atom on an element G_o lacks is pushed
         off it, and the next stage counts |G_i|× its images (#840: 8 S and
@@ -1667,9 +1670,9 @@ class ParameterTable:
         turn with α, so a body held to them inside a stage would leave its
         own site as the cell refines.
         """
-        from ..crystallography.symmetry import _group_arrays, group_key
+        from ..crystallography.symmetry import SITE_TOL, _group_arrays, group_key
 
-        ops = _group_arrays(group_key(sg))[0]
+        ops, rots, _ = _group_arrays(group_key(sg))
         g_o = {int(i) for i in origin.stabilizer_ops}
         where = tuple(float(v) for v in body.origin.values())
         sites = {}
@@ -1679,6 +1682,28 @@ class ParameterTable:
             orbit = site_orbit(sg, at)
             sites[label] = orbit
             extra = [int(i) for i in orbit.stabilizer_ops if int(i) not in g_o]
+            if not extra:
+                # membership mod the lattice is not enough: a turn about the
+                # origin keeps the atom on its element only if R(p − o) = p − o
+                # in the unwrapped body coordinates, else the atom's element is
+                # a lattice vector from the origin's (-1 at (0,0,0) and at
+                # (½,0,0); 2-folds at x = 0 and ½).  Both positions are known
+                # to SITE_TOL, and a true miss is a lattice vector, so 4 × it
+                # is a rounding bound
+                d = at - np.array(where, dtype=np.float64)
+                for g in orbit.stabilizer_ops:
+                    miss = rots[int(g)] @ d - d
+                    if float(np.abs(miss).max()) > 4.0 * SITE_TOL:
+                        raise ValueError(
+                            f"RIGID_BODY_NOT_INVARIANT: rigid body {body.name!r} has "
+                            f"its atom {label!r} at {tuple(float(v) for v in at)} on "
+                            f"an element of operation {ops[int(g)].triplet()} that "
+                            f"is a lattice translation away from the one the body's "
+                            f"origin {where} is on: the operation holds the atom "
+                            "only modulo the lattice, and a turn about the origin "
+                            "takes it off — put the body's origin on that element "
+                            f"(body_from_atoms(..., origin={label!r})), or refine the "
+                            "atom outside the body")
             if extra:
                 order = len(orbit.stabilizer_ops)
                 raise ValueError(
@@ -3280,6 +3305,7 @@ class ParameterTable:
                                  named: Callable[[str], bool]) -> list[str]:
         """The rotation half of :meth:`displace_anchored_dofs` (its docstring)."""
         from ..crystallography import rotation
+        from .bodies import SITE_AXIS_TOL
 
         moved: list[str] = []
         for bbase, name, block in self._bodies:
@@ -3297,7 +3323,7 @@ class ParameterTable:
                                    dtype=np.float64)
                 w = block.site_axes
                 off = float(np.linalg.norm(omega - w @ (w.T @ omega)))
-                if off > 1e-9:
+                if off > SITE_AXIS_TOL:
                     allowed = ("no turn at all" if not w.shape[1] else
                                "turns about "
                                f"{tuple(round(float(v), 6) for v in w[:, 0])} only")
