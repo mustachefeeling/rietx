@@ -27,6 +27,13 @@ is APS, NIST or COD material.
 
 **Nothing here fits anything.**  A build writes a project at its starting
 values; the refinement is the user's first click, not ours.
+
+**A file a guide needs but no example uses is fetched, not shipped**
+(:func:`fetch`, WP-1986).  The 11-BM silicon scan and its empty capillary are
+3 MB the wheel would carry for two manual pages, so each is downloaded on
+first use from the repository at a pinned commit and checked against its
+sha256.  The test suite fills the cache from ``tests/data/`` and never reaches
+the network.
 """
 
 from __future__ import annotations
@@ -35,7 +42,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ._about import DATA_PACKAGE, PROJECT_SUFFIX
+from ._about import DATA_PACKAGE, PROJECT_SUFFIX, REPO_URL
 
 if TYPE_CHECKING:  # pragma: no cover - import cost, not behaviour
     from .project import Project
@@ -145,3 +152,91 @@ def build_example(name: str, into: str | Path) -> "Project":
         plan=inputs.plan, two_theta_limits=inputs.two_theta_limits,
         excluded_regions=list(inputs.data.excluded_regions) or None,
         reader_options=dict(std.reader_options) or None)
+
+
+@dataclass(frozen=True)
+class RemoteFile:
+    """A data file fetched on first use rather than shipped (WP-1986)."""
+
+    #: of the bytes as published, checked on every download and every cache hit
+    sha256: str
+    #: what the file holds and who measured it
+    description: str
+    #: why it may be redistributed, as ``tests/data/README.md`` states it
+    licence: str
+
+
+#: The repository commit the files are fetched from.  A commit and never a
+#: branch, so the bytes behind each URL cannot change under the hashes below.
+REMOTE_COMMIT = "7916301d024eb19fb1fae2b21e260b3aedd8f6de"
+
+_APS_STANDARD = ("APS 11-BM's published standard-reference scan, a U.S. "
+                 "Government work, publicly distributed")
+
+#: Files a guide needs and the wheel does not carry, about 1.5 MB each.  They
+#: live in the repository's ``tests/data/``, whose README holds their provenance.
+REMOTE_FILES: dict[str, RemoteFile] = {
+    "11BM_Si640c.xy": RemoteFile(
+        sha256="a10f555ed01e10f488eaaf5b7a22500dde1fe9b21dceb5429f4c0eb771621578",
+        description=("NIST SRM 640c silicon in a Kapton capillary, APS 11-BM run "
+                     "4918, 25 Feb 2010, λ 0.412359 Å, 1.996-49.995° 2θ"),
+        licence=_APS_STANDARD),
+    "11BM_Kapton.xy": RemoteFile(
+        sha256="5f313c296f7efdf3c7150124604c0796451582c7b10342cfeadc1f34ea0d4e49",
+        description=("the same Kapton capillary scanned empty, APS 11-BM run "
+                     "4736, 11 Feb 2010, λ 0.412225 Å, 0.500-49.996° 2θ"),
+        licence=_APS_STANDARD),
+}
+
+
+def fetch(name: str) -> Path:
+    """The local path of a :data:`REMOTE_FILES` entry, downloaded on first use.
+
+    The copy is kept under the per-user state directory (``~/.rietx/data``,
+    moved by ``$RIETX_STATE_DIR``), and its sha256 is checked before the path
+    is returned, so a truncated or altered copy is fetched again rather than
+    read.  A failed download raises :class:`OSError` naming the URL and the
+    path to save the file at by hand, the route for a machine with no network.
+    """
+    import hashlib
+    import http.client
+    import os
+    import tempfile
+    import urllib.request
+
+    from .viz.theme import state_dir
+
+    if name not in REMOTE_FILES:
+        raise KeyError(f"unknown data file {name!r}; fetch() knows "
+                       f"{sorted(REMOTE_FILES)}")
+    want = REMOTE_FILES[name].sha256
+    path = state_dir() / "data" / name
+    if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == want:
+        return path
+
+    raw = REPO_URL.replace("github.com", "raw.githubusercontent.com")
+    url = f"{raw}/{REMOTE_COMMIT}/tests/data/{name}"
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response:
+            body = response.read()
+    # IncompleteRead, a connection dropped mid-body, is an HTTPException and
+    # not an OSError, and is as much a failed download as a refused one.
+    except (OSError, http.client.HTTPException) as exc:
+        raise OSError(f"could not download {name} from {url} ({exc}). Download "
+                      f"it by another route and save it as {path}.") from exc
+    got = hashlib.sha256(body).hexdigest()
+    if got != want:
+        raise OSError(f"{name} from {url} has sha256 {got[:12]}, not {want[:12]}, "
+                      "so it is not the published file. Nothing was saved.")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # A partial file of its own per call: two processes fetching at once must
+    # not install each other's half-written bytes under the checked name.
+    fd, partial = tempfile.mkstemp(dir=path.parent, prefix=name + ".", suffix=".part")
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(body)
+        os.replace(partial, path)
+    except BaseException:
+        Path(partial).unlink(missing_ok=True)
+        raise
+    return path

@@ -209,3 +209,90 @@ def test_example_info_is_what_a_client_serialises():
 
     assert [f.name for f in dataclasses.fields(ExampleInfo)] == \
            ["name", "title", "description", "bytes"]
+
+
+DATA = Path(__file__).parent / "data"
+
+
+def test_every_remote_file_is_the_test_data_file_it_names():
+    """`fetch` downloads `tests/data/<name>` at a pinned commit and checks it
+    against `REMOTE_FILES`, so a hash that drifts from the committed file is a
+    download that always fails."""
+    import hashlib
+
+    from rietx.examples import REMOTE_FILES
+
+    for name, remote in REMOTE_FILES.items():
+        assert hashlib.sha256((DATA / name).read_bytes()).hexdigest() == \
+               remote.sha256, name
+
+
+class _Response:
+    def __init__(self, body):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return self.body
+
+
+def test_fetch_downloads_once_and_then_reads_its_copy(tmp_path, monkeypatch):
+    import urllib.request
+
+    from rietx._about import REPO_URL, STATE_DIR_ENV
+    from rietx.examples import REMOTE_COMMIT, fetch
+
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path))
+    urls = []
+
+    def urlopen(url, timeout):
+        urls.append(url)
+        return _Response((DATA / "11BM_Kapton.xy").read_bytes())
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    path = fetch("11BM_Kapton.xy")
+    assert path == tmp_path / "data" / "11BM_Kapton.xy"
+    assert path.read_bytes() == (DATA / "11BM_Kapton.xy").read_bytes()
+    raw = REPO_URL.replace("https://github.com/", "https://raw.githubusercontent.com/")
+    assert urls == [f"{raw}/{REMOTE_COMMIT}/tests/data/11BM_Kapton.xy"]
+    assert fetch("11BM_Kapton.xy") == path and len(urls) == 1
+
+    # a damaged copy is fetched again rather than read
+    path.write_bytes(b"truncated")
+    assert fetch("11BM_Kapton.xy").read_bytes()[:2] == b"##" and len(urls) == 2
+
+
+def test_fetch_refuses_bytes_that_are_not_the_published_file(tmp_path, monkeypatch):
+    import http.client
+    import urllib.request
+
+    from rietx._about import STATE_DIR_ENV
+    from rietx.examples import fetch
+
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path))
+    monkeypatch.setattr(urllib.request, "urlopen",
+                        lambda url, timeout: _Response(b"<html>not found</html>"))
+    with pytest.raises(OSError, match="not the published file"):
+        fetch("11BM_Kapton.xy")
+    assert not (tmp_path / "data").exists() or not any((tmp_path / "data").iterdir())
+
+    def offline(url, timeout):
+        raise OSError("no network")
+
+    monkeypatch.setattr(urllib.request, "urlopen", offline)
+    with pytest.raises(OSError, match=r"save it as .*11BM_Kapton\.xy"):
+        fetch("11BM_Kapton.xy")
+
+    def dropped(url, timeout):
+        raise http.client.IncompleteRead(b"##", 1000)
+
+    monkeypatch.setattr(urllib.request, "urlopen", dropped)
+    with pytest.raises(OSError, match=r"save it as .*11BM_Kapton\.xy"):
+        fetch("11BM_Kapton.xy")
+    with pytest.raises(KeyError, match="unknown data file"):
+        fetch("nope.xy")
