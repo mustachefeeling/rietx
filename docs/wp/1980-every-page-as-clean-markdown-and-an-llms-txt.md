@@ -1,9 +1,8 @@
 # WP-1980 — Every page as clean markdown, and an llms.txt
 
-Milestone: unscheduled · Status: 🔄 2026-10-17 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-17
 Track: The repo's own process
 Depends on: 1978 (the new tree)
-Priority: P2 2026-10-16 — back to P2: WP-1978's tree is built (PR #1004)
 
 ## Goal
 
@@ -97,4 +96,43 @@ own (WP-1981, WP-1983). The plan page's `\*` in mermaid sources is unescaped. Th
 
 ## Handover log
 
+- **2026-10-17** — An agent can now read any page of the new manual as clean markdown. Each
+  page has a copy beside it, `page.html.md`, with no MyST syntax left in it, and the site
+  root's `llms.txt` lists every page with its one-sentence answer. The copies are written
+  by the HTML build itself, so every hosted version gets them and no deploy step was
+  added. The node types the Theory and Guides chapters will bring are already handled and
+  tested, so WP-1986's migration lands into a guard that exists. sphinx-llms-txt was
+  measured and not used: its `llms-full.txt` is the raw MyST this WP removes.
+
+  *Done.* `docs/markdown_twin.py`: a Sphinx extension in `docs/docs/conf.py`, translating
+  the resolved doctree on `doctree-resolved` with a subclass of sphinx-markdown-builder
+  0.6.11's translator (pinned `>=0.6.11,<0.7`, since it reaches private internals).
+  `_normalise` rewrites cards, dropdowns, tabs, mermaid, citations, the dark half of an
+  image pair, and HTML comments and icons. `TwinTranslator` writes admonitions as labelled
+  blockquotes, tables unpadded, image paths into `_images/`, and links with `.md` appended.
+  Section anchors are on, so the 290 cross-page `#fragment` links land. `llms.txt` and
+  `llms-full.txt` come from `write_llms_txt`, and `docs_versions.assemble` copies the
+  hosted tree's `llms.txt` to the site root with its links rebased. The skill body's
+  manual line names `llms.txt` (+42 B; body 16 986 of 17 000).
+  *Measured* (`[dev]`, darwin/arm64). The baseline `-b markdown` build of the new tree
+  warned on three node types and put two Reference pages over 50 000 characters, from
+  table padding (`reference/parameters` 56 763, now under the cap). The twins total about
+  410 000 characters in `llms-full.txt`. Tests added: 10, in `tests/test_manual.py` and
+  `tests/test_docs_versions.py`. Making `_normalise` a no-op turned all three twin tests
+  red. The residue check's paired test caught one hole while it was being written: an
+  inline-code strip that also removed a role's argument.
+  *Review.* `/code-review high --fix` found 9 issues and fixed 6: section anchors, an
+  author's acronym title recased, `llms.txt` summaries not rebased, a card's header and
+  footer dropped, the `dirhtml`/`singlehtml` builders, and the distribution name spelt in
+  a test. It declined the dependency ceiling, which was then added by hand. Two stay
+  declined. The relative-link regex is written twice, because `docs_versions.py` runs in
+  the deploy and should not import Sphinx. `_SENTENCE_END` splits on any stop before
+  whitespace, matching the page contract's own split.
+  *Reconciled with #1027* (WP-1996, the Switching-tab corrections). The two branches merge
+  clean, and the merged tree passed the twin, contract, Switching-example and `-W` tests
+  (26).
+  *Gotchas.* A new node type with no handler fails `-W` as `unknown node type`, which is
+  the intended alarm. `{download}` has a handler that no test has run.
+
+  Next: nothing in this WP. WP-1986 inherits the twin contract and the coverage list.
 - **2026-10-16** — filed from WP-1975's slate. No open WP owns a markdown copy of the manual.
