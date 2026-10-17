@@ -76,5 +76,8 @@ assert f"{replayed.statistics.rwp:.4f}" == "0.0992"
 assert f"{together.statistics.rwp:.4f}" == "0.1022"
 assert "FROZEN_COMPILE_STALE" in {d.code for d in together.diagnostics}
 assert "FROZEN_COMPILE_STALE" not in {d.code for d in w_first.diagnostics}
+# "at 1.7 %": the gap between the result's χ² and its node's
+gap = 1 - together.statistics.chi2 / tree["together"].metrics.statistics.chi2
+assert f"{gap:.3f}" == "0.017"
 # `ref` and `alt` hold their own positions; the shared head follows `ref`.
 assert alt._head_id == w_first.node_id

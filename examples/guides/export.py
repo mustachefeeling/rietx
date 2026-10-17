@@ -48,8 +48,11 @@ print(back.phases[0].cell.a.value, len(pattern.two_theta))
 # guide: read end
 
 # The page quotes every printed line and counts the rows per emission line.
-assert cif[0].startswith("#") or cif[0].startswith("data_")
-assert sum(line == "loop_" for line in cif) == 10
+assert "data_fluorapatite" in cif
+# "The ten loops hold the dictionaries the file conforms to, the symmetry operations, ..."
+loops = [cif[i + 1].split("_")[1] for i, line in enumerate(cif) if line == "loop_"]
+assert loops == ["audit", "space", "atom", "atom", "geom", "geom", "geom", "diffrn", "pd",
+                 "refln"]
 rows = ref.reflection_table()
 assert len(rows) == 658 and {r.line for r in rows} == {0, 1}
 assert sum(r.line == 0 for r in rows) == 329

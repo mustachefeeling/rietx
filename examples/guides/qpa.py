@@ -87,5 +87,4 @@ assert f"{100 * held_result.qpa.phases[1].weight_fraction:.2f}" == "1.37"
 assert profile.fit_admissible and not profile.diagnostics
 default = nac_and_fluorite().fit(data, plan="mccusker_default", two_theta_limits=(2, 24))
 assert f"{100 * default.qpa.phases[1].weight_fraction:.2f}" == "1.38"
-assert sum(row.weight_fraction for row in held_result.qpa.phases) == 1.0 or abs(
-    sum(row.weight_fraction for row in held_result.qpa.phases) - 1.0) < 1e-12
+assert abs(sum(row.weight_fraction for row in held_result.qpa.phases) - 1.0) < 1e-12
