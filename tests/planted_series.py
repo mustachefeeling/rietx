@@ -49,6 +49,7 @@ default 248-pattern series and its null; the patterns are not vendored.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import time
 from dataclasses import dataclass, field
@@ -57,6 +58,7 @@ from pathlib import Path
 import numpy as np
 
 import rietx as rx
+from rietx.model import compiled
 from rietx.model.forward import compile_model
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
@@ -178,6 +180,27 @@ def _pattern(phases: list[Phase], background: tuple[float, ...],
                           intensity=counts.tolist())
 
 
+def numpy_path(fn):
+    """Run ``fn`` with the compiled kernel tier off: the fixture's declared path.
+
+    The committed output and the tests' pinned index lists are fit outcomes, and
+    the kernels' ``exp`` is the platform's (``tests/CLAUDE.md`` § Quoting
+    numbers): a path inherited from the machine passes on darwin/arm64 and can
+    fail on the Linux nightly.  The numpy builder is the bit-identity oracle, so
+    both the generator and the refit say ``set_enabled(False)`` and restore the
+    caller's setting.
+    """
+    @functools.wraps(fn)
+    def run(*args, **kw):
+        was = compiled.set_enabled(False)
+        try:
+            return fn(*args, **kw)
+        finally:
+            compiled.set_enabled(was)
+    return run
+
+
+@numpy_path
 def generate(length: int = 248, *, seed: int = 0,
              events: dict[str, int] | None = None,
              t_start: float = 900.0, t_end: float = 400.0,
@@ -264,12 +287,13 @@ def cubic_model(start_t: float = 900.0) -> tuple[Structure, rx.Instrument]:
     return Structure(phases=[phase]), ins
 
 
+@numpy_path
 def refine(series: PlantedSeries, **kw) -> rx.SeriesResult:
     """``refine_sequential`` with the fixed cubic model, the fixture's protocol.
 
     ``mccusker_default`` on the first pattern, ``refit="single"`` after it,
     forward, reseed on: the defaults, so the fixture measures what a plain
-    call carries.  ``kw`` goes to :func:`rietx.refine_sequential`.
+    call carries, on the numpy path (:func:`numpy_path`).  ``kw`` goes to :func:`rietx.refine_sequential`.
     """
     structure, ins = cubic_model(series.temperature[0])
     kw.setdefault("plan", "mccusker_default")
