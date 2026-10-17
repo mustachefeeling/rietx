@@ -193,10 +193,14 @@ Ending means: ask the batch, apply the answers, write the report, kill this
 run's waiters (step 5), and name the resume command (`/pr-review all` after
 the user's `/compact` or `/clear`). Nothing is carried in a file.
 
-**The batch**: one numbered message; per item the PR, the question in one
-sentence, what it blocks (held review / merge / nothing), and your
-recommendation. Group: PRs by other authors (§ Triage), then governance
-calls, then held reviews, then held merges.
+**The batch**: one numbered message; per item the PR and what it changes in
+plain words, the question, what it blocks (held review / merge / nothing),
+and your recommendation with its reason. Each item reads without this run's
+context, so a WP number or a name the run coined carries a gloss. A genuine
+judgement call adds why it matters, each option's consequence and the
+practice it rests on; a clear-cut item stays one line. Group: PRs by other
+authors (§ Triage), then governance calls, then held reviews, then held
+merges.
 `AskUserQuestion` only for ≤ 4 genuine multi-way choices. Then apply in one
 pass — post, merge, close — with a step-10 line each. **A gate main has moved
 under is void**: before merging a freed PR compare `origin/main` with the sha
