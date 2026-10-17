@@ -29,11 +29,13 @@ from pathlib import Path
 
 import pytest
 
+from rietx.model import compiled
 from tests.planted_series import (
     EVENTS,
     default_events,
     generate,
     null_series,
+    numpy_path,
     refine,
     second_phase_tolerance,
     signals,
@@ -79,6 +81,23 @@ def null():
 def transition_alone():
     at = EVENT_AT["transition"]
     return refine(generate(LENGTH, seed=SEED, events={"transition": at}))
+
+
+def test_the_generator_and_the_refit_declare_the_numpy_path():
+    """Every pinned outcome here, and the committed 248-pattern output the slow
+    row compares byte for byte, is produced with the kernel tier off
+    (``tests/CLAUDE.md`` § Quoting numbers), whatever the machine would pick,
+    and the caller's setting is restored."""
+    assert hasattr(generate, "__wrapped__") and hasattr(refine, "__wrapped__")
+    seen = []
+    probe = numpy_path(lambda: seen.append(compiled.enabled()))
+    was = compiled.set_enabled(True)
+    try:
+        probe()
+        assert seen == [False]
+        assert compiled.set_enabled(True) is True
+    finally:
+        compiled.set_enabled(was)
 
 
 def test_the_null_series_raises_no_event_signal(null):
@@ -158,7 +177,7 @@ def test_the_committed_output_carries_the_same_mapping():
 @pytest.mark.slow
 def test_the_full_length_series_reproduces_its_committed_signals():
     """The 248-pattern series of #141, regenerated and refitted (35-60 s for both
-    arms): every signal except the reseeds — which follow the ladder's first
+    arms), on the numpy path the fixtures declare: every signal except the reseeds — which follow the ladder's first
     rung budget and mark no event — equals the committed record, and the
     null's is empty."""
     series = generate(248, seed=0)
