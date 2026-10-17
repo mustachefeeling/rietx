@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-17 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-17 — Theory moved (task 1); Guides, GUI chapters, retirement and skill links remain
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -164,5 +164,63 @@ the tree that day.
 
 ## Handover log
 
+- **2026-10-17** — Theory now lives in the new manual. The fourteen chapters are pages
+  of the Theory tab, numbered as before, each opening with a sentence saying what it
+  answers, and they pass Vale, the page contract and the equation-width check under the
+  new theme. The old manual still shows them, through a one-line include at each old
+  path, because Part 1 refers into them 79 times by equation and section number and
+  rewriting those in chapters about to be mined into Guides would be wasted work. So
+  Theory moved first and retires with the old tree, not one chapter at a time as
+  WP-1975 § F8 planned for Part 1.
+
+  *Done.* Inherited folded into Context by task, with one correction (`OLD_PAGES` holds
+  46 pages, not 48). Part 2 moved to `docs/docs/theory/`; the Theory index carries the
+  conventions, scope and units text, and the old root page includes it between two
+  markers. Answer sentences under ten chapter titles. Three out-links fixed:
+  `sec-units` now lives in both builds, `{doc}manual` became that `{ref}`, and the link
+  to `using/refining.md`'s magnetic-width section was dropped (Guides note). 17 Concepts
+  and Switching links rewritten to `../theory/…`; the link check now fails a link to a
+  moved chapter's old address and covers Switching. `custom.css` in the new tree hides
+  the bibliography label (the reference list printed `[AS64]` beside every entry since
+  WP-1978) and lays out numbered equations as a grid. The three citation guards read
+  both builds, under the `manual-build` group they lacked. `check_equations.py` moved
+  and measures the new tree. Vale: equation numbers cited from papers spelled out,
+  coinages reworded, 46 terms added to `terms.txt`, one Vale exemption round the
+  McCusker quote in `estimation.md`. Root CLAUDE.md says where Part 2's source is.
+  `/code-review high --fix` found 9 and fixed 5 (a paragraph split by the Vale
+  comments, the landing page counted as a moved chapter, four stale chapter paths in
+  `test_voigt.py`, `ATTRIBUTION.md` and `magnetic/operators.py`, ambiguous row labels).
+  Declined: restoring a failure for every unknown `rietx.org` link (Part 1 and the
+  skill are legal targets until retirement), and the duplicated CSS (the old copy goes
+  with the old tree). No `### Inherited` note went out: 23 open WPs name Part 2 or an
+  old chapter path, and each old path now holds a comment naming its new one.
+
+  *Measured* (`[dev]`, darwin/arm64). Under pydata-sphinx-theme six equations ran under
+  their own numbers by up to 191 px; the text column is about 645 px at a 1440 px
+  window and 720 px at 1100. After the grid rule and six two-line reflows, all 156
+  numbered equations fit at both widths. Vale over `docs/docs/`: 97 errors in the
+  moved chapters before, 0 after. Acceptance files plus `test_vale`,
+  `test_docs_versions` and `test_help`: 183 passed. The largest Theory twin is
+  `estimation` at 40 831 characters, under the 50 000 cap. Fast selection on the final
+  tree: 10 865 passed, 185 skipped, 2 xfailed (one run, 5:50, alone; the one red row
+  there was the root CLAUDE.md line cap, fixed and re-run green). Against main that
+  should be +3 items: the three citation guards now run once per build. The renamed
+  link test is the one row `tests.added_test_times` reports, 0.06 s. The full
+  selection did not run: no measured number can move in a docs-and-guards change.
+
+  *Gotchas.* An HTML comment ends a paragraph in MyST, so a Vale exemption comment goes
+  on blank lines round the whole paragraph. A link from a Concepts page into Theory must
+  use the MyST heading slug (`#esds-and-the-bérar-lelann-inflation`), which differs from
+  the HTML id wherever a heading has an accent or a symbol. The old tree's Part 2
+  numbering and the new tree's agree only while both toctrees list the chapters in the
+  same order.
+
+  Next: Guides (task 2), one Part 1 chapter at a time. Each mined chapter can retire
+  only once the other old chapters stop linking it; `using/qpa`, `using/constraints`,
+  `using/recipe` and `using/quickstart` have at most two inbound links each, and
+  `using/refining`, `using/files` and `using/data` have 20-24. Decide first whether
+  mined chapters retire one by one, rewriting each one's inbound links, or all at once
+  when the last guide lands; the second costs no link rewrites and leaves duplicate
+  pages up for longer.
 - **2026-10-16** — filed from WP-1975's slate. No open WP owns the migration; 1443's passage
   fixes land here as each chapter is mined.
