@@ -2050,9 +2050,11 @@ class DistortionCandidate:
     orbit; ``transform`` is (P, p) with r_parent = P·r_child + p, the
     convention of :mod:`~rietx.crystallography.representation.distortion`.
     ``basis`` is that module's :func:`distortion_basis` of the child: every
-    irrep with a non-zero subduction frequency under the child group, primary
-    and secondary, each orbit's modes normalised over the child's primitive
-    cell in Å, so Σ n_modes is the child's number of free coordinates.
+    irrep with a non-zero subduction frequency under the child group, each
+    orbit's modes normalised over the child's primitive cell in Å, so Σ n_modes
+    is the child's number of free coordinates.  :attr:`driving` is the
+    component of the irrep the candidate was built from and :attr:`rest` the
+    others.
 
     ``sites`` names the parent atoms whose displacement representation holds
     the irrep (the sites :func:`candidates` was asked about that produced this
@@ -2086,31 +2088,46 @@ class DistortionCandidate:
         return str(self.child.space_group)
 
     @property
-    def primary(self):
-        """The basis component of this candidate's own irrep (an ``IrrepModes``)."""
-        return self.basis.components[self._primary_index]
+    def driving(self):
+        """The basis component of the irrep this candidate was built from (an ``IrrepModes``).
+
+        Not ``IrrepModes.primary``, which asks whether a component's own isotropy
+        group is the child's: the two can disagree (a secondary irrep whose group
+        is the child's reads ``primary=True`` there and is in :attr:`rest` here).
+        """
+        return self.basis.components[self._driving_index]
 
     @property
-    def secondary(self) -> tuple:
-        """Every other component: the secondary irreps the child also admits."""
+    def rest(self) -> tuple:
+        """Every other component: the further irreps the child also admits."""
         return tuple(c for i, c in enumerate(self.basis.components)
-                     if i != self._primary_index)
+                     if i != self._driving_index)
 
     @property
-    def _primary_index(self) -> int:
-        return _primary_component(self.basis, self.candidate)
+    def _driving_index(self) -> int:
+        return _driving_component(self.basis, self.candidate)
 
 
-def _primary_component(basis, candidate: MagneticCandidate) -> int:
+def _driving_component(basis, candidate: MagneticCandidate) -> int:
     """The index of the component that carries the candidate's irrep at its k."""
     k = tuple(str(c) for c in candidate.k)
+    # the basis names its arms through ``canonical_kvector``, the candidate keeps k
+    # as the caller spelled it: compare modulo the reciprocal lattice
     hits = [i for i, c in enumerate(basis.components)
-            if c.irrep == candidate.irrep_label and k in c.arms]
+            if c.irrep == candidate.irrep_label and any(
+                _irreps.equivalent_kvectors(candidate.space_group, arm, candidate.k)
+                for arm in c.arms)]
     if len(hits) != 1:
         raise RuntimeError(
             f"the child of {candidate.label} at k = {k} has {len(hits)} mode components "
             f"labelled {candidate.irrep_label!r} on that arm, not one; this is a bug")
     return hits[0]
+
+
+def _group_signature(candidate: MagneticCandidate) -> frozenset:
+    """The candidate's colourless operations in its cell, as a comparable set."""
+    return frozenset((rot.tobytes(), tuple(np.round(tran, 9)))
+                     for rot, tran in _colourless_operations(candidate.group))
 
 
 def _colourless_operations(group: MagneticGroup) -> list[tuple[np.ndarray, np.ndarray]]:
@@ -2316,7 +2333,7 @@ def distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, .
     parent's atoms at their undistorted positions.  Its mode basis is
     :func:`~rietx.crystallography.representation.distortion.distortion_basis`
     of that child: per irrep and orbit, in Å over the child's primitive cell in
-    the reference metric, **primary and secondary** irreps alike, so
+    the reference metric, for every irrep the child admits, so
     Σ n_modes is the child's number of free coordinates.
 
     This is the parent + irrep + direction → child workflow of Campbell,
@@ -2334,9 +2351,10 @@ def distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, .
     (``DISTORTION_CHILD_LARGER``) or spglib does not name
     (``DISTORTION_CHILD_UNIDENTIFIED``) is refused.
     """
-    from ..representation.distortion import distortion_basis
+    from ..representation.distortion import _refuse_shared_sites, distortion_basis
     from ..symmetry import resolve_group
 
+    _refuse_shared_sites(parent)  # before any group is built from atoms that share a site
     parent_group = resolve_group(parent.space_group, parent.symmetry_operations)
     labels = [a.label for a in parent.atoms]
     if sites is None:
@@ -2355,6 +2373,14 @@ def distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, .
         for cand in candidates(parent_group, xyz, k, kind="displacive"):
             key = (cand.irrep_label, cand.direction.label)
             if key in found:
+                # the direction label is gauge-dependent (order_parameter.py), and it
+                # is the same label across sites only because the gauge comes from the
+                # irrep's own matrices, which the 2k fence makes real: so say it
+                # rather than assume it
+                if _group_signature(cand) != _group_signature(found[key][0]):
+                    raise RuntimeError(
+                        f"{cand.label} on {atom.label!r} and on {found[key][1][0]!r} carry "
+                        "one direction label but different isotropy groups; this is a bug")
                 found[key][1].append(atom.label)
             else:
                 found[key] = (cand, [atom.label])
@@ -2367,7 +2393,7 @@ def distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, .
         child = _child_phase(parent, symbol, big, metric_p, basis)
         result = DistortionCandidate(candidate=cand, child=child, transform=(big, small),
                                      basis=basis, sites=tuple(on))
-        result._primary_index  # noqa: B018 - the candidate's own irrep must be in the basis
+        result._driving_index  # noqa: B018 - the candidate's own irrep must be in the basis
         out.append(result)
     return tuple(out)
 

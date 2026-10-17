@@ -418,7 +418,25 @@ class _Reference:
     sites: tuple[np.ndarray, ...]  # the parent sites' positions
 
 
+def _refuse_shared_sites(parent) -> None:
+    """Refuse a parent whose atoms share a site: the modes carry no occupancy weight."""
+    group = _group(parent)
+    sites: list[np.ndarray] = []
+    for atom in parent.atoms:
+        xyz = np.array([_value(atom.x), _value(atom.y), _value(atom.z)])
+        orbit = site_orbit(group, xyz)
+        for t, other in enumerate(sites):
+            d = np.asarray(orbit.images) - other[None, :]
+            if np.any(np.all(np.abs(d - np.rint(d)) < _POSITION_TOL, axis=1)):
+                raise ValueError(
+                    f"parent atoms {parent.atoms[t].label!r} and {atom.label!r} share one site; "
+                    "a mixed-occupancy site is not handled, so give the site one atom (the "
+                    "modes carry no occupancy weight)")
+        sites.append(orbit.position)
+
+
 def _reference(parent, big, small) -> _Reference:
+    _refuse_shared_sites(parent)
     group = _group(parent)
     inv = np.linalg.inv(big)
     corners = np.array([big @ np.array(c, float) + small
@@ -432,13 +450,6 @@ def _reference(parent, big, small) -> _Reference:
     for s, atom in enumerate(parent.atoms):
         xyz = np.array([_value(atom.x), _value(atom.y), _value(atom.z)])
         orbit = site_orbit(group, xyz)
-        for t, other in enumerate(sites):
-            d = np.asarray(orbit.images) - other[None, :]
-            if np.any(np.all(np.abs(d - np.rint(d)) < _POSITION_TOL, axis=1)):
-                raise ValueError(
-                    f"parent atoms {parent.atoms[t].label!r} and {atom.label!r} share one site; "
-                    "a mixed-occupancy site is not handled, so give the site one atom (the "
-                    "modes carry no occupancy weight)")
         sites.append(orbit.position)
         n_conv += orbit.multiplicity
         for image in orbit.images:
