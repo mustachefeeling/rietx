@@ -31,42 +31,41 @@ page contract caps a page at 50 000.
   4. the figure-pair markers (both the light and the dark image are emitted side by side).
 - sphinx-llm 1.1.0 failed the old tree's `-W` on 21 nodes (WP-1975 § G5).
 
-So the twin is a translator subclass over sphinx-markdown-builder for those four node types,
-with sphinx-llms-txt pointed at its output. Keep only the light image of a pair, and write an
-admonition as a labelled blockquote. Mermaid sources stay as fenced `mermaid` blocks.
+So the twin is a translator subclass over sphinx-markdown-builder for those four node types.
+Keep only the light image of a pair, and write an admonition as a labelled blockquote. Mermaid
+sources stay as fenced `mermaid` blocks.
 
-### Inherited
+**Re-measured on the new tree, 2026-10-17** (the four losses still hold, and four more were
+found). A baseline `-b markdown` build of `docs/docs/` warned on a `mermaid` node, a generic
+`admonition` (its whole body dropped, not just the label), and sphinx-design's
+`PassthroughTextElement` (the card titles). `theory/references` came out empty. Its tables
+are padded to column width, which put two pages over the cap: `reference/diagnostics` at 51 511
+characters and `reference/parameters` at 56 763. The `<!-- Generated … -->` comments of the
+Reference bodies leaked into the text.
 
-- **2026-10-17, from WP-1983.** The Concepts tab adds three node types a twin must carry.
-  `concepts/parameters.md` has a sphinx-design `{dropdown}` holding the evidence a fold
-  away, `concepts/fit.md` a mermaid flowchart, and `concepts/usage.md` a `{literalinclude}`
-  sliced by `:start-at:` and `:end-before:` from `examples/tutorials/02_simple_rietveld.py`.
-  `tests/test_manual_api.py`'s `_included_slice` cuts such a slice the way Sphinx does and
-  can be reused.
-- **2026-10-16, from WP-1979 (closed).** Each version is one `docs/docs/` build. `main`'s is
-  built into `site/docs/dev/` by pages.yml. A release's is built by release.yml's `docs` job
-  and stored as a tarball on its GitHub release. `docs/docs_versions.py` lays them out under
-  `/docs/`. So a twin written into the HTML build's output reaches every version with no
-  deploy change. A twin built by a second builder needs a step in both workflows, inside the
-  tarball. The `llms.txt` proposal puts the file at the site root, and today's root is the
-  landing page. A root `llms.txt` would point at `/docs/stable/` (`dev/` before v1.10.0, as
-  `/docs/index.html` does). Each version's own copy then sits under its directory.
-- **2026-10-16, from WP-1981.** Ten Reference pages exist. Seven of them are a committed
-  title and answer sentence followed by one `{include}` of a body that `conf.py` writes into
-  the ignored `docs/docs/_generated/` (`docs/reference_pages.py`, `BODIES`). A markdown twin
-  built from the sources must expand those includes, or it ships seven pages that are one
-  line long. `tests/test_manual.py`'s `_as_rendered` already does that expansion for the
-  page contract and can be reused. The plan page's diagrams are mermaid with
-  backslash-escaped stars (`\*`), which a markdown twin should unescape.
-- **2026-10-16, from WP-1978.** The new tree is `docs/docs/` (PR #1004). Its `conf.py` takes
-  the fenced constants, the citation style, the mermaid theme and the `{source}` role from
-  `docs/sphinx_shared.py`, which the old `conf.py` imports too. `tests/test_manual.py` builds
-  it as the `built_docs_tree` fixture (xdist group `manual-build`), reads its pages as
-  `DOCS_PAGES`, and holds each to the page contract (`_contract_breaches`). No
-  `sphinx_llms_txt` extension is configured. `myst_heading_anchors = 3`. The theme ships a
-  Jinja template into `_static/` (`webpack-macros.html`) that no page renders, and the
-  built-HTML guards skip `_static/` for it, so a walk over a markdown build may meet the same
-  file.
+**What was built, and where it departs from the plan above.**
+- The twin is written **inside the HTML build**, not by a second builder. `docs/markdown_twin.py`
+  is a Sphinx extension in `docs/docs/conf.py`. On `doctree-resolved` it copies the resolved
+  doctree, resolves its toctrees, rewrites the nodes the translator cannot write
+  (`_normalise`) and translates the rest (`TwinTranslator`). So it reaches every version
+  WP-1979 deploys with no workflow change (inherited from WP-1979, below), and no second build
+  doubles the docs job.
+- **`page.html.md`**, decided at the start: it is the llms.txt proposal's spelling. A link in
+  a twin is the HTML page's own resolved link with `.md` appended.
+- **No sphinx-llms-txt.** Its `llms-full.txt` is the raw `_sources` concatenated, which is the
+  MyST this WP removes. Its `llms.txt` is one flat `## Docs` list of titles. `write_llms_txt`
+  writes the proposal's shape from the twins instead: an H2 per tab and a line per page
+  carrying its answer sentence, which the page contract guarantees. `llms-full.txt` is the
+  twins in toctree order, links rebased to the build root.
+- `docs/docs_versions.py` copies the hosted tree's `llms.txt` to the site root, its links
+  rebased onto `/docs/stable/` (dev's until a release carries one).
+
+**Carried from the inherited notes (2026-10-16/17, WPs 1978, 1979, 1981, 1983).** Each version
+is one `docs/docs/` build, so a twin in the HTML output reaches every version (WP-1979). The
+Reference pages' `{include}`d bodies and the Concepts tab's dropdown, mermaid chart and sliced
+`{literalinclude}` all arrive resolved in the doctree, so the twin needed no expansion of its
+own (WP-1981, WP-1983). The plan page's `\*` in mermaid sources is unescaped. The theme's
+`_static/webpack-macros.html` is no page and has no twin (WP-1978).
 
 ## Non-goals
 
@@ -75,20 +74,21 @@ admonition as a labelled blockquote. Mermaid sources stay as fenced `mermaid` bl
 
 ## Tasks
 
-- [ ] The translator: the four node types above, `-W` clean on the new tree.
-- [ ] A test over the built twin: no `{`-role, `:::` or `{{` survives, every page has its H1
+- [x] The translator: the four node types above, `-W` clean on the new tree.
+- [x] A test over the built twin: no `{`-role, `:::` or `{{` survives, every page has its H1
       and answer sentence, and no page passes 50 000 characters.
-- [ ] `llms.txt` and `llms-full.txt` from sphinx-llms-txt, linking the twins; the summary
-      sentence is the front page's answer sentence.
-- [ ] Served beside each HTML page (decide `page.md` or `page.html.md` at the start), in every
+- [x] `llms.txt` and `llms-full.txt` ~~from sphinx-llms-txt~~ (written from the twins, see
+      Context), linking the twins; the summary sentence is the front page's answer sentence.
+- [x] Served beside each HTML page (decide `page.md` or `page.html.md` at the start), in every
       version WP-1979 deploys.
-- [ ] Skill: one row in the skill's references saying where the twin and `llms.txt` live.
+- [x] Skill: ~~one row in the skill's references~~ the body's last line, which already said
+      where the manual lives, now says where `llms.txt` lives too (+42 B, body 16 986 of 17 000).
 
 ## Acceptance
 
 ```sh
-.venv/bin/python -m sphinx -W -q -b markdown docs/docs docs/docs/_build/md
-.venv/bin/python -m pytest tests/test_manual.py -k twin -n auto --dist loadgroup
+.venv/bin/python -m sphinx -W -q -E -b html docs/docs docs/docs/_build   # writes page.html.md and llms.txt
+.venv/bin/python -m pytest tests/test_manual.py tests/test_docs_versions.py -k "twin or llms or residue" -n auto --dist loadgroup
 ```
 
 ## References

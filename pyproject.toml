@@ -130,6 +130,10 @@ docs = [
     # WP-1975 spike for its six-tab header, version switcher and dev banner.
     # The floor is the release the spike was measured on.
     "pydata-sphinx-theme>=0.23",
+    # The translator behind each page's markdown twin (docs/markdown_twin.py,
+    # WP-1980), which subclasses it.  The floor is the release it was written
+    # against.
+    "sphinx-markdown-builder>=0.6.11",
 ]
 # What executes a notebook headless (WP-1544): the display tests run an
 # object through IPython's own formatter, and the tutorials (WP-1545) are
