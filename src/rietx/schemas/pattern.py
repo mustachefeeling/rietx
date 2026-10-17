@@ -185,9 +185,13 @@ class PatternData(Base):
         it is quoted in whatever the abscissa is — degrees on a CW pattern,
         microseconds on a TOF one.
         """
+        from .project import check_interval
+
         x = self.x()
         mask = np.ones(x.shape, dtype=bool)
         for lo, hi in self.excluded_regions:
+            # again here: ``excluded_regions.append(...)`` reaches no validator
+            check_interval("an excluded region", lo, hi)
             mask &= ~((x >= lo) & (x <= hi))
         return mask
 

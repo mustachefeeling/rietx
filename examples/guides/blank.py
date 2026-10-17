@@ -43,14 +43,14 @@ background = rx.BackgroundFixedPlusChebyshev.from_pattern(
     blank, n_terms=3, vary_scale=True, source="APS 11-BM run 4736, empty Kapton capillary")
 ref, result = fit_with(background)
 
-scale = next(p for p in result.parameters if p.path == "instrument.background.scale")
+scale = result.parameter("instrument.background.scale")
 print(f"blank scale {scale.value:.2f} ± {scale.stderr:.2f}")
 # guide: end
 
 # guide: order start
 six = rx.BackgroundFixedPlusChebyshev.from_pattern(blank, n_terms=6, vary_scale=True)
 _, result6 = fit_with(six)
-scale6 = next(p for p in result6.parameters if p.path == "instrument.background.scale")
+scale6 = result6.parameter("instrument.background.scale")
 print(f"with 6 terms: blank scale {scale6.value:.2f} ± {scale6.stderr:.2f}")
 # guide: order end
 

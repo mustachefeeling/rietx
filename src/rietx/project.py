@@ -50,7 +50,7 @@ from .schemas.instrument import Instrument
 from .schemas.migrate import migrate_document_text
 from .schemas.pattern import PatternData, require_two_theta
 from .schemas.plan import PlanSpec
-from .schemas.project import PROJECT_FORMAT_VERSION, DataRef, ProjectDoc
+from .schemas.project import PROJECT_FORMAT_VERSION, DataRef, ProjectDoc, check_interval
 from .schemas.structure import Structure
 
 #: Conventional directory suffix, so a file picker can recognise a project.
@@ -436,6 +436,8 @@ def fitted_mask(data: PatternData,
     mask = data.in_range_mask()
     if two_theta_limits is not None:
         lo, hi = two_theta_limits
+        # compile_model refuses these limits, so this answer must too (WP-1986)
+        check_interval("two_theta_limits", lo, hi)
         tt = data.tt()
         mask &= (tt >= lo) & (tt <= hi)
     return np.asarray(mask, dtype=bool)

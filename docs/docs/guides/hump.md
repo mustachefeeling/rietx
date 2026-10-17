@@ -37,7 +37,7 @@ All three start fixed, and a declared hump at zero height changes nothing.
 `mccusker_structural` frees declared humps in its `extra_components` stage, after the zero shift, cell and peak widths.
 No other preset frees them, so with another plan add a stage for `instrument.extra_components.*`, as [How to add a stage to a refinement plan](plan.md) shows.
 Freeing the hump earlier lets its free position chase misfit from a wrong zero shift or cell.
-For the same reason `instrument.background.*`, which every preset frees first, does not reach the humps.
+For the same reason `instrument.background.*`, which most presets free in their first stage, does not reach the humps.
 
 No plan ever adds a hump.
 A plan frees only the humps you declared.

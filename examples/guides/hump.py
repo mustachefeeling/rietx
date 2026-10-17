@@ -45,23 +45,22 @@ def fit_with(n_terms, humps):
     instrument.extra_components = humps
     ref = rx.Refinement(silicon(), instrument)
     ref.hold("phases.0.cell.*")
-    result = ref.fit(data, plan="mccusker_structural", two_theta_limits=(1.997, 49.996))
-    return {p.path: p for p in result.parameters}
+    return ref.fit(data, plan="mccusker_structural", two_theta_limits=(1.997, 49.996))
 
 
 bisos = {}
 for label, n_terms, humps in [("3 terms", 3, []), ("3 terms + hump", 3, [halo()]),
                               ("6 terms", 6, [])]:
-    biso = bisos[label] = fit_with(n_terms, humps)["phases.0.atoms.0.biso"]
+    biso = bisos[label] = fit_with(n_terms, humps).parameter("phases.0.atoms.0.biso")
     print(f"{label:<15} Biso {biso.value:.3f} ± {biso.stderr:.3f} Å²")
 # guide: end
 
 # guide: hump start
 humps = {}
 for n_terms in (3, 6):
-    row = fit_with(n_terms, [halo()])
-    position, fwhm = humps[n_terms] = tuple(row[f"instrument.extra_components.0.{name}"]
-                                            for name in ("position", "fwhm"))
+    result = fit_with(n_terms, [halo()])
+    position, fwhm = humps[n_terms] = tuple(
+        result.parameter(f"instrument.extra_components.0.{name}") for name in ("position", "fwhm"))
     print(f"{n_terms} terms: hump at {position.value:.2f} ± {position.stderr:.2f}°, "
           f"FWHM {fwhm.value:.2f} ± {fwhm.stderr:.2f}°")
 # guide: hump end

@@ -60,7 +60,7 @@ A lower Rwp with more terms does not make the scale a better measurement.
 
 ## Keep the scale at 1.0
 
-Every plan preset frees `instrument.background.*`, and that includes the scale.
+Every plan preset except `magnetic_width` frees `instrument.background.*` in its first stage, and that includes the scale.
 So a blank built with `vary_scale=False` is refined anyway, by the first stage.
 Hold it to keep it fixed:
 

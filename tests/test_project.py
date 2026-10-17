@@ -17,7 +17,7 @@ import pytest
 
 import rietx as rx
 from rietx import Parameter
-from rietx.project import PROJECT_JSON
+from rietx.project import PROJECT_JSON, fitted_mask
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
 OUT = Path(__file__).parent / "output"
@@ -762,6 +762,13 @@ def test_a_pattern_and_a_fit_refuse_an_inverted_interval_as_the_document_does():
     with pytest.raises(ValidationError, match=r"\(11\.0, 11\.0\) is empty"):
         rx.PatternData(two_theta=tt, intensity=[100.0] * 40,
                        excluded_regions=[(11.0, 11.0)])
+    # a list mutated in place reaches no validator, so the mask asks again
+    data.excluded_regions.append((11.0, 10.5))
+    with pytest.raises(ValueError, match=r"\(11\.0, 10\.5\) is inverted"):
+        data.in_range_mask()
+    data.excluded_regions.clear()
+    with pytest.raises(ValueError, match=r"\(13\.0, 11\.0\) is inverted"):
+        fitted_mask(data, (13.0, 11.0))
 
     from rietx.model.forward import compile_model
     structure, instrument = perturbed_models()

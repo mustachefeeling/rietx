@@ -199,6 +199,9 @@ def fetch(name: str) -> Path:
     path to save the file at by hand, the route for a machine with no network.
     """
     import hashlib
+    import http.client
+    import os
+    import tempfile
     import urllib.request
 
     from .viz.theme import state_dir
@@ -216,7 +219,9 @@ def fetch(name: str) -> Path:
     try:
         with urllib.request.urlopen(url, timeout=60) as response:
             body = response.read()
-    except OSError as exc:
+    # IncompleteRead, a connection dropped mid-body, is an HTTPException and
+    # not an OSError, and is as much a failed download as a refused one.
+    except (OSError, http.client.HTTPException) as exc:
         raise OSError(f"could not download {name} from {url} ({exc}). Download "
                       f"it by another route and save it as {path}.") from exc
     got = hashlib.sha256(body).hexdigest()
@@ -224,7 +229,14 @@ def fetch(name: str) -> Path:
         raise OSError(f"{name} from {url} has sha256 {got[:12]}, not {want[:12]}, "
                       "so it is not the published file. Nothing was saved.")
     path.parent.mkdir(parents=True, exist_ok=True)
-    partial = path.with_name(path.name + ".part")
-    partial.write_bytes(body)
-    partial.replace(path)
+    # A partial file of its own per call: two processes fetching at once must
+    # not install each other's half-written bytes under the checked name.
+    fd, partial = tempfile.mkstemp(dir=path.parent, prefix=name + ".", suffix=".part")
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(body)
+        os.replace(partial, path)
+    except BaseException:
+        Path(partial).unlink(missing_ok=True)
+        raise
     return path

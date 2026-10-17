@@ -268,6 +268,7 @@ def test_fetch_downloads_once_and_then_reads_its_copy(tmp_path, monkeypatch):
 
 
 def test_fetch_refuses_bytes_that_are_not_the_published_file(tmp_path, monkeypatch):
+    import http.client
     import urllib.request
 
     from rietx._about import STATE_DIR_ENV
@@ -284,6 +285,13 @@ def test_fetch_refuses_bytes_that_are_not_the_published_file(tmp_path, monkeypat
         raise OSError("no network")
 
     monkeypatch.setattr(urllib.request, "urlopen", offline)
+    with pytest.raises(OSError, match=r"save it as .*11BM_Kapton\.xy"):
+        fetch("11BM_Kapton.xy")
+
+    def dropped(url, timeout):
+        raise http.client.IncompleteRead(b"##", 1000)
+
+    monkeypatch.setattr(urllib.request, "urlopen", dropped)
     with pytest.raises(OSError, match=r"save it as .*11BM_Kapton\.xy"):
         fetch("11BM_Kapton.xy")
     with pytest.raises(KeyError, match="unknown data file"):
