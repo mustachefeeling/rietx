@@ -1,7 +1,7 @@
 (guide-next)=
 # How to choose the next parameter to free
 
-Call `Refinement.suggest` after a stage, free its top group if the group is resolved and its `delta_bic` is positive, then measure the move with `rietx.report.compare_freed` against a re-solved copy of the fit.
+Call `Refinement.suggest` after a stage, free its top group if the group is resolved, its `delta_bic` is positive and the parameter is not on a bound, then measure the move with `rietx.report.compare_freed` against a re-solved copy of the fit.
 
 `suggest` changes nothing.
 It scores copies of the model and records no history node.
@@ -84,6 +84,12 @@ free phases.0.extinction next: predicted Δχ² 104.5, ΔBIC -1.799; ΔBIC refus
 Extinction clears the noise floor, and ΔBIC refuses it.
 `best_or_none()` still returns it, because it checks the floor and the tie and does not check ΔBIC.
 Read `delta_bic` before you free what `best_or_none()` names.
+
+A positive `delta_bic` is not enough either.
+Asked again on the re-solved fit of the next section, the same query gives extinction a ΔBIC of +1.4.
+Extinction sits on its lower bound of 0, and the data push it below 0, so freeing it moves nothing.
+`suggest` predicts each gain as if the parameter could move both ways.
+Before you free a candidate, check that it is not on a bound, or measure it as the next section does.
 
 The four non-separable candidates are the sample widths, which the free instrument widths already cover.
 

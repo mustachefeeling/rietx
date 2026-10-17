@@ -45,3 +45,7 @@ assert [f"{r:.4f}" for r in series.rwp] == [
     "0.0408", "0.0411", "0.0401", "0.0408", "0.0408", "0.0401", "0.0405"]
 assert [e.rung for e in series] == ["cold"] + ["warm"] * 6
 assert [e.n_iterations for e in series] == [35] + [12] * 6
+# The page says a persistent finding needs five patterns or more.
+from rietx.sequential import MIN_POINTS_FOR_PERSISTENCE  # noqa: E402
+
+assert MIN_POINTS_FOR_PERSISTENCE == 5

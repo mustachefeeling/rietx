@@ -41,7 +41,7 @@ SeriesResult: 7 pattern(s), rietveld, direction=forward
 
 ## Read the diagnostics first
 
-`SEQUENTIAL_PERSISTENT_FINDING` reports a per-pattern diagnostic that fired on more than half the patterns.
+`SEQUENTIAL_PERSISTENT_FINDING` reports a per-pattern diagnostic that fired on more than half the patterns, in a series of five patterns or more.
 Such a finding describes the model, so fix it once for the series.
 Both findings here come from the synthetic setup:
 

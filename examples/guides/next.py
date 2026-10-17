@@ -71,6 +71,9 @@ c_direct = compare_freed(ref, direct)
 paired = base.branch()
 paired.run_stage(data, rx.Stage("extinction", ["phases.0.extinction"]))
 c_paired = compare_freed(base, paired)
+# The page's second caution: on the re-solved fit the narrowed query favours
+# extinction, which sits on its floor with the data pushing it below.
+narrowed_again = base.suggest(data, include="phases.*", exclude=["*.occ"])
 
 # The page's measurement of why the re-solve moved: the same profile stage,
 # given wider peak windows, ends close to where the re-solve lands.
@@ -121,3 +124,7 @@ assert round(c.delta_bic_raw_n) == 161
 # The warning's numbers: extinction does not move, yet the unpaired ΔBIC is large.
 assert c_direct.freed[0].value == 0.0 and c_paired.freed[0].value == 0.0
 assert round(c_direct.delta_bic) == 148 and round(c_paired.delta_bic) == -7
+assert narrowed_again.groups[0].members[0].path == "phases.0.extinction"
+assert f"{narrowed_again.groups[0].delta_bic:+.1f}" == "+1.4"
+assert narrowed_again.groups[0].members[0].gradient > 0  # χ² falls below the floor
+assert c_paired.freed[0].t_ratio == 0.0
