@@ -12,10 +12,10 @@ What is pinned, and against what:
 * **(P, p).**  The child's own operations are symmetries of the parent's
   atoms displaced along its modes, in the child cell; an origin moved by half
   a parent cell is refused by C1's subgroup check (the positive arm).
-* **Primary and secondary.**  Σ n_modes is the child's free coordinates,
+* **Driving and rest.**  Σ n_modes is the child's free coordinates,
   counted from its Wyckoff positions, and a generic displacement allowed by
   the child's symmetry is reached completely (residual 1e-10), which a basis
-  of the primary irrep alone does not do.
+  of the driving irrep alone does not do.
 * **The unit and the LaMnO₃ match.**  The I4/mcm tilt's mode moves each O
   of the half cell by ½ Å per Å of amplitude (four movers per primitive cell),
   and the Imma candidate's R4+ mode, carried onto the shipped Pnma fixture,
@@ -132,7 +132,7 @@ def test_the_perovskite_children_are_howard_and_stokes(at_r, at_gamma):
     polar = {_number(c) for c in g if c.irrep == "S9" and "rank 1" in c.direction}
     assert polar == {99, 160, 38}
     for c in (*r, *g):
-        assert c.primary.isotropy_group.endswith(f"({_number(c)})"), c.label
+        assert c.driving.isotropy_group.endswith(f"({_number(c)})"), c.label
         assert c.basis.child_group == c.child_group
         assert c.candidate.kind == "displacive"
 
@@ -149,22 +149,22 @@ def test_each_basis_is_complete(at_r, at_gamma):
                 c.basis.positions), c.label
 
 
-def test_secondary_irreps_are_returned(at_r):
-    """R4+ (a,a,0) → Imma carries R5+ (S8, two modes) as a secondary, per Table 13."""
+def test_the_rest_of_the_irreps_are_returned(at_r):
+    """R4+ (a,a,0) → Imma carries R5+ (S8, two modes) as one of its `rest`, per Table 13."""
     _, r = at_r
     imma = _one(r, "S10", 74)
-    assert imma.primary.irrep == "S10" and imma.primary.n_modes == 1
-    assert [(s.irrep, s.n_modes, s.isotropy_group) for s in imma.secondary] == [
+    assert imma.driving.irrep == "S10" and imma.driving.n_modes == 1
+    assert [(s.irrep, s.n_modes, s.isotropy_group) for s in imma.rest] == [
         ("S8", 2, "Imma (74)")]
     i4mcm = _one(r, "S10", 140)
-    assert i4mcm.secondary == ()
+    assert i4mcm.rest == ()
 
 
 def test_a_generic_child_displacement_is_reached_completely(at_r, at_gamma):
     """Every candidate's basis spans its child: a symmetry-allowed field leaves 1e-10.
 
-    The positive arm: the same field projected on the primary irrep alone
-    leaves a residual wherever the child has a secondary irrep.
+    The positive arm: the same field projected on the driving irrep alone
+    leaves a residual wherever the child has further irreps.
     """
     rng = np.random.default_rng(7)
     with_secondary = 0
@@ -176,8 +176,8 @@ def test_a_generic_child_displacement_is_reached_completely(at_r, at_gamma):
             assert dec.residual < 1e-10 * max(dec.total, 1.0), c.label
             assert sum(r.amplitude ** 2 for r in dec.rows) == pytest.approx(
                 dec.total ** 2, rel=1e-10)
-            primary = dec.rows[c._primary_index].amplitude
-            if c.secondary:
+            primary = dec.rows[c._driving_index].amplitude
+            if c.rest:
                 with_secondary += 1
                 assert dec.total ** 2 - primary ** 2 > 1e-8, c.label
     assert with_secondary >= 5
@@ -235,7 +235,7 @@ def test_the_i4mcm_tilt_is_normalised_over_half_its_cell(at_r, lamno3):
     big, small = c.transform
     assert c.basis.lattice_points == 2
     assert abs(np.linalg.det(big)) == pytest.approx(4)
-    (vector,) = c.primary.vectors
+    (vector,) = c.driving.vectors
     lengths = np.sqrt(np.einsum("ni,ij,nj->n", vector, c.basis.metric, vector))
     moving = lengths > 1e-9
     assert moving.sum() == 8
@@ -280,7 +280,7 @@ def test_the_imma_tilt_measures_the_pnma_fixtures_r4_amplitude(at_r, lamno3):
     assert row.isotropy_group == "Imma (74)" and row.n_modes == 1
 
     pnma_r, pnma_u = _parent_field(dec.basis, dec.displacements)
-    cand_r, (cand_v,) = _parent_field(imma.basis, imma.primary.vectors)
+    cand_r, (cand_v,) = _parent_field(imma.basis, imma.driving.vectors)
     big_c = imma.transform[0]
     inv_c = np.linalg.inv(big_c)
     p_inv = np.linalg.inv(np.array(LAMNO3_P, float))
@@ -321,3 +321,54 @@ def test_each_direction_is_listed_once_with_every_site_that_carries_it():
     assert len(polar) == 6
     assert all(c.sites == ("Mn", "La", "O") for c in polar)
     assert {c.sites for c in cands if c.irrep == "S7"} == {("O",)}
+
+
+# --------------------------------------------------------------------------
+# review round 1 (#996): spellings of k, shared sites, the merge, the names
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("spelling", [
+    (Fraction(-1, 2),) * 3,
+    (Fraction(3, 2), Fraction(1, 2), Fraction(1, 2)),
+], ids=["minus-R", "three-halves"])
+def test_an_equivalent_spelling_of_k_gives_the_same_candidates(at_r, spelling):
+    """(−½,−½,−½) and (3/2,½,½) are the R point: same list, and each driving irrep found."""
+    _, expected = at_r
+    cands = I.distortion_candidates(_perovskite(3.9), spelling, sites=["O"])
+    assert [c.label.split(" ", 1)[0] for c in cands] == [
+        c.label.split(" ", 1)[0] for c in expected]
+    assert [c.child_group for c in cands] == [c.child_group for c in expected]
+    assert all(c.driving.irrep == c.irrep for c in cands)
+
+
+def test_a_shared_site_gets_the_documented_refusal():
+    """La and Sr on one site: the refusal that exists for it, not "this is a bug"."""
+    parent = rx.Phase(name="mixed", space_group="P m -3 m", cell=rx.Cell.cubic(3.9), atoms=[
+        _atom("La", "La", 0.5, 0.5, 0.5), _atom("Sr", "Sr", 0.5, 0.5, 0.5),
+        _atom("Mn", "Mn", 0, 0, 0), _atom("O", "O", 0.5, 0, 0)])
+    with pytest.raises(ValueError, match="share one site"):
+        I.distortion_candidates(parent, K_R, sites=["O"])
+    # the positive arm: the same atoms on distinct sites are accepted
+    separate = parent.model_copy(update={"atoms": [parent.atoms[0], *parent.atoms[2:]]})
+    assert I.distortion_candidates(separate, K_GAMMA, sites=["Mn"])
+
+
+def test_sites_merged_under_one_label_must_carry_one_group(monkeypatch):
+    """Γ4− on three sites is one candidate per direction; a label with two groups raises."""
+    parent = _perovskite(3.9)
+    assert I.distortion_candidates(parent, K_GAMMA, sites=["Mn", "La"])
+    counter = iter(range(10 ** 6))
+    monkeypatch.setattr(I, "_group_signature", lambda candidate: next(counter))
+    with pytest.raises(RuntimeError, match="one direction label but different isotropy"):
+        I.distortion_candidates(parent, K_GAMMA, sites=["Mn", "La"])
+
+
+def test_driving_is_the_built_from_irrep_and_primary_is_the_isotropy_test(at_r):
+    """Imma's S8 is in `rest` although its own isotropy group is the child's (`primary`)."""
+    _, r = at_r
+    imma = _one(r, "S10", 74)
+    (other,) = imma.rest
+    assert other.irrep == "S8" and other.isotropy_group == "Imma (74)"
+    assert other.primary is True
+    assert imma.driving.irrep == imma.irrep == "S10"
+    assert not hasattr(imma, "primary") and not hasattr(imma, "secondary")
