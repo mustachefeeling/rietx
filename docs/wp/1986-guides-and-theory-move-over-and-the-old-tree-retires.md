@@ -97,6 +97,9 @@ the tree that day.
   HTML id; delete it once the last chapter has moved.
 
 **Guides.**
+- `theory/intensities.md` § The magnetic structure factor lost its link to
+  `using/refining.md` § When the magnetic peaks are broader (label `sec-magnetic-width`),
+  because the new tree has no such page yet. Link the guide that replaces it.
 - Two questions a newcomer asked of the Concepts tab belong here, neither checked against the
   code. Does a fit's first stage estimate the phase scale, or start from the stored value (the
   parameter map's default is 1.0)? That goes in the guide on starting a fit. Do excluded regions
@@ -120,6 +123,11 @@ the tree that day.
   `examples/switching.py`, so a rename of anything it calls fails `tests/test_examples.py`.
 
 **Retirement.**
+- The old tree's 14 Part 2 pages are one-line `{include}`s of `docs/docs/theory/`, and its
+  root page includes the Theory index's conventions, scope and units between two markers.
+  Delete them with the tree and add their `RETIRED` rows then.
+- `docs/docs/check_equations.py` imports `chromium_path` from `docs/manual/make_screenshots.py`.
+  Re-point the import when the GUI chapters take that script with them.
 - Three pieces of WP-1979's task 4 belong here, because none of the 13 pages `help.py`'s
   anchors name exists in the new tree yet: a versioned docs base beside `_about.DOCS_URL`
   (`dev` for a `.dev0` build, `X.Y` otherwise; the mapping `docs_versions.docs_version` moves
@@ -140,8 +148,10 @@ the tree that day.
 
 ## Tasks
 
-- [ ] Theory: Part 2's chapters moved, guards pointed at the new tree, `check_equations.py`
-      ported.
+- [x] Theory: Part 2's chapters moved, guards pointed at the new tree, `check_equations.py`
+      ported. (2026-10-17. The old tree keeps a one-line include at each old path, so Part
+      1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
+      when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter; each mined chapter retired behind
       its stub in the same commit.
 - [ ] GUI chapters moved with `test_gui_manual.py`.

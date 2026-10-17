@@ -349,10 +349,12 @@ multiplier on a reflection's intensity is
 ```{math}
 :label: corr-sh
 
+\begin{gathered}
 P_{h} \;=\; 1 + \sum_{l = 2, 4, \ldots}^{L} \frac{4\pi}{2l+1}
 \sum_{n} C_l^{\,n}\, k_l(\psi)\, K_l^{\,n}(\mathbf{h}),
-\qquad
+\\
 k_l(\psi) = \sqrt{\frac{2l+1}{4\pi}}\, P_l(\cos\psi).
+\end{gathered}
 ```
 
 {source}`rietx.crystallography.spherical_harmonics.texture_basis`

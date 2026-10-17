@@ -298,11 +298,13 @@ time-reversal sign $\varepsilon_s = \pm 1$,
 ```{math}
 :label: int-Fmag
 
+\begin{gathered}
 \mathbf{F}_m(\mathbf{Q}) \;=\; p \sum_j \mathrm{occ}_j\, f_j(s)\, T_j
 \sum_s \varepsilon_s \det(R_s)\, R_s\, \mathbf{m}_j\,
 e^{2\pi i\, \mathbf{Q}\cdot(R_s \mathbf{x}_j + \mathbf{t}_s)},
-\qquad
+\\
 p = \frac{\gamma r_0}{2} = 2.695\ \mathrm{fm}\ \mu_B^{-1},
+\end{gathered}
 ```
 
 {source}`rietx.crystallography.magnetic.scattering`
@@ -386,12 +388,15 @@ Lorentzian FWHMs add, so
 ```{math}
 :label: int-two-component-width
 
-\Gamma^{\text{mag}}_L \;=\;
+\begin{aligned}
+\Gamma^{\text{mag}}_L \;=\;&
 \frac{X + \texttt{lor\_size} + \texttt{magnetic\_lor\_size}}
       {\cos\theta}
-\;+\;
+\\
+&+\;
 \big(Y + \texttt{lor\_strain} + \texttt{magnetic\_lor\_strain}\big)
 \tan\theta .
+\end{aligned}
 ```
 
 There is no second scale and no second phase. That is the point: with a single
@@ -420,10 +425,12 @@ cannot; the report says which happened rather than quoting a number for both.
 ```{math}
 :label: int-ff-dipole
 
+\begin{gathered}
 f(s) \;=\; \langle j_0\rangle(s) + \left(\frac{2}{g} - 1\right)
 \langle j_2\rangle(s),
-\qquad
+\\
 \langle j_0\rangle(s) = A e^{-a s^2} + B e^{-b s^2} + C e^{-c s^2} + D,
+\end{gathered}
 ```
 
 {source}`rietx.crystallography.magnetic.form_factor`

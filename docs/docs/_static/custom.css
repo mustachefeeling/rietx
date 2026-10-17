@@ -14,4 +14,36 @@ div.citation[role="doc-biblioentry"] > span.label {
 div.citation[role="doc-biblioentry"] {
   display: block;
   padding-left: 0;
+  margin-bottom: 0.6rem;
+}
+
+/* A numbered equation gets a column of its own for the number (WP-1408).
+ *
+ * Sphinx's `basic.css` floats `span.eqno` right and reserves nothing for it,
+ * so a wide equation is typeset under its own number.  A two-cell grid makes
+ * that collision impossible: the typeset math has one cell and the number the
+ * other.  `overflow-x` on the math cell turns an equation too wide for its
+ * cell into a scrollbar, and `safe center` left-aligns it once it overflows,
+ * so its left edge stays in reach.  `docs/docs/check_equations.py` measures
+ * whether each equation fits.  `:has()` scopes this to numbered equations. */
+div.math:has(> span.eqno) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 1rem;
+}
+
+div.math:has(> span.eqno) > span.eqno {
+  position: static;
+  transform: none;
+  float: none;
+  grid-area: 1 / 2;
+}
+
+div.math:has(> span.eqno) > mjx-container {
+  grid-area: 1 / 1;
+  display: flex;
+  justify-content: safe center;
+  overflow-x: auto;
+  overflow-y: hidden;
 }

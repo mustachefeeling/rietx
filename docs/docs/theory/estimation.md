@@ -144,11 +144,13 @@ quadratically with weight $1 - z_i^2$ and linearly with weight $z_i$:
 ```{math}
 :label: est-berar-lelann
 
+\begin{gathered}
 S'' = \sum_i (1 - z_i^2)\, a_i^2 + \sum_{\mathrm{runs}}
       \Bigl(\sum_{i \in \mathrm{run}} z_i a_i\Bigr)^2,
-\qquad
+\\
 z_i = \frac{\sqrt{2\pi x_i}}{2 + \sqrt{2\pi x_i}},\;
 x_i = a_i^2 + a_{i-1}^2 \quad (a_i a_{i-1} > 0),
+\end{gathered}
 ```
 
 {source}`rietx.optimize.statistics.berar_lelann_factor`
@@ -335,11 +337,13 @@ the columns stay in the covariance when
 ```{math}
 :label: est-stationary-angle
 
+\begin{gathered}
 \frac{\min_\beta \lVert r(\theta_N) + J_o \beta \rVert^2
       - \min_\beta \lVert r(\hat\theta) + J_o \beta \rVert^2}
      {\chi^2_{\mathrm{red}} \cdot S''/S} \;>\; c_k,
-\qquad
+\\
 \sum_{j=1}^{k} \binom{k}{j}\, 2^{-k} \bigl(1 - F_j(c_k)\bigr) = 1 - \gamma,
+\end{gathered}
 ```
 
 {source}`rietx.optimize.least_squares.stationary_angle_test`
