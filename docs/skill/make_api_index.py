@@ -466,9 +466,9 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "displacement at `k` can give: one per (irrep, direction) of "
                 "`candidates(kind=\"displacive\")` over the named sites (all "
                 "by default), the child `Phase` in a standard setting with "
-                "(P, p), and its `distortion_basis`, primary and secondary "
-                "irreps alike, in Å. `primary` is the candidate's own irrep, "
-                "`secondary` the rest. The k fence (2k in the reciprocal "
+                "(P, p), and its `distortion_basis`, every irrep the child "
+                "admits, in Å. `driving` is the candidate's own irrep, "
+                "`rest` the others. The k fence (2k in the reciprocal "
                 "lattice) is `candidates`'.",
                 ("rietx.crystallography.magnetic.isotropy.distortion_candidates",
                  "rietx.crystallography.magnetic.isotropy.DistortionCandidate"),
