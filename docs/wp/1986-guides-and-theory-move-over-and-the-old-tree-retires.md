@@ -253,6 +253,10 @@ fit.
 `capillary`. A `fetch` file seeded from `tests/data/` must match `REMOTE_FILES`' hash, which
 `test_every_remote_file_is_the_test_data_file_it_names` holds. `fetch` is expected not to work
 in the browser build (inferred, not tested) and says what path to fill by hand.
+`hold.py` (2nd session) failed on Linux CI from the moment #1034 merged, main included: its
+fit's last stage stopped on its iteration budget there, and the script asserted `converged`.
+The page quotes no status, so the assertion now accepts either. Its later assertions had
+never run on Linux. The other guides' status assertions passed there.
 
 Next: `using/report.md` (13, choosing the next parameter), then `using/series.md` (14-17) and
 `using/history.md` (21). Item 10 (calibration) can now fetch its standard; decide between a

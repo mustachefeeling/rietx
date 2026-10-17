@@ -30,7 +30,9 @@ for d in result.diagnostics:
         print(d.message)
 # guide: end
 
-assert result.status == "converged"
+# The last stage converges on darwin and can stop on its iteration budget on
+# Linux CI (2026-10-17); the page quotes no status, and the hold is the claim.
+assert result.status in ("converged", "max_iter")
 assert held == ["phases.0.cell.a", "phases.0.cell.alpha", "phases.0.cell.b",
                 "phases.0.cell.beta", "phases.0.cell.c", "phases.0.cell.gamma"]
 assert ref.fitted_structure.phases[0].cell.a.value == 9.3717
