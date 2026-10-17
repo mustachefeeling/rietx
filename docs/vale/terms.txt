@@ -137,6 +137,7 @@ Biso
 FWHM
 FWHMs
 Rexp
+Rp
 Rwp
 Uiso
 
@@ -151,6 +152,7 @@ Debye
 Dollase
 Dreele
 Faddeeva
+Gaultois
 Gaussian
 Gaussians
 Guinier

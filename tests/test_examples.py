@@ -120,6 +120,13 @@ def test_skill_worked_default_example_runs(skill_worked_default_run):
         assert marker in out, f"skill_worked_default.py printed no {marker!r} line:\n{out}"
 
 
+def test_switching_example_reproduces_what_the_pages_quote():
+    """The fluorapatite run behind the Switching tab (WP-1984): the script asserts
+    each figure `docs/docs/switching/` quotes from a file rietx wrote or read."""
+    out = _run("switching.py").stdout
+    assert "reproduced" in out, f"switching.py printed no 'reproduced' line:\n{out}"
+
+
 @pytest.mark.xdist_group("example-nac")
 def test_nac_example_writes_its_plot(nac_run):
     """`nac_11bm.py` swallows an ImportError around plotting so it still runs

@@ -37,6 +37,9 @@ The instrument is an `Instrument` holding the source, the geometry, the peak pro
 Their current values are the working state, and every stage of a fit moves them.
 The pattern goes in at the fit, as `fit(data, plan=...)`, so one refinement can be fitted to several patterns in turn.
 
+rietx fits X-ray and constant-wavelength neutron patterns, singly or several of one specimen together.
+[Data rietx fits](../switching/at-a-glance.md#data-rietx-fits) lists the instrument presets, and says what is not covered, such as neutron time of flight.
+
 A fit runs in one of three modes, set by `fit(mode=...)`.
 `"rietveld"`, the default, calculates intensities from the structure.
 `"lebail"` and `"pawley"` refine each reflection's intensity as its own number, and fix the atoms and the phase scale.

@@ -46,6 +46,15 @@ carries no instrument, so write the new one from a `Refinement`.
 
 ### Inherited
 
+- **2026-10-17, from WP-1984.** The Switching tab's feature table
+  (`docs/docs/switching/at-a-glance.md` § Features and what they were checked against) has a
+  "Read more" column that links Concepts and Reference pages, because Guides held only an
+  index when it was written. Point each row at the guide for that task once the guides exist.
+  The TOPAS, GSAS-II and FullProf pages also hold `rietx.org/…` links to the old manual's
+  Theory chapters (`parameterisation.html`, for one), which the retirement must re-point as
+  it does the Concepts tab's. The pages' python blocks carry `no-exec` lines that name
+  `examples/switching.py`, so a rename of anything that script calls fails
+  `tests/test_examples.py`, not the manual build.
 - **2026-10-17, from WP-1983.** Two questions a newcomer check asked of the Concepts tab
   have no page yet, and both belong in Guides. Neither has been checked against the code.
   First, does a fit's first stage estimate the phase scale, or start from the stored value

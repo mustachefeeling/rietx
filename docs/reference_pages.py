@@ -599,7 +599,7 @@ def _milestone_rows(roadmap: str) -> list[dict[str, str]]:
 
 
 def roadmap_page() -> str:
-    """The body of `reference/roadmap.md`."""
+    """The body of `switching/roadmap.md`."""
     from rietx import __version__
     from rietx._about import REPO_URL
 
