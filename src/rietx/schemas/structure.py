@@ -839,8 +839,10 @@ class PlanarityRestraint(Base):
     under a different image (a ring across an inversion centre).  Each entry's
     image is ``op_indices[k]``/``translations[k]`` as on
     :class:`BondRestraint`; an entry left ``None`` takes the minimum image
-    relative to the first entry, which itself sits where it is stored unless
-    named.  A set whose two smallest scatter eigenvalues are degenerate (the
+    relative to the centroid of the entries before it, so the plane stays in
+    one molecule, and the first entry sits where it is stored unless named.
+    ``translations`` go with ``op_indices``: a translation on an entry other
+    than the first with no ``op_index`` is refused rather than ignored.  A set whose two smallest scatter eigenvalues are degenerate (the
     points on a line, or coincident) has no plane, and compiling it raises.
     """
 
@@ -858,6 +860,14 @@ class PlanarityRestraint(Base):
                 raise ValueError(
                     f"planarity restraint: {len(got)} {name} for "
                     f"{len(self.atoms)} atoms; give one per atom or none")
+        if self.translations is not None:
+            ops = self.op_indices or [None] * len(self.atoms)
+            for k, (op, tr) in enumerate(zip(ops, self.translations, strict=True)):
+                if k > 0 and op is None and tuple(tr) != (0, 0, 0):
+                    raise ValueError(
+                        f"planarity restraint: translation {tuple(tr)} on entry "
+                        f"{k} has no op_index, so it would be ignored; name the "
+                        "operation (0 is the identity) or drop the translation")
         return self
 
 
@@ -1552,6 +1562,9 @@ class Phase(_InheritsDeclaredDefaults):
                 check(r.atom_i, "atom_i")
                 check(r.atom_j, "atom_j")
                 check(r.atom_k, "atom_k")
+            elif isinstance(r, PlanarityRestraint):
+                for k, idx in enumerate(r.atoms):
+                    check(idx, f"atoms[{k}]")
         return self
 
 
