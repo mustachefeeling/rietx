@@ -24,6 +24,7 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 ## Running a fit
 
 - [How to run a plan one stage at a time](stage.md) uses `Refinement.run_stage` and a report at each stage.
+- [How to choose the next parameter to free](next.md) reads `Refinement.suggest` and measures the move with `compare_freed`.
 - [How to watch or stop a running fit](watch.md) uses `rietx watch`, a cancel token, and the switches that turn recording off.
 
 ```{toctree}
@@ -38,5 +39,6 @@ tie
 restrain
 plan
 stage
+next
 watch
 ```
