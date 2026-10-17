@@ -376,3 +376,51 @@ def test_no_placement_is_an_empty_answer_and_bad_counts_raise():
     assert site_assignments(classes, {"Na": 3}) == ()   # no 3-fold combination of 4, 8, 24, …
     with pytest.raises(ValueError, match="positive integers"):
         site_assignments(classes, {"Na": 0})
+
+
+def test_an_unplaceable_species_does_not_enumerate_the_others():
+    """Cs has no 1-fold class in R-3m:H, so the joint count is 0 however many B there are.
+
+    The cap is checked on the joint count, so a species with no placement must
+    not leave another one's placements to be built unbounded first.  1 000 B
+    took 35 s that way; the 15 s is a runaway guard, not a timer.
+    """
+    import time
+
+    classes = site_classes("R-3m:H")
+    start = time.perf_counter()
+    assert site_assignments(classes, {"Cs": 1, "B": 1000}) == ()
+    assert time.perf_counter() - start < 15
+
+
+def test_enumeration_never_walks_a_branch_that_cannot_finish():
+    """A positive arm for the prune: a placeable pair still comes back complete."""
+    classes = site_classes("R-3m:H")
+    composition = {"Cs": 3, "B": 36}
+    listed = site_assignments(classes, composition)
+    assert listed and len(listed) == count_site_assignments(classes, composition)
+    assert all(sum(classes[ci].multiplicity for sp, ci in a.sites if sp == "B") == 36
+               for a in listed)
+
+
+def test_an_empty_composition_is_refused_in_the_count_and_the_list():
+    classes = site_classes("Fm-3m")
+    for call in (count_site_assignments, site_assignments):
+        with pytest.raises(ValueError, match="no species"):
+            call(classes, {})
+
+
+@pytest.mark.parametrize("bad", [0, -1, 1.5])
+def test_max_sites_per_species_must_be_a_positive_integer_or_none(bad):
+    classes = site_classes("Fm-3m")
+    for call in (count_site_assignments, site_assignments):
+        with pytest.raises(ValueError, match="max_sites_per_species"):
+            call(classes, {"Na": 4}, max_sites_per_species=bad)
+
+
+def test_crystallography_does_not_import_optimize():
+    from pathlib import Path
+
+    import rietx.crystallography.site_classes as mod
+
+    assert "optimize" not in Path(mod.__file__).read_text()

@@ -47,18 +47,20 @@ count (``SITE_ASSIGNMENTS_EXCEED_CAP``) rather than truncated.  Assignments come
 ordered by the heavy species' placement.  A search can then race the placements
 of the dominant scatterers first.  The race itself is not here.
 
-Provisional (WP-1515, structure solution), and not exported from :mod:`rietx`.
+Provisional (WP-1997, structure solution), and not exported from :mod:`rietx`.
 """
 
 from __future__ import annotations
 
 import itertools
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import gemmi
 import numpy as np
 
+from .species import element_symbol
 from .symmetry import (
     _group_arrays,
     as_group,
@@ -204,17 +206,19 @@ def site_classes(space_group) -> tuple[SiteClass, ...]:
     """
     sg = as_group(space_group)
     key = group_key(sg)
-    if key not in _CACHE:
-        if len(_CACHE) >= _CACHE_SIZE:
-            _CACHE.pop(next(iter(_CACHE)))
-        _CACHE[key] = _derive(sg)
-    return _CACHE[key]
+    with _CACHE_LOCK:
+        if key not in _CACHE:
+            if len(_CACHE) >= _CACHE_SIZE:
+                _CACHE.pop(next(iter(_CACHE)))
+            _CACHE[key] = _derive(sg)
+        return _CACHE[key]
 
 
 #: Derived classes per :func:`~.symmetry.group_key`, oldest dropped first; the
 #: largest group costs about a second, and a solve asks for one group many times.
 _CACHE: dict = {}
 _CACHE_SIZE = 64
+_CACHE_LOCK = threading.Lock()
 
 
 def _derive(sg) -> tuple[SiteClass, ...]:
@@ -236,7 +240,7 @@ def _derive(sg) -> tuple[SiteClass, ...]:
         diff = np.einsum("oij,pj->poi", r, pts) + t[None] - pts[:, None, :]
         fixes = np.all(diff % GRID == 0, axis=2)
         count[lo:lo + len(pts)] = fixes.sum(axis=1)
-        for i in np.flatnonzero(fixes.sum(axis=1) > 1):
+        for i in np.flatnonzero(count[lo:lo + len(pts)] > 1):
             ops = np.flatnonzero(fixes[i])
             k = ops.tobytes() + (diff[i, ops] // GRID).tobytes()
             kid = keys.setdefault(k, len(keys))
@@ -343,8 +347,6 @@ class SiteAssignmentCapError(ValueError):
 
 
 def _atomic_number(species: str) -> int:
-    from ..optimize.qpa import element_symbol
-
     return gemmi.Element(element_symbol(species)).atomic_number
 
 
@@ -352,9 +354,17 @@ def _heavy_first(composition: Mapping[str, int]) -> list[str]:
     return sorted(composition, key=lambda s: (-_atomic_number(s), s))
 
 
-def _check(classes, composition: Mapping[str, int]) -> None:
+def _check(classes, composition: Mapping[str, int],
+           max_sites_per_species: int | None = None) -> None:
     if not classes:
         raise ValueError("no site classes given")
+    if not composition:
+        raise ValueError("the composition has no species")
+    if max_sites_per_species is not None and (
+            int(max_sites_per_species) != max_sites_per_species
+            or max_sites_per_species < 1):
+        raise ValueError("max_sites_per_species must be a positive integer or None; "
+                         f"got {max_sites_per_species!r}")
     for sp, n in composition.items():
         if int(n) != n or n < 1:
             raise ValueError(f"atoms per cell must be positive integers; {sp!r}: {n!r}")
@@ -379,7 +389,7 @@ def count_site_assignments(classes, composition: Mapping[str, int], *,
     cheap even where the list would not fit in memory.  ``max_sites_per_species``
     limits how many sites one species may use; ``None`` allows any number.
     """
-    _check(classes, composition)
+    _check(classes, composition, max_sites_per_species)
     fixed = [i for i, c in enumerate(classes) if c.dof == 0]
     free = [c.multiplicity for c in classes if c.dof > 0]
     states: dict[frozenset, int] = {frozenset(): 1}
@@ -429,28 +439,55 @@ def site_assignments(classes, composition: Mapping[str, int], *,
         raise SiteAssignmentCapError(total, max_assignments, f"atoms per cell: {per}")
     fixed = {i for i, c in enumerate(classes) if c.dof == 0}
     order = _heavy_first(composition)
+    mult = [c.multiplicity for c in classes]
+    kmaxes = [int(composition[sp]) if max_sites_per_species is None
+              else max_sites_per_species for sp in order]
+    inf = 1 << 30
 
-    def placements(n: int, kmax: int) -> list[tuple[int, ...]]:
-        found: list[tuple[int, ...]] = []
+    def placements(n: int, kmax: int, used: frozenset):
+        """Placements of n atoms on the classes not in ``used``, in index order.
+
+        Every branch is pruned by the fewest sites that can still reach the
+        remaining multiplicity (``mins``), so the walk never enters a dead end
+        and its cost follows what it returns, not the size of the search space.
+        """
+        n_cls = len(classes)
+        mins = [[inf] * (n + 1) for _ in range(n_cls + 1)]   # from class s on
+        mins[n_cls][0] = 0
+        for s in range(n_cls - 1, -1, -1):
+            for r in range(n + 1):
+                best = mins[s + 1][r]
+                if mult[s] <= r and not (s in fixed and s in used):
+                    again = mins[s + 1 if s in fixed else s][r - mult[s]] + 1
+                    best = min(best, again)
+                mins[s][r] = best
 
         def rec(rest, start, chosen):
             if rest == 0:
-                found.append(tuple(chosen))
+                yield tuple(chosen)
                 return
-            if len(chosen) == kmax:
+            if mins[start][rest] > kmax - len(chosen):
                 return
-            for ci in range(start, len(classes)):
-                if classes[ci].multiplicity <= rest:
-                    rec(rest - classes[ci].multiplicity,
-                        ci + 1 if ci in fixed else ci, chosen + [ci])
-        rec(n, 0, [])
-        return found
+            for ci in range(start, n_cls):
+                if mult[ci] <= rest and not (ci in fixed and ci in used):
+                    yield from rec(rest - mult[ci], ci + 1 if ci in fixed else ci,
+                                   chosen + [ci])
+        return rec(n, 0, [])
 
-    options = {}
-    for sp in order:
-        n = int(composition[sp])
-        options[sp] = placements(n, n if max_sites_per_species is None
-                                 else max_sites_per_species)
+    # a node of the combination is worth entering only if the species after it
+    # can still be placed: that prune is what keeps an unplaceable composition
+    # (a species no class fits) from enumerating the placements of the others
+    reachable: dict[tuple[int, frozenset], bool] = {}
+
+    def completes(i, used) -> bool:
+        if i == len(order):
+            return True
+        if (i, used) not in reachable:
+            reachable[i, used] = any(
+                completes(i + 1, used | fixed.intersection(sol))
+                for sol in placements(int(composition[order[i]]), kmaxes[i], used))
+        return reachable[i, used]
+
     out: list[SiteAssignment] = []
 
     def combine(i, used, acc):
@@ -458,13 +495,12 @@ def site_assignments(classes, composition: Mapping[str, int], *,
             out.append(SiteAssignment(
                 sites=tuple(acc), dof=sum(classes[ci].dof for _, ci in acc)))
             return
-        sp = order[i]
-        for sol in options[sp]:
-            taken = fixed.intersection(sol)
-            if taken & used:
-                continue
-            combine(i + 1, used | taken, acc + [(sp, ci) for ci in sol])
-    combine(0, frozenset(), [])
+        for sol in placements(int(composition[order[i]]), kmaxes[i], used):
+            taken = used | fixed.intersection(sol)
+            if completes(i + 1, taken):
+                combine(i + 1, taken, acc + [(order[i], ci) for ci in sol])
+    if total:
+        combine(0, frozenset(), [])
     if len(out) != total:
         raise AssertionError(  # pragma: no cover - two derivations of one number
             f"SITE_ASSIGNMENTS_COUNT: enumerated {len(out)}, counted {total}")
