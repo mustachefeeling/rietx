@@ -76,13 +76,15 @@ def _site(tmp_path):
     return tmp_path
 
 
-def _tarball(tmp_path, version):
+def _tarball(tmp_path, version, llms=None):
     path = tmp_path / versions.asset_name(version)
+    files = {"./index.html": version} | ({"./llms.txt": llms} if llms else {})
     with tarfile.open(path, "w:gz") as archive:
-        data = version.encode()
-        info = tarfile.TarInfo("./index.html")
-        info.size = len(data)
-        archive.addfile(info, io.BytesIO(data))
+        for name, text in files.items():
+            data = text.encode()
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
     return path
 
 
@@ -122,6 +124,20 @@ def test_a_stub_points_at_stable_only_once_stable_has_the_page(tmp_path, monkeyp
     # The release's tarball holds index.html and nothing under theory/.
     assert "url=/docs/stable/index.html" in (site / "profiles.html").read_text(encoding="utf-8")
     assert "url=/docs/dev/theory/bg.html" in (site / "background.html").read_text(encoding="utf-8")
+
+
+def test_the_root_llms_txt_is_the_hosted_trees_with_its_links_rebased(tmp_path):
+    """Dev's while the stable tree has none, then stable's (WP-1980)."""
+    site = _site(tmp_path / "site")
+    (site / "docs" / "dev" / "llms.txt").write_text(
+        "# rietx\n\n- [A](concepts/a.html.md): x\n- [B](https://example.org/b.md): y\n",
+        encoding="utf-8")
+    versions.assemble(site, [("1.11", "1.11.1")], lambda version: _tarball(tmp_path, version))
+    assert (site / "llms.txt").read_text(encoding="utf-8") == (
+        "# rietx\n\n- [A](/docs/dev/concepts/a.html.md): x\n- [B](https://example.org/b.md): y\n")
+    versions.assemble(site, [("1.12", "1.12.0")],
+                      lambda version: _tarball(tmp_path, version, llms="- [A](a.html.md): x\n"))
+    assert (site / "llms.txt").read_text(encoding="utf-8") == "- [A](/docs/stable/a.html.md): x\n"
 
 
 def test_assemble_runs_twice_over_one_site(tmp_path):

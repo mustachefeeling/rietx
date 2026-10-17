@@ -5,7 +5,7 @@
 # What this tree shares with the old one (the fenced constants, the citation
 # style, the diagram theme and the `{source}` role) is in
 # `docs/sphinx_shared.py`, which both conf.py files import.  The markdown
-# twin is WP-1980's.
+# twin and llms.txt are `docs/markdown_twin.py`'s (WP-1980).
 #
 # Each version is hosted at <DOCS_URL>/docs/<version>/ (WP-1979):
 # `sphinx_shared.DOCS_VERSION` says which one this build is, and
@@ -36,6 +36,8 @@ extensions = [
     "sphinx_design",
     "sphinxcontrib.bibtex",
     "sphinxcontrib.mermaid",
+    # A markdown twin beside every page, and llms.txt (docs/markdown_twin.py).
+    "markdown_twin",
 ]
 nb_execution_mode = "off"
 

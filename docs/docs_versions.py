@@ -12,6 +12,7 @@
 # - writes docs/switcher.json, which every version's menu reads, and
 #   docs/index.html, which sends /docs/ to stable/ (to dev/ before any
 #   release carries a tree);
+# - copies that tree's llms.txt to the site root;
 # - writes a redirect stub at each old-tree page in RETIRED.
 #
 # Pruning is the same step: a minor outside the newest KEEP_MINORS is simply
@@ -61,6 +62,8 @@ using/tutorials/05_sequential_fits using/tutorials/06_your_own_data
 RETIRED: dict[str, str] = {}
 
 _TAG = _re.compile(r"v(\d+)\.(\d+)\.(\d+)")
+#: The start of a markdown link target that is relative to its file.
+_RELATIVE_LINK = _re.compile(r"\]\((?![a-z][a-z0-9+.-]*:|/|#)")
 
 
 def docs_version(version: str) -> str:
@@ -147,6 +150,14 @@ def assemble(site: _Path, kept: list[tuple[str, str]], fetch) -> None:
     target = "stable" if kept else "dev"
     (docs / "index.html").write_text(
         redirect_page(f"{target}/", f"{DOCS_URL}/docs/{target}/"), encoding="utf-8")
+    # The llms.txt proposal puts the file at the site's root.  It is the hosted
+    # tree's own with its links rebased onto that tree, and dev's until a
+    # release carries one (WP-1980, docs/markdown_twin.py).
+    tree = target if (docs / target / "llms.txt").is_file() else "dev"
+    if (docs / tree / "llms.txt").is_file():
+        text = (docs / tree / "llms.txt").read_text(encoding="utf-8")
+        (site / "llms.txt").write_text(
+            _RELATIVE_LINK.sub(f"](/docs/{tree}/", text), encoding="utf-8")
     for old, new in RETIRED.items():
         page, _, heading = new.partition("#")
         # A page retired on main is in dev at once and in stable only from the next

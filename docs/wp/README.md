@@ -68,7 +68,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1967](1967-what-the-chemist-declares-reaches-the-extinction-screen.md) | What the chemist declares reaches the extinction screen | P2 | — ([1910](1910-the-extinction-screen-at-a-small-cell-error.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | P2 | — ([1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md), [1979](1979-the-manual-at-docs-one-tree-per-version.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1989](1989-the-released-arm-keeps-riding-hydrogens-riding.md) | The rigid-body check's released arm keeps riding hydrogens riding | P2 | — ([1806](1806-first-public-case-acridine-form-ix.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -660,7 +659,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1975](1975-manual-rebuild-findings.md) | The manual rebuilt: findings brief | ✅ 2026-10-16 | — | — |
 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | The new manual's tree: six tabs beside the old, and its page contract | ✅ 2026-10-16 | — | — |
 | [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | ✅ 2026-10-16 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
-| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | ✅ 2026-10-17 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
 | [1981](1981-the-reference-pages-generated-from-their-authorities.md) | The reference pages, generated from their authorities | ✅ 2026-10-16 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
 | [1982](1982-vale-and-a-term-list-on-the-new-tree.md) | Vale and a term list on the new tree | ✅ 2026-10-16 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
 | [1983](1983-the-concepts-tab.md) | The Concepts tab | ✅ 2026-10-17 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
