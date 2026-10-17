@@ -21,6 +21,10 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 - [How to restrain a bond length or an angle](restrain.md) adds chemistry as weighted observations.
 - [How to add a stage to a refinement plan](plan.md) edits a preset or builds a plan.
 
+## Other programs
+
+- [How to open a GSAS, TOPAS or FullProf refinement and write one back](foreign.md) uses `rx.read_project_model` and the four writers.
+
 ## Running a fit
 
 - [How to run a plan one stage at a time](stage.md) uses `Refinement.run_stage` and a report at each stage.
@@ -48,6 +52,7 @@ hold
 tie
 restrain
 plan
+foreign
 stage
 next
 cell
