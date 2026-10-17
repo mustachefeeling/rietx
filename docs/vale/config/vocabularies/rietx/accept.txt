@@ -36,8 +36,10 @@ Caglioti
 [cC]entroid
 [cC]entroids
 [cC]entrosymmetric
+[cC]entrosymmetry
 [cC]hangelog
 Chebyshev
+[cC]hirality
 CIF
 CIFs
 [cC]odeword
@@ -165,6 +167,7 @@ Maxwellian
 [mM]onomials
 [mM]onotonicity
 [mM]ultimodal
+[mM]ultiplets
 [nN]anocrystalline
 Niggli
 [nN]m
