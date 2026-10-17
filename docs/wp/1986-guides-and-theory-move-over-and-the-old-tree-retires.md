@@ -46,6 +46,19 @@ carries no instrument, so write the new one from a `Refinement`.
 
 ### Inherited
 
+- **2026-10-17, from WP-1980.** Every page moved into `docs/docs/` now gets a markdown twin,
+  `page.html.md`, written by the HTML build (`docs/markdown_twin.py`). The twin is held to
+  the page contract too: one H1, an answer sentence, at most 50 000 characters and no MyST
+  left in it (`test_every_page_has_a_twin_that_keeps_the_contract`). A Theory chapter whose
+  equations push its twin past the cap must be split. The twin already handles the old
+  tree's node types: notes and warnings, titled admonitions, math, `{eq}` and `{cite}`, the
+  bibliography, the `only-light`/`only-dark` image pairs, tab sets and dropdowns
+  (`test_the_twin_writes_every_node_type_the_old_tree_uses`). `{download}` (six uses in
+  the old tree) has a handler that no test has run. A node type with no handler fails `-W`
+  as `unknown node type`; add it to `_normalise` or `TwinTranslator`.
+  Each moved page also gets a line in `llms.txt`, under the H2 of its tab, carrying its
+  answer sentence. When the old tree retires, the site root's `llms.txt`
+  (`docs_versions.assemble`) already points into `/docs/`, so it needs no change.
 - **2026-10-17, from WP-1984.** The Switching tab's feature table
   (`docs/docs/switching/at-a-glance.md` § Features and what they were checked against) has a
   "Read more" column that links Concepts and Reference pages, because Guides held only an
