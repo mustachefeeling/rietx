@@ -1190,9 +1190,12 @@ def _theory_link_failures(page: Path, text: str, out: Path) -> list[str]:
     chapter's old address on the site fails too, naming the relative link.
     """
     failures = []
+    # The tab's own index is not a moved chapter: `rietx.org/index.html` is the
+    # landing page.
+    moved = {p.stem for p in _part_two()} - {"index"}
     for target in _MD_LINK.findall(text):
         old = _OLD_THEORY_LINK.match(target)
-        if old and (THEORY_DIR / old.group(1)).with_suffix(".md") in _part_two():
+        if old and old.group(1) in moved:
             failures.append(f"{target}: the chapter is in the Theory tab, so link "
                             f"../theory/{old.group(1)}.md")
             continue
@@ -1244,6 +1247,7 @@ def test_the_theory_link_check_fails_what_it_should(built_docs_tree):
             "[root](../) "
             f"[moved]({DOCS_URL}/background.html#explicit-humps) "
             f"[part one]({DOCS_URL}/using/files.html) "
+            f"[landing]({DOCS_URL}/index.html) "
             f"[skill]({DOCS_URL}/skill/rietx/SKILL.md)")
     failures = _theory_link_failures(page, text, out)
     expected = ("no page theory/no-such-page.html", "no section #no-such-section",

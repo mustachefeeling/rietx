@@ -191,11 +191,10 @@ parameters rather than one of them, and its esd is the quadratic form
 
 {source}`rietx.model.geometry`
 
-over the whole covariance of {eq}`est-cov`:
 <!-- vale rietx.Banned = NO -->
-"the whole correlation matrix, not
+
+over the whole covariance of {eq}`est-cov`: "the whole correlation matrix, not
 just the diagonal elements, should be included in the calculation"
-<!-- vale rietx.Banned = YES -->
 {cite}`mccusker1999`. Dropping the off-diagonal terms looks conservative and is
 not. Measured across the 88 interatomic distances of an 11-BM NAC structural
 refinement, the diagonal-only number runs from 0.86 to 1.41 times the full one,
@@ -203,6 +202,8 @@ so it is as often too small as too large. Both are reported, so the difference
 is visible. It exists only where the coordinates refine,
 since a quantity depending on one free parameter has no off-diagonal term to
 drop.
+
+<!-- vale rietx.Banned = YES -->
 
 A derived esd is absent rather than zero whenever that form cannot be evaluated
 honestly. Four cases qualify:

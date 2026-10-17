@@ -89,12 +89,9 @@ the tree that day.
 ### Notes by task
 
 **Theory.**
-- The six Concepts pages link Part 2 as `https://rietx.org/<chapter>.html#<id>` (16 links into
-  six chapters, nine of them `estimation`). The Switching tab's TOPAS, GSAS-II and FullProf
-  pages hold such links too (`parameterisation.html`, for one). Moving a chapter means
-  rewriting its links to `../theory/<chapter>.md#<id>` in the same commit.
-  `_OLD_THEORY_LINK` in `tests/test_manual.py` resolves the old form against the old build by
-  HTML id; delete it once the last chapter has moved.
+- Done 2026-10-17: the Concepts and Switching links into Part 2 now read
+  `../theory/<chapter>.md#<id>`. `_OLD_THEORY_LINK` in `tests/test_manual.py` now fails a link
+  to a moved chapter's old address, and no longer checks any other link to the site.
 
 **Guides.**
 - `theory/intensities.md` § The magnetic structure factor lost its link to

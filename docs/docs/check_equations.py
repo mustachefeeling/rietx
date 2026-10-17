@@ -148,7 +148,9 @@ def measure(out: Path) -> int:
                             if not bad and row["clear"] > REPORT_BELOW_CLEARANCE_PX:
                                 continue
                             mark = "FAIL" if bad else "    "
-                            name = f"{target.name}:{row['id'].removeprefix('equation-')}"
+                            # The path, not the name: two tabs each have an index.html.
+                            name = (f"{target.relative_to(out).as_posix()}:"
+                                    f"{row['id'].removeprefix('equation-')}")
                             print(f"{mark} {name:<29} {row['number']:>8} {row['ink']:>6} "
                                   f"{row['cell']:>6} {row['clear']:>6} {row['over']:>5}")
                             if bad:
