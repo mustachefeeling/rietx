@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-17 — claimed by @yue-here (5th session); Guides: 20 of 25 written; GUI chapters, retirement and skill links remain
+Milestone: unscheduled · Status: 🔄 2026-10-18 — Guides: 20 of 25 written, three waiting on a data choice; GUI chapters, retirement and skill links remain
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -122,7 +122,10 @@ the tree that day.
   `blank.md`, 25 `check.md`. From `using/report.md` and `using/series.md` (4th session): 13 `next.md`, 14
   `series.md`, 15 `path.md`, 16 `equation.md`; from `using/history.md` and `using/model.md` (5th session): 21 `branch.md`, 12 `interval.md`, 11 `cell.md`; from `using/exports.md`: 19 `export.md`; from the Switching pages and `using/files.md`: 22 `foreign.md`; from `using/qpa.md`: 20 `qpa.md`. The series guides share a synthetic LaB6 ramp,
   `examples/guides/_lab6_ramp.py`, which the guide test skips by its underscore. Left: 9-10,
-  17, 18, 24. Item 10 has the spike's page to start from, but no
+  17, 18, 24. Items 9, 10 and 17 each wait on a data choice from the maintainer (5th
+  session's entry). Item 18 waits on WP-1910 and WP-1510, whose findings on the shipped
+  fluorapatite pattern it would otherwise document; item 24 on the magnetic WPs in flight
+  (1326, 1327, 1418). Item 10 has the spike's page to start from, but no
   LaB6 pattern ships in `rietx.examples`. The maintainer chose (2026-10-17) to fetch data a
   guide needs rather than ship it: `rietx.examples.fetch` downloads a `REMOTE_FILES` entry from
   `tests/data/` at a pinned commit, and `test_examples.py`'s `fetched_state` fixture fills the
@@ -201,6 +204,85 @@ the tree that day.
 ```
 
 ## Handover log
+
+### 2026-10-18 — six guides on history, results and other programs, and two indexing defects
+
+The Guides tab now explains how to branch a refinement and roll back, how to
+quote lattice parameters with their esds, how to quote a parameter that ended on
+its bound, how to export a CIF and a reflection table, how to find weight
+fractions in a mixture, and how to open a GSAS, TOPAS or FullProf refinement and
+write one back. Two of them show a pitfall on real shipped data. Changing only
+the declared Cu Kα wavelength by 60 ppm moves fluorapatite's a by 7.6 esd. A
+1.4 wt % CaF₂ impurity in the NAC pattern reads 3.1 ± 2.3 wt % because the
+structural preset frees its extinction. Trying to write the indexing guide found
+that the formula's volume window excludes the true cell of most inorganic solids,
+and that the extinction screen demotes fluorapatite's true class. Twenty of the
+25 guides are written.
+
+*Done.* Pages `docs/docs/guides/{branch,cell,interval,export,qpa,foreign}.md`
+with their `examples/guides/` scripts; the index now has Results and Other
+programs sections. `qpa.md` runs on the shipped NAC scan with CaF₂ added as
+`examples/nac_11bm.py` does. `foreign.md` opens the shipped `FAP.EXP` and
+writes `.inp`, `.pcr` (with `write_zero_shift=True`, since the writer refuses
+a non-zero zero shift otherwise), a GSAS-II phase CIF and an `.instprm`. Filed:
+WP-1510 `### Inherited` (`SearchSpec.from_formula`'s window excludes 7 of 9
+known cells, every inorganic one but NaCl) and WP-1910 `### Inherited` (the
+fluorapatite screen, four ways). `/code-review high --fix` found 8 and fixed 6:
+`foreign.md` now lists the FullProf writer's other refusals (extinction,
+preferred orientation, texture, absorption, roughness away from off);
+`export.md` names the tenth CIF loop and the script checks each loop's tag
+group; the index's Results section; `interval.py`, `branch.py` and `qpa.py`
+assert the figures their pages quote (3.2 µm², the 1.7 % χ² gap); the Status
+line's remaining items restored. Declined: `branch.py` reads the private
+`alt._head_id`, because no public accessor exists; the shown
+`tempfile.mkdtemp()` leaves a directory per test run, kept because the page
+shows readers that call.
+
+*Measured* (`[dev]`, darwin/arm64; every guide's printed output identical on
+`RIETX_COMPILED=0`). Fluorapatite, `mccusker_structural` over 15-130°: a
+9.370962(82) Å, V 523.629(12) Å³ (diagonal esd 0.011), Bérar-Lelann factor
+2.15; at the GSAS tutorial's 1.5405/1.5443 Å a moves 66 ppm, and GSAS's own
+cell is 148 ppm above that. Extinction 0 ± 1.945 µm² on its floor, profile
+interval 0 to 0.742 (the esd's 1.645 reach is 3.2); Ca1 Biso 0.479 ± 0.060,
+interval 0.368 to 0.593, 1.85 and 1.91 esd. Branching: node Rwp 0.1031
+against 0.0988; replays 0.1022 and 0.0992, the first carrying
+`FROZEN_COMPILE_STALE` at a 1.7 % χ² gap. NAC + CaF₂ over 2-24°:
+structural preset CaF₂ 3.09 ± 2.32 wt % (scale ~ extinction ρ 0.996, both
+Biso on their floor, Rwp 0.082); CaF₂ extinction and Biso held, 1.37 ± 0.07
+(Rwp 0.089); `mccusker_default` 1.38 ± 0.07; a `lor_strain` width profile
+admits no other fraction. µR at 0.414 Å is 0.002, so Brindley moves nothing.
+Calibration candidates for item 10, measured: the 11-BM SRM 660a LaB₆ scan
+calibrates under `lab_calibrate` in 3.5 s at Rwp 0.082, but reused on NAC its X
+is 26 % above NAC's own and every sample-broadening term ends at 0 (Rwp 0.165
+against 0.136 with NAC's own widths); NIST's lab SRM 660c calibrates in 0.5 s
+at Rwp 0.087 with `RESOLUTION_NOT_POSITIVE` (U −5.2e-4), and no sample from
+that instrument exists. Indexing fluorapatite (`pick_peaks` 15-60°, 45
+peaks): narrowed to hexagonal and trigonal, V ≤ 800, 11 s; unnarrowed 120 s;
+the true cell first both ways, `best_or_none()` `None`. Fast selection on
+the final tree, main merged (no move), no other suite running: 10 921
+passed, 185 skipped, 2 xfailed, one run of 6:28. passed+skipped +6 against
+the 4th session's 11 100, the six new guide cases. `tests.added_test_times`
+sees no added function (they parametrise one); from the junit file the six
+took 8-46 s each under full load, `interval` 46 s and `qpa` 40 s, each about
+9-10 s alone. They stay in the fast tier for the reason `test_examples.py`'s
+docstring gives. The full selection did not run: docs and examples cannot
+move a measured number.
+
+*Gotchas.* An `Atom` takes `Parameter` objects, never bare floats. A temp
+directory created above the `# guide: start` marker trips ruff's E402, so the
+shown code creates it. The FullProf writer refuses a fit whose extinction is
+not 0. `profile_fraction` refuses a phase with no free width term unless
+given `axes=`.
+
+Next: three data choices, which only the maintainer can make. Item 9 (a
+holder line): no shipped pattern has one, so a synthetic peak added to a real
+pattern, or a fetched file. Item 10 (calibration): the measured options
+above, or a synthetic pair as tutorial 04 uses. Item 17 (a joint X-ray and
+neutron fit): the Nd₂Ru₂O₇ pair in `tests/data/` is published (Gaultois et
+al. 2013) but has no licence row, so fetching it needs the data owner's word;
+the alternative is a synthetic pair. Then 18 once WP-1910 and WP-1510 land,
+and 24 once the magnetic WPs settle. The GUI chapters, retirement and skill
+links follow the last guide.
 
 ### 2026-10-17 (4th session) — four guides on choosing a parameter and on series, and three defects they found
 
