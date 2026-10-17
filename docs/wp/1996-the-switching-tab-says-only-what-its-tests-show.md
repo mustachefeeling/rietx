@@ -53,14 +53,14 @@ writers' behaviour, which the FullProf finding below leaves unchanged.
 
 ## Tasks
 
-- [ ] `examples/switching.py` asserts every quoted line at six significant figures; the
+- [x] `examples/switching.py` asserts every quoted line at six significant figures; the
       `.instprm` comes from the four-stage fit; the held zero's 110 ppm is asserted.
-- [ ] The three code pages quote what the script asserts; FullProf's cell constraints stated
+- [x] The three code pages quote what the script asserts; FullProf's cell constraints stated
       as measured.
-- [ ] `at-a-glance.md` and `validation.md` corrected; the certificate and round-robin rows added.
-- [ ] `validation_matrix.py` (tier text, 2668, the FAP free set), `VALIDATION.md` regenerated,
+- [x] `at-a-glance.md` and `validation.md` corrected; the certificate and round-robin rows added.
+- [x] `validation_matrix.py` (tier text, 2668, the FAP free set), `VALIDATION.md` regenerated,
       the FAP row's free set asserted; `DESIGN.md`, `recipe.md`, root `CLAUDE.md` at 2668.
-- [ ] Skill: none. Nothing here changes how an agent drives rietx.
+- [x] Skill: none. Nothing here changes how an agent drives rietx.
 
 ## Acceptance
 
