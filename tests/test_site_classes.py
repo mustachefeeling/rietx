@@ -423,4 +423,4 @@ def test_crystallography_does_not_import_optimize():
 
     import rietx.crystallography.site_classes as mod
 
-    assert "optimize" not in Path(mod.__file__).read_text()
+    assert "optimize" not in Path(mod.__file__).read_text(encoding="utf-8")
