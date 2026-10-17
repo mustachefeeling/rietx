@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜ — tasks 1 and 3-5 landed from outside under shape (a) (PR #432); tasks 2 and 6 open in part
 Track: What fires, and what stays silent
 Depends on: — (1310 soft: it owns which vector reaches the final diagnostics)
-Priority: P3 2026-09-23 — a number a reader cannot reproduce by a margin the record already calls staleness
+Priority: P2 2026-10-17 — was P3: WP-1986 measured the frozen windows moving the minimum itself, 9.5 % of χ² on the shipped tutorial under `mccusker_default`, with nothing firing
 
 ## Goal
 
@@ -78,6 +78,34 @@ Le Bail and Pawley intensities are frozen per stage as well
 (`ReflectionState`). A fresh compile must carry them, never re-partition.
 
 ### Inherited
+
+- **2026-10-17, from WP-1986 (writing the guide to choosing the next
+  parameter): the frozen windows bias the minimum, not only the reported
+  curve, and `FROZEN_COMPILE_STALE` is silent where it happens.** On the
+  shipped fluorapatite tutorial (`FAP.XRA`, `rietx.examples`, six-term
+  Chebyshev, limits 15-130°), `mccusker_default` ends at Rwp 0.0992 with its
+  last stage `profile` "converged". A branch running one empty stage
+  (`rx.Stage("again", [])`) reaches 0.0940, χ² 8913 → 8064 (9.5 %), moving
+  `instrument.profile.x` 0.0337 → 0.0305 and `y` 0.0296 → 0.0342; a second
+  empty stage moves nothing. The fresh compile at the returned values differs
+  from the stage's by only 0.8 % (8985 against 8913), under
+  `FROZEN_COMPILE_CHI2_REL`, so nothing fires, and the code's help text says
+  "The fit is not biased". Hand-run `scale_bkg` → `cell` → `profile` (the
+  guide `docs/docs/guides/stage.md`'s stages): Rwp 0.1022 → 0.0940 after one
+  empty stage. The windows are the cause: the same `profile` stage with
+  `window_slack_deg` 0.5 / 1.0 / 2.0 ends at 0.0967 / 0.0947 / 0.0945, and
+  every one re-solves to 0.0940. `mccusker_structural` and
+  `lab_sample_refine` show no gap (0.0 %), because a later stage recompiles
+  after the peaks narrow. Same on `RIETX_COMPILED=0`, `[dev]`, darwin/arm64.
+  Two consequences reach outside this WP. `report.compare_freed` against a
+  plan's end credits a freed parameter with the re-solve's gain: extinction,
+  which stays on its floor at 0, scored ΔBIC +148 against the unsettled fit and
+  −7 against a re-solved branch (`examples/guides/next.py` asserts both). And
+  the guides `docs/docs/guides/next.md` and `stage.md` quote the gap, so a fix
+  fails `tests/test_examples.py` there by design; update their quoted output.
+  The reproducibility test this WP owns measures the gap at fixed parameters,
+  and this gap is between two minima, so a fix has to re-solve, or size the
+  last stage's windows for the shape it will end on.
 
 - **2026-10-16, from the issue triage (#774): the zero case is re-measured
   after WP-1953 changed what zero means, and it did not move.** The 2026-10-11
