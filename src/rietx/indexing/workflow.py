@@ -471,11 +471,13 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
                 # as index_pattern's run-wide screen has them: the per-line
                 # σ is the measurement, not the tolerance a search matched
                 # with, and lines the fit never covered are not absent
-                from .engines import absence_window
+                from .engines import DEFAULT_UNKNOWN_SHIFT_DEG, absence_window
+                from .screen import MATCH_SIGMA
 
                 pattern_screen = PatternScreen.from_peaks(
                     peaks, q_match=absence_window(peaks), data=data,
-                    instrument=instrument, two_theta_limits=two_theta_limits)
+                    instrument=instrument, two_theta_limits=two_theta_limits,
+                    p0_floor_deg=MATCH_SIGMA * DEFAULT_UNKNOWN_SHIFT_DEG)
             screen = screen_for(pattern_screen, candidate, peaks)
     tt_max = float(np.max(data.tt()))
     if two_theta_limits is not None:
@@ -816,14 +818,15 @@ def index_pattern(peaks: PeakList | None = None, *,
     # the line screen's candidate-independent facts, once per run (C3): the
     # envelope and the peak-list model with a pattern, the resolution windows
     # and the chance rate without one
-    from .engines import absence_window
+    from .engines import absence_window, effective_shift_allowance
     from .screen import PatternScreen
 
     # the screen's indexed set feeds the containment refuter, an absence
     # test, so it reads the assumed bound and never the widths' window (#951)
     pattern_screen = PatternScreen.from_peaks(
         peaks, q_match=absence_window(peaks, spec, quality), k_sigma=spec.k_sigma,
-        data=data if validate else None, instrument=instrument)
+        data=data if validate else None, instrument=instrument,
+        p0_floor_deg=spec.k_sigma * effective_shift_allowance(spec, quality)[0])
 
     # analogue priors steer the queue (WP-1045): the systems they name run
     # first, everything else keeps SYSTEM_ORDER — reordered, never narrowed

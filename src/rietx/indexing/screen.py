@@ -166,10 +166,17 @@ class PatternScreen:
                    instrument: Instrument | None = None,
                    window_lines: int = SCREEN_WINDOW_LINES,
                    two_theta_limits: tuple[float, float] | None = None,
+                   p0_floor_deg: float = 0.0,
                    ) -> PatternScreen:
         """Screen the peak list's range, narrowed to ``two_theta_limits`` when
         the fit that follows covers less (``validate_by_lebail``'s own): a line
-        the fit never reached is not one the pattern can be said to lack."""
+        the fit never reached is not one the pattern can be said to lack.
+
+        ``p0_floor_deg`` floors the half-width the chance rate p₀ is counted
+        in: an absence test reads the assumed bound, never a window the
+        unmeasured shift does not justify (#951), so a list at 0.010° FWHM
+        with a weak-line filter cannot refute a superstructure through a p₀ of
+        0.03.  Default 0 is the resolution alone."""
         usable = peaks.usable()
         tt = np.array([p.two_theta for p in usable], dtype=np.float64)
         esd = np.array([p.two_theta_esd for p in usable], dtype=np.float64)
@@ -184,7 +191,8 @@ class PatternScreen:
             lo, hi = max(lo, float(two_theta_limits[0])), min(hi, float(two_theta_limits[1]))
         n = min(window_lines, len(q))
         q_window = float(np.sort(q)[n - 1]) if n else 0.0
-        half = np.maximum(resolution * fwhm, k_sigma * esd)
+        half = np.maximum(np.maximum(resolution * fwhm, k_sigma * esd),
+                          p0_floor_deg)
         p0 = _union_fraction(tt, half, lo, hi)
         out = cls(wavelength=float(peaks.wavelength), two_theta_min=lo,
                   two_theta_max=hi, k_sigma=k_sigma, resolution=resolution,
