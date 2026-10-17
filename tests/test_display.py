@@ -227,6 +227,33 @@ def test_a_peak_list_prints_one_row_per_peak():
     assert html.count("<tr>") == 4 and "26.2200" in html
 
 
+def test_a_microstructure_block_prints_one_row_a_term_and_its_verdict():
+    """The generic tree spent five lines on a term and printed a size as an
+    unrounded float (WP-1545's notebook 04).  ``None`` in the tail is printed,
+    since there it is the field's answer."""
+    from rietx.schemas.results import MicrostructureTerm, PhaseMicrostructure
+    block = PhaseMicrostructure(
+        phase_index=0, phase_name="CeO2", wavelength=1.5444274, scherrer_k=0.9,
+        terms=[MicrostructureTerm(path="phases.0.lor_size", kind="size", coefficient=0.27,
+                                  value=298.93723, esd=2.1510486),
+               MicrostructureTerm(path="phases.0.gauss_size", kind="size", coefficient=0.0,
+                                  unavailable="at_zero"),
+               MicrostructureTerm(path="phases.0.lor_strain", kind="strain", coefficient=0.11,
+                                  value=0.00096550893, esd=4.2017779e-05)],
+        size_agreement=7.9111007)
+    lines = str(block).splitlines()
+    assert lines[0] == ("PhaseMicrostructure: CeO2 (phase 0), scherrer_k 0.9, "
+                        "wavelength 1.54443 Å")
+    assert lines[1].split() == ["path", "value", "unavailable"]
+    assert lines[2].split() == ["phases.0.lor_size", "298.9(22)", "Å"]
+    assert lines[3].split() == ["phases.0.gauss_size", "at_zero"]
+    assert lines[4].split() == ["phases.0.lor_strain", "0.000966(42)"]
+    assert lines[5:] == ["  size_agreement: 7.91   strain_agreement: None",
+                         "  separable: None   size_strain_collinearity: None"]
+    html = block._repr_html_()
+    assert html.count("<tr>") == 4 and "298.9(22) Å" in html and "separable: None" in html
+
+
 def test_a_diagnostic_prints_its_headline_and_folds_the_rest():
     """The text form is rustc's; the HTML shows the headline and folds the
     suggestion, the paths and the code's explanation (WP-1985)."""

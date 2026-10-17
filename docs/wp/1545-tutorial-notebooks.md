@@ -193,7 +193,7 @@ view only where its own cells need one.
 - [x] 01 quickstart.
 - [x] 02 split in two, the landing pin kept or moved.
 - [x] 03 peaks, indexing, Le Bail.
-- [ ] 04 peak shape and microstructure.
+- [x] 04 peak shape and microstructure.
 - [ ] 05 sequential fits.
 - [ ] 06 your own data (already has no checking box; scaffolding only).
 - [ ] The README's rows, and the supervising checklists placed in the manual or

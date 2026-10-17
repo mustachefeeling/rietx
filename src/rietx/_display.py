@@ -313,6 +313,38 @@ def distance_text(d) -> str:
     return "  ".join(cells)
 
 
+MICROSTRUCTURE_HEADER = ("path", "value", "unavailable")
+
+
+def microstructure_sections(block) -> tuple[str, list[tuple[str, str, str]], list[str]]:
+    """A ``PhaseMicrostructure`` as a head line, one row a term and two tail
+    lines: :meth:`__str__` lays the rows out as text, ``_repr_html_`` as a table.
+
+    The head carries the phase and the two constants a size was read with, the
+    rows each reading with its esd (Å for a size, Δd/d bare) or the reason it
+    has none, and the tail the agreement ratios and the separability verdict
+    beside them.  Those four print even when ``None``, since ``None`` there is
+    the field's answer: not readable, or not assessed.
+    """
+    def ratio(x):
+        return "None" if x is None else f"{x:.3g}"
+
+    wavelength = "None" if block.wavelength is None else f"{block.wavelength:g} Å"
+    head = (f"PhaseMicrostructure: {block.phase_name} (phase {block.phase_index}), "
+            f"scherrer_k {block.scherrer_k:g}, wavelength {wavelength}")
+    rows = []
+    for t in block.terms:
+        value = "" if t.value is None else _number(t.value, t.esd)
+        if value and t.kind == "size":
+            value += " Å"
+        rows.append((t.path, value, t.unavailable or ""))
+    tail = [f"size_agreement: {ratio(block.size_agreement)}   "
+            f"strain_agreement: {ratio(block.strain_agreement)}",
+            f"separable: {block.separable}   "
+            f"size_strain_collinearity: {ratio(block.size_strain_collinearity)}"]
+    return head, rows, tail
+
+
 def table_text(header: tuple[str, ...], rows: list[tuple[str, ...]], indent: str = "") -> list[str]:
     """Left-aligned columns, two spaces apart, header first."""
     widths = [max(len(c) for c in col) for col in zip(header, *rows)]

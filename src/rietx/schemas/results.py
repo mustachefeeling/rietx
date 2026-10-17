@@ -850,6 +850,27 @@ class PhaseMicrostructure(Base):
                 return t
         return None
 
+    def __str__(self) -> str:
+        """One row a term, each reading with its esd or its reason, then the
+        agreement and separability fields (WP-1545). The generic tree spent
+        five lines on a term and printed a size as an unrounded float."""
+        from .._display import MICROSTRUCTURE_HEADER, microstructure_sections, table_text
+        head, rows, tail = microstructure_sections(self)
+        body = table_text(MICROSTRUCTURE_HEADER, rows, "  ") if rows else []
+        return "\n".join([head, *body, *("  " + line for line in tail)])
+
+    def _repr_html_(self) -> str:
+        """The terms as a table between the head line and the verdict lines."""
+        from .._display import (
+            MICROSTRUCTURE_HEADER,
+            microstructure_sections,
+            pre_html,
+            table_html,
+        )
+        head, rows, tail = microstructure_sections(self)
+        table = table_html(MICROSTRUCTURE_HEADER, rows) if rows else ""
+        return pre_html(head) + table + pre_html("\n".join(tail))
+
 
 class MomentAngleTest(Base):
     """One round of the stationary-angle test on a stage's covariance (WP-1929).
