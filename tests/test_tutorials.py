@@ -169,6 +169,42 @@ def test_the_readme_lists_every_tutorial():
     assert missing == [], f"examples/tutorials/README.md does not list {missing}"
 
 
+#: A link into the published manual, its build and its page path apart.
+MANUAL_LINK = re.compile(r"https://rietx\.org/docs/([^/\s]+)/([^\s#)>\]\"'`]*)")
+MANUAL_SOURCE = REPO_ROOT / "docs" / "docs"
+
+
+def _bad_manual_links(text: str) -> list[str]:
+    """The manual links in `text` that name no page, or name the dev build."""
+    bad = []
+    for build_name, page in MANUAL_LINK.findall(text):
+        if build_name != "stable":
+            bad.append(f"{build_name}/{page}: links the {build_name} build; link docs/stable/")
+        elif not page.endswith(".html") or not (MANUAL_SOURCE / page).with_suffix(".md").is_file():
+            bad.append(f"stable/{page}: no docs/docs/{page.removesuffix('.html')}.md")
+    return bad
+
+
+def test_a_tutorial_links_only_pages_the_manual_has():
+    """Every `https://rietx.org/docs/stable/<path>.html` a tutorial's source
+    links names an existing `docs/docs/<path>.md`, anchor aside.  A link to
+    `docs/dev/` is refused: the dev build moves under a reader."""
+    linked = {p.stem: p.read_text(encoding="utf-8") for p in SOURCES}
+    assert any(MANUAL_LINK.search(text) for text in linked.values()), \
+        "no tutorial links the manual, so this test checks no link"
+    bad = [f"{stem}: {b}" for stem, text in linked.items() for b in _bad_manual_links(text)]
+    assert bad == []
+
+
+def test_the_link_check_sees_a_missing_page_and_the_dev_build():
+    text = ("[ok](https://rietx.org/docs/stable/guides/check.html#read-the-pattern-diagnostics) "
+            "[gone](https://rietx.org/docs/stable/guides/nowhere.html) "
+            "[dev](https://rietx.org/docs/dev/guides/check.html)")
+    assert _bad_manual_links(text) == [
+        "stable/guides/nowhere.html: no docs/docs/guides/nowhere.md",
+        "dev/guides/check.html: links the dev build; link docs/stable/"]
+
+
 def test_check_sees_a_stale_notebook(tmp_path):
     """The guard can fail: a source edited without a rebuild is reported."""
     source = SOURCES[0]

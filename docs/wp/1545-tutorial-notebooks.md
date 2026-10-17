@@ -190,7 +190,7 @@ WP-1985 landed 2026-10-16, so this is unblocked. Each notebook item drops its
 agent-checking box, links Concepts and Theory for the why, and builds a native
 view only where its own cells need one.
 
-- [ ] 01 quickstart.
+- [x] 01 quickstart.
 - [ ] 02 split in two, the landing pin kept or moved.
 - [ ] 03 peaks, indexing, Le Bail.
 - [ ] 04 peak shape and microstructure.

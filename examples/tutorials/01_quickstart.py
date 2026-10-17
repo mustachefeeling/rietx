@@ -5,11 +5,11 @@
 #
 # We read a laboratory powder pattern, look at it, and fit its cell and peak shapes.
 # The fit uses no atomic positions.
-# By the end you can read a fit's summary in the order the package intends, and say whether a cell from it is worth quoting.
+# By the end you can read a fit's summary in the order rietx prints it, and keep the best of several Le Bail passes.
 #
 # **You need** Python 3.11 or later and rietx 1.7 or later, which the next cell installs.
 # You should be comfortable running a Jupyter cell.
-# You do not need to have refined anything before.
+# You do not need to have refined anything in rietx before.
 #
 # **The data** is fluorapatite, Ca₅(PO₄)₃F, measured on a Bragg-Brentano diffractometer with a copper tube.
 # It is the `LabData` example from the GSAS-II tutorials and ships with rietx.
@@ -31,8 +31,7 @@ data
 
 # %% [markdown]
 # A pattern prints as its size and range.
-# `sigma: None` means the file carries no uncertainty column.
-# The fit will weight each point by the square root of its counts instead.
+# `sigma: None` means the file has no esd column, so the fit weights each point by √y.
 #
 # ## Look before fitting
 #
@@ -43,64 +42,75 @@ data.plot()
 
 # %% [markdown]
 # The peaks are sharp and the background is low and smooth.
-# Nothing in the scan looks like a second phase or a broad hump from an amorphous component, so a single-phase model is a fair start.
+# Nothing in the scan looks like a second phase or an amorphous hump, so one phase is a fair start.
 #
-# `rx.diagnose` measures a few things about the data that decide how it can be fitted.
-# We print four of its fields.
-# Its peak counts (`n_peaks`, `peak_fraction`, `peak_density_per_deg`) are estimates and are not quoted here.
+# `rx.diagnose` measures the pattern with no model.
+# Pass the Cu Kα1 wavelength so it can screen for Kβ and tungsten Lα lines.
 
 # %%
-diag = rx.diagnose(data)
-print(f"steps across a peak's FWHM: {diag.steps_per_fwhm:.1f}")
-print(f"signal over background:     {diag.signal_to_background:.0f}")
-print(f"contaminating lines:        {diag.contamination or 'none'}")
-print(f"dead channels:              {diag.dead_channels or 'none'}")
+diag = rx.diagnose(data, wavelength=1.5406)
+diag
 
 # %% [markdown]
-# The step count matters most.
-# The refinement guidelines (McCusker et al., 1999) ask for at least five measured points across each peak's full width at half maximum.
-# This scan has fewer, so the integrated intensities are less well measured than they could be.
-# No refinement choice recovers that, and the fit will say so again.
+# The rows print in the order to read them.
+# Four of them decide how this pattern can be fitted.
 #
-# ## Build a model and check it against the data
+# - `dead_channels` is empty, but `coverage_plateau` is `None`. The file gives no σ, so dead channels could not be looked for.
+# - `steps_per_fwhm` is below the five steps the IUCr guidelines ask for. No refinement recovers that, and the fit will report it again.
+# - `contamination` is empty, so no Kβ or tungsten Lα line was found.
+# - `signal_to_background` compares the tallest peaks with the median background.
+#
+# The last three rows are rough peak counts. Nothing in the fit reads them.
+# [How to check a pattern before fitting](https://rietx.org/docs/stable/guides/check.html#read-the-pattern-diagnostics) explains every row.
+#
+# ## Build a model
 #
 # A Le Bail fit needs a cell, a space group and an instrument.
 # The cell and space group come from a CIF of fluorapatite shipped beside the pattern.
-# The CIF has atoms too, which a Le Bail fit ignores.
-# The instrument is a Bragg-Brentano diffractometer with a copper Kα doublet.
+# The CIF has atoms too. A Le Bail fit ignores them.
+#
+# The background is a six-term Chebyshev polynomial, its constant term started at the floor of the data.
+# Left at zero, the first pass hands the whole pedestal to the peaks.
+# `rx.auto_background(data)` would size a penalised spline instead.
+# On this pattern the spline reports hundreds of correlated coefficient pairs.
+# They would crowd the diagnostics below.
 
 # %%
 structure = rx.Structure.from_cif(examples_dir() / "fluorapatite.cif")
-
 instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
 instrument.background = rx.BackgroundChebyshev.with_terms(6)
-# Start the background's constant term at the floor of the data.
-# Left at zero, the first pass hands the whole pedestal to the peaks.
 instrument.background.coefficients[0].value = float(np.percentile(data.intensity, 5))
 
 ref = rx.Refinement(structure, instrument)
+ref
+
+# %% [markdown]
+# A `Refinement` holds the structure and the instrument.
+# Its `mode` is the default until a fit names another.
+# Only the background varies so far.
+# The fit's plan sets the refine flags afresh at each stage, as [About a fit](https://rietx.org/docs/stable/concepts/fit.html#the-plan) describes.
+#
+# Before fitting, draw the model's reflection positions under the data.
+# Expect a tick under every peak.
+
+# %%
 data.plot(model=ref, two_theta_range=(25, 35))
 
 # %% [markdown]
-# The ticks under the pattern are where the model puts each reflection before any fitting.
-# They include the Kα2 line of each reflection, so most peaks have a pair.
-# Each peak should have a tick under it.
-# Here each pair sits slightly to the right of its peak.
+# The ticks include the Kα2 line of each reflection, so most peaks have a pair.
+# Each pair sits slightly to the right of its peak.
 # That is within a fit's reach, and the zero-shift stage takes it up.
-# If ticks and peaks drift apart across the scan, the starting cell or the wavelength is wrong, and a fit will not walk that far.
-# Zoom into a few windows like this one before fitting.
-#
-# The background is a six-term Chebyshev polynomial.
-# `rx.auto_background(data)` would size a penalised spline to the pattern instead.
-# On this pattern that spline currently reports each correlated pair of its coefficients as a separate warning, several hundred of them.
-# The polynomial keeps the diagnostics below readable.
+# Ticks that drift away from their peaks across the scan mean a wrong starting cell or wavelength, and a fit will not walk that far.
 #
 # ## Fit
 #
-# `mode="lebail"` extracts each reflection's intensity from the data instead of computing it from atoms.
-# The `profile_only` plan frees parameters in stages: background, zero shift, cell, then peak widths.
+# `mode="lebail"` extracts each reflection's intensity from the data.
+# The `profile_only` plan frees the background, then the zero shift, then the cell, then the peak widths, one stage each.
+# [Plan presets](https://rietx.org/docs/stable/reference/plans.html) draws its stages.
 # `two_theta_limits` sets the channels the fit uses.
-# We stop at 130° to match the GSAS-II tutorial, so both programs fit the same channels.
+# We stop at 130° to match the GSAS-II tutorial.
+#
+# Expect the summary to report the under-sampling again.
 
 # %%
 LIMITS = (15, 130)
@@ -110,40 +120,48 @@ result
 # %% [markdown]
 # Read the summary from the top.
 #
-# 1. **Status.** Every stage converged.
-#    Each stage line gives the residual evaluations it took and its `ftol`, the relative drop in the cost below which the stage stops.
-#    Every stage but the last stops at `1e-06`, because each later stage refines its parameters again.
-#    The last runs to the solver's default, `1e-9`, and that is the answer the result reports.
-#    `max|Δθ|/esd` on the last line is the largest final step of any parameter, in units of its own esd. McCusker et al. (1999) treat 0.1 or less as converged.
-# 2. **Diagnostics.** These outrank every statistic.
-#    `PATTERN_UNDERSAMPLED` is the step count from `diagnose` again.
-#    `FLOOR_HIT` says the data push `instrument.profile.y`, the Lorentzian tan θ width, below zero, so it ends on its floor of 0.
-#    `FROZEN_COMPILE_STALE` says the peak windows were sized at the values the last stage started from, and the cell has moved since.
-#    Running the plan again re-sizes them.
-# 3. **Agreement indices** come last. Rwp is useful for comparing two fits of the same data over the same channels, and says little on its own.
+# 1. Each stage line gives its status, the residual evaluations it took and its `ftol`.
+#    Every stage but the last stops early, because each later stage refines its parameters again.
+#    `max|Δθ|/esd` is the largest final step of any parameter in units of its own esd.
+# 2. The diagnostics outrank every statistic. Open one to read what its code means.
+#    `PATTERN_UNDERSAMPLED` is the step count from `diagnose`.
+# 3. The agreement indices come last. Rwp compares two fits of the same data over the same channels, and says little on its own.
+#
+# The table under the summary is every refined parameter with its esd.
+# A Le Bail fit lists the atoms too, held at the CIF's values.
 #
 # ## Fit again, and keep the best pass
 #
 # A Le Bail fit holds its extracted intensities fixed inside each least-squares run.
-# The intensities and the profile converge only by alternating, so run the plan more than once.
-# Later passes are not guaranteed to be better, so compare them and keep the best.
+# The intensities and the profile converge only by alternating, so run the plan twice more.
 
 # %%
-passes = [result]
-for _ in range(2):
-    passes.append(ref.fit(data, mode="lebail", plan="profile_only", two_theta_limits=LIMITS))
-for i, r in enumerate(passes, 1):
-    print(f"pass {i}: Rwp {r.statistics.rwp:.4f}")
-
-best = min(passes, key=lambda r: r.statistics.rwp)
-ref.checkout(best.node_id)
-a, c = best.parameter("phases.0.cell.a"), best.parameter("phases.0.cell.c")
-print(f"kept pass {passes.index(best) + 1}: a = {a.value:.5f} +/- {a.stderr:.5f} Å, c = {c.value:.5f} +/- {c.stderr:.5f} Å")
+second = ref.fit(data, mode="lebail", plan="profile_only", two_theta_limits=LIMITS)
+third = ref.fit(data, mode="lebail", plan="profile_only", two_theta_limits=LIMITS)
+ref.history
 
 # %% [markdown]
-# Every pass is a node in the refinement's history, and `ref.checkout` restores the model to the one we kept.
-# The cell's esd is a counting-statistics figure.
-# It does not include any error in the wavelength or the zero shift.
+# Each stage committed a node to the refinement's history, so each pass is five nodes and ends on a `stage:profile` node.
+# A later pass is not always lower.
+# `*` marks the head, the node the working state stands at.
+# A node's Rwp is measured on the model compiled at the start of its stage, so it can differ slightly from the result's.
+#
+# Keep the pass with the lowest Rwp, and return the working state to its node.
+
+# %%
+best = min([result, second, third], key=lambda r: r.statistics.rwp)
+ref.checkout(best.node_id)
+best
+
+# %% [markdown]
+# The kept pass carries its own diagnostics.
+# They need not match the first pass's.
+# `RESOLUTION_UNCONSTRAINED` says the peak widths are not quotable until the instrument's own widths are calibrated on a standard.
+# Notebook 04 does that calibration.
+#
+# The cell's esds are counting statistics.
+# They include no error in the wavelength or the zero shift.
+# [About a fit](https://rietx.org/docs/stable/concepts/fit.html#the-history) describes the history and `checkout`.
 #
 # ## Look at the fit
 
@@ -151,16 +169,10 @@ print(f"kept pass {passes.index(best) + 1}: a = {a.value:.5f} +/- {a.stderr:.5f}
 best.plot()
 
 # %% [markdown]
-# The lower panel is the difference between the data and the model.
+# The grey trace under the pattern is the difference between the data and the model.
 # A good fit leaves it as noise of even width across the scan.
-# Look for structure in it: a wiggle at every peak means the peak shape is wrong, and a peak with no tick under it means a phase the model lacks.
+# A wiggle at every peak means the peak shape is wrong.
+# A peak with no tick under it means a phase the model lacks.
+# Here the largest misfit sits on the strongest peaks, near 32°.
 #
-# ## Checking an agent's work
-#
-# When an agent runs a fit like this for you, check these in order.
-# The numbers are the rules in the rietx agent skill (`SKILL.md` §4).
-#
-# - **Status and diagnostics first** (rule 9). Ask the agent what each diagnostic means for its answer. "Converged" means only that the cost stopped falling.
-# - **The difference curve, region by region** (rule 10). A low Rwp can hide one badly fitted region.
-# - **Rwp last, and only against another fit of the same channels** (rule 16).
-# - **A Le Bail cell needs a structural check** (§2). Where reflections overlap, arbitrary intensities can index one pattern more than one way. Notebook 02 refines the same pattern with atoms.
+# Notebook 02 refines the same pattern with atoms.
