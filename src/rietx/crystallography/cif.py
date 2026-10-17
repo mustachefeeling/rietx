@@ -348,10 +348,11 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
     position its orbit collapses to, and ``CIF_SITE_TWINS_MERGED`` says so.
     A split site, whose images stay apart, is untouched.
 
-    The rule is :func:`.symmetry.site_twin_merge`'s, which ``Phase``
-    construction applies on every other route (issue #1007, reported there as
-    ``SITE_TWINS_MERGED``); the reader applies it first, so the move is said on
-    the reader's channel and the phase finds nothing left to move.  The orbit
+    The rule is :func:`.symmetry.site_twin_merge`'s, which
+    :func:`.twins.merge_site_twins` applies at every other boundary that builds
+    or changes a structure (issue #1007, reported there as
+    ``SITE_TWINS_MERGED``); this reader says the move on its own channel and
+    leaves nothing for them to move.  The orbit
     and its collapse are those of International Tables for Crystallography
     vol. A (Wyckoff positions), with the tolerance-based site-symmetry search
     of Grosse-Kunstleve & Adams (2002), Acta Cryst. A58, 60.

@@ -3826,7 +3826,8 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         title="Near-duplicate atoms merged onto a special position",
         description=(
             "A site's symmetry images fell in tight pairs, closer than 0.02 Å, so it "
-            "would have put twice the atoms in the cell. The phase moved the site onto "
+            "would have put twice the atoms in the cell. Reading the project, loading "
+            "the history or a model edit moved the site onto "
             "the special position its orbit collapses to. This changes the multiplicity, "
             "so it changes the density and every weight fraction. A CIF read says the "
             "same thing as `CIF_SITE_TWINS_MERGED`, and the two never both fire. Check "

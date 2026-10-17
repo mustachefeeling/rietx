@@ -278,10 +278,8 @@ def _defining_class(cls: type, name: str) -> type | None:
 # pydantic writes these into the class body of every model, so they are
 # "declared in a rietx module" by the letter of rule 1 and machinery by its
 # intent.  Filtered structurally rather than listed as exclusions: they are
-# not this package's surface at all.  ``model_post_init`` joins them on any
-# model holding a private attribute (``Phase._site_twin_merges``, #1007).
-_PYDANTIC_CLASS_ATTRS = frozenset({"model_config", "model_fields", "model_computed_fields",
-                                   "model_post_init"})
+# not this package's surface at all.
+_PYDANTIC_CLASS_ATTRS = frozenset({"model_config", "model_fields", "model_computed_fields"})
 
 
 def _instance_attributes(cls: type) -> set[str]:
