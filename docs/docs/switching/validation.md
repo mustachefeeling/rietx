@@ -53,7 +53,7 @@ The test allows 300 ppm on the cell and 10 % on the R-factors.
 rietx's esds carry the Bérar–Lelann inflation and GSAS's do not, so the esds are not compared.
 
 GSAS's file frees 28 parameters, and the plan used here frees 20.
-The 12 coordinate parameters are the difference.
+The plan leaves out the 12 coordinate parameters and frees four that the file does not.
 Freeing them moves Rwp from 0.092498 to 0.092314 and the cell by less than 1 ppm.
 The page [Names in other programs](../reference/foreign-names.md) maps the parameters one to one.
 

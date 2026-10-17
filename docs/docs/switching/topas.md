@@ -172,7 +172,8 @@ rx.write_topas_inp(ref.fitted_structure, "refined.inp", free=ref, scale="topas",
                    instrument=ref.fitted_instrument, pattern=data)
 ```
 
-The file states each free parameter under a name made from its path, which in TOPAS is also its refine flag.
+The file names each free parameter after its path, which in TOPAS is also its refine flag.
+It holds the zero shift with `!`, and states the refined specimen displacement as an equation in `th2_offset`.
 These lines are an excerpt, with the background coefficients cut to six figures:
 
 ```text

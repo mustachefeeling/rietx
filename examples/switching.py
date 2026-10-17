@@ -89,6 +89,11 @@ def topas_page(out: Path) -> rx.Refinement:
     # The oxygens' shared name came back as a tie: two of the three are not free.
     assert OXYGENS[0] in free_paths(back) and not set(OXYGENS[1:]) & set(free_paths(back))
     assert [d.code for d in model.diagnostics] == ["TOPAS_FEATURES_NOT_IMPORTED"] * 2
+    # topas.md quotes this message after the file's own path.
+    assert model.diagnostics[0].message.endswith(
+        "this import is partial. The file states peak profile (Finger_et_al, peak_type, "
+        "pv_fwhm, pv_lor) [fluorapatite]; phase scaling (scale_pks) [fluorapatite], and none "
+        "of it reaches the built structure.")
     return ref
 
 
@@ -96,7 +101,8 @@ def gsas_conversions(ref: rx.Refinement, out: Path) -> None:
     """The instrument file GSAS-II reads, and the GSAS experiment file."""
     path = out / "refined.instprm"
     rx.write_gsas2_instprm(ref.fitted_instrument, path)
-    u_instprm = next(float(line.split(":")[1]) for line in path.read_text().splitlines()
+    u_instprm = next(float(line.split(":")[1])
+                     for line in path.read_text(encoding="utf-8").splitlines()
                      if line.startswith("U:"))
     u_rietx = rx.read_gsas2_instprm(path).profile.u.value
     assert math.isclose(u_instprm * 8 * math.log(2) * 1e-4, u_rietx, rel_tol=1e-6)
@@ -109,6 +115,11 @@ def gsas_conversions(ref: rx.Refinement, out: Path) -> None:
                                    rx.Instrument.bragg_brentano(radiation="CuKa"))
     assert len(free_paths(structure_only)) == 21
     assert [d.code for d in model.diagnostics] == ["GSAS_EXP_BACKGROUND_NOT_CARRIED"]
+    # gsas2.md quotes this message after the file's own path.
+    assert model.diagnostics[0].message.endswith(
+        "histogram 1 fitted GSAS background function 5 (reciprocal expansion in Q², for "
+        "low-angle air scatter) with 3 terms. The coefficients are on "
+        "model.histograms[...].background.")
 
 
 def fullprof_page(out: Path) -> None:

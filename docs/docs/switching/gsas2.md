@@ -89,7 +89,7 @@ GSAS-II states U, V and W as a Gaussian variance in centidegrees², and X and Y 
 rietx states U, V and W as the Gaussian FWHM² in degrees², and X and Y in degrees.
 rietx's U is GSAS-II's times 8 ln 2 × 10<sup>−4</sup>, and its X and Y are GSAS-II's divided by 100.
 Writing the instrument from the fluorapatite fit shows the conversion.
-These are the first lines of the file:
+These are lines of the file, without its comment line and the lines after `Y`:
 
 <!-- api-doc: no-exec — needs a fitted Refinement and writes a file; examples/switching.py runs it and asserts the conversion -->
 ```python
