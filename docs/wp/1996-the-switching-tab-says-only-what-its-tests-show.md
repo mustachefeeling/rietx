@@ -1,9 +1,8 @@
 # WP-1996 — The Switching tab says only what its tests show
 
-Milestone: unscheduled · Status: 🔄 2026-10-17 — a review of WP-1984's pages, fixed in one session
+Milestone: unscheduled · Status: ✅ 2026-10-17 — the Switching tab's figures agree with their tests, every quoted line is asserted, and the certificate comparisons are added
 Track: The repo's own process
 Depends on: 1984 (the pages)
-Priority: P2 2026-10-17 — wrong numbers on the page a switcher judges rietx by, nothing flags them
 
 ## Goal
 
@@ -71,4 +70,45 @@ vale docs/docs
 
 ## Handover log
 
+- **2026-10-17** — The Switching tab now says only what its tests show. A user of TOPAS,
+  GSAS-II or FullProf reading it no longer meets two pages that contradict each other on
+  magnetic structures, a five-year-old fluorapatite result quoted as current, or an
+  instrument file taken from a different fit than the one beside it. The validation page now
+  also gives the comparisons with a certificate and with weighed compositions, the strongest
+  evidence rietx has. Running FullProf on a file rietx wrote showed that the writer's handling
+  of a hexagonal cell was right all along, and only the page's explanation was wrong.
+  - **Done.** Corrections on all five pages (Context lists each one and its evidence).
+    `examples/switching.py` now asserts every quoted line, each number within 1e-3 relative
+    and the text around it exactly. Its `.instprm` comes from the four-stage fit, and it
+    asserts the 110 ppm that holding the zero moves the cell. The validation-matrix sources
+    are corrected and `VALIDATION.md` regenerated: tier text dated, 2668 ppm, the FAP row's
+    four extra parameters named. `test_the_file_states_a_wider_free_set_than_this_plan` now
+    asserts the plan's whole non-structural free set. 2665 became 2668 in `recipe.md` and root
+    `CLAUDE.md` too (the number in a rule, no new rule). `Madsen` was added to the Vale terms.
+    A note went into WP-1911's `### Inherited`.
+  - **Measured.** `[dev]` venv, darwin/arm64. Fast selection: 10 730 passed, 191 skipped,
+    2 xfailed in 6:47, while a `/pr-review` in `pr-bench` ran the slow selection beside it.
+    No tests were added. The example test took 28.9 s in that loaded run; WP-1984 measured
+    13.6 s loaded and 7.3 s alone. It stays out of `slow` for the reason `test_examples.py`
+    gives. The FAP free-set row passes alone (3.4 s). The full selection was not run: no
+    measured number moved, and the one acceptance assertion added was run directly. FullProf
+    8.20 (Feb 2025) on the page's `flags.pcr` printed `Cell constraints according to Laue
+    symmetry: 6/m` and rewrote the codewords `41 0 51 0 0 0` as `41 41 51 0 0 41`.
+  - **Review.** `/code-review high --fix` found eight and fixed six. The serious one: quoted
+    numbers compared as exact six-figure text failed with `RIETX_COMPILED=0`, where
+    `th2_offset` moves 2.9e-5 relative, so Linux CI could have gone red. Each number is now
+    compared within 1e-3. Also fixed: codeword lines must sit directly under their atom; U is
+    checked at full precision; both shared-codeword forms are read back; "LaB6 and cBN" named.
+    Declined: the 110 ppm compares fits that also differ by the oxygen tie (measured 0.09 ppm
+    of the 110); `cut` would switch to exponent notation below 1e-4, which no quoted number
+    reaches; and declaring dispersion and the compiled path in the example, which is outside
+    this diff.
+  - **Gotchas.** (1) `fp2k` lives at `~/Code/rietx-bench/tools/fullprof/files/fp2k`. It needs
+    `FULLPROF` set to its directory and an `Ins=0` `.dat` (start, step, end, then counts).
+    (2) FullProf's manual (Line 11-4) and FullProf 8.20 disagree on the cell codewords; the
+    program wins. (3) The TOPAS page's fit holds the zero on purpose, as the demonstration of
+    `hold`, so its `.inp` excerpt carries a cell 110 ppm above the free fit. The page now
+    says so.
+  - **Next.** WP-1986 links the feature table to the Guides. A reader check by a user of each
+    program would still settle whether the paired examples are the ones they reach for.
 - **2026-10-17** — filed from a review of WP-1984's pages.
