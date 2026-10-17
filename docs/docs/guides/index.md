@@ -24,7 +24,14 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 ## Running a fit
 
 - [How to run a plan one stage at a time](stage.md) uses `Refinement.run_stage` and a report at each stage.
+- [How to choose the next parameter to free](next.md) reads `Refinement.suggest` and measures the move with `compare_freed`.
 - [How to watch or stop a running fit](watch.md) uses `rietx watch`, a cancel token, and the switches that turn recording off.
+
+## Series
+
+- [How to fit a temperature series](series.md) chains one refinement per pattern with `refine_sequential` and reads a trajectory.
+- [How to check a series for path dependence](path.md) runs the chain both ways and refits a flagged step from cold.
+- [How to refine a cell edge as a function of temperature](equation.md) refines an equation's coefficients against every pattern at once.
 
 ```{toctree}
 :hidden:
@@ -38,5 +45,9 @@ tie
 restrain
 plan
 stage
+next
 watch
+series
+path
+equation
 ```

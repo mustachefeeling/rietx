@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-17 — Guides: 10 of 25 written; GUI chapters, retirement and skill links remain
+Milestone: unscheduled · Status: 🔄 2026-10-17 — Guides: 14 of 25 written; GUI chapters, retirement and skill links remain
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -119,7 +119,10 @@ the tree that day.
   From `using/refining.md` and `using/cli.md`: 5 `stage.md` (with `stage_reports=True`), 23
   `watch.md` (watching, stopping from the page or a `CancelToken`, `events=`, telemetry off).
   From `using/data.md` and `using/results.md` (3rd session): 6 `range.md`, 7 `hump.md`, 8
-  `blank.md`, 25 `check.md`. Left: 9-22, 24. Item 10 has the spike's page to start from, but no
+  `blank.md`, 25 `check.md`. From `using/report.md` and `using/series.md` (4th session): 13 `next.md`, 14
+  `series.md`, 15 `path.md`, 16 `equation.md`; the series guides share a synthetic LaB6 ramp,
+  `examples/guides/_lab6_ramp.py`, which the guide test skips by its underscore. Left: 9-12,
+  17-22, 24. Item 10 has the spike's page to start from, but no
   LaB6 pattern ships in `rietx.examples`. The maintainer chose (2026-10-17) to fetch data a
   guide needs rather than ship it: `rietx.examples.fetch` downloads a `REMOTE_FILES` entry from
   `tests/data/` at a pinned commit, and `test_examples.py`'s `fetched_state` fixture fills the
@@ -184,7 +187,7 @@ the tree that day.
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
-      the whole old tree retires (task 4); see Context, 2026-10-17. Ten of 25 written
+      the whole old tree retires (task 4); see Context, 2026-10-17. Fourteen of 25 written
       (2026-10-17, map under Notes by task).
 - [ ] GUI chapters moved with `test_gui_manual.py`.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
@@ -198,6 +201,70 @@ the tree that day.
 ```
 
 ## Handover log
+
+### 2026-10-17 (4th session) — four guides on choosing a parameter and on series, and three defects they found
+
+The Guides tab now explains how to decide which parameter to free next, how to fit a
+temperature series, how to check that a series trend is not made by the chain, and how
+to refine a cell edge as an equation of temperature. The three series guides run on seven
+synthetic LaB6 patterns made from a known cell, so each page can say how close the fit
+came. Writing them found three defects in the package. The default plan's last stage
+stops about 10 % of χ² above the minimum that one more run of the same stage reaches,
+and nothing says so. `suggest` can recommend a parameter that sits on its bound and
+cannot move. And a cubic cell's step in a series is flagged three times. They are filed
+in WPs 1421, 1998 and 1524. Eleven of the 25 planned guides remain.
+
+*Done.* Pages `docs/docs/guides/{next,series,path,equation}.md` with their
+`examples/guides/` scripts; a Series section in the guides index. The series scripts share
+`examples/guides/_lab6_ramp.py` (tutorial 05's settings), and
+`tests/test_examples.py` skips a guide file whose name starts with `_`. `next.md` teaches
+comparing two branches of one node, because the fit a stage leaves is not at its own
+minimum here (the window finding below). Filed: WP-1421 `### Inherited`, re-rated P3 →
+P2 (the frozen windows move the minimum); WP-1524 `### Inherited` (a tied cubic cell's
+step flagged three times, which `moved_paths` already de-duplicates); new WP-1998, P2
+(`suggest` scores a candidate on its floor as if it could move both ways, and
+`best_or_none` ignores ΔBIC). No open WP owned `suggest`: 1050 and 1434 are closed.
+`/code-review high --fix` found 8 and fixed 5: the ramp reads its CIF once instead of
+leaving a temp directory per call; "peaks 50 % too wide" became W 50 % too large, about
+20 % in width; `equation.py` asserts the correlation and the slope gap its page quotes;
+the noise floor renders from `{{ SUGGEST_MIN_GAIN }}`; the Status count. Fixed by hand:
+`next.md`'s narrowing section showed ΔBIC refusing extinction on the fit before the
+re-solve, while on the re-solved fit the same query favours it (+1.4) though it cannot
+leave its floor. The page now says so and the script asserts it. The series page states
+`MIN_POINTS_FOR_PERSISTENCE` (5), asserted. Declined: de-duplicating the ramp against
+tutorial 05, because a notebook must be self-contained (WP-1545 owns it, and its
+"50 % too wide" has the same slip).
+
+*Measured* (`[dev]`, darwin/arm64; every guide line identical on `RIETX_COMPILED=0`).
+Fluorapatite, hand-run `scale_bkg` → `cell` → `profile` over 15-130°: Rwp 0.1022, and
+0.0940 after one empty stage on a branch; the same `profile` stage with
+`window_slack_deg` 0.5 / 1.0 / 2.0 ends at 0.0967 / 0.0947 / 0.0945.
+`mccusker_default`: 0.0992 → 0.0940 (χ² −9.5 %); `mccusker_structural` and
+`lab_sample_refine` 0.0 %. `FROZEN_COMPILE_STALE` stays silent (0.8 % at fixed
+parameters). Freeing the Kα2 weight against the re-solved fit: 0.464(6) from 0.5, t = −6.0,
+ΔBIC +31.0 at N_eff 1297; extinction ΔBIC +148 against the fit before the re-solve, −7
+after. LaB6 ramp: chain 0.45-0.5 s, both ways 0.9 s, every cell within 2 esd of truth,
+forward and backward under 0.01 esd apart; a 2 % jump verified cold at 1.00× and rescued
+on the `warm_staged` rung (warm Rwp 0.96 → 0.039). Joint line fit 0.45 s: slope
+2.07744(80) × 10⁻⁵ Å/K against 2.0783 × 10⁻⁵, form statistic 3.8 against a cut of 11.1;
+a 9.4 × 10⁻⁵ Å bow is rejected at 591.0. Fast selection on the final tree (main had not
+moved, no other suite running): 10 915 passed, 185 skipped, 2 xfailed, one run of 6:07;
+passed+skipped +4 against the 3rd session's 11 096, the four new guide cases.
+`tests.added_test_times` sees no added function (the cases parametrise an existing one);
+from the junit file the four took 3.3-9.9 s each under full `-n auto` load. The full
+selection did not run: docs, examples and a test glob cannot move a measured number.
+
+*Gotchas.* The worktree guard refuses some compound shell lines (a heredoc chained to
+other commands), so write a probe as a scratchpad script and run it alone. The dot-path check reads prose
+code spans, so a model field that is not a parameter (`goniometer_radius_mm`) is named by
+its class, `Geometry.goniometer_radius_mm`. Ruff sorts `_lab6_ramp` before `rietx`.
+
+Next: item 17 (a joint X-ray and neutron fit, a refined wavelength) needs a data choice.
+The real pair is the Nd₂Ru₂O₇ 11-BM + BT-1 files in `tests/data/` (published, Gaultois
+et al. 2013), which `rietx.examples.fetch` could serve, but `tests/data/README.md` gives
+them no licence row; the other route is a synthetic pair like the ramp. Then 21
+(`using/history.md`), 10 (calibration; choose LaB6 or the fetched Si 640c), and 9, 11,
+12, 18-20, 22, 24.
 
 ### 2026-10-17 (3rd session) — four guides on the pattern and its background, and data fetched on first use
 

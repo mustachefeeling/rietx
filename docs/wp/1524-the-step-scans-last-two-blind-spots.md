@@ -44,6 +44,21 @@ Two consumers read the flag and must move with it: `SeriesResult.discontinuities
 a path can carry two) and the verification pass, which refits each flagged
 pair once. `plot_trajectory` shades each recorded pair.
 
+### Inherited
+
+- **2026-10-17, from WP-1986 (writing the series guides): a cubic cell is
+  flagged three times for one step.** On the synthetic LaB6 ramp of
+  `examples/guides/_lab6_ramp.py` with the 700 K cell made 2 % larger,
+  `SEQUENTIAL_DISCONTINUITY` fires once each for `phases.0.cell.a`, `.b` and
+  `.c`, with identical messages, and `SeriesResult.discontinuities` holds
+  three `SeriesStep`s for one pair of patterns. `b` and `c` are tied to `a`
+  by symmetry. `SeriesResult.moved_paths` already drops a tied path that
+  repeats an earlier candidate's values exactly; the step scan does not. The
+  verification refit is shared, so the cost is three findings where a reader
+  needs one. `examples/guides/path.py` asserts the three, so a fix updates
+  that assertion and its page `docs/docs/guides/path.md`, which says the three
+  flags share one pair of refits.
+
 ## Non-goals
 
 - The fences' thresholds; neither shape is a threshold problem.
