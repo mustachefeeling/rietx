@@ -1,0 +1,17 @@
+/* The styling pydata-sphinx-theme does not supply (WP-1986). */
+
+/* The bibliography under `bibtex_reference_style = "author_year"`.  docutils
+ * gives every citation node a label, and sphinxcontrib-bibtex documents that
+ * it cannot remove one, so the list would print [AS64] beside a citation
+ * reading [Abramowitz and Stegun, 1964].  Hide it and the entry starts at the
+ * author, which is the shape an author-year reference list has.  The selector
+ * is exact: tests/test_manual.py asserts every `span.label` in the built site
+ * sits inside a `doc-biblioentry`. */
+div.citation[role="doc-biblioentry"] > span.label {
+  display: none;
+}
+
+div.citation[role="doc-biblioentry"] {
+  display: block;
+  padding-left: 0;
+}
