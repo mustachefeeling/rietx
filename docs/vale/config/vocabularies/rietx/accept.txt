@@ -97,6 +97,7 @@ FullProf
 [fF]unctionals
 FWHM
 FWHMs
+Gaultois
 Gaussian
 Gaussians
 [gG]emmi
@@ -221,6 +222,7 @@ Rigaku
 [rR]oadmap
 Rodrigues
 [rR]oundoff
+Rp
 [rR]utile
 Rwp
 [sS]catterer
