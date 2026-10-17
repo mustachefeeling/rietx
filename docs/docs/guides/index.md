@@ -31,6 +31,7 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 
 - [How to fit a temperature series](series.md) chains one refinement per pattern with `refine_sequential` and reads a trajectory.
 - [How to check a series for path dependence](path.md) runs the chain both ways and refits a flagged step from cold.
+- [How to refine a cell edge as a function of temperature](equation.md) refines an equation's coefficients against every pattern at once.
 
 ```{toctree}
 :hidden:
@@ -48,4 +49,5 @@ next
 watch
 series
 path
+equation
 ```

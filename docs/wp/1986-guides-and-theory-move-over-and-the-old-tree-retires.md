@@ -120,9 +120,9 @@ the tree that day.
   `watch.md` (watching, stopping from the page or a `CancelToken`, `events=`, telemetry off).
   From `using/data.md` and `using/results.md` (3rd session): 6 `range.md`, 7 `hump.md`, 8
   `blank.md`, 25 `check.md`. From `using/report.md` and `using/series.md` (4th session): 13 `next.md`, 14
-  `series.md`, 15 `path.md`; the series guides share a synthetic LaB6 ramp,
+  `series.md`, 15 `path.md`, 16 `equation.md`; the series guides share a synthetic LaB6 ramp,
   `examples/guides/_lab6_ramp.py`, which the guide test skips by its underscore. Left: 9-12,
-  16-22, 24. Item 10 has the spike's page to start from, but no
+  17-22, 24. Item 10 has the spike's page to start from, but no
   LaB6 pattern ships in `rietx.examples`. The maintainer chose (2026-10-17) to fetch data a
   guide needs rather than ship it: `rietx.examples.fetch` downloads a `REMOTE_FILES` entry from
   `tests/data/` at a pinned commit, and `test_examples.py`'s `fetched_state` fixture fills the
@@ -187,7 +187,7 @@ the tree that day.
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
-      the whole old tree retires (task 4); see Context, 2026-10-17. Thirteen of 25 written
+      the whole old tree retires (task 4); see Context, 2026-10-17. Fourteen of 25 written
       (2026-10-17, map under Notes by task).
 - [ ] GUI chapters moved with `test_gui_manual.py`.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
