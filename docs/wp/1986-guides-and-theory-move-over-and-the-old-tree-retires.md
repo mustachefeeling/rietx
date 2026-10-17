@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-17 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-17 — Guides: 10 of 25 written; GUI chapters, retirement and skill links remain
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -118,8 +118,14 @@ the tree that day.
   (the presets' order folded in, without the heavy-atoms departure and the Stephens rule).
   From `using/refining.md` and `using/cli.md`: 5 `stage.md` (with `stage_reports=True`), 23
   `watch.md` (watching, stopping from the page or a `CancelToken`, `events=`, telemetry off).
-  Left: 6-22, 24, 25. Item 10 has the spike's page to start from, but no LaB6 pattern ships in
-  `rietx.examples`, so its fit needs bundled data or a no-exec reason. Two candidates outside
+  From `using/data.md` and `using/results.md` (3rd session): 6 `range.md`, 7 `hump.md`, 8
+  `blank.md`, 25 `check.md`. Left: 9-22, 24. Item 10 has the spike's page to start from, but no
+  LaB6 pattern ships in `rietx.examples`. The maintainer chose (2026-10-17) to fetch data a
+  guide needs rather than ship it: `rietx.examples.fetch` downloads a `REMOTE_FILES` entry from
+  `tests/data/` at a pinned commit, and `test_examples.py`'s `fetched_state` fixture fills the
+  cache so the suite stays offline. A calibration guide can add a LaB6 or the 11-BM Si 640c
+  file there (a new file in `tests/data/` needs `REMOTE_COMMIT` moved to a commit holding it).
+  Two candidates outside
   the list: fixing the origin of a polar space group (`Phase.floating_origin`, after WP-1912
   lands, which owns that behaviour), and the plan's "one departure" paragraph.
 - `using/concepts.md` is mined except § The parameter groups and § Why the groups correlate,
@@ -127,12 +133,10 @@ the tree that day.
 - `theory/intensities.md` § The magnetic structure factor lost its link to
   `using/refining.md` § When the magnetic peaks are broader (label `sec-magnetic-width`),
   because the new tree has no such page yet. Link the guide that replaces it.
-- Two questions a newcomer asked of the Concepts tab belong here, neither checked against the
-  code. Does a fit's first stage estimate the phase scale, or start from the stored value (the
-  parameter map's default is 1.0)? That goes in the guide on starting a fit. Do excluded regions
-  survive `Refinement.checkout` or `rx.replay`? They live in `project.json` and no history node
-  records them (`schemas/project.py`), so a checkout should keep the current ones and a replay
-  should use whatever the pattern carries. That goes in the guide on excluding a region.
+- A question a newcomer asked of the Concepts tab, not checked against the code: does a fit's
+  first stage estimate the phase scale, or start from the stored value (the parameter map's
+  default is 1.0)? That goes in the guide on starting a fit. (The second question, whether
+  excluded regions survive a checkout or a replay, is answered in `range.md`, 2026-10-17.)
 - Part 1 material the Concepts pages now cover, so a retiring chapter can point there:
   `using/concepts.md` § The parameter groups and § Why the groups correlate
   (`concepts/parameters.md`, `concepts/correlations.md`); `using/data.md` § Explicit humps
@@ -180,7 +184,7 @@ the tree that day.
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
-      the whole old tree retires (task 4); see Context, 2026-10-17. Six of 25 written
+      the whole old tree retires (task 4); see Context, 2026-10-17. Ten of 25 written
       (2026-10-17, map under Notes by task).
 - [ ] GUI chapters moved with `test_gui_manual.py`.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
@@ -194,6 +198,65 @@ the tree that day.
 ```
 
 ## Handover log
+
+### 2026-10-17 (3rd session) — four guides on the pattern and its background, and data fetched on first use
+
+The Guides tab now covers what to do with a pattern before and around the fit: check it,
+set the fit range and leave regions out, hold a measured blank under it, and add a hump for
+a container halo. The blank and hump guides needed a real empty-capillary scan, which the
+installed package did not have, so rietx can now download the 11-BM silicon scan and its
+empty Kapton capillary on first use, checked against a hash, instead of shipping 3 MB more
+in every wheel. Writing the range guide found that a pattern accepted an inverted excluded
+region and silently excluded nothing; that is now refused. Fifteen of the 25 planned guides
+remain.
+
+*Done.* Pages `docs/docs/guides/{check,range,blank,hump}.md`, each with its
+`examples/guides/` script, under two new index sections. `rietx.examples.fetch`,
+`RemoteFile`, `REMOTE_FILES`, `REMOTE_COMMIT` (the maintainer chose fetching over bundling
+or reading `tests/data/`); three offline tests in `test_example_projects.py`, and the
+`fetched_state` fixture in `test_examples.py`. `PatternData` and `compile_model` refuse an
+inverted or empty interval with `check_interval`'s sentence (one test in `test_project.py`),
+staged in the 1.10 notes under Code to check, and `fetch` under New. The manual's dot-path
+check stopped at a numeric segment, so it had never checked an indexed path such as
+`phases.0.cell.a`; it now keeps indices and reads each as 0. Both manuals passed as they
+stood. The guides answer the newcomer's checkout and replay question: a node records the
+range and not the exclusions. `/code-review high --fix` found 9 and fixed 6: an inverted
+region appended to the list (no validator runs) is refused when the mask is built, and
+`project.fitted_mask` refuses inverted limits as `compile_model` does; `fetch` writes a
+partial file of its own per call and catches a body dropped mid-read; the guide scripts read
+`result.parameter`; the pages name `magnetic_width` as the preset that frees only the
+polynomial. Two were handover items (this Status line, the release record's count). Declined:
+the bracket assertion in the dot-path check can never fire, because no token can hold a `[`,
+and making it work would flag python such as `lines[0]` in the pages, so which spans count as
+paths needs deciding first.
+
+*Measured* (`[dev]`, darwin/arm64). The preset `mccusker_default` on the Si 640c pair: blank
+scale 0.836(19) against three Chebyshev terms and 0.695(32) against six; the acceptance
+protocol's three-term figure is 0.8374(113). Built with `vary_scale=False`, the scale still
+refines (to 0.84), because every preset frees `instrument.background.*`; `hold` keeps it at
+1.0. `mccusker_structural` with one hump reproduces the old chapter: Biso esd 0.100 → 0.019
+Å² with the hump, 0.040 with three more polynomial terms; the hump at 4.19(11)° FWHM
+5.57(26)° on three terms, 5.25(5)° FWHM 1.96(13)° on six. Every guide line prints the same on
+`RIETX_COMPILED=0`. Each Si fit takes 0.4-0.6 s; one real download took 0.44 s and a cache
+hit 1 ms. The empty capillary's smoothed envelope peaks at 5.01° 2θ, d 4.71 Å.
+Fast selection on the final tree (main had not moved): 10 910 passed, 1 failed, 185 skipped,
+2 xfailed, one run of 4:56 with no other suite running. The failure was the skill's size
+budget, tripped by the line added to `surprises.md` § 8.29 (presets free the blank's scale,
+so hold it); cut to fit, and `test_skill`, `test_skill_cli` and `test_docs_consistency` then
+gave 206 passed. Added this session: four test functions and four guide cases;
+`tests.added_test_times` gives the four functions 0.01 s in that run. The full selection did
+not run: the refusals change only inputs that used to mask nothing, and `fetch` reaches no
+fit.
+
+*Gotchas.* The dot-path check reads code blocks' variable names too: a variable named
+`instrument` makes `instrument.extra_components` a path to check, so the hump page names it
+`capillary`. A `fetch` file seeded from `tests/data/` must match `REMOTE_FILES`' hash, which
+`test_every_remote_file_is_the_test_data_file_it_names` holds. `fetch` is expected not to work
+in the browser build (inferred, not tested) and says what path to fill by hand.
+
+Next: `using/report.md` (13, choosing the next parameter), then `using/series.md` (14-17) and
+`using/history.md` (21). Item 10 (calibration) can now fetch its standard; decide between a
+lab LaB6 file and the 11-BM Si 640c.
 
 ### 2026-10-17 (2nd session) — the Guides tab begins, six guides and the pattern for the rest
 

@@ -500,7 +500,8 @@ describe the curve themselves: a 0.85 truth came back as 0.838 on 1 term and
 the correct report. Judge the scale by **its own esd**, never by Rwp: the
 blank's esds enter the weight as σ² + s²·σ_f², so two fits declaring different
 scales are not scored on one statistic.
-(Measured: WP-1309.)
+(Measured: WP-1309.) Presets free `…background.*`, scale included, so `hold`
+it to keep 1.0 (Measured: WP-1986).
 
 **8.30 A joint X-ray + neutron fit keys every correction, and each pattern's
 findings, to its own histogram.** f₀ with f′/f″ on the X-ray one; b, a locked
