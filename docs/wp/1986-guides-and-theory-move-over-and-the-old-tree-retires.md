@@ -101,6 +101,27 @@ the tree that day.
   to a moved chapter's old address, and no longer checks any other link to the site.
 
 **Guides.**
+- How a guide is built (2026-10-17). A guide `docs/docs/guides/<page>.md` runs its fits in
+  `examples/guides/<page>.py`, same stem. The page `{literalinclude}`s the slice between
+  `# guide: start` and `# guide: end` (marker above the imports, `:language: python`), and
+  quotes printed output in a `text` fence under `<!-- output of examples/guides/<page>.py -->`.
+  The script asserts every number the page quotes, below the end marker.
+  `tests/test_examples.py::test_every_guide_script_prints_what_its_page_quotes` globs the
+  scripts, so a new one joins with no test of its own, and fails a quoted block the script did
+  not print. A block that only builds objects runs inline against `rietx.examples`'
+  fluorapatite (`test_python_blocks_execute_or_say_why`). Each fluorapatite fit takes under a
+  second. A number that differs between the compiled and numpy paths (`RIETX_COMPILED=0`) is
+  quoted as a bound: the hold guide's unheld cell moved 318 ppm on one and 332 on the other.
+- The guide map is WP-1975's 25 tasks (§ "The 25 most-needed how-tos"; its line numbers
+  are from 2026-10-15). Done 2026-10-17, from `using/concepts.md`: 1 `hold.md`, 2 `tie.md`
+  (named variables folded in), 3 `restrain.md` (the c_w schedule folded in), 4 `plan.md`
+  (the presets' order folded in, without the heavy-atoms departure and the Stephens rule).
+  Left: 5-25. Item 10 has the spike's page to start from, but no LaB6 pattern ships in
+  `rietx.examples`, so its fit needs bundled data or a no-exec reason. Two candidates outside
+  the list: fixing the origin of a polar space group (`Phase.floating_origin`, after WP-1912
+  lands, which owns that behaviour), and the plan's "one departure" paragraph.
+- `using/concepts.md` is mined except § The parameter groups and § Why the groups correlate,
+  which the Concepts pages already cover. The old chapter stays up until retirement.
 - `theory/intensities.md` § The magnetic structure factor lost its link to
   `using/refining.md` § When the magnetic peaks are broader (label `sec-magnetic-width`),
   because the new tree has no such page yet. Link the guide that replaces it.
@@ -157,7 +178,8 @@ the tree that day.
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
-      the whole old tree retires (task 4); see Context, 2026-10-17.
+      the whole old tree retires (task 4); see Context, 2026-10-17. Four of 25 written
+      (2026-10-17, map under Notes by task).
 - [ ] GUI chapters moved with `test_gui_manual.py`.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.
