@@ -69,6 +69,7 @@ import numpy as np
 from ..backend import get_backend
 from ..crystallography import rotation
 from ..crystallography.fragments import Fragment
+from ..crystallography.symmetry import SITE_TOL
 from .derived import DerivedBlock, d_cartesian_frame_d_cell, fractional_frame
 
 CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -76,10 +77,11 @@ _DEG = np.pi / 180.0
 #: a moved atom nearer its torsion's axis line than this (Å) does not move
 TORSION_STILL_TOL = 1e-6
 #: |n·R₀u| below this (unit vectors) puts a linear body's axis u perpendicular
-#: to its site's one allowed turn n; above ``1 − this`` along it.  Both are
-#: rounding bounds on an exact relation the table has already checked
-#: (``RIGID_BODY_NOT_INVARIANT``), never a judgement
-SITE_AXIS_TOL = 1e-9
+#: to its site's one allowed turn n; |u − (n·u)n| below it, along it.  The
+#: relation was checked by ``site_orbit``, which snaps a site within
+#: ``SITE_TOL``, so the axis is held to the same tolerance: at a tighter one a
+#: body typed at CIF precision passes the site check and is refused here
+SITE_AXIS_TOL = SITE_TOL
 
 
 def wrap_degrees(angle: float) -> float:
@@ -242,7 +244,7 @@ class RigidBodyBlock(DerivedBlock):
         c = abs(float(n @ u))
         if c < SITE_AXIS_TOL:
             return n.reshape(3, 1)
-        if c > 1.0 - SITE_AXIS_TOL:
+        if float(np.linalg.norm(u - (n @ u) * n)) < SITE_AXIS_TOL:
             return np.zeros((3, 0))
         raise ValueError(
             "RIGID_BODY_NOT_INVARIANT: a linear body on this site must lie "
