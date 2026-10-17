@@ -27,9 +27,11 @@ From 1.4.0 it carries the structure-solution engine's two kernels as well
 (``solve_orbit_sums`` with its one-site twin ``solve_orbit_sums_one``, and
 ``solve_clash``; #562, WP number pending): the replica-batched per-atom orbit
 sums of the structure factor and the minimum-image contact term.  Their oracle
-is the numpy expression each engine call already has, held to 1e-13 relative
-for the orbit sums (they call ``cos`` and ``sin``) in
-``tests/test_solve_kernels.py``.  Nothing in rietx calls them yet, so they are
+is a numpy expression written in ``tests/test_solve_kernels.py``, held to
+1e-13 relative for the orbit sums (they call ``cos`` and ``sin``); the
+engine's own numpy fallback, which a declined call runs, lands with its first
+caller (the numpy contact term is #1016's ``site_clash``).  Nothing in rietx
+calls them yet, so they are
 looked up beside :data:`KERNEL_NAMES` rather than in it: a 1.3 wheel lacks
 them, still loads, and :func:`solve_orbit_sums` and its two siblings decline.
 The engine's first caller moves them into :data:`KERNEL_NAMES` and raises
@@ -596,9 +598,9 @@ def bases_fcj(omega: np.ndarray, d_pos: np.ndarray, d_gamma: np.ndarray,
 # --- the structure-solution engine's kernels (1.4.0, #562) ----------------
 #
 # Nothing in rietx calls these yet.  Each returns ``None`` where the compiled
-# path is off or the wheel predates 1.4.0, and its caller runs the numpy
-# expression it carries, which is the oracle ``tests/test_solve_kernels.py``
-# holds them to.
+# path is off or the wheel predates 1.4.0; the numpy fallback its caller runs
+# lands with the engine's first caller, and the oracle the kernels are held to
+# is the expression in ``tests/test_solve_kernels.py``.
 
 #: Serial nanoseconds per orbit image of the orbit sums (one ``cos`` and one
 #: ``sin``) and per image pair of the contact term.  Measured on darwin/arm64
@@ -688,6 +690,13 @@ def solve_clash(pos: np.ndarray, site_of: np.ndarray, moved: np.ndarray,
     around the minimum image ``d − floor(d + ½)``: Σ w·((r0 − d)/σ)² over
     contacts closer than r0, w = ``w_same`` inside the moved site and 1
     elsewhere.  Split over replicas.  ``None`` = declined.
+
+    Raises ``ValueError`` where the 27 cells cannot hold every contact: the
+    minimum image ``d − floor(d + ½)`` lies in [−½, ½), so the shifts needed
+    along axis k are |n_k| ≤ ⌊r0·√(G*_kk) + ½⌋, G* = G⁻¹, and the kernel
+    refuses a cell where that exceeds 1 (r0 over 1.5 plane spacings) rather
+    than return a sum missing contacts.  It also refuses a ``g`` that is not
+    a symmetric positive-definite metric and a non-finite ``r0``.
     """
     k = _solve_kernel("solve_clash")
     if k is None:

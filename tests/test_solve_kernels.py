@@ -289,6 +289,7 @@ def test_an_atom_meets_its_own_images_and_never_itself():
     are its own translation images at 2 Å, each (0.5/0.1)² = 25 at weight
     w_same, and the next shell (2.83 Å) is beyond r0.  Counting the atom
     against itself would add (2.5/0.1)² = 625."""
+    compiled.set_enabled(True)
     pos = np.full((1, 1, 3), 0.3)
     got = compiled.solve_clash(pos, np.zeros(1, np.int64), np.zeros(1, np.int64),
                                4.0 * np.eye(3), np.full((1, 1), 2.5), 0.1, 0.5)
@@ -474,6 +475,16 @@ CLASH_DEFECTS = {
     "g not 3 × 3": (lambda c: c.update(g=np.eye(2)), "g has shape"),
     "g not positive definite": (lambda c: c.update(g=np.diag([25.0, 25.0, -25.0])),
                                 "g is not a positive-definite metric"),
+    # a metric only half filled, whichever half: the loop reads the upper
+    # triangle, the bound's cofactors read both
+    "g upper triangle only": (lambda c: c.update(g=np.diag(np.diag(c["g"]))
+                                                 + np.triu(np.ones((3, 3)), 1)),
+                              "g is not a symmetric metric"),
+    "g lower triangle only": (lambda c: c.update(g=np.diag(np.diag(c["g"]))
+                                                 + np.tril(np.ones((3, 3)), -1)),
+                              "g is not a symmetric metric"),
+    "g not finite": (lambda c: c["g"].__setitem__((0, 0), np.nan),
+                     "g is not a positive-definite metric"),
     "r0 not finite": (lambda c: c["r0"].__setitem__((0, 0), np.nan), "r0 holds NaN"),
     "zero sigma": (lambda c: c.update(sigma=0.0), "sigma 0"),
     "nan sigma": (lambda c: c.update(sigma=float("nan")), "sigma NaN"),

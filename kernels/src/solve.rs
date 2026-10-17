@@ -123,12 +123,20 @@ fn check_cells(g: &[f64], r0: &[f64]) -> PyResult<()> {
         return err(format!("r0 holds {v}, not a finite distance"));
     }
     let r = r0.iter().copied().fold(0.0, f64::max);
+    // the loop reads the upper triangle and the cofactors below read both, so
+    // a bound computed for another matrix than the loop's must not pass
+    let scale = g[0].abs().max(g[4].abs()).max(g[8].abs());
+    for (a, b) in [(1, 3), (2, 6), (5, 7)] {
+        if !((g[a] - g[b]).abs() <= 1e-12 * scale) {
+            return err("g is not a symmetric metric tensor");
+        }
+    }
     // Sylvester's criterion, then the diagonal of G* = G⁻¹ from cofactors
     let c00 = g[4] * g[8] - g[5] * g[7];
     let c11 = g[0] * g[8] - g[2] * g[6];
     let c22 = g[0] * g[4] - g[1] * g[3];
     let det = g[0] * c00 - g[1] * (g[3] * g[8] - g[5] * g[6]) + g[2] * (g[3] * g[7] - g[4] * g[6]);
-    if !(g[0] > 0.0 && c22 > 0.0 && det > 0.0) {
+    if !(g[0] > 0.0 && c22 > 0.0 && det > 0.0 && c00 > 0.0 && c11 > 0.0) {
         return err("g is not a positive-definite metric tensor");
     }
     if [c00, c11, c22].iter().any(|&c| (r * (c / det).sqrt() + 0.5).floor() > 1.0) {
