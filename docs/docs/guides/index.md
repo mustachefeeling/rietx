@@ -25,7 +25,19 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 
 - [How to run a plan one stage at a time](stage.md) uses `Refinement.run_stage` and a report at each stage.
 - [How to choose the next parameter to free](next.md) reads `Refinement.suggest` and measures the move with `compare_freed`.
+- [How to branch a refinement, compare the branches and roll back](branch.md) uses `Refinement.branch`, `RefinementTree.compare` and `Refinement.checkout`.
 - [How to watch or stop a running fit](watch.md) uses `rietx watch`, a cancel token, and the switches that turn recording off.
+
+## Results
+
+- [How to find the weight fraction of each phase in a mixture](qpa.md) reads `result.qpa`, checks a minor phase, and corrects for microabsorption.
+- [How to quote lattice parameters with their esds](cell.md) reads the cell, its volume and `rx.format_su`, and shows what the esd leaves out.
+- [How to quote a parameter that ended on its bound](interval.md) uses `Refinement.profile_interval`.
+- [How to export the refined structure as a CIF and the reflection list as a table](export.md) uses `Refinement.write_cif` and `Refinement.write_reflection_table`.
+
+## Other programs
+
+- [How to open a GSAS, TOPAS or FullProf refinement and write one back](foreign.md) uses `rx.read_project_model` and the four writers.
 
 ## Series
 
@@ -46,7 +58,13 @@ restrain
 plan
 stage
 next
+branch
 watch
+qpa
+cell
+interval
+export
+foreign
 series
 path
 equation
