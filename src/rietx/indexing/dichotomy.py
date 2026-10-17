@@ -37,8 +37,10 @@ Three prunes run per box, cheapest first:
    is not a lattice, and a box with some reciprocal angle beyond the domain's
    obliquity bound everywhere holds nothing the search may report (WP-1959);
 2. **line matching** — for each observed line in increasing Q, some trial hkl's
-   [Q_min, Q_max] over the box must reach it within k·σ_eff; more than
-   ``n_unindexed`` misses and the box is impossible.  Both are *monotone* under
+   [Q_min, Q_max] over the box must reach it within k·σ_eff; more misses
+   than ``SearchSpec.miss_budget`` allows, or one on an anchor line (the
+   strongest driven lines, ``engines.search_anchors``), and the box is
+   impossible.  Both are *monotone* under
    bisection (a child's intervals are subsets of its parent's), which is what
    makes the pruning sound rather than merely plausible;
 3. **the reflection ceiling** at every leaf, before any enumeration
@@ -47,9 +49,11 @@ Three prunes run per box, cheapest first:
 **Tolerated unindexed lines are the single most valuable option here** — it is
 DICVOL06's own reported gain.  Without them one impurity line prunes the box
 containing the truth and the engine returns nothing, *confidently*, which is the
-one failure this milestone exists to prevent.  Raising the count past the default
+one failure this milestone exists to prevent.  Raising an absolute count
 manufactures cells: each extra tolerated line is one more coincidence a wrong
-metric is allowed to have.
+metric is allowed to have — which is why the default tolerance is a *fraction*
+of the driven lines with the strongest of them anchored
+(``engines.INLIER_FRACTION``), not a larger count.
 """
 
 from __future__ import annotations
@@ -77,6 +81,7 @@ from .engines import (
     reflection_ceiling_ok,
     register_engine,
     row_local_product,
+    search_acceptance,
     search_line_order,
     search_volume_ceiling,
     shift_allowance_diagnostic,
@@ -245,6 +250,7 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
               swaps: list[tuple[int, int]], lo_search: np.ndarray,
               hi_search: np.ndarray, n_unindexed: int,
               ids: np.ndarray | None = None,
+              anchors: np.ndarray | None = None,
               ) -> tuple[np.ndarray, float, bool, np.ndarray | None] | None:
     """Every prune, in cost order.  ``None`` if the box is impossible.
 
@@ -255,6 +261,10 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
     grid pass and the dichotomy so the two phases cannot come to different
     conclusions about the same box — which is the whole reason the prunes live
     in a function rather than inline in each loop.
+
+    ``anchors`` are rows of the search set every accepted cell must index
+    (``engines.search_anchors``): a box none of whose reflections reaches one
+    is impossible, and monotone for the same reason the miss count is.
 
     **The prunes that read no row run first** (WP-1959).  Each prune is a
     ``return None`` with no side effect, so their order changes only the cost.
@@ -297,6 +307,9 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
                                                     >= lo_search[:, None])
     if len(hi_search) - int(np.count_nonzero(hit.any(axis=1))) > n_unindexed:
         return None
+    if anchors is not None and len(anchors) and not bool(
+            hit[anchors].any(axis=1).all()):
+        return None
 
     # A reflection that cannot reach *any* line over this box cannot reach one
     # over a sub-box either — the intervals only shrink — so it is dropped for the
@@ -328,6 +341,7 @@ def _centred_replay(m_full: np.ndarray, rows: np.ndarray, member: np.ndarray,
                     q_hi: float, det_band: tuple[float, float],
                     swaps: list[tuple[int, int]], lo_search: np.ndarray,
                     hi_search: np.ndarray, n_unindexed: int,
+                    anchors: np.ndarray | None = None,
                     box_test=None) -> bool:
     """Would one centring's own search have reached this leaf?
 
@@ -357,7 +371,8 @@ def _centred_replay(m_full: np.ndarray, rows: np.ndarray, member: np.ndarray,
         if box_test is not None:
             return box_test(ids, lo, hi) is not None
         return _test_box(m_full[ids], lo, hi, basis, q_hi, det_band, swaps,
-                         lo_search, hi_search, n_unindexed) is not None
+                         lo_search, hi_search, n_unindexed,
+                         anchors=anchors) is not None
 
     sub = rows[member[rows]]
     if len(sub):
@@ -409,7 +424,8 @@ def _assignment_possible(hit: np.ndarray, n_reachable: int, counts: np.ndarray,
 
 def _push_children(stack: list, children: list, m: np.ndarray, ids: np.ndarray,
                    lo_search: np.ndarray, hi_search: np.ndarray,
-                   n_unindexed: int, depth: int) -> None:
+                   n_unindexed: int, depth: int,
+                   anchors: np.ndarray | None = None) -> None:
     """Test each child, drop the impossible ones, and push **best last**.
 
     A LIFO stack explores its *first* child last, so with a plain push order the
@@ -433,6 +449,9 @@ def _push_children(stack: list, children: list, m: np.ndarray, ids: np.ndarray,
                                                         >= lo_search[:, None])
         misses = len(hi_search) - int(np.count_nonzero(hit.any(axis=1)))
         if misses > n_unindexed:
+            continue
+        if anchors is not None and len(anchors) and not bool(
+                hit[anchors].any(axis=1).all()):
             continue
         # the cheap half of Hall's condition only: this child is about to be
         # pushed, popped and fully tested anyway, so all that is bought here is
@@ -707,11 +726,12 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    allowance, assumed = effective_shift_allowance(spec, quality)
+    allowance, assumed = effective_shift_allowance(spec, quality, peaks)
     sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     tt_max = float(peaks.two_theta_max)
 
     search = search_line_order(peaks, spec)
+    n_miss_any, anchors = search_acceptance(peaks, search, spec)
     q_search, tol_search = q_all[search], spec.k_sigma * sigma[search]
 
     systems = [s for s in SYSTEM_ORDER if s in spec.systems]
@@ -754,7 +774,7 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
         found, (n_boxes, n_rows), complete = _search_one(
             basis, system, spec.centrings_for(system), spec, budget, q_all,
             sigma, q_search, tol_search, peaks.wavelength, tt_max,
-            spec.min_volume, vol_max, search, tt_all)
+            spec.min_volume, vol_max, search, tt_all, anchors)
         raw.extend(found)
         raw_deduped = raw_deduped and not found
         if len(raw) > DEDUP_EVERY:
@@ -784,7 +804,7 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
     # number the answer reports made this Borda — over *this* unit's harvest —
     # decide what consensus was allowed to rank
     result.candidates = rank_candidates(raw, peaks, k_sigma=spec.k_sigma,
-                                        n_unindexed=spec.n_unindexed,
+                                        n_unindexed=n_miss_any,
                                         max_candidates=spec.engine_pool(),
                                         q_match=sigma, deduped=raw_deduped)
     result.stats["candidates.raw"] = float(len(raw))
@@ -893,6 +913,7 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
                 q_search: np.ndarray, tol_search: np.ndarray, wavelength: float,
                 tt_max: float, vol_min: float, vol_max: float,
                 search_lines: np.ndarray, tt_all: np.ndarray,
+                anchors: np.ndarray | None = None,
                 ) -> tuple[list[EngineCandidate], tuple[int, int], bool]:
     """One system, **every admissible centring in one pass**: grid, then dichotomy.
 
@@ -930,6 +951,12 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     covered its domain, and that must not look like "nothing there".
     """
     lo0, hi0 = _initial_box(basis, spec)
+    # the acceptance rule (``engines.SearchSpec.miss_budget``) and its anchor
+    # lines, as rows of the search set: every prune below reads these two
+    n_miss = spec.miss_budget(len(search_lines), system,
+                              anchored=anchors is not None and bool(len(anchors)))
+    anchor_rows = (np.flatnonzero(np.isin(search_lines, anchors))
+                   if anchors is not None else None)
     # two trial sets, and the distinction is load-bearing.  The *recursion* is
     # driven by the search lines only, so its set stops at their highest Q and
     # every box test stays cheap; **assignment and scoring use every usable
@@ -1025,9 +1052,19 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         cos_max = float(MAX_ANGLE_COSINE)
 
         def box_test(ids, lo, hi, col_max=False):
-            return box_test_k(m_full, ids, lo, hi, basis_t, q_hi, band_lo,
+            kept = box_test_k(m_full, ids, lo, hi, basis_t, q_hi, band_lo,
                               band_hi, swaps_k, lo_search, hi_search,
-                              spec.n_unindexed, cos_max, col_max)
+                              n_miss, cos_max, col_max)
+            if kept is None or anchor_rows is None or not len(anchor_rows):
+                return kept
+            # the kernel knows the miss count and not the anchors, so that
+            # prune runs here, on the survivors only: a box none of whose
+            # reflections reaches an anchor line holds no cell that may be
+            # accepted (_test_box's own anchor test, on the same rows)
+            q_min, q_max = _q_bounds(m_full[kept[0]], lo, hi)
+            reach = ((q_min[None, :] <= hi_search[anchor_rows, None])
+                     & (q_max[None, :] >= lo_search[anchor_rows, None]))
+            return kept if bool(reach.any(axis=1).all()) else None
 
         def child_key(ids, lo, hi):
             return child_key_k(m_full, ids, lo, hi, basis_t, lo_search,
@@ -1061,13 +1098,13 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
             # centred search would have reached here".
             if not _centred_replay(m_full, rows, in_search[centring], lo, hi,
                                    basis, q_hi, det_band, swaps, lo_search,
-                                   hi_search, spec.n_unindexed,
+                                   hi_search, n_miss, anchors=anchor_rows,
                                    box_test=box_test):
                 continue
             cand = _accept(basis, system, centring, spec, theta,
                            hkl_c, dm_c, indices[centring], q_all, sigma,
                            wavelength, tt_max, vol_min, vol_max, width,
-                           search_lines, tt_all)
+                           search_lines, tt_all, n_miss, anchors)
             if cand is not None:
                 found.append(cand)
 
@@ -1084,7 +1121,8 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         if gathered[0] is not ids:
             gathered[0], gathered[1] = ids, m_full[ids]
         kept = _test_box(gathered[1], lo, hi, basis, q_hi, det_band, swaps,
-                         lo_search, hi_search, spec.n_unindexed, ids=ids)
+                         lo_search, hi_search, n_miss, ids=ids,
+                         anchors=anchor_rows)
         return None if kept is None else kept[3]
 
     # **The survivor lists are the frontier's memory, so they take the
@@ -1140,7 +1178,8 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
             if m is None:
                 m = m_full[ids]
             kept = _test_box(m, lo, hi, basis, q_hi, det_band, swaps,
-                             lo_search, hi_search, spec.n_unindexed, ids=ids)
+                             lo_search, hi_search, n_miss, ids=ids,
+                             anchors=anchor_rows)
             if kept is None:
                 continue
             m, width, unique, ids = kept
@@ -1166,10 +1205,10 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         children = [(lo, left_hi), (right_lo, hi)]
         if child_key is not None:
             _push_children_compiled(stack, children, ids, child_key,
-                                    len(hi_search), spec.n_unindexed, depth + 1)
+                                    len(hi_search), n_miss, depth + 1)
         else:
             _push_children(stack, children, m, ids, lo_search, hi_search,
-                           spec.n_unindexed, depth + 1)
+                           n_miss, depth + 1, anchor_rows)
     return found, (n_boxes, n_rows), complete and complete_union
 
 
@@ -1257,7 +1296,8 @@ def _accept(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
             q_all: np.ndarray, sigma: np.ndarray, wavelength: float,
             tt_max: float, vol_min: float, vol_max: float,
             width: float, search_lines: np.ndarray,
-            two_theta: np.ndarray) -> EngineCandidate | None:
+            two_theta: np.ndarray, n_miss: int,
+            anchors: np.ndarray | None = None) -> EngineCandidate | None:
     """Turn a converged box into a refined candidate, or reject it.
 
     Assign, refine, repeat — with the match window **annealed** from the box's own
@@ -1319,7 +1359,7 @@ def _accept(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
         return None
     if fit.chi2_red > spec.k_sigma ** 2:
         return None
-    if not indexes_the_search_lines(line_index, search_lines, spec.n_unindexed):
+    if not indexes_the_search_lines(line_index, search_lines, n_miss, anchors):
         return None
     fit = refine_with_shift(fit, spec, system, q_all, sigma, two_theta,
                             wavelength, line_index, assigned)

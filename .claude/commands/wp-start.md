@@ -127,8 +127,10 @@ Run the session-start ritual. The SessionStart hook's report
    edits this same PR and marks it ready, so claiming early costs nothing at the
    end and the work is reviewable from the first commit. Nor does it cost
    anything in CI: a draft PR runs ruff alone (~40 s), and the matrix waits for
-   `gh pr ready` at the handover. Skip it only for a session that will not
-   commit — say so in a line if you do.
+   `gh pr ready` at the handover. Nor is it watched: the session subscribes to
+   its PR at that same `gh pr ready` (`.claude/skills/steward/SKILL.md`), since
+   every event on a draft is its own push. Skip it only for a session that
+   will not commit — say so in a line if you do.
 
    **Its base is `main`, even when the branch is cut from an unmerged one.**
    GitHub retargets a stacked PR only when its base branch is deleted, and

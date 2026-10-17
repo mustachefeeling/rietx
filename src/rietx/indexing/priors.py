@@ -46,6 +46,7 @@ from .engines import (
     effective_shift_allowance,
     indexes_the_search_lines,
     refine_with_shift,
+    search_acceptance,
     search_line_order,
     search_volume_ceiling,
     trial_hkl,
@@ -216,7 +217,7 @@ def build_prior_candidates(peaks: PeakList, spec: SearchSpec, quality
 
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    allowance, _assumed = effective_shift_allowance(spec, quality)
+    allowance, _assumed = effective_shift_allowance(spec, quality, peaks)
     sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     search = search_line_order(peaks, spec)
     q_max = float(q_all.max()) if len(q_all) else 0.0
@@ -311,7 +312,9 @@ def _check_one(cell, system: str, centring: str, spec: SearchSpec,
         return None
     if not (spec.min_volume <= fit.volume <= vol_max):
         return None
-    if not indexes_the_search_lines(line_index, search, spec.n_unindexed):
+    if not indexes_the_search_lines(line_index, search,
+                                    *search_acceptance(peaks, search, spec,
+                                                       system)):
         return None
     fit = refine_with_shift(fit, spec, system, q_all, sigma, tt_all,
                             peaks.wavelength, line_index, hkl)

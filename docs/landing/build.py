@@ -54,7 +54,7 @@ LITE = f"{ABOUT.DOCS_URL}/lite/notebooks/index.html?path="
 # (WP-1917).  `main`'s notebooks are built against the next `.dev0` and may call API that
 # PyPI does not have, while a tagged notebook's `%pip install rietx` installs the release it
 # was built with.  The tag is read from git, not from `pyproject.version`, which names a
-# release before it is tagged (the manual's `_SOURCE_REF` note).  With no tag the build
+# release before it is tagged (the note above `sphinx_shared.SOURCE_REF`).  With no tag the build
 # refuses: falling back to `main` is the failure this exists to avoid.  The Pages workflow
 # fetches tags for this; a test passes `HEAD`, since CI's shallow checkouts carry none.
 def release_tag(repo: Path = REPO) -> str:

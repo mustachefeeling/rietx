@@ -212,6 +212,17 @@ a `tests/data/README.md` row.
 
 ### Inherited
 
+- **2026-10-17, from [1996](1996-the-switching-tab-says-only-what-its-tests-show.md):
+  FullProf applies the Laue-class cell constraints itself, and it runs on this
+  machine.** `~/Code/rietx-bench/tools/fullprof/files/fp2k` (FullProf.2k 8.20,
+  February 2025, x86_64 under Rosetta), run as `fp2k <stem>` in a directory
+  holding `<stem>.pcr` and an `Ins=0` `<stem>.dat`, with `FULLPROF` set to the
+  binary's directory. On fluorapatite written by `write_fullprof_pcr` with
+  codewords `41 0 51 0 0 0` it printed `Cell constraints according to Laue
+  symmetry: 6/m` and rewrote them `41 41 51 0 0 41`, so a held b in a
+  hexagonal file is safe. The manual (Line 11-4) still says CF must equal CA
+  and CB, so the program, not its manual, is the reference for #761's restated
+  hexagonal cell.
 - **2026-10-09, from [1319](1319-structure-interchange.md): #756's C-f is this
   WP's.** The maintainer split issue #756's CIF writer module across three WPs:
   1319 takes the registry, the number rule and the structure block (C-a to C-c),

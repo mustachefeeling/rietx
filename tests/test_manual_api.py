@@ -133,18 +133,62 @@ def _python_blocks(page: Path, text: str) -> list[tuple[str, str | None]]:
 
 
 def _included_sources(page: Path, text: str) -> list[str]:
-    """The text of every `{literalinclude}`d file.
+    """The text every `{literalinclude}` shows: the file, or the slice its options cut.
 
     The walkthroughs are `examples/` scripts shown verbatim (WP-1067: one
     authority, and it is `examples/`), so what a script spells is what a
     reader of the chapter sees.
     """
     sources = []
-    for target in LITERALINCLUDE.findall(text):
+    for match in LITERALINCLUDE.finditer(text):
+        target = match.group(1)
         path = (page.parent / target).resolve()
         assert path.exists(), f"{_where(page)}: literalinclude target does not exist: {target}"
-        sources.append(path.read_text(encoding="utf-8"))
+        sources.append(_included_slice(path.read_text(encoding="utf-8"),
+                                       text[match.end():], page, target))
     return sources
+
+
+def _included_slice(source: str, after: str, page: Path, target: str) -> str:
+    """The lines of ``source`` the directive's options show, as Sphinx cuts them.
+
+    A reader sees the slice, so a name elsewhere in the file is not one the
+    page wrote.  Sphinx keeps or drops a marker's whole line
+    (`LiteralIncludeReader.start_filter`/`end_filter`), so the cut is by line:
+    `start-at` wins over `start-after`, `end-at` over `end-before`, and
+    `end-before` never matches the slice's first line.  An option that slices
+    some other way is refused, since reading it as the whole file would credit
+    the page with names it does not show.
+    """
+    options = dict(re.findall(r"^:([a-z-]+):[ \t]*(.*)$",
+                              after.split("```", 1)[0], re.M))
+    unread = sorted({"lines", "pyobject", "start-line", "end-line"} & options.keys())
+    assert not unread, (f"{_where(page)}: {target} slices by :{unread[0]}:, "
+                        "which this guard does not read")
+
+    def marker(key: str) -> str:
+        value = options[key]
+        if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]  # MyST reads an option as YAML, quotes and all
+        return value
+
+    def line_of(lines: list[str], key: str, skip_first: bool = False) -> int:
+        text = marker(key)
+        at = next((i for i, line in enumerate(lines)
+                   if text in line and not (skip_first and i == 0)), None)
+        assert at is not None, f"{_where(page)}: {target} has no :{key}: {text!r}"
+        return at
+
+    lines = source.splitlines(keepends=True)
+    if "start-at" in options:
+        lines = lines[line_of(lines, "start-at"):]
+    elif "start-after" in options:
+        lines = lines[line_of(lines, "start-after") + 1:]
+    if "end-at" in options:
+        lines = lines[:line_of(lines, "end-at") + 1]
+    elif "end-before" in options:
+        lines = lines[:line_of(lines, "end-before", skip_first=True)]
+    return "".join(lines)
 
 
 def _code_text(page: Path, text: str) -> str:

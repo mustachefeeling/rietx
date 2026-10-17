@@ -1953,6 +1953,18 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Choose between them with chemistry or a structure solution."
         ),
     ),
+    "EXTINCTION_PRIOR_APPLIED": HelpEntry(
+        title="Declared facts removed space groups from the extinction classes",
+        description=(
+            "You declared facts about the specimen (chirality, centrosymmetry or "
+            "polarity), and they removed space groups from some classes. The declaration "
+            "only filters the members of each class. Every class was still fitted, and no "
+            "ΔBIC moved. It is a warning when the class the data rank first was emptied: "
+            "either the chemistry is doing what a powder cannot, or the declaration is "
+            "wrong. `best_or_none()` abstains when the data prefer an emptied class by "
+            "the decisive margin. Check the declaration before you read the answer."
+        ),
+    ),
     "EXTINCTION_SCREEN_FAILED": HelpEntry(
         title="The extinction screen could not run",
         description=(
@@ -2714,6 +2726,20 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "remainder."
         ),
     ),
+    "INDEX_INLIER_RETRY": HelpEntry(
+        title="The search was run again, accepting a cell that leaves lines unindexed",
+        description=(
+            "The default run found no lattice that two engines agree on while a cell "
+            "could leave at most two search lines unindexed. The search ran again, "
+            "accepting a cell that indexes at least 60 % of the search lines and the five "
+            "strongest. That is the reading of a list that carries foreign lines: an "
+            "impurity, a container halo or unresolved shoulders. The answer rests on the "
+            "second rule, so read each candidate's `n_search_unindexed` and "
+            "`unindexed_two_theta`. A cell that leaves the weak lines is the phase, and "
+            "the residue is a second phase or the picker's junk. Pass `n_unindexed='inliers'` "
+            "to search this way from the start, or an integer to forbid the retry."
+        ),
+    ),
     "INDEX_MULTIPLE_SOLUTIONS": HelpEntry(
         title="More than one cell passes every check",
         description=(
@@ -2890,6 +2916,16 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "factor of a rare-earth or actinide ion depends on g, so a different value "
             "changes the calculated intensities and the refined moment. State g for the "
             "site if you know the value in the compound."
+        ),
+    ),
+    "LAUE_CLASS_NOT_SEPARABLE": HelpEntry(
+        title="The leading class spans more than one Laue class",
+        description=(
+            "The space groups the leading extinction class admits fall in more than one "
+            "Laue class. They share every position and absence and differ only in which "
+            "reflections are equivalent, which sets the intensity partition inside "
+            "overlapped multiplets. A powder pattern does not expose that. Carry one "
+            "structure solution per Laue class, not one per group."
         ),
     ),
     "LEBAIL_ALTERNATION_STOPPED": HelpEntry(
@@ -4501,13 +4537,17 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "n_unindexed": HelpEntry(
         title="Unindexed lines allowed",
         description=(
-            "How many search lines a cell may leave unindexed and still be accepted. "
-            "Raising it manufactures cells, because every tolerated line is one more "
-            "coincidence that a wrong metric is allowed. Two is the default. Four is a "
-            "statement that you know something about the specimen, such as an impurity."
+            "How many search lines a cell may leave unindexed. Empty (the "
+            "default) is two. A run where no two engines agree on a lattice "
+            "is searched again accepting a cell that indexes 60 % of the "
+            "search lines and the five strongest; 'inliers' searches that "
+            "way from the start. A number forbids the retry. Raising it "
+            "manufactures cells, because every tolerated line is one more "
+            "coincidence that a wrong metric is allowed. Four is a "
+            "statement that you know something about the specimen, such as "
+            "an impurity."
         ),
-        default="2",
-        typical="2, or up to 4 on a pattern with a known impurity",
+        typical="empty; 'inliers' on a pattern with a known impurity",
         anchor="using/indexing.html#the-search-specification",
     ),
     "n_search_lines": HelpEntry(

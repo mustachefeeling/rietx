@@ -198,4 +198,4 @@ Whether Rwp is still falling decides neither way. These are the structure-grade 
 
 **Report** the refined values with their esds, the unresolved diagnostics as systematics, the protocol you ran (plan, held parameters, excluded ranges, channel count) and `result.provenance` (version, backend, solver). Write files with `rx.write_refinement_cif` and `rx.write_qpa_table`.
 
-Theory and equations: <https://rietx.org/manual.html>.
+Theory: <https://rietx.org/manual.html>. Manual pages as markdown: <https://rietx.org/llms.txt>.

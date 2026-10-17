@@ -30,6 +30,46 @@ of issue #561, sized M.
   it. If that floor exceeds the published esds, bring the number back to the
   maintainer before loosening anything.
 
+### Inherited
+
+- **Decided 2026-10-16 (maintainer, from the issue triage, #561): the bar is
+  option (c), and the body may be built from the deposited coordinates.** Each
+  body atom passes within the larger of its published esd and rietx's own esd
+  for that atom. The published esds come from a free-atom refinement with a
+  different profile and background, so they are one reference among two.
+  Option (b), removing the mean translation, was declined because it hides the
+  body's position. `body_from_atoms` on the deposited heavy atoms is allowed,
+  since an idealised template already sits 0.019 Å off. The Context line
+  holding the background at zero is wrong per the entry below and is corrected
+  when this WP starts.
+
+- **2026-10-16, from the issue triage (#561): the reporter's R4 groundwork
+  contradicts two lines of this WP and asks the maintainer to choose the
+  bar.** Three comments, 2026-10-15 23:20Z to 2026-10-16 07:06Z, none recorded
+  here; figures are the reporter's, not re-run (the groundwork is on private
+  runs of COD 2242872). (1) The deposited `_pd_proc_intensity_net` is not
+  background-subtracted (minimum 249 counts, never within 14σ of zero;
+  deposited calc ≥ 301), so Context's "hold the background at zero" is wrong:
+  the authors' calc includes a 10-term Chebyshev plus a broad hump, and the
+  2026-10-06 spike's 0.09 Å came mostly from the zero background (Rwp 0.46).
+  The pdCIF reader half is only the missing `_pd_proc_intensity_net` tag plus
+  a diagnostic for a far-from-zero "net" column, open as PR #1006. (2)
+  Template floor against the published esds: the deposited heavy atoms as the
+  body give 0; a planar copy gives 0.019 Å RMS (C5 at 6 esd); regular hexagons
+  0.064 Å (30 esd). So the bar is reachable only with `body_from_atoms` on the
+  deposited coordinates. (3) Acceptance fit (Chebyshev 10 + hump, TCHZ,
+  Stephens 2/m, FCJ, March-Dollase (100)): Rwp 0.0584 against the published
+  0.0503; misses on C5 (3.45 esd), C11 (1.29), C12 (1.32), all along c, from
+  one rigid translation of the body (mean Δz −0.0043 Å against a fit esd of
+  0.0024 Å on the origin). No background or profile variant brings C5 inside 2
+  esd; FCJ off is unusable (Rwp 0.142). The test is held until the maintainer
+  chooses: (1) keep "every atom within the published esds" and drop the test,
+  (2) compare after removing the body's mean translation, (3) a bound in
+  rietx's own esds. Also asked, unanswered: OK to build the body from the
+  deposited coordinates with the bar unchanged. Profile needs FCJ asymmetry
+  and a 1000 ppm Stephens seed. Tree checked at 2c94d848: `body_from_atoms`
+  exists (`crystallography/bodies.py:56`); #1005, #1006, #995 open.
+
 ## Non-goals
 
 - Hydrogens (WP-1810), torsions (WP-1808).

@@ -247,7 +247,7 @@ def test_the_state_the_loop_keeps_is_the_state_a_hand_loop_would_continue_from(p
     ref = _refinement(1.02)
     result = _fit(ref, pattern, 8, limits=WIDE_LIMITS)
     stop = _stop(result)
-    assert "pass 3 of 4 was kept" in stop.message
+    assert "Pass 3 of 4 was kept" in stop.message
     per_pass = [float(v) / 100.0 for v in re.search(
         r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(", ")]
     assert result.statistics.rwp == pytest.approx(per_pass[2], abs=1e-5)

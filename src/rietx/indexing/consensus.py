@@ -65,10 +65,13 @@ from .engines import (
     EngineCandidate,
     EngineResult,
     SearchSpec,
+    absence_window,
     candidates_truncated_diagnostic,
     dedup_groups,
     match_window,
     rank_candidates,
+    search_acceptance,
+    search_line_order,
     to_cell_candidate,
 )
 from .fom import fom_panel_disagrees
@@ -446,6 +449,10 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     # inputs — ranking candidates in a *tighter* one judges them by a criterion
     # they were never selected under (``fom.fom_panel``)
     q_match = match_window(peaks, spec, quality)
+    # the panel trims what the search tolerated (``fom.trimmed_mean``): the
+    # inlier rule's system-free leftover, or a declared count verbatim
+    driven = search_line_order(peaks, spec)
+    trim = search_acceptance(peaks, driven, spec)[0]
     reported = spec.max_candidates or DEFAULT_MAX_CANDIDATES
     # ``shortlist=None``: every merged lattice is scored, not the cheap
     # pre-rank's top ``4 × max_candidates`` (WP-1046).  What arrives here is
@@ -453,7 +460,7 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     # protect against — and tying the panel's reach to the number the answer
     # reports is the same defect as truncating in the units.
     ranked = rank_candidates(merged, peaks, k_sigma=spec.k_sigma,
-                             n_unindexed=spec.n_unindexed,
+                             n_unindexed=trim,
                              max_candidates=reported,
                              shortlist=None, q_match=q_match)
     out = ConsensusOutcome(
@@ -503,13 +510,17 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
 
     out.candidates = [
         to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
-                          n_unindexed=spec.n_unindexed, q_match=q_match)
+                          n_unindexed=trim, q_match=q_match,
+                          search=driven)
         for c in ranked]
     # a supercell the data refute sits below its parent (WP-1449), and one the
     # data support sits above it (WP-1510).  Here, on the engines' list, so
     # every streamed per-system list orders the same way as the final one; a
     # prior-only tail is appended after and never asked
-    supercell_checks(out.candidates, peaks, q_match=q_match,
+    # an absence test reads the assumed bound, never the widths' window: a
+    # narrow window gives it power the unmeasured shift does not (#951)
+    supercell_checks(out.candidates, peaks,
+                     q_match=absence_window(peaks, spec, quality),
                      k_sigma=spec.k_sigma)
     out.candidates = above_supported_parents(
         below_refuting_parents(out.candidates))
@@ -517,13 +528,14 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         # ranked among their own kind only, appended after every engine
         # candidate: a prior may not displace what the engines found
         tail = rank_candidates(prior_only, peaks, k_sigma=spec.k_sigma,
-                               n_unindexed=spec.n_unindexed,
+                               n_unindexed=trim,
                                max_candidates=spec.max_candidates
                                or DEFAULT_MAX_CANDIDATES,
                                shortlist=None, q_match=q_match)
         out.candidates += [
             to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
-                              n_unindexed=spec.n_unindexed, q_match=q_match)
+                              n_unindexed=trim, q_match=q_match,
+                              search=driven)
             for c in tail]
     for cand in out.candidates:
         cand.bravais = bravais_opinion(cand.cell, cand.centring,

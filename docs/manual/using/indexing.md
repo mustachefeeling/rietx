@@ -642,7 +642,7 @@ something if they were given identical bounds.
 | `SearchSpecSpec.min_d_axis`, `SearchSpecSpec.max_d_axis` | 2 Å, 25 Å | the principal d-spacing range; raising the top costs exponentially |
 | `SearchSpecSpec.min_volume` | 15 Å³ | volume floor |
 | `SearchSpecSpec.max_volume` | Smith's envelope | volume ceiling, taken verbatim when declared |
-| `SearchSpecSpec.n_unindexed` | 2 | search lines a cell may leave unexplained and still be accepted |
+| `SearchSpecSpec.n_unindexed` | `None` | search lines a cell may leave unexplained: `None` is two, searched again by inlier count when no two engines agree; `"inliers"` that rule from the start; an int that count |
 | `SearchSpecSpec.n_search_lines` | 20 | observed lines the search is driven by, the strongest N |
 | `SearchSpecSpec.k_sigma` | 3 | matching window in units of each line's own σ |
 | `SearchSpecSpec.shift_allowance_deg` | 0 | a systematic allowance you measured |
@@ -678,10 +678,32 @@ vocabulary in the message; an empty centring list raises rather than skipping
 the system, because omitting the key is how a system keeps its full set; and a
 prior cell with a non-positive axis or an angle outside (0, 180)° raises too.
 
-`SearchSpecSpec.n_search_lines` is the one to leave alone. Raising it is neither
-free nor safe. A cell must index all but `n_unindexed` of those lines, an
+`SearchSpecSpec.n_search_lines` is the one to leave alone. Raising it is
+neither free nor safe. A cell must index all but two of those lines, an
 absolute budget, so every extra foreign line admitted can refute the true cell
 instead of merely ranking it lower.
+
+That is why a run that ends with no lattice two engines agree on is searched
+again by a count of inliers, the acceptance RANSAC uses
+{cite}`fischler1981`: a cell indexing 60 % of the search lines, the five
+strongest among them, is accepted, and `INDEX_INLIER_RETRY` says the answer came
+from that second pass. `n_unindexed="inliers"` searches that way from the start,
+and an int forbids the retry. Only such a run retries, because the inlier rule
+changes the set of candidates the panel ranks, and the ranking depends on that
+set. Under every rule, what a cell leaves is reported rather than hidden:
+`CellCandidate.n_search_unindexed` is the number of search lines it left, and
+`CellCandidate.unindexed_two_theta` lists every usable line it left, in 2θ: the
+residue a second phase would explain. A list whose lines carry one intensity,
+such as `PeakList.from_positions` without intensities, has no "strongest" to
+anchor, and keeps the count of two.
+
+When no shift is declared and the pair screen cannot measure one, the search
+still has to open its window for a shift it has not seen. A picked list sizes
+that window from its own lines: the lower-quartile fitted FWHM, capped at
+0.05° 2θ. A lab pattern with lines that wide keeps 0.05°, and so does a
+position-only list, whose widths were never measured. `INDEX_SHIFT_ALLOWANCE`
+still fires, because the shift itself is still unmeasured, and its message says
+where the window came from.
 
 A prior steers the search rather than gating it. A declared `prior_cells` entry
 puts its crystal system at the front of the queue, seeds the stochastic engine's
@@ -1154,6 +1176,7 @@ if klass is not None:
 | `k_sigma` | 3 | the matching window, in units of each line's σ |
 | `max_classes` | `None` | cap the number of classes fitted |
 | `refine_cell` | `True` | Le Bail-refine the cell first, in a cell-free `profile_only` prefit, and screen every class at that cell (`ExtinctionScreen.cell`); `False` holds the candidate's cell |
+| `restrict` | `None` | declared facts about the specimen (`rx.ExtinctionPrior(sohncke=True)`, or its dict) that filter each class's members |
 | `cancel` | `None` | cooperative cancellation |
 
 The pipeline is one shared profile fit of the absence-free lattice group, a
@@ -1200,6 +1223,44 @@ refits every declared hump per class, alongside the background, with its width
 floored at {{ HUMP_MIN_WIDTH_MULT }} instrument widths (`HUMP_MIN_WIDTH_MULT`), so a hump cannot
 narrow onto a forbidden line and explain a real violation away.
 
+The members of one class produce identical patterns, so choosing among them is
+chemistry, and `restrict` is where it is declared. `rx.ExtinctionPrior` takes
+three facts, each `None` (not declared), `True` or `False`: `sohncke` (an
+enantiopure chiral compound occupies a Sohncke group, with no inversion, mirror
+or glide), `centrosymmetric` (a second-harmonic signal says `False`) and `polar`
+(a pyroelectric response says `True`). Each is read off the group's own
+operators. The prior filters members and nothing else: every class is still
+fitted and ranked on the data, `ExtinctionCandidate.excluded_groups` names what
+it removed, and `EXTINCTION_PRIOR_APPLIED` reports it. `best_or_none` then
+answers among the classes the prior leaves a member in, so a P 2₁ specimen
+declared enantiopure answers `P 1 21 1` with `P 2₁` alone where the data alone
+leave {`P 2₁`, `P 2₁/m`}. A class the prior empties stays in the ranking, and
+when the data prefer it by the decisive margin the screen abstains: a P 2₁/c
+specimen declared enantiopure does not get a chiral answer.
+
+<!-- api-doc: no-exec — one Le Bail fit per surviving class -->
+```python
+screen = rx.determine_extinction_symbol(data, candidate, ins,
+                                        restrict=rx.ExtinctionPrior(sohncke=True))
+```
+
+| Field | Holds |
+|---|---|
+| `ExtinctionPrior.sohncke` | `True`: only Sohncke groups (an enantiopure chiral compound); `False`: only the others |
+| `ExtinctionPrior.centrosymmetric` | only groups with (`True`) or without (`False`) an inversion centre |
+| `ExtinctionPrior.polar` | only groups whose point group leaves a direction fixed (`True`), or none (`False`) |
+| `ExtinctionPrior.declared` | the facts actually declared, by name |
+
+A contradictory declaration (`sohncke=True` with `centrosymmetric=True`, or
+`polar=True` with `centrosymmetric=True`) is refused when it is built.
+
+Members of one class can also differ in Laue class (`P 6/m` and `P -3 1 m` share
+`P - - -` on a hexagonal lattice). They then differ in which reflections are
+equivalent, the intensity partition inside an overlapped multiplet, and in no
+position or absence. `ExtinctionCandidate.laue_classes` groups the members, and
+`LAUE_CLASS_NOT_SEPARABLE` fires when the leading class spans more than one, so
+a structure solution that follows runs once per Laue class.
+
 The candidate's `CellCandidate.system` is taken as given rather than
 re-screened, because when the Bravais screen reported an ambiguity that field
 is the conservative reading, and enumerating classes in a higher symmetry would
@@ -1217,6 +1278,7 @@ offer classes the lattice may not have.
 | `ExtinctionScreen.profile_rwp` | the shared profile fit every class inherits |
 | `ExtinctionScreen.prefit_rwp` | the cell-free Le Bail prefit, `None` when the cell was held |
 | `ExtinctionScreen.reference_rwp_net` | the reference fit's misfit over the net signal, the gate's quantity |
+| `ExtinctionScreen.prior` | the declared `ExtinctionPrior`, or `None` |
 | `ExtinctionScreen.n_points` | channels in the fitted range |
 | `ExtinctionScreen.status` | the screen's own status: `"unreliable"` when the reference fit failed its gate |
 | `ExtinctionScreen.thresholds_version` | which thresholds produced the ranking |
@@ -1230,7 +1292,9 @@ setting.
 |---|---|
 | `ExtinctionCandidate.symbol` | the IT-style extinction symbol, derived from the members |
 | `ExtinctionCandidate.representative` | the H-M symbol whose reflections were generated |
-| `ExtinctionCandidate.space_groups` | every space group in the class, in IT number order |
+| `ExtinctionCandidate.space_groups` | every space group in the class, in IT number order; with a declared prior, the members it admits |
+| `ExtinctionCandidate.excluded_groups` | the members a declared prior removed |
+| `ExtinctionCandidate.laue_classes` | `space_groups` grouped by Laue class |
 | `ExtinctionCandidate.conditions` | the derived reflection conditions, for a human to check |
 | `ExtinctionCandidate.conditions_complete` | whether the derivation named every absence |
 | `ExtinctionCandidate.n_lines` | distinct lines this class predicts in range |

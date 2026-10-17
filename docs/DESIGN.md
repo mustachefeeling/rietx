@@ -671,7 +671,7 @@ protocol, not just its numbers.** The fluorapatite acceptance was built by
 reading GSAS's converged `FAP.EXP` refine flags and mirroring exactly what it
 refined (zero held, displacement refined, GU/GV/GW held, sample LX/LY
 refined, >130° excluded). Guessing a plausible protocol instead gave Rwp
-16 % and a +390 ppm cell; the mirrored one gives 9.73 % against GSAS's
+16 % and a +390 ppm cell; the mirrored one gave 9.73 % against GSAS's
 10.05 % on a channel count that matches its record exactly (5750). A
 cross-code number computed over different channels with a different free set
 is not a comparison.

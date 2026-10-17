@@ -35,7 +35,7 @@ Referenced to a certified value **with its stated uncertainty**.  A row in this 
 
 ### `cross_code`
 
-Referenced to another code's converged result, **with its protocol adopted** — the same refined set, the same held parameters, the same excluded regions, and a channel count checked to match before any number is compared.  A cross-code figure computed over different channels with a different free set is not a comparison (v0.2 learned this the expensive way: a plausible guessed protocol gave Rwp 16 % and +390 ppm; the mirrored one gives 9.73 % and +116 ppm).
+Referenced to another code's converged result, **with its protocol adopted** — the same refined set, the same held parameters, the same excluded regions, and a channel count checked to match before any number is compared.  A cross-code figure computed over different channels with a different free set is not a comparison (v0.2 learned this the expensive way on fluorapatite: a plausible guessed protocol gave Rwp 16 % and +390 ppm; the mirrored one gave 9.73 % and +116 ppm in that version).
 
 ### `spread`
 
@@ -90,7 +90,7 @@ either fine or broken depending on which seed the suite happened to pin.
 | `nac` | `tests/data/11BM_NAC.fxye` | characterisation | APS 11-BM synchrotron Na2Ca3Al2F14 with a CaF2 impurity, lambda = 0.4139090 A from the .prm |
 | `fap` | `tests/data/FAP.XRA` | cross-code | GSAS-II LabData tutorial fluorapatite; FAP.EXP is GSAS's converged fit and supplies both the reference values and the protocol |
 | `powderline_lab6` | `tests/data/powderline/example_LaB6/input.json` | cross-code | NSLS-II 28-ID-1 SRM 660c LaB6, lambda = 0.1665 A, as a PowderLine recipe with the SRM cell HELD -- an instrument-profile calibration, so there is no cell to compare and the reference is the profile GSAS-II and TOPAS each drew |
-| `powderline_drx33` | `tests/data/powderline/example_DRX_33/input.json` | cross-code | NSLS-II 28-ID-1 disordered-rocksalt cathode + Li4MgWO6, two phases, as a PowderLine recipe.  The only dataset here with TWO committed reference engines, and they disagree by 2665 ppm on the cubic cell |
+| `powderline_drx33` | `tests/data/powderline/example_DRX_33/input.json` | cross-code | NSLS-II 28-ID-1 disordered-rocksalt cathode + Li4MgWO6, two phases, as a PowderLine recipe.  The only dataset here with TWO committed reference engines, and they disagree by 2668 ppm on the cubic cell |
 | `hl2` | `tests/data/hl2_peaks.txt` | characterisation | 74 peaks from a genuinely UNIDENTIFIED laboratory pattern -- our own derived product from datalab-org/guillemot's MIT examples, carried with attribution; the compound is unknown and stays unknown |
 | `qarr` | `tests/data/qarr` | **absolute anchor** | IUCr CPD QPA round-robin patterns (samples 1a-1h, 2, 4 and six pure phases), Cu Ka doublet, graphite diffracted-beam monochromator |
 | `srm660a_capillary` | `tests/data/11BM_LaB6_660a.fxye` | consistency only — *never* an anchor | APS 11-BM SRM 660a LaB6 in the beamline's documented 0.81 mm Kapton bore; lambda was calibrated against this very standard |
@@ -326,7 +326,7 @@ The second absolute anchor, and the sharper one — but only on the axial ratio,
 
 ### `tests/test_acceptance_powderline.py`
 
-The only fixtures carrying **two** reference engines, and they disagree: 2665 ppm on a cell where the FAP band is 300, because GSAS-II reports its own fit singular. So the bar is the envelope the two engines bracket, and where this package falls inside it is the finding rather than the gate.
+The only fixtures carrying **two** reference engines, and they disagree: 2668 ppm on a cell where the FAP band is 300, because GSAS-II reports its own fit singular. So the bar is the envelope the two engines bracket, and where this package falls inside it is the finding rather than the gate.
 
 #### `test_drx_cells_land_inside_the_two_engines_envelope`
 
@@ -334,7 +334,7 @@ The only fixtures carrying **two** reference engines, and they disagree: 2665 pp
 
 **Claims:** both phases' cells land inside the interval the two reference engines bracket, widened by the FAP band at each end
 
-**Referenced to:** GSAS-II and TOPAS, both committed by upstream for this specimen, and the bar is the SPAN they leave rather than either of them: they differ by 2665 ppm on the cubic a and 386-1770 ppm on the monoclinic phase's four free parameters, so the WP's original +/-300 ppm against both is arithmetically impossible.  +/-300 ppm of slack at each end of the span is the FAP cross-code band applied where it can mean something
+**Referenced to:** GSAS-II and TOPAS, both committed by upstream for this specimen, and the bar is the SPAN they leave rather than either of them: they differ by 2668 ppm on the cubic a and 386-1770 ppm on the monoclinic phase's four free parameters, so the WP's original +/-300 ppm against both is arithmetically impossible.  +/-300 ppm of slack at each end of the span is the FAP cross-code band applied where it can mean something
 
 **Measured:** every free parameter inside the span with margin; the two engines' own gap is 386-2668 ppm
 
@@ -484,7 +484,7 @@ The one cross-code comparison. GSAS-II's converged fluorapatite tutorial, with i
 
 **Referenced to:** FAP.EXP's own refine flags, read by rx.read_gsas_exp and converted to rietx dot-paths through to_structure.  The file states 28 variables in its REFN GDNFT record, and the flags reconstruct that exactly: 2 cell + 12 coordinate DOFs + 7 Biso structural, plus 1 histogram scale, 3 background terms and 3 profile terms.  This is an identity check against a number the file states somewhere else, not a tolerance
 
-**Measured:** this plan frees 20 parameters and GSAS freed 28; the whole difference is the 12 coordinate DOFs, which no stage here turns on.  Everything else the file frees, this plan frees too.  Freeing them measured 2026-10-08: Rwp 0.092498 -> 0.092314, cell +82.5/+82.3 -> +82.3/+81.9 ppm, no wall-clock change, still converged — so closing the gap is nearly free and is a deliberate change with its own numbers rather than a silent one
+**Measured:** this plan frees 20 parameters and GSAS freed 28.  It leaves out the 12 coordinate DOFs, which no stage here turns on, and frees four more: axial_sl, which GSAS held, and a six-term Chebyshev where GSAS refined three terms of its function 5.  Every other structural parameter the file frees, this plan frees too.  Freeing the DOFs measured 2026-10-08: Rwp 0.092498 -> 0.092314, cell +82.5/+82.3 -> +82.3/+81.9 ppm, no wall-clock change, still converged — so closing the gap is nearly free and is a deliberate change with its own numbers rather than a silent one
 
 ### `tests/test_acceptance_nac.py`
 

@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+from rietx._about import DOCS_URL
+
 pytest.importorskip("sphinx")
 
 MANUAL_DIR = Path(__file__).resolve().parent.parent / "docs" / "manual"
@@ -40,6 +42,8 @@ NOT_PAGES = {"_build", "_generated"}
 DOCS_PAGES = sorted(
     p for p in DOCS_TREE.rglob("*.md") if not NOT_PAGES & set(p.relative_to(DOCS_TREE).parts)
 )
+#: Part 2, moved here by WP-1986.
+THEORY_DIR = DOCS_TREE / "theory"
 
 # Everything on a built page that is *not* prose: a `$` inside a code block or
 # a script is not a rendering failure, and MathJax's own delimiters are `\(…\)`.
@@ -403,7 +407,7 @@ def test_the_tch_coefficients_in_print_are_the_ones_the_code_runs():
     """
     from rietx.model.profiles.pseudovoigt import _TCH_ETA, _TCH_GAMMA
 
-    text = (MANUAL_DIR / "profiles.md").read_text(encoding="utf-8")
+    text = (THEORY_DIR / "profiles.md").read_text(encoding="utf-8")
     for label, expected in (("prof-tch-gamma", _TCH_GAMMA), ("prof-tch-eta", _TCH_ETA)):
         block = re.search(rf":label: {label}\n(.*?)^```", text, re.S | re.M)
         assert block, f"{label}: equation not found in profiles.md"
@@ -593,7 +597,9 @@ YEAR_IN_CITATION = re.compile(r"[A-Za-z\u00c0-\u024f.]\s*,\s*(?:19|20)\d{2}[a-z]
 BIBLIO_LABEL_RULE = 'div.citation[role="doc-biblioentry"] > span.label'
 
 
-def test_every_citation_reads_as_author_and_year(built_manual):
+@pytest.mark.xdist_group("manual-build")
+@BOTH_BUILDS
+def test_every_citation_reads_as_author_and_year(build, request):
     """`conf.py` § bibtex: a citation names its author and year on the page.
 
     Three settings produce this and any one of them can be lost quietly, so
@@ -607,7 +613,7 @@ def test_every_citation_reads_as_author_and_year(built_manual):
     naming more than one work rendered as a flat comma list of six fragments.
     A citation carrying N years must carry N-1 semicolons.
     """
-    out, result = built_manual
+    out, result = request.getfixturevalue(build)
     assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
     not_author_year, bad_separator = [], []
     multi = 0
@@ -638,7 +644,9 @@ def test_every_citation_reads_as_author_and_year(built_manual):
 EQUATION_REF = re.compile(r'<a[^>]*href="[^"]*#equation-[^"]*"[^>]*>\((\d+\.\d+)\)</a>')
 
 
-def test_no_reference_is_doubly_bracketed(built_manual):
+@pytest.mark.xdist_group("manual-build")
+@BOTH_BUILDS
+def test_no_reference_is_doubly_bracketed(build, request):
     """A reference brings its own brackets, so the prose must not add a second
     pair.
 
@@ -653,7 +661,7 @@ def test_no_reference_is_doubly_bracketed(built_manual):
     Brackets of the *other* kind are left alone. `(via Scherrer, (6.3) in …)`
     is ordinary English and reads correctly.
     """
-    out, result = built_manual
+    out, result = request.getfixturevalue(build)
     assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
     doubled, seen = [], 0
     for page in sorted(out.rglob("*.html")):
@@ -681,7 +689,9 @@ def test_no_reference_is_doubly_bracketed(built_manual):
     )
 
 
-def test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them(built_manual):
+@pytest.mark.xdist_group("manual-build")
+@BOTH_BUILDS
+def test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them(build, request):
     """The other half of § G3, which no build warning can see.
 
     docutils gives every citation node a label and sphinxcontrib-bibtex
@@ -691,7 +701,7 @@ def test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them(built
     bibliography, so that is asserted rather than assumed: a label appearing
     anywhere else would be hidden too, silently.
     """
-    out, result = built_manual
+    out, result = request.getfixturevalue(build)
     assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
     css = (out / "_static" / "custom.css").read_text(encoding="utf-8")
     assert BIBLIO_LABEL_RULE in css, (
@@ -710,13 +720,12 @@ def test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them(built
     )
 
 
-#: Part 2 — the theory chapters, which are the manual's top-level `.md` files
-#: other than the root document.  Derived rather than listed, so a chapter
-#: added to Part 2 inherits the guards below (the `using/` subdirectory is
-#: Part 1 and `tests/test_manual_api.py` is its guard).
+#: Part 2 — the theory chapters, the new tree's Theory tab since WP-1986, less
+#: its generated bibliography.  The old tree's copies are one-line includes of
+#: these.  Derived rather than listed, so a chapter added to Theory inherits
+#: the guards below.
 def _part_two() -> list[Path]:
-    pages = [p for p in CHAPTERS
-             if p.parent == MANUAL_DIR and p.name not in {"manual.md"}]
+    pages = [p for p in DOCS_PAGES if p.parent == THEORY_DIR and p.name != "references.md"]
     assert len(pages) > 5, "Part 2 chapters not found — has the tree moved?"
     return pages
 
@@ -1163,15 +1172,33 @@ def _heading_slugs(source: Path) -> set[str]:
             if level <= HEADING_ANCHOR_DEPTH}
 
 
+#: A Part 2 chapter's old address on the site.  Concepts linked these until
+#: WP-1986 moved Part 2 into the Theory tab, and the old pages stay up until
+#: Part 1 retires, so a link to one would land and go stale in silence.
+_OLD_THEORY_LINK = re.compile(re.escape(DOCS_URL) + r"/([\w-]+)\.html(?:#\S*)?$")
+
+#: The tabs whose pages link Theory to back a physics claim (WP-1975 § F8).
+LINKING_TABS = {"concepts", "guides", "switching"}
+
+
 def _theory_link_failures(page: Path, text: str, out: Path) -> list[str]:
     """Each link from `page` into the Theory tab that the build did not write.
 
     The built page has to exist, and so does the section a fragment names, by
     its HTML id or by the MyST slug that resolves to one.  Read off the HTML,
-    because that is what the reader's click lands on.
+    because that is what the reader's click lands on.  A link to a moved
+    chapter's old address on the site fails too, naming the relative link.
     """
     failures = []
+    # The tab's own index is not a moved chapter: `rietx.org/index.html` is the
+    # landing page.
+    moved = {p.stem for p in _part_two()} - {"index"}
     for target in _MD_LINK.findall(text):
+        old = _OLD_THEORY_LINK.match(target)
+        if old and old.group(1) in moved:
+            failures.append(f"{target}: the chapter is in the Theory tab, so link "
+                            f"../theory/{old.group(1)}.md")
+            continue
         if "://" in target or target.startswith("#"):
             continue
         path, _, fragment = target.partition("#")
@@ -1193,32 +1220,41 @@ def _theory_link_failures(page: Path, text: str, out: Path) -> list[str]:
 
 
 @pytest.mark.xdist_group("manual-build")
-def test_every_theory_link_from_concepts_and_guides_resolves(built_docs_tree):
-    """A physics claim on a Concepts or Guides page links the Theory section
-    that derives it, and the link has to land (WP-1975 § F8)."""
+def test_every_theory_link_from_concepts_guides_and_switching_resolves(built_docs_tree):
+    """A physics claim on a Concepts, Guides or Switching page links the Theory
+    section that derives it, and the link has to land (WP-1975 § F8)."""
     out, result = built_docs_tree
     assert result.returncode == 0, "the new tree did not build"
     failures = [f"{page.relative_to(DOCS_TREE).as_posix()}: {failure}"
                 for page in DOCS_PAGES
-                if page.relative_to(DOCS_TREE).parts[0] in {"concepts", "guides"}
+                if page.relative_to(DOCS_TREE).parts[0] in LINKING_TABS
                 for failure in _theory_link_failures(page, page.read_text(encoding="utf-8"), out)]
     assert not failures, "links into the Theory tab that land nowhere:\n" + "\n".join(failures)
 
 
 @pytest.mark.xdist_group("manual-build")
 def test_the_theory_link_check_fails_what_it_should(built_docs_tree):
-    """The check above, made to fail on a missing page and a missing section."""
+    """The check above, made to fail on a missing page, a missing section and
+    a moved chapter's old address."""
     out, result = built_docs_tree
     assert result.returncode == 0, "the new tree did not build"
     page = DOCS_TREE / "concepts" / "index.md"
     text = ("[ok](../theory/references.md) [ok](../theory/index.md#theory) "
+            "[ok](../theory/background.md#explicit-humps) "
             "[gone](../theory/no-such-page.md) [gone](../theory/index.md#no-such-section) "
+            "[gone](../theory/background.md#no-such-hump) "
             "[elsewhere](../reference/index.md) [web](https://example.org/theory/x.md) "
-            "[root](../)")
+            "[root](../) "
+            f"[moved]({DOCS_URL}/background.html#explicit-humps) "
+            f"[part one]({DOCS_URL}/using/files.html) "
+            f"[landing]({DOCS_URL}/index.html) "
+            f"[skill]({DOCS_URL}/skill/rietx/SKILL.md)")
     failures = _theory_link_failures(page, text, out)
-    assert len(failures) == 2, failures
-    assert "no page theory/no-such-page.html" in failures[0]
-    assert "no section #no-such-section" in failures[1]
+    expected = ("no page theory/no-such-page.html", "no section #no-such-section",
+                "no section #no-such-hump", "link ../theory/background.md")
+    assert len(failures) == len(expected), failures
+    for failure, words in zip(failures, expected):
+        assert words in failure, failures
 
 
 def test_a_heading_slug_is_read_the_way_myst_makes_it(tmp_path):
@@ -1247,3 +1283,176 @@ def test_the_front_page_offers_three_audiences_and_six_tabs(built_docs_tree):
     header = html.split('class="bd-header', 1)[1].split("</header>", 1)[0]
     tabs = re.findall(r'class="nav-link nav-internal"[^>]*>\s*(.*?)\s*</a>', header, re.S)
     assert tuple(dict.fromkeys(tabs)) == TABS, tabs
+
+
+# ----------------------------------------------------------------------
+# The markdown twin and llms.txt (WP-1980)
+#
+# The HTML build writes `page.html.md` beside each page and `llms.txt` and
+# `llms-full.txt` at its root (`docs/markdown_twin.py`).  The twin is what an
+# agent reads, so the page contract binds it as it binds the source.
+# ----------------------------------------------------------------------
+
+#: What MyST leaves in a page that no markdown reader renders: a role, a
+#: colon fence, a directive fence and an unexpanded substitution.
+_MYST_RESIDUE = re.compile(r"\{[a-z][\w:-]*\}`|^ *:{3,}|^ *`{3,}\{|\{\{", re.M)
+#: A fenced block whose info string is a language, which may hold anything.
+_CODE_FENCE = re.compile(r"^( *`{3,})(?!\{)[^\n]*\n.*?^\1 *$", re.M | re.S)
+
+
+def _myst_residue(twin: str) -> list[str]:
+    # A code span goes too, but not a role's argument, which is one as well.
+    prose = re.sub(r"(?<!\})`[^`\n]+`", "", _CODE_FENCE.sub("", twin))
+    return [m.group(0) for m in _MYST_RESIDUE.finditer(prose)]
+
+
+def _twins(out: Path) -> dict[str, str]:
+    return {p.relative_to(out).as_posix(): p.read_text(encoding="utf-8")
+            for p in sorted(out.rglob("*.html.md"))}
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_every_page_has_a_twin_that_keeps_the_contract(built_docs_tree):
+    """One twin per page, with no MyST left in it, its title and answer
+    sentence, and under the 50 000-character cap."""
+    out, result = built_docs_tree
+    assert result.returncode == 0, "the new tree did not build"
+    twins = _twins(out)
+    pages = {page.relative_to(DOCS_TREE).with_suffix(".html.md").as_posix() for page in DOCS_PAGES}
+    assert set(twins) == pages, set(twins) ^ pages
+    breaches = [f"{path}: {message}" for path, twin in twins.items()
+                for message in _contract_breaches(twin)
+                + [f"MyST left in it: {r!r}" for r in _myst_residue(twin)]]
+    assert not breaches, "twins that break the page contract:\n" + "\n".join(breaches)
+
+
+@pytest.mark.parametrize("twin, expected", [
+    ("# T\n\nAn answer.\n\n```python\nf'{{x}}'\n```\n", []),
+    ("# T\n\nAn answer with `{{ inline }}` code.\n", []),
+    ("# T\n\nSee {eq}`one`.\n", ["{eq}`"]),
+    ("# T\n\nAn answer.\n\n:::{note}\nx\n:::\n", [":::", ":::"]),
+    ("# T\n\nAn answer.\n\n```{math}\nx\n```\n", ["```{"]),
+    ("# T\n\nIt is {{ VALUE }} wide.\n", ["{{"]),
+])
+def test_the_residue_check_fails_what_it_should(twin, expected):
+    assert _myst_residue(twin) == expected
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_llms_txt_links_every_twin_once(built_docs_tree):
+    """The llms.txt proposal's shape: the project, the front page's answer
+    sentence as the summary, one section per tab, and one line per twin.
+    `llms-full.txt` holds every twin."""
+    out, result = built_docs_tree
+    assert result.returncode == 0, "the new tree did not build"
+    text = (out / "llms.txt").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    front = _sections((DOCS_TREE / "index.md").read_text(encoding="utf-8"))[0][2]
+    from rietx._about import DIST_NAME
+    assert lines[:3] == [f"# {DIST_NAME}", "", f"> {_first_sentence(front)}"]
+    assert [line[3:] for line in lines if line.startswith("## ")] == list(TABS)
+    twins = _twins(out)
+    links = re.findall(r"^- \[[^\]]+\]\(([^)]+)\): \S", text, re.M)
+    assert sorted(links) == sorted(set(twins) - {"index.html.md"})
+    full = (out / "llms-full.txt").read_text(encoding="utf-8")
+    assert [path for path, twin in twins.items() if twin.splitlines()[0] not in full] == []
+
+
+#: One page holding each node type the old tree uses and the new one does not
+#: yet (WP-1986 brings them), so the twin is ready before they arrive.
+_COVERAGE_PAGE = """\
+# Coverage
+
+The page holds one of each node type.
+
+```{note}
+The body of a note.
+```
+
+:::{admonition} A Title as Written
+A titled admonition.
+:::
+
+```{math}
+:label: eq-one
+y = x^2
+```
+
+Equation {eq}`eq-one` cites {cite}`%(key)s`.
+
+```{image} pic-light.png
+:class: only-light
+:alt: the light figure
+```
+
+```{image} pic-dark.png
+:class: only-dark
+:alt: the dark figure
+```
+
+::::{tab-set}
+:::{tab-item} First tab
+First tab text.
+:::
+:::{tab-item} Second tab
+Second tab text.
+:::
+::::
+
+:::{dropdown} The folded part
+Folded text.
+:::
+
+| a | b |
+|---|---|
+| x \\| y | z |
+
+```{mermaid}
+flowchart LR
+  A --> B
+```
+
+```{bibliography}
+```
+"""
+
+
+def test_the_twin_writes_every_node_type_the_old_tree_uses(tmp_path):
+    """A note and a titled admonition as labelled quotes, the math, the light
+    half of a figure pair, every tab, the dropdown, an escaped table cell, a
+    mermaid fence and the bibliography, with `-W` holding no node unknown."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "index.md").write_text(_COVERAGE_PAGE % {"key": _bib_entries()[0][1]},
+                                  encoding="utf-8")
+    for name in ("pic-light.png", "pic-dark.png"):
+        (src / name).write_bytes(b"\x89PNG\r\n\x1a\n")
+    (src / "conf.py").write_text(
+        "import sys\n"
+        f"sys.path.insert(0, {str(MANUAL_DIR.parent)!r})\n"
+        "extensions = ['myst_parser', 'sphinx_design', 'sphinxcontrib.bibtex',\n"
+        "              'sphinxcontrib.mermaid', 'markdown_twin']\n"
+        "myst_enable_extensions = ['colon_fence', 'dollarmath', 'amsmath']\n"
+        f"bibtex_bibfiles = [{str(MANUAL_DIR / 'references.bib')!r}]\n"
+        "project = 'coverage'\n",
+        encoding="utf-8")
+    out = tmp_path / "html"
+    result = subprocess.run([sys.executable, "-m", "sphinx", "-W", "-q", "-E", "-b", "html",
+                             str(src), str(out)], capture_output=True, text=True, timeout=300)
+    assert result.returncode == 0, result.stderr
+    twin = (out / "index.html.md").read_text(encoding="utf-8")
+    for fragment in ("> **Note**\n> \n> The body of a note.",
+                     "> **A Title as Written**\n> \n> A titled admonition.",
+                     "$$", "y = x^2",
+                     "![the light figure](_images/pic-light.png)",
+                     "**First tab**", "Second tab text.",
+                     "**The folded part**\n\nFolded text.",
+                     "| x \\| y | z |",
+                     "```mermaid\nflowchart LR"):
+        assert fragment in twin, fragment
+    assert "dark figure" not in twin
+    assert _myst_residue(twin) == []
+    # The citation links its bibliography entry, which carries the label.
+    anchor = re.search(r"\]\(#([\w-]+)\)", twin.split("cites", 1)[1])[1]
+    entry = twin.split(f'<a id="{anchor}"></a>', 1)[1].lstrip()
+    assert re.match(r"\*\*\[\w+\]\*\* \S.*1969", entry), entry
