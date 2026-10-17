@@ -142,6 +142,13 @@ from .structure import Cell
 #: flat-topped synthetic silicon, 34 usable components on 11 lines become 18;
 #: over the 16 IUCr round-robin lab patterns 789 usable components become 782
 #: (``cpd-4`` 76 → 75).
+#: Also 1.11 (#935, one bump per release cycle): ``determine_extinction_symbol(restrict=)`` takes declared facts
+#: (:class:`ExtinctionPrior`: Sohncke, centrosymmetric, polar) as a filter on
+#: each class's members; ``ExtinctionCandidate`` gains ``excluded_groups`` and
+#: ``laue_classes``, ``ExtinctionScreen`` gains ``prior``, and
+#: ``LAUE_CLASS_NOT_SEPARABLE`` fires on every screen whose leading class
+#: spans two Laue classes (a hexagonal ``P 63 - -``: 6/m and 6/mmm).  Without
+#: a declaration no ranking and no ``best_or_none`` moves.
 INDEXING_THRESHOLDS_VERSION = "1.11"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
@@ -1993,6 +2000,50 @@ class IndexingResult(Base):
             validated=self.validated)
 
 
+class ExtinctionPrior(Base):
+    """Declared facts about the specimen that remove space groups from a class.
+
+    A powder pattern cannot separate the members of an extinction class — a
+    centre of symmetry, an enantiomorph or a mirror leaves no absence — so the
+    choice inside a class is chemistry.  This is where the chemistry is
+    *declared* rather than applied by hand afterwards: an enantiopure compound
+    (``sohncke=True``) cannot occupy a group with an inversion centre, a mirror
+    or a glide; a second-harmonic signal says ``centrosymmetric=False``; a
+    pyroelectric response says ``polar=True``.  ``None`` declares nothing.
+
+    **A filter, never evidence.**  It decides which members of each class are
+    admissible and is reported as ``EXTINCTION_PRIOR_APPLIED`` with every group
+    it removed; it never enters a ΔBIC, every class is still fitted, and a class
+    it empties stays in the ranking, so a declaration the data contradict is
+    visible rather than silently obeyed.
+    """
+
+    #: only Sohncke groups (proper rotations, screws and translations): an
+    #: enantiopure chiral compound.  ``False`` keeps only the others
+    sohncke: bool | None = None
+    #: only groups with (``True``) or without (``False``) an inversion centre
+    centrosymmetric: bool | None = None
+    #: only groups whose point group leaves a direction fixed (``True``: the
+    #: ten polar classes) or none (``False``)
+    polar: bool | None = None
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "ExtinctionPrior":
+        if self.sohncke is True and self.centrosymmetric is True:
+            raise ValueError("sohncke=True and centrosymmetric=True cannot both "
+                             "hold: a Sohncke group has no inversion centre")
+        if self.polar is True and self.centrosymmetric is True:
+            raise ValueError("polar=True and centrosymmetric=True cannot both "
+                             "hold: an inversion centre reverses every direction")
+        return self
+
+    def declared(self) -> dict[str, bool]:
+        """The facts actually declared, by name."""
+        return {k: v for k, v in (("sohncke", self.sohncke),
+                                  ("centrosymmetric", self.centrosymmetric),
+                                  ("polar", self.polar)) if v is not None}
+
+
 class ExtinctionCandidate(Base):
     """One **extinction class**: the space groups that share an absence set.
 
@@ -2024,8 +2075,18 @@ class ExtinctionCandidate(Base):
     #: the H-M symbol whose reflections were generated for this class
     representative: str
     #: **every** space group in the class, in IT number order.  A list because
-    #: the data cannot choose between them — see the class docstring.
+    #: the data cannot choose between them — see the class docstring.  With a
+    #: declared :class:`ExtinctionPrior` it holds only the members the
+    #: declaration admits, and may be empty
     space_groups: list[str] = Field(default_factory=list)
+    #: members the declared :class:`ExtinctionPrior` removed (empty without one)
+    excluded_groups: list[str] = Field(default_factory=list)
+    #: :attr:`space_groups` grouped by Laue class (gemmi's symbol).  More than
+    #: one key means the members differ in which reflections are *equivalent*
+    #: — the intensity partition inside an overlapped multiplet — and not in any
+    #: position or absence, so a structure solution that follows runs once per
+    #: Laue class (``LAUE_CLASS_NOT_SEPARABLE``)
+    laue_classes: dict[str, list[str]] = Field(default_factory=dict)
     #: derived reflection conditions ("0kl: k = 2n"), for a human to check
     conditions: list[str] = Field(default_factory=list)
     #: False when the derivation left some absences unnamed; the absence set
@@ -2117,6 +2178,8 @@ class ExtinctionScreen(Base):
     #: Rwp of the shared profile fit that produced the frozen instrument every
     #: class is then fitted with
     profile_rwp: float = float("inf")
+    #: the declared facts the members were filtered by (``restrict=``)
+    prior: ExtinctionPrior | None = None
     status: str = "converged"
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
@@ -2132,19 +2195,31 @@ class ExtinctionScreen(Base):
         leaves an unasked question, which must not read as a clean answer.  Every
         other situation returns None with the reason in :attr:`diagnostics`.
 
-        A returned class still lists every space group it contains.  There is no
-        accessor anywhere in this module that yields one space group.
+        With a declared :attr:`prior`, only classes it leaves a member in can be
+        returned and the margin is taken to the next such class — that is the
+        declaration used — but a class it emptied that the data prefer by the
+        decisive margin makes this abstain: the data contradict the declaration.
+
+        A returned class still lists every space group it admits.  There is no
+        accessor anywhere in this module that yields one space group from the
+        data alone.
         """
         from ..indexing.extinction import DECISIVE_DELTA_BIC
 
         if any(not c.refuted and not c.screened for c in self.candidates):
             return None                 # an unasked question, not a clean answer
         alive = [c for c in self.candidates if not c.refuted]
-        if not alive:
+        admissible = [c for c in alive if c.space_groups]
+        if not admissible:
             return None
-        top = alive[0]
+        top = admissible[0]
+        if any(not c.space_groups
+               and top.delta_bic - c.delta_bic >= DECISIVE_DELTA_BIC
+               for c in alive):
+            return None                 # the data contradict the declaration
         if top.n_absent and top.n_testable == 0:
             return None
-        if len(alive) > 1 and alive[1].delta_bic - top.delta_bic < DECISIVE_DELTA_BIC:
+        if (len(admissible) > 1
+                and admissible[1].delta_bic - top.delta_bic < DECISIVE_DELTA_BIC):
             return None
         return top

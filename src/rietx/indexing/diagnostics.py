@@ -819,6 +819,8 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
 
     out: list[Diagnostic] = []
     alive = [c for c in screen.candidates if not c.refuted and c.screened]
+    # the classes a declared prior leaves a member in; every class without one
+    admissible = [c for c in alive if c.space_groups]
     unscreened = [c for c in screen.candidates if not c.refuted and not c.screened]
     if not screen.candidates:
         return [Diagnostic(
@@ -830,7 +832,24 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
             where=[f"{screen.system} {screen.centring}"],
             suggestion="Check the cell and the wavelength.")]
 
-    top = alive[0] if alive else screen.candidates[0]
+    top = (admissible[0] if admissible
+           else alive[0] if alive else screen.candidates[0])
+    if screen.prior is not None:
+        out.append(_prior_diagnostic(screen, alive, top))
+    if len(top.laue_classes) > 1:
+        out.append(Diagnostic(
+            level="info", code="LAUE_CLASS_NOT_SEPARABLE",
+            message=(f"the groups {top.symbol} admits fall in "
+                     f"{len(top.laue_classes)} Laue classes, which share every "
+                     "position and absence and differ only in which reflections "
+                     "are equivalent — the intensity partition inside overlapped "
+                     "multiplets, which a powder pattern does not expose"),
+            where=[f"{laue}: {', '.join(groups)}"
+                   for laue, groups in top.laue_classes.items()],
+            suggestion=("carry one structure solution per Laue class, not one "
+                        "per group: the members of one Laue class differ only "
+                        "in elements a solution can try cheaply, the Laue "
+                        "classes in which intensities are equivalent")))
     if len(top.space_groups) > 1:
         out.append(Diagnostic(
             level="info", code="EXTINCTION_GROUPS_NOT_SEPARABLE",
@@ -843,10 +862,20 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
                         "structure_from_candidate for the next fit.")))
 
     reasons = []
-    if len(alive) > 1 and alive[1].delta_bic - top.delta_bic < DECISIVE_DELTA_BIC:
-        reasons.append(f"{alive[1].symbol} is within ΔBIC "
-                       f"{alive[1].delta_bic - top.delta_bic:.1f} of it "
+    rivals = admissible if admissible else alive
+    contradicting = [c for c in alive if not c.space_groups
+                     and top.delta_bic - c.delta_bic >= DECISIVE_DELTA_BIC]
+    if len(rivals) > 1 and rivals[1].delta_bic - top.delta_bic < DECISIVE_DELTA_BIC:
+        reasons.append(f"{rivals[1].symbol} is within ΔBIC "
+                       f"{rivals[1].delta_bic - top.delta_bic:.1f} of it "
                        f"(decisive is {DECISIVE_DELTA_BIC:g})")
+    if contradicting:
+        reasons.append(f"the data prefer {contradicting[0].symbol}, which the "
+                       "declared prior excludes, by ΔBIC "
+                       f"{top.delta_bic - contradicting[0].delta_bic:.1f}")
+    if alive and not admissible:
+        reasons.append("the declared prior leaves no member in any surviving "
+                       "class")
     if top.n_absent and top.n_testable == 0:
         reasons.append("none of its absences is testable in this range")
     if unscreened:
@@ -861,10 +890,53 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
             message=("The extinction symbol is not settled by these data: "
                      + "; ".join(reasons) + "."),
             where=[f"leading: {top.symbol}"]
-            + [f"then: {c.symbol} (ΔBIC {c.delta_bic:+.1f})" for c in alive[1:3]],
+            + [f"then: {c.symbol} (ΔBIC {c.delta_bic:+.1f})"
+               for c in rivals[1:3]]
+            + [f"excluded by the prior: {c.symbol} (ΔBIC {c.delta_bic:+.1f})"
+               for c in contradicting[:2]],
             suggestion=("Count longer at the forbidden positions where the "
                         "leading classes disagree, or extend the 2θ range.")))
     return out
+
+
+def _prior_diagnostic(screen, alive, top) -> Diagnostic:
+    """``EXTINCTION_PRIOR_APPLIED``: what the declared facts removed, by class.
+
+    ``info`` when the declaration only narrowed the classes the data rank;
+    ``warning`` when it emptied the class the data rank first, since that is
+    either the declaration doing work the data could not, or the data
+    contradicting it — and the reader must see which before acting.
+    """
+    declared = ", ".join(f"{k}={v}" for k, v in screen.prior.declared().items())
+    removed = [c for c in screen.candidates if c.excluded_groups]
+    emptied = [c.symbol for c in removed if not c.space_groups]
+    first_emptied = bool(alive) and not alive[0].space_groups
+    n_removed = sum(len(c.excluded_groups) for c in removed)
+    message = (f"the declared prior ({declared}) removed {n_removed} space "
+               f"group(s) from {len(removed)} class(es)")
+    if emptied:
+        message += f", emptying {', '.join(emptied)}"
+    if first_emptied and top.space_groups:
+        message += (f"; the data's leading class {alive[0].symbol} is among "
+                    f"them, so the answer is read from {top.symbol}, the "
+                    "first class the declaration admits")
+    elif first_emptied:
+        message += (f"; the data's leading class {alive[0].symbol} is among "
+                    "them and the declaration admits no member of any "
+                    "surviving class, so there is no admissible answer")
+    return Diagnostic(
+        level="warning" if first_emptied else "info",
+        code="EXTINCTION_PRIOR_APPLIED",
+        message=message + ".  A filter on the members, never evidence: no ΔBIC "
+                          "moved and every class was fitted",
+        where=[f"{c.symbol}: excluded {', '.join(c.excluded_groups)}"
+               for c in removed],
+        suggestion=("check the declaration before the answer: a class it "
+                    "emptied that leads on the data is either chemistry doing "
+                    "what a powder cannot, or a wrong declaration (a racemate "
+                    "declared enantiopure, a polar sample measured as a "
+                    "centrosymmetric twin).  best_or_none() abstains when the "
+                    "data prefer an excluded class by the decisive margin"))
 
 
 def _cell_str(cell) -> str:

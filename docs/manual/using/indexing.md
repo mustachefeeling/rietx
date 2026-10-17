@@ -1153,6 +1153,7 @@ if klass is not None:
 | `two_theta_limits` | the whole pattern | the range classes are enumerated and judged over |
 | `k_sigma` | 3 | the matching window, in units of each line's σ |
 | `max_classes` | `None` | cap the number of classes fitted |
+| `restrict` | `None` | declared facts about the specimen (`rx.ExtinctionPrior(sohncke=True)`, or its dict) that filter each class's members |
 | `refine_cell` | `False` | free the cell in the shared profile fit, so every class is screened at the refined cell (`ExtinctionScreen.cell`) |
 | `cancel` | `None` | cooperative cancellation |
 
@@ -1183,6 +1184,44 @@ refits every declared hump per class, alongside the background, with its width
 floored at {{ HUMP_MIN_WIDTH_MULT }} instrument widths (`HUMP_MIN_WIDTH_MULT`), so a hump cannot
 narrow onto a forbidden line and explain a real violation away.
 
+The members of one class produce identical patterns, so choosing among them is
+chemistry, and `restrict` is where it is declared. `rx.ExtinctionPrior` takes
+three facts, each `None` (not declared), `True` or `False`: `sohncke` (an
+enantiopure chiral compound occupies a Sohncke group, with no inversion, mirror
+or glide), `centrosymmetric` (a second-harmonic signal says `False`) and `polar`
+(a pyroelectric response says `True`). Each is read off the group's own
+operators. The prior filters members and nothing else: every class is still
+fitted and ranked on the data, `ExtinctionCandidate.excluded_groups` names what
+it removed, and `EXTINCTION_PRIOR_APPLIED` reports it. `best_or_none` then
+answers among the classes the prior leaves a member in, so a P 2₁ specimen
+declared enantiopure answers `P 1 21 1` with `P 2₁` alone where the data alone
+leave {`P 2₁`, `P 2₁/m`}. A class the prior empties stays in the ranking, and
+when the data prefer it by the decisive margin the screen abstains: a P 2₁/c
+specimen declared enantiopure does not get a chiral answer.
+
+<!-- api-doc: no-exec — one Le Bail fit per surviving class -->
+```python
+screen = rx.determine_extinction_symbol(data, candidate, ins,
+                                        restrict=rx.ExtinctionPrior(sohncke=True))
+```
+
+| Field | Holds |
+|---|---|
+| `ExtinctionPrior.sohncke` | `True`: only Sohncke groups (an enantiopure chiral compound); `False`: only the others |
+| `ExtinctionPrior.centrosymmetric` | only groups with (`True`) or without (`False`) an inversion centre |
+| `ExtinctionPrior.polar` | only groups whose point group leaves a direction fixed (`True`), or none (`False`) |
+| `ExtinctionPrior.declared` | the facts actually declared, by name |
+
+A contradictory declaration (`sohncke=True` with `centrosymmetric=True`, or
+`polar=True` with `centrosymmetric=True`) is refused when it is built.
+
+Members of one class can also differ in Laue class (`P 6/m` and `P -3 1 m` share
+`P - - -` on a hexagonal lattice). They then differ in which reflections are
+equivalent, the intensity partition inside an overlapped multiplet, and in no
+position or absence. `ExtinctionCandidate.laue_classes` groups the members, and
+`LAUE_CLASS_NOT_SEPARABLE` fires when the leading class spans more than one, so
+a structure solution that follows runs once per Laue class.
+
 The candidate's `CellCandidate.system` is taken as given rather than
 re-screened, because when the Bravais screen reported an ambiguity that field
 is the conservative reading, and enumerating classes in a higher symmetry would
@@ -1198,6 +1237,7 @@ offer classes the lattice may not have.
 | `ExtinctionScreen.n_classes`, `ExtinctionScreen.n_screened` | classes enumerated, classes actually fitted |
 | `ExtinctionScreen.reference_rwp`, `ExtinctionScreen.reference_chi2`, `ExtinctionScreen.reference_lines` | the absence-free reference fit |
 | `ExtinctionScreen.profile_rwp` | the shared profile fit every class inherits |
+| `ExtinctionScreen.prior` | the declared `ExtinctionPrior`, or `None` |
 | `ExtinctionScreen.n_points` | channels in the fitted range |
 | `ExtinctionScreen.status` | the screen's own status |
 | `ExtinctionScreen.thresholds_version` | which thresholds produced the ranking |
@@ -1211,7 +1251,9 @@ setting.
 |---|---|
 | `ExtinctionCandidate.symbol` | the IT-style extinction symbol, derived from the members |
 | `ExtinctionCandidate.representative` | the H-M symbol whose reflections were generated |
-| `ExtinctionCandidate.space_groups` | every space group in the class, in IT number order |
+| `ExtinctionCandidate.space_groups` | every space group in the class, in IT number order; with a declared prior, the members it admits |
+| `ExtinctionCandidate.excluded_groups` | the members a declared prior removed |
+| `ExtinctionCandidate.laue_classes` | `space_groups` grouped by Laue class |
 | `ExtinctionCandidate.conditions` | the derived reflection conditions, for a human to check |
 | `ExtinctionCandidate.conditions_complete` | whether the derivation named every absence |
 | `ExtinctionCandidate.n_lines` | distinct lines this class predicts in range |
