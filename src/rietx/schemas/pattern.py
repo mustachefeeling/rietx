@@ -104,6 +104,12 @@ class PatternData(Base):
         arr = np.asarray(x)
         if not np.all(np.diff(arr) > 0):
             raise ValueError(f"{axis} must be strictly increasing")
+        # The project document's refusal, in its words (WP-1033). Unchecked
+        # here, an inverted region masked nothing and said so nowhere (WP-1986).
+        from .project import check_interval
+
+        for lo, hi in self.excluded_regions:
+            check_interval("an excluded region", lo, hi)
         # Every check above is about a *column* and holds for either quantity,
         # which is why they are written once and only their wording is per-axis.
         # A check about the quantity itself belongs in a branch on ``axis`` and

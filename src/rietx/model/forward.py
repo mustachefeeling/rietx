@@ -110,6 +110,7 @@ from ..schemas.instrument import (
     Instrument,
 )
 from ..schemas.pattern import PatternData, require_two_theta
+from ..schemas.project import check_interval
 from ..schemas.structure import Structure
 from . import compiled
 from .absorption import (
@@ -3653,6 +3654,8 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     tt_all, y_all, s_all = pattern.tt(), pattern.y(), pattern.sig()
     if two_theta_limits is not None:
         lo, hi = two_theta_limits
+        # inverted, it used to fail below as "fewer than 10 points" (WP-1986)
+        check_interval("two_theta_limits", lo, hi)
         mask &= (tt_all >= lo) & (tt_all <= hi)
     tt, y_obs, sigma = tt_all[mask], y_all[mask], s_all[mask]
     if len(tt) < 10:

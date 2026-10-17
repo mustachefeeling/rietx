@@ -750,6 +750,26 @@ def test_set_excluded_regions_updates_document_and_data(tmp_path, pattern_file):
     assert rx.Project.open(project.path).data.excluded_regions == [(6.0, 6.5)]
 
 
+def test_a_pattern_and_a_fit_refuse_an_inverted_interval_as_the_document_does():
+    """WP-1986: `PatternData` took `(31, 30)` and masked nothing, and an
+    inverted `two_theta_limits` failed as "fewer than 10 points remain"."""
+    from pydantic import ValidationError
+
+    tt = [10.0 + 0.1 * i for i in range(40)]
+    data = rx.PatternData(two_theta=tt, intensity=[100.0] * 40)
+    with pytest.raises(ValidationError, match=r"\(11\.0, 10\.5\) is inverted"):
+        data.excluded_regions = [(11.0, 10.5)]
+    with pytest.raises(ValidationError, match=r"\(11\.0, 11\.0\) is empty"):
+        rx.PatternData(two_theta=tt, intensity=[100.0] * 40,
+                       excluded_regions=[(11.0, 11.0)])
+
+    from rietx.model.forward import compile_model
+    structure, instrument = perturbed_models()
+    with pytest.raises(ValueError, match=r"two_theta_limits must run low to "
+                                         r"high: \(13\.0, 11\.0\) is inverted"):
+        compile_model(structure, instrument, data, two_theta_limits=(13.0, 11.0))
+
+
 def test_an_unrun_edit_is_in_the_log_before_any_save(tmp_path, pattern_file):
     """Nothing has to be saved for work to be durable.
 
