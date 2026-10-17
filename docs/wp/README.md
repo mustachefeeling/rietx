@@ -32,7 +32,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 2026-10-03 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | 2026-10-08 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 2026-10-07 | P2 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
+| [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 2026-10-18 | P2 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1547](1547-the-fast-tiers-tail.md) | The fast tier's tail is cut back, and its report reads CI's seconds | 2026-10-11 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1804](1804-the-derived-block.md) | The derived block: a nonlinear map applied after the affine one | 2026-10-07 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1805](1805-the-rigid-body.md) | `RigidBody`: schema, collector, anchored rotation, the body's own rows | 2026-10-08 | P2 | [rigid-bodies](#rigid-bodies) |
@@ -596,7 +596,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1531](1531-what-the-promo-figures-found.md) | What the promo figures found: a trimmed cell the report calls fine, a bond through a face, labels on atoms, polyhedra without their far ends | ✅ 2026-10-02 | — | — |
 | [1533](1533-what-the-promo-agent-reached-around.md) | What the promo agent reached around: a cell frame with no switch, a stick width in a module constant, a score that argues against the axis view, and the furniture every script rebuilds | ✅ 2026-10-02 | — | — ([1531](1531-what-the-promo-figures-found.md) soft) |
 | [1544](1544-a-model-reads-in-a-notebook.md) | A model reads in a notebook | ✅ 2026-10-07 | — | — |
-| [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 🔄 2026-10-07 | P2 | [1544](1544-a-model-reads-in-a-notebook.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md) |
+| [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 🔄 2026-10-18 | P2 | [1544](1544-a-model-reads-in-a-notebook.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md) |
 | [1916](1916-the-tutorials-in-the-manual.md) | The tutorials in the manual, and the quickstart is a notebook | ✅ 2026-10-08 | — | [1545](1545-tutorial-notebooks.md) |
 | [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | ✅ 2026-10-14 | — | [1916](1916-the-tutorials-in-the-manual.md) |
 | [1947](1947-the-model-read-at-its-values-without-a-solve.md) | The model read at its values, without a solve | ⬜ | P3 | — |

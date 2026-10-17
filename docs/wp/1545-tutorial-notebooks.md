@@ -1,6 +1,6 @@
 # WP-1545 — tutorial notebooks
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — in the maintainer's review rounds (two done); every task done, PR #812 open
+Milestone: unscheduled · Status: 🔄 2026-10-18 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: 1544 (readable objects in a notebook); 1985 (the report text the rewritten notebooks show)
 Priority: P2 2026-10-17 — P3 on the rubric (the shipped notebooks run; this is their rewrite), up a rung: its last blocker, WP-1985, closed 2026-10-16
