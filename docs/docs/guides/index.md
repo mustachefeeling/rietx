@@ -27,6 +27,11 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 - [How to choose the next parameter to free](next.md) reads `Refinement.suggest` and measures the move with `compare_freed`.
 - [How to watch or stop a running fit](watch.md) uses `rietx watch`, a cancel token, and the switches that turn recording off.
 
+## Series
+
+- [How to fit a temperature series](series.md) chains one refinement per pattern with `refine_sequential` and reads a trajectory.
+- [How to check a series for path dependence](path.md) runs the chain both ways and refits a flagged step from cold.
+
 ```{toctree}
 :hidden:
 
@@ -41,4 +46,6 @@ plan
 stage
 next
 watch
+series
+path
 ```

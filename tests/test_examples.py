@@ -127,7 +127,10 @@ def test_switching_example_reproduces_what_the_pages_quote():
     assert "reproduced" in out, f"switching.py printed no 'reproduced' line:\n{out}"
 
 
-GUIDE_SCRIPTS = sorted((EXAMPLES / "guides").glob("*.py"))
+#: A file whose name starts with `_` is data several guides share (the
+#: synthetic series), with no page of its own.
+GUIDE_SCRIPTS = sorted(p for p in (EXAMPLES / "guides").glob("*.py")
+                       if not p.name.startswith("_"))
 GUIDE_PAGES = REPO_ROOT / "docs" / "docs" / "guides"
 #: What a guide page shows a script printing, marked so a text block that is
 #: not output (a file's contents, a shell line) is never compared.
