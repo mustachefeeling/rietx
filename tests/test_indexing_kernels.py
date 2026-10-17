@@ -70,12 +70,14 @@ def test_the_centred_replay_on_survivors_is_the_whole_set_replay(
     verdicts = {True: 0, False: 0}
 
     def checking(m_full, rows, member, lo, hi, basis, q_hi, det_band, swaps,
-                 lo_search, hi_search, n_unindexed, box_test=None):
+                 lo_search, hi_search, n_unindexed, anchors=None,
+                 box_test=None):
         got = original(m_full, rows, member, lo, hi, basis, q_hi, det_band,
                        swaps, lo_search, hi_search, n_unindexed,
-                       box_test=box_test)
+                       anchors=anchors, box_test=box_test)
         want = _test_box(m_full[member], lo, hi, basis, q_hi, det_band, swaps,
-                         lo_search, hi_search, n_unindexed) is not None
+                         lo_search, hi_search, n_unindexed,
+                         anchors=anchors) is not None
         assert got == want
         verdicts[got] += 1
         return got
@@ -146,17 +148,18 @@ def _recorded_boxes(system: str, limit: int) -> tuple[list, list]:
     real_test, real_push = dichotomy._test_box, dichotomy._push_children
 
     def record_box(m, lo, hi, basis, q_hi, det_band, swaps, lo_s, hi_s,
-                 n_unindexed, ids=None):
+                 n_unindexed, ids=None, anchors=None):
         boxes.append((np.ascontiguousarray(m), lo.copy(), hi.copy(), basis,
                       q_hi, det_band, swaps, lo_s, hi_s, n_unindexed))
         if len(boxes) >= limit:
             raise _Enough
         return real_test(m, lo, hi, basis, q_hi, det_band, swaps, lo_s, hi_s,
-                         n_unindexed, ids=ids)
+                         n_unindexed, ids=ids, anchors=anchors)
 
-    def push(stack, kids, m, ids, lo_s, hi_s, n_unindexed, depth):
+    def push(stack, kids, m, ids, lo_s, hi_s, n_unindexed, depth, anchors=None):
         children.append((np.ascontiguousarray(m), kids, lo_s, hi_s))
-        real_push(stack, kids, m, ids, lo_s, hi_s, n_unindexed, depth)
+        real_push(stack, kids, m, ids, lo_s, hi_s, n_unindexed, depth,
+                  anchors=anchors)
 
     was = compiled.set_enabled(False)
     dichotomy._test_box, dichotomy._push_children = record_box, push

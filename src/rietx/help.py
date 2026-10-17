@@ -2713,6 +2713,20 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "remainder."
         ),
     ),
+    "INDEX_INLIER_RETRY": HelpEntry(
+        title="The search was run again, accepting a cell that leaves lines unindexed",
+        description=(
+            "The default run found no lattice that two engines agree on while a cell "
+            "could leave at most two search lines unindexed. The search ran again, "
+            "accepting a cell that indexes at least 60 % of the search lines and the five "
+            "strongest. That is the reading of a list that carries foreign lines: an "
+            "impurity, a container halo or unresolved shoulders. The answer rests on the "
+            "second rule, so read each candidate's `n_search_unindexed` and "
+            "`unindexed_two_theta`. A cell that leaves the weak lines is the phase, and "
+            "the residue is a second phase or the picker's junk. Pass `n_unindexed='inliers'` "
+            "to search this way from the start, or an integer to forbid the retry."
+        ),
+    ),
     "INDEX_MULTIPLE_SOLUTIONS": HelpEntry(
         title="More than one cell passes every check",
         description=(
@@ -4510,13 +4524,17 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     "n_unindexed": HelpEntry(
         title="Unindexed lines allowed",
         description=(
-            "How many search lines a cell may leave unindexed and still be accepted. "
-            "Raising it manufactures cells, because every tolerated line is one more "
-            "coincidence that a wrong metric is allowed. Two is the default. Four is a "
-            "statement that you know something about the specimen, such as an impurity."
+            "How many search lines a cell may leave unindexed. Empty (the "
+            "default) is two. A run where no two engines agree on a lattice "
+            "is searched again accepting a cell that indexes 60 % of the "
+            "search lines and the five strongest; 'inliers' searches that "
+            "way from the start. A number forbids the retry. Raising it "
+            "manufactures cells, because every tolerated line is one more "
+            "coincidence that a wrong metric is allowed. Four is a "
+            "statement that you know something about the specimen, such as "
+            "an impurity."
         ),
-        default="2",
-        typical="2, or up to 4 on a pattern with a known impurity",
+        typical="empty; 'inliers' on a pattern with a known impurity",
         anchor="using/indexing.html#the-search-specification",
     ),
     "n_search_lines": HelpEntry(

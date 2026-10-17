@@ -176,8 +176,16 @@ Tolerated unindexed lines are the most valuable option here, and the gain the
 2004 paper reports for itself {cite}`boultif2004`. Without them one impurity
 line prunes the box containing the truth and the engine returns nothing,
 confidently, which is the failure this whole subsystem exists to prevent.
-Raising the count past a small default manufactures cells instead: each extra
-tolerated line is one more coincidence a wrong metric is allowed to have.
+Raising an absolute count manufactures cells instead: each extra tolerated line
+is one more coincidence a wrong metric is allowed to have. So when a run under
+the count of two ends with no lattice two engines agree on, the search runs
+again with a fraction rather than a larger count. A box survives while its
+reflections can still reach 60 % of the driven lines and every one of the five
+strongest, the inlier acceptance of RANSAC {cite}`fischler1981`. The anchor is
+what keeps the fraction from manufacturing cells: an oversized cell explains
+impurity lines by having a reflection everywhere, but a cell that misses one of
+the strongest lines is not the pattern's cell. Like the miss count, the anchor
+test is monotone under bisection, so it prunes soundly.
 
 ## Index-heuristic trial and error
 
