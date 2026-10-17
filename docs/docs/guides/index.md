@@ -4,6 +4,11 @@ Each guide does one task from start to finish, and its title names the task as "
 
 Each guide's fits are a script in `examples/guides/`, run by the test suite, and the output a guide shows is what its script printed.
 
+## Before the fit
+
+- [How to check a pattern before fitting](check.md) reads `rietx.diagnose` and draws the reflection ticks.
+- [How to limit the fit range or leave out a region](range.md) sets `two_theta_limits` and `PatternData.excluded_regions`.
+
 ## Constraints and plans
 
 - [How to keep a parameter fixed whatever the plan frees](hold.md) uses `Refinement.hold`.
@@ -19,6 +24,8 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 ```{toctree}
 :hidden:
 
+check
+range
 hold
 tie
 restrain
