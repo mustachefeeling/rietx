@@ -450,7 +450,9 @@ anti-bump pair list is built once from the starting coordinates and kept for
 the whole plan, so the number of restraint rows never changes between stages.
 The price is that a pair drifting inside $d_{\min}$ from outside the list has
 no row, so at plan end the phase is searched again at the answer's
-coordinates and any such pair is named (`RESTRAINT_PAIRS_STALE`).
+coordinates and any such pair is named (`RESTRAINT_PAIRS_STALE`). A contact
+already inside $d_{\min}$ where the run started, such as a bonded pair the
+caller left out of the list, is not named: it did not drift in.
 
 A planarity restraint on $N \ge 4$ atoms contributes one row per atom, its
 signed distance to their least-squares plane {cite}`schomaker1959`. With

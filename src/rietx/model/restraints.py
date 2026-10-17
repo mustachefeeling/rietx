@@ -203,24 +203,26 @@ def _resolve_plane(phase, ip, sites, cell, g, r) -> _Plane:
     """Freeze each entry's image and the normal's sign; refuse a line.
 
     The first entry sits where it is stored unless an image is named; every
-    other entry left ``None`` takes the minimum image relative to it.
+    other entry left ``None`` takes the image nearest the centroid of the
+    entries resolved so far, so a plane of eight or ten atoms stays inside
+    one molecule where a symmetry copy of a neighbour sits closer to the
+    first atom than the far side of the ring does.
     """
     ops = r.op_indices or [None] * len(r.atoms)
     trs = r.translations or [(0, 0, 0)] * len(r.atoms)
     eye, zero = np.eye(3), np.zeros(3)
-    x_first = _atom_xyz(phase, r.atoms[0])
+    placed: list[np.ndarray] = []
     Rs, ts, ns = [], [], []
     for m, (j, op, tr) in enumerate(zip(r.atoms, ops, trs, strict=True)):
         if m == 0 and op is None:
             rot, t, n = eye, zero, np.asarray(tr, dtype=np.float64)
         else:
-            rot, t, n = _resolve_image(sites, j, x_first, _atom_xyz(phase, j),
-                                       op, tr, g)
+            rot, t, n = _resolve_image(sites, j, np.mean(placed, axis=0),
+                                       _atom_xyz(phase, j), op, tr, g)
         Rs.append(rot)
         ts.append(t)
         ns.append(n)
-        if m == 0:
-            x_first = rot @ x_first + t + n
+        placed.append(rot @ _atom_xyz(phase, j) + t + n)
     pts = np.array([rot @ _atom_xyz(phase, j) + t + n for j, rot, t, n
                     in zip(r.atoms, Rs, ts, ns, strict=True)])
     cart = pts @ np.asarray(cartesian_frame(cell), dtype=np.float64).T
@@ -309,7 +311,8 @@ def _resolve_image(sites, j, reference, base_xyz, op_index, translation, g):
 # traceable residual value (xp ops — one differentiable function)
 # ----------------------------------------------------------------------
 def restraint_residual(compiled: CompiledRestraints, values: dict):
-    """√w·(computed − target)/σ rows, one per compiled restraint (traceable)."""
+    """√w·(computed − target)/σ rows, traceable: one per compiled restraint, and
+    one per listed atom for a planarity item."""
     xp = get_backend()
     rows = []
     for it in compiled.items:
@@ -338,7 +341,8 @@ def _plane_distances(it: "_Plane", values: dict):
 
     Traceable: the normal is ``xp.linalg.eigh``'s eigenvector of the smallest
     eigenvalue of the Cartesian scatter matrix, signed against the frozen
-    compile-time normal (the sign has zero derivative).
+    compile-time normal (the sign has zero derivative, and +1 where the two
+    are perpendicular).
     """
     xp = get_backend()
     ip = it.phase
@@ -351,7 +355,10 @@ def _plane_distances(it: "_Plane", values: dict):
     scatter = xp.einsum("ki,kj->ij", d, d)
     _, vec = xp.linalg.eigh(scatter)
     normal = vec[:, 0]
-    normal = normal * xp.sign(xp.sum(normal * xp.asarray(it.normal)))
+    # sign(0) = 0 would zero the whole plane where the normal turns
+    # perpendicular to the frozen one; the numpy twin takes +1 there
+    dot = xp.sum(normal * xp.asarray(it.normal))
+    normal = normal * xp.where(dot >= 0.0, 1.0 + 0.0 * dot, -1.0 + 0.0 * dot)
     dist = xp.matmul(d, normal)
     return [dist[m] for m in range(len(it.atoms))]
 
@@ -664,8 +671,9 @@ def anti_bump_restraints(phase, min_distance, *, sigma: float = 0.05,
     stages.  (WP-1803's record has the engine freeze the list at plan compile;
     this builder is the caller-side form of the same freeze.)  A pair enters
     when its image distance is under its minimum plus ``margin`` (Å); a pair
-    that later comes closer from outside the list is not seen, and nothing
-    names it yet, which is what the margin is for.
+    that later comes closer from outside the list is not seen by the
+    list, which is what the margin is for; :func:`stale_anti_bump_pairs` names
+    it at the end of a fit.
 
     ``min_distance`` is a number (every pair), a mapping from an unordered
     species pair ``(a, b)`` to Å, or a callable ``(species_i, species_j) ->
@@ -757,7 +765,51 @@ def anti_bump_restraints(phase, min_distance, *, sigma: float = 0.05,
 _SAME_CONTACT_A = 1e-6
 
 
-def stale_anti_bump_pairs(phase) -> list[tuple[int, int, float, float]]:
+def _inside_contacts(phase, listed):
+    """Every contact inside its r₀ at the phase's coordinates, listed or not.
+
+    r₀ is read off the rows: per unordered species pair, the largest
+    ``min_distance`` any row of that pair states; a species pair with no row
+    is not searched (#677's rule: no minimum nobody gave).  Returns
+    ``(key, distance, r0)`` with ``key = (atom_i, atom_j, op_index,
+    translation)`` naming the contact itself, in the builder's own order.
+    """
+    from ..crystallography.structure_factor import compile_phase_sites
+
+    sp = [a.species for a in phase.atoms]
+    rule: dict[tuple[str, str], float] = {}
+    for r in listed:
+        key = tuple(sorted((sp[r.atom_i], sp[r.atom_j])))
+        rule[key] = max(rule.get(key, 0.0), r.min_distance)
+    sites = compile_phase_sites(phase)
+    g = _metric_g(phase.cell.lengths_angles())
+    out = []
+    for c in anti_bump_restraints(phase, rule, margin=0.0):
+        x_i = _atom_xyz(phase, c.atom_i)
+        R, t = sites.ops[c.atom_j][0][c.op_index], sites.ops[c.atom_j][1][c.op_index]
+        dx = (np.asarray(R) @ _atom_xyz(phase, c.atom_j) + np.asarray(t)
+              + np.asarray(c.translation, dtype=np.float64) - x_i)
+        d = math.sqrt(float(dx @ (g @ dx)))
+        out.append(((c.atom_i, c.atom_j, c.op_index, tuple(c.translation)),
+                    d, c.min_distance))
+    return out
+
+
+def anti_bump_contact_keys(phase) -> frozenset:
+    """The contacts inside their r₀ right now, as keys for ``since=`` (WP-1809).
+
+    Take it at the coordinates a fit *starts* from and hand it to
+    :func:`stale_anti_bump_pairs` at the answer, which then reports only a
+    contact that was not inside r₀ then.  Empty when the phase has no
+    anti-bump row.
+    """
+    listed = [r for r in phase.restraints if isinstance(r, AntiBumpRestraint)]
+    if not listed:
+        return frozenset()
+    return frozenset(k for k, _, _ in _inside_contacts(phase, listed))
+
+
+def stale_anti_bump_pairs(phase, *, since=None) -> list[tuple[int, int, float, float]]:
     """Contacts inside their minimum that no anti-bump row restrains (WP-1809).
 
     The caller builds the pair list once (:func:`anti_bump_restraints`), so a
@@ -766,24 +818,27 @@ def stale_anti_bump_pairs(phase) -> list[tuple[int, int, float, float]]:
     returns ``(atom_i, atom_j, distance, r0)`` for every contact closer than
     its r₀ that matches no row, sorted by how far inside r₀ it sits.
 
-    r₀ is read off the rows: per unordered species pair, the largest
-    ``min_distance`` any row of that pair states; a species pair with no row
-    is not searched (#677's rule: no minimum nobody gave).  A contact is
-    matched to a row of the same two atoms whose image sits at the same
-    distance (to ``_SAME_CONTACT_A``), so a symmetry copy of a listed contact
-    is not named.  A body's own pairs in its own copy are skipped, as the
-    builder skips them.  Empty when the phase has no anti-bump row.
+    **``since`` is what makes "entered from outside" true.**  The list does
+    not remember the coordinates it was built from, so a pair the caller left
+    out on purpose (a bonded C–C under a 3.3 Å rule) is indistinguishable
+    from a drifted one by the answer alone.  ``since`` is
+    :func:`anti_bump_contact_keys` taken at the coordinates the run started
+    from: a contact inside r₀ there is the caller's own state and is never
+    named.  Without it, every unlisted contact under r₀ is returned.
+
+    r₀ is the strictest ``min_distance`` any row states for the contact's
+    species pair, so a contact is held to a minimum a row of its *species*
+    stated, not necessarily one for its atoms.  A contact is matched to a row
+    of the same two atoms whose image sits at the same distance (to
+    ``_SAME_CONTACT_A``), so a symmetry copy of a listed contact is not
+    named.  A body's own pairs in its own copy are skipped, as the builder
+    skips them.  Empty when the phase has no anti-bump row.
     """
     from ..crystallography.structure_factor import compile_phase_sites
 
     listed = [r for r in phase.restraints if isinstance(r, AntiBumpRestraint)]
     if not listed:
         return []
-    sp = [a.species for a in phase.atoms]
-    rule: dict[tuple[str, str], float] = {}
-    for r in listed:
-        key = tuple(sorted((sp[r.atom_i], sp[r.atom_j])))
-        rule[key] = max(rule.get(key, 0.0), r.min_distance)
     sites = compile_phase_sites(phase)
     g = _metric_g(phase.cell.lengths_angles())
     known: dict[tuple[int, int], list[float]] = {}
@@ -796,18 +851,15 @@ def stale_anti_bump_pairs(phase) -> list[tuple[int, int, float, float]]:
         known.setdefault(key, []).append(math.sqrt(float(dx @ (g @ dx))))
     out = []
     seen: set[tuple[int, int, float]] = set()
-    for c in anti_bump_restraints(phase, rule, margin=0.0):
-        x_i = _atom_xyz(phase, c.atom_i)
-        R, t = sites.ops[c.atom_j][0][c.op_index], sites.ops[c.atom_j][1][c.op_index]
-        dx = (np.asarray(R) @ _atom_xyz(phase, c.atom_j) + np.asarray(t)
-              + np.asarray(c.translation, dtype=np.float64) - x_i)
-        d = math.sqrt(float(dx @ (g @ dx)))
-        key = (min(c.atom_i, c.atom_j), max(c.atom_i, c.atom_j))
+    for ck, d, r0 in _inside_contacts(phase, listed):
+        if since is not None and ck in since:
+            continue
+        key = (min(ck[0], ck[1]), max(ck[0], ck[1]))
         if any(abs(d - k) <= _SAME_CONTACT_A for k in known.get(key, ())):
             continue
         tag = (*key, round(d, 6))
         if tag in seen:
             continue
         seen.add(tag)
-        out.append((key[0], key[1], d, c.min_distance))
+        out.append((key[0], key[1], d, r0))
     return sorted(out, key=lambda p: p[2] - p[3])
