@@ -95,6 +95,12 @@ NO_EXEC = re.compile(r"<!--\s*api-doc:\s*no-exec\s*[-—]\s*(?P<reason>[^>]+?)\s
 # Roots of a parameter dot-path (`params/vector.py`), as opposed to a dotted
 # python name.  The two look alike in a code span and are checked differently.
 PATH_ROOTS = ("phases.", "instrument.")
+# A dot-path's segments may be indices (`phases.0.cell.a`), which `DOTTED`
+# stops at: it cut that path to `phases` and so checked no indexed path (WP-1986).
+PATH_TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_*]+)*")
+# The table checked against is one small model, so an index is read as 0: the
+# check is that the path names a real family, not that atom 4 exists there.
+INDEX = re.compile(r"(?<=\.)\d+(?=\.|$)")
 
 # The label the compatibility chapter defines and a provisional subsystem's own
 # chapter refers to (WP-1078).  A cross-reference rather than a second copy of
@@ -615,19 +621,19 @@ def test_parameter_dot_paths_resolve():
     """Every dot-path or glob Part 1 spells matches a real ParameterTable, and
     carries no brackets: stage plans match with fnmatch, where `[..]` is a
     character class rather than an index (root CLAUDE.md § Conventions)."""
-    paths = _parameter_paths()
+    paths = {INDEX.sub("0", path) for path in _parameter_paths()}
     for page, text in _pages():
         # tokens *inside* a span, not whole spans: a path is usually quoted in
         # a call — `result.parameter("phases.0.cell.a")` — and checking only
         # spans that are paths outright would skip exactly those.
-        for token in DOTTED.findall("\n".join(CODE_SPAN.findall(text))):
+        for token in PATH_TOKEN.findall("\n".join(CODE_SPAN.findall(text))):
             if not token.startswith(PATH_ROOTS):
                 continue
             assert "[" not in token and "]" not in token, (
                 f"{_where(page)}: parameter path `{token}` uses brackets; fnmatch reads them "
                 "as a character class"
             )
-            assert any(fnmatch(path, token) for path in paths), (
+            assert any(fnmatch(path, INDEX.sub("0", token)) for path in paths), (
                 f"{_where(page)}: parameter path `{token}` matches nothing on a real table"
             )
 
