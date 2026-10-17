@@ -23,7 +23,8 @@ address a consumer can act on.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -66,7 +67,8 @@ WIDTH_MISMATCH_RATIO = 3.0
 
 
 def peak_diagnostics(peaks: PeakList, detection: Detection | None = None,
-                     *, windows: Sequence[PeakGroup] | None = None,
+                     *,
+                     windows: Sequence[PeakGroup] | Mapping[int, Any] | None = None,
                      ) -> list[Diagnostic]:
     """Translate a peak list's flags and a detection's width census.
 
@@ -79,7 +81,10 @@ def peak_diagnostics(peaks: PeakList, detection: Detection | None = None,
     for the bounds the fit ran into (each a multiple of its window's seed
     FWHM).  Detection's own groups by default, which is what
     :func:`~rietx.indexing.pick_peaks` fitted; a caller that fitted other
-    windows passes those (:func:`~rietx.indexing.fit_peaks` does).
+    windows passes those (:func:`~rietx.indexing.fit_peaks` does).  A mapping
+    keyed by group number serves a caller whose numbers are not a
+    ``0..n-1`` sequence, each value anything with a ``seed_fwhm`` (the peak
+    editor passes its own ``GroupMeta`` windows).
     """
     if windows is None and detection is not None:
         windows = detection.groups
@@ -261,7 +266,8 @@ def _significance(p: ObservedPeak) -> float:
             else float("nan"))
 
 
-def _seed_fwhm(p: ObservedPeak, windows: Sequence[PeakGroup] | None
+def _seed_fwhm(p: ObservedPeak,
+               windows: Sequence[PeakGroup] | Mapping[int, Any] | None
                ) -> float | None:
     """The seed FWHM of the window ``p`` was fitted in, which every bound of
     the group's fit is a multiple of (``peakfit._GroupModel.bounds``).
@@ -272,14 +278,20 @@ def _seed_fwhm(p: ObservedPeak, windows: Sequence[PeakGroup] | None
     a test of ``p`` lying inside the window: a component on its position
     bound may have left it.
     """
-    if windows is None or not 0 <= p.group < len(windows):
+    if windows is None:
         return None
-    s = float(windows[p.group].seed_fwhm)
+    if isinstance(windows, Mapping):
+        window = windows.get(p.group)
+    else:
+        window = windows[p.group] if 0 <= p.group < len(windows) else None
+    if window is None:
+        return None
+    s = float(window.seed_fwhm)
     return s if math.isfinite(s) and s > 0.0 else None
 
 
 def _bound_diagnostics(peaks: PeakList,
-                       windows: Sequence[PeakGroup] | None) -> list[Diagnostic]:
+                       windows: Sequence[PeakGroup] | Mapping[int, Any] | None) -> list[Diagnostic]:
     """One diagnostic per bound of the picker's group fit that a component
     ended on, each ``where`` entry naming the bound and the value (#934 (c)).
 
@@ -326,15 +338,26 @@ def _bound_diagnostics(peaks: PeakList,
     empty = [p for p in peaks.peaks if "no_intensity" in p.flags]
     if empty:
         n_zero = sum(_at_zero(p) for p in empty)
+        # the fit's own cause is the zero bound or the floor; a component the
+        # editor's ``set_flags`` marked by hand on a line the data can tell
+        # from zero is neither, and its entry must not print a comparison
+        # that is false
+        by_hand = [p for p in empty
+                   if not _at_zero(p)
+                   and not _significance(p) < PEAK_NO_INTENSITY_SIGMA
+                   and not math.isnan(_significance(p))]
         out.append(Diagnostic(
             level="info", code="PEAK_NO_INTENSITY",
             message=(f"{len(empty)} component(s) carry no intensity the data "
                      f"can tell from zero, excluded from usable(): {n_zero} "
-                     "on the fit's zero-intensity bound and "
-                     f"{len(empty) - n_zero} under PEAK_NO_INTENSITY_SIGMA "
-                     f"({PEAK_NO_INTENSITY_SIGMA:g}) of their own esd"),
+                     "on the fit's zero-intensity bound, "
+                     f"{len(empty) - n_zero - len(by_hand)} under "
+                     f"PEAK_NO_INTENSITY_SIGMA ({PEAK_NO_INTENSITY_SIGMA:g}) "
+                     f"of their own esd and {len(by_hand)} marked by hand"),
             where=[_at(p, f"I = {float(p.intensity):.3g}, at the zero bound"
                        if _at_zero(p) else
+                       f"I/σ_I {_significance(p):.2f}, marked by hand"
+                       if p in by_hand else
                        f"I/σ_I {_significance(p):.2f} < "
                        f"{PEAK_NO_INTENSITY_SIGMA:g}")
                    for p in empty],

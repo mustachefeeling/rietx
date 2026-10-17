@@ -189,3 +189,50 @@ def test_the_false_discovery_floor_names_the_line_under_it_and_not_the_one_over(
     bar = -ndtri(4 * PEAK_FDR_Q / 100.0)
     assert f"{bar:.2f}" == "3.35"
     assert d.where == [f"50.0000° (I/σ_I 3.28, bar {bar:.2f})"]
+
+
+def test_the_editor_reads_a_bound_from_its_own_window(tmp_path):
+    """The peak editor numbers its windows itself (``max(doc.groups) + 1``),
+    so after a group is removed and another opened elsewhere the new window
+    takes the removed one's number.  The bound a diagnostic prints must be the
+    new window's, not detection's window of the same number — which here sits
+    at 60°, where the seed FWHM is 0.0251° against 0.0209° at 20°."""
+    from rietx.gui.peaks import PeakEditor
+    data = _silicon(tmp_path, steep=False, hi=62.0)
+    ins = rx.Instrument.debye_scherrer(wavelength=LAM)
+    ins.profile.w.value, ins.profile.u.value, ins.profile.x.value = 3e-4, 5e-4, 5e-3
+    ed = PeakEditor(data, ins, two_theta_range=RANGE)
+    doc = ed.pick()
+    last = max(doc.groups)
+    while any(p.group == last for p in doc.peaks.peaks):
+        ed.remove(doc, next(i for i, p in enumerate(doc.peaks.peaks)
+                            if p.group == last))
+    assert last not in doc.groups
+    ed.add(doc, 20.0)
+    (new,) = [p for p in doc.peaks.peaks if abs(p.two_theta - 20.0) < 0.1]
+    assert new.group == last
+    own = doc.groups[last].seed_fwhm
+    assert abs(own - ed.det.groups[last].seed_fwhm) > 1e-3
+    i = doc.peaks.peaks.index(new)
+    ed.flag(doc, i, flags=["position_at_bound"])
+    d = _one(doc.peaks, "PEAK_POSITION_AT_BOUND")
+    entry = next(e for e in d.where if e.startswith(f"{new.two_theta:.4f}°"))
+    assert f"bound ±{PEAK_POSITION_BOUND_FWHM * own:.4f}°" in entry
+
+
+def test_a_hand_set_no_intensity_does_not_print_a_false_comparison(flat_si):
+    """The editor's ``set_flags`` can mark a strong line ``no_intensity``; the
+    entry then says so, instead of printing ``I/σ_I 12 < 1``."""
+    from rietx.gui.peaks import PeakDoc, set_flags
+    _, _, pl, det = flat_si
+    strong = max(pl.usable(), key=lambda p: p.intensity / p.intensity_esd)
+    doc = PeakDoc(peaks=pl)
+    i = pl.peaks.index(strong)
+    set_flags(doc, i, flags=[*strong.flags, "no_intensity"])
+    d = _one(doc.peaks.model_copy(update={
+        "diagnostics": peak_diagnostics(doc.peaks, det)}), "PEAK_NO_INTENSITY")
+    z = strong.intensity / strong.intensity_esd
+    assert z > 3
+    assert f"{strong.two_theta:.4f}° (I/σ_I {z:.2f}, marked by hand)" in d.where
+    assert not any(f"I/σ_I {z:.2f} <" in e for e in d.where)
+    assert "1 marked by hand" in d.message
