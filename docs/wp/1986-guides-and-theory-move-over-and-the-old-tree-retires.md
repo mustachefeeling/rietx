@@ -116,7 +116,9 @@ the tree that day.
   are from 2026-10-15). Done 2026-10-17, from `using/concepts.md`: 1 `hold.md`, 2 `tie.md`
   (named variables folded in), 3 `restrain.md` (the c_w schedule folded in), 4 `plan.md`
   (the presets' order folded in, without the heavy-atoms departure and the Stephens rule).
-  Left: 5-25. Item 10 has the spike's page to start from, but no LaB6 pattern ships in
+  From `using/refining.md` and `using/cli.md`: 5 `stage.md` (with `stage_reports=True`), 23
+  `watch.md` (watching, stopping from the page or a `CancelToken`, `events=`, telemetry off).
+  Left: 6-22, 24, 25. Item 10 has the spike's page to start from, but no LaB6 pattern ships in
   `rietx.examples`, so its fit needs bundled data or a no-exec reason. Two candidates outside
   the list: fixing the origin of a polar space group (`Phase.floating_origin`, after WP-1912
   lands, which owns that behaviour), and the plan's "one departure" paragraph.
@@ -178,7 +180,7 @@ the tree that day.
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
-      the whole old tree retires (task 4); see Context, 2026-10-17. Four of 25 written
+      the whole old tree retires (task 4); see Context, 2026-10-17. Six of 25 written
       (2026-10-17, map under Notes by task).
 - [ ] GUI chapters moved with `test_gui_manual.py`.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
