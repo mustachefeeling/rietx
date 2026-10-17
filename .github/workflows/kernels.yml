@@ -166,7 +166,7 @@ jobs:
               "this run's wheel has no exp, so the bound test would skip"
           assert hasattr(k, "dichotomy_box_test"), \
               "this run's wheel has no dichotomy kernels, so test_indexing_kernels.py would skip them"
-          assert hasattr(k, "solve_orbit_sums") and hasattr(k, "solve_clash"), \
+          assert all(hasattr(k, n) for n in ("solve_orbit_sums", "solve_orbit_sums_one", "solve_clash")), \
               "this run's wheel has no solve kernels, so test_solve_kernels.py would skip them"
           PY
       - name: The refusals
