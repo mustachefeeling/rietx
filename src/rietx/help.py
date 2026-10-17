@@ -1953,6 +1953,18 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Choose between them with chemistry or a structure solution."
         ),
     ),
+    "EXTINCTION_PRIOR_APPLIED": HelpEntry(
+        title="Declared facts removed space groups from the extinction classes",
+        description=(
+            "You declared facts about the specimen (chirality, centrosymmetry or "
+            "polarity), and they removed space groups from some classes. The declaration "
+            "only filters the members of each class. Every class was still fitted, and no "
+            "ΔBIC moved. It is a warning when the class the data rank first was emptied: "
+            "either the chemistry is doing what a powder cannot, or the declaration is "
+            "wrong. `best_or_none()` abstains when the data prefer an emptied class by "
+            "the decisive margin. Check the declaration before you read the answer."
+        ),
+    ),
     "EXTINCTION_SCREEN_FAILED": HelpEntry(
         title="The extinction screen could not run",
         description=(
@@ -2891,6 +2903,16 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "factor of a rare-earth or actinide ion depends on g, so a different value "
             "changes the calculated intensities and the refined moment. State g for the "
             "site if you know the value in the compound."
+        ),
+    ),
+    "LAUE_CLASS_NOT_SEPARABLE": HelpEntry(
+        title="The leading class spans more than one Laue class",
+        description=(
+            "The space groups the leading extinction class admits fall in more than one "
+            "Laue class. They share every position and absence and differ only in which "
+            "reflections are equivalent, which sets the intensity partition inside "
+            "overlapped multiplets. A powder pattern does not expose that. Carry one "
+            "structure solution per Laue class, not one per group."
         ),
     ),
     "LEBAIL_ALTERNATION_STOPPED": HelpEntry(

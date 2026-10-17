@@ -202,6 +202,9 @@ jobs:
     # WP-1981's manual Reference tab builds its roadmap page from ROADMAP.md
     # (docs/reference_pages.py), so test_reference_pages reads it, and so does
     # test_manual's page-contract check, which renders the generated bodies.
+    #
+    # test_closed_wp_writes reads .claude/commands/wp-handover.md, to check that
+    # the handover step that runs closed_wp_writes.py is still there (WP-1994).
     needs: changes
     if: needs.changes.outputs.scope == 'docs'
     runs-on: ubuntu-latest
@@ -220,6 +223,7 @@ jobs:
           tests/test_docs_consistency.py tests/test_workflow_hooks.py
           tests/test_no_stale_name.py tests/test_portability.py
           tests/test_reference_pages.py tests/test_manual.py
+          tests/test_closed_wp_writes.py
 
   fast:
     name: fast py${{ matrix.python }} ${{ matrix.shard }}/2

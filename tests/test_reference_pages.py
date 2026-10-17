@@ -34,7 +34,11 @@ def test_every_generated_body_is_included_by_exactly_one_page():
     """A body no page includes is built and shown nowhere; two includes are one
     page twice."""
     includes = re.compile(r"^```\{include\} [./]*_generated/(\S+)$", re.M)
-    found = [name for page in sorted(REFERENCE_DIR.rglob("*.md"))
+    # The roadmap body is included from the Switching tab, so the scan covers
+    # every page of the tree and skips the generated bodies themselves.
+    pages = [p for p in sorted((DOCS_DIR / "docs").rglob("*.md"))
+             if "_generated" not in p.parts and "_build" not in p.parts]
+    found = [name for page in pages
              for name in includes.findall(page.read_text(encoding="utf-8"))]
     assert sorted(found) == sorted(reference_pages.BODIES)
 

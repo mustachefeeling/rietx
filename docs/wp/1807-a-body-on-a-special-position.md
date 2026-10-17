@@ -19,6 +19,21 @@ is chunk R6 of issue #561, sized S.
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#876): PR #1005 (theirs, head
+  `d43fd180`) builds R6 and both asks of #876.** It opened 2026-10-16 00:12
+  and WP-1807 does not name it. It gives a body on a special position the DOFs
+  its site allows (`wyckoff.axial_basis`), deletes the origin refusal and its
+  "move the origin to a general position" text, and adds
+  `RIGID_BODY_IMAGE_OVERLAP`: an image of a body atom within 0.7 x the
+  covalent-radius sum of an atom of the same body, with the per-cell counts in
+  the message. This is the "atom within a bond length of its own image" option
+  the 2026-10-11 comment left to the WP-1807 session (no declared Z stored).
+  Its PbSO4 check: the body 0.03 off the mirror is refused ("O 32, S 8 per
+  cell"). `body_from_atoms(..., origin=)` takes a label or a point. Checked
+  against the PR body at `d43fd180`, code not reviewed. Open: review and merge
+  #1005; the PR body writes (#876) with no closing keyword, so #876 closes by
+  hand.
+
 - **2026-10-11, from the issue triage (issue #876): the origin branch's remedy
   is wrong, and following it doubles the composition in silence.** Both
   reproduced at `f11e22d3` on PbSO₄ from `tests/data/gsas2_pbso4.gpx`, with

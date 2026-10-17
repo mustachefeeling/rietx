@@ -14,6 +14,7 @@ Altomare
 [aA]ttenuator
 [bB]ackend
 [bB]ackends
+[bB]cc
 [bB]eamline
 [bB]eamstop
 [bB]eamtime
@@ -35,8 +36,10 @@ Caglioti
 [cC]entroid
 [cC]entroids
 [cC]entrosymmetric
+[cC]entrosymmetry
 [cC]hangelog
 Chebyshev
+[cC]hirality
 CIF
 CIFs
 [cC]odeword
@@ -55,6 +58,7 @@ Conograph
 [cC]ryostat
 [cC]rystallite
 [cC]rystallites
+[cC]rystallographer
 Debye
 [dD]ecorrelate
 [dD]ecorrelates
@@ -95,6 +99,7 @@ FullProf
 [fF]unctionals
 FWHM
 FWHMs
+Gaultois
 Gaussian
 Gaussians
 [gG]emmi
@@ -140,6 +145,7 @@ Lindemann
 [lL]ookups
 Lorentzian
 [mM]acromolecular
+Madsen
 [mM]agCIF
 [mM]agneton
 [mM]agnetons
@@ -161,6 +167,7 @@ Maxwellian
 [mM]onomials
 [mM]onotonicity
 [mM]ultimodal
+[mM]ultiplets
 [nN]anocrystalline
 Niggli
 [nN]m
@@ -177,6 +184,7 @@ Niggli
 [oO]perando
 [oO]rthonormal
 [oO]rthorhombic
+[oO]xygens
 P1
 [pP]arameterisation
 [pP]arameterisations
@@ -218,6 +226,7 @@ Rigaku
 [rR]oadmap
 Rodrigues
 [rR]oundoff
+Rp
 [rR]utile
 Rwp
 [sS]catterer

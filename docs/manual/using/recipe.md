@@ -195,7 +195,7 @@ Two complete cross-engine fixtures are committed under
 with both outputs in the repository. That is a cross-code consistency check with
 a second opinion attached, and the second opinion disagrees.
 
-On the two-phase cathode the two references differ by 2665 ppm on the cubic
+On the two-phase cathode the two references differ by 2668 ppm on the cubic
 cell, because the recipe co-refines size and strain on a pattern where GSAS-II
 itself reports two SVD singularities and a 100 % correlation. It returns a
 negative crystallite size for one phase, and TOPAS returns none at all. This

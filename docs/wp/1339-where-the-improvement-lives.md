@@ -124,6 +124,12 @@ and (2) is accepted.
 
 ### Inherited
 
+- **Decided 2026-10-16 (maintainer, from the issue triage, #219): #219 closes
+  with ask (3) done as report-only.** The seeded-pair helper is not built.
+  #219 is closed with a comment naming PR #928's measurement (real parent held
+  in 0 of 15 split starts) and the wrong-sign tetragonality that only a pair
+  of seeded fits fixes.
+
 - **2026-10-13 (2nd), from WP-1523's close: the hold no longer picks a side
   on a collinear pair, and the wrong-sign start is yours.** A phase's scale
   significance is now conditional on the other phases' scales

@@ -193,10 +193,14 @@ Ending means: ask the batch, apply the answers, write the report, kill this
 run's waiters (step 5), and name the resume command (`/pr-review all` after
 the user's `/compact` or `/clear`). Nothing is carried in a file.
 
-**The batch**: one numbered message; per item the PR, the question in one
-sentence, what it blocks (held review / merge / nothing), and your
-recommendation. Group: PRs by other authors (§ Triage), then governance
-calls, then held reviews, then held merges.
+**The batch**: one numbered message; per item the PR and what it changes in
+plain words, the question, what it blocks (held review / merge / nothing),
+and your recommendation with its reason. Each item reads without this run's
+context, so a WP number or a name the run coined carries a gloss. A genuine
+judgement call adds why it matters, each option's consequence and the
+practice it rests on. A clear-cut item stays one line. Open with how many
+items need a judgement. Group: PRs by other authors (§ Triage), then
+governance calls, then held reviews, then held merges.
 `AskUserQuestion` only for ≤ 4 genuine multi-way choices. Then apply in one
 pass — post, merge, close — with a step-10 line each. **A gate main has moved
 under is void**: before merging a freed PR compare `origin/main` with the sha
@@ -498,7 +502,8 @@ line if the checkpoint ended it. Close with
    Check before assuming either — for #248 the last touch of the WP file was six
    days back and its only worktree branch was already merged and gone.
 10. **Report to the person**: the plain-language paragraph, then what ran, the
-    open questions, the URL, and exactly `PR N: <decision>` — `merged`
+    open questions, the URL, and `PR N (<what it is, in plain words>):
+    <decision>`, the decision exactly one of `merged`
     (`merged, handover PR M` where step 9's entry was owed),
     `closed`, `review posted`, `rebase requested`, `held, waiting on you`,
     plus `skipped (reviewed at <sha>)` and `deferred (<criterion>)` in the

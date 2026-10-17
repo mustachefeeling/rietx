@@ -13,7 +13,9 @@ symmetric pairs, enantiomorphs, and the mirror that separates ``P 63`` from
 ``P 63/m`` are all invisible here **by construction, not for want of counting
 time**.  So :class:`~rietx.schemas.indexing.ExtinctionCandidate` carries a
 ``space_groups`` *list*, ``EXTINCTION_GROUPS_NOT_SEPARABLE`` fires whenever it
-holds more than one, and nothing in this module can return one space group.
+holds more than one, and nothing in this module can return one space group
+from the data alone: only a declared :class:`ExtinctionPrior` (``restrict=``)
+narrows a class, and ``EXTINCTION_PRIOR_APPLIED`` says what it removed.
 
 **The classes are derived, never transcribed.**  Every gemmi setting whose
 lattice matches the candidate is enumerated, its absence set is computed over the
@@ -97,7 +99,7 @@ what the nested comparison is for — which is also why the absence-free class a
 survives to the end as the reference, and why :meth:`ExtinctionScreen.best_or_none`
 needs a decisive *margin* rather than a refutation before it will answer at all.
 
-Markvardsen, David, Johnston & Shankland (2001), *Acta Cryst.* **A57**, 47-54 is
+Markvardsen, David, Johnson & Shankland (2001), *Acta Cryst.* **A57**, 47-54 is
 the Bayesian formulation of this problem — a full posterior over **extinction
 symbols** (their term and their unit of answer, which is the corroboration that
 matters here) from the extracted intensities.  ΔBIC plus direct absence evidence
@@ -117,6 +119,7 @@ from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
     CellCandidate,
     ExtinctionCandidate,
+    ExtinctionPrior,
     ExtinctionScreen,
     PeakList,
 )
@@ -256,6 +259,59 @@ def _order(sg: gemmi.SpaceGroup) -> int:
     """
     ops = sg.operations()
     return len(ops.sym_ops) * (2 if ops.is_centrosymmetric() else 1)
+
+
+# ----------------------------------------------------------------------
+# what a declared fact admits, and the Laue partition of a class
+# ----------------------------------------------------------------------
+def is_polar(sg: gemmi.SpaceGroup) -> bool:
+    """Does the point group leave a direction fixed?
+
+    A group is polar exactly when its rotations share an invariant vector, which
+    is the axis its origin floats along: :func:`~rietx.crystallography.wyckoff.
+    floating_origin_basis` is non-empty (the ten classes 1, 2, m, mm2, 4, 4mm,
+    3, 3m, 6, 6mm; Nye 1957, *Physical Properties of Crystals*, ch. 10).  That
+    is the one derivation, in integers, shared with the floating-origin hold
+    (WP-1912).  Inversion is a rotation part here, so a centrosymmetric group is
+    never polar.
+    """
+    from ..crystallography.wyckoff import floating_origin_basis
+
+    return len(floating_origin_basis(sg)) > 0
+
+
+def admits(prior: ExtinctionPrior | None, sg: gemmi.SpaceGroup) -> bool:
+    """Is this space group compatible with every fact the prior declares?
+
+    Each fact is read off the group's own operators: Sohncke (proper motions
+    only, the groups an enantiopure compound can occupy; Flack 2003, *Helv.
+    Chim. Acta* **86**, 905) and centrosymmetric from gemmi, polar from
+    :func:`is_polar`.
+    """
+    if prior is None:
+        return True
+    if prior.sohncke is not None and sg.is_sohncke() != prior.sohncke:
+        return False
+    if (prior.centrosymmetric is not None
+            and sg.is_centrosymmetric() != prior.centrosymmetric):
+        return False
+    return not (prior.polar is not None and is_polar(sg) != prior.polar)
+
+
+def laue_classes(space_groups: list[str]) -> dict[str, list[str]]:
+    """The members grouped by Laue class, in the order they are listed.
+
+    Members of one extinction class share every position and every absence;
+    what a Laue class changes is which reflections are *equivalent*, so two
+    Laue classes in one extinction class differ only in how intensity is
+    partitioned inside an overlapped multiplet (P 6/m against P -3 1 m), which
+    a powder pattern does not expose.
+    """
+    out: dict[str, list[str]] = {}
+    for name in space_groups:
+        out.setdefault(gemmi.find_spacegroup_by_name(name).laue_str(),
+                       []).append(name)
+    return out
 
 
 # ----------------------------------------------------------------------
@@ -709,6 +765,7 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
                                 k_sigma: float = ABSENT_SIGMA,
                                 max_classes: int | None = None,
                                 refine_cell: bool = False,
+                                restrict: ExtinctionPrior | dict | None = None,
                                 cancel=None) -> ExtinctionScreen:
     """Rank the extinction classes of a lattice.
 
@@ -745,6 +802,16 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     is then screened at the refined cell (``ExtinctionScreen.cell`` is that
     cell); the classes still differ only in their reflection sets.
 
+    ``restrict`` declares facts about the specimen — chirality (Sohncke),
+    centrosymmetry, polarity — as an :class:`ExtinctionPrior` (or its dict).
+    It filters each class's members (``space_groups`` keeps the admitted ones,
+    ``excluded_groups`` the rest) and changes nothing else: every class is
+    fitted and ranked on the data exactly as without it, and
+    ``EXTINCTION_PRIOR_APPLIED`` names every group it removed.
+    :meth:`ExtinctionScreen.best_or_none` then answers among the classes the
+    declaration leaves a member in, and abstains when the data decisively prefer
+    one it emptied.
+
     Cost is one refinement per surviving class (~0.1 s each on a 3750-point
     pattern, after a ~2 s profile fit).  ``max_classes`` caps it; the classes left
     unfitted are reported with ``screened=False`` and, because an unasked question
@@ -766,9 +833,13 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     symbol = candidate.lattice_group or lattice_group(candidate.system,
                                                       candidate.centring)
     wavelength = float(instrument.source.lines[0].wavelength.value)
+    prior = (ExtinctionPrior.model_validate(restrict)
+             if isinstance(restrict, dict) else restrict)
+    if prior is not None and not prior.declared():
+        prior = None                    # a prior declaring nothing is no prior
     screen = ExtinctionScreen(
         lattice_group=symbol, cell=candidate.cell, system=candidate.system,
-        centring=candidate.centring, wavelength=wavelength)
+        centring=candidate.centring, wavelength=wavelength, prior=prior)
 
     ins = instrument
     if peaks is not None:
@@ -874,9 +945,13 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         orbit_absent = _orbit_absences(sg, orbits)
         absent_line = np.logical_and.reduceat(orbit_absent[by_line], starts)
         forbidden = np.flatnonzero(absent_line)
+        admitted = [g for g in cls.space_groups
+                    if admits(prior, gemmi.find_spacegroup_by_name(g))]
         entry = ExtinctionCandidate(
             symbol=cls.symbol, representative=cls.representative,
-            space_groups=list(cls.space_groups), conditions=list(cls.conditions),
+            space_groups=admitted,
+            excluded_groups=[g for g in cls.space_groups if g not in admitted],
+            laue_classes=laue_classes(admitted), conditions=list(cls.conditions),
             conditions_complete=cls.conditions_complete,
             n_lines=int(n_lines - len(forbidden)), n_absent=int(len(forbidden)))
         first_of_line = first_row_of_line[forbidden]
@@ -993,7 +1068,7 @@ def _row_line_labels(rows, primary, labels) -> np.ndarray:
                     dtype=np.int64)
 
 
-__all__ = ["DECISIVE_DELTA_BIC", "AbsenceClass", "absence_classes",
+__all__ = ["DECISIVE_DELTA_BIC", "AbsenceClass", "absence_classes", "admits",
            "compatible_groups", "determine_extinction_symbol",
-           "extinction_symbol", "line_index", "reflection_conditions",
-           "testable_mask"]
+           "extinction_symbol", "is_polar", "laue_classes", "line_index",
+           "reflection_conditions", "testable_mask"]

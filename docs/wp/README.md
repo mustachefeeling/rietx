@@ -50,6 +50,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-16 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
 
@@ -67,10 +68,10 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1967](1967-what-the-chemist-declares-reaches-the-extinction-screen.md) | What the chemist declares reaches the extinction screen | P2 | — ([1910](1910-the-extinction-screen-at-a-small-cell-error.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | P2 | — ([1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1983](1983-the-concepts-tab.md) | The Concepts tab | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1984](1984-the-switching-tab.md) | The Switching tab | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md), [1979](1979-the-manual-at-docs-one-tree-per-version.md) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1989](1989-the-released-arm-keeps-riding-hydrogens-riding.md) | The rigid-body check's released arm keeps riding hydrogens riding | P2 | — ([1806](1806-first-public-case-acridine-form-ix.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1997](1997-the-direct-space-solver-on-main.md) | The direct-space solver on main: site classes, kernels, chemistry, engine and entry point | P2 | [1902](1902-the-solve-cost-as-a-quadratic-form.md), [1940](1940-the-kernel-tier-in-a-wheel.md) ([1901](1901-the-difference-fourier-map.md) soft) | [structure-solution](#structure-solution) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -420,6 +421,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1811](1811-bodies-in-a-series.md) | Bodies in a series | ⬜ | P3 | [1805](1805-the-rigid-body.md), [1333](1333-a-series-survives-one-pattern.md) |
 | [1812](1812-gui-textdoc-skill-and-manual-for-bodies.md) | GUI, textdoc, skill and manual for bodies | ⬜ | P4 | [1805](1805-the-rigid-body.md) |
 | [1813](1813-fragment-io.md) | Fragment I/O: XYZ, Z-matrix write, SMILES behind an extra | ⬜ | P4 | [1802](1802-the-fragment-type.md) |
+| [1814](1814-refinable-z-matrix-internals.md) | Refinable internal geometry: Z-matrix lengths, angles and dihedrals | ⬜ | P3 | [1815](1815-derived-geometry-torsions-and-a-request-form.md), [1805](1805-the-rigid-body.md) |
+| [1815](1815-derived-geometry-torsions-and-a-request-form.md) | Derived geometry: torsions, a request form, one table every writer reads | ⬜ | P3 | [1804](1804-the-derived-block.md) |
 
 ## <a id="structure-solution"></a>structure-solution — a map, a cost and a search
 
@@ -427,6 +430,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 |---|---|---|---|---|
 | [1901](1901-the-difference-fourier-map.md) | The difference-Fourier map: a missing atom shows as a peak | ⬜ | P3 | — |
 | [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | ✅ 2026-10-03 | — | — |
+| [1997](1997-the-direct-space-solver-on-main.md) | The direct-space solver on main: site classes, kernels, chemistry, engine and entry point | ⬜ | P2 | [1902](1902-the-solve-cost-as-a-quadratic-form.md), [1940](1940-the-kernel-tier-in-a-wheel.md) ([1901](1901-the-difference-fourier-map.md) soft) |
 
 ## <a id="unscheduled"></a>Unscheduled
 
@@ -532,6 +536,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | ⬜ | P2 | — ([1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) soft) |
 | [1976](1976-a-correction-summary-judged-at-the-drawn-angle.md) | A correction summary judged at the drawn angle | ✅ 2026-10-15 | — | — |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | ⬜ | P2 | — |
+| [1989](1989-the-released-arm-keeps-riding-hydrogens-riding.md) | The rigid-body check's released arm keeps riding hydrogens riding | ⬜ | P2 | — ([1806](1806-first-public-case-acridine-form-ix.md) soft) |
+| [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | ⬜ | P2 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
@@ -598,6 +604,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1971](1971-a-returned-figure-survives-a-zoom-and-a-pickle.md) | A returned figure survives a caller's zoom and a pickle | ✅ 2026-10-15 | — | — |
 | [1972](1972-the-indexing-figures-take-a-dark-palette.md) | The indexing figures take a dark palette | ✅ 2026-10-15 | — | — |
 | [1985](1985-report-and-diagnostic-text-in-one-voice.md) | Report and diagnostic text, rewritten in one voice | ✅ 2026-10-16 | — | — ([1133](1133-diagnostic-names-its-view.md) soft) |
+| [1990](1990-the-correlation-matrix-reaches-the-result.md) | The correlation matrix reaches the result | ⬜ | P3 | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 
@@ -615,6 +622,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1919](1919-maximal-subgroups-generated-from-the-operators.md) | Maximal subgroups, their conjugacy classes, (P, p) and Wyckoff splittings, generated from the group's own operators | ⬜ | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
 | [1921](1921-the-users-own-structure-database-indexed.md) | The user's own structure database, indexed: is this phase or this cell already known? | ⬜ | P3 | — |
 | [1967](1967-what-the-chemist-declares-reaches-the-extinction-screen.md) | What the chemist declares reaches the extinction screen | ⬜ | P2 | — ([1910](1910-the-extinction-screen-at-a-small-cell-error.md) soft) |
+| [1992](1992-nw2-magnetic-superspace-groups.md) | N-W2 (group half): magnetic superspace groups generated from the operators | ⬜ | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
+| [1993](1993-nw3-satellites-at-a-real-q.md) | N-W3: satellites at a real q, to order m, with (h k l m) rows | ⬜ | P3 | — ([1992](1992-nw2-magnetic-superspace-groups.md) soft) |
 
 ### <a id="unscheduled-the-repo-s-own-process"></a>The repo's own process
 
@@ -651,14 +660,17 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1961](1961-cut-1-9-0.md) | Cut 1.9.0 from what main holds | ✅ 2026-10-14 | — | [1954](1954-cut-1-8-0.md), [1959](1959-the-dichotomy-grid-compiled-again.md) |
 | [1975](1975-manual-rebuild-findings.md) | The manual rebuilt: findings brief | ✅ 2026-10-16 | — | — |
 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) | The new manual's tree: six tabs beside the old, and its page contract | ✅ 2026-10-16 | — | — |
-| [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
-| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1979](1979-the-manual-at-docs-one-tree-per-version.md) | The manual at rietx.org/docs/, one tree per version | ✅ 2026-10-16 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
+| [1980](1980-every-page-as-clean-markdown-and-an-llms-txt.md) | Every page as clean markdown, and an llms.txt | ✅ 2026-10-17 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
 | [1981](1981-the-reference-pages-generated-from-their-authorities.md) | The reference pages, generated from their authorities | ✅ 2026-10-16 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
 | [1982](1982-vale-and-a-term-list-on-the-new-tree.md) | Vale and a term list on the new tree | ✅ 2026-10-16 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) |
-| [1983](1983-the-concepts-tab.md) | The Concepts tab | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
-| [1984](1984-the-switching-tab.md) | The Switching tab | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
-| [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | ⬜ | P3 | [1978](1978-the-new-manual-tree-and-its-page-contract.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md), [1979](1979-the-manual-at-docs-one-tree-per-version.md) |
+| [1983](1983-the-concepts-tab.md) | The Concepts tab | ✅ 2026-10-17 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
+| [1984](1984-the-switching-tab.md) | The Switching tab | ✅ 2026-10-17 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
+| [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | ⬜ | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md), [1979](1979-the-manual-at-docs-one-tree-per-version.md) |
 | [1987](1987-the-kernel-gate-on-the-macos-intel-runner.md) | The kernel gate on the macOS Intel runner | ⬜ | P3 | — |
+| [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 🔄 2026-10-16 | P4 | — |
+| [1994](1994-a-note-into-a-closed-wp-is-caught-at-handover.md) | A note written into a closed WP is caught at handover | ✅ 2026-10-16 | — | — |
+| [1996](1996-the-switching-tab-says-only-what-its-tests-show.md) | The Switching tab says only what its tests show | ✅ 2026-10-17 | — | [1984](1984-the-switching-tab.md) |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 
@@ -678,3 +690,4 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1964](1964-a-nonlinear-law-through-the-derived-block.md) | A nonlinear law over the pattern coordinates, through the derived block | ⬜ | P2 | [1325](1325-parametric-series.md), [1804](1804-the-derived-block.md) |
 | [1965](1965-a-law-declared-by-formula-condition-and-glob.md) | A parametric law declared by formula, condition and glob | ⬜ | P3 | [1325](1325-parametric-series.md) |
 | [1974](1974-the-texture-screen-says-which-order-the-misfit-needs.md) | The texture screen says which order the misfit needs | ⬜ | P3 | [1960](1960-spherical-harmonics-texture.md) |
+| [1995](1995-soft-restraints-in-a-joint-fit.md) | Soft restraints in a joint fit | ⬜ | P3 | — |

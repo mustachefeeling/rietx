@@ -1,5 +1,5 @@
 ---
-description: End-of-session WP handover — record everything, review, verify, open the PR, report ready for /clear
+description: End-of-session WP handover — record everything, review, verify, open the PR and watch it, report ready for /clear
 ---
 
 Run the end-of-WP-session checklist (docs/ROADMAP.md § Session protocol,
@@ -76,6 +76,13 @@ re-reading its own diff.
    gets its `Priority:` line rewritten (tier, today's date, one clause naming
    this WP; rubric in `docs/wp/TEMPLATE.md`). An unrated WP (`—`) stays
    unrated unless the move is the reason to rate it.
+   **Then run `python3 .claude/hooks/closed_wp_writes.py`**. It lists every
+   WP this branch adds lines to that is ✅/🛑 at the merge-base or on
+   `origin/main` (closed by its owner since this branch forked). No
+   session reads a closed WP again, so a note there that asks for work is
+   lost: move it to the open owner, or file one. A correction to the closed
+   WP's own record may stay, and the handover entry says which it was. Two
+   notes were lost this way, one of them for 81 days (WP-1994).
 6. **Review the diff before it becomes a PR.** Run `/code-review high
    --fix` — it reads this session's work (a clean tree means the branch's own
    diff against `origin/main`) and applies what it accepts to the working
@@ -246,13 +253,24 @@ re-reading its own diff.
       taking the **number** out, since editing the words around it does not.
     - **Never merge, and never wait on CI to decide.** Whether green is
       enough, and when to merge, is the maintainer's call.
+    - **Then subscribe to it**, where `subscribe_pr_activity` exists (a cloud
+      session; `ToolSearch` loads it). `.claude/hooks/pr_subscribe.py` puts
+      the call, number filled in, in front of you after `gh pr ready`. From
+      here the session is the PR's steward until it merges or closes, and
+      handles each CI result, review and merge conflict by
+      `.claude/skills/steward/SKILL.md` (WP-1988): main moves under every
+      open PR all day, and an unwatched one sits red or conflicted until the
+      maintainer finds it.
 12. **Report**, to the person and not to the log: **first the same
     plain-language paragraph the entry opens with** — what this session's work
     means, in a few sentences someone can read without opening the diff — then
     the next actions, then the PR URL, and that CI is the gate — the required checks run
     ruff plus the fast suite across the supported Pythons and a `[dev,jax]`
-    job. Offer to watch the run rather than assuming; when you do watch, read
+    job. Subscribed (step 11), say so; without the tool, offer to watch the
+    run rather than assuming. When you watch by polling, read
     state from `gh run list` (REST) rather than `gh pr checks` (GraphQL, which
     has 503'd through a GitHub incident while runs kept reporting), and read a
     sub-minute failure as one that never reached repo code. Only when step 10
-    is green, end with exactly: **ready for /clear**.
+    is green, end with exactly: **ready for /clear** — or, subscribed, with
+    **watching <PR url>**: its events arrive in this session, so the next WP
+    starts in a new one.

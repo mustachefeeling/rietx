@@ -14,14 +14,17 @@
 import dataclasses as _dataclasses
 import importlib as _importlib
 import inspect as _inspect
+import os as _os
 import re as _re
 from pathlib import Path as _Path
 
 import sphinxcontrib.bibtex.plugin as _bibtex_plugin
+from docs_versions import docs_version
 from docutils import nodes as _nodes
 from sphinxcontrib.bibtex.style.referencing import BracketStyle
 from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferenceStyle
 
+from rietx import __version__
 from rietx._about import REPO_URL
 from rietx.crystallography.atomic_volume import VOLUME_RATIO_BOUNDS, VOLUME_SCATTER
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
@@ -41,7 +44,7 @@ from rietx.indexing.engines import (
 )
 from rietx.indexing.reduce import NIGGLI_EPS_RELATIVE
 from rietx.model.absorption import CYLINDER_MU_R_MAX
-from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_AREA_TOL
+from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, PHASE_SUPPORT_SIGMA, WINDOW_AREA_TOL
 from rietx.model.geometry import (
     ANGLE_LINEARISATION_LIMIT_DEG,
     VARIANCE_CANCELLATION_FLOOR,
@@ -60,9 +63,17 @@ from rietx.optimize.statistics import (
 from rietx.params.parametric import FORM_TEST_LEVEL
 from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
 from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
+from rietx.report.layer0 import build_layer0
 from rietx.report.layer2 import IMPURITY_SIGMA
 from rietx.report.schemas import (
     MATURITY_MAX_RWP,
+    MATURITY_MIN_EXPLAINED_FRACTION,
+    MATURITY_MIN_MISFIT_SHARE,
+    MAX_GRAM_CONDITION,
+    MIN_COEF_SIGNIFICANCE,
+    MIN_REGION_CHI2_RED,
+    MIN_REGION_R2,
+    SEPARABILITY_MIN_SS_RATIO,
     THRESHOLDS_VERSION,
     VALIDITY_RADIUS_FWHM,
 )
@@ -219,6 +230,23 @@ MYST_SUBSTITUTIONS = {
     # `⚠ not a fit yet`.  The GUI chapters state it, so it is injected for the
     # same reason every other threshold here is: a retune must move the page.
     "MATURITY_MAX_RWP": MATURITY_MAX_RWP,
+    # Layer 1's other gates, which the Concepts page on the report states.
+    # Shares are quoted as percentages and the Gram bound as a whole number.
+    "MATURITY_MIN_EXPLAINED_PCT": f"{100 * MATURITY_MIN_EXPLAINED_FRACTION:g}",
+    "MATURITY_MIN_MISFIT_PCT": f"{100 * MATURITY_MIN_MISFIT_SHARE:g}",
+    "MAX_GRAM_CONDITION": f"{MAX_GRAM_CONDITION:,.0f}".replace(",", " "),
+    "MIN_COEF_SIGNIFICANCE": f"{MIN_COEF_SIGNIFICANCE:g}",
+    "MIN_REGION_CHI2_RED": MIN_REGION_CHI2_RED,
+    # How much better the best position trend must fit than the runner-up.
+    "SEPARABILITY_MIN_SS_RATIO": f"{SEPARABILITY_MIN_SS_RATIO:g}",
+    # The height in esds a residual peak needs to join Layer 0's unmatched
+    # list.  It is a keyword default, not a module constant, so it is read
+    # off the signature.
+    "LAYER0_PEAK_SIGMA":
+        f"{_inspect.signature(build_layer0).parameters['min_peak_sigma'].default:g}",
+    # A phase under this many esds of scale is held for the stage (WP-1523).
+    "PHASE_SUPPORT_SIGMA": f"{PHASE_SUPPORT_SIGMA:g}",
+    "MIN_REGION_R2": MIN_REGION_R2,
     "NEAR_EDGE_EV": NEAR_EDGE_EV,
     # where Y³⁺'s ITC fit hands over to neutral Y (WP-1527).  The package
     # computes it from the two curves, so the chapter quotes it.
@@ -250,18 +278,27 @@ MYST_SUBSTITUTIONS = {
 # equation to the code that runs it in one click, and a renamed symbol breaks
 # the **build** rather than leaving a dead link on the page.
 #
-# The link goes to `main`, not to a tag of `release`.  A tag would pin the
-# line number to a tree it is certainly true of, which is the better property
-# — and it was measured not to hold: `pyproject.version` is the last *shipped*
-# milestone whether or not that milestone was tagged, and on 2026-09-14 the
-# version read 1.4.0 while `git ls-remote --tags` stopped at v1.3.0, so every
-# link would have been a 404.  `main` is also the tree the published manual is
-# built from, so the page and its links agree; the cost is a line number that
-# can drift by a few lines between a build and a later reading.
+# A release's manual links its tag, and `main`'s links `main` (WP-1979).
+# The tag pins each line number to the tree the page was built from.  Until
+# WP-1979 every build linked `main`, because `pyproject.version` was once the
+# last shipped milestone whether or not it was tagged (on 2026-09-14 it read
+# 1.4.0 while the tags stopped at v1.3.0).  The ref now follows the hosted
+# version instead: only release.yml builds a release's manual, and only at a
+# tag its own check has matched to `pyproject.version`.
 # ----------------------------------------------------------------------
 
-#: What to link at — see the note above for why this is a branch and not a tag.
-_SOURCE_REF = "main"
+#: Which hosted manual this build is: ``dev`` for `main`, ``X.Y`` for a
+#: release (`docs_versions.docs_version`).  Unset, it is ``dev``: every build but
+#: release.yml's is `main`'s, even at the commit a release is cut from, whose
+#: tag is pushed hours later.  release.yml sets it from the tag, and a value
+#: that is not the installed release's refuses to build.
+DOCS_VERSION = _os.environ.get("DOCS_VERSION", "dev")
+if DOCS_VERSION not in ("dev", docs_version(__version__)):
+    raise RuntimeError(f"DOCS_VERSION={DOCS_VERSION} names another release than "
+                       f"the installed {__version__}")
+
+#: What the `{source}` role and the Reference tab's file links point at.
+SOURCE_REF = "main" if DOCS_VERSION == "dev" else f"v{__version__}"
 
 
 def _assignment_line(path: _Path, name: str) -> int:
@@ -338,7 +375,7 @@ def source_role(name, rawtext, text, lineno, inliner, options=None, content=None
     except Exception as exc:                      # noqa: BLE001 — reported, not raised
         message = inliner.reporter.error(f"{{source}}: {exc}", line=lineno)
         return [inliner.problematic(rawtext, rawtext, message)], [message]
-    url = f"{REPO_URL}/blob/{_SOURCE_REF}/{path}#L{line}"
+    url = f"{REPO_URL}/blob/{SOURCE_REF}/{path}#L{line}"
     link = _nodes.reference("", "", _nodes.literal(text=dotted), refuri=url,
                             classes=["source-link"])
     return [_nodes.emphasis(text="Source: "), link], []

@@ -66,6 +66,9 @@ offset alongside `pen_off[h]`, and the per-histogram Jacobian's restraint stripe
 only Rietveld histograms contribute rows. The single-histogram seam
 (`optimize/least_squares.py`, `model/restraints.py`) is the reference.
 
+*2026-10-16:* written after this WP closed, so no session read it. The work
+is [WP-1995](1995-soft-restraints-in-a-joint-fit.md), which owns it now.
+
 ## Design (audit + decisions — 2026-07-24)
 
 **Audit — how far list support goes today.** None, for histograms. The only

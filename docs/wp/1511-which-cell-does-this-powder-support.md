@@ -62,6 +62,23 @@ accepted cell is tested as the explanation of the leftovers.
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#728 item 1): the picker changed after
+  the public repro was measured.** The 2026-10-12 repro (`869b6cf8`)
+  attributes the ~100 lines to two picker effects: junk components on a steep
+  falling background (arm a, 62 usable lines, no true cell, an unvalidated 2a0
+  cubic at #12) and each true line split into 2-3 components. Both are now
+  targeted on main: PR #947 (`0a53a99b`, 2026-10-15, per-pattern
+  false-discovery bar, `weak_line` and `PEAK_EXPECTED_FALSE_LINES`) and PR
+  #948 (`215f54b8`, 2026-10-15, component count by resolvability,
+  `unresolved_split` and `width_capped`, whose commit message names #728's
+  flat-topped synthetic silicon: 129 flank components on its steep
+  background). `INDEXING_THRESHOLDS_VERSION` is 1.11. Arm (a)'s 62 lines, its
+  junk hexagonal first rank and the #12 supercell have not been re-run on the
+  new picker (repro_728.py is in the issue comment, about 7 minutes). Re-run
+  it before this WP leans on the #12 case as its stand-in for the 4x
+  supercell; if arm (a) now returns the true cell, the sub-cell reduction has
+  no public case and says so.
+
 - **2026-10-05, from the issue triage (issue #728, part 1): an unvalidated
   supercell can head the list when its sub-cell was never a candidate.** A
   benchmark agent on `961f2eb5` indexed a synchrotron Si pattern (0.8257 Å,

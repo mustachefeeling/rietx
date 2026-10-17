@@ -161,6 +161,18 @@ the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
 
+- **2026-10-16, from the issue triage (#1002): `IrrepModes.primary` compares
+  operation counts only.** `_isotropy`
+  (`crystallography/representation/distortion.py`, checked at `138d55dc`)
+  returns `len(data.rotations) == n_child_ops`. spglib reports only the
+  operations preserving the input cell, so a component whose isotropy group
+  is a supergroup still reads as primary. Measured by the reporter: the S4
+  component in the I4/mmm child of S6 #1 at R reports `Fm-3m (225)` and
+  `primary = True` (32 rotations against the child's 32). Fix: compare the
+  space-group number or the operation sets. `DistortionCandidate.primary`
+  (#996, open) matches the irrep label and does not read this flag, so the
+  defect shows only in `IrrepModes.primary`. Not reproduced here.
+
 - **2026-10-11, from the issue triage (#418, in PR #889): C0b is open as the
   reporter's PR.** PR #889 (opened 2026-10-11, fork) moves isotropy's
   kind-neutral half (`order_parameter_space`, `isotropy_directions` and their
