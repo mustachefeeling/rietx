@@ -65,6 +65,9 @@ result = ref.fit(data, plan=plan, two_theta_limits=(15, 130))
 [('background', 7), ('cell', 3), ('profile', 5), ('atoms', 19)]
 ```
 
+The two axial-divergence terms are set by hand, where an `.instprm` would supply `SH/L`.
+This plan frees U, V and W, which the [validation protocol](validation.md#fluorapatite-against-gsas) holds at GSAS's values, so its Rwp differs from the one quoted there.
+
 A name in `turn_on` is a parameter path, and `*` stands for any text at that place.
 `phases.*.cell.*` is every lattice parameter of every phase.
 Staging is cumulative, so the cell stays free in the profile and atom stages.
@@ -88,29 +91,29 @@ The [joint fit](validation.md#one-specimen-two-radiations) of a synchrotron and 
 GSAS-II states U, V and W as a Gaussian variance in centidegrees², and X and Y in centidegrees.
 rietx states U, V and W as the Gaussian FWHM² in degrees², and X and Y in degrees.
 rietx's U is GSAS-II's times 8 ln 2 × 10<sup>−4</sup>, and its X and Y are GSAS-II's divided by 100.
-Writing the instrument from the fluorapatite fit shows the conversion.
-These are lines of the file, without its comment line and the lines after `Y`:
+Writing the instrument from the four-stage fit above shows the conversion.
+These are lines of the file, without its comment line and the lines after `Y`, with each number cut to six significant figures:
 
-<!-- api-doc: no-exec — needs a fitted Refinement and writes a file; examples/switching.py runs it and asserts the conversion -->
+<!-- api-doc: no-exec — needs a fitted Refinement and writes a file; examples/switching.py runs it and asserts these lines -->
 ```python
 rx.write_gsas2_instprm(ref.fitted_instrument, "refined.instprm")
 ```
 
 ```text
 Type:PXC
-Lam1:1.5405929
-Lam2:1.5444274
-Zero:0.0
-I(L2)/I(L1):0.47658515668780854
+Lam1:1.54059
+Lam2:1.54443
+Zero:-0.0365483
+I(L2)/I(L1):0.5
 Polariz.:0.5
-U:-1.7741080869831347
-V:3.0723188745549024
-W:2.134401116086395
-X:2.733178848464237
-Y:4.108861978756544
+U:-1.57858
+V:2.93235
+W:2.29048
+X:2.74538
+Y:3.9936
 ```
 
-The `.instprm` states U = −1.7741 centidegrees², and rietx's own value is −0.00098377 degrees².
+The `.instprm` states U = −1.57858 centidegrees², and rietx's own value is −0.000875351 degrees².
 `rx.read_gsas2_instprm` reads the file back and converts.
 
 GSAS-II states one axial divergence, `SH/L`, as the sum of the specimen and detector terms.
@@ -141,7 +144,7 @@ The atoms and the phase scale are fixed in both modes, and no other code was com
 ### A phase
 
 `rx.read_project_model` opens a `.gpx` by its content, and `to_structure` builds the structure from the cell, the atoms and their displacement parameters.
-The reader builds a `Structure` and not an instrument, so the instrument comes from the `.instprm`.
+The reader builds a `Structure` alone, so the instrument comes from the `.instprm`.
 The reader refuses any name in the pickle that it does not recognise, and never runs one.
 There is no writer for a `.gpx`.
 `rx.write_gsas2_phase_cif` writes a phase as a CIF that GSAS-II's import reads, and refuses a phase with a magnetic moment or a propagation vector, because GSAS-II would drop it without a warning.
