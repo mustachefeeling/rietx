@@ -32,7 +32,7 @@ this; everything in `rx.` is `import rietx as rx`.*
 
 ## Displacive candidates of a parent
 
-`distortion_candidates(parent, k, sites=None)` from `rietx.crystallography.magnetic.isotropy` lists every child a displacement at `k` can give: one per (irrep, direction) of `candidates(kind="displacive")` over the named sites (all by default), the child `Phase` in a standard setting with (P, p), and its `distortion_basis`, primary and secondary irreps alike, in Å. `primary` is the candidate's own irrep, `secondary` the rest. The k fence (2k in the reciprocal lattice) is `candidates`'.
+`distortion_candidates(parent, k, sites=None)` from `rietx.crystallography.magnetic.isotropy` lists every child a displacement at `k` can give: one per (irrep, direction) of `candidates(kind="displacive")` over the named sites (all by default), the child `Phase` in a standard setting with (P, p), and its `distortion_basis`, every irrep the child admits, in Å. `driving` is the candidate's own irrep, `rest` the others. The k fence (2k in the reciprocal lattice) is `candidates`'.
 
 - `rietx.crystallography.magnetic.isotropy.distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, ...]` — Every displacive candidate of `parent` at `k`, with its child and modes in Å.
 - `rietx.crystallography.magnetic.isotropy.DistortionCandidate` — One displacive candidate of a parent: its child, (P, p) and its modes in Å.
