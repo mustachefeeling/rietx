@@ -31,7 +31,7 @@ Read each group in this order:
 
 1. `gain` against `noise_floor`.
    Only groups above the floor are listed.
-   The floor is 9 times χ²/ν, or 9 when χ²/ν is below 1: the 3σ point for one parameter.
+   The floor is {{ SUGGEST_MIN_GAIN }} times χ²/ν, or {{ SUGGEST_MIN_GAIN }} when χ²/ν is below 1: the 3σ point for one parameter.
 2. `resolved`.
    A group of two holds parameters whose effects on the pattern the data cannot tell apart.
    Here each instrument width pairs with the sample width of the same shape, Lorentzian with Lorentzian and Gaussian with Gaussian.

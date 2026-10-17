@@ -30,11 +30,15 @@ _CIF = (
 _TWO_THETA = np.arange(3.0, 24.0, 0.005)
 
 
+with tempfile.TemporaryDirectory() as _work:
+    _path = Path(_work) / "LaB6.cif"
+    _path.write_text(_CIF, encoding="utf-8")
+    _LAB6 = rx.Structure.from_cif(_path)
+
+
 def lab6():
-    """The LaB6 structure at 300 K, read from a short CIF."""
-    path = Path(tempfile.mkdtemp()) / "LaB6.cif"
-    path.write_text(_CIF, encoding="utf-8")
-    return rx.Structure.from_cif(path)
+    """The LaB6 structure at 300 K, read once from a short CIF."""
+    return _LAB6.model_copy(deep=True)
 
 
 def _true_instrument():
@@ -65,7 +69,7 @@ def ramp():
 
 def starting_model():
     """What you would have before the first fit: the cell 0.1 % off, no zero
-    shift, and peaks 50 % too wide."""
+    shift, and W 50 % too large, so the peaks are about 20 % too wide."""
     structure = lab6()
     for edge in "abc":
         getattr(structure.phases[0].cell, edge).value = A0 * 1.001

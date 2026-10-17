@@ -49,6 +49,9 @@ print([d.code for d in bent.diagnostics if d.code.startswith("PARAMETRIC")])
 slope = result.parametric[1]
 true_slope = TRUE_A[0] * 5e-4 / 100
 assert abs(slope.value - true_slope) / slope.esd < 2
+assert f"{true_slope:.4e}" == "2.0783e-05" and round(abs(slope.value - true_slope) / slope.esd) == 1
+cov = result.parametric_equations[0].covariance  # the page's intercept-slope correlation
+assert f"{cov[0][1] / (cov[0][0] * cov[1][1]) ** 0.5:.3f}" == "0.001"
 assert [c.term for c in result.parametric] == ["1", "T"]
 assert f"{result.parametric[0].value:.10f}" == "4.1628356113"
 assert f"{result.parametric[0].esd:.1e}" == "1.6e-06"

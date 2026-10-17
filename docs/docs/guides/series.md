@@ -9,7 +9,7 @@ Each pattern gets its own refinement, and each fit starts from the answer of the
 
 This fits seven synthetic LaB6 patterns from 300 K to 900 K.
 `_lab6_ramp.py`, beside the script, makes them from a known model with Poisson noise, and its cell edge grows by 0.05 % per 100 K.
-The starting model has the cell 0.1 % too large and the peaks 50 % too wide.
+The starting model has the cell 0.1 % too large and the peaks about 20 % too wide.
 
 ```{literalinclude} ../../../examples/guides/series.py
 :language: python
