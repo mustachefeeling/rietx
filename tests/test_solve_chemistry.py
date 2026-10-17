@@ -1,4 +1,4 @@
-"""#562 S3 (WP number pending): composition, the contact term and the priors.
+"""#562 S3 (WP-1997): composition, the contact term and the priors.
 
 Public and synthetic structures only: WP-1466's 21 phases
 (``tests/data/polyhedra_phases.json``), and textbook cells built here.
@@ -395,3 +395,79 @@ def test_radii_follow_the_stated_rule_and_never_mix_tables():
     mixed = ch.compile_chemistry(_cdoh2(H_TRUE).phases[0])
     assert mixed.r0[1, 2] == 0.0
     assert any("O2-" in n and "H" in n and "different tables" in n for n in mixed.notes)
+
+
+# -- review round 1 (#1016) -------------------------------------------------------
+
+def _two_fe(occ):
+    return _phase("fe2", "P 1", (6.0, 6.0, 6.0, 90, 90, 90),
+                  [_atom("Fe1", "Fe", 0.10, 0.10, 0.10, occ=occ),
+                   _atom("Fe2", "Fe", 0.30, 0.10, 0.10, occ=occ)])    # 1.2 Å apart
+
+
+def test_a_declared_exclusion_outranks_the_occupancy_rule():
+    phase = _two_fe(0.5)
+    plain = ch.compile_chemistry(phase)
+    assert plain.r0[0, 1] == 0.0 and any("Fe1–Fe2" in n for n in plain.notes)
+    chem = ch.compile_chemistry(phase, ch.SolvePriors(
+        exclude=(ch.ExcludedContact("Fe", "Fe", 2.5),)))
+    assert chem.r0[0, 1] == chem.r0[1, 0] == 2.5       # its own d, not the radii's
+    assert chem.terms(_xyz(phase)).raw["clash"] > 0.0
+    assert any("outranks the occupancy rule" in n and "Fe1–Fe2" in n for n in chem.notes)
+    assert not any("no clash term for: Fe1–Fe2" in n for n in chem.notes)
+
+
+def test_the_mixed_table_note_does_not_deny_a_declared_exclusion():
+    phase = _cdoh2(H_TRUE).phases[0]
+    plain = ch.compile_chemistry(phase)
+    assert any("different tables" in n and "no radius-derived clash term" in n
+               and "declared exclusion" not in n for n in plain.notes)
+    chem = ch.compile_chemistry(phase, ch.SolvePriors(
+        exclude=(ch.ExcludedContact("O", "H", 0.8),)))
+    note = next(n for n in chem.notes if "different tables" in n and "O2-" in n)
+    assert "declared exclusion at 0.8 Å is its clash term" in note
+    assert chem.r0[1, 2] == 0.8
+
+
+def test_a_radius_past_the_27_cells_is_refused_at_compile():
+    thin = _phase("thin", "P 1", (2.0, 8.0, 8.0, 90, 90, 90),
+                  [_atom("H1", "H", 0.0, 0.0, 0.0), _atom("H2", "H", 0.5, 0.5, 0.5)])
+    with pytest.raises(ValueError, match="27 cells"):
+        ch.compile_chemistry(thin, ch.SolvePriors(
+            exclude=(ch.ExcludedContact("H", "H", 3.5),)))
+    ch.compile_chemistry(thin, ch.SolvePriors(
+        exclude=(ch.ExcludedContact("H", "H", 1.0),)))          # a fitting one compiles
+
+
+def test_an_ambiguous_cn_raises_and_names_both_rows():
+    with pytest.raises(ValueError, match="IV and IVSQ"):
+        ch.contact_radius("Cu2+", cn=4)
+    assert ch.contact_radius("Cu2+", cn="IV").radius > 0       # the choice made
+    assert ch.contact_radius("Ti4+", cn=12) is None            # untabulated stays None
+    assert ch.contact_radius("Fe2+").radius == 0.75            # both spins: still the smaller
+    phase = _phase("cu", "P 1", (6.0, 6.0, 6.0, 90, 90, 90),
+                   [_atom("Cu1", "Cu2+", 0.1, 0.1, 0.1)])
+    with pytest.raises(ValueError, match="IVSQ"):
+        ch.compile_chemistry(phase, ch.SolvePriors(cn={"Cu2+": 4}))
+
+
+def test_a_prior_that_matches_nothing_says_so():
+    phase = _cdoh2(H_TRUE).phases[0]
+    chem = ch.compile_chemistry(phase, ch.SolvePriors(
+        coordination=(ch.CoordinationPrior("Zn", "O", 1.8, 2.4, 6, 6),
+                      ch.CoordinationPrior("Cd", "Cl", 2.0, 2.8, 6, 6)),
+        exclude=(ch.ExcludedContact("Zn", "H", 2.0),),
+        cn={"Ti4+": 6}, spin={"Fe2+": "HS"}))
+    notes = "\n".join(chem.notes)
+    assert "CoordinationPrior Zn–O: no site holds Zn, so the term is 0 and reads as satisfied" in notes
+    assert "CoordinationPrior Cd–Cl: no site holds Cl" in notes
+    assert "ExcludedContact Zn–H: no site holds Zn" in notes
+    assert "SolvePriors.cn['Ti4+']" in notes and "SolvePriors.spin['Fe2+']" in notes
+    quiet = ch.compile_chemistry(phase, ch.SolvePriors(
+        coordination=(ch.CoordinationPrior("Cd", "O", 2.0, 2.8, 6, 6),)))
+    assert not any("no site" in n for n in quiet.notes)
+
+
+def test_the_radius_detail_uses_shannons_spelling():
+    assert "Ti4+ CN VI" in ch.contact_radius("Ti4+").detail
+    assert "O2- CN VI" in ch.contact_radius("O2-").detail
