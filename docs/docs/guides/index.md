@@ -12,6 +12,7 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 ## Background
 
 - [How to use a measured blank as the background](blank.md) holds an empty-container scan under the pattern with `BackgroundFixedPlusChebyshev`.
+- [How to add a hump to the background](hump.md) declares a broad Gaussian for amorphous or container scattering.
 
 ## Constraints and plans
 
@@ -31,6 +32,7 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 check
 range
 blank
+hump
 hold
 tie
 restrain
