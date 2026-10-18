@@ -137,6 +137,7 @@
   "diagnostics:INDEX_PANEL_REDUCED",
   "diagnostics:INDEX_PREDICTED_BUT_ABSENT",
   "diagnostics:INDEX_PRIOR_USED",
+  "diagnostics:INDEX_RESIDUE_PASS",
   "diagnostics:INDEX_SEARCH_INCOMPLETE",
   "diagnostics:INDEX_SHIFT_ALLOWANCE",
   "diagnostics:INDEX_SHIFT_DETECTED",
