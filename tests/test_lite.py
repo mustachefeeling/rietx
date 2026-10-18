@@ -38,7 +38,9 @@ def _load(name: str, path: Path):
 
 LITE = _load("_test_lite_build", ROOT / "docs" / "lite" / "build.py")
 WHEELS = _load("_test_lite_wheels", ROOT / "docs" / "lite" / "build_wheels.py")
-NOTEBOOKS = sorted(TUTORIALS.glob("[0-9][0-9]_*.ipynb"))
+#: The tutorials' own glob (`build.SOURCES`), so a `02b_` notebook is projected too.
+NOTEBOOKS = [p.with_suffix(".ipynb")
+             for p in _load("_test_lite_tutorials", TUTORIALS / "build.py").sources()]
 
 
 def test_there_are_notebooks_to_project():

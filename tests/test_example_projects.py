@@ -81,7 +81,11 @@ def test_a_tutorial_only_file_has_a_tutorial():
     """The other half of the exemption above: a file kept for the tutorials
     is still read by one, or it is a file with no user."""
     tutorials = Path(__file__).resolve().parent.parent / "examples" / "tutorials"
-    text = "".join(p.read_text(encoding="utf-8") for p in tutorials.glob("[0-9][0-9]_*.py"))
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_tutorials_build", tutorials / "build.py")
+    build = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    text = "".join(p.read_text(encoding="utf-8") for p in build.sources(tutorials))
     assert [f for f in sorted(TUTORIAL_ONLY) if f not in text] == []
 
 

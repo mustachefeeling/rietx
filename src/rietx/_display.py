@@ -330,7 +330,8 @@ def microstructure_sections(block) -> tuple[str, list[tuple[str, str, str]], lis
         return "None" if x is None else f"{x:.3g}"
 
     wavelength = "None" if block.wavelength is None else f"{block.wavelength:g} Å"
-    head = (f"PhaseMicrostructure: {block.phase_name} (phase {block.phase_index}), "
+    name = f"{block.phase_name} " if block.phase_name else ""
+    head = (f"PhaseMicrostructure: {name}(phase {block.phase_index}), "
             f"scherrer_k {block.scherrer_k:g}, wavelength {wavelength}")
     rows = []
     for t in block.terms:
@@ -350,12 +351,19 @@ def trajectory_sections(traj) -> tuple[str, tuple[str, str, str], list[tuple[str
     ``(label, x, value(esd))``.  The x column is headed by ``x_label``, so
     a temperature reads as ``T (K)`` and a series without a coordinate as
     ``index``.  A point with no esd prints its value alone, and one with no
-    label an empty cell, since a trajectory built by hand may carry none."""
-    head = f"Trajectory: {traj.path}, {len(traj.value)} point(s)"
-    labels = [*traj.labels, *[""] * (len(traj.value) - len(traj.labels))]
-    rows = [(label, f"{x:g}", _number(v, esd))
-            for label, x, v, esd in zip(labels, traj.x, traj.value, traj.stderr,
-                                        strict=False)]
+    label an empty cell, since a trajectory built by hand may carry none.
+    A missing x is an empty cell too, so every value gets its row."""
+    n = len(traj.value)
+    head = f"Trajectory: {traj.path}, {n} point(s)"
+
+    def padded(items, fill):
+        return [*items[:n], *[fill] * (n - len(items))]
+
+    xs = [f"{x:g}" for x in traj.x[:n]]
+    rows = [(label, x, _number(v, esd))
+            for label, x, v, esd in zip(padded(traj.labels, ""), padded(xs, ""),
+                                        traj.value, padded(traj.stderr, None),
+                                        strict=True)]
     return head, ("label", traj.x_label, "value"), rows
 
 
