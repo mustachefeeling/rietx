@@ -721,8 +721,10 @@ def _line_in_raw_data(two_theta: np.ndarray, y_obs: np.ndarray,
     intensity the class forbids.  A steep or high background is where that
     happens: on the PbSO₄ neutron histogram (``tests/data/gsas2_pbso4.gpx``)
     at a held index cell the screen refutes the true ``P c - n`` at (0,0,1),
-    where the counts sit on the background.  This asks the question of the
-    counts instead, the way it is asked by hand: fit a quadratic to the raw
+    where the counts sit on the background (z = 1.9), and a 1°-wide excess
+    under Si's forbidden (200) refutes ``F d - -`` the same way.  This asks
+    the question of the counts instead, the way it is asked by hand: fit a
+    quadratic to the raw
     data over ±:data:`LOCAL_BASELINE_HALF_FWHM` FWHM, leaving out
     ±:data:`LOCAL_BASELINE_GAP_FWHM` FWHM around the position and around every
     reflection the class ``allowed`` (every emission line), clip upward
@@ -741,7 +743,7 @@ def _line_in_raw_data(two_theta: np.ndarray, y_obs: np.ndarray,
 
     **The exclusions are the class's predicted reflections, never the picked
     peaks.**  A peak list is a fit too: on a synthetic Si pattern with a
-    1°-wide excess on the forbidden (200), the picker cut the excess into six
+    1°-wide excess on the forbidden (200), the picker cut the excess into several
     0.17°-wide "peaks" against a 0.02° instrument, and a rule reading a picked
     peak at the position as a line kept the refutation the excess had made.
     The baseline is the data's own, so it is wrong where a sharp feature
