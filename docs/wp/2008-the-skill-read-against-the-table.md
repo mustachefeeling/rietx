@@ -44,17 +44,47 @@ vocabulary is a trap or an exception a strong agent would not bring to mind, wit
 outside rietx's runs: a convention two codes swap (GSAS and FullProf's X/Y labels), a
 documented reader behaviour (GSAS-II concatenates multi-range scans), a published
 collinearity (Williamson–Hall over a narrow 2θ range), a guideline (McCusker 1999 on
-observations and reflections). The skill shrinks as the manual improves, and shrinks
-further as the manual reaches the corpora models train on; no agent needs a skill for
-GitHub, and the aim is that none needs one for rietx beyond its traps.
+observations and reflections), and established workflow practice in rietx's terms (the
+order of a refinement, McCusker 1999 § 2, which a strong agent knows in outline and not
+as stage globs). The skill shrinks as the manual improves, and shrinks further as the
+manual reaches the corpora models train on; no agent needs a skill for GitHub, and the
+aim is that none needs one for rietx beyond its traps.
 
 **Four kinds of row.** Each row is sorted as one of: (a) API or feedback vocabulary, what a
-call takes and what a field means, kept; (b) a sourced trap, kept with its source named;
-(c) a heuristic measured on rietx's own data, cut, or moved into a `Diagnostic.suggestion`
-or `help.py` entry where the package can carry it; (d) a verdict restated, rewritten to the
-number the package states. A `(Measured: …)` tag marks a row as kind (c) by default; it
-survives only by acquiring a source or by the harness showing agents need it. The
-generated `api-<shape>.md` files are kind (a) by construction and are not read by hand.
+call takes and what a field means, kept; (b) a sourced trap, exception or piece of
+established practice, kept with its source named; (c) a heuristic measured on rietx's
+own data, cut, or moved into a `Diagnostic.suggestion` or `help.py` entry where the
+package can carry it; (d) a verdict restated, rewritten to the number the package states.
+A `(Measured: …)` tag marks a row as kind (c) by default; it survives only by acquiring a
+source or by the harness showing agents need it. The generated `api-<shape>.md` files are
+kind (a) by construction and are not read by hand.
+
+**Three conditions, from the maintainer's acceptance of the fourth review's reading.**
+
+- *Agents do not browse a manual.* An agent reads what the harness loads and then what is
+  one step from where it is: a docstring, `help()`, an error, a diagnostic's explanation,
+  the first search hit. It opens a manual page when something fails or when it is pointed
+  at one. Nobody has measured this on rietx. So the first task is the measurement: one
+  registered `eval_skill` round with the skill removed and the manual installed, counting
+  manual reads and outcomes against the current skill, before any cut.
+- *The manual must be reachable from inside the package.* Each class of rows cut has a
+  pointer from the package's own output (a `help.py` entry, a `Diagnostic.explanation`,
+  the API index) to the manual section that holds the explanation, and a page is
+  readable without a browser. Where that needs code beyond a URL in an existing field (a
+  `rietx docs <name>` verb, say), it is a follow-up WP filed from here, and the cut that
+  needs it waits. A cut that makes a task class slower is repaired by a pointer from the
+  package and never by a row back in the skill.
+- *The vocabulary is generated, never written.* Training corpora teach a model the
+  concepts and the shape of the API, years late and version-blind; rietx changes monthly.
+  So kind (a) rests on the generated index and on the package's own `help`, and a
+  hand-written vocabulary row is a candidate for generation or for cutting.
+
+**The structure is on the table too.** The skill is one body plus one reference per task
+shape (WP-1338), read whole per shape. That was sized for a skill that carried
+heuristics. With kinds (c) and (d) gone, several references may empty, and the right
+shape may be a body, the generated index and one file of traps. Decided by the
+measurement above and by the token count per call, and the maintainer rules on the
+shape in the batch.
 
 **The tripwire does not reach prose.** 2001's guard walks `src/`; a heuristic written as a
 skill row is invisible to it (2001's docstring says so). This WP's answer is a test over
@@ -74,15 +104,20 @@ and goes through the harness.
 
 ## Non-goals
 
-- Rewriting the skill's voice or the shape-reference structure (1330, 1338 and 1985
-  settled those); a reference file may empty and be removed, its routing row with it.
+- Rewriting the skill's voice (1330 and 1985 settled it). The structure is in scope.
 - The manual (`docs/manual/`, `docs/docs/`): 1986 is moving it; a chapter that quotes a
   demoted verdict is that WP's or a follow-up's. The manual is where a cut row's
   *explanation* lands if it is worth keeping for a human, never back into the skill.
+- A `rietx docs` verb or any other code that reads a manual page from the package: a
+  follow-up WP filed from here if the measurement shows a cut needs it.
 - Adding a row for a new feature.
 
 ## Tasks
 
+- [ ] The baseline measurement: one registered `eval_skill` round, the current skill
+      against no skill with the manual installed, counting manual reads, calls to a
+      correct answer and outcomes per task shape; the spend approved per session. Its
+      table is the evidence every cut below is judged on.
 - [ ] Inventory: every row of `SKILL.md` and the 19 references sorted into the four kinds,
       with, for (b), the source; for (c), the table row it rests on and the audit's
       ruling; for (d), the number the package states. Word count per file and per kind.
@@ -93,8 +128,12 @@ and goes through the harness.
       (c). The source test (in `test_skill.py`): a row outside the generated API files that
       states a threshold, a verdict or a rule names a source token (a citation, a program
       name with the documented behaviour) or fails.
+- [ ] The pointers: for each cut class, the package's own output names the manual section
+      that holds the explanation; where a pointer needs code, the follow-up WP filed and
+      the cut deferred.
 - [ ] The contested list to the maintainer with a costed `eval_skill` round (rows the
-      session believes agents still need, whatever their kind); run what is approved;
+      session believes agents still need, whatever their kind), and the structure
+      question with the token count per call under each shape; run what is approved;
       land what survives.
 - [ ] The body re-measured against its 5 000-token budget and the caps in
       `tests/skill_caps.py` re-landed at the new sizes with their diary lines, so growth

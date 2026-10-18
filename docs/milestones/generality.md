@@ -274,6 +274,12 @@ reverse it knowing what it would be giving up.
   position that a demoted verdict's meaning moves into the skill, which would have made
   the skill the new home of the heuristics the audits remove. The maintainer expects the
   skill to shrink toward its traps as the manual improves; no agent needs a GitHub skill.
+  Three conditions accepted with it: agents do not browse a manual, so the first act is a
+  measured baseline (skill against manual-only); the manual must be reachable from inside
+  the package before a class of rows is cut, and a slower task is repaired by a pointer
+  and never by a row; the vocabulary is generated from the live surface, since training
+  corpora are years late and version-blind. The skill's structure (one reference per
+  task shape) is on the table, ruled in 2008's batch on the token count per call.
 - **Rulings by class where the evidence is shared.** Roughly 500 rows enter the table and
   a hundred or more will be tier 3; the maintainer's own calibration says a brief over
   150 words bounces. So a batch groups rows that rest on one evidence base (the size-flag

@@ -51,15 +51,23 @@ unanimous action would have shown costs the caller more than the action.
 The agent skill follows the same line. Its job is to make sure an agent knows
 the API and the feedback surface accurately, so the first call is the right
 one and no token is spent rediscovering a field. It is not prescriptive. What
-it may add beyond the vocabulary is a trap or an exception with a source
-outside rietx's own runs (the literature, a reference code's documented
-behaviour) that a strong agent would not bring to mind unprompted. A rule
-whose only evidence is a run on rietx's own test data is the same overfit the
-generality milestone removes from the code, in prose form, and is cut from
-the skill. The skill shrinks as the manual improves,
-and as the manual reaches the corpora models are trained on it shrinks
-further; no agent needs a skill for GitHub, and the aim is for none to need
-one for rietx beyond its traps.
+it may add beyond the vocabulary is a trap, an exception or a piece of
+established practice with a source outside rietx's own runs (the literature,
+a reference code's documented behaviour) that a strong agent would not bring
+to mind unprompted. A rule whose only evidence is a run on rietx's own test
+data is the same overfit the generality milestone removes from the code, in
+prose form, and is cut from the skill.
+
+Three things follow. The vocabulary is generated from the live surface and
+never written by hand, because the package changes monthly and a model
+trained on one year's manual knows that year's field names. The manual is
+reachable from inside the package, from a help entry, a diagnostic's
+explanation or the API index, so that a cut row's explanation is one step
+from where the agent already is; a cut that makes a task slower is repaired
+by a pointer from the package and never by a row back in the skill. And the
+skill shrinks as the gap between what models know and what the package is
+closes, which is measured and not dated: no agent needs a skill for GitHub,
+and the aim is for none to need one for rietx beyond its traps.
 
 The milestone that applies this to the existing tree is
 [generality](milestones/generality.md); its § The rule is the operational
