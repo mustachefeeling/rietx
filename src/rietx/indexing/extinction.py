@@ -159,9 +159,12 @@ REFERENCE_NET_RWP_MAX = 0.7071
 #: leaving out ±``LOCAL_BASELINE_GAP_FWHM`` FWHM around the position and around
 #: every reflection the class allows, with upward outliers clipped at
 #: ``LOCAL_BASELINE_CLIP_SIGMA``.  The window is the one a person draws by hand
-#: to ask "is there a peak here?", and none of the three numbers was tuned on a
-#: verdict: they are the harness check's of #726 (2026-10-15), set before any
-#: kit was scored.
+#: to ask "is there a peak here?".  The window and the gap are the first
+#: version of the check posted on #726 (2026-10-15), before any pattern was
+#: scored with it; the 15-step floor on the window and the FWHM/4 centring in
+#: :func:`_line_in_raw_data` came after its first pass over the benchmark
+#: patterns (fine-step synchrotron data left fewer than 8 baseline points, and
+#: a neighbour's flank read as a line).
 LOCAL_BASELINE_HALF_FWHM = 6.0
 LOCAL_BASELINE_GAP_FWHM = 1.5
 LOCAL_BASELINE_CLIP_SIGMA = 2.5
