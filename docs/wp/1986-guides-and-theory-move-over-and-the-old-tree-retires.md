@@ -179,6 +179,29 @@ the tree that day.
   register guard and name resolution skip it until the glob widens. Whether a notebook keeps
   the page contract is decided at that move.
 
+### Inherited
+
+- **2026-10-18, from WP-1545.** The tutorial notebooks were rewritten to teach rietx one
+  step a cell, and four things reach this WP.
+  - **The agent-supervision checklists left the notebooks**, and the front page's
+    "Supervising an agent" card links the guides, so a guide is their home. The last copies
+    are each notebook's `## Checking an agent's work` section at `7472e200`
+    (`git show 7472e200:examples/tutorials/0N_*.py`, notebooks 01-05). Each maps SKILL §4's
+    rules to what a person checks: status and diagnostics first, the difference curve region
+    by region, correlations near 1, chemistry, a tie's premise, Rwp last.
+  - **A seventh notebook, `02b_steering_a_refinement`**, sits between 02 and 03 (the source
+    glob is now `[0-9][0-9]*_*.py`). The old tree's hidden toctree lists it; the Start tab's
+    rendering takes it when `_copy_tutorials` moves. Its URL is new, so `OLD_PAGES` needs no
+    row for it.
+  - **The notebooks link the new tree on the stable path** (`https://rietx.org/docs/stable/…`),
+    and `tests/test_tutorials.py::test_a_tutorial_links_only_pages_the_manual_has` fails on a
+    link to a page `docs/docs/` does not build. Renaming or removing a guide or concepts page
+    runs that test. Notebook 03 still links the old tree's
+    `using/gui-guide.html#peaks`, because no new page covers the Peaks tab; repoint it when the
+    GUI chapters move.
+  - `examples/guides/series.py:28` prints a trajectory with an f-string loop. A `Trajectory`
+    now prints one row a point, so the cell can show `a` alone.
+
 ## Non-goals
 
 - The tutorials themselves (WP-1545 owns them).
