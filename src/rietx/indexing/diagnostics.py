@@ -782,6 +782,23 @@ def extinction_class_diagnostics(cand) -> list[Diagnostic]:
                         "unmatched_observed for an impurity line before you "
                         "drop the class. Declare an excess about a degree wide "
                         "as a HumpComponent in the Le Bail pre-fit.")))
+    if cand.unconfirmed_hkl:
+        pairs = ", ".join(f"{tuple(h)} at {t:.3f}° (z = {z:+.1f})" for h, t, z in
+                          zip(cand.unconfirmed_hkl[:4], cand.unconfirmed_two_theta[:4],
+                              cand.unconfirmed_z[:4]))
+        verdict = ("so the class is not refuted on them" if not cand.refuted
+                   else "so they do not count toward its refutation")
+        out.append(Diagnostic(
+            level="info", code="EXTINCTION_REFUTATION_UNCONFIRMED",
+            message=(f"{len(cand.unconfirmed_hkl)} forbidden position(s) carry "
+                     "intensity this class's Le Bail fit cannot account for, but "
+                     "the raw counts there show no line against a local "
+                     f"baseline; {verdict}."),
+            where=where + [pairs],
+            suggestion=("The excess is the fit's background, not the data's. "
+                        "Plot those 2θ positions with the fitted background, "
+                        "and give a steep or high background more freedom in "
+                        "the Le Bail pre-fit.")))
     if cand.n_absent and cand.n_testable == 0:
         out.append(Diagnostic(
             level="info", code="EXTINCTION_SYMBOL_AMBIGUOUS",

@@ -154,6 +154,21 @@ DECISIVE_DELTA_BIC = 10.0
 #: ``F - - -`` returned by ``best_or_none`` as a confident answer.
 REFERENCE_NET_RWP_MAX = 0.7071
 
+#: The local baseline :func:`line_in_raw_data` fits under a flagged forbidden
+#: position: a quadratic over ±``LOCAL_BASELINE_HALF_FWHM`` FWHM of raw counts,
+#: leaving out ±``LOCAL_BASELINE_GAP_FWHM`` FWHM around the position and around
+#: every known line, with upward outliers clipped at
+#: ``LOCAL_BASELINE_CLIP_SIGMA``.  The window is the one a person draws by hand
+#: to ask "is there a peak here?", and none of the three numbers was tuned on a
+#: verdict: they are the harness check's of #726 (2026-10-15), set before any
+#: kit was scored.
+LOCAL_BASELINE_HALF_FWHM = 6.0
+LOCAL_BASELINE_GAP_FWHM = 1.5
+LOCAL_BASELINE_CLIP_SIGMA = 2.5
+#: fewer baseline channels than this and the check cannot tell, so the
+#: screen's refutation stands
+LOCAL_BASELINE_MIN_POINTS = 8
+
 #: Crystal systems that share one *lattice*, keyed by the candidate's system.
 #: The powder determines a lattice, not a crystal system: a hexagonal metric
 #: carries both the trigonal-P and the hexagonal groups, and the trigonal ones
@@ -690,6 +705,72 @@ def _model_is_quiet(two_theta: np.ndarray, y_calc: np.ndarray,
     return out
 
 
+def line_in_raw_data(two_theta: np.ndarray, y_obs: np.ndarray,
+                     sigma: np.ndarray, position: float, fwhm: float,
+                     known_lines: np.ndarray, *,
+                     k_sigma: float = ABSENT_SIGMA) -> tuple[bool | None, float | None]:
+    """Does the **raw pattern** carry a line at ``position``, against a local
+    baseline no fit can move?  Returns ``(line, z)``; ``line`` is ``None`` when
+    the window holds too few baseline channels to say.
+
+    The absence test reads ``y_obs − y_calc`` of a class's own Le Bail fit, so
+    whatever that fit's background leaves under a forbidden position reads as
+    intensity the class forbids.  A steep or high background is where that
+    happens: on the PbSO₄ neutron histogram (``tests/data/gsas2_pbso4.gpx``)
+    at a held index cell the screen refutes the true ``P c - n`` at (0,0,1),
+    where the counts sit on the background.  This asks the question of the
+    counts instead, the way it is asked by hand: fit a quadratic to the raw
+    data over ±:data:`LOCAL_BASELINE_HALF_FWHM` FWHM, leaving out
+    ±:data:`LOCAL_BASELINE_GAP_FWHM` FWHM around the position and around every
+    line in ``known_lines``, clip upward outliers (an unlisted weak line) at
+    :data:`LOCAL_BASELINE_CLIP_SIGMA`, then integrate data − baseline over the
+    absence test's own ±:data:`~rietx.indexing.workflow.ABSENT_WINDOW_FWHM`
+    window against the same propagated σ.  A line is ``z ≥ k_sigma`` with the
+    excess centred within FWHM/4 of the position — off-centre, it is a
+    neighbour's flank — or a known line within ½ FWHM.
+
+    The baseline is the data's own, so it is wrong where a sharp feature the
+    list does not name sits inside the window; the clip and the gap bound that,
+    and :func:`determine_extinction_symbol` only ever uses a ``False`` here to
+    *withdraw* a refutation, never to make one.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    y = np.asarray(y_obs, dtype=np.float64)
+    sig = np.asarray(sigma, dtype=np.float64)
+    known = np.asarray(known_lines, dtype=np.float64)
+    w = max(float(fwhm), 1e-6)
+    if known.size and float(np.min(np.abs(known - position))) <= 0.5 * w:
+        return True, None
+    step = float(np.median(np.diff(tt))) if len(tt) > 1 else w
+    half = max(LOCAL_BASELINE_HALF_FWHM * w, 15.0 * step)
+    win = np.abs(tt - position) < half
+    xs, ys, ss = tt[win] - position, y[win], sig[win]
+    keep = np.abs(xs) > LOCAL_BASELINE_GAP_FWHM * w
+    for line in known[np.abs(known - position) < half + LOCAL_BASELINE_GAP_FWHM * w]:
+        keep &= np.abs(xs + position - line) > LOCAL_BASELINE_GAP_FWHM * w
+    for _ in range(5):
+        if keep.sum() < LOCAL_BASELINE_MIN_POINTS:
+            return None, None
+        coef = np.polyfit(xs[keep], ys[keep], 2, w=1.0 / ss[keep])
+        upward = (ys - np.polyval(coef, xs)) / ss >= LOCAL_BASELINE_CLIP_SIGMA
+        if not np.any(keep & upward):
+            break
+        keep &= ~upward
+    if keep.sum() < LOCAL_BASELINE_MIN_POINTS:
+        return None, None
+    coef = np.polyfit(xs[keep], ys[keep], 2, w=1.0 / ss[keep])
+    excess = ys - np.polyval(coef, xs)
+    core = np.abs(xs) <= max(ABSENT_WINDOW_FWHM * w, 1.5 * step)
+    if not np.any(core):
+        return None, None
+    z = float(excess[core].sum()) / float(np.sqrt((ss[core] ** 2).sum()))
+    near = np.abs(xs) <= max(w, 3.0 * step)
+    pos_excess = np.clip(excess[near], 0.0, None)
+    centre = (float((pos_excess * xs[near]).sum() / pos_excess.sum())
+              if pos_excess.sum() > 0 else 0.0)
+    return bool(z >= k_sigma and abs(centre) <= 0.25 * w), z
+
+
 # ----------------------------------------------------------------------
 # the screen
 # ----------------------------------------------------------------------
@@ -862,6 +943,7 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
                                 max_classes: int | None = None,
                                 refine_cell: bool = True,
                                 restrict: ExtinctionPrior | dict | None = None,
+                                confirm_in_data: bool = True,
                                 cancel=None) -> ExtinctionScreen:
     """Rank the extinction classes of a lattice.
 
@@ -907,6 +989,18 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     ``EXTINCTION_SCREEN_UNRELIABLE`` and :meth:`ExtinctionScreen.best_or_none`
     abstains.  A cell the prefit could not bring into its basin (0.4 % off at
     synchrotron resolution) lands here rather than on a confident wrong class.
+
+    **A refutation is confirmed in the raw counts** (``confirm_in_data=True``,
+    the default; #726).  The absence test is the trigger, and it reads the
+    class's own fit, background included, so a background that misses under a
+    forbidden position refutes a class on intensity the data do not have.  Each
+    flagged position is asked again of the data alone
+    (:func:`line_in_raw_data`: a local baseline under the position, the picked
+    lines left out); a refutation none of whose positions carries a line there
+    is **withdrawn**, the positions are kept in ``unconfirmed_hkl`` and
+    ``EXTINCTION_REFUTATION_UNCONFIRMED`` says so.  Where the baseline cannot be
+    drawn the refutation stands.  The ranking is untouched: a withdrawn class
+    competes on its ΔBIC like any other.
 
     ``restrict`` declares facts about the specimen — chirality (Sohncke),
     centrosymmetry, polarity — as an :class:`ExtinctionPrior` (or its dict).
@@ -1086,7 +1180,7 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         # already says about every other number on the row.
         entries.append(entry)
         evidence.append({"keep": keep, "tt": tt_forbidden, "fwhm": fwhm_forbidden,
-                         "first": first_of_line})
+                         "first": first_of_line, "lines": forbidden})
 
     # 3b — one Le Bail fit per class, weakest claim first, and the absence test
     # read against **that class's own** calculated pattern
@@ -1145,6 +1239,25 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         # carry intensity this class forbids, and no fit can explain them away
         quiet = set(absent_tt)
         loud = [j for j, p in enumerate(pos) if float(p) not in quiet]
+        if loud and confirm_in_data:
+            # each flagged position asked again of the raw counts; only a
+            # definite "no line" withdraws it, and "can't tell" keeps it
+            known = (np.array([p.two_theta for p in peaks.peaks], dtype=np.float64)
+                     if peaks is not None else tt_all[~np.isin(line_of_row,
+                                                               ev["lines"])])
+            idx_loud = np.flatnonzero(keep)[loud]
+            verdicts = [line_in_raw_data(
+                tt_data, np.asarray(result.y_obs), np.asarray(result.sigma),
+                float(pos[j]), float(ev["fwhm"][i]), known, k_sigma=k_sigma)
+                for j, i in zip(loud, idx_loud)]
+            gone = [j for j, (line, _z) in zip(loud, verdicts) if line is False]
+            entry.unconfirmed_hkl = [
+                tuple(int(v) for v in hkl_ref[ev["first"][i]])
+                for j, i in zip(loud, idx_loud) if j in gone]
+            entry.unconfirmed_two_theta = [round(float(pos[j]), 4) for j in gone]
+            entry.unconfirmed_z = [round(float(z), 2) for j, (_l, z)
+                                   in zip(loud, verdicts) if j in gone]
+            loud = [j for j in loud if j not in gone]
         entry.n_present = len(loud)
         idx = np.flatnonzero(keep)[loud]
         entry.forbidden_two_theta = [round(float(ev["tt"][j]), 4) for j in idx]

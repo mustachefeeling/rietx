@@ -2144,11 +2144,20 @@ class ExtinctionCandidate(Base):
     #: reading as a measurement.
     n_testable: int | None = None
     #: testable forbidden positions carrying net intensity above the fitted
-    #: background — each one refutes the class
+    #: background **and** a line in the raw counts (``confirm_in_data``) —
+    #: each one refutes the class
     n_present: int = 0
     #: the refuting reflections, so the refutation can be checked in the pattern
     forbidden_hkl: list[tuple[int, int, int]] = Field(default_factory=list)
     forbidden_two_theta: list[float] = Field(default_factory=list)
+    #: positions the absence test flagged where the **raw counts** show no line
+    #: against a local baseline no fit can move (``confirm_in_data``, #726):
+    #: the flag came from the fit's background, not from the data, so these do
+    #: not count in :attr:`n_present` and refute nothing.  ``unconfirmed_z`` is
+    #: each one's net counts over the local baseline in σ
+    unconfirmed_hkl: list[tuple[int, int, int]] = Field(default_factory=list)
+    unconfirmed_two_theta: list[float] = Field(default_factory=list)
+    unconfirmed_z: list[float] = Field(default_factory=list)
     #: whole-pattern Le Bail fit of this class; ``rwp`` is ``inf`` when the class
     #: was refuted before it was fitted (:attr:`screened`)
     rwp: float = float("inf")

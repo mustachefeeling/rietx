@@ -1975,6 +1975,18 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "wavelength and the 2θ range."
         ),
     ),
+    "EXTINCTION_REFUTATION_UNCONFIRMED": HelpEntry(
+        title="A forbidden position read as intensity, but the raw counts show no line",
+        description=(
+            "The extinction screen's absence test reads the class's own Le Bail fit, "
+            "background included. At these positions the fit leaves intensity the class "
+            "forbids, but a local baseline drawn under the raw counts, with the picked "
+            "lines left out, finds no line there. The excess is the fit's background, so "
+            "the position does not refute the class. A class refuted only at such "
+            "positions is kept and ranked by its ΔBIC. Plot the positions with the fitted "
+            "background to see the misfit."
+        ),
+    ),
     "EXTINCTION_SCREEN_UNRELIABLE": HelpEntry(
         title="The extinction screen's reference fit is too poor to read absences against",
         description=(
