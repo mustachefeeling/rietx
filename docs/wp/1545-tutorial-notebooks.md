@@ -1,9 +1,8 @@
 # WP-1545 — tutorial notebooks
 
-Milestone: unscheduled · Status: 🔄 2026-10-18 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-18 — the notebooks rewritten one step a cell, 02 split; PR #1038
 Track: Render what the fit already knows
 Depends on: 1544 (readable objects in a notebook); 1985 (the report text the rewritten notebooks show)
-Priority: P2 2026-10-17 — P3 on the rubric (the shipped notebooks run; this is their rewrite), up a rung: its last blocker, WP-1985, closed 2026-10-16
 
 ## Goal
 
@@ -196,7 +195,7 @@ view only where its own cells need one.
 - [x] 04 peak shape and microstructure.
 - [x] 05 sequential fits.
 - [x] 06 your own data (already has no checking box; scaffolding only).
-- [ ] The README's rows, and the supervising checklists placed in the manual or
+- [x] The README's rows, and the supervising checklists placed in the manual or
   handed to WP-1986.
 
 ## Acceptance
@@ -216,6 +215,50 @@ their sources. No output carries a home path.
 - Data provenance and licences: `tests/data/README.md`.
 
 ## Handover log
+
+### 2026-10-18 — closed: the notebooks teach rietx one step a cell
+
+The seven tutorial notebooks now show what rietx does, one call a cell, to a reader who already knows the Rietveld method. Each lets the package's own displays show the answer, with no formatting code. Each links the new manual for the reasons behind a step. Notebook 02 split in two, and the agent-supervision checklists left the notebooks for the guides. Rewriting them against today's outputs found three wrong claims in the old prose and two defects in the package. One defect is fixed here: a report called a width trend "separable" with nothing measured. The other is filed as WP-1999: a held cell's tied edges stayed in the answer.
+
+**Done.**
+- 01-06 rewritten, each by a lane under a shared brief (scratchpad `BRIEF.md`; the rules are those in Context). The print loops, f-strings and helper functions are gone. A synthetic-data simulator stays a function in 05 (seven calls) and none elsewhere.
+- **02 split.** `02_simple_rietveld` keeps its name and covers the first fit, stages, parameter rows, bonds, the structure picture and a project. `02b_steering_a_refinement` takes the tie, the zero/displacement pair and the hold, checkout, history and the verdict. The source glob is `[0-9][0-9]*_*.py`, so a letter files a notebook after the one it continues. That keeps every published URL and leaves `docs_versions.RETIRED`, which WP-1986 owns, untouched. The landing box is still 02's first fit, now ending `print(result)`, with its panel rebuilt from the committed output. The panel's code regex follows the `warning[CODE]:` form.
+- **Views**, built only where a cell needed one: `RefinedParameter` and `GeometryDistance` on one line, and `PhaseMicrostructure` and `Trajectory` as rows (text and HTML). No `StageResult`, candidate or `ExtinctionScreen` view, because no cell needed one.
+- **Fixed:** `report._attach_separability` copied `TrendAnalysis`'s defaults (`separable=True`, collinearity 0.0) onto every microstructure block when the width trend had no templates. Staged under Numbers that move.
+- The skill's Microstructure row reads `separable` off the report, and its stop condition reads "not `False`".
+- `tests/test_tutorials.py` checks that every `rietx.org/docs/stable/…` link in a tutorial names a page in `docs/docs/`, and refuses `docs/dev/`.
+- `concepts/usage.md` was re-traced over ten scripts (`sys.setprofile`, WP-1983's recipe). `RefinementResult.parameter` fell from 6 to 4 scripts, `checkout` rose to 3, and `RefinementTree.summary` fell to 2.
+- All notebooks say "rietx 1.10 or later", since the views land in 1.10.
+- Corrected claims: 03's ticks near 11° and 15.5° are (001) and (010), not predicted-but-absent lines. 03's "false line" at 36.149° is (120)+(200) fitted as one. 05's broken frame never escalated, and its starting width was 20 % too wide, not 50 %.
+
+**Measured** (macOS arm64, `[dev]` venv):
+- Lanes:
+
+  | lane | est | requests | lane $ | main $ | saved $ |
+  |---|---|---|---|---|---|
+  | 01 quickstart | 30 | 49 | 2.34 | 0.31 | +2.35 |
+  | 02 split | 45 | 64 | 3.50 | 0.25 | +4.09 |
+  | 03 peaks-indexing | 35 | 60 | 2.65 | 0.21 | +3.20 |
+  | 04 microstructure | 40 | 67 | 3.46 | 1.36 | +2.59 |
+  | 05 sequential | 40 | 67 | 3.14 | 1.39 | +3.03 |
+  | 06 your-own-data | 20 | 32 | 1.31 | 0.73 | +1.08 |
+
+  Six lanes, $16.39, saved +$16.33 (38 % of the session); actual/estimated requests 1.65, re-read median 0K. The baseline's selective policy (lane when main > 150K and the item is 20 requests or more) reads -17 % over 206 sessions. The README item was kept (~12).
+- Notebook builds: 01 about 9 s, 02 about 5 s, 02b about 10 s, 03 20-21 s, 04 3.6 s, 05 4.9 s, 06 5.3 s, kernel start included. Two builds of 03 gave identical text output.
+- Fast selection on the final tree with `main` merged at `6d55e54e`, `[dev]`, macOS arm64, alone on the machine: 10810 passed, 191 skipped, 2 xfailed, 0 failed, in 4:36. Added: 7 test functions and 4 cases of parametrised tests for 02b, so +11 against `main`, which was not re-measured. The seven added functions cost 0.01 s together (`tests.added_test_times`, local junit). The full selection did not run: nothing here moves a measured number (the views are display, and the separability fix touches a field no acceptance test reads).
+
+**Review.** `/code-review high --fix` found six. Three fixed in `b5271f12`: `test_lite.py` and `test_example_projects.py` globbed the old `[0-9][0-9]_*` and never saw 02b (now `build.sources()`), a trajectory with a short x or esd list printed no rows, and an unnamed phase's head line. Declined, both schema changes: `TrendAnalysis.separable` defaulting to `True` at its source (the GUI's report panel reads a falsy value as "not separable", so `None` there would add a false chip), and `RefinedParameter` printing a derived rigid-body row as `tied` (the type carries no field that separates the two).
+
+**Gotchas.**
+- `Refinement.checkout` clears `result_`, so a `Refinement` shown after a checkout prints `last fit: none` and no esds. The notebooks display the result instead. The GUI's rulebook records the server-side half of this as deliberate.
+- 03's committed output can gain `INDEX_SEARCH_INCOMPLETE` on a slower machine, because the svd engine has a 30 s budget per system. No prose claims the search finished.
+- A list of `Diagnostic`s shows IPython's list form, a comma after each `help:` line, since a list has no HTML. Only a container type would change it.
+- `ref.summary()` still prints a `Layer 1 abstained (unreadable)` line. WP-1985 is closed, and this is noted only.
+- Building a notebook prints `[IPKernelApp] WARNING | Kernel is running over TCP` on this machine. It is the kernel's own stderr, and the build succeeds.
+
+**Forward references:** WP-1986 (the checklists' home in a guide, 02b at the Start tab's move, the link test, `examples/guides/series.py`'s loop), WP-1999 (filed), WP-1542 (the indexer's validation Le Bail at Rwp 0.257 calling 96 peaks impurities, seen again in 03).
+
+**Next:** the maintainer reads the rewritten notebooks. If they want 02b renumbered, do it when the old tree retires, with `RETIRED` rows. Then WP-1999.
 
 ### 2026-10-07 (4th entry) — the second review round: the landing box, and uPlot
 
