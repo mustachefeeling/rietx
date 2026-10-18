@@ -11,7 +11,7 @@ The three-tier rule is written where the package can hold itself to it: an audit
 its own module, keyed by name, that every later audit fills; a tripwire test that fails a
 diff adding a heuristic without a row; and a handover step that dispatches a fresh-context
 reviewer to draft the case against each new row. The root CLAUDE.md's rule that rewards a
-firing code is rewritten to prefer a record field.
+firing code is rewritten to DESIGN.md § Rules, 1's three outcomes.
 
 ## Context
 
@@ -114,9 +114,14 @@ chains, and heuristics written as skill prose (2008's half).
 **The generator rule** (the second review's biggest finding). Root CLAUDE.md's "A new
 correction ships with a record field or a diagnostic stating what it changed" and the P1
 rubric's "a wrong number that nothing flags outranks one that raises" both reward adding a
-firing code. The rewrite states a preference order: a record field first, a diagnostic
-second, an action last and only with a tier; and it lands here, before the audits, so they
-follow it. The P1 rubric is 2009's.
+firing code. The rewrite states Rule 1's three outcomes in one clause: where every
+competent refiner would act, act and record it in a field; where the data can rank the
+alternatives, rank them with evidence; otherwise report the number with its meaning. It
+keeps "never an Rwp comparison as its evidence" and points at DESIGN.md § Rules, 4. It
+lands here, before the audits, so they follow it. The P1 rubric is 2009's. The second
+review had worded the rewrite as a flat order (record field, then diagnostic, then
+action); the maintainer replaced it on 2026-10-18, because the order points a session away
+from acting where Rule 1's first kind says act.
 
 ### Inherited
 
@@ -171,7 +176,8 @@ follow it. The P1 rubric is 2009's.
       families it was measured on and their references; a default or automatic action
       also names its kind under DESIGN.md § Rules, 1".
 - [ ] Root CLAUDE.md: rewrite the "new correction ships with a record field or a
-      diagnostic" invariant to the preference order, one clause pointing at the record;
+      diagnostic" invariant to Rule 1's three outcomes, one clause pointing at DESIGN.md
+      § Rules;
       a clause under § Conventions naming the table and the tripwire. Count the lines
       against the cap (`tests/test_docs_consistency.py`) and bump with a diary line if
       needed.

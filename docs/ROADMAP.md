@@ -105,7 +105,7 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 ([record](milestones/v1.10.md), [staged notes](releases/1.10.0.md)). 1.9.0 shipped 2026-10-14 ([notes](releases/1.9.0.md)).
 
 **Two milestones are open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
-opened 2026-09-18 as v1.6; [generality](#generality--pay-for-established-heuristics-leave-the-reasoning-to-the-caller)
+opened 2026-09-18 as v1.6; [generality](#generality--every-decision-rietx-makes-holds-beyond-the-data-it-was-tuned-on)
 opened 2026-10-18; rietview, rigid-bodies and structure-solution were
 queued as v1.7, v1.8 and v1.9. Threads #286, #426, #561 and #562 quote those
 numbers, so each row in § Milestones says which it was. **Neutron TOF stays at
@@ -155,7 +155,7 @@ covers (1119 § Gotchas).
 | rietview | rietview (was v1.7): the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ rietview](#rietview--the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
 | rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1813, the seam decided by 1803 and the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
 | structure-solution | Structure solution (was v1.9): a difference-Fourier map, a cost from the Pawley intensities, direct-space search — [WPs](wp/README.md#structure-solution): 1901-1902, the map then the cost; #197 and #198 left the fence 2026-09-30 | ⬜ **queued 2026-09-30** | written at the open |
-| generality | Pay for established heuristics, leave the reasoning to the caller: every verdict, action and threshold tiered, the unproven demoted, a guard against the next one — [§ generality](#generality--pay-for-established-heuristics-leave-the-reasoning-to-the-caller) | 🔄 **opened 2026-10-18** ([record](milestones/generality.md)) | eight rows written at the open, the record's § Acceptance |
+| generality | Every decision rietx makes holds beyond the data it was tuned on: every verdict, action and threshold tiered, the unproven demoted, a guard against the next one — [§ generality](#generality--every-decision-rietx-makes-holds-beyond-the-data-it-was-tuned-on) | 🔄 **opened 2026-10-18** ([record](milestones/generality.md)) | eight rows written at the open, the record's § Acceptance |
 | v2+ | FPA (with the peaks buffer), neutron TOF, modulated structures, PDF — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
@@ -411,7 +411,7 @@ Queued 2026-09-30 from issue #561. The seam was measured first (1803) and the re
 
 Queued 2026-09-30 from issue #562. The map, then the cost, then a search (WP-1515). [The WPs](wp/README.md#structure-solution).
 
-### generality — pay for established heuristics, leave the reasoning to the caller
+### generality — every decision rietx makes holds beyond the data it was tuned on
 
 Opened 2026-10-18 from the maintainer's concern that features are fitted to the test
 cases that produced them ([record](milestones/generality.md)); it applies [DESIGN.md](DESIGN.md)

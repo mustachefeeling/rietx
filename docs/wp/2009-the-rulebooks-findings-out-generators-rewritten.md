@@ -10,7 +10,7 @@ Priority: P4 2026-10-18 — changes no number and no decision in the package; la
 The five CLAUDE.md files (root, `gui/`, `tests/`, `src/rietx/io/`, `src/rietx/indexing/`)
 and `docs/wp/TEMPLATE.md`'s priority rubric state rules a stranger needs, with the
 one-dataset findings moved to the WP or milestone record they came from, and the rules
-that reward adding a firing code rewritten to prefer a record field.
+that reward adding a firing code rewritten to DESIGN.md § Rules, 1's three outcomes.
 
 ## Context
 
@@ -21,8 +21,11 @@ changed" (2001 rewrites this one, before the audits) and `TEMPLATE.md`'s P1 rubr
 wrong number that nothing flags outranks one that raises", which ranks a silent number as
 the worst outcome and so makes every new flag a P1 fix. Both reward a code that fires.
 The rubric is right about severity and wrong as an incentive; the rewrite keeps the
-severity class and adds that the *remedy* ranked first is a record field a caller can
-read, then a diagnostic, then an action with a tier.
+severity class and names the *remedy* by Rule 1's kind: act and record where every
+competent refiner would act, rank where the data can rank the alternatives, otherwise
+report the number with its meaning. (A flat order, record field before diagnostic before
+action, was the second review's wording; the maintainer replaced it on 2026-10-18,
+because it points a session away from acting where Rule 1's first kind says act.)
 
 **Findings as rules.** Protocol rule 4 already says a CLAUDE.md takes rules, not findings,
 and `/wp-handover` step 7 audits each session's additions. What has accumulated anyway is
@@ -57,8 +60,8 @@ plus a pointer.
 ## Tasks
 
 - [ ] The generator pass: every rule in the five files and the rubric that rewards a code
-      or an action over a record field, listed with its rewrite; `TEMPLATE.md`'s rubric
-      rewritten with the remedy order.
+      that fires, listed with its rewrite to Rule 1's three outcomes; `TEMPLATE.md`'s
+      rubric rewritten with the remedy named by kind.
 - [ ] The findings pass: every numbered clause classified rule or evidence; evidence
       compressed to a pointer, the number confirmed present at the pointer's target
       before it leaves.

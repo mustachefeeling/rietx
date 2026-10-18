@@ -52,6 +52,11 @@ keyword counts over the source are mostly comments and were discarded at the ope
 - `RefinementPlan.intermediate_ftol` (1e-6 vs 1e-9, WP-1123): a schedule, bounded for one
   fit at ≤ 0.03 esd; candidate for the answer-invariant class if the bound holds, tier 3
   otherwise.
+- `background/auto.py`'s `auto_background` and `select.py`'s order scan: a verb whose job
+  is the pick, returning its score table beside the choice. The record § A pick on top of
+  a ranking allows that while no default path calls the verb; confirm it (no caller in
+  `refine.py` or `strategy/` on 2026-10-18), then tier `AIR_SCATTER_TRIGGER`,
+  `HUMP_TRIGGER` and the whiteness stop as the pick's thresholds.
 - The flat-plate thickness test (`ABSORPTION_PLATE_THICKNESS`, an inline `< 0.7` at ~line
   6819) and the other inline literals near it: 2005 owns the codes, this WP owns any
   literal that gates an *action*.

@@ -56,6 +56,9 @@ ranking over one population and is the regression gate, not a family.
 - [ ] Tier each per part; de Wolff (1968) M₂₀, Smith & Snyder (1979) F_N and each engine's
       published defaults are tier 2; the `quick` budgets are a cost choice (classify, not
       tier); the rest on evidence.
+- [ ] `best_or_none()`: a first-kind pick on a second-kind ranking (the record § A pick
+      on top of a ranking). Confirm no default path calls it, and tier its gate as the
+      margin that makes the top candidate unanimous.
 - [ ] The clash table: grading × gating × the `best_or_none` gate.
 - [ ] The batch to the maintainer; rulings dated into the table.
 - [ ] Approved demotions; a gate that refused now reports.

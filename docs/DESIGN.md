@@ -11,7 +11,7 @@ section a work package links, not the whole file.
 ## Why this package exists
 
 **rietx exists so that a scientist can trust a Rietveld refinement they did not drive
-by hand.** Trust is built four ways. Every result is verified against a published
+by hand.** Trust is built four ways. Every result is checked against a published
 reference where one exists, and where none does the method, its source and its code are
 stated plainly. The package decides alone only where every competent refiner would
 decide the same way; where the data can rank the alternatives it ranks them, and where
@@ -55,12 +55,20 @@ number. A sentence that nobody would use to make a choice does not belong here.
    (whose number is it: the physics', the literature's, or ours) is
    [milestones/generality.md](milestones/generality.md) § The rule.
 
-2. **Verification.** rietx is written by agents, so verification is its foundation and
-   not a check at the end. A topic ships against a published reference where the
-   literature has one: a certified cell, a weighed composition, a reference code's
-   documented result. Where none exists, its equation, its source and its code are
-   stated plainly and the feature is declared provisional until a reference arrives.
-   Every physics function cites its reference. A pinned number that moves has moved
+2. **Verification and validation.** rietx is written by agents, so both are its
+   foundation and not a check at the end. The words carry the field's meanings (Roache
+   1998; Oberkampf & Roy 2010). *Verification* asks whether the code computes its model
+   correctly: an analytic Jacobian against finite differences, a refactor that
+   reproduces every number, two backends or two codes agreeing on the same data under
+   the same protocol. *Validation* asks whether the model matches the specimen: a
+   certified cell, a weighed composition, an inter-laboratory spread, a prediction
+   written down before the measurement. In `tests/validation_matrix.py`'s tiers,
+   `identity`, `own_result` and `cross_code` verify; `certificate`, `spread` and
+   `prediction` validate. A topic ships validated against a published reference where
+   the literature has one. Where none exists, its equation, its source and its code are
+   stated plainly and the topic is declared not yet validated until a reference
+   arrives. That state is separate from *provisional*, which rietx keeps for an API
+   that may still change (PEP 411's sense). Every physics function cites its reference. A pinned number that moves has moved
    for the right reason only if the new value is no further from its reference than
    the old.
 
@@ -88,7 +96,7 @@ number. A sentence that nobody would use to make a choice does not belong here.
    *A new topic.* Its reference is named before the code is written: dataset,
    published number, tolerance. Its equation is in the manual with its source, its
    off state reproduces every earlier number, and without a reference it is declared
-   provisional.
+   not yet validated.
 
    *A new API.* It takes the shape the surface already has: a verb in, a typed result
    out, a raise on failure, documented or deferred with a reason. The signature and

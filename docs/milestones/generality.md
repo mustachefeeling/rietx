@@ -1,4 +1,4 @@
-# generality — pay for established heuristics, leave the reasoning to the caller
+# generality — every decision rietx makes holds beyond the data it was tuned on
 
 **Opened 2026-10-18** by the maintainer, from a concern rather than an issue: many
 features are fitted to the specific test cases that produced them and do not serve a
@@ -95,8 +95,8 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    has one family on disk or none, and rarity is not overfit. Its action is judged on the
    judgement ground alone; where kept, its threshold stays at the measured value with
    `evidence` naming the one family and the table row tiered `3` with grounds that say so,
-   and the diagnostic's explanation declares the threshold provisional (DESIGN.md § Rules,
-   2). The row is re-tiered when a second and third family arrive. The whole field is in
+   and the diagnostic's explanation declares the threshold not yet validated (DESIGN.md
+   § Rules, 2). The row is re-tiered when a second and third family arrive. The whole field is in
    scope (DESIGN.md § Why this package exists), so rare features will multiply. Chosen at
    the fourth review over demoting by construction, which would strip every rare feature
    of its one unanimous action; the maintainer may reverse it.
@@ -127,6 +127,14 @@ decides whether the diagnostic exists at all (`SEQUENTIAL_DISCONTINUITY` at 5× 
 with its meaning. `Diagnostic.level` has no
 "none" value and gets none. The maintainer's breaking appetite is high (every user is in
 direct contact), so demotions land now; a removed code is staged in the release notes.
+
+**A pick on top of a ranking** is allowed in two cases, and the whole ranking travels with
+the pick in both. The caller called a verb whose job is the pick (`auto_background`,
+`IndexingResult.best_or_none`), and no default path calls that verb; the audit checks
+the second half, since a pick verb the default path calls is a default. Or the top of the
+ranking passes the unanimity gate, a first-kind act on a second-kind ranking, and the
+margin that makes it unanimous is a threshold the audit tiers (the maintainer,
+2026-10-18).
 
 **A moved golden** is DESIGN.md § Rules, 2's last sentence applied. A demotion that moves a
 pinned number has moved it for the right reason only if the new value is no further from the independent reference (a certified cell, a
@@ -224,8 +232,9 @@ sharpens its own row here.
   outside the generated API files is vocabulary, or a trap naming a source outside
   rietx's runs; no row states a verdict the package no longer makes or a rule measured
   on rietx's own data; the total falls and the caps re-land at the new sizes.
-- **The rulebooks prefer a record field to a code to an action** (2009), and the rule that
-  rewards a firing code is rewritten.
+- **The rulebooks state Rule 1's three outcomes** (2001, 2009): act and record where every
+  competent refiner would act, rank where the data can rank, otherwise report the number
+  with its meaning; and the rule that rewards a firing code is rewritten.
 - **A held-out family moved no number away from its reference** (every audit, checked at
   close). One or two families named at 2002's open and used as evidence by no audit; at
   close the standards' acceptance protocol is run on them and every number with a
@@ -305,16 +314,27 @@ reverse it knowing what it would be giving up.
   ruling. The judgement ground is Rule 1's unanimity gate, and a failing action moves to a
   ranking or a number by its kind rather than always to a number. The expensive-rerun
   exception is Rule 1's four protections. *Holds* on the mechanical ground is measured
-  against each family's reference (Rule 2), and a one-family threshold is declared
-  provisional. Four audit WPs (2002 to 2005) lost a skill task that sent a demoted
+  against each family's reference (Rule 2), and a one-family threshold is declared not
+  yet validated. Four audit WPs (2002 to 2005) lost a skill task that sent a demoted
   verdict's meaning into the skill, which the skill decision below had already reversed.
   The judge asks Rule 4's questions, and no longer whether a caller could see the action.
-  The questions the rules leave open went to the maintainer the same day; WP-2001's log
-  lists them and their rulings.
+  The questions the rules left open went to the maintainer, who ruled on four the same
+  day. **A pick on top of a ranking** is allowed (§ The rule), "consistent with our
+  ethos"; chosen over removing `best_or_none` and `auto_background`'s choice, which would
+  cost every caller one more decision for an answer the ranking already shows. **Rule 1's
+  three outcomes replace the preference order** "record field, then code, then action"
+  in the rulebooks (2001, 2009): the order pointed a session away from acting where
+  every competent refiner would act, which Rule 1's token clause says costs more than
+  the action. **Rule 2 became verification and validation** in the field's sense (Roache
+  1998; Oberkampf & Roy 2010), and a topic without a reference is *not yet validated*,
+  since `provisional` already means an API that may change (PEP 411). A reference code's
+  result on the same data verifies; it does not validate. **The milestone was renamed**
+  from "pay for established heuristics, leave the reasoning to the caller", which
+  restated the superseded first north star and contradicted Rule 1's first two kinds.
 - **A gate after 2004, and three families is not a demotion by itself.** The premise is a
   conviction measured by provenance, so the first three audits test it and the maintainer
   re-decides 2005–2007 on their counts. A rare feature with one family keeps its unanimous
-  action with its threshold declared provisional (§ The rule). Both from the fourth
+  action with its threshold declared not yet validated (§ The rule). Both from the fourth
   review; the second is the filing session's choice and reversible.
 - **The skill carries vocabulary and sourced traps, nothing prescriptive** (2026-10-18,
   the maintainer). Its role under the north star is to save tokens: an agent that knows
