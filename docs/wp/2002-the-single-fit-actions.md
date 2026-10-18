@@ -18,7 +18,9 @@ suggestion. The clash table names every pair that interact.
 The rule is `../milestones/generality.md` § The rule; 2001 restates it. This WP applies it
 to `Refinement._run_stage` (`src/rietx/refine.py`, ~line 3795) and what it calls, and to
 `src/rietx/strategy/` (`staged.py`, `magnetic.py`, `fraction_profile.py`,
-`parameter_interval.py`), four files the first plan left unowned.
+`parameter_interval.py`, `suggest.py`), five files the first plan left unowned. The four
+codes `strategy/magnetic.py` and `strategy/fraction_profile.py` raise are this WP's too,
+since no code audit's seam reaches `strategy/`.
 
 **Why first.** `_run_stage` runs inside every fit the package makes, including the ones it
 makes for itself: the report's rival fits (`report/layer2.py`, `report/body_misfit.py`),
@@ -49,7 +51,11 @@ keyword counts over the source are mostly comments and were discarded at the ope
   6819) and the other inline literals near it: 2005 owns the codes, this WP owns any
   literal that gates an *action*.
 - Every constant in `refine.py` and `strategy/` from 2001's AST walk that a hold, release,
-  seed or bound test reads.
+  seed or bound test reads; and the constants of `optimize/statistics.py` that are not
+  report-facing (`PINV_RCOND`, `COLUMN_SAFE_EXPONENT`, `MAX_SHIFT_CONVERGED`) plus
+  `optimize/lm.py`'s `BVLS_MAX_COLUMNS`, which the bound test rests on. 2004 takes only
+  the report-facing ones, and 2001's walk does not reach `lm.py`, so without this line
+  those rows have no owner and the record's first acceptance row cannot close.
 
 **The two cases the second review named, to anchor the batch.** The absent-phase hold is
 the one the rule keeps: a cell 14.9 Å from truth over 13 sub-onset patterns when free
@@ -131,5 +137,7 @@ for every row this WP owns.
 ## Handover log
 
 - **2026-10-18** — created, from the milestone's opening session (WP-2001's log has the
-  measurements and the two reviews). No open WP owns the holds as a class: 1301, 1327 and
-  1534 each shipped one and are closed.
+  measurements and the two reviews). No open WP owns the holds as a class: 1301 and 1534
+  each shipped one and are closed. 1327, which shipped the moment hold, is still in flight
+  (its analytic moment branch remains), so merge main before touching that hold and read
+  1327's handover for what its branch moves.

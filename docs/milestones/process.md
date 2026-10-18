@@ -625,6 +625,14 @@ one-line blurb, prose as the rule counts it.  The first draft's sections
 constraint lives in WP-1803 and WP-1514's `### Inherited`.  Landed 588, no
 headroom.
 
+588 -> 589 for v1.10 (2026-10-14, WP-1961): one table row.  Landed 589.
+
+589 -> 614 for the generality milestone (2026-10-18, WP-2001): one table
+row, a `###` section with three track headings the WP index links to, and
+one line in Current focus.  Prose, so the WP-1507 rule applies; the rule,
+the measurements and the decisions are in `generality.md`, and the section
+here carries one paragraph.  Landed 614, no headroom.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer

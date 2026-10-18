@@ -88,11 +88,16 @@ made and its cells are a spend the maintainer approves per session.
 
 Darwin arm64, the worktree at `origin/main` on 2026-10-18; the recipe is in WP-2001.
 
-- 276 `code="…"` strings in `src/rietx`; 253 are `Diagnostic` codes in
-  `rietx.help.DIAGNOSTIC_HELP` (WP-1985), held equal to the raise sites both ways. By
-  subsystem: io 89, `refine.py` 61, indexing 48, gui 27, crystallography 20, sequential
-  12, report 5, multi 5. 70 are not mentioned in the agent skill. 6 have no test; about 20
-  are touched by one test file.
+- 276 distinct `code="…"` literals in `src/rietx`; `rietx.help.DIAGNOSTIC_HELP` (WP-1985)
+  holds 256 `Diagnostic` codes, held equal to the raise sites both ways
+  (`docs/reference_pages.diagnostic_index()`, the inventory to build the table from). 7 of
+  the 256 are raised through a name rather than a literal (two in `schemas/results.py`,
+  five in the GSAS instrument readers), so a grep for the literal undercounts them. By
+  subsystem, unique literals: io 90, `refine.py` 61, indexing 48, gui 27, crystallography
+  20, sequential 12, report 5, multi 5, and 9 in files no seam names (`background/select.py`,
+  `optimize/qpa.py`, `schemas/migrate.py`, `strategy/magnetic.py`,
+  `strategy/fraction_profile.py`; 2002 and 2005 own them). 70 are not mentioned in the
+  agent skill. 6 have no test; about 20 are touched by one test file.
 - 127 module-level numeric constants in `report/`, `strategy/`, `optimize/statistics.py`,
   `refine.py` and `sequential.py` (AST walk); about 8 cite a paper in their comment block,
   3 say they are derived, about 49 cite a WP measurement. Indexing's 76 and io's ~30 are
@@ -103,8 +108,8 @@ Darwin arm64, the worktree at `origin/main` on 2026-10-18; the recipe is in WP-2
   `rung`, `reseeded`, `rwp_fence`. Three holds live in `Refinement._run_stage` (the absent
   phase, WP-1301; the moment, WP-1327; the scale–B ridge, WP-1534). `direction="both"`
   and `verify_discontinuities` are opt-in.
-- The agent skill is 61 000 words; 134 reference rows carry a `(Measured: …)` or
-  `(Hypothesis: …)` tag. `tests/skill_caps.py` fails growth.
+- The agent skill is 61 000 words; 130 lines carry a `(Measured: …)` or
+  `(Hypothesis: …)` tag (145 tags). `tests/skill_caps.py` fails growth.
 - `report/` carries 18 `ActionKind` members and 4 gates on rietx's own thresholds.
 - 3 of 193 top-level exports are used by nothing in `src`, `examples` or `gui`. The derived
   public surface is 2 238 entries; reachability over them is 2006's.

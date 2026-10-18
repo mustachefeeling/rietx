@@ -7,9 +7,11 @@ Priority: P3 2026-10-18 — expected mostly tier 1 (records of what was done to 
 
 ## Goal
 
-The 136 codes raised in `src/rietx/io/` (89), `crystallography/` (20) and `gui/` (27) are
-in the audit table with a tier, and the public surface's 2 238 entries have been walked for
-reachability, with the unreached ones listed for the maintainer.
+The codes raised in `src/rietx/io/` (90 `code="…"` literals, plus five the GSAS instrument
+readers raise through a name), `crystallography/` (20) and `gui/` (27) are in the audit
+table with a tier, and the public surface's 2 238 entries have been walked for
+reachability, with the unreached ones listed for the maintainer. Inventory from
+`docs/reference_pages.diagnostic_index()`, never from the literal grep (2001).
 
 ## Context
 
@@ -19,9 +21,10 @@ attenuator", "I snapped β to 90", "σ withheld because the scale is unknown". A
 tier 1 by construction. This WP confirms that row by row rather than assuming it, because
 "nothing wrong here" is weaker than a finding (memory `a-clear-is-weaker-than-a-finding`),
 and because `io/CLAUDE.md`'s rule "a reader may repair a file only where it can say that it
-did" has thresholds of its own: `cif.CIF_ANGLE_CORRECT_MAX_DEG` decides whether a fixed
-angle is snapped or refused (WP-1028, ≤ 830 ppm in d), and that number is a tier-3
-threshold under a tier-1 action.
+did" has thresholds of its own: `CIF_ANGLE_CORRECT_MAX_DEG` (0.1°, in
+`src/rietx/crystallography/cif.py`, not under `io/`) decides whether a fixed angle is
+snapped or refused (WP-1028, ≤ 830 ppm in d), and that number is a tier-3 threshold under
+a tier-1 action.
 
 The GUI's 27 are HTTP error names (`NOT_RUNNING`, `PROJECT_ERROR`), not `Diagnostic`s;
 they are in the 276 and not the 253. A row each saying "not a heuristic" closes them.

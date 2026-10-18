@@ -26,6 +26,12 @@ second review: `< 0.7` in the flat-plate thickness test (`ABSORPTION_PLATE_THICK
 verdict into a named constant with its value in the table, or records why it is tier 1 (a
 count, a dimension, a physical limit).
 
+**Five codes no seam names come here too**, since each is raised beside a fit rather than
+in a reader or a report: `BACKGROUND_ORDER_AT_CAP` (`background/select.py`),
+`BRINDLEY_OUTSIDE_REGIME` and `MICROABSORPTION_SKIPPED` (`optimize/qpa.py`),
+`DECLARED_RANGE_RESTORED` and `DECLARED_RANGE_NOT_RESTORED` (`schemas/migrate.py`). The
+four in `strategy/` are 2002's.
+
 **Families.** The size-flag thresholds are calibrated on one 1 213-record archive (~line
 9069): many files, one population, one family. Count by lab, instrument and material.
 
@@ -41,7 +47,8 @@ skill does not route and the explanation does not resolve is a candidate for `in
 
 - The holds, releases, seeds and bound tests: 2002.
 - Codes raised elsewhere: `report/` 2004; `io/`, `crystallography/`, `gui/` 2006;
-  `indexing/` 2007; `sequential.py` and `multi.py` 2003.
+  `indexing/` 2007; `sequential.py` and `multi.py` 2003; `strategy/` 2002. The five
+  named above are the whole remainder.
 - Rewriting an explanation's text (1985's voice stays); only `level`, the threshold and
   whether the code exists.
 

@@ -31,9 +31,10 @@ invariance test and no tier.
 
 **The seams.**
 
-- `rietx.help.DIAGNOSTIC_HELP` (`src/rietx/help.py`, WP-1985) holds 253 `HelpEntry` rows,
+- `rietx.help.DIAGNOSTIC_HELP` (`src/rietx/help.py`, WP-1985) holds 256 `HelpEntry` rows,
   one per `Diagnostic` code, held equal to the raise sites both ways by `tests/test_help.py`
-  (`docs/reference_pages.diagnostic_index()`). **Do not add audit fields to `HelpEntry`**:
+  (`docs/reference_pages.diagnostic_index()`). Build the inventory from that index, never
+  from a grep for `code="…"`: seven codes are raised through a name and have no literal. **Do not add audit fields to `HelpEntry`**:
   the class is shared by every help arm and serialised to `/api/help`, so a field there
   moves `gui/src/lib/help.ts`, the vitest table and the committed dist. The audit table is
   its own module, maintainer-facing, and a meta-test holds its code rows equal to
@@ -45,8 +46,15 @@ invariance test and no tier.
   table keys an action on the record field that reports it.
 - Threshold constants are module-level numbers. 127 in `report/`, `strategy/`,
   `optimize/statistics.py`, `refine.py`, `sequential.py` (AST walk, 2026-10-18); indexing
-  has 76 more, io ~30. The table stores each constant's **value** beside its name, so a
-  retune fails the meta-test and reopens the audit. A row's name is checked by import.
+  has 76 more, io ~30. **The table's walk covers all of `src/rietx`**, not those files: the
+  open counted five files, and the review found `background/`, `optimize/lm.py` and
+  `crystallography/` in neither the count nor any audit WP's scope. The guard compares the
+  tree against the table, so a constant in a directory the walk skips is one it can never
+  see. Every constant the full walk finds opens at `unaudited` and belongs to the audit WP
+  whose scope names its file; one no WP names is this WP's to assign before it closes (the
+  partition in 2005 § Non-goals is the current whole). The table stores each constant's
+  **value** beside its name, so a retune fails the meta-test and reopens the audit. A
+  row's name is checked by import.
 - `Diagnostic.level` (`schemas/common.py`) is a required `Literal["info", "warning",
   "error"]`; demotion uses `info`, never a new member.
 - `/wp-handover` (`.claude/commands/wp-handover.md`) step 6 runs `/code-review high --fix`
@@ -177,18 +185,36 @@ tracks, the Current focus line; the cap 589 → 614; WP files 2001–2009; the i
 regenerated.
 
 *Measured* (darwin arm64, this worktree at `origin/main` 049bc823, `[dev]` venv): 276
-`code="…"` strings in `src/rietx`, 253 of them in `DIAGNOSTIC_HELP`; by subsystem io 89,
-`refine.py` 61, indexing 48, gui 27, crystallography 20, sequential 12, report 5, multi 5;
-70 not named in the skill; 6 with no test, ~20 touched by one test file. 127 module-level
+distinct `code="…"` literals in `src/rietx`, 256 codes in `DIAGNOSTIC_HELP` (7 of them
+raised through a name, no literal; the filing first wrote 253 and 89 for io from the
+literal grep, corrected at review); by subsystem io 90, `refine.py` 61, indexing 48, gui
+27, crystallography 20, sequential 12, report 5, multi 5, and 9 in `background/select.py`,
+`optimize/qpa.py`, `schemas/migrate.py`, `strategy/magnetic.py`,
+`strategy/fraction_profile.py`; 70 not named in the skill; 6 with no test, ~20 touched by
+one test file. 127 module-level
 numeric constants in `report/`, `strategy/`, `optimize/statistics.py`, `refine.py`,
 `sequential.py` by AST (the session's own grep said 117; the reviewer's AST count is the
 one to carry), about 8 citing a paper in the comment block, 3 derived, ~49 citing a WP.
-Skill 61 000 words, 134 tagged rows. 3 of 193 top-level exports unused outside tests
+Skill 61 000 words, 130 tagged lines (145 tags). 3 of 193 top-level exports unused outside tests
 (`IndexingEvidence`, `CaveatEvidence`, `CandidateEvidence`). Public surface 2 238 entries.
 
 *Decisions* are in the record § Decisions. The one the session took itself and the
 maintainer should know it can reverse: the audit table is a separate module rather than
 fields on `HelpEntry`, on the reviewer's finding that `HelpEntry` is a GUI type.
+
+*Review* (`/code-review high --fix`, handover step 6): ten findings, eight applied by the
+pass in the working tree and committed here. The counts were off (256 codes in
+`DIAGNOSTIC_HELP`, not 253; io raises 90 literals plus five by name; seven codes have no
+`code="…"` literal, so the inventory is built from `diagnostic_index()`, never a grep;
+130 tagged skill lines, not 134); nine codes and five constants had no audit WP (now 2002's
+and 2005's, the partition stated in 2005 § Non-goals); 1327 is in flight, not closed, so
+2002 merges main before touching the moment hold; 2004's acceptance lacked
+`test_fitreport_layers.py`; `CIF_ANGLE_CORRECT_MAX_DEG` lives in `crystallography/`, not
+`io/`; `process.md`'s caps diary was two ROADMAP bumps stale. Of the two left: the
+tripwire's walk was specified over five files and must cover all of `src/rietx` (fixed in
+Context above, by this session); ROADMAP landing at its cap with no headroom is deliberate
+and has a precedent at 588, so the next line added there bumps it with its own diary line.
+The second Opus review's findings are in the record § The two reviews.
 
 *Gotchas.* The worktree guard refuses a Bash command containing the word "eval" anywhere
 (it reads it as a shell `eval`); `ls tests/ev*` works. The milestone section's heading

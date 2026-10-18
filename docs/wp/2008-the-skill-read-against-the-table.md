@@ -24,7 +24,7 @@ tokens on every fit as well as steering the agent wrong.
 **The seams.** Root CLAUDE.md § skill and WP-1330/1338: a rule goes in the cheapest place
 that holds it (the package's own output first, a reference row keyed on a name the agent
 holds, a routing row for a task shape, the body last). Every row written from runs is
-tagged `(Measured: …)` or `(Hypothesis: …)`; 134 carry one today. `tests/skill_caps.py`
+tagged `(Measured: …)` or `(Hypothesis: …)`; 130 lines carry one today (145 tags). `tests/skill_caps.py`
 has a ceiling per file and a budget that fails growth. `rietx skill --install . --copy`
 re-syncs the two committed copies. `tests/test_docs_consistency.py` fails a diagnostic
 code without a row; `test_skill.py` a verb the index omits; `test_skill_cli.py` a copy out
