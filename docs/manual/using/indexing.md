@@ -1176,6 +1176,7 @@ if klass is not None:
 | `k_sigma` | 3 | the matching window, in units of each line's σ |
 | `max_classes` | `None` | cap the number of classes fitted |
 | `refine_cell` | `True` | Le Bail-refine the cell first, in a cell-free `profile_only` prefit, and screen every class at that cell (`ExtinctionScreen.cell`); `False` holds the candidate's cell |
+| `confirm_in_data` | `True` | a refutation stands only where the raw counts show a line against a local baseline; `False` lets the fit's residual alone refute |
 | `restrict` | `None` | declared facts about the specimen (`rx.ExtinctionPrior(sohncke=True)`, or its dict) that filter each class's members |
 | `cancel` | `None` | cooperative cancellation |
 
@@ -1214,10 +1215,32 @@ read that misfit. The screen then still ranks the classes, sets
 held, or 1 % off with the prefit, on a synthetic Si pattern at synchrotron
 resolution) lands there rather than on a confident wrong class.
 
+A refutation is confirmed in the raw counts. The absence test reads each class's
+own Le Bail fit, background included, so where that background misses under a
+forbidden position the residual reads as intensity the class forbids. Each
+flagged position is asked again of the data alone: a quadratic baseline drawn
+under the raw counts over ±6 FWHM, leaving out ±1.5 FWHM around the position and
+around every reflection the class allows, with upward outliers clipped, and the
+net counts within ±½ FWHM compared with their σ. Only a net consistent with zero
+(below `k_sigma`) withdraws the position; a line there, an excess off the
+position, a baseline the data sit below, or too few channels to draw one, all
+leave the refutation standing. A class refuted only at withdrawn positions is
+kept and ranked by its ΔBIC, `ExtinctionCandidate.unconfirmed_hkl` and
+`ExtinctionCandidate.unconfirmed_two_theta` name the positions,
+`ExtinctionCandidate.unconfirmed_z` gives each one's net counts in σ, and
+`EXTINCTION_REFUTATION_UNCONFIRMED` says so. On the neutron histogram of `tests/data/gsas2_pbso4.gpx` at the held
+index cell, the screen refutes the true `P c - n` at (0,0,1), where the counts
+sit on the background, and the check withdraws it; a line planted on a forbidden
+position of the X-ray histogram, at a tenth of the median picked line's area,
+still refutes it. The ranking is untouched, so a withdrawn class competes on
+ΔBIC with classes that claim fewer absences.
+
 A container halo has to be declared too. A capillary's amorphous halo is about
 1° wide and can sit on a forbidden position, and the screen's background (a
 P-spline is stiff by design) cannot take it, so an undeclared halo there reads
-as intensity the class forbids and refutes it. Declare it as a `HumpComponent`
+as intensity the class forbids and refutes it, unless the raw-count check above
+finds the window's counts on a local baseline (it does for a 1°-wide excess on
+the forbidden (200) of a synthetic Si pattern). Declare it as a `HumpComponent`
 in `Instrument.extra_components` and fit it with the Le Bail pre-fit. The screen
 refits every declared hump per class, alongside the background, with its width
 floored at {{ HUMP_MIN_WIDTH_MULT }} instrument widths (`HUMP_MIN_WIDTH_MULT`), so a hump cannot

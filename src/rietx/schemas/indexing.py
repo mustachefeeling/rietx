@@ -151,6 +151,14 @@ from .structure import Cell
 #: NAC, certified corundum), with their ΔBIC moved (corundum −3434 → −1301,
 #: FAP −16 → −83); the PbSO₄ X-ray histogram at a 0.1-0.2 % cell went from an
 #: abstention to ``P c - n``.
+#: 1.11, also (#726): a refutation by the extinction screen's absence test is
+#: confirmed in the raw counts (``confirm_in_data=True``): a flagged position
+#: whose net over a local baseline (``LOCAL_BASELINE_*``) is consistent with
+#: zero no longer refutes, and ``ExtinctionCandidate`` gains
+#: ``unconfirmed_hkl``, ``unconfirmed_two_theta`` and ``unconfirmed_z``.  On
+#: the PbSO₄ neutron histogram at a held index cell the true ``P c - n`` is no
+#: longer refuted at (0,0,1); on ten benchmark patterns with the true cell and
+#: the default prefit, classes consistent with the true group refuted 17 → 8.
 #: Also 1.11 (#935, one bump per release cycle): ``determine_extinction_symbol(restrict=)`` takes declared facts
 #: (:class:`ExtinctionPrior`: Sohncke, centrosymmetric, polar) as a filter on
 #: each class's members; ``ExtinctionCandidate`` gains ``excluded_groups`` and
