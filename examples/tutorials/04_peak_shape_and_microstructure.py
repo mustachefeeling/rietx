@@ -9,7 +9,7 @@
 # Both patterns are synthetic, so we know the answers and can grade each fit.
 # By the end you can calibrate an instrument, carry it to a sample, and read the sample's size and strain.
 #
-# **You need** rietx 1.7 or later, which the next cell installs.
+# **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 02 introduces plans and the parameter table.
 #
 # **The data** is made in the notebook: LaB₆ as the standard and CeO₂ as the sample, each computed with `predict` and given Poisson noise.

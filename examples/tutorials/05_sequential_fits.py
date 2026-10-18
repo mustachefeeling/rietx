@@ -9,7 +9,7 @@
 # Then we break one pattern twice to see what the series reports.
 # By the end you can load and fit a series, read a parameter's trajectory, and check that the trajectory does not depend on the fitting order.
 #
-# **You need** rietx 1.7 or later, which the next cell installs.
+# **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 02 introduces plans and a single refinement.
 #
 # **The data** is made in the notebook: seven LaB₆ patterns on a synchrotron capillary instrument, each computed with `predict` and given Poisson noise.

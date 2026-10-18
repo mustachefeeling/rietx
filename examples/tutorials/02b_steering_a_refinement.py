@@ -8,7 +8,7 @@
 # Then we run a plan that frees two parameters the data cannot separate, go back in the history, and hold one of them.
 # By the end you can tie, go back and hold, and read the verdict rietx gives for a structure.
 #
-# **You need** rietx 1.7 or later, which the next cell installs.
+# **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 02 introduces the first fit and how to read its parameters.
 #
 # **The data** is `FAP.XRA` from the GSAS-II `LabData` tutorial, with a CIF transcribed from the same tutorial's experiment file.

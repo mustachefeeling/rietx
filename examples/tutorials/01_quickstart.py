@@ -7,7 +7,7 @@
 # The fit uses no atomic positions.
 # By the end you can read a fit's summary in the order rietx prints it, and keep the best of several Le Bail passes.
 #
-# **You need** Python 3.11 or later and rietx 1.7 or later, which the next cell installs.
+# **You need** Python 3.11 or later and rietx 1.10 or later, which the next cell installs.
 # You should be comfortable running a Jupyter cell.
 # You do not need to have refined anything in rietx before.
 #

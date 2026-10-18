@@ -1,12 +1,13 @@
 # rietx tutorials
 
 Executed notebooks that build a working picture of what rietx does with a powder pattern.
-They are written for people who drive rietx through an agent and need to judge its work, and they serve anyone learning the package.
-Each tutorial ends with a list of checks to make on an agent's fit; notebook 06, a template, ends by saving the results.
+They show rietx's moves one step a cell, for readers who already know the Rietveld method.
+Each links the manual for the reasons behind a step.
+Notebook 06 is a template for your own data.
 
 *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 
-Every notebook needs rietx 1.7 or later, and its first code cell installs it with `%pip install rietx`.
+Every notebook needs rietx 1.10 or later, and its first code cell installs it with `%pip install rietx`.
 The data ships inside the package, so no download is needed.
 
 | Notebook | What it teaches | Data and licence | Runtime |

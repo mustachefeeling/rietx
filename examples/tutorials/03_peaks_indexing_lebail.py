@@ -8,7 +8,7 @@
 # Then we check the best candidate with a Le Bail fit.
 # By the end you can pick and fit peaks, run an indexing search, and test a candidate cell against the whole pattern.
 #
-# **You need** rietx 1.7 or later, which the next cell installs.
+# **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 01 introduces Le Bail fitting.
 #
 # **The data** is synthetic aragonite, CaCO₃, made from its published structure: Dal Negro and Ungaretti (1971), *American Mineralogist* 56, 768, as entry 9000229 of the Crystallography Open Database (public domain).
