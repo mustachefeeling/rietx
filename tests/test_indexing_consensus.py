@@ -226,6 +226,44 @@ def test_best_or_none_is_none_under_every_gate_failure(break_it, expect):
     assert (result.best_or_none() is not None) is (expect == "high")
 
 
+def _fractions(by_line: float, by_intensity: float) -> list[FigureOfMerit]:
+    return [FigureOfMerit(name="indexed_fraction", value=by_line, n_lines=53,
+                          n_possible=40, k_sigma=3.0),
+            FigureOfMerit(name="indexed_intensity_fraction", value=by_intensity,
+                          n_lines=53, n_possible=40, k_sigma=3.0)]
+
+
+@pytest.mark.parametrize("by_line,by_intensity,flagged", [
+    # #933's shape: weak foreign lines take the line count under the bar and
+    # leave the intensity the cell explains above it — not refuted
+    (0.68, 0.95, False),
+    # the reverse: every line but a strong one indexed — refuted, where the
+    # line count alone would have passed it
+    (0.95, 0.80, True),
+    (0.95, 0.95, False),
+    (0.68, 0.80, True),
+])
+def test_indexed_fraction_low_reads_the_intensity_the_cell_explains(
+        by_line, by_intensity, flagged):
+    """``indexed_fraction_low`` is read on the intensity-weighted fraction
+    (WP-1969, issue #933), so a cell's own impurities do not refute it by
+    their count, and a missed strong line refutes it whatever the count."""
+    caveats, verdict = _gate(_candidate(TRUE_A,
+                                        fom=_fractions(by_line, by_intensity)))
+    assert ("indexed_fraction_low" in caveats) is flagged, caveats
+    assert verdict == ("low" if flagged else "high"), caveats
+
+
+def test_indexed_fraction_low_falls_back_to_the_line_fraction():
+    """A panel without the weighted member (a hand-built candidate) is read on
+    the line fraction, and a candidate with no panel at all is still refuted:
+    the reflection ceiling it hit is what the caveat reports."""
+    one = [FigureOfMerit(name="indexed_fraction", value=0.85, n_lines=23,
+                         n_possible=28, k_sigma=3.0)]
+    assert "indexed_fraction_low" in _gate(_candidate(TRUE_A, fom=one))[0]
+    assert "indexed_fraction_low" in _gate(_candidate(TRUE_A, fom=[]))[0]
+
+
 def _result(candidates) -> IndexingResult:
     from rietx.schemas.common import Provenance
 

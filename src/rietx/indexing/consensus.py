@@ -644,7 +644,13 @@ def caveats_for(cand: CellCandidate, *, engines_run: Sequence[str],
         out.append("validation_failed")
     elif cand.lebail.predicted_but_absent:
         out.append("predicted_but_absent")
-    fraction = cand.fom_value("indexed_fraction")
+    # read on the intensity the cell explains (WP-1969, #933): a cell's own
+    # weak impurity lines are not evidence against it by their count, and a
+    # missed strong line is evidence whatever the count.  The line fraction
+    # stays the reading for a panel built without the weighted member
+    fraction = cand.fom_value("indexed_intensity_fraction")
+    if fraction is None:
+        fraction = cand.fom_value("indexed_fraction")
     if fraction is None or fraction < min_indexed_fraction:
         out.append("indexed_fraction_low")
     if not search_complete.get(cand.system, True):
