@@ -104,8 +104,9 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 **The next release is 1.10** (`pyproject.version` `1.10.0.dev0`), cut from what `main` holds
 ([record](milestones/v1.10.md), [staged notes](releases/1.10.0.md)). 1.9.0 shipped 2026-10-14 ([notes](releases/1.9.0.md)).
 
-**One milestone is open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
-opened 2026-09-18 as v1.6; rietview, rigid-bodies and structure-solution were
+**Two milestones are open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
+opened 2026-09-18 as v1.6; [generality](#generality--pay-for-established-heuristics-leave-the-reasoning-to-the-caller)
+opened 2026-10-18; rietview, rigid-bodies and structure-solution were
 queued as v1.7, v1.8 and v1.9. Threads #286, #426, #561 and #562 quote those
 numbers, so each row in § Milestones says which it was. **Neutron TOF stays at
 [§ v2+](#v2--fenced)** behind issue #193, but for its T-1 cut ([1927](wp/1927-tof-t1-the-axis-and-its-readers.md), 2026-10-08).
@@ -154,6 +155,7 @@ covers (1119 § Gotchas).
 | rietview | rietview (was v1.7): the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ rietview](#rietview--the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
 | rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1813, the seam decided by 1803 and the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
 | structure-solution | Structure solution (was v1.9): a difference-Fourier map, a cost from the Pawley intensities, direct-space search — [WPs](wp/README.md#structure-solution): 1901-1902, the map then the cost; #197 and #198 left the fence 2026-09-30 | ⬜ **queued 2026-09-30** | written at the open |
+| generality | Pay for established heuristics, leave the reasoning to the caller: every verdict, action and threshold tiered, the unproven demoted, a guard against the next one — [§ generality](#generality--pay-for-established-heuristics-leave-the-reasoning-to-the-caller) | 🔄 **opened 2026-10-18** ([record](milestones/generality.md)) | six rows written at the open, the record's § Acceptance |
 | v2+ | FPA (with the peaks buffer), neutron TOF, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
@@ -408,6 +410,29 @@ Queued 2026-09-30 from issue #561. The seam was measured first (1803) and the re
 ### structure-solution — a map, a cost and a search
 
 Queued 2026-09-30 from issue #562. The map, then the cost, then a search (WP-1515). [The WPs](wp/README.md#structure-solution).
+
+### generality — pay for established heuristics, leave the reasoning to the caller
+
+Opened 2026-10-18 from the maintainer's concern that features are fitted to the test
+cases that produced them ([record](milestones/generality.md)). The record § The rule is
+the one authority: three tiers (physics, established practice, rietx's own), tiered per
+statistic, threshold and action; a tier-3 item survives on three dataset families *and*
+on the question "could the caller see this from what rietx returns, and does missing it
+cost a wrong number?", approved in a batch. 2001 writes the rule, the table and the
+guard; 2002–2007 audit one seam each, 2002 first; 2008 reads the skill against the table;
+2009 rewrites the rulebook rules that reward a firing code. [The WPs](wp/README.md#generality).
+
+#### The registry and the guard
+
+2001: the rule written down, the audit table every later WP fills, the tripwire test and the fresh-context review the handover dispatches on a hit. [The WP](wp/README.md#generality-the-registry-and-the-guard).
+
+#### The audits
+
+One seam each, the same task shape: lanes read and tier, the lead tables, the maintainer rules in a batch, approved demotions land with any moved golden recorded against its reference. 2002 the single-fit actions (first, since every fit runs them), 2003 the chain, 2004 the FitReport, 2005 `refine.py`'s codes, 2006 the readers and crystallography, 2007 indexing. [The WPs](wp/README.md#generality-the-audits).
+
+#### The prose
+
+2008 the agent skill read against the table; 2009 the rulebooks, findings out and the generator rules rewritten. [The WPs](wp/README.md#generality-the-prose).
 
 ### Unscheduled
 
