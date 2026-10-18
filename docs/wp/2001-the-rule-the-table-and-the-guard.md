@@ -23,9 +23,10 @@ one paragraph here so this file is self-contained; sharpen the record, never thi
 Three tiers, each part of a heuristic tiered separately (statistic, threshold, action):
 (1) physics or arithmetic, kept; (2) a citation that validated it or the same action taken
 by default in GSAS-II, FullProf or TOPAS, kept and named; (3) rietx's own, demoted unless it
-holds on three unrelated dataset families (by lab, instrument and material) *and* every
-competent refiner, shown the statistic, would take the same action (DESIGN.md § Rules, 1's
-unanimity gate); a named dissenter demotes it to a ranking where the data can rank the
+holds on three unrelated dataset families (by lab, instrument and material). Every action,
+whatever its tier, is kept only if every competent refiner, shown the statistic, would
+take the same action (DESIGN.md § Rules, 1's unanimity gate; for tier 2 the source is
+evidence toward yes); a named dissenter demotes it to a ranking where the data can rank the
 alternatives and to the number with its meaning otherwise, approved by the maintainer in a
 batch. The
 inheritance rule, the answer-invariant class, the one-family clause and the moved-golden
@@ -126,7 +127,9 @@ drafts the case *against*, beside the author's two-ground
 answer, because a row written by the author alone is self-certification and a batch
 approval tends to rubber-stamp. **What it will miss, stated in the module docstring**:
 inline literals (about 30 in `refine.py`, `< 0.7` at the plate-thickness test, `>= 2.0`
-further down), defaults outside `DEFAULT_SEATS`, orderings and fallback chains, and heuristics written as skill prose (2008's half).
+further down), defaults outside `DEFAULT_SEATS`, orderings and fallback chains, an
+always-on correction with no switch, threshold or new field (the Bérar–Lelann esd
+inflation was one), and heuristics written as skill prose (2008's half).
 
 **The generator rule** (the second review's biggest finding). Root CLAUDE.md's "A new
 correction ships with a record field or a diagnostic stating what it changed" and the P1
@@ -168,16 +171,17 @@ from acting where Rule 1's first kind says act.
       DESIGN.md § Rules, 1 governs what the package decides alone), `ambiguity` (`1` | `2` | `3`, DESIGN.md
       § Rules, 1's kinds; code and action rows only, where Rule 4 asks for it to be
       stated), `evidence` (a citation, a program and what it does by default, or the
-      families with their references), `grounds` (the two-ground answer, tier 3 only),
-      `approved` (a date, tier 3 only), `value` (constants and defaults only). Every
+      families with their references), `grounds` (the two-ground answer for tier 3, the
+      judgement answer for a tier-2 action), `approved` (a date, on the same rows),
+      `value` (constants and defaults only). Every
       existing code from `DIAGNOSTIC_HELP`, every record field named above, every constant
       the AST walk finds over `WALKED` and every default at `DEFAULT_SEATS`, entered at
       `unaudited`; `UNAUDITED_BASELINE` the
       sorted list of those names, written once here.
 - [ ] The meta-test (`tests/test_audit_table.py`): code rows equal to `DIAGNOSTIC_HELP`'s
       keys both ways; every action row's record field exists on its schema; every constant
-      and default row imports and its stored value equals the live one; a tier-3 row carries `grounds`
-      and `approved`; every `unaudited` row's name is on `UNAUDITED_BASELINE` (the growth
+      and default row imports and its stored value equals the live one; a tier-3 row, and
+      a tier-2 action row, carries `grounds` and `approved`; every `unaudited` row's name is on `UNAUDITED_BASELINE` (the growth
       guard; no git); every name on the baseline still has a row, so the list shrinks as
       rows are audited and never grows.
 - [ ] `/wp-handover`'s dispatch condition for the judge, on step 7: the tripwire fired, or

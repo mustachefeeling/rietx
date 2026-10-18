@@ -9,8 +9,9 @@ Priority: P2 2026-10-18 — upstream of 2003 and 2004 (every fit runs these), an
 
 Every automatic action a single fit takes is in the audit table with a tier: the three
 holds, the release and the collapse restore, the bound test, the phase-significance test,
-the seeds, and the thresholds they rest on. Each tier-3 action either carries its two
-grounds and the maintainer's dated approval, or is demoted by its kind of ambiguity
+the seeds, the always-on corrections, and the thresholds they rest on. Each tier-3 action
+carries its two grounds and the maintainer's dated approval, and each tier-2 action its
+judgement ground and approval. An action that fails is demoted by its kind of ambiguity
 (DESIGN.md § Rules, 1): to a ranking with evidence where the data can rank the
 alternatives, otherwise to the number in a record field with its meaning. The clash table
 names every pair that interact.
@@ -60,6 +61,14 @@ keyword counts over the source are mostly comments and were discarded at the ope
 - The flat-plate thickness test (`ABSORPTION_PLATE_THICKNESS`, an inline `< 0.7` at ~line
   6819) and the other inline literals near it: 2005 owns the codes, this WP owns any
   literal that gates an *action*.
+- Always-on corrections with no switch, threshold or record field of their own, which no
+  walk finds: the Bérar–Lelann esd inflation (`optimize/least_squares.py`, applied to
+  every reported esd, 7 to 10 on WP-1417's synchrotron fits before v1.6 lowered it
+  12–21 %; GSAS-II's source never mentions it), the √max(y,1) weight fallback, and
+  anomalous dispersion on by default (`Source.dispersion`, also a declared seat). Walk
+  root CLAUDE.md § Invariants for the rest. Each is an action row, tier 2 where a paper
+  or a program stands behind it, and faces the judgement ground like any other (the
+  record § The rule, tier 2, ruled 2026-10-19).
 - Every constant in `refine.py` and `strategy/` from 2001's AST walk that a hold, release,
   seed or bound test reads; and the constants of `optimize/statistics.py` that are not
   report-facing (`PINV_RCOND`, `COLUMN_SAFE_EXPONENT`, `MAX_SHIFT_CONVERGED`) plus
@@ -109,8 +118,8 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
 - [ ] The clash table: every pair of actions that read or move the same parameter, with
       the measured interaction (Rwp and the parameter, both orderings).
 - [ ] The batch to the maintainer, in the register of `~/.claude/CLAUDE.md`: per tier-3
-      row the two grounds answered (for the judgement ground, the dissenting caller named
-      or declared absent), the Rule 1 kind it falls to if demoted, the case against
+      row the two grounds answered, and per tier-2 action the judgement ground (for the
+      judgement ground, the dissenting caller named or declared absent), the Rule 1 kind it falls to if demoted, the case against
       drafted by the `generality-review` agent, and a recommendation. Rows resting on one evidence base are grouped and ruled as a class
       (record § Decisions); rulings dated into the table.
 - [ ] Approved demotions: the action removed, and its number left in the record field (or

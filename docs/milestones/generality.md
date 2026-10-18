@@ -50,7 +50,10 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
 2. **Established practice.** A citation that validated it, or the same action taken *by
    default* in GSAS-II, FullProf or TOPAS. Computing a statistic is not acting on it: every
    code reports R_Bragg and WP-1069 rejects it as evidence; GSAS-II concatenates multi-range
-   scans and rietx refuses to. Kept, and the registry entry names the source.
+   scans and rietx refuses to. A statistic or threshold here is kept, and the registry
+   entry names the source. An action here still faces the judgement ground under tier 3.
+   Its citation or the program's default is evidence that every competent refiner would
+   act, and a named dissenter outweighs it (DESIGN.md § Rules, 1; ruled 2026-10-19).
 3. **rietx's own.** Everything whose provenance is "measured on NAC" or a WP number. Each
    is either **demoted** or **kept on two grounds together**:
    - the mechanical ground: it holds across at least three unrelated dataset families,
@@ -91,8 +94,11 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
 
    **Tier 2 will rarely cover an action.** GSAS-II, FullProf and TOPAS take almost no
    automatic actions; the person at the GUI decides. So nearly every action in 2002 and
-   2003 is tier 3 and the judgement ground decides it, which is why its wording carries
-   the audit. A tier-2 *statistic* under a tier-3 *action* is the common shape.
+   2003 is tier 3. The judgement ground decides every action whatever its tier, and its
+   wording carries the audit. A tier-2 *statistic* under a tier-3 *action* is the common
+   shape. A citation is easier to find than a program's default, so an action's tier 2
+   usually rests on a paper. An always-on correction with no switch, threshold or record
+   field is an action too: the Bérar–Lelann esd inflation, the √y weight fallback.
 
    **Where three families do not exist.** A rare feature (magnetic, Stephens strain, TOF)
    has one family on disk or none, and rarity is not overfit. Its action is judged on the
@@ -245,9 +251,10 @@ sharpens its own row here.
   constant with its tier, its evidence and, for tier 3, the two grounds and the approval
   date. Each code and action row also states the kind of ambiguity DESIGN.md § Rules, 1
   assigns it. A meta-test holds the table equal to the tree both ways.
-- **No tier-3 action runs by default without its approval** (2002, 2003, 2004). Every
-  hold, carry, refit and fence that survives names the families it was evidenced on, the
-  record field that says it fired, and the maintainer's dated approval; every other one is
+- **No tier-2 or tier-3 action runs by default without its approval** (2002, 2003, 2004).
+  Every hold, carry, refit, fence and always-on correction that survives names its
+  evidence (the families, or for tier 2 the citation or program), the record field that
+  says it fired, and the maintainer's dated approval; every other one is
   demoted to a ranking or a number by its kind, or made opt-in. No default path calls a
   pick verb (§ A pick on top of a ranking).
 - **A new heuristic cannot land unaudited** (2001). A diff that adds a diagnostic code, a
@@ -460,7 +467,12 @@ reverse it knowing what it would be giving up.
   one dataset" for "no reference exists". **A poor agent result reworks the explanation
   and does not hold a demotion back** (§ The rule). Chosen over a block until agents
   recover, which would keep a verdict that failed its tests steering agents, on a harness
-  too small to show the recovery.
+  too small to show the recovery. **Every action faces the unanimity question whatever its
+  tier** (§ The rule, tier 2), since Rule 1 makes no exception by source. Chosen over
+  keeping a tier-2 action on its citation alone, which would have passed the Bérar–Lelann
+  esd inflation unexamined although GSAS-II does not apply it. The cost measured at the
+  ruling: two or three of the ten behavioural defaults cite a paper or a program, plus the
+  always-on corrections 2002 now lists.
 
 ## The two reviews at the open
 
