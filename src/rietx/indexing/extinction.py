@@ -154,10 +154,10 @@ DECISIVE_DELTA_BIC = 10.0
 #: ``F - - -`` returned by ``best_or_none`` as a confident answer.
 REFERENCE_NET_RWP_MAX = 0.7071
 
-#: The local baseline :func:`line_in_raw_data` fits under a flagged forbidden
+#: The local baseline :func:`_line_in_raw_data` fits under a flagged forbidden
 #: position: a quadratic over ±``LOCAL_BASELINE_HALF_FWHM`` FWHM of raw counts,
 #: leaving out ±``LOCAL_BASELINE_GAP_FWHM`` FWHM around the position and around
-#: every known line, with upward outliers clipped at
+#: every reflection the class allows, with upward outliers clipped at
 #: ``LOCAL_BASELINE_CLIP_SIGMA``.  The window is the one a person draws by hand
 #: to ask "is there a peak here?", and none of the three numbers was tuned on a
 #: verdict: they are the harness check's of #726 (2026-10-15), set before any
@@ -705,10 +705,10 @@ def _model_is_quiet(two_theta: np.ndarray, y_calc: np.ndarray,
     return out
 
 
-def line_in_raw_data(two_theta: np.ndarray, y_obs: np.ndarray,
-                     sigma: np.ndarray, position: float, fwhm: float,
-                     known_lines: np.ndarray, *,
-                     k_sigma: float = ABSENT_SIGMA) -> tuple[bool | None, float | None]:
+def _line_in_raw_data(two_theta: np.ndarray, y_obs: np.ndarray,
+                      sigma: np.ndarray, position: float, fwhm: float,
+                      allowed: np.ndarray, *,
+                      k_sigma: float = ABSENT_SIGMA) -> tuple[bool | None, float | None]:
     """Does the **raw pattern** carry a line at ``position``, against a local
     baseline no fit can move?  Returns ``(line, z)``; ``line`` is ``None`` when
     the window holds too few baseline channels to say.
@@ -722,25 +722,28 @@ def line_in_raw_data(two_theta: np.ndarray, y_obs: np.ndarray,
     counts instead, the way it is asked by hand: fit a quadratic to the raw
     data over ±:data:`LOCAL_BASELINE_HALF_FWHM` FWHM, leaving out
     ±:data:`LOCAL_BASELINE_GAP_FWHM` FWHM around the position and around every
-    line in ``known_lines``, clip upward outliers (an unlisted weak line) at
-    :data:`LOCAL_BASELINE_CLIP_SIGMA`, then integrate data − baseline over the
-    absence test's own ±:data:`~rietx.indexing.workflow.ABSENT_WINDOW_FWHM`
-    window against the same propagated σ.  A line is ``z ≥ k_sigma`` with the
-    excess centred within FWHM/4 of the position — off-centre, it is a
-    neighbour's flank — or a known line within ½ FWHM.
+    reflection the class ``allowed`` (every emission line), clip upward
+    outliers (an unpredicted weak line) at :data:`LOCAL_BASELINE_CLIP_SIGMA`,
+    then integrate data − baseline over the absence test's own
+    ±:data:`~rietx.indexing.workflow.ABSENT_WINDOW_FWHM` window against the same
+    propagated σ.  A line is ``z ≥ k_sigma`` with the excess centred within
+    FWHM/4 of the position; off-centre, it is a neighbour's flank.
 
-    The baseline is the data's own, so it is wrong where a sharp feature the
-    list does not name sits inside the window; the clip and the gap bound that,
+    **The exclusions are the class's predicted reflections, never the picked
+    peaks.**  A peak list is a fit too: on a synthetic Si pattern with a
+    1°-wide excess on the forbidden (200), the picker cut the excess into six
+    0.17°-wide "peaks" against a 0.02° instrument, and a rule reading a picked
+    peak at the position as a line kept the refutation the excess had made.
+    The baseline is the data's own, so it is wrong where a sharp feature
+    nothing predicts sits inside the window; the clip and the gap bound that,
     and :func:`determine_extinction_symbol` only ever uses a ``False`` here to
     *withdraw* a refutation, never to make one.
     """
     tt = np.asarray(two_theta, dtype=np.float64)
     y = np.asarray(y_obs, dtype=np.float64)
     sig = np.asarray(sigma, dtype=np.float64)
-    known = np.asarray(known_lines, dtype=np.float64)
+    known = np.asarray(allowed, dtype=np.float64)
     w = max(float(fwhm), 1e-6)
-    if known.size and float(np.min(np.abs(known - position))) <= 0.5 * w:
-        return True, None
     step = float(np.median(np.diff(tt))) if len(tt) > 1 else w
     half = max(LOCAL_BASELINE_HALF_FWHM * w, 15.0 * step)
     win = np.abs(tt - position) < half
@@ -995,8 +998,8 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     class's own fit, background included, so a background that misses under a
     forbidden position refutes a class on intensity the data do not have.  Each
     flagged position is asked again of the data alone
-    (:func:`line_in_raw_data`: a local baseline under the position, the picked
-    lines left out); a refutation none of whose positions carries a line there
+    (:func:`_line_in_raw_data`: a local baseline under the position, the
+    class's allowed reflections left out); a refutation none of whose positions carries a line there
     is **withdrawn**, the positions are kept in ``unconfirmed_hkl`` and
     ``EXTINCTION_REFUTATION_UNCONFIRMED`` says so.  Where the baseline cannot be
     drawn the refutation stands.  The ranking is untouched: a withdrawn class
@@ -1242,11 +1245,9 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         if loud and confirm_in_data:
             # each flagged position asked again of the raw counts; only a
             # definite "no line" withdraws it, and "can't tell" keeps it
-            known = (np.array([p.two_theta for p in peaks.peaks], dtype=np.float64)
-                     if peaks is not None else tt_all[~np.isin(line_of_row,
-                                                               ev["lines"])])
+            known = tt_all[~np.isin(line_of_row, ev["lines"])]
             idx_loud = np.flatnonzero(keep)[loud]
-            verdicts = [line_in_raw_data(
+            verdicts = [_line_in_raw_data(
                 tt_data, np.asarray(result.y_obs), np.asarray(result.sigma),
                 float(pos[j]), float(ev["fwhm"][i]), known, k_sigma=k_sigma)
                 for j, i in zip(loud, idx_loud)]
