@@ -345,6 +345,20 @@ def microstructure_sections(block) -> tuple[str, list[tuple[str, str, str]], lis
     return head, rows, tail
 
 
+def trajectory_sections(traj) -> tuple[str, tuple[str, str, str], list[tuple[str, str, str]]]:
+    """A ``Trajectory`` as a head line, a header and one row a point:
+    ``(label, x, value(esd))``.  The x column is headed by ``x_label``, so
+    a temperature reads as ``T (K)`` and a series without a coordinate as
+    ``index``.  A point with no esd prints its value alone, and one with no
+    label an empty cell, since a trajectory built by hand may carry none."""
+    head = f"Trajectory: {traj.path}, {len(traj.value)} point(s)"
+    labels = [*traj.labels, *[""] * (len(traj.value) - len(traj.labels))]
+    rows = [(label, f"{x:g}", _number(v, esd))
+            for label, x, v, esd in zip(labels, traj.x, traj.value, traj.stderr,
+                                        strict=False)]
+    return head, ("label", traj.x_label, "value"), rows
+
+
 def table_text(header: tuple[str, ...], rows: list[tuple[str, ...]], indent: str = "") -> list[str]:
     """Left-aligned columns, two spaces apart, header first."""
     widths = [max(len(c) for c in col) for col in zip(header, *rows)]

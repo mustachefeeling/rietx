@@ -272,6 +272,20 @@ class Trajectory(Base):
     def __len__(self) -> int:
         return len(self.value)
 
+    def __str__(self) -> str:
+        """One row a point: its label, its x and its value with the esd
+        (WP-1545). The generic tree printed the values and the esds as two
+        separate lists, so a reader paired them by counting."""
+        from .._display import table_text, trajectory_sections
+        head, header, rows = trajectory_sections(self)
+        return "\n".join([head, *table_text(header, rows, "  ")])
+
+    def _repr_html_(self) -> str:
+        """The same rows as a table under the head line."""
+        from .._display import pre_html, table_html, trajectory_sections
+        head, header, rows = trajectory_sections(self)
+        return pre_html(head) + table_html(header, rows)
+
     def arrays(self):
         """``(x, value, stderr)`` as float arrays; missing esds become NaN."""
         import numpy as np
@@ -543,6 +557,12 @@ class MagneticTrajectory(Trajectory):
         if self.onset is not None:
             rows.append(f"  {self.onset}")
         return "\n".join([head, *rows])
+
+    def _repr_html_(self) -> str:
+        """Its own text in a ``<pre>``: the table :class:`Trajectory` draws
+        has no column for the verdicts this view carries."""
+        from .._display import pre_html
+        return pre_html(str(self))
 
 
 def locate_onset(traj: MagneticTrajectory) -> MagneticOnset:

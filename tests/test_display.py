@@ -254,6 +254,28 @@ def test_a_microstructure_block_prints_one_row_a_term_and_its_verdict():
     assert html.count("<tr>") == 4 and "298.9(22) Å" in html and "separable: None" in html
 
 
+def test_a_trajectory_prints_one_row_a_point_with_its_esd():
+    """The generic tree printed the values and the esds as two lists, so a
+    reader paired them by counting (WP-1545's notebook 05).  The x column is
+    headed by the series' own label, and a point with no esd prints its value
+    alone.  A moment trajectory keeps its own view, verdicts included."""
+    from rietx.schemas.sequential import MagneticTrajectory, Trajectory
+    traj = Trajectory(path="phases.0.cell.a", x=[300.0, 400.0], x_label="T (K)",
+                      value=[4.15660247525093, 4.15868088118438],
+                      stderr=[4.3e-6, None], labels=["300 K", "400 K"], positions=[0, 1])
+    lines = str(traj).splitlines()
+    assert lines[0] == "Trajectory: phases.0.cell.a, 2 point(s)"
+    assert lines[1].split() == ["label", "T", "(K)", "value"]
+    assert lines[2].split() == ["300", "K", "300", "4.1566025(43)"]
+    assert lines[3].split() == ["400", "K", "400", "4.1586809"]
+    html = traj._repr_html_()
+    assert html.count("<tr>") == 3 and "<th>T (K)</th>" in html and "4.1566025(43)" in html
+    moment = MagneticTrajectory(path="magnetic.Cr1", x=[10.0], value=[2.1], stderr=[0.1],
+                                labels=["10 K"], supported=[True], measured=[True],
+                                status=["converged"])
+    assert str(moment).startswith("MagneticTrajectory") and "<table>" not in moment._repr_html_()
+
+
 def test_a_diagnostic_prints_its_headline_and_folds_the_rest():
     """The text form is rustc's; the HTML shows the headline and folds the
     suggestion, the paths and the code's explanation (WP-1985)."""
