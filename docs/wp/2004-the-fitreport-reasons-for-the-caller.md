@@ -92,7 +92,7 @@ open under the same track; neither tiers a gate.
 
 ```sh
 .venv/bin/python -m pytest tests/test_audit_table.py -q          # no report/ row at unaudited
-.venv/bin/python -m pytest tests/test_fitreport_layers.py tests/test_report*.py tests/test_layer*.py tests/test_body_misfit.py -q
+.venv/bin/python -m pytest tests/test_fitreport_layers.py tests/test_report*.py tests/test_localisation.py tests/test_body_misfit.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m pytest -n auto --dist loadgroup                # once, final tree
 ```

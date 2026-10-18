@@ -30,7 +30,9 @@ The GUI's 27 are HTTP error names (`NOT_RUNNING`, `PROJECT_ERROR`), not `Diagnos
 they are in the 276 literals and not the 256 codes. A row each saying "not a heuristic"
 closes them.
 
-**The dead surface.** 3 of 193 top-level exports are used by nothing in `src`, `examples`
+**The dead surface** is the API half of the north star (DESIGN.md: the best engine *and*
+the best outputs), not the heuristics half this milestone mostly audits; it rides here
+because the walk is cheap and the seam is the same session's. 3 of 193 top-level exports are used by nothing in `src`, `examples`
 or `gui`: `IndexingEvidence` (named in the skill), `CaveatEvidence`, `CandidateEvidence`
 (tests only). The derived surface (`tests/api_surface.py`, `derive_surface()`) is 2 238
 entries; reachability over those has not been run. This is a mechanical job for a cheap
@@ -52,8 +54,13 @@ promise stages every break).
 
 ## Tasks
 
-- [ ] Inventory the 136 codes: raise site, `level`, condition, whether it records an act or
-      asserts a judgement.
+- [ ] Inventory the 142 codes (io 90 literals plus five by name, crystallography 20, gui
+      27): raise site, `level`, condition, whether it records an act or asserts a
+      judgement. `LANDE_G_ASSUMED` and `MAGNETIC_ION_ASSUMED` are raised here and in
+      `strategy/magnetic.py`; 2002 tiers them on both sites and this WP reads the row.
+- [ ] The constants of `io/` (~30) and `crystallography/` (66 by AST), entered by 2001's
+      walk: tier each, expected mostly tier 1 (byte offsets, physical limits) with the
+      few thresholds named above.
 - [ ] Tier each; for the few thresholds (`CIF_ANGLE_CORRECT_MAX_DEG`, the attenuator
       conventions measured per format, the axis refusal), evidence and families.
 - [ ] The reachability walk over `derive_surface()`'s 2 238 entries, as a script in
@@ -70,7 +77,7 @@ promise stages every break).
 
 ```sh
 .venv/bin/python -m pytest tests/test_audit_table.py -q          # no io/crystallography/gui row at unaudited
-.venv/bin/python -m pytest tests/test_io*.py tests/test_cif*.py tests/test_gui*.py -q
+.venv/bin/python -m pytest tests/test_readers*.py tests/test_cif*.py tests/test_gui*.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 

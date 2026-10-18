@@ -23,6 +23,44 @@ rietx fills that gap: typed schemas, JSON round-trip, staged strategies,
 and machine-readable diagnostics, with the forward model written to stay
 differentiable from day one.
 
+### North star (2026-10-18)
+
+rietx exists to give a reasoner the best refinement engine and the best
+outputs to reason from. The reasoner is a person or an agent. Agents get
+better at crystallographic judgement with every generation, and a rule written
+into a package stays where it was written, so the package computes and the
+caller decides.
+
+The package does by default only what every competent refiner would do on
+seeing the same number: the physics, the arithmetic, established practice, and
+the few actions no one would choose differently. Where two careful people could
+respond differently to the same number, the package reports the number with
+its meaning and stops. That line is drawn by the physics and does not move as
+callers improve. Stronger callers argue for doing none of the second kind, and
+for doing the first kind exactly as before.
+
+Every action leaves a record that it happened. Every withheld verdict leaves
+its statistic. The caller can always see what the package saw, whichever way
+the line fell.
+
+A fit costs seconds and a caller's reasoning costs tokens, so the default is
+the one that reaches a right answer in the fewest calls, which is not the one
+that decides the most. A default that forces ten reruns to learn what one
+unanimous action would have shown is worse for the caller than the action.
+
+The milestone that applies this to the existing tree is
+[generality](milestones/generality.md); its § The rule is the operational
+form, and the skill and the rulebooks follow it. The design test for any new
+output is whether a caller can decide from it without a rerun; for any new
+default, whether a dissenting competent caller can be named.
+
+*Amendment to the paragraph above (2026-10-18).* The gap named there is the
+engine's. The north star says what the engine is for: the API-first,
+differentiable core is the half that stays valuable as callers improve, and
+the verdicts layered over it since v0.2 are the half that ages. The
+agent-native outputs (§ Outputs & fit assessment) stand; the gates in them are
+re-read under the rule above.
+
 ## Locked decisions
 
 - **Backend**: numpy/scipy fp64 core (~50 MB default install); forward model

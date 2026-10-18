@@ -39,13 +39,18 @@ and the trigger is the same threshold (third review).
   on status alone (diverged or non-finite) with the Rwp fence opt-in. **A finding to
   measure here, not a decision taken at filing.**
 - The rung ladder and quarantine (~lines 1677–1715, WP-1051): a rejected warm fit retried
-  from colder starts, then `SEQUENTIAL_UNRECOVERED`, seeding no successor. The maintainer's
-  framing settles the question the reviewer raised: a fit is cheap and costs no tokens, so
-  the caller who sees "pattern 23 diverged and 24–68 were seeded from it" reruns from 23.
-  Quarantine survives only if the two grounds say the caller could *not* see it, or if it
-  falls under the record's narrow exception for work that is expensive to redo, which
-  names a 200-pattern batch (third review). So measure both: what a caller sees with it
-  off, and what a rerun from the diverged pattern costs on each chain family.
+  from colder starts, then `SEQUENTIAL_UNRECOVERED`, seeding no successor. Under the
+  judgement ground this is kept unless a competent caller can be named who would let a
+  diverged fit seed its successors (fourth review; the record § The rule names it as the
+  case that flipped from contested to kept when visibility gave way to judgement). What
+  is on trial is the *ladder*: its rungs, the order of colder starts and the point at
+  which it gives up are choices, so tier them. Measure what the caller sees: does the
+  returned `SeriesResult` show which pattern diverged and which were seeded from it? If
+  not, that record field is added whatever the ruling.
+- `DISCONTINUITY_FACTOR = 5.0` and `DISCONTINUITY_SIGMA = 3.0` (~lines 226–227): the
+  threshold the removed code was keyed on. The walk enters both at `unaudited`; when the
+  code goes, the constants go with it or are re-tiered as the trajectory field's own
+  (the step size needs no threshold), so the baseline can shrink past them.
 - `FIRST_RUNG_FACTOR = 3.0` (~line 218): measured bit-identical, 0 of 1030 and 0 of 392,
   with 2.3× margin; its docstring calls it a bet, since the budget truncates only a losing
   rung while a winning one stays cheaper than the budget. The answer-invariant class; the

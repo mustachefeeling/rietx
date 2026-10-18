@@ -144,8 +144,9 @@ against the tree at e1d19359 on arrival.
   report's *shape*. Two things to carry. A gate this WP adds for the joint report is a
   tier-3 heuristic under the milestone's rule (record § The rule,
   `docs/milestones/generality.md`) and will be asked for its evidence; prefer a record
-  field the caller reads over a verdict. And `THRESHOLDS_VERSION` is bumped by 2004 once;
-  a threshold this WP adds goes under that bump rather than its own.
+  field the caller reads over a verdict. And `THRESHOLDS_VERSION` bumps on every
+  observable change (its history in `report/schemas.py`), so a threshold this WP adds
+  bumps it in this WP; 2004's later bump is its own and carries 2003's rulings.
 - **2026-10-14, from [1325](1325-parametric-series.md): the joint path now
   carries `vars.` coefficients that drive per-histogram cells, and three
   joint guards do not see them.**

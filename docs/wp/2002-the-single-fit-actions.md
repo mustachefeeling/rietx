@@ -18,9 +18,12 @@ suggestion. The clash table names every pair that interact.
 The rule is `../milestones/generality.md` § The rule; 2001 restates it. This WP applies it
 to `Refinement._run_stage` (`src/rietx/refine.py`, ~line 3795) and what it calls, and to
 `src/rietx/strategy/` (`staged.py`, `magnetic.py`, `fraction_profile.py`,
-`parameter_interval.py`, `suggest.py`), five files the first plan left unowned. The four
-codes `strategy/magnetic.py` and `strategy/fraction_profile.py` raise are this WP's too,
-since no code audit's seam reaches `strategy/`.
+`parameter_interval.py`, `suggest.py`), five files the first plan left unowned. The six
+codes `strategy/magnetic.py` (five) and `strategy/fraction_profile.py` (one) raise are
+this WP's too, since no code audit's seam reaches `strategy/`. Two of the five,
+`LANDE_G_ASSUMED` and `MAGNETIC_ION_ASSUMED`, are also raised in
+`crystallography/magcif.py`; this WP tiers them on both raise sites and 2006 reads the
+row rather than writing one (fourth review).
 
 **Why first.** `_run_stage` runs inside every fit the package makes, including the ones it
 makes for itself: the report's rival fits (`report/layer2.py`, `report/body_misfit.py`),
@@ -53,9 +56,11 @@ keyword counts over the source are mostly comments and were discarded at the ope
 - Every constant in `refine.py` and `strategy/` from 2001's AST walk that a hold, release,
   seed or bound test reads; and the constants of `optimize/statistics.py` that are not
   report-facing (`PINV_RCOND`, `COLUMN_SAFE_EXPONENT`, `MAX_SHIFT_CONVERGED`) plus
-  `optimize/lm.py`'s `BVLS_MAX_COLUMNS`, which the bound test rests on. 2004 takes only
-  the report-facing ones, and 2001's walk does not reach `lm.py`, so without this line
-  those rows have no owner and the record's first acceptance row cannot close.
+  `optimize/lm.py`'s `BVLS_MAX_COLUMNS`, which the bound test rests on. 2001's walk
+  enters all of these at `unaudited` (`optimize/` and `background/` are on `_audit.WALKED`);
+  this WP owns every `background/` constant and every `optimize/` constant that is not
+  report-facing, 2004 the report-facing ones (2001 § The seams, the partition by
+  directory). Never add a row by hand for a name the walk already entered.
 
 **The two cases the second review named, to anchor the batch.** The absent-phase hold is
 the one the rule keeps: a cell 14.9 Å from truth over 13 sub-onset patterns when free
@@ -97,8 +102,10 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
 - [ ] The clash table: every pair of actions that read or move the same parameter, with
       the measured interaction (Rwp and the parameter, both orderings).
 - [ ] The batch to the maintainer, in the register of `~/.claude/CLAUDE.md`: per tier-3
-      row the two grounds answered, the case against drafted by the `generality-review`
-      agent, and a recommendation. Rulings dated into the table.
+      row the two grounds answered (for the judgement ground, the dissenting caller named
+      or declared absent), the case against drafted by the `generality-review` agent, and
+      a recommendation. Rows resting on one evidence base are grouped and ruled as a class
+      (record § Decisions); rulings dated into the table.
 - [ ] Approved demotions: the action removed, its number left in the record field with a
       `suggestion`, the code's `level` to `info` or the code removed where the threshold
       was its trigger. Each as its own commit.

@@ -30,6 +30,13 @@ re-syncs the two committed copies. `tests/test_docs_consistency.py` fails a diag
 code without a row; `test_skill.py` a verb the index omits; `test_skill_cli.py` a copy out
 of sync.
 
+**Heuristic rows go first.** Under the north star (DESIGN.md § Why this package exists) the
+skill's durable content is the vocabulary of the API and its outputs: what a call takes,
+what a field means. A row that says what to *conclude* from a number is frozen reasoning,
+ages with every model generation, and costs tokens on every call. So the pass cuts or
+demotes those before it tidies anything else, and a row kept is kept because the harness
+or the table says the agent needs it (fourth review).
+
 **The tags are the entry points.** A `(Measured: …)` tag naming one dataset is a tier-3
 row with one family. The audit: for each tagged row, which table row (code, action,
 constant) does it rest on, what did the audit rule, and how many families does the tag

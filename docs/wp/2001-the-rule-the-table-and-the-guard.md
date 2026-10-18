@@ -23,11 +23,12 @@ one paragraph here so this file is self-contained; sharpen the record, never thi
 Three tiers, each part of a heuristic tiered separately (statistic, threshold, action):
 (1) physics or arithmetic, kept; (2) a citation that validated it or the same action taken
 by default in GSAS-II, FullProf or TOPAS, kept and named; (3) rietx's own, demoted unless it
-holds on three unrelated dataset families (by lab, instrument and material) *and* the
-caller could **not** see it from what rietx returns *and* missing it **would** cost a wrong
-number, approved by the maintainer in a batch. The polarity, the inheritance rule, the
-answer-invariant class and the moved-golden rule are the record's; this copy carries no
-more than that sentence (third review: the first copy inverted the polarity).
+holds on three unrelated dataset families (by lab, instrument and material) *and* every
+competent refiner, shown the statistic, would take the same action; a named dissenter
+demotes it to the number and a suggestion, approved by the maintainer in a batch. The
+inheritance rule, the answer-invariant class, the one-family clause and the moved-golden
+rule are the record's; this copy carries no more than that sentence (third review: the
+first copy inverted the polarity; fourth: visibility gave way to judgement).
 
 **The seams.**
 
@@ -55,9 +56,13 @@ more than that sentence (third review: the first copy inverted the polarity).
   found 619 constants, the surplus over the seams being byte offsets in file readers, pixel
   sizes in the 3D viewer and schema defaults, so the list is not the whole package. A
   directory outside the list is out of scope by declaration, and the module docstring says
-  so. Every constant the walk finds opens at `unaudited` and belongs to the audit WP whose
-  scope names its file; one no WP names is this WP's to assign before it closes (the
-  partition in 2005 § Non-goals is the current whole). The table stores each constant's
+  so. Every constant the walk finds opens at `unaudited` and belongs to an audit WP **by
+  directory** (fourth review; 2005's partition covers codes only): `refine.py`,
+  `strategy/`, `background/` and every `optimize/` constant that is not report-facing to
+  2002; `sequential.py` and `multi.py` to 2003; `report/` and the report-facing rows of
+  `optimize/statistics.py` to 2004; `io/` and `crystallography/` to 2006; `indexing/` to
+  2007. A file the walk reaches that none of those names is this WP's to assign before
+  it closes. The table stores each constant's
   **value** beside its name, so a retune fails the meta-test and reopens the audit. A
   row's name is checked by import.
 - `Diagnostic.level` (`schemas/common.py`) is a required `Literal["info", "warning",
@@ -83,7 +88,10 @@ committed list in the table module (`_audit.UNAUDITED_BASELINE`), written once a
 and allowed only to shrink; a row at `unaudited` whose name is not on it fails, and a name
 in the tree with no row fails. The handover dispatches the judge whenever the diff touches
 the table module or that list, so an author who adds a name to the baseline has made a
-visible edit on a file whose name says what it is. The judge is a
+visible edit on a file whose name says what it is. The dispatch hangs on **step 7**, the
+checklist every branch runs, and not on step 6, which a prose-only branch skips (fourth
+review): a heuristic added as skill prose is already invisible to the tripwire, and on
+step 6 it would have had no judge either. The judge is a
 fresh-context `generality-review` agent the handover dispatches on a hit, which answers per
 item, quoting the WP's own evidence lines: what does this decide that the caller did not ask
 for; deleted, what does a caller see and when could they act; which tier, with its source;
@@ -121,7 +129,8 @@ follow it. The P1 rubric is 2009's.
 - [x] The milestone record (`docs/milestones/generality.md`), its ROADMAP row and section,
       the WP block 20xx and this file plus 2002–2009; ROADMAP's cap 589 → 614 with its
       diary line. (2026-10-18, the filing session.)
-- [ ] The table module (`src/rietx/_audit.py` or beside `help.py`; name it in the handover):
+- [ ] The table module `src/rietx/_audit.py` (named here, since 2002–2009, the record and
+      the handover's dispatch all key on `_audit`):
       a frozen row type with `name`, `kind` (`code` | `action` | `constant`), `tier`
       (`1` | `2` | `3` | `invariant` | `unaudited`), `evidence` (a citation, a program and
       what it does by default, or the families), `grounds` (the two-ground answer, tier 3
@@ -135,8 +144,8 @@ follow it. The P1 rubric is 2009's.
       and `approved`; every `unaudited` row's name is on `UNAUDITED_BASELINE` (the growth
       guard; no git); every name on the baseline still has a row, so the list shrinks as
       rows are audited and never grows.
-- [ ] `/wp-handover`'s dispatch condition for the judge: the tripwire fired, or the diff
-      touches the table module or the baseline.
+- [ ] `/wp-handover`'s dispatch condition for the judge, on step 7: the tripwire fired, or
+      the diff touches the table module or the baseline.
 - [ ] The tripwire's second half: the walk that produces the constant list is a function
       the test and the table share (`_audit.constants()`), so the inventory cannot drift
       from the guard; the same for record fields (`dataclasses.fields` /
@@ -145,7 +154,7 @@ follow it. The P1 rubric is 2009's.
 - [ ] The `generality-review` agent (`.claude/agents/generality-review.md`): read-only,
       the five questions above, output a table per item with the case against, written
       for the maintainer in plain words (root `~/.claude/CLAUDE.md`'s register). The
-      handover's step 6 gains the dispatch: on a tripwire hit, or on any diff touching a
+      handover's step 7 gains the dispatch: on a tripwire hit, or on any diff touching a
       row, run it and paste its table into the handover entry under *Generality*.
 - [ ] `docs/wp/TEMPLATE.md`: one line in the Context guidance, "a rule this WP adds is
       physics, named practice, or new judgement; say which, and for the third name the
@@ -248,5 +257,12 @@ of a `git show` of `origin/main` that CI's depth-2 checkout cannot make; and the
 dispatches the judge on any diff touching the table or the baseline. The record also
 gained a clause for a golden with no independent reference and tightened the inheritance
 rule to derivations with no free factor.
+
+*Fourth review, same day, a fresh session reading the plan's reasoning.* The maintainer
+confirmed that the second ground is judgement (would every competent refiner take this
+action on seeing this number?) and that visibility decided nothing, since any action can
+be reported as its statistic; the north star went into DESIGN.md § Why this package
+exists. The record § The fourth review lists the rest. In this file: the restatement, the
+constants partition by directory, the judge on step 7, the module named `_audit`.
 
 - **2026-10-18** — created.

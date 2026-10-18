@@ -49,21 +49,47 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    - the mechanical ground: it holds across at least three unrelated dataset families,
      counted by laboratory, instrument and material rather than by file (a 1 213-record
      archive from one source is one family), with a stated case where it fails; and
-   - the reasoning ground, answered by the implementing agent and approved by the
-     maintainer in a batch: **could the caller see this from what rietx already returns,
-     and does missing it cost a wrong number?** An item is kept only where the caller
-     could **not** see it *and* missing it **would** cost a wrong number; either a
-     visible problem or a harmless one is demoted. A fit costs seconds and no tokens, so a
-     problem the caller can see is a problem the caller fixes with a rerun. What the
-     caller cannot do is detect what the outputs do not show. The narrow exception is a
-     mistake that is expensive or impossible to redo: an hour-long indexing search, a
-     200-pattern batch, a write into a project's history.
+   - the judgement ground, answered by the implementing agent and approved by the
+     maintainer in a batch: **shown this statistic, would every competent refiner take
+     this action?** An action is kept only where the answer is yes. Where two careful
+     people could respond differently to the same number, the choice is reasoning, and
+     reasoning is the caller's (DESIGN.md § North star): the package reports the number
+     with its meaning and stops. The implementing agent names a competent caller who
+     would choose otherwise and the situation they are in, or says none exists; the
+     judge tries to name one. Whether the caller could *see* the problem is not the
+     test, because what rietx returns is rietx's own choice and any action can be
+     turned into a report of its statistic (fourth review; the earlier wording rewarded
+     an action for lacking a record field). Visibility is instead a requirement on both
+     branches: a kept action leaves a record field, a demoted one leaves its statistic.
 
-   The series discontinuity test fails both grounds: the kinds of discontinuity are open
-   (a phase transition, a symmetry change, a sample shift), the agent can see a jump in
-   the trajectory, so rietx may *suggest* a symmetry-mode refinement and enforces no
-   test. The absent-phase hold passes both: a flat direction walks a cell 14.9 Å from
-   truth while Rwp does not move (the v1.3 row), and nothing in the outputs shows it.
+   The series discontinuity test fails the judgement ground: a jump may be a transition,
+   a sample shift or a wrong model, three careful responses at least, so rietx reports
+   the step size, may *suggest* a symmetry-mode refinement, and enforces no test. The
+   absent-phase hold passes it: no competent refiner lets a phase the data cannot see
+   refine its cell (free, it walked 14.9 Å from truth while Rwp did not move, the v1.3
+   row), so only its 3σ threshold is on trial, under the mechanical ground. The
+   quarantine of a diverged pattern passes it too, since no one wants a diverged fit
+   seeding its successors; the earlier visibility wording had marked it contested.
+
+   **Tier 2 will rarely cover an action.** GSAS-II, FullProf and TOPAS take almost no
+   automatic actions; the person at the GUI decides. So nearly every action in 2002 and
+   2003 is tier 3 and the judgement ground decides it, which is why its wording carries
+   the audit. A tier-2 *statistic* under a tier-3 *action* is the common shape.
+
+   **Where three families do not exist.** A rare feature (magnetic, Stephens strain, TOF)
+   has one family on disk or none, and rarity is not overfit. Its action is judged on the
+   judgement ground alone; where kept, its threshold stays at the measured value with
+   `evidence` naming the one family and the table row tiered `3` with grounds that say so,
+   and the diagnostic's explanation says the threshold is a hypothesis. The row is
+   re-tiered when a second and third family arrive. Chosen at the fourth review over
+   demoting by construction, which would strip every rare feature of its one unanimous
+   action; the maintainer may reverse it.
+
+   **A caller pays in tokens and a fit in seconds**, so the default is the one that
+   reaches a right answer in the fewest calls. The narrow exception the earlier wording
+   carried, for work that is expensive or impossible to redo (an hour-long indexing search,
+   a 200-pattern batch, a write into a project's history), is one instance: there the
+   package may take the conservative action even where opinions differ, and records it.
 
 **Answer-invariant efficiency** is a fourth class with no tier. `FIRST_RUNG_FACTOR` was
 measured bit-identical on two chains (0 of 1030 and 0 of 392 accepted values moved) with
@@ -139,6 +165,14 @@ owns the one `THRESHOLDS_VERSION` bump and 2003 hands its width-growth rulings t
 2004 depends on 2003. 2005, 2006 and 2007 run any time after 2001. 2008 after the audits,
 since a demoted code's skill row changes. 2009 last.
 
+**A gate after 2004.** The premise was measured by provenance (49 of 127 constants cite a
+WP measurement, 8 a paper) and not by harm: no case on disk shows a rietx-own heuristic
+giving a wrong answer on an unfamiliar dataset, and the one worked example of a false
+alarm costs no number. So 2002 to 2004 are also the test of the premise. Their handovers
+report how many rows were demoted, and the maintainer decides then whether 2005 to 2007
+run; if the holds and gates mostly pass the judgement ground, the remaining value is the
+guard and the prose, which 2001 and 2009 deliver.
+
 ## Acceptance
 
 **These rows are written at the open** (protocol rule 6). Each names a state a later
@@ -167,6 +201,16 @@ sharpens its own row here.
   longer makes.
 - **The rulebooks prefer a record field to a code to an action** (2009), and the rule that
   rewards a firing code is rewritten.
+- **A held-out family moved no number away from its reference** (every audit, checked at
+  close). One or two families named at 2002's open and used as evidence by no audit; at
+  close the standards' acceptance protocol is run on them and every number with a
+  reference is no further from it than at the open. The one row that measures generality
+  rather than the audit (fourth review).
+- **An agent given the number reaches the answer the verdict gave** (2004, 2008). For each
+  demoted class the harness is run once, registered first and approved per session, and
+  the handover reports the rate beside the v1.3 baseline (seven of eight stopped on a
+  stated criterion, none of 86 without one). The milestone promises no rate; it records
+  the gap per model generation, since the north star bets the gap closes.
 
 ## Decisions with the maintainer, 2026-10-18
 
@@ -195,13 +239,35 @@ reverse it knowing what it would be giving up.
   instrument and material because the size-flag thresholds were calibrated on 1 213
   records from one source, which is many files and one population. Not a measured
   constant; the maintainer may move it.
-- **The reasoning ground is visibility and significance, not timing.** The second
-  review proposed "can the caller detect and correct it at the moment the package acts",
-  which would keep the series quarantine on the ground that a diverged pattern seeds its
-  successors before the chain returns. The maintainer's correction: fits are cheap, fast
-  and cost no tokens, so a mistake the caller can see is a rerun, and what the caller
-  cannot do is detect what the outputs do not show. Timing survives only as the narrow
-  exception for work that is expensive or impossible to redo.
+- **The second ground is judgement, superseding visibility (fourth review, 2026-10-18).**
+  The second review proposed "can the caller detect and correct it at the moment the
+  package acts"; the maintainer corrected it to visibility and significance (fits are
+  cheap, so a visible mistake is a rerun). The fourth review found that wording decided
+  nothing: what rietx returns is rietx's choice, any action can be reported as its
+  statistic instead, so "could the caller see it" sorted items by whether a record field
+  happened to exist. The record's own anchor example failed its own test (the
+  absent-phase statistic reported as a diagnostic is visible, and a rerun is cheap). The
+  maintainer confirmed the criterion that was meant: would every competent refiner take
+  this action on seeing this number? Yes keeps it; a named dissenter demotes it. Timing
+  survives as the expensive-to-redo exception, now one instance of the token rule.
+- **The north star is written in DESIGN.md** (2026-10-18, § Why this package exists). The
+  maintainer's position: agents will keep improving at crystallographic judgement, so
+  performing it on their behalf grows less wise with each generation, and rietx's
+  advantage is the best engine and outputs for a strong reasoner. Two qualifications were
+  agreed. The unanimous actions do not shrink as callers improve, since the line is drawn
+  by the physics; and a caller pays in tokens, so a package that decides nothing can be
+  worse for the caller than one unanimous default. Chosen over leaving the ethos in this
+  record alone, which a session changing the engine would not read.
+- **A gate after 2004, and three families is not a demotion by itself.** The premise is a
+  conviction measured by provenance, so the first three audits test it and the maintainer
+  re-decides 2005–2007 on their counts. A rare feature with one family keeps its unanimous
+  action with its threshold marked a hypothesis (§ The rule). Both from the fourth
+  review; the second is the filing session's choice and reversible.
+- **Rulings by class where the evidence is shared.** Roughly 500 rows enter the table and
+  a hundred or more will be tier 3; the maintainer's own calibration says a brief over
+  150 words bounces. So a batch groups rows that rest on one evidence base (the size-flag
+  thresholds calibrated on one archive are one ruling) and the table records the class
+  ruling on each row. Chosen over per-row briefs, which the WPs had asked for.
 - **The automatic runners are re-examined for generality, not dismissed.** The
   absent-phase hold is the case the rule keeps (a 14.9 Å cell walk invisible in Rwp), and
   it is a runner. So each runner goes through the two grounds like anything else, and the
@@ -291,3 +357,30 @@ maintainer approved every change below and they landed on the filing branch.
   **2008's dependencies on 2002–2004 are hard**, as its own priority line said.
 - Stale counts fixed (2006's 253; the record's 89 for `io/`), and "left alone at the open"
   reworded to "not pruned", since 2006 audits those rows.
+
+## The fourth review, 2026-10-18
+
+A fresh session read the plan for its reasoning rather than its counts, beside a
+`/code-review` pass over the prose. The maintainer confirmed the central finding and
+stated the position now in DESIGN.md § North star. What moved:
+
+- **The judgement ground replaces the visibility ground** (§ The rule, § Decisions). The
+  quarantine's classification flips from contested to kept; 2003 measures what the caller
+  sees rather than whether it survives.
+- **Acceptance gains the two rows that measure the outcome**: a held-out family, and the
+  agent harness per demoted class. The earlier six measured the audit.
+- **A gate after 2004**, since the premise is a conviction; **rare features keep a
+  unanimous action on one family**; **rulings by class**; **tier 2 will rarely cover an
+  action**, stated so the audits expect it.
+- **2008 cuts heuristic rows first**: under the north star the skill's durable content is
+  the vocabulary of the API and its outputs, and a heuristic row is frozen reasoning that
+  costs tokens on every call.
+- **2006's dead-surface walk is named as the API half**, not the heuristics half, so its
+  "mostly tier 1" audit is not read as carrying two deliverables by accident.
+- Ten mechanical defects from the code review, each in the WP it touched: two acceptance
+  globs that matched no file (2004, 2006); 2002 and 2001 disagreeing about `optimize/lm.py`;
+  the constants outside the seams given owners by directory (2001); the judge's dispatch
+  moved to handover step 7, since step 6 is skipped on a prose branch; 1341's note no
+  longer defers a threshold under a later version bump; two codes raised from two seams
+  given one owner; 2006's stale 136; the table module named `_audit`; 2003's two
+  discontinuity constants given rows.
