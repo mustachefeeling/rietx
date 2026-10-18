@@ -333,6 +333,38 @@ def seed_widths(instrument: Instrument, peaks: PeakList) -> tuple[Instrument, bo
     return out, True
 
 
+def _lebail_fit(candidate: CellCandidate, data: PatternData,
+                instrument: Instrument, *, peaks: PeakList | None = None,
+                space_group: str | None = None,
+                two_theta_limits: tuple[float, float] | None = None,
+                cancel=None):
+    """The validation protocol's Le Bail fit, ``(refinement, result)``.
+
+    One body for :func:`validate_by_lebail` and :func:`index_residue`, so the
+    residue a second pass picks is the residue of the very fit that graded the
+    first cell: widths seeded from the list, the cell held, one peak-position
+    parameter from the candidate's own shift template.  Raises what the fit
+    raises; the callers decide what a failure means.
+    """
+    from ..refine import Refinement
+
+    structure = structure_from_candidate(candidate, space_group=space_group)
+    ins = instrument
+    if peaks is not None:
+        ins, _seeded = seed_widths(ins, peaks)
+    tt_max = float(np.max(data.tt()))
+    if two_theta_limits is not None:
+        tt_max = min(tt_max, float(two_theta_limits[1]))
+    plan = validation_plan(candidate, ins, two_theta_max=tt_max)
+    ref = Refinement(structure, ins, history=False)
+    result = ref.fit(data, mode="lebail", plan=plan,
+                     two_theta_limits=two_theta_limits, cancel=cancel,
+                     # one validation fit per candidate: a run directory
+                     # each would bury the search that asked for them
+                     telemetry=False)
+    return ref, result
+
+
 def validate_by_lebail(candidate: CellCandidate, data: PatternData,
                        instrument: Instrument, *,
                        peaks: PeakList | None = None,
@@ -415,27 +447,16 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     """
     require_two_theta(data, "validate_by_lebail()", instrument=instrument)
     from ..optimize.cancel import RefinementCancelled
-    from ..refine import Refinement
     from ..report.layer0 import build_layer0
     from .peaks import predicted_fwhm
 
     structure = structure_from_candidate(candidate, space_group=space_group)
     symbol = structure.phases[0].space_group
-    ins = instrument
-    if peaks is not None:
-        ins, _seeded = seed_widths(ins, peaks)
-    tt_max = float(np.max(data.tt()))
-    if two_theta_limits is not None:
-        tt_max = min(tt_max, float(two_theta_limits[1]))
-    plan = validation_plan(candidate, ins, two_theta_max=tt_max)
-
-    ref = Refinement(structure, ins, history=False)
     try:
-        result = ref.fit(data, mode="lebail", plan=plan,
-                         two_theta_limits=two_theta_limits, cancel=cancel,
-                         # one validation fit per candidate: a run directory
-                         # each would bury the search that asked for them
-                         telemetry=False)
+        ref, result = _lebail_fit(candidate, data, instrument, peaks=peaks,
+                                  space_group=space_group,
+                                  two_theta_limits=two_theta_limits,
+                                  cancel=cancel)
     except RefinementCancelled:
         raise                       # before the generic handler — see docstring
     except Exception as exc:                        # noqa: BLE001
@@ -1046,6 +1067,103 @@ def index_pattern(peaks: PeakList | None = None, *,
     return out
 
 
+#: A line picked from the residue is read as the first fit's **misfit** when the
+#: first cell's subtracted profile at its position is more than this multiple
+#: of the line's own height there.  A profile fit misses by a fraction of the
+#: intensity it models, so the difference it leaves is derivative-shaped and
+#: scales with the first phase's local intensity: measured on synthetic Si +
+#: MgO (λ 0.8257 Å, MgO at 0.3 of the Si scale), the pairs the picker made
+#: either side of Si (111) and on its other lines sat on 5-60 times their own
+#: height of Si profile, and every MgO line under 0.2 of it, one of them 2.3
+#: FWHM from a Si line, where no width cut separates the two.  A second
+#: phase's line under a stronger first-phase line cannot be told from that
+#: misfit, and Le Bail gives its intensity to the first phase's reflection
+#: anyway.
+RESIDUE_MISFIT_RATIO = 1.0
+
+
+def index_residue(first, data: PatternData, instrument: Instrument, *,
+                  candidate: CellCandidate | None = None,
+                  spec=None,
+                  preset: str | None = None,
+                  engines: Sequence[str] | None = None,
+                  two_theta_limits: tuple[float, float] | None = None,
+                  events=None, cancel=None):
+    """Index what one cell leaves of the pattern: the **second result**.
+
+    WP-1969's second pass (issue #933).  ``candidate`` — by default the first
+    cell of ``first``, an :class:`~rietx.schemas.indexing.IndexingResult`, at
+    whatever grade it holds, since on a two-phase pattern the first phase's
+    cell is graded down by the second phase's lines — is fitted to ``data`` by
+    the same Le Bail protocol that validated it (:func:`validate_by_lebail`).
+    Its calculated peaks are subtracted, the background kept, and what remains
+    is picked with the instrument that fit refined: **at the first cell's width
+    law**, so the second phase's lines are fitted with the widths the pattern
+    has rather than re-estimated from a list the first phase dominated.  A
+    pick standing on more than :data:`RESIDUE_MISFIT_RATIO` times its own
+    height of the subtracted profile is dropped as that fit's misfit.  The rest is indexed by
+    :func:`index_pattern` with ``spec`` and ``preset``, validated against the
+    residue, and returned as a new result whose first diagnostic,
+    ``INDEX_RESIDUE_PASS``, names the cell subtracted and the lines dropped.
+
+    It never changes ``first``.  A residue too short to search comes back the
+    way any short list does, with no candidate and ``INDEX_DATA_INSUFFICIENT``
+    — which is the answer on a single-phase pattern.  A second result is a
+    *hypothesis about a second phase* and is graded like any result; a
+    candidate in it whose lines are the first cell's misfit or the picker's
+    junk reads ``low`` for the reasons any such cell does.
+    """
+    from .pick import pick_peaks
+
+    require_two_theta(data, "index_residue()", instrument=instrument)
+    if candidate is None:
+        if not first.candidates:
+            raise ValueError("index_residue() needs a cell to subtract: the first "
+                             "result has no candidate, so name one with "
+                             "candidate=")
+        candidate = first.candidates[0]
+    ref, fit = _lebail_fit(candidate, data, instrument,
+                           two_theta_limits=two_theta_limits, cancel=cancel)
+    tt = np.asarray(fit.two_theta, dtype=np.float64)
+    phase = (np.asarray(fit.y_calc, dtype=np.float64)
+             - np.asarray(fit.y_background, dtype=np.float64))
+    residue = PatternData(
+        two_theta=list(tt),
+        intensity=list(np.asarray(fit.y_obs, dtype=np.float64) - phase),
+        sigma=list(np.asarray(fit.sigma, dtype=np.float64)))
+    width_law = ref.fitted_instrument
+    picked = pick_peaks(residue, width_law, two_theta_range=two_theta_limits)
+    above = (np.asarray(residue.intensity, dtype=np.float64)
+             - np.asarray(fit.y_background, dtype=np.float64))
+    kept, dropped = [], []
+    for p in picked.peaks:
+        height = float(np.interp(p.two_theta, tt, above))
+        under = float(np.interp(p.two_theta, tt, phase))
+        (dropped if under > RESIDUE_MISFIT_RATIO * max(height, 0.0)
+         else kept).append(p)
+    peaks = picked.model_copy(update={"peaks": kept})
+    second = index_pattern(peaks, data=residue, instrument=width_law,
+                           spec=spec, preset=preset, engines=engines,
+                           two_theta_limits=two_theta_limits,
+                           events=events, cancel=cancel)
+    a = ", ".join(f"{v:.4f}" for v in candidate.cell)
+    note = Diagnostic(
+        level="info", code="INDEX_RESIDUE_PASS",
+        message=(f"This result indexes the residue of the {candidate.system} "
+                 f"{candidate.centring} cell ({a}; {candidate.confidence} "
+                 "confidence in the first result): its Le Bail peaks were "
+                 f"subtracted and the remainder picked at its fitted widths, "
+                 f"{len(peaks.usable())} usable line(s) after "
+                 f"{len(dropped)} standing on its subtracted profile were "
+                 "dropped as its misfit."),
+        where=[f"{p.two_theta:.4f}°" for p in dropped],
+        suggestion=("Read a candidate here as a second phase only with a "
+                    "grade of its own; then refine both phases together "
+                    "against the pattern, since each was validated alone."))
+    return second.model_copy(update={
+        "diagnostics": [note] + list(second.diagnostics)})
+
+
 def _emit_end(stream, result) -> None:
     if stream is None:
         return
@@ -1129,5 +1247,6 @@ def _spec_notes(spec, names: Sequence[str], quality,
 
 
 __all__ = ["ABSENT_SIGMA", "ABSENT_WINDOW_FWHM", "DUMMY_SPECIES",
-           "absent_reflections", "index_pattern", "seed_widths",
+           "RESIDUE_MISFIT_RATIO", "absent_reflections", "index_pattern",
+           "index_residue", "seed_widths",
            "structure_from_candidate", "validate_by_lebail", "validation_plan"]
