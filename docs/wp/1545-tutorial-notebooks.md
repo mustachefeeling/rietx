@@ -195,7 +195,7 @@ view only where its own cells need one.
 - [x] 03 peaks, indexing, Le Bail.
 - [x] 04 peak shape and microstructure.
 - [x] 05 sequential fits.
-- [ ] 06 your own data (already has no checking box; scaffolding only).
+- [x] 06 your own data (already has no checking box; scaffolding only).
 - [ ] The README's rows, and the supervising checklists placed in the manual or
   handed to WP-1986.
 

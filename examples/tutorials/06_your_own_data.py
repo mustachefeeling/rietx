@@ -1,8 +1,11 @@
 # %% [markdown]
 # # A Rietveld refinement on your own data
 #
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
+#
 # A template: change the cells marked ✏️ and run the notebook top to bottom.
 # As shipped it runs on the fluorapatite example from notebooks 01 and 02, so you can see every output before you change anything.
+# Those two notebooks explain each step on the same data.
 #
 # **In Colab**, upload your files with the folder icon in the left sidebar.
 # Right-click a file and choose *Copy path* to get its path, which starts `/content/`.
@@ -13,6 +16,9 @@
 
 # %% [markdown]
 # ## Your files and instrument ✏️
+#
+# For a capillary or a synchrotron pattern, replace the instrument with `rx.Instrument.debye_scherrer(wavelength=...)`, the wavelength in Å.
+# [How to limit the fit range or leave out a region](https://rietx.org/docs/stable/guides/range.html) covers the range and excluded regions.
 
 # %%
 from pathlib import Path
@@ -24,57 +30,75 @@ from rietx.examples import examples_dir
 
 PATTERN = examples_dir() / "FAP.XRA"            # ✏️ your pattern
 CIFS = [examples_dir() / "fluorapatite.cif"]    # ✏️ one CIF per crystalline phase
-RADIATION = "CuKa"                              # ✏️ the anode: "CuKa", "CoKa", "MoKa", ...
+instrument = rx.Instrument.bragg_brentano(radiation="CuKa")  # ✏️ the anode: "CuKa", "CoKa", "MoKa", ...
 TWO_THETA_LIMITS = (15, 130)                    # ✏️ the range to fit, in degrees 2θ; None fits all of it
 OUTPUT = Path("rietx_output")                   # where the last cell writes
 
 # %% [markdown]
-# `rx.read_pattern` reads the format from the file.
+# `rx.read_pattern` recognises the format from the file.
 # `rx.capabilities().reader_formats` lists every format it opens.
+# The pattern prints its range and step, and `sigma: None` when the file gives no esd column.
+# The fit then weights each point by √y.
 
 # %%
 data = rx.read_pattern(PATTERN)
+data
+
+# %%
 data.plot()
 
 # %% [markdown]
-# Check the data before modelling it.
-# Fewer than about five steps across a peak's width limits what the peak shape can tell you.
-# A contaminating line, such as Kβ or tungsten Lα from an old tube, needs its range excluded or a line added to the source.
+# `rx.diagnose` measures the pattern with no model.
+# The instrument's source gives it the wavelength and the lines the beam can carry, so it can screen for Kβ and tungsten Lα lines.
 
 # %%
-diag = rx.diagnose(data)
-print(f"steps across a peak's FWHM: {diag.steps_per_fwhm:.1f}")
-print(f"signal over background:     {diag.signal_to_background:.0f}")
-print(f"contaminating lines:        {diag.contamination or 'none'}")
-print(f"dead channels:              {diag.dead_channels or 'none'}")
+diag = rx.diagnose(data, wavelength=instrument.source.primary_wavelength, source=instrument.source)
+diag
 
 # %% [markdown]
+# Read `signal_cutoffs` and `dead_channels` first.
+# They say where to set `TWO_THETA_LIMITS` and which channels to exclude.
+# `dead_channels` needs a σ column.
+# `coverage_plateau: None` says the file gave none, so an empty `dead_channels` means not checked.
+# A `steps_per_fwhm` below five limits what the peak shape can tell you, and the fit reports it again.
+# A line in `contamination` needs its range excluded.
+# [How to check a pattern before fitting](https://rietx.org/docs/stable/guides/check.html#read-the-pattern-diagnostics) explains every row.
+#
 # ## The model, checked before fitting
 #
-# For a capillary or a synchrotron pattern, replace the instrument with `rx.Instrument.debye_scherrer(wavelength=...)`, the wavelength in Å.
+# Each CIF adds its phases to one structure.
+# The background is a six-term Chebyshev polynomial, its constant term started at the floor of the data.
 
 # %%
 phases = [phase for cif in CIFS for phase in rx.Structure.from_cif(cif).phases]
 structure = rx.Structure(phases=phases)
 
-instrument = rx.Instrument.bragg_brentano(radiation=RADIATION)
 instrument.background = rx.BackgroundChebyshev.with_terms(6)
 instrument.background.coefficients[0].value = float(np.percentile(data.intensity, 5))
 
 ref = rx.Refinement(structure, instrument)
-low = TWO_THETA_LIMITS[0] if TWO_THETA_LIMITS else min(data.two_theta)
-data.plot(model=ref, two_theta_range=(low, low + 10))  # ✏️ any 10° with strong peaks
+ref
+
+# %% [markdown]
+# Draw the model's reflection positions under the data before fitting.
+
+# %%
+data.plot(model=ref, two_theta_range=(25, 35))  # ✏️ any 10° with strong peaks
 
 # %% [markdown]
 # Every observed peak in the window should have a tick under it.
-# Ticks offset by the same amount everywhere point to the cell or the zero shift.
-# Peaks with no tick point to a phase you have not given a CIF for.
+# From an anode the ticks include each reflection's Kα2 line, so most peaks have a pair.
+# An offset that is the same at every angle points to the zero shift.
+# An offset that grows with angle points to the cell or the wavelength.
+# A fit will not walk far to correct it.
+# A peak with no tick points to a phase you have not given a CIF for.
+# [Check the starting cell against the peaks](https://rietx.org/docs/stable/guides/check.html#check-the-starting-cell-against-the-peaks) shows what a wrong cell looks like.
 #
 # ## Le Bail: does the cell index the pattern?
 #
 # Le Bail fits the cell and the peak shapes with free intensities.
 # If it cannot fit the pattern, a Rietveld fit will not either.
-# It runs on a copy of the model, so the Rietveld fit below starts from the CIF.
+# It runs on its own `Refinement`, so the Rietveld fit below starts from the CIF.
 
 # %%
 lebail = rx.Refinement(structure, instrument).fit(
@@ -83,20 +107,23 @@ lebail.plot()
 
 # %% [markdown]
 # A flat difference curve here means the cell and the peak shapes are right.
-# Keep its Rwp: a Rietveld Rwp well above it points at the structure model rather than the cell or the peaks.
-# It is not a floor: this Le Bail plan frees fewer instrument terms than the Rietveld one, so a Rietveld Rwp a little below it is normal.
+# The plot's title carries the Le Bail Rwp, so note it.
+# A Rietveld Rwp well above it points at the structure model rather than the cell or the peaks.
+# It is not a floor.
+# This Le Bail plan frees fewer instrument terms than the Rietveld one, so a Rietveld Rwp a little below it is normal.
 #
 # ## Rietveld
 #
-# `mccusker_structural` frees background and scale first, then the cell and peak widths, then the atoms.
-# `rx.PLAN_INFO` lists the other plans and what each is for.
+# `mccusker_structural` frees the scale and background first, then the zero shift, the cell and the peak widths, then the atoms.
+# [Plan presets](https://rietx.org/docs/stable/reference/plans.html) draws its stages and those of every other plan.
 
 # %%
 result = ref.fit(data, plan="mccusker_structural", two_theta_limits=TWO_THETA_LIMITS)
-print(f"Le Bail Rwp {lebail.statistics.rwp:.4f}, Rietveld Rwp {result.statistics.rwp:.4f}")
 result.plot()
 
 # %% [markdown]
+# Set the Rwp in the title beside the Le Bail one.
+#
 # ## What the fit says about itself
 #
 # Read every diagnostic before quoting a number.
@@ -106,8 +133,18 @@ result.plot()
 print(ref.summary(deliverable="structure"))
 
 # %% [markdown]
+# The diagnostics come before the statistics.
+# Each ends with a `help` line saying what to do about it.
+# [Diagnostic codes](https://rietx.org/docs/stable/reference/diagnostics.html) lists every code, and [About the report](https://rietx.org/docs/stable/concepts/report.html) explains the report's misfit regions.
+#
 # ## The refined structure
 #
+# `result.parameters` lists every refined value with its esd.
+
+# %%
+result.parameters
+
+# %% [markdown]
 # The default view is oblique.
 # `view` takes `"a"`, `"b"`, `"c"`, a direction `[u, v, w]`, a plane normal `{"hkl": (h, k, l)}`, or `"auto"`, which picks the low-index direction that hides the fewest atoms.
 # A view down a symmetry axis is often the one a reader recognises.
@@ -119,19 +156,19 @@ rx.viz.render_structure(ref.structure)  # ✏️ view=, turn=, phase=1 for a sec
 # %% [markdown]
 # ## Save the results
 #
-# The CIF carries the refined structure with its esds, the R factors and the pattern.
+# The CIF carries the refined structure with its esds, the R factors, the pattern and the reflection list.
 # The project directory starts from the refined model with these settings, and `rietx gui` opens it.
-# It does not hold this fit's stages: a fit run through `rx.Project` would record them.
+# It does not hold this fit's stages.
+# A fit run through `rx.Project` would record them.
+# A `refinement.rex` that exists already is kept as it is, so rename or delete it before saving another fit there.
+# [About the project](https://rietx.org/docs/stable/concepts/project.html) describes what the directory holds.
 
 # %%
 OUTPUT.mkdir(exist_ok=True)
-rx.write_refinement_cif(result, ref.fitted_structure, ref.instrument,
-                        OUTPUT / "refined.cif", pattern=data)
+ref.write_cif(OUTPUT / "refined.cif")
 result.plot(path=OUTPUT / "fit.png")
 rex = OUTPUT / "refinement.rex"
-if rex.exists():
-    print(f"{rex} exists and was kept: delete or rename it to save this fit as a project")
-else:
+if not rex.exists():
     rx.Project.create(rex, pattern=PATTERN, structure=ref.structure, instrument=ref.instrument,
                       plan="mccusker_structural", two_theta_limits=TWO_THETA_LIMITS).save()
-print(sorted(item.name for item in OUTPUT.iterdir()))
+sorted(item.name for item in OUTPUT.iterdir())
