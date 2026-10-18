@@ -115,8 +115,8 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       (record § Decisions); rulings dated into the table.
 - [ ] Approved demotions: the action removed, and its number left in the record field (or
       its ranking returned) with its meaning in the package's own output; the code's
-      `level` to `info` or the code removed where the threshold was its trigger. Each as
-      its own commit.
+      `level` to `info`, or, where the threshold was its trigger, the code replaced by an
+      `info` record with no threshold (the record § Demotion). Each as its own commit.
 - [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
       moved away goes back through the two grounds.

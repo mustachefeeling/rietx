@@ -25,12 +25,15 @@ to suggest a symmetry-mode refinement, but we shouldn't enforce a test by defaul
 discontinuity test (`SEQUENTIAL_DISCONTINUITY`, 5× the median step and 3σ, ~lines
 226–227) is DESIGN.md § Rules, 1's own example of the third kind: what a jump means depends
 on facts outside the pattern (a transition, a sample shift, a beam dump), so it fails the
-judgement ground. Since its threshold is its trigger, the code goes and the step size stays
-in the trajectory record. Where the reading of a jump lives (what a jump can be, and that a
-symmetry-mode refinement separates the cases) is open. The third review put it in the
-skill's `references/series.md`, because a suggestion inside the package needs a trigger and
-the trigger is the same threshold. The skill's role (the record § Decisions) and Rule 3
-have since overruled the skill as its home, and WP-2001's log carries the question.
+judgement ground. Since its threshold is its trigger, the code becomes an `info` record
+with no threshold (the record § Demotion, ruled 2026-10-18). On every series it states each
+parameter's largest step as a multiple of its typical step, largest first, under a name
+that asserts no jump. Its explanation carries the reading: what a jump can be, and that a
+symmetry-mode refinement separates the cases. The third review had put that reading in the
+skill's `references/series.md`, because a suggestion inside the package needed a trigger;
+a record with no threshold needs none. `SeriesResult.discontinuities`, the trajectory
+plot's shading and `verify_discontinuities` all read the flagged pairs today, so each
+moves to the largest steps or is ruled in the batch.
 
 **The inventory**, keyed on `SeriesEntry` (`schemas/sequential.py`) fields `rung`,
 `reseeded`, `rwp_fence` and on the constants:
@@ -110,9 +113,8 @@ the bar.
 - [ ] The clash table: reseed × rung × `_prefer` × width growth × the moment carry, both
       orderings where order matters.
 - [ ] The batch to the maintainer; rulings dated into the table.
-- [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` to a trajectory
-      field, its reading where WP-2001's ruling puts it, if the batch agrees; the release
-      notes staged.
+- [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` replaced by the
+      `info` record of the largest steps, if the batch agrees; the release notes staged.
 - [ ] Goldens re-pinned only if no further from reference; the series goldens' reference
       is the cold-fit chain, which is the envelope (two engines' answers bracket, root
       CLAUDE.md § Comparing).

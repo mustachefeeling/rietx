@@ -20,8 +20,9 @@ and installs a guard so the next WP cannot add one unaudited. The maintainer's w
 open were "rietx pays the tab for any well-established heuristic and leaves reasoning to
 agents or humans"; DESIGN.md § History records how that became the purpose.
 
-Nine WPs, 2001 to 2009. 2001 is the rule written down, the audit table and the guard, and
-it lands first. 2002 to 2007 are audits, one per seam. 2008 slims the agent skill to the
+Ten WPs, 2001 to 2010. 2001 is the rule written down, the audit table and the guard, and
+it lands first. 2002 to 2007 are audits, one per seam. 2010 audits features rather than
+decisions: each names what verifies its code and what validates its physics (Rule 2). 2008 slims the agent skill to the
 API, the feedback surface and sourced traps. 2009 rewrites the rulebook rules that generated the overfit. Each WP file states
 its own context; nothing is restated here except the rule, which every WP applies.
 
@@ -123,10 +124,15 @@ in the package's own output (Rule 3) and never in the skill alone. A code whose 
 rests on a tier-3 threshold keeps its text and loses the action keyed on it; its `level`
 drops to `info` where the code still fires on a tier-1 or tier-2 fact. Where the threshold
 decides whether the diagnostic exists at all (`SEQUENTIAL_DISCONTINUITY` at 5× median and
-3σ), there is no verdict to keep: the code is removed and the number goes in a record field
-with its meaning. `Diagnostic.level` has no
+3σ), there is no verdict to keep. The code becomes an `info` record with no threshold: it
+fires on every run it applies to and states the statistic for every candidate, largest
+first, under a name that asserts no verdict. Its explanation keeps the seat in
+`rietx.help`, so the meaning stays where the GUI, `explain()` and the manual already show
+it, and the number stays in its record field too (ruled 2026-10-18, over a help section
+for result fields, which needs that seat built; GSAS-II and TOPAS print the largest
+shift/esd every cycle in the same shape). `Diagnostic.level` has no
 "none" value and gets none. The maintainer's breaking appetite is high (every user is in
-direct contact), so demotions land now; a removed code is staged in the release notes.
+direct contact), so demotions land now; a removed or renamed code is staged in the release notes.
 
 **A pick on top of a ranking** is allowed in two cases, and the whole ranking travels with
 the pick in both. The caller called a verb whose job is the pick (`auto_background`,
@@ -172,6 +178,13 @@ Darwin arm64, the worktree at `origin/main` on 2026-10-18; the recipe is in WP-2
   largest files outside the seams are the report schemas (46), the indexing schemas (32),
   the GUI's 3D viewer (18) and the Bruker raw reader (17 byte offsets), so the table's
   walk covers a declared directory list, not the whole package (§ The third review).
+- 24 literal defaults across `PlanSpec`, `StageSpec` and the signatures of the six main
+  calls, about ten of which change what the package does (`correlation_guard = 0.98`
+  twice, `max_iter`, the Le Bail cycles, `carry_hkl_intensities`, indexing's `validate`
+  and `shift_from_pairs`); 347 numeric defaults over the whole package (cascade session).
+- 134 acceptance claims in `tests/validation_matrix.py` over 17 suites; 24 carry a tier
+  that validates (certificate, spread, prediction) and 21 more agree only with another
+  code. Five suites carry neither (both magnetic, Stephens strain, extra peaks, NAC).
 - The automatic actions are enumerated by the house rule "a correction ships with a record
   field": `StageResult` carries `held`, `held_reach`, `scale_b_held`, `released`,
   `moment_flat_axes`, `moment_turned`, `blocked_by_hold`, `seeded`; `SeriesEntry` carries
@@ -192,16 +205,24 @@ WP is held to. 2002 second and alone: `_run_stage`'s holds run inside every fit,
 the fits the package runs for itself (the report's rival fits, the extinction screen, every
 pattern of a chain), so 2003 and 2004 read a tree 2002 has settled. 2003 before 2004: 2004
 owns the one `THRESHOLDS_VERSION` bump and 2003 hands its width-growth rulings to it, so
-2004 depends on 2003. 2005, 2006 and 2007 run any time after 2001. 2008 after the audits,
+2004 depends on 2003. 2005, 2006 and 2007 run any time after 2001. 2010 depends on
+nothing and stands outside the gate below. 2008 after the audits,
 since a demoted code's skill row changes. 2009 last.
 
-**A gate after 2004.** The premise was measured by provenance (49 of 127 constants cite a
-WP measurement, 8 a paper) and not by harm: no case on disk shows a rietx-own heuristic
-giving a wrong answer on an unfamiliar dataset, and the one worked example of a false
-alarm costs no number. So 2002 to 2004 are also the test of the premise. Their handovers
-report how many rows were demoted, and the maintainer decides then whether 2005 to 2007
-run; if the holds and gates mostly pass the judgement ground, the remaining value is the
-guard and the prose, which 2001 and 2009 deliver.
+**A gate after 2004.** Each audit asks two questions of an item, in this order. First,
+should the package make this decision at all: would every competent refiner take it (the
+judgement ground, DESIGN.md § Rules, 1)? A decision that fails goes, whatever its
+threshold's value. Second, and only for a decision that survives: does its threshold hold
+beyond the data it was tuned on (the mechanical ground)? The milestone's premise is that
+many of rietx's decisions fail one question or the other. It was measured by provenance
+(49 of 127 constants cite a WP measurement, 8 a paper), never by harm: no case on disk
+shows a rietx-own decision giving a wrong answer on an unfamiliar dataset, and the one
+worked example of a false alarm costs no number. So 2002 to 2004 also test the premise.
+Their handovers report how many rows were demoted on each question, and the maintainer
+decides then whether 2005 to 2007 run. If the holds and gates mostly pass both, the
+remaining value is the guard and the prose, which 2001 and 2009 deliver. WP-2010 is
+outside the gate: it audits features against Rule 2, whose premise the gate does not test
+and the validation matrix already measures, so it runs whatever the gate decides.
 
 ## Acceptance
 
@@ -220,7 +241,8 @@ sharpens its own row here.
   its kind, or made opt-in.
 - **A new heuristic cannot land unaudited** (2001). A diff that adds a diagnostic code, a
   record field on `StageResult`/`SeriesEntry`/`RefinementResult`, a module-level numeric
-  constant in a directory the table's walk declares, or a `suggestion=` string trips a
+  constant in a directory the table's walk declares, a new or changed default at a seat it
+  declares, or a `suggestion=` string trips a
   test until the table has its row; the names allowed at `unaudited` are a committed list
   that only shrinks, so the test needs no git; and `/wp-handover` dispatches a
   fresh-context review that drafts the case against it whenever the diff touches the table
@@ -232,6 +254,9 @@ sharpens its own row here.
   outside the generated API files is vocabulary, or a trap naming a source outside
   rietx's runs; no row states a verdict the package no longer makes or a rule measured
   on rietx's own data; the total falls and the caps re-land at the new sizes.
+- **Every feature names what verifies it and what validates it** (2010). A feature with no
+  validating reference is declared not yet validated where a caller reads it, and a test
+  holds the feature list equal to the validation matrix and to the help vocabulary.
 - **The rulebooks state Rule 1's three outcomes** (2001, 2009): act and record where every
   competent refiner would act, rank where the data can rank, otherwise report the number
   with its meaning; and the rule that rewards a firing code is rewritten.
@@ -331,6 +356,17 @@ reverse it knowing what it would be giving up.
   result on the same data verifies; it does not validate. **The milestone was renamed**
   from "pay for established heuristics, leave the reasoning to the caller", which
   restated the superseded first north star and contradicted Rule 1's first two kinds.
+  Three more rulings followed. **A code whose threshold decided its existence becomes an
+  `info` record with no threshold** (§ Demotion), chosen over a help section for result
+  fields (84 entries over four result types, and a GUI seat to build), because the
+  record keeps the explanation where readers already find it. **Defaults are walked at
+  declared seats** (WP-2001 § The seams), about ten that decide behaviour among 347,
+  chosen over walking all 347 and over leaving defaults to the reviewer agent. **WP-2010
+  audits features against Rule 2**, inside this milestone and outside the gate after
+  2004 ("useful"); a separate later milestone would lose only time, and the maintainer
+  may move it. The gate itself was restated as two questions in order (should the
+  package decide at all, then does the threshold hold), after the maintainer read the
+  earlier wording as asking only the second.
 - **A gate after 2004, and three families is not a demotion by itself.** The premise is a
   conviction measured by provenance, so the first three audits test it and the maintainer
   re-decides 2005–2007 on their counts. A rare feature with one family keeps its unanimous

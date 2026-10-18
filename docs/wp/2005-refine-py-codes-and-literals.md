@@ -63,9 +63,10 @@ its tier.
       recorded tier 1 with the reason.
 - [ ] Tier each code per part, with evidence and families.
 - [ ] The batch to the maintainer; rulings dated into the table.
-- [ ] Approved demotions: `level` to `info`, or the code removed and its number kept in a
-      record field; the explanation's observation sentence updated where the verdict went;
-      the release notes staged for every removed code.
+- [ ] Approved demotions: `level` to `info`, or, where the threshold was the trigger, the
+      code replaced by an `info` record with no threshold that states the number (the
+      record § Demotion); the explanation's observation sentence updated where the verdict
+      went; the release notes staged for every removed or renamed code.
 - [ ] Goldens re-pinned only if no further from reference (a code change moves no number;
       a lifted literal must not either, pinned by a bit-identity check before and after).
 - [ ] Tests; the fast count moved by exactly the tests added.

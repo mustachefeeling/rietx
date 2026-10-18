@@ -420,7 +420,7 @@ cases that produced them ([record](milestones/generality.md)); it applies [DESIG
 survives on three dataset families, each against its reference, *and* if every competent
 refiner, shown the number, would take it; a named dissenter demotes it to a ranking or to
 the number, by Rule 1's kinds. 2001 writes the rule, table and guard; 2002–2007 audit one seam each, 2002
-first, a gate after 2004; 2008 slims the skill to the API and sourced traps; 2009 rewrites the rules that reward a firing code. [The WPs](wp/README.md#generality).
+first, a gate after 2004; 2010 audits features against Rule 2; 2008 slims the skill to the API and sourced traps; 2009 rewrites the rules that reward a firing code. [The WPs](wp/README.md#generality).
 
 #### The registry and the guard
 
@@ -428,7 +428,7 @@ first, a gate after 2004; 2008 slims the skill to the API and sourced traps; 200
 
 #### The audits
 
-One seam each, the same task shape: lanes read and tier, the lead tables, the maintainer rules in a batch, approved demotions land with any moved golden recorded against its reference. 2002 the single-fit actions (first, since every fit runs them), 2003 the chain, 2004 the FitReport, 2005 `refine.py`'s codes, 2006 the readers and crystallography, 2007 indexing. [The WPs](wp/README.md#generality-the-audits).
+One seam each, the same task shape: lanes read and tier, the lead tables, the maintainer rules in a batch, approved demotions land with any moved golden recorded against its reference. 2002 the single-fit actions (first, since every fit runs them), 2003 the chain, 2004 the FitReport, 2005 `refine.py`'s codes, 2006 the readers and crystallography, 2007 indexing; 2010 every feature against Rule 2, outside the gate. [The WPs](wp/README.md#generality-the-audits).
 
 #### The prose
 

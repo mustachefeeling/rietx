@@ -67,6 +67,22 @@ first copy inverted the polarity; fourth: visibility gave way to judgement).
   it closes. The table stores each constant's
   **value** beside its name, so a retune fails the meta-test and reopens the audit. A
   row's name is checked by import.
+- Defaults that decide behaviour are written into signatures and schema fields, where a
+  walk over module-level assignments cannot see them: `correlation_guard: float = 0.98`
+  in `PlanSpec`, and again as a literal in `run_stage`. Measured 2026-10-18: 24 literal
+  defaults across `PlanSpec`, `StageSpec` and the signatures of `fit`, `refine`,
+  `run_stage`, `refine_sequential`, `index_pattern` and `auto_background`. About ten
+  change what the package does (`correlation_guard`, `max_iter`, `lebail_cycles`,
+  `lebail_passes`, `carry_hkl_intensities`, `validate`, `shift_from_pairs`,
+  `temperature`); the rest are off states and counters. The whole package holds 347
+  numeric defaults, mostly plot sizes, starting values and search ranges. So the table
+  walks a declared list of seats (`_audit.DEFAULT_SEATS`: those classes and functions,
+  plus `Source`, whose `dispersion` default turned a correction on in v1.0), as it walks a
+  declared list of directories, and a default outside the list is out of scope by
+  declaration (ruled 2026-10-18, over walking all 347, which would reopen an audit on
+  every cosmetic edit). A default row belongs to the audit that owns the code it feeds:
+  the plan schemas, `fit`, `refine`, `run_stage`, `auto_background` and `Source` to 2002,
+  `refine_sequential` to 2003, `index_pattern` to 2007.
 - `Diagnostic.level` (`schemas/common.py`) is a required `Literal["info", "warning",
   "error"]`; demotion uses `info`, never a new member.
 - `/wp-handover` (`.claude/commands/wp-handover.md`) step 6 runs `/code-review high --fix`
@@ -82,7 +98,8 @@ first copy inverted the polarity; fourth: visibility gave way to judgement).
 **The recurrence design, decided 2026-10-18.** A tripwire and a judge, not prose alone.
 The tripwire is a test over the tree against the table that fires on: a new `Diagnostic`
 code; a new field on `StageResult`, `SeriesEntry` or `RefinementResult`; a new or retuned
-module-level numeric constant in a walked directory; a new `suggestion=` string. It reads
+module-level numeric constant in a walked directory; a new or changed default at a
+declared seat; a new `suggestion=` string. It reads
 no git (third review): CI checks out at depth 2 with no `origin/main` ref and a local
 worktree's is days stale, so a test comparing against the base table through `git show`
 skips exactly where it gates a merge. Instead the names allowed at `unaudited` are a
@@ -108,8 +125,7 @@ drafts the case *against*, beside the author's two-ground
 answer, because a row written by the author alone is self-certification and a batch
 approval tends to rubber-stamp. **What it will miss, stated in the module docstring**:
 inline literals (about 30 in `refine.py`, `< 0.7` at the plate-thickness test, `>= 2.0`
-further down), schema-field defaults such as `intermediate_ftol`, orderings and fallback
-chains, and heuristics written as skill prose (2008's half).
+further down), defaults outside `DEFAULT_SEATS`, orderings and fallback chains, and heuristics written as skill prose (2008's half).
 
 **The generator rule** (the second review's biggest finding). Root CLAUDE.md's "A new
 correction ships with a record field or a diagnostic stating what it changed" and the P1
@@ -144,18 +160,20 @@ from acting where Rule 1's first kind says act.
       diary line. (2026-10-18, the filing session.)
 - [ ] The table module `src/rietx/_audit.py` (named here, since 2002–2009, the record and
       the handover's dispatch all key on `_audit`):
-      a frozen row type with `name`, `kind` (`code` | `action` | `constant`), `tier`
+      a frozen row type with `name`, `kind` (`code` | `action` | `constant` | `default`),
+      `tier`
       (`1` | `2` | `3` | `invariant` | `unaudited`), `ambiguity` (`1` | `2` | `3`, DESIGN.md
       § Rules, 1's kinds; code and action rows only, where Rule 4 asks for it to be
       stated), `evidence` (a citation, a program and what it does by default, or the
       families with their references), `grounds` (the two-ground answer, tier 3 only),
-      `approved` (a date, tier 3 only), `value` (constants only). Every existing
-      code from `DIAGNOSTIC_HELP`, every record field named above and every constant the
-      AST walk finds over `WALKED`, entered at `unaudited`; `UNAUDITED_BASELINE` the
+      `approved` (a date, tier 3 only), `value` (constants and defaults only). Every
+      existing code from `DIAGNOSTIC_HELP`, every record field named above, every constant
+      the AST walk finds over `WALKED` and every default at `DEFAULT_SEATS`, entered at
+      `unaudited`; `UNAUDITED_BASELINE` the
       sorted list of those names, written once here.
 - [ ] The meta-test (`tests/test_audit_table.py`): code rows equal to `DIAGNOSTIC_HELP`'s
       keys both ways; every action row's record field exists on its schema; every constant
-      row imports and its stored value equals the live one; a tier-3 row carries `grounds`
+      and default row imports and its stored value equals the live one; a tier-3 row carries `grounds`
       and `approved`; every `unaudited` row's name is on `UNAUDITED_BASELINE` (the growth
       guard; no git); every name on the baseline still has a row, so the list shrinks as
       rows are audited and never grows.
@@ -164,8 +182,11 @@ from acting where Rule 1's first kind says act.
 - [ ] The tripwire's second half: the walk that produces the constant list is a function
       the test and the table share (`_audit.constants()`), so the inventory cannot drift
       from the guard; the same for record fields (`dataclasses.fields` /
-      `model_fields` over the three schemas) and `suggestion=` strings (an AST walk for the
+      `model_fields` over the three schemas), defaults (`_audit.defaults()`, over
+      `DEFAULT_SEATS`' fields and signatures) and `suggestion=` strings (an AST walk for the
       keyword).
+- [ ] `correlation_guard`'s two literal copies (`PlanSpec`, `run_stage`) become one named
+      constant, bit-identical before and after.
 - [ ] The `generality-review` agent (`.claude/agents/generality-review.md`): read-only,
       the Rule 4 questions above, output a table per item with the case against, written
       for the maintainer in plain words (root `~/.claude/CLAUDE.md`'s register). The
