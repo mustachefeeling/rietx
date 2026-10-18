@@ -39,8 +39,8 @@ claim is `characterisation`. Magnetic refinement is declared not yet validated u
 published moment for one of those compounds is found and made a reference (not checked at
 filing). The magnetic milestone is open (1326, 1327, 1329, 1343, 1418 and 1419 in flight)
 and its WPs edit the help entries and manual chapters this WP labels. Merge main before the
-label commit, and leave a dated `### Inherited` note in 1327 saying what the label says and
-what would lift it.
+label commit. 1327's `### Inherited` already carries a note from 2001 (2026-10-19) saying
+what the label will say and what would lift it; update it with the label's final wording.
 
 **Where a caller reads the state.** The matrix lives in `tests/` and is not shipped, so the
 declaration has to reach a caller from the package. The seats a caller already reads are a
@@ -81,7 +81,7 @@ both ways. The partition is what makes a new feature fail until it has a row.
 - [ ] The meta-test: the feature list partitions the help vocabulary both ways; every
       claim a feature names exists; every not-yet-validated feature carries the
       declaration at its seat; `docs/VALIDATION.md` regenerated with the feature table.
-- [ ] The magnetic note in 1327's `### Inherited`.
+- [ ] The magnetic note in 1327's `### Inherited` updated with the label's wording.
 - [ ] Follow-ups filed for features whose published reference is known and unused.
 - [ ] Tests; the fast count moved by exactly the tests added.
 - [ ] Skill: none. The declaration is the package's own output (DESIGN.md § Rules, 3).

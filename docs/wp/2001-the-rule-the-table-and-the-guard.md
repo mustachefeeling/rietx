@@ -1,6 +1,6 @@
 # WP-2001 — The rule, the audit table and the guard
 
-Milestone: generality · Status: 🔄 2026-10-18 — the milestone, the rule and the nine WPs filed; the table and the guard not started
+Milestone: generality · Status: 🔄 2026-10-19 — the milestone, the rule and ten WPs filed and read against DESIGN.md's rules; the table and the guard not started
 Track: The registry and the guard
 Depends on: —
 Priority: P2 2026-10-18 — the scoping WP the other eight wait on; nothing blocks it
@@ -231,6 +231,68 @@ seen to fail is a guard that may go quiet (`tests/CLAUDE.md` § Guards that go q
   record cites as the worked tier-2 example); Schwarz, G. (1978). Ann. Stat. 6, 461–464.
 
 ## Handover log
+
+### 2026-10-19 — the milestone read against DESIGN.md's purpose and rules
+
+The session before this one rewrote DESIGN.md's north star as a purpose with four rules.
+This session carried those rules down into the milestone and its WP files, and brought the
+maintainer the questions the rules left open. Each audit now asks two questions of a
+decision, in order: should rietx make it at all, and only then, does its threshold hold
+beyond the data it was tuned on. A decision that fails moves to a ranking where the data
+can rank the alternatives, and otherwise to the number with its meaning. Rule 2 now
+separates verification from validation, and a tenth WP (2010) gives every feature its
+state under both: 24 of 134 acceptance claims validate, and magnetic refinement has no
+validating reference at all. Nothing in the package changed. The work ran late on
+2026-10-18; the commits carry that date.
+
+*Done.* Three commits on top of the previous session's purpose rewrite (9dcb29c4, pushed
+here). 7b7ed875 made the changes that follow from the rules as written: the judgement
+ground is Rule 1's unanimity gate; the expensive-rerun exception is Rule 1's four
+protections; *holds* on the mechanical ground is measured against each family's
+reference; the table gains an `ambiguity` field; the judge asks Rule 4's questions and
+lost the visibility question the fourth review had retired; 2002 to 2005 lost a skill
+task that contradicted the skill decision. 59eb477c and 32d63ee3 landed seven rulings,
+each in the record § Decisions with its reason and alternative. (1) A verb whose job is
+the pick may pick on a ranking while no default path calls it, and a top candidate passing
+the unanimity gate may be picked; the ranking travels with the pick. (2) WP-2010 filed,
+inside the milestone and outside the gate. (3) Rule 1's three outcomes replace the flat
+order "record field, code, action" in the rulebooks (2001, 2009, and 1341's note). (4) A
+code whose threshold decided its existence becomes an `info` record with no threshold,
+keeping its explanation (2003's discontinuity code first). (5) Defaults are walked at a
+declared list of seats. (6) Rule 2 is verification and validation in the field's sense,
+and a feature without a reference is *not yet validated*; *provisional* keeps its API
+meaning. (7) The milestone renamed to "every decision rietx makes holds beyond the data
+it was tuned on". Under (6) this session placed a reference code's result on the same data
+under verification, as the field does; the maintainer was told and did not object. The
+gate after 2004 was restated as the two questions after the maintainer read it as asking
+only the second. Forward notes: 1341's note reworded to Rule 1's outcomes; 1327 told that
+2010 will label magnetic refinement not yet validated, and what would lift it.
+
+*Measured* (darwin arm64, `[dev]`). `tests/validation_matrix.py`: 134 claims over 17
+suites; 24 carry a validating tier, 21 more agree only with another code; five suites
+carry neither (both magnetic, Stephens strain, extra peaks, NAC) and three cross-code only
+(fluorapatite, LaB6–cBN, Powderline). Defaults: 24 literal defaults across `PlanSpec`,
+`StageSpec` and the six main calls, about ten behavioural; 347 numeric defaults
+package-wide (166 class fields, 181 public signatures). The four result types hold 84
+fields (`RefinementResult` 33, `StageResult` 20, `SeriesResult` 12, `SeriesEntry` 19), and
+`rietx.help` has no section for them. `auto_background` and `best_or_none` have no caller
+in `refine.py` or `strategy/`. No test added, so no count moved.
+
+*Review.* This session touched only `docs/`, so `/code-review` was skipped; the branch's
+one `.py` change (five lines of `tests/test_docs_consistency.py`) was reviewed in the
+opening session's step 6.
+
+*Gotchas.* The worktree guard refuses a heredoc'd python script and a shell loop over git
+refs; write the script to the scratchpad and run it as one command. Importing
+`tests.validation_matrix` from a scratchpad script needs `PYTHONPATH=.`. A new WP file
+must be `git add`ed before `test_docs_consistency.py` runs, or
+`test_no_planning_doc_links_something_gitignored` fails on the untracked link.
+
+*Next.* This WP's second task, unchanged: `_audit.py` with the `ambiguity` field, the
+`default` kind and `DEFAULT_SEATS`, then its meta-test, the judge and its handover step,
+the root CLAUDE.md rewrite to Rule 1's outcomes, and the cross-project lesson. WP-2010
+depends on nothing and can run in another session at any time. Whether PR #1044 merges
+first is the maintainer's call; the later tasks need nothing from it beyond the files.
 
 ### 2026-10-18 — the milestone opened and nine WPs filed
 

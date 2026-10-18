@@ -143,8 +143,11 @@ against the tree at e1d19359 on arrival.
   it touches no joint-fit code and no `multi.py` reader, and this WP owns the joint
   report's *shape*. Two things to carry. A gate this WP adds for the joint report is a
   tier-3 heuristic under the milestone's rule (record § The rule,
-  `docs/milestones/generality.md`) and will be asked for its evidence; prefer a record
-  field the caller reads over a verdict. And `THRESHOLDS_VERSION` bumps on every
+  `docs/milestones/generality.md`) and will be asked for its evidence. Its output follows
+  DESIGN.md § Rules, 1: a verdict only where every competent refiner would draw it from
+  the number, a ranking where the data rank the alternatives, otherwise the number with
+  its meaning (reworded 2026-10-19; the first wording preferred a record field
+  everywhere, which the maintainer replaced). And `THRESHOLDS_VERSION` bumps on every
   observable change (its history in `report/schemas.py`), so a threshold this WP adds
   bumps it in this WP; 2004's later bump is its own and carries 2003's rulings.
 - **2026-10-14, from [1325](1325-parametric-series.md): the joint path now
