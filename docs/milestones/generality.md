@@ -160,7 +160,12 @@ it named in the handover, and is restored bit-identical where the ruling says it
 seven of eight agents stopping on a criterion the package states, against zero of 86 in the
 baseline, so turning a stated verdict into a bare number may cost real agents something. The
 harness is `tests/eval_report_agent` and `tests/eval_skill`; a run is registered before it is
-made and its cells are a spend the maintainer approves per session.
+made and its cells are a spend the maintainer approves per session. A poor result does not
+hold the demotion back. Rule 1's line does not move with agent performance, so the
+demotion lands, and a poor result sends the number's explanation back for work in the same
+WP, with one more round on the new wording (ruled 2026-10-19). The harness checks the
+explanation and gates nothing. At eight runs it cannot tell seven of eight from five of
+eight (Fisher's exact test, p = 0.57).
 
 ## What was measured at the open
 
@@ -272,7 +277,8 @@ sharpens its own row here.
   reference is no further from it than at the open. The one row that measures generality
   rather than the audit (fourth review).
 - **An agent given the number reaches the answer the verdict gave** (2004, 2008). For each
-  demoted class the harness is run once, registered first and approved per session, and
+  demoted class the harness is run once (twice where the explanation is reworked),
+  registered first and approved per session, and
   the handover reports the rate beside the v1.3 baseline (seven of eight stopped on a
   stated criterion, none of 86 without one). The milestone promises no rate. It records
   the gap per model generation, so a later session can see it move.
@@ -451,7 +457,10 @@ reverse it knowing what it would be giving up.
   record alone. **A threshold measured on fewer than three families is declared untested
   beyond them**, and *not yet validated* stays Rule 2's term for a topic with no
   reference. Chosen over one phrase for both, which would let a reader take "checked on
-  one dataset" for "no reference exists".
+  one dataset" for "no reference exists". **A poor agent result reworks the explanation
+  and does not hold a demotion back** (§ The rule). Chosen over a block until agents
+  recover, which would keep a verdict that failed its tests steering agents, on a harness
+  too small to show the recovery.
 
 ## The two reviews at the open
 

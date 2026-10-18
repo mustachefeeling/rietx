@@ -53,8 +53,9 @@ withheld. Demoted, the report states the number and the gate's reading ("validit
 it (DESIGN.md § Rules, 3), and lets the caller decide. That is Rule 1's third kind, and it
 is also what the v1.3 eval found agents use: seven of eight stopped on a stated criterion.
 So a demotion that removes a *stated* criterion is contested by definition and goes through
-`tests/eval_report_agent` before it lands (the record § The rule, last paragraph; the spend
-is approved per session).
+`tests/eval_report_agent` before it lands (the record § A contested demotion; the spend
+is approved per session). A poor result sends the explanation back for work and one more
+round; the demotion lands either way.
 
 **Fences with open WPs.** WP-1341 (a joint fit has no report) is in flight and owns the
 report's *shape* for a joint fit; this WP touches no joint-fit code and no
@@ -84,7 +85,8 @@ open under the same track; neither tiers a gate.
       whether it sets the band or the band is ours.
 - [ ] Register and run the `eval_report_agent` round for the contested demotions
       (`tests/eval_report_agent/PROTOCOL.md` § Episode validity: expected answers checked
-      against the data first), after the maintainer approves the spend.
+      against the data first), after the maintainer approves the spend. Where agents do
+      worse, rework the number's explanation and run once more; the demotion is not held.
 - [ ] The clash table: gates that read the same misfit, the background screen against the
       Layer-0 peak-cluster regions (WP-1055), abstention against maturity.
 - [ ] The batch to the maintainer; rulings dated into the table.
