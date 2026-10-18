@@ -22,9 +22,10 @@ its own context; nothing is restated here except the rule, which every WP applie
 
 **Not in scope.** No new physics, no new correction, no new plan preset. A heuristic the
 audit finds wanting is demoted, and anything needing a redesign rather than a demotion is a
-follow-up WP filed from the audit's table. The reader repair records (`io/`'s 89 codes, each
-a statement of what was done to a file), the GUI's 27 HTTP error names, the eight plan
-presets and the nine stage fields were measured and left alone at the open.
+follow-up WP filed from the audit's table. The reader repair records (`io/`'s 90 codes plus
+five raised by name, each a statement of what was done to a file), the GUI's 27 HTTP error
+names, the eight plan presets and the nine stage fields were measured and not pruned at the
+open; 2006 still confirms the reader codes row by row.
 
 ## The rule
 
@@ -32,7 +33,9 @@ Every heuristic is sorted into one of three tiers, and each part of it separatel
 statistic it computes, the threshold it tests against, and the action it takes. A statistic
 may be tier 2 while its threshold is tier 3 (ΔBIC: Schwarz 1978 and the Kass–Raftery bands
 are cited; the effective sample size N/f² is rietx's own). A threshold derived from another
-constant inherits that constant's tier (`SCALE_B_SEPARATION_FLOOR` is 2√`PINV_RCOND`).
+constant inherits that constant's tier only where the derivation has no free factor; a
+factor is a threshold of its own (`SCALE_B_SEPARATION_FLOOR` is 2√`PINV_RCOND`: the root
+inherits `rcond`'s tier, the 2 is tiered on its own evidence).
 
 1. **Physics or arithmetic.** Deterministic from the model: a symmetry-fixed angle, a
    column with zero gradient, σ withheld because the scale is unknown. Kept. A numerical
@@ -48,7 +51,9 @@ constant inherits that constant's tier (`SCALE_B_SEPARATION_FLOOR` is 2√`PINV_
      archive from one source is one family), with a stated case where it fails; and
    - the reasoning ground, answered by the implementing agent and approved by the
      maintainer in a batch: **could the caller see this from what rietx already returns,
-     and does missing it cost a wrong number?** A fit costs seconds and no tokens, so a
+     and does missing it cost a wrong number?** An item is kept only where the caller
+     could **not** see it *and* missing it **would** cost a wrong number; either a
+     visible problem or a harmless one is demoted. A fit costs seconds and no tokens, so a
      problem the caller can see is a problem the caller fixes with a rerun. What the
      caller cannot do is detect what the outputs do not show. The narrow exception is a
      mistake that is expensive or impossible to redo: an hour-long indexing search, a
@@ -60,9 +65,12 @@ constant inherits that constant's tier (`SCALE_B_SEPARATION_FLOOR` is 2√`PINV_
    test. The absent-phase hold passes both: a flat direction walks a cell 14.9 Å from
    truth while Rwp does not move (the v1.3 row), and nothing in the outputs shows it.
 
-**Answer-invariant efficiency** is a fourth class with no tier. `FIRST_RUNG_FACTOR` cannot
-change an accepted value by construction (0 of 1030 and 0 of 392 measured bit-identical).
-Such an item needs an invariance test and nothing else; the audit classifies it and moves on.
+**Answer-invariant efficiency** is a fourth class with no tier. `FIRST_RUNG_FACTOR` was
+measured bit-identical on two chains (0 of 1030 and 0 of 392 accepted values moved) with
+2.3× margin: the budget truncates only a losing rung while a winning one stays cheaper than
+the budget, so the invariance is a measured margin, not a construction, and its own
+docstring calls it a bet. Such an item needs an invariance test that also asserts the
+margin, and nothing else; the audit classifies it and moves on.
 
 **Demotion.** A code whose verdict rests on a tier-3 threshold keeps its text and loses the
 action keyed on it; its `level` drops to `info` where the code still fires on a tier-1 or
@@ -77,6 +85,9 @@ only if the new value is no further from the independent reference (a certified 
 weighed composition, the cross-code envelope) than the old. Re-pinning records old, new,
 dataset and reference distance in the WP handover. A number that moved away from its
 reference is evidence the action mattered, and the item goes back through the two grounds.
+A pin with no independent reference (a report text golden, a bit-identity golden) is
+re-pinned only where the ruling says the number should move, with the mechanism that moved
+it named in the handover, and is restored bit-identical where the ruling says it should not.
 
 **A contested demotion is measured on agents** before it lands. The v1.3 round measured
 seven of eight agents stopping on a criterion the package states, against zero of 86 in the
@@ -101,7 +112,10 @@ Darwin arm64, the worktree at `origin/main` on 2026-10-18; the recipe is in WP-2
 - 127 module-level numeric constants in `report/`, `strategy/`, `optimize/statistics.py`,
   `refine.py` and `sequential.py` (AST walk); about 8 cite a paper in their comment block,
   3 say they are derived, about 49 cite a WP measurement. Indexing's 76 and io's ~30 are
-  on top of that.
+  on top of that. The same walk over all of `src/rietx` finds 619 (third review): the
+  largest files outside the seams are the report schemas (46), the indexing schemas (32),
+  the GUI's 3D viewer (18) and the Bruker raw reader (17 byte offsets), so the table's
+  walk covers a declared directory list, not the whole package (§ The third review).
 - The automatic actions are enumerated by the house rule "a correction ships with a record
   field": `StageResult` carries `held`, `held_reach`, `scale_b_held`, `released`,
   `moment_flat_axes`, `moment_turned`, `blocked_by_hold`, `seeded`; `SeriesEntry` carries
@@ -120,9 +134,10 @@ Darwin arm64, the worktree at `origin/main` on 2026-10-18; the recipe is in WP-2
 2001 first: the audits write into its table and the guard it installs is what every later
 WP is held to. 2002 second and alone: `_run_stage`'s holds run inside every fit, including
 the fits the package runs for itself (the report's rival fits, the extinction screen, every
-pattern of a chain), so 2003 and 2004 read a tree 2002 has settled. 2004 owns the
-`THRESHOLDS_VERSION` bump and 2003 hands its thresholds to it. 2005, 2006 and 2007 run any
-time after 2001. 2008 after the audits, since a demoted code's skill row changes. 2009 last.
+pattern of a chain), so 2003 and 2004 read a tree 2002 has settled. 2003 before 2004: 2004
+owns the one `THRESHOLDS_VERSION` bump and 2003 hands its width-growth rulings to it, so
+2004 depends on 2003. 2005, 2006 and 2007 run any time after 2001. 2008 after the audits,
+since a demoted code's skill row changes. 2009 last.
 
 ## Acceptance
 
@@ -139,8 +154,11 @@ sharpens its own row here.
   the maintainer's dated approval; every other one is demoted or opt-in.
 - **A new heuristic cannot land unaudited** (2001). A diff that adds a diagnostic code, a
   record field on `StageResult`/`SeriesEntry`/`RefinementResult`, a module-level numeric
-  constant or a `suggestion=` string trips a test until the table has its row, and
-  `/wp-handover` dispatches a fresh-context review that drafts the case against it.
+  constant in a directory the table's walk declares, or a `suggestion=` string trips a
+  test until the table has its row; the names allowed at `unaudited` are a committed list
+  that only shrinks, so the test needs no git; and `/wp-handover` dispatches a
+  fresh-context review that drafts the case against it whenever the diff touches the table
+  or that list.
 - **The goldens hold or improve** (every audit). The acceptance suites pass on the final
   tree; every re-pinned number is recorded with its reference distance, none further
   from its reference than before.
@@ -157,7 +175,7 @@ reverse it knowing what it would be giving up.
 
 - **The unit of pruning is the verdict and the action keyed on it, not the code count.**
   The maintainer's first framing was "too many diagnostic codes". Measured, the count is
-  the symptom: 89 of the 276 codes are reader repair records and 27 are HTTP error names,
+  the symptom: 90 of the 276 literals are reader repair records and 27 are HTTP error names,
   neither a heuristic, and GSAS-II and TOPAS each emit hundreds of warnings. A code that
   reports a number with its meaning is cheap and cannot clash with anything; a verdict on
   a threshold of ours can, and an action keyed on it decides for the caller. So the
@@ -239,3 +257,37 @@ audit keeps a clash table, since heuristics interact (WP-1320 chose the fraction
 axis because the collapse rule fought it); and the rulebook's own rules are the generators
 of the overfit (2009). One proposal was declined as a plan decision and handed to 2003 as
 a finding to measure: that `RESEED_FACTOR`'s Rwp fence become opt-in.
+
+## The third review, 2026-10-18
+
+A fresh session after `/clear` read the record, the nine WPs and the PR against the tree,
+checking each named constant, count and cited number. The rule's idea held; what it found
+was that the rule has one authority and three copies, and one copy disagreed with it. The
+maintainer approved every change below and they landed on the filing branch.
+
+- **The reasoning ground states its polarity.** The record asked the question and only the
+  example said which answer keeps an item; 2001's restatement said "yes to both halves",
+  which keeps what the caller *can* see. Now stated in § The rule and the copies carry a
+  sentence and a link.
+- **The constant walk covers a declared directory list.** Over all of `src/rietx` the AST
+  walk finds 619 module-level numbers against the 233 the open counted in the seams, and the
+  surplus is byte offsets, pixel sizes and schema defaults; mirroring each value would make a
+  reader's offset edit reopen an audit. The list is data in the table module and names the
+  audits' seams; a directory outside it is out of scope by declaration. Chosen over the full
+  walk with a mechanical "fact" kind for the rest, which is about 400 rows of noise.
+- **The growth guard is a committed baseline, not a `git show`.** CI checks out at depth 2
+  with no `origin/main` ref and a local worktree's can be days stale, so a test reading the
+  base table through git skips exactly where it gates a merge. The names allowed at
+  `unaudited` are a list in the table module that may only shrink; the handover dispatches
+  the judge when the diff touches the table or the list.
+- **A golden with no independent reference has its clause** (§ A moved golden).
+- **`FIRST_RUNG_FACTOR` is invariant by measured margin, not by construction**; its
+  invariance test asserts the margin too (2003).
+- **A derived threshold inherits a tier only without a free factor** (§ The rule).
+- **2003 says where the discontinuity suggestion lives** (the skill's series reference, read
+  off the trajectory; no code replaces it) **and weighs the quarantine against the stated
+  exception** for work expensive to redo, not on visibility alone.
+- **2004 depends on 2003**, so the one `THRESHOLDS_VERSION` bump can carry 2003's rulings;
+  **2008's dependencies on 2002–2004 are hard**, as its own priority line said.
+- Stale counts fixed (2006's 253; the record's 89 for `io/`), and "left alone at the open"
+  reworded to "not pruned", since 2006 audits those rows.

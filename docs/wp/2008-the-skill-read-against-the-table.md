@@ -2,7 +2,7 @@
 
 Milestone: generality · Status: ⬜
 Track: The prose
-Depends on: 2001 (2002, 2003, 2004, 2005, 2006, 2007 soft: a demoted code's row changes)
+Depends on: 2001, 2002, 2003, 2004 (2005, 2006, 2007 soft: those three move few skill rows)
 Priority: P3 2026-10-18 — down a rung from P2: nothing here can start until the audits have ruled; lifts when 2002–2004 close
 
 ## Goal

@@ -2,8 +2,8 @@
 
 Milestone: generality · Status: ⬜
 Track: The audits
-Depends on: 2002
-Priority: P2 2026-10-18 — the report is what an agent reads first; waits on 2002 because its rival fits run the holds
+Depends on: 2002, 2003
+Priority: P2 2026-10-18 — the report is what an agent reads first; waits on 2002 because its rival fits run the holds, and on 2003 because the one `THRESHOLDS_VERSION` bump carries its rulings
 
 ## Goal
 

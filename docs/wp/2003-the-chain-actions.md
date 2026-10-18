@@ -24,8 +24,11 @@ phase transitions etc. We don't need to (and can't) cover all of them. It might 
 to suggest a symmetry-mode refinement, but we shouldn't enforce a test by default." The
 discontinuity test (`SEQUENTIAL_DISCONTINUITY`, 5× the median step and 3σ, ~lines
 226–227) fails both grounds: the kinds are open and the jump is visible in the trajectory.
-It becomes a suggestion, and since its threshold is its trigger, the code goes and the
-step size stays in the trajectory record.
+Since its threshold is its trigger, the code goes and the step size stays in the trajectory
+record. The suggestion the maintainer wants (consider a symmetry-mode refinement at a jump)
+lives in the skill's `references/series.md`, as a reading of the trajectory the caller
+already has; no code replaces it, because a suggestion inside the package needs a trigger
+and the trigger is the same threshold (third review).
 
 **The inventory**, keyed on `SeriesEntry` (`schemas/sequential.py`) fields `rung`,
 `reseeded`, `rwp_fence` and on the constants:
@@ -39,10 +42,15 @@ step size stays in the trajectory record.
   from colder starts, then `SEQUENTIAL_UNRECOVERED`, seeding no successor. The maintainer's
   framing settles the question the reviewer raised: a fit is cheap and costs no tokens, so
   the caller who sees "pattern 23 diverged and 24–68 were seeded from it" reruns from 23.
-  Quarantine survives only if the two grounds say the caller could *not* see it. Measure
-  what a caller sees with it off.
-- `FIRST_RUNG_FACTOR = 3.0` (~line 218): documented bit-identical, 0 of 1030 and 0 of 392.
-  The answer-invariant class; needs the invariance test as a test, not a comment.
+  Quarantine survives only if the two grounds say the caller could *not* see it, or if it
+  falls under the record's narrow exception for work that is expensive to redo, which
+  names a 200-pattern batch (third review). So measure both: what a caller sees with it
+  off, and what a rerun from the diverged pattern costs on each chain family.
+- `FIRST_RUNG_FACTOR = 3.0` (~line 218): measured bit-identical, 0 of 1030 and 0 of 392,
+  with 2.3× margin; its docstring calls it a bet, since the budget truncates only a losing
+  rung while a winning one stays cheaper than the budget. The answer-invariant class; the
+  invariance test asserts the accepted values *and* the margin (every kept first rung
+  under the budget), not a comment.
 - `_better` / `_prefer` (~lines 1952–1959): which attempt is kept, by Rwp, with a truncated
   attempt ranked below any completed one. The ranking is a decision; tier it.
 - `WIDTH_GROWTH_FACTOR = 3.0`, `WIDTH_GROWTH_GOF_FACTOR = 2.0`, `WIDTH_GROWTH_SIGMA = 3.0`

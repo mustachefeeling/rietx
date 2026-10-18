@@ -23,11 +23,11 @@ one paragraph here so this file is self-contained; sharpen the record, never thi
 Three tiers, each part of a heuristic tiered separately (statistic, threshold, action):
 (1) physics or arithmetic, kept; (2) a citation that validated it or the same action taken
 by default in GSAS-II, FullProf or TOPAS, kept and named; (3) rietx's own, demoted unless it
-holds on three unrelated dataset families (by lab, instrument and material) *and* answers
-yes to both halves of "could the caller see this from what rietx returns, and does missing
-it cost a wrong number?", approved by the maintainer in a batch. A threshold derived from
-another constant inherits its tier. An item that cannot change an accepted value needs an
-invariance test and no tier.
+holds on three unrelated dataset families (by lab, instrument and material) *and* the
+caller could **not** see it from what rietx returns *and* missing it **would** cost a wrong
+number, approved by the maintainer in a batch. The polarity, the inheritance rule, the
+answer-invariant class and the moved-golden rule are the record's; this copy carries no
+more than that sentence (third review: the first copy inverted the polarity).
 
 **The seams.**
 
@@ -46,12 +46,17 @@ invariance test and no tier.
   table keys an action on the record field that reports it.
 - Threshold constants are module-level numbers. 127 in `report/`, `strategy/`,
   `optimize/statistics.py`, `refine.py`, `sequential.py` (AST walk, 2026-10-18); indexing
-  has 76 more, io ~30. **The table's walk covers all of `src/rietx`**, not those files: the
-  open counted five files, and the review found `background/`, `optimize/lm.py` and
-  `crystallography/` in neither the count nor any audit WP's scope. The guard compares the
-  tree against the table, so a constant in a directory the walk skips is one it can never
-  see. Every constant the full walk finds opens at `unaudited` and belongs to the audit WP
-  whose scope names its file; one no WP names is this WP's to assign before it closes (the
+  has 76 more, io ~30. **The table's walk covers a declared directory list**, held as data
+  in the table module (`_audit.WALKED`): `refine.py`, `sequential.py`, `multi.py`,
+  `strategy/`, `report/`, `optimize/`, `background/`, `indexing/`, `crystallography/`, and
+  the readers' repair code under `io/`. The second review found `background/`,
+  `optimize/lm.py` and `crystallography/` in neither the open's count nor any audit WP's
+  scope, so they are on the list; the third review ran the walk over all of `src/rietx` and
+  found 619 constants, the surplus over the seams being byte offsets in file readers, pixel
+  sizes in the 3D viewer and schema defaults, so the list is not the whole package. A
+  directory outside the list is out of scope by declaration, and the module docstring says
+  so. Every constant the walk finds opens at `unaudited` and belongs to the audit WP whose
+  scope names its file; one no WP names is this WP's to assign before it closes (the
   partition in 2005 § Non-goals is the current whole). The table stores each constant's
   **value** beside its name, so a retune fails the meta-test and reopens the audit. A
   row's name is checked by import.
@@ -68,10 +73,17 @@ invariance test and no tier.
   names its exemplar.
 
 **The recurrence design, decided 2026-10-18.** A tripwire and a judge, not prose alone.
-The tripwire is a test over the branch diff against `origin/main` (and, so it also runs
-where there is no diff, over the tree against the table) that fires on: a new `Diagnostic`
+The tripwire is a test over the tree against the table that fires on: a new `Diagnostic`
 code; a new field on `StageResult`, `SeriesEntry` or `RefinementResult`; a new or retuned
-module-level numeric constant under `src/rietx`; a new `suggestion=` string. The judge is a
+module-level numeric constant in a walked directory; a new `suggestion=` string. It reads
+no git (third review): CI checks out at depth 2 with no `origin/main` ref and a local
+worktree's is days stale, so a test comparing against the base table through `git show`
+skips exactly where it gates a merge. Instead the names allowed at `unaudited` are a
+committed list in the table module (`_audit.UNAUDITED_BASELINE`), written once at the open
+and allowed only to shrink; a row at `unaudited` whose name is not on it fails, and a name
+in the tree with no row fails. The handover dispatches the judge whenever the diff touches
+the table module or that list, so an author who adds a name to the baseline has made a
+visible edit on a file whose name says what it is. The judge is a
 fresh-context `generality-review` agent the handover dispatches on a hit, which answers per
 item, quoting the WP's own evidence lines: what does this decide that the caller did not ask
 for; deleted, what does a caller see and when could they act; which tier, with its source;
@@ -115,13 +127,16 @@ follow it. The P1 rubric is 2009's.
       what it does by default, or the families), `grounds` (the two-ground answer, tier 3
       only), `approved` (a date, tier 3 only), `value` (constants only). Every existing
       code from `DIAGNOSTIC_HELP`, every record field named above and every constant the
-      AST walk finds, entered at `unaudited`.
+      AST walk finds over `WALKED`, entered at `unaudited`; `UNAUDITED_BASELINE` the
+      sorted list of those names, written once here.
 - [ ] The meta-test (`tests/test_audit_table.py`): code rows equal to `DIAGNOSTIC_HELP`'s
       keys both ways; every action row's record field exists on its schema; every constant
       row imports and its stored value equals the live one; a tier-3 row carries `grounds`
-      and `approved`; a `unaudited` row is allowed only for a name that exists on
-      `origin/main`'s table (the growth guard; read the base table through `git show`, and
-      skip with a reason where there is no git).
+      and `approved`; every `unaudited` row's name is on `UNAUDITED_BASELINE` (the growth
+      guard; no git); every name on the baseline still has a row, so the list shrinks as
+      rows are audited and never grows.
+- [ ] `/wp-handover`'s dispatch condition for the judge: the tripwire fired, or the diff
+      touches the table module or the baseline.
 - [ ] The tripwire's second half: the walk that produces the constant list is a function
       the test and the table share (`_audit.constants()`), so the inventory cannot drift
       from the guard; the same for record fields (`dataclasses.fields` /
@@ -221,8 +236,17 @@ The second Opus review's findings are in the record § The two reviews.
 must match the table row's anchor exactly, or `test_docs_consistency.py` fails on the link.
 
 *Next.* The table module and its meta-test, then the agent and the handover step, then
-the CLAUDE.md rewrite, then the cross-project lesson. The maintainer intends a further
-review round on this filing after `/clear`; its findings go into the record § The two
-reviews as a third entry and into whichever WP they touch.
+the CLAUDE.md rewrite, then the cross-project lesson.
+
+*Third review, same day, a fresh session after `/clear`.* Twelve changes, all approved by
+the maintainer and listed in the record § The third review. The four that move this WP:
+the restatement above now carries the reasoning ground's polarity and no more of the rule
+than one sentence; the constant walk covers `_audit.WALKED`, a declared directory list,
+after the walk over all of `src/rietx` found 619 constants against the seams' 233; the
+growth guard is `_audit.UNAUDITED_BASELINE`, a committed list that only shrinks, in place
+of a `git show` of `origin/main` that CI's depth-2 checkout cannot make; and the handover
+dispatches the judge on any diff touching the table or the baseline. The record also
+gained a clause for a golden with no independent reference and tightened the inheritance
+rule to derivations with no free factor.
 
 - **2026-10-18** — created.

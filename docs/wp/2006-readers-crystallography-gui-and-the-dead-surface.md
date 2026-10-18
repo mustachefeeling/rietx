@@ -16,7 +16,7 @@ reachability, with the unreached ones listed for the maintainer. Inventory from
 ## Context
 
 The rule is `../milestones/generality.md` § The rule. The record § Scope says the reader
-codes were measured and left alone at the open as *records of a repair*: "I applied the
+codes were measured and not pruned at the open, being *records of a repair*: "I applied the
 attenuator", "I snapped β to 90", "σ withheld because the scale is unknown". A record is
 tier 1 by construction. This WP confirms that row by row rather than assuming it, because
 "nothing wrong here" is weaker than a finding (memory `a-clear-is-weaker-than-a-finding`),
@@ -27,7 +27,8 @@ snapped or refused (WP-1028, ≤ 830 ppm in d), and that number is a tier-3 thre
 a tier-1 action.
 
 The GUI's 27 are HTTP error names (`NOT_RUNNING`, `PROJECT_ERROR`), not `Diagnostic`s;
-they are in the 276 and not the 253. A row each saying "not a heuristic" closes them.
+they are in the 276 literals and not the 256 codes. A row each saying "not a heuristic"
+closes them.
 
 **The dead surface.** 3 of 193 top-level exports are used by nothing in `src`, `examples`
 or `gui`: `IndexingEvidence` (named in the skill), `CaveatEvidence`, `CandidateEvidence`
