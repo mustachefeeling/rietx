@@ -266,8 +266,9 @@ reverse it knowing what it would be giving up.
   review; the second is the filing session's choice and reversible.
 - **The skill carries vocabulary and sourced traps, nothing prescriptive** (2026-10-18,
   the maintainer). Its role under the north star is to save tokens: an agent that knows
-  the API and the feedback surface makes the right first call. A rule measured on rietx's
-  test data is the overfit written as prose and leaves; a trap stays only with a source
+  the API and the feedback surface makes the right first call. A rule whose only evidence
+  is a run on rietx's own test data is the code's overfit in prose form and is cut from
+  the skill; a trap stays only with a source
   outside rietx's runs (the literature, a reference code's documented behaviour) and only
   where a strong agent would not bring it to mind. Chosen over the second review's
   position that a demoted verdict's meaning moves into the skill, which would have made

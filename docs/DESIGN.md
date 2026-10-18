@@ -54,8 +54,9 @@ one and no token is spent rediscovering a field. It is not prescriptive. What
 it may add beyond the vocabulary is a trap or an exception with a source
 outside rietx's own runs (the literature, a reference code's documented
 behaviour) that a strong agent would not bring to mind unprompted. A rule
-measured on rietx's test data is the overfit this record is about, written as
-prose, and does not belong there. The skill shrinks as the manual improves,
+whose only evidence is a run on rietx's own test data is the same overfit the
+generality milestone removes from the code, in prose form, and is cut from
+the skill. The skill shrinks as the manual improves,
 and as the manual reaches the corpora models are trained on it shrinks
 further; no agent needs a skill for GitHub, and the aim is for none to need
 one for rietx beyond its traps.
