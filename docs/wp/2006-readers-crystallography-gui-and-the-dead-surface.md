@@ -30,8 +30,9 @@ The GUI's 27 are HTTP error names (`NOT_RUNNING`, `PROJECT_ERROR`), not `Diagnos
 they are in the 276 literals and not the 256 codes. A row each saying "not a heuristic"
 closes them.
 
-**The dead surface** is the API half of the north star (DESIGN.md: the best engine *and*
-the best outputs), not the heuristics half this milestone mostly audits; it rides here
+**The dead surface** is the API half of the north star (DESIGN.md § Why this package
+exists: the API follows current Python practice), not the heuristics half this milestone
+mostly audits; it rides here
 because the walk is cheap and the seam is the same session's. 3 of 193 top-level exports are used by nothing in `src`, `examples`
 or `gui`: `IndexingEvidence` (named in the skill), `CaveatEvidence`, `CandidateEvidence`
 (tests only). The derived surface (`tests/api_surface.py`, `derive_surface()`) is 2 238

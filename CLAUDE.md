@@ -979,5 +979,5 @@ is held to per-column agreement with the analytic Jacobian in `tests/test_cross_
 Apple-GPU execution is *slower* than numpy (46-182×, launch-latency-bound): `torch-mps` buys
 precision validation, not speed (the v0.4 record). Also since v0.4: true Voigt (`shape="voigt"`,
 TCHZ still the default), soft restraints, the Bérar-Lelann esd inflation. v2 fence: FPA, neutron
-**TOF**, MCP server — and the **peaks buffer with FPA**, never before:
+**TOF** — and the **peaks buffer with FPA**, never before:
 shape reuse needs > 2.8-4.2 FCJ images a window point (WP-1122).

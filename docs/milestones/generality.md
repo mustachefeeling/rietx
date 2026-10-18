@@ -53,7 +53,7 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
      maintainer in a batch: **shown this statistic, would every competent refiner take
      this action?** An action is kept only where the answer is yes. Where two careful
      people could respond differently to the same number, the choice is reasoning, and
-     reasoning is the caller's (DESIGN.md § North star): the package reports the number
+     reasoning is the caller's (DESIGN.md § Rules, 1): the package reports the number
      with its meaning and stops. The implementing agent names a competent caller who
      would choose otherwise and the situation they are in, or says none exists; the
      judge tries to name one. Whether the caller could *see* the problem is not the
@@ -259,6 +259,23 @@ reverse it knowing what it would be giving up.
   by the physics; and a caller pays in tokens, so a package that decides nothing can be
   worse for the caller than one unanimous default. Chosen over leaving the ethos in this
   record alone, which a session changing the engine would not read.
+- **The north star rewritten as a purpose, the rule beneath it** (2026-10-18, later the
+  same day). A review found the text above was a design rule sitting in the purpose's
+  slot: mostly subtractive, naming no outcome for a person, and weighted to the week's
+  argument. The maintainer stated the beliefs behind the package (agents as the user,
+  artisanal and pipeline scale; open and installable through the usual channels; a
+  Python API in current practice; the whole field in scope; verification as the
+  foundation of agent-written code; feedback that teaches a non-expert to steer). The
+  purpose is now one paragraph, "a scientist can trust a Rietveld refinement they did not
+  drive by hand", with four rules beneath it. Rule 1 carries the decision line and adds
+  the maintainer's distinction between bounded ambiguity, where the data can rank
+  enumerable hypotheses and the package ranks them (indexing, structure solution), and
+  unbounded ambiguity, where the explanation depends on facts outside the pattern and only
+  an agent told them can weigh it (a series). The three tiers stay as the provenance
+  audit. Cut on the maintainer's ruling: pipelines and channels as rules (the API must
+  let an agent frame an unattended run, and conda-forge is a task), extensibility (a
+  feature), MCP from the v2 fence (sandboxed python measured cheaper in tokens than a
+  JSON round trip). The founding statement moved to DESIGN.md § History.
 - **A gate after 2004, and three families is not a demotion by itself.** The premise is a
   conviction measured by provenance, so the first three audits test it and the maintainer
   re-decides 2005–2007 on their counts. A rare feature with one family keeps its unanimous
@@ -379,7 +396,8 @@ maintainer approved every change below and they landed on the filing branch.
 
 A fresh session read the plan for its reasoning rather than its counts, beside a
 `/code-review` pass over the prose. The maintainer confirmed the central finding and
-stated the position now in DESIGN.md § North star. What moved:
+stated the position now in DESIGN.md § Rules, 1 (written that day as a § North star,
+rewritten the same evening; see below). What moved:
 
 - **The judgement ground replaces the visibility ground** (§ The rule, § Decisions). The
   quarantine's classification flips from contested to kept; 2003 measures what the caller

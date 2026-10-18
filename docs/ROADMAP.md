@@ -156,7 +156,7 @@ covers (1119 § Gotchas).
 | rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1813, the seam decided by 1803 and the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
 | structure-solution | Structure solution (was v1.9): a difference-Fourier map, a cost from the Pawley intensities, direct-space search — [WPs](wp/README.md#structure-solution): 1901-1902, the map then the cost; #197 and #198 left the fence 2026-09-30 | ⬜ **queued 2026-09-30** | written at the open |
 | generality | Pay for established heuristics, leave the reasoning to the caller: every verdict, action and threshold tiered, the unproven demoted, a guard against the next one — [§ generality](#generality--pay-for-established-heuristics-leave-the-reasoning-to-the-caller) | 🔄 **opened 2026-10-18** ([record](milestones/generality.md)) | eight rows written at the open, the record's § Acceptance |
-| v2+ | FPA (with the peaks buffer), neutron TOF, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
+| v2+ | FPA (with the peaks buffer), neutron TOF, modulated structures, PDF — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
 
@@ -604,9 +604,8 @@ scope creep. Each item names what fenced it.
 - **I/O.** Rietica and XND readers (#196); an RMCProfile export and PDF /
   total-scattering analysis, X-ray and neutron (#192); VESTA import/export
   (#195).
-- **Infrastructure.** An MCP server over the python API (1303's rule: a tool
-  surface earns its place only where it gates, renders, audits or
-  parallelises); `vmap`-batched in-situ series — the only accelerator story
+- **Infrastructure.** No MCP server (dropped 2026-10-18, [DESIGN.md](DESIGN.md)
+  § Locked decisions, scope discipline); `vmap`-batched in-situ series — the only accelerator story
   this hardware supports, sized by WP-0408 at break-even ≈50-65 k elements per
   kernel and a ceiling ≈2.5-3× ([v0.4 record](milestones/v0.4.md)); notebook
   widgets.

@@ -34,7 +34,7 @@ re-syncs the two committed copies. `tests/test_docs_consistency.py` fails a diag
 code without a row; `test_skill.py` a verb the index omits; `test_skill_cli.py` a copy out
 of sync.
 
-**The skill's role, from the north star** (DESIGN.md § Why this package exists, fourth
+**The skill's role, from the north star** (DESIGN.md § Rules, 3, fourth
 review, the maintainer's words). It exists to save tokens: an agent that knows the API and
 the feedback surface accurately makes the right first call and reads the result without
 guessing. It is not prescriptive. A row that says what to *conclude* from a number is
@@ -164,6 +164,6 @@ star, puts it back, because the skill's role is now narrower than interpreting v
   first plan had here, "the skill's reference total falls", was dropped on the second
   review: a demoted verdict's meaning has to be interpreted somewhere, usually the skill,
   so the total may not fall and the right bar is the tag. The fourth review reversed
-  that on the maintainer's statement of the skill's role (DESIGN.md § North star): the
+  that on the maintainer's statement of the skill's role (DESIGN.md § Rules, 3): the
   interpretation is the caller's, the skill carries vocabulary and sourced traps, and the
   total falls. The title changed from "read against the audit table" to match.
