@@ -11,6 +11,8 @@ synthetic Si + MgO (0.3 scale)  the second result ranks cF 4.2112 first,    the 
 synthetic Si alone              no candidate, ``INDEX_DATA_INSUFFICIENT``   misfit or picker junk is
                                                                             reported as a phase
 SRM 660c LaB6 (real), cubic     no candidate                                the same, on real data
+Si with its cell stretched 1 %  nothing picked (width-law guard), no        a residue of a cell that
+                                candidate                                   does not fit is read
 a first result with no cell     ``ValueError`` naming ``candidate=``        —
 ==============================  ==========================================  ===========================
 
@@ -150,3 +152,25 @@ def test_the_certified_lab6_pattern_leaves_no_second_result():
     second = index_residue(first, data, ins, spec=spec, preset="full")
     assert not second.candidates, [(c.system, c.cell) for c in second.candidates]
     assert second.diagnostics[0].code == "INDEX_RESIDUE_PASS"
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-residue")
+def test_a_cell_that_does_not_fit_the_pattern_leaves_no_residue():
+    """The width-law guard: Si's own cell stretched by 1 % misplaces every
+    line, its Le Bail fit buys the misfit with widths far past the list's, and
+    nothing is picked.  Without the guard the picker ran at those widths (145 s
+    on #933's reproducer, whose first cell is a wrong cubic I one)."""
+    ins, data = _pattern(None)
+    spec = SearchSpec(systems=("cubic",), budget_seconds=60.0)
+    first = index_pattern(data=data, instrument=ins, two_theta_limits=LIMITS,
+                          spec=spec, preset="full")
+    a = first.candidates[0].cell[0] * 1.01
+    wrong = first.candidates[0].model_copy(
+        update={"cell": (a, a, a, 90.0, 90.0, 90.0)})
+    second = index_residue(first, data, ins, candidate=wrong,
+                           two_theta_limits=LIMITS, spec=spec, preset="full")
+    assert not second.candidates
+    note = second.diagnostics[0]
+    assert note.code == "INDEX_RESIDUE_PASS"
+    assert note.message.startswith("No residue was picked"), note.message

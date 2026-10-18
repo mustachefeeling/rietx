@@ -1084,6 +1084,7 @@ RESIDUE_MISFIT_RATIO = 1.0
 
 def index_residue(first, data: PatternData, instrument: Instrument, *,
                   candidate: CellCandidate | None = None,
+                  peaks: PeakList | None = None,
                   spec=None,
                   preset: str | None = None,
                   engines: Sequence[str] | None = None,
@@ -1095,8 +1096,9 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
     cell of ``first``, an :class:`~rietx.schemas.indexing.IndexingResult`, at
     whatever grade it holds, since on a two-phase pattern the first phase's
     cell is graded down by the second phase's lines — is fitted to ``data`` by
-    the same Le Bail protocol that validated it (:func:`validate_by_lebail`).
-    Its calculated peaks are subtracted, the background kept, and what remains
+    the same Le Bail protocol that validated it (:func:`validate_by_lebail`),
+    its widths seeded from ``peaks`` — the list the first search ran on, picked
+    from ``data`` when not given.  Its calculated peaks are subtracted, the background kept, and what remains
     is picked with the instrument that fit refined: **at the first cell's width
     law**, so the second phase's lines are fitted with the widths the pattern
     has rather than re-estimated from a list the first phase dominated.  A
@@ -1106,6 +1108,14 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
     residue, and returned as a new result whose first diagnostic,
     ``INDEX_RESIDUE_PASS``, names the cell subtracted and the lines dropped.
 
+    **A cell whose fit does not describe the pattern has no residue.**  When
+    the fit's width law at the list's usable lines is outside
+    :data:`~rietx.indexing.diagnostics.WIDTH_MISMATCH_RATIO` of their measured
+    widths, nothing is picked and the result abstains: measured on #933's
+    reproducer, a wrong cubic I cell's validation fit ran every width term to
+    its bound (FWHM 2° on 0.02° lines, Rwp 0.77), and picking at that law took
+    145 s to find nothing a search could use.
+
     It never changes ``first``.  A residue too short to search comes back the
     way any short list does, with no candidate and ``INDEX_DATA_INSUFFICIENT``
     — which is the answer on a single-phase pattern.  A second result is a
@@ -1113,6 +1123,8 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
     candidate in it whose lines are the first cell's misfit or the picker's
     junk reads ``low`` for the reasons any such cell does.
     """
+    from .diagnostics import WIDTH_MISMATCH_RATIO
+    from .peaks import predicted_fwhm
     from .pick import pick_peaks
 
     require_two_theta(data, "index_residue()", instrument=instrument)
@@ -1122,8 +1134,36 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
                              "result has no candidate, so name one with "
                              "candidate=")
         candidate = first.candidates[0]
-    ref, fit = _lebail_fit(candidate, data, instrument,
+    if peaks is None:
+        peaks = pick_peaks(data, instrument, two_theta_range=two_theta_limits)
+    ref, fit = _lebail_fit(candidate, data, instrument, peaks=peaks,
                            two_theta_limits=two_theta_limits, cancel=cancel)
+    width_law = ref.fitted_instrument
+    a = ", ".join(f"{v:.4f}" for v in candidate.cell)
+    subtracted = (f"the {candidate.system} {candidate.centring} cell ({a}; "
+                  f"{candidate.confidence} confidence in the first result)")
+    usable = peaks.usable()
+    if usable:
+        at = np.array([p.two_theta for p in usable], dtype=np.float64)
+        ratio = (float(np.median(predicted_fwhm(at, width_law)))
+                 / float(np.median([p.fwhm for p in usable])))
+        if not 1.0 / WIDTH_MISMATCH_RATIO < ratio < WIDTH_MISMATCH_RATIO:
+            empty = peaks.model_copy(update={"peaks": []})
+            second = index_pattern(empty, instrument=instrument, spec=spec,
+                                   preset=preset, engines=engines)
+            note = Diagnostic(
+                level="info", code="INDEX_RESIDUE_PASS",
+                message=(f"No residue was picked: the Le Bail fit of "
+                         f"{subtracted} ends with widths {ratio:.3g} times "
+                         "the list's measured ones, so the cell does not "
+                         "describe the pattern and what it leaves is not a "
+                         "second phase."),
+                where=[f"fit Rwp {fit.statistics.rwp:.3f}"],
+                suggestion=("Subtract a cell that fits the pattern: name one "
+                            "with candidate=, or index the first phase "
+                            "again."))
+            return second.model_copy(update={
+                "diagnostics": [note] + list(second.diagnostics)})
     tt = np.asarray(fit.two_theta, dtype=np.float64)
     phase = (np.asarray(fit.y_calc, dtype=np.float64)
              - np.asarray(fit.y_background, dtype=np.float64))
@@ -1131,7 +1171,6 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
         two_theta=list(tt),
         intensity=list(np.asarray(fit.y_obs, dtype=np.float64) - phase),
         sigma=list(np.asarray(fit.sigma, dtype=np.float64)))
-    width_law = ref.fitted_instrument
     picked = pick_peaks(residue, width_law, two_theta_range=two_theta_limits)
     above = (np.asarray(residue.intensity, dtype=np.float64)
              - np.asarray(fit.y_background, dtype=np.float64))
@@ -1141,19 +1180,16 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
         under = float(np.interp(p.two_theta, tt, phase))
         (dropped if under > RESIDUE_MISFIT_RATIO * max(height, 0.0)
          else kept).append(p)
-    peaks = picked.model_copy(update={"peaks": kept})
-    second = index_pattern(peaks, data=residue, instrument=width_law,
+    left = picked.model_copy(update={"peaks": kept})
+    second = index_pattern(left, data=residue, instrument=width_law,
                            spec=spec, preset=preset, engines=engines,
                            two_theta_limits=two_theta_limits,
                            events=events, cancel=cancel)
-    a = ", ".join(f"{v:.4f}" for v in candidate.cell)
     note = Diagnostic(
         level="info", code="INDEX_RESIDUE_PASS",
-        message=(f"This result indexes the residue of the {candidate.system} "
-                 f"{candidate.centring} cell ({a}; {candidate.confidence} "
-                 "confidence in the first result): its Le Bail peaks were "
-                 f"subtracted and the remainder picked at its fitted widths, "
-                 f"{len(peaks.usable())} usable line(s) after "
+        message=(f"This result indexes the residue of {subtracted}: its Le "
+                 "Bail peaks were subtracted and the remainder picked at its "
+                 f"fitted widths, {len(left.usable())} usable line(s) after "
                  f"{len(dropped)} standing on its subtracted profile were "
                  "dropped as its misfit."),
         where=[f"{p.two_theta:.4f}°" for p in dropped],
