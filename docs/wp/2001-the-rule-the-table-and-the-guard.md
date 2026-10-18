@@ -1,6 +1,6 @@
 # WP-2001 — The rule, the audit table and the guard
 
-Milestone: generality · Status: 🔄 2026-10-19 — the milestone, the rule and ten WPs filed and read against DESIGN.md's rules; the table and the guard not started
+Milestone: generality · Status: 🔄 2026-10-19 — the milestone, the rule and ten WPs filed and read twice against DESIGN.md's rules, eleven rulings in all; the table and the guard not started
 Track: The registry and the guard
 Depends on: —
 Priority: P2 2026-10-18 — the scoping WP the other eight wait on; nothing blocks it
@@ -242,6 +242,81 @@ seen to fail is a guard that may go quiet (`tests/CLAUDE.md` § Guards that go q
   record cites as the worked tier-2 example); Schwarz, G. (1978). Ann. Stat. 6, 461–464.
 
 ## Handover log
+
+### 2026-10-19 (2nd session) — the milestone re-read against DESIGN.md's rules, and four rulings
+
+A fresh session checked the milestone against DESIGN.md's purpose and four rules. Most of
+it held, and seventeen places disagreed. Thirteen followed from the rules as written and
+were fixed. The maintainer ruled on the other four. Two of those rulings change what the
+audits do. Every automatic action must now pass "would every competent refiner do this?"
+whatever its source, so a cited default goes to the maintainer too. The Bérar–Lelann
+esd inflation is the first such case: it is applied to every esd rietx prints, and GSAS-II
+does not apply it. A poor result from the agent test now sends an explanation back for
+work and no longer holds a demotion back. DESIGN.md now says when the package may pick
+from a ranking. Nothing in the package changed.
+
+*Done.* Four commits. ee8a9181, the thirteen fixes:
+- 2008 kept rows measured on rietx's runs in three places (a tag counted as a source,
+  agents needing a row kept it, a cut row could move into `help.py` prose).
+- 2003 tested quarantine "with it off" and called the cold-fit chain an envelope.
+- The record let a cross-code reference stand as validation.
+- 2007 classified the `quick` budgets with no table value to hold it.
+- Rule 4's new-topic test had no seat before code, now a TEMPLATE.md clause here.
+- Rule 4's mechanisms belong in root CLAUDE.md § Invariants, which 2001, 2008 and 2010
+  now name.
+- 2010's partition missed output topics (QPA, indexing, derived geometry,
+  microstructure).
+- The smaller ones: the scope names all four rules, ROADMAP's sentence asks the gate's
+  questions in order, a stale north-star reason left the acceptance row, and 2005's goal
+  said "removed" where § Demotion says `info` record.
+
+Two choices were the session's own and are reversible. The table gets a `caller` tier for
+an action only the caller turns on, over leaving opt-in tools out of the table. The GUI's
+27 HTTP names leave the table, since its code rows are held equal to `DIAGNOSTIC_HELP`.
+
+276bc871, f7e8aba3 and 6e670cb0 carry the four rulings, each in the record § Decisions
+with its alternative:
+- (1) DESIGN.md Rule 1 states the two cases where the package may pick from a ranking,
+  and Rule 4's skill-row test admits a sourced practice.
+- (2) Every action faces the unanimity question whatever its tier, and 2002 now
+  inventories the always-on corrections no walk finds.
+- (3) A threshold measured on fewer than three families is declared "untested beyond"
+  them, and *not yet validated* keeps Rule 2's meaning.
+- (4) A poor agent result reworks the explanation and does not hold the demotion back.
+
+The maintainer rejected the first wording of (1) as florid and cryptic, and the plain
+rewrite landed.
+
+*Measured* (darwin arm64, `[dev]`; scratch AST script, a proxy that over- and
+under-counts):
+- 33 of 341 module-level numeric constants in `WALKED`'s directories have an `Author
+  YEAR` citation within 15 lines above. None of the 256 `DIAGNOSTIC_HELP` entries cites
+  a paper in its text, so a code's tier cannot be read off its explanation.
+- Bérar–Lelann: GSAS-II 5.8.4's source (`rietx-bench/tools/gsas2`) never mentions it.
+  FullProf's manual cites the 1991 paper (reference 14) and I found no statement that
+  FullProf applies it. TOPAS was not checked. WP-1417 measured the factor at 7.1–10.2 on
+  synchrotron fits before v1.6 lowered it by 12–21 %.
+- An eight-run agent round cannot separate 7 of 8 from 5 of 8 (Fisher's exact p = 0.569)
+  or from 4 of 8 (p = 0.282).
+- `QUICK_TOTAL_BUDGET_SECONDS` = 120 and `DEFAULT_BUDGET_SECONDS` = 30
+  (`indexing/engines.py`) are module constants the walk enters.
+- No test was added, so no count moved. `tests/test_docs_consistency.py` passed.
+
+*Review.* This session touched only `docs/`, so `/code-review` was skipped. The branch's
+one `.py` change was reviewed in the opening session's step 6. No forward note moved: the
+notes in 1327 and 1341 still read true under the rulings.
+
+*Gotchas.* The worktree guard refuses a `sed -n` whose range comes from a `$(…)`
+substitution, so grep for the line and read by offset. A grep over `docs/manual` hits
+base64 figure data in the tutorial notebooks, so exclude `*.ipynb`.
+
+*Next.* This WP's second task, now with the `caller` tier and with `grounds` and
+`approved` on tier-2 action rows. Then the meta-test, the judge and its handover step,
+the root CLAUDE.md rewrite under § Invariants, the TEMPLATE.md line with its new-topic
+clause, and the cross-project lesson. 2002 opens with the always-on corrections pass,
+since the Bérar–Lelann ruling is the first tier-2 action the batch will carry. The
+milestone's name asks only the threshold question, and it was left as ruled. Whether
+PR #1044 merges first is the maintainer's call.
 
 ### 2026-10-19 — the milestone read against DESIGN.md's purpose and rules
 
