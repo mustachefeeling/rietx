@@ -147,22 +147,81 @@ sharpens its own row here.
 
 ## Decisions with the maintainer, 2026-10-18
 
-- The three tiers and the per-part tiering. "Documents or usage in well-established codes
-  are both grounds" for tier 2; the usage must be the same *action by default*.
-- The reasoning ground is visibility and significance, not timing. A reviewer proposed
-  "can the caller detect and correct it at the moment the package acts"; the maintainer
-  pointed out that fits are cheap, fast and cost no tokens, so a visible mistake is a
-  rerun. Timing survives only as the narrow exception above.
-- Batch approval, as `/issue-review` does it: an audit presents its table once, the
-  maintainer rules on each row, the rulings are dated into the table.
-- Demotion now, deprecation later by best practice; a removed code is staged in the notes.
-- Agent stop-rate is not an acceptance number. A contested demotion is measured on the
-  harness before it lands; the harness costs money and each run is approved.
-- The automatic runners are re-examined for generality, "not automatically dismissed".
-- Recurrence is guarded by a tripwire and a judge, not by prose alone: the tripwire is a
-  deterministic test on the diff, the judge is a fresh-context agent the handover
-  dispatches on a hit, and the rule travels to other projects through
-  `claude-config/workflow/LESSONS.md`.
+Each with its reason and the alternative it was chosen over, so a later session can
+reverse it knowing what it would be giving up.
+
+- **The unit of pruning is the verdict and the action keyed on it, not the code count.**
+  The maintainer's first framing was "too many diagnostic codes". Measured, the count is
+  the symptom: 89 of the 276 codes are reader repair records and 27 are HTTP error names,
+  neither a heuristic, and GSAS-II and TOPAS each emit hundreds of warnings. A code that
+  reports a number with its meaning is cheap and cannot clash with anything; a verdict on
+  a threshold of ours can, and an action keyed on it decides for the caller. So the
+  audits key on the record fields and the constants, and a code is pruned only where its
+  verdict or trigger is tier 3. Chosen over cutting codes by count, which would have
+  removed honest records and left the actions in place.
+- **Three tiers, tiered per statistic, threshold and action.** One tier per heuristic
+  would have let a cited statistic carry an uncited threshold (ΔBIC's bands are Kass and
+  Raftery's, its effective sample size N/f² is ours). "Documents or usage in
+  well-established codes are both grounds" for tier 2, the maintainer's words; the usage
+  must be the same *action by default*, on the second review's finding that every code
+  computes R_Bragg and WP-1069 rejects it, and GSAS-II concatenates scans and rietx
+  refuses to.
+- **Three unrelated families for the mechanical ground.** A threshold that holds on
+  three families is a different claim from one tuned on LaB6 alone, and three is the
+  smallest number that can show a failure case beside two successes. Counted by lab,
+  instrument and material because the size-flag thresholds were calibrated on 1 213
+  records from one source, which is many files and one population. Not a measured
+  constant; the maintainer may move it.
+- **The reasoning ground is visibility and significance, not timing.** The second
+  review proposed "can the caller detect and correct it at the moment the package acts",
+  which would keep the series quarantine on the ground that a diverged pattern seeds its
+  successors before the chain returns. The maintainer's correction: fits are cheap, fast
+  and cost no tokens, so a mistake the caller can see is a rerun, and what the caller
+  cannot do is detect what the outputs do not show. Timing survives only as the narrow
+  exception for work that is expensive or impossible to redo.
+- **The automatic runners are re-examined for generality, not dismissed.** The
+  absent-phase hold is the case the rule keeps (a 14.9 Å cell walk invisible in Rwp), and
+  it is a runner. So each runner goes through the two grounds like anything else, and the
+  maintainer asked that none be removed on the strength of being a runner.
+- **Batch approval**, as `/issue-review` does it: an audit presents its table once, the
+  maintainer rules on each row, rulings are dated into the table. Chosen over per-item
+  approval as found, which interrupts the audit and loses the comparison across rows.
+  The rubber-stamp risk of a batch is answered by the judge drafting the case against
+  each row rather than the author alone writing its defence.
+- **Demotion now, deprecation later by best practice.** The maintainer's breaking appetite
+  is high (every user is in direct contact, memory `rietx-few-users-in-direct-contact`),
+  so a demotion lands when ruled and a removed code is staged in the release notes.
+  Chosen over a deprecation period, which would keep the overfit running by default for
+  a release with no one waiting on it.
+- **Agent stop-rate is not an acceptance number.** The v1.3 round measured seven of eight
+  agents stopping on a stated criterion against zero of 86 without one, so the reviewer
+  asked whether demoting verdicts to numbers would cost that. The maintainer's ethos says
+  a number with its meaning is what an agent reasons from; whether that suffices is
+  measurable, so a contested demotion goes through the harness before it lands and the
+  milestone does not promise a rate. The harness costs money and each run is approved
+  per session.
+- **Recurrence is guarded by a tripwire and a judge, not by prose alone.** The
+  maintainer's instinct was an agentic guard in the `.md` files; the second review added
+  a deterministic half. Prose in a rulebook is skimmed, and a tripwire cannot judge, so
+  the tripwire (a test over the diff for a new code, record field, constant or
+  suggestion) decides *whether* a fresh-context review runs and the review decides
+  *what it finds*. A registry row written by the implementing agent is self-certification,
+  so the judge drafts the case against. The rule also travels to the maintainer's other
+  projects through `claude-config/workflow/LESSONS.md`, on the maintainer's ask; the
+  mechanism stays rietx's and each project words the rule for itself.
+- **Nine WPs, each Opus-led with subagents.** The maintainer's token economics: an audit
+  reads a lot and returns a table, which is the shape that pays for lanes (memory
+  `subagent-economics`), and one session cannot hold 17 000 lines of runner plus its
+  evidence. The seams were cut by what each session must hold at once, not by file; the
+  second review split the runner into one-stage and chain actions and gave indexing its
+  own WP. WP-1985's 3.8 M subagent tokens for 253 explanations is the calibration.
+- **The audit table is its own module, not fields on `HelpEntry`.** `HelpEntry` is a GUI
+  type served at `/api/help`, so a field there moves the TypeScript, the vitest table and
+  the committed dist for a maintainer-facing fact. Taken by the filing session on the
+  second review's finding; the maintainer should know it can be reversed.
+- **One reviewer proposal declined as a plan decision**: that `RESEED_FACTOR`'s Rwp fence
+  become opt-in. It may be right, and 2003 measures it on three chain families; deciding
+  it at filing would be the overfit this milestone is about, one rank up.
 
 ## The two reviews at the open
 
