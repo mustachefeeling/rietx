@@ -160,11 +160,11 @@ def _problem(space, cost, ins, priors=None):
     return tp.SearchProblem(space, sc, cost, clash)
 
 
-@pytest.fixture(scope="module")
-def acr():
+def build_acr_problem():
     """(problem, truth u, truth xyz): the fragment's Cu Kα₁,₂ pattern, 4-70° 2θ,
     a 10⁴-count strongest point over a 3 % flat background, one Poisson draw,
-    and the cost built at the true profile."""
+    and the cost built at the true profile.  A plain function, so the record
+    script reruns this state rather than an imitation of it."""
     space = SearchSpace([FragmentUnit(acridine(), biso=3.0)], _acr_phase())
     u = _acr_truth(space)
     ins = rx.Instrument.bragg_brentano(radiation="CuKa")
@@ -174,12 +174,16 @@ def acr():
     return _problem(space, cost, ins), u, space.xyz(u)[0]
 
 
+@pytest.fixture(scope="module")
+def acr():
+    return build_acr_problem()
+
+
 # -- NAC -----------------------------------------------------------------------------
 NAC_COMPOSITION = {"Ca2+": 12, "Al3+": 8, "Na1+": 8, "F1-": 56}
 
 
-@pytest.fixture(scope="module")
-def nac():
+def build_nac_problem():
     """(problem, truth xyz, the Pawley ``Refinement``): NAC's sites placed on the
     site-class assignment that is the deposited one, found among
     :func:`site_assignments`'s for the composition."""
@@ -205,6 +209,11 @@ def nac():
     space = SearchSpace(units, phase)
     xt = np.array([truth[a.label] for a in phase.atoms])
     return _problem(space, cost, ref.fitted_instrument), xt, ref
+
+
+@pytest.fixture(scope="module")
+def nac():
+    return build_nac_problem()
 
 
 def _recovered(problem, run, eq, xt) -> tuple[float, tp.Visit]:
@@ -294,6 +303,28 @@ def test_a_seed_reruns_bit_for_bit(acr):
     b = tp.temper(problem, lad, seed=11, sweeps=150)
     assert [v.j for v in a.best] == [v.j for v in b.best]
     assert np.array_equal(a.swap_accepts, b.swap_accepts)
+
+
+def test_a_placed_fragment_keeps_its_shape():
+    """The fragment map is an isometry of the template on an oblique cell:
+    every interatomic distance of the placed atoms, through the metric,
+    equals the template's, at any origin and orientation, and a torsion turns
+    only its moving atoms about its axis."""
+    frag = acridine()
+    t = np.asarray(frag.xyz)
+    want = np.linalg.norm(t[:, None] - t[None], axis=2)
+    sp = SearchSpace([FragmentUnit(frag)], _acr_phase())
+    for x in sp.xyz(sp.random(np.random.default_rng(4), 5)):
+        d = x[:, None] - x[None]
+        got = np.sqrt(np.einsum("abi,ij,abj->ab", d, sp.g, d))
+        assert np.max(np.abs(got - want)) < 1e-12
+    bent = SearchSpace([FragmentUnit(frag, torsions=((5, 4, (0, 1, 2, 3)),))], _acr_phase())
+    u = bent.random(np.random.default_rng(5), 1)
+    x0 = bent.xyz(u)[0]
+    u[0, 6] += 40.0
+    x1 = bent.xyz(u)[0]
+    moved = np.flatnonzero(np.abs(x1 - x0).max(axis=1) > 1e-9)
+    assert list(moved) == [0, 1, 2, 3]
 
 
 # ===================================================================================

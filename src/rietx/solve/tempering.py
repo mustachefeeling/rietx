@@ -39,7 +39,7 @@ J_j)]) (Earl & Deem 2005, eq. 2), pairs alternating even and odd, which keeps
 detailed balance with the moves between them; attempts and acceptances are
 recorded **per neighbour pair**.  Every ``refresh_every`` sweeps the running
 sums are rebuilt from the coordinates, so rounding cannot accumulate, and the
-last stretch's difference from a rebuild is recorded (:attr:`SeedRun.drift`).
+largest difference a rebuild found is recorded (:attr:`SeedRun.drift`).
 
 **A seed** (:func:`temper`) is one ``numpy`` generator seed: the starts, the
 moves and the swaps are all drawn from it, so a seed reruns bit for bit on one
@@ -202,7 +202,7 @@ class SeedRun:
     seconds: float
     stopped: str | None             # "wall_seconds" when the guard stopped it
     compiled: dict                  # this seed's calls that took the compiled kernels
-    drift: float                    # max |J_running − J_rebuilt| at the end, J units
+    drift: float                    # max |J_running − J_rebuilt| over the rebuilds, J units
 
     @property
     def swap_acceptance(self) -> np.ndarray:
@@ -248,6 +248,7 @@ def temper(problem: SearchProblem, ladder: Ladder, *, seed: int, sweeps: int,
     t0 = time.perf_counter()
     stopped = None
     done = 0
+    drift = 0.0
     reps = np.arange(n_rep)
     for sweep in range(sweeps):
         units = space.movable[rng.integers(len(space.movable), size=n_rep)]
@@ -318,15 +319,17 @@ def temper(problem: SearchProblem, ladder: Ladder, *, seed: int, sweeps: int,
                     for arr in (u, xyz, s, a, chi2, e, jj) + (() if b is None else (b,)):
                         arr[[i, i + 1]] = arr[[i + 1, i]]
         if done % refresh_every == 0:
+            j_running = jj
             xyz, s, a, b, chi2, e = rebuild(u)
             jj = (chi2 + w * e) / floor
+            drift = max(drift, float(np.max(np.abs(j_running - jj))))
         if wall_seconds is not None and time.perf_counter() - t0 > wall_seconds:
             stopped = "wall_seconds"
             break
     j_running = jj.copy()
     xyz, s, a, b, chi2, e = rebuild(u)
     jj = (chi2 + w * e) / floor
-    drift = float(np.max(np.abs(j_running - jj)))
+    drift = max(drift, float(np.max(np.abs(j_running - jj))))
     final = [Visit(u[r].copy(), float(jj[r]), float(chi2[r]), float(e[r])) for r in range(n_rep)]
     return SeedRun(seed=seed, ladder=ladder, sweeps=done, moves=done * n_rep,
                    move_accept=acc / max(done, 1), swap_attempts=sw_try, swap_accepts=sw_ok,
