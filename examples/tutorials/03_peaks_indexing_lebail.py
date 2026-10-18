@@ -3,12 +3,12 @@
 #
 # *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 #
-# When the phase is unknown there is no CIF to start from.
-# The cell has to come from the peak positions alone: find the peaks, then search for a cell that puts a reflection under each one.
-# That search is called indexing.
-# We index a synthetic pattern whose answer we know, read why rietx declines to name a single cell, and check the best candidate with a Le Bail fit.
+# When the phase is unknown there is no CIF to start from, and the cell has to come from the peak positions alone.
+# We pick the peaks of a synthetic pattern whose answer we know, index them, and read why rietx declines to name a single cell.
+# Then we check the best candidate with a Le Bail fit.
+# By the end you can pick and fit peaks, run an indexing search, and test a candidate cell against the whole pattern.
 #
-# **You need** rietx 1.7 or later, which the next cell installs.
+# **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 01 introduces Le Bail fitting.
 #
 # **The data** is synthetic aragonite, CaCO₃, made from its published structure: Dal Negro and Ungaretti (1971), *American Mineralogist* 56, 768, as entry 9000229 of the Crystallography Open Database (public domain).
@@ -21,6 +21,8 @@
 
 # %% [markdown]
 # ## A synthetic pattern
+#
+# Write aragonite's structure to a CIF and read it back.
 
 # %%
 import tempfile
@@ -46,6 +48,12 @@ cif.write_text(
     encoding="utf-8")
 truth = rx.Structure.from_cif(cif)
 
+# %% [markdown]
+# `predict` computes a pattern from a structure and an instrument without fitting anything.
+# This instrument sets its own peak widths and a flat background of 200 counts.
+# We scale the phase so the strongest peak reaches about 20 000 counts above the background, then draw Poisson counts.
+
+# %%
 true_instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
 true_instrument.profile.w.value = 0.004
 true_instrument.profile.x.value = 0.05
@@ -54,7 +62,7 @@ true_instrument.background.coefficients[0].value = 200.0
 
 two_theta = np.arange(10, 80, 0.02)
 y = rx.Refinement(truth, true_instrument).predict(two_theta) - 200.0
-truth.phases[0].scale.value *= 20000 / y.max()   # strongest peak about 20 000 counts
+truth.phases[0].scale.value *= 20000 / y.max()
 y = rx.Refinement(truth, true_instrument).predict(two_theta)
 data = rx.PatternData(two_theta=two_theta,
                       intensity=np.random.default_rng(0).poisson(y).astype(float))
@@ -62,13 +70,14 @@ data.plot()
 
 # %% [markdown]
 # From here on we pretend not to know the structure.
-# The true cell is a = 4.9616, b = 7.9705, c = 5.7394 Å, and the indexer should find it in some order of axes.
+# The indexer should find the CIF's cell, perhaps with its axes in another order.
 #
 # ## Find the peaks
 #
 # `pick_peaks` finds every resolvable peak and fits each one for its position, with an esd.
 # It needs an instrument for the wavelength and a first guess at the peak width.
-# We give it a default copper instrument, as you would for an unknown sample.
+# Give it a default copper instrument, as you would for an unknown sample.
+# Its widths do not match these peaks, so expect the picker to say so.
 
 # %%
 lab = rx.Instrument.bragg_brentano(radiation="CuKa")
@@ -78,11 +87,14 @@ peaks
 # %% [markdown]
 # Each row is one peak: its position, the esd of that position, its area and its width.
 # `flags` records anything the fit noticed.
-# A flagged peak can still be usable, and the count line says how many are.
+# Some flags, such as `duplicate_line` and `fit_failed`, take a row out of indexing.
+# The header line counts the rows left usable.
 #
 # The diagnostics under the table explain the list.
-# `PEAK_WIDTH_LAW_MISMATCH` says the peaks are about five times wider than the default instrument predicts, so the picker scaled its windows to match.
-# `PEAK_KALPHA2_ALIAS` counts candidates it dropped as the Kα2 partner of a stronger line: each reported position is a Kα1 position.
+# `PEAK_WIDTH_LAW_MISMATCH` says the default instrument predicts narrower peaks than these, so the picker scaled its windows to the data.
+# `PEAK_KALPHA2_ALIAS` lists candidates dropped as the Kα2 partner of a stronger line, so each reported position is a Kα1 position.
+# Open a diagnostic to read what its code means.
+# [Diagnostics: peaks and indexing](https://rietx.org/docs/stable/reference/diagnostics-indexing.html) lists every code.
 #
 # ## Measure lines you name
 #
@@ -94,7 +106,9 @@ chosen = rx.fit_peaks(data, lab, [26.22, 27.22, 33.13])
 chosen
 
 # %% [markdown]
-# Rebuilding a whole list from edited positions in code works less well: a real line you leave out still has intensity, and its neighbours absorb it.
+# Each line is marked `manual`, because its position came from you.
+# A line flagged `unnamed_neighbour` shares its fitting window with a line you did not name, and that line's intensity had nowhere to go but into it.
+# A whole peak list rebuilt from edited positions in code meets this at every line it leaves out.
 #
 # ## The same work in the GUI
 #
@@ -117,7 +131,7 @@ chosen
 #
 # `index_pattern` searches for cells that index the usable peaks.
 # A search over every crystal system can take minutes, so we narrow it.
-# We search only orthorhombic cells, with a volume between 200 and 250 Å³ and no axis longer than 8.5 Å.
+# `SearchSpec` limits it to orthorhombic cells, with a volume between 200 and 250 Å³ and no axis longer than 8.5 Å.
 # Those limits come from knowing the answer.
 # With a real unknown, start from the formula and a wide window, and let the search run longer.
 
@@ -130,62 +144,78 @@ indexing
 # The top candidate is the true cell, with its axes in a different order.
 # All three search engines found it.
 #
-# Yet the result abstains: `best_or_none()` returns `None`, and the verdict line says NO CELL.
+# Yet the verdict line says NO CELL.
 # rietx names a single cell only when exactly one candidate reaches high confidence, and this one is low for the reasons in its row.
 #
-# - `predicted_but_absent`: the indexer checks a candidate in the lattice's highest-symmetry space group, which has no systematic absences. Aragonite's real space group, Pmcn, has glide planes that remove some reflections. Those reflections are predicted but absent.
-# - `indexed_fraction_low`: some usable lines are not indexed. A few of them are weak false lines the picker found beside strong peaks.
+# - `predicted_but_absent`: the indexer tests a candidate in the lattice's highest-symmetry space group, and that group has no systematic absences. Aragonite's real space group, Pmcn, has glide planes that remove some reflections. Those reflections are predicted but absent.
+# - `indexed_fraction_low`: some usable lines sit at no reflection of this lattice. Most are weak false lines the picker found near strong peaks. The line near 36° is two reflections 0.05° apart, fitted as one line between them.
 #
-# The candidate's `INDEX_IMPURITY_LINES` warning comes from the indexer's own quick Le Bail fit, whose Rwp in the table is poor.
+# The candidate's `INDEX_IMPURITY_LINES` warning comes from the indexer's own quick Le Bail fit, whose Rwp in the candidate's row is poor.
 # A poor fit leaves many peaks unmatched, so that count is not evidence of a second phase.
 # Our own Le Bail fit below settles it.
+#
+# `best_or_none()` returns a cell only when the gate passes.
+# Here it returns `None`.
 
 # %%
 print(indexing.best_or_none())
-candidate = indexing.candidates[0]
-print(candidate.cell, candidate.confidence_caveats)
 
 # %% [markdown]
+# [`INDEX_ABSTAINED`](https://rietx.org/docs/stable/reference/diagnostics-indexing.html#index-abstained) says what the abstention means.
+# [Indexing](https://rietx.org/docs/stable/theory/indexing.html#figures-of-merit-in-both-directions) explains the figures of merit behind the ranking.
+#
 # ## Check the candidate with Le Bail
 #
 # `structure_from_candidate` turns a candidate into a structure for Le Bail fitting.
-# It uses the lattice's highest-symmetry space group (here P m m m), so the fit tests the lattice and nothing else.
-# As in notebook 01, we start the background at the data's floor and run the plan twice.
+# It uses the lattice's highest-symmetry space group, so the fit tests the lattice and nothing else.
+# We test the first candidate because it is the true cell.
+# With a real unknown, test each candidate whose caveats you cannot rule out.
 
 # %%
+candidate = indexing.candidates[0]
 structure = structure_from_candidate(candidate)
-print(structure.phases[0].space_group)
+structure.phases[0].space_group
 
+# %% [markdown]
+# As in notebook 01, start the background at the data's floor and run the plan twice.
+
+# %%
 instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
 instrument.background = rx.BackgroundChebyshev.with_terms(4)
 instrument.background.coefficients[0].value = float(np.percentile(data.intensity, 5))
+
 ref = rx.Refinement(structure, instrument)
-passes = [ref.fit(data, mode="lebail", plan="profile_only") for _ in range(2)]
-best = min(passes, key=lambda r: r.statistics.rwp)
-print(f"Rwp by pass: {[round(r.statistics.rwp, 4) for r in passes]}")
-for edge in "abc":
-    p = best.parameter(f"phases.0.cell.{edge}")
-    print(f"{edge} = {p.value:.5f} +/- {p.stderr:.5f} Å")
+first = ref.fit(data, mode="lebail", plan="profile_only")
+second = ref.fit(data, mode="lebail", plan="profile_only")
+ref.history
+
+# %% [markdown]
+# The first pass starts from the default instrument's peak widths, so its Rwp falls most at the two width stages.
+# The second pass starts where the first ended.
+#
+# Keep the pass with the lower Rwp, and return the working state to its node.
+
+# %%
+best = min([first, second], key=lambda r: r.statistics.rwp)
+ref.checkout(best.node_id)
+best
+
+# %% [markdown]
+# `FLOOR_HIT` says the profile's Y term, the Lorentzian width that grows as tan θ, refined to its lower limit.
+# The pattern was made with no such term, so here the limit is the right answer.
+#
+# The table under the summary starts with the refined cell edges.
+# They match the CIF's cell, in the candidate's order of axes.
+# Now look at the fit.
 
 # %%
 best.plot()
 
 # %% [markdown]
 # The fit puts a reflection under every peak and leaves only small residuals, so the lattice is right.
-# The refined edges match the true cell, in the candidate's order of axes.
 #
 # Some ticks stand over no peak, such as those near 11° and 15.5°.
-# They are reflections P m m m allows and aragonite's glide planes remove: the indexer's predicted-but-absent reflections.
+# They are reflections P m m m allows and aragonite's glide planes remove.
 #
 # What this does not settle is the space group.
 # That is a question about which reflections are absent, and it comes after the cell is refined.
-#
-# ## Checking an agent's work
-#
-# When an agent reports a cell it indexed, check these.
-# The rules are in the rietx agent skill (`SKILL.md` §6, and `references/diagnostics-indexing.md`).
-#
-# - **Did `best_or_none()` return a cell?** If not, the agent chose one. Ask why, and read the chosen candidate's `confidence_caveats` (rule 19).
-# - **What was searched?** A search narrowed by system, volume or axis length says nothing about the cells outside it. `INDEX_SYSTEMS_NOT_COVERED` and `INDEX_SEARCH_INCOMPLETE` say what was left out.
-# - **Was the cell checked with a whole-pattern fit?** A Le Bail fit of the candidate should leave no peak unexplained.
-# - **Is the space group a separate claim?** A cell from indexing comes with the lattice's highest-symmetry group. The real space group needs its own evidence.

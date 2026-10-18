@@ -198,10 +198,14 @@ def _attach_separability(report: FitReport) -> None:
     is why the field is a caveat rather than a per-phase measurement.
 
     Leaves ``separable`` at ``None`` when there is no width trend to read: no
-    claim made, the ``freeze_cell_windows`` convention.
+    claim made, the ``freeze_cell_windows`` convention.  A trend fitted on
+    fewer than three regions is one with no templates, whose ``separable`` and
+    collinearity are the schema's defaults (True, 0.0), so it is no trend to
+    read either; copied, they told a fit that left no misfit to read
+    "separable" (WP-1545, a synthetic CeO₂ fit at GoF 1.00).
     """
     width = next((t for t in report.trends if t.observable == "width"), None)
-    if width is None:
+    if width is None or not width.templates:
         return
     for block in report.microstructure:
         block.separable = width.separable

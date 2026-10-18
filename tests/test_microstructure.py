@@ -384,13 +384,30 @@ def test_the_report_carries_the_block_and_attaches_the_caveat(size_and_strain_fi
         result.microstructure[0].term("lor_size").value)
 
     width = next((t for t in report.trends if t.observable == "width"), None)
-    if width is None:
+    if width is None or not width.templates:
         assert block.separable is None
         assert block.size_strain_collinearity is None
     else:
         assert block.separable is width.separable
         assert block.size_strain_collinearity == pytest.approx(
             width.max_template_collinearity)
+
+
+def test_a_width_trend_with_no_regions_makes_no_separability_claim():
+    """A trend fitted on fewer than three regions has no templates, and its
+    ``separable`` is the schema's default True.  Copied onto the block, it
+    called a GoF 1.00 synthetic fit "separable" with nothing measured
+    (WP-1545)."""
+    from rietx.report import _attach_separability
+    from rietx.report.schemas import FitReport, TrendAnalysis
+    from rietx.schemas.results import PhaseMicrostructure
+
+    report = FitReport(rwp=0.05, gof=1.0,
+                       trends=[TrendAnalysis(observable="width", n_regions_used=0)],
+                       microstructure=[PhaseMicrostructure(phase_index=0, scherrer_k=0.9)])
+    _attach_separability(report)
+    assert report.microstructure[0].separable is None
+    assert report.microstructure[0].size_strain_collinearity is None
 
 
 def test_the_block_survives_a_json_round_trip(size_and_strain_fit):

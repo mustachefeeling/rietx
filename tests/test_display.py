@@ -96,6 +96,26 @@ def test_a_parameter_row_prints_on_one_line(fap):
     assert str(tied).endswith("tied = 1·phases.0.cell.a")
 
 
+def test_a_refined_parameter_prints_on_one_line_as_a_row_does(fap):
+    from rietx.schemas.results import RefinedParameter
+    a = fap["result"].parameter("phases.0.cell.a")
+    row = next(r for r in fap["ref"].parameters() if r.path == a.path)
+    assert str(a) == str(row), "a result's row and the table's row read alike"
+    tied = RefinedParameter(path="p", value=1.0, stderr=0.1, vary=False, at_bound=True,
+                            equations=["ramp"])
+    assert str(tied) == "p  1.00(10)  tied  at_bound  equations: ramp"
+
+
+def test_a_distance_prints_on_one_line_and_so_does_its_table():
+    from rietx.schemas.results import GeometryDistance, GeometryTable
+    bond = GeometryDistance(phase_index=0, atom_1="P3", atom_2="O7", atom_index_1=2,
+                            atom_index_2=6, distance=1.5331, stderr=0.005, symmetry_2="2_554")
+    assert str(bond) == "P3–O7  1.5331(50) Å  2_554"
+    contact = bond.model_copy(update={"bonded": False, "symmetry_2": ".", "stderr": None})
+    assert str(contact) == "P3–O7  1.5331 Å  contact"
+    assert "    [0] P3–O7  1.5331(50) Å  2_554" in str(GeometryTable(distances=[bond])).splitlines()
+
+
 def test_displaying_a_refinement_runs_nothing(fap, monkeypatch):
     """IPython builds text/plain and text/html for every displayed value, so a
     view that called ``summary()`` would build a report, and a report's layer
@@ -205,6 +225,55 @@ def test_a_peak_list_prints_one_row_per_peak():
     assert len(lines) == 2 + 3 and "26.2200" in lines[3]
     html = peaks._repr_html_()
     assert html.count("<tr>") == 4 and "26.2200" in html
+
+
+def test_a_microstructure_block_prints_one_row_a_term_and_its_verdict():
+    """The generic tree spent five lines on a term and printed a size as an
+    unrounded float (WP-1545's notebook 04).  ``None`` in the tail is printed,
+    since there it is the field's answer."""
+    from rietx.schemas.results import MicrostructureTerm, PhaseMicrostructure
+    block = PhaseMicrostructure(
+        phase_index=0, phase_name="CeO2", wavelength=1.5444274, scherrer_k=0.9,
+        terms=[MicrostructureTerm(path="phases.0.lor_size", kind="size", coefficient=0.27,
+                                  value=298.93723, esd=2.1510486),
+               MicrostructureTerm(path="phases.0.gauss_size", kind="size", coefficient=0.0,
+                                  unavailable="at_zero"),
+               MicrostructureTerm(path="phases.0.lor_strain", kind="strain", coefficient=0.11,
+                                  value=0.00096550893, esd=4.2017779e-05)],
+        size_agreement=7.9111007)
+    lines = str(block).splitlines()
+    assert lines[0] == ("PhaseMicrostructure: CeO2 (phase 0), scherrer_k 0.9, "
+                        "wavelength 1.54443 Å")
+    assert lines[1].split() == ["path", "value", "unavailable"]
+    assert lines[2].split() == ["phases.0.lor_size", "298.9(22)", "Å"]
+    assert lines[3].split() == ["phases.0.gauss_size", "at_zero"]
+    assert lines[4].split() == ["phases.0.lor_strain", "0.000966(42)"]
+    assert lines[5:] == ["  size_agreement: 7.91   strain_agreement: None",
+                         "  separable: None   size_strain_collinearity: None"]
+    html = block._repr_html_()
+    assert html.count("<tr>") == 4 and "298.9(22) Å" in html and "separable: None" in html
+
+
+def test_a_trajectory_prints_one_row_a_point_with_its_esd():
+    """The generic tree printed the values and the esds as two lists, so a
+    reader paired them by counting (WP-1545's notebook 05).  The x column is
+    headed by the series' own label, and a point with no esd prints its value
+    alone.  A moment trajectory keeps its own view, verdicts included."""
+    from rietx.schemas.sequential import MagneticTrajectory, Trajectory
+    traj = Trajectory(path="phases.0.cell.a", x=[300.0, 400.0], x_label="T (K)",
+                      value=[4.15660247525093, 4.15868088118438],
+                      stderr=[4.3e-6, None], labels=["300 K", "400 K"], positions=[0, 1])
+    lines = str(traj).splitlines()
+    assert lines[0] == "Trajectory: phases.0.cell.a, 2 point(s)"
+    assert lines[1].split() == ["label", "T", "(K)", "value"]
+    assert lines[2].split() == ["300", "K", "300", "4.1566025(43)"]
+    assert lines[3].split() == ["400", "K", "400", "4.1586809"]
+    html = traj._repr_html_()
+    assert html.count("<tr>") == 3 and "<th>T (K)</th>" in html and "4.1566025(43)" in html
+    moment = MagneticTrajectory(path="magnetic.Cr1", x=[10.0], value=[2.1], stderr=[0.1],
+                                labels=["10 K"], supported=[True], measured=[True],
+                                status=["converged"])
+    assert str(moment).startswith("MagneticTrajectory") and "<table>" not in moment._repr_html_()
 
 
 def test_a_diagnostic_prints_its_headline_and_folds_the_rest():

@@ -99,7 +99,7 @@
     <div class="codebox"><div class="bar"><span>02_simple_rietveld.py</span></div>
 <pre><span class="k">import</span> rietx <span class="k">as</span> rx
 
-data = rx.read_pattern(<span class="s">"FAP.XRA"</span>)          <span class="c"># GSAS raw format</span>
+data = rx.read_pattern(<span class="s">"FAP.XRA"</span>)  <span class="c"># GSAS raw format</span>
 structure = rx.Structure.from_cif(<span class="s">"fluorapatite.cif"</span>)
 instrument = rx.Instrument.bragg_brentano(radiation=<span class="s">"CuKa"</span>)
 instrument.geometry.axial_sl.value = 0.02  <span class="c"># axial divergence</span>
@@ -109,29 +109,23 @@ instrument.background = rx.BackgroundChebyshev.with_terms(6)
 ref = rx.Refinement(structure, instrument)
 result = ref.fit(data, plan=<span class="s">"mccusker_structural"</span>,
                  two_theta_limits=(15, 130))
-
-<span class="k">print</span>(<span class="s">f"{result.status}  Rwp={result.statistics.rwp:.4f}  "</span>
-      <span class="s">f"GoF={result.statistics.gof:.2f}"</span>)
-<span class="k">for</span> name <span class="k">in</span> (<span class="s">"a"</span>, <span class="s">"c"</span>):
-    p = result.parameter(<span class="s">f"phases.0.cell.{name}"</span>)
-    <span class="k">print</span>(<span class="s">f"  {name} = {p.value:.5f} +/- {p.stderr:.5f} A"</span>)
-<span class="k">for</span> d <span class="k">in</span> result.diagnostics:
-    <span class="k">print</span>(<span class="s">f"  [{d.level}] {d.code}: {d.message}"</span>)</pre></div>
+<span class="k">print</span>(result)</pre></div>
     <div class="codebox"><div class="bar"><span>output</span></div>
-<pre class="out"><span class="g">converged</span>  Rwp=0.0893  GoF=1.60
-  a = 9.37228 +/- 0.00008 A
-  c = 6.88626 +/- 0.00008 A
-  [warning] <span class="w">SITE_SNAPPED_TO_SPECIAL_POSITION</span>: 1 site(s) in
-    phase 'fluorapatite' sit within 0.0001 of a special
-    position of 'P 63/m' without being on it, and were
-    expanded at it: Ca1 (3.3e-11 → multiplicity 4) …
-  [warning] <span class="w">RESOLUTION_UNCONSTRAINED</span>: U, V, W refined on a
-    predominantly Lorentzian pattern (Γ_L exceeds Γ_G at
-    4786 of 5751 fitted points; the Gaussian carries 41%
-    of the width) …
-  [warning] <span class="w">PATTERN_UNDERSAMPLED</span>: 4.6 steps across the FWHM
-    (median over 76 fitted peaks) — below the 5 the
-    guidelines ask for</pre></div>
+<pre class="out">RefinementResult: <span class="g">converged</span> (rietveld)
+  stage scale_bkg: converged (2 evals, ftol=1e-06)
+  …
+  diagnostics: 4 unresolved
+    warning[<span class="w">SITE_SNAPPED_TO_SPECIAL_POSITION</span>]: 1 site(s)
+      in phase 'fluorapatite' lie within 0.0001 of a …
+    warning[<span class="w">FLOOR_HIT</span>]: phases.0.extinction refined to
+      its floor (ρ=+0.064). …
+    warning[<span class="w">RESOLUTION_UNCONSTRAINED</span>]: U, V, W refined
+      on a predominantly Lorentzian pattern …
+    warning[<span class="w">PATTERN_UNDERSAMPLED</span>]: The median fitted
+      peak spans 4.6 steps across its FWHM (76 peaks) …
+  …
+  Rwp 0.0893 / Rexp 0.0559 (GoF 1.60), Rp 0.0696,
+  χ² 2.6, DW 1.03</pre></div>
   </div>
   <figure class="fig">
     <img class="only-light" src="%%IMG:fap-light%%" alt="Observed, calculated and difference curves for the fluorapatite refinement, 15 to 130 degrees two-theta, with the reflection tick row" width="2069" height="1307">

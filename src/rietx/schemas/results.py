@@ -87,6 +87,12 @@ class RefinedParameter(Base):
     at_bound: bool | None = None
     equations: list[str] | None = None
 
+    def __str__(self) -> str:
+        """``path  value(esd)  state`` on one line, so a list of rows reads as
+        a table (WP-1545)."""
+        from .._display import refined_parameter_text
+        return refined_parameter_text(self)
+
 
 class Statistics(Base):
     """Agreement indices, defined per Toby (2006), Powder Diffraction 21, 67.
@@ -659,6 +665,12 @@ class GeometryDistance(Base):
     symmetry_2: str | None = "."
     bonded: bool = True               # covalent-radius criterion (BOND_SLACK_ANG)
 
+    def __str__(self) -> str:
+        """The pair, the distance with its esd, and the image's symmetry code
+        on one line, so a list of bonds reads as a table (WP-1545)."""
+        from .._display import distance_text
+        return distance_text(self)
+
 
 class GeometryAngle(Base):
     """One interatomic angle at ``atom_2``, in degrees (WP-1072).
@@ -837,6 +849,27 @@ class PhaseMicrostructure(Base):
             if t.path.rsplit(".", 1)[-1] == name:
                 return t
         return None
+
+    def __str__(self) -> str:
+        """One row a term, each reading with its esd or its reason, then the
+        agreement and separability fields (WP-1545). The generic tree spent
+        five lines on a term and printed a size as an unrounded float."""
+        from .._display import MICROSTRUCTURE_HEADER, microstructure_sections, table_text
+        head, rows, tail = microstructure_sections(self)
+        body = table_text(MICROSTRUCTURE_HEADER, rows, "  ") if rows else []
+        return "\n".join([head, *body, *("  " + line for line in tail)])
+
+    def _repr_html_(self) -> str:
+        """The terms as a table between the head line and the verdict lines."""
+        from .._display import (
+            MICROSTRUCTURE_HEADER,
+            microstructure_sections,
+            pre_html,
+            table_html,
+        )
+        head, rows, tail = microstructure_sections(self)
+        table = table_html(MICROSTRUCTURE_HEADER, rows) if rows else ""
+        return pre_html(head) + table + pre_html("\n".join(tail))
 
 
 class MomentAngleTest(Base):

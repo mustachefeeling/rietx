@@ -287,6 +287,86 @@ def parameter_cells(row) -> tuple[str, str, str]:
     return row.path, _number(row.value, row.esd), row_state(row)
 
 
+def refined_parameter_text(p) -> str:
+    """A ``RefinedParameter`` on one line, as a ``ParameterRow`` prints:
+    ``path  value(esd)  state``.  The state is ``vary``, or ``tied`` for a row
+    that did not vary, since a result lists only rows that varied or were
+    tied.  ``at_bound`` follows when the bound guard found the row there, and
+    the equations that set it when any did."""
+    cells = [p.path, _number(p.value, p.stderr), "vary" if p.vary else "tied"]
+    if p.at_bound:
+        cells.append("at_bound")
+    if p.equations:
+        cells.append("equations: " + ", ".join(p.equations))
+    return "  ".join(cells)
+
+
+def distance_text(d) -> str:
+    """A ``GeometryDistance`` on one line: ``P3–O5  1.5331(50) Å  2_554``.
+    The symmetry code is the second atom's, left out when it is the identity
+    (``.``) or unknown (``None``); ``contact`` ends a nonbonded row."""
+    cells = [f"{d.atom_1}–{d.atom_2}", _number(d.distance, d.stderr) + " Å"]
+    if d.symmetry_2 not in (".", None):
+        cells.append(d.symmetry_2)
+    if not d.bonded:
+        cells.append("contact")
+    return "  ".join(cells)
+
+
+MICROSTRUCTURE_HEADER = ("path", "value", "unavailable")
+
+
+def microstructure_sections(block) -> tuple[str, list[tuple[str, str, str]], list[str]]:
+    """A ``PhaseMicrostructure`` as a head line, one row a term and two tail
+    lines: :meth:`__str__` lays the rows out as text, ``_repr_html_`` as a table.
+
+    The head carries the phase and the two constants a size was read with, the
+    rows each reading with its esd (Å for a size, Δd/d bare) or the reason it
+    has none, and the tail the agreement ratios and the separability verdict
+    beside them.  Those four print even when ``None``, since ``None`` there is
+    the field's answer: not readable, or not assessed.
+    """
+    def ratio(x):
+        return "None" if x is None else f"{x:.3g}"
+
+    wavelength = "None" if block.wavelength is None else f"{block.wavelength:g} Å"
+    name = f"{block.phase_name} " if block.phase_name else ""
+    head = (f"PhaseMicrostructure: {name}(phase {block.phase_index}), "
+            f"scherrer_k {block.scherrer_k:g}, wavelength {wavelength}")
+    rows = []
+    for t in block.terms:
+        value = "" if t.value is None else _number(t.value, t.esd)
+        if value and t.kind == "size":
+            value += " Å"
+        rows.append((t.path, value, t.unavailable or ""))
+    tail = [f"size_agreement: {ratio(block.size_agreement)}   "
+            f"strain_agreement: {ratio(block.strain_agreement)}",
+            f"separable: {block.separable}   "
+            f"size_strain_collinearity: {ratio(block.size_strain_collinearity)}"]
+    return head, rows, tail
+
+
+def trajectory_sections(traj) -> tuple[str, tuple[str, str, str], list[tuple[str, str, str]]]:
+    """A ``Trajectory`` as a head line, a header and one row a point:
+    ``(label, x, value(esd))``.  The x column is headed by ``x_label``, so
+    a temperature reads as ``T (K)`` and a series without a coordinate as
+    ``index``.  A point with no esd prints its value alone, and one with no
+    label an empty cell, since a trajectory built by hand may carry none.
+    A missing x is an empty cell too, so every value gets its row."""
+    n = len(traj.value)
+    head = f"Trajectory: {traj.path}, {n} point(s)"
+
+    def padded(items, fill):
+        return [*items[:n], *[fill] * (n - len(items))]
+
+    xs = [f"{x:g}" for x in traj.x[:n]]
+    rows = [(label, x, _number(v, esd))
+            for label, x, v, esd in zip(padded(traj.labels, ""), padded(xs, ""),
+                                        traj.value, padded(traj.stderr, None),
+                                        strict=True)]
+    return head, ("label", traj.x_label, "value"), rows
+
+
 def table_text(header: tuple[str, ...], rows: list[tuple[str, ...]], indent: str = "") -> list[str]:
     """Left-aligned columns, two spaces apart, header first."""
     widths = [max(len(c) for c in col) for col in zip(header, *rows)]

@@ -1,18 +1,20 @@
 # rietx tutorials
 
 Executed notebooks that build a working picture of what rietx does with a powder pattern.
-They are written for people who drive rietx through an agent and need to judge its work, and they serve anyone learning the package.
-Each tutorial ends with a list of checks to make on an agent's fit; notebook 06, a template, ends by saving the results.
+They show rietx's moves one step a cell, for readers who already know the Rietveld method.
+Each links the manual for the reasons behind a step.
+Notebook 06 is a template for your own data.
 
 *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 
-Every notebook needs rietx 1.7 or later, and its first code cell installs it with `%pip install rietx`.
+Every notebook needs rietx 1.10 or later, and its first code cell installs it with `%pip install rietx`.
 The data ships inside the package, so no download is needed.
 
 | Notebook | What it teaches | Data and licence | Runtime |
 |---|---|---|---|
 | [`01_quickstart.ipynb`](01_quickstart.ipynb) | Look at a pattern, check a model against it before fitting, fit the cell and peak shapes with Le Bail, read the summary in order, keep the best pass | `FAP.XRA` and `fluorapatite.cif`, fluorapatite from the GSAS-II `LabData` tutorial (Argonne/APS tutorial data, U.S. Government work) | under 30 s |
-| [`02_simple_rietveld.ipynb`](02_simple_rietveld.ipynb) | A staged Rietveld refinement: the plan's stages, the parameter table, two parameters the data cannot separate and holding one, tying three atoms' Biso, bond lengths, the refined structure drawn from two views, the history, a verdict for a declared deliverable | The same two files | under 30 s |
+| [`02_simple_rietveld.ipynb`](02_simple_rietveld.ipynb) | A staged Rietveld refinement: the plan's stages, the parameter table and its `dof` rows, bond lengths, the refined structure drawn from two views, saving a project | The same two files | under 30 s |
+| [`02b_steering_a_refinement.ipynb`](02b_steering_a_refinement.ipynb) | Changing what a fit refines: tying three atoms' Biso, two parameters the data cannot separate, going back in the history and holding one, reading the history, a verdict for a declared deliverable | The same two files | under 30 s |
 | [`03_peaks_indexing_lebail.ipynb`](03_peaks_indexing_lebail.ipynb) | Picking peaks and reading the peak list, measuring lines you name, indexing with a narrowed search, why the indexer abstains, and checking a candidate cell with Le Bail | Synthetic aragonite from COD entry 9000229 (public domain), built in the notebook | under a minute |
 | [`04_peak_shape_and_microstructure.ipynb`](04_peak_shape_and_microstructure.ipynb) | How instrument and specimen widths combine, calibrating an instrument on a standard, saving and loading it, measuring crystallite size and strain against a known truth, and what skipping the calibration does | Synthetic LaB₆ and CeO₂, built in the notebook | under 30 s |
 | [`05_sequential_fits.ipynb`](05_sequential_fits.ipynb) | Fitting a heating ramp pattern by pattern, the warm start and `carry`, a parameter's trajectory against the truth, running the chain both ways, and what the series reports when one frame jumps or cannot be fitted | Synthetic LaB₆, built in the notebook | under 30 s |
@@ -33,6 +35,7 @@ Each notebook is generated from the script of the same name.
 Edit the `.py`, never the `.ipynb`.
 
 1. Write `NN_slug.py` in jupytext's percent format.
+   A letter after the number, as in `02b_slug.py`, files a notebook straight after the one it continues.
    `# %%` opens a code cell.
    `# %% [markdown]` opens a markdown cell, and each of its lines starts `# `.
    Put every import in the first code cell.
