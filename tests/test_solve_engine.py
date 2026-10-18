@@ -160,7 +160,7 @@ def _problem(space, cost, ins, priors=None):
     return tp.SearchProblem(space, sc, cost, clash)
 
 
-def build_acr_problem():
+def build_acr_problem(tt=(4.0, 70.0, 0.02)):
     """(problem, truth u, truth xyz): the fragment's Cu Kα₁,₂ pattern, 4-70° 2θ,
     a 10⁴-count strongest point over a 3 % flat background, one Poisson draw,
     and the cost built at the true profile.  A plain function, so the record
@@ -169,7 +169,7 @@ def build_acr_problem():
     u = _acr_truth(space)
     ins = rx.Instrument.bragg_brentano(radiation="CuKa")
     ins.source.dispersion = None
-    model, v = _simulate(space.search_phase(space.xyz(u)[0]), ins)
+    model, v = _simulate(space.search_phase(space.xyz(u)[0]), ins, tt=tt)
     cost = SolveCost.from_model(model, v)
     return _problem(space, cost, ins), u, space.xyz(u)[0]
 
@@ -216,10 +216,14 @@ def nac():
     return build_nac_problem()
 
 
-def _recovered(problem, run, eq, xt) -> tuple[float, tp.Visit]:
+def _recovered(problem, run, eq, xt) -> tuple[float, float, tp.Visit]:
+    """(RMSD after the polish, RMSD of the tempering's own lowest state before
+    it, the polished state)."""
+    sp = problem.space
     pol = min((tp.polish(problem, v) for v in run.best), key=lambda v: v.j)
-    x = problem.space.xyz(pol.u[None])[0]
-    return cl.align(eq, xt, x, problem.space.species).rmsd, pol
+    raw = min(run.best, key=lambda v: v.j)
+    return (cl.align(eq, xt, sp.xyz(pol.u[None])[0], sp.species).rmsd,
+            cl.align(eq, xt, sp.xyz(raw.u[None])[0], sp.species).rmsd, pol)
 
 
 def _ladder(problem, n=REPLICAS):
@@ -265,24 +269,38 @@ def test_f2_is_the_forward_models(radiation):
 def test_compiled_and_numpy_orbit_sums_agree_within_the_kernels_bound(nac, acr):
     """The engine's two paths, held to the kernels' stated bound: 1e-13 of
     each site's image count (``tests/test_solve_kernels.py``); and the
-    compiled path is the one the engine took while it was on."""
-    for problem in (nac[0], acr[0]):
-        sp, sc = problem.space, problem.scattering
+    compiled path is the one the engine took while it was on.  F d -3 m:2
+    carries quarter translations, where a sign error in h·t shows (in
+    I 2₁ 3 and P 2₁/n every h·t is a multiple of ½, so −h·t ≡ h·t)."""
+    fd3m = rx.Phase(name="fd3m", space_group="F d -3 m:2", cell=rx.Cell.cubic(8.4),
+                    atoms=[rx.Atom(label="X", species="O", x=_p(0.1), y=_p(0.2), z=_p(0.3))],
+                    scale=_p(1.0))
+    classes = site_classes(resolve_group("F d -3 m:2"))
+    quarter = SearchSpace([FreeSite("Mg2+", [c for c in classes if c.dof == 1][0]),
+                           FreeSite("O2-", classes[-1])], fd3m)
+    hkl = np.random.default_rng(1).integers(-7, 8, (120, 3))
+    hkl = hkl[np.abs(hkl).sum(axis=1) > 0]
+    d = d_spacings(hkl, 8.4, 8.4, 8.4, 90.0, 90.0, 90.0)
+    assert np.any((np.abs(quarter.tran * 4 - np.round(quarter.tran * 4)) < 1e-12)
+                  & (np.abs(quarter.tran * 2 - np.round(quarter.tran * 2)) > 0.1))
+    spaces = [(nac[0].space, nac[0].scattering), (acr[0].space, acr[0].scattering),
+              (quarter, Scattering(quarter, hkl, d))]
+    for sp, sc in spaces:
         xyz = sp.xyz(sp.random(np.random.default_rng(7), 4))
         atoms = np.arange(sp.n_atoms)
         before = dict(sc.compiled_used)
         s_c = sc.orbit_sums(xyz, atoms)
-        one_c = sc.orbit_sums_one(xyz, atoms[:4] % sp.n_atoms)
+        one_c = sc.orbit_sums_one(xyz, np.arange(4) % sp.n_atoms)
         assert sc.compiled_used["orbit_sums"] == before["orbit_sums"] + 1
         assert sc.compiled_used["orbit_sums_one"] == before["orbit_sums_one"] + 1
         compiled.set_enabled(False)
         s_n = sc.orbit_sums(xyz, atoms)
-        one_n = sc.orbit_sums_one(xyz, atoms[:4] % sp.n_atoms)
+        one_n = sc.orbit_sums_one(xyz, np.arange(4) % sp.n_atoms)
         assert sc.compiled_used["orbit_sums"] == before["orbit_sums"] + 1
         compiled.set_enabled(None)
         bound = 1e-13 * (sp.img_hi - sp.img_lo)
         assert np.all(np.abs(s_c - s_n).max(axis=2) <= bound[None, :])
-        assert np.all(np.abs(one_c - one_n).max(axis=1) <= bound[atoms[:4] % sp.n_atoms])
+        assert np.all(np.abs(one_c - one_n).max(axis=1) <= bound[np.arange(4) % sp.n_atoms])
 
 
 @pytest.mark.parametrize("on", PATHS)
@@ -573,21 +591,27 @@ def test_polish_never_worsens(acr):
 def test_the_rigid_fragment_is_recovered_from_two_seeds(acr, on):
     """Bar 1: 4 seeds × 6 replicas × :data:`ACR_SWEEPS`; ≥ 2 seeds within
     0.10 Å RMSD; the ranked list's leader is that structure and two seeds
-    found it."""
+    found it.  Also ≥ 2 seeds' own lowest state, **before** the polish, within
+    0.10 Å: measured over 16 seeds, an accept-every-move walk followed by the
+    same polish recovers this rigid 6-DOF case 14 times in 16 and is never
+    within 0.10 Å before it (0.51-1.10 Å), so without this clause the bar
+    could not tell tempering from a random walk."""
     compiled.set_enabled(on)
     problem, _u, xt = acr
     sp = problem.space
     eq = cl.equivalences(sp.group, sp.g)
     lad = _ladder(problem)
-    hits, sols = 0, []
+    hits, raw_hits, sols = 0, 0, []
     for seed in SEEDS:
         run = tp.temper(problem, lad, seed=seed, sweeps=ACR_SWEEPS, wall_seconds=3600.0)
         assert run.stopped is None and run.moves == ACR_SWEEPS * REPLICAS
         assert (run.compiled["orbit_sums"] > 0) == on
-        rmsd, pol = _recovered(problem, run, eq, xt)
+        rmsd, raw, pol = _recovered(problem, run, eq, xt)
         hits += rmsd <= RECOVERY_ANG
+        raw_hits += raw <= RECOVERY_ANG
         sols.append(cl.Solution(sp.xyz(pol.u[None])[0], pol.j, pol.chi2, pol.clash, seed))
     assert hits >= 2
+    assert raw_hits >= 2
     ranked = cl.rank(cl.cluster(sols, eq, sp.species), floor=problem.floor,
                      labels=sp.labels, species=sp.species)
     assert cl.align(eq, xt, ranked[0].xyz, sp.species).rmsd <= RECOVERY_ANG
@@ -598,14 +622,17 @@ def test_the_rigid_fragment_is_recovered_from_two_seeds(acr, on):
 def test_nac_is_recovered_from_its_pawley_intensities(nac):
     """Bar 2: NAC's six sites, on the deposited assignment, from ≥ 2 of 4
     seeds at :data:`NAC_SWEEPS`, within 0.10 Å RMSD of the deposited
-    coordinates after alignment."""
+    coordinates after alignment, after the polish and before it (an
+    accept-every-move walk: 1 of 8 after it, 0 of 8 before)."""
     problem, xt, _ = nac
     eq = cl.equivalences(problem.space.group, problem.space.g)
     lad = _ladder(problem)
-    hits = 0
+    hits = raw_hits = 0
     for seed in SEEDS:
         run = tp.temper(problem, lad, seed=seed, sweeps=NAC_SWEEPS, wall_seconds=3600.0)
         assert run.stopped is None
-        rmsd, _pol = _recovered(problem, run, eq, xt)
+        rmsd, raw, _pol = _recovered(problem, run, eq, xt)
         hits += rmsd <= RECOVERY_ANG
+        raw_hits += raw <= RECOVERY_ANG
     assert hits >= 2
+    assert raw_hits >= 2
