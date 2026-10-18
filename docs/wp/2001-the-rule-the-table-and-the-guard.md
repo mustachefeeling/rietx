@@ -115,8 +115,8 @@ fresh-context `generality-review` agent the handover dispatches on a hit, which 
 DESIGN.md § Rules, 4's test for the kind of change per item, quoting the WP's own evidence
 lines: what does this decide that the caller did not ask for, and which of Rule 1's three
 kinds is its ambiguity; for the first kind, which competent refiner would act otherwise and
-in what situation; for the second, does it rank with evidence and pick nothing, or pick
-only as the record § A pick on top of a ranking allows; for the
+in what situation; for the second, does it rank with evidence and pick only in Rule 1's
+two cases; for the
 third, does it report the number and stop; which tier, with its source; how many unrelated
 families, counted by lab, instrument and material, and the reference each was measured
 against (Rule 2); which record field says it fired. An earlier question, "deleted, what

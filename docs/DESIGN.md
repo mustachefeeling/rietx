@@ -36,7 +36,11 @@ number. A sentence that nobody would use to make a choice does not belong here.
    - *The data can rank it.* The hypotheses are enumerable and the data score them,
      though not always to one winner. The package enumerates, scores each with its
      evidence, and presents the ranking without picking. Indexing, extinction symbols,
-     structure solution, a choice of peak shape.
+     structure solution, a choice of peak shape. It picks in two cases only, and
+     returns the whole ranking with the pick. In the first, the caller asked for a pick
+     by calling a function made for it, such as `best_or_none`, and no default path
+     calls one. In the second, the top candidate leads by a margin every competent
+     refiner would accept, so taking it is an action of the first kind.
    - *The data cannot settle it.* The explanation depends on facts outside the pattern:
      sample history, a temperature ramp, a beam dump. The package reports the
      statistic with its meaning and stops, because only an agent told those facts can
@@ -90,8 +94,8 @@ number. A sentence that nobody would use to make a choice does not belong here.
 
    *A new default or automatic action.* Its kind of ambiguity is stated (Rule 1).
    Kind 1 names a dissenting competent refiner or says none exists, and records that
-   it fired. Kind 2 ranks with evidence and picks nothing. Kind 3 reports the number
-   and stops. An Rwp comparison is never its evidence.
+   it fired. Kind 2 ranks with evidence and picks only in Rule 1's two cases. Kind 3
+   reports the number and stops. An Rwp comparison is never its evidence.
 
    *A new topic.* Its reference is named before the code is written: dataset,
    published number, tolerance. Its equation is in the manual with its source, its
@@ -102,8 +106,8 @@ number. A sentence that nobody would use to make a choice does not belong here.
    out, a raise on failure, documented or deferred with a reason. The signature and
    docstring are enough for a first call to be right.
 
-   *A new skill row.* It names a field, a verb, a code, or a trap with a source outside
-   rietx's own runs. Anything else is cut.
+   *A new skill row.* It names a field, a verb, a code, or a trap or practice with a
+   source outside rietx's own runs. Anything else is cut.
 
 ## Locked decisions
 

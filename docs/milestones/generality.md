@@ -98,8 +98,11 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    has one family on disk or none, and rarity is not overfit. Its action is judged on the
    judgement ground alone; where kept, its threshold stays at the measured value with
    `evidence` naming the one family and the table row tiered `3` with grounds that say so,
-   and the diagnostic's explanation declares the threshold not yet validated (DESIGN.md
-   § Rules, 2). The row is re-tiered when a second and third family arrive. The whole field is in
+   and the diagnostic's explanation names the families its threshold was measured on and
+   says it is untested beyond them. That wording is kept apart from DESIGN.md § Rules,
+   2's *not yet validated*, which means a topic with no published reference; a threshold
+   checked against a certified value on one family is validated there and untested
+   elsewhere (ruled 2026-10-19). The row is re-tiered when a second and third family arrive. The whole field is in
    scope (DESIGN.md § Why this package exists), so rare features will multiply. Chosen at
    the fourth review over demoting by construction, which would strip every rare feature
    of its one unanimous action; the maintainer may reverse it.
@@ -137,7 +140,7 @@ shift/esd every cycle in the same shape). `Diagnostic.level` has no
 direct contact), so demotions land now; a removed or renamed code is staged in the release notes.
 
 **A pick on top of a ranking** is allowed in two cases, and the whole ranking travels with
-the pick in both. The caller called a verb whose job is the pick (`auto_background`,
+the pick in both. DESIGN.md § Rules, 1 states them since 2026-10-19. The caller called a verb whose job is the pick (`auto_background`,
 `IndexingResult.best_or_none`), and no default path calls that verb; the audit checks
 the second half, since a pick verb the default path calls is a default. Or the top of the
 ranking passes the unanimity gate, a first-kind act on a second-kind ranking, and the
@@ -373,7 +376,7 @@ reverse it knowing what it would be giving up.
 - **A gate after 2004, and three families is not a demotion by itself.** The premise is a
   conviction measured by provenance, so the first three audits test it and the maintainer
   re-decides 2005–2007 on their counts. A rare feature with one family keeps its unanimous
-  action with its threshold declared not yet validated (§ The rule). Both from the fourth
+  action, its threshold declared untested beyond its one family (§ The rule). Both from the fourth
   review; the second is the filing session's choice and reversible.
 - **The skill carries vocabulary and sourced traps, nothing prescriptive** (2026-10-18,
   the maintainer). Its role under the north star is to save tokens: an agent that knows
@@ -439,6 +442,16 @@ reverse it knowing what it would be giving up.
 - **One reviewer proposal declined as a plan decision**: that `RESEED_FACTOR`'s Rwp fence
   become opt-in. It may be right, and 2003 measures it on three chain families; deciding
   it at filing would be the overfit this milestone is about, one rank up.
+- **The milestone re-read against DESIGN.md** (2026-10-19, a fresh session after
+  `/clear`). Thirteen changes followed from the rules as written and landed without a
+  ruling (commit ee8a9181 lists them). The maintainer ruled two more. **DESIGN.md states
+  the pick exception**, in Rule 1's second kind and Rule 4's test, so a session reading
+  DESIGN.md alone no longer flags `best_or_none`. Rule 4's skill-row test also admits a
+  sourced practice, as Rule 3 already did. Chosen over leaving the exception in this
+  record alone. **A threshold measured on fewer than three families is declared untested
+  beyond them**, and *not yet validated* stays Rule 2's term for a topic with no
+  reference. Chosen over one phrase for both, which would let a reader take "checked on
+  one dataset" for "no reference exists".
 
 ## The two reviews at the open
 
