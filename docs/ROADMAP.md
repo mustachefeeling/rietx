@@ -414,12 +414,12 @@ Queued 2026-09-30 from issue #562. The map, then the cost, then a search (WP-151
 ### generality — pay for established heuristics, leave the reasoning to the caller
 
 Opened 2026-10-18 from the maintainer's concern that features are fitted to the test
-cases that produced them ([record](milestones/generality.md)); the north star is
-[DESIGN.md](DESIGN.md) § Why this package exists. The record § The rule is the one
-authority: three tiers (physics, practice, rietx's own) per statistic, threshold and
-action; a tier-3 action survives on three dataset families *and* if every competent
-refiner, shown the number, would take it; a named dissenter demotes it to the number and
-a suggestion. 2001 writes the rule, table and guard; 2002–2007 audit one seam each, 2002
+cases that produced them ([record](milestones/generality.md)); it applies [DESIGN.md](DESIGN.md)
+§ Rules 1 and 2 to the tree. The record § The rule is the one authority: three tiers
+(physics, practice, rietx's own) per statistic, threshold and action; a tier-3 action
+survives on three dataset families, each against its reference, *and* if every competent
+refiner, shown the number, would take it; a named dissenter demotes it to a ranking or to
+the number, by Rule 1's kinds. 2001 writes the rule, table and guard; 2002–2007 audit one seam each, 2002
 first, a gate after 2004; 2008 slims the skill to the API and sourced traps; 2009 rewrites the rules that reward a firing code. [The WPs](wp/README.md#generality).
 
 #### The registry and the guard

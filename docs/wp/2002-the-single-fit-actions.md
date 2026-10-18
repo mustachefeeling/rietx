@@ -10,8 +10,10 @@ Priority: P2 2026-10-18 — upstream of 2003 and 2004 (every fit runs these), an
 Every automatic action a single fit takes is in the audit table with a tier: the three
 holds, the release and the collapse restore, the bound test, the phase-significance test,
 the seeds, and the thresholds they rest on. Each tier-3 action either carries its two
-grounds and the maintainer's dated approval, or is demoted to a record field plus a
-suggestion. The clash table names every pair that interact.
+grounds and the maintainer's dated approval, or is demoted by its kind of ambiguity
+(DESIGN.md § Rules, 1): to a ranking with evidence where the data can rank the
+alternatives, otherwise to the number in a record field with its meaning. The clash table
+names every pair that interact.
 
 ## Context
 
@@ -103,12 +105,13 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       the measured interaction (Rwp and the parameter, both orderings).
 - [ ] The batch to the maintainer, in the register of `~/.claude/CLAUDE.md`: per tier-3
       row the two grounds answered (for the judgement ground, the dissenting caller named
-      or declared absent), the case against drafted by the `generality-review` agent, and
-      a recommendation. Rows resting on one evidence base are grouped and ruled as a class
+      or declared absent), the Rule 1 kind it falls to if demoted, the case against
+      drafted by the `generality-review` agent, and a recommendation. Rows resting on one evidence base are grouped and ruled as a class
       (record § Decisions); rulings dated into the table.
-- [ ] Approved demotions: the action removed, its number left in the record field with a
-      `suggestion`, the code's `level` to `info` or the code removed where the threshold
-      was its trigger. Each as its own commit.
+- [ ] Approved demotions: the action removed, and its number left in the record field (or
+      its ranking returned) with its meaning in the package's own output; the code's
+      `level` to `info` or the code removed where the threshold was its trigger. Each as
+      its own commit.
 - [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
       moved away goes back through the two grounds.
@@ -117,9 +120,9 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
 - [ ] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
       comparison can show; add a row where a standard exercises it.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for every refit used as evidence.
-- [ ] Skill: each demoted verdict's meaning moves to the reference row keyed on its code or
-      record field, tagged `(Measured: …)` with the families; the body unchanged unless a
-      rule every fit needs moved. Note it for 2008, which reads the whole skill after.
+- [ ] Skill: none here. A demoted verdict's meaning goes into the package's own output and
+      never into a skill row (DESIGN.md § Rules, 3; the record § Decisions, the skill's
+      role). List each skill row that named a demoted verdict, for 2008.
 
 ## Acceptance
 

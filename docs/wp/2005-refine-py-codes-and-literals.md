@@ -35,9 +35,11 @@ four in `strategy/` are 2002's.
 **Families.** The size-flag thresholds are calibrated on one 1 213-record archive (~line
 9069): many files, one population, one family. Count by lab, instrument and material.
 
-**What the caller reads.** 70 of the tree's codes are not mentioned in the agent skill;
-this WP's share of those is the list of codes an agent meets with no guidance. A code the
-skill does not route and the explanation does not resolve is a candidate for `info`.
+**What the caller reads.** Every code carries an explanation (WP-1985), and under
+DESIGN.md § Rules, 3 that explanation is what teaches the reader, agent or person. 70 of
+the tree's codes are not mentioned in the agent skill, and under the skill's role (the
+record § Decisions) that is no defect. Whether the skill routes a code is no evidence for
+its tier.
 
 ### Inherited
 
@@ -55,7 +57,8 @@ skill does not route and the explanation does not resolve is a candidate for `in
 ## Tasks
 
 - [ ] Inventory: the 61 codes with raise site, `level`, the threshold or condition, the
-      explanation's claim, whether the skill routes it, and how many tests touch it.
+      explanation's claim, the kind of ambiguity its verdict has (DESIGN.md § Rules, 1),
+      and how many tests touch it.
 - [ ] The inline literals: each lifted to a named constant (table row with value) or
       recorded tier 1 with the reason.
 - [ ] Tier each code per part, with evidence and families.
@@ -66,9 +69,9 @@ skill does not route and the explanation does not resolve is a candidate for `in
 - [ ] Goldens re-pinned only if no further from reference (a code change moves no number;
       a lifted literal must not either, pinned by a bit-identity check before and after).
 - [ ] Tests; the fast count moved by exactly the tests added.
-- [ ] Skill: a row for each code that keeps a verdict and had none; the demoted ones'
-      rows re-worded to the number; `diagnostics.md` kept under its cap
-      (`tests/skill_caps.py`).
+- [ ] Skill: none here. A code that keeps a verdict is explained by its
+      `DIAGNOSTIC_HELP` entry (DESIGN.md § Rules, 3). List each skill row that names a
+      demoted code, for 2008 (the record § Decisions, the skill's role).
 
 ## Acceptance
 

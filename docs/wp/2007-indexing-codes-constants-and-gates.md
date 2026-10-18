@@ -26,8 +26,10 @@ that touches an engine, because a ranking regression once sat under 115 green fa
 no `.cell`, only a gated `best_or_none()`; the extinction symbol is what a powder
 measures, and `determine_extinction_symbol` returns ranked classes each carrying a list.
 Memory `agent-first-design-thesis`: gates report evidence, never refuse (fluorite indexed
-at −5 ppm after a refusal). So the questions this WP asks are narrower than the others':
-which of the grading thresholds (the figure of merit bands, the `quick` preset's budgets,
+at −5 ppm after a refusal). DESIGN.md § Rules, 1 names indexing and extinction symbols as
+its examples of the second kind: the package enumerates the hypotheses, scores each with
+its evidence and presents the ranking. So the questions this WP asks are narrower than
+the others': which of the grading thresholds (the figure of merit bands, the `quick` preset's budgets,
 the shortlist's cut) are de Wolff's and Smith–Snyder's, which are the engines' own
 published defaults, and which are rietx's; and whether any gate still *refuses* rather
 than reports.

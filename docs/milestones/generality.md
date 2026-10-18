@@ -10,10 +10,15 @@ Narrative about the WPs below goes to the record of the release in flight,
 
 ## Scope
 
-The design ethos, in the maintainer's words: rietx pays the tab for any well-established
-heuristic and leaves reasoning to agents or humans. The milestone audits every place the
-package decides something on the caller's behalf, sorts each by the rule below, demotes
-what the rule does not keep, and installs a guard so the next WP cannot add one unaudited.
+The milestone applies [DESIGN.md](../DESIGN.md) § Rules 1 and 2 to the tree as it stands.
+Rule 1 sorts what the package decides by its kind of ambiguity: the package acts where the
+data settle the question, ranks where the data can rank the alternatives, and otherwise
+reports the number and stops. Rule 2 asks what reference each number was checked against.
+The milestone audits every place the package decides something on the caller's behalf,
+sorts each by the rule below, moves what the rule does not keep to the kind it belongs to,
+and installs a guard so the next WP cannot add one unaudited. The maintainer's words at the
+open were "rietx pays the tab for any well-established heuristic and leaves reasoning to
+agents or humans"; DESIGN.md § History records how that became the purpose.
 
 Nine WPs, 2001 to 2009. 2001 is the rule written down, the audit table and the guard, and
 it lands first. 2002 to 2007 are audits, one per seam. 2008 slims the agent skill to the
@@ -48,28 +53,38 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    is either **demoted** or **kept on two grounds together**:
    - the mechanical ground: it holds across at least three unrelated dataset families,
      counted by laboratory, instrument and material rather than by file (a 1 213-record
-     archive from one source is one family), with a stated case where it fails; and
+     archive from one source is one family), with a stated case where it fails. *Holds*
+     is measured against each family's independent reference (DESIGN.md § Rules, 2). For
+     a number the reference is a certified or published value or the cross-code envelope,
+     and the action leaves the number no further from it. For a flag it is a known truth
+     (an injected misfit, a weighed impurity), and the flag fires where the fault is and
+     stays silent where it is not; and
    - the judgement ground, answered by the implementing agent and approved by the
      maintainer in a batch: **shown this statistic, would every competent refiner take
-     this action?** An action is kept only where the answer is yes. Where two careful
-     people could respond differently to the same number, the choice is reasoning, and
-     reasoning is the caller's (DESIGN.md § Rules, 1): the package reports the number
-     with its meaning and stops. The implementing agent names a competent caller who
-     would choose otherwise and the situation they are in, or says none exists; the
-     judge tries to name one. Whether the caller could *see* the problem is not the
+     this action?** This is DESIGN.md § Rules, 1's unanimity gate. An action is kept only
+     where the answer is yes. Where two careful people could respond differently to the
+     same number, the action moves to Rule 1's second or third kind. Where the
+     alternatives are enumerable and the data score them, the package ranks them with
+     their evidence and picks none. Where the explanation depends on facts outside the
+     pattern, it reports the number with its meaning and stops. The implementing agent
+     names a competent caller who would choose otherwise and the situation they are in,
+     or says none exists; the judge tries to name one. Whether the caller could *see* the problem is not the
      test, because what rietx returns is rietx's own choice and any action can be
      turned into a report of its statistic (fourth review; the earlier wording rewarded
      an action for lacking a record field). Visibility is instead a requirement on both
-     branches: a kept action leaves a record field, a demoted one leaves its statistic.
+     branches: a kept action leaves a record field, a demoted one leaves its statistic or
+     its ranking.
 
-   The series discontinuity test fails the judgement ground: a jump may be a transition,
-   a sample shift or a wrong model, three careful responses at least, so rietx reports
-   the step size, may *suggest* a symmetry-mode refinement, and enforces no test. The
+   The series discontinuity test fails the judgement ground and is DESIGN.md's example of
+   Rule 1's third kind: a jump may be a transition, a sample shift or a wrong model, and
+   which one depends on facts outside the pattern. So rietx reports the step size, may
+   *suggest* a symmetry-mode refinement, and enforces no test. The
    absent-phase hold passes it: no competent refiner lets a phase the data cannot see
    refine its cell (free, it walked 14.9 Å from truth while Rwp did not move, the v1.3
    row), so only its 3σ threshold is on trial, under the mechanical ground. The
    quarantine of a diverged pattern passes it too, since no one wants a diverged fit
-   seeding its successors; the earlier visibility wording had marked it contested.
+   seeding its successors, and Rule 1 names it as a protection of expensive work; the
+   earlier visibility wording had marked it contested.
 
    **Tier 2 will rarely cover an action.** GSAS-II, FullProf and TOPAS take almost no
    automatic actions; the person at the GUI decides. So nearly every action in 2002 and
@@ -80,16 +95,19 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    has one family on disk or none, and rarity is not overfit. Its action is judged on the
    judgement ground alone; where kept, its threshold stays at the measured value with
    `evidence` naming the one family and the table row tiered `3` with grounds that say so,
-   and the diagnostic's explanation says the threshold is a hypothesis. The row is
-   re-tiered when a second and third family arrive. Chosen at the fourth review over
-   demoting by construction, which would strip every rare feature of its one unanimous
-   action; the maintainer may reverse it.
+   and the diagnostic's explanation declares the threshold provisional (DESIGN.md § Rules,
+   2). The row is re-tiered when a second and third family arrive. The whole field is in
+   scope (DESIGN.md § Why this package exists), so rare features will multiply. Chosen at
+   the fourth review over demoting by construction, which would strip every rare feature
+   of its one unanimous action; the maintainer may reverse it.
 
    **A caller pays in tokens and a fit in seconds**, so the default is the one that
-   reaches a right answer in the fewest calls. The narrow exception the earlier wording
-   carried, for work that is expensive or impossible to redo (an hour-long indexing search,
-   a 200-pattern batch, a write into a project's history), is one instance: there the
-   package may take the conservative action even where opinions differ, and records it.
+   reaches a right answer in the fewest calls (DESIGN.md § Rules, 1). Where a rerun is
+   expensive (an hour-long indexing search, a 200-pattern batch, a write into a project's
+   history), Rule 1 names four protections of work already done: keep the best attempt,
+   seed no successor from a diverged fit, refuse to overwrite history, and record each.
+   An action that is one of the four is judged as that protection. Its threshold and its
+   ranking criterion are still tiered.
 
 **Answer-invariant efficiency** is a fourth class with no tier. `FIRST_RUNG_FACTOR` was
 measured bit-identical on two chains (0 of 1030 and 0 of 392 accepted values moved) with
@@ -98,16 +116,20 @@ the budget, so the invariance is a measured margin, not a construction, and its 
 docstring calls it a bet. Such an item needs an invariance test that also asserts the
 margin, and nothing else; the audit classifies it and moves on.
 
-**Demotion.** A code whose verdict rests on a tier-3 threshold keeps its text and loses the
-action keyed on it; its `level` drops to `info` where the code still fires on a tier-1 or
-tier-2 fact. Where the threshold decides whether the diagnostic exists at all
-(`SEQUENTIAL_DISCONTINUITY` at 5× median and 3σ), there is no verdict to keep: the code is
-removed and the number goes in a record field with its meaning. `Diagnostic.level` has no
+**Demotion** moves an item to the kind of DESIGN.md § Rules, 1 its ambiguity belongs to.
+Where the alternatives are enumerable and the data score them, the result is a ranking with
+each alternative's evidence and no pick. Otherwise it is the number with its meaning, held
+in the package's own output (Rule 3) and never in the skill alone. A code whose verdict
+rests on a tier-3 threshold keeps its text and loses the action keyed on it; its `level`
+drops to `info` where the code still fires on a tier-1 or tier-2 fact. Where the threshold
+decides whether the diagnostic exists at all (`SEQUENTIAL_DISCONTINUITY` at 5× median and
+3σ), there is no verdict to keep: the code is removed and the number goes in a record field
+with its meaning. `Diagnostic.level` has no
 "none" value and gets none. The maintainer's breaking appetite is high (every user is in
 direct contact), so demotions land now; a removed code is staged in the release notes.
 
-**A moved golden.** A demotion that moves a pinned number has moved it for the right reason
-only if the new value is no further from the independent reference (a certified cell, a
+**A moved golden** is DESIGN.md § Rules, 2's last sentence applied. A demotion that moves a
+pinned number has moved it for the right reason only if the new value is no further from the independent reference (a certified cell, a
 weighed composition, the cross-code envelope) than the old. Re-pinning records old, new,
 dataset and reference distance in the WP handover. A number that moved away from its
 reference is evidence the action mattered, and the item goes back through the two grounds.
@@ -182,10 +204,12 @@ sharpens its own row here.
 - **Every verdict and every action has a tier** (2001–2007). The audit table names each
   diagnostic code that carries a verdict, each automatic action and each threshold
   constant with its tier, its evidence and, for tier 3, the two grounds and the approval
-  date. A meta-test holds the table equal to the tree both ways.
+  date. Each code and action row also states the kind of ambiguity DESIGN.md § Rules, 1
+  assigns it. A meta-test holds the table equal to the tree both ways.
 - **No tier-3 action runs by default without its approval** (2002, 2003, 2004). Every
   hold, carry, refit and fence that survives names the families it was evidenced on and
-  the maintainer's dated approval; every other one is demoted or opt-in.
+  the maintainer's dated approval; every other one is demoted to a ranking or a number by
+  its kind, or made opt-in.
 - **A new heuristic cannot land unaudited** (2001). A diff that adds a diagnostic code, a
   record field on `StageResult`/`SeriesEntry`/`RefinementResult`, a module-level numeric
   constant in a directory the table's walk declares, or a `suggestion=` string trips a
@@ -276,10 +300,21 @@ reverse it knowing what it would be giving up.
   let an agent frame an unattended run, and conda-forge is a task), extensibility (a
   feature), MCP from the v2 fence (sandboxed python measured cheaper in tokens than a
   JSON round trip). The founding statement moved to DESIGN.md § History.
+- **The record read against the purpose and rules** (2026-10-18, a fresh session after
+  `/clear`). The changes that follow from DESIGN.md § Rules as written landed without a
+  ruling. The judgement ground is Rule 1's unanimity gate, and a failing action moves to a
+  ranking or a number by its kind rather than always to a number. The expensive-rerun
+  exception is Rule 1's four protections. *Holds* on the mechanical ground is measured
+  against each family's reference (Rule 2), and a one-family threshold is declared
+  provisional. Four audit WPs (2002 to 2005) lost a skill task that sent a demoted
+  verdict's meaning into the skill, which the skill decision below had already reversed.
+  The judge asks Rule 4's questions, and no longer whether a caller could see the action.
+  The questions the rules leave open went to the maintainer the same day; WP-2001's log
+  lists them and their rulings.
 - **A gate after 2004, and three families is not a demotion by itself.** The premise is a
   conviction measured by provenance, so the first three audits test it and the maintainer
   re-decides 2005–2007 on their counts. A rare feature with one family keeps its unanimous
-  action with its threshold marked a hypothesis (§ The rule). Both from the fourth
+  action with its threshold declared provisional (§ The rule). Both from the fourth
   review; the second is the filing session's choice and reversible.
 - **The skill carries vocabulary and sourced traps, nothing prescriptive** (2026-10-18,
   the maintainer). Its role under the north star is to save tokens: an agent that knows

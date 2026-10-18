@@ -24,8 +24,10 @@ Three tiers, each part of a heuristic tiered separately (statistic, threshold, a
 (1) physics or arithmetic, kept; (2) a citation that validated it or the same action taken
 by default in GSAS-II, FullProf or TOPAS, kept and named; (3) rietx's own, demoted unless it
 holds on three unrelated dataset families (by lab, instrument and material) *and* every
-competent refiner, shown the statistic, would take the same action; a named dissenter
-demotes it to the number and a suggestion, approved by the maintainer in a batch. The
+competent refiner, shown the statistic, would take the same action (DESIGN.md § Rules, 1's
+unanimity gate); a named dissenter demotes it to a ranking where the data can rank the
+alternatives and to the number with its meaning otherwise, approved by the maintainer in a
+batch. The
 inheritance rule, the answer-invariant class, the one-family clause and the moved-golden
 rule are the record's; this copy carries no more than that sentence (third review: the
 first copy inverted the polarity; fourth: visibility gave way to judgement).
@@ -92,11 +94,17 @@ visible edit on a file whose name says what it is. The dispatch hangs on **step 
 checklist every branch runs, and not on step 6, which a prose-only branch skips (fourth
 review): a heuristic added as skill prose is already invisible to the tripwire, and on
 step 6 it would have had no judge either. The judge is a
-fresh-context `generality-review` agent the handover dispatches on a hit, which answers per
-item, quoting the WP's own evidence lines: what does this decide that the caller did not ask
-for; deleted, what does a caller see and when could they act; which tier, with its source;
-how many unrelated families, counted by lab, instrument and material; why is it not a record
-field plus a suggestion. The agent drafts the case *against*, beside the author's two-ground
+fresh-context `generality-review` agent the handover dispatches on a hit, which answers
+DESIGN.md § Rules, 4's test for the kind of change per item, quoting the WP's own evidence
+lines: what does this decide that the caller did not ask for, and which of Rule 1's three
+kinds is its ambiguity; for the first kind, which competent refiner would act otherwise and
+in what situation; for the second, does it rank with evidence and pick nothing; for the
+third, does it report the number and stop; which tier, with its source; how many unrelated
+families, counted by lab, instrument and material, and the reference each was measured
+against (Rule 2); which record field says it fired. An earlier question, "deleted, what
+does a caller see and when could they act", was the visibility ground the fourth review
+retired; it survived here until the cascade from the rules removed it. The agent
+drafts the case *against*, beside the author's two-ground
 answer, because a row written by the author alone is self-certification and a batch
 approval tends to rubber-stamp. **What it will miss, stated in the module docstring**:
 inline literals (about 30 in `refine.py`, `< 0.7` at the plate-thickness test, `>= 2.0`
@@ -132,9 +140,11 @@ follow it. The P1 rubric is 2009's.
 - [ ] The table module `src/rietx/_audit.py` (named here, since 2002–2009, the record and
       the handover's dispatch all key on `_audit`):
       a frozen row type with `name`, `kind` (`code` | `action` | `constant`), `tier`
-      (`1` | `2` | `3` | `invariant` | `unaudited`), `evidence` (a citation, a program and
-      what it does by default, or the families), `grounds` (the two-ground answer, tier 3
-      only), `approved` (a date, tier 3 only), `value` (constants only). Every existing
+      (`1` | `2` | `3` | `invariant` | `unaudited`), `ambiguity` (`1` | `2` | `3`, DESIGN.md
+      § Rules, 1's kinds; code and action rows only, where Rule 4 asks for it to be
+      stated), `evidence` (a citation, a program and what it does by default, or the
+      families with their references), `grounds` (the two-ground answer, tier 3 only),
+      `approved` (a date, tier 3 only), `value` (constants only). Every existing
       code from `DIAGNOSTIC_HELP`, every record field named above and every constant the
       AST walk finds over `WALKED`, entered at `unaudited`; `UNAUDITED_BASELINE` the
       sorted list of those names, written once here.
@@ -152,13 +162,14 @@ follow it. The P1 rubric is 2009's.
       `model_fields` over the three schemas) and `suggestion=` strings (an AST walk for the
       keyword).
 - [ ] The `generality-review` agent (`.claude/agents/generality-review.md`): read-only,
-      the five questions above, output a table per item with the case against, written
+      the Rule 4 questions above, output a table per item with the case against, written
       for the maintainer in plain words (root `~/.claude/CLAUDE.md`'s register). The
       handover's step 7 gains the dispatch: on a tripwire hit, or on any diff touching a
       row, run it and paste its table into the handover entry under *Generality*.
 - [ ] `docs/wp/TEMPLATE.md`: one line in the Context guidance, "a rule this WP adds is
       physics, named practice, or new judgement; say which, and for the third name the
-      families it was measured on".
+      families it was measured on and their references; a default or automatic action
+      also names its kind under DESIGN.md § Rules, 1".
 - [ ] Root CLAUDE.md: rewrite the "new correction ships with a record field or a
       diagnostic" invariant to the preference order, one clause pointing at the record;
       a clause under § Conventions naming the table and the tripwire. Count the lines

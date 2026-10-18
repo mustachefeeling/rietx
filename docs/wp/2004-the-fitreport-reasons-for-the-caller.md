@@ -29,6 +29,13 @@ block of constants, some of which (`WIDTH_GROWTH_*` in `sequential.py`) belong t
 seam. ΔBIC's effective sample size N/f² (~lines 255–262) is rietx's own under a cited
 statistic: tier the statistic 2 and the threshold on its own evidence.
 
+**The suggestions are the report's ranking.** DESIGN.md's purpose has the report say what
+was refined, how well, and what to look at next. Rule 1's second kind ranks alternatives
+with their evidence and picks none. The report's suggestions are already a ranking
+(`schemas.py`: "active suggestions, ranked as the report ranked them, capped"). So this WP
+tiers the ranking's order and its caps, and the purpose settles whether the report
+suggests at all.
+
 **The report runs fits.** `layer2.py` (~lines 1098, 1216) and `body_misfit.py` (~line 184)
 run rival fits through `fit(telemetry=False)`, which runs `_run_stage` and its holds. That
 is why this waits on 2002: a gate measured against a rival fit that a hold has since
@@ -42,7 +49,8 @@ not confirm for most constants (about 8 of 127 cite one in their comment block).
 
 **What a demotion looks like here.** A Layer-1 statement that fails a gate today is
 withheld. Demoted, the report states the number and the gate's reading ("validity radius
-0.4·FWHM; this template sits at 0.7") and lets the agent decide. That is the ethos, and it
+0.4·FWHM; this template sits at 0.7"), with what to look at next where the reading names
+it (DESIGN.md § Rules, 3), and lets the caller decide. That is the ethos, and it
 is also what the v1.3 eval found agents use: seven of eight stopped on a stated criterion.
 So a demotion that removes a *stated* criterion is contested by definition and goes through
 `tests/eval_report_agent` before it lands (the record § The rule, last paragraph; the spend
@@ -85,8 +93,9 @@ open under the same track; neither tiers a gate.
 - [ ] Goldens re-pinned only if no further from reference; the FAP report golden and the
       slow NAC golden regenerated once, on the final tree.
 - [ ] Tests + PNGs; the fast count moved by exactly the tests added.
-- [ ] Skill: `references/judging.md` (5 546 words) and `diagnostics-reading.md` rows for
-      every demoted gate re-tagged or re-worded to the number the report now states.
+- [ ] Skill: none here. List each `references/judging.md` (5 546 words) and
+      `diagnostics-reading.md` row that names a demoted gate, for 2008 (DESIGN.md § Rules,
+      3; the record § Decisions, the skill's role).
 
 ## Acceptance
 

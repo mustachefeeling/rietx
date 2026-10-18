@@ -11,8 +11,8 @@ Every action `refine_sequential` and the joint fit take between patterns is in t
 table with a tier: the reseed fence, the rung ladder and quarantine, the kept-attempt
 choice, the width-growth fences, the moment-floor carry. Opt-in tools are classified as
 such and left alone; answer-invariant items get their invariance test. Each surviving
-tier-3 action carries its two grounds and approval; the rest are demoted to a record
-field and a suggestion.
+tier-3 action carries its two grounds and approval; the rest are demoted by their kind of
+ambiguity (DESIGN.md § Rules, 1), to a ranking or to the number in a record field.
 
 ## Context
 
@@ -23,12 +23,14 @@ The rule is `../milestones/generality.md` § The rule. This WP applies it to
 phase transitions etc. We don't need to (and can't) cover all of them. It might be useful
 to suggest a symmetry-mode refinement, but we shouldn't enforce a test by default." The
 discontinuity test (`SEQUENTIAL_DISCONTINUITY`, 5× the median step and 3σ, ~lines
-226–227) fails both grounds: the kinds are open and the jump is visible in the trajectory.
-Since its threshold is its trigger, the code goes and the step size stays in the trajectory
-record. The suggestion the maintainer wants (consider a symmetry-mode refinement at a jump)
-lives in the skill's `references/series.md`, as a reading of the trajectory the caller
-already has; no code replaces it, because a suggestion inside the package needs a trigger
-and the trigger is the same threshold (third review).
+226–227) is DESIGN.md § Rules, 1's own example of the third kind: what a jump means depends
+on facts outside the pattern (a transition, a sample shift, a beam dump), so it fails the
+judgement ground. Since its threshold is its trigger, the code goes and the step size stays
+in the trajectory record. Where the reading of a jump lives (what a jump can be, and that a
+symmetry-mode refinement separates the cases) is open. The third review put it in the
+skill's `references/series.md`, because a suggestion inside the package needs a trigger and
+the trigger is the same threshold. The skill's role (the record § Decisions) and Rule 3
+have since overruled the skill as its home, and WP-2001's log carries the question.
 
 **The inventory**, keyed on `SeriesEntry` (`schemas/sequential.py`) fields `rung`,
 `reseeded`, `rwp_fence` and on the constants:
@@ -42,7 +44,9 @@ and the trigger is the same threshold (third review).
   from colder starts, then `SEQUENTIAL_UNRECOVERED`, seeding no successor. Under the
   judgement ground this is kept unless a competent caller can be named who would let a
   diverged fit seed its successors (fourth review; the record § The rule names it as the
-  case that flipped from contested to kept when visibility gave way to judgement). What
+  case that flipped from contested to kept when visibility gave way to judgement). Rule 1
+  also names it among the protections of expensive work ("seeds no successor from a
+  diverged fit"). What
   is on trial is the *ladder*: its rungs, the order of colder starts and the point at
   which it gives up are choices, so tier them. Measure what the caller sees: does the
   returned `SeriesResult` show which pattern diverged and which were seeded from it? If
@@ -57,7 +61,8 @@ and the trigger is the same threshold (third review).
   invariance test asserts the accepted values *and* the margin (every kept first rung
   under the budget), not a comment.
 - `_better` / `_prefer` (~lines 1952–1959): which attempt is kept, by Rwp, with a truncated
-  attempt ranked below any completed one. The ranking is a decision; tier it.
+  attempt ranked below any completed one. Keeping the best attempt is one of Rule 1's
+  protections; what is on trial is the criterion that names the best, so tier it.
 - `WIDTH_GROWTH_FACTOR = 3.0`, `WIDTH_GROWTH_GOF_FACTOR = 2.0`, `WIDTH_GROWTH_SIGMA = 3.0`
   (~lines 279–303): under `THRESHOLDS_VERSION`, which 2004 owns. Hand 2004 the rulings;
   do not bump the version here.
@@ -106,14 +111,16 @@ the bar.
       orderings where order matters.
 - [ ] The batch to the maintainer; rulings dated into the table.
 - [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` to a trajectory
-      field and a suggestion if the batch agrees; the release notes staged.
+      field, its reading where WP-2001's ruling puts it, if the batch agrees; the release
+      notes staged.
 - [ ] Goldens re-pinned only if no further from reference; the series goldens' reference
       is the cold-fit chain, which is the envelope (two engines' answers bracket, root
       CLAUDE.md § Comparing).
 - [ ] Width-growth rulings handed to 2004 as an `### Inherited` entry there.
 - [ ] Tests + PNGs; the fast count moved by exactly the tests added.
-- [ ] Skill: `references/series.md` (5 308 words) rows for every demoted verdict
-      re-tagged with families or moved to `(Hypothesis: …)`; 2008 reads the rest.
+- [ ] Skill: none here. List each `references/series.md` row (5 308 words) that names a
+      demoted verdict, for 2008 (DESIGN.md § Rules, 3; the record § Decisions, the
+      skill's role).
 
 ## Acceptance
 
