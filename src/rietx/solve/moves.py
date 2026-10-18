@@ -164,6 +164,7 @@ class _Block:
     atoms: np.ndarray             # indices into the atom list
     # fragments only
     template: np.ndarray | None = None      # (n, 3) Å about the centroid
+    torsions: tuple = ()                    # (axis_a, axis_b, moves as an index array)
     r_gyr: float = 0.0
     r_tors: np.ndarray | None = None        # (k,) Å
     # free sites only
@@ -240,6 +241,8 @@ class SearchSpace:
                     classes.append(self.general)
                 block = _Block(unit, lo, lo + n, np.arange(first, first + len(frag)),
                                template=t,
+                               torsions=tuple((int(ia), int(ib), np.asarray(mv, dtype=np.intp))
+                                              for ia, ib, mv in unit.torsions),
                                r_gyr=max(float(np.sqrt(np.mean(np.sum(t * t, axis=1)))), 1e-6),
                                r_tors=np.array(r_tors))
             else:
@@ -293,7 +296,7 @@ class SearchSpace:
                 x = x + p @ c.basis.astype(np.float64)
             return x[:, None, :]
         out = np.empty((len(u), len(b.atoms), 3))
-        tors = b.unit.torsions
+        tors = b.torsions
         for r in range(len(u)):
             pts = b.template if not tors else apply_torsions(b.template, tors, p[r, 6:])
             rot = np.asarray(rotation.matrix_from_vector(p[r, 3:6]), dtype=np.float64)
