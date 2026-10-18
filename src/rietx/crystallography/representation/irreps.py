@@ -79,11 +79,16 @@ co-group P_k with factor system
     ω(g_i, g_j) = exp(−2πi k·a_ij),   a_ij = v_i + R_i v_j − v_l  (R_i R_j = R_l),
 
 where a_ij is a lattice vector — a *centring* vector for a centred group, which
-is why the centrings must be carried and not quotiented away.  On the zone
-boundary of a non-symmorphic group ω is not a coboundary and the irreps are
-genuinely projective (Bradley & Cracknell, 1972, § 3.7 pp. 155–157, where the
-zone-surface non-symmorphic case is the one left after their two homomorphic
-ones; and § 4.4 pp. 184–185).  The projective
+is why the centrings must be carried and not quotiented away.  Inside the
+zone, or for a symmorphic group, ω can be gauged to 1 (Bradley & Cracknell,
+1972, § 3.7 pp. 155–157, their two homomorphic cases).  Those conditions are
+sufficient, not necessary: on the zone boundary of a non-symmorphic group ω
+*may* be projective, and whether it is depends on its cohomology class, not on
+where k sits — F d -3 m's L and Q lie on the zone surface and "look
+symmorphic" (ibid., p. 170), and P 1 2₁/c 1 at (1/2, 0, 0) has ω ≡ 1.  So the
+module computes ω for every k and never infers it from position (the general
+case: § 4.4 pp. 184–185); a one-dimensional ω-representation exists iff ω is
+a coboundary.  The projective
 irreps are extracted by splitting the ω-twisted regular representation of P_k,
 which has dimension |P_k| and contains each irrep d_α times: a random Hermitian
 matrix averaged over the representation lies in its commutant, and each
@@ -103,8 +108,9 @@ is what the oracle tests do, and what a caller should do too.
 
 **What is exact and what is not.**  k, the translations, the centrings and the
 factor-system *exponents* are exact ``Fraction`` arithmetic; ω is exact for the
-quarter-turn phases (every k with components in {0, ±1/2} — the whole
-zone-boundary set where the projective case lives — gives ω = ±1).  The irrep
+quarter-turn phases (every k with components in {0, ±1/2} gives ω = ±1; the
+zone boundary is larger than that set, and a face line such as (u, 0, 1/2)
+gives other phases, which go through ``exp``).  The irrep
 matrices come out of a numerical eigendecomposition and carry
 :data:`IRREP_ATOL`.
 
@@ -677,8 +683,10 @@ def factor_system_exponents(little: LittleGroup) -> np.ndarray:
     Entry (i, j) is (−k·a_ij) mod 1 with a_ij the lattice vector left over by
     R_i·R_j, so ω(i, j) = exp(2πi · exponent).  Kept exact and public because
     "the factor system is trivial" is a claim a test must be able to falsify:
-    an all-zero table is the linear case, and on the zone boundary of a
-    non-symmorphic group it must not be.
+    an all-zero table is the linear case.  On the zone boundary of a
+    non-symmorphic group it may or may not be all zero (P n m a at
+    (0, 0, 1/2) is not; P 1 2₁/c 1 at (1/2, 0, 0) is), and a non-zero table
+    can still be a coboundary (F d -3 m at L).
     """
     _, shifts = little.composition
     n = little.order
@@ -888,8 +896,10 @@ def small_irreps_of(little: LittleGroup, *, factor: np.ndarray | None = None
     ``factor`` overrides the factor system.  It exists so that a test can ask
     for the ORDINARY (linear) representations of the little co-group by passing
     ``numpy.ones((n, n))`` and assert that they differ from the projective ones
-    — on the zone boundary of a non-symmorphic group they must, and a change
-    that "simplified" the factor system away would otherwise pass silently.
+    — wherever ω is not a coboundary they must (P n m a at (0, 0, 1/2) is
+    the test's case; being on the zone boundary of a non-symmorphic group
+    is not enough on its own), and a change that "simplified" the factor
+    system away would otherwise pass silently.
     Nothing but a test should pass it.
     """
     table = little.multiplication_table
@@ -918,10 +928,13 @@ def small_irreps(space_group, k) -> tuple[SmallIrrep, ...]:
 
     ``k`` is in conventional reciprocal fractional coordinates (module
     docstring, convention 1).  The number of irreps and their dimensions obey
-    Σ d² = |G_k / T|; on the zone boundary of a non-symmorphic group the
-    factor system is non-trivial and the dimensions are larger than any
-    ordinary irrep of the same point group — Bertaut's (1968) two-dimensional
-    P n m a irreps at k = (0, 0, 1/2) are the worked case.
+    Σ d² = |G_k / T|.  Where the factor system is not a coboundary, which
+    can happen only on the zone boundary of a non-symmorphic group, there is
+    no one-dimensional irrep — Bertaut's (1968) two-dimensional P n m a
+    irreps at k = (0, 0, 1/2) are the worked case.  Being on that boundary
+    is not sufficient: P 1 2₁/c 1 at (1/2, 0, 0) has four one-dimensional
+    irreps, and F d -3 m at L has 1-d irreps too (Bradley & Cracknell, 1972,
+    p. 170).
     """
     return small_irreps_of(little_group(space_group, k))
 
