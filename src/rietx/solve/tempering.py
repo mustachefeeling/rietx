@@ -201,7 +201,7 @@ class SeedRun:
     final: list[Visit]              # (R,) each rung's state at the end
     seconds: float
     stopped: str | None             # "wall_seconds" when the guard stopped it
-    compiled: dict
+    compiled: dict                  # this seed's calls that took the compiled kernels
     drift: float                    # max |J_running − J_rebuilt| at the end, J units
 
     @property
@@ -228,6 +228,7 @@ def temper(problem: SearchProblem, ladder: Ladder, *, seed: int, sweeps: int,
         raise ValueError("no unit of this search has a free parameter")
     floor, w = problem.floor, clash.weight
     beta = 1.0 / ladder.temperatures
+    used0 = (dict(sc.compiled_used), clash.compiled_used)
     steps = ladder.steps
 
     def rebuild(u):
@@ -330,9 +331,8 @@ def temper(problem: SearchProblem, ladder: Ladder, *, seed: int, sweeps: int,
     return SeedRun(seed=seed, ladder=ladder, sweeps=done, moves=done * n_rep,
                    move_accept=acc / max(done, 1), swap_attempts=sw_try, swap_accepts=sw_ok,
                    best=best, final=final, seconds=time.perf_counter() - t0, stopped=stopped,
-                   compiled={"orbit_sums": sc.compiled_used["orbit_sums"],
-                             "orbit_sums_one": sc.compiled_used["orbit_sums_one"],
-                             "clash": clash.compiled_used}, drift=drift)
+                   compiled={k: sc.compiled_used[k] - used0[0][k] for k in used0[0]}
+                   | {"clash": clash.compiled_used - used0[1]}, drift=drift)
 
 
 # ----------------------------------------------------------------------
