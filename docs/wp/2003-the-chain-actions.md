@@ -72,7 +72,7 @@ moves to the largest steps or is ruled in the batch.
 - `_floor_unsupported_moments` (~line 851, WP-1329): the moment-floor carry across
   patterns. Not in the first plan; the review found it.
 - `direction="both"` and `verify_discontinuities` (~lines 1020–1024): opt-in, the caller
-  asks. Classified, not audited; a row each saying so.
+  asks. Classified, not audited; a row each at tier `caller` (2001).
 - `SEQUENTIAL_PERSISTENT_FINDING` ("42 of 68"): a count across patterns, tier 1 as a
   statistic; whether it carries a verdict is the question.
 - `multi.py`: the joint residual's own holds and its second builder of the extra
@@ -105,9 +105,11 @@ the bar.
 - [ ] Tier each row per part, with evidence. The `RESEED_FACTOR` question measured on
       three chain families with the fence on, off and status-only: patterns reseeded,
       accepted values that differ, and the cost in evaluations.
-- [ ] Quarantine measured the same way: with it off, does the returned `SeriesResult` show
-      the caller which pattern diverged and which were seeded from it? If not, that
-      visibility is the record field to add before anything is demoted.
+- [ ] Quarantine's record: does the returned `SeriesResult` name the pattern that
+      diverged, the rung it reached, and the successors seeded from an earlier pattern
+      instead? Quarantine is one of Rule 1's protections and stays; a protection records
+      each time it acts, so a missing field is added. The ladder's rungs and give-up point
+      are tiered as above.
 - [ ] `FIRST_RUNG_FACTOR`'s invariance test (accepted values bit-identical with the bound
       on and off, on two chain families), replacing the comment's claim.
 - [ ] The clash table: reseed × rung × `_prefer` × width growth × the moment carry, both
@@ -115,9 +117,11 @@ the bar.
 - [ ] The batch to the maintainer; rulings dated into the table.
 - [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` replaced by the
       `info` record of the largest steps, if the batch agrees; the release notes staged.
-- [ ] Goldens re-pinned only if no further from reference; the series goldens' reference
-      is the cold-fit chain, which is the envelope (two engines' answers bracket, root
-      CLAUDE.md § Comparing).
+- [ ] Goldens re-pinned only if no further from reference. A series golden's first
+      reference is the cold-fit chain, rietx's own result on the same data, so it
+      verifies and does not validate (DESIGN.md § Rules, 2). Where a series member has a
+      certified value or a second engine's answer, that reference is measured too and
+      the handover says which each number was held to.
 - [ ] Width-growth rulings handed to 2004 as an `### Inherited` entry there.
 - [ ] Tests + PNGs; the fast count moved by exactly the tests added.
 - [ ] Skill: none here. List each `references/series.md` row (5 308 words) that names a

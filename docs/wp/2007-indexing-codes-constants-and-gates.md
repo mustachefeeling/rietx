@@ -54,8 +54,12 @@ ranking over one population and is the regression gate, not a family.
 - [ ] Inventory: 48 codes and 76 constants with raise site, condition, what it grades or
       gates, and the dataset it was measured on (the dossier names most).
 - [ ] Tier each per part; de Wolff (1968) M₂₀, Smith & Snyder (1979) F_N and each engine's
-      published defaults are tier 2; the `quick` budgets are a cost choice (classify, not
-      tier); the rest on evidence.
+      published defaults are tier 2; the rest on evidence. The `quick` preset is a
+      default, and its budgets (`QUICK_TOTAL_BUDGET_SECONDS`, `DEFAULT_BUDGET_SECONDS`)
+      decide what the shortlist can contain, so they are not answer-invariant: state the
+      preset's kind under DESIGN.md § Rules, 1 and tier the budgets like any constant.
+      Rule 1's token clause is the case for a bounded first search; the case against is a
+      cell the bound leaves off the list.
 - [ ] `best_or_none()`: a first-kind pick on a second-kind ranking (the record § A pick
       on top of a ranking). Confirm no default path calls it, and tier its gate as the
       margin that makes the top candidate unanimous.

@@ -10,11 +10,12 @@ Narrative about the WPs below goes to the record of the release in flight,
 
 ## Scope
 
-The milestone applies [DESIGN.md](../DESIGN.md) § Rules 1 and 2 to the tree as it stands.
+The milestone applies [DESIGN.md](../DESIGN.md) § Rules to the tree as it stands.
 Rule 1 sorts what the package decides by its kind of ambiguity: the package acts where the
 data settle the question, ranks where the data can rank the alternatives, and otherwise
 reports the number and stops. Rule 2 asks what reference each number was checked against.
-The milestone audits every place the package decides something on the caller's behalf,
+Rule 3 governs the skill (2008). Rule 4's design tests are what the guard (2001), the
+feature tripwire (2010) and the rewritten rulebooks (2009) enforce. The milestone audits every place the package decides something on the caller's behalf,
 sorts each by the rule below, moves what the rule does not keep to the kind it belongs to,
 and installs a guard so the next WP cannot add one unaudited. The maintainer's words at the
 open were "rietx pays the tab for any well-established heuristic and leaves reasoning to
@@ -56,8 +57,9 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
      counted by laboratory, instrument and material rather than by file (a 1 213-record
      archive from one source is one family), with a stated case where it fails. *Holds*
      is measured against each family's independent reference (DESIGN.md § Rules, 2). For
-     a number the reference is a certified or published value or the cross-code envelope,
-     and the action leaves the number no further from it. For a flag it is a known truth
+     a number the reference is a certified or published value, which validates, or the
+     cross-code envelope, which only verifies. The row says which, and the action leaves
+     the number no further from it. For a flag it is a known truth
      (an injected misfit, a weighed impurity), and the flag fires where the fault is and
      stays silent where it is not; and
    - the judgement ground, answered by the implementing agent and approved by the
@@ -236,9 +238,10 @@ sharpens its own row here.
   date. Each code and action row also states the kind of ambiguity DESIGN.md § Rules, 1
   assigns it. A meta-test holds the table equal to the tree both ways.
 - **No tier-3 action runs by default without its approval** (2002, 2003, 2004). Every
-  hold, carry, refit and fence that survives names the families it was evidenced on and
-  the maintainer's dated approval; every other one is demoted to a ranking or a number by
-  its kind, or made opt-in.
+  hold, carry, refit and fence that survives names the families it was evidenced on, the
+  record field that says it fired, and the maintainer's dated approval; every other one is
+  demoted to a ranking or a number by its kind, or made opt-in. No default path calls a
+  pick verb (§ A pick on top of a ranking).
 - **A new heuristic cannot land unaudited** (2001). A diff that adds a diagnostic code, a
   record field on `StageResult`/`SeriesEntry`/`RefinementResult`, a module-level numeric
   constant in a directory the table's walk declares, a new or changed default at a seat it
@@ -268,8 +271,8 @@ sharpens its own row here.
 - **An agent given the number reaches the answer the verdict gave** (2004, 2008). For each
   demoted class the harness is run once, registered first and approved per session, and
   the handover reports the rate beside the v1.3 baseline (seven of eight stopped on a
-  stated criterion, none of 86 without one). The milestone promises no rate; it records
-  the gap per model generation, since the north star bets the gap closes.
+  stated criterion, none of 86 without one). The milestone promises no rate. It records
+  the gap per model generation, so a later session can see it move.
 
 ## Decisions with the maintainer, 2026-10-18
 

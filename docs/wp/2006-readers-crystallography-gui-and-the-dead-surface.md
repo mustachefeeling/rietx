@@ -27,10 +27,11 @@ snapped or refused (WP-1028, ≤ 830 ppm in d), and that number is a tier-3 thre
 a tier-1 action.
 
 The GUI's 27 are HTTP error names (`NOT_RUNNING`, `PROJECT_ERROR`), not `Diagnostic`s;
-they are in the 276 literals and not the 256 codes. A row each saying "not a heuristic"
-closes them.
+they are in the 276 literals and not the 256 codes. The table's code rows are held equal
+to `DIAGNOSTIC_HELP`'s keys (2001), so these get no row; the handover lists them as not
+heuristics.
 
-**The dead surface** is the API half of the north star (DESIGN.md § Why this package
+**The dead surface** is the API half of DESIGN.md's purpose (§ Why this package
 exists: the API follows current Python practice), not the heuristics half this milestone
 mostly audits; it rides here
 because the walk is cheap and the seam is the same session's. 3 of 193 top-level exports are used by nothing in `src`, `examples`

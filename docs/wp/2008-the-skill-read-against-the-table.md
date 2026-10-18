@@ -11,7 +11,8 @@ The skill does two things and nothing else: it makes an agent know the API and t
 feedback surface accurately, so the first call is right and no token goes on
 rediscovering a field; and it names the traps and exceptions, each with a source outside
 rietx's own runs, that a strong agent would not bring to mind unprompted. Every row
-measured on rietx's test data is cut or moved into the package's own output; every row
+measured on rietx's test data is cut, and what the package should act on enters the audit
+table to be judged there; every row
 that restates a verdict becomes the number; the total falls by a large fraction and the
 caps are re-landed at the new sizes. Contested cuts are measured on `tests/eval_skill`
 before they land.
@@ -34,8 +35,8 @@ re-syncs the two committed copies. `tests/test_docs_consistency.py` fails a diag
 code without a row; `test_skill.py` a verb the index omits; `test_skill_cli.py` a copy out
 of sync.
 
-**The skill's role, from the north star** (DESIGN.md § Rules, 3, fourth
-review, the maintainer's words). It exists to save tokens: an agent that knows the API and
+**The skill's role** (DESIGN.md § Rules, 3; the fourth review, the maintainer's
+words). It exists to save tokens: an agent that knows the API and
 the feedback surface accurately makes the right first call and reads the result without
 guessing. It is not prescriptive. A row that says what to *conclude* from a number is
 frozen reasoning, ages with every model generation, and costs tokens on every call; it is
@@ -53,10 +54,14 @@ aim is that none needs one for rietx beyond its traps.
 **Four kinds of row.** Each row is sorted as one of: (a) API or feedback vocabulary, what a
 call takes and what a field means, kept; (b) a sourced trap, exception or piece of
 established practice, kept with its source named; (c) a heuristic measured on rietx's
-own data, cut, or moved into a `Diagnostic.suggestion` or `help.py` entry where the
-package can carry it; (d) a verdict restated, rewritten to the number the package states.
+own data, cut; (d) a verdict restated, rewritten to the number the package states.
 A `(Measured: …)` tag marks a row as kind (c) by default; it survives only by acquiring a
-source or by the harness showing agents need it. The generated `api-<shape>.md` files are
+source. A kind (c) row the package should act on is a new heuristic in the package: it
+enters the audit table as a `suggestion` and faces both grounds there, and never lands
+as a rule in `help.py` prose (DESIGN.md § Rules, 3 cuts such a rule wherever it is
+written). Where the harness shows agents need what a cut row said, the package carries
+it by that route or by a pointer to the manual, and the row still goes (the record
+§ Decisions: a slower task is repaired by a pointer from the package, never by a row). The generated `api-<shape>.md` files are
 kind (a) by construction and are not read by hand.
 
 **Three conditions, from the maintainer's acceptance of the fourth review's reading.**
@@ -87,10 +92,11 @@ measurement above and by the token count per call, and the maintainer rules on t
 shape in the batch.
 
 **The tripwire does not reach prose.** 2001's guard walks `src/`; a heuristic written as a
-skill row is invisible to it (2001's docstring says so). This WP's answer is a test over
-the tags: every `(Measured: …)` tag names at least one family token from a list the test
-holds, and a new row without a tag fails. That is weaker than the code guard and is said to
-be.
+skill row is invisible to it (2001's docstring says so). This WP's answer is the source
+test in the tasks below (DESIGN.md § Rules, 4's test for a new skill row): a row outside
+the generated API files that states a threshold, a verdict or a rule names a source
+outside rietx's runs, or fails. A `(Measured: …)` tag is not a source. The test reads
+tokens and cannot judge meaning, so it is weaker than the code guard, and is said to be.
 
 **Measured before cut.** `tests/eval_skill` (WP-1905) asks whether a body change keeps
 outcomes; a round is registered before it runs and its cells are a spend the maintainer
@@ -121,9 +127,9 @@ and goes through the harness.
 - [ ] Inventory: every row of `SKILL.md` and the 19 references sorted into the four kinds,
       with, for (b), the source; for (c), the table row it rests on and the audit's
       ruling; for (d), the number the package states. Word count per file and per kind.
-- [ ] Kind (c) cut or moved into the package's output (a `suggestion`, a `help.py`
-      entry), kind (d) rewritten to the number, each file as its own commit so the
-      handover can quote the cut per file.
+- [ ] Kind (c) cut, and where the package should act on it, entered in the audit table
+      as a `suggestion` with its two grounds; kind (d) rewritten to the number; each file
+      as its own commit so the handover can quote the cut per file.
 - [ ] Kind (b) rows: each carries its source in the row; a trap with no source is kind
       (c). The source test (in `test_skill.py`): a row outside the generated API files that
       states a threshold, a verdict or a rule names a source token (a citation, a program
@@ -134,7 +140,9 @@ and goes through the harness.
 - [ ] The contested list to the maintainer with a costed `eval_skill` round (rows the
       session believes agents still need, whatever their kind), and the structure
       question with the token count per call under each shape; run what is approved;
-      land what survives.
+      land each cut with the pointer or package-side route its round showed it needs.
+- [ ] Root CLAUDE.md § Invariants names the source test in one clause, since DESIGN.md
+      § Rules, 4 places the mechanisms that enforce its tests there.
 - [ ] The body re-measured against its 5 000-token budget and the caps in
       `tests/skill_caps.py` re-landed at the new sizes with their diary lines, so growth
       back toward today's size fails; `rietx skill --install . --copy` and the copies' test.

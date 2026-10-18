@@ -57,6 +57,14 @@ vocabulary: every `PARAMETER_HELP` family and every correction field in
 `INSTRUMENT_FIELD_HELP` belongs to exactly one feature, and a test holds that partition
 both ways. The partition is what makes a new feature fail until it has a row.
 
+Rule 2 speaks of a *topic*, and some topics are outputs with no parameter family of their
+own: quantitative phase analysis (the round-robin claims, the matrix's `spread` tier and
+its strongest validation), indexing and extinction symbols (the bethanechol and known-cell
+suites), the derived geometry with its esds, and the microstructure readings. A partition
+over the help vocabulary alone leaves these with no row, and a new output topic could land
+without a state. So the feature list also covers them, keyed on whatever names them for a
+caller (a Theory section, a `capabilities()` arm, the verb); the first task argues the key.
+
 ### Inherited
 
 (none at filing)
@@ -81,6 +89,9 @@ both ways. The partition is what makes a new feature fail until it has a row.
 - [ ] The meta-test: the feature list partitions the help vocabulary both ways; every
       claim a feature names exists; every not-yet-validated feature carries the
       declaration at its seat; `docs/VALIDATION.md` regenerated with the feature table.
+- [ ] Root CLAUDE.md § Invariants: the clause "Every physics function cites its
+      reference" names the meta-test, since DESIGN.md § Rules, 4 places the mechanisms
+      that enforce its tests there.
 - [ ] The magnetic note in 1327's `### Inherited` updated with the label's wording.
 - [ ] Follow-ups filed for features whose published reference is known and unused.
 - [ ] Tests; the fast count moved by exactly the tests added.

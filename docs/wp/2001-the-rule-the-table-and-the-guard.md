@@ -115,7 +115,8 @@ fresh-context `generality-review` agent the handover dispatches on a hit, which 
 DESIGN.md § Rules, 4's test for the kind of change per item, quoting the WP's own evidence
 lines: what does this decide that the caller did not ask for, and which of Rule 1's three
 kinds is its ambiguity; for the first kind, which competent refiner would act otherwise and
-in what situation; for the second, does it rank with evidence and pick nothing; for the
+in what situation; for the second, does it rank with evidence and pick nothing, or pick
+only as the record § A pick on top of a ranking allows; for the
 third, does it report the number and stop; which tier, with its source; how many unrelated
 families, counted by lab, instrument and material, and the reference each was measured
 against (Rule 2); which record field says it fired. An earlier question, "deleted, what
@@ -162,7 +163,9 @@ from acting where Rule 1's first kind says act.
       the handover's dispatch all key on `_audit`):
       a frozen row type with `name`, `kind` (`code` | `action` | `constant` | `default`),
       `tier`
-      (`1` | `2` | `3` | `invariant` | `unaudited`), `ambiguity` (`1` | `2` | `3`, DESIGN.md
+      (`1` | `2` | `3` | `invariant` | `caller` | `unaudited`; `caller` is an action only
+      the caller turns on, an opt-in flag or a pick verb no default path calls, since
+      DESIGN.md § Rules, 1 governs what the package decides alone), `ambiguity` (`1` | `2` | `3`, DESIGN.md
       § Rules, 1's kinds; code and action rows only, where Rule 4 asks for it to be
       stated), `evidence` (a citation, a program and what it does by default, or the
       families with their references), `grounds` (the two-ground answer, tier 3 only),
@@ -195,11 +198,15 @@ from acting where Rule 1's first kind says act.
 - [ ] `docs/wp/TEMPLATE.md`: one line in the Context guidance, "a rule this WP adds is
       physics, named practice, or new judgement; say which, and for the third name the
       families it was measured on and their references; a default or automatic action
-      also names its kind under DESIGN.md § Rules, 1".
+      also names its kind under DESIGN.md § Rules, 1; a new topic names its reference
+      (dataset, published number, tolerance) before any code is written, or says none
+      exists and that it ships not yet validated" (Rule 4's test for a new topic, whose
+      only other seat is 2010's check at landing).
 - [ ] Root CLAUDE.md: rewrite the "new correction ships with a record field or a
       diagnostic" invariant to Rule 1's three outcomes, one clause pointing at DESIGN.md
       § Rules;
-      a clause under § Conventions naming the table and the tripwire. Count the lines
+      a clause under § Invariants naming the table and the tripwire, since DESIGN.md
+      § Rules, 4 places the mechanisms that enforce its tests there. Count the lines
       against the cap (`tests/test_docs_consistency.py`) and bump with a diary line if
       needed.
 - [ ] `claude-config/workflow/LESSONS.md`: the lesson "a heuristic enters with its tier or

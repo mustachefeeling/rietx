@@ -50,7 +50,7 @@ not confirm for most constants (about 8 of 127 cite one in their comment block).
 **What a demotion looks like here.** A Layer-1 statement that fails a gate today is
 withheld. Demoted, the report states the number and the gate's reading ("validity radius
 0.4·FWHM; this template sits at 0.7"), with what to look at next where the reading names
-it (DESIGN.md § Rules, 3), and lets the caller decide. That is the ethos, and it
+it (DESIGN.md § Rules, 3), and lets the caller decide. That is Rule 1's third kind, and it
 is also what the v1.3 eval found agents use: seven of eight stopped on a stated criterion.
 So a demotion that removes a *stated* criterion is contested by definition and goes through
 `tests/eval_report_agent` before it lands (the record § The rule, last paragraph; the spend

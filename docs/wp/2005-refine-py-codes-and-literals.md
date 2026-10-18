@@ -9,8 +9,9 @@ Priority: P3 2026-10-18 — codes, not actions; a verdict here is a flag the cal
 
 Each of the 61 diagnostic codes raised in `src/rietx/refine.py` is in the audit table with
 a tier, and each inline literal that gates one (about 30) is either a named constant in the
-table or recorded as tier 1. Tier-3 verdicts are demoted to `info` or removed where the
-threshold was the trigger.
+table or recorded as tier 1. A tier-3 verdict that fails either ground is demoted: its
+`level` drops to `info`, or, where the threshold was its trigger, the code becomes an
+`info` record with no threshold (the record § Demotion).
 
 ## Context
 
