@@ -729,8 +729,15 @@ def _line_in_raw_data(two_theta: np.ndarray, y_obs: np.ndarray,
     outliers (an unpredicted weak line) at :data:`LOCAL_BASELINE_CLIP_SIGMA`,
     then integrate data − baseline over the absence test's own
     ±:data:`~rietx.indexing.workflow.ABSENT_WINDOW_FWHM` window against the same
-    propagated σ.  A line is ``z ≥ k_sigma`` with the excess centred within
-    FWHM/4 of the position; off-centre, it is a neighbour's flank.
+    propagated σ.  **Only a net consistent with zero, ``|z| < k_sigma``, is
+    "no line".**  ``z ≥ k_sigma`` centred within FWHM/4 of the position is a
+    line; off-centre it is something near the position that is not this
+    reflection, and ``z ≤ −k_sigma`` is a baseline the data sit below — both
+    are "can't tell", so the refutation stands.  An off-centre excess can be
+    the forbidden reflection itself, moved by a cell or zero error the
+    position does not carry: measured on benchmark patterns with the cell
+    held (#726), an "off-centre is no line" rule withdrew a correct refutation
+    that rested on a strong line.
 
     **The exclusions are the class's predicted reflections, never the picked
     peaks.**  A peak list is a fit too: on a synthetic Si pattern with a
@@ -770,11 +777,15 @@ def _line_in_raw_data(two_theta: np.ndarray, y_obs: np.ndarray,
     if not np.any(core):
         return None, None
     z = float(excess[core].sum()) / float(np.sqrt((ss[core] ** 2).sum()))
+    if abs(z) < k_sigma:
+        return False, z                 # the counts there are the baseline's
+    if z <= -k_sigma:
+        return None, z                  # data below it: the baseline is not one
     near = np.abs(xs) <= max(w, 3.0 * step)
     pos_excess = np.clip(excess[near], 0.0, None)
-    centre = (float((pos_excess * xs[near]).sum() / pos_excess.sum())
-              if pos_excess.sum() > 0 else 0.0)
-    return bool(z >= k_sigma and abs(centre) <= 0.25 * w), z
+    centre = float((pos_excess * xs[near]).sum() / pos_excess.sum())
+    # an excess off the position is something, but not this reflection
+    return (True if abs(centre) <= 0.25 * w else None), z
 
 
 # ----------------------------------------------------------------------
