@@ -106,6 +106,21 @@ and is not proposed here. No code is ported.
 
 ### Inherited
 
+- **2026-10-18, from WP-1986 (writing the indexing guide): the shipped
+  fluorapatite pattern is a public case of this WP's failure.** `FAP.XRA`,
+  Cu Kα lab, true group P 6₃/m. `pick_peaks` over 15-60°, then
+  `index_pattern` with `SearchSpec(systems=("hexagonal", "trigonal"),
+  max_volume=800)` (11 s) puts the true cell first at a 9.3807, c 6.8936 Å,
+  c 0.12 % above the refined 6.8852. `determine_extinction_symbol(data,
+  candidate, lab)` on that cell: P - - - first, `P 63 - -` refuted at ΔBIC
+  +37.6. With `refine_cell=True` at the default range the cell refines to
+  a 9.3252, c 6.8599 (−0.5 %) and `P 63 - -` sits at +122.8, not refuted.
+  With `refine_cell=True, two_theta_limits=(15, 130)` the cell lands at
+  9.37024 / 6.88524 and `P 63 - -` is best by ΔBIC −37.4 yet refuted on
+  (0 0 7) at 103.04°. With `two_theta_limits=(15, 60)` and no refinement,
+  `P 63 - -` ranks first at −2.1. Not re-run on PR #939's branch. The
+  Guides tab's indexing page (WP-1986 item 18) waits on this.
+
 - **Decided 2026-10-16 (maintainer, from the issue triage, #726): the
   local-baseline refutation check is welcome as a PR after #939 merges.** Its
   fixture is public (PbSO4, `tests/data/gsas2_pbso4.gpx`), never the
