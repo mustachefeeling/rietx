@@ -16,8 +16,8 @@ package decides something on the caller's behalf, sorts each by the rule below, 
 what the rule does not keep, and installs a guard so the next WP cannot add one unaudited.
 
 Nine WPs, 2001 to 2009. 2001 is the rule written down, the audit table and the guard, and
-it lands first. 2002 to 2007 are audits, one per seam. 2008 is the agent skill read against
-the table. 2009 rewrites the rulebook rules that generated the overfit. Each WP file states
+it lands first. 2002 to 2007 are audits, one per seam. 2008 slims the agent skill to the
+API, the feedback surface and sourced traps. 2009 rewrites the rulebook rules that generated the overfit. Each WP file states
 its own context; nothing is restated here except the rule, which every WP applies.
 
 **Not in scope.** No new physics, no new correction, no new plan preset. A heuristic the
@@ -196,9 +196,10 @@ sharpens its own row here.
 - **The goldens hold or improve** (every audit). The acceptance suites pass on the final
   tree; every re-pinned number is recorded with its reference distance, none further
   from its reference than before.
-- **The skill encodes no untagged tier-3 rule** (2008). Every `(Measured: …)` row names
-  its families or is demoted to `(Hypothesis: …)`; no row states a verdict the package no
-  longer makes.
+- **The skill is the API, the feedback surface and sourced traps** (2008). Every row
+  outside the generated API files is vocabulary, or a trap naming a source outside
+  rietx's runs; no row states a verdict the package no longer makes or a rule measured
+  on rietx's own data; the total falls and the caps re-land at the new sizes.
 - **The rulebooks prefer a record field to a code to an action** (2009), and the rule that
   rewards a firing code is rewritten.
 - **A held-out family moved no number away from its reference** (every audit, checked at
@@ -263,6 +264,15 @@ reverse it knowing what it would be giving up.
   re-decides 2005–2007 on their counts. A rare feature with one family keeps its unanimous
   action with its threshold marked a hypothesis (§ The rule). Both from the fourth
   review; the second is the filing session's choice and reversible.
+- **The skill carries vocabulary and sourced traps, nothing prescriptive** (2026-10-18,
+  the maintainer). Its role under the north star is to save tokens: an agent that knows
+  the API and the feedback surface makes the right first call. A rule measured on rietx's
+  test data is the overfit written as prose and leaves; a trap stays only with a source
+  outside rietx's runs (the literature, a reference code's documented behaviour) and only
+  where a strong agent would not bring it to mind. Chosen over the second review's
+  position that a demoted verdict's meaning moves into the skill, which would have made
+  the skill the new home of the heuristics the audits remove. The maintainer expects the
+  skill to shrink toward its traps as the manual improves; no agent needs a GitHub skill.
 - **Rulings by class where the evidence is shared.** Roughly 500 rows enter the table and
   a hundred or more will be tier 3; the maintainer's own calibration says a brief over
   150 words bounces. So a batch groups rows that rest on one evidence base (the size-flag
@@ -372,9 +382,13 @@ stated the position now in DESIGN.md § North star. What moved:
 - **A gate after 2004**, since the premise is a conviction; **rare features keep a
   unanimous action on one family**; **rulings by class**; **tier 2 will rarely cover an
   action**, stated so the audits expect it.
-- **2008 cuts heuristic rows first**: under the north star the skill's durable content is
-  the vocabulary of the API and its outputs, and a heuristic row is frozen reasoning that
-  costs tokens on every call.
+- **2008 is recast around the skill's role**, stated by the maintainer and now in the north
+  star: the skill exists to save tokens by making the API and the feedback surface known
+  accurately, is not prescriptive, and beyond that names only traps with a source outside
+  rietx's runs that a strong agent would not bring to mind. Rows measured on rietx's own
+  data are cut or moved into the package's output; the total falls, reversing the second
+  review's "the total may not fall"; the skill shrinks further as the manual improves and
+  reaches the corpora models train on.
 - **2006's dead-surface walk is named as the API half**, not the heuristics half, so its
   "mostly tier 1" audit is not read as carrying two deliverables by accident.
 - Ten mechanical defects from the code review, each in the WP it touched: two acceptance

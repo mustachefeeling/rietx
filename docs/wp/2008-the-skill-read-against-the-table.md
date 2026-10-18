@@ -1,4 +1,4 @@
-# WP-2008 — The agent skill read against the audit table
+# WP-2008 — The skill slimmed to the API, the feedback surface and sourced traps
 
 Milestone: generality · Status: ⬜
 Track: The prose
@@ -7,10 +7,14 @@ Priority: P3 2026-10-18 — down a rung from P2: nothing here can start until th
 
 ## Goal
 
-Every rule in `docs/skill/rietx/` that encodes a rietx-own heuristic is tagged with the
-families it was measured on or demoted to `(Hypothesis: …)`; no row states a verdict the
-package no longer makes; the body stays within its 5 000-token budget and each reference
-within its cap. Contested cuts are measured on `tests/eval_skill` before they land.
+The skill does two things and nothing else: it makes an agent know the API and the
+feedback surface accurately, so the first call is right and no token goes on
+rediscovering a field; and it names the traps and exceptions, each with a source outside
+rietx's own runs, that a strong agent would not bring to mind unprompted. Every row
+measured on rietx's test data is cut or moved into the package's own output; every row
+that restates a verdict becomes the number; the total falls by a large fraction and the
+caps are re-landed at the new sizes. Contested cuts are measured on `tests/eval_skill`
+before they land.
 
 ## Context
 
@@ -30,18 +34,27 @@ re-syncs the two committed copies. `tests/test_docs_consistency.py` fails a diag
 code without a row; `test_skill.py` a verb the index omits; `test_skill_cli.py` a copy out
 of sync.
 
-**Heuristic rows go first.** Under the north star (DESIGN.md § Why this package exists) the
-skill's durable content is the vocabulary of the API and its outputs: what a call takes,
-what a field means. A row that says what to *conclude* from a number is frozen reasoning,
-ages with every model generation, and costs tokens on every call. So the pass cuts or
-demotes those before it tidies anything else, and a row kept is kept because the harness
-or the table says the agent needs it (fourth review).
+**The skill's role, from the north star** (DESIGN.md § Why this package exists, fourth
+review, the maintainer's words). It exists to save tokens: an agent that knows the API and
+the feedback surface accurately makes the right first call and reads the result without
+guessing. It is not prescriptive. A row that says what to *conclude* from a number is
+frozen reasoning, ages with every model generation, and costs tokens on every call; it is
+the overfit this milestone is about, written as prose. What earns a place beyond the
+vocabulary is a trap or an exception a strong agent would not bring to mind, with a source
+outside rietx's runs: a convention two codes swap (GSAS and FullProf's X/Y labels), a
+documented reader behaviour (GSAS-II concatenates multi-range scans), a published
+collinearity (Williamson–Hall over a narrow 2θ range), a guideline (McCusker 1999 on
+observations and reflections). The skill shrinks as the manual improves, and shrinks
+further as the manual reaches the corpora models train on; no agent needs a skill for
+GitHub, and the aim is that none needs one for rietx beyond its traps.
 
-**The tags are the entry points.** A `(Measured: …)` tag naming one dataset is a tier-3
-row with one family. The audit: for each tagged row, which table row (code, action,
-constant) does it rest on, what did the audit rule, and how many families does the tag
-name? A row resting on a demoted action is rewritten to the number the package now
-states. A row with one family is re-tagged `(Hypothesis: …)` or measured out to three.
+**Four kinds of row.** Each row is sorted as one of: (a) API or feedback vocabulary, what a
+call takes and what a field means, kept; (b) a sourced trap, kept with its source named;
+(c) a heuristic measured on rietx's own data, cut, or moved into a `Diagnostic.suggestion`
+or `help.py` entry where the package can carry it; (d) a verdict restated, rewritten to the
+number the package states. A `(Measured: …)` tag marks a row as kind (c) by default; it
+survives only by acquiring a source or by the harness showing agents need it. The
+generated `api-<shape>.md` files are kind (a) by construction and are not read by hand.
 
 **The tripwire does not reach prose.** 2001's guard walks `src/`; a heuristic written as a
 skill row is invisible to it (2001's docstring says so). This WP's answer is a test over
@@ -61,26 +74,34 @@ and goes through the harness.
 
 ## Non-goals
 
-- Rewriting the skill's voice or structure (1330, 1338 and 1985 settled those).
+- Rewriting the skill's voice or the shape-reference structure (1330, 1338 and 1985
+  settled those); a reference file may empty and be removed, its routing row with it.
 - The manual (`docs/manual/`, `docs/docs/`): 1986 is moving it; a chapter that quotes a
-  demoted verdict is that WP's or a follow-up's.
+  demoted verdict is that WP's or a follow-up's. The manual is where a cut row's
+  *explanation* lands if it is worth keeping for a human, never back into the skill.
 - Adding a row for a new feature.
 
 ## Tasks
 
-- [ ] Inventory: every tagged row, the table row it rests on, the audit's ruling, the
-      families the tag names; every untagged row that states a threshold or a verdict.
-- [ ] The tag test (`tests/test_skill_tags.py` or in `test_skill.py`): each
-      `(Measured: …)` names a family token; a threshold or verdict row without a tag fails.
-- [ ] Rows resting on demoted actions rewritten to the number; rows with one family
-      re-tagged or measured out; rows with none cut.
-- [ ] The contested list to the maintainer with a costed `eval_skill` round; run what is
-      approved; land what survives.
-- [ ] The body re-measured against its 5 000-token budget; each reference against its cap;
-      `rietx skill --install . --copy` and the copies' test.
+- [ ] Inventory: every row of `SKILL.md` and the 19 references sorted into the four kinds,
+      with, for (b), the source; for (c), the table row it rests on and the audit's
+      ruling; for (d), the number the package states. Word count per file and per kind.
+- [ ] Kind (c) cut or moved into the package's output (a `suggestion`, a `help.py`
+      entry), kind (d) rewritten to the number, each file as its own commit so the
+      handover can quote the cut per file.
+- [ ] Kind (b) rows: each carries its source in the row; a trap with no source is kind
+      (c). The source test (in `test_skill.py`): a row outside the generated API files that
+      states a threshold, a verdict or a rule names a source token (a citation, a program
+      name with the documented behaviour) or fails.
+- [ ] The contested list to the maintainer with a costed `eval_skill` round (rows the
+      session believes agents still need, whatever their kind); run what is approved;
+      land what survives.
+- [ ] The body re-measured against its 5 000-token budget and the caps in
+      `tests/skill_caps.py` re-landed at the new sizes with their diary lines, so growth
+      back toward today's size fails; `rietx skill --install . --copy` and the copies' test.
 - [ ] Tests; the fast count moved by exactly the tests added.
 - [ ] Skill: this WP *is* the skill; the handover quotes the word count before and after
-      per file and the number of rows cut, re-tagged and rewritten.
+      per file, the rows per kind, and the sources the kept traps cite.
 
 ## Acceptance
 
@@ -89,8 +110,10 @@ and goes through the harness.
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 
-The record's row "the skill encodes no untagged tier-3 rule" is checked by the tag test on
-the final tree.
+The record's row "the skill is the API, the feedback surface and sourced traps" is checked
+by the source test on the final tree, and the handover quotes the total before and after:
+the second review dropped "the total falls" as a bar, and the fourth review, from the north
+star, puts it back, because the skill's role is now narrower than interpreting verdicts.
 
 ## References
 
@@ -101,4 +124,7 @@ the final tree.
 - **2026-10-18** — created, from the milestone's opening session. The acceptance row the
   first plan had here, "the skill's reference total falls", was dropped on the second
   review: a demoted verdict's meaning has to be interpreted somewhere, usually the skill,
-  so the total may not fall and the right bar is the tag.
+  so the total may not fall and the right bar is the tag. The fourth review reversed
+  that on the maintainer's statement of the skill's role (DESIGN.md § North star): the
+  interpretation is the caller's, the skill carries vocabulary and sourced traps, and the
+  total falls. The title changed from "read against the audit table" to match.

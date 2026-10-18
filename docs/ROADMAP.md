@@ -420,7 +420,7 @@ authority: three tiers (physics, practice, rietx's own) per statistic, threshold
 action; a tier-3 action survives on three dataset families *and* if every competent
 refiner, shown the number, would take it; a named dissenter demotes it to the number and
 a suggestion. 2001 writes the rule, table and guard; 2002–2007 audit one seam each, 2002
-first, a gate after 2004; 2008 reads the skill against the table; 2009 rewrites the rules that reward a firing code. [The WPs](wp/README.md#generality).
+first, a gate after 2004; 2008 slims the skill to the API and sourced traps; 2009 rewrites the rules that reward a firing code. [The WPs](wp/README.md#generality).
 
 #### The registry and the guard
 
@@ -432,7 +432,7 @@ One seam each, the same task shape: lanes read and tier, the lead tables, the ma
 
 #### The prose
 
-2008 the agent skill read against the table; 2009 the rulebooks, findings out and the generator rules rewritten. [The WPs](wp/README.md#generality-the-prose).
+2008 the skill slimmed to the API, the feedback surface and sourced traps; 2009 the rulebooks, findings out and the generator rules rewritten. [The WPs](wp/README.md#generality-the-prose).
 
 ### Unscheduled
 

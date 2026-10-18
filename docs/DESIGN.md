@@ -43,16 +43,29 @@ Every action leaves a record that it happened. Every withheld verdict leaves
 its statistic. The caller can always see what the package saw, whichever way
 the line fell.
 
-A fit costs seconds and a caller's reasoning costs tokens, so the default is
-the one that reaches a right answer in the fewest calls, which is not the one
-that decides the most. A default that forces ten reruns to learn what one
-unanimous action would have shown is worse for the caller than the action.
+A fit costs seconds and a caller's reasoning costs tokens. The right default
+is the one that reaches a correct answer in the fewest calls. Deciding more
+is not how to get there: a default that forces ten reruns to learn what one
+unanimous action would have shown costs the caller more than the action.
+
+The agent skill follows the same line. Its job is to make sure an agent knows
+the API and the feedback surface accurately, so the first call is the right
+one and no token is spent rediscovering a field. It is not prescriptive. What
+it may add beyond the vocabulary is a trap or an exception with a source
+outside rietx's own runs (the literature, a reference code's documented
+behaviour) that a strong agent would not bring to mind unprompted. A rule
+measured on rietx's test data is the overfit this record is about, written as
+prose, and does not belong there. The skill shrinks as the manual improves,
+and as the manual reaches the corpora models are trained on it shrinks
+further; no agent needs a skill for GitHub, and the aim is for none to need
+one for rietx beyond its traps.
 
 The milestone that applies this to the existing tree is
 [generality](milestones/generality.md); its § The rule is the operational
 form, and the skill and the rulebooks follow it. The design test for any new
 output is whether a caller can decide from it without a rerun; for any new
-default, whether a dissenting competent caller can be named.
+default, whether a dissenting competent caller can be named; for any skill
+row, whether it names a field or a sourced trap.
 
 *Amendment to the paragraph above (2026-10-18).* The gap named there is the
 engine's. The north star says what the engine is for: the API-first,
