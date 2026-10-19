@@ -9,6 +9,10 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 - [How to check a pattern before fitting](check.md) reads `rietx.diagnose` and draws the reflection ticks.
 - [How to limit the fit range or leave out a region](range.md) sets `two_theta_limits` and `PatternData.excluded_regions`.
 
+## Instrument
+
+- [How to calibrate an instrument on a standard and reuse it](calibrate.md) saves the widths a standard measured and loads them for each sample.
+
 ## Background and extra peaks
 
 - [How to use a measured blank as the background](blank.md) holds an empty-container scan under the pattern with `BackgroundFixedPlusChebyshev`.
@@ -51,6 +55,7 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 
 check
 range
+calibrate
 blank
 hump
 holder
