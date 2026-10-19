@@ -177,7 +177,7 @@ from acting where Rule 1's first kind says act.
       existing code from `DIAGNOSTIC_HELP`, every record field named above, every constant
       the AST walk finds over `WALKED` and every default at `DEFAULT_SEATS`, entered at
       `unaudited`; `UNAUDITED_BASELINE` the
-      sorted list of those names, written once here. (2026-10-19: 1 125 rows, 256 codes,
+      sorted list of those names, written once here. (2026-10-19: 1 124 rows, 256 codes,
       19 actions, 546 constants, 107 defaults, 196 suggestion keys; the other 65 record
       fields in `OTHER_RECORD_FIELDS`. A fifth kind, `suggestion`, holds the `suggestion=`
       sites per code, since no other kind could. The generality judge's first run widened
@@ -262,7 +262,7 @@ seen to fail is a guard that may go quiet (`tests/CLAUDE.md` § Guards that go q
 
 ### 2026-10-19 (3rd session) — the table, the guard and the judge landed
 
-rietx now keeps a table of every rule it uses to decide on a caller's behalf: 1 125
+rietx now keeps a table of every rule it uses to decide on a caller's behalf: 1 124
 entries covering each diagnostic code, the result fields that report an automatic action,
 the threshold numbers in the directories that decide, the defaults of the main calls, and
 the advice it prints. Every entry starts unaudited, for the audit WPs to sort into
