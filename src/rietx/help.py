@@ -2750,8 +2750,12 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "widths more than three times the list's own, the cell does not describe the "
             "pattern and nothing was picked; the message says so. A candidate here is a "
             "second phase only if it earns a grade of its own. A residue too short to "
-            "search abstains, which is the answer on a single-phase pattern. Refine both "
-            "phases together before you quote either cell."
+            "search abstains, which is the answer on a single-phase pattern (SRM 660c and "
+            "synthetic Si left no usable residue line). Refine both phases together "
+            "before you quote either cell. The misfit cut, one height of subtracted "
+            "profile (`RESIDUE_MISFIT_RATIO`), was measured on synthetic Si + MgO only, "
+            "untested beyond it; a second phase's line under a stronger first-phase line "
+            "is dropped with the misfit."
         ),
     ),
     "INDEX_MULTIPLE_SOLUTIONS": HelpEntry(
