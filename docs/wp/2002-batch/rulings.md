@@ -69,6 +69,33 @@ codes), B8's cell window (tier 2?) and size floor (a warning instead?), B7 (does
 session agree with the geometry take?), B2 (is the turn common enough to keep; is the
 stationary-angle test a demotion?). Not yet answered: B6, B13, B15, and the B14 confirmation.
 
+## Rulings received, third round (2026-10-19)
+
+Answers to § Third round below.
+
+- **B5**: "usually this is often not a big deal, as the other codes evidently show. We
+  should fix anything obviously wrong, warn during ingestion, and give the option to
+  correct. Don't spend too much effort on this." So option 4's classifier is not built.
+  The obviously wrong part is today's floor, which hands a σ ≤ 0 channel about a million
+  times its neighbours' weight. The ruling as the lead reads it: a σ ≤ 0 channel takes no
+  weight by default (GSAS-II's fxye rule), the reader warns with the count and the lines,
+  and a reader option keeps such channels at σ of one count instead. Built in WP-1952,
+  forwarded there.
+- **B1**: on by default. The threshold and an off switch become a caller's option
+  (`phase_support_sigma`, a plan field, `None` for off).
+- **B2**: keep the turn (tier 3, approved). Demote the stationary-angle test: the angle
+  keeps its esd, and the test's Δχ² goes into a record field with
+  `MOMENT_ANGLE_STATIONARY` an info record.
+- **B7**: agreed, with the two additions; in WP-2013.
+- **B8**: agreed. The cell window is tier 2 (TOPAS, Tech Ref § 2.17). The 2 nm size floor
+  is removed; the range backstop stays; `SIZE_UNUSUALLY_SMALL`'s message gains the
+  Bragg-model caveat.
+- **B9**: the reading is correct for March r. Its 0.15 floor goes, `MARCH_R_MIN` stays.
+- **B6**: yes. **B13**: yes. **B15**: yes.
+- **B14**: asked to explain again. Re-explained in the session (the table's scanner sees
+  module-level numbers, listed seats and record fields; option 3 lifts what a retune could
+  turn into a different answer); awaiting the answer.
+
 ## Still open (first round's list, kept for the record)
 
 1. B4: keep f, and report the textbook esd beside it?
