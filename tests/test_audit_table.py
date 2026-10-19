@@ -43,9 +43,10 @@ def test_row_names_are_unique():
 def test_every_row_is_well_formed():
     for row in _audit.ROWS:
         assert row.kind in _audit.KINDS, row
-        assert row.tier in _audit.TIERS, row
+        # True == 1, so membership alone would admit a bool as tier 1
+        assert row.tier in _audit.TIERS and not isinstance(row.tier, bool), row
         if row.ambiguity is not None:
-            assert row.ambiguity in (1, 2, 3), row
+            assert row.ambiguity in (1, 2, 3) and not isinstance(row.ambiguity, bool), row
             assert row.kind in ("code", "action", "suggestion"), (
                 f"{row.name}: ambiguity is stated on code, action and suggestion rows")
         if row.kind in ("code", "action"):

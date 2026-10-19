@@ -177,8 +177,8 @@ from acting where Rule 1's first kind says act.
       existing code from `DIAGNOSTIC_HELP`, every record field named above, every constant
       the AST walk finds over `WALKED` and every default at `DEFAULT_SEATS`, entered at
       `unaudited`; `UNAUDITED_BASELINE` the
-      sorted list of those names, written once here. (2026-10-19: 876 rows, 256 codes, 11
-      actions, 389 constants, 24 defaults, 196 suggestion keys; the other 61 record fields
+      sorted list of those names, written once here. (2026-10-19: 886 rows, 256 codes, 11
+      actions, 399 constants, 24 defaults, 196 suggestion keys; the other 61 record fields
       in `OTHER_RECORD_FIELDS`. A fifth kind, `suggestion`, holds the `suggestion=` sites
       per code, since no other kind could. `WALKED` names `io/readers.py` and
       `io/formats/base.py` as the repair code, adds `schemas/plan.py` for

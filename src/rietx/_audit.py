@@ -49,7 +49,9 @@ default outside :data:`DEFAULT_SEATS`: the walk over all of ``src/rietx``
 found 619 constants, the surplus being byte offsets in file readers, pixel
 sizes in the 3D viewer and schema defaults (third review).  **What the guard
 cannot see**: an inline literal (about 30 in ``refine.py``, such as
-``< 0.7`` at the plate-thickness test); an ordering or a fallback chain; an
+``< 0.7`` at the plate-thickness test); a number inside a dict, list or array
+(``indexing.engines.SEARCH_PRESETS``' 120 s quick budget,
+``report.texture._R_GRID``); an ordering or a fallback chain; an
 always-on correction with no switch, threshold or new field (the
 Bérar-Lelann esd inflation was one); and a heuristic written as skill prose
 (WP-2008).
@@ -82,7 +84,8 @@ _VALUED = ("constant", "default", "suggestion")
 class Row:
     """One heuristic.  ``grounds`` and ``approved`` are required on a tier-3
     row and on a tier-2 action row; ``ambiguity`` is DESIGN.md § Rules, 1's
-    kind, stated on code and action rows."""
+    kind, required on an audited code or action row and allowed on a
+    suggestion row."""
 
     name: str
     kind: Kind
@@ -137,12 +140,19 @@ RECORD_SCHEMAS: tuple[str, ...] = (
 
 
 def resolve(path: str) -> object:
-    """The object a dotted ``module.attr.attr`` path names."""
+    """The object a dotted ``module.attr.attr`` path names.
+
+    Only a miss on the candidate module itself falls back to a shorter one; a
+    dependency missing inside a real module raises as itself."""
     parts = path.split(".")
     for i in range(len(parts), 0, -1):
+        candidate = ".".join(parts[:i])
         try:
-            obj = importlib.import_module(".".join(parts[:i]))
-        except ModuleNotFoundError:
+            obj = importlib.import_module(candidate)
+        except ModuleNotFoundError as exc:
+            if exc.name is None or not (candidate == exc.name
+                                        or candidate.startswith(exc.name + ".")):
+                raise
             continue
         for attr in parts[i:]:
             obj = getattr(obj, attr)
@@ -164,6 +174,9 @@ def normal(value: object) -> object:
         return float(value)
     if isinstance(value, (tuple, list)):
         return tuple(normal(v) for v in value)
+    if callable(value) and hasattr(value, "__qualname__"):
+        # repr carries a memory address, which no two processes share
+        return f"{getattr(value, '__module__', '?')}.{value.__qualname__}"
     return repr(value)
 
 
@@ -191,20 +204,29 @@ def _walked_files() -> list[pathlib.Path]:
     return files
 
 
+def _assigned(node: ast.stmt) -> list[str]:
+    """The names a module-level statement binds: ``A = B = 1`` and
+    ``LO, HI = 0.4, 10.0`` bind two each."""
+    if isinstance(node, ast.Assign):
+        targets = node.targets
+    elif isinstance(node, ast.AnnAssign) and node.value is not None:
+        targets = [node.target]
+    else:
+        return []
+    names = []
+    for target in targets:
+        elts = target.elts if isinstance(target, ast.Tuple) else [target]
+        names += [t.id for t in elts if isinstance(t, ast.Name)]
+    return names
+
+
 def constants() -> dict[str, object]:
     """Every module-level number, or tuple of numbers, under :data:`WALKED`."""
     out = {}
     for path in _walked_files():
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        names = []
-        for node in tree.body:
-            if (isinstance(node, ast.Assign) and len(node.targets) == 1
-                    and isinstance(node.targets[0], ast.Name)):
-                names.append(node.targets[0].id)
-            elif (isinstance(node, ast.AnnAssign) and node.value is not None
-                    and isinstance(node.target, ast.Name)):
-                names.append(node.target.id)
-        names = [n for n in names if not n.startswith("__")]
+        names = [n for node in tree.body for n in _assigned(node)
+                 if not n.startswith("__")]
         if not names:
             continue
         module = importlib.import_module(_module_name(path))
@@ -290,18 +312,6 @@ def codes() -> list[str]:
     from .help import DIAGNOSTIC_HELP
 
     return sorted(DIAGNOSTIC_HELP)
-
-
-def inventory() -> dict[str, tuple[str, object]]:
-    """What the tree holds that needs a row: name -> (kind, live value).
-
-    Record fields are not here, being rows only where they report an action
-    (:data:`OTHER_RECORD_FIELDS` holds the rest)."""
-    out: dict[str, tuple[str, object]] = {c: ("code", None) for c in codes()}
-    for kind, found in (("constant", constants()), ("default", defaults()),
-                        ("suggestion", suggestions())):
-        out.update((name, (kind, value)) for name, value in found.items())
-    return out
 
 
 def _literal(value: object) -> str:
@@ -659,7 +669,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.sequential.SeriesEntry.rung", "action"),
     Row("rietx.schemas.sequential.SeriesEntry.reseeded", "action"),
     Row("rietx.schemas.sequential.SeriesEntry.rwp_fence", "action"),
-    # constant: 389
+    # constant: 399
     Row("rietx.background.auto.AIR_SCATTER_TRIGGER", "constant", value=0.3),
     Row("rietx.background.auto.AUTO_BACKGROUND_SEED_PERCENTILE", "constant", value=10.0),
     Row("rietx.background.auto.HUMP_TRIGGER", "constant", value=0.05),
@@ -864,9 +874,15 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.reduce._SELLING_STEPS", "constant", value=1000),
     Row("rietx.indexing.reduce._SETTING_STEPS", "constant", value=200),
     Row("rietx.indexing.reduce._SETTING_TIE", "constant", value=1e-12),
+    Row("rietx.indexing.svd.ANGLE_HI", "constant", value=130.0),
+    Row("rietx.indexing.svd.ANGLE_LO", "constant", value=90.0),
     Row("rietx.indexing.svd.IMPURITY_CUT_DEG", "constant", value=0.05),
+    Row("rietx.indexing.svd.KAPPA_PROBES", "constant", value=24),
+    Row("rietx.indexing.svd.KAPPA_VOLUME", "constant", value=500.0),
     Row("rietx.indexing.svd.MAX_BOX_INDEX", "constant", value=40),
     Row("rietx.indexing.svd.MAX_ITERATIONS", "constant", value=20),
+    Row("rietx.indexing.svd.NC_NO_HI", "constant", value=4.0),
+    Row("rietx.indexing.svd.NC_NO_LO", "constant", value=0.3333333333333333),
     Row("rietx.indexing.svd.TRIM_RETRY", "constant", value=1),
     Row("rietx.indexing.svd.VOLUME_LADDER_RATIO", "constant", value=1.1),
     Row("rietx.indexing.svd.WEIGHT_EXPONENT", "constant", value=4.0),
@@ -900,10 +916,12 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.identifiability.SOFT_MODE_MIN_LOADING", "constant", value=0.1),
     Row("rietx.optimize.identifiability.TOP_CORRELATIONS_K", "constant", value=5),
     Row("rietx.optimize.least_squares.FD_STEP", "constant", value=1e-06),
+    Row("rietx.optimize.least_squares.GTOL", "constant", value=1e-12),
     Row("rietx.optimize.least_squares.NFEV_PER_ITERATION", "constant", value=4),
     Row("rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL", "constant", value=0.95),
     Row("rietx.optimize.least_squares.STATIONARY_ANGLE_MAX_ITER", "constant", value=8),
     Row("rietx.optimize.least_squares.STATIONARY_ANGLE_STEP", "constant", value=0.0001),
+    Row("rietx.optimize.least_squares.XTOL", "constant", value=1e-12),
     Row("rietx.optimize.lm.BVLS_MAX_COLUMNS", "constant", value=128),
     Row("rietx.optimize.lm._CONVERGED_RUNS", "constant", value=3),
     Row("rietx.optimize.lm._CURVATURE_GATE", "constant", value=100.0),
@@ -912,6 +930,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.lm._INNER_MAX", "constant", value=18),
     Row("rietx.optimize.lm._LAMBDA_FAIL_FACTOR", "constant", value=10.0),
     Row("rietx.optimize.lm._LAMBDA_FAIL_FLOOR", "constant", value=0.1),
+    Row("rietx.optimize.lm._M_HI", "constant", value=10.0),
+    Row("rietx.optimize.lm._M_LO", "constant", value=0.4),
     Row("rietx.optimize.lm._NULL_CURVATURE", "constant", value=1.4901161193847656e-08),
     Row("rietx.optimize.lm._ON_FACE", "constant", value=1e-09),
     Row("rietx.optimize.lm._POLISH_FEASIBLE", "constant", value=1e-10),
@@ -1931,9 +1951,15 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.indexing.reduce._SELLING_STEPS",
     "rietx.indexing.reduce._SETTING_STEPS",
     "rietx.indexing.reduce._SETTING_TIE",
+    "rietx.indexing.svd.ANGLE_HI",
+    "rietx.indexing.svd.ANGLE_LO",
     "rietx.indexing.svd.IMPURITY_CUT_DEG",
+    "rietx.indexing.svd.KAPPA_PROBES",
+    "rietx.indexing.svd.KAPPA_VOLUME",
     "rietx.indexing.svd.MAX_BOX_INDEX",
     "rietx.indexing.svd.MAX_ITERATIONS",
+    "rietx.indexing.svd.NC_NO_HI",
+    "rietx.indexing.svd.NC_NO_LO",
     "rietx.indexing.svd.TRIM_RETRY",
     "rietx.indexing.svd.VOLUME_LADDER_RATIO",
     "rietx.indexing.svd.WEIGHT_EXPONENT",
@@ -1970,10 +1996,12 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.optimize.identifiability.SOFT_MODE_MIN_LOADING",
     "rietx.optimize.identifiability.TOP_CORRELATIONS_K",
     "rietx.optimize.least_squares.FD_STEP",
+    "rietx.optimize.least_squares.GTOL",
     "rietx.optimize.least_squares.NFEV_PER_ITERATION",
     "rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL",
     "rietx.optimize.least_squares.STATIONARY_ANGLE_MAX_ITER",
     "rietx.optimize.least_squares.STATIONARY_ANGLE_STEP",
+    "rietx.optimize.least_squares.XTOL",
     "rietx.optimize.lm.BVLS_MAX_COLUMNS",
     "rietx.optimize.lm._CONVERGED_RUNS",
     "rietx.optimize.lm._CURVATURE_GATE",
@@ -1982,6 +2010,8 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.optimize.lm._INNER_MAX",
     "rietx.optimize.lm._LAMBDA_FAIL_FACTOR",
     "rietx.optimize.lm._LAMBDA_FAIL_FLOOR",
+    "rietx.optimize.lm._M_HI",
+    "rietx.optimize.lm._M_LO",
     "rietx.optimize.lm._NULL_CURVATURE",
     "rietx.optimize.lm._ON_FACE",
     "rietx.optimize.lm._POLISH_FEASIBLE",

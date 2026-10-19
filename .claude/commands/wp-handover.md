@@ -174,7 +174,8 @@ re-reading its own diff.
    the table cannot see, which its module docstring lists: an inline literal,
    an ordering or fallback chain, an always-on correction, a rule in the skill.
    The second trigger is why this sits on step 7, which a prose-only branch
-   runs, and not on step 6. Write the branch diff to the scratchpad and
+   runs, and not on step 6. Write the branch diff to a WP-named file in the
+   scratchpad (`wp-NNNN-generality.diff`; parallel lanes share it) and
    dispatch one `Agent`, `subagent_type: generality-review`, naming the diff
    file, this worktree, the WP file and the items: each row added or changed
    in `_audit.py`, each name added to `UNAUDITED_BASELINE`, and each heuristic
