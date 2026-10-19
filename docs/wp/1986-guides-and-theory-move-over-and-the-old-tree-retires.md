@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-19 — claimed by @yue-here; Guides: 23 of 25 written, 9, 10 and 17 on synthetic data; GUI chapters moved; retirement and skill links remain
+Milestone: unscheduled · Status: 🔄 2026-10-19 — Guides: 23 of 25 written, 18 and 24 waiting on other WPs; GUI chapters moved; retirement and skill links remain
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -261,6 +261,103 @@ the tree that day.
 ```
 
 ## Handover log
+
+### 2026-10-19 — three guides on synthetic data, the GUI chapters moved, and an axial-divergence defect filed
+
+The Guides tab now explains how to fit a peak from the sample holder, how to
+calibrate an instrument on a standard and reuse it, and how to fit an X-ray and
+a neutron pattern together. All three run on synthetic data their pages call
+synthetic. The maintainer asked the session to choose, and the choices are
+recorded under Notes by task for reversal. Writing them measured three things a
+user would not see. A profile reused on another setup moves a crystallite size
+by about 9 esd while Rwp stays put. A joint fit with a neutron wavelength 300
+ppm off moves the shared cell by 3 esd and reports nothing. And the two
+axial-divergence ratios are interchangeable, so `lab_calibrate` returned them
+swapped, about 14 esd each from the truth, with no finding: filed as WP-2012.
+The three GUI chapters moved to the new tree with their screenshots and guard.
+Twenty-three of the 25 guides are written, and the last two wait on other WPs.
+
+*Done.* Pages `docs/docs/guides/{holder,calibrate,joint}.md` with scripts and
+one helper each (`examples/guides/_holder_line.py`, `_calibration_pair.py`,
+`_corundum_pair.py`); the index gained Instrument and Several radiations
+sections. `LAYER0_MATCH_TOL_DEG` joined `docs/sphinx_shared.py`'s substitutions
+(the 0.08° that both `EXTRA_PEAK_ON_REFLECTION` and Layer 0's peak matching
+use), and `test_manual_api.py`'s fully declared model gained a `PeakComponent`
+so `instrument.extra_components.0.center` resolves. The GUI chapters went by a
+lane to `start/gui-quickstart.md`, `reference/gui-guide.md` and
+`reference/gui-power.md`; the screenshots and `make_screenshots.py` to
+`docs/docs/`; the root and `gui/` CLAUDE.md name the script's new path; notes
+under GUI chapters. Inherited pruned on arrival: WP-2001's generality note and
+WP-1545's supervision checklists went under Guides, 02b under Retirement,
+notebook 03's link under GUI chapters (now repointed), and `series.py` prints
+its `Trajectory` whole, as WP-1545 asked. Two skill rows in
+`references/numbers.md` (the profile from another setup; compare the cells
+before a joint fit). Forwarded: the GUI move into WP-1317 and WP-1313. Filed:
+WP-2012 (no open WP owned the axial ratios; 1460 is about ridges, not two
+minima). `/code-review high --fix` over the session's range found 9 and fixed
+5: the holder helper now stores a list (an array in `PatternData.intensity`
+made `model_dump_json` raise), the calibration page names W's own stage and the
+two `FLOOR_HIT` findings, the status header, a test comment, a repeated
+`standard("first")`. Declined: `holder.md`'s inline declaration block, because
+a block that only builds objects runs inline by this WP's guide pattern (the
+hump guide's does too); `_corundum_pair.py` predicting twice to set the scale,
+because scaling the first prediction could move the pinned numbers. Recorded
+under Retirement: the routes' provisional promise has no new-tree page.
+
+*Measured* (`[dev]`, darwin/arm64; every guide's printed output identical on
+`RIETX_COMPILED=0`). Holder, fluorapatite under `mccusker_structural` 15-130°
+with a synthetic ferritic-steel 110 line at 44.65° (area 60, FWHM 0.12°):
+ignored, O7's x moves 1.91 esd from the clean fit; excluded 44.3-45.1°, 0.25,
+and every esd grows by at most 3.9 %; declared, 0.22, and the line comes back
+44.6507(77)°, 67.5(61), 0.122(25). Declared on the clean pattern at 44.6°, the
+peak ends on three bounds with area 7.7(96) and `EXTRA_PEAK_NO_INTENSITY`
+silent, because that code fires only at exactly zero area (at 60° it does).
+Calibration, synthetic LaB₆/CeO₂ (300 Å, 1.0e-3) on two setups, the second
+with twice W and X, H/L held at 3/200: matched size 300.8(22) Å, strain
+0.001021(43); crossed 325.3(27) and 281.5(21) Å (8.9 and 9.5 esd), Rwp within
+0.001; only the narrower profile shows a Gaussian size, 1530(230) Å. Both axial
+ratios free: S/L 0.01451(76), H/L 0.02531(66) against 0.025 and 0.015, and the
+two predicted patterns are bit-identical when swapped. On data with no axial
+divergence and both free, the compiled and numpy paths agree on values and
+differ up to 2× on the other widths' esds (in WP-2012). Joint, synthetic
+corundum, neutron λ 300 ppm long: alone, a 4.7588780(41) and 4.757485(31) Å
+(−293 ppm); jointly with `hist.1` λ free, +298.4 ppm at 5.1 ppm a esd, a within
+an esd of the truth, x(O) esd 0.67 of the X-ray pattern's and z(Al) 0.96;
+held, a 3.1 esd off and both coordinates' esds 1.2× and 1.7× the X-ray's, no
+finding. Each fit runs in under a second. Fast selection on the final tree
+(main at `2df48c95`, unmoved since the session began, no other suite running):
+10 951 passed, 185 skipped, 2 xfailed, one run of 4:43. Collected 11 136
+against 11 133 on a snapshot of `origin/main`, +3, the three guide cases. From
+the junit file under full load: `holder` 15.7 s, `calibrate` 5.4 s, `joint`
+5.0 s; `test_examples.py` totals 272.9 s across workers.
+`tests.added_test_times` sees no added function, since the three parametrise
+one. They stay in the fast tier for the reason `test_examples.py`'s docstring
+gives. The full selection did not run: no `src/` change, so no measured number
+can move.
+
+Lanes (`session_usage.py lanes`): one lane, gui-chapters, estimated 40 and
+taking 86 requests (2.15×), dispatched at 357K, re-read 7K of 99K, 16 main
+requests and 28K left in main, 5 main edits after (the rulebook paths and the
+WP notes), no redo; lane $4.62, main $1.45, in-session $9.80, saved +$3.71
+(+16 % of the session). The baseline's selective policy over all sessions:
+215 against the in-session cost, −4 %.
+
+*Gotchas.* The worktree guard refuses `cat >> file <<EOF` and a multi-line
+`sed` on a repo file, and a refused `sed` inside a `&&` chain lets the
+following `git commit` run without it: an item was committed without its WP
+tick once, fixed by a follow-up commit. A MyST link to a heading containing ⊕
+slugs to a double hyphen (`#the-instrument--sample-width-split`), and an
+included heading in backticks keeps its underscore (`plans.md#lab_calibrate`);
+the tutorials' stable HTML slugs differ. `WAVELENGTH_CALIBRATION` lands on
+`result.histograms[1].diagnostics`, never at the top level. `format_su` gives
+two digits of esd (`0.01451(76)`).
+
+Next: item 18 once WP-1910 and WP-1510 land, and item 24 once the magnetic WPs
+(1326, 1327, 1418) settle. Then retirement (task 4), which now also owes the
+provisional-routes promise a page; then the skill links. Two decisions wait on
+the maintainer: whether Mike Gaultois agrees to `rietx.examples.fetch` serving
+the Nd₂Ru₂O₇ pair, which would replace item 17's synthetic data; and WP-2012's
+fix.
 
 ### 2026-10-18 — six guides on history, results and other programs, and two indexing defects
 
