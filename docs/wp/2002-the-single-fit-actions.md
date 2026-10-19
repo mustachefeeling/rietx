@@ -94,7 +94,7 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
 
 ### Inherited
 
-(none at filing)
+- **From WP-2001 (2026-10-19, PR #1047).** The table is `src/rietx/_audit.py`; this WP's rows are the ones `_audit.WALKED` and `_audit.DEFAULT_SEATS` map to 2002, plus the codes and suggestion rows of its subsystem. Auditing a row means giving it a tier and evidence in place and deleting its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py` fails until both are done. The walk sees module-level numbers and tuples of numbers only, so a number held in a dict, list or array is audited here by hand. From the generality judge's first run: (1) `CORRELATION_GUARD` = 0.98 has three rows (the constant and the `PlanSpec` and `run_stage` defaults), so tier them together; GSAS-II 5.8.4 lists pairs from max(0.95, 0.99 × the worst |ρ|) by default (`GSASIImath.setHcorr`, checked in `rietx-bench/tools/gsas2`), so rietx is silent between 0.95 and 0.98, and no source for 0.98 was found. (2) `RefinementResult.sigma` holds two automatic choices, the √max(y,1) fallback and a floor at 10⁻³ × the median esd (`schemas/pattern.py`, inline), and no field says which fired, so it stays in `OTHER_RECORD_FIELDS` until a flag exists. (3) The final stage's 1e-9 tolerance, which `StageSpec.ftol=None` resolves to, is a literal in signatures that are not seats (`optimize/least_squares.py`, `optimize/lm.py`). (4) `RefinementResult.geometry` truncates at 24 contacts per atom and skips phases over 200 atoms (`model/geometry.py`, noted in `GeometryTable.notes`); report-only, left out of the action rows.
 
 ## Non-goals
 

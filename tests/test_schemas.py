@@ -498,6 +498,35 @@ def test_stage_spec_mirrors_every_stage_field():
     assert set(StageSpec.model_fields) == {f.name for f in dataclasses.fields(rx.Stage)}
 
 
+def test_each_mirror_declares_its_dataclass_defaults():
+    """A mirror's defaults are its dataclass's, field by field (WP-2001).
+
+    The field-set pin above still let the two declare one field with two
+    literals: ``correlation_guard`` was 0.98 in ``PlanSpec``, in
+    ``RefinementPlan`` and in ``run_stage``'s signature, with nothing holding
+    them equal.  An omitted field must mean the same plan whichever type the
+    caller wrote.
+    """
+    import dataclasses
+
+    from rietx.schemas.plan import PlanSpec, StageSpec
+    from rietx.strategy.staged import RefinementPlan
+
+    checked = 0
+    for spec, cls in ((StageSpec, rx.Stage), (PlanSpec, RefinementPlan)):
+        for field in dataclasses.fields(cls):
+            if field.default is not dataclasses.MISSING:
+                default = field.default
+            elif field.default_factory is not dataclasses.MISSING:
+                default = field.default_factory()
+            else:
+                continue
+            mirrored = spec.model_fields[field.name].get_default(call_default_factory=True)
+            assert mirrored == default, (spec.__name__, field.name, mirrored, default)
+            checked += 1
+    assert checked >= 10
+
+
 def test_stage_spec_round_trips_strain_seed():
     from rietx.schemas.plan import StageSpec
 

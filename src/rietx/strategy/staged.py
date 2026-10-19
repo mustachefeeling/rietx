@@ -19,10 +19,10 @@ from dataclasses import dataclass, field
 from .._nearmiss import did_you_mean
 from ..schemas.common import Mode
 
-# INTERMEDIATE_FTOL is defined beside the mirror because the pydantic field
-# needs it at class-definition time and this module is the *upper* layer; it is
-# re-exported here, where plan policy is read.
-from ..schemas.plan import INTERMEDIATE_FTOL, PlanSpec
+# INTERMEDIATE_FTOL and CORRELATION_GUARD are defined beside the mirror because
+# the pydantic fields need them at class-definition time and this module is the
+# *upper* layer; they are re-exported here, where plan policy is read.
+from ..schemas.plan import CORRELATION_GUARD, INTERMEDIATE_FTOL, PlanSpec
 
 #: ``phases.i.atoms.j.u11`` … — the stored anisotropic components, grouped by
 #: site for the positive-definiteness guard.
@@ -301,7 +301,7 @@ MAGNETIC_WIDTH_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
 @dataclass
 class RefinementPlan:
     stages: list[Stage]
-    correlation_guard: float = 0.98
+    correlation_guard: float = CORRELATION_GUARD
     #: the tolerance every stage but the last runs at, unless that stage
     #: declares its own :attr:`Stage.ftol`.  ``None`` = the solver default
     #: (1e-9) everywhere, which is what every fit before WP-1123 did and what
