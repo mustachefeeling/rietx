@@ -229,7 +229,7 @@ from acting where Rule 1's first kind says act.
       not at all", with rietx's table and agent as the exemplar, through `/workflow-sync
       harvest`. This is a separate repository and a separate commit; the handover names it.
 - [ ] Tests + the fast selection count moved by exactly the tests added.
-- [ ] Skill: none. The table is maintainer-facing; an agent driving rietx reads the
+- [x] Skill: none. The table is maintainer-facing; an agent driving rietx reads the
       diagnostic's `explanation`, which 1985 built and this WP does not change.
 
 ## Acceptance
