@@ -162,12 +162,12 @@ fig = data.plot(title="as read")      # path="pattern.png" writes it
 assert fig.get_axes()[0].get_title() == "as read"
 ```
 
-```{image} figures/nac-pattern-light.png
+```{image} ../../docs/figures/nac-pattern-light.png
 :class: only-light
 :alt: The 11-BM NAC pattern as read: observed intensity as markers against 2θ, with the wavelength on the axis and no model
 ```
 
-```{image} figures/nac-pattern-dark.png
+```{image} ../../docs/figures/nac-pattern-dark.png
 :class: only-dark
 :alt: The 11-BM NAC pattern as read: observed intensity as markers against 2θ, with the wavelength on the axis and no model
 ```
@@ -1213,12 +1213,12 @@ whatever you declared and nothing more. `save_instrument_profile` strips them,
 since a hump belongs to this specimen and this sample environment rather than to
 the goniometer.
 
-```{image} figures/background-peak-light.png
+```{image} ../../docs/figures/background-peak-light.png
 :class: only-light
 :alt: Two fitted background curves over a synthetic pattern, one a plain polynomial and one the same polynomial plus a broad peak, above a panel showing the observed pattern with the peak-free background removed and the fitted peak drawn through the hump it found
 ```
 
-```{image} figures/background-peak-dark.png
+```{image} ../../docs/figures/background-peak-dark.png
 :class: only-dark
 :alt: Two fitted background curves over a synthetic pattern, one a plain polynomial and one the same polynomial plus a broad peak, above a panel showing the observed pattern with the peak-free background removed and the fitted peak drawn through the hump it found
 ```

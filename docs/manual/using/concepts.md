@@ -53,12 +53,12 @@ Two parameters are hard to separate when their effects on the pattern have the
 same shape in 2θ. Over the whole range of a good dataset the shapes differ. Over
 a short range they do not, and that is where the trouble is.
 
-```{image} figures/angular-signatures-light.png
+```{image} ../../docs/figures/angular-signatures-light.png
 :class: only-light
 :alt: Four angular signatures over 110 degrees, where they separate, and over 20 degrees, where they nearly coincide
 ```
 
-```{image} figures/angular-signatures-dark.png
+```{image} ../../docs/figures/angular-signatures-dark.png
 :class: only-dark
 :alt: Four angular signatures over 110 degrees, where they separate, and over 20 degrees, where they nearly coincide
 ```
@@ -527,12 +527,12 @@ plan above lands the bond at 1.87 Å with the coordinates 1e-3 rms from truth.
 The same three stages left at c_w = 1 throughout converge with that distance at
 4.84 Å, the restraint 149σ in tension, Rwp 0.0393 against 0.0327.
 
-```{image} figures/restraint-schedule-light.png
+```{image} ../../docs/figures/restraint-schedule-light.png
 :class: only-light
 :alt: Two difference curves that look alike, one from a fit with a 1.87 angstrom bond and one from a fit with a 4.83 angstrom bond
 ```
 
-```{image} figures/restraint-schedule-dark.png
+```{image} ../../docs/figures/restraint-schedule-dark.png
 :class: only-dark
 :alt: Two difference curves that look alike, one from a fit with a 1.87 angstrom bond and one from a fit with a 4.83 angstrom bond
 ```

@@ -18,11 +18,14 @@ htmlcov/
 *.png
 *.html
 !docs/**/*.html
-# Part 1's figures are COMMITTED, not built (docs/manual/make_figures.py says
+# The manual's figures are COMMITTED, not built (docs/docs/make_figures.py says
 # why): the sphinx build stays seconds and stays offline, at the cost of a
 # figure that can go stale.  `*.png` above would have dropped them silently,
 # leaving a manual whose images are broken everywhere except this machine.
-!docs/manual/using/figures/*.png
+# They moved into the new tree from the old one's `using/figures/` (WP-1986),
+# and `tests/test_manual_api.py` asks `git check-ignore` about every image a
+# page of either tree shows.
+!docs/docs/figures/*.png
 # The GUI chapters' screenshots are committed for the same reason and were
 # dropped by the same rule (WP-1017) — the third time `*.png` above has
 # swallowed a committed image. `tests/test_gui_manual.py` now asks

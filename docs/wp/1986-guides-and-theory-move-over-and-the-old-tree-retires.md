@@ -300,10 +300,10 @@ the tree that day.
 - [x] GUI chapters moved with `test_gui_manual.py`. (2026-10-19; the old copies stay up,
       unguarded, until the tree retires. Notes under GUI chapters.)
 - [ ] Each chapter's reference and explanation re-homed (survey under Notes by task,
-      Retirement, 2026-10-19). Start: install (2026-10-19), a first fit in Python, the
-      tutorial notebooks. Reference: compatibility, CLI, the schema fields, the `help` arms,
-      history, `capabilities()`, recipe, formats. Concepts or Reference: the rest, chapter by
-      chapter.
+      Retirement, 2026-10-19). Done 2026-10-19: Start (install, a first fit in Python, the
+      tutorial notebooks), Reference compatibility and the `help` arms (`settings.md`).
+      Left: Reference for the CLI, the schema fields, history, `capabilities()`, recipe and
+      the formats; Concepts or Reference for the rest, chapter by chapter.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.
 - [ ] Skill: links into the manual updated to the new URLs.

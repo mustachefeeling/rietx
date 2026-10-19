@@ -861,8 +861,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `reference/compatibility.md` § Provisional by declaration, `{ref}`d not restated. **A green
   build is not a rendered page**: `-W` cannot see a paragraph that printed its own TeX, so
   `test_no_unrendered_math_survives_the_build` scans the *built* HTML, and diagrams and themed
-  figures are checked by looking. Part 1's figures are **committed** light/dark pairs from
-  `docs/manual/make_figures.py` (the one authority for how each was drawn); agent-facing prose
+  figures are checked by looking. The manual's figures are **committed** light/dark pairs from
+  `docs/docs/make_figures.py` (the one authority for how each was drawn); agent-facing prose
   carries the `agent` admonition. **GUI chapters** (WP-1017) add a third guard, for routes and
   panels rather than importable names: `test_gui_manual.py` **partitions** both vocabularies and
   tightens each way, so adding or renaming a route or tab fails until a chapter covers it, and

@@ -171,12 +171,12 @@ difference is visible, and it is never the answer.
 `GeometryAngle.stderr` and `GeometryAngle.stderr_diagonal` are the same pair, in
 degrees.
 
-```{image} figures/geometry-esd-light.png
+```{image} ../../docs/figures/geometry-esd-light.png
 :class: only-light
 :alt: Diagonal-only esd divided by the full-covariance esd for each NAC distance, scattered from 0.86 to 1.41 on both sides of a dotted line at one
 ```
 
-```{image} figures/geometry-esd-dark.png
+```{image} ../../docs/figures/geometry-esd-dark.png
 :class: only-dark
 :alt: Diagonal-only esd divided by the full-covariance esd for each NAC distance, scattered from 0.86 to 1.41 on both sides of a dotted line at one
 ```
@@ -337,12 +337,12 @@ upper bound on the information, and the ratio built from it is optimistic.
 Altomare et al. {cite}`altomare1995`, and the gap between the two is the
 pattern's overlap.
 
-```{image} figures/effective-observations-light.png
+```{image} ../../docs/figures/effective-observations-light.png
 :class: only-light
 :alt: Reflection count flat at 26 while the effective observation count falls from 22 to 4 as the peaks broaden
 ```
 
-```{image} figures/effective-observations-dark.png
+```{image} ../../docs/figures/effective-observations-dark.png
 :class: only-dark
 :alt: Reflection count flat at 26 while the effective observation count falls from 22 to 4 as the peaks broaden
 ```

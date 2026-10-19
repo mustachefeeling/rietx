@@ -7,6 +7,8 @@ Its first code cell installs `rietx`.
 
 The notebooks show `rietx`'s moves one step a cell, for readers who already know
 the Rietveld method.
+[](first-fit.md) covers the same ground as a script, on a synchrotron
+pattern with an impurity phase.
 
 | Notebook | What it teaches | Download |
 |---|---|---|
