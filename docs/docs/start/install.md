@@ -22,6 +22,11 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install rietx
 ```
+
+On an Apple-silicon Mac, check that the environment's Python is a native build:
+`python -c "import platform; print(platform.machine())"` prints `arm64`.
+If it prints `x86_64`, the environment runs under Rosetta and a fit takes 1.6 to 2 times
+as long. Name the build when you create it: `uv venv --python cpython-3.12-macos-aarch64-none`.
 :::
 
 :::{tab-item} Linux

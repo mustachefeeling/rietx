@@ -6,7 +6,7 @@ Most of them are built from the code that owns their facts, so they match the ve
 
 - [API: everyday calls](api.md), [API: techniques](api-techniques.md) and [API: everything else](api-types.md) give each exported name with its signature or fields.
 - [Parameter map](parameters.md) lists every refinable parameter, grouped by what it does.
-- [Stage settings, flags and options](settings.md) lists the other names rietx uses: stage settings, peak flags, reader options, instrument preset fields and indexing search settings.
+- [Stage settings, flags and options](settings.md) lists the other names rietx uses: stage settings, peak flags, peak origins, reader options, instrument preset fields and indexing search settings.
 - [Plan presets](plans.md) draws each preset's stages.
 - [Diagnostic codes](diagnostics.md) lists every code with its name, and links the page that explains it.
 - [Project directory](project.md) shows the files in a `.rex` project.

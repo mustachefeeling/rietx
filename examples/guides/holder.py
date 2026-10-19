@@ -49,7 +49,8 @@ def largest_move(result):
                if ".dof." not in p.path and before.get(p.path) and before[p.path].stderr)
 
 
-excluded = data.model_copy(update={"excluded_regions": [(44.3, 45.1)]})
+excluded = data.model_copy()
+excluded.excluded_regions = [(44.3, 45.1)]  # validated: an inverted pair raises
 declared = fluorapatite([holder_line()])
 results = {"ignored": fit(fluorapatite(), data), "excluded": fit(fluorapatite(), excluded),
            "declared": fit(declared, data)}
@@ -120,3 +121,7 @@ empty.center = rx.Parameter(value=60.0, min=59.8, max=60.3, unit="deg")
 empty_result = fit(fluorapatite([empty]), clean)
 assert empty_result.parameter("instrument.extra_components.0.area").value == 0.0
 assert "EXTRA_PEAK_NO_INTENSITY" in {d.code for d in empty_result.diagnostics}
+# The page: on the pattern with no line, the area stays above zero and so
+# `EXTRA_PEAK_NO_INTENSITY` stays silent.
+assert area.value > 0.0
+assert "EXTRA_PEAK_NO_INTENSITY" not in {d.code for d in absent.diagnostics}

@@ -120,8 +120,17 @@ for result in crossed.values():
     assert 8.5 < abs(off.value - TRUE_SIZE) / off.esd < 10
     assert abs(result.statistics.rwp - matched.statistics.rwp) < 0.001
 wide_on_first, first_on_wide = crossed.values()
+# The page: the same two FLOOR_HIT findings as the matched fit, on the Gaussian
+# size and strain the sample does not have.
+assert [d.code for d in matched.diagnostics] == ["FLOOR_HIT", "FLOOR_HIT"]
+assert sorted(p for d in matched.diagnostics for p in d.where) == [
+    "phases.0.gauss_size", "phases.0.gauss_strain"]
 assert [d.code for d in wide_on_first.diagnostics] == [d.code for d in matched.diagnostics]
 gauss = reading(first_on_wide, "phases.0.gauss_size")
 assert rx.format_su(gauss.value, gauss.esd) == "1530(230)"
 assert reading(first_on_wide, "phases.0.gauss_strain").value > 0
 assert first_on_wide.diagnostics == []
+
+import shutil  # noqa: E402
+
+shutil.rmtree(work)  # the two saved profiles

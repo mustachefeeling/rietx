@@ -1,6 +1,6 @@
 # Stage settings, flags and options
 
-This page lists the names rietx uses besides its parameters, plans and diagnostic codes: stage settings, peak flags, reader options, instrument preset fields and indexing search settings.
+This page lists the names rietx uses besides its parameters, plans and diagnostic codes: stage settings, peak flags, peak origins, reader options, instrument preset fields and indexing search settings.
 
 The entries are generated from `rietx.help`, the one place each is written.
 The GUI puts the same sentence beside the same control, so this page and a tooltip cannot disagree.
