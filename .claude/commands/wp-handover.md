@@ -165,6 +165,22 @@ re-reading its own diff.
    the session *added*, not a re-review of it. Nor is it a re-read. At this
    context, each line read here is paid again by every request left, and
    step 6's review has already read the diff.
+
+   **Dispatch the generality judge when a heuristic's tier was written by its
+   author** (WP-2001). Two triggers. The branch touches the audit table:
+   `git diff --name-only origin/main...HEAD -- src/rietx/_audit.py` prints the
+   file, because the tripwire (`tests/test_audit_table.py`) fired and was
+   answered or because a row was retiered. Or the session added a heuristic
+   the table cannot see, which its module docstring lists: an inline literal,
+   an ordering or fallback chain, an always-on correction, a rule in the skill.
+   The second trigger is why this sits on step 7, which a prose-only branch
+   runs, and not on step 6. Write the branch diff to the scratchpad and
+   dispatch one `Agent`, `subagent_type: generality-review`, naming the diff
+   file, this worktree, the WP file and the items: each row added or changed
+   in `_audit.py`, each name added to `UNAUDITED_BASELINE`, and each heuristic
+   of the second trigger. Paste its tables into the handover entry under
+   *Generality*, unedited, with the author's one-line answer under any `fails`.
+   The maintainer reads both.
 8. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
    section and its `Priority:` line (a closed WP's priority is moot), and
    MOVE its narrative to the record of the release in flight

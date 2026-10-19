@@ -191,8 +191,10 @@ from acting where Rule 1's first kind says act.
       rows are audited and never grows. (2026-10-19: 15 tests, ~2 s; seen red on a
       throwaway constant in `refine.py`, a retuned `CORRELATION_GUARD`, a flipped
       `auto_background` default and a new `StageResult` field, each naming the row to add.)
-- [ ] `/wp-handover`'s dispatch condition for the judge, on step 7: the tripwire fired, or
-      the diff touches the table module or the baseline.
+- [x] `/wp-handover`'s dispatch condition for the judge, on step 7: the tripwire fired, or
+      the diff touches the table module or the baseline. (2026-10-19: both reduce to the
+      branch touching `_audit.py`; a second trigger dispatches on a heuristic the table
+      cannot see, which is why it sits on step 7.)
 - [x] The tripwire's second half: the walk that produces the constant list is a function
       the test and the table share (`_audit.constants()`), so the inventory cannot drift
       from the guard; the same for record fields (`dataclasses.fields` /
@@ -203,7 +205,7 @@ from acting where Rule 1's first kind says act.
       constant, bit-identical before and after. (2026-10-19: three copies, the third in
       `RefinementPlan`; `schemas.plan.CORRELATION_GUARD`, beside `INTERMEDIATE_FTOL`, and
       `test_each_mirror_declares_its_dataclass_defaults` holds every mirrored default equal.)
-- [ ] The `generality-review` agent (`.claude/agents/generality-review.md`): read-only,
+- [x] The `generality-review` agent (`.claude/agents/generality-review.md`): read-only,
       the Rule 4 questions above, output a table per item with the case against, written
       for the maintainer in plain words (root `~/.claude/CLAUDE.md`'s register). The
       handover's step 7 gains the dispatch: on a tripwire hit, or on any diff touching a
