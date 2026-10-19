@@ -1431,6 +1431,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.fom.FOM_N", "constant", value=20),
     Row("rietx.indexing.fom.LINE_COINCIDENCE_RTOL", "constant", value=1e-09),
     Row("rietx.indexing.fom.MATCH_SIGMA", "constant", value=3.0),
+    Row("rietx.indexing.fom.RESOLUTION_FWHM", "constant", value=1.0),
     Row("rietx.indexing.fom._AGGREGATE_FLOOR_RTOL", "constant", value=1e-06),
     Row("rietx.indexing.fom._BOUNDARY_RTOL", "constant", value=1e-09),
     Row("rietx.indexing.peakfit._H_POS", "constant", value=1e-05),
@@ -1459,6 +1460,16 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.reduce._SELLING_STEPS", "constant", value=1000),
     Row("rietx.indexing.reduce._SETTING_STEPS", "constant", value=200),
     Row("rietx.indexing.reduce._SETTING_TIE", "constant", value=1e-12),
+    Row("rietx.indexing.screen.SCREEN_WINDOW_LINES", "constant", tier=2,
+        evidence="de Wolff's window: M20 is defined on the first 20 observed lines and the "
+                 "calculated lines up to the Q of the 20th (de Wolff 1968, J. Appl. Cryst. 1, "
+                 "108); the screen counts its absences in the same window, aliased to "
+                 "fom.FOM_N with no free factor.",
+        value=20),
+    Row("rietx.indexing.screen._LN2", "constant", tier=1,
+        evidence="Arithmetic: ln 2 in the unit-area Gaussian of FWHM Γ, "
+                 "2√(ln2/π)/Γ · exp(−4 ln2 x²/Γ²).",
+        value=0.6931471805599453),
     Row("rietx.indexing.svd.ANGLE_HI", "constant", value=130.0),
     Row("rietx.indexing.svd.ANGLE_LO", "constant", value=90.0),
     Row("rietx.indexing.svd.IMPURITY_CUT_DEG", "constant", value=0.05),
@@ -4140,6 +4151,7 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.indexing.fom.FOM_N",
     "rietx.indexing.fom.LINE_COINCIDENCE_RTOL",
     "rietx.indexing.fom.MATCH_SIGMA",
+    "rietx.indexing.fom.RESOLUTION_FWHM",
     "rietx.indexing.fom._AGGREGATE_FLOOR_RTOL",
     "rietx.indexing.fom._BOUNDARY_RTOL",
     "rietx.indexing.peakfit._H_POS",
