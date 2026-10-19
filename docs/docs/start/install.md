@@ -73,7 +73,7 @@ python -c "import rietx; print(rietx.__version__)"
 ```
 
 That prints the version you installed, {{ release }} for the copy this manual
-was built from. Then run a first fit, in Python or in [the GUI](gui-quickstart.md).
+was built from. Then run a first fit, [in Python](tutorials.md) or in [the GUI](gui-quickstart.md).
 
 ## Requirements
 

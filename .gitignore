@@ -107,8 +107,10 @@ docs/docs/_generated/
 # The Microsoft style package, fetched by `vale sync` at the version .vale.ini
 # pins (WP-1982).
 docs/vale/Microsoft/
-# Copied at Sphinx build time from examples/tutorials/ (docs/manual/conf.py).
+# Copied at Sphinx build time from examples/tutorials/ (docs/sphinx_shared.py's
+# copy_tutorials, called by both conf.py files).
 docs/manual/using/tutorials/
+docs/docs/start/tutorials/
 
 # The landing page (docs/landing/, WP-1331).  Three rules, and they are here
 # rather than beside the rules they answer because ORDER decides: the last

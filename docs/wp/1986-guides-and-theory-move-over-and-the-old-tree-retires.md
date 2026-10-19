@@ -259,7 +259,14 @@ the tree that day.
   `conf.py`, but the copy step (`_copy_tutorials`) is in the old one and moves at retirement.
   `DOCS_PAGES` globs `.md` only, so once a notebook lands under Start the page contract, the
   register guard and name resolution skip it until the glob widens. Whether a notebook keeps
-  the page contract is decided at that move.
+  the page contract is decided at that move. Done 2026-10-19 (7th session, by a lane):
+  `sphinx_shared.copy_tutorials` serves both trees, `start/tutorials.md` is the index,
+  and the notebooks' twins keep the contract except the answer sentence, because every
+  tutorial opens on its authorship note (`NOTEBOOK_WAIVED` in `tests/test_manual.py`, a
+  tripwire that fails once a notebook keeps the rule; the fix is WP-1545's). A twin
+  writes a notebook's inline figure out as a file: six of the seven twins measured
+  62 752 to 551 259 characters with the base64 in, 7 561 to 39 799 without.
+  `DOCS_PAGES` stays markdown-only, for the reason written at the glob.
 - A seventh notebook, `02b_steering_a_refinement`, sits between 02 and 03 (the source glob is
   now `[0-9][0-9]*_*.py`). The old tree's hidden toctree lists it, and the Start tab's
   rendering takes it when `_copy_tutorials` moves. Its URL is new, so `OLD_PAGES` needs no row
