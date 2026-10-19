@@ -68,7 +68,7 @@ from .refine import (
     _WAVELENGTH_PINNED_BY_HELD_HISTOGRAM,
     SCALE_B_SEPARATION_FLOOR,
     SCALE_B_STEP,
-    CellClamp,
+    CellReset,
     _absorption_diagnostics,
     _absorption_record,
     _air_scatter_undeclared_diagnostics,
@@ -84,6 +84,7 @@ from .refine import (
     _degenerate_cell_diagnostics,
     _dispersion_diagnostics,
     _displacement_columns,
+    _escaped_cell_paths,
     _extra_peak_diagnostics,
     _extra_peak_tick_support,
     _far_from_data_diagnostics,
@@ -103,6 +104,7 @@ from .refine import (
     _refuse_without_phases,
     _resolve_specimen_absorption,
     _resonant_absorber_diagnostics,
+    _restore_phase_cells,
     _roughness_regime_diagnostics,
     _scale_b_ridge_diagnostics,
     _site,
@@ -114,7 +116,6 @@ from .refine import (
     _utcnow,
     _wavelength_calibration_diagnostics,
     _width_census_diagnostics,
-    clamp_cell_runaway,
 )
 from .report.magnetic import moment_angle_stationary_diagnostics
 from .report.schemas import THRESHOLDS_VERSION
@@ -849,33 +850,39 @@ def _rehold_flat_moments_multi(models, mtable, moment_held: list[str],
     return released, collapsed, found, turned_now
 
 
-def _clamp_cell_runaway_multi(mtable, start_values: list[dict[str, float]]
+def _reset_cell_runaway_multi(mtable, start_values: list[dict[str, float]]
                               ) -> list[tuple[str, float, float]]:
-    """:func:`~rietx.refine.clamp_cell_runaway`, extended to the joint runner
-    (review of #385 finding 2): same shape as :func:`_rehold_multi` above,
-    called the same way, after the same ``mtable.commit``.
+    """:func:`~rietx.refine.reset_cell_runaway`, extended to the joint runner
+    (review of #385 finding 2; WP-2002, B8): same shape as
+    :func:`_rehold_multi` above, called the same way, after the same
+    ``mtable.commit``.  Values only: the caller holds what this put back.
 
     A shared cell parameter is a genuinely separate :class:`Entry` in every
     histogram's own :class:`~rietx.params.vector.ParameterTable` —
     :meth:`~rietx.params.multi.MultiParameterTable.commit` writes the same
     combined-θ value into each one, never a single shared object — so every
-    table's own entries must be clamped and its own ties refreshed
-    individually, exactly as the single-histogram runner does for one table.
-    What changes for the *report*: a shared path's escaped/clamped values are
-    identical in every histogram by construction (same start value, same
-    committed value, same window), so it is named once under its bare
-    (shared) path rather than once per histogram; a per-histogram path is
-    scoped (``hist.h.…``) and is never shared with another table, so it is
+    table's own entries are restored and its own ties refreshed individually.
+    **Which phases** is asked of every histogram first and applied to all of
+    them: a per-histogram cell parameter escaping in one table puts back the
+    phase's shared parameters too, and restoring them in that table alone
+    would leave one shared column holding two values.
+    What changes for the *report*: a shared path's solved and start values are
+    identical in every histogram by construction, so it is named once under
+    its bare (shared) path rather than once per histogram; a per-histogram path
+    is scoped (``hist.h.…``) and is never shared with another table, so it is
     never deduplicated.
     """
-    seen: dict[str, tuple[str, float, float]] = {}
+    escaped = [_escaped_cell_paths(table, start_values[h])
+               for h, table in enumerate(mtable.tables)]
+    phases = {p.split(".")[1] for paths in escaped for p in paths}
+    if not phases:
+        return []
+    seen: dict[str, CellReset] = {}
     for h, table in enumerate(mtable.tables):
-        clamped = clamp_cell_runaway(table, start_values[h])
-        if clamped:
-            table.refresh_ties()
-        for c in clamped:
+        for c in _restore_phase_cells(table, start_values[h], phases, escaped[h]):
             scoped = mtable._canonical(h, c[0])
-            seen[scoped] = CellClamp(scoped, c[1], c[2], c.reverted)
+            seen.setdefault(scoped, CellReset(scoped, c[1], c[2],
+                                              escaped=c.escaped))
     return list(seen.values())
 
 
@@ -1211,7 +1218,11 @@ class MultiHistogramRefinement:
         table back where its own stage found it, and a report that read the
         live table then would pair those values with this result's models.
         """
-        held_all = self.result_.stages[-1].held if self.result_.stages else []
+        last = self.result_.stages[-1] if self.result_.stages else None
+        # a cell the last stage put back and held counts as free here, as every
+        # other hold does (``Refinement._record_free_paths``)
+        held_all = ([*last.held, *(last.cell_reset or [])]
+                    if last is not None else [])
         out = []
         for h, (table, structure) in enumerate(
                 zip(self.mtable.tables, self.mtable.structures, strict=True)):
@@ -1397,9 +1408,11 @@ class MultiHistogramRefinement:
                 # every histogram and its shared cell still walk to nonsense — the
                 # single-histogram runner's own joint-degeneracy gap
                 # (CELL_SAFETY_FRACTION's docstring), unaffected by which runner
-                # is asking.  Checked and corrected once, on the outcome, never as
-                # a bound the solver saw (review of #385 finding 2).
-                cell_runaway = _clamp_cell_runaway_multi(self.mtable, start_values)
+                # is asking.  Checked on the outcome, never as a bound the solver
+                # saw (review of #385 finding 2); the cell goes back to where the
+                # stage found it before the answer is measured below, and is held
+                # for the second solve with the collapse's paths (WP-2002, B8).
+                cell_runaway = _reset_cell_runaway_multi(self.mtable, start_values)
                 if cell_runaway:
                     self.mtable._rebuild_columns()
                     outcome = dataclasses.replace(outcome, theta=self.mtable.x0())
@@ -1433,12 +1446,21 @@ class MultiHistogramRefinement:
                 for site, axis in m_axes.items():
                     flat_axes.setdefault(site, axis)
                 moment_turned = moment_turned + m_turned
-                if released or collapsed or m_turned:
+                # the reset's hold takes what the collapse left, the single
+                # runner's rule: a path both reach is the collapse's, in ``held``
+                collapsed_set = set(collapsed)
+                reset_hold = list(dict.fromkeys(p for p, _, _ in cell_runaway
+                                                if p not in collapsed_set))
+                if reset_hold:
+                    reset_hold = self.mtable.set_vary(reset_hold, False)
+                cell_reset = list(reset_hold)
+                if released or collapsed or m_turned or reset_hold:
                     released_set = set(released)
                     held = list(dict.fromkeys(p for p in held + collapsed
                                               if p not in released_set))
                     held_set = set(held)
-                    freed = [p for p in declared_freed if p not in held_set]
+                    freed = [p for p in declared_freed
+                             if p not in held_set and p not in reset_hold]
                     # the resumed half gets its own stage_start, since its
                     # free vector differs (the single fit's rule, WP-1301)
                     self._emit_stage_start(stream, stage, index, n_stages, models,
@@ -1456,10 +1478,18 @@ class MultiHistogramRefinement:
                         self.mtable._rebuild_columns()
                         second = rechart_outcome(second, self.mtable.x0(), signs,
                                                  self.mtable.free_paths)
-                    second_runaway = _clamp_cell_runaway_multi(self.mtable, start_values)
+                    # asked again, and with no third solve the cell goes back and
+                    # stays a free column of this answer, its esd withheld (the
+                    # single runner's rule)
+                    second_runaway = [
+                        CellReset(*c, escaped=c.escaped, held=False)
+                        for c in _reset_cell_runaway_multi(self.mtable, start_values)]
                     if second_runaway:
                         self.mtable._rebuild_columns()
                         cell_runaway = cell_runaway + second_runaway
+                        put_back = [p for p, _, _ in second_runaway]
+                        cell_reset = cell_reset + put_back
+                        freed = [p for p in freed if p not in put_back]
                         second = dataclasses.replace(second, theta=self.mtable.x0())
                     outcome = dataclasses.replace(
                         second, cost_initial=outcome.cost_initial,
@@ -1475,7 +1505,8 @@ class MultiHistogramRefinement:
                 if runaway_diag is not None:
                     cell_runaway_diags.append(runaway_diag)
                 self.mtable.apply_to_models()
-                carried_hold = list(held)
+                # the reset's hold is lifted by the next stage with the others
+                carried_hold = list(held) + reset_hold
                 # the record of the turn (#599), for the sites still held at the
                 # answer: a site in ``moment_flat_axes`` and not in
                 # ``moment_turned`` was held where it was
@@ -1499,7 +1530,8 @@ class MultiHistogramRefinement:
                     moment_turned=[b for b in kept_axes if b in moment_turned],
                     unknown_paths=unknown_paths, unreached_histograms=unreached,
                     seeded=seeded, blocked_by_hold=blocked_by_hold,
-                    moment_angle_tests=outcome.moment_angle_tests))
+                    moment_angle_tests=outcome.moment_angle_tests,
+                    cell_reset=cell_reset))
                 if stream is not None:
                     rwp, rows = self._stage_end_rows(models, outcome.theta)
                     stream.emit("stage_end", stage=stage.name, status=outcome.status,
@@ -1821,7 +1853,7 @@ class MultiHistogramRefinement:
                                                               mt)
         # a stage's budget is spent by the one joint solve (FIT)
         diagnostics = diagnostics + _max_iter_diagnostics(stage_results)
-        # one CELL_RUNAWAY per stage that fired the joint clamp above,
+        # one CELL_RUNAWAY per stage that fired the joint reset above,
         # collected during the loop since there is no per-stage StageReport
         # here to carry it on (review of #385 finding 2)
         diagnostics = diagnostics + cell_runaway_diags
@@ -1949,7 +1981,7 @@ class MultiHistogramRefinement:
         # and so does every path tied to it — asked of each histogram's own
         # table, because the ties are per table.  The finding scopes a
         # per-histogram path ``hist.h.…`` and names a shared one bare
-        # (``_clamp_cell_runaway_multi``), so each table reads its own names.
+        # (``_reset_cell_runaway_multi``), so each table reads its own names.
         named = [p for d in answer_runaway for p in d.where]
         withheld = []
         for h, table in enumerate(mt.tables):

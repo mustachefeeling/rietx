@@ -433,7 +433,13 @@ ROWS: tuple[Row, ...] = (
     Row("BRML_ABSORBER_ENGAGED", "code"),
     Row("CAPILLARY_OFFSET_UNAVAILABLE", "code"),
     Row("CELL_DEGENERATE_PROBE", "code"),
-    Row("CELL_RUNAWAY", "code"),
+    Row("CELL_RUNAWAY", "code", tier=3, ambiguity=1,
+        evidence=("WP-1110's trigger: a visible phase sharing its cell with a 2 % trace copy ran "
+                  "4.16 -> 3803 A in one stage; fired in none of WP-1523's 104 fits; names what "
+                  "StageResult.cell_reset records"),
+        grounds=("The cell's reset is the package's own act, so it is said out loud with the "
+                 "paths it put back (B8, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("CHILD_GROUP_UNNAMED", "code"),
     Row("CIF_CELL_ANGLE_CORRECTED", "code"),
     Row("CIF_MAGNETIC_CENTERING_ASSUMED", "code"),
@@ -680,7 +686,7 @@ ROWS: tuple[Row, ...] = (
     Row("TOPAS_SPECIES_WRITTEN_NEUTRAL", "code"),
     Row("WAVELENGTH_CALIBRATION", "code"),
     Row("XRDML_ATTENUATOR_APPLIED", "code"),
-    # action: 18
+    # action: 19
     Row("rietx.schemas.results.StageResult.held", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: free, an absent phase's cell walked 14.9 A from truth over 13 "
                   "sub-onset ramp patterns at unchanged Rwp; silent on IUCr CPD cpd-1c; GSAS-II, "
@@ -701,6 +707,15 @@ ROWS: tuple[Row, ...] = (
                   "held; the ramp's worst cell error fell from 11.96 A (start-only hold) to 0"),
         grounds=("A phase the data now see is one the plan asked to refine, and a cell chased "
                  "into noise is no measurement; kept with the hold (B1, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.results.StageResult.cell_reset", "action", tier=3, ambiguity=1,
+        evidence=("WP-1110's trigger: a visible phase sharing its cell with a 2 % trace copy ran "
+                  "4.16 -> 3803 A in one stage; fired in none of WP-1523's 104 fits; until "
+                  "WP-2002 the cell was pulled to the 15 % window edge, a value no fit produced, "
+                  "with esds from the runaway point"),
+        grounds=("A refiner whose cell ran away puts it back and fixes it for the stage, through "
+                 "the restore, hold and second solve the collapse already takes (B1); ordinary "
+                 "fits do not change (B8, ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.schemas.results.StageResult.moment_flat_axes", "action", tier=1, ambiguity=1,
         evidence=("physics: Shirane (1959) Acta Cryst. 12, 282: a powder cannot see a cubic "
@@ -1381,8 +1396,21 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.params.vector.CELL_MIN_LENGTH_A", "constant", tier=2, value=1.5,
         evidence=("TOPAS Tech Ref Version 9 § 2.17 Table 2-1 (checked 2026-10-19): a, b, c floored "
                   "at Max(1.5, ...)")),
-    Row("rietx.params.vector.CELL_SAFETY_ANGLE_DEG", "constant", value=6.0),
-    Row("rietx.params.vector.CELL_SAFETY_FRACTION", "constant", value=0.15),
+    Row("rietx.params.vector.CELL_SAFETY_ANGLE_DEG", "constant", tier=3, value=6.0,
+        evidence=("three times CELL_WINDOW_ANGLE_DEG; WP-1110's trigger: a visible phase sharing "
+                  "its cell with a 2 % trace copy ran 4.16 -> 3803 A in one stage; fired in none "
+                  "of WP-1523's 104 fits"),
+        grounds=("A trigger for the reset only, set where no honest stage reaches (B8, ruled "
+                 "2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.params.vector.CELL_SAFETY_FRACTION", "constant", tier=3, value=0.15,
+        evidence=("three times CELL_WINDOW_FRACTION; worst honest single-stage move 2.8e-4 over "
+                  "WP-1110's 51 transitions; WP-1110's trigger: a visible phase sharing its cell "
+                  "with a 2 % trace copy ran 4.16 -> 3803 A in one stage; fired in none of "
+                  "WP-1523's 104 fits"),
+        grounds=("A trigger for the reset only, set where no honest stage reaches (B8, ruled "
+                 "2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.params.vector.CELL_WINDOW_ANGLE_DEG", "constant", tier=2, value=2.0,
         evidence=("TOPAS Tech Ref Version 9 § 2.17 Table 2-1 (checked 2026-10-19): angles Val +- "
                   "0.2 deg per iteration, here ten iterations' worth per stage (the ten is "
@@ -1994,7 +2022,12 @@ ROWS: tuple[Row, ...] = (
     Row("BOUND_HIT.suggestion", "suggestion", value=1),
     Row("BRINDLEY_OUTSIDE_REGIME.suggestion", "suggestion", value=1),
     Row("CAPILLARY_OFFSET_UNAVAILABLE.suggestion", "suggestion", value=1),
-    Row("CELL_RUNAWAY.suggestion", "suggestion", value=1),
+    Row("CELL_RUNAWAY.suggestion", "suggestion", tier=3, ambiguity=1, value=1,
+        evidence=("WP-1110's trigger: a visible phase sharing its cell with a 2 % trace copy ran "
+                  "4.16 -> 3803 A in one stage; fired in none of WP-1523's 104 fits"),
+        grounds=("Each named fix breaks the joint degeneracy the trigger case walked, and the "
+                 "choice among them is the caller's (B8, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("CHILD_GROUP_UNNAMED.suggestion", "suggestion", value=1),
     Row("CIF_CELL_ANGLE_CORRECTED.suggestion", "suggestion", value=1),
     Row("CIF_MAGNETIC_CENTERING_ASSUMED.suggestion", "suggestion", value=1),
@@ -2215,8 +2248,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "CAPILLARY_OFFSET_UNAVAILABLE",
     "CAPILLARY_OFFSET_UNAVAILABLE.suggestion",
     "CELL_DEGENERATE_PROBE",
-    "CELL_RUNAWAY",
-    "CELL_RUNAWAY.suggestion",
     "CHILD_GROUP_UNNAMED",
     "CHILD_GROUP_UNNAMED.suggestion",
     "CIF_CELL_ANGLE_CORRECTED",
@@ -2908,8 +2939,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.optimize.statistics.MAX_SHIFT_CONVERGED",
     "rietx.optimize.statistics.OBS_PER_PARAMETER_MIN",
     "rietx.optimize.statistics.OBS_PER_PARAMETER_PREFERRED",
-    "rietx.params.vector.CELL_SAFETY_ANGLE_DEG",
-    "rietx.params.vector.CELL_SAFETY_FRACTION",
     "rietx.params.vector.SIZE_CAP_MIN_SIZE_A",
     "rietx.refine.AIR_SCATTER_UNDECLARED_FRACTION",
     "rietx.refine.AIR_SCATTER_UNDECLARED_SCORE",

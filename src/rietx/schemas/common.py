@@ -501,6 +501,10 @@ from .._nearmiss import did_you_mean
 #: rule replaces the absolute ``n_unindexed`` cap, which a ``SearchSpecSpec``
 #: still accepts as a declared int, its default now ``None``).  Additive and
 #: defaulted to ``None``, "not computed", the 0.25 → 0.26 rule.
+#: Also in 0.59 (WP-2002, B8): ``StageResult.cell_reset``, the free cell
+#: parameters a stage put back at its starting values after their phase's cell
+#: left the safety window.  Additive and defaulted to ``None``, the 0.25 → 0.26
+#: rule; all three runners write a list on every stage.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

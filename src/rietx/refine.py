@@ -388,17 +388,22 @@ class _StageHold:
     #: decided before the solve, and unrecoverable after it, when the seeded
     #: row has moved.
     seeded: dict[str, float] = dataclasses.field(default_factory=dict)
-    #: ``(path, escaped_value, clamped_value)`` for every free cell parameter
-    #: ``clamp_cell_runaway`` pulled back this stage — empty on every stage
-    #: that never leaves the safety window, which is every stage measured so
-    #: far (WP-1110's own 51-transition survey).
+    #: one :class:`CellReset`, ``(path, solved_value, start_value)``, for
+    #: every free cell parameter :func:`reset_cell_runaway` put back this
+    #: stage, after either solve — empty on every stage that never leaves the
+    #: safety window, which is every stage measured so far (WP-1110's own
+    #: 51-transition survey, WP-1523's 104 fits).
     cell_runaway: list[tuple[str, float, float]] = dataclasses.field(
         default_factory=list)
+    #: ``StageResult.cell_reset`` (WP-2002, B8): the paths of
+    #: :attr:`cell_runaway` the stage did not hand to the collapse's hold,
+    #: decided inside the stage beside ``held``.
+    cell_reset: list[str] = dataclasses.field(default_factory=list)
     #: ``(driver_path, [escaped_dependent_paths])`` per ``vars.*`` column
     #: :func:`_vars_driven_cell_escapes` found driving a cell outside the
-    #: safety window this stage — named, never clamped (review of #385
-    #: finding 1).  Empty whenever :attr:`cell_runaway` is, and on every
-    #: stage this package's own suite runs outside this file's own fixture.
+    #: safety window this stage — named, never reset (review of #385
+    #: finding 1).  Empty on every stage this package's own suite runs
+    #: outside this file's own fixture.
     cell_runaway_unresolved: list[tuple[str, list[str]]] = dataclasses.field(
         default_factory=list)
     #: the origin restraint the stage's last solve ran with (WP-1912,
@@ -1196,8 +1201,8 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
     a seeded scale would otherwise stay held on a reading from before the
     seed and pay the second solve this exists to remove.  A collapse puts
     the phase back where its stage started, after the reading was taken.
-    ``clamp_cell_runaway`` moves a cell after the solve whose Jacobian the
-    reading used.  In the last two cases the phase stays held by a reading
+    ``reset_cell_runaway`` can put a cell back after a stage's last solve,
+    whose Jacobian the reading used.  In the last two cases the phase stays held by a reading
     that the stage's own measurement called unseen, and a stale reading errs
     only towards holding, since the minimum is taken and the scale stays
     free for the release at the answer.
@@ -1224,47 +1229,13 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
     return held, reach
 
 
-def clamp_cell_runaway(table: ParameterTable, start_values: dict[str, float]
-                       ) -> list[tuple[str, float, float]]:
-    """Pull every free cell parameter back inside ``CELL_SAFETY_FRACTION`` /
-    ``CELL_SAFETY_ANGLE_DEG`` of ``start_values`` — the stage's own — and
-    report what it pulled back, as ``(path, escaped_value, clamped_value)``.
-
-    Call this **after** ``table.commit(outcome.theta)``, on the committed
-    ``Entry.value``\\ s, never as a bound the solver sees — that is the whole
-    design (:data:`~rietx.params.vector.CELL_SAFETY_FRACTION`'s docstring):
-    ``cell_window``'s own support-based window is deliberately restricted to
-    phases ``phase_support`` judges invisible, because a live bound changes
-    scipy TRF's trust-region step scaling even where it is never hit,
-    measurably costing iterations and pinned digits on a phase that was never
-    going to run away.  A phase judged **visible** the whole time (the trigger
-    case: two free phases sharing a near-identical cell, one at full scale)
-    is exactly what that window cannot reach, so this checks the *outcome*
-    unconditionally instead — bit-identical for every fit whose cell never
-    leaves the window (every one measured in WP-1110's own 51-transition
-    survey), and a correction rather than a crash for one that does.
-
-    Symmetry-derived cell parameters (``b``/``c`` tied to ``a`` on a cubic
-    cell, etc.) are not in ``table.free_paths`` and are not visited here —
-    :meth:`~rietx.params.vector.ParameterTable.refresh_ties` (called by the
-    caller, exactly as the WP-1301 collapse-restore beside this call already
-    does) re-derives them off the clamped source.
-
-    **A cell driven by a caller's free ``vars.X`` is a different case, and
-    this function deliberately does not touch it** (review of #385 finding
-    1).  ``e.path not in free`` below tests the free path's own *name*, the
-    same construction :func:`_unsupported_phase_paths` and
-    :func:`_reach_beyond_self` already had to repair for WP-1342: a cell tied
-    to a free variable is not itself a free column (so the loop never visits
-    its entry) and the variable's own name is not a cell name either, so
-    testing names alone leaves it invisible twice over.  A single clamp target
-    would not even be the right fix if it were visible — a variable driving
-    two cells has no one path to pull back without moving the other — so the
-    escape is *named*, never silently passed through, by
-    :func:`_vars_driven_cell_escapes` beside this function, which the caller
-    folds into the same ``CELL_RUNAWAY`` diagnostic.
-    """
-    clamped: list[tuple[str, float, float]] = []
+def _escaped_cell_paths(table: ParameterTable, start_values: dict[str, float]
+                        ) -> list[str]:
+    """The free cell parameters outside ``CELL_SAFETY_FRACTION`` /
+    ``CELL_SAFETY_ANGLE_DEG`` of ``start_values``, the stage's own, in entry
+    order.  :func:`reset_cell_runaway`'s test, kept apart so the joint runner
+    can ask it of every histogram before it restores any of them."""
+    escaped: list[str] = []
     free = set(table.free_paths)
     for e in table.entries:
         if e.path not in free:
@@ -1279,101 +1250,134 @@ def clamp_cell_runaway(table: ParameterTable, start_values: dict[str, float]
                              path=e.path, fraction=CELL_SAFETY_FRACTION,
                              angle_deg=CELL_SAFETY_ANGLE_DEG)
         if not (lo <= e.value <= hi):
-            target = min(max(e.value, lo), hi)
-            clamped.append((e.path, float(e.value), float(target)))
-            e.value = target
-    return _revert_degenerate_clamps(table, start_values, clamped)
+            escaped.append(e.path)
+    return escaped
 
 
-class CellClamp(tuple):
-    """``(path, escaped_value, value)`` of one :func:`clamp_cell_runaway`
-    finding, unpackable as the plain triple it always was.
+def _restore_phase_cells(table: ParameterTable, start_values: dict[str, float],
+                         phases: Iterable[str], escaped: Iterable[str]
+                         ) -> list[CellReset]:
+    """Put every free cell parameter of ``phases`` (phase indices as they
+    appear in a path) back at ``start_values``; one :class:`CellReset` each.
 
-    ``reverted`` is True where the clamped cell had no volume and the phase's
-    free cell parameters were all restored to the values the stage started
-    with, so ``value`` is that start value and not a window edge (and
-    ``escaped_value`` is the solved value, which for a parameter that never left
-    its window is simply where the solve ended).  A tuple subclass, not a fourth element, so
-    every ``for path, old, new in ...`` consumer and equality with a plain
-    triple stand.
+    The tied entries are refreshed off the restored sources, so a cubic ``b``
+    and ``c`` follow ``a`` and a rhombohedral ``β``, ``γ`` follow ``α``.
     """
-
-    reverted: bool
-
-    def __new__(cls, path: str, escaped: float, value: float,
-                reverted: bool = False):
-        self = super().__new__(cls, (path, escaped, value))
-        self.reverted = reverted
-        return self
-
-
-def _revert_degenerate_clamps(table: ParameterTable,
-                              start_values: dict[str, float],
-                              clamped: list[tuple[str, float, float]]
-                              ) -> list[tuple[str, float, float]]:
-    """Put a phase's cell back at the stage's start where the clamp made it degenerate.
-
-    Each cell parameter is pulled back to its own window on its own, so a
-    triclinic cell whose three angles all escaped lands on the window's *corner*,
-    ``start + 6°`` on every angle, which can be a cell with no volume (a P1 Le
-    Bail stage on a wrong cell reached ``α, β, γ = 133.8°, 119.4°, 114.8°``: a
-    direct-metric determinant of −126).  Nothing downstream can use it —
-    ``lebail_update`` and ``phase_support`` evaluate the model there and raised
-    :class:`~rietx.crystallography.lattice.DegenerateCellError` out of
-    ``fit`` where #283/#289 promise a counted rejection.
-
-    The determinant is taken on the cell the table would hold, so the tied
-    entries are refreshed off the clamped sources first: the clamp rewrote only
-    the free entries, and a rhombohedral ``β, γ ← α`` still sat at the escaped
-    solution beside a clamped ``α`` (review of #736, round 2).  A phase whose
-    cell has a non-positive determinant gets **every** free cell parameter
-    restored to the value it started the stage with — also one that stayed
-    inside its window — so the cell is exactly the one the stage's own residual
-    evaluated, its volume is known to be positive, and the record's claim holds.
-    Each restored parameter comes back as a tuple whose third element is that
-    start value and whose ``reverted`` flag is set (:class:`CellClamp`); one
-    that had not escaped carries its solved value as the second element.
-    """
-    from .crystallography.lattice import direct_metric_tensor
-
-    if not clamped:
-        return clamped
+    phases, escaped = set(phases), set(escaped)
+    if not phases:
+        return []
     by_path = {e.path: e for e in table.entries}
-    names = ("a", "b", "c", "alpha", "beta", "gamma")
-    phases = {path.split(".")[1] for path, _escaped, _target in clamped}
-    free = [p for p in table.free_paths]
+    out: list[CellReset] = []
+    for path in table.free_paths:
+        parts = path.split(".")
+        if (_cell_parameter_name(path, phases=None) is None
+                or parts[1] not in phases
+                or not math.isfinite(start_values.get(path, math.nan))):
+            continue
+        out.append(CellReset(path, float(by_path[path].value),
+                             float(start_values[path]),
+                             escaped=path in escaped))
+        by_path[path].value = start_values[path]
     table.refresh_ties()
-    extra: list[CellClamp] = []
-    reverted: set[str] = set()
-    for ip in sorted(phases):
-        paths = [f"phases.{ip}.cell.{n}" for n in names]
-        if not all(p in by_path for p in paths):
-            continue
-        values = [by_path[p].value for p in paths]
-        if float(np.linalg.det(np.asarray(direct_metric_tensor(*values)))) > 0.0:
-            continue
-        seen = {path for path, _escaped, _target in clamped}
-        for path in free:
-            if not path.startswith(f"phases.{ip}.cell."):
-                continue
-            if path not in seen:
-                extra.append(CellClamp(path, float(by_path[path].value),
-                                       float(start_values[path]), True))
-            by_path[path].value = start_values[path]
-            reverted.add(path)
-        table.refresh_ties()
-    return [CellClamp(path, escaped, float(start_values[path]), True)
-            if path in reverted else CellClamp(path, escaped, target)
-            for path, escaped, target in clamped] + extra
+    return out
+
+
+def reset_cell_runaway(table: ParameterTable, start_values: dict[str, float]
+                       ) -> list[CellReset]:
+    """Put back at ``start_values`` (the stage's own) the whole free cell of
+    every phase whose free cell parameter left ``CELL_SAFETY_FRACTION`` /
+    ``CELL_SAFETY_ANGLE_DEG`` of it; report each restored parameter as
+    ``(path, solved_value, start_value)``.
+
+    The caller holds what this restored for the rest of the stage and solves
+    once more without it (WP-2002, B8, ruled 2026-10-19), through the same
+    path a collapsing phase takes (WP-1301).  This function moves values
+    only and never calls ``set_vary``, because the caller measures each
+    phase's significance at the restored values before it decides which hold
+    claims each path.  A refiner whose cell ran away puts it back and fixes
+    it; a cell pulled to the window's edge, as this did before, was a value
+    no fit produced, with esds from the runaway point.
+
+    The **whole** free cell of the phase goes back, also a parameter that
+    stayed inside its window: the parameters moved together, so one restored
+    beside its partners' solved values is again a cell no fit produced.  The
+    restored cell is the one the stage's own residual evaluated, so its volume
+    is positive.
+
+    Call this **after** ``table.commit(outcome.theta)``, on the committed
+    ``Entry.value``\\ s, never as a bound the solver sees, which is the whole
+    design (:data:`~rietx.params.vector.CELL_SAFETY_FRACTION`'s docstring):
+    ``cell_window``'s own support-based window is deliberately restricted to
+    phases ``phase_support`` judges invisible, because a live bound changes
+    scipy TRF's trust-region step scaling even where it is never hit,
+    measurably costing iterations and pinned digits on a phase that was never
+    going to run away.  A phase judged **visible** the whole time (the trigger
+    case: two free phases sharing a near-identical cell, one at full scale)
+    is exactly what that window cannot reach, so this checks the *outcome*
+    unconditionally instead.  A fit whose cell never leaves the window is
+    bit-identical (every one measured in WP-1110's own 51-transition survey,
+    and none of WP-1523's 104 fits fired it).
+
+    Symmetry-derived cell parameters (``b``/``c`` tied to ``a`` on a cubic
+    cell, etc.) are not in ``table.free_paths`` and are not visited here;
+    :meth:`~rietx.params.vector.ParameterTable.refresh_ties` re-derives them
+    off the restored sources before this returns.
+
+    **A cell driven by a caller's free ``vars.X`` is a different case, and
+    this function deliberately does not touch it** (review of #385 finding
+    1).  ``e.path not in free`` in :func:`_escaped_cell_paths` tests the free
+    path's own *name*, the same construction :func:`_unsupported_phase_paths`
+    and :func:`_reach_beyond_self` already had to repair for WP-1342: a cell
+    tied to a free variable is not itself a free column (so the loop never
+    visits its entry) and the variable's own name is not a cell name either,
+    so testing names alone leaves it invisible twice over.  Resetting the
+    driver would not be the right fix if it were visible: it would move
+    whatever else that variable drives, and a variable driving two cells has
+    no one start to go back to.  So the escape is *named*, never silently
+    passed through, by :func:`_vars_driven_cell_escapes` beside this
+    function, which the caller folds into the same ``CELL_RUNAWAY``
+    diagnostic.
+    """
+    escaped = _escaped_cell_paths(table, start_values)
+    if not escaped:
+        return []
+    return _restore_phase_cells(table, start_values,
+                                {p.split(".")[1] for p in escaped}, escaped)
+
+
+class CellReset(tuple):
+    """``(path, solved_value, start_value)`` of one :func:`reset_cell_runaway`
+    finding, unpackable as the plain triple ``for path, old, new in ...``
+    reads.
+
+    ``escaped`` is True where this parameter itself left the safety window,
+    and False for a free cell parameter of the same phase that stayed inside
+    it and went back with its cell.  ``held`` is True where the stage then
+    held the parameter and solved again, which is a runaway found after the
+    stage's first solve.  It is False for one found after the stage's second
+    solve, which has no solve after it: the value is restored and the column
+    stays free in that answer, its esd withheld.  A tuple subclass, not more
+    elements, so equality with a plain triple stands.
+    """
+
+    escaped: bool
+    held: bool
+
+    def __new__(cls, path: str, solved: float, start: float, *,
+                escaped: bool = True, held: bool = True):
+        self = super().__new__(cls, (path, solved, start))
+        self.escaped = escaped
+        self.held = held
+        return self
 
 
 def _vars_driven_cell_escapes(table: ParameterTable,
                               start_values: dict[str, float]
                               ) -> list[tuple[str, list[str]]]:
     """Cell parameters a free ``vars.X`` drives outside the safety window —
-    named, never clamped (review of #385 finding 1).
+    named, never reset (review of #385 finding 1).
 
-    :func:`clamp_cell_runaway` tests a free entry's own path against a cell
+    :func:`reset_cell_runaway` tests a free entry's own path against a cell
     name, so a cell tied to a free ``vars.X`` is invisible to it: the cell is
     not a free column (it is that column's dependent) and the free column's
     own name is the variable's, not a cell's.  This asks the other question
@@ -1383,8 +1387,8 @@ def _vars_driven_cell_escapes(table: ParameterTable,
     :meth:`~rietx.params.vector.ParameterTable.column_reach`, which answers
     what a column *moves* rather than what it is called.
 
-    **Never clamped, by design, not merely by omission.**  A variable driving
-    one cell has a single target and pulling it back would still move
+    **Never reset, by design, not merely by omission.**  A variable driving
+    one cell has a single target and putting it back would still move
     whatever else that variable drives; a variable driving several has no
     single target at all.  Either way, deciding which of the driver's other
     directions may move is the caller's physics, not a post-solve safety
@@ -1450,25 +1454,35 @@ def _cell_runaway_withheld(table: ParameterTable,
 
 #: An angle path's name (``_cell_parameter_name``'s output), the same test
 #: :func:`~rietx.params.vector.cell_window` branches on -- ``alpha``/``beta``/
-#: ``gamma`` are clamped by ``CELL_SAFETY_ANGLE_DEG`` (degrees, absolute),
+#: ``gamma`` are windowed by ``CELL_SAFETY_ANGLE_DEG`` (degrees, absolute),
 #: never ``CELL_SAFETY_FRACTION`` (a fraction of Å), so a message built for
 #: one and printed for the other names the wrong unit and the wrong window.
 _ANGLE_CELL_NAMES = ("alpha", "beta", "gamma")
+
+#: a cell path's phase index, bare or scoped ``hist.h.`` by a joint fit
+_CELL_PHASE = re.compile(r"phases\.(\d+)\.cell\.")
 
 
 def _cell_runaway_diagnostic(
         cell_runaway: list[tuple[str, float, float]],
         unresolved: list[tuple[str, list[str]]] | None = None,
         ) -> Diagnostic | None:
-    """``CELL_RUNAWAY`` for one stage's :func:`clamp_cell_runaway` and
+    """``CELL_RUNAWAY`` for one stage's :func:`reset_cell_runaway` and
     :func:`_vars_driven_cell_escapes` findings, or ``None`` when neither
     found anything (the overwhelming majority of stages, including every
     one this package's own suite runs).
 
-    ``unresolved`` never says "pulled back" — the whole point of review of
-    #385 finding 1 is that a ``vars.X``-driven escape is *not* clamped, so
+    The message names the parameters that left the window, then says what
+    happened to their phases' cells: restored and held while the stage solved
+    again, or restored after the stage's second solve with nothing after it
+    (:class:`CellReset`'s ``held``).  A plain triple reads as an escaped,
+    held row.  ``where`` names every restored path, also one that went back
+    only with its cell, since none of them is a measurement of this stage.
+
+    ``unresolved`` never says "restored" — the whole point of review of
+    #385 finding 1 is that a ``vars.X``-driven escape is *not* reset, so
     the sentence for it says what happened instead: the driver and every
-    escaped dependent are named, and why nothing moved.  A stage that fires
+    escaped dependent are named, and that nothing moved.  A stage that fires
     both is one message, not two, since a reader tracing one ``CELL_RUNAWAY``
     code should not have to reassemble it from two diagnostics that differ
     only in which clause fired.
@@ -1478,7 +1492,7 @@ def _cell_runaway_diagnostic(
         return None
 
     def is_angle(path: str) -> bool:
-        return _cell_parameter_name(path, phases=None) in _ANGLE_CELL_NAMES
+        return path.rsplit(".", 1)[-1] in _ANGLE_CELL_NAMES
 
     paths = [p for p, _, _ in cell_runaway]
     for driver, escaped in unresolved:
@@ -1487,8 +1501,6 @@ def _cell_runaway_diagnostic(
 
     sentences = []
     value = None
-    reverted = [c for c in cell_runaway if getattr(c, "reverted", False)]
-    clamped = [c for c in cell_runaway if not getattr(c, "reverted", False)]
     if cell_runaway:
         worst = max(cell_runaway, key=lambda t: abs(t[1] - t[2]))
         value = abs(worst[1] - worst[2])
@@ -1498,9 +1510,10 @@ def _cell_runaway_diagnostic(
             f"{p} {old:.6g} -> {new:.6g} {'°' if is_angle(p) else 'Å'}"
             for p, old, new in rows)
 
-    if clamped:
-        has_length = any(not is_angle(p) for p, _, _ in clamped)
-        has_angle = any(is_angle(p) for p, _, _ in clamped)
+    left = [c for c in cell_runaway if getattr(c, "escaped", True)]
+    if left:
+        has_length = any(not is_angle(p) for p, _, _ in left)
+        has_angle = any(is_angle(p) for p, _, _ in left)
         if has_length and has_angle:
             window_clause = (f"±{CELL_SAFETY_FRACTION:.0%} (a/b/c) or "
                              f"±{CELL_SAFETY_ANGLE_DEG:.0f}° (α/β/γ)")
@@ -1509,18 +1522,25 @@ def _cell_runaway_diagnostic(
         else:
             window_clause = f"±{CELL_SAFETY_FRACTION:.0%}"
         sentences.append(
-            f"{len(clamped)} free cell parameter"
-            f"{'' if len(clamped) == 1 else 's'} left "
-            f"{window_clause} of this stage's starting cell "
-            f"during solving and {'was' if len(clamped) == 1 else 'were'} "
-            f"pulled back to the window edge: {_detail(clamped)}")
-    if reverted:
+            f"{len(left)} free cell parameter{'' if len(left) == 1 else 's'} "
+            f"left {window_clause} of this stage's starting cell during "
+            f"solving: {', '.join(p for p, _, _ in left)}")
+    held = [c for c in cell_runaway if getattr(c, "held", True)]
+    late = [c for c in cell_runaway if not getattr(c, "held", True)]
+    for rows, clause in (
+            (held, "and held while the stage solved again"),
+            (late, "after the stage's second solve, with no solve after it, "
+                   "so the stage's other values were fitted beside the "
+                   "escaped cell")):
+        if not rows:
+            continue
+        n = len({m.group(1) for p, _, _ in rows
+                 if (m := _CELL_PHASE.search(p)) is not None})
+        subject = ("The phase's free cell was" if n <= 1 else
+                   f"The {n} phases' free cells were")
         sentences.append(
-            f"{len(reverted)} free cell parameter"
-            f"{'' if len(reverted) == 1 else 's'} of a phase whose clamped "
-            f"cell had no volume {'was' if len(reverted) == 1 else 'were'} "
-            f"restored to this stage's starting values "
-            f"(solved -> restored): {_detail(reverted)}")
+            f"{subject} restored to this stage's starting values {clause} "
+            f"(solved -> restored): {_detail(rows)}")
     if unresolved:
         driver_detail = "; ".join(
             f"{driver} drives {', '.join(escaped)} outside its window"
@@ -1528,7 +1548,7 @@ def _cell_runaway_diagnostic(
         sentences.append(driver_detail)
         sentences.append(
             f"{'It was' if len(unresolved) == 1 else 'They were'} not "
-            f"pulled back")
+            f"put back")
     return Diagnostic(
         level="warning", code="CELL_RUNAWAY", where=paths, value=value,
         message=". ".join(sentences) + ".",
@@ -4005,26 +4025,27 @@ class Refinement:
         # whole time and its cell still walk to nonsense — a joint
         # degeneracy with another free phase's cell, invisible to the
         # per-phase test above (CELL_SAFETY_FRACTION's docstring).  Checked
-        # and corrected once, on the outcome, never as a bound the solver saw.
-        cell_runaway = clamp_cell_runaway(table, start_values)
+        # on the outcome, never as a bound the solver saw.  The cell goes back
+        # to where the stage found it here, before the answer is measured
+        # below, and is held for the second solve with the collapse's paths
+        # (WP-2002, B8).
+        cell_runaway = reset_cell_runaway(table, start_values)
         # A caller's free ``vars.X`` can drive a cell the same way and is
-        # invisible to the clamp above by construction (review of #385
+        # invisible to the reset above by construction (review of #385
         # finding 1) — named here instead, never silently passed through.
         cell_runaway_unresolved = _vars_driven_cell_escapes(table, start_values)
         if cell_runaway:
-            table.refresh_ties()
             # ``table.commit`` above wrote ``outcome.theta`` into
-            # ``Entry.value``, and the clamp above just wrote past it again
-            # directly on the entries — ``outcome.theta`` itself never
-            # changed, so every reader downstream that decodes *it* (this
-            # stage's own lebail/guard/event uses, and ``_build_result`` at
-            # the end of ``fit()``) would silently see the pre-clamp cell
-            # while ``RefinedParameter.value`` (read off these same entries)
-            # reports the clamped one.  ``table.x0()`` reads the free columns
-            # off the committed entries, the inverse of ``decode`` over them,
-            # so re-deriving it here is a re-encoding of the committed table,
-            # not a second source of truth.
-            outcome = dataclasses.replace(outcome, theta=table.x0())
+            # ``Entry.value``, and the reset above wrote past it again
+            # directly on the entries, so ``outcome.theta`` is re-derived:
+            # ``table.x0()`` reads the free columns off the committed
+            # entries, a re-encoding of the table rather than a second source
+            # of truth.  The Jacobian was taken at the escaped cell, so it
+            # goes too, and the measurement below builds one where the values
+            # now are.  Only this outcome's starting cost and counts reach the
+            # result: the reset always buys the second solve, whose outcome
+            # replaces the rest.
+            outcome = dataclasses.replace(outcome, theta=table.x0(), jac=None)
 
         # Support is a fact about the values, and a stage moves them.  So the
         # measurement is taken again at the answer, and it can have moved
@@ -4103,7 +4124,16 @@ class Refinement:
         for b, a in collapse_axes.items():
             flat_axes.setdefault(_site(b),
                                  _axis_in_crystal_axes(a, frames[_site(b)]))
-        if released or collapsed or late_turned:
+        # the cell reset's hold (WP-2002, B8) takes what the collapse left: a
+        # path both reach is the collapse's, in ``held``, so the two records
+        # stay disjoint and PHASE_UNCONSTRAINED still names the phase
+        collapsed_set = set(collapsed)
+        reset_hold = list(dict.fromkeys(p for p, _, _ in cell_runaway
+                                        if p not in collapsed_set))
+        # ``StageResult.cell_reset``: the held ones, and any the second solve
+        # puts back below
+        cell_reset = list(reset_hold)
+        if released or collapsed or late_turned or reset_hold:
             if collapsed:
                 # Restore before holding.  A phase whose scale is not 3σ from
                 # zero (``_answer_significance``) is one the data cannot tell
@@ -4132,6 +4162,14 @@ class Refinement:
                 held_reach.update(_reach_beyond_self(table, collapsed))
                 table.set_vary(collapsed, False)
                 held = held + collapsed
+            if reset_hold:
+                # Already back where the stage found it (the reset above), and
+                # held for the second solve, which re-fits everything else
+                # without the walk.  The next stage lifts it with the other
+                # holds (``self._held``), so the plan's cell refines again
+                # from a value the data saw.
+                reset_hold = table.set_vary(reset_hold, False)
+                cell_reset = list(reset_hold)
             if released:
                 released_set = set(released)
                 table.set_vary(released, True)
@@ -4153,9 +4191,10 @@ class Refinement:
                         scale_b_held.update(late_sep)
                         late_set = set(late_hold)
                         released = [p for p in released if p not in late_set]
-            self._held = list(held)
+            self._held = list(held) + reset_hold
             held_set = set(held)
-            freed = [p for p in declared_freed if p not in held_set]
+            freed = [p for p in declared_freed
+                     if p not in held_set and p not in reset_hold]
             # a released column is not held, so its reach is not this record's
             held_reach = {c: v for c, v in held_reach.items() if c in held_set}
             if events is not None:
@@ -4189,11 +4228,19 @@ class Refinement:
             signs = table.commit(second.theta)
             second = rechart_outcome(second, table.x0(), signs,
                                      table.free_paths)
-            second_runaway = clamp_cell_runaway(table, start_values)
+            # Asked again, because a column this solve freed (a release) can
+            # walk too.  There is no third solve, so the cell goes back and
+            # stays a free column of this answer: holding it now would leave
+            # the covariance a column wider than θ.  Its esd is withheld
+            # through ``CELL_RUNAWAY``.
+            second_runaway = [CellReset(*c, escaped=c.escaped, held=False)
+                              for c in reset_cell_runaway(table, start_values)]
             if second_runaway:
-                table.refresh_ties()
                 cell_runaway = cell_runaway + second_runaway
-                # same re-derivation as the first clamp above, on ``second``
+                put_back = [p for p, _, _ in second_runaway]
+                cell_reset = cell_reset + put_back
+                freed = [p for p in freed if p not in put_back]
+                # same re-derivation as the first reset above, on ``second``
                 # rather than ``outcome`` — the merge just below carries
                 # ``second``'s ``theta`` field forward untouched otherwise.
                 second = dataclasses.replace(second, theta=table.x0())
@@ -4274,6 +4321,7 @@ class Refinement:
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
             seeded=seeded,
             cell_runaway=list(cell_runaway),
+            cell_reset=list(cell_reset),
             cell_runaway_unresolved=[(d, list(e)) for d, e in cell_runaway_unresolved],
             origin=model.origin,
             # Le Bail and Pawley read the screen alone, which the result
@@ -4829,7 +4877,7 @@ class Refinement:
                     diagnostics.append(d)
             runaway_diag = _cell_runaway_diagnostic(hold.cell_runaway, hold.cell_runaway_unresolved)
             # the last stage's alone survives the loop: an earlier stage's
-            # clamp is re-measured by every later one (staging is cumulative)
+            # reset is re-measured by every later one (staging is cumulative)
             answer_runaway = [] if runaway_diag is None else [runaway_diag]
             answer_significance = hold.significance
             origins.append((stage.name, hold.origin))
@@ -4850,6 +4898,7 @@ class Refinement:
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths,
                 seeded=hold.seeded,
+                cell_reset=hold.cell_reset,
                 # checked, trivially: one histogram has no elsewhere
                 unreached_histograms={},
                 moment_angle_tests=outcome.moment_angle_tests,
@@ -5106,7 +5155,7 @@ class Refinement:
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths, unreached_histograms={},
-                seeded=hold.seeded,
+                seeded=hold.seeded, cell_reset=hold.cell_reset,
                 moment_angle_tests=outcome.moment_angle_tests)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
@@ -6936,9 +6985,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # "not a measurement", so its esd is withheld while the row stays (it is
     # still a free column; WP-1301's hold is what drops a row).  Keyed on the
     # **answer-producing stage's** finding, never the run's accumulated list
-    # (review of #385 round 3): staging is cumulative, so a cell clamped in
-    # stage 1 is refined again from the window edge by every later stage, and
-    # the esd the last stage measured is a measurement.  ``cell_runaway`` is
+    # (review of #385 round 3): staging is cumulative, so a cell reset in
+    # stage 1 is refined again from its stage-start value by every later stage,
+    # and the esd the last stage measured is a measurement.  ``cell_runaway`` is
     # that stage's finding; ``None`` reads it off ``diagnostics``, which is
     # right for every caller whose list is one stage's (``run_stage``, a stage
     # report, ``replay``).  The flag stays the finding's own ``where``, as

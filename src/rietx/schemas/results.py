@@ -1112,6 +1112,25 @@ class StageResult(Base):
     #: beside its free modulus, the stage computed no covariance, or the result
     #: was stored before the field.  It feeds ``MOMENT_ANGLE_STATIONARY``.
     moment_angle_tests: list[MomentAngleTest] | None = None
+    #: the free cell parameters this stage **put back** at the values it
+    #: started from, because a cell parameter of their phase left the safety
+    #: window while the stage solved (±15 % on a length, ±6° on an angle:
+    #: ``params.vector.CELL_SAFETY_FRACTION``; WP-2002, B8).  The phase's whole
+    #: free cell goes back, a parameter that stayed inside the window included.
+    #: Found after the stage's first solve, the cell is held and the stage
+    #: solves once more without it, the collapse's path (WP-1301), and the next
+    #: stage frees it again.  Found after that second solve, there is no third:
+    #: the value goes back, the column stays free in the answer, and its esd is
+    #: withheld.  ``CELL_RUNAWAY`` names the paths and says which happened.
+    #:
+    #: Disjoint from :attr:`freed` and from :attr:`held`: a path the collapse
+    #: also holds is in ``held``.  Writers: the three runners that build a
+    #: ``StageResult``, ``Refinement.fit`` and ``Refinement.run_stage`` from
+    #: ``Refinement._run_stage``'s record, and ``MultiHistogramRefinement.fit``
+    #: from its own stage loop.  ``None`` means a result stored before the
+    #: field; every runner writes a list, and an empty one is a stage that put
+    #: nothing back, which is every stage of an ordinary fit.
+    cell_reset: list[str] | None = None
 
     @model_validator(mode="before")
     @classmethod

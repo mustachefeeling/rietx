@@ -1676,9 +1676,10 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         description=(
             "A free cell parameter left its safety window around the starting cell while "
             "the solver worked. It is usually degenerate with another free cell or "
-            "parameter. The value was pulled back to the window edge or restored to its "
-            "starting value, so it is not a measurement. In the final stage, its esd and "
-            "those tied to it are unavailable. Fix one phase's cell, hold the other "
+            "parameter. The phase's cell was put back to its value at the start of the "
+            "stage and held while the stage solved again, so the value is not a "
+            "measurement. When this happens in the final stage, that cell and the "
+            "parameters tied to it carry no esd. Fix one phase's cell, hold the other "
             "phase, or free the cell in a stage of its own."
         ),
     ),

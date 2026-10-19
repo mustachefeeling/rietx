@@ -484,13 +484,18 @@ CELL_WINDOW_ANGLE_DEG = 2.0
 #: refinement bound.
 CELL_MIN_LENGTH_A = 1.5
 
-#: Unconditional post-solve safety window (fraction, degrees) — see
-#: ``refine.clamp_cell_runaway``, which applies this to every cell parameter
-#: that is itself a free *column* regardless of ``phase_support``, after a
-#: stage has solved and committed.  **"Free" is narrower than "moving" here**
+#: Unconditional post-solve safety window (fraction, degrees): the
+#: **trigger** for a runaway, never a value anything is moved to.  See
+#: ``refine.reset_cell_runaway``, which tests every cell parameter that is
+#: itself a free *column* against it, regardless of ``phase_support``, after a
+#: stage has solved and committed.  A phase with one parameter outside it gets
+#: its whole free cell put back at the stage's starting values and held while
+#: the stage solves again (WP-2002, B8, ruled 2026-10-19); until then the
+#: parameter was pulled back to this window's edge, a value no fit produced.
+#: **"Free" is narrower than "moving" here**
 #: (the ``moving_paths``-vs-``free_paths`` rule, root CLAUDE.md), and the gap
 #: is not closed: a cell tied to a caller's free ``vars.X`` is a *moving*
-#: path, not a *free* one, so it is never clamped directly — clamping the
+#: path, not a *free* one, so it is never reset directly — resetting the
 #: driver would move every other value it also reaches, which is not this
 #: function's decision to make.  Such an escape is named instead, never
 #: silently passed through: see ``refine._vars_driven_cell_escapes`` and the
@@ -526,7 +531,8 @@ CELL_MIN_LENGTH_A = 1.5
 #: ±15 % is three times :data:`CELL_WINDOW_FRACTION` — wide enough that no
 #: real measurement needs it (thermal expansion and a composition swing are
 #: each a few percent at most) and narrow enough that an escaping cell is
-#: pulled back in Å rather than left to reach the thousands.
+#: caught in Å rather than left to reach the thousands.  It fired in none of
+#: WP-1523's 104 fits.
 CELL_SAFETY_FRACTION = 0.15
 CELL_SAFETY_ANGLE_DEG = 3.0 * CELL_WINDOW_ANGLE_DEG
 
@@ -540,7 +546,7 @@ def _cell_parameter_name(path: str, *, phases: set[int] | None) -> str | None:
     """``"phases.0.cell.a"`` → ``"a"`` when phase 0 is in ``phases``, else None.
 
     ``phases=None`` means *any* phase — asked only by ``refine``'s
-    unconditional post-solve safety net (``clamp_cell_runaway`` and the
+    unconditional post-solve safety net (``reset_cell_runaway`` and the
     helpers that name, word and withhold around it), which reads every cell
     path regardless of which phase it belongs to.
     (:meth:`ParameterTable.bounds` never passes ``None`` here: it calls this
@@ -571,9 +577,9 @@ def cell_window(name: str, value: float, lo: float, hi: float,
     """The default bounds on one cell parameter, anchored at ``value``.
 
     ``fraction``/``angle_deg`` default to the per-phase-support window's own
-    constants; ``refine.clamp_cell_runaway`` passes
+    constants; ``refine.reset_cell_runaway`` passes
     :data:`CELL_SAFETY_FRACTION`/:data:`CELL_SAFETY_ANGLE_DEG` instead, three
-    times as wide, to pull an escaped cell back after a stage regardless of
+    times as wide, to find a cell that escaped during a stage regardless of
     which phase it belonged to — see that constant's docstring.  Every
     existing caller of this function keeps the old numbers.
 

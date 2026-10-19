@@ -1084,6 +1084,7 @@ for stage in result.stages:
 | `StageResult.unreached_histograms` | joint fits: per histogram, the globs that freed rows of another histogram and matched none of this one; `{}` on a single histogram, `None` on a result stored before the check existed |
 | `StageResult.seeded` | each row this stage lifted before solving, with the value it started from; `None` on a result stored before the field existed |
 | `StageResult.moment_angle_tests` | each round of the test that left moment angles at a direction the symmetry fixes out of the covariance, one `MomentAngleTest` per round; `None` when no free column moved only moment angles beside a free modulus |
+| `StageResult.cell_reset` | the free cell parameters this stage put back at the values it started from, because their phase's cell left the safety window while it solved (`CELL_RUNAWAY` says more); `None` on a result stored before the field existed |
 
 `StageResult.freed` is the field to read when a stage did nothing. A glob that
 matches no path is not an error, because that is how the shipped plans reach a
