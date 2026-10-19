@@ -1,6 +1,6 @@
 # WP-2001 — The rule, the audit table and the guard
 
-Milestone: generality · Status: 🔄 2026-10-19 — the milestone, the rule and ten WPs filed and read twice against DESIGN.md's rules, eleven rulings in all; the table and the guard not started
+Milestone: generality · Status: 🔄 2026-10-19 — claimed by @yue-here
 Track: The registry and the guard
 Depends on: —
 Priority: P2 2026-10-18 — the scoping WP the other eight wait on; nothing blocks it
