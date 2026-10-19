@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-19 — 148 rows tiered; the decision batch (16 classes) awaits the maintainer
+Milestone: generality · Status: 🔄 2026-10-19 — 4 of 16 classes ruled; 9 items re-briefed in plain words await the maintainer
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -143,7 +143,8 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       judgement ground, the dissenting caller named or declared absent), the Rule 1 kind it falls to if demoted, the case against
       drafted by the `generality-review` agent, and a recommendation. Rows resting on one evidence base are grouped and ruled as a class
       (record § Decisions); rulings dated into the table. *Drafted and reviewed 2026-10-19:
-      `2002-batch/batch.md`, 16 classes; awaiting the rulings.*
+      `2002-batch/batch.md`, 16 classes. Ruled 2026-10-19: B7, B10, B12, B14, and B1
+      confirmed. The other nine re-briefed in `2002-batch/rulings.md`, awaiting answers.*
 - [ ] Approved demotions: the action removed, and its number left in the record field (or
       its ranking returned) with its meaning in the package's own output; the code's
       `level` to `info`, or, where the threshold was its trigger, the code replaced by an
@@ -161,6 +162,10 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       role). List each skill row that named a demoted verdict, for 2008.
 
 ## The batch (2026-10-19)
+
+The rulings received so far, the maintainer's words, and the second-round briefs for the
+items still open are in [`2002-batch/rulings.md`](2002-batch/rulings.md). Read it before
+`batch.md`: three of its picks replace the batch's (B4, B5, B9).
 
 The rulings this WP waits on are in [`2002-batch/batch.md`](2002-batch/batch.md): 16
 classes covering the 247 rows still at `unaudited`, each with the author's brief, the
@@ -209,6 +214,54 @@ for every row this WP owns.
   thresholds quote).
 
 ## Handover log
+
+### 2026-10-19 (2nd session) — four classes ruled, the rest re-briefed in plain words
+
+The maintainer ruled four of the sixteen classes and confirmed the absent-phase hold. The
+declared geometry now picks the default plan. A numerical setting is tier 1 when a test
+bounds its error over its domain. The three pick verbs are fixed as proposed, and the inline
+numbers that could change an answer become named constants. The other nine items came back
+as questions, so this session rewrote them in plain words and asked again
+(`2002-batch/rulings.md`). Asked what is scientifically accurate, it reversed the batch on
+the esd factor. The textbook esd is too small on correlated residuals and shrinks with step
+size, so the pick is now to keep the Bérar-Lelann inflation and report the textbook esd
+beside it. Nothing in the code or the audit table has moved.
+
+*Done.* `2002-batch/rulings.md`: the rulings with the maintainer's words, the nine
+second-round briefs, and the six open questions. Three picks changed from `batch.md`'s
+revised picks. B4 keeps f (option 1, the textbook esd reported beside it). B5 drops and
+reports a non-positive esd (option 3, built in WP-1952). B9 adds a "geometry not stated"
+state, joining the B7 follow-up. No Inherited section to prune. No forward reference: the
+B7 follow-up has no owner (grep over `docs/wp/` for `Geometry.kind` and
+`lab_bragg_brentano` found closed WPs and WP-1421, which is unrelated), and it is filed
+once B9's geometry question is ruled, so that both land in one WP.
+
+*Checked this session.* Bérar & Lelann (1991) and McCusker et al. (1999) are not in the
+Zotero library (title search over a copy of the sqlite, and file names under storage).
+`berar_lelann_factor`'s docstring gives f ≈ 1.127 on white residuals
+(E[S'']/E[S] = 1.2694). `Geometry.kind` defaults to `debye_scherrer` and has no unstated
+value. `mccusker_default` frees zero but no displacement, and `lab_bragg_brentano` frees
+displacement, the Kα2 weight and the axial terms (`strategy/staged.py` ~351-425).
+
+*Not done.* The handover's code review was skipped, since this session's one commit is
+prose. No test ran beyond the handover's own checks. The generality judge is owed on the
+148 rows the first session landed in `_audit.py`. `batch.md` carries the judge's case
+against each unruled class, but the first entry has no *Generality* table for the landed
+rows. This session added no row, so it did not dispatch one at this context.
+
+*Gotchas.* The branch is checked out in the `wp2001-rule-table-guard` worktree, and its
+session (pid 52389) was still open. This session committed from a detached HEAD in the
+`happy-watching-squirrel` tree and pushed to the branch. That other tree's local branch is
+one commit behind origin, so run `git pull --ff-only` there before working. B14's yes was
+given on a misreading ("the demotion tests"). The substance is unchanged, but confirm in a
+line.
+
+*Next.* (1) The maintainer answers the six questions in `rulings.md` § Still open. (2) Land
+every ruled row in `_audit.py` with `grounds` and `approved` 2026-10-19: B1, B7's plan rows,
+B10 (plus its sentence in `generality.md` § The rule), B12 and B14's lifts. (3) File the
+follow-up WP for the geometry-chosen plan once B9 is ruled. (4) Run the generality judge on
+the 148 landed rows. (5) Then the first entry's Next items 3-6: the 17 unread citations,
+the second pass, the clash table, and the demotions with their goldens.
 
 - **2026-10-19** — the inventory, 148 rows tiered, and the decision batch (PR #1050).
 
