@@ -47,8 +47,8 @@ def test_every_row_is_well_formed():
         assert row.tier in _audit.TIERS and not isinstance(row.tier, bool), row
         if row.ambiguity is not None:
             assert row.ambiguity in (1, 2, 3) and not isinstance(row.ambiguity, bool), row
-            assert row.kind in ("code", "action", "suggestion"), (
-                f"{row.name}: ambiguity is stated on code, action and suggestion rows")
+            assert row.kind in ("code", "action", "default", "suggestion"), (
+                f"{row.name}: ambiguity is stated on code, action, default and suggestion rows")
         if row.kind in ("code", "action"):
             assert row.value is None, f"{row.name}: a {row.kind} row stores no value"
         if row.approved is not None:
@@ -80,7 +80,8 @@ def test_a_valued_row_holds_the_live_value(kind, walked):
 
 
 def test_every_record_field_is_an_action_row_or_declared_other():
-    """A new field on StageResult, SeriesEntry or RefinementResult fails until placed."""
+    """A new field on a record schema (StageResult, SeriesEntry, RefinementResult,
+    Statistics) fails until placed."""
     fields = set(_audit.record_fields())
     actions = {name for name, row in ROWS.items() if row.kind == "action"}
     assert not actions - fields, f"action rows naming no record field: {sorted(actions - fields)}"
@@ -101,7 +102,7 @@ def test_an_audited_row_carries_its_evidence():
         if row.tier == "unaudited":
             continue
         assert row.evidence, f"{row.name}: tier {row.tier!r} with no evidence"
-        if row.kind in ("code", "action"):
+        if row.kind in ("code", "action", "default"):
             assert row.ambiguity is not None, (
                 f"{row.name}: an audited {row.kind} row states its kind under "
                 "DESIGN.md § Rules, 1")

@@ -177,12 +177,16 @@ from acting where Rule 1's first kind says act.
       existing code from `DIAGNOSTIC_HELP`, every record field named above, every constant
       the AST walk finds over `WALKED` and every default at `DEFAULT_SEATS`, entered at
       `unaudited`; `UNAUDITED_BASELINE` the
-      sorted list of those names, written once here. (2026-10-19: 886 rows, 256 codes, 11
-      actions, 399 constants, 24 defaults, 196 suggestion keys; the other 61 record fields
-      in `OTHER_RECORD_FIELDS`. A fifth kind, `suggestion`, holds the `suggestion=` sites
-      per code, since no other kind could. `WALKED` names `io/readers.py` and
-      `io/formats/base.py` as the repair code, adds `schemas/plan.py` for
-      `CORRELATION_GUARD` and `INTERMEDIATE_FTOL`, and maps each entry to its audit WP.)
+      sorted list of those names, written once here. (2026-10-19: 1 125 rows, 256 codes,
+      19 actions, 547 constants, 107 defaults, 196 suggestion keys; the other 65 record
+      fields in `OTHER_RECORD_FIELDS`. A fifth kind, `suggestion`, holds the `suggestion=`
+      sites per code, since no other kind could. The generality judge's first run widened
+      the declared scope, each a reversible session choice recorded in the handover:
+      `WALKED` gained `model/`, `params/` and all of `schemas/`; `DEFAULT_SEATS` gained
+      `SequentialRefinement.fit` and `SearchSpec`; a `None` default has a row; `Statistics`
+      joined the record schemas for `esd_inflation`; eight fields became action rows; and an
+      audited default row states its kind of ambiguity. `io/` still contributes only
+      `io/readers.py` and `io/formats/base.py`.)
 - [x] The meta-test (`tests/test_audit_table.py`): code rows equal to `DIAGNOSTIC_HELP`'s
       keys both ways; every action row's record field exists on its schema; every constant
       and default row imports and its stored value equals the live one; a tier-3 row, and
@@ -228,7 +232,8 @@ from acting where Rule 1's first kind says act.
 - [ ] `claude-config/workflow/LESSONS.md`: the lesson "a heuristic enters with its tier or
       not at all", with rietx's table and agent as the exemplar, through `/workflow-sync
       harvest`. This is a separate repository and a separate commit; the handover names it.
-- [ ] Tests + the fast selection count moved by exactly the tests added.
+- [x] Tests + the fast selection count moved by exactly the tests added. (2026-10-19:
+      +16 collected, 10 995 → 11 011, `[dev]`, darwin arm64.)
 - [x] Skill: none. The table is maintainer-facing; an agent driving rietx reads the
       diagnostic's `explanation`, which 1985 built and this WP does not change.
 
