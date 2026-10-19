@@ -99,9 +99,14 @@ Answers to § Third round below.
   Bragg-model caveat.
 - **B9**: the reading is correct for March r. Its 0.15 floor goes, `MARCH_R_MIN` stays.
 - **B6**: yes. **B13**: yes. **B15**: yes.
-- **B14**: asked to explain again. Re-explained in the session (the table's scanner sees
-  module-level numbers, listed seats and record fields; option 3 lifts what a retune could
-  turn into a different answer); awaiting the answer.
+- **B14**: asked to explain again, and re-explained in the session (the table's scanner
+  sees module-level numbers, listed seats and record fields; option 3 lifts what a retune
+  could turn into a different answer). Asked whether option 1 was better, the lead said
+  no: the scanner still misses the next inline number, so option 1 is complete only for
+  today's 91, and its ~50 extra rows are guards that dilute review. The risk in option 3
+  is misclassification; the list of ~50 goes to the generality reviewer at handover, and a
+  flagged row moves to the lifted set. **Option 3 confirmed** (2026-10-20). The lead would
+  switch to option 1 if that review finds several misclassified rows.
 
 ## Still open (first round's list, kept for the record)
 
