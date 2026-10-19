@@ -134,6 +134,21 @@ the tree that day.
   Two candidates outside
   the list: fixing the origin of a polar space group (`Phase.floating_origin`, after WP-1912
   lands, which owns that behaviour), and the plan's "one departure" paragraph.
+- A guide that says what a diagnostic code *does* (a hold, a quarantine, a withheld
+  statement) quotes the package's own `Diagnostic.explanation` rather than restating the
+  verdict, so the text follows the code. The generality milestone
+  (`docs/milestones/generality.md`, WPs 2002-2007) will demote or remove verdicts and
+  automatic actions that rest on rietx's own thresholds (folded 2026-10-19 from WP-2001).
+- The agent-supervision checklists left the tutorial notebooks (WP-1545), and the front
+  page's "Supervising an agent" card links the guides, so a guide is their home. The last
+  copies are each notebook's `## Checking an agent's work` section at `7472e200`
+  (`git show 7472e200:examples/tutorials/0N_*.py`, notebooks 01-05). Each maps SKILL §4's
+  rules to what a person checks: status and diagnostics first, the difference curve region
+  by region, correlations near 1, chemistry, a tie's premise, Rwp last (folded 2026-10-19).
+- The tutorial notebooks link the new tree on the stable path (`https://rietx.org/docs/stable/…`),
+  and `tests/test_tutorials.py::test_a_tutorial_links_only_pages_the_manual_has` fails on a
+  link to a page `docs/docs/` does not build, so renaming or removing a guide or Concepts page
+  runs that test (folded 2026-10-19 from WP-1545).
 - `using/concepts.md` is mined except § The parameter groups and § Why the groups correlate,
   which the Concepts pages already cover. The old chapter stays up until retirement.
 - `theory/intensities.md` § The magnetic structure factor lost its link to
@@ -178,37 +193,14 @@ the tree that day.
   `DOCS_PAGES` globs `.md` only, so once a notebook lands under Start the page contract, the
   register guard and name resolution skip it until the glob widens. Whether a notebook keeps
   the page contract is decided at that move.
+- A seventh notebook, `02b_steering_a_refinement`, sits between 02 and 03 (the source glob is
+  now `[0-9][0-9]*_*.py`). The old tree's hidden toctree lists it, and the Start tab's
+  rendering takes it when `_copy_tutorials` moves. Its URL is new, so `OLD_PAGES` needs no row
+  for it (folded 2026-10-19 from WP-1545).
 
-### Inherited
-
-- **2026-10-18, from [2001](2001-the-rule-the-table-and-the-guard.md).** The generality
-  milestone opened (`docs/milestones/generality.md`): WPs 2002–2007 will demote or remove
-  diagnostic verdicts and automatic actions that rest on rietx's own thresholds, so a
-  guide chapter that tells a reader what a code *means to do* (a hold, a quarantine, a
-  withheld statement) may describe behaviour that is gone by the time the chapter is
-  read. Nothing to do now beyond writing such chapters from the package's own
-  `Diagnostic.explanation` rather than restating the verdict, so the text follows the
-  code; 2008 reads the skill and declares the manual a follow-up's.
-- **2026-10-18, from WP-1545.** The tutorial notebooks were rewritten to teach rietx one
-  step a cell, and four things reach this WP.
-  - **The agent-supervision checklists left the notebooks**, and the front page's
-    "Supervising an agent" card links the guides, so a guide is their home. The last copies
-    are each notebook's `## Checking an agent's work` section at `7472e200`
-    (`git show 7472e200:examples/tutorials/0N_*.py`, notebooks 01-05). Each maps SKILL §4's
-    rules to what a person checks: status and diagnostics first, the difference curve region
-    by region, correlations near 1, chemistry, a tie's premise, Rwp last.
-  - **A seventh notebook, `02b_steering_a_refinement`**, sits between 02 and 03 (the source
-    glob is now `[0-9][0-9]*_*.py`). The old tree's hidden toctree lists it; the Start tab's
-    rendering takes it when `_copy_tutorials` moves. Its URL is new, so `OLD_PAGES` needs no
-    row for it.
-  - **The notebooks link the new tree on the stable path** (`https://rietx.org/docs/stable/…`),
-    and `tests/test_tutorials.py::test_a_tutorial_links_only_pages_the_manual_has` fails on a
-    link to a page `docs/docs/` does not build. Renaming or removing a guide or concepts page
-    runs that test. Notebook 03 still links the old tree's
-    `using/gui-guide.html#peaks`, because no new page covers the Peaks tab; repoint it when the
-    GUI chapters move.
-  - `examples/guides/series.py:28` prints a trajectory with an f-string loop. A `Trajectory`
-    now prints one row a point, so the cell can show `a` alone.
+**GUI chapters.**
+- Notebook 03 still links the old tree's `using/gui-guide.html#peaks`, because no new page
+  covers the Peaks tab. Repoint it when the GUI chapters move (folded 2026-10-19 from WP-1545).
 
 ## Non-goals
 
