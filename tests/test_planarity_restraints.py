@@ -152,6 +152,16 @@ def test_a_line_is_refused_by_name():
         _compiled(_phase(xyz, PlanarityRestraint(atoms=[0, 1, 2, 3], sigma=0.01)))
 
 
+def test_a_set_with_no_flattest_direction_is_refused_for_that_reason():
+    # a regular tetrahedron's corners: all three scatter eigenvalues equal, so
+    # the normal is undefined though the points are far from any line
+    c = 0.05
+    xyz = [(0.5 - c, 0.5 - c, 0.5 - c), (0.5 + c, 0.5 + c, 0.5 - c),
+           (0.5 + c, 0.5 - c, 0.5 + c), (0.5 - c, 0.5 + c, 0.5 + c)]
+    with pytest.raises(ValueError, match="no direction is uniquely the flattest"):
+        _compiled(_phase(xyz, PlanarityRestraint(atoms=[0, 1, 2, 3], sigma=0.01)))
+
+
 def test_three_atoms_and_a_short_image_list_are_refused():
     with pytest.raises(ValueError):
         PlanarityRestraint(atoms=[0, 1, 2], sigma=0.01)

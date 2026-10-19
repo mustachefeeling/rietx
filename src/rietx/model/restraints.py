@@ -62,8 +62,10 @@ _COS_CLAMP = 1.0 - 1e-9
 #: self-image and skipped (matters only for same-atom M–M restraints).
 _COINCIDENT_D2 = 1e-6
 #: a planarity set is refused when its two smallest scatter eigenvalues lie
-#: within this fraction of the largest: the points are on a line (or
-#: coincident) and no plane, so no normal, is defined (WP-1809, #759 § 3a).
+#: within this fraction of the largest: no direction is uniquely the
+#: flattest, so no normal is defined.  The points lie on a line (or
+#: coincide), or spread alike in every direction (a regular tetrahedron's
+#: corners) (WP-1809, #759 § 3a).
 PLANE_DEGENERATE_REL = 1e-6
 
 
@@ -231,10 +233,11 @@ def _resolve_plane(phase, ip, sites, cell, g, r) -> _Plane:
     if lam[1] - lam[0] <= PLANE_DEGENERATE_REL * max(lam[2], 1e-300):
         labels = [phase.atoms[j].label for j in r.atoms]
         raise ValueError(
-            f"planarity restraint on {phase.name!r} atoms {labels}: the points "
-            f"lie on a line (scatter eigenvalues {lam[0]:.3g}, {lam[1]:.3g}, "
-            f"{lam[2]:.3g} Å²), so no plane is defined; restrain a set that "
-            "spans two directions, or use bond and angle restraints")
+            f"planarity restraint on {phase.name!r} atoms {labels}: no direction "
+            f"is uniquely the flattest (scatter eigenvalues {lam[0]:.3g}, "
+            f"{lam[1]:.3g}, {lam[2]:.3g} Å²), so no plane normal is defined: the "
+            "points lie on a line, or spread alike in every direction; restrain "
+            "a set that is close to one plane, or use bond and angle restraints")
     return _Plane(ip, list(r.atoms), Rs, ts, ns, r.sigma, r.weight,
                   vec[:, 0].copy())
 
