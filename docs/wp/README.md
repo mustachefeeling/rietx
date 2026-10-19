@@ -77,6 +77,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2002](2002-the-single-fit-actions.md) | The single-fit actions: what one stage decides for the caller | P2 | [2001](2001-the-rule-the-table-and-the-guard.md) | [generality](#generality-the-audits) |
 | [2003](2003-the-chain-actions.md) | The chain actions: what a series decides between patterns | P2 | [2002](2002-the-single-fit-actions.md) | [generality](#generality-the-audits) |
 | [2004](2004-the-fitreport-reasons-for-the-caller.md) | The FitReport reasons for the caller: its gates, actions and thresholds | P2 | [2002](2002-the-single-fit-actions.md), [2003](2003-the-chain-actions.md) | [generality](#generality-the-audits) |
+| [2012](2012-the-axial-ratios-are-interchangeable.md) | The two axial-divergence ratios are interchangeable, and a fit reports one branch | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -572,6 +573,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | ⬜ | P2 | — |
 | [1998](1998-a-suggestion-past-its-bound.md) | A suggestion whose gain lies past its bound | ⬜ | P2 | — |
 | [2011](2011-a-candidate-is-judged-on-a-fit-that-converged.md) | A candidate is judged on a fit that converged | ⬜ | P3 | [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) |
+| [2012](2012-the-axial-ratios-are-interchangeable.md) | The two axial-divergence ratios are interchangeable, and a fit reports one branch | ⬜ | P2 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
