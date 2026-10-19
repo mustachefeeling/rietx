@@ -140,6 +140,18 @@ rule above applies to the form factors.
 
 ### Inherited
 
+- **2026-10-19, from [2001](2001-the-rule-the-table-and-the-guard.md): magnetic
+  refinement has no validating reference, and
+  [2010](2010-every-feature-names-what-verifies-and-validates-it.md) will say so where a
+  caller reads it.** DESIGN.md § Rules, 2 now separates verification (the code computes
+  its model correctly) from validation (the model matches the specimen: a certificate, a
+  round-robin spread, a prediction written before the measurement). Both magnetic suites
+  use GSAS-II tutorials that quote no moment (`cr2wo6_hb2a`, `lamno3_bt1` in
+  `tests/validation_matrix.py`), so every magnetic claim is `characterisation`, and 2010
+  will declare the feature *not yet validated* in its help entries and manual chapter.
+  That word is separate from *provisional*, which `strategy.magnetic` already carries for
+  API churn. A published moment for one of those compounds, made a reference in the
+  matrix, lifts the label; nobody has searched for one yet.
 - **2026-10-12, from [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md):
   the flat-direction hold reads moment angles by name.**
   `refine._flat_moment_scan` takes its candidates from `table.free_paths`

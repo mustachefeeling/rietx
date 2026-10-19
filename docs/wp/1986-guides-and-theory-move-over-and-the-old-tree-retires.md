@@ -181,6 +181,14 @@ the tree that day.
 
 ### Inherited
 
+- **2026-10-18, from [2001](2001-the-rule-the-table-and-the-guard.md).** The generality
+  milestone opened (`docs/milestones/generality.md`): WPs 2002–2007 will demote or remove
+  diagnostic verdicts and automatic actions that rest on rietx's own thresholds, so a
+  guide chapter that tells a reader what a code *means to do* (a hold, a quarantine, a
+  withheld statement) may describe behaviour that is gone by the time the chapter is
+  read. Nothing to do now beyond writing such chapters from the package's own
+  `Diagnostic.explanation` rather than restating the verdict, so the text follows the
+  code; 2008 reads the skill and declares the manual a follow-up's.
 - **2026-10-18, from WP-1545.** The tutorial notebooks were rewritten to teach rietx one
   step a cell, and four things reach this WP.
   - **The agent-supervision checklists left the notebooks**, and the front page's

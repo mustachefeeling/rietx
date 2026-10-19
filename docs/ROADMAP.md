@@ -104,8 +104,9 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 **The next release is 1.10** (`pyproject.version` `1.10.0.dev0`), cut from what `main` holds
 ([record](milestones/v1.10.md), [staged notes](releases/1.10.0.md)). 1.9.0 shipped 2026-10-14 ([notes](releases/1.9.0.md)).
 
-**One milestone is open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
-opened 2026-09-18 as v1.6; rietview, rigid-bodies and structure-solution were
+**Two milestones are open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
+opened 2026-09-18 as v1.6; [generality](#generality--every-decision-rietx-makes-holds-beyond-the-data-it-was-tuned-on)
+opened 2026-10-18; rietview, rigid-bodies and structure-solution were
 queued as v1.7, v1.8 and v1.9. Threads #286, #426, #561 and #562 quote those
 numbers, so each row in § Milestones says which it was. **Neutron TOF stays at
 [§ v2+](#v2--fenced)** behind issue #193, but for its T-1 cut ([1927](wp/1927-tof-t1-the-axis-and-its-readers.md), 2026-10-08).
@@ -154,7 +155,8 @@ covers (1119 § Gotchas).
 | rietview | rietview (was v1.7): the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ rietview](#rietview--the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
 | rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1813, the seam decided by 1803 and the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
 | structure-solution | Structure solution (was v1.9): a difference-Fourier map, a cost from the Pawley intensities, direct-space search — [WPs](wp/README.md#structure-solution): 1901-1902, the map then the cost; #197 and #198 left the fence 2026-09-30 | ⬜ **queued 2026-09-30** | written at the open |
-| v2+ | FPA (with the peaks buffer), neutron TOF, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
+| generality | Every decision rietx makes holds beyond the data it was tuned on: every verdict, action and threshold tiered, the unproven demoted, a guard against the next one — [§ generality](#generality--every-decision-rietx-makes-holds-beyond-the-data-it-was-tuned-on) | 🔄 **opened 2026-10-18** ([record](milestones/generality.md)) | eight rows written at the open, the record's § Acceptance |
+| v2+ | FPA (with the peaks buffer), neutron TOF, modulated structures, PDF — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
 
@@ -409,6 +411,29 @@ Queued 2026-09-30 from issue #561. The seam was measured first (1803) and the re
 
 Queued 2026-09-30 from issue #562. The map, then the cost, then a search (WP-1515). [The WPs](wp/README.md#structure-solution).
 
+### generality — every decision rietx makes holds beyond the data it was tuned on
+
+Opened 2026-10-18 from the maintainer's concern that features are fitted to the test
+cases that produced them ([record](milestones/generality.md)); it applies [DESIGN.md](DESIGN.md)
+§ Rules to the tree. The record § The rule is the one authority: three tiers
+(physics, practice, rietx's own) per statistic, threshold and action; an action of any
+tier survives only if every competent refiner, shown the number, would take it, and a
+tier-3 threshold must also hold on three dataset families, each against its reference; a named dissenter demotes it
+to a ranking or to the number, by Rule 1's kinds. 2001 writes the rule, table and guard; 2002–2007 audit one seam each, 2002
+first, a gate after 2004; 2010 audits features against Rule 2; 2008 slims the skill to the API and sourced traps; 2009 rewrites the rules that reward a firing code. [The WPs](wp/README.md#generality).
+
+#### The registry and the guard
+
+2001: the rule written down, the audit table every later WP fills, the tripwire test and the fresh-context review the handover dispatches on a hit. [The WP](wp/README.md#generality-the-registry-and-the-guard).
+
+#### The audits
+
+One seam each, the same task shape: lanes read and tier, the lead tables, the maintainer rules in a batch, approved demotions land with any moved golden recorded against its reference. 2002 the single-fit actions (first, since every fit runs them), 2003 the chain, 2004 the FitReport, 2005 `refine.py`'s codes, 2006 the readers and crystallography, 2007 indexing; 2010 every feature against Rule 2, outside the gate. [The WPs](wp/README.md#generality-the-audits).
+
+#### The prose
+
+2008 the skill slimmed to the API, the feedback surface and sourced traps; 2009 the rulebooks, findings out and the generator rules rewritten. [The WPs](wp/README.md#generality-the-prose).
+
 ### Unscheduled
 
 Opened by evidence — an issue, an agent round, a measurement — and owned by no
@@ -579,9 +604,8 @@ scope creep. Each item names what fenced it.
 - **I/O.** Rietica and XND readers (#196); an RMCProfile export and PDF /
   total-scattering analysis, X-ray and neutron (#192); VESTA import/export
   (#195).
-- **Infrastructure.** An MCP server over the python API (1303's rule: a tool
-  surface earns its place only where it gates, renders, audits or
-  parallelises); `vmap`-batched in-situ series — the only accelerator story
+- **Infrastructure.** No MCP server (dropped 2026-10-18, [DESIGN.md](DESIGN.md)
+  § Locked decisions, scope discipline); `vmap`-batched in-situ series — the only accelerator story
   this hardware supports, sized by WP-0408 at break-even ≈50-65 k elements per
   kernel and a ceiling ≈2.5-3× ([v0.4 record](milestones/v0.4.md)); notebook
   widgets.
