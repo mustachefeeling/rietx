@@ -373,3 +373,226 @@ in the second pass. If f is kept (B4, option 1), the margin stays as measured.
   since its free-ion form is known to be poor. For U, Np and Pu, stop guessing and ask the
   caller to name the ion, listing the candidates. GSAS-II's bare U is U³⁺, where rietx
   picks U⁴⁺.
+
+---
+
+## Third round: answers to the questions sent back (2026-10-19)
+
+Foreign-code behaviour below was read this session. GSAS-II 5.8.4 from its source in
+`rietx-bench/tools/gsas2` (lines checked by the lead where marked). TOPAS from the
+Technical Reference Version 9 (2 October 2026), decoded from topas-academic.com. FullProf
+8.20 from its manual, the binary's strings and runs on its PbSO₄ example. Three Sonnet
+agents read the sources; the lead checked each load-bearing line marked "checked".
+
+### B2. The moment turn, and the stationary-angle test
+
+**Is the turn common enough to keep?** It is needed in a narrower case than the hold it
+serves, but the case includes textbook structures, and a caller cannot do it by hand.
+
+The hold itself is common. Any collinear magnet whose magnetic cell is uniaxial
+(tetragonal, hexagonal, trigonal) or cubic has a moment direction the powder average cannot
+see (Shirane 1959). The hold fixes that angle.
+
+The turn is needed only when the invisible rotation is a mix of rietx's two moment angles.
+That happens when the site's coordinate frame does not have its pole along the unique axis.
+Two families do this: R groups on rhombohedral axes, and the general-direction description
+of the k = ½½½ rock-salt antiferromagnets (MnO, NiO, CoO). The second is the classic
+textbook case of powder indeterminacy.
+
+Without the turn there are two outcomes, and both give a wrong answer.
+- Hold one angle where it started. The other angle then sweeps a circle that may never
+  reach the right angle to the unique axis. Measured: the fit stopped at ψ = 27.84°
+  against a true 10.20° (`tests/test_magnetic.py:1810-1823`). ψ is the one angle the
+  powder can measure.
+- Hold nothing. The covariance is singular. On 2 of 16 noise seeds the esd of ψ came out
+  as 448° and 20 490°, where the other 14 gave 0.7-0.9° (issue #599).
+
+A caller cannot easily do it themselves. They would have to rotate the site's frame so that
+one angle is the invisible rotation. rietx derives that frame from the site symmetry and
+has no verb for choosing another.
+
+Other codes do nothing here. GSAS-II has no powder-indeterminacy logic; a flat moment column
+falls to its generic rule, which drops a column with norm below 1e-14 for that cycle and
+prints "Parameter(s) dropped" (`GSASIImath.py:263-268`). TOPAS stops with "cannot be
+refined as it has no derivative" only when symmetry makes a moment component exactly zero
+(Tech Ref § 14.1). FullProf's manual does not mention the case, and the program has no
+handling for it (manual p. 20, the binary's strings). None of the three handles the
+powder-only case.
+
+**Recommendation: keep the turn** at tier 3, with the measured failure as its ground. It
+moves the moment only along a rotation the pattern cannot see, checks that the pattern is
+unchanged before accepting, and records the turn in `StageResult.moment_turned`.
+
+**Is the stationary-angle test a demotion?** Yes. The batch asked for a measurement first,
+but the LaMnO₃ case already decides it: the test removed a 3.5° esd from an angle 5.2° off
+the axis, which a refiner would quote as 84.8(35)°. Rule 1 lets the package act alone only
+where every competent refiner would. One counter-example of that kind fails it, so how
+often it happens does not change the ruling.
+
+What the demotion loses is small. Near a symmetric direction the textbook esd is too large,
+because the pattern depends on the square of the offset there. Too large is the safe side.
+An angle exactly on the axis has a zero Jacobian column, and the general covariance rule
+already reports no esd for that (`statistics.normal_covariance`, WP-1110). Demoted, the
+angle keeps its esd. The test's Δχ² to the symmetric direction goes in a record field, and
+`MOMENT_ANGLE_STATIONARY` becomes an info record with that number. Neither GSAS-II nor
+TOPAS has such a test; each prints the esd as computed.
+
+### B7. The geometry take
+
+**Agreed, with two additions.**
+
+1. Under "geometry not stated" the report must not go quiet about a peak-position error it
+   can see. A Bragg-Brentano specimen's displacement error leaves a cos θ-shaped misfit,
+   which leaks into the cell if nothing absorbs it. Today the report suggests a capillary
+   correction for such an instrument. Under the new state it should say that a
+   position error of that shape is present, and ask the user to state the geometry.
+2. "Not stated" needs a reading at every place that uses the geometry: 70 references in 15
+   files, among them the forward model, absorption, preferred orientation, the report, the
+   exporters and the FullProf and GSAS-II importers. The follow-up WP audits every reader
+   before writing the new state. This is the rule the extra-components union taught
+   (root `CLAUDE.md`): its counts and builders were right only while there was one kind.
+
+Practice backs the take. TOPAS assumes no geometry. A correction applies only when a macro
+names it, so nothing geometry-specific is refined unless stated (Tech Ref § 1.3, § 22.1.7).
+GSAS-II always picks one. It reads Bragg-Brentano when the instrument file has a Kα1/Kα2
+pair or its source text says "lab data", and Debye-Scherrer otherwise
+(`GSASIIfiles.py:509-519`, `GSASIIdataGUI.py:2075-2081`). The choice changes which position
+and absorption terms it offers. FullProf's geometry flag `Ilo` defaults to 0, one setting
+for both Debye-Scherrer and Bragg-Brentano, and refines displacement and transparency only
+when the user frees them (manual p. 70). So GSAS-II guesses from the wavelength, as rietx's
+capillary default does in effect. TOPAS and FullProf refine nothing geometry-specific
+unless asked, which is the take.
+
+### B8. The cell window and the size floor
+
+**The cell window: tier 2, agreed.** TOPAS bounds every cell by default (Tech Ref Version 9,
+§ 2.17, Table 2-1, checked this session): a, b, c within 0.995·Val − 0.05 to
+1.005·Val + 0.05 Å, angles within ±0.2°. Val is the current value, recalculated each
+iteration, so in TOPAS it is a limit on each step rather than on the answer. rietx's solver
+takes one fixed pair of bounds per stage, so the window is TOPAS's step limit compounded
+over a stage: 0.5 % per iteration is 5.1 % over ten (`params/vector.py:593-613`). It also
+applies only to phases the data cannot see, because a bound changes the solver's steps even
+when not reached. GSAS-II has no cell bound of any kind (`GSASIIstrMain.py:1198-1230` acts
+only on user limits), nor has FullProf (bounds on request only, manual p. 125). One program doing it by default meets tier 2. The count the batch
+proposed is no longer needed, since the window costs nothing where it does not act.
+
+**The 2 nm size floor: agreed, a warning is enough.**
+
+- Physics. Below about 2 nm a crystallite is a few unit cells, and broadened Bragg peaks
+  stop describing its pattern; the Debye scattering equation does. But the size is still a
+  physical quantity. Under the B9 principle a chosen limit should not block it.
+- Numerics. The floor guards against a runaway: a phase's peaks widening until they behave
+  like background. A second fence already covers the end where that becomes meaningless,
+  a peak wider than the fitted range (`size_cap`'s range backstop). On a Cu 10-80° scan
+  that fence sits at about 0.15 nm.
+- Practice. TOPAS's crystallite-size macro limits size to 0.3-10 000 nm (Tech Ref § 2.17).
+  GSAS-II clamps the stored size to 0.001-10 µm after each refinement, silently
+  (`GSASIIstrIO.py:3531-3540`, checked). FullProf has no size limit and no small-size
+  warning, and says its apparent size carries no physical interpretation (manual pp. 21,
+  25). So the codes that floor size do so at 0.3-1 nm, below rietx's 2 nm.
+- The warning exists. `SIZE_UNUSUALLY_SMALL` fires below 5 nm today.
+
+**Recommendation.** Remove the 2 nm floor. Keep the range backstop, since a peak wider than
+the scan is not measured by it. Add to `SIZE_UNUSUALLY_SMALL`'s message that below about
+2 nm the Bragg-peak model may not describe the pattern. Two tests pin the 2 nm number and
+change with it (`tests/test_strain_cap.py:348`, `tests/test_help.py:667`). The flag's own
+5 nm threshold goes to WP-2005 with the other diagnostic thresholds (B13).
+
+### B1. The absent-phase hold as an option, and what other codes do
+
+**Other codes.** None holds a vanishing phase's structural parameters automatically.
+- GSAS-II floors every phase scale at 1e-12, silently (`GSASIIstrMath.py:3178`, checked),
+  and has no significance test. A column that goes exactly flat (norm under 1e-14) is
+  dropped for that cycle with a printed warning (`GSASIImath.py:263-268`, checked). A
+  user can fix a phase's fraction, cell, Uiso and moments in a sequential run by hand
+  ("Fix FXU").
+- TOPAS floors scale at 1e-11 by default (Tech Ref § 2.17, Table 2-1). Its nearest feature
+  is opt-in: `Remove_Phase(0.3, 0.5)` deletes a phase whose weight percent is below 0.3 %
+  and whose esd exceeds half its value, at the end of a cycle, and prints "Deleting phase"
+  (Tech Ref § 20.19). Both numbers are the caller's.
+- FullProf 8.20 resets a negative scale to 10⁻¹⁰ each cycle, halves its shifts and prints
+  "Scale factor <0, fixed to 1.E-10" (a run and the binary's strings, checked). It never
+  removes the phase or holds its other parameters.
+
+So the closest practice, TOPAS's, is an opt-in removal with caller-set thresholds. rietx's
+hold is on by default, which no program does. It stays tier 3 on the maintainer's
+approval, ruled "yes" on 2026-10-19.
+
+**Reading of the ruling.** "An option, not mandatory": today the hold has no switch, so it
+is mandatory. The session reads the ruling as on by default at 3σ, with a caller able to
+switch it off or set another threshold. The other reading is off by default, as TOPAS's
+removal is. On by default is the more accurate default. An unseen phase's free cell walked
+14.9 Å from the truth on the in-situ ramp while Rwp did not move. In a chain that wandered
+cell seeds the next pattern, so the phase is in the wrong place when it appears.
+
+**Where the switch lives.** One number, read in five places (`refine.py:513, 1571, 1719`,
+`multi.py:405`, and the cell window's screen through `CompiledModel.phase_support`). The
+proposal is a plan field, `RefinementPlan.phase_support_sigma`, default 3.0, `None` for no
+hold, carried by `PlanSpec` so the GUI and `.rxt` see it. `PHASE_UNCONSTRAINED` reads the
+same number, so the diagnostic follows the caller's choice. This is a B14 lift into a seat.
+
+### B5. Zero and negative esds: what is accurate
+
+**An esd of zero is never a measurement.** It claims the intensity is exact, which no
+counted quantity is. A negative esd has no meaning. So every such value is an artefact of
+whatever wrote the file. There are four causes, and they need different treatment.
+
+1. **√0 of a zero count.** The writer computed σ = √N on raw counts, and N was 0. The
+   √N estimate of Poisson variance fails at zero: the true variance is the expected count,
+   which is above zero. The point is a real measurement and belongs in the fit with σ of
+   about one count. This is the case when counts are low: neutron data, high-angle tails,
+   short scans.
+2. **A channel with no measurement.** Masked pixels, the beamstop shadow, gaps between
+   detector modules, and bins beyond the detector edge after integration. Integration
+   software writes these as y = 0, σ = 0 (recalled for pyFAI and Mantid, not checked). The
+   point carries no information and must leave the fit.
+3. **A processing error.** Subtraction or scaling that zeroed or negated the column. A
+   negative esd is always this.
+4. **Rounding.** A normalised pattern with σ near 10⁻⁴ printed to three decimals reads 0.
+
+What a file cannot tell a reader is which one it holds. It can tell case 1 apart in one
+common situation. Where the esd column is Poisson on one scale, σ²/y is the same constant c
+on every channel with counts (c = 1 for raw counts). Then a zero esd at y = 0 is a zero
+count, and its σ is √c, one count on the file's scale. That matches rietx's own fallback
+for a file with no esd column, √max(y, 1), and TOPAS's default weighting 1/Max(Yobs, 1)
+(Tech Ref § 6.2).
+
+**Why not drop every zero.** Dropping genuine zero counts biases the background upward.
+At a mean of one count per channel, 37 % of channels read zero, and the survivors average
+1.58 counts. At three counts the bias is 5 %, and at ten it is negligible. That is
+arithmetic on the Poisson distribution. GSAS-II's xye reader zero-weights every channel
+with y ≤ 0, so it carries this bias on sparse data.
+
+**Other codes.**
+- GSAS-II 5.8.4 depends on the reader, and none reports anything (all checked). The xye
+  reader zero-weights y ≤ 0, skips a line whose esd is negative, and replaces an esd of
+  0 with Poisson 1/y (`imports/G2pwd_xye.py:170-186`). The skip has a defect: the 2θ value
+  is appended before the skip, so every later point is paired with the wrong angle. The
+  fxye reader zero-weights a channel when y ≤ 0 or σ ≤ 0 (`G2pwd_fxye.py:86-91`). The CIF
+  reader raises every esd below 1 to 1 (`G2pwd_CIF.py:280-292`, agent-read).
+- TOPAS weights by 1/σ² whenever the file has σ, otherwise 1/Max(Yobs, 1) (Tech Ref § 6.2,
+  § 21.10). The reference is silent on σ ≤ 0. A zero σ would divide by zero (inferred).
+- FullProf 8.20 is silent and inconsistent (runs on its PbSO₄ example, agent-run). An esd
+  of 0 acted as σ = 1, a hundred times the weight of its σ = 10 neighbours. A negative esd
+  acted as its absolute value. A channel with y ≤ 0 got weight 1 whatever its esd. A file
+  with no esd column was weighted 1/y, although the manual says σ = y (p. 74). The manual
+  mentions none of this.
+
+**Options.**
+1. Keep today's floor (σ raised to 10⁻³ × the median esd). Wrong in all four cases: it
+   gives the point about a million times its neighbours' weight.
+2. Drop every channel with σ ≤ 0 and report it. Never invents a number. Biases sparse
+   backgrounds as above.
+3. GSAS-II's xye rule. Silent, and drops genuine zero counts.
+4. Classify. A zero esd at y = 0 in a column that is Poisson on one scale becomes a zero
+   count at σ = √c. Every other σ ≤ 0 drops the channel. Both are reported, by line.
+
+**Recommendation.** Option 4, built in WP-1952 (the WP for plain x-y files). It is the
+only option correct in case 1 and in cases 2-3. The constant-ratio test costs one median.
+Case 4 (rounding) falls to the drop, which loses a few points and reports them. Until
+WP-1952 lands the floor stays, and the table names WP-1952 as its replacement.
+
+The case against: the ratio test may misfire on a column that is nearly Poisson. Examples
+are counts with a dead-time correction, or a sum of two detector banks. There a zero count
+would get a slightly wrong σ. That is still far better than today's 10⁻³ floor. The pick
+would change if WP-1952 finds a format where a zero esd marks good data.
