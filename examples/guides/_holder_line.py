@@ -32,4 +32,6 @@ def with_holder_line(pattern, seed=1):
     center_ka2 = 2 * np.degrees(np.arcsin(KA2 / (2 * d)))
     line = _pseudo_voigt(two_theta, CENTER) + 0.5 * _pseudo_voigt(two_theta, center_ka2)
     counts = np.asarray(pattern.intensity) + np.random.default_rng(seed).poisson(line)
-    return pattern.model_copy(update={"intensity": counts})
+    # a list, as the schema declares: `model_copy` does not validate, and an
+    # array left in the field makes `model_dump_json` raise
+    return pattern.model_copy(update={"intensity": counts.tolist()})

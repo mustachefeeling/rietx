@@ -34,7 +34,7 @@ Each width term lies within one esd of the instrument that made the data.
 
 Hold the cell at the certificate's value.
 With the cell fixed, the peak positions measure the zero shift and the specimen displacement, which a free cell would absorb.
-`lab_calibrate` frees one group a stage: the scale and background, the zero shift and displacement, the five width terms, the emission-line weights and the two axial-divergence ratios, and the Biso.
+`lab_calibrate` frees one group a stage: the scale and background, the zero shift and displacement, the width term W, the other four width terms, the emission-line weights and the two axial-divergence ratios, and the Biso.
 [Plan presets](../reference/plans.md#lab_calibrate) draws its stages.
 
 Refine one of the two axial-divergence ratios, S/L, and hold the other, H/L.
@@ -117,7 +117,7 @@ first profile, second sample size 281.5(21) Å  strain 0.000919(46)  Rwp 0.0467
 ```
 
 Each crossed profile moves the size by about nine esd, and Rwp stays within 0.001 of the matched fit.
-With the wider profile, the fit reports the same two diagnostics as the matched one.
+With the wider profile, the fit reports the same two `FLOOR_HIT` findings as the matched one, on the Gaussian size and strain the sample does not have.
 With the narrower profile, the instrument width it misses appears as a Gaussian size of 1530(230) Å and a Gaussian strain, which the sample does not have.
 Nothing in either fit says the profile is wrong.
 

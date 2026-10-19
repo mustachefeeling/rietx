@@ -81,11 +81,12 @@ swapped_setup = rx.Instrument.bragg_brentano(radiation="CuKa")
 pair = [swapped_setup.model_copy(deep=True) for _ in range(2)]
 for inst, (sl, hl) in zip(pair, [(AXIAL_SL, AXIAL_HL), (AXIAL_HL, AXIAL_SL)]):
     inst.geometry.axial_sl.value, inst.geometry.axial_hl.value = sl, hl
-patterns = [rx.Refinement(lab6(), inst).predict(standard("first").two_theta) for inst in pair]
+first_standard = standard("first")
+patterns = [rx.Refinement(lab6(), inst).predict(first_standard.two_theta) for inst in pair]
 assert (patterns[0] == patterns[1]).all()
 both = rx.Refinement(lab6(), instrument)
 both.hold("phases.0.cell.*")
-both_result = both.fit(standard("first"), plan="lab_calibrate")
+both_result = both.fit(first_standard, plan="lab_calibrate")
 ratios = [both_result.parameter(f"instrument.geometry.axial_{n}") for n in ("sl", "hl")]
 assert [rx.format_su(p.value, p.stderr) for p in ratios] == ["0.01451(76)", "0.02531(66)"]
 assert [d.code for d in both_result.diagnostics] == ["HIGH_CORRELATION"]
