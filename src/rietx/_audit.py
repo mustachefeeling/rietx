@@ -561,7 +561,8 @@ ROWS: tuple[Row, ...] = (
     Row("LOW_ANGLE_UNMODELLED", "code"),
     Row("MAGNETIC_ION_ASSUMED", "code", tier=1, ambiguity=3,
         evidence=("arithmetic: fires exactly when the substitution was made (info); the "
-                  "substitution's own tier is the _ASSUMED_ION action row")),
+                  "substitution's own tier is crystallography.magnetic.form_factor._ASSUMED_ION, "
+                  "a hand row (a dict the walk cannot see; docs/wp/2002-batch/inventory.json)")),
     Row("MAGNETIC_SUBGROUP_PREFERRED", "code"),
     Row("MAGNETIC_WIDTH_MOVED_MOMENT", "code"),
     Row("MAGNETIC_WIDTH_UNMEASURED", "code"),
@@ -1106,10 +1107,7 @@ ROWS: tuple[Row, ...] = (
         evidence="Coelho (2005) J. Appl. Cryst. 38, 455, eq (2) (docstring; paper not on disk)"),
     Row("rietx.optimize.bccg._SMALL_RUNS", "constant", tier=2, value=6,
         evidence="Coelho (2005) J. Appl. Cryst. 38, 455, § 2 (docstring; paper not on disk)"),
-    Row("rietx.optimize.blocked.DENSE_JACOBIAN_MAX_BYTES", "constant", tier="invariant", value=268435456,
-        evidence=("answer-invariant: blocked and dense agree to 0.01 esd, esds to 1e-3, Rwp to "
-                  "1e-9; "
-                  "tests/test_parametric_series.py::test_a_blocked_fit_lands_on_the_dense_answer")),
+    Row("rietx.optimize.blocked.DENSE_JACOBIAN_MAX_BYTES", "constant", value=268435456),
     Row("rietx.optimize.blocked._DENSE_EIGEN_MAX", "constant", value=64),
     Row("rietx.optimize.identifiability.EXCHANGE_MIN_LOADING", "constant", value=0.05),
     Row("rietx.optimize.identifiability.SOFT_MODES_K", "constant", value=3),
@@ -1179,9 +1177,7 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: 2^-400 = 3.9e-121 squares to 1.5e-241, a normal double; 1/d^2 stays "
                   "under 1e241 (docstring, WP-1463)")),
     Row("rietx.optimize.statistics.EFFECTIVE_OBS_ALPHA", "constant", value=2.0),
-    Row("rietx.optimize.statistics.MAX_SHIFT_CONVERGED", "constant", tier=2, value=0.1,
-        evidence=("McCusker et al. (1999) J. Appl. Cryst. 32, 36, § 7 (docstring; paper not on "
-                  "disk)")),
+    Row("rietx.optimize.statistics.MAX_SHIFT_CONVERGED", "constant", value=0.1),
     Row("rietx.optimize.statistics.OBS_PER_PARAMETER_MIN", "constant", value=3.0),
     Row("rietx.optimize.statistics.OBS_PER_PARAMETER_PREFERRED", "constant", value=5.0),
     Row("rietx.optimize.statistics.PINV_RCOND", "constant", tier=1, value=1e-15,
@@ -1487,9 +1483,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.plan.StageSpec:window_slack_deg", "default", value=None),
     Row("rietx.schemas.instrument.Source:kind", "default", tier=1, ambiguity=1, value="xray_cw",
         evidence="arithmetic: a union tag, no value judgement"),
-    Row("rietx.schemas.instrument.Source:polarization", "default", tier=1, ambiguity=3, value={"value": 0.5, "vary": False, "min": 0.0, "max": 1.0, "expr": None, "unit": None, "stderr": None},
-        evidence=("physics: K = 0.5 is the unpolarised beam, P = K + (1-K)cos^2(2theta) = (1+cos^2 "
-                  "2theta)/2 (docstring; GSAS POLA convention)")),
+    Row("rietx.schemas.instrument.Source:polarization", "default", value={"value": 0.5, "vary": False, "min": 0.0, "max": 1.0, "expr": None, "unit": None, "stderr": None}),
     Row("rietx.schemas.instrument.Source:kbeta", "default", tier=1, ambiguity=1, value=None,
         evidence=("arithmetic: None is 'no claim made', never 'no filter'; the contamination screen"
                   " runs unchanged (docstring, WP-1445)")),
@@ -1527,9 +1521,12 @@ ROWS: tuple[Row, ...] = (
                   "tests/test_answer_invariant_defaults.py asserts the answer bit-identical with it"
                   " on")),
     Row("rietx.refine.Refinement.run_stage:mode", "default", tier=2, ambiguity=1, value=None,
-        evidence="inherits Refinement.fit:mode's default (GSAS-II LeBail False, checked)"),
+        evidence=("None continues the Refinement's current mode (the last fit, run_stage or "
+                  "checkout set it), 'rietveld' on a fresh one: GSAS-II LeBail False, checked")),
     Row("rietx.refine.Refinement.run_stage:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
-        evidence="inherits Refinement.fit:two_theta_limits (GSAS-II full-range Limits, checked)"),
+        evidence=("None continues the Refinement's current limits (the last fit, run_stage or "
+                  "checkout set them), the full range on a fresh one: GSAS-II full-range Limits, "
+                  "checked")),
     Row("rietx.refine.Refinement.run_stage:correlation_guard", "default", value=0.98),
     Row("rietx.refine.Refinement.run_stage:events", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: an observation channel; "
@@ -1552,9 +1549,11 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.refine:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to the "
                   "full data range on import (checked)")),
-    Row("rietx.refine.refine:backend", "default", tier="invariant", ambiguity=1, value="numpy",
-        evidence=("answer-invariant to fp tolerance: every backend is held to the analytic Jacobian"
-                  " per column (tests/test_cross_backend.py, tests/test_backend_conformance.py)")),
+    Row("rietx.refine.refine:backend", "default", tier="caller", ambiguity=1, value="numpy",
+        evidence=("opt-in: jax/torch/torch-mps need an extra no default install has; not "
+                  "answer-invariant, since another backend agrees only to fp tolerance (torch-mps "
+                  "fp32 columns land 3.5e-8 A from the numpy cell; tests/test_cross_backend.py "
+                  "holds columns, not answers)")),
     Row("rietx.refine.refine:solver", "default", tier=2, ambiguity=1, value="lm",
         evidence=("GSAS-II 5.8.4 GSASIIobj.DefaultControls 'deriv type': 'analytic Hessian' runs "
                   "GSASIImath.HessianLSQ, a Marquardt-damped solve (checked)")),
@@ -1575,29 +1574,12 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.refine:label", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: a run's name; tests/test_answer_invariant_defaults.py asserts "
                   "the answer bit-identical with it on")),
-    Row("rietx.background.auto.auto_background:kind", "default", tier="caller", ambiguity=2, value="pspline",
-        evidence=("pick verb: no default path calls it (grep 2026-10-19: src has only re-exports "
-                  "and docstrings; examples/ srm660c_lab.py, skill_worked_default.py, "
-                  "guides/check.py call it; no GUI use)")),
-    Row("rietx.background.auto.auto_background:diagnostics", "default", tier="caller", ambiguity=1, value=None,
-        evidence=("pick verb: no default path calls it (grep 2026-10-19: src has only re-exports "
-                  "and docstrings; examples/ srm660c_lab.py, skill_worked_default.py, "
-                  "guides/check.py call it; no GUI use)")),
-    Row("rietx.background.auto.auto_background:wavelength", "default", tier="caller", ambiguity=1, value=None,
-        evidence=("pick verb: no default path calls it (grep 2026-10-19: src has only re-exports "
-                  "and docstrings; examples/ srm660c_lab.py, skill_worked_default.py, "
-                  "guides/check.py call it; no GUI use)")),
-    Row("rietx.background.auto.auto_background:two_theta_limits", "default", tier="caller", ambiguity=1, value=None,
-        evidence=("pick verb: no default path calls it (grep 2026-10-19: src has only re-exports "
-                  "and docstrings; examples/ srm660c_lab.py, skill_worked_default.py, "
-                  "guides/check.py call it; no GUI use)")),
-    Row("rietx.background.auto.auto_background:source", "default", tier="caller", ambiguity=1, value=None,
-        evidence=("pick verb: no default path calls it (grep 2026-10-19: src has only re-exports "
-                  "and docstrings; examples/ srm660c_lab.py, skill_worked_default.py, "
-                  "guides/check.py call it; no GUI use)")),
-    Row("rietx.background.auto.auto_background:seed", "default", tier="caller", ambiguity=1, value=False,
-        evidence=("opt-in: seed, default off (WP-1542; #725 still open on whether the default "
-                  "moves)")),
+    Row("rietx.background.auto.auto_background:kind", "default", value="pspline"),
+    Row("rietx.background.auto.auto_background:diagnostics", "default", value=None),
+    Row("rietx.background.auto.auto_background:wavelength", "default", value=None),
+    Row("rietx.background.auto.auto_background:two_theta_limits", "default", value=None),
+    Row("rietx.background.auto.auto_background:source", "default", value=None),
+    Row("rietx.background.auto.auto_background:seed", "default", value=False),
     Row("rietx.sequential.refine_sequential:carry", "default", value=("*",)),
     Row("rietx.sequential.refine_sequential:carry_hkl_intensities", "default", value=True),
     Row("rietx.sequential.refine_sequential:backend", "default", value="numpy"),
@@ -2310,6 +2292,12 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.background.auto._KNOT_STEP_HUMPY_DEG",
     "rietx.background.auto._KNOT_STEP_SMOOTH_DEG",
     "rietx.background.auto._MIN_FIT_CHANNELS",
+    "rietx.background.auto.auto_background:diagnostics",
+    "rietx.background.auto.auto_background:kind",
+    "rietx.background.auto.auto_background:seed",
+    "rietx.background.auto.auto_background:source",
+    "rietx.background.auto.auto_background:two_theta_limits",
+    "rietx.background.auto.auto_background:wavelength",
     "rietx.background.diagnostics.COVERAGE_INFLATION_THRESHOLD",
     "rietx.background.diagnostics.COVERAGE_SMOOTH_DEG",
     "rietx.background.diagnostics.CUTOFF_FRACTION",
@@ -2586,6 +2574,7 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.model.restraints.MIN_IMAGE_SHELL",
     "rietx.optimize.bccg._PCG_BUDGET_PER_VARIABLE",
     "rietx.optimize.bccg._PCG_TOL",
+    "rietx.optimize.blocked.DENSE_JACOBIAN_MAX_BYTES",
     "rietx.optimize.blocked._DENSE_EIGEN_MAX",
     "rietx.optimize.identifiability.EXCHANGE_MIN_LOADING",
     "rietx.optimize.identifiability.SOFT_MODES_K",
@@ -2602,6 +2591,7 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.optimize.lm._POLISH_FEASIBLE",
     "rietx.optimize.lm._POLISH_STATIONARY",
     "rietx.optimize.statistics.EFFECTIVE_OBS_ALPHA",
+    "rietx.optimize.statistics.MAX_SHIFT_CONVERGED",
     "rietx.optimize.statistics.OBS_PER_PARAMETER_MIN",
     "rietx.optimize.statistics.OBS_PER_PARAMETER_PREFERRED",
     "rietx.params.vector.CELL_MIN_LENGTH_A",
@@ -2744,6 +2734,7 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.schemas.instrument.HARMONIC_WEIGHT_SEED",
     "rietx.schemas.instrument.HUMP_FWHM_MIN",
     "rietx.schemas.instrument.Source:dispersion",
+    "rietx.schemas.instrument.Source:polarization",
     "rietx.schemas.plan.CORRELATION_GUARD",
     "rietx.schemas.plan.INTERMEDIATE_FTOL",
     "rietx.schemas.plan.PlanSpec:correlation_guard",

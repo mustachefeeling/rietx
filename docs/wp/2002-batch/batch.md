@@ -928,6 +928,42 @@ under TRF or above 128 columns. `profile_interval:one_sided`* tier caller.
 
 ---
 
+## Added after the handover's code review
+
+A review of the branch's diff (`/code-review high`) found that nine of the 157 rows landed
+without approval did not meet their tier. They are back at `unaudited`, and each joins a
+class above:
+
+- `optimize.blocked.DENSE_JACOBIAN_MAX_BYTES` joins **B10**. It switches a large series from
+  the dense to the blocked solve automatically. The two paths agree to 6.4e-6 esd, and the
+  test allows 0.01 esd. That is invariant within a margin, and the record's precedent for the
+  class was bit-identical. Whether a tested margin qualifies is part of B10's reading.
+- `schemas.instrument.Source:polarization` (0.5) joins **B9**'s recorded assumptions. 0.5 is
+  right for a beam with no monochromator. A lab file with a diffracted-beam monochromator
+  and no declared polarisation is fitted at 0.5, which biases intensities and Biso. The
+  package's own presets compute K for a graphite monochromator.
+- `optimize.statistics.MAX_SHIFT_CONVERGED` joins **B13**, to WP-2004. Its docstring says it
+  sets the level of one report sentence and gates nothing, the same property as the three
+  statistics constants already sent there.
+- The six `background.auto.auto_background` defaults join **B12**. The verb is tiered
+  `caller` because no default path in the code calls it. But the agent skill presents its
+  P-spline as the default background (`docs/skill/rietx/SKILL.md` ~62, ~87), so every agent
+  that follows the skill makes these choices by default. Whether a skill instruction is a
+  default path is part of B12's ruling.
+
+The review also changed `refine:backend` from `invariant` to `caller`: another backend can
+move a fitted number (fp32 Jacobian columns on Apple MPS, about 1e-13 on jax), and the
+optional backends are the caller's to choose.
+
+**Owed, needing no ruling: 17 tier-2 rows rest on citations nobody read this session.** Their
+evidence says so ("docstring; paper not on disk"): seven `optimize.lm` constants and four
+`optimize.bccg` constants citing Coelho, plus `SCHERRER_K` and five others. The review
+reports the TOPAS-Academic V5 technical reference and the Patterson Scherrer paper are in the
+local corpus. The next session checks each value against its source and moves any that do
+not match back to `unaudited`.
+
+---
+
 ## The B13 hand-off table
 
 "Gates" names the code or field the constant decides. Every read site was checked with grep

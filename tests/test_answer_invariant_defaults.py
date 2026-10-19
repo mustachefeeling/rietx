@@ -17,6 +17,7 @@ import pytest
 
 import rietx as rx
 from rietx import runs
+from rietx._about import RUNS_DIR_NAME, STATE_DIR_NAME
 from rietx.optimize.cancel import CancelToken
 from rietx.strategy.staged import resolve_plan
 from tests.test_refine_synthetic import perturbed_models, synthesize
@@ -69,6 +70,13 @@ def recording(tmp_path, monkeypatch):
         runs.set_enabled(was)
 
 
+def _recorded(tmp_path):
+    """How many runs the recorder wrote under the working directory: a test
+    whose recorder never ran would compare two unrecorded fits and pass."""
+    root = tmp_path / STATE_DIR_NAME / RUNS_DIR_NAME
+    return len(list(root.glob(f"*/{runs.META_FILE}")))
+
+
 @pytest.mark.parametrize("channel", ["events", "progress", "cancel", "label",
                                      "stage_reports"])
 def test_a_fit_observed_is_the_fit_unobserved(pattern, baseline, tmp_path, channel):
@@ -77,14 +85,17 @@ def test_a_fit_observed_is_the_fit_unobserved(pattern, baseline, tmp_path, chann
     _same(_fit(pattern, **{channel: kw[channel]}), baseline)
 
 
-def test_a_recorded_fit_is_the_fit_unrecorded(pattern, baseline, recording):
+def test_a_recorded_fit_is_the_fit_unrecorded(pattern, baseline, tmp_path, recording):
     _same(_fit(pattern), baseline)
+    assert _recorded(tmp_path) == 1
 
 
 def test_a_stage_observed_is_the_stage_unobserved(pattern, tmp_path, recording):
     plain = _stage(pattern, telemetry=False)
+    assert _recorded(tmp_path) == 0
     _same(_stage(pattern, events=tmp_path / "events.jsonl", cancel=CancelToken(),
                  label="observed"), plain)
+    assert _recorded(tmp_path) == 1
 
 
 def test_refine_observed_with_a_history_tree_is_refine_without(pattern, baseline,
@@ -93,3 +104,4 @@ def test_refine_observed_with_a_history_tree_is_refine_without(pattern, baseline
     _same(_answer(rx.refine(pattern, structure, ins, plan=PLAN, history=True,
                             events=tmp_path / "events.jsonl", cancel=CancelToken(),
                             label="observed")), baseline)
+    assert _recorded(tmp_path) == 1
