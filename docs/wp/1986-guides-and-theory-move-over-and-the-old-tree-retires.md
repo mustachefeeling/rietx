@@ -196,8 +196,10 @@ the tree that day.
 - The old tree's 14 Part 2 pages are one-line `{include}`s of `docs/docs/theory/`, and its
   root page includes the Theory index's conventions, scope and units between two markers.
   Delete them with the tree and add their `RETIRED` rows then.
-- `docs/docs/check_equations.py` imports `chromium_path` from `docs/manual/make_screenshots.py`.
-  Re-point the import when the GUI chapters take that script with them.
+- The old tree's three GUI chapters (`using/gui-*.md`) now show their screenshots from
+  `docs/docs/screenshots/` (`../../docs/screenshots/…`), and nothing guards them; they go
+  with the tree and take `RETIRED` rows to `start/gui-quickstart` and `reference/gui-guide`,
+  `reference/gui-power` (2026-10-19).
 - Three pieces of WP-1979's task 4 belong here, because none of the 13 pages `help.py`'s
   anchors name exists in the new tree yet: a versioned docs base beside `_about.DOCS_URL`
   (`dev` for a `.dev0` build, `X.Y` otherwise; the mapping `docs_versions.docs_version` moves
@@ -217,8 +219,16 @@ the tree that day.
   for it (folded 2026-10-19 from WP-1545).
 
 **GUI chapters.**
-- Notebook 03 still links the old tree's `using/gui-guide.html#peaks`, because no new page
-  covers the Peaks tab. Repoint it when the GUI chapters move (folded 2026-10-19 from WP-1545).
+- Moved 2026-10-19 (6th session, by a lane): `start/gui-quickstart.md` (the tutorial),
+  `reference/gui-guide.md` and `reference/gui-power.md` (reference, as WP-1975's
+  classification table has them), stems kept so each old page maps to one new one. The
+  screenshots and `make_screenshots.py` moved to `docs/docs/`, and `check_equations.py`
+  imports from beside itself. `tests/test_gui_manual.py` globs the new tree and resolves each
+  image path from its page. Notebook 03 links `reference/gui-guide.html#peaks` on the stable
+  path. The quickstart's agent admonition went (§ F8); its "routes are provisional" warning
+  survives in `gui-power.md`, without the `{ref}` to the old compatibility page.
+- `start/gui-quickstart.md` § Where to go next links the Guides index where the old page
+  linked the Python quickstart. Repoint it when the tutorials render under Start.
 
 ## Non-goals
 
@@ -233,7 +243,8 @@ the tree that day.
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
       the whole old tree retires (task 4); see Context, 2026-10-17. Twenty-three of 25 written
       (2026-10-17, map under Notes by task).
-- [ ] GUI chapters moved with `test_gui_manual.py`.
+- [x] GUI chapters moved with `test_gui_manual.py`. (2026-10-19; the old copies stay up,
+      unguarded, until the tree retires. Notes under GUI chapters.)
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.
 - [ ] Skill: links into the manual updated to the new URLs.

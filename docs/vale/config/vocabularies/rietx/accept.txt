@@ -30,6 +30,7 @@ Brentano
 Brindley
 [bB]rucite
 Bruker
+Brunner
 Bunge
 Caglioti
 [cC]arbonyl
@@ -69,6 +70,7 @@ Cracknell
 [cC]rystallite
 [cC]rystallites
 [cC]rystallographer
+Daams
 [dD]e
 Debye
 [dD]ecorrelate
@@ -243,6 +245,7 @@ Rachinger
 [rR]ealification
 [rR]ecurses
 [rR]efinable
+[rR]enderer
 [rR]enormalised
 [rR]eparameterisation
 [rR]escale
@@ -323,6 +326,7 @@ Uiso
 [uU]nprimed
 [uU]nscaled
 [uU]ntransposed
+Villars
 Voigt
 Von
 Waasmaier

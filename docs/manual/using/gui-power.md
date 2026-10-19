@@ -50,12 +50,12 @@ instrument
   background.c0                         @       0
 ```
 
-```{image} screenshots/text-document-light.png
+```{image} ../../docs/screenshots/text-document-light.png
 :class: only-light
 :alt: The text panel showing the rxt document with syntax highlighting, an in-sync badge, and Apply and Re-read buttons
 ```
 
-```{image} screenshots/text-document-dark.png
+```{image} ../../docs/screenshots/text-document-dark.png
 :class: only-dark
 :alt: The text panel showing the rxt document with syntax highlighting, an in-sync badge, and Apply and Re-read buttons
 ```

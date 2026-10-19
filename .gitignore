@@ -27,8 +27,9 @@ htmlcov/
 # dropped by the same rule (WP-1017) — the third time `*.png` above has
 # swallowed a committed image. `tests/test_gui_manual.py` now asks
 # `git check-ignore` about them, so a fourth directory fails a test instead of
-# reaching a fresh clone with its pictures missing.
-!docs/manual/using/screenshots/*.png
+# reaching a fresh clone with its pictures missing.  They moved into the new
+# tree with the GUI pages (WP-1986).
+!docs/docs/screenshots/*.png
 # A WP that decides something from rendered pages commits the pictures beside
 # its own file, and `*.png` above swallowed all eighteen of WP-1412's — the
 # fifth time, and the first outside `docs/manual/`, which is why the guard added
