@@ -121,9 +121,10 @@ the tree that day.
   From `using/data.md` and `using/results.md` (3rd session): 6 `range.md`, 7 `hump.md`, 8
   `blank.md`, 25 `check.md`. From `using/report.md` and `using/series.md` (4th session): 13 `next.md`, 14
   `series.md`, 15 `path.md`, 16 `equation.md`; from `using/history.md` and `using/model.md` (5th session): 21 `branch.md`, 12 `interval.md`, 11 `cell.md`; from `using/exports.md`: 19 `export.md`; from the Switching pages and `using/files.md`: 22 `foreign.md`; from `using/qpa.md`: 20 `qpa.md`. The series guides share a synthetic LaB6 ramp,
-  `examples/guides/_lab6_ramp.py`, which the guide test skips by its underscore. Left: 9-10,
-  17, 18, 24. Items 9, 10 and 17 each wait on a data choice from the maintainer (5th
-  session's entry). Item 18 waits on WP-1910 and WP-1510, whose findings on the shipped
+  `examples/guides/_lab6_ramp.py`, which the guide test skips by its underscore. From
+  `using/model.md` (6th session, 2026-10-19): 9 `holder.md`, on a synthetic steel line that
+  `examples/guides/_holder_line.py` adds to the fluorapatite scan. Left: 10, 17, 18, 24.
+  Item 18 waits on WP-1910 and WP-1510, whose findings on the shipped
   fluorapatite pattern it would otherwise document; item 24 on the magnetic WPs in flight
   (1326, 1327, 1418). Item 10 has the spike's page to start from, but no
   LaB6 pattern ships in `rietx.examples`. The maintainer chose (2026-10-17) to fetch data a
@@ -131,6 +132,14 @@ the tree that day.
   `tests/data/` at a pinned commit, and `test_examples.py`'s `fetched_state` fixture fills the
   cache so the suite stays offline. A calibration guide can add a LaB6 or the 11-BM Si 640c
   file there (a new file in `tests/data/` needs `REMOTE_COMMIT` moved to a commit holding it).
+- **Data choices, 2026-10-19, open for the maintainer to reverse.** The maintainer asked
+  the session to use its best judgement and leave the decisions recorded here until they
+  have time. Item 9 uses a synthetic steel line on the real fluorapatite scan, and the page
+  says so; the alternative is a real holder scan the maintainer supplies. Item 10 uses a
+  synthetic standard and sample, as tutorial 04 does; the measured real options are in the
+  5th session's entry, and a lab LaB₆ scan with a sample from the same diffractometer would
+  beat all three. Item 17's real Nd₂Ru₂O₇ pair needs the data owner's agreement before
+  `rietx.examples.fetch` serves it (see the item's own bullet when it lands).
   Two candidates outside
   the list: fixing the origin of a polar space group (`Phase.floating_origin`, after WP-1912
   lands, which owns that behaviour), and the plan's "one departure" paragraph.
@@ -213,7 +222,7 @@ the tree that day.
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
-      the whole old tree retires (task 4); see Context, 2026-10-17. Twenty of 25 written
+      the whole old tree retires (task 4); see Context, 2026-10-17. Twenty-one of 25 written
       (2026-10-17, map under Notes by task).
 - [ ] GUI chapters moved with `test_gui_manual.py`.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
