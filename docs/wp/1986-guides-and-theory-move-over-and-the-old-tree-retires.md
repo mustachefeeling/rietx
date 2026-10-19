@@ -193,6 +193,43 @@ the tree that day.
   `examples/switching.py`, so a rename of anything it calls fails `tests/test_examples.py`.
 
 **Retirement.**
+- **What the guides did not take, measured 2026-10-19 (7th session).** The guides took the
+  old chapters' how-tos. Each chapter's reference and explanation, which WP-1975's
+  per-chapter table splits off, has no home yet. Retiring the tree now would delete it, and
+  2 044 of the 2 199 public names the coverage partition counts as documented are spelled
+  only in Part 1 (the generated API pages do not count, by design). So the residue moves
+  first, as a Reference, Concepts or Start page per chapter, with light edits as the GUI
+  chapters had. Survey by chapter (old line ranges), covered meaning a new page states the
+  facts:
+  - Covered: concepts, constraints, gui-*, qpa, skill (minor: concepts' "one departure" and
+    Stephens rule, qpa's `amorphous_hump_score` cue).
+  - No home at all: install (moved 2026-10-19), first-refinement (example projects, the
+    minimal call, `refine` against `Refinement`, Le Bail first and `lebail_scaffold`, NAC,
+    `status`/`usable`), quickstart (the tutorial index), compatibility, agents
+    (`model_dump(mode="json")`, wrapping a tool, `capabilities()` arm by arm, the six
+    contracts), recipe (PowderLine, whole chapter), indexing (all 1 380 lines; guide 18
+    takes the procedure, the reference part needs a page too).
+  - Gaps: cli (`rietx index`, `events`, `html`, `compare`, `gui` options, the watcher's
+    routes, 46-571); data (field tables for `Parameter`, `PatternData`, `Phase`/`Cell`/`Atom`,
+    instrument constructors, `Source`, neutron and TOF set-up, λ/n harmonics, `Geometry`,
+    `ProfileTCHZ`, background kinds, 20-1055); exports (calculated pattern, plot options,
+    `render_structure` 130-501, magnetic reflection rows, magCIF); files (TOF reading,
+    magCIF, magnetic phases from TOPAS and FullProf, a project with no structure,
+    `ProjectFormat`, `Stance`, the per-format models, the history-log format); glossary
+    (the `help` arms other than parameters and diagnostics: stage settings, peak flags and
+    origins, reader options, instrument presets, indexing search settings; `help_for`);
+    history (node fields and action kinds, `diff`/`api_call`/`order`, tree identity, the
+    `history=` table, 13-455); model (`ParameterRow`, `TieSpec`, bounds and the cell window,
+    `set_vary`'s return and `set_values`' refusals, `at_bound`); refining (entry points and
+    where `backend`/`solver` go, modes and `lebail_passes`, λ/n check, the magnetic cluster
+    241-802, `intermediate_ftol`, `PlanSpec` persistence, `Provenance`); report (Layer 0 and
+    1 object detail, texture and directional strain, the evidence blocks,
+    `check_rigid_bodies`, `rietx compare`); results (`Statistics`, bonding geometry,
+    observation count, what `diagnose` measures, printing a result, `Progress`); series
+    (a phase appearing part-way, `carry`, quarantine, a moment through a transition, the
+    joint-fit profile scan, per-histogram report, the parametric refusals).
+  - About 1 000 lines are magnetic (refining, files, series, data, exports), waiting on
+    guide 24's WPs for the procedure; their reference part can move before.
 - The old tree's 14 Part 2 pages are one-line `{include}`s of `docs/docs/theory/`, and its
   root page includes the Theory index's conventions, scope and units between two markers.
   Delete them with the tree and add their `RETIRED` rows then.
@@ -250,6 +287,11 @@ the tree that day.
       (2026-10-17, map under Notes by task).
 - [x] GUI chapters moved with `test_gui_manual.py`. (2026-10-19; the old copies stay up,
       unguarded, until the tree retires. Notes under GUI chapters.)
+- [ ] Each chapter's reference and explanation re-homed (survey under Notes by task,
+      Retirement, 2026-10-19). Start: install (2026-10-19), a first fit in Python, the
+      tutorial notebooks. Reference: compatibility, CLI, the schema fields, the `help` arms,
+      history, `capabilities()`, recipe, formats. Concepts or Reference: the rest, chapter by
+      chapter.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.
 - [ ] Skill: links into the manual updated to the new URLs.
