@@ -867,7 +867,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   panels rather than importable names: `test_gui_manual.py` **partitions** both vocabularies and
   tightens each way, so adding or renaming a route or tab fails until a chapter covers it, and
   naming one the server does not serve fails too; screenshots from
-  `docs/manual/make_screenshots.py`.
+  `docs/docs/make_screenshots.py`.
 - **The site root is the landing page, and `docs/landing/README.md` is its rulebook**
   (WP-1331). Two consequences reach a session that never opens that directory. `/` is the
   page and the manual is `/manual.html` — sphinx's `root_doc` is `manual.md`, so a link

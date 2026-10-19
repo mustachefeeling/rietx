@@ -24,8 +24,7 @@ print(series)
 
 # guide: trajectory start
 a = series.trajectory("phases.0.cell.a")
-for t, value, esd in zip(a.x, a.value, a.stderr):
-    print(f"{t:.0f} K  a = {value:.6f}({esd * 1e6:.0f}) Å")
+print(a)
 # guide: trajectory end
 
 # guide: rungs start

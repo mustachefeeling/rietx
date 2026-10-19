@@ -125,7 +125,7 @@ chosen
 #
 # The same tab runs the indexing search, draws a candidate's predicted lines over the pattern, and adopts a candidate as the starting point of a Le Bail fit.
 # Every gesture also has a typed equivalent in the panel.
-# The [GUI guide](https://rietx.org/using/gui-guide.html#peaks) covers the tab in full.
+# [The GUI panel by panel](https://rietx.org/docs/stable/reference/gui-guide.html#peaks) covers the tab in full.
 #
 # ## Index
 #

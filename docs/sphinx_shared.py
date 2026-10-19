@@ -63,7 +63,7 @@ from rietx.optimize.statistics import (
 from rietx.params.parametric import FORM_TEST_LEVEL
 from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
 from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
-from rietx.report.layer0 import build_layer0
+from rietx.report.layer0 import LAYER0_MATCH_TOL_DEG, build_layer0
 from rietx.report.layer2 import IMPURITY_SIGMA
 from rietx.report.schemas import (
     MATURITY_MAX_RWP,
@@ -175,6 +175,9 @@ MYST_SUBSTITUTIONS = {
     # still derived, and a retuned clamp still moves the printed number.
     "ANGLE_LINEARISATION_LIMIT_DEG": f"{ANGLE_LINEARISATION_LIMIT_DEG:.1e}",
     "HUMP_MIN_WIDTH_MULT": HUMP_MIN_WIDTH_MULT,
+    # a declared peak this close to a predicted position sits on it, and the
+    # report matches an observed peak to a tick by the same distance
+    "LAYER0_MATCH_TOL_DEG": LAYER0_MATCH_TOL_DEG,
     "BRINDLEY_MU_R_FENCE": BRINDLEY_MU_R_FENCE,
     "FRACTION_PROFILE_DCHI2": FRACTION_PROFILE_DCHI2,
     "FRACTION_PROFILE_EXCESS": FRACTION_PROFILE_EXCESS,

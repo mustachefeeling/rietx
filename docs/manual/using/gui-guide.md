@@ -53,12 +53,12 @@ flight, because it is not about the project.
 The left column is the measured points, the calculated pattern, the background,
 a band of reflection ticks, and the difference curve underneath.
 
-```{image} screenshots/plot-readout-light.png
+```{image} ../../docs/screenshots/plot-readout-light.png
 :class: only-light
 :alt: The pattern with observed and calculated curves, a tick band, the difference below, then the readout strip, the knob strip and the fitted-range strip
 ```
 
-```{image} screenshots/plot-readout-dark.png
+```{image} ../../docs/screenshots/plot-readout-dark.png
 :class: only-dark
 :alt: The pattern with observed and calculated curves, a tick band, the difference below, then the readout strip, the knob strip and the fitted-range strip
 ```
@@ -161,12 +161,12 @@ bounds and transforms, and reports how many it hid; `Advanced` brings them back.
 A typed value is compared against the value as displayed, so clicking into a
 cell showing `4.1568(2)` and out again cannot truncate the parameter.
 
-```{image} screenshots/parameters-light.png
+```{image} ../../docs/screenshots/parameters-light.png
 :class: only-light
 :alt: The parameter table grouped by phase and atom, each refined value carrying its esd in brackets and a checkbox, with a filter box and free and fix buttons above
 ```
 
-```{image} screenshots/parameters-dark.png
+```{image} ../../docs/screenshots/parameters-dark.png
 :class: only-dark
 :alt: The parameter table grouped by phase and atom, each refined value carrying its esd in brackets and a checkbox, with a filter box and free and fix buttons above
 ```
@@ -192,12 +192,12 @@ The two buttons do different things:
 A plan you have edited and not saved has no resolved facts and cannot be run,
 because the ladder describes the plan the server is holding.
 
-```{image} screenshots/plan-ladder-light.png
+```{image} ../../docs/screenshots/plan-ladder-light.png
 :class: only-light
 :alt: The plan panel: an ordered list of stages, each showing the globs it frees and the parameter paths they reach, with a running count of free parameters
 ```
 
-```{image} screenshots/plan-ladder-dark.png
+```{image} ../../docs/screenshots/plan-ladder-dark.png
 :class: only-dark
 :alt: The plan panel: an ordered list of stages, each showing the globs it frees and the parameter paths they reach, with a running count of free parameters
 ```
@@ -517,12 +517,12 @@ at its own family's number of decimal places and the percentage taken against
 `|a|`. Only the Rwp badge is coloured for direction: a parameter difference has
 no good direction, and colouring one would be a claim.
 
-```{image} screenshots/history-graph-light.png
+```{image} ../../docs/screenshots/history-graph-light.png
 :class: only-light
 :alt: The history panel reading 13 nodes and 2 lanes, with a second coloured lane branching from the cell node, and a compare table of two nodes below it
 ```
 
-```{image} screenshots/history-graph-dark.png
+```{image} ../../docs/screenshots/history-graph-dark.png
 :class: only-dark
 :alt: The history panel reading 13 nodes and 2 lanes, with a second coloured lane branching from the cell node, and a compare table of two nodes below it
 ```

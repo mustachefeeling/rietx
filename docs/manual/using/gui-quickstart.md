@@ -60,12 +60,12 @@ Open the fluorapatite example. It is an ordinary laboratory pattern from an
 ordinary diffractometer, with seven atomic sites. That is the point at which a
 refinement starts to need a plan rather than a button.
 
-```{image} screenshots/empty-state-light.png
+```{image} ../../docs/screenshots/empty-state-light.png
 :class: only-light
 :alt: The panel with no project open: the shipped example projects with their descriptions, a Browse button, and the four numbered wizard steps below
 ```
 
-```{image} screenshots/empty-state-dark.png
+```{image} ../../docs/screenshots/empty-state-dark.png
 :class: only-dark
 :alt: The panel with no project open: the shipped example projects with their descriptions, a Browse button, and the four numbered wizard steps below
 ```
@@ -93,12 +93,12 @@ it, and dismiss it whenever you like. Every step except the last is derived from
 the project rather than remembered, so it cannot disagree with what you have
 actually done: undo a fit and `Run the fit` un-ticks itself.
 
-```{image} screenshots/first-run-light.png
+```{image} ../../docs/screenshots/first-run-light.png
 :class: only-light
 :alt: A Getting started strip above the tab strip with four steps, two ticked, and a Dismiss button
 ```
 
-```{image} screenshots/first-run-dark.png
+```{image} ../../docs/screenshots/first-run-dark.png
 :class: only-dark
 :alt: A Getting started strip above the tab strip with four steps, two ticked, and a Dismiss button
 ```
@@ -106,12 +106,12 @@ actually done: undo a fit and `Run the fit` un-ticks itself.
 Dismissing it is remembered for that project, and nothing else about it is
 written.
 
-```{image} screenshots/first-fit-light.png
+```{image} ../../docs/screenshots/first-fit-light.png
 :class: only-light
 :alt: The whole window after a run: the fitted pattern with its difference curve on the left, the parameter table on the right, the console below
 ```
 
-```{image} screenshots/first-fit-dark.png
+```{image} ../../docs/screenshots/first-fit-dark.png
 :class: only-dark
 :alt: The whole window after a run: the fitted pattern with its difference curve on the left, the parameter table on the right, the console below
 ```
@@ -168,12 +168,12 @@ this fit, and it is built to refuse a confident wrong answer: where two
 explanations fit the misfit equally well it says so and names both, instead of
 picking one. [](report.md) is the full account of what those statements mean.
 
-```{image} screenshots/report-light.png
+```{image} ../../docs/screenshots/report-light.png
 :class: only-light
 :alt: The report panel: Rwp and GoF, a paragraph naming an exchangeable pair of parameters, and suggested actions with one carrying a could-not-rule-out line
 ```
 
-```{image} screenshots/report-dark.png
+```{image} ../../docs/screenshots/report-dark.png
 :class: only-dark
 :alt: The report panel: Rwp and GoF, a paragraph naming an exchangeable pair of parameters, and suggested actions with one carrying a could-not-rule-out line
 ```

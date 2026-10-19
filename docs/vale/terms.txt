@@ -55,6 +55,7 @@ electronegative
 esd
 esds
 Ewald
+ferritic
 fluorapatite
 Friedel
 goniometer
@@ -151,11 +152,13 @@ Altomare
 Borda
 Brentano
 Brindley
+Brunner
 Bunge
 Caglioti
 Chebyshev
 Coelho
 Cracknell
+Daams
 de
 Debye
 Deslattes
@@ -191,6 +194,7 @@ Schwarzenbach
 Shirane
 Suortti
 Thomlinson
+Villars
 Voigt
 Von
 Waasmaier
@@ -329,6 +333,7 @@ frontend
 lookups
 recurses
 refinable
+renderer
 rietview
 roadmap
 selectable

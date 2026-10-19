@@ -53,6 +53,12 @@ screenshots come from `docs/manual/make_screenshots.py`.
 
 ### Inherited
 
+- **2026-10-19, from WP-1986.** The GUI chapters moved to the new manual tree:
+  `docs/docs/start/gui-quickstart.md`, `docs/docs/reference/gui-guide.md` and
+  `docs/docs/reference/gui-power.md`, with the screenshots in `docs/docs/screenshots/` and
+  the script at `docs/docs/make_screenshots.py`. `tests/test_gui_manual.py` partitions routes
+  and tabs over the new pages, so the scrubber's tab or route is documented there. The old
+  `docs/manual/using/gui-*.md` copies stay up, unguarded, until that tree retires.
 - **Decided 2026-10-16 (maintainer, from the issue triage, #141): the
   planted-events fixture goes ahead now.** The reporter opens it as a
   tests-only PR against this WP, WP-1965 named as the second user: the seeded

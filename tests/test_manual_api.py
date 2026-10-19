@@ -53,6 +53,7 @@ from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import (
     HUMP_FWHM_MIN,
     HumpComponent,
+    PeakComponent,
     RoughnessSuortti,
 )
 from rietx.schemas.structure import AnisoU, StephensStrain
@@ -282,8 +283,11 @@ def _fully_declared() -> tuple[object, object]:
                           fwhm=Parameter(value=6.0,
                                          min=HUMP_FWHM_MIN,
                                          transform="softplus"))
+    # paths are compared with every index read as 0, so the second member's
+    # `extra_components.1.center` answers for a page's `.0.center`
+    line = PeakComponent(center=Parameter(value=44.6, min=44.4, max=44.9, unit="deg"))
     return structure, instrument.model_copy(
-        update={"geometry": geometry, "extra_components": [peak]})
+        update={"geometry": geometry, "extra_components": [peak, line]})
 
 
 def _magnetic() -> tuple[object, object]:

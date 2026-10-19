@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-18 — Guides: 20 of 25 written, three waiting on a data choice; GUI chapters, retirement and skill links remain
+Milestone: unscheduled · Status: 🔄 2026-10-19 — Guides: 23 of 25 written, 18 and 24 waiting on other WPs; GUI chapters moved; retirement and skill links remain
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -121,9 +121,14 @@ the tree that day.
   From `using/data.md` and `using/results.md` (3rd session): 6 `range.md`, 7 `hump.md`, 8
   `blank.md`, 25 `check.md`. From `using/report.md` and `using/series.md` (4th session): 13 `next.md`, 14
   `series.md`, 15 `path.md`, 16 `equation.md`; from `using/history.md` and `using/model.md` (5th session): 21 `branch.md`, 12 `interval.md`, 11 `cell.md`; from `using/exports.md`: 19 `export.md`; from the Switching pages and `using/files.md`: 22 `foreign.md`; from `using/qpa.md`: 20 `qpa.md`. The series guides share a synthetic LaB6 ramp,
-  `examples/guides/_lab6_ramp.py`, which the guide test skips by its underscore. Left: 9-10,
-  17, 18, 24. Items 9, 10 and 17 each wait on a data choice from the maintainer (5th
-  session's entry). Item 18 waits on WP-1910 and WP-1510, whose findings on the shipped
+  `examples/guides/_lab6_ramp.py`, which the guide test skips by its underscore. From
+  `using/model.md` (6th session, 2026-10-19): 9 `holder.md`, on a synthetic steel line that
+  `examples/guides/_holder_line.py` adds to the fluorapatite scan; from `using/data.md` and
+  `using/files.md`: 10 `calibrate.md`, on a synthetic LaB₆ and CeO₂ pair on two setups
+  (`_calibration_pair.py`); from `using/series.md`: 17 `joint.md`, on a synthetic corundum
+  X-ray and neutron pair whose neutron wavelength is 300 ppm off (`_corundum_pair.py`).
+  Left: 18, 24.
+  Item 18 waits on WP-1910 and WP-1510, whose findings on the shipped
   fluorapatite pattern it would otherwise document; item 24 on the magnetic WPs in flight
   (1326, 1327, 1418). Item 10 has the spike's page to start from, but no
   LaB6 pattern ships in `rietx.examples`. The maintainer chose (2026-10-17) to fetch data a
@@ -131,9 +136,37 @@ the tree that day.
   `tests/data/` at a pinned commit, and `test_examples.py`'s `fetched_state` fixture fills the
   cache so the suite stays offline. A calibration guide can add a LaB6 or the 11-BM Si 640c
   file there (a new file in `tests/data/` needs `REMOTE_COMMIT` moved to a commit holding it).
+- **Data choices, 2026-10-19, open for the maintainer to reverse.** The maintainer asked
+  the session to use its best judgement and leave the decisions recorded here until they
+  have time. Item 9 uses a synthetic steel line on the real fluorapatite scan, and the page
+  says so; the alternative is a real holder scan the maintainer supplies. Item 10 uses a
+  synthetic standard and sample, as tutorial 04 does; the measured real options are in the
+  5th session's entry, and a lab LaB₆ scan with a sample from the same diffractometer would
+  beat all three. Item 17 uses a synthetic corundum pair, built as
+  `tests/test_joint_xray_neutron.py` builds its own, with a neutron wavelength 300 ppm off
+  so the page can refine it. The real Nd₂Ru₂O₇ pair (`mg090.fxye` and `mg090.Cu311.gsas`,
+  Gaultois et al. 2013) is the better demonstration, but its `tests/data/README.md` row
+  states no licence, so serving it through `rietx.examples.fetch` waits on the data owner's
+  agreement. Swapping it in later means a `REMOTE_FILES` entry, a new `joint.py` and the
+  page's quoted output; `test_acceptance_wavelength.py::_joint` already runs the fit.
   Two candidates outside
   the list: fixing the origin of a polar space group (`Phase.floating_origin`, after WP-1912
   lands, which owns that behaviour), and the plan's "one departure" paragraph.
+- A guide that says what a diagnostic code *does* (a hold, a quarantine, a withheld
+  statement) quotes the package's own `Diagnostic.explanation` rather than restating the
+  verdict, so the text follows the code. The generality milestone
+  (`docs/milestones/generality.md`, WPs 2002-2007) will demote or remove verdicts and
+  automatic actions that rest on rietx's own thresholds (folded 2026-10-19 from WP-2001).
+- The agent-supervision checklists left the tutorial notebooks (WP-1545), and the front
+  page's "Supervising an agent" card links the guides, so a guide is their home. The last
+  copies are each notebook's `## Checking an agent's work` section at `7472e200`
+  (`git show 7472e200:examples/tutorials/0N_*.py`, notebooks 01-05). Each maps SKILL §4's
+  rules to what a person checks: status and diagnostics first, the difference curve region
+  by region, correlations near 1, chemistry, a tie's premise, Rwp last (folded 2026-10-19).
+- The tutorial notebooks link the new tree on the stable path (`https://rietx.org/docs/stable/…`),
+  and `tests/test_tutorials.py::test_a_tutorial_links_only_pages_the_manual_has` fails on a
+  link to a page `docs/docs/` does not build, so renaming or removing a guide or Concepts page
+  runs that test (folded 2026-10-19 from WP-1545).
 - `using/concepts.md` is mined except § The parameter groups and § Why the groups correlate,
   which the Concepts pages already cover. The old chapter stays up until retirement.
 - `theory/intensities.md` § The magnetic structure factor lost its link to
@@ -163,8 +196,15 @@ the tree that day.
 - The old tree's 14 Part 2 pages are one-line `{include}`s of `docs/docs/theory/`, and its
   root page includes the Theory index's conventions, scope and units between two markers.
   Delete them with the tree and add their `RETIRED` rows then.
-- `docs/docs/check_equations.py` imports `chromium_path` from `docs/manual/make_screenshots.py`.
-  Re-point the import when the GUI chapters take that script with them.
+- The old tree's three GUI chapters (`using/gui-*.md`) now show their screenshots from
+  `docs/docs/screenshots/` (`../../docs/screenshots/…`), and nothing guards them; they go
+  with the tree and take `RETIRED` rows to `start/gui-quickstart` and `reference/gui-guide`,
+  `reference/gui-power` (2026-10-19).
+- The new tree has no page for `using/compatibility.md`, and root CLAUDE.md names its
+  § Provisional by declaration as the one home of the promise that indexing and the GUI's
+  routes may change in any release ("`{ref}`d not restated"). `reference/gui-power.md` now
+  states the routes are provisional without that `{ref}`. Give the promise a page before the
+  old tree goes, and point both back at it (found by the 6th session's review, 2026-10-19).
 - Three pieces of WP-1979's task 4 belong here, because none of the 13 pages `help.py`'s
   anchors name exists in the new tree yet: a versioned docs base beside `_about.DOCS_URL`
   (`dev` for a `.dev0` build, `X.Y` otherwise; the mapping `docs_versions.docs_version` moves
@@ -178,37 +218,22 @@ the tree that day.
   `DOCS_PAGES` globs `.md` only, so once a notebook lands under Start the page contract, the
   register guard and name resolution skip it until the glob widens. Whether a notebook keeps
   the page contract is decided at that move.
+- A seventh notebook, `02b_steering_a_refinement`, sits between 02 and 03 (the source glob is
+  now `[0-9][0-9]*_*.py`). The old tree's hidden toctree lists it, and the Start tab's
+  rendering takes it when `_copy_tutorials` moves. Its URL is new, so `OLD_PAGES` needs no row
+  for it (folded 2026-10-19 from WP-1545).
 
-### Inherited
-
-- **2026-10-18, from [2001](2001-the-rule-the-table-and-the-guard.md).** The generality
-  milestone opened (`docs/milestones/generality.md`): WPs 2002–2007 will demote or remove
-  diagnostic verdicts and automatic actions that rest on rietx's own thresholds, so a
-  guide chapter that tells a reader what a code *means to do* (a hold, a quarantine, a
-  withheld statement) may describe behaviour that is gone by the time the chapter is
-  read. Nothing to do now beyond writing such chapters from the package's own
-  `Diagnostic.explanation` rather than restating the verdict, so the text follows the
-  code; 2008 reads the skill and declares the manual a follow-up's.
-- **2026-10-18, from WP-1545.** The tutorial notebooks were rewritten to teach rietx one
-  step a cell, and four things reach this WP.
-  - **The agent-supervision checklists left the notebooks**, and the front page's
-    "Supervising an agent" card links the guides, so a guide is their home. The last copies
-    are each notebook's `## Checking an agent's work` section at `7472e200`
-    (`git show 7472e200:examples/tutorials/0N_*.py`, notebooks 01-05). Each maps SKILL §4's
-    rules to what a person checks: status and diagnostics first, the difference curve region
-    by region, correlations near 1, chemistry, a tie's premise, Rwp last.
-  - **A seventh notebook, `02b_steering_a_refinement`**, sits between 02 and 03 (the source
-    glob is now `[0-9][0-9]*_*.py`). The old tree's hidden toctree lists it; the Start tab's
-    rendering takes it when `_copy_tutorials` moves. Its URL is new, so `OLD_PAGES` needs no
-    row for it.
-  - **The notebooks link the new tree on the stable path** (`https://rietx.org/docs/stable/…`),
-    and `tests/test_tutorials.py::test_a_tutorial_links_only_pages_the_manual_has` fails on a
-    link to a page `docs/docs/` does not build. Renaming or removing a guide or concepts page
-    runs that test. Notebook 03 still links the old tree's
-    `using/gui-guide.html#peaks`, because no new page covers the Peaks tab; repoint it when the
-    GUI chapters move.
-  - `examples/guides/series.py:28` prints a trajectory with an f-string loop. A `Trajectory`
-    now prints one row a point, so the cell can show `a` alone.
+**GUI chapters.**
+- Moved 2026-10-19 (6th session, by a lane): `start/gui-quickstart.md` (the tutorial),
+  `reference/gui-guide.md` and `reference/gui-power.md` (reference, as WP-1975's
+  classification table has them), stems kept so each old page maps to one new one. The
+  screenshots and `make_screenshots.py` moved to `docs/docs/`, and `check_equations.py`
+  imports from beside itself. `tests/test_gui_manual.py` globs the new tree and resolves each
+  image path from its page. Notebook 03 links `reference/gui-guide.html#peaks` on the stable
+  path. The quickstart's agent admonition went (§ F8); its "routes are provisional" warning
+  survives in `gui-power.md`, without the `{ref}` to the old compatibility page.
+- `start/gui-quickstart.md` § Where to go next links the Guides index where the old page
+  linked the Python quickstart. Repoint it when the tutorials render under Start.
 
 ## Non-goals
 
@@ -221,9 +246,10 @@ the tree that day.
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
-      the whole old tree retires (task 4); see Context, 2026-10-17. Twenty of 25 written
+      the whole old tree retires (task 4); see Context, 2026-10-17. Twenty-three of 25 written
       (2026-10-17, map under Notes by task).
-- [ ] GUI chapters moved with `test_gui_manual.py`.
+- [x] GUI chapters moved with `test_gui_manual.py`. (2026-10-19; the old copies stay up,
+      unguarded, until the tree retires. Notes under GUI chapters.)
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.
 - [ ] Skill: links into the manual updated to the new URLs.
@@ -235,6 +261,103 @@ the tree that day.
 ```
 
 ## Handover log
+
+### 2026-10-19 — three guides on synthetic data, the GUI chapters moved, and an axial-divergence defect filed
+
+The Guides tab now explains how to fit a peak from the sample holder, how to
+calibrate an instrument on a standard and reuse it, and how to fit an X-ray and
+a neutron pattern together. All three run on synthetic data their pages call
+synthetic. The maintainer asked the session to choose, and the choices are
+recorded under Notes by task for reversal. Writing them measured three things a
+user would not see. A profile reused on another setup moves a crystallite size
+by about 9 esd while Rwp stays put. A joint fit with a neutron wavelength 300
+ppm off moves the shared cell by 3 esd and reports nothing. And the two
+axial-divergence ratios are interchangeable, so `lab_calibrate` returned them
+swapped, about 14 esd each from the truth, with no finding: filed as WP-2012.
+The three GUI chapters moved to the new tree with their screenshots and guard.
+Twenty-three of the 25 guides are written, and the last two wait on other WPs.
+
+*Done.* Pages `docs/docs/guides/{holder,calibrate,joint}.md` with scripts and
+one helper each (`examples/guides/_holder_line.py`, `_calibration_pair.py`,
+`_corundum_pair.py`); the index gained Instrument and Several radiations
+sections. `LAYER0_MATCH_TOL_DEG` joined `docs/sphinx_shared.py`'s substitutions
+(the 0.08° that both `EXTRA_PEAK_ON_REFLECTION` and Layer 0's peak matching
+use), and `test_manual_api.py`'s fully declared model gained a `PeakComponent`
+so `instrument.extra_components.0.center` resolves. The GUI chapters went by a
+lane to `start/gui-quickstart.md`, `reference/gui-guide.md` and
+`reference/gui-power.md`; the screenshots and `make_screenshots.py` to
+`docs/docs/`; the root and `gui/` CLAUDE.md name the script's new path; notes
+under GUI chapters. Inherited pruned on arrival: WP-2001's generality note and
+WP-1545's supervision checklists went under Guides, 02b under Retirement,
+notebook 03's link under GUI chapters (now repointed), and `series.py` prints
+its `Trajectory` whole, as WP-1545 asked. Two skill rows in
+`references/numbers.md` (the profile from another setup; compare the cells
+before a joint fit). Forwarded: the GUI move into WP-1317 and WP-1313. Filed:
+WP-2012 (no open WP owned the axial ratios; 1460 is about ridges, not two
+minima). `/code-review high --fix` over the session's range found 9 and fixed
+5: the holder helper now stores a list (an array in `PatternData.intensity`
+made `model_dump_json` raise), the calibration page names W's own stage and the
+two `FLOOR_HIT` findings, the status header, a test comment, a repeated
+`standard("first")`. Declined: `holder.md`'s inline declaration block, because
+a block that only builds objects runs inline by this WP's guide pattern (the
+hump guide's does too); `_corundum_pair.py` predicting twice to set the scale,
+because scaling the first prediction could move the pinned numbers. Recorded
+under Retirement: the routes' provisional promise has no new-tree page.
+
+*Measured* (`[dev]`, darwin/arm64; every guide's printed output identical on
+`RIETX_COMPILED=0`). Holder, fluorapatite under `mccusker_structural` 15-130°
+with a synthetic ferritic-steel 110 line at 44.65° (area 60, FWHM 0.12°):
+ignored, O7's x moves 1.91 esd from the clean fit; excluded 44.3-45.1°, 0.25,
+and every esd grows by at most 3.9 %; declared, 0.22, and the line comes back
+44.6507(77)°, 67.5(61), 0.122(25). Declared on the clean pattern at 44.6°, the
+peak ends on three bounds with area 7.7(96) and `EXTRA_PEAK_NO_INTENSITY`
+silent, because that code fires only at exactly zero area (at 60° it does).
+Calibration, synthetic LaB₆/CeO₂ (300 Å, 1.0e-3) on two setups, the second
+with twice W and X, H/L held at 3/200: matched size 300.8(22) Å, strain
+0.001021(43); crossed 325.3(27) and 281.5(21) Å (8.9 and 9.5 esd), Rwp within
+0.001; only the narrower profile shows a Gaussian size, 1530(230) Å. Both axial
+ratios free: S/L 0.01451(76), H/L 0.02531(66) against 0.025 and 0.015, and the
+two predicted patterns are bit-identical when swapped. On data with no axial
+divergence and both free, the compiled and numpy paths agree on values and
+differ up to 2× on the other widths' esds (in WP-2012). Joint, synthetic
+corundum, neutron λ 300 ppm long: alone, a 4.7588780(41) and 4.757485(31) Å
+(−293 ppm); jointly with `hist.1` λ free, +298.4 ppm at 5.1 ppm a esd, a within
+an esd of the truth, x(O) esd 0.67 of the X-ray pattern's and z(Al) 0.96;
+held, a 3.1 esd off and both coordinates' esds 1.2× and 1.7× the X-ray's, no
+finding. Each fit runs in under a second. Fast selection on the final tree
+(main at `2df48c95`, unmoved since the session began, no other suite running):
+10 951 passed, 185 skipped, 2 xfailed, one run of 4:43. Collected 11 136
+against 11 133 on a snapshot of `origin/main`, +3, the three guide cases. From
+the junit file under full load: `holder` 15.7 s, `calibrate` 5.4 s, `joint`
+5.0 s; `test_examples.py` totals 272.9 s across workers.
+`tests.added_test_times` sees no added function, since the three parametrise
+one. They stay in the fast tier for the reason `test_examples.py`'s docstring
+gives. The full selection did not run: no `src/` change, so no measured number
+can move.
+
+Lanes (`session_usage.py lanes`): one lane, gui-chapters, estimated 40 and
+taking 86 requests (2.15×), dispatched at 357K, re-read 7K of 99K, 16 main
+requests and 28K left in main, 5 main edits after (the rulebook paths and the
+WP notes), no redo; lane $4.62, main $1.45, in-session $9.80, saved +$3.71
+(+16 % of the session). The baseline's selective policy over all sessions:
+215 against the in-session cost, −4 %.
+
+*Gotchas.* The worktree guard refuses `cat >> file <<EOF` and a multi-line
+`sed` on a repo file, and a refused `sed` inside a `&&` chain lets the
+following `git commit` run without it: an item was committed without its WP
+tick once, fixed by a follow-up commit. A MyST link to a heading containing ⊕
+slugs to a double hyphen (`#the-instrument--sample-width-split`), and an
+included heading in backticks keeps its underscore (`plans.md#lab_calibrate`);
+the tutorials' stable HTML slugs differ. `WAVELENGTH_CALIBRATION` lands on
+`result.histograms[1].diagnostics`, never at the top level. `format_su` gives
+two digits of esd (`0.01451(76)`).
+
+Next: item 18 once WP-1910 and WP-1510 land, and item 24 once the magnetic WPs
+(1326, 1327, 1418) settle. Then retirement (task 4), which now also owes the
+provisional-routes promise a page; then the skill links. Two decisions wait on
+the maintainer: whether Mike Gaultois agrees to `rietx.examples.fetch` serving
+the Nd₂Ru₂O₇ pair, which would replace item 17's synthetic data; and WP-2012's
+fix.
 
 ### 2026-10-18 — six guides on history, results and other programs, and two indexing defects
 
