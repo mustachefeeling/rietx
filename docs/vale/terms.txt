@@ -55,6 +55,7 @@ electronegative
 esd
 esds
 Ewald
+ferritic
 fluorapatite
 Friedel
 goniometer

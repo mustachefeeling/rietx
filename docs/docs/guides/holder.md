@@ -37,7 +37,7 @@ The holder diffracts the same Kα2 the sample does, so rietx places an image of 
 Set `all_lines=False` for a line that is not diffraction, such as fluorescence or a detector artefact.
 
 `center` is the 2θ where the line appears in the pattern.
-No zero shift, sample displacement or transparency is applied to it, because the holder sits at its own height and has its own errors.
+No zero shift, specimen displacement or transparency is applied to it, because the holder sits at its own height and has its own errors.
 Do not read a d-spacing from it.
 
 ## Free it after the scale and background

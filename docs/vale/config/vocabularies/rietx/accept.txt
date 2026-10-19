@@ -104,6 +104,7 @@ Dreele
 Ewald
 [eE]xponentials
 Faddeeva
+[fF]erritic
 [fF]ilesystem
 [fF]luorapatite
 [fF]m

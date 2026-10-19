@@ -67,7 +67,7 @@ It sits in `result.histograms[1].diagnostics`, with the other findings that belo
 A shift inside its esd means the wavelength was already right.
 
 Held at its declared value instead, the 300 ppm error goes into the shared model.
-The cell edge a then ends 3.1 esd from the true value, and the esds of both corundum coordinates come out larger than the X-ray pattern gives alone.
+The lattice parameter a then ends 3.1 esd from the true value, and the esds of both corundum coordinates come out larger than the X-ray pattern gives alone.
 No diagnostic reports it.
 
 ## Read what each pattern added
@@ -107,7 +107,7 @@ assert per_mount.is_shared("phases.0.cell.a")
 
 Pass it as `MultiHistogramRefinement(structure, instruments, sharing=per_mount)`.
 Give each pattern its own preferred orientation when the two specimens were mounted differently.
-Keep the cell shared whenever a wavelength is free, because an unshared cell and a free wavelength cannot be told apart in one pattern.
+Keep the cell shared whenever a wavelength is free, because a cell of one pattern alone and a free wavelength cannot be told apart.
 
 A joint fit runs in Rietveld mode only.
 
