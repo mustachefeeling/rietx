@@ -102,6 +102,33 @@ def test_the_map_shows_every_entry_once_with_its_unit():
 
 
 # ----------------------------------------------------------------------
+# The other vocabularies
+# ----------------------------------------------------------------------
+
+
+def test_every_help_arm_has_exactly_one_reference_page():
+    """An arm added to `rietx.help` renders on one page, or the build raises."""
+    shared = {key for key, _, _ in reference_pages._VOCABULARIES}
+    assert not shared & reference_pages._OWN_PAGE
+    assert set(help_registry()) == shared | reference_pages._OWN_PAGE
+
+
+def test_an_arm_on_no_page_raises(monkeypatch):
+    monkeypatch.setattr(reference_pages, "_VOCABULARIES", reference_pages._VOCABULARIES[1:])
+    with pytest.raises(RuntimeError, match="stage_fields"):
+        reference_pages.vocabularies()
+
+
+def test_the_settings_page_shows_every_entry_of_its_arms():
+    text = reference_pages.vocabularies()
+    registry = help_registry()
+    for key, heading, _ in reference_pages._VOCABULARIES:
+        assert f"\n## {heading}\n" in text, heading
+        for name, entry in registry[key].items():
+            assert f"\n`{name}`\n: {entry['title']}. " in text, (key, name)
+
+
+# ----------------------------------------------------------------------
 # The plan ladder
 # ----------------------------------------------------------------------
 

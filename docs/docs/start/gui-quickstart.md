@@ -31,7 +31,7 @@ and `rietx gui my_sample.rex` starts with a project already open.
 Everything you do writes to the project as you do it. There is no unsaved state
 and no "are you sure?" on close, because each verb persists as it runs. That
 also means there is no read-only way to look at a project: opening one appends a
-line to its log before you have clicked anything. To look without changing, use
+line to its log before you have done anything. To look without changing, use
 `rietx gui my_sample.rex --scratch`, which works on a byte-for-byte copy in a
 temporary directory.
 
@@ -152,8 +152,8 @@ Two knobs under the plot change what you can see:
 
 - The `residual` selector switches the lower panel between `Δ/σ`, `Δ` and `Σχ²`.
   `Σχ²` accumulates the misfit from left to right, so a flat stretch contributed
-  nothing and a step is exactly where the fit is bad. It answers "where is my
-  fit worst?" better than any single number.
+  nothing and a step is exactly where the fit is bad. It locates the worst misfit
+  better than any single number does.
 - The intensity scale (`lin`, `√`, `log`) redraws the same numbers. `√` makes
   weak peaks visible without pretending they are strong.
 
@@ -204,7 +204,7 @@ a four-step wizard:
 4. `Project`. Where the `.rex` directory goes, the intensity mode, and the plan.
    Nothing is written until you press `Create project`.
 
-:::{admonition} Choose the anode deliberately
+:::{admonition} Choose the anode yourself
 :class: warning
 The wizard refuses to default the instrument. A wavelength nobody chose ends up
 in every cell parameter you go on to refine, and it is invisible in Rwp. The fit
@@ -217,5 +217,6 @@ has it in full.
 
 - [](../reference/gui-guide.md): the nine panels, and when to branch the history.
 - [](../reference/gui-power.md): the `.rxt` text document, the keyboard, and the routes.
+- [](tutorials.md): the same fluorapatite pattern fitted in Python, one step a notebook cell.
 - [](../guides/index.md): one task a page, each done from a Python script.
 - [](../concepts/fit.md): what the stages of a plan are actually doing.

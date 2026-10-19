@@ -739,7 +739,7 @@ HUMP_BISO = 0.35
 def synthetic_hump_case():
     """``(data, structure, instrument_without_peak, truth)`` for the hump case.
 
-    A **generator** as well as a fixture: ``docs/manual/make_figures.py``
+    A **generator** as well as a fixture: ``docs/docs/make_figures.py``
     imports this so the committed figure and the assertion below draw the same
     case.  A figure with its own copy of a case can disagree with the test that
     proves the claim, and nobody would find out (that script's own rule).

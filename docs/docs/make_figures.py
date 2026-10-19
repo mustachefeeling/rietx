@@ -1,16 +1,21 @@
-"""Regenerate Part 1's committed figures (WP-1068).
+"""Regenerate the manual's committed figures (WP-1068).
 
-    .venv/bin/python docs/manual/make_figures.py
+    .venv/bin/python docs/docs/make_figures.py
+
+They live in `figures/` beside this script, moved here from the old tree's
+`using/figures/` by WP-1986.  The old tree's chapters reference the same files
+until it retires.
 
 The figures are **committed**, not built.  Two reasons: the sphinx build stays
 seconds rather than minutes, and it stays offline and dependency-free — a docs
 build should not have to refine a real pattern.  The cost is that a figure can
 go stale, so this script is the one authority for how each was drawn, and
-``tests/test_manual_api.py`` checks that every figure a chapter references
-exists.
+``tests/test_manual_api.py`` checks that every figure a page of either tree
+references exists.
 
-Each figure is written twice, ``-light`` and ``-dark``, and the chapters select
-between them with furo's ``only-light`` / ``only-dark`` classes.  A single
+Each figure is written twice, ``-light`` and ``-dark``, and the pages select
+between them with the ``only-light`` / ``only-dark`` classes both themes read
+(pydata-sphinx-theme here, furo in the old tree).  A single
 white-ground figure on a dark page is the thing this avoids.
 
 **Every figure that shows a fit draws it from the case that is already
@@ -35,7 +40,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402  (after the backend is fixed)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-FIGURES = Path(__file__).resolve().parent / "using" / "figures"
+FIGURES = Path(__file__).resolve().parent / "figures"
 sys.path.insert(0, str(REPO_ROOT))
 
 import rietx as rx  # noqa: E402  (needs the repo on sys.path)
@@ -310,7 +315,7 @@ def hump() -> None:
     estimate would be claiming a truth it does not have.  Second, that fit is
     four minutes over 47 999 channels, and this script's own bargain (see the
     module docstring) is that regenerating a figure stays cheap.  The real
-    measurement is a **table**, in ``using/data.md``, where a number can carry
+    measurement is a **table**, in ``docs/manual/using/data.md``, where a number can carry
     its own provenance.
 
     esd notation follows the decision on issue #166: ``rx.format_su``'s

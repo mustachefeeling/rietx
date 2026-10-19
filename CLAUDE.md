@@ -857,12 +857,12 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   field fails the partition until documented or deferred** — a coverage gate, not a freeze
   (WP-1117). Under-development subsystems declare themselves (1078): `PROVISIONAL_MODULES` keys a
   module prefix to a reason and the tier derives from each name's **defining** module, so a new
-  type inherits it and a re-export is reached; indexing is the one entry, promised in
-  `using/compatibility.md` § Provisional by declaration, `{ref}`d not restated. **A green build is
-  not a rendered page**: `-W` cannot see a paragraph that printed its own TeX, so
+  type inherits it and a re-export is reached; four modules are, promised in the new tree's
+  `reference/compatibility.md` § Provisional by declaration, `{ref}`d not restated. **A green
+  build is not a rendered page**: `-W` cannot see a paragraph that printed its own TeX, so
   `test_no_unrendered_math_survives_the_build` scans the *built* HTML, and diagrams and themed
-  figures are checked by looking. Part 1's figures are **committed** light/dark pairs from
-  `docs/manual/make_figures.py` (the one authority for how each was drawn); agent-facing prose
+  figures are checked by looking. The manual's figures are **committed** light/dark pairs from
+  `docs/docs/make_figures.py` (the one authority for how each was drawn); agent-facing prose
   carries the `agent` admonition. **GUI chapters** (WP-1017) add a third guard, for routes and
   panels rather than importable names: `test_gui_manual.py` **partitions** both vocabularies and
   tightens each way, so adding or renaming a route or tab fails until a chapter covers it, and
@@ -958,7 +958,7 @@ whole triage record: the command's table reads it, and so does `wp_claim.py` abo
 
 Every shipped release has one record in `docs/milestones/`; ROADMAP's table carries the
 acceptance one-liners, restated in neither place. Since WP-1117 the compatibility promise
-(`docs/manual/using/compatibility.md`) is a **preview**: anything may change in any release,
+(`docs/docs/reference/compatibility.md`) is a **preview**: anything may change in any release,
 versions bumping per observable change. **1.0.2 was written and never published**, folded into v1.1
 (2026-08-23), so `docs/releases/1.0.2.md` describes a
 release that never existed. **A milestone is named, a release is numbered at its cut** (WP-1540,

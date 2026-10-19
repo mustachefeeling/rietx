@@ -529,7 +529,7 @@ def _sched_instrument() -> Instrument:
 def schedule_inputs():
     """(pattern, [true Zr-O1, true Zr-O2]) for the under-determined P-1 case.
 
-    A plain function beside the fixture so `docs/manual/make_figures.py` draws
+    A plain function beside the fixture so `docs/docs/make_figures.py` draws
     the manual's c_w figure from *this* case rather than from a second copy of
     it: the picture in the manual and the assertions below then cannot disagree
     about what the schedule did.

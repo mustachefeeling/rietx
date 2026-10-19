@@ -50,7 +50,14 @@ bibtex_default_style = _shared.BIBTEX_DEFAULT_STYLE
 bibtex_reference_style = _shared.BIBTEX_REFERENCE_STYLE
 
 myst_enable_extensions = _shared.MYST_EXTENSIONS
-myst_substitutions = {**_shared.MYST_SUBSTITUTIONS, "release": release}
+myst_substitutions = {
+    **_shared.MYST_SUBSTITUTIONS,
+    "release": release,
+    # The tutorial notebooks, copied in from examples/tutorials/ at every
+    # build into the gitignored `start/tutorials/`, whose toctree is
+    # `start/tutorials.md`.  The count is what that page quotes.
+    "N_TUTORIALS": _shared.copy_tutorials(_Path(__file__).parent / "start" / "tutorials"),
+}
 # A markdown link to `page.md#a-heading` resolves, so a Concepts or Guides page
 # can point at the Theory section behind a claim (tests/test_manual.py).
 myst_heading_anchors = 3

@@ -2,7 +2,8 @@
 
 `examples/` is the **one authority** for a worked walkthrough: the manual
 `{literalinclude}`s these scripts rather than retyping them, so what a reader
-of `using/first-refinement.md` sees is this file, and this test is what makes it a
+of `start/first-fit.md` (and of the old tree's `using/first-refinement.md` until
+it retires) sees is this file, and this test is what makes it a
 script that runs.  Before WP-1067 nothing in `tests/` executed either script —
 ruff linted them and that was all, while README carried a second, unguarded
 copy of the same walkthrough.

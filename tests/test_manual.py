@@ -39,6 +39,15 @@ DOCS_TREE = MANUAL_DIR.parent / "docs"
 #: Build outputs, never pages.  `_generated/` holds the Reference tab's bodies,
 #: which a committed page includes (`docs/reference_pages.py`).
 NOT_PAGES = {"_build", "_generated"}
+#: Markdown only, so the tutorial notebooks under `start/tutorials/` are not
+#: here, though each is a page of the tree.  A build copies them in from
+#: `examples/tutorials/`, so a source checkout may have none, and each guard
+#: reading these files reads markdown, where a notebook is JSON.  Their
+#: markdown cells are the tutorial scripts' (WP-1545): their code runs in
+#: `tests/test_tutorials.py`, and their names and register go unchecked here,
+#: as `start/tutorials.md`'s guard note says.  Their built twins are held to
+#: the page contract with every other page's
+#: (`test_every_page_has_a_twin_that_keeps_the_contract`).
 DOCS_PAGES = sorted(
     p for p in DOCS_TREE.rglob("*.md") if not NOT_PAGES & set(p.relative_to(DOCS_TREE).parts)
 )
@@ -330,10 +339,10 @@ def test_the_brand_links_to_the_landing_page(built_manual):
     )
 
 
-# The tutorial notebooks (WP-1916).  `conf.py` copies them in at build by
-# `build.py`'s own glob, so the set is read from there too: a sixth tutorial
-# reaches these tests with no edit, and fails the index test until
-# `using/quickstart.md` lists it.
+# The tutorial notebooks (WP-1916).  Each tree's `conf.py` copies them in at
+# build by `build.py`'s own glob (`docs/sphinx_shared.py`), so the set is read
+# from there too: a new tutorial reaches these tests with no edit, and fails
+# the index test until the tree's index page lists it.
 _TUTORIALS = MANUAL_DIR.parent.parent / "examples" / "tutorials"
 
 
@@ -344,26 +353,41 @@ def _tutorial_notebooks() -> list[Path]:
     return [s.with_suffix(".ipynb") for s in build.sources(_TUTORIALS)]
 
 
+#: Per build: the source tree, where its conf.py copies the notebooks, the page
+#: that is their index, and where that page's body opens.  The body only,
+#: because each theme's navigation links every toctree entry on every page,
+#: so a link test over the whole file passes with the table row gone.
+TUTORIAL_HOMES = {
+    "built_manual": (MANUAL_DIR, "using/tutorials", "using/quickstart", '<article role="main"'),
+    "built_docs_tree": (DOCS_TREE, "start/tutorials", "start/tutorials",
+                        '<article class="bd-article"'),
+}
+BOTH_TUTORIAL_HOMES = pytest.mark.parametrize("build", sorted(TUTORIAL_HOMES))
+
+
 @pytest.mark.xdist_group("manual-build")
-def test_the_build_copies_exactly_the_committed_tutorials(built_manual):
-    """`using/tutorials/` holds each committed notebook byte for byte, and nothing else.
+@BOTH_TUTORIAL_HOMES
+def test_the_build_copies_exactly_the_committed_tutorials(build, request):
+    """The copy directory holds each committed notebook byte for byte, and nothing else.
 
     The directory is gitignored and rewritten by every build, so a copy left
     over from a renamed tutorial would render as a page nobody can edit.
     """
-    _, result = built_manual
+    _, result = request.getfixturevalue(build)
     assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    source, copied_to, _, _ = TUTORIAL_HOMES[build]
     notebooks = _tutorial_notebooks()
     assert len(notebooks) >= 5, f"found {len(notebooks)} tutorials under {_TUTORIALS}"
-    copies = MANUAL_DIR / "using" / "tutorials"
+    copies = source / copied_to
     assert sorted(p.name for p in copies.glob("*.ipynb")) == [nb.name for nb in notebooks]
     for nb in notebooks:
         assert (copies / nb.name).read_bytes() == nb.read_bytes(), f"{nb.name} copy is stale"
 
 
 @pytest.mark.xdist_group("manual-build")
-def test_every_tutorial_renders_with_its_outputs_and_the_quickstart_links_it(built_manual):
-    """Each notebook is a page carrying its committed outputs, reached from the quickstart.
+@BOTH_TUTORIAL_HOMES
+def test_every_tutorial_renders_with_its_outputs_and_the_index_links_it(build, request):
+    """Each notebook is a page carrying its committed outputs, reached from its index page.
 
     Execution is off at build, so a page shows exactly the outputs the
     notebook was committed with.  myst-nb draws each code cell that has
@@ -372,15 +396,14 @@ def test_every_tutorial_renders_with_its_outputs_and_the_quickstart_links_it(bui
     """
     import json
 
-    out, result = built_manual
+    out, result = request.getfixturevalue(build)
     assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
-    # The page body only: furo's sidebar links every toctree entry on every
-    # page, so a link test over the whole file passes with the table row gone.
-    index = (out / "using" / "quickstart.html").read_text(encoding="utf-8")
-    index = index.split('<article role="main"', 1)[1].split("</article>", 1)[0]
+    _, copied_to, index_page, body = TUTORIAL_HOMES[build]
+    index = (out / f"{index_page}.html").read_text(encoding="utf-8")
+    index = index.split(body, 1)[1].split("</article>", 1)[0]
     problems: list[str] = []
     for nb in _tutorial_notebooks():
-        page = out / "using" / "tutorials" / f"{nb.stem}.html"
+        page = out / copied_to / f"{nb.stem}.html"
         if not page.is_file():
             problems.append(f"{nb.stem}: no page")
             continue
@@ -390,9 +413,9 @@ def test_every_tutorial_renders_with_its_outputs_and_the_quickstart_links_it(bui
         if got != want:
             problems.append(f"{nb.stem}: {got} rendered outputs, notebook has {want}")
         if f'href="tutorials/{nb.stem}.html"' not in index:
-            problems.append(f"{nb.stem}: the quickstart does not link its page")
+            problems.append(f"{nb.stem}: {index_page}.html does not link its page")
         if not re.search(rf'href="\.\./_downloads/[0-9a-f]+/{re.escape(nb.name)}"', index):
-            problems.append(f"{nb.stem}: the quickstart offers no download")
+            problems.append(f"{nb.stem}: {index_page}.html offers no download")
     assert not problems, "\n".join(problems)
 
 
@@ -1311,19 +1334,42 @@ def _twins(out: Path) -> dict[str, str]:
             for p in sorted(out.rglob("*.html.md"))}
 
 
+#: A tutorial notebook's twin, `TUTORIAL_HOMES`' copy directory for this tree.
+def _notebook_twins() -> set[str]:
+    copied_to = TUTORIAL_HOMES["built_docs_tree"][1]
+    return {f"{copied_to}/{nb.stem}.html.md" for nb in _tutorial_notebooks()}
+
+
+#: The one rule a notebook's twin is excused.  Every tutorial opens on the
+#: authorship note public material carries ("Written by Claude Code, …"), set
+#: in italics, so the paragraph under its title is that note and the answer
+#: sentence is the paragraph after it.  The fix moves the note in the
+#: tutorial scripts (WP-1545's) and rebuilds the notebooks.  Measured
+#: 2026-10-19: all seven break this rule and no other.
+NOTEBOOK_WAIVED = "no answer sentence under the title"
+
+
 @pytest.mark.xdist_group("manual-build")
 def test_every_page_has_a_twin_that_keeps_the_contract(built_docs_tree):
-    """One twin per page, with no MyST left in it, its title and answer
-    sentence, and under the 50 000-character cap."""
+    """One twin per page and per tutorial notebook, with no MyST left in it,
+    its title and answer sentence, and under the 50 000-character cap."""
     out, result = built_docs_tree
     assert result.returncode == 0, "the new tree did not build"
     twins = _twins(out)
-    pages = {page.relative_to(DOCS_TREE).with_suffix(".html.md").as_posix() for page in DOCS_PAGES}
+    notebooks = _notebook_twins()
+    pages = {page.relative_to(DOCS_TREE).with_suffix(".html.md").as_posix()
+             for page in DOCS_PAGES} | notebooks
     assert set(twins) == pages, set(twins) ^ pages
     breaches = [f"{path}: {message}" for path, twin in twins.items()
                 for message in _contract_breaches(twin)
-                + [f"MyST left in it: {r!r}" for r in _myst_residue(twin)]]
+                + [f"MyST left in it: {r!r}" for r in _myst_residue(twin)]
+                if not (path in notebooks and NOTEBOOK_WAIVED in message)]
     assert not breaches, "twins that break the page contract:\n" + "\n".join(breaches)
+    # A waiver that excuses nothing is a rule nobody is held to.
+    kept = {path for path in notebooks
+            if not any(NOTEBOOK_WAIVED in m for m in _contract_breaches(twins[path]))}
+    assert not kept, (f"{sorted(kept)} now keep the answer-sentence rule, so the "
+                      "NOTEBOOK_WAIVED exemption should no longer cover them")
 
 
 @pytest.mark.parametrize("twin, expected", [
@@ -1390,6 +1436,10 @@ Equation {eq}`eq-one` cites {cite}`%(key)s`.
 :alt: the dark figure
 ```
 
+<div><img class="rx-fig-light only-light" alt="the inline figure" src="data:image/png;base64,%(light)s"><img class="rx-fig-dark only-dark" alt="" src="data:image/png;base64,%(dark)s"><style>.rx-fig-dark {display:none}</style></div>
+
+Get {download}`the notes <notes.txt>` to read later.
+
 ::::{tab-set}
 :::{tab-item} First tab
 First tab text.
@@ -1419,14 +1469,22 @@ flowchart LR
 
 def test_the_twin_writes_every_node_type_the_old_tree_uses(tmp_path):
     """A note and a titled admonition as labelled quotes, the math, the light
-    half of a figure pair, every tab, the dropdown, an escaped table cell, a
-    mermaid fence and the bibliography, with `-W` holding no node unknown."""
+    half of a figure pair (a notebook's inline one written out as a file),
+    a download, every tab, the dropdown, an escaped table cell, a mermaid
+    fence and the bibliography, with `-W` holding no node unknown."""
+    import base64
+
     src = tmp_path / "src"
     src.mkdir()
-    (src / "index.md").write_text(_COVERAGE_PAGE % {"key": _bib_entries()[0][1]},
-                                  encoding="utf-8")
+    light, dark = b"\x89PNG\r\n\x1a\nlight", b"\x89PNG\r\n\x1a\ndark"
+    (src / "index.md").write_text(
+        _COVERAGE_PAGE % {"key": _bib_entries()[0][1],
+                          "light": base64.b64encode(light).decode(),
+                          "dark": base64.b64encode(dark).decode()},
+        encoding="utf-8")
     for name in ("pic-light.png", "pic-dark.png"):
         (src / name).write_bytes(b"\x89PNG\r\n\x1a\n")
+    (src / "notes.txt").write_text("notes\n", encoding="utf-8")
     (src / "conf.py").write_text(
         "import sys\n"
         f"sys.path.insert(0, {str(MANUAL_DIR.parent)!r})\n"
@@ -1452,6 +1510,12 @@ def test_the_twin_writes_every_node_type_the_old_tree_uses(tmp_path):
         assert fragment in twin, fragment
     assert "dark figure" not in twin
     assert _myst_residue(twin) == []
+    # The inline pair's light half is a file the twin links; the base64, the
+    # dark half and its stylesheet are the browser's.
+    inline = re.search(r"!\[the inline figure\]\((_images/twin-[0-9a-f]+\.png)\)", twin)
+    assert inline and (out / inline[1]).read_bytes() == light, twin
+    assert "data:image" not in twin and "rx-fig-dark" not in twin
+    assert re.search(r"\[`?the notes`?\]\(_downloads/[0-9a-f]+/notes\.txt\)", twin), twin
     # The citation links its bibliography entry, which carries the label.
     anchor = re.search(r"\]\(#([\w-]+)\)", twin.split("cites", 1)[1])[1]
     entry = twin.split(f'<a id="{anchor}"></a>', 1)[1].lstrip()

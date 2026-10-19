@@ -8,7 +8,8 @@ it.
 
 :::{admonition} What here is a promise
 :class: warning
-The GUI's HTTP routes are declared provisional. They are the surface this page
+The GUI's HTTP routes are declared provisional; see
+{ref}`provisional-by-declaration`. They are the surface this page
 describes for the release it ships with, and a route may be added, renamed or
 split in any release. Build programs on the [Python API](api.md) instead.
 

@@ -607,7 +607,7 @@ _DEFERRED_HEADER = """\
 # chapters will.  Under the WP-1003 freeze this bucket is the **provisional**
 # tier: a name here works as it stands but may change in a 1.0.x release, and
 # it leaves this file — frozen — when a chapter documents it
-# (docs/manual/using/compatibility.md).  Generated rather than typed so that a
+# (docs/docs/reference/compatibility.md).  Generated rather than typed so that a
 # NEW public name is not in it, fails the partition, and has to be documented,
 # excluded with a reason, or deliberately deferred by regenerating this file —
 # which shows up as a diff in review.  WP-1067 closes when this file has no

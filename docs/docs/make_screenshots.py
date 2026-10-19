@@ -7,7 +7,7 @@ The pages are `start/gui-quickstart.md`, `reference/gui-guide.md` and
 `reference/gui-power.md`, moved here from the old tree by WP-1986; the old
 tree's copies reference the same files until it retires.
 
-`docs/manual/make_figures.py`'s rule, one medium over: the screenshots are **committed**,
+`docs/docs/make_figures.py`'s rule, one medium over: the screenshots are **committed**,
 not built, so the sphinx build stays offline and dependency-free, and this
 script is the one authority for how each was taken.  The cost is that a
 screenshot can go stale when a control moves, so `SHOTS` below is the
