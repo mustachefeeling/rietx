@@ -217,13 +217,14 @@ from acting where Rule 1's first kind says act.
       (dataset, published number, tolerance) before any code is written, or says none
       exists and that it ships not yet validated" (Rule 4's test for a new topic, whose
       only other seat is 2010's check at landing).
-- [ ] Root CLAUDE.md: rewrite the "new correction ships with a record field or a
+- [x] Root CLAUDE.md: rewrite the "new correction ships with a record field or a
       diagnostic" invariant to Rule 1's three outcomes, one clause pointing at DESIGN.md
       § Rules;
       a clause under § Invariants naming the table and the tripwire, since DESIGN.md
       § Rules, 4 places the mechanisms that enforce its tests there. Count the lines
       against the cap (`tests/test_docs_consistency.py`) and bump with a diary line if
-      needed.
+      needed. (2026-10-19: +9 lines, cap 983 → 993 with its diary row and `process.md`
+      paragraph.)
 - [ ] `claude-config/workflow/LESSONS.md`: the lesson "a heuristic enters with its tier or
       not at all", with rietx's table and agent as the exemplar, through `/workflow-sync
       harvest`. This is a separate repository and a separate commit; the handover names it.

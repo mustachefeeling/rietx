@@ -504,11 +504,20 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   local-χ²_red significance, share-based global maturity. Collinear angular templates are compared
   as *nested single fits* and reported non-separable. Confidence weights importance (share of χ²),
   not just statistical significance.
-- **A new correction ships with a record field or a diagnostic stating what it changed — never an
-  Rwp comparison as its evidence.** Of v0.5's eight corrections, two provably cannot move Rwp, one
-  moves it the wrong way when it is right, and the two largest accuracy wins are invisible in it
-  (`docs/milestones/v0.5.md`). **Nor an R_Bragg comparison** (WP-1069): I(obs) is I(calc) times
-  the reflection's own obs/calc count ratio, so it flatters whatever model partitioned it.
+- **A new correction, default or automatic action answers by its kind** (DESIGN.md § Rules, 1 and
+  4): where every competent refiner would act, act and record it in a field; where the data can
+  rank the alternatives, rank them with evidence; otherwise report the number with its meaning.
+  **Never an Rwp comparison as its evidence**: of v0.5's eight corrections, two provably cannot
+  move Rwp, one moves it the wrong way when it is right, and the two largest accuracy wins are
+  invisible in it (`docs/milestones/v0.5.md`). **Nor an R_Bragg comparison** (WP-1069): I(obs) is
+  I(calc) times the reflection's own obs/calc ratio, so it flatters whatever model partitioned it.
+- **Every heuristic has a row in `rietx._audit` with its tier** (WP-2001, `docs/milestones/
+  generality.md` § The rule): each diagnostic code, action-reporting record field, number under
+  `_audit.WALKED`, default at `_audit.DEFAULT_SEATS` and code's `suggestion=` sites.
+  `tests/test_audit_table.py` holds table and tree equal both ways, values included, so a new or
+  retuned item fails until its row names a tier, or `unaudited` with its name on the shrink-only
+  `UNAUDITED_BASELINE`. A tripwire cannot judge: `/wp-handover` step 7 sends a branch touching the
+  table, or adding what the module docstring says it cannot see, to the `generality-review` agent.
 - **Licensing**: port code only from permissive sources, with ATTRIBUTION.md updates.
   BGMN/Profex/xrayutilities are GPL — concepts only, never code. TOPAS/FullProf are closed —
   papers only. ChimeraX's source is never opened, only its user docs (WP-1537, 1538). **Data carries its own fence, per file**: a PyPI upload publishes harder than a

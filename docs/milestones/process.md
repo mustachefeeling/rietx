@@ -410,6 +410,15 @@ runs the browser, so a session changing `src/` meets the rules only where it
 already reads.  The README in `docs/lite/` keeps the rules with their causes,
 and the WP keeps the measurements.  Landed 982, +1 headroom.
 
+983 -> 993 for WP-2001 (2026-10-19): two rules from the generality milestone.
+The old rule "a new correction ships with a record field or a diagnostic" rewarded
+adding a firing code, so it now states DESIGN.md Rule 1's three outcomes: act
+and record, rank with evidence, or report the number.  Its Rwp and R_Bragg
+clauses stay.  The second rule names the audit table, its meta-test and the
+judge the handover dispatches, because DESIGN.md Rule 4 places the mechanisms
+that enforce its tests in § Invariants.  The rows, the counts and the probes
+that showed the guard failing stayed in the WP.  Landed 992, +1 headroom.
+
 ### `docs/ROADMAP.md`
 
 400 -> 416 for the agentic-report planning session (2026-08-18): four
