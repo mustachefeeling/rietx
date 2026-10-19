@@ -592,6 +592,13 @@ ROWS: tuple[Row, ...] = (
     Row("PEAK_KALPHA2_RESIDUAL", "code"),
     Row("PEAK_LIST_TOO_SHORT", "code"),
     Row("PEAK_NOT_SEPARABLE", "code"),
+    Row("PEAK_NO_INTENSITY", "code"),
+    Row("PEAK_POSITION_AT_BOUND", "code", tier=1, ambiguity=1,
+        evidence="Arithmetic: a record of main's position_at_bound flag, a component whose "
+                 "fitted 2θ equals its box bound (PEAK_POSITION_BOUND_FWHM × the window's "
+                 "seed FWHM) to 1e-8 relative, so the reported 2θ is the bound's and "
+                 "its σ a lower bound. It moves no flag, threshold or usable(); the level "
+                 "is warning only when such a line is still usable above the FDR bar."),
     Row("PEAK_POSITION_PRECISION", "code"),
     Row("PEAK_SHOULDER_SEEDED", "code"),
     Row("PEAK_SIGMA_ASSUMED", "code"),
@@ -1478,6 +1485,8 @@ ROWS: tuple[Row, ...] = (
     Row("PEAK_KALPHA2_RESIDUAL.suggestion", "suggestion", value=1),
     Row("PEAK_LIST_TOO_SHORT.suggestion", "suggestion", value=1),
     Row("PEAK_NOT_SEPARABLE.suggestion", "suggestion", value=1),
+    Row("PEAK_NO_INTENSITY.suggestion", "suggestion", value=1),
+    Row("PEAK_POSITION_AT_BOUND.suggestion", "suggestion", value=1),
     Row("PEAK_POSITION_PRECISION.suggestion", "suggestion", value=1),
     Row("PEAK_SHOULDER_SEEDED.suggestion", "suggestion", value=1),
     Row("PEAK_SIGMA_ASSUMED.suggestion", "suggestion", value=1),
@@ -1854,6 +1863,9 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "PEAK_LIST_TOO_SHORT.suggestion",
     "PEAK_NOT_SEPARABLE",
     "PEAK_NOT_SEPARABLE.suggestion",
+    "PEAK_NO_INTENSITY",
+    "PEAK_NO_INTENSITY.suggestion",
+    "PEAK_POSITION_AT_BOUND.suggestion",
     "PEAK_POSITION_PRECISION",
     "PEAK_POSITION_PRECISION.suggestion",
     "PEAK_SHOULDER_SEEDED",
