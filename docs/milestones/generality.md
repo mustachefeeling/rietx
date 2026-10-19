@@ -282,7 +282,9 @@ sharpens its own row here.
   close). One or two families named at 2002's open and used as evidence by no audit; at
   close the standards' acceptance protocol is run on them and every number with a
   reference is no further from it than at the open. The one row that measures generality
-  rather than the audit (fourth review).
+  rather than the audit (fourth review). Named at 2002's open (2026-10-19): the Nd₂Ru₂O₇
+  pair (`tests/data/mg090*`, 11-BM X-ray and NCNR BT-1 neutron, a published joint
+  refinement), WP-2002 § The batch giving the reason.
 - **An agent given the number reaches the answer the verdict gave** (2004, 2008). For each
   demoted class the harness is run once (twice where the explanation is reworked),
   registered first and approved per session, and

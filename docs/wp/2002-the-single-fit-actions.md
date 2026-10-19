@@ -127,20 +127,23 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
 
 ## Tasks
 
-- [ ] Inventory: one row per action and per constant it reads, from the record fields and
+- [x] Inventory: one row per action and per constant it reads, from the record fields and
       2001's walk, with the file and line, what it decides, and what the caller sees
-      without it. Lanes read disjoint files; the lead assembles.
+      without it. Lanes read disjoint files; the lead assembles. *2026-10-19:
+      `2002-batch/inventory.json`, 402 proposals from six readers.*
 - [ ] Tier each row per part (statistic, threshold, action), with evidence: the citation,
       the program and its default behaviour, or the families measured. Where the families
       are fewer than three, run the missing ones (the fits are cheap; a chain family is
-      2003's).
+      2003's). *157 rows needing no approval landed 2026-10-19; the rest wait on the batch.*
 - [ ] The clash table: every pair of actions that read or move the same parameter, with
-      the measured interaction (Rwp and the parameter, both orderings).
+      the measured interaction (Rwp and the parameter, both orderings). *38 candidate pairs
+      found, none measured: `2002-batch/clashes.md`.*
 - [ ] The batch to the maintainer, in the register of `~/.claude/CLAUDE.md`: per tier-3
       row the two grounds answered, and per tier-2 action the judgement ground (for the
       judgement ground, the dissenting caller named or declared absent), the Rule 1 kind it falls to if demoted, the case against
       drafted by the `generality-review` agent, and a recommendation. Rows resting on one evidence base are grouped and ruled as a class
-      (record § Decisions); rulings dated into the table.
+      (record § Decisions); rulings dated into the table. *Drafted and reviewed 2026-10-19:
+      `2002-batch/batch.md`, 16 classes; awaiting the rulings.*
 - [ ] Approved demotions: the action removed, and its number left in the record field (or
       its ranking returned) with its meaning in the package's own output; the code's
       `level` to `info`, or, where the threshold was its trigger, the code replaced by an
@@ -157,10 +160,38 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       never into a skill row (DESIGN.md § Rules, 3; the record § Decisions, the skill's
       role). List each skill row that named a demoted verdict, for 2008.
 
+## The batch (2026-10-19)
+
+The rulings this WP waits on are in [`2002-batch/batch.md`](2002-batch/batch.md): 16
+classes covering the 247 rows still at `unaudited`, each with the author's brief, the
+case against from a fresh-context judge, and the lead's pick revised after that review.
+`2002-batch/inventory.json` holds every reader's per-row proposal (file and line, what it
+decides, tier, evidence line, provenance, the batch class), so landing a ruled row means
+copying its evidence line into `src/rietx/_audit.py` with `grounds` and the ruling's date
+in `approved`. `fcj_low_angle.py` and `i740.json` are the two pieces of evidence the
+batch cites that were made this session.
+
+Three choices the opening session made, each reversible:
+
+- **Two passes, in the record's order** (§ The order). The batch asks the judgement
+  ground of every action and acting default. The mechanical ground (three families) is
+  measured afterwards, and only for the thresholds of actions that survive. Chosen over
+  measuring every threshold first, which would spend fits on actions the ruling demotes.
+- **The held-out family is the Nd₂Ru₂O₇ pair** (`tests/data/mg090*`: 11-BM X-ray and
+  NCNR BT-1 neutron, one specimen, a published joint refinement as the reference). No
+  audit uses it as evidence; at close the standards' protocol is run on it. Chosen
+  because its reference validates and its neutron half tests whether X-ray-tuned
+  thresholds carry over. The alternative, the Durham tutorials, is WP-2003's chain
+  family.
+- **Diagnostic-only constants are handed to the audit of their code** (batch class B13):
+  34 to WP-2005, 15 to WP-2004, 9 to WP-2007, from this WP's own non-goal. Until ruled,
+  they stay `unaudited` here, and this file's acceptance line below reads "no
+  action-gating row at unaudited".
+
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_audit_table.py -q          # no refine.py/strategy row at unaudited
+.venv/bin/python -m pytest tests/test_audit_table.py -q          # no action-gating refine.py/strategy row at unaudited
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m pytest -n auto --dist loadgroup                # once, on the final tree: goldens
 .venv/bin/python -m ruff check src tests examples
