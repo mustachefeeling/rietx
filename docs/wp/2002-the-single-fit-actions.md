@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2001
-Priority: P2 2026-10-18 — upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
+Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
 
 ## Goal
 

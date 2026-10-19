@@ -53,7 +53,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | 2026-10-17 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | 2026-10-18 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-16 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [2001](2001-the-rule-the-table-and-the-guard.md) | The rule, the audit table and the guard | 2026-10-19 | P2 | [generality](#generality-the-registry-and-the-guard) |
 
 ## Next, by priority
 
@@ -444,7 +443,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [2001](2001-the-rule-the-table-and-the-guard.md) | The rule, the audit table and the guard | 🔄 2026-10-19 | P2 | — |
+| [2001](2001-the-rule-the-table-and-the-guard.md) | The rule, the audit table and the guard | ✅ 2026-10-19 | — | — |
 
 ### <a id="generality-the-audits"></a>The audits
 

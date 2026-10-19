@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2001
-Priority: P3 2026-10-18 — expected mostly tier 1 (records of what was done to a file); the fast one
+Priority: P3 2026-10-19 — 2001 closed, so nothing blocks it; expected mostly tier 1 (records of what was done to a file); the fast one
 
 ## Goal
 
