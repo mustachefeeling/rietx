@@ -192,8 +192,10 @@ from acting where Rule 1's first kind says act.
       `model_fields` over the three schemas), defaults (`_audit.defaults()`, over
       `DEFAULT_SEATS`' fields and signatures) and `suggestion=` strings (an AST walk for the
       keyword).
-- [ ] `correlation_guard`'s two literal copies (`PlanSpec`, `run_stage`) become one named
-      constant, bit-identical before and after.
+- [x] `correlation_guard`'s two literal copies (`PlanSpec`, `run_stage`) become one named
+      constant, bit-identical before and after. (2026-10-19: three copies, the third in
+      `RefinementPlan`; `schemas.plan.CORRELATION_GUARD`, beside `INTERMEDIATE_FTOL`, and
+      `test_each_mirror_declares_its_dataclass_defaults` holds every mirrored default equal.)
 - [ ] The `generality-review` agent (`.claude/agents/generality-review.md`): read-only,
       the Rule 4 questions above, output a table per item with the case against, written
       for the maintainer in plain words (root `~/.claude/CLAUDE.md`'s register). The

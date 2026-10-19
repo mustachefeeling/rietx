@@ -149,6 +149,7 @@ from .schemas.results import (
 )
 from .schemas.structure import Structure
 from .strategy.staged import (
+    CORRELATION_GUARD,
     PLAN_PRESETS,
     RefinementPlan,
     Stage,
@@ -5003,7 +5004,7 @@ class Refinement:
     def run_stage(self, data: PatternData, stage: Stage, *,
                   mode: Mode | None = None,
                   two_theta_limits: tuple[float, float] | None = None,
-                  correlation_guard: float = 0.98,
+                  correlation_guard: float = CORRELATION_GUARD,
                   events=None, cancel=None, telemetry=None,
                   label: str | None = None) -> RefinementResult:
         """Run a single stage from the current state, recording a child node.

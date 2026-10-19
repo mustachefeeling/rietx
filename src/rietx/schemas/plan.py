@@ -64,6 +64,11 @@ from .common import Base
 #: and not a mode with two positions.
 INTERMEDIATE_FTOL = 1e-6
 
+#: |ρ| above which a pair of free parameters is reported as highly correlated
+#: (``HIGH_CORRELATION``).  The plan, its dataclass and ``run_stage`` each held
+#: their own literal 0.98 until WP-2001.
+CORRELATION_GUARD = 0.98
+
 
 class StageSpec(Base):
     """One stage of a staged plan as data that round-trips through JSON, mirroring ``Stage``."""
@@ -138,7 +143,7 @@ class PlanSpec(Base):
     """
 
     stages: list[StageSpec] = Field(default_factory=list)
-    correlation_guard: float = 0.98
+    correlation_guard: float = CORRELATION_GUARD
     intermediate_ftol: float | None = Field(
         INTERMEDIATE_FTOL, gt=0.0, description=(
             "the tolerance every stage but the last stops at, unless it "
