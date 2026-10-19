@@ -46,7 +46,7 @@ promise stages every break).
 
 ### Inherited
 
-(none at filing)
+- **From WP-2001 (2026-10-19, PR #1047).** The table is `src/rietx/_audit.py`; this WP's rows are the ones `_audit.WALKED` and `_audit.DEFAULT_SEATS` map to 2006, plus the codes and suggestion rows of its subsystem. Auditing a row means giving it a tier and evidence in place and deleting its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py` fails until both are done. The walk sees module-level numbers and tuples of numbers only, so a number held in a dict, list or array is audited here by hand, in `crystallography/` and the two `io/` files alike; nobody has looked yet. The GUI keeps its own copy of the correlation guard, `let guard = $state(0.98)` in `gui/src/panels/Plan.svelte` (about line 93), pinned again in `App.test.ts` and `rxt.test.ts`; the python side is now one constant, `rietx.schemas.plan.CORRELATION_GUARD`, and the GUI copy needs the dist rebuilt (`gui/CLAUDE.md`).
 
 ## Non-goals
 

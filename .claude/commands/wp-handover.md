@@ -179,7 +179,10 @@ re-reading its own diff.
    dispatch one `Agent`, `subagent_type: generality-review`, naming the diff
    file, this worktree, the WP file and the items: each row added or changed
    in `_audit.py`, each name added to `UNAUDITED_BASELINE`, and each heuristic
-   of the second trigger. Paste its tables into the handover entry under
+   of the second trigger. A session registers agents from the checkout it
+   started in, so where that type is not found, dispatch `general-purpose` on
+   Opus and have it read `.claude/agents/generality-review.md` first and
+   follow it. Paste its tables into the handover entry under
    *Generality*, unedited, with the author's one-line answer under any `fails`.
    The maintainer reads both.
 8. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
