@@ -39,7 +39,37 @@ ruling (`batch.md`, opening paragraph).
   The substance the maintainer agreed to is unchanged. The next session should confirm
   in a line that the yes stands.
 
-## Still open
+## Rulings received, second round (2026-10-19)
+
+- **B4**: option 1. "We should report the more accurate number, but also report the one
+  comparable to other codes." f stays on every reported esd, and the textbook esd is
+  reported beside it. The manual must explain the two numbers plainly, with a comparison
+  against GSAS-II, FullProf (SCOR) and TOPAS, and the "switching from another code" pages
+  must say it too.
+- **B3**: Suortti seed agreed (two-start test, then GSAS-II's 0 unless 0.3 is closer to a
+  reference). Stephens seed agreed (tier 3 until a second dataset compares the starts; the
+  seed recorded in the result).
+- **B8, cell clamp**: agreed. On a runaway the cell goes back to its stage-start value and
+  is held for that stage, with a record entry.
+- **B9, limits**: "no need to impose chosen limits on quantities that remain physical.
+  Unlimited occupancy is fine. We can give a warning. The flexibility can be useful." So
+  occupancy loses its 1.5 ceiling and a warning fires above 1. The session reads the
+  principle as covering March-Dollase r too: its 0.15 floor goes, and r keeps only the
+  pole floor `MARCH_R_MIN`. A limit that keeps a value physical or away from a pole stays.
+- **B9, geometry**: a "geometry not stated" state, which also tells the user to state the
+  geometry. It joins the B7 follow-up WP.
+- **B11**: agreed (Le Bail converge-with-cap in WP-1542; budgets treated as not affecting
+  the answer once a test confirms the margin under both solvers).
+- **B16**: agreed (both numbers tier 3, a third dataset under TRF in the second pass).
+- **B1**: "yes, but it should be an option, not mandatory. A caller should be able to set a
+  different threshold." Asked whether other codes do this.
+
+Asked back, answered in § Third round below: B5 (what is accurate, the root cause, other
+codes), B8's cell window (tier 2?) and size floor (a warning instead?), B7 (does the
+session agree with the geometry take?), B2 (is the turn common enough to keep; is the
+stationary-angle test a demotion?). Not yet answered: B6, B13, B15, and the B14 confirmation.
+
+## Still open (first round's list, kept for the record)
 
 1. B4: keep f, and report the textbook esd beside it?
 2. B5: drop and report zero and negative esds, built in WP-1952?
