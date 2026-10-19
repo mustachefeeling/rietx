@@ -1998,7 +1998,13 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "the first suspect, because a cell a few tenths of a per cent off at "
             "synchrotron resolution is outside the basin a Le Bail fit can refine it "
             "from. Re-index or Le Bail-refine the cell from a better start, then check "
-            "the range, the wavelength and the width law."
+            "the range, the wavelength and the width law. The bound, 1/√2 (at most half "
+            "of the net weighted power unexplained), was measured on one synthetic Si "
+            "pattern at 11-BM-like resolution with the cell 0.4 % off, untested beyond "
+            "it. The gate does not reach a local misfit: on certified SRM 676a corundum "
+            "(R -3 c) the shared profile fit's `profile_rwp` is 0.149 over 20–90°, where "
+            "`R - c -` wins, and 0.227 over 5–150° with declared widths, where `R - - -` "
+            "wins, with this code silent in both (measured on that one pattern)."
         ),
     ),
     "EXTINCTION_SYMBOL_AMBIGUOUS": HelpEntry(

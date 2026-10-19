@@ -282,10 +282,9 @@ Three things about the screen that change how you use its answer:
 3. **The absence-free class winning is a result, not a failure.** On NAC (I 2₁3)
    it is the *correct* answer: I-centring already extinguishes the very
    reflections the 2₁ screws would, so those screws are invisible in principle.
-   It is a *wrong* answer when the shared profile fit is bad:
-   `ExtinctionScreen.profile_rwp` on certified corundum is 0.149 over 20–90°
-   (`R - c -`) and 0.227 over 5–150° with declared widths (`R - - -` wins), a
-   local misfit the `EXTINCTION_SCREEN_UNRELIABLE` gate does not reach. Give it a
+   It is a *wrong* answer when the shared profile fit is bad, which
+   `ExtinctionScreen.profile_rwp` reports; a local misfit can stay under the
+   `EXTINCTION_SCREEN_UNRELIABLE` gate (its explanation gives a case). Give it a
    range and a width law its profile fit can match before reading a refutation.
 
 **`where` names the paths on every guard code, `HIGH_CORRELATION` included**
