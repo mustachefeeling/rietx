@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-19 — Guides: 23 of 25 written, 18 and 24 waiting on other WPs; GUI chapters moved; retirement and skill links remain
+Milestone: unscheduled · Status: 🔄 2026-10-19 — claimed by @yue-here (7th session); Guides: 23 of 25 written, 18 and 24 waiting on other WPs; GUI chapters moved; retirement and skill links remain
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
