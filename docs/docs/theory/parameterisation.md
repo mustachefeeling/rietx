@@ -488,7 +488,8 @@ restrains the same geometry with `Flatten` and `AI_Flatten`
 
 chained to the fractional coordinates through the Cartesian frame and to the
 cell through the metric. $P$ needs the two smallest eigenvalues apart: a set
-whose points lie on a line has no plane, and compiling it raises.
+whose points lie on a line, or spread alike in every direction (a regular
+tetrahedron's corners), has no plane, and compiling it raises.
 
 ## Weighting the restraints
 

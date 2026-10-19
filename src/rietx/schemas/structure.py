@@ -873,7 +873,8 @@ class PlanarityRestraint(Base):
     one molecule, and the first entry sits where it is stored unless named.
     ``translations`` go with ``op_indices``: a translation on an entry other
     than the first with no ``op_index`` is refused rather than ignored.  A set whose two smallest scatter eigenvalues are degenerate (the
-    points on a line, or coincident) has no plane, and compiling it raises.
+    points on a line or coincident, or spread alike in every direction like a
+    regular tetrahedron's corners) has no plane, and compiling it raises.
     """
 
     atoms: list[int] = Field(min_length=4)
