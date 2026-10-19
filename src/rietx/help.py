@@ -3179,9 +3179,12 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         description=(
             "The file's `_pd_proc_intensity_net` column is labelled background-subtracted "
             "but never comes within 5σ of zero, so the background was not subtracted. "
-            "The reader leaves the numbers as they are. Refine a background (a Chebyshev "
-            "series, with a hump component for a broad amorphous or capillary hump) "
-            "instead of holding it at zero."
+            "The reader leaves the numbers as they are, and the code's value is the "
+            "column's smallest y/σ. Refine a background (a Chebyshev series, with a hump "
+            "component for a broad amorphous or capillary hump) instead of holding it at "
+            "zero. The 5σ threshold was measured on one deposit, COD 2242872 "
+            "(synchrotron capillary data written by TOPAS-Academic, 14.1σ), against a "
+            "synthetic zero baseline, and is untested beyond them."
         ),
     ),
     "PATTERN_ROWS_DROPPED": HelpEntry(
@@ -3239,6 +3242,18 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "there may be the direct beam, the far side of the detector or a header row "
             "read as data. The reader kept them. Check that the axis is 2θ in degrees, "
             "and exclude the interval before you fit."
+        ),
+    ),
+    "PATTERN_ZERO_WEIGHT_EXCLUDED": HelpEntry(
+        title="Zero-weight points became excluded regions",
+        description=(
+            "The pdCIF dictionary defines a `_pd_proc_ls_weight` of zero as a data point "
+            "not used for refinement. The reader turned each run of such points into an "
+            "excluded region, so the fit leaves out exactly the points the file's author "
+            "left out, and every other point keeps σ = 1/√w. The code's value is the "
+            "number of points excluded. Their σ is the Poisson value, a placeholder the "
+            "fit never reads; remove a region from `excluded_regions` only if you mean "
+            "to fit those points."
         ),
     ),
     "PAWLEY_OFF_DATA_RIDGED": HelpEntry(

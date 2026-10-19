@@ -54,9 +54,17 @@ def read_pdcif(path: str | Path, *, block: str | None = None,
     parentheses on every intensity (``1234(35)``, the form the DDLm
     dictionaries make equivalent to a ``_su`` item); otherwise
     ``_pd_proc_ls_weight`` is interpreted as the least-squares weight
-    w = 1/σ² (its pdCIF definition), so σ = 1/√w.  With none of these, or a
-    weight of 0 on any point, ``sigma`` is left unset and the Poisson fallback
-    applies downstream.
+    w = 1/σ² (its pdCIF definition), so σ = 1/√w.  With none of these, a
+    negative weight, or no positive weight at all, ``sigma`` is left unset and
+    the Poisson fallback applies downstream.
+
+    A weight of **0** is the dictionary's mark of "a data point not used for
+    refinement" (``_pd_proc.ls_weight``), so it excludes that point and only
+    that one: each run of zero-weight points becomes an ``excluded_regions``
+    entry, its σ is the Poisson value √max(y, 1) as a placeholder the fit never
+    reads, and ``PATTERN_ZERO_WEIGHT_EXCLUDED`` (info) counts them.  Every other
+    point keeps σ = 1/√w.  Before, one zero dropped the whole column to the
+    Poisson fallback and said nothing.
 
     Intensity: the first of ``_pd_proc_intensity_total``,
     ``_pd_meas_intensity_total``, ``_pd_meas_counts_total`` and
@@ -101,17 +109,60 @@ def read_pdcif(path: str | Path, *, block: str | None = None,
         sigma = stated
     else:
         wt = _first_loop(chosen, ("_pd_proc_ls_weight",))
-        if wt is not None and len(wt) == len(y) and np.all(wt > 0):
-            sigma = 1.0 / np.sqrt(wt)
+        # a column with no positive weight would exclude every point; it is
+        # read as no weight column, as before
+        if (wt is not None and len(wt) == len(y) and np.all(wt >= 0)
+                and np.any(wt > 0)):
+            # σ = ∞ marks a zero weight through ``ascending``, which may
+            # reverse or thin the columns; it never reaches the pattern
+            with np.errstate(divide="ignore"):
+                sigma = 1.0 / np.sqrt(wt)
 
     tt, y, sigma = ascending(tt, y, sigma, path=p, fmt=PDCIF,
                              diagnostics=diagnostics)
+    used = np.ones(tt.size, dtype=bool)
+    excluded: list[tuple[float, float]] = []
+    if sigma is not None and np.isinf(sigma).any():
+        used = ~np.isinf(sigma)
+        sigma = np.where(used, sigma, np.sqrt(np.maximum(y, 1.0)))
+        excluded = _runs(tt, ~used)
+        if diagnostics is not None:
+            diagnostics.append(Diagnostic(
+                level="info", code="PATTERN_ZERO_WEIGHT_EXCLUDED",
+                message=(f"{p.name}: {int((~used).sum())} of {tt.size} points "
+                         f"carry _pd_proc_ls_weight = 0, which the pdCIF "
+                         f"dictionary defines as 'a data point not used for "
+                         f"refinement'. They became {len(excluded)} excluded "
+                         f"region(s); every other point keeps σ = 1/√w."),
+                value=float((~used).sum()), where=["_pd_proc_ls_weight"]))
     net = y_tag == _PDCIF_NET
     if net and diagnostics is not None:
-        diagnostics.extend(_net_findings(p, tt, y, sigma))
-    return pattern_data(p, tt, y, sigma,
-                   source_file=p.name, format="pdcif", block=chosen.name,
-                   intensity_item=y_tag if net else None)
+        diagnostics.extend(_net_findings(p, tt[used], y[used],
+                                         None if sigma is None else sigma[used]))
+    data = pattern_data(p, tt, y, sigma,
+                        source_file=p.name, format="pdcif", block=chosen.name,
+                        intensity_item=y_tag if net else None)
+    if excluded:
+        data.excluded_regions = excluded
+    return data
+
+
+def _runs(tt: np.ndarray, mask: np.ndarray) -> list[tuple[float, float]]:
+    """Each run of ``mask`` as a closed 2θ interval holding that run's points
+    and no other: an edge lies halfway to the neighbouring point, so a run of
+    one point is still an interval and a variable step cannot reach a used
+    point."""
+    idx = np.flatnonzero(mask)
+    breaks = np.flatnonzero(np.diff(idx) > 1)
+    starts = np.concatenate(([idx[0]], idx[breaks + 1]))
+    ends = np.concatenate((idx[breaks], [idx[-1]]))
+    last = tt.size - 1
+    out = []
+    for s, e in zip(starts, ends):
+        left = tt[s] - tt[s - 1] if s > 0 else tt[min(s + 1, last)] - tt[s]
+        right = tt[e + 1] - tt[e] if e < last else tt[e] - tt[max(e - 1, 0)]
+        out.append((float(tt[s] - 0.5 * left), float(tt[e] + 0.5 * right)))
+    return out
 
 
 def _net_findings(p: Path, tt: np.ndarray, y: np.ndarray,
@@ -190,7 +241,8 @@ PDCIF = PatternFormat(
     sigma=("an explicit …_su/…_esd loop on the intensity column read "
            "(_pd_proc_intensity_net, the last choice, included), else the su "
            "in parentheses on every intensity, else _pd_proc_ls_weight read "
-           "as w = 1/σ², else the Poisson fallback"),
+           "as w = 1/σ² (a zero weight excludes its point, per the "
+           "dictionary), else the Poisson fallback"),
     matches=lambda p: p.suffix.lower() == ".cif",
     read=read_pdcif,
     options=("block",),

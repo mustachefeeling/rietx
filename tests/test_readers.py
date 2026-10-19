@@ -3152,3 +3152,56 @@ def test_a_calculated_net_column_alone_is_still_refused(tmp_path):
         "_pd_proc_2theta_corrected": _TT, "_pd_calc_intensity_net": _Y})
     with pytest.raises(ValueError, match="no pdCIF pattern block found"):
         rx.read_pattern(p)
+
+
+def test_a_single_zero_weight_excludes_that_point_and_keeps_the_column(tmp_path):
+    """T8: the pdCIF dictionary defines a zero ``_pd_proc_ls_weight`` as "a data
+    point not used for refinement" (``_pd_proc.ls_weight``).  One zero used to
+    drop the whole column to the Poisson fallback with no diagnostic, so every
+    other point lost its weight; now that point alone is excluded."""
+    import numpy as np
+
+    w = list(_W)
+    w[2] = 0.0
+    p = _write_pdcif(tmp_path / "zero_w.cif", {
+        "_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": w,
+        "_pd_proc_intensity_total": _Y})
+    found: list = []
+    pat = rx.read_pattern(p, diagnostics=found)
+    kept = [i for i in range(len(_TT)) if i != 2]
+    assert [pat.sigma[i] for i in kept] == pytest.approx(
+        [1 / w[i] ** 0.5 for i in kept], rel=1e-12)
+    assert pat.excluded_regions == [pytest.approx((10.015, 10.025))]
+    mask = pat.in_range_mask()
+    assert mask.tolist() == [True, True, False, True, True, True]
+    assert [d.code for d in found] == ["PATTERN_ZERO_WEIGHT_EXCLUDED"]
+    assert found[0].value == 1.0
+    assert np.isfinite(pat.sigma).all()
+
+
+def test_zero_weight_runs_at_the_ends_and_a_descending_scan(tmp_path):
+    """T9: runs at either end are closed intervals of their own points only,
+    and a scan stored high to low keeps each zero on its own point."""
+    w = [0.0, 0.0, 0.0011, 0.0016, 0.0048, 0.0]
+    p = _write_pdcif(tmp_path / "ends.cif", {
+        "_pd_proc_2theta_corrected": _TT[::-1], "_pd_proc_ls_weight": w[::-1],
+        "_pd_proc_intensity_total": _Y[::-1]})
+    found: list = []
+    pat = rx.read_pattern(p, diagnostics=found)
+    assert pat.two_theta == _TT
+    assert pat.in_range_mask().tolist() == [False, False, True, True, True, False]
+    assert len(pat.excluded_regions) == 2
+    assert [d.code for d in found] == ["PATTERN_SCAN_REVERSED",
+                                       "PATTERN_ZERO_WEIGHT_EXCLUDED"]
+    assert found[1].value == 3.0
+
+
+def test_a_weight_column_with_no_positive_weight_is_not_read(tmp_path):
+    """T10: all zeros would exclude every point; the column is read as no
+    weights, the Poisson fallback, as before."""
+    p = _write_pdcif(tmp_path / "zeros.cif", {
+        "_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": [0.0] * len(_TT),
+        "_pd_proc_intensity_total": _Y})
+    found: list = []
+    pat = rx.read_pattern(p, diagnostics=found)
+    assert pat.sigma is None and pat.excluded_regions == [] and found == []
