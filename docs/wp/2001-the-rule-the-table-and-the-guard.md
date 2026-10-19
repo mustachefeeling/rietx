@@ -1,6 +1,6 @@
 # WP-2001 — The rule, the audit table and the guard
 
-Milestone: generality · Status: 🔄 2026-10-19 — claimed by @yue-here
+Milestone: generality · Status: 🔄 2026-10-19 — the table, its meta-test, the judge and its handover step landed (PR #1047); only the cross-project lesson is left, for a session in claude-config
 Track: The registry and the guard
 Depends on: —
 Priority: P2 2026-10-18 — the scoping WP the other eight wait on; nothing blocks it
@@ -259,6 +259,161 @@ seen to fail is a guard that may go quiet (`tests/CLAUDE.md` § Guards that go q
   record cites as the worked tier-2 example); Schwarz, G. (1978). Ann. Stat. 6, 461–464.
 
 ## Handover log
+
+### 2026-10-19 (3rd session) — the table, the guard and the judge landed
+
+rietx now keeps a table of every rule it uses to decide on a caller's behalf: 1 125
+entries covering each diagnostic code, the result fields that report an automatic action,
+the threshold numbers in the directories that decide, the defaults of the main calls, and
+the advice it prints. Every entry starts unaudited, for the audit WPs to sort into
+physics, practice or rietx's own. A test now fails when anyone adds or retunes one without
+a row, and the handover sends any change to the table to a fresh reviewer that argues the
+case against it. That reviewer's first run, on this branch, showed the declared scope had
+missed the absent-phase hold's own threshold and seven automatic actions, so the scope
+was widened. No refinement result changes. Only the cross-project lesson is left, and it
+needs a session started in `~/Code/claude-config`.
+
+*Done.* Eleven commits. 9026714b: `CORRELATION_GUARD` named once in `schemas/plan.py`, in
+three places (the third copy was `RefinementPlan`'s), and
+`test_each_mirror_declares_its_dataclass_defaults` holds every default a mirror shares with
+its dataclass equal, since the field-set pin let one field carry two literals. 994d5a57:
+`src/rietx/_audit.py` and `tests/test_audit_table.py`, the rows generated once from the
+walkers the test also calls (`constants`, `defaults`, `record_fields`, `suggestions`,
+`codes`). 400e4ea8: `.claude/agents/generality-review.md` and its dispatch on
+`/wp-handover` step 7. 6e081130: the TEMPLATE.md line. 6850fc16: root CLAUDE.md (cap
+983 → 993, diary row and `process.md` paragraph). e6f82029: review fixes. c908d3ba: the
+judge's widening. 9a004a37 and the forward notes: 2002, 2003, 2004, 2006 and 2007.
+
+*Choices this session made that the maintainer can reverse.*
+- A fifth kind, `suggestion`, one row per code holding its count of `suggestion=` sites
+  (a new site fails, a reworded one does not), since the WP's four kinds had no place for
+  the tripwire's fifth trigger.
+- `io/` contributes `io/readers.py` and `io/formats/base.py`, my reading of "the readers'
+  repair code" from `io/CLAUDE.md` § What a reader may repair; the judge's five other
+  reader thresholds went to 2006 rather than widening the walk over byte offsets.
+- After the judge: `WALKED` gained `model/`, `params/` and all of `schemas/` (every
+  module-level number in `schemas/` is a decision threshold); `DEFAULT_SEATS` gained
+  `SequentialRefinement.fit` and `SearchSpec`; a `None` default keeps its row (it often
+  means the package picks); `Statistics` joined the record schemas so `esd_inflation` has an
+  action row; eight fields left `OTHER_RECORD_FIELDS` for action rows.
+- `ambiguity` is allowed and required on an audited **default** row too, against the WP
+  text's "code and action rows only", because DESIGN.md § Rules, 4 asks a new default for
+  its kind.
+- The judge runs on Opus: its central question, which competent refiner would act
+  otherwise, is the maintainer's kind of judgement.
+
+*Measured* (darwin arm64, `[dev]` venv, alone on the machine).
+- Fast selection: 10 826 passed, 191 skipped, 2 xfailed, 4:21. Collected 10 995 on
+  `origin/main` e868e8f4 (a `git archive` snapshot, same venv) against 11 011 here: +16,
+  the 15 cases of `test_audit_table.py` and the mirror test. The run's 11 019 is the 11 011
+  plus 8 modules skipped at import. The last widening touched only `_audit.py` and its test,
+  re-run after it (20 passed); no test count moved.
+- Added tests' cost, local junit: `test_audit_table.py` 8.70 s over 10 functions (the
+  walked-kind and value tests 5.61 s and 3.08 s), the mirror test 0.00 s. Not in the slow
+  tail by these figures.
+- The table: 256 codes, 19 actions, 547 constants, 107 defaults, 196 suggestion keys; 65
+  other record fields. 229 `suggestion=` sites (234 raw less five `suggestion=None`). The
+  full suite did not run: the only package change replaces a literal 0.98 with a constant
+  holding 0.98.
+- The guard seen red four ways before the widening, each naming the row to paste: a
+  throwaway constant in `refine.py`, `CORRELATION_GUARD` retuned to 0.97 (three rows
+  fail), `auto_background`'s `seed` flipped, a probe field on `StageResult`.
+
+*Review.* `/code-review high --fix`, nine findings, eight applied (e6f82029): the walk
+missed chained and unpacking assignments (ten constants, among them
+`least_squares.XTOL`/`GTOL`); numbers in dicts and lists named as unseen; `resolve()` no
+longer hides a missing dependency; a callable default stores its qualname, not an
+address; a bool cannot pass as a tier; the dead `inventory()` removed; the step 7 diff file
+WP-named. The ninth, the GUI Plan panel's own 0.98, went to 2006.
+
+*Generality.* The judge's report, unedited, with the author's answer under each `fails`.
+It ran as `general-purpose` on Opus reading the agent file, because a session registers
+agents from the checkout it started in (step 7 now says so).
+
+> ### Item 1: `rietx.schemas.plan.CORRELATION_GUARD` (0.98)
+>
+> | Question | Author's answer (where) | Case against | Verdict |
+> |---|---|---|---|
+> | Is "it replaces three literals the open would have listed anyway" a reason to add it to `UNAUDITED_BASELINE`? | WP file, Tasks: "three copies, the third in `RefinementPlan`". | Two of the three copies were already rows, and they remain rows: `PlanSpec:correlation_guard` and `run_stage:correlation_guard`. The third, `RefinementPlan`, is at no declared seat, so the open would not have listed it. The edit adds a third row for one number. It is allowed only because this branch writes the list for the first time. A retune now fails three rows at once, so 2002 should tier the three together. | holds for the open; weak as a precedent |
+> | 1. What does it decide that the caller did not ask for? | Docstring `schemas/plan.py`: "\|ρ\| above which a pair of free parameters is reported as highly correlated". | Accurate. A pair above 0.98 becomes a warning-level `HIGH_CORRELATION`; below, no finding. The five worst pairs still reach the result in `identifiability.top_correlations`. | holds |
+> | 2. Which kind of ambiguity? | none given (a constant row cannot carry it). | The third kind: report the number and stop. The threshold also decides whether the warning exists at all, a shape the record demotes to an `info` record. | none given |
+> | 3. Which competent refiner would set it otherwise? | none given | GSAS-II 5.8.4 by default lists every pair above max(0.95, 0.99 × the worst \|ρ\|) (`GSASIImath.setHcorr`), checked in `rietx-bench/tools/gsas2`. A pair at 0.96 is flagged by GSAS-II and passes silently here. FullProf prints its matrix only on request; TOPAS not checked. A refiner with many background terms expects pairs above 0.98 against c0. | weak |
+> | 4. Tier and source | none given | Not tier 2 by another program's default (GSAS-II's is 0.95 and moves). No citation found. | none given |
+> | 5. Families | none given | none given | none given |
+> | 6. Which record says it fired? | not stated | `HIGH_CORRELATION`, ρ in `Diagnostic.value`; `FLAT_DIRECTION` beside it at \|ρ\| ≥ 0.9995. | holds |
+>
+> Siblings: the GUI's 0.98 in `Plan.svelte`; `HIGH_CORRELATION_MAX` = 10 (`schemas/results.py`), unwalked. **Strongest case against:** GSAS-II flags from 0.95 and rietx is silent between 0.95 and 0.98; a source for 0.98, or three families' measurements of what pairs in that band do to esds, would answer it.
+
+Author: forwarded to 2002 with the GSAS-II reading; `schemas/results.py` is now walked, so
+`HIGH_CORRELATION_MAX` has a row.
+
+> ### Item 2: `OTHER_RECORD_FIELDS`
+>
+> | Field | Case against | Verdict |
+> |---|---|---|
+> | `StageResult.moment_angle_tests` | A Δχ² test on free moment angles removes passing angles' columns from the covariance: values kept, esds lost (`results.py`, `least_squares.py` `zeroed=True`). | fails: make it an action row |
+> | `StageResult.n_degenerate_cell_probes` | A degenerate trial cell returns 10 × the last residual (inline literal) and reuses the last good Jacobian. | fails: make it an action row |
+> | `StageResult.n_constraint_truncations` | The default LM adds inequality rows nobody asked for (Γ_G² ≥ 1e-8, the Stephens cone, texture P ≥ 0); `_MIN_GAMMA_G2` in `model/` has no row. | fails: make it an action row |
+> | `StageResult.ftol` | Records the default early stop of intermediate stages at 1e-6; Rule 4's "state its kind" has nowhere to land on a default row. | weak |
+> | `SeriesEntry.rungs_raised` | A rung that raises is counted lost and the series escalates past it (WP-1333). | fails: make it an action row |
+> | `SeriesEntry.rungs_tried` | The ladder's retry record; by the `held_reach` precedent, an action row. | weak |
+> | `SeriesEntry.statistics`, `RefinementResult.statistics` | Carry `Statistics.esd_inflation`, the Bérar–Lelann factor every esd is multiplied by, one level below the fields the table reads. | fails: needs an action row on the nested field |
+> | `RefinementResult.absorption` | Estimates µR or µt from composition × `packing_fraction` (0.6, at no seat) × length and applies it; off if the estimate fails; used past the Rouse range with `out_of_range`. | fails: make it an action row |
+> | `RefinementResult.sigma` | The √max(y,1) fallback and a 10⁻³ × median-esd floor (inline); no field says which fired. | weak: needs a flag first |
+> | `RefinementResult.geometry` | Drops contacts past 24 per atom and phases over 200 atoms, noted in `GeometryTable.notes`; report only. | weak |
+>
+> The other 50 passed. **Strongest case against:** the moment-angle esd removal and the Bérar–Lelann inflation change every esd quoted and could not carry Rule 1's kind. The series floor-reseed of an unsupported moment has no record field at all.
+
+Author: all six `fails` and both `weak` action fields are action rows now (c908d3ba), with
+`Statistics` a record schema; `sigma` and `geometry` went to 2002; the floor-reseed to 2003.
+
+> ### Item 3: the walk's declared scope
+>
+> | Question | Author's answer | Case against | Verdict |
+> |---|---|---|---|
+> | A reader decision with a threshold left outside the two `io/` files? | `_audit.py`: "``io/`` contributes only the readers' repair code". | Five: `dif.py` `_MIN_ROWS = 3`, `peaklist.py` `_MIN_ROWS = 8`, `gsas.py`'s 64 kB sniff bound, `bruker_raw.py`'s drive `atol` and counting-time windows, `pdcif.py` dropping a weight column on one zero weight (with `xy.py`, `chi.py` adopting any positive third column as σ). | weak |
+> | Does the list reach the thresholds behind automatic actions outside `io/`? | the third review's "byte offsets, pixel sizes and schema defaults". | No. `model/forward.py` `PHASE_SUPPORT_SIGMA = 3.0`, the absent-phase hold's threshold and the record's own example, has no row; `model/` holds about 50 numbers (`WINDOW_MIN_DEG`, `_MIN_GAMMA_G2`, `CYLINDER_MU_R_MAX`); `params/vector.py` the unseen-phase cell windows and the ±15 % clamp; `schemas/indexing.py` about 35 (`PEAK_MIN_HEIGHT_SIGMA`); `schemas/structure.py` `MOMENT_FLOOR_MU_B`; `schemas/results.py` `HIGH_CORRELATION_MAX`. | fails |
+>
+> **Strongest case against:** the 3σ threshold the milestone uses as its worked example has no row.
+
+Author: `model/`, `params/` and all of `schemas/` are walked now (+148 constants,
+`PHASE_SUPPORT_SIGMA` among them); the five reader thresholds went to 2006.
+
+> ### Item 4: `_off` and `defaults()`
+>
+> | Question | Author's answer | Case against | Verdict |
+> |---|---|---|---|
+> | Is an "off" default ever the package's own decision? | "An off default has no row: turning one on adds a name". | Yes. `telemetry=None` records the run; `index_pattern:preset=None` resolves to `"quick"` (a string the walk drops, its 120 s budget in a dict); `StageSpec:ftol=None` means the solver's 1e-9, a literal at no seat; `window_slack_deg=None` becomes `WINDOW_MIN_DEG = 0.3`; `spec=None` becomes `SearchSpec()`, at no seat. | fails |
+> | Does `defaults()` see every default at a declared seat? | `refine_sequential` is a seat. | It passes `**kw` to `SequentialRefinement.fit`, whose `reseed=True`, `refit="single"`, `on_error="carry"`, `direction="forward"` are at no seat. | fails |
+> | Is a flip from on to off seen? | implied | Yes: the row's name disappears and the test fails. | holds |
+>
+> **Strongest case against:** the telemetry default, the indexing preset and the final-stage tolerance all sit behind a `None` with no row.
+
+Author: the off-default rule is gone, so every default at a seat has a row (+83);
+`SequentialRefinement.fit` and `SearchSpec` are seats. The 1e-9 and `"quick"` went to 2002
+and 2007.
+
+*Gotchas.* A session registers agents from the checkout it started in, so an agent file
+added on a branch is not a `subagent_type` until it reaches `main`; step 7 names the
+fallback. The worktree guard refuses `git -C` into another repository, so the
+`claude-config` lesson cannot land from a rietx worktree. It also refuses a python command
+whose script path is a shell variable; spell the path out.
+
+*Next.*
+1. The cross-project lesson, from a session started in `~/Code/claude-config`
+   (`/workflow-sync harvest`). Draft: **"A heuristic enters with its tier, or not at
+   all."** Every number, default or automatic action a package uses to decide on the
+   caller's behalf carries a row naming its source: physics, named practice, or the
+   project's own judgement with the datasets it held on. A test holds the table equal to
+   the tree both ways, from a committed shrink-only baseline so it needs no git, and a
+   fresh-context judge drafts the case against each new row at handover. Why: 33 of 341
+   rietx constants cited a paper; a threshold invented on one dataset reads as a fact to
+   the next session. Exemplar: rietx `src/rietx/_audit.py`, `tests/test_audit_table.py`,
+   `.claude/agents/generality-review.md`, `/wp-handover` step 7.
+2. Then close this WP. If the maintainer would rather close it now, the lesson can move to
+   2009 (the rulebooks).
+3. 2002 opens with its always-on corrections pass; `Statistics.esd_inflation` is now an
+   action row for the Bérar–Lelann ruling to land on.
 
 ### 2026-10-19 (2nd session) — the milestone re-read against DESIGN.md's rules, and four rulings
 

@@ -86,7 +86,7 @@ the bar.
 
 ### Inherited
 
-(none at filing)
+- **From WP-2001 (2026-10-19, PR #1047).** The table is `src/rietx/_audit.py`; this WP's rows are the ones `_audit.WALKED` and `_audit.DEFAULT_SEATS` map to 2003, plus the codes and suggestion rows of its subsystem. Auditing a row means giving it a tier and evidence in place and deleting its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py` fails until both are done. The walk sees module-level numbers and tuples of numbers only, so a number held in a dict, list or array is audited here by hand. From the generality judge's first run: the series floor-reseed of an unsupported moment (`sequential.py`, near the `SEQUENTIAL_MOMENT_HOLD` raise) has no record field, only that code's message, so it has no action row; `SeriesEntry.rungs_raised` and `rungs_tried` now do. `SequentialRefinement.fit` is a seat, since `refine_sequential` reaches its `reseed`, `refit`, `on_error` and `direction` defaults through `**kw`.
 
 ## Non-goals
 
