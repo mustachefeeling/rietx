@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-19 — claimed by @yue-here
+Milestone: generality · Status: 🔄 2026-10-19 — 148 rows tiered; the decision batch (16 classes) awaits the maintainer
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -210,6 +210,86 @@ for every row this WP owns.
 
 ## Handover log
 
+- **2026-10-19** — the inventory, 148 rows tiered, and the decision batch (PR #1050).
+
+  Every automatic decision a single rietx fit makes now has a proposed tier with its
+  evidence. The 148 that need no approval are in the audit table. The other 256 are grouped
+  into 16 classes in a decision batch that waits on the maintainer (`2002-batch/batch.md`).
+  Nothing has been demoted yet, so no fitted number has moved. Two findings stand whatever
+  the rulings. The axial-divergence quadrature's node cap leaves an error of 2.8 % of peak
+  height at 3° 2θ on lab Bragg-Brentano data. And the default Bérar-Lelann inflation makes
+  every rietx esd 1.13 to 8 times what GSAS-II would report on the same fit.
+
+  *Done.* Inherited pruned: 2001's four notes folded into Context and Non-goals, none
+  stale. Six read-only readers (refine.py; strategy/ and schemas/plan.py; optimize/;
+  model/; background/; params/ and the schemas) proposed a tier for each of the 299 walked
+  rows plus the strategy codes, 402 proposals in all (`2002-batch/inventory.json`). 157 rows
+  needing no approval landed (tier 1, tier-2 thresholds, `caller`, and the
+  observation-channel defaults as `invariant`). The handover's code review sent nine back
+  to `unaudited` and fixed four (batch § Added after the handover's code review), so 148
+  stand. `tests/test_answer_invariant_defaults.py` (8 cases) asserts that the event stream,
+  progress stream, cancel token, label, run recorder, per-stage reports and history tree
+  leave a fit's answer bit-identical, and that the recorder actually ran. One Opus agent
+  drafted the batch and checked the readers' claims; a fresh-context judge wrote the case
+  against each class; the lead corrected the six sentences the judge found wrong and wrote
+  a revised pick per class. Held-out family named (§ The batch). Forward references went
+  to 2003, 2004, 2005, 2006, 2007, 1952, 1542 and 1467.
+
+  *Measured.* FCJ node cap (`model/profiles/fcj.py` `MAX_NODES` = 64) against a 512-node
+  reference, S/L = H/L = 0.025, FWHM 0.07°: 0.19 % of peak height at 5°, 0.71 % at 4°,
+  2.8 % at 3°, under 0.06 % uncapped (`2002-batch/fcj_low_angle.py`). Issue #740's Le Bail
+  cycles: Rwp 4.56 % at 3, a plateau of 1.62 % from 100 to 400, 1.09 % for the true
+  structure (`2002-batch/i740.json`). Proposed demotions on the judgement question: about
+  15 rows, from 18 in the draft (the milestone asks each audit for this count; it is final
+  only after the rulings). None measured yet on the mechanical question. Subagent spend:
+  six readers 2.22 M tokens, drafter 0.50 M, judge 0.35 M, code review 0.19 M. No lane in
+  the `/wp-start` 6c sense ran, so there is no lane table. Fast suite on the final tree, `[dev]` venv, darwin/arm64, nothing else running: 10 834 passed, 191 skipped, 2 xfailed, 4:41 wall; the 8 added cases cost 3.06 s together (one local run). The full suite was not run: the branch changes no library code, only the table's data, one test file and docs.
+
+  *Questions for the maintainer.* Full briefs in `2002-batch/batch.md` § Bn, each with the
+  case against and a revised pick. Eight need a judgement:
+  1. B4: stop multiplying every esd by the Bérar-Lelann factor, and report the factor
+     beside it? (pick: yes)
+  2. B5: demote the floor that raises a zero esd to 10⁻³ of the median, and leave its
+     replacement to WP-1952? (pick: yes)
+  3. B7: the default plan `mccusker_default` frees no specimen displacement on
+     Bragg-Brentano data, where rietx's own `lab_bragg_brentano` does. Keep it at tier 3
+     and compare the two presets on three families, or choose the preset from the
+     geometry in a follow-up? (pick: compare first)
+  4. B8: remove the per-stage cell window if a count shows it never binds; make the cell
+     clamp restore-and-hold; keep the 2 nm size floor at tier 3? (pick: yes to all three)
+  5. B9: judge each default box on unanimity, widening chosen caps with a named dissenter
+     (occupancy ≤ 1.5, March r ≥ 0.15) unless a source is found, and record
+     `Geometry.kind`, polarisation and the Kα2 ratio as assumptions? (pick: yes)
+  6. B10: read the rule for numerical settings as "tier 1 when a test bounds the error
+     over the claimed domain", with solver switches kept only by either-side refits?
+     Adds one sentence to `generality.md` § The rule. (pick: yes)
+  7. B12: `auto_background` returns its evidence beside its pick; `solve_magnetic` uses
+     N/f² and drops its R tie-break; `profile_fraction`'s warning becomes an info record;
+     and is the skill's instruction a default path? (pick: yes; yes, it is)
+  8. B14: lift the rows a retune could change into named constants, seats and record
+     fields, and list the tier-1 floors in this file? (pick: yes)
+
+  Five ask a confirmation (B1 absent-phase hold, B2 moment turn, with the angle test
+  measured first, B3 seeds by test, B11 Le Bail cycles converge-with-cap in WP-1542, B16
+  bound test). Three are plain (B6 dispersion kept, B13 hand-off of 58 diagnostic-only rows
+  to 2004, 2005 and 2007, B15 the assumed ion split by element).
+
+  *Gotchas.* A hand row cannot enter `_audit.ROWS`, because the table's test holds every row
+  equal to something the walk sees; that is B14. The `generality-review` agent did not load
+  as an agent type in this session, so it ran as a general-purpose agent told to follow
+  `.claude/agents/generality-review.md`. The scratchpad does not survive a session, so
+  everything the next session needs is in `2002-batch/`. This worktree is named
+  `wp2001-rule-table-guard` and carries `wp2002-single-fit-actions`; the claim is recorded
+  with `wp_claim.py`. 17 tier-2 rows rest on unread citations (batch, same section): check
+  them against the corpus before building on them.
+
+  *Next.* (1) The maintainer rules on the batch. (2) Land the ruled rows: each row's
+  evidence line is in `inventory.json`; add `grounds` and the ruling's date in `approved`.
+  (3) Check the 17 tier-2 citations. (4) The second pass: three families for the
+  thresholds of surviving actions, with the held-out family excluded. (5) Measure the
+  clash table (`2002-batch/clashes.md`; C1 is WP-1320's, C3 the window, hold and clamp
+  triple). (6) Demotions, one commit each, then goldens; the owed invariance tests
+  (`intermediate_ftol`, the budgets, the starts) and the FCJ cap fix sit with B10.
 - **2026-10-18** — created, from the milestone's opening session (WP-2001's log has the
   measurements and the two reviews). No open WP owns the holds as a class: 1301 and 1534
   each shipped one and are closed. 1327, which shipped the moment hold, is still in flight
