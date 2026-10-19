@@ -242,6 +242,11 @@ the tree that day.
   routes may change in any release ("`{ref}`d not restated"). `reference/gui-power.md` now
   states the routes are provisional without that `{ref}`. Give the promise a page before the
   old tree goes, and point both back at it (found by the 6th session's review, 2026-10-19).
+  Done 2026-10-19 (7th session): `reference/compatibility.md`, its stale lines fixed (the
+  agent envelope, the foreign readers' count and writers); `gui-power.md` `{ref}`s it,
+  `test_manual_api.py`'s `COMPATIBILITY_PAGE` and root CLAUDE.md name it. The skill's link
+  (`references/diagnostics-indexing.md:124`) moves with the other skill links, once
+  `/docs/stable/` exists.
 - Three pieces of WP-1979's task 4 belong here, because none of the 13 pages `help.py`'s
   anchors name exists in the new tree yet: a versioned docs base beside `_about.DOCS_URL`
   (`dev` for a `.dev0` build, `X.Y` otherwise; the mapping `docs_versions.docs_version` moves

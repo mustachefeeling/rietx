@@ -13,6 +13,7 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [The GUI panel by panel](gui-guide.md) says what each panel of `rietx gui` is for.
 - [The GUI as a text document and a wire](gui-power.md) gives the `.rxt` grammar, the keyboard, the command palette and the HTTP routes.
 - [For agents](agents.md) says how an agent gets the rietx skill.
+- [Compatibility](compatibility.md) says what a version string promises and which parts are declared provisional.
 
 ```{toctree}
 :hidden:
@@ -28,4 +29,5 @@ foreign-names
 gui-guide
 gui-power
 agents
+compatibility
 ```

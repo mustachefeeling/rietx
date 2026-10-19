@@ -108,7 +108,7 @@ INDEX = re.compile(r"(?<=\.)\d+(?=\.|$)")
 # the promise: sphinx `-W` fails on a dangling `{ref}`, so the two halves cannot
 # drift the way two paragraphs saying the same thing would.
 PROVISIONAL_TARGET = "provisional-by-declaration"
-COMPATIBILITY_PAGE = USING_DIR / "compatibility.md"
+COMPATIBILITY_PAGE = DOCS_TREE / "reference" / "compatibility.md"
 
 
 def _where(page: Path) -> str:
