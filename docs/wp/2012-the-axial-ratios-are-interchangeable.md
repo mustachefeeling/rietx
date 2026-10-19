@@ -56,7 +56,9 @@ choosing a fix.
 - [ ] Decide the fix with the maintainer: `lab_calibrate` frees S/L alone with H/L held at
       its declared value; or one combined parameter, as GSAS-II has; or a finding when both
       are free.
-- [ ] Rewrite the two `help.py` entries to say the pair is interchangeable.
+- [ ] Rewrite the two `help.py` entries to say the pair is interchangeable, and follow a
+      changed preset into the skill's `lab_calibrate` row (`docs/skill/rietx/SKILL.md`, the
+      presets table) and the calibration guide's axial paragraph.
 - [ ] Look for the class's siblings: any other pair of parameters the model treats
       symmetrically, where a fit can land on either assignment.
 - [ ] Reproduce the esd difference between the compiled and numpy paths in a test, or show
