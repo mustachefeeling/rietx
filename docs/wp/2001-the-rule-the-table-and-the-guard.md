@@ -162,7 +162,7 @@ from acting where Rule 1's first kind says act.
 - [x] The milestone record (`docs/milestones/generality.md`), its ROADMAP row and section,
       the WP block 20xx and this file plus 2002–2009; ROADMAP's cap 589 → 614 with its
       diary line. (2026-10-18, the filing session.)
-- [ ] The table module `src/rietx/_audit.py` (named here, since 2002–2009, the record and
+- [x] The table module `src/rietx/_audit.py` (named here, since 2002–2009, the record and
       the handover's dispatch all key on `_audit`):
       a frozen row type with `name`, `kind` (`code` | `action` | `constant` | `default`),
       `tier`
@@ -177,16 +177,23 @@ from acting where Rule 1's first kind says act.
       existing code from `DIAGNOSTIC_HELP`, every record field named above, every constant
       the AST walk finds over `WALKED` and every default at `DEFAULT_SEATS`, entered at
       `unaudited`; `UNAUDITED_BASELINE` the
-      sorted list of those names, written once here.
-- [ ] The meta-test (`tests/test_audit_table.py`): code rows equal to `DIAGNOSTIC_HELP`'s
+      sorted list of those names, written once here. (2026-10-19: 876 rows, 256 codes, 11
+      actions, 389 constants, 24 defaults, 196 suggestion keys; the other 61 record fields
+      in `OTHER_RECORD_FIELDS`. A fifth kind, `suggestion`, holds the `suggestion=` sites
+      per code, since no other kind could. `WALKED` names `io/readers.py` and
+      `io/formats/base.py` as the repair code, adds `schemas/plan.py` for
+      `CORRELATION_GUARD` and `INTERMEDIATE_FTOL`, and maps each entry to its audit WP.)
+- [x] The meta-test (`tests/test_audit_table.py`): code rows equal to `DIAGNOSTIC_HELP`'s
       keys both ways; every action row's record field exists on its schema; every constant
       and default row imports and its stored value equals the live one; a tier-3 row, and
       a tier-2 action row, carries `grounds` and `approved`; every `unaudited` row's name is on `UNAUDITED_BASELINE` (the growth
       guard; no git); every name on the baseline still has a row, so the list shrinks as
-      rows are audited and never grows.
+      rows are audited and never grows. (2026-10-19: 15 tests, ~2 s; seen red on a
+      throwaway constant in `refine.py`, a retuned `CORRELATION_GUARD`, a flipped
+      `auto_background` default and a new `StageResult` field, each naming the row to add.)
 - [ ] `/wp-handover`'s dispatch condition for the judge, on step 7: the tripwire fired, or
       the diff touches the table module or the baseline.
-- [ ] The tripwire's second half: the walk that produces the constant list is a function
+- [x] The tripwire's second half: the walk that produces the constant list is a function
       the test and the table share (`_audit.constants()`), so the inventory cannot drift
       from the guard; the same for record fields (`dataclasses.fields` /
       `model_fields` over the three schemas), defaults (`_audit.defaults()`, over
