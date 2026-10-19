@@ -50,6 +50,10 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 - [How to check a series for path dependence](path.md) runs the chain both ways and refits a flagged step from cold.
 - [How to refine a cell edge as a function of temperature](equation.md) refines an equation's coefficients against every pattern at once.
 
+## Several radiations
+
+- [How to fit an X-ray and a neutron pattern together](joint.md) refines one structure against both with `MultiHistogramRefinement`, and refines the neutron wavelength.
+
 ```{toctree}
 :hidden:
 
@@ -75,4 +79,5 @@ foreign
 series
 path
 equation
+joint
 ```

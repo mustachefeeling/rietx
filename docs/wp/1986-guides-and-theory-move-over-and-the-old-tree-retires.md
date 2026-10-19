@@ -125,7 +125,9 @@ the tree that day.
   `using/model.md` (6th session, 2026-10-19): 9 `holder.md`, on a synthetic steel line that
   `examples/guides/_holder_line.py` adds to the fluorapatite scan; from `using/data.md` and
   `using/files.md`: 10 `calibrate.md`, on a synthetic LaB₆ and CeO₂ pair on two setups
-  (`_calibration_pair.py`). Left: 17, 18, 24.
+  (`_calibration_pair.py`); from `using/series.md`: 17 `joint.md`, on a synthetic corundum
+  X-ray and neutron pair whose neutron wavelength is 300 ppm off (`_corundum_pair.py`).
+  Left: 18, 24.
   Item 18 waits on WP-1910 and WP-1510, whose findings on the shipped
   fluorapatite pattern it would otherwise document; item 24 on the magnetic WPs in flight
   (1326, 1327, 1418). Item 10 has the spike's page to start from, but no
@@ -140,8 +142,13 @@ the tree that day.
   says so; the alternative is a real holder scan the maintainer supplies. Item 10 uses a
   synthetic standard and sample, as tutorial 04 does; the measured real options are in the
   5th session's entry, and a lab LaB₆ scan with a sample from the same diffractometer would
-  beat all three. Item 17's real Nd₂Ru₂O₇ pair needs the data owner's agreement before
-  `rietx.examples.fetch` serves it (see the item's own bullet when it lands).
+  beat all three. Item 17 uses a synthetic corundum pair, built as
+  `tests/test_joint_xray_neutron.py` builds its own, with a neutron wavelength 300 ppm off
+  so the page can refine it. The real Nd₂Ru₂O₇ pair (`mg090.fxye` and `mg090.Cu311.gsas`,
+  Gaultois et al. 2013) is the better demonstration, but its `tests/data/README.md` row
+  states no licence, so serving it through `rietx.examples.fetch` waits on the data owner's
+  agreement. Swapping it in later means a `REMOTE_FILES` entry, a new `joint.py` and the
+  page's quoted output; `test_acceptance_wavelength.py::_joint` already runs the fit.
   Two candidates outside
   the list: fixing the origin of a polar space group (`Phase.floating_origin`, after WP-1912
   lands, which owns that behaviour), and the plan's "one departure" paragraph.
@@ -224,7 +231,7 @@ the tree that day.
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
-      the whole old tree retires (task 4); see Context, 2026-10-17. Twenty-two of 25 written
+      the whole old tree retires (task 4); see Context, 2026-10-17. Twenty-three of 25 written
       (2026-10-17, map under Notes by task).
 - [ ] GUI chapters moved with `test_gui_manual.py`.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
