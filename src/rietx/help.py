@@ -2005,7 +2005,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "patterns and SRM 676a corundum; untested beyond them, and a second phase "
             "carrying half the net weighted power trips it at a right cell. The gate does "
             "not reach a local misfit: on certified SRM 676a corundum "
-            "(R -3 c) the shared profile fit's `profile_rwp` is 0.149 over 20–90°, where "
+            "(`R -3 c`) the shared profile fit's `profile_rwp` is 0.149 over 20–90°, where "
             "`R - c -` wins, and 0.227 over 5–150° with declared widths, where `R - - -` "
             "wins, with this code silent in both (measured on that one pattern)."
         ),
