@@ -123,7 +123,9 @@ the tree that day.
   `series.md`, 15 `path.md`, 16 `equation.md`; from `using/history.md` and `using/model.md` (5th session): 21 `branch.md`, 12 `interval.md`, 11 `cell.md`; from `using/exports.md`: 19 `export.md`; from the Switching pages and `using/files.md`: 22 `foreign.md`; from `using/qpa.md`: 20 `qpa.md`. The series guides share a synthetic LaB6 ramp,
   `examples/guides/_lab6_ramp.py`, which the guide test skips by its underscore. From
   `using/model.md` (6th session, 2026-10-19): 9 `holder.md`, on a synthetic steel line that
-  `examples/guides/_holder_line.py` adds to the fluorapatite scan. Left: 10, 17, 18, 24.
+  `examples/guides/_holder_line.py` adds to the fluorapatite scan; from `using/data.md` and
+  `using/files.md`: 10 `calibrate.md`, on a synthetic LaB₆ and CeO₂ pair on two setups
+  (`_calibration_pair.py`). Left: 17, 18, 24.
   Item 18 waits on WP-1910 and WP-1510, whose findings on the shipped
   fluorapatite pattern it would otherwise document; item 24 on the magnetic WPs in flight
   (1326, 1327, 1418). Item 10 has the spike's page to start from, but no
@@ -222,7 +224,7 @@ the tree that day.
       1's 79 references into Part 2 still resolve; those 14 pages take their `RETIRED` rows
       when the old tree goes.)
 - [ ] Guides: one page per task, mined chapter by chapter. The old chapter stays up until
-      the whole old tree retires (task 4); see Context, 2026-10-17. Twenty-one of 25 written
+      the whole old tree retires (task 4); see Context, 2026-10-17. Twenty-two of 25 written
       (2026-10-17, map under Notes by task).
 - [ ] GUI chapters moved with `test_gui_manual.py`.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
