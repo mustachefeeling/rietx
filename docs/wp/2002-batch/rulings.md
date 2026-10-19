@@ -83,9 +83,16 @@ Answers to § Third round below.
   forwarded there.
 - **B1**: on by default. The threshold and an off switch become a caller's option
   (`phase_support_sigma`, a plan field, `None` for off).
-- **B2**: keep the turn (tier 3, approved). Demote the stationary-angle test: the angle
-  keeps its esd, and the test's Δχ² goes into a record field with
-  `MOMENT_ANGLE_STATIONARY` an info record.
+- **B2**: keep the turn (tier 3, approved). The stationary-angle test was first ruled a
+  demotion on a brief that misstated its cost. The session then found two errors in that
+  brief (WP-1929's record): without the test the moment sizes' esds become stopping-point
+  artefacts (0.0015 and 0.0011 μB with the angle columns left out; 0.031 and 0.159 μB with
+  them in, and 0.0035 to 0.47 μB as the convergence tolerance moved), and near the
+  direction the ordinary esd can exclude the symmetric direction when the χ² ridge to it is
+  too low to. Re-asked, ruled **option 2** (2026-10-19): keep the test and its effect on
+  the other esds; the angle reports its distance from the symmetric direction with the
+  likelihood interval (`profile_interval`, run automatically on the answer-producing stage
+  for each angle the test passes) in place of no esd.
 - **B7**: agreed, with the two additions; in WP-2013.
 - **B8**: agreed. The cell window is tier 2 (TOPAS, Tech Ref § 2.17). The 2 nm size floor
   is removed; the range backstop stays; `SIZE_UNUSUALLY_SMALL`'s message gains the
