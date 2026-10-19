@@ -1,9 +1,8 @@
 # WP-2001 — The rule, the audit table and the guard
 
-Milestone: generality · Status: 🔄 2026-10-19 — the table, its meta-test, the judge and its handover step landed (PR #1047); only the cross-project lesson is left, for a session in claude-config
+Milestone: generality · Status: ✅ 2026-10-19 — the table, its meta-test, the judge and its handover step landed (PR #1047); the cross-project lesson went to a session in claude-config
 Track: The registry and the guard
 Depends on: —
-Priority: P2 2026-10-18 — the scoping WP the other eight wait on; nothing blocks it
 
 ## Goal
 
@@ -143,10 +142,6 @@ review had worded the rewrite as a flat order (record field, then diagnostic, th
 action); the maintainer replaced it on 2026-10-18, because the order points a session away
 from acting where Rule 1's first kind says act.
 
-### Inherited
-
-(none at filing)
-
 ## Non-goals
 
 - Auditing any row. The table opens with every existing code, action and constant at
@@ -229,9 +224,13 @@ from acting where Rule 1's first kind says act.
       against the cap (`tests/test_docs_consistency.py`) and bump with a diary line if
       needed. (2026-10-19: +9 lines, cap 983 → 993 with its diary row and `process.md`
       paragraph.)
-- [ ] `claude-config/workflow/LESSONS.md`: the lesson "a heuristic enters with its tier or
+- [x] `claude-config/workflow/LESSONS.md`: the lesson "a heuristic enters with its tier or
       not at all", with rietx's table and agent as the exemplar, through `/workflow-sync
       harvest`. This is a separate repository and a separate commit; the handover names it.
+      (2026-10-19: handed over, not landed by this WP. A worktree-isolated rietx session
+      cannot run git in `claude-config`, so the lesson went as paste-ready text to a
+      session working there, with the agent-registration trap as an amendment to lesson
+      3.)
 - [x] Tests + the fast selection count moved by exactly the tests added. (2026-10-19:
       +16 collected, 10 995 → 11 011, `[dev]`, darwin arm64.)
 - [x] Skill: none. The table is maintainer-facing; an agent driving rietx reads the
@@ -259,6 +258,38 @@ seen to fail is a guard that may go quiet (`tests/CLAUDE.md` § Guards that go q
   record cites as the worked tier-2 example); Schwarz, G. (1978). Ann. Stat. 6, 461–464.
 
 ## Handover log
+
+### 2026-10-19 (4th session) — closed; the cross-project lesson went to a claude-config session
+
+WP-2001 is closed. Its rietx work merged as #1047 this morning, and nothing in rietx is
+left. The last item was a lesson for the maintainer's other projects, which live in
+`~/Code/claude-config`. A session working in a rietx worktree cannot commit there, so this
+session wrote the lesson as paste-ready text, and the maintainer took it to a session in
+that repository. No code, test or number changed.
+
+*Done.*
+- `LESSONS.md` (18 561 bytes, 17 lessons) read for overlap. None covers a rule table. The
+  harvest that ran at 09:05 today (`claude-config` `a1e6fcce`, rietx to `3144f0f8`) passed
+  over this lesson without taking or declining it. Its marker now sits past WP-2001's
+  commits, so a later harvest would not find the lesson unprompted.
+- The text drafts lesson 18, "A heuristic enters with its tier, or not at all", from the
+  previous entry's draft, with two traps: the test reads no git, and the walk skips a name
+  rebound through `global`. The agent-registration trap goes to lesson 3 instead, beside
+  its trap about hooks loading at session start, because it has nothing to do with the
+  table. The "Fits" line is left to that session, which knows dataleaf and chessathon.
+- Closed: Status ✅; the empty `### Inherited` and the `Priority:` line deleted; the
+  narrative moved to `docs/milestones/v1.10.md`. 2002, 2006, 2007 and 2009, whose last
+  hard dependency this was, re-rated at their old tiers.
+- `/code-review` skipped: the branch touches only `docs/`. No CLAUDE.md edit, no test, so
+  no count moved and the full suite did not run.
+
+*Gotchas.* The harness refuses `git -C` into another repository from a worktree-isolated
+session ("points git at a directory computed at runtime"). Plain file reads there work,
+and so does reading a loose git object with python's `zlib`, which is how the harvest
+commit's message was read.
+
+*Next.* Nothing in this WP. Check that lesson 18 and lesson 3's new trap landed in
+`claude-config`. The milestone continues with 2002, its always-on corrections pass first.
 
 ### 2026-10-19 (3rd session) — the table, the guard and the judge landed
 

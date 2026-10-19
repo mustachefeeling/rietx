@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The prose
 Depends on: 2001 (2008 soft)
-Priority: P4 2026-10-18 — changes no number and no decision in the package; last, and small
+Priority: P4 2026-10-19 — 2001 closed, leaving 2008 as its only soft dependency; changes no number and no decision in the package; last, and small
 
 ## Goal
 

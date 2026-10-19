@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2001
-Priority: P3 2026-10-18 — provisional by declaration, so a verdict here already carries a caveat; several sessions
+Priority: P3 2026-10-19 — 2001 closed, so nothing blocks it; provisional by declaration, so a verdict here already carries a caveat; several sessions
 
 ## Goal
 
