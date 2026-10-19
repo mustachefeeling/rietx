@@ -210,7 +210,7 @@ from acting where Rule 1's first kind says act.
       for the maintainer in plain words (root `~/.claude/CLAUDE.md`'s register). The
       handover's step 7 gains the dispatch: on a tripwire hit, or on any diff touching a
       row, run it and paste its table into the handover entry under *Generality*.
-- [ ] `docs/wp/TEMPLATE.md`: one line in the Context guidance, "a rule this WP adds is
+- [x] `docs/wp/TEMPLATE.md`: one line in the Context guidance, "a rule this WP adds is
       physics, named practice, or new judgement; say which, and for the third name the
       families it was measured on and their references; a default or automatic action
       also names its kind under DESIGN.md § Rules, 1; a new topic names its reference
