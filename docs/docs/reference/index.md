@@ -5,6 +5,7 @@ Reference pages list names you look up: the API, the parameters, the plans, the 
 Most of them are built from the code that owns their facts, so they match the version this manual was built from.
 
 - [API: everyday calls](api.md), [API: techniques](api-techniques.md) and [API: everything else](api-types.md) give each exported name with its signature or fields.
+- [The command line](cli.md) gives each `rietx` subcommand with its options, its output and its routes.
 - [Parameter map](parameters.md) lists every refinable parameter, grouped by what it does.
 - [Stage settings, flags and options](settings.md) lists the other names rietx uses: stage settings, peak flags, peak origins, reader options, instrument preset fields and indexing search settings.
 - [Plan presets](plans.md) draws each preset's stages.
@@ -22,6 +23,7 @@ Most of them are built from the code that owns their facts, so they match the ve
 api
 api-techniques
 api-types
+cli
 parameters
 settings
 plans
