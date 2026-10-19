@@ -92,6 +92,7 @@ Give the loaded instrument a background of its own, and declare a holder line ag
 
 `load_instrument_profile` returns every parameter fixed.
 `lab_sample_refine` frees the sample's scale, background, displacement, cell, the four sample-broadening terms and Biso, and leaves the zero shift and instrument widths alone.
+Where the model declares them, it also frees anisotropic strain and surface roughness ([Plan presets](../reference/plans.md) draws each stage).
 Do not free the instrument widths on the sample, because the sample's own terms would then trade against them again.
 
 `result.microstructure` reads the broadening terms as a crystallite size and a microstrain.
