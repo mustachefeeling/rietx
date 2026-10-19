@@ -77,6 +77,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1999](1999-a-held-cells-ties-leave-the-answer-with-it.md) | A held cell's ties leave the answer with it | P2 | — | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [2003](2003-the-chain-actions.md) | The chain actions: what a series decides between patterns | P2 | [2002](2002-the-single-fit-actions.md) | [generality](#generality-the-audits) |
 | [2004](2004-the-fitreport-reasons-for-the-caller.md) | The FitReport reasons for the caller: its gates, actions and thresholds | P2 | [2002](2002-the-single-fit-actions.md), [2003](2003-the-chain-actions.md) | [generality](#generality-the-audits) |
+| [2013](2013-the-declared-geometry-picks-the-plan.md) | The declared geometry picks the plan, and a geometry can be unstated | P2 | — | [generality](#generality-the-audits) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -456,6 +457,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2006](2006-readers-crystallography-gui-and-the-dead-surface.md) | Readers, crystallography and GUI codes, and the dead surface | ⬜ | P3 | [2001](2001-the-rule-the-table-and-the-guard.md) |
 | [2007](2007-indexing-codes-constants-and-gates.md) | Indexing: its codes, constants and gates | ⬜ | P3 | [2001](2001-the-rule-the-table-and-the-guard.md) |
 | [2010](2010-every-feature-names-what-verifies-and-validates-it.md) | Every feature names what verifies it and what validates it | ⬜ | P3 | — |
+| [2013](2013-the-declared-geometry-picks-the-plan.md) | The declared geometry picks the plan, and a geometry can be unstated | ⬜ | P2 | — |
 
 ### <a id="generality-the-prose"></a>The prose
 
