@@ -793,6 +793,25 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.rotation._C_SERIES", "constant", value=(0.16666666666666666, -0.008333333333333333, 0.0001984126984126984, -2.7557319223985893e-06, 2.505210838544172e-08, -1.6059043836821613e-10)),
     Row("rietx.crystallography.rotation._LOG_SERIES_NORM", "constant", value=1e-08),
     Row("rietx.crystallography.satellites._ORDERS", "constant", value=(1, -1)),
+    Row("rietx.crystallography.site_classes.GRID", "constant", tier=1,
+        evidence="Arithmetic: every translation of a gemmi space-group operation is a "
+                 "multiple of 1/Op.DEN = 1/24, so the affine stabilisers are exact on the "
+                 "1/24 grid, and an off-grid translation is refused by name "
+                 "(SITE_CLASSES_GRID). Completeness is checked on all 564 gemmi settings "
+                 "against spglib's Wyckoff letters (test_every_setting_matches_spglib).",
+        value=24),
+    Row("rietx.crystallography.site_classes.MAX_SITE_ASSIGNMENTS", "constant", value=20000),
+    Row("rietx.crystallography.site_classes._CACHE_SIZE", "constant", tier="invariant",
+        evidence="The cache only skips a rederivation of a group's classes; "
+                 "test_the_scan_chunk_and_the_cache_size_do_not_change_the_classes holds a "
+                 "one-entry cache to the same classes, to the bit.",
+        value=64),
+    Row("rietx.crystallography.site_classes._CHUNK", "constant", tier="invariant",
+        evidence="A memory bound that only partitions the grid scan; "
+                 "test_the_scan_chunk_and_the_cache_size_do_not_change_the_classes holds a "
+                 "7-point chunk to the same classes, to the bit, and fails when the scan "
+                 "stops after one chunk.",
+        value=1728),
     Row("rietx.crystallography.spherical_harmonics._TOL", "constant", value=1e-09),
     Row("rietx.crystallography.stephens._DEG_PER_RAD", "constant", value=57.29577951308232),
     Row("rietx.crystallography.superspace.generation.N_BRAVAIS_CLASSES_D1", "constant", value=24),
@@ -2104,6 +2123,7 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.crystallography.rotation._LOG_SERIES_NORM",
     "rietx.crystallography.satellites._ORDERS",
     "rietx.crystallography.scattering.written_neutral_diagnostics.suggestion",
+    "rietx.crystallography.site_classes.MAX_SITE_ASSIGNMENTS",
     "rietx.crystallography.spherical_harmonics._TOL",
     "rietx.crystallography.stephens._DEG_PER_RAD",
     "rietx.crystallography.superspace.generation.N_BRAVAIS_CLASSES_D1",

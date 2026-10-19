@@ -424,3 +424,25 @@ def test_crystallography_does_not_import_optimize():
     import rietx.crystallography.site_classes as mod
 
     assert "optimize" not in Path(mod.__file__).read_text(encoding="utf-8")
+
+
+def _fields(classes):
+    return [(c.wyckoff, c.site_symmetry, c.multiplicity, c.point.tobytes(),
+             c.basis.tobytes(), c.stabilizer.tobytes(), c.coset_rot.tobytes(),
+             c.coset_tran.tobytes()) for c in classes]
+
+
+@pytest.mark.parametrize("symbol", ["F d -3 m:2", "P 63/m m c", "I 41/a m d:2"])
+def test_the_scan_chunk_and_the_cache_size_do_not_change_the_classes(symbol, monkeypatch):
+    """``_CHUNK`` and ``_CACHE_SIZE`` are answer-invariant (WP-2001's class): a
+    chunk only partitions the grid scan and the cache only skips a rederivation,
+    so a 7-point chunk and a one-entry cache give the same classes to the bit."""
+    import rietx.crystallography.site_classes as sc
+
+    want = _fields(site_classes(symbol))
+    monkeypatch.setattr(sc, "_CHUNK", 7)
+    monkeypatch.setattr(sc, "_CACHE_SIZE", 1)
+    monkeypatch.setattr(sc, "_CACHE", {})
+    assert _fields(site_classes("P -1")) != want
+    assert _fields(site_classes(symbol)) == want
+    assert len(sc._CACHE) == 1
