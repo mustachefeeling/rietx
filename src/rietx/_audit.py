@@ -235,8 +235,12 @@ def constants() -> dict[str, object]:
     out = {}
     for path in _walked_files():
         tree = ast.parse(path.read_text(encoding="utf-8"))
+        # a name a function rebinds through ``global`` is state, and its live
+        # value is whatever ran before (``compiled._POOL_WORKERS``)
+        rebound = {n for node in ast.walk(tree) if isinstance(node, ast.Global)
+                   for n in node.names}
         names = [n for node in tree.body for n in _assigned(node)
-                 if not n.startswith("__")]
+                 if not n.startswith("__") and n not in rebound]
         if not names:
             continue
         module = importlib.import_module(_module_name(path))
@@ -689,7 +693,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.sequential.SeriesEntry.rungs_raised", "action"),
     Row("rietx.schemas.results.RefinementResult.absorption", "action"),
     Row("rietx.schemas.results.Statistics.esd_inflation", "action"),
-    # constant: 547
+    # constant: 546
     Row("rietx.background.auto.AIR_SCATTER_TRIGGER", "constant", value=0.3),
     Row("rietx.background.auto.AUTO_BACKGROUND_SEED_PERCENTILE", "constant", value=10.0),
     Row("rietx.background.auto.HUMP_TRIGGER", "constant", value=0.05),
@@ -930,7 +934,6 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.compiled.MAX_TERMS", "constant", value=4),
     Row("rietx.model.compiled.SPELL_BASIS", "constant", value=1),
     Row("rietx.model.compiled.SPELL_FORWARD", "constant", value=0),
-    Row("rietx.model.compiled._POOL_WORKERS", "constant", value=0),
     Row("rietx.model.compiled._THREAD_MIN_NS", "constant", value=100000.0),
     Row("rietx.model.extinction._PI2", "constant", value=0.7978845608028654),
     Row("rietx.model.extinction._XPOL", "constant", value=0.079411),
@@ -2275,7 +2278,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.model.compiled.MAX_TERMS",
     "rietx.model.compiled.SPELL_BASIS",
     "rietx.model.compiled.SPELL_FORWARD",
-    "rietx.model.compiled._POOL_WORKERS",
     "rietx.model.compiled._THREAD_MIN_NS",
     "rietx.model.extinction._PI2",
     "rietx.model.extinction._XPOL",

@@ -178,7 +178,7 @@ from acting where Rule 1's first kind says act.
       the AST walk finds over `WALKED` and every default at `DEFAULT_SEATS`, entered at
       `unaudited`; `UNAUDITED_BASELINE` the
       sorted list of those names, written once here. (2026-10-19: 1 125 rows, 256 codes,
-      19 actions, 547 constants, 107 defaults, 196 suggestion keys; the other 65 record
+      19 actions, 546 constants, 107 defaults, 196 suggestion keys; the other 65 record
       fields in `OTHER_RECORD_FIELDS`. A fifth kind, `suggestion`, holds the `suggestion=`
       sites per code, since no other kind could. The generality judge's first run widened
       the declared scope, each a reversible session choice recorded in the handover:
@@ -311,7 +311,7 @@ judge's widening. 9a004a37 and the forward notes: 2002, 2003, 2004, 2006 and 200
 - Added tests' cost, local junit: `test_audit_table.py` 8.70 s over 10 functions (the
   walked-kind and value tests 5.61 s and 3.08 s), the mirror test 0.00 s. Not in the slow
   tail by these figures.
-- The table: 256 codes, 19 actions, 547 constants, 107 defaults, 196 suggestion keys; 65
+- The table: 256 codes, 19 actions, 546 constants, 107 defaults, 196 suggestion keys; 65
   other record fields. 229 `suggestion=` sites (234 raw less five `suggestion=None`). The
   full suite did not run: the only package change replaces a literal 0.98 with a constant
   holding 0.98.
@@ -392,6 +392,8 @@ Author: `model/`, `params/` and all of `schemas/` are walked now (+148 constants
 Author: the off-default rule is gone, so every default at a seat has a row (+83);
 `SequentialRefinement.fit` and `SearchSpec` are seats. The 1e-9 and `"quick"` went to 2002
 and 2007.
+
+*CI fix.* The first gating run failed on three Linux legs: `model.compiled._POOL_WORKERS` is state a function rebinds through `global`, so its live value depended on whether a compiled test had run first in that worker. The walk now skips any name a `global` statement rebinds; it was the only one, and no other module writes another's constant. Constants are 546.
 
 *Gotchas.* A session registers agents from the checkout it started in, so an agent file
 added on a branch is not a `subagent_type` until it reaches `main`; step 7 names the
