@@ -68,6 +68,8 @@ open under the same track; neither tiers a gate.
 
 - **From WP-2001 (2026-10-19, PR #1047).** The table is `src/rietx/_audit.py`; this WP's rows are the ones `_audit.WALKED` and `_audit.DEFAULT_SEATS` map to 2004, plus the codes and suggestion rows of its subsystem. Auditing a row means giving it a tier and evidence in place and deleting its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py` fails until both are done. The walk sees module-level numbers and tuples of numbers only, so a number held in a dict, list or array is audited here by hand: `report.texture._R_GRID` is one.
 
+- **From WP-2002 (2026-10-19, PR #1050).** 2002's batch class B13 proposes handing 15 rows to this WP, pending the maintainer's ruling: seven `background.diagnostics` constants that feed `diagnose()`'s fields and no code (`COVERAGE_*`, `CUTOFF_*` except `CUTOFF_MIN_DEG`), the four `optimize.identifiability` report caps, `refine.MAGNETIC_TICK_PURITY` (its comment at `refine.py` ~768 disagrees with its code at ~7020), and `optimize.statistics.EFFECTIVE_OBS_ALPHA`, `OBS_PER_PARAMETER_MIN` and `OBS_PER_PARAMETER_PREFERRED`. The table: `2002-batch/batch.md` § The B13 hand-off table.
+
 ## Non-goals
 
 - The holds the rival fits run: 2002.

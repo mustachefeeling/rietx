@@ -83,6 +83,8 @@ documentation only.
   between floor, drop and refuse (the pdCIF reader drops a weight column with
   any zero). The reporter checked on 1.5.0; both reproduce on c3d0367.
 
+- **From WP-2002 (2026-10-19, PR #1050).** Batch class B5 proposes demoting the floor that raises a non-positive esd to 10⁻³ of the median (`schemas/pattern.py` ~43) and leaves its replacement to this WP. The review found two things. GSAS-II's xye reader zero-weights any channel with y ≤ 0 whatever its esd (`imports/G2pwd_xye.py:172-174`). And a Poisson σ on scaled data can let one channel weigh about 1000× its neighbours. Establish what a zero esd marks in each format first; dropping the channel and reporting it is the candidate that cannot go wrong in units.
+
 ## Non-goals
 
 - A CSV reader (a new format entry, if the decision below wants one).

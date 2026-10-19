@@ -43,6 +43,8 @@ ranking over one population and is the regression gate, not a family.
 - **From WP-2001 (2026-10-19, PR #1047).** The table is `src/rietx/_audit.py`; this WP's rows are the ones `_audit.WALKED` and `_audit.DEFAULT_SEATS` map to 2007, plus the codes and suggestion rows of its subsystem. Auditing a row means giving it a tier and evidence in place and deleting its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py` fails until both are done. The walk sees module-level numbers and tuples of numbers only, so a number held in a dict, list or array is audited here by hand: `indexing.engines.SEARCH_PRESETS` holds the `quick` 120 s budget that way.
 - **From WP-2001's generality judge (2026-10-19).** `index_pattern`'s `preset=None` resolves to `DEFAULT_SEARCH_PRESET = "quick"`, a string the walk drops (numbers only), so WP-1042's default has a row only as the `None` it starts from. `SearchSpec` is now a seat, since `spec=None` resolves to it.
 
+- **From WP-2002 (2026-10-19, PR #1050).** 2002's batch class B13 proposes handing 9 `background.diagnostics` constants to this WP, pending the maintainer's ruling: the seven `GHOST_*`, `_ANODE_MATCH_TOL` and `_KBETA`. `flag_ghosts` drops a flagged line from `PeakList.usable()` (`indexing/pick.py` ~55, 96, 191), which is an action, so their tiers are this WP's.
+
 ## Non-goals
 
 - Engine changes, a new engine, the narrowing and prior-counting items parked in ROADMAP

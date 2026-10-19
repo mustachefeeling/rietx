@@ -44,7 +44,7 @@ its tier.
 
 ### Inherited
 
-(none at filing)
+- **From WP-2002 (2026-10-19, PR #1050).** 2002's batch class B13 proposes handing 34 constants to this WP, pending the maintainer's ruling. Each is the threshold of a code raised in `refine.py` and gates no action. The list with each code is `2002-batch/batch.md` § The B13 hand-off table, and each row's provenance is in `2002-batch/inventory.json`. If WPs 2005-2007 are cancelled at the gate after 2004, these rows need another home.
 
 ## Non-goals
 
