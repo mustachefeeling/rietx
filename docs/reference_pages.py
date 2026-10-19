@@ -225,6 +225,80 @@ def parameter_map() -> str:
 
 
 # ----------------------------------------------------------------------
+# The other vocabularies
+#
+# `rietx.help` holds nine.  Parameters, plans and diagnostic codes have pages
+# of their own, and the other six share `reference/settings.md`, in the
+# order and under the lead sentences `_VOCABULARIES` gives (the old tree's
+# glossary, WP-1986).  That list is the one hand-written thing here, so an arm
+# added to the registry and missing from both raises rather than rendering
+# nowhere.
+# ----------------------------------------------------------------------
+
+#: The arms with a page of their own.
+_OWN_PAGE = {"parameters", "plans", "diagnostics"}
+
+#: Section heading and lead sentence per arm, in the order the page shows them.
+_VOCABULARIES = [
+    ("stage_fields", "Stage settings",
+     "One stage of a plan, as `StageSpec` serialises it. Staging is "
+     "cumulative: a parameter freed in one stage keeps refining in every "
+     "later one."),
+    ("peak_flags", "Peak flags",
+     "What is known about one fitted line. Whether a flag also makes the line "
+     "unusable as evidence of a lattice is served beside the vocabulary as "
+     "`unusable_flags`, so neither the GUI nor a script works it out again."),
+    ("peak_origins", "Peak origins",
+     "Where one line came from: detection, or a person. It records provenance "
+     "and makes no judgement, and no gate in the package branches on it."),
+    ("reader_options", "Reader options",
+     "Keyword arguments `read_pattern` accepts. A project records which ones "
+     "claimed its file, because the same file can hold more than one pattern."),
+    ("instrument_fields", "Instrument preset fields",
+     "Constructor arguments for building an instrument from a geometry and an "
+     "anode. They are not parameter names, and none of them is refined."),
+    ("search_fields", "Indexing search settings",
+     "The controls an indexing search takes, as `ProjectDoc.indexing` holds "
+     "them. Several bound the search rather than describing the specimen, and "
+     "each says what a negative result means once it has bitten."),
+]
+
+
+def _vocabulary_entry(name: str, entry: dict) -> list[str]:
+    """One name as a definition, then its chip, unit, default and typical range."""
+    bits = []
+    if entry.get("label") and entry["label"] != name:
+        bits.append(f"Chip `{entry['label']}`")
+    if entry.get("unit"):
+        bits.append(f"Unit {_notation(entry['unit'])}")
+    if entry.get("default") is not None:
+        bits.append(f"Default `{entry['default']}`")
+    if entry.get("typical"):
+        bits.append(f"Typical {_notation(entry['typical'])}")
+    lines = [f"`{name}`", f": {entry['title']}. {_notation(entry['description'])}"]
+    if bits:
+        lines += ["", "  " + " · ".join(bits)]
+    return lines + [""]
+
+
+def vocabularies() -> str:
+    """The body of `reference/settings.md`: every arm without a page of its own."""
+    registry = help_registry()
+    placed = _OWN_PAGE | {key for key, _, _ in _VOCABULARIES}
+    missing = sorted(set(registry) - placed)
+    if missing:
+        raise RuntimeError(
+            f"help_registry() arms on no reference page: {missing}. Add a heading "
+            "and lead sentence to _VOCABULARIES in docs/reference_pages.py")
+    out = [_BANNER.format(source="rietx.help"), ""]
+    for key, heading, lead in _VOCABULARIES:
+        out += [f"## {heading}", "", lead, ""]
+        for name, entry in registry[key].items():
+            out += _vocabulary_entry(name, entry)
+    return "\n".join(out)
+
+
+# ----------------------------------------------------------------------
 # The plan ladder
 #
 # Drawn from the plan objects, because the old tree's hand-drawn diagram
@@ -721,6 +795,7 @@ def api_everything_else() -> str:
 #: Generated body file name -> the function that writes it.
 BODIES = {
     "parameters.md": parameter_map,
+    "settings.md": vocabularies,
     "plans.md": plan_ladder,
     "diagnostics.md": diagnostic_page,
     **{f"{stem}.md": _functools.partial(diagnostic_group_page, stem)
