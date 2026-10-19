@@ -27,12 +27,8 @@ is here or landed.
 - `rietx.schemas.plan.StageSpec:ftol`: the same test (None resolves to the schedule).
 - `rietx.schemas.results.StageResult.ftol`: the same test (records the schedule).
 
-## B8: the cell clamp and the 2 nm floor (code changes)
+## B8: the 2 nm floor (code change; the clamp rows landed with the cell reset, b9ed0b36)
 
-- `rietx.params.vector.CELL_SAFETY_FRACTION`: the clamp becoming restore-and-hold.
-- `rietx.params.vector.CELL_SAFETY_ANGLE_DEG`: the same.
-- `CELL_RUNAWAY`: the same (its record entry changes).
-- `CELL_RUNAWAY.suggestion`: the same.
 - `rietx.params.vector.SIZE_CAP_MIN_SIZE_A`: removal of the 2 nm floor.
 
 ## B9: limits and starting values inside opt-in features
