@@ -658,7 +658,10 @@ ROWS: tuple[Row, ...] = (
         evidence=("WP-1929: two-site Pnma moduli 0.0015/0.0011 mu_B with the angle columns out, "
                   "0.031/0.159 in, 0.0035-0.47 as ftol moved; LaMnO3 BT-1: a polar angle 5.2 deg "
                   "off 90 with a 3.5 deg linear esd, Delta chi2 0.56 against 3.84; names what "
-                  "StageResult.moment_angle_tests records and quotes RefinedParameter.interval"),
+                  "StageResult.moment_angle_tests records and quotes RefinedParameter.interval; "
+                  "one angle tested alone passes below the one-sided cut 2.706 and so always "
+                  "lies inside its 95 % interval (cut 3.84), so the message's 'excludes' "
+                  "branch is reachable only for angles tested together"),
         grounds=("The column leaves the covariance by the package's own act, so the finding "
                  "says so, with each angle's distance from the direction and its profile "
                  "interval (B2 option 2, ruled 2026-10-19)."),

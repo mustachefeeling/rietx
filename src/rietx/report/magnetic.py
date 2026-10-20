@@ -309,9 +309,11 @@ def moment_angle_stationary_diagnostics(stage, parameters=None) -> list[Diagnost
                     "(RefinedParameter.interval), not by an esd. Where the "
                     "interval includes the symmetry direction, the data cannot "
                     "tell the moment from one along it, so quote the moment "
-                    "along that direction. Where the interval excludes the "
-                    "direction, the data measure the tilt, so quote the angle "
-                    "with its interval."))]
+                    "along that direction. One angle tested alone always lands "
+                    "here, because it passed the test below the interval's cut. "
+                    "Where angles were tested together and an interval excludes "
+                    "the direction, the data measure that tilt, so quote the "
+                    "angle with its interval."))]
 
 
 def _rad(x: float) -> str:
