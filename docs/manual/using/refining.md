@@ -677,12 +677,12 @@ key is `MagneticTrial.delta_bic` against a nuclear reference refined under the
 two models is the moment block and `n_added` is exactly
 `MagneticTrial.n_moment_parameters`. That is where parsimony enters: the
 `−n_added·ln N` term charges every extra amplitude, which is why a nested
-triple of groups reaching one profile comes out smallest-group-first. Behind it
-is `MagneticTrial.r_magnetic`, a profile R over only the channels the
+triple of groups reaching one profile comes out smallest-group-first. Beside
+it is `MagneticTrial.r_magnetic`, a profile R over only the channels the
 nuclear model puts nothing on, where 1 means "explains none of the intensity
 there" and 0 means "explains all of it", a number a whole-pattern Rwp,
-dominated by the nuclear lines, cannot give you. Behind that, parsimony as a
-literal tiebreak. A supported moment is a precondition, not a column: a trial
+dominated by the nuclear lines, cannot give you. It is reported and ranks
+nothing, and nothing breaks a ΔBIC tie. A supported moment is a precondition, not a column: a trial
 whose every moment fails WP-1327's null test cannot win however good its ΔBIC,
 and neither can one whose ΔBIC is not positive, however well supported its
 moment. When no trial passes both, the verdict is that there is nothing to
