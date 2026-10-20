@@ -1435,18 +1435,33 @@ ROWS: tuple[Row, ...] = (
         evidence="arithmetic: pi/180"),
     Row("rietx.model.tof_spectrum.POINT_BY_POINT_ITYP", "constant", tier=1, value=10,
         evidence="format: GSAS Technical Manual p. 129, 222 define ITYP 10 (docstring)"),
-    Row("rietx.optimize.bccg._CAUCHY_ARMIJO", "constant", tier=2, value=0.0001,
+    Row("rietx.optimize.bccg._CAUCHY_ARMIJO", "constant", tier=3, value=0.0001,
         evidence=("Moré & Toraldo (1991) SIAM J. Optim. 1, 93 for the projected search (docstring);"
-                  " 1e-4 is the textbook Armijo c1 (recalled, not checked)")),
+                  " 1e-4 is the textbook Armijo c1 (recalled, not checked)"),
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
     Row("rietx.optimize.bccg._CAUCHY_HALVINGS", "constant", tier=1, value=60,
         evidence=("arithmetic: 2^-60 = 8.7e-19 sits below fp64 epsilon, so no further halving "
                   "changes the point")),
-    Row("rietx.optimize.bccg._CONVERGED_FRACTION", "constant", tier=2, value=0.0001,
+    Row("rietx.optimize.bccg._CONVERGED_FRACTION", "constant", tier=3, value=0.0001,
         evidence=("Coelho (2005) J. Appl. Cryst. 38, 455, § 2 termination (docstring; paper not on "
-                  "disk)")),
-    Row("rietx.optimize.bccg._CONVERGED_RUNS", "constant", tier=2, value=3,
+                  "disk)"),
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
+    Row("rietx.optimize.bccg._CONVERGED_RUNS", "constant", tier=3, value=3,
         evidence=("Coelho (2005) J. Appl. Cryst. 38, 455, § 2 termination (docstring; paper not on "
-                  "disk)")),
+                  "disk)"),
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
     Row("rietx.optimize.bccg._PCG_BUDGET_PER_VARIABLE", "constant", tier=3, value=2,
         evidence=("WP-1953: 24 NAC Pawley systems, 2n held every solve under 0.64 s, Rwp "
                   "0.12620721 against 0.12620514 unbudgeted; one family; second pass owed (refits "
@@ -1461,17 +1476,28 @@ ROWS: tuple[Row, ...] = (
         grounds=("A solver-path switch no refiner has a view on; kept at tier 3 until refits of "
                  "three families on either side give one answer (B10, ruled 2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.optimize.bccg._SMALL_FACTOR", "constant", tier=2, value=200.0,
-        evidence="Coelho (2005) J. Appl. Cryst. 38, 455, eq (2) (docstring; paper not on disk)"),
-    Row("rietx.optimize.bccg._SMALL_RUNS", "constant", tier=2, value=6,
-        evidence="Coelho (2005) J. Appl. Cryst. 38, 455, § 2 (docstring; paper not on disk)"),
+    Row("rietx.optimize.bccg._SMALL_FACTOR", "constant", tier=3, value=200.0,
+        evidence="Coelho (2005) J. Appl. Cryst. 38, 455, eq (2) (docstring; paper not on disk)",
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
+    Row("rietx.optimize.bccg._SMALL_RUNS", "constant", tier=3, value=6,
+        evidence="Coelho (2005) J. Appl. Cryst. 38, 455, § 2 (docstring; paper not on disk)",
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
     Row("rietx.optimize.blocked.DENSE_JACOBIAN_MAX_BYTES", "constant", tier=3, value=268435456,
         evidence=("switches the dense solve to the blocked one; "
                   "tests/test_parametric_series.py::test_a_blocked_fit_lands_on_the_dense_answer holds "
                   "the two within 0.01 esd on one case; refits of three families on either side owed"),
-        grounds=("A solver-path switch no refiner has a view on; kept at tier 3 until refits of three "
-                 "families on either side give one answer (B10, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+        grounds=("A solver-path switch no refiner has a view on, the seventh beside B10's six; "
+                 "tier 3 until refits of three families on either side give one answer "
+                 "(ruled 2026-10-20)."),
+        approved="2026-10-20"),
     Row("rietx.optimize.blocked._DENSE_EIGEN_MAX", "constant", tier=3, value=64,
         evidence=("dense against blocked eigen-solve switch; no test drives a fit across 64; an identity "
                   "test is owed"),
@@ -1525,9 +1551,14 @@ ROWS: tuple[Row, ...] = (
         grounds=("A solver-path switch no refiner has a view on; kept at tier 3 until refits of "
                  "three families on either side give one answer (B10, ruled 2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.optimize.lm._CONVERGED_RUNS", "constant", tier=2, value=3,
+    Row("rietx.optimize.lm._CONVERGED_RUNS", "constant", tier=3, value=3,
         evidence=("Coelho (2018) J. Appl. Cryst. 51, 428, termination rule (docstring: 'Coelho's "
-                  "own criterion'; paper not on disk)")),
+                  "own criterion'; paper not on disk)"),
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
     Row("rietx.optimize.lm._CURVATURE_GATE", "constant", tier=3, value=100.0,
         evidence=("WP-1953: 3762 of 3831 LM solves never raise lambda past 10, and the crawls it "
                   "catches pass 1e8; no measurement chose 100 over 30 or 1000; second pass owed "
@@ -1542,18 +1573,38 @@ ROWS: tuple[Row, ...] = (
         evidence=("numerical floor: eps*m, the rounding error of one inner product over m terms "
                   "(Higham 2002 §3.1; docstring)")),
     Row("rietx.optimize.lm._INNER_MAX", "constant", value=18),
-    Row("rietx.optimize.lm._LAMBDA_FAIL_FACTOR", "constant", tier=2, value=10.0,
+    Row("rietx.optimize.lm._LAMBDA_FAIL_FACTOR", "constant", tier=3, value=10.0,
         evidence=("Coelho (2018) J. Appl. Cryst. 51, 428, eq (9) (docstring; WP-0601 restates it; "
-                  "paper not on disk, not checked)")),
-    Row("rietx.optimize.lm._LAMBDA_FAIL_FLOOR", "constant", tier=2, value=0.1,
+                  "paper not on disk, not checked)"),
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
+    Row("rietx.optimize.lm._LAMBDA_FAIL_FLOOR", "constant", tier=3, value=0.1,
         evidence=("Coelho (2018) J. Appl. Cryst. 51, 428, eq (9) (docstring; WP-0601 restates it; "
-                  "paper not on disk, not checked)")),
-    Row("rietx.optimize.lm._M_HI", "constant", tier=2, value=10.0,
+                  "paper not on disk, not checked)"),
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
+    Row("rietx.optimize.lm._M_HI", "constant", tier=3, value=10.0,
         evidence=("Coelho (2018) J. Appl. Cryst. 51, 428, eq (9) (docstring; WP-0601 restates it; "
-                  "paper not on disk, not checked)")),
-    Row("rietx.optimize.lm._M_LO", "constant", tier=2, value=0.4,
+                  "paper not on disk, not checked)"),
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
+    Row("rietx.optimize.lm._M_LO", "constant", tier=3, value=0.4,
         evidence=("Coelho (2018) J. Appl. Cryst. 51, 428, eq (9) (docstring; WP-0601 restates it; "
-                  "paper not on disk, not checked)")),
+                  "paper not on disk, not checked)"),
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
     Row("rietx.optimize.lm._NULL_CURVATURE", "constant", tier=1, value=1.4901161193847656e-08,
         evidence=("numerical floor: sqrt(eps); at the cut itself three of 1000 random problems "
                   "stayed rank-deficient, sqrt(eps) left none (docstring)")),
@@ -1578,12 +1629,22 @@ ROWS: tuple[Row, ...] = (
         evidence=("numerical floor: rounding bound of a sum of N squares, N*eps/2 ~ 1e-12 at N ~ "
                   "9e3 (Higham 2002 §3.1; docstring: S is a sum of ~1e4 squares, resolution "
                   "~1e-16*S)")),
-    Row("rietx.optimize.lm._Q_TRIGGER", "constant", tier=2, value=5,
+    Row("rietx.optimize.lm._Q_TRIGGER", "constant", tier=3, value=5,
         evidence=("Coelho (2018) J. Appl. Cryst. 51, 428, eq (9) (docstring; WP-0601 restates it; "
-                  "paper not on disk, not checked)")),
-    Row("rietx.optimize.lm._Q_WINDOW", "constant", tier=2, value=10,
+                  "paper not on disk, not checked)"),
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
+    Row("rietx.optimize.lm._Q_WINDOW", "constant", tier=3, value=10,
         evidence=("Coelho (2018) J. Appl. Cryst. 51, 428, eq (9) (docstring; WP-0601 restates it; "
-                  "paper not on disk, not checked)")),
+                  "paper not on disk, not checked)"),
+        grounds=("A constant that decides where a solve stops, taken from the paper that "
+                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
+                 "tier 3 until refits of three families on either side give one answer, as "
+                 "B10's solver-path switches (ruled 2026-10-20)."),
+        approved="2026-10-20"),
     Row("rietx.optimize.lm._ROW_ROUNDING", "constant", tier=1, value=1e-12,
         evidence=("numerical floor: rounding of the row's own evaluation, 4.5e3 eps, seven decades "
                   "under the guards' 1e-9 (docstring)")),

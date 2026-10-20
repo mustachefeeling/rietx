@@ -150,6 +150,14 @@ briefs are in the session transcript; the measurements behind them are summarise
   is an info record, with no significance gate; every ΔBIC tie in `solve_magnetic`
   abstains, the tied classes listed fewest moment parameters first; the stationary angle's
   automatic interval stays automatic at 20-32 refits an angle. All three as recommended.
+- **Two re-tiers the generality reviewer asked for, approved the same day ("yes", "yes").**
+  The twelve solver stop constants (Coelho's LM rules `_M_HI`, `_M_LO`, `_Q_TRIGGER`,
+  `_Q_WINDOW`, `_LAMBDA_FAIL_FACTOR`, `_LAMBDA_FAIL_FLOOR`, `lm._CONVERGED_RUNS`; BCCG's
+  `_CONVERGED_FRACTION`, `_CONVERGED_RUNS`, `_SMALL_FACTOR`, `_SMALL_RUNS`; `_CAUCHY_ARMIJO`)
+  move from tier 2 to tier 3 with refits of three families on either side owed, as B10's
+  switches. `DENSE_JACOBIAN_MAX_BYTES` joins the six as the seventh solver-path switch.
+  `SCHERRER_K`, `BOND_SLACK_ANG` and `STEPS_PER_FWHM_*`, which the reviewer listed beside
+  them, were not asked and stay at tier 2 for the second pass.
 
 ## Still open (first round's list, kept for the record)
 
