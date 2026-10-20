@@ -141,7 +141,7 @@ ruling B9 to the peak-position bounds, and the 11-BM NAC cell drifted 5129 ppm a
       new unaudited name fails, a deletion and a retune are listed. It turns lint red on
       the twelve PRs at their next push, so it lands with the `/pr-review` pass over them,
       and the handover says which goes first.
-- [ ] **`/pr-review`.** A step beside conformance: when the CI printout lists row deltas,
+- [x] **`/pr-review`.** A step beside conformance: when the CI printout lists row deltas,
       or a PR adds a module-level number under a not-walked directory, the session
       proposes a tier for each untiered row (as WP-2002's readers did), dispatches one
       `generality-review` per run over every PR's items, posts the proposed tiers as a

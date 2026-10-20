@@ -154,10 +154,11 @@ bookkeeping syncs, and nothing beyond them.
 
 **Pass B — review what is left, in throughput order**: collision degree, then
 reviewable lines (print the attention rank once; work this order). Steps 1-10
-apply with four changes: conformance always goes to `pr-conformance` agents
-(the run's length is the constraint, not one PR's size); a review held on a
-question (step 8) joins the batch; step 9's "stop and ask" becomes "defer and
-continue"; the per-PR report shrinks to its decision line.
+apply with five changes: conformance always goes to `pr-conformance` agents
+(the run's length is the constraint, not one PR's size); step 6b's judge runs
+once, after the last PR; a review held on a question (step 8) joins the batch;
+step 9's "stop and ask" becomes "defer and continue"; the per-PR report
+shrinks to its decision line.
 
 **After every merge**: `git fetch origin main` and re-test every remaining PR
 with `git merge-tree --write-tree origin/main refs/pr/N`, carrying the
@@ -200,7 +201,8 @@ context, so a WP number or a name the run coined carries a gloss. A genuine
 judgement call adds why it matters, each option's consequence and the
 practice it rests on. A clear-cut item stays one line. Open with how many
 items need a judgement. Group: PRs by other authors (§ Triage), then
-governance calls, then held reviews, then held merges.
+governance calls, then tier rulings by class (step 6b), then held reviews,
+then held merges.
 `AskUserQuestion` only for ≤ 4 genuine multi-way choices. Then apply in one
 pass — post, merge, close — with a step-10 line each. **A gate main has moved
 under is void**: before merging a freed PR compare `origin/main` with the sha
@@ -393,7 +395,37 @@ line if the checkpoint ended it. Close with
    as evidence, a reader repairing a file without a diagnostic, GPL-derived
    code, a diagnostic code or a measured operating rule with no agent-skill
    row (root CLAUDE.md § skill: the body, or the task shape's reference),
-   physics with Part 1 prose but no Part 2 equation.
+   physics with Part 1 prose but no Part 2 equation, a skill row telling
+   agents to call a `caller` verb (it makes the verb a default path), a
+   finding from one dataset written into a CLAUDE.md as a rule.
+6b. **The generality audit table** (WP-2014). Every decision the package
+   makes on its own has a row in `src/rietx/_audit.py` with a tier, and an
+   author choosing their own tier is the self-certification the table exists
+   against. Two triggers. `RIETX_CAPS_BASE=<the main it merged>
+   .venv/bin/python -m tests.audit_delta`, run in the bench on the merged
+   tree, lists row deltas; CI's lint step prints the same list in its
+   summary. Or the diff adds a module-level number under an entry
+   `_audit.NOT_WALKED` declares out (an added line matching
+   `^\+[A-Z_][A-Z0-9_]* *(:[^=]*)?= *[-+0-9.(]`), which the walk cannot see.
+   - **Propose a tier** for each row the author left at `unaudited`, and read
+     again each row they put at 1 or `invariant`, the two tiers that need no
+     ruling. Work from the constant's docstring, its call sites and
+     `docs/milestones/generality.md` § The rule, and write each as the row
+     it would be, with its evidence.
+   - **Judge once per run.** Collect every PR's items in
+     `$SCRATCH/generality-items.md`: per PR its diff file, its description,
+     the printout and your proposed rows. Dispatch one `generality-review`
+     agent over the whole file, after Pass B in the `all` mode and here for
+     one PR. Verify each `fails` yourself before it goes public.
+   - **Post the proposed rows** in the PR's step-8 review, each with the
+     judge's one-line verdict. In the `all` mode that review waits for the
+     judge and goes out in the apply pass.
+   - **Tier-3 rows and tier-2 actions go to the batch, grouped by class**:
+     one question for every row resting on the same evidence (WP-2002 ruled
+     256 rows as 16 classes). After a ruling, write `grounds` and `approved`
+     (the ruling's date) into the PR's rows. Push them to its branch where
+     `gh pr view N --json maintainerCanModify` says true; otherwise ask the
+     contributor in the review.
 7. **`/code-review medium N`** for `src/` changes above step 6's ~200 lines;
    name the level (unnamed, it reuses whatever was typed last). **Never while a
    suite holds the bench**: the review forks into the session's working
@@ -420,7 +452,8 @@ line if the checkpoint ended it. Close with
    ladder green on the merged tree, counts quoted; the **full `-m slow` suite
    green on the merged tree**, nothing else mid-suite, against the main that is
    there *now*; no execution-shaped file without the step-4 read; no
-   conformance finding; no new public surface undocumented; every data file
+   conformance finding; every audit-table row tiered and every tier-3 row
+   ruled (step 6b); no new public surface undocumented; every data file
    with provenance (and a licence if in the wheel); no maintainer-machinery
    edit; no open question. Name which each merge satisfied. **Say which PRs
    you merged**: `origin/main` moves under every live WP session. Close only
