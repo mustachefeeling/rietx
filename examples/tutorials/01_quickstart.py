@@ -71,7 +71,7 @@ diag
 #
 # The background is a six-term Chebyshev polynomial, its constant term started at the floor of the data.
 # Left at zero, the first pass hands the whole pedestal to the peaks.
-# `rx.auto_background(data)` would size a penalised spline instead.
+# `rx.auto_background(data).background` would size a penalised spline instead.
 # On this pattern the spline reports hundreds of correlated coefficient pairs.
 # They would crowd the diagnostics below.
 

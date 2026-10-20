@@ -1374,9 +1374,12 @@ def _fit(structure, instrument, data, plan, ties=None, limits=None, hold=()):
     for _n in range(SOLVE_MAX_CONTINUATIONS):
         if result.status != "max_iter":
             break
+        # the plan's absent-phase hold carries into the continuation, or a
+        # trial run with it off would be continued under the default (WP-2002)
         result = ref.fit(data, plan=RefinementPlan(stages=[Stage(
             f"{last.name} (continued)", freed, max_iter=last.max_iter,
-            ftol=last.ftol)]), two_theta_limits=limits, telemetry=False)
+            ftol=last.ftol)], phase_support_sigma=plan.phase_support_sigma),
+            two_theta_limits=limits, telemetry=False)
     return ref, result
 
 
@@ -2249,7 +2252,10 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
         if nuclear_stages and turn_on == nuclear_stages[-1].turn_on:
             continue
         nuclear_stages.append(Stage(stage.name, turn_on))
-    nuclear_plan = RefinementPlan(stages=nuclear_stages)
+    # the trials' absent-phase hold, so the reference a ΔBIC compares them
+    # with is fitted under the same rule (WP-2002, B1)
+    nuclear_plan = RefinementPlan(stages=nuclear_stages,
+                                  phase_support_sigma=plan.phase_support_sigma)
 
     def enumerate_for(k_try):
         """Candidate classes for one k, or a sentence saying why there are none."""
@@ -2554,13 +2560,23 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     reference = _reported_reference(reference_of, references, kk, ordered)
     if reference is not None:
         n_eff, n_raw = reference[6], reference[7]
-        caveats.append(
-            f"ΔBIC charges {n_eff:.0f} observations, not the {n_raw} fitted "
-            f"channels: N/f², with f = {math.sqrt(n_raw / n_eff):.2f} the "
-            f"Bérar-Lelann factor of the nuclear reference's fit (issue #270). "
-            f"Neighbouring channels of one peak share the sign of their "
-            f"misfit, so the raw count would charge the same misfit several "
-            f"times and let any χ² gain outvote the parameter penalty")
+        if n_eff >= n_raw:
+            # f is floored at 1, and ``_effective_count`` reads N unchanged
+            # where the reference carried no row with both esds (issue #270)
+            caveats.append(
+                f"ΔBIC charges the raw {n_raw} fitted channels: the nuclear "
+                f"reference's fit gave no Bérar-Lelann factor above 1, or no "
+                f"esd to measure one on, so the count is not corrected for "
+                f"neighbouring channels sharing their misfit")
+        else:
+            caveats.append(
+                f"ΔBIC charges {n_eff:.0f} observations, not the {n_raw} "
+                f"fitted channels: N/f², with f = "
+                f"{math.sqrt(n_raw / n_eff):.2f} the Bérar-Lelann factor of "
+                f"the nuclear reference's fit (issue #270). Neighbouring "
+                f"channels of one peak share the sign of their misfit, so the "
+                f"raw count would charge the same misfit several times and let "
+                f"any χ² gain outvote the parameter penalty")
     solution = MagneticSolution(
         verdict=verdict, reason=why, criterion=_CRITERION, phase=parent.name,
         space_group=parent.space_group,

@@ -398,6 +398,12 @@ def attach_stationary_intervals(refinement, data, *, cancel=None) -> None:
                                             record=False, cancel=cancel)
         except RefinementCancelled:
             break
+        except ValueError:
+            # a precondition :func:`profile_interval` refuses (a row no longer
+            # free, no step to walk in): the fit already returned its answer,
+            # so this angle keeps ``None`` and the finding says none was
+            # computed, rather than the finished fit raising
+            continue
     (rebuilt,) = moment_angle_stationary_diagnostics(stage, result.parameters)
     diagnostics = list(result.diagnostics)
     at = next((i for i, d in enumerate(diagnostics)

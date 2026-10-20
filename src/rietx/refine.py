@@ -4342,7 +4342,13 @@ class Refinement:
             # the hold and PHASE_UNCONSTRAINED cannot disagree; every other
             # phase is read again off the second solve's own covariance
             decided = support
-            support = _answer_significance(model, table, outcome, [],
+            # a cell the second solve's reset put back moved the values off
+            # the point ``outcome.jac`` was taken at, so the measurement builds
+            # its own there, the first reset's rule; the guards below keep the
+            # solve's Jacobian
+            measured = (dataclasses.replace(outcome, jac=None) if second_runaway
+                        else outcome)
+            support = _answer_significance(model, table, measured, [],
                                            held_reach, self._backend,
                                            sigma=report_sigma)
             for ip in _phases_reached(support_held, held_reach):
