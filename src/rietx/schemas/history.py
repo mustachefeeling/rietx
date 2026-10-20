@@ -72,6 +72,16 @@ class NodeAction(Base):
     run did not do.  Additive, both defaulting to the solver/compiler default,
     so a pre-WP-1123 node replays exactly as it did.
 
+    ``phase_support_sigma``/``correlation_guard`` (WP-2002, B1) are the two
+    plan settings a stage reads, recorded as the stage **ran** them for
+    ``ftol``'s reason: they are ``Refinement.run_stage`` keywords rather than
+    ``Stage`` fields, so a cherry-pick that rebuilt the ``Stage`` alone would
+    replay a stage run with the hold off, or at 5σ, at the default 3σ.  The
+    defaults are literals, the 3σ and 0.98 every node written before the
+    fields ran under unless a plan set another guard, so an old node loads
+    and replays as it always did.  Written on ``"stage"`` nodes only; every
+    other kind carries the defaults, which is what ``replay`` reads them at.
+
     ``ties``/``untied`` (WP-1070) are the ``"set_tie"`` action's own arguments,
     additive under the same rule.  They record what the action *did*, not the
     state it left: the whole tie register lives on
@@ -93,6 +103,11 @@ class NodeAction(Base):
     restraint_weight_scale: float = 1.0
     ftol: float | None = None
     window_slack_deg: float | None = None
+    #: the absent-phase hold's threshold the stage ran at (``None``: the hold
+    #: was off), written by ``Refinement._run_plan`` and ``run_stage``
+    phase_support_sigma: float | None = 3.0
+    #: the |ρ| the stage's correlation guard reported above, written beside it
+    correlation_guard: float = 0.98
     ties: dict[str, TieSpec] = Field(default_factory=dict)
     untied: list[str] = Field(default_factory=list)
     #: ``"set_variable"``'s own arguments (WP-1119), by the same rule as
@@ -131,8 +146,15 @@ class NodeAction(Base):
                  ("ftol", self.ftol, None),
                  ("window_slack_deg", self.window_slack_deg, None))
                 if v != off)
+            # the plan settings are run_stage's keywords, not the Stage's, so
+            # they follow the Stage's parenthesis, on the same rule
+            settings = "".join(
+                f", {n}={v!r}" for n, v, off in
+                (("correlation_guard", self.correlation_guard, 0.98),
+                 ("phase_support_sigma", self.phase_support_sigma, 3.0))
+                if v != off)
             return (f"ref.run_stage(data, rx.Stage({self.name!r}, {self.turn_on!r}, "
-                    f"max_iter={self.max_iter}{extras}))")
+                    f"max_iter={self.max_iter}{extras}){settings})")
         if self.kind == "set_vary":
             parts = []
             if self.turn_on:

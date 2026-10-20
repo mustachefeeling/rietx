@@ -527,6 +527,112 @@ def test_stage_node_without_seeds_renders_unchanged(fitted):
         "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=40))")
 
 
+# ------------------------------- the plan settings a stage ran at (WP-2002, B1)
+def _with_settings(plan, **settings):
+    import dataclasses
+
+    return dataclasses.replace(plan, **settings)
+
+
+def test_a_cherry_pick_replays_the_plan_settings_the_stage_ran_at(pattern):
+    """The absent-phase threshold and the correlation guard are ``run_stage``
+    keywords, not ``Stage`` fields, so a node that kept only the ``Stage``
+    replayed a stage run at 5σ, or with the hold off, at the default 3σ."""
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins)
+    ref.fit(pattern, plan=_with_settings(SHORT, phase_support_sigma=5.0,
+                                         correlation_guard=0.9),
+            telemetry=False)
+    picked = ref.history.order[-1]
+    action = ref.history[picked].action
+    assert (action.phase_support_sigma, action.correlation_guard) == (5.0, 0.9)
+    assert action.api_call().endswith(
+        "max_iter=40), correlation_guard=0.9, phase_support_sigma=5.0)")
+    reloaded = rx.NodeAction.model_validate_json(action.model_dump_json())
+    assert (reloaded.phase_support_sigma, reloaded.correlation_guard) == (5.0, 0.9)
+
+    # from a working tree whose last run was at the defaults, so the replay
+    # can only have read its settings off the node
+    ref.run_stage(pattern, rx.Stage("bkg", ["instrument.background.*"],
+                                    max_iter=5), telemetry=False)
+    ref.cherry_pick(picked, pattern)
+    again = ref.history[ref.history.order[-1]].action
+    assert (again.phase_support_sigma, again.correlation_guard) == (5.0, 0.9)
+
+
+def test_the_hold_switched_off_is_recorded_and_rendered():
+    """``None`` is a setting, not an absence: the node says the hold was off
+    and the rendered call switches it off again."""
+    action = rx.NodeAction(kind="stage", name="cell", turn_on=["phases.*.cell.*"],
+                           phase_support_sigma=None)
+    assert action.api_call() == (
+        "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], "
+        "max_iter=100), phase_support_sigma=None)")
+    reloaded = rx.NodeAction.model_validate_json(action.model_dump_json())
+    assert reloaded.phase_support_sigma is None
+
+
+def test_a_node_written_before_the_plan_settings_replays_at_the_defaults(
+        tmp_path, pattern):
+    """A history file from before the fields loads, renders its call as it
+    always did, and cherry-picks at the 3σ and 0.98 it ran under."""
+    import json
+
+    from rietx.history.tree import RefinementTree
+
+    path = tmp_path / "old.jsonl"
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=path)
+    ref.fit(pattern, plan=_with_settings(SHORT, phase_support_sigma=5.0,
+                                         correlation_guard=0.9),
+            telemetry=False)
+    lines = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        record = json.loads(line)
+        if record.get("record") == "node":
+            record["node"]["action"].pop("phase_support_sigma")
+            record["node"]["action"].pop("correlation_guard")
+        lines.append(json.dumps(record))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    tree = RefinementTree.load(path)
+    picked = tree.order[-1]
+    action = tree[picked].action
+    assert (action.phase_support_sigma, action.correlation_guard) == (3.0, 0.98)
+    assert action.api_call() == (
+        "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=40))")
+
+    old = rx.Refinement.from_node(tree, picked)
+    old.cherry_pick(picked, pattern)
+    again = tree[tree.order[-1]].action
+    assert (again.phase_support_sigma, again.correlation_guard) == (3.0, 0.98)
+
+
+def test_replay_reads_the_report_threshold_off_the_node(pattern, monkeypatch):
+    """``replay`` builds a result whose ``PHASE_UNCONSTRAINED`` is read
+    against a threshold: the one the stage ran at, never the default."""
+    import importlib
+
+    # the module, which ``rietx.refine`` is not: the package exports the
+    # function of that name over it
+    refine_module = importlib.import_module("rietx.refine")
+
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins)
+    ref.fit(pattern, plan=_with_settings(SHORT, phase_support_sigma=5.0),
+            telemetry=False)
+    seen = []
+    build = refine_module._build_result
+
+    def spy(*args, **kw):
+        seen.append(kw.get("phase_support_sigma"))
+        return build(*args, **kw)
+
+    monkeypatch.setattr(refine_module, "_build_result", spy)
+    replay(ref.history, ref.history.order[-1], pattern)
+    assert seen == [5.0]
+
+
 # ------------------------------------------------- user constraints (WP-1070)
 def test_replay_restores_the_ties_the_node_was_recorded_under(pattern):
     """A replay under a different parameter count is not a replay.

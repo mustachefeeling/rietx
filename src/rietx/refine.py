@@ -3783,7 +3783,8 @@ class Refinement:
         """Re-run another node's *stage action* on top of the current state.
 
         Takes the recorded action (stage name, turn-on globs, iteration
-        budget) — not the recorded parameter values — and executes it from
+        budget, and the absent-phase threshold and correlation guard it ran
+        at) — not the recorded parameter values — and executes it from
         here, exactly like ``git cherry-pick`` replays a commit's diff.  This
         is the enabling verb for reusing a refined strategy on a different
         branch (and, in v0.5, on a different sample via
@@ -3807,7 +3808,12 @@ class Refinement:
                       restraint_weight_scale=node.action.restraint_weight_scale,
                       ftol=node.action.ftol,
                       window_slack_deg=node.action.window_slack_deg)
-        return self.run_stage(data, stage)
+        # and the plan settings the stage ran under, which are run_stage's
+        # keywords rather than the Stage's (WP-2002, B1): the 3σ and 0.98 for
+        # a node written before the fields
+        return self.run_stage(
+            data, stage, correlation_guard=node.action.correlation_guard,
+            phase_support_sigma=node.action.phase_support_sigma)
 
     # ------------------------------------------------------------------
     # fitting
@@ -5052,6 +5058,10 @@ class Refinement:
                     # (Stage.ftol is None for every stage taking the plan's
                     # schedule), because a cherry-pick re-runs what happened
                     ftol=ftol, window_slack_deg=stage.window_slack_deg,
+                    # and the plan's two settings, for the same reason
+                    # (WP-2002, B1)
+                    phase_support_sigma=phase_support_sigma,
+                    correlation_guard=plan.correlation_guard,
                 ), model, table, outcome, stage_diagnostics)
         # the converged vector's own findings, and nothing earlier: the same
         # ``guard`` object ``_build_result`` projects ``at_bound`` from
@@ -5325,6 +5335,8 @@ class Refinement:
                     seed=stage.seed, strain_seed=stage.strain_seed,
                     restraint_weight_scale=stage.restraint_weight_scale,
                     ftol=stage.ftol, window_slack_deg=stage.window_slack_deg,
+                    phase_support_sigma=phase_support_sigma,
+                    correlation_guard=correlation_guard,
                 ), model, table, outcome, diagnostics)
 
             # after the node, which keeps its as-optimised metrics: the result
@@ -9809,7 +9821,10 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     result = _build_result(
         model, table, table.x0(), mode=state.mode,
         status=node.metrics.status or "converged", stage_results=[],
-        diagnostics=list(node.diagnostics), structure=structure)
+        diagnostics=list(node.diagnostics), structure=structure,
+        # ``PHASE_UNCONSTRAINED`` read against the threshold the stage ran
+        # at, or the default where the node is not a stage (WP-2002, B1)
+        phase_support_sigma=node.action.phase_support_sigma)
     result.node_id = node.id
     result.tree_id = tree.header.tree_id
     return result

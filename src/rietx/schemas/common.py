@@ -517,6 +517,12 @@ from .._nearmiss import did_you_mean
 #: esd without the Bérar-Lelann factor, as GSAS-II and FullProf print it.
 #: Additive and defaulted to ``None``, the 0.25 → 0.26 rule; both fit
 #: builders write it on every row that has an esd.
+#: Also in 0.59 (WP-2002, B1): ``NodeAction.phase_support_sigma`` and
+#: ``.correlation_guard``, the two plan settings a stage ran at, so a
+#: cherry-pick replays them.  Additive and defaulted to the 3σ and 0.98 the
+#: package defaulted to before them (a plan's own guard went unrecorded), the
+#: 0.4 → 0.5 rule for ``NodeAction.ftol``; both stage runners write them on
+#: every stage node.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

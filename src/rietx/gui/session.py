@@ -2703,8 +2703,11 @@ class GuiSession:
         # both hoisted: ``_held`` rebuilds a ParameterTable and ``_indexing`` probes
         # every optional dependency's import, and a report carries a dozen actions
         held, indexing = self._held(), _indexing()
+        # the stored plan, whose two settings an applied stage runs at
+        stored = self._need_project().doc.plan
         return {"report": report.model_dump(mode="json"),
-                "apply": [describe_action(a, held=held, indexing=indexing)
+                "apply": [describe_action(a, held=held, indexing=indexing,
+                                          plan=stored)
                           for a in report.suggested_actions]}
 
     def _held(self) -> dict[str, str]:
@@ -2761,7 +2764,9 @@ class GuiSession:
                             "rationale": action.rationale,
                             "expected_delta_chi2": action.expected_delta_chi2,
                             "stage": stage.model_dump(mode="json")},
-                "api_call": api_call(stage), "undo": undo,
+                # at the stored plan's settings, which ``Project.run_stage``
+                # ran the stage at and its node records (WP-2002, B1)
+                "api_call": api_call(stage, plan=p.doc.plan), "undo": undo,
                 "chi2_before": before, **frame}
 
     # ------------------------------------------------------------------
