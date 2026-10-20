@@ -546,7 +546,7 @@ class Atom(_InheritsDeclaredDefaults):
     # a step and never the answer (Tech Ref § 2.17, Table 2-1).  The 1.5
     # ceiling it carried before 1.10 stopped a mineralogist refining site
     # scattering: Mg declared on a mixed Fe-Mg site reads 26/12 ≈ 2.2 at full
-    # Fe.  ``OCCUPANCY_ABOVE_ONE`` warns on a refined value above 1.
+    # Fe.  ``OCCUPANCY_ABOVE_ONE`` reports a refined value above 1 (info).
     #
     # **B_iso is unbounded** (WP-1534, decided 2026-10-04), as in FullProf,
     # TOPAS and GSAS-II, which bound no displacement parameter by default.

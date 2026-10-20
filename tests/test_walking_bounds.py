@@ -649,8 +649,9 @@ def test_an_occupancy_above_one_refines_and_is_reported():
     assert occ.value > 1.5 and occ.at_bound is not True
     assert occ.value == pytest.approx(2.2, abs=4 * occ.stderr)
     [flag] = [d for d in result.diagnostics if d.code == "OCCUPANCY_ABOVE_ONE"]
+    # an info record: noise alone puts a free full site above 1 half the time
     assert (flag.level, flag.where, flag.value) == (
-        "warning", ["phases.0.atoms.0.occ"], occ.value)
+        "info", ["phases.0.atoms.0.occ"], occ.value)
     assert "esd above a full site" in flag.message
     assert "site scattering" in flag.suggestion
 

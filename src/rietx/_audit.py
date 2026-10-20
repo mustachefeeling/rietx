@@ -667,8 +667,10 @@ ROWS: tuple[Row, ...] = (
     Row("NEUTRON_RESONANT_ABSORBER", "code"),
     Row("OCCUPANCY_ABOVE_ONE", "code", tier=1, ambiguity=3,
         evidence=("physics: a full site is occupancy 1 by definition; reports the refined "
-                  "value and gates nothing (B9 ruling 2026-10-19: occupancy unbounded "
-                  "above, with a warning)")),
+                  "value with its distance in esds and gates nothing (B9 ruling "
+                  "2026-10-19: occupancy unbounded above; an info record, ruled "
+                  "2026-10-20, because noise puts a free full site above 1 about half "
+                  "the time, 1.032 ± 0.025 on synthetic LaB6)")),
     Row("ORIGIN_FIXED_ON_POLAR_AXIS", "code"),
     Row("ORIGIN_NOT_FIXED", "code"),
     Row("PARAMETRIC_FORM_REJECTED", "code"),

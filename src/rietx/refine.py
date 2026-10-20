@@ -9565,11 +9565,13 @@ def _occupancy_flag_diagnostics(values: dict[str, float], moving: set[str],
     declaration back on every fit.  Strictly above 1, so a site refined to
     exactly full is silent.
 
-    No significance gate, so a full site refined freely lands above 1 by
-    counting noise about half the time (measured on synthetic LaB6: true
-    occupancy 1.0, refined 1.032 ± 0.025).  The message therefore states the
-    distance in esds wherever ``esds`` holds one, so a reader can tell noise
-    from a site that really scatters more than its declared species.
+    An info record, never a warning (ruled 2026-10-20).  A full site refined
+    freely lands above 1 by counting noise about half the time (measured on
+    synthetic LaB6: true occupancy 1.0, refined 1.032 ± 0.025), so a warning
+    fired on half of honest fits, and a significance gate would add a chosen
+    number of esds.  The message states the distance in esds wherever
+    ``esds`` holds one, so a reader can tell noise from a site that really
+    scatters more than its declared species.
     """
     out: list[Diagnostic] = []
     for ip, phase in enumerate(structure.phases):
@@ -9585,7 +9587,7 @@ def _occupancy_flag_diagnostics(values: dict[str, float], moving: set[str],
             else:
                 how_far = f"{occ:.4g}, more than a full site"
             out.append(Diagnostic(
-                level="warning", code="OCCUPANCY_ABOVE_ONE",
+                level="info", code="OCCUPANCY_ABOVE_ONE",
                 where=[path], value=float(occ),
                 message=(f"Phase {ip} ({phase.name}): atom {atom.label!r} "
                          f"({atom.species}) refined its occupancy to "
