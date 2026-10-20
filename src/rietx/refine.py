@@ -3609,10 +3609,9 @@ class Refinement:
         ``esd_inflation`` — the calibration every esd carries, so on one
         quadratic basin the range reproduces W ± 1.96 esd.  The answer
         (:class:`~rietx.schemas.fraction.FractionProfile`) carries the grid,
-        the admissible range, and ``QPA_FRACTION_UNDETERMINED`` when an
-        admissible fraction lies more than
-        :data:`~rietx.schemas.fraction.FRACTION_PROFILE_EXCESS` times the
-        esd's 95 % half-width from the fit's.
+        the admissible range, and a ``QPA_FRACTION_RANGE`` info record
+        stating it and how far its farthest fraction lies from the fit's, in
+        the esd's 95 % half-widths.
 
         Opt-in and read-only: it costs one refit per grid point per axis (12
         each by default), all on a branch with ``telemetry=False``, so the

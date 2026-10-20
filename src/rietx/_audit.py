@@ -559,7 +559,16 @@ ROWS: tuple[Row, ...] = (
     Row("INDEX_VALIDATION_FAILED", "code"),
     Row("INDEX_VOLUME_UNPHYSICAL", "code"),
     Row("INDEX_Z_NOT_INTEGER", "code"),
-    Row("K_VECTOR_UNSEPARATED", "code"),
+    Row("K_VECTOR_UNSEPARATED", "code", tier=3, ambiguity=2,
+        evidence=("info; fires when the top two k trials' best eligible ΔBIC lie within "
+                  "SOLVE_K_TIE_DELTA_BIC, charged at N/f² since WP-2002 B12; Ba2FeSbSe5 1.5 K "
+                  "(PRB 103, 054115, not vendored) is the one family with two k refined; "
+                  "reports and changes no pick"),
+        grounds=("Reports only, beside k_trials, the ranking that travels with solve_magnetic's "
+                 "pick; Rare feature inside solve_magnetic, a pick verb whose whole ranking "
+                 "travels with the pick; the Kass-Raftery band is cited, the N/f² count it is "
+                 "applied to is rietx's own, so the row stays tier 3 (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("LANDE_G_ASSUMED", "code", tier=1, ambiguity=1,
         evidence=("physics: g_J from (S, L, J), Ashcroft & Mermin (1976) eq. 31.27 (docstring); "
                   "fires exactly when used")),
@@ -570,7 +579,17 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: fires exactly when the substitution was made (info); the "
                   "substitution's own tier is crystallography.magnetic.form_factor._ASSUMED_ION, "
                   "a hand row (a dict the walk cannot see; docs/wp/2002-batch/inventory.json)")),
-    Row("MAGNETIC_SUBGROUP_PREFERRED", "code"),
+    Row("MAGNETIC_SUBGROUP_PREFERRED", "code", tier=3, ambiguity=2,
+        evidence=("warning; fires when a maximal subgroup refit from the winner beats it by "
+                  "more than SOLVE_TIE_DELTA_BIC at the winner's own N/f² (WP-2002 B12); never "
+                  "swaps the winner; the descent audit's synthetic negative control (F m -3 m, "
+                  "BNS 71.536 against 12.62) stays inside the width; Cr2WO6 4 K and LaMnO3 50 K "
+                  "winners have no subgroup among their classes"),
+        grounds=("Reports only and hands the choice to the caller; Rare feature inside "
+                 "solve_magnetic, a pick verb whose whole ranking travels with the pick; the "
+                 "Kass-Raftery band is cited, the N/f² count it is applied to is rietx's own, "
+                 "so the row stays tier 3 (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("MAGNETIC_WIDTH_MOVED_MOMENT", "code"),
     Row("MAGNETIC_WIDTH_UNMEASURED", "code"),
     Row("MAGNETIC_WIDTH_UNMODELLED", "code"),
@@ -625,7 +644,11 @@ ROWS: tuple[Row, ...] = (
     Row("PEAK_WIDTH_LAW_MISMATCH", "code"),
     Row("PHASE_UNCONSTRAINED", "code"),
     Row("QPA_ESD_UNAVAILABLE", "code"),
-    Row("QPA_FRACTION_UNDETERMINED", "code"),
+    Row("QPA_FRACTION_RANGE", "code", tier=1, ambiguity=3,
+        evidence=("arithmetic: an info record on every width profile whose fit carries an esd, "
+                  "with no threshold (B12 3(a), ruled 2026-10-19, replacing "
+                  "QPA_FRACTION_UNDETERMINED); states the range and excess the profile "
+                  "computed, whose cut is FRACTION_PROFILE_DCHI2's row")),
     Row("QPA_UNAVAILABLE", "code"),
     Row("RAS_ATTENUATOR_PRESENT", "code"),
     Row("READER_OPTION_IGNORED", "code"),
@@ -784,11 +807,50 @@ ROWS: tuple[Row, ...] = (
                  "2026-10-19)."),
         approved="2026-10-19"),
     # constant: 546
-    Row("rietx.background.auto.AIR_SCATTER_TRIGGER", "constant", value=0.3),
-    Row("rietx.background.auto.AUTO_BACKGROUND_SEED_PERCENTILE", "constant", value=10.0),
-    Row("rietx.background.auto.HUMP_TRIGGER", "constant", value=0.05),
-    Row("rietx.background.auto._KNOT_STEP_HUMPY_DEG", "constant", value=3.0),
-    Row("rietx.background.auto._KNOT_STEP_SMOOTH_DEG", "constant", value=8.0),
+    Row("rietx.background.auto.AIR_SCATTER_TRIGGER", "constant", tier=3, value=0.3,
+        evidence=("v0.2: 0.3 sits between 0.85 (synthetic air scatter) and 1e-4 (flat), "
+                  "synthetics only; WP-1130 F7: a planted 900/(2θ) term reads 0.069, and #636: "
+                  "a synthetic capillary's rise reads 0.0035, so it misses both; "
+                  "AIR_SCATTER_UNDECLARED reports a missed rise after the fit"),
+        grounds=("On the default path, since the skill tells every agent to call "
+                 "auto_background (B12's ruling); the score and its trigger travel beside the "
+                 "pick on BackgroundChoice, so the choice is visible and the caller's to "
+                 "overrule (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.background.auto.AUTO_BACKGROUND_SEED_PERCENTILE", "constant", tier=3, value=10.0,
+        evidence=("WP-1542/#725: the skill's Le Bail rule 5 recipe, the 10th percentile; a "
+                  "private CW neutron showcase and three synthetics, no independent reference; "
+                  "GSAS-II 5.8.4 starts a new Chebyshev at (1.0, 0, 0) (GSASIIdataGUI.py:2207, "
+                  "inventory check)"),
+        grounds=("Read under seed=True, which the skill's Le Bail rule 5 passes, so on the "
+                 "default path (B12's ruling); the level travels as BackgroundChoice.seed_level "
+                 "(B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.background.auto.HUMP_TRIGGER", "constant", tier=3, value=0.05,
+        evidence=("v0.2: chosen on synthetics (tests/test_background_auto.py); WP-1130 F7: "
+                  "0.047 with a planted 40-count hump and 0.043 without, so it does not "
+                  "separate them; synthetic only"),
+        grounds=("On the default path, since the skill tells every agent to call "
+                 "auto_background (B12's ruling); the score and its trigger travel beside the "
+                 "pick on BackgroundChoice, so the choice is visible and the caller's to "
+                 "overrule (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.background.auto._KNOT_STEP_HUMPY_DEG", "constant", tier=3, value=3.0,
+        evidence=("WP-1454: 3° knots on IUCr CPD sample 2 (qarr) held Rwp and Biso flat from λ "
+                  "0.1 to 100; a v0.2 choice; no failure stated"),
+        grounds=("On the default path, since the skill tells every agent to call "
+                 "auto_background (B12's ruling); the score and its trigger travel beside the "
+                 "pick on BackgroundChoice, so the choice is visible and the caller's to "
+                 "overrule (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.background.auto._KNOT_STEP_SMOOTH_DEG", "constant", tier=3, value=8.0,
+        evidence=("v0.2: 8° knots measured R² 0.01-0.03 against broad peaks (v0.2.md:71); "
+                  "WP-1454: flat in λ on 11-BM NAC and IUCr CPD sample 2; no failure stated"),
+        grounds=("On the default path, since the skill tells every agent to call "
+                 "auto_background (B12's ruling); the score and its trigger travel beside the "
+                 "pick on BackgroundChoice, so the choice is visible and the caller's to "
+                 "overrule (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.background.auto._MIN_FIT_CHANNELS", "constant", tier=1, value=10,
         evidence=("numerical floor: mirrors compile_model's refusal of a fit on under 10 channels "
                   "(model/forward.py:3661); decides only whether the verb raises")),
@@ -1597,7 +1659,6 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.fraction.FRACTION_PROFILE_DCHI2", "constant", tier=2, value=3.84,
         evidence=("Venzon & Moolgavkar (1988) Appl. Statist. 37, 87: profile-likelihood cut at the "
                   "chi-squared(1) 95 % point (docstring)")),
-    Row("rietx.schemas.fraction.FRACTION_PROFILE_EXCESS", "constant", value=2.0),
     Row("rietx.schemas.fraction.FRACTION_PROFILE_FWHM_MIN", "constant", tier="caller", value=0.01,
         evidence=("pick verb: profile_fraction() no default path calls it (grep 2026-10-19); grid "
                   "start below a lab instrument's own width")),
@@ -1736,7 +1797,14 @@ ROWS: tuple[Row, ...] = (
                  "with the pick; kept at the measured value, untested beyond its one family (B12, "
                  "ruled 2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.strategy.magnetic.SOLVE_K_TIE_DELTA_BIC", "constant", value=10.0),
+    Row("rietx.strategy.magnetic.SOLVE_K_TIE_DELTA_BIC", "constant", tier=3, value=10.0,
+        evidence=("Kass & Raftery (1995) J. Am. Stat. Assoc. 90, 773: 2 ln B > 10 'very strong' "
+                  "(recalled; the docstring gives a rationale, not the cite); applied at N/f² "
+                  "since WP-2002 B12; no family measures the gap between two k"),
+        grounds=("Rare feature inside solve_magnetic, a pick verb whose whole ranking travels "
+                 "with the pick; the Kass-Raftery band is cited, the N/f² count it is applied "
+                 "to is rietx's own, so the row stays tier 3 (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.strategy.magnetic.SOLVE_K_TRIALS", "constant", tier=3, value=2,
         evidence=("magnetic.py docstring: Ba2FeSbSe5 1.5 K (Phys. Rev. B 103, 054115; not "
                   "vendored), two k index the same 11 peaks and intensity separates them; one "
@@ -1783,8 +1851,16 @@ ROWS: tuple[Row, ...] = (
                  "with the pick; kept at the measured value, untested beyond its one family (B12, "
                  "ruled 2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.strategy.magnetic.SOLVE_TIE_DELTA_BIC", "constant", value=6.0),
-    Row("rietx.strategy.magnetic.SOLVE_TIE_R_MAGNETIC", "constant", value=0.02),
+    Row("rietx.strategy.magnetic.SOLVE_TIE_DELTA_BIC", "constant", tier=3, value=6.0,
+        evidence=("Kass & Raftery (1995) J. Am. Stat. Assoc. 90, 773: 2 ln B 6-10 'strong' "
+                  "(docstring); at N/f² (WP-2002 B12) the winner's lead is 143 on Cr2WO6 4 K "
+                  "(HB-2A, f 3.38) and 164 on LaMnO3 50 K (BT-1, f 3.22), 1682 and 1704 at raw "
+                  "N, verdicts unchanged; Cr2WO6 150 K nothing to solve either way; a ΔBIC tie "
+                  "no longer falls to R_mag"),
+        grounds=("Rare feature inside solve_magnetic, a pick verb whose whole ranking travels "
+                 "with the pick; the Kass-Raftery band is cited, the N/f² count it is applied "
+                 "to is rietx's own, so the row stays tier 3 (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.strategy.magnetic.SOLVE_TOP_K", "constant", tier=3, value=3,
         evidence=("WP-1326/1418: no stated source, never measured; changes the answer only if a "
                   "fourth k would win"),
@@ -2012,12 +2088,36 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.refine:label", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: a run's name; tests/test_answer_invariant_defaults.py asserts "
                   "the answer bit-identical with it on")),
-    Row("rietx.background.auto.auto_background:kind", "default", value="pspline"),
-    Row("rietx.background.auto.auto_background:diagnostics", "default", value=None),
-    Row("rietx.background.auto.auto_background:wavelength", "default", value=None),
-    Row("rietx.background.auto.auto_background:two_theta_limits", "default", value=None),
-    Row("rietx.background.auto.auto_background:source", "default", value=None),
-    Row("rietx.background.auto.auto_background:seed", "default", value=False),
+    Row("rietx.background.auto.auto_background:kind", "default", tier=3, ambiguity=2, value="pspline",
+        evidence=("GSAS-II 5.8.4 defaults to a 3-term Chebyshev (GSASIIdataGUI.py:2207, "
+                  "inventory check), TOPAS and FullProf to polynomials (recalled); WP-1454: the "
+                  "P-spline at λ 1 flat on 11-BM NAC and IUCr CPD sample 2"),
+        grounds=("The skill presents the P-spline as the default background, so this is a "
+                 "default (B12's ruling); the kind travels as BackgroundChoice.kind and "
+                 "kind='chebyshev' is one keyword (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.background.auto.auto_background:diagnostics", "default", tier=1, ambiguity=1, value=None,
+        evidence=("arithmetic: None computes PatternDiagnostics from the data handed in, over "
+                  "two_theta_limits; a caller's copy is used as given, and the two scores the "
+                  "pick was made on ride on BackgroundChoice")),
+    Row("rietx.background.auto.auto_background:wavelength", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: reaches only diagnose's contamination screen, which "
+                  "auto_background does not read; tests/test_answer_invariant_defaults.py "
+                  "asserts the BackgroundChoice equal with it, on a Kβ-doped pattern the screen "
+                  "flags")),
+    Row("rietx.background.auto.auto_background:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
+        evidence=("the range a fit without limits uses (Refinement.fit:two_theta_limits); "
+                  "GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to "
+                  "the full data range on import (checked, the fit row)")),
+    Row("rietx.background.auto.auto_background:source", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: as wavelength, it reaches only the contamination screen; "
+                  "tests/test_answer_invariant_defaults.py asserts the BackgroundChoice equal "
+                  "with it")),
+    Row("rietx.background.auto.auto_background:seed", "default", tier=2, ambiguity=1, value=False,
+        evidence=("unseeded, every coefficient at the schema's 0.0; GSAS-II 5.8.4 starts a new "
+                  "Chebyshev at the constant (1.0, 0, 0) and not from the data "
+                  "(GSASIIdataGUI.py:2207, inventory check); seed=True is the opt-in, and #725 "
+                  "is open on flipping it")),
     Row("rietx.sequential.refine_sequential:carry", "default", value=("*",)),
     Row("rietx.sequential.refine_sequential:carry_hkl_intensities", "default", value=True),
     Row("rietx.sequential.refine_sequential:backend", "default", value="numpy"),
@@ -2232,7 +2332,7 @@ ROWS: tuple[Row, ...] = (
     Row("PEAK_WIDTH_LAW_MISMATCH.suggestion", "suggestion", value=2),
     Row("PHASE_UNCONSTRAINED.suggestion", "suggestion", value=1),
     Row("QPA_ESD_UNAVAILABLE.suggestion", "suggestion", value=1),
-    Row("QPA_FRACTION_UNDETERMINED.suggestion", "suggestion", tier=2, ambiguity=2, value=1,
+    Row("QPA_FRACTION_RANGE.suggestion", "suggestion", tier=2, ambiguity=3, value=1,
         evidence=("profile-likelihood interval in place of the Wald esd: Venzon & Moolgavkar (1988)"
                   " Appl. Statist. 37, 87; Hamilton (1965) (docstring)")),
     Row("QPA_UNAVAILABLE.suggestion", "suggestion", value=1),
@@ -2523,14 +2623,12 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "INDEX_VOLUME_UNPHYSICAL.suggestion",
     "INDEX_Z_NOT_INTEGER",
     "INDEX_Z_NOT_INTEGER.suggestion",
-    "K_VECTOR_UNSEPARATED",
     "LAUE_CLASS_NOT_SEPARABLE",
     "LAUE_CLASS_NOT_SEPARABLE.suggestion",
     "LEBAIL_ALTERNATION_STOPPED",
     "LEBAIL_ALTERNATION_STOPPED.suggestion",
     "LOW_ANGLE_UNMODELLED",
     "LOW_ANGLE_UNMODELLED.suggestion",
-    "MAGNETIC_SUBGROUP_PREFERRED",
     "MAGNETIC_WIDTH_MOVED_MOMENT",
     "MAGNETIC_WIDTH_MOVED_MOMENT.suggestion",
     "MAGNETIC_WIDTH_UNMEASURED",
@@ -2610,7 +2708,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "PHASE_UNCONSTRAINED.suggestion",
     "QPA_ESD_UNAVAILABLE",
     "QPA_ESD_UNAVAILABLE.suggestion",
-    "QPA_FRACTION_UNDETERMINED",
     "QPA_UNAVAILABLE",
     "QPA_UNAVAILABLE.suggestion",
     "RAS_ATTENUATOR_PRESENT",
@@ -2734,17 +2831,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "WAVELENGTH_CALIBRATION",
     "WAVELENGTH_CALIBRATION.suggestion",
     "XRDML_ATTENUATOR_APPLIED",
-    "rietx.background.auto.AIR_SCATTER_TRIGGER",
-    "rietx.background.auto.AUTO_BACKGROUND_SEED_PERCENTILE",
-    "rietx.background.auto.HUMP_TRIGGER",
-    "rietx.background.auto._KNOT_STEP_HUMPY_DEG",
-    "rietx.background.auto._KNOT_STEP_SMOOTH_DEG",
-    "rietx.background.auto.auto_background:diagnostics",
-    "rietx.background.auto.auto_background:kind",
-    "rietx.background.auto.auto_background:seed",
-    "rietx.background.auto.auto_background:source",
-    "rietx.background.auto.auto_background:two_theta_limits",
-    "rietx.background.auto.auto_background:wavelength",
     "rietx.background.diagnostics.COVERAGE_INFLATION_THRESHOLD",
     "rietx.background.diagnostics.COVERAGE_SMOOTH_DEG",
     "rietx.background.diagnostics.CUTOFF_FRACTION",
@@ -3090,7 +3176,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.report.strain._GAUSS_NEWTON_ITERATIONS",
     "rietx.report.strain._QUOTABLE_WEIGHT_FRAC",
     "rietx.report.texture._EQUIV_REF_R",
-    "rietx.schemas.fraction.FRACTION_PROFILE_EXCESS",
     "rietx.schemas.indexing.INDEX_MIN_INDEXED_FRACTION",
     "rietx.schemas.indexing.MAX_RELATIVE_SIGMA_Q",
     "rietx.schemas.indexing.MIN_LINES_PER_DOF",
@@ -3188,9 +3273,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.sequential.refine_sequential:history",
     "rietx.sequential.refine_sequential:solver",
     "rietx.strategy.magnetic.SOLVE_D_MIN",
-    "rietx.strategy.magnetic.SOLVE_K_TIE_DELTA_BIC",
-    "rietx.strategy.magnetic.SOLVE_TIE_DELTA_BIC",
-    "rietx.strategy.magnetic.SOLVE_TIE_R_MAGNETIC",
     "rietx.strategy.staged.BACKGROUND_ABSORPTION_GUARD",
     "rietx.strategy.staged.HUMP_MIN_WIDTH_MULT",
     "rietx.strategy.staged.ROUGHNESS_ABSORPTION_GUARD",

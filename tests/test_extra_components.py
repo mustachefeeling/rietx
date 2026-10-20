@@ -713,7 +713,7 @@ def test_no_plan_and_no_estimator_ever_adds_a_peak():
                        intensity=(200.0 + 400.0 * np.exp(
                            -0.5 * ((tt - 25.0) / 6.0) ** 2)).tolist())
     for kind in ("chebyshev", "pspline"):
-        bkg = rx.auto_background(data, kind=kind, wavelength=WAVELENGTH)
+        bkg = rx.auto_background(data, kind=kind, wavelength=WAVELENGTH).background
         assert not hasattr(bkg, "extra_components")
 
 

@@ -36,7 +36,7 @@ from rietx.model.forward import compile_model
 from rietx.model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
-from rietx.schemas.fraction import FRACTION_PROFILE_EXCESS, FractionProfile
+from rietx.schemas.fraction import FractionProfile
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from rietx.strategy.fraction_profile import WIDTH_TERMS, width_value
@@ -210,25 +210,31 @@ def test_the_profile_spans_both_basins_and_says_so(multimodal_profile):
     assert profile.range_low < 0.02 and profile.range_high > 0.5
     assert profile.fit_admissible
     [finding] = profile.diagnostics
-    assert finding.code == "QPA_FRACTION_UNDETERMINED"
-    assert finding.level == "warning"
+    assert finding.code == "QPA_FRACTION_RANGE"
+    assert finding.level == "info"
     assert finding.where == ["phases.1.scale", AXIS]
-    assert finding.value == profile.excess > 10 * FRACTION_PROFILE_EXCESS
+    assert finding.value == profile.excess > 20
     assert f"{100 * profile.range_high:.3g} %" in finding.message
 
 
-def test_the_control_profile_confirms_the_esd_and_stays_silent(control):
+def test_the_control_profile_confirms_the_esd_and_states_it(control):
     """One basin, and every admissible fraction inside W ± 1.96 esd.
 
     The second half is the calibration claim: Δχ² scaled by χ²_red·f² is the
     esd's own scale, so a profile along a healthy minimum lands inside the
-    interval the esd already quotes (0.61 of its half-width here).
+    interval the esd already quotes (0.61 of its half-width here).  The
+    profile still states it, in the same info record the trace case gets:
+    no threshold decides whether the record exists (WP-2002, B12).
     """
     ref, _, data = control
     profile = ref.profile_fraction(data, "CaF2")
     assert _basins(profile) == 1
     assert profile.excess < 1.0
-    assert profile.diagnostics == []
+    [finding] = profile.diagnostics
+    assert finding.code == "QPA_FRACTION_RANGE"
+    assert finding.level == "info"
+    assert finding.value == profile.excess
+    assert f"{100 * profile.range_low:.3g} %" in finding.message
 
 
 def test_the_profile_moves_nothing(multimodal, multimodal_profile):

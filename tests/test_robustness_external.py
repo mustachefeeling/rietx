@@ -889,7 +889,7 @@ def test_an_unseeded_background_hands_the_pedestal_to_the_reflections():
     y = peaks + 5.0 * peaks.max()          # background 5× the strongest peak
     pattern = PatternData(two_theta=tt.tolist(), intensity=y.tolist())
 
-    ins.background = auto_background(pattern)
+    ins.background = auto_background(pattern).background
     assert all(c.value == 0.0 for c in ins.background.coefficients)
 
     model = compile_model(s, ins, pattern, mode="lebail")

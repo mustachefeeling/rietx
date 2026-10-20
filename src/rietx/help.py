@@ -2896,9 +2896,11 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         title="Two propagation vectors fit equally well",
         description=(
             "The two best candidate propagation vectors differ in fit quality by less "
-            "than the gap that counts as a tie. The data do not choose between them, so "
-            "the winner is not established. Treat both as open. Look for reflections "
-            "that one vector predicts and the other does not."
+            "than the gap that counts as a tie. Fit quality is ΔBIC against the nuclear "
+            "fit, counting N/f² observations: N fitted points and f the Bérar-Lelann "
+            "factor, since neighbouring points of one peak share their misfit. The data "
+            "do not choose between them, so the winner is not established. Treat both as "
+            "open. Look for reflections that one vector predicts and the other does not."
         ),
     ),
     "LANDE_G_ASSUMED": HelpEntry(
@@ -2957,7 +2959,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         description=(
             "After the ranking chose a winner, a maximal magnetic subgroup of it was "
             "refitted from the winner's solution. It fitted better by more than the tie "
-            "width. The ranking had not treated the subgroup as a competitor, so the "
+            "width, in ΔBIC counting N/f² observations (N fitted points, f the winner's "
+            "Bérar-Lelann factor). The ranking had not treated the subgroup as a "
+            "competitor, so the "
             "ranked list is unchanged. The data prefer the lower symmetry, and you "
             "choose between the two by hand."
         ),
@@ -3396,16 +3400,18 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "fraction."
         ),
     ),
-    "QPA_FRACTION_UNDETERMINED": HelpEntry(
-        title="Weight fraction depends on peak width",
+    "QPA_FRACTION_RANGE": HelpEntry(
+        title="Weight fractions a width profile admits",
         description=(
-            "Pinning the phase's peak width and refitting gives weight fractions far "
-            "outside the fit's own error bar, at a statistically acceptable fit. The "
-            "error bar describes only the minimum where the fit stopped. The scale of a "
-            "weak phase trades against its width, and the data do not choose. Quote the "
-            "range and the widths that produced it. A width the specimen justifies, a "
-            "background that takes the broad hump, or longer counting can narrow the "
-            "range."
+            "Pinning the phase's peak width at each width on a grid and refitting "
+            "gives the weight fractions the data admit at a statistically acceptable "
+            "fit. The value is how far the farthest of them lies from the fit's "
+            "fraction, in units of the 95 % interval of the fit's own esd. Below 1, "
+            "the profile confirms the esd. Well above 1, the esd describes only the "
+            "minimum where the fit stopped: the scale of a weak phase trades against "
+            "its width, and the data do not choose. Then quote the range and the "
+            "widths that produced it. A width the specimen justifies, a background "
+            "that takes the broad hump, or longer counting can narrow the range."
         ),
     ),
     "QPA_UNAVAILABLE": HelpEntry(

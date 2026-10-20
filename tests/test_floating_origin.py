@@ -133,7 +133,7 @@ PLAN = rx.RefinementPlan(stages=[
 def test_a_hold_leaves_one_z_and_the_other_is_quoted_against_it():
     data = _pattern()
     ins = rx.Instrument.bragg_brentano(radiation="CuKa")
-    ins.background = rx.auto_background(data)
+    ins.background = rx.auto_background(data).background
     # a start displaced along c: the pair's common shift changes no intensity
     free = rx.Refinement(rx.Structure(phases=[_zno(0.05, 0.432)]), ins,
                          history=False)
@@ -393,7 +393,7 @@ def zincite_fits(zincite_data):
     for solver, origin in (("lm", None), ("lm", "hold"), ("trf", "hold"),
                            ("lm", "centroid"), ("trf", "centroid")):
         ins = _zincite_instrument()
-        ins.background = rx.auto_background(data)
+        ins.background = rx.auto_background(data).background
         ref = rx.Refinement(rx.Structure(phases=[_zincite(Z_O + 0.02, origin)]),
                             ins, history=False, solver=solver)
         fits[solver, origin] = (ref, ref.fit(data, plan="mccusker_structural",
@@ -477,7 +477,7 @@ def test_zincite_fit_pictures(zincite_fits):
 
 def _zincite_refinement(data, origin="hold"):
     ins = _zincite_instrument()
-    ins.background = rx.auto_background(data)
+    ins.background = rx.auto_background(data).background
     return rx.Refinement(rx.Structure(phases=[_zincite(Z_O, origin)]), ins,
                          history=False)
 
@@ -544,7 +544,7 @@ def test_a_joint_fit_says_once_which_atom_holds_the_origin(zincite_data):
     instruments = []
     for _ in range(2):
         ins = _zincite_instrument()
-        ins.background = rx.auto_background(zincite_data)
+        ins.background = rx.auto_background(zincite_data).background
         instruments.append(ins)
     result = rx.refine_multi(
         [zincite_data, zincite_data],
@@ -839,7 +839,7 @@ def test_the_origin_rows_are_exact_at_any_step(zincite_data):
 def test_a_restraint_weight_of_zero_leaves_the_origin_fixed(zincite_data):
     """c_w scales the caller's restraints, never the origin's own block."""
     ins = _zincite_instrument()
-    ins.background = rx.auto_background(zincite_data)
+    ins.background = rx.auto_background(zincite_data).background
     ref = rx.Refinement(rx.Structure(phases=[_zincite(Z_O + 0.02, "centroid")]),
                         ins, history=False)
     plan = rx.RefinementPlan(stages=[
@@ -892,7 +892,7 @@ def _fit_centroid(phase, data, shift: float):
     origin shift), fitted under :data:`PLAN`."""
     start = _centroid(phase.model_copy(deep=True))
     ins = rx.Instrument.bragg_brentano(radiation="CuKa")
-    ins.background = rx.auto_background(data)
+    ins.background = rx.auto_background(data).background
     ref = rx.Refinement(rx.Structure(phases=[start]), ins, history=False)
     paths = {e.path for e in ref._working_table().entries}
     ref.set_values({f"phases.0.atoms.{j}.dof.{k}": shift * (j + 1) * (-1) ** (j + k)

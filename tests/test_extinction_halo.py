@@ -106,7 +106,7 @@ def _screen(data, *, hump=None, free_hump=True):
     of the lattice group (with the declared hump freed in a last stage), then the
     screen on the fitted instrument and the refined cell."""
     ins = Instrument.debye_scherrer(wavelength=LAM)
-    ins.background = auto_background(data, two_theta_limits=RANGE, seed=True)
+    ins.background = auto_background(data, two_theta_limits=RANGE, seed=True).background
     plan = "profile_only"
     if hump is not None:
         position, height, fwhm = hump

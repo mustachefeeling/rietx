@@ -1040,7 +1040,37 @@ assert data.tt()[-1] == 40.0
 
 `auto_background` sizes a model to a pattern instead: knot spacing from the
 amorphous-hump score, the air term added only when the diagnostics ask for it,
-or `kind="chebyshev"` for an order chosen by BIC.
+or `kind="chebyshev"` for an order chosen by BIC. It returns a
+`BackgroundChoice`, which carries the model and the scores each choice was
+made on. Assign `BackgroundChoice.background` to `Instrument.background`, as
+in `ins.background = rx.auto_background(data).background`. Before 1.10 the
+call returned the model alone.
+
+| Field | Is |
+|---|---|
+| `BackgroundChoice.background` | the model, a P-spline or a Chebyshev |
+| `BackgroundChoice.kind` | `"pspline"` or `"chebyshev"` |
+| `BackgroundChoice.amorphous_hump_score`, `BackgroundChoice.hump_trigger` | the score the knot spacing was chosen on, and the trigger above which the knots are 3° apart rather than 8° |
+| `BackgroundChoice.knot_step_deg` | the knot spacing chosen, in degrees 2θ |
+| `BackgroundChoice.air_scatter_gain`, `BackgroundChoice.air_scatter_trigger` | the score the 1/(2θ) term was chosen on, and the trigger above which it is declared |
+| `BackgroundChoice.air_scatter` | whether the model carries the 1/(2θ) term |
+| `BackgroundChoice.selection` | the Chebyshev order scan: every order tried, with its BIC and Durbin-Watson d, and whether d reached the stop |
+| `BackgroundChoice.seed_level` | the count every coefficient starts at under `seed=True` |
+
+A field the kind made no choice on is None: the P-spline fields on a Chebyshev,
+`selection` on a P-spline, and `seed_level` without `seed=True`.
+
+The order scan is a `BackgroundSelection`, the same object
+`rietx.background.select_chebyshev_order` returns.
+
+| Field | Is |
+|---|---|
+| `BackgroundSelection.method` | `"chebyshev_order"`, or `"arpls_lambda"` from `rietx.background.select_arpls_lambda` |
+| `BackgroundSelection.selected` | the order chosen, the minimum-BIC order of the scan |
+| `BackgroundSelection.n_masked_channels` | the background channels the scan scored, after the peaks were masked |
+| `BackgroundSelection.scores` | one `CandidateScore` per order tried: `CandidateScore.complexity` (the order), `CandidateScore.bic` and `CandidateScore.durbin_watson` |
+| `BackgroundSelection.stopped_by_whiteness` | whether Durbin-Watson d reached the stop, 1.8, and ended the scan |
+| `BackgroundSelection.diagnostics` | `BACKGROUND_ORDER_AT_CAP` when the order is the scan's cap rather than a choice |
 
 `BackgroundChebyshev.kind`, `BackgroundPSpline.kind` and
 `BackgroundFixedPlusChebyshev.kind` are the discriminators. The three models are

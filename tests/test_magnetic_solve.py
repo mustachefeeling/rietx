@@ -361,7 +361,7 @@ def test_a_constructed_tie_is_an_abstention_that_names_both_classes():
     a = _trial(0, delta_bic=120.0, r_mag=0.11, free=1)
     b = _trial(1, delta_bic=120.0 - 0.5 * SOLVE_TIE_DELTA_BIC, r_mag=0.11,
                free=1, bns="2.2")
-    ordered, tied, verdict, reason = _rank([a, b], SOLVE_TIE_DELTA_BIC, 0.02)
+    ordered, tied, verdict, reason = _rank([a, b], SOLVE_TIE_DELTA_BIC)
 
     assert verdict == "abstained"
     assert set(tied) == {0, 1}
@@ -370,19 +370,25 @@ def test_a_constructed_tie_is_an_abstention_that_names_both_classes():
     assert len(ordered) == 2
 
 
-def test_the_tie_is_broken_by_the_magnetic_only_r_before_parsimony():
-    """Inside the tie width the next key speaks, and the reason says which."""
+def test_the_magnetic_only_r_does_not_break_a_dbic_tie():
+    """A ΔBIC tie stays a tie whatever R_mag says (WP-2002, B12).
+
+    Until 1.10 an R_mag gap of more than 2 % chose class 1 here, a margin
+    nobody had measured.  The classes now abstain together, and the reason
+    gives each one's R_mag for the reader to weigh.
+    """
     a = _trial(0, delta_bic=120.0, r_mag=0.40, free=1)
     b = _trial(1, delta_bic=118.0, r_mag=0.11, free=1, bns="2.2")
-    _o, tied, verdict, reason = _rank([a, b], SOLVE_TIE_DELTA_BIC, 0.02)
-    assert verdict == "solved" and tied == (1,)
-    assert "magnetic-only R" in reason
+    _o, tied, verdict, reason = _rank([a, b], SOLVE_TIE_DELTA_BIC)
+    assert verdict == "abstained" and set(tied) == {0, 1}
+    assert "R_mag 0.400" in reason and "R_mag 0.110" in reason
+    assert "R_mag ranks nothing" in reason
 
 
-def test_parsimony_breaks_a_tie_neither_dbic_nor_r_can():
+def test_parsimony_breaks_a_dbic_tie():
     a = _trial(0, delta_bic=120.0, r_mag=0.11, free=3)
     b = _trial(1, delta_bic=119.0, r_mag=0.11, free=1, bns="2.2")
-    _o, tied, verdict, reason = _rank([a, b], SOLVE_TIE_DELTA_BIC, 0.02)
+    _o, tied, verdict, reason = _rank([a, b], SOLVE_TIE_DELTA_BIC)
     assert verdict == "solved" and tied == (1,)
     assert "parsimonious" in reason
 
@@ -395,7 +401,7 @@ def test_an_unsupported_moment_cannot_win_however_good_its_dbic():
     there is the criterion being fooled by extra freedom rather than evidence.
     """
     a = _trial(0, delta_bic=5000.0, r_mag=0.01, free=3, supported=False)
-    _o, tied, verdict, reason = _rank([a], SOLVE_TIE_DELTA_BIC, 0.02)
+    _o, tied, verdict, reason = _rank([a], SOLVE_TIE_DELTA_BIC)
     assert verdict == "nothing to solve"
     assert tied == ()
     assert "not one came back with a supported moment" in reason
@@ -420,7 +426,7 @@ def test_candidates_that_could_not_be_stated_are_not_called_a_null_result():
         uni_number=None, msg_type=1, free_amplitudes=1,
         determinable_amplitudes=0, status="refused",
         refusal="ValueError: the child cell carries no symbol")
-    _o, tied, verdict, reason = _rank([refused], SOLVE_TIE_DELTA_BIC, 0.02)
+    _o, tied, verdict, reason = _rank([refused], SOLVE_TIE_DELTA_BIC)
     assert verdict == "abstained"
     assert tied == ()
     assert "could be stated as a refinable model" in reason
@@ -691,9 +697,8 @@ def test_widening_the_tie_hands_the_decision_to_the_next_key_and_says_so(a_type,
     assert "leads on ΔBIC" not in widened.reason, widened.reason
     assert f"tie width of {spread * 1.5:.1f}" in widened.reason
     if widened.verdict == "solved":
-        # a lower key decided, and the reason says which
-        assert ("magnetic-only R" in widened.reason
-                or "parsimonious" in widened.reason), widened.reason
+        # parsimony decided, the one key below ΔBIC, and the reason says so
+        assert "parsimonious" in widened.reason, widened.reason
         assert len(widened.tied) == 1
     else:
         assert widened.verdict == "abstained"
@@ -705,10 +710,10 @@ def test_widening_the_tie_hands_the_decision_to_the_next_key_and_says_so(a_type,
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("magnetic-solve-a-type")
-def test_disabling_the_lower_keys_makes_a_widened_tie_an_abstention(a_type, a_type_solution):
-    """With ΔBIC widened out and the magnetic-only R disabled, only parsimony
-    is left; classes that also match on that are a genuine abstention naming
-    every one of them."""
+def test_a_widened_tie_parsimony_cannot_split_is_an_abstention(a_type, a_type_solution):
+    """With ΔBIC widened out only parsimony is left, the magnetic-only R ranking
+    nothing since WP-2002, B12; classes that also match on parsimony are a
+    genuine abstention naming every one of them."""
     ref, data, _truth = a_type
     solved = a_type_solution
     spread = solved.trials[0].delta_bic - solved.trials[-1].delta_bic
@@ -718,7 +723,7 @@ def test_disabling_the_lower_keys_makes_a_widened_tie_an_abstention(a_type, a_ty
 
     widened = rx.solve_magnetic(
         ref, data, sites=["Mn1"], ion="Mn3+",
-        tie_width=spread * 1.5, tie_r=1e9,
+        tie_width=spread * 1.5,
         # only the classes with the same free moment count, so parsimony is
         # unable to separate the survivors either
         top_k=1)
@@ -1081,25 +1086,26 @@ def _solution(trials, tied, verdict, why, tie_width=SOLVE_TIE_DELTA_BIC):
 def test_margin_is_the_true_gap_between_two_eligible_classes():
     winner = _trial(0, delta_bic=200.0, r_mag=0.1, free=2, bns="1.1")
     runner_up = _trial(1, delta_bic=140.0, r_mag=0.2, free=1, bns="1.2")
-    ordered, tied, verdict, why = _rank((winner, runner_up), SOLVE_TIE_DELTA_BIC, 0.02)
+    ordered, tied, verdict, why = _rank((winner, runner_up), SOLVE_TIE_DELTA_BIC)
     assert _solution(ordered, tied, verdict, why).margin == pytest.approx(60.0)
 
 
 def test_margin_after_a_tiebreak_is_the_winners_own_gap_and_can_be_negative():
-    """Review of #592, item 4: the R key chose class 1 over class 0 inside the
+    """Review of #592, item 4: parsimony chose class 1 over class 0 inside the
     tie width, so the winner is ``trials[0]`` and *not* the top-ΔBIC class.
     The margin is the winner's ΔBIC against the best other eligible class —
-    here −2 — and not the gap between whichever two sorted first by ΔBIC."""
-    a = _trial(0, delta_bic=120.0, r_mag=0.40, free=1)
+    here −2 — and not the gap between whichever two sorted first by ΔBIC.
+    (The review's case was the R key, gone since WP-2002, B12.)"""
+    a = _trial(0, delta_bic=120.0, r_mag=0.40, free=3)
     b = _trial(1, delta_bic=118.0, r_mag=0.11, free=1, bns="2.2")
-    ordered, tied, verdict, why = _rank((a, b), SOLVE_TIE_DELTA_BIC, 0.02)
+    ordered, tied, verdict, why = _rank((a, b), SOLVE_TIE_DELTA_BIC)
     solution = _solution(ordered, tied, verdict, why)
     assert verdict == "solved" and solution.best.class_index == 1
     assert solution.margin == pytest.approx(-2.0)
     assert abs(solution.margin) <= SOLVE_TIE_DELTA_BIC
     # the winner with a third class: against the *best other*, not the second
     c = _trial(2, delta_bic=90.0, r_mag=0.5, free=1, bns="3.3")
-    ordered, tied, verdict, why = _rank((a, b, c), SOLVE_TIE_DELTA_BIC, 0.02)
+    ordered, tied, verdict, why = _rank((a, b, c), SOLVE_TIE_DELTA_BIC)
     assert _solution(ordered, tied, verdict, why).margin == pytest.approx(-2.0)
 
 
@@ -1117,12 +1123,12 @@ def test_a_nuclear_reference_that_stopped_short_keeps_its_trials_out_of_the_rank
     assert _converged(ok) and _eligible_trials([ok]) == [ok]
     # positive arm: the same trial against a converged reference is a winner
     converged_ref = replace(ok, reference_status="converged")
-    assert _rank([converged_ref], SOLVE_TIE_DELTA_BIC, 0.02)[2] == "solved"
+    assert _rank([converged_ref], SOLVE_TIE_DELTA_BIC)[2] == "solved"
 
     short = replace(ok, reference_status="max_iter")
     assert not _converged(short) and _eligible_trials([short]) == []
     assert "nuclear reference stopped at 'max_iter'" in short.stopped_short
-    _o, tied, verdict, reason = _rank([short], SOLVE_TIE_DELTA_BIC, 0.02)
+    _o, tied, verdict, reason = _rank([short], SOLVE_TIE_DELTA_BIC)
     assert verdict == "abstained" and tied == ()
     assert "nuclear reference stopped at 'max_iter'" in reason
     # and it is the printed table's business too, not only the verdict's
@@ -1132,7 +1138,70 @@ def test_a_nuclear_reference_that_stopped_short_keeps_its_trials_out_of_the_rank
     # answer about the specimen
     null = replace(_trial(0, delta_bic=-12.0, r_mag=0.1, free=1),
                    reference_status="max_iter")
-    assert _rank([null], SOLVE_TIE_DELTA_BIC, 0.02)[2] == "nothing to solve"
+    assert _rank([null], SOLVE_TIE_DELTA_BIC)[2] == "nothing to solve"
+
+
+def test_the_effective_count_is_n_over_the_solves_own_f_squared():
+    """``_solve_inflation`` reads the factor the solve applied off a row, and
+    ``_effective_count`` divides the channel count by its square (WP-2002, B12).
+    A row without both esds is skipped, and no factor at all charges N."""
+    from types import SimpleNamespace
+
+    from rietx.schemas.results import RefinedParameter
+    from rietx.strategy.magnetic import _effective_count, _solve_inflation
+
+    rows = [RefinedParameter(path="phases.0.scale", value=1.0),
+            RefinedParameter(path="phases.0.cell.a", value=4.0, stderr=0.03,
+                             stderr_uncorrected=0.01)]
+    result = SimpleNamespace(parameters=rows,
+                             statistics=SimpleNamespace(n_points=1800))
+    assert _solve_inflation(result) == pytest.approx(3.0)
+    assert _effective_count(result) == pytest.approx(200.0)
+    bare = SimpleNamespace(parameters=rows[:1],
+                           statistics=SimpleNamespace(n_points=1800))
+    assert _solve_inflation(bare) is None
+    assert _effective_count(bare) == 1800.0
+
+
+@pytest.mark.xdist_group("magnetic-k-trials-true-k")
+def test_every_dbic_of_a_solve_charges_its_restricted_fits_n_over_f_squared(monkeypatch):
+    """Each trial's ΔBIC charges N/f², f the nuclear reference's own factor
+    (WP-2002, B12).  On this fixture f is 3.73, so the count is 175 of the
+    2440 channels, a fourteenth of the N it charged before."""
+    import rietx.report.layer2 as layer2
+    from rietx.strategy.magnetic import _effective_count
+    from tests.test_magnetic_k_trials import true_k_and_data
+
+    ref, data, _truth = true_k_and_data.__wrapped__()
+    fits, calls = [], []
+    real_fit, real_dbic = _magnetic_module._fit, layer2.delta_bic
+
+    def fit(structure, *args, **kw):
+        out = real_fit(structure, *args, **kw)
+        fits.append((structure, out[1]))
+        return out
+
+    def dbic(chi2_r, chi2_f, n_points, n_added, *, n_effective=None):
+        calls.append((n_points, n_effective))
+        return real_dbic(chi2_r, chi2_f, n_points, n_added, n_effective=n_effective)
+
+    monkeypatch.setattr(_magnetic_module, "_fit", fit)
+    monkeypatch.setattr(layer2, "delta_bic", dbic)
+    solution = rx.solve_magnetic(ref, data, sites=["Mn1"], ion="Mn3+",
+                                 k=(0, 0, "1/2"))
+    assert solution.verdict == "solved", solution.reason
+    nuclear = [r for s, r in fits
+               if all(a.moment is None for a in s.phases[0].atoms)]
+    assert len(nuclear) == 1
+    n_eff = _effective_count(nuclear[0])
+    n = nuclear[0].statistics.n_points
+    assert n_eff < 0.2 * n   # f > 2.2; measured 3.73
+    refined = [t for t in solution.trials if t.status == "refined"]
+    assert refined and len(calls) == len(refined)
+    for n_points, charged in calls:
+        assert n_points == n and charged == n_eff
+    assert any(f"ΔBIC charges {n_eff:.0f} observations, not the {n} " in c
+               for c in solution.caveats), solution.caveats
 
 
 def test_the_reported_nuclear_numbers_are_the_leading_trials_reference():
@@ -1209,7 +1278,7 @@ def test_margin_is_none_not_negative_when_the_second_row_is_disqualified():
     disqualified = _trial(1, delta_bic=533.0, r_mag=0.1, free=8, bns="5.15",
                           supported=False)
     ordered, tied, verdict, why = _rank((winner, disqualified),
-                                        SOLVE_TIE_DELTA_BIC, 0.02)
+                                        SOLVE_TIE_DELTA_BIC)
     assert verdict == "solved"
     assert ordered[0].bns_number == "5.13"
     assert ordered[1].bns_number == "5.15"
@@ -1221,7 +1290,7 @@ def test_margin_is_none_not_negative_when_the_second_row_is_disqualified():
 def test_margin_is_none_on_an_abstention():
     tied_trials = (_trial(0, delta_bic=10.0, r_mag=0.1, free=1, bns="1.1"),
                   _trial(1, delta_bic=9.0, r_mag=0.1, free=1, bns="1.2"))
-    ordered, tied, verdict, why = _rank(tied_trials, SOLVE_TIE_DELTA_BIC, 0.02)
+    ordered, tied, verdict, why = _rank(tied_trials, SOLVE_TIE_DELTA_BIC)
     assert verdict == "abstained"
     assert _solution(ordered, tied, verdict, why).margin is None
 
@@ -1538,8 +1607,7 @@ def test_a_degenerate_pair_is_tested_as_the_pair_not_row_by_row():
     assert all(r.pair_supported for r in pair.moments)
     assert pair.supported
     lesser = _trial(1, delta_bic=500.0, r_mag=0.48, free=2, bns="2.2")
-    ordered, tied, verdict, _why = _rank([lesser, pair], SOLVE_TIE_DELTA_BIC,
-                                         0.02)
+    ordered, tied, verdict, _why = _rank([lesser, pair], SOLVE_TIE_DELTA_BIC)
     assert verdict == "solved" and tied == (0,)
     assert ordered[0].bns_number == "1.1"
 
@@ -1550,7 +1618,7 @@ def test_a_pair_whose_quadrature_sum_is_inside_its_esd_stays_unsupported():
     null = _paired_trial(0, delta_bic=5000.0, m=0.3, esd=2.0,
                          pair_m=0.42, pair_esd=0.5)
     assert not null.supported
-    _o, tied, verdict, reason = _rank([null], SOLVE_TIE_DELTA_BIC, 0.02)
+    _o, tied, verdict, reason = _rank([null], SOLVE_TIE_DELTA_BIC)
     assert verdict == "nothing to solve" and tied == ()
     assert "quadrature sum" in reason
 
@@ -1579,7 +1647,7 @@ def test_the_pair_gate_on_pairs_well_clear_of_it_either_side(ratio, fires):
     assert not any(r.supported for r in trial.moments)
     assert all(r.pair_supported is fires for r in trial.moments)
     assert trial.supported is fires
-    _o, tied, verdict, reason = _rank([trial], SOLVE_TIE_DELTA_BIC, 0.02)
+    _o, tied, verdict, reason = _rank([trial], SOLVE_TIE_DELTA_BIC)
     if fires:
         assert verdict == "solved" and tied == (0,), reason
     else:
@@ -1612,7 +1680,7 @@ def test_nothing_to_solve_counts_the_supported_classes_not_the_refined_ones():
     unsupported = _trial(1, delta_bic=-46.0, r_mag=0.14, free=2, bns="2.2",
                          supported=False)
     _o, tied, verdict, reason = _rank([supported, unsupported],
-                                      SOLVE_TIE_DELTA_BIC, 0.02)
+                                      SOLVE_TIE_DELTA_BIC)
     assert verdict == "nothing to solve" and tied == ()
     assert reason.startswith("1 of 2 refined candidate(s)"), reason
 
@@ -1831,12 +1899,11 @@ def test_a_budget_stopped_rival_makes_the_ranking_an_abstention():
     the answer is not stated."""
     leader = _trial(0, delta_bic=900.0, r_mag=0.1, free=1, bns="1.1")
     rival = _short(_trial(1, delta_bic=1200.0, r_mag=0.1, free=1, bns="2.2"))
-    _o, tied, verdict, reason = _rank([leader, rival], SOLVE_TIE_DELTA_BIC,
-                                      0.02)
+    _o, tied, verdict, reason = _rank([leader, rival], SOLVE_TIE_DELTA_BIC)
     assert verdict == "abstained" and tied == ()
     assert "class 1" in reason and "'max_iter'" in reason
     # alone it would have been the only eligible class: still not a null result
-    _o, _t, verdict, reason = _rank([rival], SOLVE_TIE_DELTA_BIC, 0.02)
+    _o, _t, verdict, reason = _rank([rival], SOLVE_TIE_DELTA_BIC)
     assert verdict == "abstained" and "been eligible" in reason
 
 
@@ -1847,16 +1914,15 @@ def test_nothing_to_solve_says_which_trials_stopped_short():
                           supported=False))
     done = _trial(0, delta_bic=-30.0, r_mag=0.1, free=1, bns="1.1",
                   supported=False)
-    _o, _t, verdict, reason = _rank([done, short], SOLVE_TIE_DELTA_BIC, 0.02)
+    _o, _t, verdict, reason = _rank([done, short], SOLVE_TIE_DELTA_BIC)
     assert verdict == "nothing to solve"
     assert "1 of the 2 stopped short" in reason and "class 1" in reason
-    _o, _t, _v, reason = _rank([done], SOLVE_TIE_DELTA_BIC, 0.02)
+    _o, _t, _v, reason = _rank([done], SOLVE_TIE_DELTA_BIC)
     assert "stopped short" not in reason
     # the other "nothing to solve" sentence: supported, and ΔBIC ≤ 0
     held_back = _short(_trial(2, delta_bic=-10.0, r_mag=0.1, free=1,
                               bns="3.3"))
-    _o, _t, verdict, reason = _rank([done, held_back], SOLVE_TIE_DELTA_BIC,
-                                    0.02)
+    _o, _t, verdict, reason = _rank([done, held_back], SOLVE_TIE_DELTA_BIC)
     assert verdict == "nothing to solve"
     assert reason.startswith("1 of 2 refined candidate(s)"), reason
     assert "1 of the 2 stopped short" in reason and "class 2" in reason
@@ -1866,7 +1932,7 @@ def test_a_budget_stopped_trial_far_behind_the_leader_does_not_block_it():
     leader = _trial(0, delta_bic=900.0, r_mag=0.1, free=1, bns="1.1")
     behind = _short(_trial(1, delta_bic=100.0, r_mag=0.1, free=1, bns="2.2"))
     ordered, tied, verdict, _why = _rank([leader, behind],
-                                         SOLVE_TIE_DELTA_BIC, 0.02)
+                                         SOLVE_TIE_DELTA_BIC)
     assert verdict == "solved" and tied == (0,)
     assert ordered[0].bns_number == "1.1"
     s = MagneticSolution(

@@ -1105,7 +1105,7 @@ def test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error(tmp_path)
     np.savetxt(path, np.c_[pattern.two_theta, pattern.intensity], fmt="%.4f %.0f")
     data = rx.read_pattern(path)
     ins = rx.Instrument.bragg_brentano(radiation="CuKa")
-    ins.background = rx.background.auto_background(data)
+    ins.background = rx.background.auto_background(data).background
     structure = lebail_scaffold("P 1", TRICLINIC)
     findings = []
     for plan in ("profile_only", "lab_bragg_brentano"):

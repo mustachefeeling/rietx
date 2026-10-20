@@ -89,7 +89,9 @@ admissible 1.37 to 1.37 wt%, 12 refits
 
 Here only the fit's own fraction is admissible, so the fraction is determined.
 A point is admissible when its χ² is within {{ FRACTION_PROFILE_DCHI2 }} × χ²<sub>red</sub> × f² of the lowest χ² found, f being the Bérar-Lelann factor.
-When an admissible fraction lies more than {{ FRACTION_PROFILE_EXCESS }} times the esd's 95 % half-width from the fit's, the profile reports `QPA_FRACTION_UNDETERMINED`, and you should quote the range rather than the value.
+Every profile of a fit with an esd carries a `QPA_FRACTION_RANGE` info record, whose value is the farthest admissible fraction's distance from the fit's, in the esd's 95 % half-widths.
+Below 1 the profile confirms the esd.
+Well above 1 the esd describes only the basin the fit stopped in, and you should quote the range rather than the value.
 Without `axes=`, it uses the phase's width terms that were free in the last fit, and refuses if none was.
 
 ## Correct for microabsorption

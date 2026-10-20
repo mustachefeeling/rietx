@@ -356,9 +356,9 @@ factors put the cut on the
 scale of the esds themselves, so on a single quadratic basin the admissible
 fractions reproduce $W \pm 1.96\,\sigma_W$. Every admissible point's fraction
 lies inside the 95 % profile interval for $W$, so the range the profile reports
-is an inner bound, and a finer grid can only widen it. The profile is reported
-as undetermined when an admissible fraction lies more than
-{{ FRACTION_PROFILE_EXCESS }} times $1.96\,\sigma_W$ from the fit's.
+is an inner bound, and a finer grid can only widen it. The profile reports how
+far its farthest admissible fraction lies from the fit's, in units of
+$1.96\,\sigma_W$, and no threshold turns that distance into a verdict.
 
 The pinned parameter is the width rather than the scale. At a pinned scale the
 refit can reach the hump basin only by broadening the phase below the noise,

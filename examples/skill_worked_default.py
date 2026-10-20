@@ -32,7 +32,7 @@ data = rx.read_pattern(PATTERN)
 structure = rx.Structure.from_cif(CIF)
 instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
 limits = (float(np.min(data.two_theta)), float(np.max(data.two_theta)))  # narrow to what you trust
-instrument.background = rx.auto_background(data, kind="chebyshev", two_theta_limits=limits)
+instrument.background = rx.auto_background(data, kind="chebyshev", two_theta_limits=limits).background
 
 strong = sorted(rx.pick_peaks(data, instrument).peaks, key=lambda p: -p.intensity)[:12]
 h = float(np.median([p.fwhm for p in strong]))                           # §1 width seed

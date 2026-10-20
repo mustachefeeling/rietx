@@ -381,7 +381,7 @@ The cut, `profile.delta_chi2_cut`, is the 95 % Δχ² for one parameter (3.84)
 scaled by the same χ²_red and Bérar-Lelann factor every esd already carries,
 so on a single quadratic basin it reproduces W ± 1.96 esd. `excess` is the
 farthest admissible fraction from the fit's in units of that half-width, and
-`QPA_FRACTION_UNDETERMINED` fires past 2. The axis is the width, never the
+`QPA_FRACTION_RANGE` (info) states it. The axis is the width, never the
 scale: at a pinned scale the refit reaches the hump basin only by broadening
 the phase below `PHASE_SUPPORT_SIGMA`, where WP-1301 holds its structure, so the scan stops short.
 The grid stops at half the range because on the full range the frozen peak

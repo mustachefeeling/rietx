@@ -51,7 +51,6 @@ import numpy as np
 from ..schemas.common import Diagnostic
 from ..schemas.fraction import (
     FRACTION_PROFILE_DCHI2,
-    FRACTION_PROFILE_EXCESS,
     FRACTION_PROFILE_FWHM_MIN,
     FRACTION_PROFILE_N_FWHM,
     FractionProfile,
@@ -261,13 +260,22 @@ def profile_fraction(refinement, data, phase: int | str, *,
 
 
 def fraction_diagnostics(profile: FractionProfile) -> list[Diagnostic]:
-    """``QPA_FRACTION_UNDETERMINED`` when an admissible fraction is far outside the esd.
+    """``QPA_FRACTION_RANGE``: the admissible range and how far it reaches.
 
-    Silent when ``excess`` is ``None``: without an esd the fit made no
-    confident claim for the profile to contradict, and the range on the
-    profile is the whole answer.
+    An ``info`` record on every profile whose fit carries an esd, stating the
+    range and ``excess``, the farthest admissible fraction in the esd's 95 %
+    half-widths.  No threshold decides whether it exists, so it asserts no
+    verdict (WP-2002, B12; ``docs/milestones/generality.md`` § Demotion): an
+    excess under 1 is a profile that confirms the esd, and one far above it is
+    a fraction the esd does not describe.  Until 1.10 this was
+    ``QPA_FRACTION_UNDETERMINED``, a warning past an excess of 2.  That 2 was
+    chosen, not measured: it sat between the synthetic controls (0.79 and
+    under) and the one synthetic trace case (about 75).
+
+    Silent when ``excess`` is ``None``: without an esd there is no statistic
+    to state, and the range on the profile is the whole answer.
     """
-    if profile.excess is None or profile.excess <= FRACTION_PROFILE_EXCESS:
+    if profile.excess is None:
         return []
     widths = sorted({p.fwhm for p in profile.points if p.admissible})
     ends = (f"{widths[0]:.3g}°" if len(widths) == 1
@@ -277,18 +285,19 @@ def fraction_diagnostics(profile: FractionProfile) -> list[Diagnostic]:
            f"{profile.chi2_fit - profile.chi2_best:.3g}, so the fit did not reach "
            "the lowest basin along this ridge.")
     return [Diagnostic(
-        level="warning", code="QPA_FRACTION_UNDETERMINED",
+        level="info", code="QPA_FRACTION_RANGE",
         where=[f"phases.{profile.phase_index}.scale", *profile.axes],
         value=profile.excess,
         message=(
-            f"{profile.phase}'s weight fraction "
+            f"{profile.phase}'s weight fraction is "
             f"{100 * profile.weight_fraction:.3g} % ± "
-            f"{100 * profile.weight_fraction_stderr:.2g} % describes one basin. "
+            f"{100 * profile.weight_fraction_stderr:.2g} %. "
             f"Pinning {', '.join(profile.axes)} and refitting admits fractions "
             f"from {100 * profile.range_low:.3g} % to "
             f"{100 * profile.range_high:.3g} % within Δχ² "
             f"{profile.delta_chi2_cut:.3g} of the lowest χ² (95 %, scaled by "
             f"χ²_red and the Bérar-Lelann factor), at FWHM {ends}. The farthest "
             f"is {profile.excess:.3g} times the esd's 95 % half-width.{fit}"),
-        suggestion="Quote the range and the widths that produced it.",
+        suggestion=("Quote the range and the widths that produced it beside "
+                    "the esd."),
     )]

@@ -717,16 +717,24 @@ makes the compared models differ from the ones the plan describes, so
 in the caveats. Its own defaults are axis-shaped and produce none.
 
 The abstention is a result. Classes whose ΔBIC lies within
-`MagneticSolution.tie_width` of the leader's are tied on ΔBIC, and the next two
-keys decide among them: the magnetic-only R, when it separates them by more than
-2 % (relative), then the smaller moment-parameter count. A tiebreak that decides
-gives `"solved"`, with the key named in `MagneticSolution.reason`, and
-`MagneticSolution.margin` is then the winner's ΔBIC over the best other class,
-which can be negative. When neither key separates them
-`MagneticSolution.tied` names them and `MagneticSolution.verdict` reads
-`"abstained"`. The default
-width is 6.0, "strong" on the Kass & Raftery scale, the same bar peak fitting
-uses to keep an added component. So is the other abstention this workflow
+`MagneticSolution.tie_width` of the leader's are tied on ΔBIC. Where one of
+them has fewer moment parameters than every other, it wins: the verdict is
+`"solved"`, `MagneticSolution.reason` says parsimony decided, and
+`MagneticSolution.margin` is the winner's ΔBIC over the best other class,
+which can be negative. Otherwise `MagneticSolution.tied` names them,
+`MagneticSolution.verdict` reads `"abstained"`, and the reason gives each tied
+class's magnetic-only R. That R ranks nothing. Before 1.10 an R gap of more
+than 2 % broke a tie, a margin nobody had measured. The default width is 6.0,
+"strong" on the Kass & Raftery scale, the same bar peak fitting uses to keep
+an added component.
+
+ΔBIC charges N/f² observations rather than the N fitted channels, as
+`compare_freed` does, with f the Bérar-Lelann factor of the nuclear
+reference's fit. Neighbouring channels of one peak share the sign of their
+misfit, so at the raw count any χ² gain outvotes the parameter penalty. Before
+1.10 the count was N. On the Cr₂WO₆ 4 K tutorial pattern f is 3.38, so ΔBIC
+charges 153 of the 1749 channels, and the winner's lead over the next class
+falls from 1682 to 143, still far past the width. So is the other abstention this workflow
 makes: a cubic collinear structure has one class and a modulus the data
 measures well, and a direction the powder average cannot determine at all,
 which comes back as a held DOF in `MomentRow.unmeasured_directions`. That is
@@ -757,7 +765,7 @@ One refusal: a non-neutron histogram, by name. Everything else is reported.
 | `MagneticSolution.nuclear_rwp`, `MagneticSolution.nuclear_gof` | the reference fit every ΔBIC is against | |
 | `MagneticSolution.nuclear_r_magnetic` | the reference's own magnetic-only R | ≈1 on a nuclear model that explains none of it: the scale every `MagneticTrial.r_magnetic` is read against |
 | `MagneticSolution.n_magnetic_channels` | how many channels that region has | zero makes `r_magnetic` `None`, not 0 |
-| `MagneticSolution.caveats` | what the run wants you to know | includes ΔBIC's raw-channel-count N |
+| `MagneticSolution.caveats` | what the run wants you to know | includes the N/f² count ΔBIC charged, with N and f |
 | `MagneticSolution.write_magcifs` | writes one magCIF per refined class and returns the paths | nothing is written unless you call it or pass `cif_dir=` |
 | `MagneticSolution.k_trials` | one `KTrialSummary` per propagation vector actually refined | length 1 unless a runner-up k was within the satellite step's own offset margin of the winner (`k_trials=` option, default 2) |
 | `MagneticSolution.diagnostics` | structured diagnostics beside `MagneticSolution.caveats` | `K_VECTOR_UNSEPARATED` (info), `SOLVE_B_TIED_PER_PARENT_SITE` (info, with `tie_to_parent=True`) and `MAGNETIC_SUBGROUP_PREFERRED` (warning) among them |

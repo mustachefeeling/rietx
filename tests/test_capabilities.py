@@ -591,7 +591,7 @@ def test_the_pre_fit_calls_are_reachable_from_the_top_level():
     data = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist())
     diag = rx.diagnose(data, wavelength=1.5405929)
     assert diag.n_points == len(tt)
-    bkg = rx.auto_background(data, diagnostics=diag)
+    bkg = rx.auto_background(data, diagnostics=diag).background
     # held additively or co-refined under a penalty — never subtracted
     assert bkg.kind in {"pspline", "chebyshev", "fixed+chebyshev"}
 

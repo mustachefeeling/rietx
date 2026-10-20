@@ -6,11 +6,14 @@ answer does not move with it.  The observation channels of ``fit``,
 token nobody sets, a label, the run recorder, the per-stage reports, a
 history tree) are that class: each is switched on here against a fit with
 every channel at its default, and the answer is asserted equal to the bit.
+So are ``auto_background``'s ``wavelength`` and ``source``, which reach only
+the contamination screen of ``diagnose``, a finding the verb does not read.
 """
 
 from __future__ import annotations
 
 import io
+import warnings
 
 import numpy as np
 import pytest
@@ -105,3 +108,30 @@ def test_refine_observed_with_a_history_tree_is_refine_without(pattern, baseline
                             events=tmp_path / "events.jsonl", cancel=CancelToken(),
                             label="observed")), baseline)
     assert _recorded(tmp_path) == 1
+
+
+@pytest.mark.parametrize("kind", ["pspline", "chebyshev"])
+def test_auto_background_chooses_alike_with_the_beam_declared(kind):
+    """The model and every score beside it are the same with ``wavelength``
+    and ``source`` as without them (WP-2002, B12).  The pattern carries a Kβ
+    leak the screen finds, so the two calls' diagnostics do differ."""
+    from rietx.background import diagnose
+    from tests.test_background_auto import (
+        WAVELENGTH,
+        _dope_ghost,
+        _flat_bkg,
+        _peaky_pattern,
+    )
+
+    data, _ = _dope_ghost(_peaky_pattern(background=_flat_bkg, scale=3e-3),
+                          WAVELENGTH, 1.3922340)
+    assert diagnose(data, wavelength=WAVELENGTH).contamination
+    assert not diagnose(data).contamination
+    source = rx.Instrument.bragg_brentano(radiation="CuKa").source
+    with warnings.catch_warnings():
+        # a Chebyshev scan that reaches its cap says so on each call
+        warnings.simplefilter("ignore", UserWarning)
+        bare = rx.auto_background(data, kind=kind)
+        declared = rx.auto_background(data, kind=kind, source=source,
+                                      wavelength=WAVELENGTH)
+    assert declared.model_dump() == bare.model_dump()
