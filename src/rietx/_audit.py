@@ -34,15 +34,18 @@ them.
 Constant, default and suggestion rows store the live value, so a retune fails
 ``tests/test_audit_table.py`` and reopens the row's audit.
 
-**The growth guard reads no git.**  CI checks out at depth 2 with no
+**The suite's growth guard reads no git.**  CI's test jobs have no
 ``origin/main``, so a comparison against the base table would skip exactly
-where it gates a merge.  :data:`UNAUDITED_BASELINE` is instead the committed
-list of names allowed at ``unaudited``, written once at the open.  A row at
-``unaudited`` off the list fails, and so does a name on the list whose row
-was audited, so the list shrinks as the audits land.  Nothing but review stops
-a name being added to it; ``/wp-handover`` step 7 dispatches the
-``generality-review`` agent on any diff touching this module, so that edit
-is read by a judge.
+where it gates a merge.  A local ``origin/main`` can be stale.
+:data:`UNAUDITED_BASELINE` is instead the committed list of the rows still
+waiting for their audit.  A row at
+``unaudited`` off the list fails, and so does a name on the list whose row was
+audited, so the list shrinks as the audits land.  CI's lint job does read the
+base, at ``HEAD^1`` (``tests/audit_delta.py``).  It prints every row a change
+adds, changes or deletes.  It fails a name new to :data:`ROWS` at
+``unaudited``.  The ``generality-review`` agent reads every edit to this
+table.  ``/wp-handover`` step 7 dispatches it on a WP branch, and
+``/pr-review`` on an outside pull request.
 
 **Out of scope by declaration.**  An entry of :data:`NOT_WALKED`, each with
 its reason, and a default outside :data:`DEFAULT_SEATS`: the walk over all of ``src/rietx``

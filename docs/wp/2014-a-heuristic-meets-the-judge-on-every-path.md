@@ -134,7 +134,7 @@ ruling B9 to the peak-position bounds, and the 11-BM NAC cell drifted 5129 ppm a
       item with its verdict; a side with no evidence is `none found` in one line (ruling
       3). An `invariant` row names the test asserting its margin, or the judge says it has
       none.
-- [ ] **The CI step.** `tests/audit_delta.py`, run in the lint job like `tests.skill_caps`:
+- [x] **The CI step.** `tests/audit_delta.py`, run in the lint job like `tests.skill_caps`:
       read the base's `_audit.py` at HEAD^1 by `ast` (the baseline is a literal tuple),
       print every row delta with its tier to the step summary, and fail only on a name new
       to `ROWS` at `unaudited`. Cases: a rename passes, a return to `unaudited` passes, a

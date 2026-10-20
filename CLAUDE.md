@@ -514,10 +514,10 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
 - **Every heuristic has a row in `rietx._audit` with its tier** (WP-2001, `docs/milestones/
   generality.md` § The rule): each diagnostic code, action-reporting record field, number under
   `_audit.WALKED`, default at `_audit.DEFAULT_SEATS` and code's `suggestion=` sites.
-  `tests/test_audit_table.py` holds table and tree equal both ways, values included, so a new or
-  retuned item fails until its row names a tier, or `unaudited` with its name on the shrink-only
-  `UNAUDITED_BASELINE`. A tripwire cannot judge: `/wp-handover` step 7 sends a branch touching the
-  table, or adding what the module docstring says it cannot see, to the `generality-review` agent.
+  `tests/test_audit_table.py` holds table and tree equal both ways, values included. No name new
+  to the table enters at `unaudited` (CI's `tests/audit_delta.py`, against the base), and the
+  shrink-only `UNAUDITED_BASELINE` holds rows awaiting audit. `/wp-handover` step 7 and `/pr-review`
+  send a table change, or one adding what the table cannot see, to the `generality-review` agent.
 - **Licensing**: port code only from permissive sources, with ATTRIBUTION.md updates.
   BGMN/Profex/xrayutilities are GPL — concepts only, never code. TOPAS/FullProf are closed —
   papers only. ChimeraX's source is never opened, only its user docs (WP-1537, 1538). **Data carries its own fence, per file**: a PyPI upload publishes harder than a
