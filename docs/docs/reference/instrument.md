@@ -99,24 +99,38 @@ Each line diffracts at its own Bragg angle, so a doublet's splitting grows with 
 ### Wavelength refinement
 
 `EmissionLine.wavelength` and `NeutronSource.wavelength` are fixed by default.
-For a single pattern that default is a limit of the data.
-Bragg's law {eq}`pos-bragg` fixes only the product of λ with the reciprocal cell, so a free λ beside a free cell is an exactly flat direction.
-Freeing one is refused, naming the degeneracy:
+Bragg's law {eq}`pos-bragg` fixes only the product of λ with the reciprocal cell, so on one pattern a free λ beside a free cell is an exactly flat direction.
+With the cell held, λ refines on one pattern.
+That is how a beamline's wavelength is calibrated: a standard of certified cell, such as NIST SRM 640c silicon, holds the scale the cell would otherwise trade against λ.
+A glob that would free λ beside a free cell skips λ, as a plan's stage does.
+A solve that finds both free refuses, naming the degeneracy:
 
 ```python
-from rietx import Instrument
-from rietx.params.vector import check_wavelength_freedom
+from rietx import Instrument, Structure
+from rietx.examples import examples_dir
+from rietx.params.vector import ParameterTable
 
-instrument = Instrument.debye_scherrer(wavelength=0.4139090)
-instrument.source.lines[0].wavelength.vary = True
+wavelength = "instrument.source.lines.0.wavelength"
+structure = Structure.from_cif(examples_dir() / "fluorapatite.cif")
+
+held = ParameterTable(structure, Instrument.debye_scherrer(wavelength=1.5406))
+assert held.set_vary([wavelength], True) == [wavelength]   # the cell is held
+held.check_wavelength_against_cell()                        # a solve accepts it
+
+free = ParameterTable(structure, Instrument.debye_scherrer(wavelength=1.5406))
+free.set_vary(["phases.0.cell.a"], True)
+assert free.set_vary([wavelength], True) == []              # skipped beside a free cell
+
+held.set_vary(["phases.0.cell.a"], True)
 try:
-    check_wavelength_freedom(["instrument.source.lines.0.wavelength"],
-                             n_wavelengths=1, n_histograms=1)
+    held.check_wavelength_against_cell()
 except ValueError as exc:
-    assert "single-histogram" in str(exc)
+    assert "cannot both be free" in str(exc)
+else:
+    raise AssertionError("a free λ beside a free cell was accepted")
 ```
 
-Patterns of one specimen fitted together share one cell, and that breaks the degeneracy.
+Patterns of one specimen fitted together share one cell, and that breaks the degeneracy too.
 Hold one wavelength and free at most N − 1 of N, holding the wavelength of the pattern that determines the cell best.
 A free wavelength also needs its pattern's cell shared with a pattern whose wavelength is held.
 [How to fit several patterns of one specimen together](../guides/joint.md) shows the procedure.
