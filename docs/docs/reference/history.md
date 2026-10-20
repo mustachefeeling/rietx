@@ -120,6 +120,16 @@ These are the fields of `Stage`, and [stage settings](settings.md#stage-settings
 A stage that takes the plan's schedule (`RefinementPlan.intermediate_ftol`) declares nothing and stops at 1e-6.
 A node holding `None` there would replay at the solver's tolerance, which the original run did not use.
 
+A stage node also records the two plan settings its stage ran under, so a cherry-pick replays them too.
+
+| Field | Default | Holds |
+|---|---|---|
+| `NodeAction.phase_support_sigma` | `3.0` | the absent-phase hold's threshold in esds; `None` means the hold was off |
+| `NodeAction.correlation_guard` | `0.98` | the \|ρ\| above which the stage reported a correlated pair |
+
+A node written before 1.10 has neither field and reads as the defaults, which are what it ran at unless its plan set them.
+`api_call()` adds either setting to the stage's line only where it differs from the default.
+
 ## Actions as calls
 
 `NodeAction.api_call` renders an action as the public call that repeats it, so a log reads as a session script:

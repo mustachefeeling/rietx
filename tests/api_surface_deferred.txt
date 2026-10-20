@@ -28,8 +28,6 @@ BodyTorsion.axis
 BodyTorsion.moves
 BodyTorsion.name
 BodyTorsion.vary
-NodeAction.correlation_guard
-NodeAction.phase_support_sigma
 ParameterRow.body
 Phase.rigid_bodies
 RigidBody.atoms
