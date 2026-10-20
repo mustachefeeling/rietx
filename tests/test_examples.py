@@ -2,7 +2,8 @@
 
 `examples/` is the **one authority** for a worked walkthrough: the manual
 `{literalinclude}`s these scripts rather than retyping them, so what a reader
-of `using/first-refinement.md` sees is this file, and this test is what makes it a
+of `start/first-fit.md` (and of the old tree's `using/first-refinement.md` until
+it retires) sees is this file, and this test is what makes it a
 script that runs.  Before WP-1067 nothing in `tests/` executed either script —
 ruff linted them and that was all, while README carried a second, unguarded
 copy of the same walkthrough.
@@ -127,8 +128,8 @@ def test_switching_example_reproduces_what_the_pages_quote():
     assert "reproduced" in out, f"switching.py printed no 'reproduced' line:\n{out}"
 
 
-#: A file whose name starts with `_` is data several guides share (the
-#: synthetic series), with no page of its own.
+#: A file whose name starts with `_` makes a guide's data (the synthetic
+#: series, the calibration pair), with no page of its own.
 GUIDE_SCRIPTS = sorted(p for p in (EXAMPLES / "guides").glob("*.py")
                        if not p.name.startswith("_"))
 GUIDE_PAGES = REPO_ROOT / "docs" / "docs" / "guides"

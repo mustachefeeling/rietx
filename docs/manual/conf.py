@@ -8,9 +8,7 @@
 # resolution rather than constant injection (tests/test_manual_api.py).
 
 import re as _re
-import shutil as _shutil
 import sys as _sys
-from importlib import util as _importlib_util
 from importlib.metadata import version as _dist_version
 from pathlib import Path as _Path
 
@@ -225,46 +223,15 @@ _write_glossary()
 # ----------------------------------------------------------------------
 # The tutorial notebooks (WP-1916)
 #
-# The notebooks live in `examples/tutorials/`, beside the scripts they are
-# built from, and Sphinx reads only its own source tree.  So each build copies
-# them into `using/tutorials/`, which is gitignored; `using/quickstart.md` is
-# their toctree.  It cannot be `_generated/`, which `exclude_patterns` keeps
-# out of the sources.  The set is `build.py`'s own glob, so a sixth tutorial
-# needs no edit here, and a copy whose source is gone is deleted.
-# `tests/test_manual_api.py` globs `using/` for `*.md` only, so the copies do
-# not make the suite depend on whether a build has run.
+# Copied in at build by `sphinx_shared.copy_tutorials`, which the new tree
+# calls too.  Here they land in `using/tutorials/`, which is gitignored, and
+# `using/quickstart.md` is their toctree.  It cannot be `_generated/`, which
+# `exclude_patterns` keeps out of the sources.
 # ----------------------------------------------------------------------
 
-TUTORIALS_SRC = _Path(__file__).resolve().parents[2] / "examples" / "tutorials"
-TUTORIALS_DST = _Path(__file__).parent / "using" / "tutorials"
-
-
-def _tutorial_notebooks() -> list[_Path]:
-    spec = _importlib_util.spec_from_file_location("_tutorials_build", TUTORIALS_SRC / "build.py")
-    build = _importlib_util.module_from_spec(spec)
-    spec.loader.exec_module(build)
-    return [s.with_suffix(".ipynb") for s in build.sources(TUTORIALS_SRC)]
-
-
-def _copy_tutorials() -> int:
-    notebooks = _tutorial_notebooks()
-    missing = [nb.name for nb in notebooks if not nb.is_file()]
-    if missing:
-        raise RuntimeError(
-            f"tutorial scripts with no committed notebook: {missing} -- run "
-            "examples/tutorials/build.py")
-    TUTORIALS_DST.mkdir(exist_ok=True)
-    for stale in set(TUTORIALS_DST.glob("*.ipynb")) - {TUTORIALS_DST / nb.name for nb in notebooks}:
-        stale.unlink()
-    for nb in notebooks:
-        # copy2 keeps the mtime, so Sphinx rereads a page only when its
-        # notebook changed.
-        _shutil.copy2(nb, TUTORIALS_DST / nb.name)
-    return len(notebooks)
-
-
 # The count the quickstart's prose quotes, for the reason `N_EXAMPLES` exists.
-myst_substitutions["N_TUTORIALS"] = _copy_tutorials()
+myst_substitutions["N_TUTORIALS"] = _shared.copy_tutorials(
+    _Path(__file__).parent / "using" / "tutorials")
 
 
 # ----------------------------------------------------------------------

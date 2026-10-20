@@ -3,8 +3,8 @@
     .venv/bin/python docs/skill/make_api_index.py
     .venv/bin/rietx skill --install . --copy      # then re-sync the committed copies
 
-The index is **generated and committed**, the way Part 1's figures are
-(``docs/manual/make_figures.py``): committed so that it ships in the wheel and
+The index is **generated and committed**, the way the manual's figures are
+(``docs/docs/make_figures.py``): committed so that it ships in the wheel and
 in the two committed copies with no build step, generated so that no signature
 in it was typed by hand.  WP-1304's brief for this file is the document three
 "explore the library" runs (114 calls) wrote from source during the 2026-08

@@ -65,13 +65,15 @@ Each pattern's own diagnostics are in `series[k].diagnostics`.
 
 <!-- output of examples/guides/series.py -->
 ```text
-300 K  a = 4.156602(4) Å
-400 K  a = 4.158681(4) Å
-500 K  a = 4.160757(4) Å
-600 K  a = 4.162841(4) Å
-700 K  a = 4.164909(4) Å
-800 K  a = 4.166991(4) Å
-900 K  a = 4.169068(4) Å
+Trajectory: phases.0.cell.a, 7 point(s)
+  label  T (K)  value
+  p000   300    4.1566025(43)
+  p001   400    4.1586809(43)
+  p002   500    4.1607571(42)
+  p003   600    4.1628411(42)
+  p004   700    4.1649086(43)
+  p005   800    4.1669912(42)
+  p006   900    4.1690679(42)
 ```
 
 Each value lies within 2 esd of the cell edge its pattern was made from.

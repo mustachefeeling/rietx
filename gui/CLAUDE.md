@@ -1045,7 +1045,7 @@ WP-1037's bug pointed at the reader. **Where no python object knows the fact,
 the authorities swap**: nothing here knows the panels exist, so the strip is
 data in `lib/tabs.ts`, `tabs.test.ts` writes `tests/data/gui/panels.json` and
 pytest reads it — the fnmatch mechanism run backwards, and it keeps the python
-suite node-free. **A screenshot is generated**, by `docs/manual/
+suite node-free. **A screenshot is generated**, by `docs/docs/
 make_screenshots.py` driving this server in-process over a shipped example;
 that script is the one authority for how each was taken, its `SHOTS` table is
 what a chapter may reference, and a picture is judged by **looking at it** —

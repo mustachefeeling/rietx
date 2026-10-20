@@ -13,9 +13,11 @@
 
 import dataclasses as _dataclasses
 import importlib as _importlib
+import importlib.util as _importlib_util
 import inspect as _inspect
 import os as _os
 import re as _re
+import shutil as _shutil
 from pathlib import Path as _Path
 
 import sphinxcontrib.bibtex.plugin as _bibtex_plugin
@@ -63,7 +65,7 @@ from rietx.optimize.statistics import (
 from rietx.params.parametric import FORM_TEST_LEVEL
 from rietx.params.vector import SIZE_CAP_RANGE_FRACTION, STRAIN_CAP_RANGE_FRACTION
 from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
-from rietx.report.layer0 import build_layer0
+from rietx.report.layer0 import LAYER0_MATCH_TOL_DEG, build_layer0
 from rietx.report.layer2 import IMPURITY_SIGMA
 from rietx.report.schemas import (
     MATURITY_MAX_RWP,
@@ -165,8 +167,9 @@ _bibtex_plugin.register_plugin(
 # ----------------------------------------------------------------------
 # The fenced constants, as MyST substitutions
 #
-# Each tree adds its own `release` (and the old one its `N_TUTORIALS`), since
-# those are facts about the build rather than about the package.
+# Each tree adds its own `release` and `N_TUTORIALS` (the count
+# `copy_tutorials` below returns), since those are facts about the build
+# rather than about the package.
 # ----------------------------------------------------------------------
 
 MYST_SUBSTITUTIONS = {
@@ -175,6 +178,9 @@ MYST_SUBSTITUTIONS = {
     # still derived, and a retuned clamp still moves the printed number.
     "ANGLE_LINEARISATION_LIMIT_DEG": f"{ANGLE_LINEARISATION_LIMIT_DEG:.1e}",
     "HUMP_MIN_WIDTH_MULT": HUMP_MIN_WIDTH_MULT,
+    # a declared peak this close to a predicted position sits on it, and the
+    # report matches an observed peak to a tick by the same distance
+    "LAYER0_MATCH_TOL_DEG": LAYER0_MATCH_TOL_DEG,
     "BRINDLEY_MU_R_FENCE": BRINDLEY_MU_R_FENCE,
     "FRACTION_PROFILE_DCHI2": FRACTION_PROFILE_DCHI2,
     "PARAMETER_INTERVAL_MAX_REFITS": PARAMETER_INTERVAL_MAX_REFITS,
@@ -265,6 +271,51 @@ MYST_SUBSTITUTIONS = {
     "VALIDITY_RADIUS_FWHM": VALIDITY_RADIUS_FWHM,
     "WINDOW_AREA_TOL": WINDOW_AREA_TOL,
 }
+
+
+# ----------------------------------------------------------------------
+# The tutorial notebooks (WP-1916, shared by WP-1986)
+#
+# The notebooks live in `examples/tutorials/`, beside the scripts they are
+# built from, and Sphinx reads only its own source tree.  So each build copies
+# them into a gitignored directory of its own: `using/tutorials/` in the old
+# tree, `start/tutorials/` in the new one.  The set is `build.py`'s own glob,
+# so a new tutorial needs no edit here, and a copy whose source is gone is
+# deleted.  The page-globbing tests read `*.md` only, so the copies do not make
+# the suite depend on whether a build has run.
+# ----------------------------------------------------------------------
+
+#: Where the tutorial scripts and their committed notebooks live.
+TUTORIALS_SRC = REPO_ROOT / "examples" / "tutorials"
+
+
+def tutorial_notebooks() -> list[_Path]:
+    """The committed notebook of each tutorial script, in `build.py`'s order."""
+    spec = _importlib_util.spec_from_file_location("_tutorials_build", TUTORIALS_SRC / "build.py")
+    build = _importlib_util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    return [s.with_suffix(".ipynb") for s in build.sources(TUTORIALS_SRC)]
+
+
+def copy_tutorials(destination: _Path) -> int:
+    """Copy every committed notebook into `destination`, and return how many.
+
+    The count is what a tree's index page quotes as `N_TUTORIALS`.
+    """
+    notebooks = tutorial_notebooks()
+    missing = [nb.name for nb in notebooks if not nb.is_file()]
+    if missing:
+        raise RuntimeError(
+            f"tutorial scripts with no committed notebook: {missing} -- run "
+            "examples/tutorials/build.py")
+    destination.mkdir(exist_ok=True)
+    for stale in set(destination.glob("*.ipynb")) - {destination / nb.name for nb in notebooks}:
+        stale.unlink()
+    for nb in notebooks:
+        # copy2 keeps the mtime, so Sphinx rereads a page only when its
+        # notebook changed.
+        _shutil.copy2(nb, destination / nb.name)
+    return len(notebooks)
 
 
 # ----------------------------------------------------------------------

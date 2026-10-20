@@ -4346,7 +4346,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
             "coefficient."
         ),
         unit="mm",
-        typical="217.5 mm is a common benchtop value and the default",
+        typical="217.5 mm is a common laboratory value and the default",
         anchor="peak-positions.html#aberration-shifts",
     ),
     "monochromator_two_theta": HelpEntry(
@@ -4557,14 +4557,14 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "How many search lines a cell may leave unindexed. Empty (the "
             "default) is two. A run where no two engines agree on a lattice "
             "is searched again accepting a cell that indexes 60 % of the "
-            "search lines and the five strongest; 'inliers' searches that "
+            "search lines and the five strongest; `'inliers'` searches that "
             "way from the start. A number forbids the retry. Raising it "
             "manufactures cells, because every tolerated line is one more "
             "coincidence that a wrong metric is allowed. Four is a "
             "statement that you know something about the specimen, such as "
             "an impurity."
         ),
-        typical="empty; 'inliers' on a pattern with a known impurity",
+        typical="empty; `'inliers'` on a pattern with a known impurity",
         anchor="using/indexing.html#the-search-specification",
     ),
     "n_search_lines": HelpEntry(
@@ -4612,7 +4612,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "survives the search is refitted with this correction. The refit stops a "
             "widened search from reporting a biased cell."
         ),
-        typical="`cos_theta` for specimen displacement, `constant` for a zero error",
+        typical="`cos_theta` for specimen displacement, `constant` for a zero-point shift",
         anchor="using/indexing.html#the-systematic-shift-and-the-window-it-opens",
     ),
     "max_candidates": HelpEntry(

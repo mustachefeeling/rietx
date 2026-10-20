@@ -102,12 +102,12 @@ One more line draws the fit:
 result.plot(path="nac_fit.png", wavelength=0.4139090)
 ```
 
-```{image} figures/nac-fit-light.png
+```{image} ../../docs/figures/nac-fit-light.png
 :class: only-light
 :alt: Observed points, calculated line, the obs minus calc difference below them and one row of reflection ticks per phase below that
 ```
 
-```{image} figures/nac-fit-dark.png
+```{image} ../../docs/figures/nac-fit-dark.png
 :class: only-dark
 :alt: Observed points, calculated line, the obs minus calc difference below them and one row of reflection ticks per phase below that
 ```
@@ -171,12 +171,12 @@ model does not account for, so an impurity phase shows up as unmatched peaks at
 positions you can identify, before it can distort a structural refinement by
 being absorbed into a background or a width.
 
-```{image} figures/impurity-peak-light.png
+```{image} ../../docs/figures/impurity-peak-light.png
 :class: only-light
 :alt: Two zoomed panels near 7.5 degrees; the left has an observed peak with no calculated intensity, the right fits it
 ```
 
-```{image} figures/impurity-peak-dark.png
+```{image} ../../docs/figures/impurity-peak-dark.png
 :class: only-dark
 :alt: Two zoomed panels near 7.5 degrees; the left has an observed peak with no calculated intensity, the right fits it
 ```

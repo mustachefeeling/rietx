@@ -1,9 +1,13 @@
-"""Regenerate the GUI chapters' committed screenshots (WP-1017).
+"""Regenerate the GUI pages' committed screenshots (WP-1017).
 
     .venv/bin/python -m pip install playwright     # once, see below
-    .venv/bin/python docs/manual/make_screenshots.py
+    .venv/bin/python docs/docs/make_screenshots.py
 
-`make_figures.py`'s rule, one medium over: the screenshots are **committed**,
+The pages are `start/gui-quickstart.md`, `reference/gui-guide.md` and
+`reference/gui-power.md`, moved here from the old tree by WP-1986; the old
+tree's copies reference the same files until it retires.
+
+`docs/docs/make_figures.py`'s rule, one medium over: the screenshots are **committed**,
 not built, so the sphinx build stays offline and dependency-free, and this
 script is the one authority for how each was taken.  The cost is that a
 screenshot can go stale when a control moves, so `SHOTS` below is the
@@ -26,9 +30,10 @@ run of the app actually finds it, and the project is then opened through the
 same route the example row calls.  A fitted shot runs the plan first, so the
 curves in the picture are curves the package produced.
 
-Each shot is written twice, `-light` and `-dark`, and the chapters select
-between them with furo's `only-light` / `only-dark` classes, exactly as
-Part 1's figures do.  A single white-ground screenshot on a dark page is what
+Each shot is written twice, `-light` and `-dark`, and the pages select
+between them with the `only-light` / `only-dark` classes both themes read
+(pydata-sphinx-theme here, furo in the old tree), exactly as Part 1's
+figures do.  A single white-ground screenshot on a dark page is what
 that avoids.
 """
 
@@ -43,7 +48,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SHOTS_DIR = Path(__file__).resolve().parent / "using" / "screenshots"
+SHOTS_DIR = Path(__file__).resolve().parent / "screenshots"
 sys.path.insert(0, str(REPO_ROOT))
 
 #: The example every shot is taken of.  `fap` rather than `nac`: a lab pattern
@@ -98,7 +103,7 @@ class Shot:
 PHASES = ("empty", "opened", "fitted", "forked")
 
 
-#: The declared set.  A chapter may reference `screenshots/<name>-light.png`
+#: The declared set.  A page may reference `../screenshots/<name>-light.png`
 #: and `-dark.png` for any name here and no other; `tests/test_gui_manual.py`
 #: holds the two together.
 SHOTS: tuple[Shot, ...] = (
