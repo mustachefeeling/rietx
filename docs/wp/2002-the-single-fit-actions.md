@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-19 — 4 of 16 classes ruled; 9 items re-briefed in plain words await the maintainer
+Milestone: generality · Status: 🔄 2026-10-20 — all 16 classes ruled; 110 more rows tiered and seven ruled changes built; 16 rows wait, five questions with the maintainer
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -134,21 +134,30 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
 - [ ] Tier each row per part (statistic, threshold, action), with evidence: the citation,
       the program and its default behaviour, or the families measured. Where the families
       are fewer than three, run the missing ones (the fits are cheap; a chain family is
-      2003's). *157 rows needing no approval landed 2026-10-19; the rest wait on the batch.*
+      2003's). *157 rows needing no approval landed 2026-10-19; the rest wait on the batch.
+      2026-10-20: the ruled rows landed; 16 still wait, each with what it waits on, in
+      `2002-batch/waiting.md`. The second pass (three families per surviving threshold)
+      has not run.*
 - [ ] The clash table: every pair of actions that read or move the same parameter, with
       the measured interaction (Rwp and the parameter, both orderings). *38 candidate pairs
       found, none measured: `2002-batch/clashes.md`.*
-- [ ] The batch to the maintainer, in the register of `~/.claude/CLAUDE.md`: per tier-3
+- [x] The batch to the maintainer, in the register of `~/.claude/CLAUDE.md`: per tier-3
       row the two grounds answered, and per tier-2 action the judgement ground (for the
       judgement ground, the dissenting caller named or declared absent), the Rule 1 kind it falls to if demoted, the case against
       drafted by the `generality-review` agent, and a recommendation. Rows resting on one evidence base are grouped and ruled as a class
       (record § Decisions); rulings dated into the table. *Drafted and reviewed 2026-10-19:
       `2002-batch/batch.md`, 16 classes. Ruled 2026-10-19: B7, B10, B12, B14, and B1
-      confirmed. The other nine re-briefed in `2002-batch/rulings.md`, awaiting answers.*
+      confirmed. The other nine re-briefed in `2002-batch/rulings.md`, awaiting answers.
+      All sixteen ruled by 2026-10-20 (`rulings.md`, three rounds; B2 and B14 re-asked).*
 - [ ] Approved demotions: the action removed, and its number left in the record field (or
       its ranking returned) with its meaning in the package's own output; the code's
       `level` to `info`, or, where the threshold was its trigger, the code replaced by an
       `info` record with no threshold (the record § Demotion). Each as its own commit.
+      *2026-10-20, built: the cell reset (B8), the size floor and the chosen limits (B8,
+      B9), the stationary angle's interval (B2), the hold's threshold as a plan setting
+      (B1), `stderr_uncorrected` and its manual (B4), the pick verbs (B12). Left: B14's
+      lifts, B3's and B9's two-start tests, B7's and B11's invariance and margin tests,
+      the FCJ node cap (B10).*
 - [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
       moved away goes back through the two grounds.

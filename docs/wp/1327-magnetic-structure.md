@@ -140,6 +140,7 @@ rule above applies to the form factors.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-20, PR #1050): `strategy.magnetic.SOLVE_D_MIN` waits on the form factor.** WP-2002's batch (B12, revised pick) dropped setting it from the data's d range: the magnetic signal dies with the form factor (Mn³⁺ ⟨j₀⟩ 0.39 at d = 1.5 Å, 0.04 at 0.77 Å), so a limit from the data's range would split classes on reflections with no magnetic intensity. Set it where the form factor falls under the noise; its audit row stays `unaudited` until then.
 - **2026-10-19, from [2001](2001-the-rule-the-table-and-the-guard.md): magnetic
   refinement has no validating reference, and
   [2010](2010-every-feature-names-what-verifies-and-validates-it.md) will say so where a

@@ -106,6 +106,7 @@ and goes through the harness.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-20, PR #1050): skill rows that changed with a ruled verdict.** `CELL_RUNAWAY` (diagnostics.md, the cell now reset and held), `MOMENT_ANGLE_STATIONARY` (magnetic.md, the angle's profile interval), `QPA_FRACTION_UNDETERMINED` renamed `QPA_FRACTION_RANGE` (an info record, no threshold), `K_VECTOR_UNSEPARATED` and `MAGNETIC_SUBGROUP_PREFERRED` (N/f² and no R tie-break), `SIZE_UNUSUALLY_SMALL`, `STRAIN_UNUSUALLY_LARGE` and `PHASE_UNCONSTRAINED` (abstention.md), the new `OCCUPANCY_ABOVE_ONE`, and `auto_background`'s `.background` in SKILL.md. Read each against the table's row.
 (none at filing)
 
 ## Non-goals
