@@ -659,9 +659,10 @@ ROWS: tuple[Row, ...] = (
                   "0.031/0.159 in, 0.0035-0.47 as ftol moved; LaMnO3 BT-1: a polar angle 5.2 deg "
                   "off 90 with a 3.5 deg linear esd, Delta chi2 0.56 against 3.84; names what "
                   "StageResult.moment_angle_tests records and quotes RefinedParameter.interval; "
-                  "one angle tested alone passes below the one-sided cut 2.706 and so always "
-                  "lies inside its 95 % interval (cut 3.84), so the message's 'excludes' "
-                  "branch is reachable only for angles tested together"),
+                  "one angle tested alone passes below the one-sided cut 2.706 and so nearly "
+                  "always lies inside its 95 % interval (cut 3.84): the test's linearised "
+                  "refit can sit up to 1.5 from the full refit the interval walks, more "
+                  "than the 1.13 between the cuts, so 'excludes' stays reachable"),
         grounds=("The column leaves the covariance by the package's own act, so the finding "
                  "says so, with each angle's distance from the direction and its profile "
                  "interval (B2 option 2, ruled 2026-10-19)."),
@@ -1438,10 +1439,10 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.bccg._CAUCHY_ARMIJO", "constant", tier=3, value=0.0001,
         evidence=("Moré & Toraldo (1991) SIAM J. Optim. 1, 93 for the projected search (docstring);"
                   " 1e-4 is the textbook Armijo c1 (recalled, not checked)"),
-        grounds=("A constant that decides where a solve stops, taken from the paper that "
-                 "defines the algorithm; the paper did not validate it on rietx's problems, so "
-                 "tier 3 until refits of three families on either side give one answer, as "
-                 "B10's solver-path switches (ruled 2026-10-20)."),
+        grounds=("A constant that decides where a line search stops, the textbook Armijo "
+                 "value; no source validated it on rietx's problems, so tier 3 until refits "
+                 "of three families on either side give one answer, as B10's solver-path "
+                 "switches (ruled 2026-10-20)."),
         approved="2026-10-20"),
     Row("rietx.optimize.bccg._CAUCHY_HALVINGS", "constant", tier=1, value=60,
         evidence=("arithmetic: 2^-60 = 8.7e-19 sits below fp64 epsilon, so no further halving "

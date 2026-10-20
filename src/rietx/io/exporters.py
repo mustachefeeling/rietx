@@ -472,8 +472,10 @@ def _special_details(result: RefinementResult, structure: Structure) -> list[str
         if factor is not None:
             esd += (", multiplied by the Berar-Lelann serial-correlation factor "
                     f"{factor} (Berar & Lelann 1991, J. Appl. Cryst. 24, 1, eqs "
-                    "10-12). Divided by it, they are the su GSAS-II and TOPAS "
-                    "print, and FullProf prints beside its SCOR")
+                    "10-12). Divided by it, they are the uncorrected su, as "
+                    "GSAS-II prints them and FullProf prints them beside its "
+                    "SCOR; the TOPAS Technical Reference describes no such "
+                    "factor")
         out.append(esd + ".")
     for phase in structure.phases:
         po = phase.preferred_orientation

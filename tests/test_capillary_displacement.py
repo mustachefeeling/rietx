@@ -28,8 +28,8 @@ Over NAC's certified 2-24° range the three positional shapes are degenerate
 direction to +4.86 and +2.12 mm with esds of 2.5 and 0.9 mm — while Rwp
 *improves* and the cell leaves its acceptance band by 5109 ppm, with an esd
 of 2579 ppm that says so.  Until WP-2002 (2026-10-20) a ±1 mm default bound
-stopped the walk at 1097 ppm and made the cell look closer than the data
-support.  What the last two tests assert is therefore the sharper claim: on
+stopped the walk at 1097 ppm, a prior that the mount is aligned which held
+here, with the same esd.  What the last two tests assert is therefore the sharper claim: on
 this instrument the correction must not be refined, and the package says so
 in the channels that can (the cell's esd, HIGH_CORRELATION, FLAT_DIRECTION)
 rather than in the one that cannot (Rwp).

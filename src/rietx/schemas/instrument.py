@@ -1223,17 +1223,19 @@ class Geometry(_InheritsDeclaredDefaults):
     #: clips at |tan 2θ|; ``fcj.fcj_live`` reads a negative ratio as the
     #: aberration off), and a transparency is 1/(2µR) ≥ 0.  The displacement,
     #: the two capillary offsets and ``Instrument.zero_shift`` lost their
-    #: ±1 mm and ±0.5° on 2026-10-20, ruled with the measurement that a bound
-    #: on a degenerate walk hides the degeneracy rather than limiting it: on
-    #: 11-BM NAC over 2-24° 2θ with zero and both offsets free, bounded, the
-    #: cell lands 1097 ppm from its reference with an esd of 2612 ppm;
-    #: unbounded, the offsets slide to +4.86 and +2.12 mm and the cell to
-    #: 5109 ppm with an esd of 2579 ppm.  Both fits report the same two
-    #: ``FLAT_DIRECTION`` findings naming the cell and an offset, and the
-    #: bound only made the cell look 4.6 times closer to its reference than
-    #: the data support (``tests/test_capillary_displacement.py``).  A caller
-    #: who knows the mount states a bound; ``BOUND_HIT`` reports one that
-    #: carries load.
+    #: ±1 mm and ±0.5° on 2026-10-20.  The fit reports the degeneracy with or
+    #: without them: on 11-BM NAC over 2-24° 2θ with zero and both offsets
+    #: free, bounded, the cell lands 1097 ppm from its reference with an esd
+    #: of 2612 ppm; unbounded, the offsets slide to +4.86 and +2.12 mm and
+    #: the cell to 5109 ppm with an esd of 2579 ppm, and both fits carry the
+    #: same two ``FLAT_DIRECTION`` findings naming the cell and an offset
+    #: (``tests/test_capillary_displacement.py``).  The bound acted as a
+    #: prior that the mount is aligned, true on 11-BM and so nearer the
+    #: reference there, without narrowing the esd.  A prior about the mount
+    #: is the caller's: the bounds had one family behind them and a named
+    #: dissenter (a recessed holder), and neither GSAS-II nor FullProf sets
+    #: one.  A caller who knows the mount states a bound; ``BOUND_HIT``
+    #: reports one that carries load.
     sample_displacement: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, unit="mm")
     )
