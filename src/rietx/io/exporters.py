@@ -458,12 +458,17 @@ def _special_details(result: RefinementResult, structure: Structure) -> list[str
         # the factor the written su carry, read off the rows: it can differ
         # from ``Statistics.esd_inflation`` (0.07-4 %, WP-2002), and a reader
         # dividing by the quoted factor must land on the uncorrected su
-        carried = sorted({float(f"{p.stderr / p.stderr_uncorrected:.3g}")
-                          for p in result.parameters
-                          if p.stderr is not None and p.stderr_uncorrected})
-        factor = (f"{carried[0]:.3g}" if len(carried) == 1 else
-                  f"{carried[0]:.3g} to {carried[-1]:.3g}" if carried else
-                  None if st.esd_inflation is None else f"{st.esd_inflation:.3g}")
+        # (one solve's rows share one factor to an ulp, so compare unrounded:
+        # rounding first split a factor on a 3-digit boundary into a range)
+        carried = [p.stderr / p.stderr_uncorrected for p in result.parameters
+                   if p.stderr is not None and p.stderr_uncorrected]
+        if carried:
+            lo, hi = min(carried), max(carried)
+            factor = (f"{lo:.3g}" if hi - lo <= 1e-9 * hi
+                      or f"{lo:.3g}" == f"{hi:.3g}" else f"{lo:.3g} to {hi:.3g}")
+        else:
+            factor = (None if st.esd_inflation is None
+                      else f"{st.esd_inflation:.3g}")
         if factor is not None:
             esd += (", multiplied by the Berar-Lelann serial-correlation factor "
                     f"{factor} (Berar & Lelann 1991, J. Appl. Cryst. 24, 1, eqs "
