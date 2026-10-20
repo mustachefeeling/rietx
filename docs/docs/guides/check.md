@@ -89,3 +89,4 @@ The full script is `examples/guides/check.py`.
 ## See also
 
 - [How to limit the fit range or leave out a region](range.md) acts on what this check finds.
+- [Pattern diagnostics](../reference/pattern-diagnostics.md) gives all eighteen fields and the measurements behind them.

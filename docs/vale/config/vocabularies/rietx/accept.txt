@@ -21,6 +21,8 @@ Altomare
 [bB]eamstop
 [bB]eamtime
 [bB]ijection
+[bB]intype
+[bB]intypes
 Biso
 [bB]kg
 Borda
@@ -51,6 +53,7 @@ CIFs
 [cC]odeword
 [cC]odewords
 Coelho
+Colab
 [cC]ollinear
 [cC]ollinearity
 [cC]ombinatorial
@@ -149,6 +152,7 @@ Jmol
 Jupyter
 JupyterLab
 Kapton
+Kass
 Kessler
 Kirfel
 Kissel
@@ -175,6 +179,7 @@ Madsen
 [mM]agCIF
 [mM]agneton
 [mM]agnetons
+Maier
 Mantid
 Marquardt
 [mM]atplotlib
@@ -208,11 +213,13 @@ Niggli
 [oO]ctahedra
 [oO]ctahedral
 [oO]ctahedron
+Olds
 [oO]perando
 [oO]rthonormal
 [oO]rthorhombic
 [oO]xygens
 P1
+PANalytical
 [pP]arameterisation
 [pP]arameterisations
 [pP]arameterises
@@ -242,6 +249,7 @@ Pitschke
 [qQ]uartic
 [qQ]uaternion
 Rachinger
+Raftery
 [rR]ealification
 [rR]ecurses
 [rR]efinable
@@ -283,6 +291,7 @@ Shubnikov
 [sS]pinel
 [sS]tderr
 [sS]tdout
+Stoe
 [sS]tructureless
 [sS]ubcell
 [sS]ubcommand

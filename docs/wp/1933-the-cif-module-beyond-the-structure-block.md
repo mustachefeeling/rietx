@@ -163,6 +163,8 @@ and alert lists are in 1319's Context.
 
 ### Inherited
 
+- **2026-10-20, from [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md), found while moving the manual's reference pages: the two-block refusal names the wrong cause.** `structure_from_cif` refuses a valid two-block CIF with "this file does not read as a CIF (an empty, truncated or non-CIF file reaches here)" (`crystallography/cif.py:206-209`). Task C-e's `block=` is the fix; until it lands, the message could name the blocks it found.
+
 - **2026-10-11, from the issue triage (#756): the superspace-number rule of
   2026-10-06 13:56 (from #682) is in no WP.** `SuperspaceGroup.number` is a
   caller-supplied label nothing sets or checks

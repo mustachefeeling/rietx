@@ -106,6 +106,8 @@ and goes through the harness.
 
 ### Inherited
 
+- **2026-10-20, from [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md), found while moving the manual's reference pages: `model_dump(mode="json")` is not JSON for an infinite bound.** `SKILL.md:44`, and `references/api.md:13` from `make_api_index.py:499`, say to dump an answer with `model_dump(mode="json")`. That returns a ±inf bound as a Python float, so `json.dumps` writes a bare `Infinity`, which a strict parser rejects; `model_dump_json()` writes the `"Infinity"` strings the schemas promise (measured, pydantic 2.14.1). It is harmless to an agent reading the dict in Python and wrong for one storing or sending JSON. `docs/docs/reference/programs.md` gives `model_dump_json()`. Root CLAUDE.md's integration-surface clause says the same and is the maintainer's to change.
+
 (none at filing)
 
 ## Non-goals

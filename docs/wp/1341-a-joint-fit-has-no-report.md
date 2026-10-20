@@ -137,6 +137,8 @@ against the tree at e1d19359 on arrival.
 
 ### Inherited
 
+- **2026-10-20, from [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md), found while moving the manual's reference pages: a histogram view drops two fields.** A joint fit's result carries no `tick_hkl` (`multi.py:1879` passes `ticks` alone), and `RefinementResult.for_histogram` copies `ticks` but neither `tick_hkl` nor `phase_agreement` (`schemas/results.py:1735-1757`). So a view's ticks name no reflection, and its structure R-factors are empty. `docs/docs/reference/joint.md` documents the views as they are.
+
 - **2026-10-18, from [2001](2001-the-rule-the-table-and-the-guard.md): the generality
   milestone opened, and [2004](2004-the-fitreport-reasons-for-the-caller.md) will tier
   every gate, action kind and threshold in `report/`.** 2004 fences itself from this WP:
