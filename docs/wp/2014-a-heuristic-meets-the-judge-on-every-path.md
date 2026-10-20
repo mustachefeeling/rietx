@@ -274,7 +274,7 @@ silent occupancy rounding in the FullProf reader.
 
 **Generality** (the judge on this branch, before the nine files were walked; unedited):
 
-#### `rietx.solve.cost.NAMED_REFLECTIONS` and `rietx.solve.cost.NUISANCE_RCOND` (entered at `unaudited`, names added to `UNAUDITED_BASELINE`)
+**`rietx.solve.cost.NAMED_REFLECTIONS` and `rietx.solve.cost.NUISANCE_RCOND` (entered at `unaudited`, names added to `UNAUDITED_BASELINE`)**
 
 **Verdict: holds.** The judge's rules name this baseline reason explicitly: a directory newly added to `WALKED` (the directories whose module-level numbers must each have a table row). I found no evidence against it.
 
@@ -289,7 +289,7 @@ silent occupancy rounding in the FullProf reader.
 
 Would change the verdict: a module-level number under `solve/` on this branch that is not on main's tree, or a ruling that WP-2014 tiers `solve/` itself.
 
-#### `"project.py": 2002` added to `_audit.WALKED`
+**`"project.py": 2002` added to `_audit.WALKED`**
 
 **Verdict: holds.** The case for walking the file is the stronger one. For the case against: none found.
 
@@ -305,7 +305,7 @@ Would change the verdict: a module-level number under `solve/` on this branch th
 
 Would change the verdict: nothing I found. If the first number to land in `project.py` belongs to reading a file back, that would argue for owner 2006 instead of 2002.
 
-#### `_audit.NOT_WALKED` (every top-level entry the walk leaves out, each with a reason)
+**`_audit.NOT_WALKED` (every top-level entry the walk leaves out, each with a reason)**
 
 **Verdict: weak.** The partition is sound, and 17 of the 19 reasons hold. The `io` and `gui` reasons do not cover module-level numbers that decide one of three things: how a file is read, whether a model edit is allowed, or what another program computes from a file rietx writes. For those numbers the case against declaring them out is stronger. One of them, `fullprof._OCCUPANCY_RTOL`, contradicts its own comment.
 
