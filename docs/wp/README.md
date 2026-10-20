@@ -53,6 +53,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | 2026-10-17 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | 2026-10-20 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-16 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [2014](2014-a-heuristic-meets-the-judge-on-every-path.md) | A heuristic meets the judge on every path into main | 2026-10-20 | P2 | [generality](#generality-the-registry-and-the-guard) |
 
 ## Next, by priority
 
@@ -78,7 +79,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2003](2003-the-chain-actions.md) | The chain actions: what a series decides between patterns | P2 | [2002](2002-the-single-fit-actions.md) | [generality](#generality-the-audits) |
 | [2004](2004-the-fitreport-reasons-for-the-caller.md) | The FitReport reasons for the caller: its gates, actions and thresholds | P2 | [2002](2002-the-single-fit-actions.md), [2003](2003-the-chain-actions.md) | [generality](#generality-the-audits) |
 | [2012](2012-the-axial-ratios-are-interchangeable.md) | The two axial-divergence ratios are interchangeable, and a fit reports one branch | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [2014](2014-a-heuristic-meets-the-judge-on-every-path.md) | A heuristic meets the judge on every path into main | P2 | [2001](2001-the-rule-the-table-and-the-guard.md) | [generality](#generality-the-registry-and-the-guard) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -446,7 +446,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [2001](2001-the-rule-the-table-and-the-guard.md) | The rule, the audit table and the guard | ✅ 2026-10-19 | — | — |
-| [2014](2014-a-heuristic-meets-the-judge-on-every-path.md) | A heuristic meets the judge on every path into main | ⬜ | P2 | [2001](2001-the-rule-the-table-and-the-guard.md) |
+| [2014](2014-a-heuristic-meets-the-judge-on-every-path.md) | A heuristic meets the judge on every path into main | 🔄 2026-10-20 | P2 | [2001](2001-the-rule-the-table-and-the-guard.md) |
 
 ### <a id="generality-the-audits"></a>The audits
 

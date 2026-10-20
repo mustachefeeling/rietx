@@ -1,6 +1,6 @@
 # WP-2014 — A heuristic meets the judge on every path into main
 
-Milestone: generality · Status: ⬜
+Milestone: generality · Status: 🔄 2026-10-20 — claimed by @yue-here
 Track: The registry and the guard
 Depends on: 2001
 Priority: P2 2026-10-20 — the guard the open milestone was opened for; twelve outside PRs wait on its review step before they merge
