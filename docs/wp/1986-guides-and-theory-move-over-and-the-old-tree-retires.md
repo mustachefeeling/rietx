@@ -315,6 +315,110 @@ the tree that day.
 
 ## Handover log
 
+### 2026-10-20 (8th session) — every old chapter's reference moves over except indexing's, with about 150 stale facts corrected on the way
+
+The new manual now holds the reference half of every old chapter except indexing. Twenty-eight
+pages joined it, 27 under Reference and one under Concepts. Each table was rewritten from the
+code rather than copied, and the old chapters proved wrong in about 150 places: missing
+arguments and constructors, renamed fields, changed refusals, drifted numbers. So the new pages
+are the more accurate copy, and the old tree now holds nothing a reader needs except the
+indexing chapter. The measure, public names only the old tree documents, fell from 1 975 to
+283, all of them indexing's. The move also turned up a dozen code defects and stale
+docstrings; they went to the open WPs that own them, and the text-only remainder to a new
+WP-2013.
+
+*Done.* Pages, each from one old chapter (the old-page-to-new-page map is under Notes by
+task, Retirement): `reference/cli.md`; `data.md` and `instrument.md`; `history.md` (with
+`files.md` § The history log); `programs.md` and `recipe.md`; `result.md`, `derived.md` and
+`pattern-diagnostics.md`; `report.md`, `report-evidence.md` and `comparison.md`;
+`pattern-files.md`, `structure-files.md`, `instrument-files.md`, `foreign-files.md`,
+`foreign-writers.md`, `foreign-models.md` and `exports.md`, with `project.md` widened to run
+directories; `refinement.md` and `magnetic.md`; `series.md`, `joint.md` and `parametric.md`;
+`figures.md`, `parameter-table.md`, `qpa.md` and `concepts/plans.md`. The CLI page was written
+here; the other 27 came from ten lanes, each checked here on its riskiest claims and re-tested.
+Existing pages corrected where a lane found them wrong: `start/first-fit.md` (`refine` keeps a
+history only at a path; result fields point at the new pages), `guides/calibrate.md`
+(`lab_sample_refine`'s two opt-in stages), `concepts/fit.md` (no solver writes `diverged`; a
+result's status is its last stage's), `concepts/correlations.md` (`profile_fraction` for a
+trace phase; the angle limit as its substitution), `theory/estimation.md` and root CLAUDE.md
+(four region gates and a global one; `local_r2` was missing), `reference/instrument.md` (a
+single pattern's λ refines with the cell held: a glob skips it beside a free cell and a solve
+refuses both free), `theory/intensities.md` (its `sec-magnetic-width` link restored, now to
+`magnetic.md`). `src/rietx/report/apply.py`'s docstring counts 18 kinds. Four rigid-body names
+(`Phase.rigid_bodies`, `ParameterRow.body`, `TetherRestraint`, `AntiBumpRestraint`) went back to
+the deferred list after documenting them failed `tests/test_skill.py`'s two technique tests:
+the rigid-body milestone keeps them out of the manual until its own pages land, so the pages
+name the technique in prose. `/code-review high --fix origin/main..HEAD` found 8, fixed 6
+(a result's status, the events table's `fit_start` row and cancelled `fit_end` keys,
+`magnetic_width`'s scale and background, `Project.open` refusing no pattern, the curve size
+per fitted point, "up to fifteen" strain coefficients); the seventh, a provenance example
+pasting this build's version strings, is now dated to the build that printed it instead of
+generated.
+
+*Routed* (step 5; `### Inherited` notes dated today): a reused `history=` path makes the
+reloaded tree count nodes twice (measured here on fluorapatite) → 1322; `RefinementResult.status`'s
+unwritten `diverged` → 1334; unwritten `PhaseMicrostructure.separable` and
+`.size_strain_collinearity` on the result, `ProjectFormat.refuses` and `reports_at="read"`,
+`vetoed_by`'s guard clause → 2006; `HistogramResult.restraints` → 1995; a histogram view's
+missing `tick_hkl` and `phase_agreement` → 1341; a tied `write_topas_inp(free=)` its own
+reader refuses (a lane's repro, not re-run here) → 1911; `api_call` dropping
+`lebail_cycles` and the help text saying Pawley ignores it → 1947; the two-block CIF message →
+1933; `model_dump(mode="json")` writing bare `Infinity` in the skill (measured, pydantic
+2.14.1) → 2008. Filed WP-2013 for the stale docstrings, comments and one message: no open
+WP owns wording across these modules (2005 and 2006 walk codes and thresholds). Root
+CLAUDE.md's integration-surface clause gives the same `model_dump(mode="json")` advice and is
+left for the maintainer, as is `report/satellites.py:5`'s pointer at `using/refining.md`
+(in 2013).
+
+*Measured* (`[dev]`, darwin/arm64). The partition by chapter, method under Notes by task,
+Retirement: 1 975 at the start; 1 749 after data, 1 637 history, 1 553 programs and recipe,
+1 363 results, 1 195 report, 1 185 and 841 the two halves of files, 617 refining, 425
+series, 283 the last four; documented 2 199 → 2 202. Fast selection before the rigid-body
+fix: 2 failed (those technique tests), 10 833 passed, 191 skipped, 2 xfailed in 5:01, alone;
+its total equals the 7th session's 11 028, since no test was added (the pages' python blocks
+run inside existing tests). On the final tree, alone: 10 835 passed, 191 skipped, 2 xfailed
+in 4:49, the 7th session's counts exactly; `tests.added_test_times`: 0 added tests. Each lane's
+acceptance: the WP's acceptance files plus `test_docs_versions`, `test_examples`,
+`test_vale` and `test_reference_pages`, 174 to 257 passed. The full selection did not run: the
+one `src/` change is a docstring word.
+
+Lanes (`session_usage.py lanes`): ten, all `opus-5-5`, none redone.
+
+| lane | est | requests | main at dispatch | re-read | left in main | lane $ | main $ | in-session $ | saved $ |
+|---|---|---|---|---|---|---|---|---|---|
+| data-reference | 35 | 119 | 202K | 0K of 136K | 22K | 8.86 | 1.50 | 20.02 | +9.20 |
+| history-reference | 25 | 80 | 226K | 0K of 51K | 15K | 4.33 | 1.61 | 10.93 | +4.72 |
+| programs-and-recipe | 25 | 86 | 243K | 12K of 88K | 17K | 5.45 | 1.73 | 12.81 | +5.36 |
+| results-reference | 35 | 152 | 261K | 0K of 71K | 16K | 10.17 | 2.07 | 20.82 | +8.37 |
+| report-reference | 35 | 124 | 279K | 0K of 114K | 16K | 9.22 | 2.10 | 19.11 | +7.64 |
+| files-formats-a | 35 | 124 | 297K | 0K of 48K | 12K | 10.76 | 1.73 | 18.11 | +5.53 |
+| files-formats-b | 40 | 195 | 309K | 0K of 102K | 13K | 14.20 | 2.01 | 26.86 | +10.56 |
+| refining-reference | 40 | 214 | 324K | 0K of 193K | 14K | 16.07 | 2.98 | 29.90 | +10.79 |
+| series-reference | 40 | 87 | 340K | 0K of 67K | 24K | 6.29 | 1.17 | 12.18 | +4.67 |
+| small-chapters | 35 | 188 | 365K | 0K of 136K | 13K | 16.11 | 0.58 | 28.27 | +11.58 |
+
+Saved +$78.42, 39 % of the session; estimates ran 3.54× short. The baseline's selective
+policy over all sessions: −13 % (−7 % for sessions peaking at 300K-450K, as this one did).
+
+*Gotchas.* Vale given absolute paths matches no `.vale.ini` section and checks nothing; run it
+from the worktree root with relative paths. The partition counts `name` and `rietx.name` but
+never `rx.name`, so a code span naming the API writes the bare name. A lane left a probe hung
+for 19 minutes at no CPU; look for scratchpad scripts with `ps` after each lane. The worktree
+guard refuses a compound command that edits a file and then runs git; split it. The machine ran
+at a load average of 70-90 for much of the session (another session), so the `render_structure`
+timings in `figures.md` are the old chapter's and were not re-measured.
+
+Next: (1) indexing's reference, the last 283 names: `IndexingResult` and its evidence, the
+engines, `SearchSpec`, the presets, the grades and caveats, as Reference pages. Guide 18 takes
+the procedure later; the reference does not wait for it, as the magnetic reference did not.
+(2) Retirement: the `RETIRED` rows from the map; `docs/manual/` deleted with its build and
+guards, the `pages.yml` step, `tests/test_manual_api.py`'s old-tree half and the other globs
+over it; `help.py`'s anchors and the GUI's `docs_url` on a versioned base (WP-1979's three
+pieces, under Retirement); the skill's links; the landing page's `/manual.html` link; the
+tutorials' authorship-note waiver; `make_figures.py`'s `hump()` docstring. (3) Guides 18 and
+24 when WP-1910, WP-1510 and the magnetic WPs land. The maintainer's open choice, retiring
+before those two guides, now needs only (1): after it, nothing in the old tree lacks a home.
+
 ### 2026-10-19 (7th session) — the Start tab, the compatibility promise and the settings page, and what retirement still needs
 
 The new manual's Start tab now holds what a newcomer needs: an install page, a
