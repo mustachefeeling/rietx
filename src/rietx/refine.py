@@ -3506,7 +3506,15 @@ class Refinement:
             and any(fnmatch.fnmatchcase(row.path, g) for g in includes)
             and not any(fnmatch.fnmatchcase(row.path, g) for g in excludes)]
         if cand_paths:
-            table.set_vary(cand_paths, True)
+            # A wavelength first, while the cell is still held: ``set_vary``
+            # declines one beside a free cell, and the probe frees a held
+            # cell as a candidate too, so in one call the wavelength was
+            # neither scored nor reported (WP-2002, found when Le Bail began
+            # to offer it).  Each candidate is scored alone against the free
+            # set, where the cell is held, so this is the gain it would have.
+            lam = set(table._wavelength_paths())
+            table.set_vary([p for p in cand_paths if p in lam], True)
+            table.set_vary([p for p in cand_paths if p not in lam], True)
 
         from .optimize.least_squares import _jacobian_for, _make_residual
 
