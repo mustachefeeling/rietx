@@ -44,8 +44,8 @@ a name being added to it; ``/wp-handover`` step 7 dispatches the
 ``generality-review`` agent on any diff touching this module, so that edit
 is read by a judge.
 
-**Out of scope by declaration.**  A directory outside :data:`WALKED` and a
-default outside :data:`DEFAULT_SEATS`: the walk over all of ``src/rietx``
+**Out of scope by declaration.**  An entry of :data:`NOT_WALKED`, each with
+its reason, and a default outside :data:`DEFAULT_SEATS`: the walk over all of ``src/rietx``
 found 619 constants, the surplus being byte offsets in file readers, pixel
 sizes in the 3D viewer and schema defaults (third review).  **What the guard
 cannot see**: an inline literal (about 30 in ``refine.py``, such as
@@ -120,6 +120,41 @@ WALKED: dict[str, int] = {
     "io/formats/base.py": 2006,
     "crystallography": 2006,
     "indexing": 2007,
+    "solve": 2007,
+    "project.py": 2002,
+}
+
+#: Every top-level entry of the package the walk leaves out, with the reason.
+#: ``io`` is here for what its two walked files leave.  Each entry is in
+#: :data:`WALKED` or here, held by test, so a new module is placed when it is
+#: made.  An entry is walked where a module-level number in it could move a
+#: fitted value, a verdict, or how a file is read (WP-2014, which walked
+#: ``solve`` and ``project.py``).
+NOT_WALKED: dict[str, str] = {
+    "__init__.py": "re-exports and the lazy-import table",
+    "_about.py": "the distribution's names, format tokens and state directory",
+    "_audit.py": "this table",
+    "_display.py": "the widths of printed displays, which read fields and compute nothing",
+    "_nearmiss.py": "difflib's own 0.6 cutoff, ranking the names a 'did you mean' error offers",
+    "backend": ("two bars the tests hold an fp32 Jacobian column to, and a chunk size that "
+                "moves memory use and no value"),
+    "capabilities.py": "reads the registries and decides nothing",
+    "cli.py": "terminal entry points over the API",
+    "compare_app": "the comparison page's port",
+    "data": "bundled tables, read by modules the walk covers",
+    "examples.py": "the shipped example projects",
+    "gui": ("the GUI server and 3D viewer: ports, payload caps and drawing tolerances; "
+            "imports.WAVELENGTH_RTOL names a header's anode, and no two anodes lie within 13 %"),
+    "help.py": "the explanation text",
+    "history": "the history tree's storage, and its event summary's printed row count and read chunk",
+    "io": ("beyond the readers' repair code: foreign formats' byte offsets, field widths and unit "
+           "factors, and translator tolerances that compare a value at the precision the other "
+           "program prints it"),
+    "runs.py": ("telemetry: flush cadence, retention by bytes and age, and Windows error codes; "
+                "none reads a pattern"),
+    "skill.py": "installs the agent skill",
+    "viz": "figures and the live snapshot: sizes, colours, point caps and the 3D view drawn first",
+    "watch": "the live viewer's timeouts and cache lifetime",
 }
 
 #: The classes and functions whose defaults the table holds, each with its
@@ -1226,6 +1261,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.WIDTH_GROWTH_FACTOR", "constant", value=3.0),
     Row("rietx.sequential.WIDTH_GROWTH_GOF_FACTOR", "constant", value=2.0),
     Row("rietx.sequential.WIDTH_GROWTH_SIGMA", "constant", value=3.0),
+    Row("rietx.solve.cost.NAMED_REFLECTIONS", "constant", value=5),
+    Row("rietx.solve.cost.NUISANCE_RCOND", "constant", value=1e-12),
     Row("rietx.strategy.magnetic.SOLVE_D_MIN", "constant", value=1.5),
     Row("rietx.strategy.magnetic.SOLVE_K_OFFSET_MARGIN_DEG", "constant", value=0.5),
     Row("rietx.strategy.magnetic.SOLVE_K_TIE_DELTA_BIC", "constant", value=10.0),
@@ -2660,6 +2697,8 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.sequential.refine_sequential:carry_hkl_intensities",
     "rietx.sequential.refine_sequential:history",
     "rietx.sequential.refine_sequential:solver",
+    "rietx.solve.cost.NAMED_REFLECTIONS",
+    "rietx.solve.cost.NUISANCE_RCOND",
     "rietx.strategy.magnetic.SOLVE_D_MIN",
     "rietx.strategy.magnetic.SOLVE_K_OFFSET_MARGIN_DEG",
     "rietx.strategy.magnetic.SOLVE_K_TIE_DELTA_BIC",

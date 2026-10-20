@@ -120,7 +120,7 @@ ruling B9 to the peak-position bounds, and the 11-BM NAC cell drifted 5129 ppm a
       with a tier and evidence; the judge reads it at review; tier 3 waits for the
       maintainer's ruling. A comment to the contributor is drafted for the maintainer to
       post. This lands before the CI step, so the test and CI never disagree.
-- [ ] **The walk's partition.** Every top-level entry of `src/rietx` is in `WALKED` or in
+- [x] **The walk's partition.** Every top-level entry of `src/rietx` is in `WALKED` or in
       a declared not-walked set with its reason, held by a test (the shape of
       `OTHER_RECORD_FIELDS`: land in one or the other). `"solve": 2007` enters `WALKED`
       (ruling 2), with its rows at `unaudited` on the baseline. Each not-walked reason is

@@ -143,6 +143,29 @@ def test_the_baseline_shrinks_as_rows_are_audited():
     assert not audited, f"audited row(s) still on UNAUDITED_BASELINE; delete: {audited}"
 
 
+def test_every_top_level_entry_is_walked_or_declared_out():
+    """A new module or directory fails until it is placed, so the walk's reach
+    is decided when a file is made."""
+    package = pathlib.Path(_audit.__file__).parent
+    entries = {p.name for p in package.iterdir() if p.name != "__pycache__"
+               and (p.suffix == ".py" or (p.is_dir() and any(p.rglob("*.py"))))}
+    whole = {e for e in _audit.WALKED if "/" not in e}
+    part = {e.split("/")[0] for e in _audit.WALKED if "/" in e} - whole
+    out = set(_audit.NOT_WALKED)
+    assert all("/" not in e for e in out), "NOT_WALKED names top-level entries"
+    assert not whole & out, f"walked and declared out at once: {sorted(whole & out)}"
+    assert not part - out, ("an entry the walk covers in part declares in NOT_WALKED why "
+                            f"the rest is out: {sorted(part - out)}")
+    unplaced = sorted(entries - whole - out)
+    assert not unplaced, (
+        f"top-level entries neither walked nor declared out: {unplaced}.  Add each to "
+        "_audit.WALKED with the audit WP that owns its rows, or to _audit.NOT_WALKED with "
+        "the reason no module-level number in it can move a fitted value, a verdict, or how "
+        "a file is read")
+    assert not out - entries, f"NOT_WALKED names nothing in the package: {sorted(out - entries)}"
+    assert all(_audit.NOT_WALKED.values()), "every NOT_WALKED entry gives its reason"
+
+
 def test_the_declared_scope_resolves():
     package = pathlib.Path(_audit.__file__).parent
     for entry, owner in _audit.WALKED.items():
