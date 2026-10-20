@@ -676,10 +676,20 @@ def magnetic_width_findings(model, values, *, esds=None, free=(),
     and only the difference is judged: a wrong instrument profile, a wrong
     ``lor_size``, a wrong background and an unmodelled specimen aberration all
     move the two sets together and cancel, and only a *component-specific*
-    width difference survives.  Its noise is estimated from the same channels
-    (the pooled sample s.d. of the weighted residual over the channels read),
-    so a fit whose GoF is 3 is judged against its own scatter and not against
-    an assumed unit variance.
+    width difference survives.  Its noise is the sample s.d. of the weighted
+    residual over the **nuclear-only** channels read, so a fit whose GoF is 3
+    is judged against its own scatter and not against an assumed unit
+    variance.  The magnetic channels are left out of that scatter because the
+    misfit under test lives there: on the synthetic CrSBr arm of
+    ``tests/test_magnetic_width_k_half.py`` a held width put the scatter over
+    all channels read at 2.57 against 0.99 over the nuclear-only ones, so the
+    statistic was divided by its own evidence and stayed at z = 2.99 with the
+    moment 25 % low.  The rule is the F test's: the error variance comes from
+    residuals the tested effect does not enter (Hamilton, W. C. (1965). *Acta
+    Cryst.* 18, 502, eq. (20), where it is the unrestricted model's
+    G₀/(n − m)).  The width terms enter the magnetic component alone, and
+    under the null the two sets differ in nothing component-specific, the
+    assumption the differencing already rests on.
 
     Fires only where **both magnetic width terms are held at zero** — which
     the compiled model states structurally: the second frozen family exists
@@ -722,10 +732,10 @@ def magnetic_width_findings(model, values, *, esds=None, free=(),
             continue
         split_m = t_m / n_tm - c_m / n_cm
         split_n = t_n / n_tn - c_n / n_cn
-        # the pooled scatter of the very channels that were read: the noise
-        # the statistic is compared against is measured, not assumed
+        # the scatter of the nuclear-only channels that were read: measured,
+        # not assumed, and on channels the misfit under test cannot inflate
         chan = np.zeros(len(tt), dtype=bool)
-        for k in (*used_m, *used_n):
+        for k in used_n:
             chan |= np.abs(tt - pos[k]) <= MAGNETIC_WIDTH_TAIL_FWHM * fwhm[k]
         s = float(np.std(r[chan], ddof=1)) if int(chan.sum()) > 2 else 0.0
         noise = s * float(np.sqrt(1.0 / n_tm + 1.0 / n_cm
@@ -754,7 +764,8 @@ def magnetic_width_findings(model, values, *, esds=None, free=(),
                 f"(centre-vs-tails split {split_m:+.3f}), while the same "
                 f"statistic at this phase's {len(used_n)} nuclear-only "
                 f"reflection(s) is {split_n:+.3f}. The difference is "
-                f"{z:.1f}x its own noise."),
+                f"{z:.1f}x its noise, measured as the residual's scatter at "
+                f"the nuclear-only reflections."),
             suggestion=(
                 f"Run fit(data, plan=\"magnetic_width\"). It frees "
                 f"phases.{ip}.magnetic_lor_size from its zero floor after the "
