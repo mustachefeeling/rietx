@@ -78,6 +78,7 @@ Ambiguity = Literal[1, 2, 3]
 KINDS: tuple[str, ...] = Kind.__args__
 TIERS: tuple[object, ...] = Tier.__args__
 _VALUED = ("constant", "default", "suggestion")
+_STATES_AMBIGUITY = ("code", "action", "default")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -339,10 +340,19 @@ def _literal(value: object) -> str:
     return repr(value)
 
 
+#: What a printed row holds where the author's answer goes.  Neither is a tier
+#: or a kind of ambiguity, so a row pasted unfilled fails the table's tests.
+PENDING = "?"
+
+
 def row_source(name: str, kind: str, value: object = None) -> str:
-    """The line that enters ``name`` at ``unaudited``, as a failure prints it."""
+    """The line a failure prints for ``name``: its tier, its kind of
+    ambiguity where the row must state one, and its evidence left for the
+    author.  A name new to the table may not enter at ``unaudited``."""
+    ambiguity = f", ambiguity={_literal(PENDING)}" if kind in _STATES_AMBIGUITY else ""
     tail = f", value={_literal(value)}" if kind in _VALUED else ""
-    return f"Row({_literal(name)}, {_literal(kind)}{tail}),"
+    return (f"Row({_literal(name)}, {_literal(kind)}, tier={_literal(PENDING)}{ambiguity}, "
+            f'evidence=""{tail}),')
 
 
 #: Fields of :data:`RECORD_SCHEMAS` that report no action the filing named.

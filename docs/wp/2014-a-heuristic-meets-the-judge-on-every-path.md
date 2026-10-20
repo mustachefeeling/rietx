@@ -113,7 +113,7 @@ ruling B9 to the peak-position bounds, and the 11-BM NAC cell drifted 5129 ppm a
 
 ## Tasks
 
-- [ ] **Messages and CONTRIBUTING.** `test_audit_table.py`'s failures and
+- [x] **Messages and CONTRIBUTING.** `test_audit_table.py`'s failures and
       `_audit.row_source` point to a tier with its evidence and say a new name may not
       enter at `unaudited`. `CONTRIBUTING.md` gains a paragraph: every new code, record
       field, constant under `WALKED`, default at a seat and `suggestion=` site needs a row
