@@ -6,15 +6,6 @@ All stay on `UNAUDITED_BASELINE`. Out-of-scope classes (B5, B13, B14) are not li
 Hand rows (not in `_audit.ROWS`) are not listed; B15 has only hand rows, so nothing of it
 is here or landed.
 
-## B2: the stationary-angle test's demotion (code change)
-
-- `rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL`: the test's demotion (Δχ² to a record field, angle keeps its esd).
-- `rietx.optimize.least_squares.STATIONARY_ANGLE_STEP`: the same demotion.
-- `rietx.optimize.least_squares.STATIONARY_ANGLE_MAX_ITER`: the same demotion.
-- `rietx.schemas.results.StageResult.moment_angle_tests`: the same demotion (the action row of the test).
-- `MOMENT_ANGLE_STATIONARY`: becomes an info record carrying the Δχ².
-- `MOMENT_ANGLE_STATIONARY.suggestion`: rewritten with the info record.
-
 ## B3: the roughness seed's two-start test
 
 - `rietx.schemas.results.StageResult.seeded`: two-start test (b = 0 against 0.3 on three lab families); records only the roughness seed today.
