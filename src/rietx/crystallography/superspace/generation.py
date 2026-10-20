@@ -530,7 +530,7 @@ def _normaliser(basic: _Basic) -> tuple:
         conj = np.einsum("nij,jk,nkl->nil", cand, np.asarray(g, float), inv)
         rnd = np.round(conj)
         integral = np.all(np.abs(conj - rnd) < 1e-9, axis=(1, 2))
-        member = np.array([_key9(x) in rk for x in rnd])
+        member = np.array([_key9(x) in rk for x in rnd], dtype=bool)
         ok &= integral & member
     cand, inv = cand[ok], inv[ok]
     # one P per coset K·P
@@ -950,7 +950,7 @@ def _to_standard(basic: _Basic, target: _Basic, free=()):
         conj = np.einsum("nij,jk,nkl->nil", cand, np.asarray(g, float), inv)
         rnd = np.round(conj)
         ok &= np.all(np.abs(conj - rnd) < 1e-9, axis=(1, 2))
-        ok &= np.array([_key9(x) in rk for x in rnd])
+        ok &= np.array([_key9(x) in rk for x in rnd], dtype=bool)
     if free:
         f = np.asarray(free, dtype=float)
         rows = np.einsum("fi,nij->nfj", f, inv)                 # q ↦ q P⁻¹

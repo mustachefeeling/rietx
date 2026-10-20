@@ -68,6 +68,13 @@ from .operators import (
 _F0 = Fraction(0)
 _HALF = Fraction(1, 2)
 
+#: (3+1)D magnetic superspace-group types, Stokes & Campbell (2022), *Acta
+#: Cryst.* A**78**, 364, Table 6 (p. 369), d = 1 row: types 1-4 and their sum.
+#: The generator here reproduces types 1-3 and finds 4 651 of type 4
+#: (WP-1992; ``tests/test_magnetic_superspace.py`` keeps the gap visible).
+N_MAGNETIC_SUPERSPACE_TYPES_D1 = (775, 775, 3100, 4653)
+N_MAGNETIC_SUPERSPACE_GROUPS_D1 = 9303
+
 #: The anti-translation subscripts of the UNI symbol (Campbell et al. 2022
 #: § 3.1), in the order a lattice-equivalent choice is made: lower case first
 #: (I222.1'_a, not _A; their Table 3 spelling), the centred vectors after.
@@ -644,6 +651,32 @@ def _piece_spans(sg, compact: str):
 
 
 def parse_magnetic_symbol(text: str) -> SuperspaceGroup:
+    """The magnetic superspace group a symbol names (:func:`_parse_magnetic`).
+
+    A trailing ``1'`` after a digit with no period (``P11'(αβγ)0s``, Gallego
+    et al. 2016 Fig. 6) reads either as the grey generator or as a primed
+    last generator; both readings are built, and the string is accepted only
+    when exactly one of them is a group, refused as ambiguous otherwise.
+    """
+    m = re.match(r"^\s*(?P<hm>[^(]+?)\s*\(", str(text))
+    hm = m.group("hm") if m else ""
+    if m and re.search(r"\d1['′]$", hm) and not hm.endswith((".1'", ".1′")):
+        readings = []
+        for candidate in (text.replace(hm, hm[:-2] + ".1'", 1), text):
+            try:
+                readings.append(_parse_magnetic(candidate))
+            except (ValueError, NotImplementedError):
+                continue
+        if len(readings) == 1:
+            return readings[0]
+        if len(readings) > 1:
+            raise ValueError(f"{text!r} reads both as a grey group and as a primed "
+                             f"generator; write the grey one as '.1'' (Campbell et "
+                             f"al. 2022 § 3.4)")
+    return _parse_magnetic(text)
+
+
+def _parse_magnetic(text: str) -> SuperspaceGroup:
     """The magnetic superspace group a symbol names: ``P22'2'(0,0,γ)000``
     (type 3), ``P222.1(0,0,γ)000`` (type 1), ``P222.1'(0,0,γ)000s`` (type 2
     or 4 with {1′|000½}), ``P222.1'_I(0,0,γ)00s0`` (type 4).
@@ -676,6 +709,10 @@ def parse_magnetic_symbol(text: str) -> SuperspaceGroup:
             raise ValueError(f"{text!r} has no phase letters")
         settings = _settings_named(base_hm)
         n_pos = len(_positions(settings[0])) if settings else None
+        if n_pos == 0 and len(letters) == 2 and letters[0] == 0:
+            # P1's identity spelt with a letter (Gallego et al. 2016 Fig. 6,
+            # "P11'(αβγ)0s"); Stokes 2011's P1 symbol has none
+            letters = letters[1:]
         if n_pos is not None and len(letters) != n_pos + 1:
             raise ValueError(
                 f"{text!r} has {len(letters)} phase letters; a type-2/4 symbol over "

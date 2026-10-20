@@ -161,9 +161,11 @@ forms a group (types 1 and 3). Taking it as $D$, an anti-translation is added
 for each of the sixteen classes of $\mathbf{v}$ with $2\mathbf{v}$ a lattice
 vector, and the ones that would add translations are dropped (types 2 and 4).
 The results are compared under the equivalence of {eq}`ss-equivalence` with
-$\theta$ compared on every operation. Over $P222(0,0,\gamma)000$ that gives
-three groups of types 1 and 3 and nine of types 2 and 4, the counts of
-{cite}`stokes2022`, and the test suite asserts them.
+$\theta$ compared on every operation. The test suite asserts the printed
+tables of {cite}`stokes2022` over $P222(0,0,\gamma)000$ and $I222(0,0,\gamma)000$,
+and, as a slow test, their count of {{ N_MAGNETIC_SUPERSPACE_GROUPS_D1 }} groups
+for one modulation vector. Types 1 to 3 come out as printed; type 4 comes out
+two short, which the suite keeps visible as an expected failure.
 
 {source}`rietx.crystallography.superspace.magnetic_superspace_groups`
 
@@ -193,4 +195,41 @@ $1'$, as in $P222.1'(0,0,\gamma)000s$, which is $\{1'|000\tfrac12\}$ over
 $P222(0,0,\gamma)000$ and not the grey group $P222.1'(0,0,\gamma)0000$. As for
 the non-magnetic groups, the operator list is the primary datum and a symbol is
 a label.
+
+## The group of an irrep at an incommensurate k
+
+For $\mathbf{k} = \mathbf{r} + \lambda\mathbf{d}$ on a symmetry line, the little
+group is computed exactly from the declared line, never from a float: an
+operation belongs to $G_{\mathbf{k}}$ when $\mathbf{d}R = \mathbf{d}$ and
+$\mathbf{r}R - \mathbf{r}$ is a reciprocal-lattice vector, and to the extended
+group $G_{\mathbf{k},-\mathbf{k}}$ also when $\mathbf{d}R = -\mathbf{d}$ with
+$\mathbf{r}R + \mathbf{r}$ in the reciprocal lattice. This is the same rule
+{eq}`ss-operator` imposes on a superspace operation, and one function serves
+both.
+
+{source}`rietx.crystallography.representation.irreps.little_group_on_line`
+
+A field $\sum_i c_i\psi_i + \mathrm{c.c.}$ built on a small irrep $D$ is
+invariant under the superspace operation $(g, \theta, \delta)$ when
+
+```{math}
+:label: ss-irrep-invariance
+
+e^{2\pi i(\delta - \mathbf{k}\cdot\mathbf{v})}\,\mathbf{c}
+\;=\; \Gamma(g, \theta)\,\mathbf{c},
+```
+
+{source}`rietx.crystallography.representation.incommensurate.operation_matrix`
+
+with $\Gamma(g,\theta) = \theta D(g)$ for $\varepsilon = +1$ and an
+antilinear map onto the $-\mathbf{k}$ arm for $\varepsilon = -1$
+{cite}`perezmato2012`. For a one-dimensional irrep every operation of the
+grey extended little group survives, with $e^{2\pi i\delta} =
+\theta\,e^{2\pi i\mathbf{k}\cdot\mathbf{v}}D(g)$: an internal translation of
+$\tfrac12$ where that product is $-1$, and of $\tfrac13$, $\tfrac14$ or
+$\tfrac16$, with its sign, on polar axes. For a larger irrep the order
+parameter can point in several directions, and each class of directions with
+its own stabiliser gives one group.
+
+{source}`rietx.crystallography.representation.incommensurate.isotropy_superspace_groups`
 

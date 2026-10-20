@@ -627,6 +627,39 @@ class ModulationVector:
         return None if sol is None else tuple(sol)
 
 
+def line_rule(rotation, q: ModulationVector) -> tuple[int, tuple[Fraction, Fraction, Fraction]] | None:
+    """The exact line rule: (ε, M) for a point operation R on the family q,
+    or ``None`` when R does not map the family to ±itself.
+
+    R keeps the line iff f R = ε f for every free direction f with one sign
+    ε = ±1 (the λ_j are rationally independent, so each direction must map
+    alone), and then **M = q_r R − ε q_r** exactly (row vectors, i.e. Rᵀ on
+    a column k; Stokes, Campbell & van Smaalen 2011 eq. (2); de Wolff,
+    Janssen & Janner 1981 eq. (3.4)).  Whether M is a reciprocal-lattice
+    vector is the caller's test, because the lattice is: a superspace
+    operation carries M as its integer row (:meth:`SuperspaceGroup._check_q`),
+    the little group of a line point asks M ∈ L* with the centrings
+    (:func:`rietx.crystallography.representation.irreps.little_group_on_line`).
+    One criterion read by both, never restated.
+    """
+    r = rotation
+    eps = None
+    for f in q.free:
+        fr = tuple(sum(f[i] * r[i][j] for i in range(3)) for j in range(3))
+        if fr == tuple(f):
+            e = 1
+        elif fr == tuple(-x for x in f):
+            e = -1
+        else:
+            return None
+        if eps is not None and e != eps:
+            return None
+        eps = e
+    qr = q.rational
+    m = tuple(sum(qr[i] * int(r[i][j]) for i in range(3)) - eps * qr[j] for j in range(3))
+    return eps, m
+
+
 def _parse_q_component(part: str, whole: str) -> tuple[Fraction, list[tuple[int, int]]]:
     s = part.replace(" ", "").replace("−", "-")
     if not s:
@@ -763,19 +796,15 @@ class SuperspaceGroup:
 
     # -- validation ------------------------------------------------------
     def _check_q(self) -> None:
-        qr = self.q.rational
         for op in self.operations + self.centerings:
-            r = op.rotation
-            for f in self.q.free:
-                fr = tuple(sum(f[i] * r[i][j] for i in range(3)) for j in range(3))
-                if fr != tuple(op.epsilon * x for x in f):
-                    raise ValueError(
-                        f"{op.xyz()!r} does not map the free direction {f} of "
-                        f"q = {self.q.label()} to epsilon times itself; an "
-                        f"incommensurate q must satisfy qR = εq + M "
-                        f"(Stokes 2011 eq. (2))")
-            mexp = tuple(sum(qr[i] * r[i][j] for i in range(3)) - op.epsilon * qr[j]
-                         for j in range(3))
+            rule = line_rule(op.rotation, self.q)
+            if rule is None or rule[0] != op.epsilon:
+                raise ValueError(
+                    f"{op.xyz()!r} does not map the free directions "
+                    f"{self.q.free} of q = {self.q.label()} to epsilon times "
+                    f"themselves; an incommensurate q must satisfy qR = εq + M "
+                    f"(Stokes 2011 eq. (2))")
+            mexp = rule[1]
             if tuple(Fraction(x) for x in op.m) != mexp:
                 raise ValueError(
                     f"{op.xyz()!r} carries M = {op.m}, but q = {self.q.label()} "
@@ -995,6 +1024,13 @@ class SuperspaceGroup:
             if len({_rkey(o.rotation) for o in reps}) == len(reps):
                 return SuperspaceGroup(qn, reps, cen)
         ops = [transform.conjugate(o) for o in self.all_operations()]
+        # a cell change of |det| ≠ 1 turns lattice translations of the old
+        # cell into centrings of the new one; they are group elements the
+        # coset list does not hold, so their images join the closure
+        for i in range(3):
+            unit = tuple(Fraction(int(i == j)) for j in range(3))
+            ops.append(transform.conjugate(
+                SuperspaceOperator(_IDENTITY_R, unit, 1, (0, 0, 0), Fraction(0))))
         return SuperspaceGroup.from_operations(qn, ops, symbol=None)
 
     # -- the commensurate section ----------------------------------------

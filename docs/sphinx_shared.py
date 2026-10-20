@@ -35,6 +35,7 @@ from rietx.crystallography.magnetic.moments import MOMENT_DIRECTION_SUPPORT
 from rietx.crystallography.scattering import _itc_handover
 from rietx.crystallography.superspace import (
     ITC_C_EXCEPTIONS,
+    N_MAGNETIC_SUPERSPACE_GROUPS_D1,
     N_BRAVAIS_CLASSES_D1,
     N_SUPERSPACE_GROUPS_D1,
 )
@@ -237,6 +238,8 @@ MYST_SUBSTITUTIONS = {
     "N_SUPERSPACE_GROUPS_D1": N_SUPERSPACE_GROUPS_D1,
     "N_BRAVAIS_CLASSES_D1": N_BRAVAIS_CLASSES_D1,
     "N_ITC_C_EXCEPTIONS": len(ITC_C_EXCEPTIONS),
+    # Stokes & Campbell 2022 Table 6's d = 1 magnetic count (WP-1992).
+    "N_MAGNETIC_SUPERSPACE_GROUPS_D1": N_MAGNETIC_SUPERSPACE_GROUPS_D1,
     # The `.rxt` document's own version and precision (WP-1009 asked for this
     # explicitly: a format bump that misses the manual must fail the docs
     # build).  `gui-power.md` states the grammar normatively, so both numbers

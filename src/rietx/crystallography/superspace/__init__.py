@@ -26,6 +26,8 @@ from .generation import (
     superspace_groups,
 )
 from .magnetic import (
+    N_MAGNETIC_SUPERSPACE_GROUPS_D1,
+    N_MAGNETIC_SUPERSPACE_TYPES_D1,
     construct_type,
     count_magnetic_superspace_groups,
     family,
@@ -43,6 +45,7 @@ from .operators import (
     SuperspaceGroup,
     SuperspaceOperator,
     SuperspaceTransform,
+    line_rule,
 )
 from .symbols import ITC_C_EXCEPTIONS, parse_symbol, symbol, symbol_candidates
 
@@ -50,6 +53,8 @@ __all__ = [
     "IDENTITY",
     "IDENTITY_PRIME",
     "ITC_C_EXCEPTIONS",
+    "N_MAGNETIC_SUPERSPACE_GROUPS_D1",
+    "N_MAGNETIC_SUPERSPACE_TYPES_D1",
     "N_BRAVAIS_CLASSES_D1",
     "N_SUPERSPACE_GROUPS_D1",
     "ModulationVector",
@@ -67,6 +72,7 @@ __all__ = [
     "family",
     "family_orbits",
     "generate",
+    "line_rule",
     "magnetic_canonical_key",
     "magnetic_superspace_groups",
     "magnetic_symbol",
