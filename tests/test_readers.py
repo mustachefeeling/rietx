@@ -2896,3 +2896,55 @@ def test_a_v3_range_count_that_is_not_a_count_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match="not a number of measurements"):
         rx.read_pattern(p)
+
+
+# ----------------------------------------------- FullProf's XYDATA heading
+def _xydata(path: Path, *, temp: str | None = "4.25", inter: str = "1.0 1.0 0",
+            heading_number: bool = False) -> Path:
+    """A synthetic FullProf ``Ins = 10`` file: the keyword, five heading lines
+    (the manual's, PDF p. 74), then x y σ rows of a small peak on 100 counts."""
+    heading = ["TITLE synthetic", "COND: neutrons",
+               "12.5 7.0 1.0" if heading_number else "FILE: synthetic.xys",
+               f"TEMP {temp}" if temp is not None else "! no temperature",
+               f"INTER {inter} 0.05"]
+    rows = [f"{10 + 0.1 * i:.3f} {100.0 + 50.0 * (i == 50):.3f} 10.0"
+            for i in range(120)]
+    path.write_text("\n".join(["XYDATA", *heading, *rows]) + "\n",
+                    encoding="utf-8")
+    return path
+
+
+def test_an_xydata_heading_carries_its_temperature(tmp_path):
+    """``TEMP tsamp`` becomes the series coordinate; main before this dropped it.
+
+    The positive arm is the same file with no ``TEMP``, which says nothing,
+    and a plain two-column file, which never had a heading to read.
+    """
+    read = rx.read_pattern(_xydata(tmp_path / "t.xys", temp="4.25  4.31"))
+    assert read.metadata["temperature_k"] == "4.25"
+    assert read.intensity[0] == 100.0 and read.sigma[0] == 10.0
+    assert len(read.intensity) == 120
+    silent = rx.read_pattern(_xydata(tmp_path / "n.xys", temp=None))
+    assert "temperature_k" not in silent.metadata
+    plain = write_xy(tmp_path / "plain.xy", [10.0, 10.1, 10.2], [1.0, 2.0, 3.0])
+    assert "temperature_k" not in rx.read_pattern(plain).metadata
+
+
+def test_an_xydata_heading_line_is_never_read_as_a_point(tmp_path):
+    """The manual makes the five lines after the keyword a heading, numeric or not."""
+    read = rx.read_pattern(_xydata(tmp_path / "h.xys", heading_number=True))
+    assert len(read.intensity) == 120
+    assert min(read.two_theta) == pytest.approx(10.0)
+
+
+@pytest.mark.parametrize(("inter", "named"), [
+    ("1.0 2.0 0", "fac_y = 2"), ("0.5 1.0 0", "fac_x = 0.5"),
+    ("1.0 1.0 1", "Interpol = 1")])
+def test_an_xydata_multiplier_or_interpolation_is_refused_by_name(
+        tmp_path, inter, named):
+    """FullProf scales or interpolates these numbers before using them, and
+    this reader does not; main before this read them as written, silently."""
+    with pytest.raises(ValueError, match=named):
+        rx.read_pattern(_xydata(tmp_path / "f.xys", inter=inter))
+    assert rx.read_pattern(_xydata(tmp_path / "u.xys",
+                                   inter="1.0000 1.0000 2")).intensity[0] == 100.0
