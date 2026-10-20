@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-20 — all 16 classes ruled; 110 more rows tiered and seven ruled changes built; 16 rows wait, five questions with the maintainer
+Milestone: generality · Status: 🔄 2026-10-20 — every batch question ruled and built, a contributor's second read triaged; owed tests, B14's lifts and the second pass remain
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -142,7 +142,9 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       2003's). *157 rows needing no approval landed 2026-10-19; the rest wait on the batch.
       2026-10-20: the ruled rows landed; 16 still wait, each with what it waits on, in
       `2002-batch/waiting.md`. The second pass (three families per surviving threshold)
-      has not run.*
+      has not run. 2026-10-20 (2nd session): the fourth round's rows landed (the
+      auto_background pick kept, the cell window, the interval and width-grid settings,
+      twelve solver stop constants and the seventh solver switch, all tier 3).*
 - [ ] The clash table: every pair of actions that read or move the same parameter, with
       the measured interaction (Rwp and the parameter, both orderings). *38 candidate pairs
       found, none measured: `2002-batch/clashes.md`.*
@@ -162,10 +164,15 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       B9), the stationary angle's interval (B2), the hold's threshold as a plan setting
       (B1), `stderr_uncorrected` and its manual (B4), the pick verbs (B12). Left: B14's
       lifts, B3's and B9's two-start tests, B7's and B11's invariance and margin tests,
-      the FCJ node cap (B10).*
+      the FCJ node cap (B10). 2nd session: the peak-position bounds removed,
+      `OCCUPANCY_ABOVE_ONE` an info record, every ΔBIC tie an abstention.*
 - [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
-      moved away goes back through the two grounds.
+      moved away goes back through the two grounds. *2026-10-20 (2nd session): one moved
+      away, the NAC capillary pair's cell (`test_capillary_displacement.py`, offsets
+      free), 1097 → 5109 ppm from the acceptance band's centre 10.2510 Å, esd 2612 → 2579
+      ppm; back through the grounds by the judge: the bound had one family and a named
+      dissenter, so the removal stands. No bit-identity golden moved.*
 - [ ] `intermediate_ftol` and any other candidate for the answer-invariant class: the
       invariance test, or the row tiered.
 - [ ] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
@@ -173,7 +180,10 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for every refit used as evidence.
 - [ ] Skill: none here. A demoted verdict's meaning goes into the package's own output and
       never into a skill row (DESIGN.md § Rules, 3; the record § Decisions, the skill's
-      role). List each skill row that named a demoted verdict, for 2008.
+      role). List each skill row that named a demoted verdict, for 2008. *2nd session:
+      `references/magnetic.md`'s abstained row and `api-magnetic.md`'s criterion (from
+      `make_api_index.py`) rewritten for the tie ruling; `OCCUPANCY_ABOVE_ONE`'s row
+      unchanged in words, now at info.*
 
 ## The batch (2026-10-19)
 
@@ -228,6 +238,124 @@ for every row this WP owns.
   thresholds quote).
 
 ## Handover log
+
+### 2026-10-20 (2nd session) — the last five questions ruled, a contributor's second read built, and the position limits gone
+
+Every question the batch left open is now answered, and the answers run in the code. The
+peak-position corrections (zero shift, displacement, the capillary offsets, transparency's
+ceiling) have no default limits any more: on 11-BM NAC the fit reports the degeneracy
+either way, and the limit only acted as a prior that the mount is aligned, which belongs to
+a caller who knows the mount. A refined occupancy above 1 is an info record, a tie between
+magnetic models abstains instead of crowning the simpler one, and `auto_background` keeps
+its pick because the near-threshold choices measurably move nothing. Mike Gaultois's second
+read of the batch found three real defects, all fixed: Le Bail and Pawley could not refine
+a wavelength or the Kα2 ratio, a history replay turned an explicit 0 into the default, and
+the CIF quoted a slightly wrong esd factor. Building the first exposed a fourth:
+`suggest()` silently dropped a held wavelength in every mode.
+
+*Done.* Rulings recorded in `2002-batch/rulings.md` § fourth round, with the maintainer's
+words where given. Asked "check other codes": GSAS-II 5.8.4 and FullProf bound none of the
+position corrections nor U, V, W, X, Y; TOPAS v9 § 2.17 Table 2-1 has no row for either
+(its macros' limits live in `Topas.inc`, not on this machine), lists `occ` 0 to 2·Val + 1,
+and moves a, b, c within ±(0.5 % + 0.05 Å) per iteration. Built, one commit each: the
+position bounds removed, the NAC test asserting the report instead of `BOUND_HIT`
+(3d63e9db5); Le Bail and Pawley refine `.source.lines.` (84b9e87a2); a held azimuth is
+never turned (d02cbfe6d, test); cherry-pick replays an explicit 0 (ce1961d7b); the CIF
+quotes the carried factor (6a72cc225); `suggest` scores a held wavelength against the held
+cell (ed72edd12); `OCCUPANCY_ABOVE_ONE` at info (da9d30d02); every ΔBIC tie abstains,
+listed fewest moment parameters first, the reported nuclear reference staying the ΔBIC
+leader's (58534d7a2, 5e986acef); the auto_background rows kept at tier 3 with the
+measurement; the cell window, twelve solver stop constants and `DENSE_JACOBIAN_MAX_BYTES`
+to tier 3 (approved); the profile walk's and the width grid's settings from `caller` to
+tier 3 under B10; `phase_support_sigma` and `correlation_guard` reach the package's own
+trials (a56ba4d26) and are recorded on `NodeAction` so a cherry-pick replays them
+(761f899c7); the line columns' Jacobian checked under both intensity models (9ecf7b2cb);
+main merged twice, this branch's WP-2013 renumbered WP-2015 after main took 2013; the new
+manual pages main's WP-1986 had copied before this branch's edits brought up to date
+(c406fe513); WP-2016 filed (a CIF U^ij off its site symmetry only by rounding); B5.2's
+warning proposal forwarded to WP-1952. The reply to Mike is on PR #1050. Q3, the TCHZ
+box, waits for the next session by ruling.
+
+*Measured.* Other codes and the background measurement as in `rulings.md`. 11-BM NAC, zero
+and both capillary offsets free (R = 1000 mm, `test_capillary_displacement.py`'s
+protocol), cell from the acceptance band's centre 10.2510 Å: offsets held +21 ppm (esd 6);
+bounded −1097 ppm (esd 2612), seven warnings; unbounded −5109 ppm (esd 2579), six, two of
+them `FLAT_DIRECTION` naming the cell and an offset. SRM 660c Kα2/Kα1: 0.5126 ± 0.0048
+Rietveld, 0.5145 ± 0.0036 Pawley, 0.5224 ± 0.0033 Le Bail; Le Bail with the cell held
+refines λ to 1.540605 ± 3e-6 Å against the declared 1.5405929. Line columns against
+central differences on a Cu Kα doublet: 5e-10 (weight) and 3e-7 (wavelength) relative in
+all three modes. auto_background on 30 real patterns: hump score 0.036-0.067 on five
+synchrotron or low-background, 0.10-2.3 on all 25 lab; air gain within 0.06 of 0.3 on 6;
+seven patterns refitted four ways moved no cell, scale or Biso past 0.8 esd except FAP with
+its air term left out (scale 2 esd, Lorentzian size and strain 3 esd), a choice the pick
+does not make. Suites on this branch merged with `origin/main` at `0d6d5a441`, `[dev]`, darwin/arm64, no other suite running: fast 10 895 passed, 191 skipped, 2 xfailed, 2 failed in 4:21; full 11 210 passed, 200 skipped, 2 xfailed, 2 failed in 20:30. The two failures were this session's own and are fixed in 89b343fe4 (the root CLAUDE.md one line over its cap, and "Lelann" added to the generated accept list rather than its source); both files then passed alone, 46 passed. The full suite was not re-run after that fix, which touches no code. Every bit-identity golden passed. Against the lane's fast run on the tree before the review fixes (10 894 passed, 191 skipped), passed+skipped+failed moved by exactly the three tests the review added. The full selection has two fewer skips than an earlier full run this session (202), not traced. The branch adds 64 tests to the fast tier, 27.5 s together locally, the largest 7.0 s (`test_stationary_moment_angle.py`, an earlier session's); this session's largest is 1.3 s (`test_magnetic.py`'s held azimuth), so none joins the tail. Lanes: none dispatched under `/wp-start` 6c's `lane:`
+form, so 3b does not apply; four helper agents ran (other codes, background impact, the
+manual port, the plan-settings item).
+
+*Code review* (`high --fix`, in two ranges to keep main's merged diff out). Post-merge
+range, eight findings, four fixed: the old refining chapter's tie sentence (372b18803);
+`api_call` compares against the live constants (9b0170182); a tie reports the ΔBIC
+leader's nuclear reference, and the reorder uses an id set (5e986acef). Declined: trials
+taking the carried settings as their `run_stage` default (a public default change, the
+lane's decision 1 below); the `approved` dates of the six B10 re-tiers (traced in
+`rulings.md` instead); the repeated grounds text (`tests/audit_delta.py` reads row fields
+by `ast.literal_eval`, so a shared constant would break it). The missing direct
+assertion for the wavelength in `suggest` is the Le Bail count check, which failed before
+the fix (18 against 19). Pre-merge range, nine findings, eight fixed: the CIF compares
+factors before rounding (975c707ba); the `.instprm` reader's dead zero widening
+(3311ea5cf); the capillary check's docstring and the force-fix comment (df04e74c7); the
+cross-backend stage harness asks `mode_fixed_path` (88931ec04); the line columns' Jacobian
+test (9ecf7b2cb); the rulebook's 11-BM clause and the summary's esd factor (d51b73397).
+Declined: the repeated audit evidence text, as above.
+
+*Generality* (the `generality-review` judge, fresh context, on this session's 13 items;
+its full text in this session's transcript; verdicts and the author's answers):
+
+| Item | Verdict | Case the judge found | Author's answer |
+|---|---|---|---|
+| `AIR_SCATTER_TRIGGER` | holds | three families, no independent reference (qarr's weighed compositions unused) | second pass, against the weighed values |
+| `HUMP_TRIGGER`, the two knot steps | weak | the target case, a real amorphous hump, is untested; the score cannot see one | next: a real hump (glass capillary, an amorphous binder) at 3° and 8° |
+| the cell window to tier 3 | holds | may never bind under the hold | the second pass counts it |
+| `OCCUPANCY_ABOVE_ONE` at info | holds | — | — |
+| `MOMENT_ANGLE_STATIONARY` wording | weak | "always" overclaims: the test's linear refit sits up to 1.5 from the full one, the cuts 1.13 apart | reworded "nearly always" (98e07a9e7) |
+| interval and width-grid settings | holds | domain tests owed | owed |
+| twelve stop constants | holds | `_CAUCHY_ARMIJO`'s grounds overstated | reworded (98e07a9e7) |
+| `DENSE_JACOBIAN_MAX_BYTES` | holds | one case | second pass |
+| position bounds removed | holds | the change described the NAC measurement wrongly: the bound hid nothing, it was a prior that held there; one family | reworded in the schema comment, reference page and test (98e07a9e7); a flat-plate lab family owed |
+| Le Bail/Pawley lines | holds | one standard, no reference ratio; Le Bail 1.7σ from Rietveld | a second standard owed |
+| `suggest` ordering | holds | — | — |
+| ties abstain | holds | `trials[0]` is no winner; a careless caller could read it as one | `best` is `None` and the reason says so |
+| plan settings inherited | holds | `StageResult` carries neither setting | lane decision 2, below |
+| CIF factor | holds | the TOPAS clause said more than its reference | reworded (98e07a9e7) |
+
+*Decided on the maintainer's behalf* (the plan-settings lane): `run_stage`'s public defaults
+stay 3σ and 0.98, so a bare `ref.run_stage` after a fit with the hold off still holds at
+3σ; the alternative is a sentinel that inherits the last fit's, as `mode` and
+`two_theta_limits` do. `StageResult` got no field (nothing replays from a result, and
+`PHASE_UNCONSTRAINED` quotes the threshold). A guard a plan set before this change was
+never recorded, so those nodes replay at 0.98.
+
+*Gotchas.* main's WP-1986 copies an old chapter into `docs/docs/` and leaves the old page
+standing, so a branch that edited the old page merges clean and the new page keeps the old
+text; only a vanished substitution or xref fails the build. After a merge, grep the new
+tree for each fact the branch changed. `set_vary`'s wavelength refusal is per row and
+order-dependent within one call, so a caller freeing a mixed set reads its return or splits
+the call. A Jacobian check against a blank pattern under an intensity model measures noise:
+the extracted intensities are zero. `vale` needs `vale sync` once in a fresh worktree.
+
+*Next.* (1) The owed tests, smallest first: B3's two-start tests (roughness and Stephens
+seeds), B9's starting values (Biso 0.5, the TCHZ starts, the harmonic seed), B7's
+intermediate-tolerance invariance in plain esds, B11's iteration-budget margins under both
+solvers, B10's domain tests and the FCJ node cap below 6.5° 2θ. Each moves a tier-3 row to
+tier 1 or invariant, or finds a defect. (2) B14's lifts (about 20 constants, 8 seats, the
+fields for the collapse restore, the Stephens seed and the σ rule) and the ~50-guard list
+to the judge. (3) The second pass, three families per surviving threshold, which also
+decides the twelve stop constants and seven switches now at tier 3; it includes a real
+amorphous hump for the knot switch, a flat-plate family for the position bounds' removal,
+and a second standard for the Le Bail line ratio. (4) The clash table's 38 pairs, goldens,
+`test_compare_ui` rows. (5) Q3, the TCHZ box, whose open part is the upper limits (Y ≤ 1°
+caps Lorentzian size near 8 nm at Cu Kα under the default plan); and the lane's decision
+1, if the maintainer wants `run_stage` to inherit the last fit's plan settings.
 
 ### 2026-10-20 — all sixteen classes ruled, and seven of the rulings built
 
