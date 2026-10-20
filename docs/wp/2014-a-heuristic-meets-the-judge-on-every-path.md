@@ -126,7 +126,7 @@ ruling B9 to the peak-position bounds, and the 11-BM NAC cell drifted 5129 ppm a
       (ruling 2), with its rows at `unaudited` on the baseline. Each not-walked reason is
       listed in the handover for the maintainer; `_nearmiss.py` and `runs.py` need a look
       before they are declared out.
-- [ ] **The judge** (`.claude/agents/generality-review.md`). Accept a PR description and
+- [x] **The judge** (`.claude/agents/generality-review.md`). Accept a PR description and
       the CI step's printout where it now expects a WP file and handover entry. Add the
       question for a row that removes an action, demotes it, or leaves it to the caller
       (`caller`, a report-only code): would every competent refiner act anyway, and what

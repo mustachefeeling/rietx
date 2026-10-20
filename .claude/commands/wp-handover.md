@@ -177,13 +177,15 @@ re-reading its own diff.
    runs, and not on step 6. Write the branch diff to a WP-named file in the
    scratchpad (`wp-NNNN-generality.diff`; parallel lanes share it) and
    dispatch one `Agent`, `subagent_type: generality-review`, naming the diff
-   file, this worktree, the WP file and the items: each row added or changed
-   in `_audit.py`, each name added to `UNAUDITED_BASELINE`, and each heuristic
-   of the second trigger. A session registers agents from the checkout it
-   started in, so where that type is not found, dispatch `general-purpose` on
-   Opus and have it read `.claude/agents/generality-review.md` first and
-   follow it. Paste its tables into the handover entry under
-   *Generality*, unedited, with the author's one-line answer under any `fails`.
+   file, this worktree, the WP file and the items: each row added, changed or
+   deleted in `_audit.py` (`.venv/bin/python -m tests.audit_delta` lists them
+   against the merge-base, as CI does), each name added to
+   `UNAUDITED_BASELINE`, and each heuristic of the second trigger. A session
+   registers agents from the checkout it started in, so where that type is
+   not found, dispatch `general-purpose` on Opus and have it read
+   `.claude/agents/generality-review.md` first and follow it. Paste its
+   sections into the handover entry under *Generality*, unedited, with the
+   author's one-line answer under any `fails`.
    The maintainer reads both.
 8. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
    section and its `Priority:` line (a closed WP's priority is moot), and
