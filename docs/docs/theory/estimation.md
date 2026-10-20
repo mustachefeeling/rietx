@@ -266,7 +266,7 @@ far as the two factors agree. rietx's {eq}`est-berar-lelann` applied to the
 final residuals of that FullProf fit gives 2.37, 4 % above FullProf's 2.28.
 The cause of that difference has not been traced.
 
-The TOPAS Technical Reference, Version 9 (dated 2 October 2026), computes esds
+The TOPAS Technical Reference, Version 9 (October 2026), computes esds
 at the end of a refinement when `do_errors` is set (§ 5.9), by singular value
 decomposition, and offers `bootstrap_errors` as the alternative (§ 5.10). It
 lists the Durbin-Watson statistic among its criteria of fit (§ 5.19). It does
