@@ -105,7 +105,8 @@ class Row:
 _PACKAGE = pathlib.Path(__file__).resolve().parent
 
 #: The files and directories the constant walk covers, each with the audit WP
-#: that owns its rows.  ``io/`` contributes only the readers' repair code.
+#: that owns its rows.  ``io/`` and ``gui/`` contribute only the files that
+#: decide something, :data:`NOT_WALKED` saying what the rest hold.
 #: Within ``schemas/``, ``indexing.py``'s rows go to 2007 and ``results.py``'s
 #: and ``suggest.py``'s to 2004; ``params/multi.py``'s go to 2003.
 WALKED: dict[str, int] = {
@@ -125,14 +126,24 @@ WALKED: dict[str, int] = {
     "indexing": 2007,
     "solve": 2007,
     "project.py": 2002,
+    "io/formats/dif.py": 2006,
+    "io/formats/gsas.py": 2006,
+    "io/formats/peaklist.py": 2006,
+    "io/instrument_profile.py": 2006,
+    "io/projects/fullprof.py": 2006,
+    "io/projects/registry.py": 2006,
+    "io/projects/topas_input.py": 2006,
+    "gui/imports.py": 2006,
+    "gui/symmetry.py": 2006,
 }
 
 #: Every top-level entry of the package the walk leaves out, with the reason.
 #: ``io`` is here for what its two walked files leave.  Each entry is in
 #: :data:`WALKED` or here, held by test, so a new module is placed when it is
 #: made.  An entry is walked where a module-level number in it could move a
-#: fitted value, a verdict, or how a file is read (WP-2014, which walked
-#: ``solve`` and ``project.py``).
+#: fitted value, a verdict, how a file is read, or what another program
+#: computes from a file rietx writes (WP-2014, which walked ``solve``,
+#: ``project.py`` and nine files under ``io`` and ``gui``).
 NOT_WALKED: dict[str, str] = {
     "__init__.py": "re-exports and the lazy-import table",
     "_about.py": "the distribution's names, format tokens and state directory",
@@ -146,13 +157,13 @@ NOT_WALKED: dict[str, str] = {
     "compare_app": "the comparison page's port",
     "data": "bundled tables, read by modules the walk covers",
     "examples.py": "the shipped example projects",
-    "gui": ("the GUI server and 3D viewer: ports, payload caps and drawing tolerances; "
-            "imports.WAVELENGTH_RTOL names a header's anode, and no two anodes lie within 13 %"),
+    "gui": ("beyond its import pre-fill and its symmetry edit gates: the server and 3D "
+            "viewer's ports, payload caps and drawing tolerances"),
     "help.py": "the explanation text",
     "history": "the history tree's storage, and its event summary's printed row count and read chunk",
-    "io": ("beyond the readers' repair code: foreign formats' byte offsets, field widths and unit "
-           "factors, and translator tolerances that compare a value at the precision the other "
-           "program prints it"),
+    "io": ("beyond the walked files, which repair, sniff, translate or write a number another "
+           "program computes from: foreign formats' byte offsets, field widths, unit factors "
+           "and size caps"),
     "runs.py": ("telemetry: flush cadence, retention by bytes and age, and Windows error codes; "
                 "none reads a pattern"),
     "skill.py": "installs the agent skill",
@@ -741,7 +752,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.sequential.SeriesEntry.rungs_raised", "action"),
     Row("rietx.schemas.results.RefinementResult.absorption", "action"),
     Row("rietx.schemas.results.Statistics.esd_inflation", "action"),
-    # constant: 546
+    # constant: 584
     Row("rietx.background.auto.AIR_SCATTER_TRIGGER", "constant", value=0.3),
     Row("rietx.background.auto.AUTO_BACKGROUND_SEED_PERCENTILE", "constant", value=10.0),
     Row("rietx.background.auto.HUMP_TRIGGER", "constant", value=0.05),
@@ -859,6 +870,12 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.symmetry._SNAP_MESSAGE_SITES", "constant", value=4),
     Row("rietx.crystallography.symmetry._SNAP_NOISE", "constant", value=1e-12),
     Row("rietx.crystallography.symmetry._TRANSLATION_DEN", "constant", value=12),
+    Row("rietx.gui.imports.MAX_UPLOAD_BYTES", "constant", value=67108864),
+    Row("rietx.gui.imports.PREVIEW_POINTS", "constant", value=900),
+    Row("rietx.gui.imports.WAVELENGTH_RTOL", "constant", value=0.0005),
+    Row("rietx.gui.symmetry.LETTER_CACHE", "constant", value=64),
+    Row("rietx.gui.symmetry.ORBIT_COLLISION_TOL", "constant", value=0.001),
+    Row("rietx.gui.symmetry.POSITION_TOL", "constant", value=1e-06),
     Row("rietx.indexing.ambiguity.AMBIGUITY_DISCREPANCY_SLACK", "constant", value=1.5),
     Row("rietx.indexing.ambiguity.AMBIGUITY_EXTEND_FACTOR", "constant", value=1.5),
     Row("rietx.indexing.ambiguity.MAX_AMBIGUITY_INDEX", "constant", value=4),
@@ -972,6 +989,36 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.workflow.VALIDATION_SLACK_BOUNDS_DEG", "constant", value=(0.3, 6.0)),
     Row("rietx.io.formats.base.HEAD_BYTES", "constant", value=4096),
     Row("rietx.io.formats.base.INTEGRAL_TOL", "constant", value=0.001),
+    Row("rietx.io.formats.dif._MIN_ROWS", "constant", value=3),
+    Row("rietx.io.formats.gsas.ESD_FIELD_CHARS", "constant", value=8),
+    Row("rietx.io.formats.gsas.TIME_MAP_FIELD_CHARS", "constant", value=8),
+    Row("rietx.io.formats.gsas._GSAS_TIME_MAP_SCAN_BYTES", "constant", value=65536),
+    Row("rietx.io.formats.peaklist._MIN_ROWS", "constant", value=8),
+    Row("rietx.io.instrument_profile.INSTPRM_SHL_FLOOR", "constant", value=0.002),
+    Row("rietx.io.instrument_profile._PRCF_TYPE_3", "constant", value=3),
+    Row("rietx.io.instrument_profile._PRM_BANK", "constant", value=1),
+    Row("rietx.io.instrument_profile._PRM_CENTIDEG", "constant", value=100.0),
+    Row("rietx.io.instrument_profile._PRM_CENTIDEG_SQUARED", "constant", value=10000.0),
+    Row("rietx.io.instrument_profile._PRM_COEFFICIENT_COLUMNS", "constant", value=15),
+    Row("rietx.io.instrument_profile._PRM_COEFFICIENT_DIGITS", "constant", value=14),
+    Row("rietx.io.instrument_profile._PRM_CUTOFF", "constant", value=0.001),
+    Row("rietx.io.instrument_profile._PRM_GAUSS_TO_DEG2", "constant", value=0.0005545177444479562),
+    Row("rietx.io.instrument_profile._PRM_PER_RECORD", "constant", value=4),
+    Row("rietx.io.projects.fullprof._CELL_TIE_MULTIPLIER_TOL", "constant", value=1e-06),
+    Row("rietx.io.projects.fullprof._DISPERSION_ATOL_E", "constant", value=0.01),
+    Row("rietx.io.projects.fullprof._MAGNETIC_MATCH_ATOL", "constant", value=0.0001),
+    Row("rietx.io.projects.fullprof._NAM_WIDTH", "constant", value=4),
+    Row("rietx.io.projects.fullprof._OCCUPANCY_RTOL", "constant", value=0.005),
+    Row("rietx.io.projects.fullprof._RHOMBOHEDRAL_ANGLE_ATOL", "constant", value=0.01),
+    Row("rietx.io.projects.fullprof._RHOMBOHEDRAL_LENGTH_RTOL", "constant", value=0.001),
+    Row("rietx.io.projects.fullprof._USER_B_ATOL_FM", "constant", value=0.001),
+    Row("rietx.io.projects.registry.INP_SNIFF_BYTES", "constant", value=65536),
+    Row("rietx.io.projects.topas_input.CALC_POINTS_PER_FWHM", "constant", value=16),
+    Row("rietx.io.projects.topas_input.DEFAULT_RADIUS_MM", "constant", value=217.5),
+    Row("rietx.io.projects.topas_input._SABINE_LAUE", "constant", value=(-0.5, 0.25, -0.10416667, 0.036458333, -0.0109375, 0.0028497409)),
+    Row("rietx.io.projects.topas_input._SABINE_XPOL", "constant", value=0.079411),
+    Row("rietx.io.projects.topas_input._TCH_ETA", "constant", value=(1.36603, -0.47719, 0.11116)),
+    Row("rietx.io.projects.topas_input._TCH_GAMMA", "constant", value=(2.69269, 2.42843, 4.47163, 0.07842)),
     Row("rietx.io.readers.TWO_THETA_MAX_DEG", "constant", value=180.0),
     Row("rietx.model.absorption.CYLINDER_MU_R_MAX", "constant", value=1.0),
     Row("rietx.model.absorption._A1", "constant", value=1.7133),
@@ -2173,6 +2220,12 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.crystallography.symmetry._SNAP_NOISE",
     "rietx.crystallography.symmetry._TRANSLATION_DEN",
     "rietx.crystallography.symmetry.rhombohedral_restated_diagnostic.suggestion",
+    "rietx.gui.imports.MAX_UPLOAD_BYTES",
+    "rietx.gui.imports.PREVIEW_POINTS",
+    "rietx.gui.imports.WAVELENGTH_RTOL",
+    "rietx.gui.symmetry.LETTER_CACHE",
+    "rietx.gui.symmetry.ORBIT_COLLISION_TOL",
+    "rietx.gui.symmetry.POSITION_TOL",
     "rietx.indexing.ambiguity.AMBIGUITY_DISCREPANCY_SLACK",
     "rietx.indexing.ambiguity.AMBIGUITY_EXTEND_FACTOR",
     "rietx.indexing.ambiguity.MAX_AMBIGUITY_INDEX",
@@ -2318,6 +2371,36 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.indexing.workflow.index_pattern:validate",
     "rietx.io.formats.base.HEAD_BYTES",
     "rietx.io.formats.base.INTEGRAL_TOL",
+    "rietx.io.formats.dif._MIN_ROWS",
+    "rietx.io.formats.gsas.ESD_FIELD_CHARS",
+    "rietx.io.formats.gsas.TIME_MAP_FIELD_CHARS",
+    "rietx.io.formats.gsas._GSAS_TIME_MAP_SCAN_BYTES",
+    "rietx.io.formats.peaklist._MIN_ROWS",
+    "rietx.io.instrument_profile.INSTPRM_SHL_FLOOR",
+    "rietx.io.instrument_profile._PRCF_TYPE_3",
+    "rietx.io.instrument_profile._PRM_BANK",
+    "rietx.io.instrument_profile._PRM_CENTIDEG",
+    "rietx.io.instrument_profile._PRM_CENTIDEG_SQUARED",
+    "rietx.io.instrument_profile._PRM_COEFFICIENT_COLUMNS",
+    "rietx.io.instrument_profile._PRM_COEFFICIENT_DIGITS",
+    "rietx.io.instrument_profile._PRM_CUTOFF",
+    "rietx.io.instrument_profile._PRM_GAUSS_TO_DEG2",
+    "rietx.io.instrument_profile._PRM_PER_RECORD",
+    "rietx.io.projects.fullprof._CELL_TIE_MULTIPLIER_TOL",
+    "rietx.io.projects.fullprof._DISPERSION_ATOL_E",
+    "rietx.io.projects.fullprof._MAGNETIC_MATCH_ATOL",
+    "rietx.io.projects.fullprof._NAM_WIDTH",
+    "rietx.io.projects.fullprof._OCCUPANCY_RTOL",
+    "rietx.io.projects.fullprof._RHOMBOHEDRAL_ANGLE_ATOL",
+    "rietx.io.projects.fullprof._RHOMBOHEDRAL_LENGTH_RTOL",
+    "rietx.io.projects.fullprof._USER_B_ATOL_FM",
+    "rietx.io.projects.registry.INP_SNIFF_BYTES",
+    "rietx.io.projects.topas_input.CALC_POINTS_PER_FWHM",
+    "rietx.io.projects.topas_input.DEFAULT_RADIUS_MM",
+    "rietx.io.projects.topas_input._SABINE_LAUE",
+    "rietx.io.projects.topas_input._SABINE_XPOL",
+    "rietx.io.projects.topas_input._TCH_ETA",
+    "rietx.io.projects.topas_input._TCH_GAMMA",
     "rietx.io.readers.TWO_THETA_MAX_DEG",
     "rietx.model.absorption.CYLINDER_MU_R_MAX",
     "rietx.model.absorption._A1",

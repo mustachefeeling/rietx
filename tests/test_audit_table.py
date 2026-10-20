@@ -160,8 +160,8 @@ def test_every_top_level_entry_is_walked_or_declared_out():
     assert not unplaced, (
         f"top-level entries neither walked nor declared out: {unplaced}.  Add each to "
         "_audit.WALKED with the audit WP that owns its rows, or to _audit.NOT_WALKED with "
-        "the reason no module-level number in it can move a fitted value, a verdict, or how "
-        "a file is read")
+        "the reason no module-level number in it can move a fitted value, a verdict, how "
+        "a file is read, or what another program computes from a file rietx writes")
     assert not out - entries, f"NOT_WALKED names nothing in the package: {sorted(out - entries)}"
     assert all(_audit.NOT_WALKED.values()), "every NOT_WALKED entry gives its reason"
 
