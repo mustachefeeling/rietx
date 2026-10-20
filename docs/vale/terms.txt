@@ -182,6 +182,7 @@ Levenberg
 Lindemann
 Lorentzian
 Madsen
+Maier
 Marquardt
 Maxwellian
 Olds

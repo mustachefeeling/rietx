@@ -177,6 +177,7 @@ Madsen
 [mM]agCIF
 [mM]agneton
 [mM]agnetons
+Maier
 Mantid
 Marquardt
 [mM]atplotlib
