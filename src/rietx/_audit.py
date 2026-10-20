@@ -1531,7 +1531,16 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.least_squares.GTOL", "constant", tier="caller", value=1e-12,
         evidence=("opt-in: solver='trf', default 'lm' (DEFAULT_SOLVER, least_squares.py:87; GTOL "
                   "read at :2469 and :2721 inside the TRF branch)")),
-    Row("rietx.optimize.least_squares.NFEV_PER_ITERATION", "constant", value=4),
+    Row("rietx.optimize.least_squares.NFEV_PER_ITERATION", "constant", tier="invariant", value=4,
+        evidence=("answer-invariant: the stage budget is max_iter x 4 evaluations; on nine "
+                  "configurations from four laboratories under the shipped schedule the worst "
+                  "stage used 49 of 400 (8.2x, LM) and 47 (8.5x, TRF), at most 1.39 (LM) and "
+                  "1.79 (TRF) evaluations an iteration; every stage at 1e-9 leaves LM 1.24x, and a "
+                  "cell walking unheld bound it once (WP-2002, 2026-10-21); tests/test_budget_and_tolerance_invariance.py asserts the margin under both solvers and a bit-identical answer at a quarter "
+                  "of the budget"),
+        grounds=("B11 (ruled 2026-10-19): a budget is treated as not affecting the answer "
+                 "once a test confirms its margin under both LM and TRF."),
+        approved="2026-10-19"),
     Row("rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL", "constant", tier=3, value=0.95,
         evidence=("the profile interval's own level, PARAMETER_INTERVAL_LEVEL, held equal by "
                   "test; at one angle its chi-bar-squared cut is the one-sided interval's 2.706 "
@@ -1587,7 +1596,15 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.lm._EIGEN_CUT_PER_ROW", "constant", tier=1, value=2.220446049250313e-16,
         evidence=("numerical floor: eps*m, the rounding error of one inner product over m terms "
                   "(Higham 2002 §3.1; docstring)")),
-    Row("rietx.optimize.lm._INNER_MAX", "constant", value=18),
+    Row("rietx.optimize.lm._INNER_MAX", "constant", tier="invariant", value=18,
+        evidence=("answer-invariant: the worst iteration on nine acceptance configurations "
+                  "took 6 damped trials (3.0x, cpd-1a's lines_axial stage); tests/test_budget_and_tolerance_invariance.py "
+                  "asserts that margin and a bit-identical answer at 9; at 4 the answer "
+                  "changes (WP-2002, 2026-10-21)"),
+        grounds=("B11 (ruled 2026-10-19): a budget is treated as not affecting the answer "
+                 "once a test confirms its margin under both LM and TRF; TRF has no "
+                 "inner loop."),
+        approved="2026-10-19"),
     Row("rietx.optimize.lm._LAMBDA_FAIL_FACTOR", "constant", tier=3, value=10.0,
         evidence=("Coelho (2018) J. Appl. Cryst. 51, 428, eq (9) (docstring; WP-0601 restates it; "
                   "paper not on disk, not checked)"),
@@ -2190,7 +2207,15 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-19"),
     Row("rietx.schemas.plan.StageSpec:turn_on", "default", tier=1, ambiguity=1, value=(),
         evidence="arithmetic: the empty container"),
-    Row("rietx.schemas.plan.StageSpec:max_iter", "default", value=100),
+    Row("rietx.schemas.plan.StageSpec:max_iter", "default", tier="invariant", ambiguity=1, value=100,
+        evidence=("answer-invariant: caps evaluations at max_iter x NFEV_PER_ITERATION, "
+                  "never iterations; the worst stage under the shipped schedule ran 48 "
+                  "iterations (2.1x, reported, not asserted) and 49 evaluations (8.2x); tests/test_budget_and_tolerance_invariance.py "
+                  "asserts a bit-identical answer at max_iter 25 under LM and TRF (WP-2002, "
+                  "2026-10-21)"),
+        grounds=("B11 (ruled 2026-10-19): a budget is treated as not affecting the answer "
+                 "once a test confirms its margin under both LM and TRF."),
+        approved="2026-10-19"),
     Row("rietx.schemas.plan.StageSpec:ftol", "default", value=None),
     Row("rietx.schemas.plan.StageSpec:lebail_cycles", "default", tier=3, ambiguity=1, value=3,
         evidence=("no stated source; issue #740 (synthetic LaMnO3-like neutron, cell and profile "
@@ -3384,8 +3409,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.optimize.identifiability.SOFT_MODES_K",
     "rietx.optimize.identifiability.SOFT_MODE_MIN_LOADING",
     "rietx.optimize.identifiability.TOP_CORRELATIONS_K",
-    "rietx.optimize.least_squares.NFEV_PER_ITERATION",
-    "rietx.optimize.lm._INNER_MAX",
     "rietx.optimize.statistics.EFFECTIVE_OBS_ALPHA",
     "rietx.optimize.statistics.MAX_SHIFT_CONVERGED",
     "rietx.optimize.statistics.OBS_PER_PARAMETER_MIN",
@@ -3515,7 +3538,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.schemas.plan.PlanSpec:correlation_guard",
     "rietx.schemas.plan.PlanSpec:intermediate_ftol",
     "rietx.schemas.plan.StageSpec:ftol",
-    "rietx.schemas.plan.StageSpec:max_iter",
     "rietx.schemas.results.HIGH_CORRELATION_MAX",
     "rietx.schemas.results.StageResult.ftol",
     "rietx.schemas.results.StageResult.seeded",

@@ -26,10 +26,30 @@ distance from each reference. Two things keep both rows here:
 
 ## B7: the intermediate tolerance's invariance test
 
-- `rietx.schemas.plan.INTERMEDIATE_FTOL`: invariance test in plain esds (1e-6 against 1e-9 on three families, same held set).
-- `rietx.schemas.plan.PlanSpec:intermediate_ftol`: the same test.
-- `rietx.schemas.plan.StageSpec:ftol`: the same test (None resolves to the schedule).
-- `rietx.schemas.results.StageResult.ftol`: the same test (records the schedule).
+Run 2026-10-21 on SRM 660c, FAP, the CPD round robin and 11-BM NAC, under LM and TRF, each
+protocol's own plan and the default plan, 1e-6 against `intermediate_ftol=None` (every stage
+at 1e-9). "Plain esd" is `stderr_uncorrected`; paths `FLAT_DIRECTION` or
+`COVARIANCE_DIRECTION_DISCARDED` names are listed apart as degenerate.
+
+- Within WP-1123's 0.03 esd everywhere but cpd-1a under its QPA protocol: 0.033 (LM,
+  corundum scale) and 0.074 (TRF, corundum Al Biso) as fitted, 0.046 and 0.074 after one
+  stage recompiled at each answer. In the inflated esd WP-1123 used they are 0.009 and
+  0.021, so the switch to plain esds (f = 3.52 there) is what crosses the bar. Under LM
+  three recompiles bring the arms within 0.0074; under TRF they stay 0.074 apart and the
+  None arm then moves 0.106 by itself, so TRF's own scatter there exceeds the bar. QPA moved
+  0.0055 and 0.009 wt %.
+- **A hold flips** (the brief's change-my-mind condition, and clash C18): cpd-1a with
+  zircon declared, a phase the sample lacks, under LM. At 1e-6 the last stage holds nine
+  zircon structural paths and `PHASE_UNCONSTRAINED` fires; at 1e-9 nothing is held, the
+  zircon cell walks (0.30 esd as fitted, 1.28 after a recompile, in `axial_sl`) and the
+  `lines_axial` stage hits its 400-evaluation budget. Zircon's scale sits near 2σ in plain
+  esd, by the hold's threshold. The looser default is the one that held.
+- Evaluations saved by 1e-6: 1.00-2.15× on the ordinary fits, 4.9× on the flip.
+
+No test written. All five rows (`INTERMEDIATE_FTOL`, `PlanSpec:intermediate_ftol`,
+`StageSpec:ftol`, `StageResult.ftol`, and the hand row `run_least_squares:ftol`) wait on the
+maintainer: what bar a staged plan's invariance test uses (the same question as B9's), and
+the batch's fallback if it fails (tier 3, demoted to kind 3).
 
 ## B8 and B9: limits (the size floor, March r, the harmonic and extra-peak ceilings landed with the limits lane)
 
@@ -72,12 +92,6 @@ No B10 row is unaudited now. `MAX_NODES` landed at tier 3 on 2026-10-21 beside t
 - Splitting the nodes between the two segments by length instead of equally is unsafe, because the split would be frozen per stage while S/L and H/L refine. A segment with zero length at compile time (S/L = H/L, or one aperture at zero) gets no nodes and then grows, and its share of the peak is missing: errors 950-1390× the bar. Both lab acceptance protocols start on S/L = H/L and refine off it. A floor of 4 nodes per segment still fails at up to 480×. So the equal split stays.
 - The skip ratio's bound is split-independent: a peak drawn symmetric errs by at most 0.477 × extent/FWHM, so 3.67e-4 is the ceiling.
 - Measured effect of today's error on answers: SRM 660c with every reflection at 512 nodes moved no parameter past 0.04 esd. The other B10 rows sit at tier 3 with their domain tests still owed (grep `_audit.py` for "claimed domain is owed").
-
-## B11: the iteration budgets' margin test
-
-- `rietx.optimize.least_squares.NFEV_PER_ITERATION`: a margin test under both LM and TRF.
-- `rietx.optimize.lm._INNER_MAX`: the same.
-- `rietx.schemas.plan.StageSpec:max_iter`: the same.
 
 ## B12: the form-factor follow-up (the other B12 rows landed with the pick-verb changes)
 
