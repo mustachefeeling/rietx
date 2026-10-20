@@ -236,10 +236,13 @@ def test_the_peak_width_start_does_not_change_the_answer():
     w and x from 1e-6 to the box maximum of 1.0 reach this answer, to 4.5e-4 of
     an esd, except starts with x at 0.02 or 0.03.  Those land 0.38 esd away in
     u, at χ² 0.25 % lower, for each w tried (1e-3, 2e-2, 3e-2).  Starts with x
-    at 0.01 or 0.05 land here again.  Compiled at each answer, the two differ
-    only in the FCJ node count of the lowest reflection, (100): 39 nodes
-    against 40 on both lines, with every window the same.  So a start near the answer's
-    x = 0.028 picks the other of two self-consistent node counts.  With the wide
+    at 0.01 or 0.05 land here again.  The two are distinct minima, 46.7 apart
+    in absolute χ² (N = 5332), the one from x = 0.03 the deeper, and nearly
+    mirror images under the S/L ↔ H/L swap the profile is symmetric in.  Their
+    (100) reflections carry 39 and 40 FCJ nodes, but forcing either count at
+    fixed parameters moves χ² by 1.4, and a refit at the other count moves u
+    by 0.005 esd, so the count follows the widths and does not cause the split
+    (measured by the B10 lane, 2026-10-21).  With the wide
     start's x set to 3e-2, the value assertion below fails, first on the cell
     (0.044 of its esd).  That failure is how this test was shown to be able to
     fail.  On NAC, starts of w from 1e-6

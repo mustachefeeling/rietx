@@ -1386,24 +1386,38 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.profiles.faddeeva._WEIDEMAN_L", "constant", tier=1, value=4.756828460010884,
         evidence=("arithmetic: derived from WEIDEMAN_N with no free factor, Weideman (1994) J. "
                   "Numer. Anal. 31, 1497 (docstring)")),
-    Row("rietx.model.profiles.fcj.MAX_NODES", "constant", value=64),
+    Row("rietx.model.profiles.fcj.MAX_NODES", "constant", tier=3, value=64,
+        evidence=("FCJ quadrature cap; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
+                  "fails where it binds, past extent/FWHM 10 (lab below ~6.2 deg at S/L = H/L = "
+                  "0.025, FWHM 0.07), 0.21-0.26 of the peak; synchrotron fails at eta 0.5 and 1"),
+        grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
+                 "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
+                 "(ruled 2026-10-19) until the constants are ruled on."),
+        approved="2026-10-19"),
     Row("rietx.model.profiles.fcj.MIN_NODES", "constant", tier=3, value=8,
-        evidence=("FCJ quadrature floor; a test bounding the error over the claimed domain is owed "
-                  "(against a 512-node reference)"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("FCJ quadrature floor; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
+                  "passes lab eta <= 0.5 (worst 3.95e-4), fails lab eta 1 (7.9e-4) and "
+                  "synchrotron eta 0.5 and 1"),
+        grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
+                 "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
+                 "(ruled 2026-10-19) until the constants are ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.profiles.fcj.NODES_PER_FWHM", "constant", tier=3, value=6.0,
-        evidence=("FCJ quadrature density; a test bounding the error over the claimed domain is owed "
-                  "(against a 512-node reference, as 2002-batch/fcj_low_angle.py)"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("FCJ quadrature density; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
+                  "passes lab eta 0 (4.4e-4), fails lab eta 0.5 and 1 (2.4e-3, 5.6e-3) and "
+                  "synchrotron at every eta; worst at S/L = H/L or one aperture zero, where half "
+                  "the images sit on a zero-length segment"),
+        grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
+                 "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
+                 "(ruled 2026-10-19) until the constants are ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.profiles.fcj.SKIP_EXTENT_FWHM_RATIO", "constant", tier=3, value=0.02,
-        evidence=("FCJ skip below this extent; a test bounding the error over the claimed domain is owed "
-                  "(against a 512-node reference)"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("FCJ skip below this extent; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
+                  "fails both at 9.5e-3, the error being about 0.48 x extent/FWHM, so the bar "
+                  "needs 1.5e-3 (lab) or 3.7e-4 (synchrotron)"),
+        grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
+                 "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
+                 "(ruled 2026-10-19) until the constants are ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.profiles.pseudovoigt._4LN2", "constant", tier=1, value=2.772588722239781,
         evidence="arithmetic: exp(-4 ln2 x^2/G^2) puts the half maximum at x = G/2"),
@@ -3366,7 +3380,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.io.projects.topas_input._TCH_ETA",
     "rietx.io.projects.topas_input._TCH_GAMMA",
     "rietx.io.readers.TWO_THETA_MAX_DEG",
-    "rietx.model.profiles.fcj.MAX_NODES",
     "rietx.optimize.identifiability.EXCHANGE_MIN_LOADING",
     "rietx.optimize.identifiability.SOFT_MODES_K",
     "rietx.optimize.identifiability.SOFT_MODE_MIN_LOADING",
