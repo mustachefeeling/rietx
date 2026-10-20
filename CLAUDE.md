@@ -137,7 +137,7 @@ merged in, each held row naming which of the three reasons holds it (`.refinable
 `set_vary`/`set_value` nodes. Three load-bearing rules: `ParameterRow` mirrors
 `params.vector.Entry` field for field (pinned by `dataclasses.fields`; `esd`/`mode_fixed` the
 declared extras); a **tied** path refuses an edit and names its sources; `mode_fixed`
-(lebail/pawley force-fix every `.atoms.` path, `.scale`, `.source.lines.`) is *not* `locked` —
+(lebail/pawley force-fix every `.atoms.` path, `.scale`, `.texture.`) is *not* `locked` —
 that keeps a Le Bail phase's mandatory dummy atom from looking editable.
 
 **User constraints** (WP-1070) sit beside the derived ties: `tie`/`tie_equal`/`untie`,

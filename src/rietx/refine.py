@@ -305,13 +305,23 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     """Whether ``mode`` force-fixes ``path`` whatever the table says.
 
     Against an intensity model that partitions or refines the per-hkl
-    intensities, four families of parameter cannot be refined at all: the
+    intensities, these families of parameter cannot be refined at all: the
     structural parameters (there is no |F|² to fit), the phase scale (degenerate
-    with those intensities) and the emission-line weights (which the intensities
-    absorb pairwise) — and a magnetic width, whose component only a Rietveld
-    draw separates.  ``_run_stage`` drops them from the freed set; exported
-    once so :meth:`Refinement.parameters` reports the same set rather than a
-    second opinion about it.
+    with those intensities), a texture coefficient, and a magnetic width, whose
+    component only a Rietveld draw separates.  ``_run_stage`` drops them from
+    the freed set; exported once so :meth:`Refinement.parameters` reports the
+    same set rather than a second opinion about it.
+
+    **The emission lines refine in every mode** (WP-2002, 2026-10-20).  Both
+    modes keep one intensity per reflection and draw it through every line at
+    that line's weight (:meth:`CompiledModel.lebail_update`), so the doublet's
+    ratio is a shape the intensities cannot absorb; line 0's weight is the
+    one degenerate with them, and it is locked structurally.  Measured on NIST
+    SRM 660c: Kα2/Kα1 0.5126 ± 0.0048 Rietveld, 0.5145 ± 0.0036 Pawley,
+    0.5224 ± 0.0033 Le Bail, and with the cell held Le Bail refines λ to
+    1.540605 ± 3e-6 Å.  Until then ``.source.lines.`` was force-fixed here,
+    the wavelength with it, so a Pawley calibration of λ on a standard could
+    not run.
     """
     if mode not in ("lebail", "pawley"):
         return False
@@ -334,7 +344,6 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     # r, its single-axis sibling, which ended 1.7e-13 from its start.
     return (".atoms." in path or ".rigid_bodies." in path
             or (path.startswith("phases.") and path.endswith(".scale"))
-            or ".source.lines." in path
             or (path.startswith("phases.") and ".texture." in path)
             or _MAGNETIC_WIDTH_PATH.match(path) is not None)
 
@@ -3925,10 +3934,9 @@ class Refinement:
             table.set_vary(self._held, True)
             self._held = []
         if mode in ("lebail", "pawley"):
-            # never refine structural parameters, the phase scale (degenerate
-            # with the per-hkl intensities) or the line-intensity ratio (which
-            # those intensities can absorb pairwise) against the intensity
-            # model; drop them from the reported freed list too — it must
+            # never refine structural parameters or the phase scale
+            # (degenerate with the per-hkl intensities) against the intensity
+            # model (``mode_fixed_path``); drop them from the reported freed list too — it must
             # describe the set actually left free.  By what the column *moves*
             # since WP-1342, so a tie cannot carry one past the drop.  Before
             # the seeds, never after: a seed writes the value whether or not

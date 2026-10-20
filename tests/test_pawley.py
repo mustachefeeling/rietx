@@ -228,7 +228,20 @@ def test_pawley_never_frees_structure_or_scale():
     freed = {p for stage in result.stages for p in stage.freed}
     assert not any(p.endswith(".scale") for p in freed)
     assert not any(".atoms." in p for p in freed)
-    assert not any(".source.lines." in p for p in freed)
+
+
+def test_the_emission_lines_refine_under_both_intensity_models():
+    """One intensity per reflection is drawn through every line at its weight,
+    so the doublet ratio is a shape the per-hkl intensities cannot absorb, and
+    a wavelength refines against a held cell (WP-2002, 2026-10-20).  Until then
+    ``mode_fixed_path`` force-fixed every ``.source.lines.`` path."""
+    from rietx.refine import mode_fixed_path
+
+    for mode in ("lebail", "pawley"):
+        for path in ("instrument.source.lines.1.weight",
+                     "instrument.source.lines.0.wavelength"):
+            assert not mode_fixed_path(path, mode), (path, mode)
+        assert mode_fixed_path("phases.0.scale", mode)
 
 
 # ------------------------------------------- a reflection centred off the data
