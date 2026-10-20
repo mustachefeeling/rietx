@@ -249,6 +249,14 @@ Run the session-start ritual. The SessionStart hook's report
    acceptance command, and the session scope — this WP only; finish →
    `/wp-handover` → stop.
 
+   **Name the tier of what the item adds** (WP-2014). For each flag,
+   threshold or automatic action the item adds, say its tier and its kind of
+   ambiguity (`docs/milestones/generality.md` § The rule; `docs/DESIGN.md`
+   § Rules, 1). A WP filed before 2026-10-19 that plans one has no tier line
+   in its Context; write the template's line there first (`docs/wp/TEMPLATE.md`,
+   "The tier of each rule this WP adds"). Do not pause for the maintainer.
+   The judge still decides at handover (`/wp-handover` step 7).
+
    Say the trigger out loud too, because `/wp-handover` is missed by drifting
    past it rather than by deciding against it. Run it when **any** of these
    happens, not only the first: the WP's scope for this session is done; the

@@ -150,11 +150,11 @@ ruling B9 to the peak-position bounds, and the 11-BM NAC cell drifted 5129 ppm a
       the branch (maintainer edits were allowed on every fork PR checked) or asks the
       contributor. The "classes outsiders miss" list gains two: a skill row telling agents
       to call a `caller` verb, and a one-dataset finding written into a CLAUDE.md as a rule.
-- [ ] **`/wp-start` step 7.** The restatement names the tier and the kind of ambiguity of
+- [x] **`/wp-start` step 7.** The restatement names the tier and the kind of ambiguity of
       each flag, threshold or automatic action the item adds. A WP filed before
       2026-10-19 that plans one writes the template's tier line first. No pause for the
       maintainer; the judge still decides at handover.
-- [ ] **`/steward`.** One line under Red CI: an edit to a row's tier, evidence or value,
+- [x] **`/steward`.** One line under Red CI: an edit to a row's tier, evidence or value,
       or to the allow-list, goes back through the judge before the push.
 - [ ] **Records.** `generality.md` § Acceptance's "a new heuristic cannot land unaudited"
       row names this WP beside 2001.
