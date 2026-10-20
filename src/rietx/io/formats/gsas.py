@@ -111,12 +111,19 @@ full-width value can fuse with its neighbour:
   the fixtures corroborate it: ``mg090.fxye``'s tokens are 9 and 10 characters
   wide and its lines run 31–34 characters, so 8-character slicing would
   destroy it.
-- **STD** is positional too, but its 8-character field is a 2-character repeat
-  count followed by a 6-character value, so a value can never reach the field's
-  left edge and **fusion is structurally impossible** in a bank GSAS could have
-  written.  Whitespace splitting therefore reads an uncompressed STD bank
-  exactly, which is what ``FAP.XRA`` is; the compressed variant is a separate
-  question no obtainable file answers, and it is not silently guessed at here.
+- **STD** is positional too, and is read by position.  The manual (Larson &
+  Von Dreele 2004, LAUR 86-748, "GSAS raw powder file", p. 217) gives the
+  record as ``(10(I2,F6.0))`` holding ``(NCTR(I), YO(I))``: a 2-character
+  **counter number** — how many counters collected that step, taken as one
+  when zero or blank — then a 6-character count per counter.  The two are
+  separate quantities, so a whitespace split is right only while the counter
+  field is blank, as it is in ``FAP.XRA``; a bank that writes it (the GSAS-II
+  tutorial *Magnetic-IV* pattern, counter numbers 1 to 20) came back with the
+  counter numbers interleaved among the counts (issue #1061).  The value is
+  read as written; the counter number is checked and not folded into it,
+  because the manual states the esd only as σ = √I and does not say how it
+  follows when NCTR > 1 — so an STD bank still takes the Poisson fallback on
+  the value as written.
 """
 
 from __future__ import annotations
@@ -556,8 +563,8 @@ def _read_bank(p: Path, lines: list[str],
             continue
         body.append(line)
 
-    # An ESD bank is positional and is read as such (§ ``_esd_fields``); FXYE
-    # and STD are free-format and split on whitespace.  Each flavour tokenises
+    # ESD and STD banks are positional and are read as such (§ ``_esd_fields``,
+    # § ``_std_fields``); FXYE is free-format and split on whitespace.  Each flavour tokenises
     # its own body, so the ESD path — the big one — never pays for the ~99 000
     # throwaway tokens a whole-body split would build for a branch it never
     # takes.
@@ -579,9 +586,8 @@ def _read_bank(p: Path, lines: list[str],
         x = _synth_axis(axis, bintype, lines, bank_line, c1, c2,
                         min(len(arr), nchan), p)
         y, sig = arr[:, 0], arr[:, 1]
-    else:  # STD: counts only, Poisson esd
-        values = _floats([t for line in body for t in line.split()], p, type_flag)
-        y = np.array(values, dtype=np.float64)[:nchan]
+    else:  # STD: counts only, positional (counter number, value); Poisson esd
+        y = np.array(_std_fields(body, p), dtype=np.float64)[:nchan]
         x = _synth_axis(axis, bintype, lines, bank_line, c1, c2, len(y), p)
         sig = None
 
@@ -901,7 +907,7 @@ def _type_flag(token: str | None, p: Path) -> str:
         f"not established at all.")
 
 
-#: Width of one field of an **ESD** bank's data record, in characters.  A
+#: Width of one field of an **ESD** (or **STD**) bank's data record, in characters.  A
 #: specification fact, and three descriptions state it: the beamline that wrote
 #: the files this fixes — APS 11-BM, *Data Formats*
 #: (https://11bm.xray.aps.anl.gov/users/filetypes), "*the intensities and their
@@ -952,6 +958,49 @@ def _esd_fields(body: list[str], p: Path) -> list[float]:
                     f"ESD bank hold {field!r}, which is not a number — the "
                     f"record is not the {ESD_FIELD_CHARS}-character fixed "
                     "format an ESD bank is written in") from None
+    return out
+
+
+def _std_fields(body: list[str], p: Path) -> list[float]:
+    """An STD bank's values, read **positionally**: ``(I2, F6.0)`` per field.
+
+    Larson & Von Dreele (2004), LAUR 86-748, "GSAS raw powder file", p. 217:
+    the profile is ``(NCTR(I), YO(I), I=1,NCHAN)`` in ``(10(I2,F6.0))``, ten
+    8-character fields to a record, each a 2-character counter number then a
+    6-character value; a counter number of zero or blank is taken as one.  The
+    value is what is returned.  The counter number is validated (an integer
+    where one is written) and **not** folded into the value or its esd: the
+    manual gives the esd of an STD point only as σ = √I, and how σ follows
+    when more than one counter collected a step is not stated there, so this
+    reader does not decide it (issue #1061).
+
+    A wholly blank field ends a short final record and is skipped, as in
+    :func:`_esd_fields`; a field with a counter number and no value, or a
+    value that is not a number, is refused naming the record and columns.
+    """
+    out: list[float] = []
+    for lineno, raw in enumerate(body, start=1):
+        line = raw.rstrip()
+        for start in range(0, len(line), ESD_FIELD_CHARS):
+            field = line[start:start + ESD_FIELD_CHARS]
+            if not field.strip():
+                continue
+            counter, value = field[:2].strip(), field[2:].strip()
+            where = (f"{p.name}: characters {start + 1}-"
+                     f"{start + ESD_FIELD_CHARS} of data record {lineno} of "
+                     f"the STD bank hold {field!r}")
+            if counter and not counter.isdigit():
+                raise ValueError(
+                    f"{where}, whose first two characters are not a counter "
+                    "number — the record is not the (I2, F6.0) fixed format "
+                    "an STD bank is written in") from None
+            try:
+                out.append(float(value))
+            except ValueError:
+                raise ValueError(
+                    f"{where}, whose last six characters are not a number — "
+                    "the record is not the (I2, F6.0) fixed format an STD "
+                    "bank is written in") from None
     return out
 
 
