@@ -1088,7 +1088,10 @@ def predict_then_verify(refinement, data, action: SuggestedAction, *,
     # values the restricted fit held are then gone
     restricted = refinement.result_
     held = {row.path: row.value for row in refinement.parameters()}
-    trial = refinement.branch() if refinement.history is not None else refinement
+    # ``_trial`` is ``branch()`` here, and marks the branch as the package's,
+    # so its stage computes no automatic profile interval (WP-2002).  In place,
+    # the stage is the caller's working state afterwards, and computes one.
+    trial = refinement._trial() if refinement.history is not None else refinement
     stage = Stage(f"verify:{action.kind}", list(action.parameter_paths))
     try:
         # ``telemetry=False``: this is a trial the *package* runs, one per

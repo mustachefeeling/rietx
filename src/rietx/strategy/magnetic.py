@@ -1339,6 +1339,10 @@ def _fit(structure, instrument, data, plan, ties=None, limits=None, hold=()):
     from ..refine import Refinement
 
     ref = Refinement(structure, instrument.model_copy(deep=True))
+    # a trial, so no automatic profile interval either (WP-2002): ``_fit``
+    # cannot tell the winner's fit from the rest, and each interval costs
+    # 20-32 refits an angle left out of the covariance
+    ref._auto_intervals = False
     if hold:
         ref.hold(list(hold))
     for target, source, scale, offset in (ties or ()):

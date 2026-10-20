@@ -505,6 +505,10 @@ from .._nearmiss import did_you_mean
 #: parameters a stage put back at its starting values after their phase's cell
 #: left the safety window.  Additive and defaulted to ``None``, the 0.25 → 0.26
 #: rule; all three runners write a list on every stage.
+#: Also in 0.59 (WP-2002, B2): ``RefinedParameter.interval``, the profile
+#: interval of a moment angle the stationary-angle test left out of the
+#: covariance.  Additive and defaulted to ``None``, "not computed", the
+#: 0.25 → 0.26 rule; a single fit writes it on exactly those rows.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

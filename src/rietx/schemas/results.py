@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from .._about import DIST_NAME
 from .common import Base, Diagnostic, Mode, Provenance
+from .interval import ParameterInterval
 from .parametric import (
     ParametricCoefficient,
     ParametricFormReading,
@@ -78,6 +79,19 @@ class RefinedParameter(Base):
     recorded it: a hand-built row, or a result written before schema 0.57,
     when 1.9.0's parametric fits already carried equation-set rows that an empty
     list would have called measured.
+
+    **``interval`` is the profile interval of a moment angle the fit left out
+    of its covariance** (WP-2002, B2).  The stationary-angle test
+    (``StageResult.moment_angle_tests``, WP-1929) takes such an angle's column
+    out, so its ``stderr`` stays ``None``.  The data still determine the angle
+    through curvature, so the fit computes its 95 % profile interval
+    (:class:`~rietx.schemas.interval.ParameterInterval`, the answer
+    ``Refinement.profile_interval`` returns) and stores it here.  One writer:
+    ``parameter_interval.attach_stationary_intervals``, which ``fit`` and
+    ``run_stage`` call for every angle the answer-producing stage left out.
+    ``None`` says no interval was computed: any other row, a joint fit (which
+    has no profile verb), a package-internal trial, a fit cancelled while its
+    intervals ran, or a result stored before the field.
     """
 
     path: str
@@ -86,6 +100,7 @@ class RefinedParameter(Base):
     vary: bool = True
     at_bound: bool | None = None
     equations: list[str] | None = None
+    interval: ParameterInterval | None = None
 
     def __str__(self) -> str:
         """``path  value(esd)  state`` on one line, so a list of rows reads as
@@ -887,7 +902,9 @@ class MomentAngleTest(Base):
     χ²_red·f².  The angles pass when it is at most ``cut``, the 95 % point of
     the χ̄² mixture for ``len(paths)`` one-sided directions (Self & Liang,
     1987; Shapiro, 1985).  Their columns then leave the covariance, so each
-    has no esd, and their values stand.
+    has no esd, and their values stand.  On a single fit each such angle's
+    row carries its profile interval instead (``RefinedParameter.interval``,
+    WP-2002).
 
     ``paths`` are free columns.  A caller's ``vars.X`` driving only moment
     angles is one of them.  The angles it drives share its verdict.

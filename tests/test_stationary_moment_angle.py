@@ -58,8 +58,12 @@ def _plan() -> rx.RefinementPlan:
 
 
 def _fit(tilt: float, *, two: bool = True, start_tilt: float | None = None,
-         seed: int | None = None):
-    """Mn1 at 3.5 μ_B tilted ``tilt`` from **a**, Mn2 at 0.7 along **a**."""
+         seed: int | None = None, intervals: bool = True):
+    """Mn1 at 3.5 μ_B tilted ``tilt`` from **a**, Mn2 at 0.7 along **a**.
+
+    ``intervals=False`` turns off the profile interval the fit computes for
+    each angle it leaves out (WP-2002), as on a package trial.
+    """
     T = _solve()
     mag = _magnetic()
     instrument = T.neutron()
@@ -74,6 +78,7 @@ def _fit(tilt: float, *, two: bool = True, start_tilt: float | None = None,
             if two else None),
         magnetic=mag)
     ref = rx.Refinement(rx.Structure(phases=[start]), instrument)
+    ref._auto_intervals = intervals
     return ref, data, ref.fit(data, plan=_plan(), telemetry=False)
 
 
@@ -138,7 +143,11 @@ def test_a_stop_beside_the_symmetry_direction_leaves_the_angles_out():
     (finding,) = [d for d in result.diagnostics
                   if d.code == "MOMENT_ANGLE_STATIONARY"]
     assert finding.where == ANGLES and finding.value == only.statistic
-    assert "profile_interval" in finding.suggestion
+    assert "RefinedParameter.interval" in finding.suggestion
+    # each angle's interval, computed by the fit, includes the direction
+    assert all(rows[p].interval.lower <= only.stationary_at[p] <= rows[p].interval.upper
+               for p in ANGLES)
+    assert finding.message.count("includes the direction") == len(ANGLES)
 
 
 @pytest.fixture(scope="module")
@@ -276,6 +285,56 @@ def test_an_angle_without_an_esd_still_has_a_profile_interval(nudge):
     width = interval.upper - interval.lower
     assert abs(interval.upper + interval.lower) < 0.05 * width
     assert interval.lower < interval.value < interval.upper
+    # the fit's own interval (WP-2002) is this one: the same refits, on a copy
+    auto = _rows(result)[azimuth].interval
+    assert (auto.lower, auto.upper) == (interval.lower, interval.upper)
+
+
+def test_a_left_out_angle_carries_its_interval_and_the_history_gains_no_node():
+    """WP-2002, B2 option 2: the angle's profile interval in place of its esd.
+
+    The one-site set leaves both of Mn1's angles out of the covariance.  The
+    fit computes each one's profile interval and stores it on the row, whose
+    ``stderr`` stays ``None``.  Each interval includes the direction where its
+    column vanishes, and the finding says so.  Measured: 24 refits an angle,
+    2.6 s beside a 0.18 s fit (macOS arm64).
+
+    The refits run on a copy of the models, so the caller's tree holds exactly
+    the nodes the same fit holds with the intervals off, HEAD on the result's
+    own node.  Every other row, and every row of the fit with them off, has
+    ``interval`` ``None``.
+    """
+    ref, _data, result = _fit(0.0, two=False, seed=2, start_tilt=0.04)
+    off_ref, _data, off = _fit(0.0, two=False, seed=2, start_tilt=0.04,
+                               intervals=False)
+    (passed,) = [t for t in result.stages[-1].moment_angle_tests if t.zeroed]
+    assert passed.paths == [f"{MN1}.dof1", f"{MN1}.dof2"]
+    rows = _rows(result)
+    for path in passed.paths:
+        row = rows[path]
+        assert row.stderr is None and row.interval is not None
+        iv = row.interval
+        assert iv.path == path and iv.stderr is None and not iv.one_sided
+        assert iv.lower_stop == iv.upper_stop == "threshold"
+        assert iv.lower <= passed.stationary_at[path] <= iv.upper
+        assert all(p.node_id is None for p in iv.points)
+    assert all(r.interval is None for r in result.parameters
+               if r.path not in passed.paths)
+    assert all(r.interval is None for r in off.parameters)
+    # nothing else the fit returns moved
+    assert [(r.path, r.value, r.stderr) for r in result.parameters] == [
+        (r.path, r.value, r.stderr) for r in off.parameters]
+    (finding,) = [d for d in result.diagnostics
+                  if d.code == "MOMENT_ANGLE_STATIONARY"]
+    assert finding.message.count("includes the direction") == 2
+    (plain,) = [d for d in off.diagnostics if d.code == "MOMENT_ANGLE_STATIONARY"]
+    assert "No profile interval was computed" in plain.message
+    # the history a plain fit leaves, node for node
+    tree, off_tree = ref.history, off_ref.history
+    assert len(tree) == len(off_tree)
+    assert tree.head == result.node_id
+    assert [(n.action.kind, n.action.name) for n in tree.lineage(tree.head)] == [
+        (n.action.kind, n.action.name) for n in off_tree.lineage(off_tree.head)]
 
 
 def test_the_joint_path_runs_the_same_test():

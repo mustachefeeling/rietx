@@ -375,8 +375,9 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   *whole* block since W normalises by a sum. **A row on its bound stays in the matrix** (WP-1929):
   its esd and its neighbours' are marginal, `at_bound` says where it sits, and a refit holding it is
   the conditional reading. **A column is squared only via `statistics.column_rescale`** (WP-1463).
-  A moment angle a Δχ² test finds at a symmetry-fixed direction is zeroed **for the covariance
-  alone** (WP-1929): a reader of the inverted matrix takes `covariance_jacobian`, not `outcome.jac`.
+  A moment angle a Δχ² test puts at a symmetry-fixed direction is zeroed **for the covariance alone**
+  (WP-1929; read `covariance_jacobian`) and carries a profile interval (`RefinedParameter.interval`,
+  WP-2002), 20-32 refits an angle: a trial not built by `_trial` sets `_auto_intervals = False`.
 - **A declared name is a claim, and an absent writer fails no test** (WP-1076, the rule above one
   rank up). Two shapes: a field whose empty state reads as an *answer*
   (`RefinedParameter.at_bound` was `bool = False`, so every result said "not at a bound" about

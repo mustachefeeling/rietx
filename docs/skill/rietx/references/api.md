@@ -119,7 +119,7 @@ None nests inside another. An `rx.IndexingResult` carries no `cell` key by desig
 - `rx.Statistics` — Agreement indices, defined per Toby (2006), Powder Diffraction 21, 67.
   Fields: `rwp: float`, `rp: float`, `rexp: float`, `chi2: float`, `gof: float`, `rwp_background_subtracted: float | None = None`, `durbin_watson: float | None = None`, `esd_inflation: float | None = None`, `n_points: int`, `n_free_parameters: int`, `max_shift_over_esd: float | None = None`, `identifiability_clause: str | None = None`
 - `rx.RefinedParameter` — One row of `RefinementResult.parameters`.
-  Fields: `path: str`, `value: float`, `stderr: float | None = None`, `vary: bool = True`, `at_bound: bool | None = None`, `equations: list[str] | None = None`
+  Fields: `path: str`, `value: float`, `stderr: float | None = None`, `vary: bool = True`, `at_bound: bool | None = None`, `equations: list[str] | None = None`, `interval: ParameterInterval | None = None`
 - `rx.Diagnostic` — A structured, actionable message produced by the engine.
   Fields: `level: Literal['info', 'warning', 'error']`, `code: str`, `message: str`, `where: list[str] = []`, `suggestion: str | None = None`, `value: float | None = None`
 - `rx.SeriesResult` — The result of a sequential refinement over an ordered set of patterns.

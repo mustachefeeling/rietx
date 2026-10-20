@@ -1962,6 +1962,15 @@ class Refinement:
         #: cannot import the report contract at all).
         self.stage_reports_: list[StageReport] = []
         self._model: CompiledModel | None = None
+        #: whether ``fit`` and ``run_stage`` compute the profile interval of
+        #: each moment angle the stationary-angle test left out of the answer
+        #: stage's covariance (WP-2002, B2;
+        #: ``parameter_interval.attach_stationary_intervals``).  ``False`` on a
+        #: tree the package runs for itself and discards: :meth:`_trial` sets
+        #: it, which is also what keeps the interval's own refits from
+        #: starting intervals of their own, and so does every package fit
+        #: built without one (``strategy.magnetic._fit``).
+        self._auto_intervals = True
 
         # history state
         self.history: RefinementTree | None = None
@@ -2205,14 +2214,20 @@ class Refinement:
         user tie or a named variable fell off it).  ``record=False`` takes the
         history-free path even where there is a history, for a trial whose
         stages the caller's tree should not gain nodes from.
+
+        A trial computes no automatic profile interval (``_auto_intervals``,
+        WP-2002): the package discards its result, and the interval's own
+        refits are trials.
         """
         if self.history is not None and record:
-            return self.branch()
-        with _refined_state():
-            ref = Refinement(self.structure, self.instrument,
-                             backend=self._backend, solver=self._solver,
-                             history=False)
-        self._carry_into(ref)
+            ref = self.branch()
+        else:
+            with _refined_state():
+                ref = Refinement(self.structure, self.instrument,
+                                 backend=self._backend, solver=self._solver,
+                                 history=False)
+            self._carry_into(ref)
+        ref._auto_intervals = False
         return ref
 
     def _carry_into(self, ref: "Refinement") -> None:
@@ -3610,6 +3625,10 @@ class Refinement:
         still has an interval.  It is two-sided, and it steps from the
         angle's half-width in ``StageResult.moment_angle_tests``: the distance
         either side at which χ², everything else held, rises by χ²_red·f².
+        ``fit`` and ``run_stage`` already compute it at the default level, on
+        a copy of the models, and store it on the row
+        (``RefinedParameter.interval``, WP-2002); this call repeats those
+        refits, on a branch.
 
         Opt-in and read-only: 6-30 refits a side as measured, all on a branch
         with ``telemetry=False``, so the working
@@ -4714,6 +4733,16 @@ class Refinement:
                                        outcome.stderr_internal,
                                        outcome.correlation)
             self._stamp(self.result_, tree)
+            if self._auto_intervals:
+                # WP-2002, B2: an angle the answer stage left out of its
+                # covariance carries its profile interval in place of an esd.
+                # After the stamp, which it never moves (no node, HEAD kept),
+                # and before ``fit_end``, so the run ends when the result does
+                from .strategy.parameter_interval import (
+                    attach_stationary_intervals,
+                )
+
+                attach_stationary_intervals(self, data, cancel=cancel)
             if stream is not None:
                 stream.emit("fit_end", status=self.result_.status,
                             rwp=self.result_.statistics.rwp,
@@ -5211,6 +5240,13 @@ class Refinement:
                                        outcome.stderr_internal,
                                        outcome.correlation)
             self._stamp(self.result_, tree)
+            if self._auto_intervals:
+                # ``fit``'s rule (WP-2002, B2), on this stage's own record
+                from .strategy.parameter_interval import (
+                    attach_stationary_intervals,
+                )
+
+                attach_stationary_intervals(self, data, cancel=cancel)
             if recorder is not None:
                 recorder.write_summary(self.result_)
             return self.result_
@@ -7162,10 +7198,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                for q in d.where if "magnetic_lor" in q})
 
     # WP-1929: the moment angles the answer stage's covariance left out at a
-    # stationary direction, read off its own record
+    # stationary direction, read off its own record.  The rows carry no
+    # interval yet: ``attach_stationary_intervals`` rebuilds this finding
+    # once they do (WP-2002)
     if stage_results:
         diagnostics = diagnostics + moment_angle_stationary_diagnostics(
-            stage_results[-1])
+            stage_results[-1], params)
 
     # Specimen absorption: report what was applied and, crucially, the Biso
     # bias it removed — for a capillary Rwp is provably unchanged by it, so

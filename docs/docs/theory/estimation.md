@@ -373,6 +373,15 @@ together, so its polar angle keeps its column. The two azimuths beside it pass
 on their own, and leaving them out gives the moduli 0.0015 and 0.0011 μ_B
 again.
 
+An angle left out has no esd, but the data still determine it through the
+curvature. So a single fit gives each such angle the two-sided interval of
+{eq}`est-interval` and stores it on the angle's row. Its steps start from the
+distance either side at which $\chi^2$, with every other parameter held, rises
+by $\chi^2_{\mathrm{red}} \cdot S''/S$. On the one-site set both angles'
+intervals include the direction, after 24 refits each.
+
+{source}`rietx.strategy.parameter_interval.attach_stationary_intervals`
+
 ## A scale and a B the range cannot separate
 
 A uniform displacement parameter $B$ multiplies every reflection of a phase by

@@ -3018,11 +3018,17 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         title="Moment direction sits on a symmetry direction",
         description=(
             "A moment angle finished at a direction that the site symmetry fixes. The "
-            "pattern is even in that angle there, so the data cannot estimate it. A test "
+            "pattern is even in that angle there, so its slope is zero and an error "
+            "estimate read from it would depend on where the solver stopped. A test "
             "showed that moving the angle onto the symmetry direction costs no more than "
-            "noise allows. The angle has no error estimate, and the other estimates no "
-            "longer depend on where the solver stopped. Quote the moment as lying along "
-            "the symmetry direction."
+            "noise allows. The angle then leaves the error calculation, so the other "
+            "estimates no longer depend on where the solver stopped. In place of an "
+            "error estimate, a single-pattern fit computes the angle's profile interval "
+            "and stores it in `RefinedParameter.interval`. The message gives the angle's "
+            "distance from "
+            "the direction and whether the interval includes it. Where it does, quote "
+            "the moment as lying along the symmetry direction. Where it does not, quote "
+            "the angle with its interval."
         ),
     ),
     "MOMENT_PAIR_DEGENERATE": HelpEntry(

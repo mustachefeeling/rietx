@@ -532,6 +532,7 @@ present with `vary=False`.
 | `RefinedParameter.vary` | false on the tied rows, which is how to spot them |
 | `RefinedParameter.at_bound` | true, false, or None where the row was not tested |
 | `RefinedParameter.equations` | the parametric declarations that set the row ([](series.md)), empty where none did, and None on a row a result from before 1.10 carries |
+| `RefinedParameter.interval` | the profile interval ([](#an-interval-for-a-row-on-its-bound)) of a moment angle the fit left out of its covariance at a direction the symmetry fixes ([](refining.md)), and None on every other row |
 
 A parameter the data said nothing about reports no esd rather than a small one.
 A free parameter can end up in a direction the residual does not move at all
@@ -694,7 +695,7 @@ is refused with the reason.
 | `ParameterIntervalPoint.delta_chi2` | its distance above `ParameterInterval.chi2_fit`, negative below it |
 | `ParameterIntervalPoint.status` | how that refit's stage ended |
 | `ParameterIntervalPoint.error` | why a refit raised |
-| `ParameterIntervalPoint.node_id` | the history node that refit recorded |
+| `ParameterIntervalPoint.node_id` | the history node that refit recorded, and None where it recorded none: history disabled, or an interval the fit computed itself |
 
 A side stops for one of four reasons.
 

@@ -576,7 +576,15 @@ ROWS: tuple[Row, ...] = (
     Row("MAGNETIC_WIDTH_UNMODELLED", "code"),
     Row("MICROABSORPTION_SKIPPED", "code"),
     Row("MODEL_FAR_FROM_DATA", "code"),
-    Row("MOMENT_ANGLE_STATIONARY", "code"),
+    Row("MOMENT_ANGLE_STATIONARY", "code", tier=3, ambiguity=1,
+        evidence=("WP-1929: two-site Pnma moduli 0.0015/0.0011 mu_B with the angle columns out, "
+                  "0.031/0.159 in, 0.0035-0.47 as ftol moved; LaMnO3 BT-1: a polar angle 5.2 deg "
+                  "off 90 with a 3.5 deg linear esd, Delta chi2 0.56 against 3.84; names what "
+                  "StageResult.moment_angle_tests records and quotes RefinedParameter.interval"),
+        grounds=("The column leaves the covariance by the package's own act, so the finding "
+                 "says so, with each angle's distance from the direction and its profile "
+                 "interval (B2 option 2, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("MOMENT_PAIR_DEGENERATE", "code"),
     Row("NEUTRON_RESONANT_ABSORBER", "code"),
     Row("OCCUPANCY_ABOVE_ONE", "code", tier=1, ambiguity=3,
@@ -738,7 +746,15 @@ ROWS: tuple[Row, ...] = (
         evidence=("opt-in: Refinement.hold(), nothing held by default; the caller's hold outranks a"
                   " plan glob (WP-1435)")),
     Row("rietx.schemas.results.StageResult.seeded", "action"),
-    Row("rietx.schemas.results.StageResult.moment_angle_tests", "action"),
+    Row("rietx.schemas.results.StageResult.moment_angle_tests", "action", tier=3, ambiguity=1,
+        evidence=("WP-1929: two-site Pnma moduli 0.0015/0.0011 mu_B with the angle columns out, "
+                  "0.031/0.159 in, 0.0035-0.47 as ftol moved; LaMnO3 BT-1: an angle 5.2 deg off "
+                  "90 with a 3.5 deg linear esd, Delta chi2 0.56 against 3.84, whose esd the "
+                  "test removed; neither GSAS-II nor TOPAS has such a test"),
+        grounds=("B2 option 2: the test keeps the moment sizes' esds free of the stopping-point "
+                 "artefact, and the angle it leaves out reports its likelihood interval "
+                 "(RefinedParameter.interval) in place of an esd (ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.schemas.results.StageResult.n_constraint_truncations", "action", tier=1, ambiguity=1,
         evidence=("physics: a strain variance and a pole density are non-negative (Stephens 1999; "
                   "WP-1960 D4); the Gamma_G^2 floor's value is tiered on "
@@ -1294,9 +1310,29 @@ ROWS: tuple[Row, ...] = (
         evidence=("opt-in: solver='trf', default 'lm' (DEFAULT_SOLVER, least_squares.py:87; GTOL "
                   "read at :2469 and :2721 inside the TRF branch)")),
     Row("rietx.optimize.least_squares.NFEV_PER_ITERATION", "constant", value=4),
-    Row("rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL", "constant", value=0.95),
-    Row("rietx.optimize.least_squares.STATIONARY_ANGLE_MAX_ITER", "constant", value=8),
-    Row("rietx.optimize.least_squares.STATIONARY_ANGLE_STEP", "constant", value=0.0001),
+    Row("rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL", "constant", tier=3, value=0.95,
+        evidence=("the profile interval's own level, PARAMETER_INTERVAL_LEVEL, held equal by "
+                  "test; at one angle its chi-bar-squared cut is the one-sided interval's 2.706 "
+                  "(test_the_cut_is_the_chi_bar_squared_point); WP-1929 measured 3 false keeps "
+                  "in 48 at 95 %"),
+        grounds=("B2 option 2: the test's level, cut as the profile interval cuts, so the angle "
+                 "it leaves out reports that interval in place of an esd (ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.optimize.least_squares.STATIONARY_ANGLE_MAX_ITER", "constant", tier=3, value=8,
+        evidence=("two-site Pnma set (WP-1929, macOS arm64): the step reaches the floor in two "
+                  "or three iterations from every stop, and stops improving after one beside a "
+                  "determined angle"),
+        grounds=("B2 option 2: a budget on the test's Newton step, which keeps the moment sizes' "
+                 "esds free of the stopping-point artefact (ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.optimize.least_squares.STATIONARY_ANGLE_STEP", "constant", tier=3, value=0.0001,
+        evidence=("central-difference step in radians on an angle of order one, the step "
+                  "refine._flat_rotation_axis takes on the same quantity; the test it serves "
+                  "moved the two-site Pnma moduli' esds from 0.031/0.159 to 0.0015/0.0011 mu_B "
+                  "(WP-1929)"),
+        grounds=("B2 option 2: the difference step of the test that keeps the moment sizes' "
+                 "esds free of the stopping-point artefact (ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.optimize.least_squares.XTOL", "constant", tier="caller", value=1e-12,
         evidence=("opt-in: solver='trf', default 'lm' (DEFAULT_SOLVER, least_squares.py:87; XTOL "
                   "read at :2469 and :2721 inside the TRF branch)")),
@@ -2130,7 +2166,13 @@ ROWS: tuple[Row, ...] = (
     Row("MAGNETIC_WIDTH_UNMODELLED.suggestion", "suggestion", value=1),
     Row("MICROABSORPTION_SKIPPED.suggestion", "suggestion", value=1),
     Row("MODEL_FAR_FROM_DATA.suggestion", "suggestion", value=1),
-    Row("MOMENT_ANGLE_STATIONARY.suggestion", "suggestion", value=1),
+    Row("MOMENT_ANGLE_STATIONARY.suggestion", "suggestion", tier=3, ambiguity=1, value=1,
+        evidence=("LaMnO3 BT-1 (WP-1929): an angle 5.2 deg off 90 whose interval includes the "
+                  "direction, Delta chi2 0.56 against the interval's 3.84"),
+        grounds=("Says what the interval means: one that includes the direction cannot tell "
+                 "the moment from one along it, one that excludes it measures the tilt "
+                 "(B2 option 2, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("NEUTRON_RESONANT_ABSORBER.suggestion", "suggestion", value=1),
     Row("OCCUPANCY_ABOVE_ONE.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
         evidence=("physics: names the one reading under which the value is right (site "
@@ -2476,8 +2518,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "MICROABSORPTION_SKIPPED.suggestion",
     "MODEL_FAR_FROM_DATA",
     "MODEL_FAR_FROM_DATA.suggestion",
-    "MOMENT_ANGLE_STATIONARY",
-    "MOMENT_ANGLE_STATIONARY.suggestion",
     "MOMENT_PAIR_DEGENERATE",
     "NEUTRON_RESONANT_ABSORBER",
     "NEUTRON_RESONANT_ABSORBER.suggestion",
@@ -2942,9 +2982,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.optimize.identifiability.SOFT_MODE_MIN_LOADING",
     "rietx.optimize.identifiability.TOP_CORRELATIONS_K",
     "rietx.optimize.least_squares.NFEV_PER_ITERATION",
-    "rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL",
-    "rietx.optimize.least_squares.STATIONARY_ANGLE_MAX_ITER",
-    "rietx.optimize.least_squares.STATIONARY_ANGLE_STEP",
     "rietx.optimize.lm._INNER_MAX",
     "rietx.optimize.statistics.EFFECTIVE_OBS_ALPHA",
     "rietx.optimize.statistics.MAX_SHIFT_CONVERGED",
@@ -3079,7 +3116,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.schemas.plan.StageSpec:max_iter",
     "rietx.schemas.results.HIGH_CORRELATION_MAX",
     "rietx.schemas.results.StageResult.ftol",
-    "rietx.schemas.results.StageResult.moment_angle_tests",
     "rietx.schemas.results.StageResult.seeded",
     "rietx.schemas.results._cap_one_code.suggestion",
     "rietx.schemas.sequential.SeriesEntry.reseeded",

@@ -448,8 +448,16 @@ the test:
 | `MomentAngleTest.stationary_at` | each angle's value at the direction where its column vanishes, the image nearest the fitted value; empty where the direction was not reached |
 | `MomentAngleTest.half_widths` | on a passing round, each angle's distance either side of the direction at which χ², everything else held, rises by χ²_red·f² |
 
-For a number on such an angle, call `ref.profile_interval(data, path)`. It
-steps from the angle's half-width and reports `stderr` as `None`.
+Such an angle carries its profile interval in place of an esd. After the last
+stage, a single-pattern fit runs `ref.profile_interval(data, path)` for each
+angle the test left out, stepping from its half-width, and stores the answer on
+the row as `RefinedParameter.interval`. `MOMENT_ANGLE_STATIONARY` then gives each
+angle's distance from the direction and says whether the interval includes it.
+Where it does, the data cannot tell the moment from one along that direction.
+The refits run on a copy of the models, so the history gains no node. They are
+the only cost, and only a fit whose test passed pays it: 20-32 refits an angle,
+2.6-16.7 s on the two-site test fits of 0.2-1.2 s. A joint fit computes no
+interval, and its rows read `None`.
 
 A moment the data does not support comes back unsupported, and the test is a
 ratio. Refine the same model against a pattern above the ordering

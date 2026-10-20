@@ -1835,9 +1835,11 @@ class MultiHistogramRefinement:
             # reported esd is read off (WP-1333)
             diagnostics = diagnostics + _covariance_diagnostics(
                 stage_results[-1].name, outcome, answer=True)
-            # the single fit's builder, off the same stage's record (WP-1929)
+            # the single fit's builder, off the same stage's record (WP-1929).
+            # The rows carry no interval: the joint fit has no profile verb,
+            # so the finding says none was computed (WP-2002)
             diagnostics = diagnostics + moment_angle_stationary_diagnostics(
-                stage_results[-1])
+                stage_results[-1], parameters)
         # Every stage, not only the last one, exactly as the single-histogram
         # path sums it (``refine._degenerate_cell_diagnostics``): a degenerate
         # probe is a fact about the search and not about the final point.
