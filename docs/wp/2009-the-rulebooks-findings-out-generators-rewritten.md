@@ -47,7 +47,7 @@ plus a pointer.
 
 ### Inherited
 
-(none at filing)
+- **2026-10-20, from [2014](2014-a-heuristic-meets-the-judge-on-every-path.md)'s filing: outside PRs write findings into the rulebooks.** Four of the twelve open outside PRs that touch `_audit.py` edit a CLAUDE.md (three `src/rietx/indexing/`, one `src/rietx/io/`), some with one-dataset findings stated as rules: #941 adds "magnetite's wrong P description bought a negative background and read 0 of 163 absent", #1048 a NAC line count. After this WP's findings pass, only `/wp-handover` step 7 audits a rulebook edit, and an outside PR never reaches it. 2014 adds the class to `/pr-review`'s list of what outsiders miss; this WP owns the rule's wording, so word it for `/pr-review` as well as for the handover.
 
 ## Non-goals
 

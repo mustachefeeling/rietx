@@ -68,6 +68,10 @@ then fix, then show the same command passing.
   (`tests/CLAUDE.md` § Budgets in tests): fix the test's scope, and say so.
 - A pin that moved because main moved (a count, a schema number, a skill cap)
   is a merge consequence: re-measure on the merged tree, never copy a side.
+- An edit to an audit-table row's tier, evidence or value, or to
+  `UNAUDITED_BASELINE` (`src/rietx/_audit.py`), goes back through the
+  `generality-review` judge before the push, as `/wp-handover` step 7
+  dispatches it (WP-2014).
 
 ### 3. Review comments
 

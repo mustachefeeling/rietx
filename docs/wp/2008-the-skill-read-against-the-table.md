@@ -107,8 +107,7 @@ and goes through the harness.
 ### Inherited
 
 - **2026-10-20, from [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md), found while moving the manual's reference pages: `model_dump(mode="json")` is not JSON for an infinite bound.** `SKILL.md:44`, and `references/api.md:13` from `make_api_index.py:499`, say to dump an answer with `model_dump(mode="json")`. That returns a ±inf bound as a Python float, so `json.dumps` writes a bare `Infinity`, which a strict parser rejects; `model_dump_json()` writes the `"Infinity"` strings the schemas promise (measured, pydantic 2.14.1). It is harmless to an agent reading the dict in Python and wrong for one storing or sending JSON. `docs/docs/reference/programs.md` gives `model_dump_json()`. Root CLAUDE.md's integration-surface clause says the same and is the maintainer's to change.
-
-(none at filing)
+- **2026-10-20, from [2014](2014-a-heuristic-meets-the-judge-on-every-path.md)'s filing: outside PRs bring skill rows too.** Nine of the twelve open outside PRs that touch `_audit.py` also edit `docs/skill/`, and some add verdicts: #941's `diagnostics-indexing.md` rows say "Keep this candidate; it caps, never refutes" (`INDEX_PREDICTED_BUT_ABSENT`) and "Quote the larger cell" (`INDEX_SUPERCELL_REFUTED`). A source check on thresholds and verdicts does not catch WP-2002's B12 class: a row telling agents to call a verb whose rows are tier `caller` makes that verb a default path (`profile_fraction` was one). Check each row that names a verb against the verb's tier. 2014 adds the class to `/pr-review`'s list of what outsiders miss; this WP owns the sweep.
 
 ## Non-goals
 

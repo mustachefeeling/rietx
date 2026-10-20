@@ -1,16 +1,17 @@
 """WP-2001 — the generality audit table, held equal to the tree both ways.
 
 ``rietx._audit`` is the table, and its docstring says what each kind of row
-is and why the growth guard reads no git.  A failure here prints the row to
-add or change.  The tier is the audit's call: a new item enters with its
-tier and evidence, or at ``unaudited`` with its name added to
-``UNAUDITED_BASELINE``.  Either edit touches the table, so ``/wp-handover``
-step 7 sends it to the ``generality-review`` agent.
+is and why the growth guard in the suite reads no git.  A failure here
+prints the row to add or change.  A new item enters with its tier and
+evidence, never at ``unaudited``: ``UNAUDITED_BASELINE`` lists the rows still
+waiting for their audit, and CI's ``tests/audit_delta.py`` fails a name new
+to the table that arrives there.  An edit to the table goes to the
+``generality-review`` agent, from ``/wp-handover`` step 7 on a WP branch and
+``/pr-review`` on an outside pull request.
 """
 
 from __future__ import annotations
 
-import dataclasses
 import datetime
 import pathlib
 
@@ -27,12 +28,18 @@ def walked():
             "default": _audit.defaults(), "suggestion": _audit.suggestions()}
 
 
+#: What every failure that asks for a new row says after its count.
+NEW_ROW = ("Give each a tier and the evidence for it, and state the kind of "
+           "ambiguity where the row asks for one (docs/milestones/generality.md "
+           "§ The rule; CONTRIBUTING.md § A heuristic needs its tier).  A name new to "
+           "the table may not enter at 'unaudited', and CI's audit-delta step fails "
+           "one that does.  Replace each '?', write the evidence, and paste:\n")
+
+
 def _enter(missing: dict[str, object], kind: str) -> str:
     lines = "\n".join(_audit.row_source(name, kind, value)
                       for name, value in sorted(missing.items()))
-    return (f"{len(missing)} {kind}(s) with no row in rietx._audit.ROWS.  Enter each "
-            "with its tier and evidence (docs/milestones/generality.md § The rule), "
-            "or at 'unaudited' with its name on UNAUDITED_BASELINE:\n" + lines)
+    return f"{len(missing)} {kind}(s) with no row in rietx._audit.ROWS.  " + NEW_ROW + lines
 
 
 def test_row_names_are_unique():
@@ -89,8 +96,9 @@ def test_every_record_field_is_an_action_row_or_declared_other():
     stale = _audit.OTHER_RECORD_FIELDS - fields
     assert not stale, f"OTHER_RECORD_FIELDS names no field: {sorted(stale)}"
     new = sorted(fields - actions - _audit.OTHER_RECORD_FIELDS)
-    assert not new, ("record field(s) neither an action row nor in OTHER_RECORD_FIELDS. "
-                     "A field reporting what the package did on its own is an action:\n"
+    assert not new, ("record field(s) neither an action row nor in OTHER_RECORD_FIELDS.  "
+                     "A field reporting what the package did on its own is an action.  "
+                     + NEW_ROW
                      + "\n".join(_audit.row_source(name, "action") for name in new))
 
 
@@ -102,7 +110,7 @@ def test_an_audited_row_carries_its_evidence():
         if row.tier == "unaudited":
             continue
         assert row.evidence, f"{row.name}: tier {row.tier!r} with no evidence"
-        if row.kind in ("code", "action", "default"):
+        if row.kind in _audit._STATES_AMBIGUITY:
             assert row.ambiguity is not None, (
                 f"{row.name}: an audited {row.kind} row states its kind under "
                 "DESIGN.md § Rules, 1")
@@ -112,12 +120,16 @@ def test_an_audited_row_carries_its_evidence():
 
 
 def test_every_unaudited_row_is_on_the_baseline():
-    """The growth guard: a new item cannot land at 'unaudited' unlisted."""
+    """The growth guard's local half: a row at 'unaudited' is one still
+    waiting for its audit.  CI's audit-delta step is the half that can tell a
+    new name from an old one."""
     baseline = set(_audit.UNAUDITED_BASELINE)
     off = sorted(row.name for row in _audit.ROWS
                  if row.tier == "unaudited" and row.name not in baseline)
-    assert not off, ("row(s) at 'unaudited' not on UNAUDITED_BASELINE.  Give each its "
-                     f"tier, or add its name to the baseline for the judge to read: {off}")
+    assert not off, ("row(s) at 'unaudited' not on UNAUDITED_BASELINE.  A name new to the "
+                     "table enters with its tier and evidence, and CI's audit-delta step "
+                     "fails one that enters at 'unaudited'.  A row that moved to a new name "
+                     f"takes its baseline line with it: {off}")
 
 
 def test_the_baseline_shrinks_as_rows_are_audited():
@@ -131,6 +143,29 @@ def test_the_baseline_shrinks_as_rows_are_audited():
     assert not audited, f"audited row(s) still on UNAUDITED_BASELINE; delete: {audited}"
 
 
+def test_every_top_level_entry_is_walked_or_declared_out():
+    """A new module or directory fails until it is placed, so the walk's reach
+    is decided when a file is made."""
+    package = pathlib.Path(_audit.__file__).parent
+    entries = {p.name for p in package.iterdir() if p.name != "__pycache__"
+               and (p.suffix == ".py" or (p.is_dir() and any(p.rglob("*.py"))))}
+    whole = {e for e in _audit.WALKED if "/" not in e}
+    part = {e.split("/")[0] for e in _audit.WALKED if "/" in e} - whole
+    out = set(_audit.NOT_WALKED)
+    assert all("/" not in e for e in out), "NOT_WALKED names top-level entries"
+    assert not whole & out, f"walked and declared out at once: {sorted(whole & out)}"
+    assert not part - out, ("an entry the walk covers in part declares in NOT_WALKED why "
+                            f"the rest is out: {sorted(part - out)}")
+    unplaced = sorted(entries - whole - out)
+    assert not unplaced, (
+        f"top-level entries neither walked nor declared out: {unplaced}.  Add each to "
+        "_audit.WALKED with the audit WP that owns its rows, or to _audit.NOT_WALKED with "
+        "the reason no module-level number in it can move a fitted value, a verdict, how "
+        "a file is read, or what another program computes from a file rietx writes")
+    assert not out - entries, f"NOT_WALKED names nothing in the package: {sorted(out - entries)}"
+    assert all(_audit.NOT_WALKED.values()), "every NOT_WALKED entry gives its reason"
+
+
 def test_the_declared_scope_resolves():
     package = pathlib.Path(_audit.__file__).parent
     for entry, owner in _audit.WALKED.items():
@@ -141,11 +176,16 @@ def test_the_declared_scope_resolves():
         assert 2002 <= owner <= 2007, (seat, owner)
 
 
-def test_row_source_round_trips():
-    """The line a failure prints evaluates to the row it describes."""
+def test_a_printed_row_names_the_item_and_fails_until_filled():
+    """The line a failure prints evaluates to a row naming the item, with its
+    value; every slot it leaves for the author fails a test above unfilled,
+    so it cannot be pasted as it stands."""
     for row in _audit.ROWS:
-        if row.tier != "unaudited":
-            continue
-        rebuilt = eval(_audit.row_source(row.name, row.kind, row.value).rstrip(","),
+        printed = eval(_audit.row_source(row.name, row.kind, row.value).rstrip(","),
                        {"Row": _audit.Row})
-        assert dataclasses.astuple(rebuilt) == dataclasses.astuple(row), row.name
+        assert (printed.name, printed.kind) == (row.name, row.kind)
+        assert _audit.same(printed.value, row.value), row.name
+        assert printed.tier not in _audit.TIERS, row.name
+        assert printed.evidence == "", row.name
+        if row.kind in _audit._STATES_AMBIGUITY:
+            assert printed.ambiguity not in (1, 2, 3), row.name

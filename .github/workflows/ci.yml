@@ -138,6 +138,16 @@ jobs:
         # (WP-1907).  Same base as the step above.
         if: github.event_name == 'pull_request'
         run: .venv/bin/python -m tests.skill_surface
+      - name: Audit table rows to judge
+        # Every row this change adds, renames, changes or deletes in the
+        # generality audit table, with its tier, in the run summary.  It is the
+        # item list `/pr-review` hands the `generality-review` judge.  It fails
+        # only on a name new to the table arriving at 'unaudited' (WP-2014).
+        # Same base as the steps above.  It runs after an earlier step fails
+        # too, since a ruff or skill-cap failure is no reason to withhold the
+        # judge's item list.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        run: .venv/bin/python -m tests.audit_delta
 
   changes:
     # Which suite this run needs, as `scope`: `docs` when every file the PR

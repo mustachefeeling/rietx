@@ -24,7 +24,8 @@ agents or humans"; DESIGN.md § History records how that became the purpose.
 Ten WPs, 2001 to 2010. 2001 is the rule written down, the audit table and the guard, and
 it lands first. 2002 to 2007 are audits, one per seam. 2010 audits features rather than
 decisions: each names what verifies its code and what validates its physics (Rule 2). 2008 slims the agent skill to the
-API, the feedback surface and sourced traps. 2009 rewrites the rulebook rules that generated the overfit. Each WP file states
+API, the feedback surface and sourced traps. 2009 rewrites the rulebook rules that generated the overfit. 2014, filed
+2026-10-20, carries 2001's guard to outside PRs, unwatched directories and fixes made after the handover. Each WP file states
 its own context; nothing is restated here except the rule, which every WP applies.
 
 **Not in scope.** No new physics, no new correction, no new plan preset. A heuristic the
@@ -257,14 +258,17 @@ sharpens its own row here.
   says it fired, and the maintainer's dated approval; every other one is
   demoted to a ranking or a number by its kind, or made opt-in. No default path calls a
   pick verb (§ A pick on top of a ranking).
-- **A new heuristic cannot land unaudited** (2001). A diff that adds a diagnostic code, a
+- **A new heuristic cannot land unaudited** (2001, 2014). A diff that adds a diagnostic code, a
   record field on `StageResult`/`SeriesEntry`/`RefinementResult`, a module-level numeric
   constant in a directory the table's walk declares, a new or changed default at a seat it
   declares, or a `suggestion=` string trips a
-  test until the table has its row; the names allowed at `unaudited` are a committed list
-  that only shrinks, so the test needs no git; and `/wp-handover` dispatches a
-  fresh-context review that drafts the case against it whenever the diff touches the table
-  or that list.
+  test until the table has its row; the names still at `unaudited` are a committed list
+  that only shrinks, so the test needs no git; CI's lint job reads the base and fails a
+  name new to the table that arrives at `unaudited`; every top-level module is walked or
+  declared out with its reason; and a fresh-context review weighs the case against each
+  row, and the case for any action the change removes, whenever the diff touches the table
+  or that list. `/wp-handover` dispatches it on a WP branch, `/pr-review` on an outside
+  pull request, and `/steward` before a fix to a row is pushed.
 - **The goldens hold or improve** (every audit). The acceptance suites pass on the final
   tree; every re-pinned number is recorded with its reference distance, none further
   from its reference than before.
@@ -473,6 +477,20 @@ reverse it knowing what it would be giving up.
   esd inflation unexamined although GSAS-II does not apply it. The cost measured at the
   ruling: two or three of the ten behavioural defaults cite a paper or a program, plus the
   always-on corrections 2002 now lists.
+- **The guard reaches every path into main** (2026-10-20, a planning session; WP-2014).
+  The maintainer asked whether the tooling could now carry the rule forward. Measured: the
+  judge ran only at a WP's handover, while twelve open outside PRs had added 38 rows and
+  26 allow-list names with no judge, and `solve/` sat outside the walk. Three rulings.
+  **Outside PRs are tiered at review before they merge**; their author is informed and
+  agrees with the demotions. **WP-2007 owns `solve/`.** **The judge argues both sides
+  without manufacturing fairness**: it also asks, of an action a branch removes or leaves
+  to the caller, whether every competent refiner would act anyway and what leaving it
+  costs, and a side with no evidence reads `none found` in one line. In the maintainer's
+  words, "I don't want a system in which a weak case given representation seems stronger
+  than it is." Chosen over the judge drafting only the case against, which made deciding
+  less the cheap path for an author; a WP-2002 lane's over-reach on the peak-position
+  bounds (11-BM NAC's cell 5129 ppm off against 1117 ppm) is the measured cost. The
+  priority rubric stays with 2009.
 
 ## The two reviews at the open
 
