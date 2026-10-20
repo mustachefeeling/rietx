@@ -315,8 +315,9 @@ the tree that day.
       `reference/programs.md` (`using/agents`) and `reference/recipe.md` (`using/recipe`);
       `reference/result.md`, `derived.md` and `pattern-diagnostics.md` (`using/results`;
       retires to `result`); `reference/report.md`, `report-evidence.md` and `comparison.md`
-      (`using/report`; retires to `report`).
-      Left: the formats (`files.md`), series, refining, model, exports,
+      (`using/report`; retires to `report`); `reference/pattern-files.md`,
+      `structure-files.md` and `instrument-files.md` (`files.md` lines 1-806).
+      Left: `files.md` from § Refinement files another program wrote, series, refining, model, exports,
       qpa and indexing, as Concepts or Reference pages, chapter by chapter.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.

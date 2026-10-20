@@ -8,6 +8,9 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [The command line](cli.md) gives each `rietx` subcommand with its options, its output and its routes.
 - [Patterns and structures](data.md) gives the fields of `PatternData`, `Structure`, `Phase`, `Cell`, `Atom` and `Parameter`.
 - [The instrument](instrument.md) gives the fields of `Instrument`: its constructors, the X-ray, neutron and time-of-flight sources, the geometry, the peak width, the background and declared extra peaks.
+- [Pattern files](pattern-files.md) gives the formats `read_pattern` opens, where each takes its esds, and what each reader repairs, reports or refuses, time-of-flight banks included.
+- [Structure files](structure-files.md) gives what a CIF and a magnetic CIF read and write, and how a magnetic phase crosses to and from TOPAS and FullProf.
+- [Instrument files](instrument-files.md) gives the instrument profile, the GSAS-I `.prm` and `.iparm` and the GSAS-II `.instprm`, with what each reader converts and refuses.
 - [Pattern diagnostics](pattern-diagnostics.md) gives each field `diagnose` measures on a pattern before a fit, and the two low-angle checks a fit adds.
 - [Parameter map](parameters.md) lists every refinable parameter, grouped by what it does.
 - [Stage settings, flags and options](settings.md) lists the other names rietx uses: stage settings, peak flags, peak origins, reader options, instrument preset fields and indexing search settings.
@@ -37,6 +40,9 @@ api-types
 cli
 data
 instrument
+pattern-files
+structure-files
+instrument-files
 pattern-diagnostics
 parameters
 settings

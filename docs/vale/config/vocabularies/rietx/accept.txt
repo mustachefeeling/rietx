@@ -21,6 +21,8 @@ Altomare
 [bB]eamstop
 [bB]eamtime
 [bB]ijection
+[bB]intype
+[bB]intypes
 Biso
 [bB]kg
 Borda
@@ -214,6 +216,7 @@ Olds
 [oO]rthorhombic
 [oO]xygens
 P1
+PANalytical
 [pP]arameterisation
 [pP]arameterisations
 [pP]arameterises
@@ -284,6 +287,7 @@ Shubnikov
 [sS]pinel
 [sS]tderr
 [sS]tdout
+Stoe
 [sS]tructureless
 [sS]ubcell
 [sS]ubcommand
