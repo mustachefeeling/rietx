@@ -13,6 +13,7 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [Plan presets](plans.md) draws each preset's stages.
 - [Diagnostic codes](diagnostics.md) lists every code with its name, and links the page that explains it.
 - [Project directory](project.md) shows the files in a `.rex` project.
+- [The refinement history](history.md) gives the fields of a history node, the actions that commit one, what a checkout restores, the queries on a tree and the format of the `history.jsonl` log.
 - [Names in other programs](foreign-names.md) gives each parameter's name in GSAS-II, GSAS, TOPAS and FullProf.
 - [The GUI panel by panel](gui-guide.md) says what each panel of `rietx gui` is for.
 - [The GUI as a text document and a wire](gui-power.md) gives the `.rxt` grammar, the keyboard, the command palette and the HTTP routes.
@@ -33,6 +34,7 @@ settings
 plans
 diagnostics
 project
+history
 foreign-names
 gui-guide
 gui-power

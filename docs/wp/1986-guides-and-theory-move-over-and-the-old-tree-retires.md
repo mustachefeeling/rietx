@@ -310,8 +310,9 @@ the tree that day.
       Retirement, 2026-10-19). Done 2026-10-19: Start (install, a first fit in Python, the
       tutorial notebooks), Reference compatibility and the `help` arms (`settings.md`).
       Done 2026-10-20: `reference/cli.md` (`using/cli` whole; retires to it);
-      `reference/data.md` and `reference/instrument.md` (`using/data`; retires to `data`).
-      Left: Reference for history, `capabilities()`, recipe and
+      `reference/data.md` and `reference/instrument.md` (`using/data`; retires to `data`);
+      `reference/history.md` (`using/history` and `files.md` § The history log).
+      Left: Reference for `capabilities()`, recipe and
       the formats; Concepts or Reference for the rest, chapter by chapter.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.

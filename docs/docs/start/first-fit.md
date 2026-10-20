@@ -133,8 +133,9 @@ arguments [API: everyday calls](../reference/api.md#export-and-plots) lists.
 ## `refine` or a `Refinement` session
 
 `refine` runs one fit and discards the session. It is the right call when one
-fit is all you need, and it keeps no history unless you ask for one
-(`history=True`).
+fit is all you need. It keeps no history unless you pass a file path
+(`history="fit.jsonl"`), because a history held in memory would go with the
+session.
 
 The object form keeps the session:
 
