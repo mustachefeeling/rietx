@@ -1,5 +1,9 @@
-"""The roughness stage's seed does not change the answer (WP-2002, batch item B3).
+"""Starting values that do not change the answer (WP-2002, batch items B3 and B9).
 
+Two tests.  The first, below, is B3's roughness seed.  The second is B9's peak-width
+start, and its record is in its own docstring.
+
+The roughness stage's seed does not change the answer.
 ``strategy.staged._ROUGHNESS_STAGE`` starts Suortti's b at 0.3.  On its floor
 of 0 the correction is the identity, and GSAS-II starts there.  b is bimodal
 (``RoughnessSuortti``'s docstring): one low-angle depression is reached by two
@@ -68,8 +72,10 @@ import pytest
 import rietx as rx
 from rietx.model.corrections import surface_roughness_suortti
 from rietx.schemas import RoughnessSuortti
+from rietx.schemas.instrument import TCHZ_DEFAULTS
 from rietx.strategy.staged import _ROUGHNESS_STAGE
 from tests.test_acceptance_fap import _gsas_protocol_plan, build_fap_inputs
+from tests.test_acceptance_srm660c import _nist_calibrated_plan, build_srm_inputs
 
 OUT = Path(__file__).parent / "output"
 B = "instrument.geometry.surface_roughness.b"
@@ -148,3 +154,134 @@ def test_the_roughness_seed_does_not_change_the_answer():
 
     chi2 = [result.statistics.chi2 for _, result in runs.values()]
     assert abs(chi2[0] - chi2[1]) <= CHI2_RELATIVE * chi2[0]
+
+
+SL = "instrument.geometry.axial_sl"
+HL = "instrument.geometry.axial_hl"
+#: today's start, and one a decade either side in the two widths every lab
+#: Bragg-Brentano line moves furthest from it (w is a Gaussian FWHM², x a
+#: Lorentzian FWHM, both in degrees 2θ)
+WIDTH_STARTS = {"narrow": dict(TCHZ_DEFAULTS, w=1e-4, x=1e-4),
+                "default": dict(TCHZ_DEFAULTS),
+                "wide": dict(TCHZ_DEFAULTS, w=1e-2, x=1e-2)}
+
+
+def _lab6_fit(widths: dict[str, float], tag: str) -> rx.RefinementResult:
+    data, structure, instrument = build_srm_inputs()
+    instrument.source.dispersion = None
+    for name, value in widths.items():
+        getattr(instrument.profile, name).value = value
+    ref = rx.Refinement(structure, instrument, history=False)
+    result = ref.fit(data, plan=_nist_calibrated_plan())
+    OUT.mkdir(exist_ok=True)
+    result.plot(path=str(OUT / f"seed_invariance_lab6_{tag}.png"))
+    result.plot(path=str(OUT / f"seed_invariance_lab6_{tag}_lowangle.png"),
+                two_theta_range=(20.0, 50.0))
+    import matplotlib.pyplot as plt
+
+    plt.close("all")
+    return result
+
+
+def _answer(result: rx.RefinementResult) -> dict:
+    """Every refined parameter by path, with the axial pair unordered.
+
+    The Finger-Cox-Jephcoat profile is symmetric in S/L and H/L, so one answer
+    can be reported with the two values either way round.
+    """
+    rows = {p.path: p for p in result.parameters if p.vary}
+    if rows[SL].value > rows[HL].value:
+        rows[SL], rows[HL] = rows[HL], rows[SL]
+    return rows
+
+
+def test_the_peak_width_start_does_not_change_the_answer():
+    """The TCHZ width starts do not change the answer (WP-2002, batch item B9).
+
+    ``TCHZ_DEFAULTS`` starts every width at u = v = y = 0, w = 1e-3 deg² and
+    x = 1e-3 deg.  That is a synchrotron line of 0.032° FWHM.  Every X-ray
+    preset (``bragg_brentano``, ``debye_scherrer``, ``flat_plate_transmission``)
+    builds it, and so does a bare ``Instrument()``.  The ``.instprm`` and recipe
+    readers start from it and overwrite each width the file states.
+
+    Measured on 2026-10-20 (macOS arm64, worktree venv ``[dev]``) on three
+    families: NIST (SRM 660c LaB6), the CPD round robin's CSIRO instrument
+    (corundum, fluorite, zincite) and 11-BM (NAC, synchrotron).  Each ran its
+    own acceptance protocol from today's start and from others.  The number is
+    the largest |Δ|/esd over every reported parameter, against today's start.
+
+    =====================  ======================  ==========  ==========
+    family                 other start             max Δ/esd   χ² rel
+    =====================  ======================  ==========  ==========
+    SRM 660c LaB6          w, x = 1e-4             2.3e-6      6.5e-11
+    SRM 660c LaB6          w, x = 1e-2             3.6e-6      1.2e-10
+    SRM 660c LaB6          its file's 2e-3, 5e-3   4.7e-6      1.7e-10
+    CPD corundum           w, x = 1e-4 / 1e-2      3.1e-5      7.6e-11
+    CPD fluorite           w, x = 1e-4 / 1e-2      9.3e-5      2.6e-10
+    CPD zincite            w, x = 1e-4             1.3e-4      2.0e-9
+    11-BM NAC              its file's 2e-5, 2e-3   1.7e-8      7.7e-13
+    =====================  ======================  ==========  ==========
+
+    The CPD rows prove less than they seem to.  That protocol frees the
+    phase's size and strain terms beside the instrument's widths, and they
+    pair exactly: x with ``lor_size`` (both 1/cos θ), y with ``lor_strain``.
+    Only each pair's sum is measured, so the start chooses the split.  On
+    corundum the default start puts the whole 0.0432° of 1/cos θ width in
+    ``lor_size`` and the wide start puts it in x.  The esds along those
+    directions run from 0.27 to 7600, so the bar passes them trivially.  The
+    shipped presets free the instrument widths alone, as the LaB6 protocol does,
+    which is why this test fits LaB6.
+
+    The margin is wide on lab data and one-sided on synchrotron data.  On LaB6,
+    w and x from 1e-6 to the box maximum of 1.0 reach this answer, to 4.5e-4 of
+    an esd, except starts with x at 0.02 or 0.03.  Those land 0.38 esd away in
+    u, at χ² 0.25 % lower, for each w tried (1e-3, 2e-2, 3e-2).  Starts with x
+    at 0.01 or 0.05 land here again.  Compiled at each answer, the two differ
+    only in the FCJ node count of the lowest reflection, (100): 39 nodes
+    against 40 on both lines, with every window the same.  So a start near the answer's
+    x = 0.028 picks the other of two self-consistent node counts.  With the wide
+    start's x set to 3e-2, the value assertion below fails, first on the cell
+    (0.044 of its esd).  That failure is how this test was shown to be able to
+    fail.  On NAC, starts of w from 1e-6
+    to 3e-3 agree to 2.4e-5 of an esd, but w = x = 1e-2 (a 0.1° line against
+    the beamline's 0.005°) loses the phase in the Le Bail pass, at Rwp 0.83
+    against 0.093.  A start too narrow is safe on every family, and a start
+    too wide is not, so the default sits on the safe side.
+
+    One reading of ``TCHZ_DEFAULTS`` is not a start.  A protocol that holds an
+    instrument width without a calibration holds it at this default.  FAP's GSAS
+    protocol holds x at 1e-3, and x = 0 instead moves ``lor_size`` by exactly
+    that 1e-3 (0.69 of its esd), at the same χ² to 3e-12.  This test does not
+    cover it.
+
+    Dispersion is **declined**, inherited from ``build_srm_inputs`` and
+    restated in ``_lab6_fit``.
+    """
+    built = rx.Instrument.bragg_brentano().profile
+    assert {name: getattr(built, name).value for name in TCHZ_DEFAULTS} == \
+        WIDTH_STARTS["default"], (
+            "the X-ray preset no longer builds TCHZ_DEFAULTS, so the default arm "
+            "no longer tests the start a user gets; rethink the test")
+    results = {tag: _lab6_fit(widths, tag) for tag, widths in WIDTH_STARTS.items()}
+    for result in results.values():
+        assert result.stages[-1].status == "converged"
+
+    answers = {tag: _answer(result) for tag, result in results.items()}
+    reference = answers["default"]
+    # the two other starts sit a decade either side of the fitted w
+    fitted_w = reference["instrument.profile.w"].value
+    assert WIDTH_STARTS["narrow"]["w"] < fitted_w < WIDTH_STARTS["wide"]["w"]
+
+    widths = {f"instrument.profile.{name}" for name in TCHZ_DEFAULTS}
+    assert widths | {"phases.0.atoms.0.biso", "phases.0.atoms.1.biso",
+                     "phases.0.scale", "phases.0.cell.a", SL, HL} <= set(reference)
+    for tag in ("narrow", "wide"):
+        other = answers[tag]
+        assert set(other) == set(reference), tag
+        for path, p in reference.items():
+            q = other[path]
+            assert p.stderr and q.stderr, f"{path} carries no esd"
+            assert abs(p.value - q.value) <= ESD_FRACTION * max(p.stderr, q.stderr), \
+                f"{tag}: {path}"
+        chi2 = (results["default"].statistics.chi2, results[tag].statistics.chi2)
+        assert abs(chi2[0] - chi2[1]) <= CHI2_RELATIVE * chi2[0], tag

@@ -36,7 +36,29 @@ distance from each reference. Two things keep both rows here:
 - `rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN`: it guards a pole, but lowered to a pole-only value a Gaussian narrower than about 0.03 of the grid step underflows to an exactly zero column (the W failure, root CLAUDE.md). A floor that keeps the column live depends on the step, so it needs a per-stage freeze like `strain_cap`: a design change.
 - `rietx.schemas.instrument.HUMP_FWHM_MIN`: the same.
 - `rietx.strategy.staged.HUMP_MIN_WIDTH_MULT`: not a limit on a caller's parameter; a diagnostic threshold (gates `HUMP_TOO_NARROW`, so B13/WP-2005) and the extinction screen's internal floor (`indexing/extinction.py:737`).
-- `rietx.schemas.instrument.HARMONIC_WEIGHT_SEED`: the two-start test for starting values.
+- `rietx.schemas.instrument.HARMONIC_WEIGHT_SEED`: two-start test run 2026-10-20, synthetic
+  (corundum, constant-wavelength neutron, true λ/2 weight 0, 0.003, 0.05; the held-out
+  Nd₂Ru₂O₇ pair unused) and so one family. Not invariant at B3's bar of 0.01 esd: the
+  weight moves up to 0.15 esd between seeds 0.01 and 0.3, a background coefficient 0.86.
+  Every seed reaches the right verdict (`HARMONIC_ABSENT` at 0, `HARMONIC_FRACTION`
+  otherwise). The mechanism is the plan's, not the seed's: the weight is held at its seed
+  until the last stage, whose model is frozen where the earlier stages stopped, and one
+  extra stage recompiled at the answer brings the seeds within 0.012 esd. The same
+  mechanism fails `Atom:biso` below, so both wait on one question for the maintainer:
+  what bar an invariance test across a staged plan should use.
+- `Atom:biso`* (hand row, 0.5 Å²): two-start test run 2026-10-20 on SRM 660c, FAP, CPD
+  (corundum, fluorite, zincite) and 11-BM NAC, starts 0.5 and 1.5 (worst over 0 to 10 in
+  brackets). Biso moves 0.008 to 0.08 esd (0.16), other parameters up to 0.27 esd (0.50),
+  χ² up to 6.2e-4 relative; NAC passes. Recompiling the model at one answer changes its
+  cost by 0.05 to 0.3 %, and one extra recompiled stage brings FAP, corundum and fluorite
+  within 7.9e-3 esd. `crystallography/cif.py:762` carries a second copy of the 0.5 for a
+  CIF site with no ADP.
+- `TCHZ_DEFAULTS`* (hand row): invariant, `tests/test_seed_invariance.py`'s second test
+  (its docstring has the table and the margin). Waits only on B14's lift for a seat. Two
+  readings it does not cover: a start near the answer's x lands on the other of two
+  self-consistent FCJ node counts on LaB6 (100), 39 against 40, moving u 0.38 esd at χ²
+  0.25 % lower (B10's FCJ rows); and a protocol holding an uncalibrated width holds it at
+  this default, where x = 0 instead moves FAP's `lor_size` 0.69 esd at equal χ².
 - Hand rows with no seat until B14's lifts: `Atom:occ` (widened to no ceiling), `EmissionLine:weight` (widened), `Geometry:bounds` (the axial ratios widened; the position corrections widened to no bound on 2026-10-20, transparency keeping its physical floor of 0), `Instrument:zero_shift` (widened to no bound, 2026-10-20), `TCHZ_BOUNDS` and `TCHZ_BOUNDS_COARSE` (their U/V floors and ceilings are chosen, but WP-1312 ruled on 2026-09-11 that "the bound stays": a question for the maintainer).
 
 ## B10: numerical settings with no domain test, and one undecided switch
