@@ -3775,10 +3775,12 @@ class Refinement:
             raise ValueError(
                 f"{node.id} records a {node.action.kind!r} action; only stage "
                 "nodes can be cherry-picked")
+        # the node's own numbers, an explicit 0 included: ``NodeAction``
+        # carries the frozen 100 and 3 for a node written before the fields
         stage = Stage(node.action.name or "cherry-pick",
                       list(node.action.turn_on),
-                      max_iter=node.action.max_iter or 100,
-                      lebail_cycles=node.action.lebail_cycles or 3,
+                      max_iter=node.action.max_iter,
+                      lebail_cycles=node.action.lebail_cycles,
                       seed=node.action.seed, strain_seed=node.action.strain_seed,
                       restraint_weight_scale=node.action.restraint_weight_scale,
                       ftol=node.action.ftol,

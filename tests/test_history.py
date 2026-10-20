@@ -504,6 +504,21 @@ def test_stage_node_carries_its_seeds(pattern):
     assert (reloaded.seed, reloaded.strain_seed) == (1e-3, 1000.0)
 
 
+def test_a_cherry_pick_replays_zero_le_bail_cycles_as_zero(pattern):
+    """``lebail_cycles=0`` holds the extracted intensities, and a replay that
+    read it as the default 3 would re-extract them: a rule the node never ran
+    (WP-2002, from the second read of its batch on PR #1050, B11.4)."""
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins)
+    ref.fit(pattern, mode="lebail", plan=rx.RefinementPlan(stages=[
+        rx.Stage("held", ["instrument.background.*"], max_iter=10,
+                 lebail_cycles=0)]))
+    picked = ref.history.order[-1]
+    assert ref.history[picked].action.lebail_cycles == 0
+    ref.cherry_pick(picked, pattern)
+    assert ref.history[ref.history.order[-1]].action.lebail_cycles == 0
+
+
 def test_stage_node_without_seeds_renders_unchanged(fitted):
     """An unseeded stage's api_call keeps its pre-WP-1004 text exactly."""
     ref, _ = fitted
