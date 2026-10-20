@@ -265,7 +265,8 @@ sharpens its own row here.
   constant with its tier, its evidence and, for tier 3, the two grounds and the approval
   date. Each code and action row also states the kind of ambiguity DESIGN.md § Rules, 1
   assigns it. A meta-test holds the table equal to the tree both ways.
-- **No tier-2 or tier-3 action runs by default without its approval** (2002, 2003, 2004).
+- **No tier-2 or tier-3 action runs by default without its approval** (2002, 2003, 2004;
+  2017 measures the single-fit thresholds' three families, 2018 the clash table).
   Every hold, carry, refit, fence and always-on correction that survives names its
   evidence (the families, or for tier 2 the citation or program), the record field that
   says it fired, and the maintainer's dated approval; every other one is

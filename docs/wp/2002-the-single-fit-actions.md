@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-20 — every batch question ruled and built, a contributor's second read triaged; owed tests, B14's lifts and the second pass remain
+Milestone: generality · Status: 🔄 2026-10-20 — every batch question ruled and built; the owed tests and B14's lifts remain, the second pass and the clash table split to 2017 and 2018
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -144,10 +144,14 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       `2002-batch/waiting.md`. The second pass (three families per surviving threshold)
       has not run. 2026-10-20 (2nd session): the fourth round's rows landed (the
       auto_background pick kept, the cell window, the interval and width-grid settings,
-      twelve solver stop constants and the seventh solver switch, all tier 3).*
-- [ ] The clash table: every pair of actions that read or move the same parameter, with
+      twelve solver stop constants and the seventh solver switch, all tier 3). The second
+      pass moved to [2017](2017-the-second-pass-every-tier-3-threshold-on-three-families.md)
+      on 2026-10-20 (the maintainer's split); this item closes with the owed tests and
+      B14's lifts.*
+- [x] The clash table: every pair of actions that read or move the same parameter, with
       the measured interaction (Rwp and the parameter, both orderings). *38 candidate pairs
-      found, none measured: `2002-batch/clashes.md`.*
+      found, none measured: `2002-batch/clashes.md`. Moved to
+      [2018](2018-the-clash-table-measured.md) on 2026-10-20 (the maintainer's split).*
 - [x] The batch to the maintainer, in the register of `~/.claude/CLAUDE.md`: per tier-3
       row the two grounds answered, and per tier-2 action the judgement ground (for the
       judgement ground, the dissenting caller named or declared absent), the Rule 1 kind it falls to if demoted, the case against
@@ -226,9 +230,11 @@ Three choices the opening session made, each reversible:
 .venv/bin/python -m ruff check src tests examples
 ```
 
-The handover carries the clash table and the batch's rulings; the record's acceptance
-row "no tier-3 action runs by default without its approval" is checked against the table
-for every row this WP owns.
+The handover carries the batch's rulings; the record's acceptance row "no tier-3 action
+runs by default without its approval" is checked against the table for every row this WP
+owns. The three-family evidence behind those approvals is
+[2017](2017-the-second-pass-every-tier-3-threshold-on-three-families.md)'s, and the
+clash table [2018](2018-the-clash-table-measured.md)'s, both split out 2026-10-20.
 
 ## References
 
@@ -238,6 +244,8 @@ for every row this WP owns.
   thresholds quote).
 
 ## Handover log
+
+- **2026-10-20** — Split at the maintainer's request after the 2nd session's handover. The second pass (three families per surviving tier-3 threshold) moves to [2017](2017-the-second-pass-every-tier-3-threshold-on-three-families.md) and the clash table's 38 pairs to [2018](2018-the-clash-table-measured.md), each with the context this file held. This WP now closes on two sessions' work: the owed tests (two-start, invariance, margin, domain, the FCJ node cap), then B14's lifts with the ~50-guard list to the judge, with the goldens and `test_compare_ui` rows on the way. The maintainer's estimate question was "how many more sessions in 2002": about five or six unsplit, two now.
 
 ### 2026-10-20 (2nd session) — the last five questions ruled, a contributor's second read built, and the position limits gone
 
