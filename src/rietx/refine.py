@@ -5568,8 +5568,16 @@ class Refinement:
                          f"max|Δ|/σ={r.max_abs_delta_over_sigma:.1f}")
         stats = self.result_.statistics
         if stats.durbin_watson is not None:
-            note = (f", esds inflated ×{stats.esd_inflation:.2f}"
-                    if stats.esd_inflation is not None else "")
+            # the factor the rows carry, as the CIF quotes it: it can differ
+            # from ``Statistics.esd_inflation`` by 0.07-4 % (WP-2002)
+            carried = sorted({round(p.stderr / p.stderr_uncorrected, 2)
+                              for p in self.result_.parameters
+                              if p.stderr is not None and p.stderr_uncorrected})
+            factor = (stats.esd_inflation if not carried
+                      else carried[0] if len(carried) == 1 else None)
+            note = (f", esds inflated ×{carried[0]:.2f}-{carried[-1]:.2f}"
+                    if len(carried) > 1 else
+                    f", esds inflated ×{factor:.2f}" if factor is not None else "")
             lines.append(f"    serial correlation (DW): {stats.durbin_watson:.2f}{note}")
         return lines
 
