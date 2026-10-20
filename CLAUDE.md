@@ -500,8 +500,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   documents conventions by physics not letters (e.g. size↔1/cosθ, strain↔tanθ; GSAS and FullProf
   swap X/Y labels).
 - **The FitReport must never return a confident wrong singleton.** Every Layer-1 statement passes
-  four gates: resolvability on the *scale-normalised* Gram, 0.4·FWHM validity radius,
-  local-χ²_red significance, share-based global maturity. Collinear angular templates are compared
+  four region gates (`GateCode`: local-χ²_red significance, the basis's local R², resolvability on
+  the *scale-normalised* Gram, 0.4·FWHM validity radius) and share-based global maturity. Collinear angular templates are compared
   as *nested single fits* and reported non-separable. Confidence weights importance (share of χ²),
   not just statistical significance.
 - **A new correction, default or automatic action answers by its kind** (DESIGN.md § Rules, 1 and

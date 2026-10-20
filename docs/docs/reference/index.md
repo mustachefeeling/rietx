@@ -14,6 +14,9 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [Plan presets](plans.md) draws each preset's stages.
 - [The refinement result](result.md) gives what a `RefinementResult` carries beside the refined values: the agreement statistics, the structure R-factors, the observation count, the identifiability evidence, the restraint and absorption records, the diagnostics and the printed views.
 - [Derived quantities](derived.md) gives the distances, angles, cell volumes, crystallite sizes and microstrain a fit computes, with their esds.
+- [The fit report](report.md) gives the fields of a `FitReport`: the misfit regions and unmatched peaks, the attribution and its gates, the trends, texture and strain readings, the suggested actions and the report at each stage.
+- [Report evidence](report-evidence.md) gives the report's background, esd and Le Bail gap sections.
+- [Model comparison](comparison.md) gives `Refinement.suggest`, `compare_freed`, the cumulative Δχ² and split localisation of two fits, and the rigid-body check.
 - [Diagnostic codes](diagnostics.md) lists every code with its name, and links the page that explains it.
 - [Project directory](project.md) shows the files in a `.rex` project.
 - [The refinement history](history.md) gives the fields of a history node, the actions that commit one, what a checkout restores, the queries on a tree and the format of the `history.jsonl` log.
@@ -40,6 +43,9 @@ settings
 plans
 result
 derived
+report
+report-evidence
+comparison
 diagnostics
 project
 history
