@@ -424,7 +424,7 @@ first, a gate after 2004; 2010 audits features against Rule 2; 2008 slims the sk
 
 #### The registry and the guard
 
-2001: the rule written down, the audit table every later WP fills, the tripwire test and the fresh-context review the handover dispatches on a hit. [The WP](wp/README.md#generality-the-registry-and-the-guard).
+2001: the rule written down, the audit table every later WP fills, the tripwire test and the fresh-context review the handover dispatches on a hit. 2014: that review on every other path into main, outside PRs and unwatched directories included. [The WPs](wp/README.md#generality-the-registry-and-the-guard).
 
 #### The audits
 

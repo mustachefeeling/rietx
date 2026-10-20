@@ -24,7 +24,8 @@ agents or humans"; DESIGN.md § History records how that became the purpose.
 Ten WPs, 2001 to 2010. 2001 is the rule written down, the audit table and the guard, and
 it lands first. 2002 to 2007 are audits, one per seam. 2010 audits features rather than
 decisions: each names what verifies its code and what validates its physics (Rule 2). 2008 slims the agent skill to the
-API, the feedback surface and sourced traps. 2009 rewrites the rulebook rules that generated the overfit. Each WP file states
+API, the feedback surface and sourced traps. 2009 rewrites the rulebook rules that generated the overfit. 2014, filed
+2026-10-20, carries 2001's guard to outside PRs, unwatched directories and fixes made after the handover. Each WP file states
 its own context; nothing is restated here except the rule, which every WP applies.
 
 **Not in scope.** No new physics, no new correction, no new plan preset. A heuristic the
@@ -473,6 +474,20 @@ reverse it knowing what it would be giving up.
   esd inflation unexamined although GSAS-II does not apply it. The cost measured at the
   ruling: two or three of the ten behavioural defaults cite a paper or a program, plus the
   always-on corrections 2002 now lists.
+- **The guard reaches every path into main** (2026-10-20, a planning session; WP-2014).
+  The maintainer asked whether the tooling could now carry the rule forward. Measured: the
+  judge ran only at a WP's handover, while twelve open outside PRs had added 38 rows and
+  26 allow-list names with no judge, and `solve/` sat outside the walk. Three rulings.
+  **Outside PRs are tiered at review before they merge**; their author is informed and
+  agrees with the demotions. **WP-2007 owns `solve/`.** **The judge argues both sides
+  without manufacturing fairness**: it also asks, of an action a branch removes or leaves
+  to the caller, whether every competent refiner would act anyway and what leaving it
+  costs, and a side with no evidence reads `none found` in one line. In the maintainer's
+  words, "I don't want a system in which a weak case given representation seems stronger
+  than it is." Chosen over the judge drafting only the case against, which made deciding
+  less the cheap path for an author; a WP-2002 lane's over-reach on the peak-position
+  bounds (11-BM NAC's cell 5129 ppm off against 1117 ppm) is the measured cost. The
+  priority rubric stays with 2009.
 
 ## The two reviews at the open
 
