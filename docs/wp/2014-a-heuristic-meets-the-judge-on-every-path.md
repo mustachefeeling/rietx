@@ -156,9 +156,9 @@ ruling B9 to the peak-position bounds, and the 11-BM NAC cell drifted 5129 ppm a
       maintainer; the judge still decides at handover.
 - [x] **`/steward`.** One line under Red CI: an edit to a row's tier, evidence or value,
       or to the allow-list, goes back through the judge before the push.
-- [ ] **Records.** `generality.md` § Acceptance's "a new heuristic cannot land unaudited"
+- [x] **Records.** `generality.md` § Acceptance's "a new heuristic cannot land unaudited"
       row names this WP beside 2001.
-- [ ] Skill: none; nothing here reaches an agent driving rietx.
+- [x] Skill: none; nothing here reaches an agent driving rietx.
 
 ## Acceptance
 

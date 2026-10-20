@@ -258,14 +258,17 @@ sharpens its own row here.
   says it fired, and the maintainer's dated approval; every other one is
   demoted to a ranking or a number by its kind, or made opt-in. No default path calls a
   pick verb (§ A pick on top of a ranking).
-- **A new heuristic cannot land unaudited** (2001). A diff that adds a diagnostic code, a
+- **A new heuristic cannot land unaudited** (2001, 2014). A diff that adds a diagnostic code, a
   record field on `StageResult`/`SeriesEntry`/`RefinementResult`, a module-level numeric
   constant in a directory the table's walk declares, a new or changed default at a seat it
   declares, or a `suggestion=` string trips a
-  test until the table has its row; the names allowed at `unaudited` are a committed list
-  that only shrinks, so the test needs no git; and `/wp-handover` dispatches a
-  fresh-context review that drafts the case against it whenever the diff touches the table
-  or that list.
+  test until the table has its row; the names still at `unaudited` are a committed list
+  that only shrinks, so the test needs no git; CI's lint job reads the base and fails a
+  name new to the table that arrives at `unaudited`; every top-level module is walked or
+  declared out with its reason; and a fresh-context review weighs the case against each
+  row, and the case for any action the change removes, whenever the diff touches the table
+  or that list. `/wp-handover` dispatches it on a WP branch, `/pr-review` on an outside
+  pull request, and `/steward` before a fix to a row is pushed.
 - **The goldens hold or improve** (every audit). The acceptance suites pass on the final
   tree; every re-pinned number is recorded with its reference distance, none further
   from its reference than before.
