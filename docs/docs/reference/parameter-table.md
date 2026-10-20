@@ -89,7 +89,7 @@ A row cannot be freed for one of five reasons, and the remedy differs.
 |---|---|---|
 | `locked` | fixed by the structure: a cell angle the space group fixes, a coordinate on a fully fixed special position, the first emission line's weight, a non-primary line's wavelength, `biso` on a site with an anisotropic tensor, an atom a rigid body places, a position correction the geometry does not have | nothing |
 | `tie` | an affine function of other rows, so the freedom lives in its sources | `Refinement.untie`, if the tie is your own |
-| `mode_fixed` | refinable in principle, but the Le Bail or Pawley mode fixes it: every atom parameter, each phase's scale and the emission-line weights | switching back to `rietveld` |
+| `mode_fixed` | refinable in principle, but the Le Bail or Pawley mode fixes it: every atom parameter, each phase's scale and a texture coefficient | switching back to `rietveld` |
 | `held` | you declared it does not move, whatever a plan frees; a coordinate held to fix a polar group's origin reads `held` too, and `ParameterRow.origin_axis` names the direction | `Refinement.unhold` |
 | `ParameterRow.needs_held_cell` | a wavelength, while this pattern's cell is free, since d = λ/(2 sin θ) fixes only their product | holding the cell; the one reason another parameter decides |
 
@@ -100,7 +100,7 @@ The structural reasons come next, then the mode, then a hold, then the wavelengt
 A Le Bail phase's held atom therefore names the mode, which is the reason that would still hold if the hold went.
 
 The counts of the five do not add up to the number of held rows.
-On the LaB6 table above, the Le Bail listing marks 14 rows `mode_fixed`, while the refinable count falls only from 25 to 19, because 7 of the 14 were already locked or tied.
+On the LaB6 table above, the Le Bail listing marks 12 rows `mode_fixed`, while the refinable count falls only from 26 to 20, because 6 of the 12 were already locked or tied.
 Read `refinable` for the decision, and the five flags only to explain it.
 
 ```python
@@ -117,8 +117,8 @@ ref = rx.Refinement(lab6, rx.Instrument.debye_scherrer(wavelength=0.4139),
                     history=False)
 
 lebail = ref.parameters(mode="lebail")
-assert sum(row.mode_fixed for row in lebail) == 14
-assert sum(row.refinable for row in lebail) == 19
+assert sum(row.mode_fixed for row in lebail) == 12
+assert sum(row.refinable for row in lebail) == 20
 ```
 
 `Refinement.parameters` takes `mode` because the mode the object carries is the one its last stage ran in, which before the first run is the `rietveld` default.
@@ -230,11 +230,17 @@ Such a cell can report [`BOUND_HIT`](diagnostics-refinement.md#bound_hit) while 
 In a staged plan the window is rarely reached, because the stage holds that phase's structural parameters instead (`StageResult.held`, [Held parameters](refinement.md#held-parameters)).
 [`PHASE_UNCONSTRAINED`](diagnostics-refinement.md#phase_unconstrained) names a phase the data cannot tell from absent and says what the run did with its parameters.
 
-After every stage, any free cell parameter that moved more than ±15 % in length or ±6° in angle from where the stage started is pulled back to that limit, and [`CELL_RUNAWAY`](diagnostics-refinement.md#cell_runaway) reports it.
+A free cell that moves more than ±15 % in length or ±6° in angle within one stage has run away.
+The stage puts that phase's free cell parameters back at the values the stage started from, holds them, and solves the stage again.
+Before 1.10 the check clamped the value to the 15 % edge, which left a number that was no measurement.
+`StageResult.cell_reset` lists the parameters put back, and [`CELL_RUNAWAY`](diagnostics-refinement.md#cell_runaway) reports it.
 That check reads the answer and is never a bound the solver sees.
+A runaway in the final stage leaves the cell at its start values and withholds its esd, and the esd of every parameter tied to it.
 
 The sample strain and size widths get the other two default bounds, armed only on a term that has already reached them.
-A strain width is held to the width the fitted 2θ range can express, and a size width to that of a crystallite of {{ SIZE_CAP_MIN_SIZE_NM }} nm ({ref}`the strain bound <sec-strain-cap>`, {ref}`the size bound <sec-size-cap>`).
+A strain width is held to the width the fitted 2θ range can express, and a size width to the same width read through 1/cos θ ({ref}`the strain bound <sec-strain-cap>`, {ref}`the size bound <sec-size-cap>`).
+No default bound limits the crystallite size itself.
+`SIZE_UNUSUALLY_SMALL` speaks below its threshold and bounds nothing.
 
 ## Editing the table
 
@@ -283,7 +289,7 @@ It raises `ValueError` on four refusals, each with its own remedy.
 | unknown path | `unknown parameter path(s): [...]` | correct the name |
 | locked | `... is structurally fixed (symmetry, or a representation that owns this channel) and cannot be set` | none; the structure owns the value |
 | tied | `... follows 'phases.0.cell.a' as an affine tie; set that instead` | set the source |
-| out of bounds | `... lies outside its bounds [0.0, 1.5]` | a value inside them, since the bounded solver cannot start outside |
+| out of bounds | `... lies outside its bounds [0.0, inf]` | a value inside them, since the bounded solver cannot start outside |
 
 A tied parameter follows its sources.
 Setting `phases.0.cell.a` on a cubic phase moves `b` and `c` with it, and the change reaches the objects.
@@ -303,9 +309,11 @@ A fixed parameter is absent rather than present with `vary=False`.
 | `RefinedParameter.path` | the name |
 | `RefinedParameter.value` | the value the fit ended at |
 | `RefinedParameter.stderr` | the esd, or `None` where it could not be estimated |
+| `RefinedParameter.stderr_uncorrected` | the same esd without the Bérar-Lelann factor, as GSAS-II and TOPAS print it ([Estimation](../theory/estimation.md)); `None` where `stderr` is `None`, and on a result from before 1.10 |
 | `RefinedParameter.vary` | `False` on the tied rows, which is how to spot them |
 | `RefinedParameter.at_bound` | `True`, `False`, or `None` where the row was not tested |
 | `RefinedParameter.equations` | the parametric declarations that set the row ([Parametric refinement](parametric.md)), empty where none did, and `None` on a row from before 1.10 |
+| `RefinedParameter.interval` | the profile interval ([Profile interval](#profile-interval)) of a moment angle the fit left out of its covariance at a direction the symmetry fixes ([Magnetic refinement](magnetic.md#an-angle-at-a-symmetry-direction)), and `None` on every other row |
 
 A parameter the data said nothing about reports no esd rather than a small one.
 A free parameter can end in a direction the residual does not move at all, such as the centre of a declared peak whose area refined to zero, and there is no variance to report for it.
@@ -404,7 +412,7 @@ A fit must have run, and the path must have been free in it; a tied, locked or f
 | `ParameterIntervalPoint.delta_chi2` | its distance above `ParameterInterval.chi2_fit`, negative below it |
 | `ParameterIntervalPoint.status` | how the refit's stage ended |
 | `ParameterIntervalPoint.error` | why a refit raised |
-| `ParameterIntervalPoint.node_id` | the history node the refit recorded |
+| `ParameterIntervalPoint.node_id` | the history node the refit recorded, and `None` where it recorded none: history disabled, or an interval the fit computed itself |
 
 | Stop | Means |
 |---|---|

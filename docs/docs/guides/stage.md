@@ -27,7 +27,7 @@ Each call returns a full `RefinementResult` for the stage it ran, with the stati
 Parameters freed in an earlier call stay free, so the `profile` stage refines the scale, background, zero shift and lattice parameters too.
 
 `run_stage` takes `two_theta_limits`, `mode`, `events`, `cancel` and `label` as `fit` does.
-It also takes its own `correlation_guard`, the correlation above which the fit reports a pair of parameters (0.98 by default), because no plan supplies one.
+It also takes its own `correlation_guard`, the correlation above which the fit reports a pair of parameters (0.98 by default), and its own `phase_support_sigma`, the number of esds a phase's scale must sit from zero for the stage to treat the phase as seen (3 by default, `None` for no hold), because no plan supplies them.
 
 ## Decide between stages
 

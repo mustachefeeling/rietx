@@ -101,7 +101,7 @@ They render in this order:
 | `min` / `max` | the bound the solver is given | no; bounds come from the schema rather than from this document |
 | `softplus` / `logit` | read only from a document written before 1.8, as the bound it enforced: `min 0`, and `max 1` for `logit` | no; nothing writes it now |
 | `locked` | structurally fixed, by symmetry or by a representation that owns the value | no |
-| `mode-fixed` | held because the intensity mode holds it; Le Bail and Pawley force-fix every atom parameter, the phase scale and the emission lines | no |
+| `mode-fixed` | held because the intensity mode holds it; Le Bail and Pawley force-fix every atom parameter, the phase scale and a texture coefficient | no |
 | `esd` | the standard uncertainty the last fit produced | no; an esd is a result of a fit and not an input to one |
 | `= …` | this parameter is tied, and its value follows the expression | no |
 

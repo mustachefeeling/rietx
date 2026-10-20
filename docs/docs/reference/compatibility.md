@@ -137,7 +137,7 @@ to move are declared rather than left to be inferred:
   [API: techniques](api-techniques.md). The *chain* is settled (a propagation vector, candidate
   models per k, one trial refinement per powder-equivalence class, a ranked
   list with an abstention) and the criterion is not: it is a ΔBIC
-  ordering with a magnetic-only R and parsimony behind it, and the rungs still
+  ordering at N/f² observations, a tie abstains, and the rungs still
   to come change what a trial refines (mode amplitudes) and add a branch this
   release abstains on (an incommensurate k). Expect the fields to grow and the
   ranking to be restated; the operator list, the moments and the magCIF a

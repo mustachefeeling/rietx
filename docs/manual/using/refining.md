@@ -79,9 +79,11 @@ print(ref.result_.statistics.rwp)
 
 The mode is more than a detail of the plan. It changes which rows of the
 parameter table can move at all. Le Bail and Pawley force-fix every atom
-parameter, every phase scale and every emission-line intensity, because in
+parameter, every phase scale and every texture coefficient, because in
 those modes the data
-does not constrain them. [](model.md) shows that as the `mode_fixed` hold
+does not constrain them. The emission-line weights and a wavelength refine in
+both modes: the doublet's ratio is a shape the per-reflection intensities
+cannot absorb, and a wavelength refines against a held cell. [](model.md) shows that as the `mode_fixed` hold
 reason, and explains why it is kept distinct from a lock.
 
 `RefinementResult.mode` echoes the mode a result was produced under, so a
@@ -717,14 +719,16 @@ makes the compared models differ from the ones the plan describes, so
 in the caveats. Its own defaults are axis-shaped and produce none.
 
 The abstention is a result. Classes whose ΔBIC lies within
-`MagneticSolution.tie_width` of the leader's are tied on ΔBIC. Where one of
-them has fewer moment parameters than every other, it wins: the verdict is
-`"solved"`, `MagneticSolution.reason` says parsimony decided, and
-`MagneticSolution.margin` is the winner's ΔBIC over the best other class,
-which can be negative. Otherwise `MagneticSolution.tied` names them,
+`MagneticSolution.tie_width` of the leader's are tied on ΔBIC. A tie is an
+abstention: `MagneticSolution.tied` names the classes,
 `MagneticSolution.verdict` reads `"abstained"`, and the reason gives each tied
-class's magnetic-only R. That R ranks nothing. Before 1.10 an R gap of more
-than 2 % broke a tie, a margin nobody had measured. The default width is 6.0,
+class's moment-parameter count and magnetic-only R. The tied classes come
+first in `MagneticSolution.trials`, fewest moment parameters first, the order
+of the convention that reports the highest symmetry the data allow. Neither
+the count nor the R ranks them, because ΔBIC already charges each parameter.
+Before 1.10 an R gap of more than 2 %, and then a smaller parameter count,
+broke a tie and gave `"solved"`. The 2 % margin was never measured. The
+default width is 6.0,
 "strong" on the Kass & Raftery scale, the same bar peak fitting uses to keep
 an added component.
 
@@ -786,7 +790,7 @@ One refusal: a non-neutron histogram, by name. Everything else is reported.
 | `MagneticTrial.site` | the site whose representation produced it | |
 | `MagneticTrial.irrep`, `MagneticTrial.direction` | the labels | e.g. `S2`, `(a)` |
 | `MagneticTrial.bns_number`, `MagneticTrial.uni_number`, `MagneticTrial.msg_type` | what spglib recognised the operator list as | `"unidentified"` and `None` are honest, not errors |
-| `MagneticTrial.free_amplitudes` | amplitudes the representative site's family has before any data is looked at | per site: on a parent with several magnetic sites this is not the model's parameter count, and the ranking's parsimony key reads `MagneticTrial.n_moment_parameters` instead |
+| `MagneticTrial.free_amplitudes` | amplitudes the representative site's family has before any data is looked at | per site: on a parent with several magnetic sites this is not the model's parameter count, and the order of a tie reads `MagneticTrial.n_moment_parameters` instead |
 | `MagneticTrial.determinable_amplitudes` | how many of them a powder to `d_min` can determine | the deficit is the flat directions; `None` on a refused trial |
 | `MagneticTrial.status` | `"refined"` or `"refused"` | |
 | `MagneticTrial.fit_status` | the trial fit's own `RefinementResult.status`: `"converged"`, `"max_iter"` or `"diverged"` | a fit that stops on its budget is continued up to `SOLVE_MAX_CONTINUATIONS` times; one still short is listed and not ranked, and the caveats name it |

@@ -36,7 +36,7 @@ It sets `min=0.0`.
 
 Each field that holds a `Parameter` declares its own range and unit.
 A `Parameter` you pass to that field inherits the `min`, `max` and `unit` you left out, and a bound you state yourself wins.
-So `occ=Parameter(value=1.0, vary=True)` on an `Atom` keeps the occupancy's range of 0 to 1.5.
+So `occ=Parameter(value=1.0, vary=True)` on an `Atom` keeps the occupancy's floor of 0 and no upper bound.
 
 Each parameter refines in its own unit, and the fit holds `min` and `max` as a box.
 A value the data push past a bound ends exactly on it.
@@ -45,7 +45,7 @@ A value the data push past a bound ends exactly on it.
 A `min=0.0` parameter can end at exactly `0.0`.
 That is harmless where zero is the off state, as for a width or an extinction coefficient.
 Where the physics divides by the value, the parameter carries a floor above zero instead.
-`PreferredOrientation.r` stops at 0.15, a hump's width at `HUMP_FWHM_MIN` (0.1°), and `ProfileTCHZ.w` at 1e-8 deg².
+`PreferredOrientation.r` stops at `MARCH_R_MIN` (1e-6), a hump's width at `HUMP_FWHM_MIN` (0.1°), and `ProfileTCHZ.w` at 1e-8 deg².
 :::
 
 `stderr` is the only field a fit writes back.
@@ -341,7 +341,7 @@ The CIF reader has one, so it corrects a small deviation and reports [`CIF_CELL_
 | `Atom.label` | `str` | required | the site label, as a CIF spells it |
 | `Atom.species` | `str` | required | the scattering species: `"La"`, `"B"`, `"Fe3+"` |
 | `Atom.x`, `Atom.y`, `Atom.z` | `Parameter` | required | fractional coordinates |
-| `Atom.occ` | `Parameter` | 1.0, in [0, 1.5] | site occupancy |
+| `Atom.occ` | `Parameter` | 1.0, at or above 0 | site occupancy; a refined value above 1 reports `OCCUPANCY_ABOVE_ONE` at `info` |
 | `Atom.biso` | `Parameter` | 0.5 Å², unbounded | isotropic displacement, B = 8π²U |
 | `Atom.aniso` | `AnisoU` or `None` | `None` | anisotropic displacement as the CIF's $U^{ij}$, {eq}`int-dw-aniso` |
 | `Atom.moment` | `Moment` or `None` | `None` | a magnetic moment in crystal-axis components, in μ<sub>B</sub>, {eq}`int-Fmag`; needs `Phase.magnetic_symmetry` |
@@ -436,8 +436,9 @@ Under `solver="trf"`, and in a joint fit, [`STEPHENS_STRAIN_NOT_POSITIVE`](diagn
 `PreferredOrientation.axis` is the direction of preferred alignment as a fixed integer hkl, and `(0, 0, 0)` is refused.
 `PreferredOrientation.r` is the one refinable number.
 It defaults to 1.0, fixed, and r = 1 is no correction.
-It is bounded to [0.15, 6].
-The March factor divides by r, so a stored lower bound at 0 is raised to 0.15 when the object is built.
+It is bounded below at `MARCH_R_MIN` (1e-6) and has no upper bound.
+The March factor divides by r, so a stored lower bound at 0 is raised to `MARCH_R_MIN` when the object is built.
+A stored upper bound is kept as written.
 
 ### Spherical-harmonics texture
 

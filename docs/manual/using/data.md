@@ -356,7 +356,7 @@ the six values as a tuple.
 | `Atom.label` | str | required | the site label, as a CIF spells it |
 | `Atom.species` | str | required | the scattering species: `"La"`, `"B"`, `"Fe3+"` |
 | `Atom.x`, `Atom.y`, `Atom.z` | `Parameter` | required | fractional coordinates |
-| `Atom.occ` | `Parameter` | 1.0, at or above 0 | site occupancy; a refined value above 1 raises `OCCUPANCY_ABOVE_ONE` |
+| `Atom.occ` | `Parameter` | 1.0, at or above 0 | site occupancy; a refined value above 1 reports `OCCUPANCY_ABOVE_ONE` at `info` |
 | `Atom.biso` | `Parameter` | 0.5 Å², unbounded | isotropic displacement, B = 8π²·U |
 | `Atom.aniso` | `AnisoU` or None | `None` | anisotropic displacement, CIF U^ij, {eq}`int-dw-aniso` |
 | `Atom.moment` | `Moment` or None | `None` | a magnetic moment in crystal-axis components, μ_B, {eq}`int-Fmag`; needs `Phase.magnetic_symmetry` beside it |
@@ -464,7 +464,7 @@ assert texture.coefficients == {}   # every term starts held at 0
 |---|---|---|---|
 | `Instrument.source` | `Source`, `NeutronSource` or `TOFSource` | required | the radiation, discriminated on `kind` |
 | `Instrument.geometry` | `Geometry` | capillary, no aberrations | how the specimen sits in the beam |
-| `Instrument.zero_shift` | `Parameter` | 0.0 deg, in [−0.5, 0.5] | a constant 2θ offset, the one position error every geometry has |
+| `Instrument.zero_shift` | `Parameter` | 0.0 deg, unbounded | a constant 2θ offset, the one position error every geometry has |
 | `Instrument.profile` | `ProfileTCHZ` | see below | the instrumental width function |
 | `Instrument.background` | one of three | `BackgroundChebyshev` | the pedestal under the peaks |
 | `Instrument.extra_components` | list[`HumpComponent`] | `[]` (off) | explicit broad peaks added on top of that pedestal |

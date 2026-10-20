@@ -113,7 +113,7 @@ At that point the stage holds the phase's structure ([Held parameters](refinemen
 A point is admissible when its χ² is within {{ FRACTION_PROFILE_DCHI2 }} × χ²<sub>red</sub> × f² of the lowest χ² the profile found, with f the fit's `Statistics.esd_inflation`.
 That is the 95 % Δχ² for one parameter, scaled by the two factors every esd already carries.
 On a single well-behaved minimum it reproduces W ± 1.96 esd.
-On the test suite's control pattern every admissible fraction stayed within 0.22 of that interval's half-width.
+On the test suite's control pattern every admissible fraction stayed within 0.79 of that interval's half-width.
 
 `FractionProfile` is the answer.
 
@@ -131,7 +131,7 @@ On the test suite's control pattern every admissible fraction stayed within 0.22
 | `FractionProfile.fit_admissible` | whether the fit's own point is within the cut |
 | `FractionProfile.range_low`, `FractionProfile.range_high` | the smallest and largest admissible fractions |
 | `FractionProfile.excess` | the farthest admissible fraction from the fit's, in units of 1.96 esd, or `None` without an esd |
-| `FractionProfile.diagnostics` | the finding below, when it fires |
+| `FractionProfile.diagnostics` | the `QPA_FRACTION_RANGE` record, wherever `FractionProfile.excess` is defined |
 
 | Field | Holds |
 |---|---|
@@ -151,10 +151,11 @@ The range is an inner bound.
 Each admissible point's fraction is inside the 95 % profile interval for W, so a finer grid can only widen it.
 When `FractionProfile.fit_admissible` is `False`, a pinned refit found χ² lower than the fit's by more than the cut, so the fit did not reach the lowest basin along this ridge.
 
-[`QPA_FRACTION_UNDETERMINED`](diagnostics-refinement.md#qpa_fraction_undetermined) fires when an admissible fraction lies more than {{ FRACTION_PROFILE_EXCESS }} times the esd's 95 % half-width from the fit's fraction.
-That factor is chosen, not measured, and sits between the control pattern, at 0.22, and the synthetic trace below, at 99.
-The warning names the range and the widths that produced it.
-A fraction it fires on is not determined by this pattern, whatever its esd says, so quote the range.
+Every profile of a fit with an esd carries a [`QPA_FRACTION_RANGE`](diagnostics-refinement.md#qpa_fraction_range) info record.
+It names the range and the widths that produced it, and its value is `FractionProfile.excess`, the farthest admissible fraction's distance from the fit's in the esd's 95 % half-widths.
+Below 1, the profile confirms the esd: the controls reached at most 0.79.
+Well above 1, the fraction is not determined by this pattern, whatever its esd says, so quote the range rather than the point: the synthetic trace below reached about 99.
+Before 1.10 the record was the warning `QPA_FRACTION_UNDETERMINED`, which fired only past an excess of 2, a number chosen rather than measured.
 The basins separate only on information the fit does not have: a width held at a value the specimen justifies, a background that can take the hump itself, or more counts on the phase's strongest lines.
 
 The synthetic trace is LaB₆ with 1 wt % CaF₂ and a small amorphous hump under a six-term Chebyshev background, in `tests/test_qpa_multimodal.py`.

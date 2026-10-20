@@ -104,7 +104,7 @@ The history's repairs are a function of the log and of the release reading it.
 
 `Project.parameters`, `Project.fit` and `Project.run_stage` are the session verbs, with the meaning they have on `Refinement`.
 Each takes the mode from the project's settings unless you pass one.
-`Project.fit` takes the 2θ limits and the plan from them too, `Project.run_stage` the limits, and both record the run into `Project.live_dir`.
+`Project.fit` takes the 2θ limits and the plan from them too, `Project.run_stage` the limits and the `phase_support_sigma` of the plan, and both record the run into `Project.live_dir`.
 `Project.exports_dir` and `Project.live_dir` are the paths of `exports/` and `live/`.
 `Project.data_ref` returns the pattern's `DataRef`.
 
