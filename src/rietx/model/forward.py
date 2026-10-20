@@ -110,6 +110,10 @@ from ..schemas.instrument import (
     Instrument,
 )
 from ..schemas.pattern import PatternData, require_two_theta
+
+# re-exported beside the screen it is read against (``phase_support``); the
+# plan carries the number since WP-2002 B1, so it is defined beside the mirror
+from ..schemas.plan import PHASE_SUPPORT_SIGMA  # noqa: F401
 from ..schemas.project import check_interval
 from ..schemas.structure import Structure
 from . import compiled
@@ -328,20 +332,6 @@ def _cached_fcj_nodes(cp: "CompiledPhase", il: int, k: int, variant: int,
     cache[key] = (tt, s, h, phi, omega)
     return phi, omega
 
-
-#: The significance a phase must reach to count as one the data can see, in σ.
-#: It is a significance, not a height: the phase's scale must sit this many of
-#: its own esds from zero, the esd taken against the counting noise
-#: (WP-1523).  Three is :data:`~rietx.indexing.workflow.ABSENT_SIGMA`'s value
-#: and meaning, the multiple of its propagated σ a line's net intensity must
-#: reach to count as present, so a phase and a line are judged present on one
-#: footing.  :meth:`CompiledModel.phase_support` is the cheap screen against
-#: it, and ``refine._answer_significance`` the full test where the screen
-#: passes.  Until
-#: WP-1523 this was 1.0 against one point's height, and a scale fitted to pure
-#: noise lifted that point past it.  Lives here, beside the screen, because the
-#: bound and the diagnostic must read one number.
-PHASE_SUPPORT_SIGMA = 3.0
 
 @dataclass
 class BatchLayout:

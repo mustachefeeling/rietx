@@ -146,7 +146,7 @@ def test_document_round_trip_including_infinite_bounds(tmp_path, pattern_file):
     project.save()
 
     raw = json.loads((project.path / PROJECT_JSON).read_text(encoding="utf-8"))
-    assert raw["format_version"] == "1.4"   # WP-1323: the plan's lebail_passes
+    assert raw["format_version"] == "1.5"   # WP-2002 B1: the plan's phase_support_sigma
     assert raw["patterns"][0]["reader"] == "xy"
 
     reopened = rx.Project.open(project.path)
@@ -743,6 +743,27 @@ def test_run_stage_uses_the_documents_mode_before_any_fit(tmp_path, pattern_file
                  max_iter=5))
     assert result.mode == "lebail"
     assert project.history[project.history.head].state.mode == "lebail"
+
+
+def test_run_stage_takes_the_stored_plans_hold_threshold(tmp_path, pattern_file,
+                                                        monkeypatch):
+    """A stage driven by hand (the GUI's stage verb) reads the threshold the
+    project's plan stores, or a hold the caller switched off comes back at the
+    default for every stage run one at a time (WP-2002, B1).  A caller's own
+    keyword still wins."""
+    project = _create(tmp_path / "s.rex", pattern_file, plan="mccusker_default")
+    seen = []
+    monkeypatch.setattr(project.refinement, "run_stage",
+                        lambda data, stage, **kw: seen.append(kw))
+    stage = rx.Stage("scale_bkg", ["phases.*.scale"])
+
+    project.run_stage(stage)
+    assert seen[-1]["phase_support_sigma"] == 3.0
+    project.doc.plan = project.doc.plan.model_copy(update={"phase_support_sigma": None})
+    project.run_stage(stage)
+    assert seen[-1]["phase_support_sigma"] is None
+    project.run_stage(stage, phase_support_sigma=5.0)
+    assert seen[-1]["phase_support_sigma"] == 5.0
 
 
 def test_set_excluded_regions_updates_document_and_data(tmp_path, pattern_file):

@@ -583,6 +583,31 @@ def test_the_crossing_is_by_type_not_by_shape():
         PlanSpec.model_validate(LooksLikeAPlan())
 
 
+def test_the_hold_threshold_crosses_the_mirror_and_json_both_ways():
+    """``phase_support_sigma`` (WP-2002, B1): a number, ``None`` for no hold,
+    and the default the one constant every reader quotes.  ``None`` is a value
+    here, so it must survive JSON as itself rather than fall back to 3σ."""
+    from rietx.model.forward import PHASE_SUPPORT_SIGMA as screen_side
+    from rietx.schemas.plan import PHASE_SUPPORT_SIGMA, PlanSpec
+    from rietx.strategy.staged import PHASE_SUPPORT_SIGMA as plan_side
+    from rietx.strategy.staged import resolve_plan
+
+    assert screen_side is PHASE_SUPPORT_SIGMA is plan_side
+    assert rx.RefinementPlan(stages=[]).phase_support_sigma == PHASE_SUPPORT_SIGMA
+    assert PlanSpec().phase_support_sigma == PHASE_SUPPORT_SIGMA
+    for value in (None, 5.0):
+        plan = dataclasses.replace(rx.RefinementPlan.mccusker_default(),
+                                   phase_support_sigma=value)
+        spec = PlanSpec.from_plan(plan)
+        back = PlanSpec.model_validate_json(spec.model_dump_json())
+        assert back.phase_support_sigma == value
+        assert resolve_plan(back, "rietveld").phase_support_sigma == value
+        assert resolve_plan(back, "rietveld") == plan
+    for bad in (0.0, -3.0, float("inf"), float("nan")):
+        with pytest.raises(ValidationError, match="phase_support_sigma"):
+            PlanSpec(phase_support_sigma=bad)
+
+
 def test_a_preset_is_the_builder_and_says_so():
     """``PLAN_PRESETS[name]`` builds a plan; asking it for one names the call.
 

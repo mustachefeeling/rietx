@@ -2174,7 +2174,8 @@ def _final_shift_over_esd_multi(mtable: "MultiParameterTable",
     return max(ratios) if ratios else None
 
 
-def _freeze_cell_windows(model: CompiledModel, table: ParameterTable) -> None:
+def _freeze_cell_windows(model: CompiledModel, table: ParameterTable,
+                         sigma: float | None = PHASE_SUPPORT_SIGMA) -> None:
     """Declare which phases' cells take the default window for this stage.
 
     Only the phases the data cannot see (WP-1110).  A window is not free — TRF
@@ -2188,11 +2189,17 @@ def _freeze_cell_windows(model: CompiledModel, table: ParameterTable) -> None:
 
     Read at the values the stage *starts* from, which is the whole point of
     doing it here: the same place every other per-stage freeze happens.
+
+    ``sigma`` is the plan's ``phase_support_sigma``, the threshold of the hold
+    this window backs (WP-2002, B1).  ``None`` judges no phase unseen, so the
+    claim made is that no cell needs a window, and nothing is measured.
     """
+    if sigma is None:
+        table.freeze_cell_windows(set())
+        return
     values = table.decode(table.x0())
     support = model.phase_support(values)
-    table.freeze_cell_windows({ip for ip, s in enumerate(support)
-                               if s < PHASE_SUPPORT_SIGMA})
+    table.freeze_cell_windows({ip for ip, s in enumerate(support) if s < sigma})
 
 
 def _freeze_strain_cap(model: CompiledModel, table: ParameterTable) -> None:
@@ -2291,7 +2298,8 @@ def _freeze_size_cap_multi(models: list[CompiledModel],
 
 
 def _freeze_cell_windows_multi(models: list[CompiledModel],
-                               mtable: "MultiParameterTable") -> None:
+                               mtable: "MultiParameterTable",
+                               sigma: float | None = PHASE_SUPPORT_SIGMA) -> None:
     """The freeze above for a joint refinement, where a cell can be *shared*.
 
     A phase invisible in one histogram may be plain in another, and if its cell
@@ -2299,13 +2307,17 @@ def _freeze_cell_windows_multi(models: list[CompiledModel],
     can see it. So a phase is windowed only when it is below support in **every**
     histogram, and the same set is frozen on every sub-table: the combined bound
     vectors write shared columns once per histogram and keep the last, which is
-    only harmless while they agree.
+    only harmless while they agree.  ``sigma`` is :func:`_freeze_cell_windows`'
+    own, and ``None`` windows nothing.
     """
-    per_model = [m.phase_support(t.decode(t.x0()))
-                 for m, t in zip(models, mtable.tables, strict=True)]
-    n_phases = min((len(s) for s in per_model), default=0)
-    windowed = {ip for ip in range(n_phases)
-                if all(s[ip] < PHASE_SUPPORT_SIGMA for s in per_model)}
+    if sigma is None:
+        windowed: set[int] = set()
+    else:
+        per_model = [m.phase_support(t.decode(t.x0()))
+                     for m, t in zip(models, mtable.tables, strict=True)]
+        n_phases = min((len(s) for s in per_model), default=0)
+        windowed = {ip for ip in range(n_phases)
+                    if all(s[ip] < sigma for s in per_model)}
     for table in mtable.tables:
         table.freeze_cell_windows(windowed)
     mtable.refresh_bounds()
@@ -2359,11 +2371,15 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       events=None, stage: str = "",
                       backend: str = "numpy",
                       solver: str = DEFAULT_SOLVER,
-                      cancel=None) -> LSQOutcome:
+                      cancel=None,
+                      phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA
+                      ) -> LSQOutcome:
     """Solve one stage.  ``cancel`` — a :class:`~.cancel.CancelToken`, read
     between residual evaluations; a set token raises
     :class:`~.cancel.RefinementCancelled` out of this call, leaving the model
-    and table exactly as the last accepted evaluation found them."""
+    and table exactly as the last accepted evaluation found them.
+    ``phase_support_sigma`` is the plan's, which decides the default cell
+    window (:func:`_freeze_cell_windows`); ``None`` windows no cell."""
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
     # A free λ beside a free cell is an exactly flat direction.  Asked here
@@ -2372,7 +2388,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # probe frees parameters without intending to fit them.
     table.check_wavelength_against_cell()
     _check_magnetic_width_compiled(model, table)
-    _freeze_cell_windows(model, table)
+    _freeze_cell_windows(model, table, phase_support_sigma)
     _freeze_strain_cap(model, table)
     _freeze_size_cap(model, table)
     residual = _make_residual(model, table)
@@ -2590,7 +2606,9 @@ def run_multi_least_squares(models: list[CompiledModel],
                             backend: str = "numpy",
                             solver: str = DEFAULT_SOLVER,
                             events=None, stage: str = "",
-                            cancel=None) -> LSQOutcome:
+                            cancel=None,
+                            phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA
+                            ) -> LSQOutcome:
     """Joint solve of several histograms stacked into one residual (WP-0308).
 
     Each histogram keeps its own compiled model (⇒ its own frozen hkl list,
@@ -2628,7 +2646,8 @@ def run_multi_least_squares(models: list[CompiledModel],
     ``events``, ``stage`` and ``cancel`` are :func:`run_least_squares`' own
     (WP-1341).  An ``eval`` is one evaluation of the *stacked* residual, so
     its ``cost`` and its ``values`` are the joint solve's, aligned with
-    ``mtable.free_paths``.
+    ``mtable.free_paths``.  ``phase_support_sigma`` is
+    :func:`run_least_squares`' own too (WP-2002, B1).
 
     The stacked Jacobian is held one of two ways (WP-1325), chosen by
     :func:`.blocked.choose_layout` and recorded on
@@ -2679,7 +2698,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     # combined bound vectors
     _freeze_strain_cap_multi(models, mtable)
     _freeze_size_cap_multi(models, mtable)
-    _freeze_cell_windows_multi(models, mtable)
+    _freeze_cell_windows_multi(models, mtable, phase_support_sigma)
     x0 = mtable.x0()
     lo, hi = mtable.bounds()
     x0 = _feasible_start(x0, lo, hi, solver)

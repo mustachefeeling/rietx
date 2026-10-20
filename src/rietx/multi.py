@@ -103,6 +103,7 @@ from .refine import (
     _quantify_phases,
     _reflection_tick_support,
     _refuse_without_phases,
+    _reported_support_sigma,
     _resolve_specimen_absorption,
     _resonant_absorber_diagnostics,
     _restore_phase_cells,
@@ -129,6 +130,7 @@ from .schemas.parametric import (
     ParametricFormTest,
 )
 from .schemas.pattern import PatternData, require_two_theta
+from .schemas.plan import check_phase_support_sigma
 from .schemas.results import (
     HistogramResult,
     Identifiability,
@@ -385,7 +387,9 @@ def _normalize_limits(ttl, n: int) -> list[tuple[float, float] | None]:
     return ttl
 
 
-def _joint_unsupported_phases(models, mtable) -> list[set[int]]:
+def _joint_unsupported_phases(models, mtable,
+                              sigma: float | None = PHASE_SUPPORT_SIGMA
+                              ) -> list[set[int]]:
     """Per histogram, the phases below support in it (WP-1301).
 
     **Per histogram, because a path can be** (WP-1325).  Whether the data sees
@@ -404,10 +408,15 @@ def _joint_unsupported_phases(models, mtable) -> list[set[int]]:
     at the answer alike.  The single fit's answer reads the scale's
     significance (``refine._answer_significance``, WP-1523); the joint path
     deliberately does not, because its report is WP-1341's to define.
+
+    ``sigma`` is the plan's ``phase_support_sigma`` (WP-2002, B1).  ``None``
+    calls no phase unseen anywhere, so nothing is held, released or restored.
     """
+    if sigma is None:
+        return [set() for _ in models]
     per_model = [m.phase_support(t.decode(t.x0()))
                  for m, t in zip(models, mtable.tables, strict=True)]
-    return [{ip for ip, s in enumerate(support) if s < PHASE_SUPPORT_SIGMA}
+    return [{ip for ip, s in enumerate(support) if s < sigma}
             for support in per_model]
 
 
@@ -501,15 +510,17 @@ def _unsupported_paths_multi(mtable, absent: list[set[int]],
 
 
 def _hold_unsupported_phases_multi(models, mtable,
-                                   reach: dict[str, list[str]] | None = None
+                                   reach: dict[str, list[str]] | None = None,
+                                   sigma: float | None = PHASE_SUPPORT_SIGMA
                                    ) -> list[str]:
     """Hold what :func:`_unsupported_paths_multi` finds; returns the columns.
 
     A caller recording the hold's reach reads :func:`_joint_column_reach`
     first and passes it in, because the reach is only readable while the
     columns are still free (``refine._hold_unsupported_phases``' rule).
+    ``sigma`` is :func:`_joint_unsupported_phases`' own.
     """
-    absent = _joint_unsupported_phases(models, mtable)
+    absent = _joint_unsupported_phases(models, mtable, sigma)
     held = _unsupported_paths_multi(mtable, absent, reach)
     if held:
         mtable.set_vary(held, False)
@@ -618,7 +629,8 @@ def _hold_scale_b_ridges_multi(models, mtable, phases: set[int] | None = None,
 def _rehold_multi(models, mtable, held: list[str],
                   start_values: list[dict[str, float]],
                   held_reach: dict[str, list[str]] | None = None,
-                  reach: dict[str, list[str]] | None = None
+                  reach: dict[str, list[str]] | None = None,
+                  sigma: float | None = PHASE_SUPPORT_SIGMA
                   ) -> tuple[list[str], list[str]]:
     """The post-solve half of the rule, for the joint path.
 
@@ -637,8 +649,9 @@ def _rehold_multi(models, mtable, held: list[str],
     collapsed columns' reach from it) or here.
     """
     # one measurement, two questions — the release and the collapse are
-    # complementary readings of the same joint support test
-    absent = _joint_unsupported_phases(models, mtable)
+    # complementary readings of the same joint support test, at the plan's
+    # threshold (``sigma``, WP-2002 B1; ``None`` releases and restores nothing)
+    absent = _joint_unsupported_phases(models, mtable, sigma)
     held_set = set(held)
     held_reach = held_reach or {}
     released = [p for p in held
@@ -1139,7 +1152,8 @@ class MultiHistogramRefinement:
             self.result_ = self._build_result(models, outcome, weights,
                                                plan.correlation_guard,
                                                stage_results, cell_runaway_diags,
-                                               answer_runaway, opening_diags)
+                                               answer_runaway, opening_diags,
+                                               plan.phase_support_sigma)
             self._answer = self._freeze_answer()
             if stream is not None:
                 stream.emit("fit_end", status=self.result_.status,
@@ -1297,6 +1311,9 @@ class MultiHistogramRefinement:
 
     def _run_plan(self, plan, mode, data, limits, weights, stream, cancel):
         """The stage loop, cumulative like the single-histogram runner's."""
+        # the single runner's read of the plan's threshold (WP-2002, B1): a
+        # dataclass validates nothing, so it is checked where it is read
+        phase_support_sigma = check_phase_support_sigma(plan.phase_support_sigma)
         # staged plan, cumulative like the single-histogram runner: start all
         # fixed, free each stage's globs across every histogram, recompile each
         # histogram (⇒ per-histogram frozen discreteness) and joint-solve.
@@ -1372,7 +1389,8 @@ class MultiHistogramRefinement:
                 # what each column moves, read while every one is still free:
                 # the hold's record (``StageResult.held_reach``, WP-1342)
                 reach = _joint_column_reach(self.mtable)
-                held = _hold_unsupported_phases_multi(models, self.mtable, reach)
+                held = _hold_unsupported_phases_multi(models, self.mtable, reach,
+                                                      phase_support_sigma)
                 held_reach = _joint_reach_beyond_self(held, reach)
                 # a phase whose scales and displacement parameters the ranges
                 # cannot separate (WP-1534): the single runner's probe, asked of
@@ -1400,7 +1418,9 @@ class MultiHistogramRefinement:
                                                   backend=self._backend,
                                                   solver=self._solver,
                                                   events=stream, stage=stage.name,
-                                                  cancel=cancel, **stage_ftol)
+                                                  cancel=cancel,
+                                                  phase_support_sigma=phase_support_sigma,
+                                                  **stage_ftol)
                 signs = self.mtable.commit(outcome.theta)
                 if signs is not None:
                     # a moment committed in its principal chart (#604): the
@@ -1408,7 +1428,7 @@ class MultiHistogramRefinement:
                     self.mtable._rebuild_columns()
                     outcome = rechart_outcome(outcome, self.mtable.x0(), signs,
                                               self.mtable.free_paths)
-                # A phase's own support can stay above PHASE_SUPPORT_SIGMA in
+                # A phase's own support can stay above phase_support_sigma in
                 # every histogram and its shared cell still walk to nonsense — the
                 # single-histogram runner's own joint-degeneracy gap
                 # (CELL_SAFETY_FRACTION's docstring), unaffected by which runner
@@ -1427,7 +1447,7 @@ class MultiHistogramRefinement:
                 reach = _joint_column_reach(self.mtable)
                 released, collapsed = _rehold_multi(
                     models, self.mtable, list(support_hold), start_values,
-                    held_reach=held_reach, reach=reach)
+                    held_reach=held_reach, reach=reach, sigma=phase_support_sigma)
                 held_reach.update(_joint_reach_beyond_self(collapsed, reach))
                 if released:
                     # a phase the support hold released is asked before its second
@@ -1476,7 +1496,8 @@ class MultiHistogramRefinement:
                         models, self.mtable, weights=weights,
                         max_iter=stage.max_iter, backend=self._backend,
                         solver=self._solver, events=stream, stage=stage.name,
-                        cancel=cancel, **stage_ftol)
+                        cancel=cancel, phase_support_sigma=phase_support_sigma,
+                        **stage_ftol)
                     signs = self.mtable.commit(second.theta)
                     if signs is not None:
                         self.mtable._rebuild_columns()
@@ -1617,8 +1638,13 @@ class MultiHistogramRefinement:
 
     def _build_result(self, models, outcome, weights, correlation_guard,
                       stage_results, cell_runaway_diags=(),
-                      answer_runaway=(), opening_diags=()) -> RefinementResult:
+                      answer_runaway=(), opening_diags=(),
+                      phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA
+                      ) -> RefinementResult:
         mt = self.mtable
+        # the threshold PHASE_UNCONSTRAINED and the parametric screen report
+        # against: the hold's own, or the default with the hold off (WP-2002 B1)
+        support_sigma = _reported_support_sigma(phase_support_sigma)
         n = mt.n_histograms
         thetas = mt.split(outcome.theta)
         stderr = outcome.stderr_internal
@@ -1750,7 +1776,8 @@ class MultiHistogramRefinement:
             # pattern's channels, the one place a too-narrow declared profile
             # shows when no size or strain term is freed to give the flags above
             # a number to read.
-            diags.extend(_width_census_diagnostics(model, values, struct))
+            diags.extend(_width_census_diagnostics(model, values, struct,
+                                                   sigma=support_sigma))
             # What this histogram's own radiation is owed (WP-1344): each of
             # the three asks one source, so each is this histogram's, and a
             # mixed fit raises it on the histogram it belongs to and nowhere
@@ -1819,7 +1846,7 @@ class MultiHistogramRefinement:
         diagnostics = diagnostics + _parametric_range_diagnostics(mt)
         # the subset patterns that cannot see each equation's target: there the
         # value is the equation's alone, and the form test leaves them out (WP-1325)
-        unseen = _parametric_unseen(models, mt)
+        unseen = _parametric_unseen(models, mt, support_sigma)
         diagnostics = diagnostics + _parametric_unseen_diagnostics(mt, unseen)
         # whether each declared form survives its data, holding what the one
         # bound test found on a bound (WP-1325, FIT)
@@ -1891,7 +1918,7 @@ class MultiHistogramRefinement:
             [_unscoped(p) for p in mt.free_paths],
             self.mtable.structures[0], stage_results,
             basis="with everything else held, in the histogram that shows it best",
-            decided=False)
+            decided=False, sigma=support_sigma)
         # a phase whose scales and B no histogram's range can separate, and
         # what its fraction is conditional on (WP-1534)
         diagnostics = diagnostics + _scale_b_ridge_diagnostics(
@@ -2218,16 +2245,19 @@ def _equation_rows(mtable) -> dict[str, list[str]]:
     return out
 
 
-def _parametric_unseen(models, mtable) -> dict[str, frozenset[int]]:
+def _parametric_unseen(models, mtable, sigma: float = PHASE_SUPPORT_SIGMA
+                       ) -> dict[str, frozenset[int]]:
     """Per declaration, the subset patterns that cannot see its target.
 
     :func:`_unseen`, the predicate the stage's support hold uses (WP-1301),
     asked of each subset pattern's own copy of the target at the answer.
-    Empty when nothing was declared (WP-1325).
+    Empty when nothing was declared (WP-1325).  ``sigma`` is the threshold
+    ``PHASE_UNCONSTRAINED`` reads (``refine._reported_support_sigma``,
+    WP-2002 B1): a report, so it speaks with the hold switched off.
     """
     if not mtable.parametric:
         return {}
-    absent = _joint_unsupported_phases(models, mtable)
+    absent = _joint_unsupported_phases(models, mtable, sigma)
     return {r.name: frozenset(k for k in r.patterns
                               if _unseen(mtable, f"hist.{k}.{r.target}", absent))
             for r in mtable.parametric}

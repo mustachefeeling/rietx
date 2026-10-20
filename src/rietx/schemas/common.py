@@ -509,6 +509,10 @@ from .._nearmiss import did_you_mean
 #: interval of a moment angle the stationary-angle test left out of the
 #: covariance.  Additive and defaulted to ``None``, "not computed", the
 #: 0.25 → 0.26 rule; a single fit writes it on exactly those rows.
+#: Also in 0.59 (WP-2002, B1): ``PlanSpec.phase_support_sigma``, the
+#: absent-phase hold's threshold, defaulting to the 3σ every fit used, so a
+#: stored plan loads and runs as before; ``None`` switches the hold off.  An
+#: older build refuses a plan carrying it.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

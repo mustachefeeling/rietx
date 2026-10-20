@@ -24,9 +24,11 @@ silently fail to serialize.
 
 from __future__ import annotations
 
+import math
+import numbers
 from typing import Any
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from .common import Base
 
@@ -68,6 +70,47 @@ INTERMEDIATE_FTOL = 1e-6
 #: (``HIGH_CORRELATION``).  The plan, its dataclass and ``run_stage`` each held
 #: their own literal 0.98 until WP-2001.
 CORRELATION_GUARD = 0.98
+
+#: The significance a phase must reach to count as one the data can see, in σ,
+#: and what :attr:`PlanSpec.phase_support_sigma` and
+#: ``strategy.staged.RefinementPlan.phase_support_sigma`` default to.
+#: It is a significance, not a height: the phase's scale must sit this many of
+#: its own esds from zero, the esd taken against the counting noise
+#: (WP-1523).  Three is :data:`~rietx.indexing.workflow.ABSENT_SIGMA`'s value
+#: and meaning, the multiple of its propagated σ a line's net intensity must
+#: reach to count as present, so a phase and a line are judged present on one
+#: footing.  :meth:`~rietx.model.forward.CompiledModel.phase_support` is the
+#: cheap screen against it, and ``refine._answer_significance`` the full test
+#: where the screen passes.  Until WP-1523 this was 1.0 against one point's
+#: height, and a scale fitted to pure noise lifted that point past it.
+#:
+#: **A plan carries it since WP-2002 (B1, ruled 2026-10-19)**, so a caller can
+#: set another threshold or switch the absent-phase hold off.  It lives here,
+#: beside the mirror, for :data:`INTERMEDIATE_FTOL`'s reason: the pydantic
+#: field needs it at class definition.  ``model.forward`` re-exports it, where
+#: the screen is.
+PHASE_SUPPORT_SIGMA = 3.0
+
+
+def check_phase_support_sigma(value: Any) -> float | None:
+    """``value`` as a plan's ``phase_support_sigma``, or ``ValueError``.
+
+    One sentence for every surface that takes it: :class:`PlanSpec`'s
+    validator, the runners reading a ``RefinementPlan`` (a dataclass, which
+    validates nothing), ``Refinement.run_stage``'s keyword and the ``.rxt``
+    parser.  ``None`` is a value here, the hold switched off.  Zero or a
+    negative would switch it off too, silently, an infinity would hold every
+    phase, and a NaN compares false both ways, so all four are refused.
+    """
+    if value is None:
+        return None
+    if (isinstance(value, bool) or not isinstance(value, numbers.Real)
+            or not math.isfinite(value) or value <= 0.0):
+        raise ValueError(
+            f"phase_support_sigma is the number of esds a phase's scale must "
+            f"sit from zero to count as seen, a positive finite number, or "
+            f"None to switch the absent-phase hold off; got {value!r}")
+    return float(value)
 
 
 class StageSpec(Base):
@@ -157,6 +200,22 @@ class PlanSpec(Base):
             "again from where it ended, up to this many times, stopping at the "
             "first pass that does not lower Rwp and keeping the best.  1 is a "
             "single run; the field does nothing in any other mode (WP-1323)"))
+    phase_support_sigma: float | None = Field(
+        PHASE_SUPPORT_SIGMA, description=(
+            "the absent-phase hold's threshold, in esds: at each stage start a "
+            "phase whose scale sits fewer than this many esds from zero has its "
+            "cell, positions, widths and displacements held for the stage, its "
+            "scale left free; at the stage's answer a held phase that now passes "
+            "is released and one that fell under is restored and held, with one "
+            "more solve.  The default cell window follows the same number.  "
+            "null = no hold, no release, no restore and no window "
+            "(PHASE_UNCONSTRAINED still reports a phase under the default 3); "
+            "WP-1301/1523, a caller's option since WP-2002 B1"))
+
+    @field_validator("phase_support_sigma")
+    @classmethod
+    def _a_threshold_or_none(cls, value: Any) -> float | None:
+        return check_phase_support_sigma(value)
 
     @model_validator(mode="before")
     @classmethod
@@ -193,7 +252,8 @@ class PlanSpec(Base):
         return cls(stages=[StageSpec.from_stage(s) for s in plan.stages],
                    correlation_guard=plan.correlation_guard,
                    intermediate_ftol=plan.intermediate_ftol,
-                   lebail_passes=plan.lebail_passes)
+                   lebail_passes=plan.lebail_passes,
+                   phase_support_sigma=plan.phase_support_sigma)
 
     def to_plan(self) -> Any:
         from ..strategy.staged import RefinementPlan
@@ -201,7 +261,8 @@ class PlanSpec(Base):
         return RefinementPlan(stages=[s.to_stage() for s in self.stages],
                               correlation_guard=self.correlation_guard,
                               intermediate_ftol=self.intermediate_ftol,
-                              lebail_passes=self.lebail_passes)
+                              lebail_passes=self.lebail_passes,
+                              phase_support_sigma=self.phase_support_sigma)
 
     def preset_name(self) -> str | None:
         """The registered preset this plan equals, or ``None`` if it was edited.

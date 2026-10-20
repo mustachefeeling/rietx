@@ -87,7 +87,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Refinement.summary(*, deliverable: str | None = None, plot: str | None = None, plan: RefinementPlan | str | None = None, report: FitReport | None = None) -> str` — The termination view (WP-1302): "done, or not, and why" from one call.
 - `rx.Refinement.suggest(data: PatternData, *, top_n: int = 5, include: str | list[str] = '*', exclude: list[str] | tuple[str, ...] = (), mode: Mode | None = None, two_theta_limits: tuple[float, float] | None = None, report=None) -> SuggestionResult` — Which held parameter should be freed next?
 - `rx.Refinement.predict(two_theta=None) -> np.ndarray` — Evaluate `y_calc` at the current parameters, without a fit.
-- `rx.Refinement.run_stage(data: PatternData, stage: Stage, *, mode: Mode | None = None, two_theta_limits: tuple[float, float] | None = None, correlation_guard: float = 0.98, events=None, cancel=None, telemetry=None, label: str | None = None) -> RefinementResult` — Run a single stage from the current state, recording a child node.
+- `rx.Refinement.run_stage(data: PatternData, stage: Stage, *, mode: Mode | None = None, two_theta_limits: tuple[float, float] | None = None, correlation_guard: float = 0.98, phase_support_sigma: float | None = 3.0, events=None, cancel=None, telemetry=None, label: str | None = None) -> RefinementResult` — Run a single stage from the current state, recording a child node.
 - `rx.Refinement.parameters(*, mode: Mode | None = None) -> list[ParameterRow]` — Every parameter as data, with fixed, locked and tied rows included.
 - `rx.Refinement.set_vary(path_globs: list[str] | str, vary: bool = True) -> list[str]` — Free (or hold) every parameter matching `path_globs`.
 - `rx.Refinement.set_values(values: dict[str, float])` — Set parameter values by dot-path, recording a `set_value` node.
@@ -101,7 +101,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Refinement.edit(*, structure: Structure | None = None, instrument: Instrument | None = None, label: str = '') -> str | None` — Record a change to the model itself, such as adding an impurity phase, raising the background order or swapping the geometry.
 - `rx.refine(data: PatternData, structure: Structure, instrument: Instrument, *, mode: Mode = 'rietveld', plan: RefinementPlan | str = 'mccusker_default', two_theta_limits: tuple[float, float] | None = None, backend: str = 'numpy', solver: str = 'lm', history: bool | str | Path | RefinementTree = False, events=None, cancel=None, telemetry=None, label: str | None = None) -> RefinementResult` — One-shot functional API: `refine(data, structure, instrument)`.
 - `rx.RefinementPlan`
-  Fields: `stages: list[Stage]`, `correlation_guard: float = 0.98`, `intermediate_ftol: float | None = 1e-06`, `lebail_passes: int = 1`
+  Fields: `stages: list[Stage]`, `correlation_guard: float = 0.98`, `intermediate_ftol: float | None = 1e-06`, `lebail_passes: int = 1`, `phase_support_sigma: float | None = 3.0`
 - `rx.Stage` — One turn-on group of a staged plan.
   Fields: `name: str`, `turn_on: list[str]`, `max_iter: int = 100`, `ftol: float | None = None`, `lebail_cycles: int = 3`, `seed: float = 0.0`, `strain_seed: float = 0.0`, `restraint_weight_scale: float = 1.0`, `window_slack_deg: float | None = None`
 - `rx.PLAN_INFO` — keys: `mccusker_default`, `mccusker_structural`, `lab_bragg_brentano`, `lab_calibrate`, `lab_sample_refine`, `profile_only`, `pawley_default`, `magnetic_width`

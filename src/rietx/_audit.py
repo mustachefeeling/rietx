@@ -1086,15 +1086,6 @@ ROWS: tuple[Row, ...] = (
         grounds=("Opt-in Pawley mode: the weight acts only on directions the data do not "
                  "constrain, and the group sum stays free; kept at 1.0 (B12, ruled 2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.model.forward.PHASE_SUPPORT_SIGMA", "constant", tier=3, value=3.0,
-        evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "
-                  "seen, 9 at the old 1 sigma; fails on a real phase at ~1/16 000 of a strong "
-                  "one's scale, seen in 1 fit of 8; own fixtures only; second pass owed (a weighed "
-                  "phase at 0.1-1 wt %, a minor phase started one FWHM off its cell)"),
-        grounds=("The hold it gates passes the judgement ground; the 3 sigma is rietx's own, "
-                 "which Currie (1968) does not carry; kept at its value and becoming a caller's "
-                 "option, phase_support_sigma with None for off (B1, ruled 2026-10-19)."),
-        approved="2026-10-19"),
     Row("rietx.model.forward.REFLECTION_MARGIN_DEG", "constant", tier=3, value=0.5,
         evidence=("reflection-list margin past the scan; a test bounding the error over the claimed "
                   "domain is owed"),
@@ -1688,6 +1679,16 @@ ROWS: tuple[Row, ...] = (
                   "2026-10-19)")),
     Row("rietx.schemas.plan.CORRELATION_GUARD", "constant", value=0.98),
     Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", value=1e-06),
+    Row("rietx.schemas.plan.PHASE_SUPPORT_SIGMA", "constant", tier=3, value=3.0,
+        evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "
+                  "seen, 9 at the old 1 sigma; fails on a real phase at ~1/16 000 of a strong "
+                  "one's scale, seen in 1 fit of 8; own fixtures only; second pass owed (a weighed "
+                  "phase at 0.1-1 wt %, a minor phase started one FWHM off its cell)"),
+        grounds=("The hold it gates passes the judgement ground; the 3 sigma is rietx's own, "
+                 "which Currie (1968) does not carry; kept at its value as the default of a "
+                 "caller's option, PlanSpec.phase_support_sigma with None for off (B1, ruled "
+                 "2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.schemas.results.HIGH_CORRELATION_MAX", "constant", value=10),
     Row("rietx.schemas.structure.MARCH_R_MIN", "constant", tier=1, value=1e-06,
         evidence=("arithmetic: the March factor (r^2 cos^2 a + sin^2 a / r)^(-3/2) divides by "
@@ -1834,13 +1835,24 @@ ROWS: tuple[Row, ...] = (
                  "zero; kept at 1000 ppm until a second dataset compares the starts (B3, ruled "
                  "2026-10-19)."),
         approved="2026-10-19"),
-    # default: 107
+    # default: 109
     Row("rietx.schemas.plan.PlanSpec:stages", "default", tier=1, ambiguity=1, value=(),
         evidence="arithmetic: the empty container; resolve_plan supplies every plan a fit runs"),
     Row("rietx.schemas.plan.PlanSpec:correlation_guard", "default", value=0.98),
     Row("rietx.schemas.plan.PlanSpec:intermediate_ftol", "default", value=1e-06),
     Row("rietx.schemas.plan.PlanSpec:lebail_passes", "default", tier="caller", ambiguity=1, value=1,
         evidence="opt-in: lebail_passes > 1, default 1 (one run, bit-identical to pre-WP-1323)"),
+    Row("rietx.schemas.plan.PlanSpec:phase_support_sigma", "default", tier=3, ambiguity=1, value=3.0,
+        evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "
+                  "seen, 9 at the old 1 sigma; fails on a real phase at ~1/16 000 of a strong "
+                  "one's scale, seen in 1 fit of 8; own fixtures only; second pass owed (a weighed "
+                  "phase at 0.1-1 wt %, a minor phase started one FWHM off its cell)"),
+        grounds=("On by default: the hold touches only parameters the data cannot determine, "
+                 "and an unseen phase's free cell walked 14.9 A from the truth while Rwp did "
+                 "not move; no other code holds by default (TOPAS's Remove_Phase is opt-in), "
+                 "so the 3 sigma is rietx's own, a caller sets another or None for off (B1, "
+                 "ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.schemas.plan.StageSpec:turn_on", "default", tier=1, ambiguity=1, value=(),
         evidence="arithmetic: the empty container"),
     Row("rietx.schemas.plan.StageSpec:max_iter", "default", value=100),
@@ -1935,6 +1947,17 @@ ROWS: tuple[Row, ...] = (
                   "checkout set them), the full range on a fresh one: GSAS-II full-range Limits, "
                   "checked")),
     Row("rietx.refine.Refinement.run_stage:correlation_guard", "default", value=0.98),
+    Row("rietx.refine.Refinement.run_stage:phase_support_sigma", "default", tier=3, ambiguity=1, value=3.0,
+        evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "
+                  "seen, 9 at the old 1 sigma; fails on a real phase at ~1/16 000 of a strong "
+                  "one's scale, seen in 1 fit of 8; own fixtures only; second pass owed (a weighed "
+                  "phase at 0.1-1 wt %, a minor phase started one FWHM off its cell)"),
+        grounds=("On by default: the hold touches only parameters the data cannot determine, "
+                 "and an unseen phase's free cell walked 14.9 A from the truth while Rwp did "
+                 "not move; no other code holds by default (TOPAS's Remove_Phase is opt-in), "
+                 "so the 3 sigma is rietx's own, a caller sets another or None for off (B1, "
+                 "ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.refine.Refinement.run_stage:events", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: an observation channel; "
                   "tests/test_answer_invariant_defaults.py asserts the answer bit-identical with it"

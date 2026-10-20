@@ -995,7 +995,8 @@ to use. A `StageSpec` mirrors `Stage` field for field (`StageSpec.name`,
 `StageSpec.turn_on`, `StageSpec.max_iter`, `StageSpec.ftol`,
 `StageSpec.lebail_cycles`, `StageSpec.seed`, `StageSpec.strain_seed`,
 `StageSpec.restraint_weight_scale` and `StageSpec.window_slack_deg`), and
-`PlanSpec.correlation_guard` mirrors the plan's.
+`PlanSpec.correlation_guard` and `PlanSpec.phase_support_sigma` mirror the
+plan's.
 
 What is stored is the expanded plan: every stage in full, because that is what
 will run. There is deliberately no field recording which preset it came from,
@@ -1040,8 +1041,10 @@ performs; running it by hand is how a caller interleaves its own decisions
 between stages. `Refinement.suggest` is built for exactly that moment, and
 [](history.md) is how to go back a stage when the decision was wrong.
 
-`run_stage` takes its own `correlation_guard` rather than reading one from a
-plan, because there is no plan involved.
+`run_stage` takes its own `correlation_guard` and `phase_support_sigma` rather
+than reading them from a plan, because there is no plan involved.
+`Project.run_stage` passes the `phase_support_sigma` of the plan the project
+stores.
 
 `Refinement.snapshot` returns a `RefinementState`: the full state needed to
 reconstruct the refinement exactly, taken without refining anything.
@@ -1202,6 +1205,36 @@ cost the stage started at.
 
 Both lists are empty for every fit whose phases are all visible, which is every
 fit that is working.
+
+The line between seen and unseen is a plan setting,
+`RefinementPlan.phase_support_sigma`, mirrored by `PlanSpec.phase_support_sigma`.
+A phase counts as seen when its scale sits at least that many esds from zero,
+the esd taken against the counting noise. The default is
+{{ PHASE_SUPPORT_SIGMA }}. A higher number holds more phases, and `None`
+switches the hold off:
+
+```python
+import dataclasses
+
+import rietx as rx
+
+plan = rx.RefinementPlan.mccusker_default()
+assert plan.phase_support_sigma == 3.0
+
+no_hold = dataclasses.replace(plan, phase_support_sigma=None)
+```
+
+With `None`, no stage holds, releases or restores a phase, and no cell takes the
+window an unseen phase's cell gets. `PHASE_UNCONSTRAINED` still reports a phase
+under {{ PHASE_SUPPORT_SIGMA }}σ, and names the parameters that refined without
+signal. Zero, a negative number, an infinity and a NaN are refused.
+
+A raised threshold has one known cost. A weak phase whose cell starts more than
+a peak width from its true value puts its peaks in the wrong place. It then reads
+weaker than it is and can stay held at the wrong cell. On a synthetic in-situ
+pattern whose CaF₂ cell started 1.2 % off, the default released the cell and
+refined it. At 50σ the phase read 3.7σ at the answer, and the cell stayed where
+it started.
 
 A cost that rises from `StageResult.cost_initial` to `StageResult.cost_final`
 is a diverged stage, and `StageResult.status` says so.

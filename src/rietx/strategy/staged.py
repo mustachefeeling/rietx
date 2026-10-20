@@ -19,10 +19,16 @@ from dataclasses import dataclass, field
 from .._nearmiss import did_you_mean
 from ..schemas.common import Mode
 
-# INTERMEDIATE_FTOL and CORRELATION_GUARD are defined beside the mirror because
-# the pydantic fields need them at class-definition time and this module is the
-# *upper* layer; they are re-exported here, where plan policy is read.
-from ..schemas.plan import CORRELATION_GUARD, INTERMEDIATE_FTOL, PlanSpec
+# INTERMEDIATE_FTOL, CORRELATION_GUARD and PHASE_SUPPORT_SIGMA are defined
+# beside the mirror because the pydantic fields need them at class-definition
+# time and this module is the *upper* layer; they are re-exported here, where
+# plan policy is read.
+from ..schemas.plan import (
+    CORRELATION_GUARD,
+    INTERMEDIATE_FTOL,
+    PHASE_SUPPORT_SIGMA,
+    PlanSpec,
+)
 
 #: ``phases.i.atoms.j.u11`` … — the stored anisotropic components, grouped by
 #: site for the positive-definiteness guard.
@@ -316,6 +322,22 @@ class RefinementPlan:
     #: it stopped (:data:`LEBAIL_ALTERNATION_STOPPED`).  Ignored in every
     #: other mode, where there is nothing to alternate.
     lebail_passes: int = 1
+    #: the absent-phase hold's threshold, in esds of the phase's scale against
+    #: the counting noise (WP-1301, WP-1523; a caller's option since WP-2002
+    #: B1, ruled 2026-10-19).  At each stage start a phase under it has every
+    #: free structural column held, its scale left free; at the answer a held
+    #: phase now above it is released and one that fell under it is put back
+    #: where the stage found it and held, with one more solve.  The default cell
+    #: window (``params.vector.cell_window``) is applied to the same phases.
+    #: Read by ``Refinement._run_stage`` through ``fit``,
+    #: ``MultiHistogramRefinement.fit`` and a series, each through
+    #: :func:`~rietx.schemas.plan.check_phase_support_sigma`.  ``None`` switches
+    #: all of that off: no stage holds, releases or restores a phase for
+    #: support, and no cell is windowed.  ``PHASE_UNCONSTRAINED`` still reports
+    #: a phase under :data:`PHASE_SUPPORT_SIGMA`, whose structural parameters
+    #: then refined without signal.  The default reproduces every fit before
+    #: the field, bit for bit.
+    phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA
 
     def stage_ftols(self) -> list[float | None]:
         """The tolerance each stage runs at, in order — the one authority.

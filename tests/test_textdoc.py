@@ -554,6 +554,41 @@ def test_the_passes_line_carries_the_le_bail_cap_and_refuses_nonsense(project):
         assert delta.plan is None, bad
 
 
+def test_the_support_line_carries_the_hold_threshold_and_refuses_nonsense(project):
+    """``phase_support_sigma`` (WP-2002, B1) has a line, or a save through the
+    document would reset a caller's threshold, or a hold switched off, to 3σ.
+    Absent at its default, as ``guard`` and ``passes`` are, so every stored
+    document renders byte for byte as before.  ``none`` is a value here, the
+    hold off, as it is for ``tolerance``."""
+    text = td.render(project)
+    assert not any(ln.startswith("support ") for ln in text.splitlines())
+
+    delta, errors = _changes(_edit(text, "tolerance", "tolerance 1e-06\nsupport none"),
+                             project)
+    assert errors == []
+    assert delta.plan["plan"]["phase_support_sigma"] is None
+
+    delta, errors = _changes(_edit(text, "tolerance", "tolerance 1e-06\nsupport 5"),
+                             project)
+    assert errors == []
+    assert delta.plan["plan"]["phase_support_sigma"] == 5.0
+
+    # rendered once away from the default, naming the field, so a save keeps it
+    for value, shown in ((None, "none"), (5.0, "5")):
+        project.doc.plan = project.doc.plan.model_copy(
+            update={"phase_support_sigma": value})
+        line = next(ln for ln in td.render(project).splitlines()
+                    if ln.startswith("support "))
+        assert line.split()[1] == shown and "phase_support_sigma" in line
+
+    for bad in ("support 0", "support -3", "support inf", "support nan",
+                "support many", "support", "support 3 4"):
+        delta, errors = _changes(
+            _edit(text, "tolerance", f"tolerance 1e-06\n{bad}"), project)
+        assert errors and errors[0].where == "support", bad
+        assert delta.plan is None, bad
+
+
 def test_a_stage_line_round_trips_every_key_stage_spec_has(project):
     """The keys are derived from ``StageSpec``, so this is the whole set at once.
 
