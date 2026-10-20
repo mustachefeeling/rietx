@@ -158,6 +158,12 @@ briefs are in the session transcript; the measurements behind them are summarise
   switches. `DENSE_JACOBIAN_MAX_BYTES` joins the six as the seventh solver-path switch.
   `SCHERRER_K`, `BOND_SLACK_ANG` and `STEPS_PER_FWHM_*`, which the reviewer listed beside
   them, were not asked and stay at tier 2 for the second pass.
+- **Landed under an existing ruling, not asked again.** The profile walk's four settings
+  (`PARAMETER_INTERVAL_CHI2_TOL`, `_MAX_REFITS`, `_SETTLE_RUNS`, `_XTOL`) and the width
+  grid's two (`FRACTION_PROFILE_FWHM_MIN`, `_N_FWHM`) moved from `caller` to tier 3 once B2
+  option 2 and the skill made their verbs default paths. They are numerical settings, so
+  B10's class ruling of 2026-10-19 applies (tier 3 with a domain test owed), and their
+  `approved` date is that ruling's.
 
 ## Still open (first round's list, kept for the record)
 
