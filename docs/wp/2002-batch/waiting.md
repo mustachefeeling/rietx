@@ -38,24 +38,6 @@ Each waits on a test that bounds its error over its claimed domain (tier 1), or 
 - `rietx.optimize.lm._INNER_MAX`: the same.
 - `rietx.schemas.plan.StageSpec:max_iter`: the same.
 
-## B12: pick verbs whose code changes
+## B12: the form-factor follow-up (the other B12 rows landed with the pick-verb changes)
 
-- `rietx.background.auto.AIR_SCATTER_TRIGGER`: auto_background returning its evidence beside the pick (1(a)).
-- `rietx.background.auto.HUMP_TRIGGER`: the same.
-- `rietx.background.auto._KNOT_STEP_SMOOTH_DEG`: the same.
-- `rietx.background.auto._KNOT_STEP_HUMPY_DEG`: the same.
-- `rietx.background.auto.AUTO_BACKGROUND_SEED_PERCENTILE`: the same.
-- `rietx.background.auto.auto_background:kind`: the same.
-- `rietx.background.auto.auto_background:diagnostics`: the same.
-- `rietx.background.auto.auto_background:wavelength`: the same.
-- `rietx.background.auto.auto_background:two_theta_limits`: the same.
-- `rietx.background.auto.auto_background:source`: the same.
-- `rietx.background.auto.auto_background:seed`: the same.
-- `rietx.strategy.magnetic.SOLVE_TIE_DELTA_BIC`: solve_magnetic's N/f² ΔBIC (2(a)) and the dropped R tie-break (2(b)); its tier is ruled 3.
-- `rietx.strategy.magnetic.SOLVE_K_TIE_DELTA_BIC`: the N/f² ΔBIC (2(a)); tier ruled 3.
-- `K_VECTOR_UNSEPARATED`: the N/f² ΔBIC (2(a)); tier ruled 3.
-- `MAGNETIC_SUBGROUP_PREFERRED`: the N/f² ΔBIC (2(a)); tier ruled 3.
-- `rietx.strategy.magnetic.SOLVE_TIE_R_MAGNETIC`: dropped (2(b)).
 - `rietx.strategy.magnetic.SOLVE_D_MIN`: the form-factor follow-up (not yet filed).
-- `QPA_FRACTION_UNDETERMINED`: the warning becoming an info record (3(a)).
-- `rietx.schemas.fraction.FRACTION_PROFILE_EXCESS`: the same.
