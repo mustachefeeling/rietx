@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-20 — every batch question ruled and built; the owed tests and B14's lifts remain, the second pass and the clash table split to 2017 and 2018
+Milestone: generality · Status: 🔄 2026-10-20 — claimed by @yue-here; the owed tests and B14's lifts remain, the second pass and the clash table split to 2017 and 2018
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -95,7 +95,8 @@ are the ones `_audit.WALKED` and `_audit.DEFAULT_SEATS` map to 2002, plus the co
 suggestion rows of `strategy/`. Auditing a row means giving it a tier and evidence in place
 and deleting its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py` fails until
 both are done. The walk sees module-level numbers and tuples of numbers only, so a number
-held in a dict, list or array is audited here by hand.
+held in a dict, list or array is audited here by hand. `project.py` joined the walk under
+2002 with WP-2014 (2026-10-20), with no number in it today.
 
 **The two cases the second review named, to anchor the batch.** The absent-phase hold is
 the one the rule keeps: a cell 14.9 Å from truth over 13 sub-onset patterns when free
@@ -110,11 +111,6 @@ tests.local_data`), the FAP suite, the private corpus files (cited by number, ma
 `~/Code/rietx-bench/tools/gsas2`, FullProf `fp2k` in `tools/fullprof`, the TOPAS
 technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes it" is not
 "GSAS-II acts on it by default".
-
-### Inherited
-
-- **From WP-2001 (2026-10-19, PR #1047).** The table is `src/rietx/_audit.py`; this WP's rows are the ones `_audit.WALKED` and `_audit.DEFAULT_SEATS` map to 2002, plus the codes and suggestion rows of its subsystem. Auditing a row means giving it a tier and evidence in place and deleting its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py` fails until both are done. The walk sees module-level numbers and tuples of numbers only, so a number held in a dict, list or array is audited here by hand. From the generality judge's first run: (1) `CORRELATION_GUARD` = 0.98 has three rows (the constant and the `PlanSpec` and `run_stage` defaults), so tier them together; GSAS-II 5.8.4 lists pairs from max(0.95, 0.99 × the worst |ρ|) by default (`GSASIImath.setHcorr`, checked in `rietx-bench/tools/gsas2`), so rietx is silent between 0.95 and 0.98, and no source for 0.98 was found. (2) `RefinementResult.sigma` holds two automatic choices, the √max(y,1) fallback and a floor at 10⁻³ × the median esd (`schemas/pattern.py`, inline), and no field says which fired, so it stays in `OTHER_RECORD_FIELDS` until a flag exists. (3) The final stage's 1e-9 tolerance, which `StageSpec.ftol=None` resolves to, is a literal in signatures that are not seats (`optimize/least_squares.py`, `optimize/lm.py`). (4) `RefinementResult.geometry` truncates at 24 contacts per atom and skips phases over 200 atoms (`model/geometry.py`, noted in `GeometryTable.notes`); report-only, left out of the action rows.
-- **From [2014](2014-a-heuristic-meets-the-judge-on-every-path.md)'s close (2026-10-20, PR #1070).** CI's lint job gains `tests/audit_delta.py`, which prints every row a PR adds, renames, changes or deletes and fails only a name new to the table at `unaudited`; a row returned to `unaudited` passes. Run on this WP's branch against its merge base (2026-10-20): 7 added, 1 renamed (`PHASE_SUPPORT_SIGMA`, `model.forward` to `schemas.plan`), 234 changed, 9 deleted, no failure, and `_audit.py` merges clean with 2014's. `project.py` joins the walk under 2002 with no number in it today. `/steward` now sends a fix to a row's tier, evidence or value back through the judge before the push.
 
 ## Non-goals
 
