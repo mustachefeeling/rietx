@@ -1802,12 +1802,22 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.fraction.FRACTION_PROFILE_DCHI2", "constant", tier=2, value=3.84,
         evidence=("Venzon & Moolgavkar (1988) Appl. Statist. 37, 87: profile-likelihood cut at the "
                   "chi-squared(1) 95 % point (docstring)")),
-    Row("rietx.schemas.fraction.FRACTION_PROFILE_FWHM_MIN", "constant", tier="caller", value=0.01,
-        evidence=("pick verb: profile_fraction() no default path calls it (grep 2026-10-19); grid "
-                  "start below a lab instrument's own width")),
-    Row("rietx.schemas.fraction.FRACTION_PROFILE_N_FWHM", "constant", tier="caller", value=11,
-        evidence=("opt-in: Refinement.profile_fraction(), no default path calls it (grep "
-                  "2026-10-19)")),
+    Row("rietx.schemas.fraction.FRACTION_PROFILE_FWHM_MIN", "constant", tier=3, value=0.01,
+        evidence=("grid start below a lab instrument's own width; the skill tells agents to call "
+                  "profile_fraction (SKILL.md), so no longer opt-in"),
+        grounds=("A numerical setting of the width grid, on the default path since the "
+                 "skill sends every agent to profile_fraction (B12's ruling); tier 3 with a "
+                 "test bounding its error over the claimed domain owed, tier 1 once it "
+                 "passes (B10 option 2, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.fraction.FRACTION_PROFILE_N_FWHM", "constant", tier=3, value=11,
+        evidence=("the number of widths the grid samples; the skill tells agents to call "
+                  "profile_fraction (SKILL.md), so no longer opt-in"),
+        grounds=("A numerical setting of the width grid, on the default path since the "
+                 "skill sends every agent to profile_fraction (B12's ruling); tier 3 with a "
+                 "test bounding its error over the claimed domain owed, tier 1 once it "
+                 "passes (B10 option 2, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.schemas.indexing.INDEX_MIN_INDEXED_FRACTION", "constant", value=0.9),
     Row("rietx.schemas.indexing.MAX_RELATIVE_SIGMA_Q", "constant", value=0.001),
     Row("rietx.schemas.indexing.MIN_LINES_PER_DOF", "constant", value=5.0),
@@ -1866,21 +1876,41 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.instrument._ZERO_BOUND", "constant", tier=1, value=1e-12,
         evidence=("numerical floor: 1e-12 is the value under which a stored min meant no bound "
                   "before schema 0.46 (docstring)")),
-    Row("rietx.schemas.interval.PARAMETER_INTERVAL_CHI2_TOL", "constant", tier="caller", value=0.01,
-        evidence=("opt-in: Refinement.profile_interval(), no default path calls it (grep "
-                  "2026-10-19)")),
+    Row("rietx.schemas.interval.PARAMETER_INTERVAL_CHI2_TOL", "constant", tier=3, value=0.01,
+        evidence=("fit and run_stage call profile_interval for every moment angle the "
+                  "stationary test leaves out (B2 option 2, 2026-10-19), 20-32 refits an angle on the "
+                  "two-site Pnma fixtures"),
+        grounds=("A numerical setting of the profile walk, on the default path since B2 "
+                 "option 2; tier 3 with a test bounding its error over the claimed domain "
+                 "owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.schemas.interval.PARAMETER_INTERVAL_LEVEL", "constant", tier=2, value=0.95,
         evidence=("Venzon & Moolgavkar (1988) Appl. Statist. 37, 87 for the interval; 95 % is the "
                   "conventional level and the caller's argument (docstring)")),
-    Row("rietx.schemas.interval.PARAMETER_INTERVAL_MAX_REFITS", "constant", tier="caller", value=60,
-        evidence=("opt-in: Refinement.profile_interval(), no default path calls it (grep "
-                  "2026-10-19)")),
-    Row("rietx.schemas.interval.PARAMETER_INTERVAL_SETTLE_RUNS", "constant", tier="caller", value=4,
-        evidence=("opt-in: Refinement.profile_interval(), no default path calls it (grep "
-                  "2026-10-19)")),
-    Row("rietx.schemas.interval.PARAMETER_INTERVAL_XTOL", "constant", tier="caller", value=0.001,
-        evidence=("opt-in: Refinement.profile_interval(), no default path calls it (grep "
-                  "2026-10-19)")),
+    Row("rietx.schemas.interval.PARAMETER_INTERVAL_MAX_REFITS", "constant", tier=3, value=60,
+        evidence=("fit and run_stage call profile_interval for every moment angle the "
+                  "stationary test leaves out (B2 option 2, 2026-10-19), 20-32 refits an angle on the "
+                  "two-site Pnma fixtures"),
+        grounds=("A numerical setting of the profile walk, on the default path since B2 "
+                 "option 2; tier 3 with a test bounding its error over the claimed domain "
+                 "owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.interval.PARAMETER_INTERVAL_SETTLE_RUNS", "constant", tier=3, value=4,
+        evidence=("fit and run_stage call profile_interval for every moment angle the "
+                  "stationary test leaves out (B2 option 2, 2026-10-19), 20-32 refits an angle on the "
+                  "two-site Pnma fixtures"),
+        grounds=("A numerical setting of the profile walk, on the default path since B2 "
+                 "option 2; tier 3 with a test bounding its error over the claimed domain "
+                 "owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.interval.PARAMETER_INTERVAL_XTOL", "constant", tier=3, value=0.001,
+        evidence=("fit and run_stage call profile_interval for every moment angle the "
+                  "stationary test leaves out (B2 option 2, 2026-10-19), 20-32 refits an angle on the "
+                  "two-site Pnma fixtures"),
+        grounds=("A numerical setting of the profile walk, on the default path since B2 "
+                 "option 2; tier 3 with a test bounding its error over the claimed domain "
+                 "owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.schemas.plan.CORRELATION_GUARD", "constant", value=0.98),
     Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", value=1e-06),
     Row("rietx.schemas.plan.PHASE_SUPPORT_SIGMA", "constant", tier=3, value=3.0,
