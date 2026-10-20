@@ -413,9 +413,11 @@ class Project:
         kw.setdefault("two_theta_limits", self.doc.two_theta_limits)
         kw.setdefault("telemetry", self.live_dir)
         if self.doc.plan is not None:
-            # the stored plan's absent-phase hold, which a stage driven by hand
-            # would otherwise take at the default (WP-2002, B1)
+            # the stored plan's absent-phase hold and correlation guard, which
+            # a stage driven by hand would otherwise take at the defaults
+            # (WP-2002, B1)
             kw.setdefault("phase_support_sigma", self.doc.plan.phase_support_sigma)
+            kw.setdefault("correlation_guard", self.doc.plan.correlation_guard)
         return self.refinement.run_stage(self.data, stage, **kw)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience

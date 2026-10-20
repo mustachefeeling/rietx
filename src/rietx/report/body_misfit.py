@@ -184,7 +184,10 @@ def _fit(ref, structure, data, globs, max_iter, drop=None):
     res = trial.fit(data, mode=ref._mode, telemetry=False,
                     two_theta_limits=ref._two_theta_limits,
                     plan=RefinementPlan(stages=[
-                        Stage("misfit_check", list(globs), max_iter=max_iter)]))
+                        Stage("misfit_check", list(globs), max_iter=max_iter)],
+                        # the plan settings the caller's fit ran with
+                        # (``Refinement._plan_settings``, WP-2002 B1)
+                        **trial._plan_settings))
     return trial, res, dropped
 
 

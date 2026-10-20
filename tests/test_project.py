@@ -765,6 +765,11 @@ def test_run_stage_takes_the_stored_plans_hold_threshold(tmp_path, pattern_file,
     assert seen[-1]["phase_support_sigma"] is None
     project.run_stage(stage, phase_support_sigma=5.0)
     assert seen[-1]["phase_support_sigma"] == 5.0
+    # and the correlation guard, the plan's other setting a stage reads
+    assert seen[-1]["correlation_guard"] == 0.98
+    project.doc.plan = project.doc.plan.model_copy(update={"correlation_guard": 0.9})
+    project.run_stage(stage)
+    assert seen[-1]["correlation_guard"] == 0.9
 
 
 def test_set_excluded_regions_updates_document_and_data(tmp_path, pattern_file):

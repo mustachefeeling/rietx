@@ -229,8 +229,11 @@ def _walk(refinement, data, path: str, start: float, sign: int, limit: float,
             spent += 1
             runs += 1
             try:
+                # under the plan settings the caller's fit ran with
+                # (``Refinement._plan_settings``, WP-2002 B1)
                 r = trial.run_stage(data, Stage(f"interval:{path}", []),
-                                    telemetry=False, cancel=cancel)
+                                    telemetry=False, cancel=cancel,
+                                    **trial._plan_settings)
             except RefinementCancelled:
                 raise                 # the caller's stop, not this point's
             except Exception as exc:  # an unmeasurable point ends the side

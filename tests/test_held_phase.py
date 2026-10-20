@@ -1487,3 +1487,58 @@ def test_a_plan_that_could_not_be_a_threshold_is_refused_by_the_runner():
         with pytest.raises(ValueError, match="phase_support_sigma"):
             ref.run_stage(synthesize(), _collapsed_plan().stages[0],
                           phase_support_sigma=bad, telemetry=False)
+
+
+def test_the_packages_own_trials_run_under_the_callers_settings(monkeypatch):
+    """Every fit the package runs on a fit's behalf and discards takes the
+    plan settings that fit ran with (WP-2002, B1): the profile interval, the
+    fraction profile, the verify trial, both rivals and the rigid-body misfit
+    arm.  At the default they would answer a question about a hold the
+    caller had switched off."""
+    import dataclasses
+    import inspect
+
+    import rietx as rx
+    from rietx.report import compare_rivals, predict_then_verify
+    from rietx.report.body_misfit import _fit as misfit_arm
+
+    structure, ins = _absent_phase_inputs()
+    # a radius, so the capillary offset the rivals swap is a parameter
+    ins.geometry.goniometer_radius_mm = 280.0
+    data = synthesize()
+    ref = Refinement(structure, ins)
+    plan = dataclasses.replace(rx.PLAN_PRESETS["mccusker_default"](),
+                               phase_support_sigma=None, correlation_guard=0.9)
+    ref.fit(data, plan=plan, telemetry=False)
+
+    seen = []
+    run = Refinement._run_stage
+    signature = inspect.signature(run)
+
+    def spy(self, *args, **kw):
+        bound = signature.bind(self, *args, **kw)
+        bound.apply_defaults()
+        seen.append((bound.arguments["correlation_guard"],
+                     bound.arguments["phase_support_sigma"]))
+        return run(self, *args, **kw)
+
+    monkeypatch.setattr(Refinement, "_run_stage", spy)
+    trials = {
+        "interval": lambda: ref.profile_interval(data, "phases.0.cell.a",
+                                                 max_refits=1),
+        "fraction": lambda: ref.profile_fraction(
+            data, 0, axes=["phases.0.lor_size"], fwhm=[0.0]),
+        "verify": lambda: predict_then_verify(ref, data, rx.SuggestedAction(
+            kind="refine_zero_shift", confidence=0.9, rationale="test",
+            parameter_paths=["instrument.zero_shift"])),
+        "rivals": lambda: compare_rivals(
+            ref, data, ("instrument.zero_shift",
+                        "instrument.geometry.capillary_offset_along_beam")),
+        "misfit": lambda: misfit_arm(ref, ref.structure, data,
+                                     ["phases.*.scale"], 5),
+    }
+    for name, trial in trials.items():
+        seen.clear()
+        trial()
+        assert seen, name
+        assert set(seen) == {(0.9, None)}, (name, seen)

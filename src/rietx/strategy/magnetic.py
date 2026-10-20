@@ -1370,11 +1370,13 @@ def _fit(structure, instrument, data, plan, ties=None, limits=None, hold=()):
     for _n in range(SOLVE_MAX_CONTINUATIONS):
         if result.status != "max_iter":
             break
-        # the plan's absent-phase hold carries into the continuation, or a
-        # trial run with it off would be continued under the default (WP-2002)
+        # the plan's absent-phase hold and correlation guard carry into the
+        # continuation, or a trial run with the hold off would be continued
+        # under the default (WP-2002)
         result = ref.fit(data, plan=RefinementPlan(stages=[Stage(
             f"{last.name} (continued)", freed, max_iter=last.max_iter,
-            ftol=last.ftol)], phase_support_sigma=plan.phase_support_sigma),
+            ftol=last.ftol)], phase_support_sigma=plan.phase_support_sigma,
+            correlation_guard=plan.correlation_guard),
             two_theta_limits=limits, telemetry=False)
     return ref, result
 
@@ -2249,10 +2251,11 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
         if nuclear_stages and turn_on == nuclear_stages[-1].turn_on:
             continue
         nuclear_stages.append(Stage(stage.name, turn_on))
-    # the trials' absent-phase hold, so the reference a ΔBIC compares them
-    # with is fitted under the same rule (WP-2002, B1)
+    # the trials' absent-phase hold and correlation guard, so the reference a
+    # ΔBIC compares them with is fitted under the same rule (WP-2002, B1)
     nuclear_plan = RefinementPlan(stages=nuclear_stages,
-                                  phase_support_sigma=plan.phase_support_sigma)
+                                  phase_support_sigma=plan.phase_support_sigma,
+                                  correlation_guard=plan.correlation_guard)
 
     def enumerate_for(k_try):
         """Candidate classes for one k, or a sentence saying why there are none."""

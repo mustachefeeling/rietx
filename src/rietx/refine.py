@@ -2017,6 +2017,17 @@ class Refinement:
         #: starting intervals of their own, and so does every package fit
         #: built without one (``strategy.magnetic._fit``).
         self._auto_intervals = True
+        #: the two plan settings a stage reads, as the last ``fit`` or
+        #: ``run_stage`` ran them (WP-2002, B1): the keywords of
+        #: :meth:`run_stage`, so a fit the package runs on the caller's behalf
+        #: and discards (the profile interval, the fraction profile, a rival
+        #: or verify trial) passes them on with ``**`` and answers under the
+        #: hold the caller chose rather than the default.  Set beside
+        #: ``result_``, because every such trial reads that result, and
+        #: carried by :meth:`_carry_into`, so :meth:`_trial` inherits it.
+        self._plan_settings: dict[str, float | None] = {
+            "correlation_guard": CORRELATION_GUARD,
+            "phase_support_sigma": PHASE_SUPPORT_SIGMA}
 
         # history state
         self.history: RefinementTree | None = None
@@ -2290,6 +2301,9 @@ class Refinement:
         # dropped would make the two rivals answer different questions
         ref._user_holds = set(self._user_holds)
         ref._pending_reflections = [r.model_copy(deep=True) for r in self._pending_reflections]
+        # and the settings the last fit ran under, so a trial's refits hold
+        # an absent phase by the caller's rule (WP-2002, B1)
+        ref._plan_settings = dict(self._plan_settings)
         # The branch is built from ``self.instrument``, which carries the last
         # stage's *refined* λ — so its own ``__init__`` snapshot would declare a
         # refined value.  A branch is "a second working tree over the same
@@ -4808,6 +4822,9 @@ class Refinement:
             # beside result_, never at entry: a call that is cancelled or fails
             # leaves the previous result and the pattern it was fitted to
             self._fit_pattern = data
+            self._plan_settings = {
+                "correlation_guard": plan.correlation_guard,
+                "phase_support_sigma": plan.phase_support_sigma}
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
@@ -5332,6 +5349,8 @@ class Refinement:
             # beside result_, never at entry: a call that is cancelled or fails
             # leaves the previous result and the pattern it was fitted to
             self._fit_pattern = data
+            self._plan_settings = {"correlation_guard": correlation_guard,
+                                   "phase_support_sigma": phase_support_sigma}
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,

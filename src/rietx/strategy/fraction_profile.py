@@ -214,8 +214,11 @@ def profile_fraction(refinement, data, phase: int | str, *,
                 point = dict(axis=axis, value=value, fwhm=f, admissible=False)
                 try:
                     trial.set_values({axis: value})
+                    # under the plan settings the caller's fit ran with
+                    # (``Refinement._plan_settings``, WP-2002 B1)
                     r = trial.run_stage(data, Stage(f"profile:{axis}", []),
-                                        telemetry=False)
+                                        telemetry=False,
+                                        **trial._plan_settings)
                 except Exception as exc:  # an unmeasurable point, not a crash
                     points.append(FractionProfilePoint(**point, error=str(exc)))
                     continue
