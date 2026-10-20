@@ -171,6 +171,64 @@ def test_a_superlattice_position_has_no_nuclear_intensity_at_all():
     assert float(np.max(f2[~is_parent])) < 1e-12 * scale
 
 
+def _pattern_with_moments_at_zero(phase: Phase) -> np.ndarray:
+    """The forward model's pattern of ``phase`` with every moment held at zero."""
+    import rietx as rx
+    from rietx.schemas.structure import Structure
+
+    quiet = phase.model_copy(deep=True)
+    for atom in quiet.atoms:
+        if atom.moment is not None:
+            for component in ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z"):
+                getattr(atom.moment, component).value = 0.0
+                getattr(atom.moment, component).vary = False
+    instrument = rx.Instrument.constant_wavelength_neutron(2.0, fwhm_deg=0.4)
+    return np.asarray(rx.Refinement(Structure(phases=[quiet]), instrument)
+                      .predict(np.linspace(10.0, 110.0, 2001)))
+
+
+@pytest.mark.parametrize(("k", "index"), [((0, 0, 0), 1), (HALF_A, 2)])
+def test_the_restated_scale_reproduces_the_parents_pattern(k, index):
+    """Moments at zero, the child computes the parent's pattern at the parent's scale.
+
+    The first control above has F_child = |det P|·F_parent, so the child's
+    scale is the parent's over |det P|²; carried unchanged (main before this
+    test) the k = (½,0,0) child computed the parent's pattern ×4.000000 to
+    6e-15, and a held scale started a restated fit four times too strong.
+    k = 0 is the arm that cannot fail: |det P| = 1, nothing to divide.
+    """
+    parent = pbcm_parent().model_copy(update={"scale": P(value=1.7)})
+    cand = candidates(parent.space_group, (0.25, 0.125, 0.25), k).candidates[0]
+    statement = magnetic_supercell(parent, cand, magnetic_species="Fe",
+                                   ion="Fe3+", magnitude=2.0)
+    assert statement.index == index
+    assert statement.phase.scale.value == pytest.approx(1.7 / index ** 2,
+                                                        rel=1e-15)
+    y_parent = _pattern_with_moments_at_zero(parent)
+    y_child = _pattern_with_moments_at_zero(statement.phase)
+    live = y_parent > 1e-3 * y_parent.max()
+    assert live.sum() > 100
+    assert np.allclose(y_child[live] / y_parent[live], 1.0, rtol=1e-9, atol=0.0)
+
+
+def test_the_restated_scale_keeps_the_weight_fraction():
+    """S·Z·M·V is the parent's: the cell mass and volume each grow by |det P|."""
+    from rietx.optimize.qpa import phase_zmv
+
+    parent = pbcm_parent()
+    statement, _cand = _statement(parent, (0.25, 0.125, 0.25), HALF_A,
+                                  species="Fe", ion="Fe3+")
+    child = statement.phase
+
+    def zmv(phase: Phase) -> float:
+        return phase_zmv(phase.space_group, phase.cell.lengths_angles(),
+                         [(a.species, a.x.value, a.y.value, a.z.value,
+                           a.occ.value) for a in phase.atoms]).zmv
+
+    assert child.scale.value * zmv(child) == pytest.approx(
+        parent.scale.value * zmv(parent), rel=1e-12)
+
+
 def test_the_child_cell_volume_is_det_p_times_the_parents():
     statement, _cand = _statement(pbcm_parent(), (0.25, 0.125, 0.25), HALF_A,
                                   species="Fe", ion="Fe3+")
