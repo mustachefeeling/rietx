@@ -24,8 +24,11 @@ printout (`tests/audit_delta.py`, every row the change adds, changes or
 deletes), and one dispatch may cover several pull requests, each with its own
 diff and items. An item is a row added, changed or deleted in
 `src/rietx/_audit.py`, a name added to `UNAUDITED_BASELINE`, a module-level
-number added under a directory `_audit.NOT_WALKED` declares out, or a
-heuristic the author flags that the table cannot see. Read each diff from its
+number added under a directory `_audit.NOT_WALKED` declares out, a field
+added to `_audit.OTHER_RECORD_FIELDS` (the claim that it reports no action),
+an entry added to `_audit.NOT_WALKED` or removed from `_audit.WALKED` or
+`_audit.DEFAULT_SEATS` (the claim that no number there decides anything), or
+a heuristic the author flags that the table cannot see. Read each diff from its
 file. Judge the items named and nothing else.
 
 ## Read first, in full, at review time

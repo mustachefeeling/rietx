@@ -180,7 +180,9 @@ re-reading its own diff.
    file, this worktree, the WP file and the items: each row added, changed or
    deleted in `_audit.py` (`.venv/bin/python -m tests.audit_delta` lists them
    against the merge-base, as CI does), each name added to
-   `UNAUDITED_BASELINE`, and each heuristic of the second trigger. A session
+   `UNAUDITED_BASELINE` or `OTHER_RECORD_FIELDS`, each entry added to
+   `NOT_WALKED` or removed from `WALKED` or `DEFAULT_SEATS` (its declarations
+   list), and each heuristic of the second trigger. A session
    registers agents from the checkout it started in, so where that type is
    not found, dispatch `general-purpose` on Opus and have it read
    `.claude/agents/generality-review.md` first and follow it. Paste its

@@ -147,6 +147,32 @@ def test_a_default_at_a_new_seat_passes_and_at_an_old_one_fails():
     assert "with the new seat rietx.solve.solve" in text
 
 
+def test_a_walk_or_seat_opened_over_new_code_exempts_nothing():
+    """The exemption is for code the base already held: a module made in the
+    change and placed in WALKED still enters its numbers with their tiers."""
+    before = _table(seats={})
+    after = _table('Row("rietx.newmod.CUTOFF", "constant", value=0.5),',
+                   'Row("rietx.solve.cost.NAMED_REFLECTIONS", "constant", value=5),',
+                   'Row("rietx.newmod.run:budget", "default", value=60.0),',
+                   walked={"newmod.py": 2007, "solve": 2007},
+                   seats={"rietx.newmod.run": 2007})
+    a, b = ad.read_table(before), ad.read_table(after)
+    found = ad.deltas(a, b, lambda row: not row.name.startswith("rietx.newmod."))
+    assert [(d.why, d.row.name) for d in found] == [
+        (ad.NEW_UNAUDITED, "rietx.newmod.CUTOFF"),
+        (ad.NEW_UNAUDITED, "rietx.newmod.run:budget"),
+        (ad.OPENED, "rietx.solve.cost.NAMED_REFLECTIONS"),
+    ]
+    assert len(ad.failures(found)) == 2
+
+
+def test_defines_reads_assignments_definitions_and_imports():
+    text = ("from .cost import misfit as score\nimport numpy\nLIMIT: int = 5\n"
+            "def run(budget=60.0):\n    INNER = 1\nclass Spec:\n    pass\n")
+    assert all(ad._defines(text, n) for n in ("score", "numpy", "LIMIT", "run", "Spec"))
+    assert not any(ad._defines(text, n) for n in ("misfit", "INNER", "budget"))
+
+
 def test_a_value_literal_eval_cannot_read_is_compared_as_its_text():
     row = 'Row("rietx.model.x.CAP", "constant", value=float("inf")),'
     table = ad.read_table(_table(row, 'Row("rietx.model.x.SPAN", "constant", '
@@ -188,6 +214,7 @@ def test_the_reader_agrees_with_the_import():
     from rietx import _audit
 
     assert ad.FIELDS == tuple(f.name for f in dataclasses.fields(_audit.Row))
+    assert ad.VALUED == _audit._VALUED
     assert {f.name: f.default for f in dataclasses.fields(_audit.Row)} == {
         f.name: f.default for f in dataclasses.fields(ad.Row) if f.name != "line"}
 
@@ -209,4 +236,11 @@ def test_the_reader_agrees_with_the_import():
     assert table.walked == _audit.WALKED
     assert table.not_walked == _audit.NOT_WALKED
     assert table.seats == _audit.DEFAULT_SEATS
+    assert table.schemas == frozenset(_audit.RECORD_SCHEMAS)
     assert table.other_fields == _audit.OTHER_RECORD_FIELDS
+
+
+def test_an_empty_frozenset_reads_as_empty():
+    text = _table().replace("frozenset({})", "frozenset()")
+    assert "frozenset()" in text
+    assert ad.read_table(text).other_fields == frozenset()

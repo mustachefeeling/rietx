@@ -10,9 +10,9 @@ CI's lint job prints every row a change adds, renames, changes or deletes, and
 `/pr-review` hands that list to the `generality-review` judge.
 
 **Both tables are read from source text by AST**, so the base revision is read
-with `git show` and never imported.  Six names are read: `ROWS`,
-`UNAUDITED_BASELINE`, `WALKED`, `NOT_WALKED`, `DEFAULT_SEATS` and
-`OTHER_RECORD_FIELDS`.  One missing at the base reads as empty.  A row's value
+with `git show` and never imported.  Seven names are read: `ROWS`,
+`UNAUDITED_BASELINE`, `WALKED`, `NOT_WALKED`, `DEFAULT_SEATS`, `RECORD_SCHEMAS`
+and `OTHER_RECORD_FIELDS`.  One missing at the base reads as empty.  A row's value
 that `ast.literal_eval` cannot read, such as ``float("inf")``, is compared as
 its source text.
 
@@ -30,7 +30,9 @@ would also let a change delete one unaudited row to buy room for another.  Three
 new names are exempt: the added half of a rename, a constant in a file the
 base's `WALKED` did not cover, and a default at a seat new to `DEFAULT_SEATS`.
 Opening a walk over existing code enters its rows for the audit that owns them.
-Every other delta is a report.
+So the last two hold only where the base already defined the constant, or the
+seat's function or class.  A module new in the change is placed in `WALKED`,
+and its numbers still need their tiers.  Every other delta is a report.
 
 Stdlib only, like `skill_caps`, whose base revision and git helpers it reuses
 (`RIETX_CAPS_BASE` overrides the base for both).
@@ -86,6 +88,7 @@ class Table(NamedTuple):
     walked: dict[str, object]
     not_walked: dict[str, object]
     seats: dict[str, object]
+    schemas: frozenset[str]
     other_fields: frozenset[str]
 
 
@@ -105,11 +108,9 @@ def _row(call: ast.Call) -> Row:
 
 
 def _collection(node: ast.expr | None) -> object:
-    if node is None:
-        return ()
-    if isinstance(node, ast.Call) and node.args:     # frozenset({...})
-        node = node.args[0]
-    return ast.literal_eval(node)
+    if isinstance(node, ast.Call):                   # frozenset({...}), frozenset()
+        node = node.args[0] if node.args else None
+    return () if node is None else ast.literal_eval(node)
 
 
 def read_table(text: str) -> Table:
@@ -123,6 +124,7 @@ def read_table(text: str) -> Table:
         walked=dict(_collection(found.get("WALKED")) or {}),
         not_walked=dict(_collection(found.get("NOT_WALKED")) or {}),
         seats=dict(_collection(found.get("DEFAULT_SEATS")) or {}),
+        schemas=frozenset(_collection(found.get("RECORD_SCHEMAS"))),
         other_fields=frozenset(_collection(found.get("OTHER_RECORD_FIELDS"))),
     )
 
@@ -151,18 +153,21 @@ def _walked_by(walked: Mapping[str, object], path: str) -> list[str]:
     return sorted(e for e in walked if path == e or path.startswith(e + "/"))
 
 
-def opened_by(row: Row, before: Table, after: Table) -> str | None:
-    """The walk entry or seat new to the table that ``row`` entered with, if any."""
+def opened_by(row: Row, before: Table, after: Table,
+              existed: Callable[[Row], bool]) -> str | None:
+    """The walk entry or seat new to the table that ``row`` entered with, if
+    any, where ``existed`` says the base already held the code it names."""
+    via = None
     if row.kind == "constant":
         paths = _files(row.name)
         now = sorted({e for p in paths for e in _walked_by(after.walked, p)})
         if now and not any(_walked_by(before.walked, p) for p in paths):
-            return now[0]
+            via = now[0]
     elif row.kind == "default":
         seat = row.name.partition(":")[0]
         if seat in after.seats and seat not in before.seats:
-            return seat
-    return None
+            via = seat
+    return via if via is not None and existed(row) else None
 
 
 NEW_UNAUDITED, ADDED, OPENED = "new at 'unaudited'", "added", "opened"
@@ -195,8 +200,14 @@ def changed_fields(old: Row, new: Row) -> list[str]:
     return [f for f in FIELDS[1:] if repr(getattr(old, f)) != repr(getattr(new, f))]
 
 
-def deltas(before: Table, after: Table) -> list[Delta]:
-    """Every row the change added, renamed, changed or deleted."""
+def _always(row: Row) -> bool:
+    return True
+
+
+def deltas(before: Table, after: Table,
+           existed: Callable[[Row], bool] = _always) -> list[Delta]:
+    """Every row the change added, renamed, changed or deleted.  ``existed``
+    says whether the base defined the code a row names (`defined_at`)."""
     deleted = sorted(before.rows.keys() - after.rows.keys())
     out = []
     for name in sorted(after.rows.keys() - before.rows.keys()):
@@ -206,7 +217,7 @@ def deltas(before: Table, after: Table) -> list[Delta]:
         if pair is not None:
             deleted.remove(pair)
             out.append(Delta(RENAMED, row, before.rows[pair]))
-        elif via := opened_by(row, before, after):
+        elif via := opened_by(row, before, after, existed):
             out.append(Delta(OPENED, row, via=via))
         else:
             out.append(Delta(NEW_UNAUDITED if row.tier == UNAUDITED else ADDED, row))
@@ -218,7 +229,8 @@ def deltas(before: Table, after: Table) -> list[Delta]:
 
 
 _DECLARED = (("UNAUDITED_BASELINE", "baseline"), ("OTHER_RECORD_FIELDS", "other_fields"),
-             ("WALKED", "walked"), ("NOT_WALKED", "not_walked"), ("DEFAULT_SEATS", "seats"))
+             ("WALKED", "walked"), ("NOT_WALKED", "not_walked"), ("DEFAULT_SEATS", "seats"),
+             ("RECORD_SCHEMAS", "schemas"))
 
 
 def declarations(before: Table, after: Table) -> list[tuple[str, str, list[str]]]:
@@ -311,6 +323,46 @@ def failures(found: list[Delta]) -> list[str]:
 
 # -- the tree and the base (impure) --------------------------------------
 
+def _defines(text: str, name: str) -> bool:
+    """Whether a module's source binds ``name`` at its top level."""
+    tree = ast.parse(text)
+    if any(bound == name for bound, _ in _module_assignments(tree)):
+        return True
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            if node.name == name:
+                return True
+        elif isinstance(node, ast.ImportFrom | ast.Import):
+            if any((a.asname or a.name.rpartition(".")[2]) == name for a in node.names):
+                return True
+    return False
+
+
+def defined_at(rev: str) -> Callable[[Row], bool]:
+    """Whether ``rev`` defined the constant, or the seat's first attribute,
+    that a row names.  The longest module path that exists is the one read,
+    as an import resolves it."""
+    texts: dict[str, str | None] = {}
+
+    def text(rel: str) -> str | None:
+        if rel not in texts:
+            shown = _git("show", f"{rev}:src/rietx/{rel}")
+            texts[rel] = shown.stdout if shown.returncode == 0 else None
+        return texts[rel]
+
+    def existed(row: Row) -> bool:
+        parts = (row.name.partition(":")[0] if row.kind == "default" else row.name).split(".")
+        for i in range(len(parts) - 1, 1, -1):
+            stem = "/".join(parts[1:i])
+            for rel in (f"{stem}.py", f"{stem}/__init__.py"):
+                found = text(rel)
+                if found is not None:
+                    return _defines(found, parts[i])
+        return False
+
+    return existed
+
+
 def main() -> int:
     rev, how = base()
     if rev is None:
@@ -327,7 +379,8 @@ def main() -> int:
         return 0
     before = read_table(shown.stdout)
     after = read_table((ROOT / TABLE).read_text(encoding="utf-8"))
-    found, declared = deltas(before, after), declarations(before, after)
+    found = deltas(before, after, defined_at(rev))
+    declared = declarations(before, after)
     print(report(found, declared, how))
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:

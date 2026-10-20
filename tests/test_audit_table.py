@@ -110,7 +110,7 @@ def test_an_audited_row_carries_its_evidence():
         if row.tier == "unaudited":
             continue
         assert row.evidence, f"{row.name}: tier {row.tier!r} with no evidence"
-        if row.kind in ("code", "action", "default"):
+        if row.kind in _audit._STATES_AMBIGUITY:
             assert row.ambiguity is not None, (
                 f"{row.name}: an audited {row.kind} row states its kind under "
                 "DESIGN.md § Rules, 1")
@@ -187,5 +187,5 @@ def test_a_printed_row_names_the_item_and_fails_until_filled():
         assert _audit.same(printed.value, row.value), row.name
         assert printed.tier not in _audit.TIERS, row.name
         assert printed.evidence == "", row.name
-        if row.kind in ("code", "action", "default"):
+        if row.kind in _audit._STATES_AMBIGUITY:
             assert printed.ambiguity not in (1, 2, 3), row.name
