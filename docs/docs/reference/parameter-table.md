@@ -69,7 +69,6 @@ Two atoms and a default instrument make 42 rows, of which 25 could be freed.
 | `ParameterRow.esd` | `float` or `None` | the esd from the most recent fit, where the row was free or tied in it |
 | `ParameterRow.mode_fixed` | `bool` | fixed by the Le Bail or Pawley mode |
 | `ParameterRow.needs_held_cell` | `bool` | a wavelength that cannot be freed while this pattern's cell is free |
-| `ParameterRow.body` | `str` or `None` | the rigid body that places this row |
 | `ParameterRow.origin_axis` | `(int, int, int)` or `None` | the direction along which this row holds a polar group's floating origin |
 | `ParameterRow.help_key` | `str` or `None` | the [parameter map](parameters.md) entry that describes this row's family |
 
@@ -188,8 +187,8 @@ A distance obeys periodic boundary conditions, so the second atom is taken at a 
 Leave the image unnamed and the nearest one is found once, at the coordinates a stage starts from, and kept for that stage.
 Name it whenever an atom may move far enough to change which image is nearest.
 
-Two one-sided kinds hold a distance within a range.
-`TetherRestraint` is zero inside its `max_distance` and pulls beyond it, and `AntiBumpRestraint` is zero beyond its `min_distance` and pushes inside it.
+Two one-sided kinds, a tether and an anti-bump, hold a distance within a range.
+They belong to the rigid-body technique, which is provisional by declaration ({ref}`provisional-by-declaration`), and are documented with it.
 
 ## Bounds
 

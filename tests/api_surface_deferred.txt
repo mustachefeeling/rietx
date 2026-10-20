@@ -10,6 +10,7 @@
 # excluded with a reason, or deliberately deferred by regenerating this file —
 # which shows up as a diff in review.  WP-1067 closes when this file has no
 # names left.
+AntiBumpRestraint
 AntiBumpRestraint.atom_i
 AntiBumpRestraint.atom_j
 AntiBumpRestraint.min_distance
@@ -27,6 +28,8 @@ BodyTorsion.axis
 BodyTorsion.moves
 BodyTorsion.name
 BodyTorsion.vary
+ParameterRow.body
+Phase.rigid_bodies
 RigidBody.atoms
 RigidBody.name
 RigidBody.orientation
@@ -35,6 +38,7 @@ RigidBody.riding
 RigidBody.rotation_vary
 RigidBody.template
 RigidBody.torsions
+TetherRestraint
 TetherRestraint.atom_i
 TetherRestraint.atom_j
 TetherRestraint.max_distance

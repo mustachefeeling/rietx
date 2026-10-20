@@ -233,8 +233,10 @@ Its first five fields describe the crystal, and the rest describe what this spec
 | `Phase.propagation_vector` | three rational strings, or None | `None` | a commensurate k on the conventional reciprocal cell, adding satellites at Q = H ± k, {eq}`sat-position` |
 | `Phase.magnetic_symmetry` | `MagneticSymmetry` or `None` | `None` | the magnetic space group, as its magCIF operator and centring loops, {eq}`int-Fmag` |
 | `Phase.restraints` | `list` | `[]` | soft restraints on bonds, angles and values, {eq}`par-restraint` |
-| `Phase.rigid_bodies` | `list[RigidBody]` | `[]` | rigid bodies over this phase's own atoms ([Rigid bodies](../theory/parameterisation.md#rigid-bodies)) |
 | `Phase.floating_origin` | `"hold"`, `"centroid"` or `None` | `None` | what fixes the origin of a polar space group |
+
+A phase can also carry rigid bodies over its own atoms.
+That field belongs to the rigid-body technique, which is provisional by declaration ({ref}`provisional-by-declaration`); [Rigid bodies](../theory/parameterisation.md#rigid-bodies) gives the model.
 
 A phase refuses three pairs of fields declared together.
 `preferred_orientation` and `texture` are two models of one effect.
