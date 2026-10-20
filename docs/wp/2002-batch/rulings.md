@@ -146,8 +146,10 @@ briefs are in the session transcript; the measurements behind them are summarise
   "no default occupancy limit is recalled" was wrong and the removal stands on the
   principle alone; the 0.3-10 000 nm size range is in v9 § 2.17's prose about `CS_L`, not in
   its table, so the citation holds for v9.
-- **Still open**: `OCCUPANCY_ABOVE_ONE` (the maintainer leans to an info record), the
-  parsimony tie-break in `solve_magnetic`, and the interval's cost.
+- **Answered the same day** (three short questions after the briefs): `OCCUPANCY_ABOVE_ONE`
+  is an info record, with no significance gate; every ΔBIC tie in `solve_magnetic`
+  abstains, the tied classes listed fewest moment parameters first; the stationary angle's
+  automatic interval stays automatic at 20-32 refits an angle. All three as recommended.
 
 ## Still open (first round's list, kept for the record)
 
