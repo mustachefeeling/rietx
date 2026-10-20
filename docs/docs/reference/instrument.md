@@ -16,7 +16,7 @@ Every object on this page refuses a field it does not know, and checks its bound
 |---|---|---|---|
 | `Instrument.source` | `Source`, `NeutronSource` or `TOFSource` | required | the radiation, chosen by its `kind` |
 | `Instrument.geometry` | `Geometry` | a capillary with no aberrations | how the specimen sits in the beam |
-| `Instrument.zero_shift` | `Parameter` | 0.0 deg, in [−0.5, 0.5] | a constant 2θ offset, the one position error every geometry has |
+| `Instrument.zero_shift` | `Parameter` | 0.0 deg, unbounded | a constant 2θ offset, the one position error every geometry has |
 | `Instrument.profile` | `ProfileTCHZ` | see [Peak width](#peak-width) | the instrument's contribution to every peak's width |
 | `Instrument.background` | `BackgroundChebyshev`, `BackgroundPSpline` or `BackgroundFixedPlusChebyshev` | four Chebyshev terms, fixed at 0 | the curve under the peaks |
 | `Instrument.extra_components` | list of `HumpComponent` and `PeakComponent` | `[]` | declared peaks added on top of the background |
@@ -89,7 +89,7 @@ A file that lists a monochromator before the sample stays `None`.
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `EmissionLine.wavelength` | `Parameter` | required | λ in Å, positive |
-| `EmissionLine.weight` | `Parameter` | 1.0, in [0, 2] | intensity relative to line 0 |
+| `EmissionLine.weight` | `Parameter` | 1.0, at or above 0 | intensity relative to line 0 |
 
 A bare number is accepted for the wavelength, so `EmissionLine(wavelength=1.5406)` builds a fixed one, bounded below at 1e-3 Å.
 Line 0's weight is locked at 1, because it is degenerate with the phase scales.
@@ -374,11 +374,11 @@ assert thirds.source.harmonics == [Harmonic(order=2), Harmonic(order=3)]
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `Harmonic.order` | `int`, ≥ 2 | 2 | n in λ/n |
-| `Harmonic.weight` | `Parameter` | 0.01, fixed, in [0, 0.5] | intensity relative to line 0, as for any emission line |
+| `Harmonic.weight` | `Parameter` | 0.01, fixed, at or above 0 | intensity relative to line 0, as for any emission line |
 | `Harmonic.wavelength_factor` | `float` | derived | 1/n, the factor on the fundamental wavelength |
 
 The weight starts at 1 %, below every value reported for a real beamline, so the fit has to move it to reach one.
-A weight that runs to the bound of 0.5 says the peaks it fills are not harmonic peaks.
+A weight that refines far above a few per cent says the peaks it fills are not harmonic peaks, and [`HARMONIC_FRACTION`](diagnostics-refinement.md#harmonic_fraction) reports it at `warning` above 15 %.
 Free the weights with `instrument.source.lines.*.weight` once the profile and the scale are settled, never in the first stage.
 [`HARMONIC_FRACTION`](diagnostics-refinement.md#harmonic_fraction) reports the refined fraction.
 
@@ -416,15 +416,15 @@ Every geometry:
 |---|---|---|---|
 | `Geometry.kind` | one of three strings | `"debye_scherrer"` | which of the three geometries |
 | `Geometry.goniometer_radius_mm` | `float` or `None` | `None` | R in mm; required for `bragg_brentano`, and what {eq}`pos-capillary` divides by |
-| `Geometry.axial_sl`, `Geometry.axial_hl` | `Parameter` | 0.0, in [0, 0.2] | Finger-Cox-Jephcoat axial divergence: the specimen and receiving-slit half-lengths over R |
+| `Geometry.axial_sl`, `Geometry.axial_hl` | `Parameter` | 0.0, at or above 0 | Finger-Cox-Jephcoat axial divergence: the specimen and receiving-slit half-lengths over R |
 | `Geometry.packing_fraction` | `float` | 0.6, in (0, 1] | the solid fraction of the specimen, used to estimate µR and µt |
 
 A capillary, `kind="debye_scherrer"`:
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `Geometry.capillary_offset_along_beam` | `Parameter` | 0.0 mm, in [−1, 1] | the sin 2θ half of {eq}`pos-capillary`, positive downstream |
-| `Geometry.capillary_offset_across_beam` | `Parameter` | 0.0 mm, in [−1, 1] | the cos 2θ half, positive toward increasing 2θ |
+| `Geometry.capillary_offset_along_beam` | `Parameter` | 0.0 mm, unbounded | the sin 2θ half of {eq}`pos-capillary`, positive downstream |
+| `Geometry.capillary_offset_across_beam` | `Parameter` | 0.0 mm, unbounded | the cos 2θ half, positive toward increasing 2θ |
 | `Geometry.mu_r` | `float` or `None` | `None` | µR of the packed specimen, {eq}`corr-rouse`; 0 is off |
 | `Geometry.capillary_radius_mm` | `float` or `None` | `None` | the bore radius in mm, used to estimate µR |
 
@@ -432,15 +432,21 @@ A flat plate, `kind="bragg_brentano"` or `kind="flat_plate_transmission"`:
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `Geometry.sample_displacement` | `Parameter` | 0.0 mm, in [−1, 1] | the specimen surface off the goniometer axis, as cos θ, {eq}`pos-displacement` |
-| `Geometry.sample_transparency` | `Parameter` | 0.0, in [0, 0.05] | penetration into the specimen, as sin 2θ, {eq}`pos-transparency` |
+| `Geometry.sample_displacement` | `Parameter` | 0.0 mm, unbounded | the specimen surface off the goniometer axis, as cos θ, {eq}`pos-displacement` |
+| `Geometry.sample_transparency` | `Parameter` | 0.0, at or above 0 | penetration into the specimen, as sin 2θ, {eq}`pos-transparency` |
 | `Geometry.mu_t` | `float` or `None` | `None` | µt of the specimen, {eq}`corr-fp2` and {eq}`corr-fp3a` |
 | `Geometry.thickness_mm` | `float` or `None` | `None` | the specimen thickness in mm, used to estimate µt |
 | `Geometry.surface_roughness` | `RoughnessSuortti`, `RoughnessPitschke` or `None` | `None` | low-angle intensity loss, {eq}`corr-suortti` or {eq}`corr-pitschke`; `bragg_brentano` and X-rays only |
 
 A transmission plate has no displacement or transparency model: only `Instrument.zero_shift` moves its peaks.
-The ±1 mm bound on a displacement is a guard against a runaway fit.
-It sits about 20 times above the displacement of a carefully packed plate.
+No position correction carries a default bound, and the transparency and the axial ratios keep their floor of 0.
+Before 1.10, `Instrument.zero_shift` was held to ±0.5°, a displacement and each capillary offset to ±1 mm, and the transparency to 0.05.
+Where a scan cannot separate a position error from the cell, the fit reports [`FLAT_DIRECTION`](diagnostics-refinement.md#flat_direction) and the cell's esd grows to show it, with or without a bound.
+On 11-BM NAC over 2-24° 2θ with the zero shift and both capillary offsets free, the bounded fit put the cell 1097 ppm from its reference with an esd of 2612 ppm.
+The unbounded fit let the offsets slide to +4.86 and +2.12 mm, put the cell 5109 ppm away, and reported an esd of 2579 ppm.
+Both fits reported the same two `FLAT_DIRECTION` findings.
+The bound acted as a prior that the mount is aligned, which held on 11-BM, and it left the esd as wide as before.
+That prior is a fact about your instrument, so state a bound yourself where you know the mount.
 
 ### Absorption
 
@@ -573,7 +579,34 @@ assert len(bkg.coefficients) == len(bkg.breakpoints) + 2
 
 `auto_background` sizes a model to a pattern.
 It takes the knot spacing from the amorphous-hump score, and adds the air term only where the diagnostics ask for it.
-With `kind="chebyshev"` it returns a polynomial whose order BIC chose.
+With `kind="chebyshev"` it gives a polynomial whose order BIC chose.
+It returns a `BackgroundChoice`, which carries the model and the scores each choice was made on.
+Assign `BackgroundChoice.background` to `Instrument.background`, as in `ins.background = rx.auto_background(data).background`.
+Before 1.10 the call returned the model alone.
+
+| Field | Meaning |
+|---|---|
+| `BackgroundChoice.background` | the model, a P-spline or a Chebyshev |
+| `BackgroundChoice.kind` | `"pspline"` or `"chebyshev"` |
+| `BackgroundChoice.amorphous_hump_score`, `BackgroundChoice.hump_trigger` | the score the knot spacing was chosen on, and the trigger above which the knots are 3° apart rather than 8° |
+| `BackgroundChoice.knot_step_deg` | the knot spacing chosen, in degrees 2θ |
+| `BackgroundChoice.air_scatter_gain`, `BackgroundChoice.air_scatter_trigger` | the score the 1/(2θ) term was chosen on, and the trigger above which it is declared |
+| `BackgroundChoice.air_scatter` | whether the model carries the 1/(2θ) term |
+| `BackgroundChoice.selection` | the Chebyshev order scan: every order tried, with its BIC and Durbin-Watson d, and whether d reached the stop |
+| `BackgroundChoice.seed_level` | the count every coefficient starts at under `seed=True` |
+
+A field the kind made no choice on is `None`: the P-spline fields on a Chebyshev, `selection` on a P-spline, and `seed_level` without `seed=True`.
+
+The order scan is a `BackgroundSelection`, the same object `rietx.background.select_chebyshev_order` returns.
+
+| Field | Meaning |
+|---|---|
+| `BackgroundSelection.method` | `"chebyshev_order"`, or `"arpls_lambda"` from `rietx.background.select_arpls_lambda` |
+| `BackgroundSelection.selected` | the order chosen, the minimum-BIC order of the scan |
+| `BackgroundSelection.n_masked_channels` | the background channels the scan scored, after the peaks were masked |
+| `BackgroundSelection.scores` | one `CandidateScore` per order tried: `CandidateScore.complexity` (the order), `CandidateScore.bic` and `CandidateScore.durbin_watson` |
+| `BackgroundSelection.stopped_by_whiteness` | whether Durbin-Watson d reached the stop, 1.8, and ended the scan |
+| `BackgroundSelection.diagnostics` | `BACKGROUND_ORDER_AT_CAP` when the order is the scan's cap rather than a choice |
 
 ### Fixed curve plus Chebyshev
 

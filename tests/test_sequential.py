@@ -711,6 +711,21 @@ def test_collapse_unions_the_plans_turn_on_globs():
             assert glob in single.stages[0].turn_on
 
 
+def test_collapse_keeps_every_plan_level_setting():
+    """The collapsed warm refit is the plan compressed, not another protocol,
+    so every plan-level field crosses it: one dropped here runs a series at
+    its default, as the absent-phase hold's threshold would (WP-2002, B1)."""
+    import dataclasses
+
+    plan = dataclasses.replace(
+        rx.RefinementPlan.mccusker_structural(), correlation_guard=0.9,
+        intermediate_ftol=1e-4, lebail_passes=3, phase_support_sigma=None)
+    single = _collapse(plan)
+    for f in dataclasses.fields(plan):
+        if f.name != "stages":
+            assert getattr(single, f.name) == getattr(plan, f.name), f.name
+
+
 def test_a_warm_refit_lifts_no_carried_floor_value():
     """WP-1938: the collapsed warm refit carries no ``Stage.seed``.
 

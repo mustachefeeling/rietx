@@ -310,6 +310,24 @@ def test_dofs_in_frame_needs_no_cell():
                                atol=1e-13)
 
 
+def test_an_angle_the_data_cannot_see_stops_its_interval_at_half_a_turn(cw):
+    """WP-2002: the automatic profile interval of a left-out moment angle.
+
+    This fit ends with the magnetic scale at 0.013(15), so every angle column
+    vanishes and the stationary test leaves both angles out.  Before the
+    half-turn stop each side doubled out to ±1e12 rad and spent its whole
+    refit budget, 120 refits an angle (0.08 s of fit, 15.9 s of interval).
+    An angle repeats every 2π, so a side still under the threshold half a
+    turn away has no end, and says so."""
+    _ref, result = _fit(cw, 103.0, PLAN_2)
+    intervals = [p.interval for p in result.parameters if p.interval is not None]
+    assert intervals, "the stationary test left no angle out on this fit"
+    for interval in intervals:
+        stops = {interval.lower_stop, interval.upper_stop}
+        assert stops <= {"period", "threshold", "bound"}, (interval.path, stops)
+        assert interval.n_refits < 120, (interval.path, interval.n_refits)
+
+
 # --------------------------------------------------------------------------
 # review of #615, round 1
 # --------------------------------------------------------------------------

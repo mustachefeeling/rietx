@@ -120,7 +120,7 @@ paper's eqs (10)-(12) (`optimize.statistics.berar_lelann_factor`; quadrature,
 checked by simulation). It is one scalar applied to every esd, so it says how
 correlated the residual is, not how wrong any one parameter's esd is.
 
-`report.identifiability` quotes raw χ²_red, the inflation (already in every quoted esd, dividable back out) and Durbin-Watson side by side, plus the δR line (`delta_r_slope` / `delta_r_intercept`: sorted Δ/σ against
+`report.identifiability` quotes raw χ²_red, the inflation (already in every quoted esd; `stderr_uncorrected` omits it) and Durbin-Watson side by side, plus the δR line (`delta_r_slope` / `delta_r_intercept`: sorted Δ/σ against
 normal quantiles; slope ≈ 1 and intercept ≈ 0 on honest σ, slope > 1 when σ is
 underestimated).
 
@@ -381,7 +381,7 @@ The cut, `profile.delta_chi2_cut`, is the 95 % Δχ² for one parameter (3.84)
 scaled by the same χ²_red and Bérar-Lelann factor every esd already carries,
 so on a single quadratic basin it reproduces W ± 1.96 esd. `excess` is the
 farthest admissible fraction from the fit's in units of that half-width, and
-`QPA_FRACTION_UNDETERMINED` fires past 2. The axis is the width, never the
+`QPA_FRACTION_RANGE` (info) states it. The axis is the width, never the
 scale: at a pinned scale the refit reaches the hump basin only by broadening
 the phase below `PHASE_SUPPORT_SIGMA`, where WP-1301 holds its structure, so the scan stops short.
 The grid stops at half the range because on the full range the frozen peak

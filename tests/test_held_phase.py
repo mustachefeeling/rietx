@@ -1360,3 +1360,185 @@ def test_the_tied_hold_is_drawn_for_inspection():
     assert tied.statistics.rwp == untied.statistics.rwp
     assert {p for s in untied.stages for p in s.held} == {"phases.1.cell.a"}
     assert {p for s in tied.stages for p in s.held} == {"vars.A"}
+
+
+# ----------------------------------------------------------------------
+# the threshold is the caller's (WP-2002, B1, ruled 2026-10-19)
+# ----------------------------------------------------------------------
+def _with_support_sigma(plan, sigma):
+    import dataclasses
+
+    import rietx as rx
+
+    plan = (rx.PLAN_PRESETS[plan]() if isinstance(plan, str) else plan)
+    return dataclasses.replace(plan, phase_support_sigma=sigma)
+
+
+def test_the_hold_switched_off_holds_nothing_and_still_reports(held_fit):
+    """``phase_support_sigma=None`` is no hold, no release and no restore.
+
+    The fixture the default holds (phase 1, at 0.04σ) refines with its cell
+    free, so the cell is a refined parameter again and no stage records a
+    hold.  ``PHASE_UNCONSTRAINED`` still fires at the default 3σ, because the
+    values are still not measurements, and its message says what happened
+    rather than what a hold did.
+    """
+    _, default = held_fit
+    assert {p for s in default.stages for p in s.held} == {"phases.1.cell.a"}
+
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    result = ref.fit(synthesize(), plan=_with_support_sigma("mccusker_default", None),
+                     telemetry=False)
+
+    for stage in result.stages:
+        assert stage.held == [] and stage.released == [], stage.name
+    assert "phases.1.cell.a" in {p.path for p in result.parameters}
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 1, [d.code for d in result.diagnostics]
+    assert fired[0].value < PHASE_SUPPORT_SIGMA
+    assert "held for" not in fired[0].message
+    assert "refined without signal" in fired[0].message
+    assert f"under the {PHASE_SUPPORT_SIGMA:g}σ" in fired[0].message
+    # the phase that is there is fitted as before
+    assert result.statistics.rwp < 0.05
+
+
+def test_a_raised_threshold_holds_a_phase_the_default_releases(released_fit):
+    """The threshold reaches the stage-start hold, the release and the report.
+
+    Under the default the CaF₂ phase starts invisible, is held, appears while
+    the stage solves and is released.  At 50σ it is held at the start and,
+    its cell held 1.2 % off the truth, reads 3.7σ at the answer, so it stays
+    held: the failure the ruling names for a phase whose peaks sit in the
+    wrong place.  The host phase, at 220σ, is held under neither.
+    """
+    _, default = released_fit
+    assert default.stages[0].released == ["phases.1.cell.a"]
+
+    import rietx as rx
+
+    data = _ramp_patterns([700.0])[0]
+    ref = rx.Refinement(_ramp_start(caf2_a=5.40), _ramp_instrument(),
+                        history=False)
+    result = ref.fit(data, plan=_with_support_sigma(_collapsed_plan(), 50.0),
+                     telemetry=False)
+
+    stage = result.stages[0]
+    assert stage.held == ["phases.1.cell.a"] and stage.released == []
+    assert ref.structure.phases[1].cell.a.value == 5.40
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 1 and fired[0].where == ["phases.1.cell.a"]
+    assert "under the 50σ" in fired[0].message
+
+
+def test_the_cell_window_follows_the_plans_threshold():
+    """The window backs the hold, so it is spent on the phases the same
+    number calls unseen, and on none when the hold is off."""
+    from rietx.optimize.least_squares import _freeze_cell_windows
+
+    structure, ins = _absent_phase_inputs()
+    model = compile_model(structure, ins, synthesize(), mode="rietveld")
+    table = ParameterTable(structure, ins)
+    table.set_vary(["phases.*.cell.a"], True)
+    support = model.phase_support(table.decode(table.x0()))
+    assert support[1] < PHASE_SUPPORT_SIGMA <= support[0], "fixture moved"
+
+    _freeze_cell_windows(model, table)
+    assert table._cell_window_phases == {1}
+    _freeze_cell_windows(model, table, None)
+    assert table._cell_window_phases == set()
+    lo, hi = table.bounds()
+    assert np.all(np.isinf(lo)) and np.all(np.isinf(hi))
+    _freeze_cell_windows(model, table, 2.0 * float(support[0]))
+    assert table._cell_window_phases == {0, 1}
+
+
+def test_the_joint_path_takes_the_plans_threshold():
+    """``MultiHistogramRefinement.fit`` reads the same field: with the hold
+    off, a phase no histogram can see is held in no stage, and the joint
+    report still names it."""
+    import rietx as rx
+
+    structure, ins = _absent_phase_inputs()
+    ref = rx.MultiHistogramRefinement(structure, [ins, ins.model_copy(deep=True)])
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+    ], phase_support_sigma=None)
+    result = ref.fit([synthesize(), synthesize()], plan=plan)
+
+    assert all(s.held == [] for s in result.stages)
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 1 and "held for" not in fired[0].message
+    assert "refined without signal" in fired[0].message
+
+
+def test_a_plan_that_could_not_be_a_threshold_is_refused_by_the_runner():
+    """A ``RefinementPlan`` is a dataclass and validates nothing, so the runner
+    checks the field where it reads it, in the words ``PlanSpec`` uses; zero
+    or a NaN would otherwise switch the hold off without saying so."""
+    structure, ins = _absent_phase_inputs()
+    for bad in (0.0, -1.0, float("nan"), float("inf")):
+        ref = Refinement(structure, ins, history=False)
+        with pytest.raises(ValueError, match="phase_support_sigma"):
+            ref.fit(synthesize(), plan=_with_support_sigma("mccusker_default", bad),
+                    telemetry=False)
+        with pytest.raises(ValueError, match="phase_support_sigma"):
+            ref.run_stage(synthesize(), _collapsed_plan().stages[0],
+                          phase_support_sigma=bad, telemetry=False)
+
+
+def test_the_packages_own_trials_run_under_the_callers_settings(monkeypatch):
+    """Every fit the package runs on a fit's behalf and discards takes the
+    plan settings that fit ran with (WP-2002, B1): the profile interval, the
+    fraction profile, the verify trial, both rivals and the rigid-body misfit
+    arm.  At the default they would answer a question about a hold the
+    caller had switched off."""
+    import dataclasses
+    import inspect
+
+    import rietx as rx
+    from rietx.report import compare_rivals, predict_then_verify
+    from rietx.report.body_misfit import _fit as misfit_arm
+
+    structure, ins = _absent_phase_inputs()
+    # a radius, so the capillary offset the rivals swap is a parameter
+    ins.geometry.goniometer_radius_mm = 280.0
+    data = synthesize()
+    ref = Refinement(structure, ins)
+    plan = dataclasses.replace(rx.PLAN_PRESETS["mccusker_default"](),
+                               phase_support_sigma=None, correlation_guard=0.9)
+    ref.fit(data, plan=plan, telemetry=False)
+
+    seen = []
+    run = Refinement._run_stage
+    signature = inspect.signature(run)
+
+    def spy(self, *args, **kw):
+        bound = signature.bind(self, *args, **kw)
+        bound.apply_defaults()
+        seen.append((bound.arguments["correlation_guard"],
+                     bound.arguments["phase_support_sigma"]))
+        return run(self, *args, **kw)
+
+    monkeypatch.setattr(Refinement, "_run_stage", spy)
+    trials = {
+        "interval": lambda: ref.profile_interval(data, "phases.0.cell.a",
+                                                 max_refits=1),
+        "fraction": lambda: ref.profile_fraction(
+            data, 0, axes=["phases.0.lor_size"], fwhm=[0.0]),
+        "verify": lambda: predict_then_verify(ref, data, rx.SuggestedAction(
+            kind="refine_zero_shift", confidence=0.9, rationale="test",
+            parameter_paths=["instrument.zero_shift"])),
+        "rivals": lambda: compare_rivals(
+            ref, data, ("instrument.zero_shift",
+                        "instrument.geometry.capillary_offset_along_beam")),
+        "misfit": lambda: misfit_arm(ref, ref.structure, data,
+                                     ["phases.*.scale"], 5),
+    }
+    for name, trial in trials.items():
+        seen.clear()
+        trial()
+        assert seen, name
+        assert set(seen) == {(0.9, None)}, (name, seen)

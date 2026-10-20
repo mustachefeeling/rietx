@@ -484,13 +484,18 @@ CELL_WINDOW_ANGLE_DEG = 2.0
 #: refinement bound.
 CELL_MIN_LENGTH_A = 1.5
 
-#: Unconditional post-solve safety window (fraction, degrees) — see
-#: ``refine.clamp_cell_runaway``, which applies this to every cell parameter
-#: that is itself a free *column* regardless of ``phase_support``, after a
-#: stage has solved and committed.  **"Free" is narrower than "moving" here**
+#: Unconditional post-solve safety window (fraction, degrees): the
+#: **trigger** for a runaway, never a value anything is moved to.  See
+#: ``refine.reset_cell_runaway``, which tests every cell parameter that is
+#: itself a free *column* against it, regardless of ``phase_support``, after a
+#: stage has solved and committed.  A phase with one parameter outside it gets
+#: its whole free cell put back at the stage's starting values and held while
+#: the stage solves again (WP-2002, B8, ruled 2026-10-19); until then the
+#: parameter was pulled back to this window's edge, a value no fit produced.
+#: **"Free" is narrower than "moving" here**
 #: (the ``moving_paths``-vs-``free_paths`` rule, root CLAUDE.md), and the gap
 #: is not closed: a cell tied to a caller's free ``vars.X`` is a *moving*
-#: path, not a *free* one, so it is never clamped directly — clamping the
+#: path, not a *free* one, so it is never reset directly — resetting the
 #: driver would move every other value it also reaches, which is not this
 #: function's decision to make.  Such an escape is named instead, never
 #: silently passed through: see ``refine._vars_driven_cell_escapes`` and the
@@ -526,7 +531,8 @@ CELL_MIN_LENGTH_A = 1.5
 #: ±15 % is three times :data:`CELL_WINDOW_FRACTION` — wide enough that no
 #: real measurement needs it (thermal expansion and a composition swing are
 #: each a few percent at most) and narrow enough that an escaping cell is
-#: pulled back in Å rather than left to reach the thousands.
+#: caught in Å rather than left to reach the thousands.  It fired in none of
+#: WP-1523's 104 fits.
 CELL_SAFETY_FRACTION = 0.15
 CELL_SAFETY_ANGLE_DEG = 3.0 * CELL_WINDOW_ANGLE_DEG
 
@@ -540,7 +546,7 @@ def _cell_parameter_name(path: str, *, phases: set[int] | None) -> str | None:
     """``"phases.0.cell.a"`` → ``"a"`` when phase 0 is in ``phases``, else None.
 
     ``phases=None`` means *any* phase — asked only by ``refine``'s
-    unconditional post-solve safety net (``clamp_cell_runaway`` and the
+    unconditional post-solve safety net (``reset_cell_runaway`` and the
     helpers that name, word and withhold around it), which reads every cell
     path regardless of which phase it belongs to.
     (:meth:`ParameterTable.bounds` never passes ``None`` here: it calls this
@@ -571,9 +577,9 @@ def cell_window(name: str, value: float, lo: float, hi: float,
     """The default bounds on one cell parameter, anchored at ``value``.
 
     ``fraction``/``angle_deg`` default to the per-phase-support window's own
-    constants; ``refine.clamp_cell_runaway`` passes
+    constants; ``refine.reset_cell_runaway`` passes
     :data:`CELL_SAFETY_FRACTION`/:data:`CELL_SAFETY_ANGLE_DEG` instead, three
-    times as wide, to pull an escaped cell back after a stage regardless of
+    times as wide, to find a cell that escaped during a stage regardless of
     which phase it belonged to — see that constant's docstring.  Every
     existing caller of this function keeps the old numbers.
 
@@ -883,26 +889,12 @@ def strain_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
 #: strain pair above.
 _SIZE_NAMES = ("lor_size", "gauss_size")
 
-#: The smallest crystallite (Å) the size cap will let a fit *reach* — a floor
-#: on size, hence a ceiling on the 1/cosθ coefficient.  **2 nm, deliberately
-#: permissive.**  This is not a physics claim about how small a crystallite may
-#: be (genuinely nanocrystalline specimens reach a few nm and must refine
-#: freely); it is a runaway fence a couple of unit cells below anything the
-#: archive contains — the smallest well-determined refined size in 606 solved
-#: TOPAS refinements is ≈ 33 nm, and every refined size below ~2 nm in that
-#: corpus is an exploratory or placeholder fit (a phase named ``pixie_dust``, a
-#: 0.69 nm "crystallite" of Si — smaller than 1.3 unit cells — in a folder
-#: literally named *To Rietveld or not to Rietveld*).  The surprising-but-
-#: possible band above it is the :data:`~rietx.refine.SIZE_FLAG_SIZE_A` flag,
-#: which bounds nothing.  See :func:`size_cap`.
-SIZE_CAP_MIN_SIZE_A = 20.0
-
 #: The range backstop's fraction, the strain rule reused: a size term whose own
 #: FWHM at the highest θ exceeds this fraction of the fitted range is a line
-#: wider than the interval it was measured over.  On any real scan this is far
-#: looser than the 2 nm floor (≈ 54 deg on a 10–80° Cu scan against ≈ 4 deg), so
-#: it binds only in degenerate high-angle windows where 1/cosθ blows up — the
-#: floor is what governs everywhere else.
+#: wider than the interval it was measured over.  It is the whole size bound.
+#: The 2 nm crystallite floor that once sat beside it was removed in 1.10
+#: (WP-2002, B8 ruling); :func:`size_cap` says why.  On a Cu Kα 10–80° scan
+#: the backstop is ≈ 54 deg, a crystallite of ≈ 0.15 nm.
 SIZE_CAP_RANGE_FRACTION = 1.0
 
 #: Hysteresis, for the reason :data:`STRAIN_CAP_ARM_RTOL` is: TRF leaves a
@@ -928,72 +920,53 @@ def _size_parameter_name(path: str) -> str | None:
     return None
 
 
-#: Scherrer K for the size cap's physics floor — a **deliberate second spelling**
-#: of :data:`~rietx.model.profiles.caglioti.SCHERRER_K`, not an independent
-#: choice.  Spelled twice because :func:`size_cap` inlines caglioti eq. (4) to
-#: keep this module free of a ``params`` → ``model`` import (the formula's
-#: authority is there, and the inline is one expression); the two spellings are
-#: held together by an equality pin rather than by this comment —
-#: ``tests/test_strain_cap.py::test_the_size_caps_scherrer_k_is_the_one_in_caglioti``,
-#: which fails if either number moves.
-_SIZE_CAP_SCHERRER_K = 0.9
+def size_cap(tt_min: float, tt_max: float) -> float:
+    """The widest ``lor_size`` (deg 2θ) the *fitted range* can express.
 
+    **Why size needs a bound at all.**  The sample size terms enter the profile
+    as Γ_L = ``lor_size``/cosθ and Γ_G² = ``gauss_size``/cos²θ
+    (:mod:`rietx.model.profiles.caglioti`).  Nothing in that arithmetic stops at
+    a physical crystallite.  This is the runaway geometry the strain terms have:
+    a phase's lines widen until they behave like background.
 
-def size_cap(tt_min: float, tt_max: float, wavelength_a: float,
-             *, k: float = _SIZE_CAP_SCHERRER_K,
-             min_size_a: float = SIZE_CAP_MIN_SIZE_A) -> float:
-    """The widest ``lor_size`` (deg 2θ) allowed: the *tighter* of a 2 nm floor
-    and the fitted-range backstop.
+    **The bound is the strain rule with 1/cosθ in place of tanθ.**  A line whose
+    size contribution alone is wider than the interval it was measured over
+    carries no information the fit could have got from the data.  So at the
+    highest θ the scan reaches, where 1/cosθ is largest,
 
-    **Why size needs a bound at all, and why a gentle one.**  The sample size
-    terms enter the profile as Γ_L = ``lor_size``/cosθ and Γ_G² =
-    ``gauss_size``/cos²θ (:mod:`rietx.model.profiles.caglioti`), and nothing in
-    that arithmetic stops at a physical crystallite — the same runaway geometry
-    the strain terms have.  But unlike strain the intent here is only to catch a
-    runaway, never to legislate a size: real specimens are genuinely
-    nanocrystalline, so the floor is set two unit cells *below* the archive
-    (:data:`SIZE_CAP_MIN_SIZE_A`), where a "crystallite" has stopped being one.
+        ``lor_size``/cos θ_max ≤ f·(2θ_max − 2θ_min),   f = :data:`SIZE_CAP_RANGE_FRACTION`
 
-    **The two bounds, and which binds.**  A 1/cosθ coefficient maps to a
-    Scherrer size with no reference angle (caglioti eq. 4,
-    :func:`~rietx.model.profiles.caglioti.size_coefficient_for_size`): a floor
-    ``L ≥ min_size_a`` is therefore a ceiling
+    and the Gaussian variance takes the square of the same width.  On a Cu Kα
+    10–80° scan the cap is ≈ 54 deg, which Scherrer reads as a crystallite of
+    ≈ 0.15 nm.  The shared θ clip (:func:`_backstop_span_theta`) keeps 1/cosθ
+    off its pole at 2θ = 180°.  Returns ``inf`` for an empty or inverted range,
+    since "no claim" is the honest output there.
 
-        ``lor_size`` ≤ (180/π)·k·λ / min_size_a          [the physics floor]
+    **There is no size floor** (WP-2002, the B8 ruling of 2026-10-19).  Until
+    1.10 a second term held every crystallite at 2 nm or more.  A small size is
+    still a physical quantity, and a chosen limit on one is the caller's to
+    state with a finite ``max``.  Below about 2 nm a crystallite is a few unit
+    cells, and broadened Bragg peaks may not describe its pattern; the Debye
+    scattering equation does.  ``SIZE_UNUSUALLY_SMALL`` says so below
+    :data:`~rietx.refine.SIZE_FLAG_SIZE_A`, and it bounds nothing.
 
-    on the coefficient directly, per wavelength — ≈ 3.97 deg at Cu Kα for 2 nm,
-    i.e. Michael's "≈ 4°/cosθ".  The range backstop is the strain rule with
-    1/cosθ in place of tanθ, evaluated where 1/cosθ is largest (the highest θ):
+    **Practice.**  Two of the three codes floor size and one does not.  TOPAS's
+    ``CS_L`` macro limits the size to 0.3-10 000 nm (Technical Reference
+    Version 9, § 2.17).  GSAS-II 5.8.4 clamps the stored size to 0.001-10 µm
+    after each refinement (``GSASIIstrIO.py:3531-3540``).  FullProf sets no
+    limit.  The backstop here sits below both floors on an ordinary scan.
 
-        ``lor_size``/cos θ_max ≤ f·(2θ_max − 2θ_min)     [the range backstop]
-
-    The Gaussian variance takes the square of whichever width binds.  On every
-    normal scan the physics floor is far the tighter (Cu 10–80°: ≈ 4 deg against
-    ≈ 54 deg), so the floor governs and the backstop only catches the arithmetic
-    pathology of 1/cosθ near 2θ = 180°.  Returns ``inf`` when neither can state
-    a bound (no wavelength *and* a degenerate range) — "no claim" is honest.
-
-    Enforced at stage granularity, armed only on a term that has already reached
-    the cap, and outranked by any finite stored ``max`` — all exactly as
-    :func:`strain_cap`/:func:`strain_cap_hi`, and for the same measured
-    identity reason: a finite bound is never free.
+    Enforced at stage granularity, armed only on a term that has already
+    reached the cap, and outranked by any finite stored ``max``, all exactly as
+    :func:`strain_cap`/:func:`strain_cap_hi` and for the same measured identity
+    reason: a finite bound is never free.
     """
-    # physics floor: L ≥ min_size_a  ⇔  lor_size ≤ (180/π)·k·λ/min_size_a.
-    # This is caglioti.size_coefficient_for_size(min_size_a, λ, k) inlined to
-    # keep this hot module free of a model import; the formula's authority is
-    # there.
-    physics = math.inf
-    if wavelength_a > 0.0 and min_size_a > 0.0 and k > 0.0:
-        physics = math.degrees(k * wavelength_a / min_size_a)
-    # range backstop: 1/cosθ is largest at θ_max, and the shared θ clip
-    # (:func:`_backstop_span_theta`) keeps it off the cosθ → 0 pole at 2θ = 180°.
-    rng = math.inf
     backstop = _backstop_span_theta(tt_min, tt_max)
-    if backstop is not None:
-        span, theta = backstop
-        cos_theta = math.cos(math.radians(theta)) if theta > 0.0 else 1.0
-        rng = SIZE_CAP_RANGE_FRACTION * span * cos_theta
-    return min(physics, rng)
+    if backstop is None:
+        return math.inf
+    span, theta = backstop
+    cos_theta = math.cos(math.radians(theta)) if theta > 0.0 else 1.0
+    return SIZE_CAP_RANGE_FRACTION * span * cos_theta
 
 
 def size_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
@@ -1002,9 +975,9 @@ def size_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
     The mirror of :func:`strain_cap_hi`: ``cap`` is :func:`size_cap`'s width,
     ``gauss_size`` is a variance and takes its square, a finite stored ``hi`` is
     the caller's claim and is kept (the off switch), and the cap is armed only
-    where the coefficient has already reached it.  Because the cap is a ceiling
-    on the coefficient — a *floor* on the crystallite — reaching it means the
-    fit has driven the size down to 2 nm, which is where a runaway lives.
+    where the coefficient has already reached it.  Reaching it means the size
+    term alone has made a line wider than the fitted range, which is where a
+    runaway lives.
     """
     if not math.isinf(hi):
         return hi
@@ -1029,8 +1002,8 @@ def tie_window(lo: float, hi: float, coeff: float,
     """Where a source must stay for its dependent to honour *its own* bounds.
 
     A tie says ``dependent = coeff·source + offset``, and the dependent carries
-    the schema's declared physical limits ``[lo, hi]`` — ``Biso`` in [0, 25],
-    ``occ`` in [0, 1.5], March-Dollase ``r`` in its floored range.  The solver's
+    the schema's declared physical limits ``[lo, hi]``: ``occ`` at or above 0,
+    March-Dollase ``r`` above its pole floor, or a caller's own.  The solver's
     box, though, covers the **free** column, and a tied entry is not one, so
     nothing stops a coefficient other than 1 carrying the dependent straight
     past a limit that is physics.  This is the interval that stops it:
@@ -3672,8 +3645,8 @@ class ParameterTable:
 
         ``None`` means **no claim made** and caps nothing — the
         ``freeze_cell_windows``/``freeze_strain_cap`` convention.  The width
-        comes from :func:`size_cap` (the fitted 2θ range and the pattern's
-        wavelength, both properties of the *data*), and is held on the table
+        comes from :func:`size_cap` (the fitted 2θ range, a property of the
+        *data*), and is held on the table
         for the same reason the strain cap is: the solver used it and
         ``staged.check_guards`` must see the same bound to report ``BOUND_HIT``.
         """

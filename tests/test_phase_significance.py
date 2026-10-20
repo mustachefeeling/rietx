@@ -106,8 +106,8 @@ def _fit(structure, instrument, pattern, monkeypatch, plan="mccusker_default",
     record: list[tuple[float, float]] = []
     inner = _refine._answer_significance
 
-    def spy(model, table, outcome, held, reach, backend):
-        out = inner(model, table, outcome, held, reach, backend)
+    def spy(model, table, outcome, held, reach, backend, **kw):
+        out = inner(model, table, outcome, held, reach, backend, **kw)
         screen = model.phase_support(table.decode(outcome.theta))
         record.append((round(float(screen[0]), 2), round(float(out[0]), 2)))
         return out
@@ -295,8 +295,8 @@ def test_a_phase_the_prior_holds_is_released_when_the_answer_sees_it(
 
     inner = _refine._hold_unsupported_phases
     monkeypatch.setattr(_refine, "_hold_unsupported_phases",
-                        lambda model, table, prior=None, seeded_phases=():
-                        inner(model, table, np.zeros(1)))
+                        lambda model, table, prior=None, seeded_phases=(), **kw:
+                        inner(model, table, np.zeros(1), **kw))
     structure = rx.Structure(phases=[_lab6(A0, 2.5e-7)])
     instrument = _instrument(0.008, 2.5e-4, (40.0, -6.0, 1.5))
     pattern = _draw(_lab6(A0, 2.5e-7), np.random.default_rng(200))
@@ -331,8 +331,8 @@ def test_a_phase_both_readings_pass_that_collapses_is_put_back(monkeypatch):
     significance = _refine._answer_significance
     solve = _refine.run_least_squares
 
-    def collapse_once(model, table, outcome, held, reach, backend):
-        out = significance(model, table, outcome, held, reach, backend)
+    def collapse_once(model, table, outcome, held, reach, backend, **kw):
+        out = significance(model, table, outcome, held, reach, backend, **kw)
         answers.append(table.decode(outcome.theta)[cell])
         if len(answers) == 2:
             out = np.array(out, dtype=np.float64)

@@ -66,7 +66,8 @@ A peak with no tick is an impurity, or a phase you have not declared.
 
 ## Size the background from the diagnostics
 
-`auto_background` reads two of the diagnostics and returns a background model sized to the pattern:
+`auto_background` reads two of the diagnostics and sizes a background model to the pattern.
+It returns the model with the scores it chose on:
 
 ```{literalinclude} ../../../examples/guides/check.py
 :language: python
@@ -77,12 +78,14 @@ A peak with no tick is an impurity, or a phase you have not declared.
 <!-- output of examples/guides/check.py -->
 ```text
 BackgroundPSpline with 41 coefficients
-air-scatter term: True
+knot step 3°: hump score 0.162, trigger 0.05
+air-scatter term True: gain 0.75, trigger 0.3
 ```
 
-It sets the spline's knot spacing from `amorphous_hump_score`, and adds the air-scatter term because `air_scatter_gain` is above 0.3.
+It sets the knots 3° apart because `amorphous_hump_score` is above its trigger, and 8° apart otherwise.
+It adds the air-scatter term because `air_scatter_gain` is above its trigger.
 When you will fit a narrower range, pass `two_theta_limits`, so the knots stay inside it.
-Assign the result to `Instrument.background`.
+Assign `choice.background` to `Instrument.background`.
 
 The full script is `examples/guides/check.py`.
 

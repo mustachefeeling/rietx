@@ -59,7 +59,7 @@ Rietveld refinement locally fits a model you already believe. Check each row bef
 | The starting width is within ×2 | `W` is the squared Gaussian FWHM at low angle (Γ_G² = U·tan²θ + V·tanθ + W; `rx.help_for("instrument.profile.w")`). Its default, 1e-3 deg², is a 0.03° synchrotron line. Seed `W ≈ (0.6·H)²`, `X ≈ 0.6·H`, with H the median `fwhm` of the strongest `rx.pick_peaks` peaks (§10): Gaussian and Lorentzian halves of 0.6·H combine to about H |
 | The fitted range is yours | `fit(two_theta_limits=(lo, hi))`, and the same tuple to `rx.auto_background`. `PatternData.excluded_regions` drops intervals |
 
-Never subtract a background, because that breaks the weights. Hold an estimated one additively (`rx.BackgroundFixedPlusChebyshev`), or co-refine one: `rx.auto_background(data, kind="chebyshev")`, or the default penalised P-spline. A measured blank is `BackgroundFixedPlusChebyshev.from_pattern(blank)` (§8.29).
+Never subtract a background, because that breaks the weights. Hold an estimated one additively (`rx.BackgroundFixedPlusChebyshev`), or co-refine one: `rx.auto_background(data, kind="chebyshev").background`, or the default P-spline. A measured blank is `BackgroundFixedPlusChebyshev.from_pattern(blank)` (§8.29).
 
 ---
 
@@ -84,7 +84,7 @@ Free parameters in groups, cumulatively, each group converged before the next (M
 **Le Bail** (`mode="lebail"`, plan `profile_only`) is for a cell without a trusted structure: an indexing check, intensities for structure solution, a cell independent of any model. With a CIF, run the Rietveld plan directly (judging.md § rules 4-5). Where reflections crowd, check a Le Bail cell against a structural model before you quote it.
 
 4. **Set `lebail_passes` (say 8) on a plan object**: `plan = rx.RefinementPlan.profile_only(); plan.lebail_passes = 8`. The run stops at the first pass that does not lower Rwp, keeps the best, and names the stop (`LEBAIL_ALTERNATION_STOPPED`).
-5. **Seed the background before a Le Bail run: `rx.auto_background(data, seed=True)`.** The default starts every coefficient at 0.0, so the first partition gives the whole pedestal to the reflections; `seed=True` starts them at a low percentile of the counts.
+5. **Seed the background before a Le Bail run: `rx.auto_background(data, seed=True).background`.** Unseeded, every coefficient is 0.0 and the first partition gives the pedestal to the reflections; `seed=True` starts them at a low count percentile.
 
 ---
 
@@ -169,7 +169,7 @@ data = rx.read_pattern(PATTERN)
 structure = rx.Structure.from_cif(CIF)
 instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
 limits = (float(np.min(data.two_theta)), float(np.max(data.two_theta)))  # narrow to what you trust
-instrument.background = rx.auto_background(data, kind="chebyshev", two_theta_limits=limits)
+instrument.background = rx.auto_background(data, kind="chebyshev", two_theta_limits=limits).background
 
 strong = sorted(rx.pick_peaks(data, instrument).peaks, key=lambda p: -p.intensity)[:12]
 h = float(np.median([p.fwhm for p in strong]))                           # §1 width seed

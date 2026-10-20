@@ -90,10 +90,11 @@ def test_atom_bare_biso_parameter_inherits_declared_unit():
 
 
 def test_atom_bare_occ_parameter_inherits_declared_bounds():
-    """Same mechanism as biso, on occ's declared (0, 1.5) range. Fails on
-    the parent commit, where ``a.occ.max`` reads ``inf``."""
+    """Same mechanism as biso, on occ's declared range: a floor of 0 and, since
+    WP-2002's B9 ruling, no ceiling.  Fails on the parent of PR #206, where
+    ``a.occ.min`` reads ``-inf``."""
     a = _atom(occ=Parameter(value=0.8))
-    assert (a.occ.min, a.occ.max) == (0.0, 1.5)
+    assert (a.occ.min, a.occ.max) == (0.0, float("inf"))
 
 
 def test_atom_omitted_biso_still_gets_declared_bounds():
@@ -114,7 +115,7 @@ def test_atom_xyz_have_no_declared_bounds_to_lose():
 
 def test_atom_occ_out_of_declared_bounds_raises():
     """The mechanism issue #204 asked for, on the field that still declares a
-    range: a bare ``Parameter`` outside ``occ``'s [0, 1.5] raises.  ``biso``
+    range: a bare ``Parameter`` below ``occ``'s floor of 0 raises.  ``biso``
     was the issue's case until WP-1534 made it unbounded; its walk is now
     stopped by the scale-B hold, not by a bound."""
     with pytest.raises(ValidationError, match=r"outside bounds"):
@@ -144,7 +145,7 @@ def test_the_always_overwrite_design_would_clobber_an_explicit_bound():
     rejected = a.occ.model_copy()
     for attr in ("min", "max", "unit"):  # the rejected design has no gate here
         setattr(rejected, attr, getattr(default, attr))
-    assert (rejected.min, rejected.max, rejected.unit) == (0.0, 1.5, None)
+    assert (rejected.min, rejected.max, rejected.unit) == (0.0, float("inf"), None)
     assert (rejected.min, rejected.max, rejected.unit) != (a.occ.min, a.occ.max, a.occ.unit)
 
 
@@ -208,7 +209,7 @@ def test_atom_reusing_one_parameter_for_occ_and_biso_gets_each_fields_own_range(
     p = Parameter(value=1.0)
     _atom(biso=p)
     a = _atom(occ=p)
-    assert (a.occ.min, a.occ.max, a.occ.unit) == (0.0, 1.5, None)
+    assert (a.occ.min, a.occ.max, a.occ.unit) == (0.0, float("inf"), None)
 
 
 def test_schema_version_bumped_and_pre_fix_documents_still_load():
@@ -394,8 +395,9 @@ def test_inheriting_does_not_touch_the_callers_parameter_on_any_class():
     geo = Geometry(kind="debye_scherrer", sample_displacement=p)
     assert (p.min, p.max, p.unit, frozenset(p.model_fields_set)) == before
     assert phase.extinction.min == 0.0
+    # unbounded since WP-2002 (2026-10-20); its unit is still its own
     assert (geo.sample_displacement.min, geo.sample_displacement.max,
-            geo.sample_displacement.unit) == (-1.0, 1.0, "mm")
+            geo.sample_displacement.unit) == (float("-inf"), float("inf"), "mm")
 
 
 def test_one_parameter_handed_to_many_atoms_becomes_one_per_atom():
@@ -580,6 +582,31 @@ def test_the_crossing_is_by_type_not_by_shape():
 
     with pytest.raises(ValidationError):
         PlanSpec.model_validate(LooksLikeAPlan())
+
+
+def test_the_hold_threshold_crosses_the_mirror_and_json_both_ways():
+    """``phase_support_sigma`` (WP-2002, B1): a number, ``None`` for no hold,
+    and the default the one constant every reader quotes.  ``None`` is a value
+    here, so it must survive JSON as itself rather than fall back to 3σ."""
+    from rietx.model.forward import PHASE_SUPPORT_SIGMA as screen_side
+    from rietx.schemas.plan import PHASE_SUPPORT_SIGMA, PlanSpec
+    from rietx.strategy.staged import PHASE_SUPPORT_SIGMA as plan_side
+    from rietx.strategy.staged import resolve_plan
+
+    assert screen_side is PHASE_SUPPORT_SIGMA is plan_side
+    assert rx.RefinementPlan(stages=[]).phase_support_sigma == PHASE_SUPPORT_SIGMA
+    assert PlanSpec().phase_support_sigma == PHASE_SUPPORT_SIGMA
+    for value in (None, 5.0):
+        plan = dataclasses.replace(rx.RefinementPlan.mccusker_default(),
+                                   phase_support_sigma=value)
+        spec = PlanSpec.from_plan(plan)
+        back = PlanSpec.model_validate_json(spec.model_dump_json())
+        assert back.phase_support_sigma == value
+        assert resolve_plan(back, "rietveld").phase_support_sigma == value
+        assert resolve_plan(back, "rietveld") == plan
+    for bad in (0.0, -3.0, float("inf"), float("nan")):
+        with pytest.raises(ValidationError, match="phase_support_sigma"):
+            PlanSpec(phase_support_sigma=bad)
 
 
 def test_a_preset_is_the_builder_and_says_so():

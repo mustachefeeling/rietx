@@ -179,6 +179,7 @@ Kissel
 Kovalev
 Landé
 Langford
+Lelann
 Levenberg
 Lindemann
 Lorentzian

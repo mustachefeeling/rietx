@@ -122,8 +122,8 @@ They are distinguishable on purpose, because the fix differs.
 
 `ParameterRow.refinable` is false if any of the five holds. The five counts do
 not add up to the number of held rows, and should not. On the LaB6 table above,
-asking for the Le Bail listing marks fourteen rows `mode_fixed` while the
-refinable count only falls from 25 to 19, because eight of those fourteen were
+asking for the Le Bail listing marks twelve rows `mode_fixed` while the
+refinable count only falls from 26 to 20, because six of those twelve were
 already locked or tied. Read `refinable` for the decision and the four flags
 only to explain it.
 
@@ -262,6 +262,15 @@ holds those parameters instead of bounding them; see `StageResult.held` in
 [](refining.md). The window stays for the case a hold cannot cover: a phase
 that is visible when the stage starts and is refined by it.
 
+A free cell that moves more than ±15 % in length or ±6° in angle within one
+stage has run away. The stage puts that phase's free cell parameters back at
+the values the stage started from, holds them, and solves the stage again.
+Before 1.10 the check clamped the value to the 15 % edge, which left a number
+that was no measurement. `StageResult.cell_reset` lists the parameters put
+back, and `CELL_RUNAWAY` reports it. The check reads the answer and is never a
+bound the solver sees. A runaway in the final stage leaves the cell at its
+start values and withholds its esd, and the esd of every parameter tied to it.
+
 The esd chain starts in the same units. {eq}`est-cov` gives the uncertainty of
 each free column in its own unit, and that is propagated through `C` to the
 rows that follow it.
@@ -323,7 +332,7 @@ fixes:
 | unknown path | `unknown parameter path(s): [...]` | a typo |
 | locked | `is structurally fixed ... and cannot be set` | nothing to set; the model owns it |
 | tied | `follows 'phases.0.cell.a' as an affine tie; set that instead` | set the source |
-| out of bounds | `lies outside its bounds [0.0, 1.5]` | a value the bounded solver could not start from |
+| out of bounds | `lies outside its bounds [0.0, inf]` | a value the bounded solver could not start from |
 
 Dependents follow their sources. Setting `phases.0.cell.a` on a cubic phase
 moves `b` and `c` with it, and the change reaches the objects:
@@ -529,9 +538,11 @@ present with `vary=False`.
 | `RefinedParameter.path` | the dot-path |
 | `RefinedParameter.value` | the value the fit ended at |
 | `RefinedParameter.stderr` | the esd, or None if it could not be estimated |
+| `RefinedParameter.stderr_uncorrected` | the same esd without the Bérar-Lelann factor, as GSAS-II and FullProf print it ({ref}`ch-estimation`), and None where `stderr` is None or on a result from before 1.10 |
 | `RefinedParameter.vary` | false on the tied rows, which is how to spot them |
 | `RefinedParameter.at_bound` | true, false, or None where the row was not tested |
 | `RefinedParameter.equations` | the parametric declarations that set the row ([](series.md)), empty where none did, and None on a row a result from before 1.10 carries |
+| `RefinedParameter.interval` | the profile interval ([](#an-interval-for-a-row-on-its-bound)) of a moment angle the fit left out of its covariance at a direction the symmetry fixes ([](refining.md)), and None on every other row |
 
 A parameter the data said nothing about reports no esd rather than a small one.
 A free parameter can end up in a direction the residual does not move at all
@@ -694,7 +705,7 @@ is refused with the reason.
 | `ParameterIntervalPoint.delta_chi2` | its distance above `ParameterInterval.chi2_fit`, negative below it |
 | `ParameterIntervalPoint.status` | how that refit's stage ended |
 | `ParameterIntervalPoint.error` | why a refit raised |
-| `ParameterIntervalPoint.node_id` | the history node that refit recorded |
+| `ParameterIntervalPoint.node_id` | the history node that refit recorded, and None where it recorded none: history disabled, or an interval the fit computed itself |
 
 A side stops for one of four reasons.
 

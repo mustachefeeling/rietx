@@ -135,6 +135,24 @@ def test_an_applicable_action_is_one_stage_named_after_its_kind():
         stage_for(_action("collect_better_data"))
 
 
+def test_the_echoed_line_carries_the_plan_settings_the_stage_will_run_at():
+    """A project whose stored plan switches the absent-phase hold off runs an
+    applied stage with it off (``Project.run_stage``), and the node then
+    renders that keyword, so the line echoed before the click names it too
+    (WP-2002, B1).  A default plan echoes the line it always did."""
+    from rietx.schemas.history import NodeAction
+    from rietx.schemas.plan import PlanSpec
+
+    stage = stage_for(_action("refine_cell", ["phases.*.cell.*"]))
+    assert api_call(stage, plan=PlanSpec()) == api_call(stage)
+    plan = PlanSpec(phase_support_sigma=None, correlation_guard=0.9)
+    line = api_call(stage, plan=plan)
+    assert line.endswith("correlation_guard=0.9, phase_support_sigma=None)")
+    assert line == NodeAction(kind="stage", name=stage.name, turn_on=stage.turn_on,
+                              phase_support_sigma=None,
+                              correlation_guard=0.9).api_call()
+
+
 def test_advice_kinds_refuse_in_their_own_words_rather_than_silently():
     """"Unapplicable" is a statement with content, not an absent button."""
     free = {"phases.0.scale": "", "instrument.background.0": ""}

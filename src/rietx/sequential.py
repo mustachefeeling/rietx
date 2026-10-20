@@ -513,7 +513,11 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
         intermediate_ftol=plan.intermediate_ftol,
         # the alternation is the protocol's, not a stage's: a collapsed warm
         # refit under mode="lebail" would otherwise run one pass (WP-1323)
-        lebail_passes=plan.lebail_passes)
+        lebail_passes=plan.lebail_passes,
+        # the absent-phase hold is the protocol's too: a collapsed warm refit
+        # would otherwise hold at the default a phase the caller set free
+        # (WP-2002, B1)
+        phase_support_sigma=plan.phase_support_sigma)
 
 
 def _unseeded(plan: RefinementPlan) -> RefinementPlan:

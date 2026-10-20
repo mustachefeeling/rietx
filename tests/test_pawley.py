@@ -177,6 +177,56 @@ def test_pawley_history_round_trip_restores_intensities_and_esds():
 
 
 # --------------------------------------------------------------- Jacobian
+@pytest.mark.parametrize("mode", ["lebail", "pawley"])
+def test_the_emission_line_columns_match_fd_under_an_intensity_model(mode):
+    """The Kα2 weight and the wavelength have refined under Le Bail and Pawley
+    since WP-2002 (2026-10-20), so their analytic columns beside the per-hkl
+    intensities are checked the way the intensity block's are: against central
+    differences of the residual, on a Cu Kα doublet with the cell held.  The
+    pattern is the Rietveld model's own, since against a blank one the
+    extracted intensities are zero and every line column is noise (measured
+    2026-10-20: 5e-10 and 3e-7 relative here, in all three modes)."""
+    s, _ = _overlapped_lab6(w=8e-3)
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    ins.profile.w.value = 8e-3
+    ins.background = BackgroundChebyshev(
+        coefficients=[Parameter(value=v) for v in (30.0, -4.0, 1.0)])
+    tt = np.arange(20.0, 90.0, 0.02)
+    empty = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    truth = ParameterTable(s, ins)
+    y = compile_model(s, ins, empty, mode="rietveld").evaluate(truth.decode(truth.x0()))
+    data = PatternData(two_theta=tt.tolist(), intensity=np.asarray(y).tolist())
+
+    table = ParameterTable(s, ins)
+    table.set_vary(["*"], False)
+    paths = ("instrument.source.lines.1.weight", "instrument.source.lines.0.wavelength",
+             "instrument.background.c0")
+    for path in paths:
+        assert table.set_vary([path], True), path
+    model = compile_model(s, ins, data, mode=mode,
+                          moving_paths=set(table.moving_paths))
+    model.lebail_update(table.decode(table.x0()), n_cycles=3)
+    if mode == "pawley":
+        model.build_pawley_restraint()
+        theta = np.concatenate([table.x0(), model.pawley_x0()])
+    else:
+        theta = table.x0()
+    J = _make_jacobian(model, table)(theta)
+    residual = _make_residual(model, table)
+    r0 = residual(theta)
+    for c, path in enumerate(table.free_paths):
+        h = 1e-7 * max(1.0, abs(theta[c]))
+        tp, tm = theta.copy(), theta.copy()
+        tp[c] += h
+        tm[c] -= h
+        col_fd = (residual(tp) - residual(tm)) / (2 * h)
+        scale = np.linalg.norm(col_fd)
+        assert scale > 0, f"{path}: a dead column under {mode}"
+        err = np.linalg.norm(J[:, c] - col_fd) / scale
+        assert err < 1e-4, f"{path} under {mode}: analytic vs FD ({err:.2e})"
+    assert r0.shape[0] == J.shape[0]
+
+
 def test_pawley_intensity_jacobian_matches_fd():
     """The intensity block is exactly linear, so its analytic columns must
     match finite differences of the augmented residual to machine precision —
@@ -228,7 +278,20 @@ def test_pawley_never_frees_structure_or_scale():
     freed = {p for stage in result.stages for p in stage.freed}
     assert not any(p.endswith(".scale") for p in freed)
     assert not any(".atoms." in p for p in freed)
-    assert not any(".source.lines." in p for p in freed)
+
+
+def test_the_emission_lines_refine_under_both_intensity_models():
+    """One intensity per reflection is drawn through every line at its weight,
+    so the doublet ratio is a shape the per-hkl intensities cannot absorb, and
+    a wavelength refines against a held cell (WP-2002, 2026-10-20).  Until then
+    ``mode_fixed_path`` force-fixed every ``.source.lines.`` path."""
+    from rietx.refine import mode_fixed_path
+
+    for mode in ("lebail", "pawley"):
+        for path in ("instrument.source.lines.1.weight",
+                     "instrument.source.lines.0.wavelength"):
+            assert not mode_fixed_path(path, mode), (path, mode)
+        assert mode_fixed_path("phases.0.scale", mode)
 
 
 # ------------------------------------------- a reflection centred off the data

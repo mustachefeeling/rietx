@@ -79,9 +79,11 @@ print(ref.result_.statistics.rwp)
 
 The mode is more than a detail of the plan. It changes which rows of the
 parameter table can move at all. Le Bail and Pawley force-fix every atom
-parameter, every phase scale and every emission-line intensity, because in
+parameter, every phase scale and every texture coefficient, because in
 those modes the data
-does not constrain them. [](model.md) shows that as the `mode_fixed` hold
+does not constrain them. The emission-line weights and a wavelength refine in
+both modes: the doublet's ratio is a shape the per-reflection intensities
+cannot absorb, and a wavelength refines against a held cell. [](model.md) shows that as the `mode_fixed` hold
 reason, and explains why it is kept distinct from a lock.
 
 `RefinementResult.mode` echoes the mode a result was produced under, so a
@@ -448,8 +450,16 @@ the test:
 | `MomentAngleTest.stationary_at` | each angle's value at the direction where its column vanishes, the image nearest the fitted value; empty where the direction was not reached |
 | `MomentAngleTest.half_widths` | on a passing round, each angle's distance either side of the direction at which χ², everything else held, rises by χ²_red·f² |
 
-For a number on such an angle, call `ref.profile_interval(data, path)`. It
-steps from the angle's half-width and reports `stderr` as `None`.
+Such an angle carries its profile interval in place of an esd. After the last
+stage, a single-pattern fit runs `ref.profile_interval(data, path)` for each
+angle the test left out, stepping from its half-width, and stores the answer on
+the row as `RefinedParameter.interval`. `MOMENT_ANGLE_STATIONARY` then gives each
+angle's distance from the direction and says whether the interval includes it.
+Where it does, the data cannot tell the moment from one along that direction.
+The refits run on a copy of the models, so the history gains no node. They are
+the only cost, and only a fit whose test passed pays it: 20-32 refits an angle,
+2.6-16.7 s on the two-site test fits of 0.2-1.2 s. A joint fit computes no
+interval, and its rows read `None`.
 
 A moment the data does not support comes back unsupported, and the test is a
 ratio. Refine the same model against a pattern above the ordering
@@ -667,12 +677,12 @@ key is `MagneticTrial.delta_bic` against a nuclear reference refined under the
 two models is the moment block and `n_added` is exactly
 `MagneticTrial.n_moment_parameters`. That is where parsimony enters: the
 `−n_added·ln N` term charges every extra amplitude, which is why a nested
-triple of groups reaching one profile comes out smallest-group-first. Behind it
-is `MagneticTrial.r_magnetic`, a profile R over only the channels the
+triple of groups reaching one profile comes out smallest-group-first. Beside
+it is `MagneticTrial.r_magnetic`, a profile R over only the channels the
 nuclear model puts nothing on, where 1 means "explains none of the intensity
 there" and 0 means "explains all of it", a number a whole-pattern Rwp,
-dominated by the nuclear lines, cannot give you. Behind that, parsimony as a
-literal tiebreak. A supported moment is a precondition, not a column: a trial
+dominated by the nuclear lines, cannot give you. It is reported and ranks
+nothing, and nothing breaks a ΔBIC tie. A supported moment is a precondition, not a column: a trial
 whose every moment fails WP-1327's null test cannot win however good its ΔBIC,
 and neither can one whose ΔBIC is not positive, however well supported its
 moment. When no trial passes both, the verdict is that there is nothing to
@@ -709,16 +719,26 @@ makes the compared models differ from the ones the plan describes, so
 in the caveats. Its own defaults are axis-shaped and produce none.
 
 The abstention is a result. Classes whose ΔBIC lies within
-`MagneticSolution.tie_width` of the leader's are tied on ΔBIC, and the next two
-keys decide among them: the magnetic-only R, when it separates them by more than
-2 % (relative), then the smaller moment-parameter count. A tiebreak that decides
-gives `"solved"`, with the key named in `MagneticSolution.reason`, and
-`MagneticSolution.margin` is then the winner's ΔBIC over the best other class,
-which can be negative. When neither key separates them
-`MagneticSolution.tied` names them and `MagneticSolution.verdict` reads
-`"abstained"`. The default
-width is 6.0, "strong" on the Kass & Raftery scale, the same bar peak fitting
-uses to keep an added component. So is the other abstention this workflow
+`MagneticSolution.tie_width` of the leader's are tied on ΔBIC. A tie is an
+abstention: `MagneticSolution.tied` names the classes,
+`MagneticSolution.verdict` reads `"abstained"`, and the reason gives each tied
+class's moment-parameter count and magnetic-only R. The tied classes come
+first in `MagneticSolution.trials`, fewest moment parameters first, the order
+of the convention that reports the highest symmetry the data allow. Neither
+the count nor the R ranks them, because ΔBIC already charges each parameter.
+Before 1.10 an R gap of more than 2 %, and then a smaller parameter count,
+broke a tie and gave `"solved"`. The 2 % margin was never measured. The
+default width is 6.0,
+"strong" on the Kass & Raftery scale, the same bar peak fitting uses to keep
+an added component.
+
+ΔBIC charges N/f² observations rather than the N fitted channels, as
+`compare_freed` does, with f the Bérar-Lelann factor of the nuclear
+reference's fit. Neighbouring channels of one peak share the sign of their
+misfit, so at the raw count any χ² gain outvotes the parameter penalty. Before
+1.10 the count was N. On the Cr₂WO₆ 4 K tutorial pattern f is 3.38, so ΔBIC
+charges 153 of the 1749 channels, and the winner's lead over the next class
+falls from 1682 to 143, still far past the width. So is the other abstention this workflow
 makes: a cubic collinear structure has one class and a modulus the data
 measures well, and a direction the powder average cannot determine at all,
 which comes back as a held DOF in `MomentRow.unmeasured_directions`. That is
@@ -749,7 +769,7 @@ One refusal: a non-neutron histogram, by name. Everything else is reported.
 | `MagneticSolution.nuclear_rwp`, `MagneticSolution.nuclear_gof` | the reference fit every ΔBIC is against | |
 | `MagneticSolution.nuclear_r_magnetic` | the reference's own magnetic-only R | ≈1 on a nuclear model that explains none of it: the scale every `MagneticTrial.r_magnetic` is read against |
 | `MagneticSolution.n_magnetic_channels` | how many channels that region has | zero makes `r_magnetic` `None`, not 0 |
-| `MagneticSolution.caveats` | what the run wants you to know | includes ΔBIC's raw-channel-count N |
+| `MagneticSolution.caveats` | what the run wants you to know | includes the N/f² count ΔBIC charged, with N and f |
 | `MagneticSolution.write_magcifs` | writes one magCIF per refined class and returns the paths | nothing is written unless you call it or pass `cif_dir=` |
 | `MagneticSolution.k_trials` | one `KTrialSummary` per propagation vector actually refined | length 1 unless a runner-up k was within the satellite step's own offset margin of the winner (`k_trials=` option, default 2) |
 | `MagneticSolution.diagnostics` | structured diagnostics beside `MagneticSolution.caveats` | `K_VECTOR_UNSEPARATED` (info), `SOLVE_B_TIED_PER_PARENT_SITE` (info, with `tie_to_parent=True`) and `MAGNETIC_SUBGROUP_PREFERRED` (warning) among them |
@@ -770,7 +790,7 @@ One refusal: a non-neutron histogram, by name. Everything else is reported.
 | `MagneticTrial.site` | the site whose representation produced it | |
 | `MagneticTrial.irrep`, `MagneticTrial.direction` | the labels | e.g. `S2`, `(a)` |
 | `MagneticTrial.bns_number`, `MagneticTrial.uni_number`, `MagneticTrial.msg_type` | what spglib recognised the operator list as | `"unidentified"` and `None` are honest, not errors |
-| `MagneticTrial.free_amplitudes` | amplitudes the representative site's family has before any data is looked at | per site: on a parent with several magnetic sites this is not the model's parameter count, and the ranking's parsimony key reads `MagneticTrial.n_moment_parameters` instead |
+| `MagneticTrial.free_amplitudes` | amplitudes the representative site's family has before any data is looked at | per site: on a parent with several magnetic sites this is not the model's parameter count, and the order of a tie reads `MagneticTrial.n_moment_parameters` instead |
 | `MagneticTrial.determinable_amplitudes` | how many of them a powder to `d_min` can determine | the deficit is the flat directions; `None` on a refused trial |
 | `MagneticTrial.status` | `"refined"` or `"refused"` | |
 | `MagneticTrial.fit_status` | the trial fit's own `RefinementResult.status`: `"converged"`, `"max_iter"` or `"diverged"` | a fit that stops on its budget is continued up to `SOLVE_MAX_CONTINUATIONS` times; one still short is listed and not ranked, and the caveats name it |
@@ -987,7 +1007,8 @@ to use. A `StageSpec` mirrors `Stage` field for field (`StageSpec.name`,
 `StageSpec.turn_on`, `StageSpec.max_iter`, `StageSpec.ftol`,
 `StageSpec.lebail_cycles`, `StageSpec.seed`, `StageSpec.strain_seed`,
 `StageSpec.restraint_weight_scale` and `StageSpec.window_slack_deg`), and
-`PlanSpec.correlation_guard` mirrors the plan's.
+`PlanSpec.correlation_guard` and `PlanSpec.phase_support_sigma` mirror the
+plan's.
 
 What is stored is the expanded plan: every stage in full, because that is what
 will run. There is deliberately no field recording which preset it came from,
@@ -1032,8 +1053,10 @@ performs; running it by hand is how a caller interleaves its own decisions
 between stages. `Refinement.suggest` is built for exactly that moment, and
 [](history.md) is how to go back a stage when the decision was wrong.
 
-`run_stage` takes its own `correlation_guard` rather than reading one from a
-plan, because there is no plan involved.
+`run_stage` takes its own `correlation_guard` and `phase_support_sigma` rather
+than reading them from a plan, because there is no plan involved.
+`Project.run_stage` passes the `phase_support_sigma` of the plan the project
+stores.
 
 `Refinement.snapshot` returns a `RefinementState`: the full state needed to
 reconstruct the refinement exactly, taken without refining anything.
@@ -1084,6 +1107,7 @@ for stage in result.stages:
 | `StageResult.unreached_histograms` | joint fits: per histogram, the globs that freed rows of another histogram and matched none of this one; `{}` on a single histogram, `None` on a result stored before the check existed |
 | `StageResult.seeded` | each row this stage lifted before solving, with the value it started from; `None` on a result stored before the field existed |
 | `StageResult.moment_angle_tests` | each round of the test that left moment angles at a direction the symmetry fixes out of the covariance, one `MomentAngleTest` per round; `None` when no free column moved only moment angles beside a free modulus |
+| `StageResult.cell_reset` | the free cell parameters this stage put back at the values it started from, because their phase's cell left the safety window while it solved (`CELL_RUNAWAY` says more); `None` on a result stored before the field existed |
 
 `StageResult.freed` is the field to read when a stage did nothing. A glob that
 matches no path is not an error, because that is how the shipped plans reach a
@@ -1193,6 +1217,36 @@ cost the stage started at.
 
 Both lists are empty for every fit whose phases are all visible, which is every
 fit that is working.
+
+The line between seen and unseen is a plan setting,
+`RefinementPlan.phase_support_sigma`, mirrored by `PlanSpec.phase_support_sigma`.
+A phase counts as seen when its scale sits at least that many esds from zero,
+the esd taken against the counting noise. The default is
+{{ PHASE_SUPPORT_SIGMA }}. A higher number holds more phases, and `None`
+switches the hold off:
+
+```python
+import dataclasses
+
+import rietx as rx
+
+plan = rx.RefinementPlan.mccusker_default()
+assert plan.phase_support_sigma == 3.0
+
+no_hold = dataclasses.replace(plan, phase_support_sigma=None)
+```
+
+With `None`, no stage holds, releases or restores a phase, and no cell takes the
+window an unseen phase's cell gets. `PHASE_UNCONSTRAINED` still reports a phase
+under {{ PHASE_SUPPORT_SIGMA }}σ, and names the parameters that refined without
+signal. Zero, a negative number, an infinity and a NaN are refused.
+
+A raised threshold has one known cost. A weak phase whose cell starts more than
+a peak width from its true value puts its peaks in the wrong place. It then reads
+weaker than it is and can stay held at the wrong cell. On a synthetic in-situ
+pattern whose CaF₂ cell started 1.2 % off, the default released the cell and
+refined it. At 50σ the phase read 3.7σ at the answer, and the cell stayed where
+it started.
 
 A cost that rises from `StageResult.cost_initial` to `StageResult.cost_final`
 is a diverged stage, and `StageResult.status` says so.

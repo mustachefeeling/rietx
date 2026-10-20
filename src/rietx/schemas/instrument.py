@@ -86,8 +86,14 @@ class EmissionLine(_InheritsDeclaredDefaults):
     """
 
     wavelength: Parameter
+    #: Bounded at 0 and nowhere above (WP-2002, the B9 ruling of 2026-10-19):
+    #: an intensity ratio cannot be negative, and how strong a second line is
+    #: relative to the first is the data's to say.  The ceiling of 2 it carried
+    #: before 1.10 had no stated source.  TOPAS's default for an emission line's
+    #: ``la`` is 1e-5 to 2·Val + 0.1, recomputed every iteration, so it limits
+    #: a step and never the answer (Tech Ref Version 9 § 2.17, Table 2-1).
     weight: Parameter = Field(
-        default_factory=lambda: Parameter(value=1.0, min=0.0, max=2.0)
+        default_factory=lambda: Parameter(value=1.0, min=0.0)
     )
 
     @field_validator("wavelength", mode="before")
@@ -118,13 +124,6 @@ DEFAULT_HARMONIC_ORDER = 2
 #: back confirming its own prior.  1 % is far enough below every reported value
 #: that the refinement has to travel to reach one.
 HARMONIC_WEIGHT_SEED = 0.01
-
-#: Ceiling on a harmonic's relative weight.  Not a tuning: a component that is
-#: more than half the fundamental is not a contaminant of it, and a refinement
-#: that pushes the weight here is telling you the peaks it is filling are not
-#: harmonic peaks.  The bound is therefore *informative* — ``BOUND_HIT`` on
-#: this path is the finding, not a nuisance.
-HARMONIC_WEIGHT_MAX = 0.5
 
 
 class Harmonic(_InheritsDeclaredDefaults):
@@ -193,15 +192,22 @@ class Harmonic(_InheritsDeclaredDefaults):
     #: would be a second copy of line 0, degenerate with the phase scales) and
     #: n ≤ 0 is not a diffraction order at all.
     order: int = Field(default=DEFAULT_HARMONIC_ORDER, ge=2)
-    # Every attribute stated, ``unit`` included: the derived
-    # emission line takes this object by reference (:attr:`NeutronSource.lines`)
-    # so a refined weight writes back here, and a Parameter leaving any
-    # attribute unset is copied on the way into a class that inherits declared
-    # ranges (``_InheritsDeclaredDefaults``), which would cut that link.
+    # Every attribute stated, ``unit`` and the infinite ``max`` included: the
+    # derived emission line takes this object by reference
+    # (:attr:`NeutronSource.lines`) so a refined weight writes back here, and a
+    # Parameter leaving any attribute unset is copied on the way into a class
+    # that inherits declared ranges (``_InheritsDeclaredDefaults``), which
+    # would cut that link.
+    #
+    # **No ceiling** (WP-2002, the B9 ruling of 2026-10-19).  The 0.5 it
+    # carried before 1.10 was a chosen limit on a quantity that stays physical:
+    # a weight is an intensity ratio, and only below 0 is it not one.  A large
+    # value is still the finding the old ceiling was meant to make, and
+    # ``HARMONIC_FRACTION`` says so at ``warning`` past
+    # :data:`~rietx.refine.HARMONIC_IMPLAUSIBLE_FRAC`.
     weight: Parameter = Field(
         default_factory=lambda: Parameter(
-            value=HARMONIC_WEIGHT_SEED, min=0.0, max=HARMONIC_WEIGHT_MAX,
-            unit=None)
+            value=HARMONIC_WEIGHT_SEED, min=0.0, max=math.inf, unit=None)
     )
 
     @property
@@ -1210,41 +1216,47 @@ class Geometry(_InheritsDeclaredDefaults):
     surface_roughness: SurfaceRoughness | None = None
     #: How far the specimen sits off the goniometer axis (mm).
     #:
-    #: **The ±1 mm is a runaway guard, not a physical limit** (WP-1311,
-    #: measured 2026-09-18), and two things follow that a caller should know.
-    #: It is *loose*: ``help.py`` gives a carefully packed flat plate as
-    #: |s| < 0.05 mm, so the bound sits a factor of 20 above ordinary practice,
-    #: and at the bound itself a line moves 0.19-1.13° depending on the
-    #: goniometer, which is 0.9-14.0× a typical laboratory FWHM.  And its
-    #: *angular* licence is not constant, because eq (3)'s shift goes as s/R:
-    #: one bound in mm spreads 3.0× across ordinary goniometer radii (100 to
-    #: 300 mm).  Scaling it by ``goniometer_radius_mm`` would fix the spread
-    #: and not the magnitude, and that field is optional, so a scaled bound
-    #: would still need this flat one as its fallback.  Kept as it is because
-    #: it has stood since v0.2 and narrowing it is a user-facing break; a
-    #: caller who wants the tighter, instrument-aware limit declares it, and
-    #: an explicit bound always beats a declared one.
+    #: **No position correction carries a default bound; the axial ratios and
+    #: the transparency keep their floor of 0.**  WP-2002's B9 ruling
+    #: (2026-10-19) removed chosen limits on quantities that stay physical.
+    #: The FCJ quadrature is defined for any S/L, H/L ≥ 0 (``fcj._xi_max``
+    #: clips at |tan 2θ|; ``fcj.fcj_live`` reads a negative ratio as the
+    #: aberration off), and a transparency is 1/(2µR) ≥ 0.  The displacement,
+    #: the two capillary offsets and ``Instrument.zero_shift`` lost their
+    #: ±1 mm and ±0.5° on 2026-10-20.  The fit reports the degeneracy with or
+    #: without them: on 11-BM NAC over 2-24° 2θ with zero and both offsets
+    #: free, bounded, the cell lands 1097 ppm from its reference with an esd
+    #: of 2612 ppm; unbounded, the offsets slide to +4.86 and +2.12 mm and
+    #: the cell to 5109 ppm with an esd of 2579 ppm, and both fits carry the
+    #: same two ``FLAT_DIRECTION`` findings naming the cell and an offset
+    #: (``tests/test_capillary_displacement.py``).  The bound acted as a
+    #: prior that the mount is aligned, true on 11-BM and so nearer the
+    #: reference there, without narrowing the esd.  A prior about the mount
+    #: is the caller's: the bounds had one family behind them and a named
+    #: dissenter (a recessed holder), and neither GSAS-II nor FullProf sets
+    #: one.  A caller who knows the mount states a bound; ``BOUND_HIT``
+    #: reports one that carries load.
     sample_displacement: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=-1.0, max=1.0, unit="mm")
+        default_factory=lambda: Parameter(value=0.0, unit="mm")
     )
     sample_transparency: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, max=0.05)
+        default_factory=lambda: Parameter(value=0.0, min=0.0)
     )
     #: capillary displacement along the incident beam (mm, positive
     #: downstream) — the sin 2θ half of eq (4).  ``debye_scherrer`` only.
     capillary_offset_along_beam: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=-1.0, max=1.0, unit="mm")
+        default_factory=lambda: Parameter(value=0.0, unit="mm")
     )
     #: capillary displacement perpendicular to the beam in the diffraction
     #: plane (mm, positive toward increasing 2θ) — the cos 2θ half of eq (4).
     capillary_offset_across_beam: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=-1.0, max=1.0, unit="mm")
+        default_factory=lambda: Parameter(value=0.0, unit="mm")
     )
     axial_sl: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, max=0.2)
+        default_factory=lambda: Parameter(value=0.0, min=0.0)
     )
     axial_hl: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, max=0.2)
+        default_factory=lambda: Parameter(value=0.0, min=0.0)
     )
     #: dimensionless µ·R of the packed specimen; ``None`` → estimate it from the
     #: composition and ``capillary_radius_mm``.  Never a ``Parameter`` — see the
@@ -2246,8 +2258,10 @@ class Instrument(_InheritsDeclaredDefaults):
     #: :func:`rietx.schemas.pattern.require_two_theta`.
     source: Source | NeutronSource | TOFSource = Field(discriminator="kind")
     geometry: Geometry = Field(default_factory=Geometry)
+    #: unbounded with the other position corrections since 2026-10-20: see
+    #: ``Geometry``'s comment above ``sample_displacement`` for why (WP-2002)
     zero_shift: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=-0.5, max=0.5, unit="deg")
+        default_factory=lambda: Parameter(value=0.0, unit="deg")
     )
     profile: ProfileTCHZ = Field(default_factory=ProfileTCHZ)
     background: Background = Field(
@@ -2542,11 +2556,11 @@ class Instrument(_InheritsDeclaredDefaults):
             k = 1.0 / (1.0 + c2)
             kbeta = "monochromator"
         emission = [EmissionLine(wavelength=lines[0],
-                                 weight=Parameter(value=1.0, min=0.0, max=2.0))]
+                                 weight=Parameter(value=1.0, min=0.0))]
         for wl in lines[1:]:
             emission.append(EmissionLine(
                 wavelength=wl,
-                weight=Parameter(value=ka2_ratio, min=0.0, max=1.0)))
+                weight=Parameter(value=ka2_ratio, min=0.0)))
         return cls(
             source=Source(
                 lines=emission,
@@ -2593,10 +2607,10 @@ class Instrument(_InheritsDeclaredDefaults):
                 f"unknown radiation {radiation!r}; available: {sorted(_RADIATIONS)}"
             ) from None
         emission = [EmissionLine(wavelength=lines[0],
-                                 weight=Parameter(value=1.0, min=0.0, max=2.0))]
+                                 weight=Parameter(value=1.0, min=0.0))]
         for wl in lines[1:]:
             emission.append(EmissionLine(
-                wavelength=wl, weight=Parameter(value=ka2_ratio, min=0.0, max=1.0)))
+                wavelength=wl, weight=Parameter(value=ka2_ratio, min=0.0)))
         return cls(
             source=Source(lines=emission,
                           polarization=Parameter(value=0.5, min=0.0, max=1.0)),

@@ -265,7 +265,8 @@ sharpens its own row here.
   constant with its tier, its evidence and, for tier 3, the two grounds and the approval
   date. Each code and action row also states the kind of ambiguity DESIGN.md § Rules, 1
   assigns it. A meta-test holds the table equal to the tree both ways.
-- **No tier-2 or tier-3 action runs by default without its approval** (2002, 2003, 2004).
+- **No tier-2 or tier-3 action runs by default without its approval** (2002, 2003, 2004;
+  2017 measures the single-fit thresholds' three families, 2018 the clash table).
   Every hold, carry, refit, fence and always-on correction that survives names its
   evidence (the families, or for tier 2 the citation or program), the record field that
   says it fired, and the maintainer's dated approval; every other one is
@@ -299,7 +300,9 @@ sharpens its own row here.
   close). One or two families named at 2002's open and used as evidence by no audit; at
   close the standards' acceptance protocol is run on them and every number with a
   reference is no further from it than at the open. The one row that measures generality
-  rather than the audit (fourth review).
+  rather than the audit (fourth review). Named at 2002's open (2026-10-19): the Nd₂Ru₂O₇
+  pair (`tests/data/mg090*`, 11-BM X-ray and NCNR BT-1 neutron, a published joint
+  refinement), WP-2002 § The batch giving the reason.
 - **An agent given the number reaches the answer the verdict gave** (2004, 2008). For each
   demoted class the harness is run once (twice where the explanation is reworked),
   registered first and approved per session, and

@@ -325,8 +325,8 @@ terms to match one Gaussian's three.)*
 **9c.33 Never multiply a quoted esd by `esd_inflation` — the esds already carry
 it.** `Statistics.esd_inflation` is the Bérar-Lelann serial-correlation factor,
 and the fit-side and report-side docstrings both say the reported esds *have
-already been multiplied by it*; you divide it out to recover raw χ²·(JᵀJ)⁻¹
-esds. It does not reach 1 on a perfect fit — perfectly white residuals land at
+already been multiplied by it*; each row's `stderr_uncorrected` is the raw
+χ²·(JᵀJ)⁻¹ esd. It does not reach 1 on a perfect fit — perfectly white residuals land at
 ≈1.13 (≈1.51 before 1.6) — so it is not a measurement of serial-correlation
 damage, and a batch acceptance bar set near 2 fires on sound fits. Read a
 large value as evidence about the *model*, i.e. unmodelled profile detail whose

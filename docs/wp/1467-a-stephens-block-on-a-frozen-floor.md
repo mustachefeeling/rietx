@@ -214,6 +214,8 @@ Debye-Waller factor is not floored, so there is no hinge to lean on.
   On brucite aniso (WP-1929's grid, physical coordinates) LM reached χ²_red
   8.0006 against TRF's 7.636, which carries `STEPHENS_STRAIN_NOT_POSITIVE`.
 
+- **From WP-2002 (2026-10-19, PR #1050).** Batch class B3. GSAS-II starts a new histogram's generalised strain coefficients at 0.01 each (`GSASIIddataGUI.py:1432-1433`); 1000 µstrain on the isotropic ray is its Reset button, a user's act. So `lab_sample_refine`'s 1000 ppm seed matches GSAS-II's isotropic default only. The batch keeps that seed at tier 3 until a second family compares starts, and this WP's start comparison is the obvious one.
+
 ## Non-goals
 
 - The Gaussian/Lorentzian split itself. WP-0503's fence stands, and this WP

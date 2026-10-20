@@ -64,7 +64,7 @@ def _pattern(air: float, *, lo: float = 0.5, hi: float = 50.0, step: float = 0.0
 
 def _fit(data: rx.PatternData, background=None):
     ins = _instrument()
-    ins.background = background if background is not None else rx.auto_background(data)
+    ins.background = background if background is not None else rx.auto_background(data).background
     ref = rx.Refinement(_structure(), ins, history=False)
     return ins.background, ref.fit(data)
 
@@ -103,7 +103,7 @@ def test_declaring_the_term_clears_it_and_cuts_chi2(rise):
     """The remedy it names is the one that works: the declared refit is
     silent, and its χ² is materially lower (24 % on this pattern)."""
     data, _, before = rise
-    background = rx.auto_background(data)
+    background = rx.auto_background(data).background
     background.air_scatter = Parameter(value=1e-3, min=0.0, transform="softplus")
     _, after = _fit(data, background)
     assert not _found(after)
@@ -153,7 +153,7 @@ def test_one_sided_the_bounded_term_cannot_take_a_negative_direction():
 
     data = _pattern(0.0, step=0.01)
     ins = _instrument()
-    ins.background = rx.auto_background(data)
+    ins.background = rx.auto_background(data).background
     ref = rx.Refinement(_structure(), ins, history=False)
     result = ref.fit(data)
     model = compile_model(ref.fitted_structure, ref.fitted_instrument, data,

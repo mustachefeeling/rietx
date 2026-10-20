@@ -29,9 +29,13 @@ fig = data.plot(model=ref, two_theta_range=(25, 40))  # path="ticks.png" writes 
 # guide: ticks end
 
 # guide: background start
-background = rx.auto_background(data, diagnostics=d)
+choice = rx.auto_background(data, diagnostics=d)
+background = choice.background
 print(type(background).__name__, "with", len(background.coefficients), "coefficients")
-print("air-scatter term:", background.air_scatter is not None)
+print(f"knot step {choice.knot_step_deg:g}°: hump score "
+      f"{choice.amorphous_hump_score:.3f}, trigger {choice.hump_trigger:g}")
+print(f"air-scatter term {choice.air_scatter}: gain "
+      f"{choice.air_scatter_gain:.2f}, trigger {choice.air_scatter_trigger:g}")
 # guide: background end
 
 assert d.signal_cutoffs == [] and d.dead_channels == [] and d.contamination == []

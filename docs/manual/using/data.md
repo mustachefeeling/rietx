@@ -52,8 +52,8 @@ A `min=0.0` parameter can end at exactly `0.0`. That is harmless wherever zero
 is the off state, which is nearly everywhere in this package: a zero width is
 no broadening, a zero extinction coefficient is no extinction. It is a bug
 wherever the physics divides by the value, and such a parameter carries a real
-floor above zero instead. `PreferredOrientation.r` stops at 0.15, a hump's
-width at `HUMP_FWHM_MIN`, and `ProfileTCHZ.w` at 1e-8 deg².
+floor above zero instead. `PreferredOrientation.r` stops at `MARCH_R_MIN`
+(1e-6), a hump's width at `HUMP_FWHM_MIN`, and `ProfileTCHZ.w` at 1e-8 deg².
 :::
 
 `stderr` is the one field a fit writes back. It is `None` on a parameter that
@@ -356,7 +356,7 @@ the six values as a tuple.
 | `Atom.label` | str | required | the site label, as a CIF spells it |
 | `Atom.species` | str | required | the scattering species: `"La"`, `"B"`, `"Fe3+"` |
 | `Atom.x`, `Atom.y`, `Atom.z` | `Parameter` | required | fractional coordinates |
-| `Atom.occ` | `Parameter` | 1.0, in [0, 1.5] | site occupancy |
+| `Atom.occ` | `Parameter` | 1.0, at or above 0 | site occupancy; a refined value above 1 reports `OCCUPANCY_ABOVE_ONE` at `info` |
 | `Atom.biso` | `Parameter` | 0.5 Å², unbounded | isotropic displacement, B = 8π²·U |
 | `Atom.aniso` | `AnisoU` or None | `None` | anisotropic displacement, CIF U^ij, {eq}`int-dw-aniso` |
 | `Atom.moment` | `Moment` or None | `None` | a magnetic moment in crystal-axis components, μ_B, {eq}`int-Fmag`; needs `Phase.magnetic_symmetry` beside it |
@@ -464,7 +464,7 @@ assert texture.coefficients == {}   # every term starts held at 0
 |---|---|---|---|
 | `Instrument.source` | `Source`, `NeutronSource` or `TOFSource` | required | the radiation, discriminated on `kind` |
 | `Instrument.geometry` | `Geometry` | capillary, no aberrations | how the specimen sits in the beam |
-| `Instrument.zero_shift` | `Parameter` | 0.0 deg, in [−0.5, 0.5] | a constant 2θ offset, the one position error every geometry has |
+| `Instrument.zero_shift` | `Parameter` | 0.0 deg, unbounded | a constant 2θ offset, the one position error every geometry has |
 | `Instrument.profile` | `ProfileTCHZ` | see below | the instrumental width function |
 | `Instrument.background` | one of three | `BackgroundChebyshev` | the pedestal under the peaks |
 | `Instrument.extra_components` | list[`HumpComponent`] | `[]` (off) | explicit broad peaks added on top of that pedestal |
@@ -1040,7 +1040,37 @@ assert data.tt()[-1] == 40.0
 
 `auto_background` sizes a model to a pattern instead: knot spacing from the
 amorphous-hump score, the air term added only when the diagnostics ask for it,
-or `kind="chebyshev"` for an order chosen by BIC.
+or `kind="chebyshev"` for an order chosen by BIC. It returns a
+`BackgroundChoice`, which carries the model and the scores each choice was
+made on. Assign `BackgroundChoice.background` to `Instrument.background`, as
+in `ins.background = rx.auto_background(data).background`. Before 1.10 the
+call returned the model alone.
+
+| Field | Is |
+|---|---|
+| `BackgroundChoice.background` | the model, a P-spline or a Chebyshev |
+| `BackgroundChoice.kind` | `"pspline"` or `"chebyshev"` |
+| `BackgroundChoice.amorphous_hump_score`, `BackgroundChoice.hump_trigger` | the score the knot spacing was chosen on, and the trigger above which the knots are 3° apart rather than 8° |
+| `BackgroundChoice.knot_step_deg` | the knot spacing chosen, in degrees 2θ |
+| `BackgroundChoice.air_scatter_gain`, `BackgroundChoice.air_scatter_trigger` | the score the 1/(2θ) term was chosen on, and the trigger above which it is declared |
+| `BackgroundChoice.air_scatter` | whether the model carries the 1/(2θ) term |
+| `BackgroundChoice.selection` | the Chebyshev order scan: every order tried, with its BIC and Durbin-Watson d, and whether d reached the stop |
+| `BackgroundChoice.seed_level` | the count every coefficient starts at under `seed=True` |
+
+A field the kind made no choice on is None: the P-spline fields on a Chebyshev,
+`selection` on a P-spline, and `seed_level` without `seed=True`.
+
+The order scan is a `BackgroundSelection`, the same object
+`rietx.background.select_chebyshev_order` returns.
+
+| Field | Is |
+|---|---|
+| `BackgroundSelection.method` | `"chebyshev_order"`, or `"arpls_lambda"` from `rietx.background.select_arpls_lambda` |
+| `BackgroundSelection.selected` | the order chosen, the minimum-BIC order of the scan |
+| `BackgroundSelection.n_masked_channels` | the background channels the scan scored, after the peaks were masked |
+| `BackgroundSelection.scores` | one `CandidateScore` per order tried: `CandidateScore.complexity` (the order), `CandidateScore.bic` and `CandidateScore.durbin_watson` |
+| `BackgroundSelection.stopped_by_whiteness` | whether Durbin-Watson d reached the stop, 1.8, and ended the scan |
+| `BackgroundSelection.diagnostics` | `BACKGROUND_ORDER_AT_CAP` when the order is the scan's cap rather than a choice |
 
 `BackgroundChebyshev.kind`, `BackgroundPSpline.kind` and
 `BackgroundFixedPlusChebyshev.kind` are the discriminators. The three models are

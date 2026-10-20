@@ -83,6 +83,10 @@ documentation only.
   between floor, drop and refuse (the pdCIF reader drops a weight column with
   any zero). The reporter checked on 1.5.0; both reproduce on c3d0367.
 
+- **From WP-2002 (2026-10-19, PR #1050), ruled.** The maintainer ruled B5: "fix anything obviously wrong, warn during ingestion, and give the option to correct. Don't spend too much effort on this." Today `schemas.pattern._floor_sigma` (~line 43) raises a σ ≤ 0 to 10⁻³ of the column's median esd, about a million times its neighbours' weight (#897's file). The ruling as read: a channel with σ ≤ 0 takes no weight by default, the reader warns with the count and the lines, and a reader option keeps such channels at σ of one count instead. No per-format classifier. Practice, read 2026-10-19 (`2002-batch/rulings.md` § B5): GSAS-II's fxye reader zero-weights σ ≤ 0 or y ≤ 0; its xye reader zero-weights y ≤ 0, replaces σ = 0 by 1/y, and on a negative σ skips the line after storing its 2θ, so every later point pairs with the wrong angle (`imports/G2pwd_xye.py:170-186`; a defect noted here, never filed upstream). FullProf 8.20 treats σ = 0 as 1 and a negative σ as its absolute value, silently. TOPAS is silent on σ ≤ 0. The `_floor_sigma` row in `src/rietx/_audit.py` names this WP as its replacement.
+
+- **From WP-2002 (2026-10-20, PR #1050), a contributor's second read of its batch (B5.2), agreed by the maintainer.** The Poisson fallback √max(y, 1) gives every channel weight 1 on a file normalised below one count that carries no σ column, which a GSAS-II user meets with a rescaled pattern. The proposal: the reader warns when the intensity column does not look like counts (its maximum about 1 or less, or non-integer values at low counts). It fits beside the warning this WP adds for σ ≤ 0, and B5's "don't spend too much effort" bounds it. B5.1's per-format classifier was the option the maintainer declined.
+
 ## Non-goals
 
 - A CSV reader (a new format entry, if the decision below wants one).

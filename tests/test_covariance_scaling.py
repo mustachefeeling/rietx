@@ -219,11 +219,12 @@ def test_a_failed_eigensolve_leaves_the_esds_absent_not_raised(monkeypatch):
     from rietx.optimize import least_squares, statistics
 
     jac, resid = _problem()
-    assert least_squares._guarded_covariance(jac, resid, 4, 400)[2] is None
+    assert least_squares._guarded_covariance(jac, resid, 4, 400)[3] is None
 
     monkeypatch.setattr(statistics.np.linalg, "eigh", _eigh_fails)
-    stderr, corr, error = least_squares._guarded_covariance(jac, resid, 4, 400)
-    assert stderr is None and corr is None
+    stderr, corr, factor, error = least_squares._guarded_covariance(
+        jac, resid, 4, 400)
+    assert stderr is None and corr is None and factor is None
     assert "Eigenvalues did not converge" in error
 
 

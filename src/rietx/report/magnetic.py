@@ -221,7 +221,16 @@ def moment_pair_diagnostics(rows: list[MomentEvidence]) -> list[Diagnostic]:
     return out
 
 
-def moment_angle_stationary_diagnostics(stage) -> list[Diagnostic]:
+#: Why an interval side has no end, in the words the finding prints
+#: (:data:`~rietx.schemas.interval.IntervalStop`).
+_STOP_WORDS = {
+    "period": "still inside the threshold half a turn away, so not determined",
+    "refits": "its refit budget ran out",
+    "error": "a refit failed",
+}
+
+
+def moment_angle_stationary_diagnostics(stage, parameters=None) -> list[Diagnostic]:
     """``MOMENT_ANGLE_STATIONARY`` (info): the moment angles a stage's
     covariance left out at a direction the symmetry fixes (WP-1929).
 
@@ -231,6 +240,13 @@ def moment_angle_stationary_diagnostics(stage) -> list[Diagnostic]:
     stage, whose covariance every reported esd is read off.  Silent where no
     round passed, including where no test ran.  ``value`` is the passing
     round's statistic, and ``where`` its angles.
+
+    ``parameters`` is the result's rows.  Each left-out angle is quoted with
+    its distance from the direction, the fitted value against the round's
+    ``stationary_at``, and with its profile interval where its row carries one
+    (``RefinedParameter.interval``, WP-2002): the ends, and whether they
+    include the direction.  An angle with no interval on its row says so,
+    since a joint fit, an internal trial and a cancelled run compute none.
     """
     from ..optimize.least_squares import STATIONARY_ANGLE_LEVEL
 
@@ -252,17 +268,57 @@ def moment_angle_stationary_diagnostics(stage) -> list[Diagnostic]:
         f"{'Its column' if k == 1 else 'Their columns'} left the covariance, "
         f"so {'it carries' if k == 1 else 'they carry'} no esd. "
         f"The values are kept.")
+    rows = {r.path: r for r in (parameters or [])}
+    without = []
+    for path in passed.paths:
+        row, at = rows.get(path), passed.stationary_at.get(path)
+        if row is None or at is None:
+            without.append(path)
+            continue
+        distance = row.value - at
+        line = (f" {path} is {_rad(abs(distance))} rad "
+                f"({abs(math.degrees(distance)):.2f} deg) from the direction "
+                f"at {_rad(at)}.")
+        interval = row.interval
+        if interval is None:
+            without.append(path)
+        elif interval.lower is None or interval.upper is None:
+            missing = [f"no {side} end ({_STOP_WORDS.get(stop, stop)})"
+                       for side, end, stop in (
+                ("lower", interval.lower, interval.lower_stop),
+                ("upper", interval.upper, interval.upper_stop)) if end is None]
+            line += (f" Its {100 * interval.level:g} % profile interval has "
+                     f"{' and '.join(missing)}.")
+        else:
+            inside = interval.lower <= at <= interval.upper
+            line += (f" Its {100 * interval.level:g} % profile interval, "
+                     f"{_rad(interval.lower)} to {_rad(interval.upper)}, "
+                     f"{'includes' if inside else 'excludes'} the direction.")
+        message += line
+    if without:
+        message += (f" No profile interval was computed for "
+                    f"{', '.join(without)}. On a single fit, "
+                    f"Refinement.profile_interval(data, path) computes one.")
     if kept:
         message += (f" Tested and kept with an esd, as determined: "
                     f"{', '.join(kept)}.")
     return [Diagnostic(
         level="info", code="MOMENT_ANGLE_STATIONARY", where=list(passed.paths),
         value=passed.statistic, message=message,
-        suggestion=("Quote the moment direction as lying along the symmetry "
-                    "direction. For an interval on one of these angles, call "
-                    "Refinement.profile_interval(data, path). It steps from "
-                    "the angle's half-width in "
-                    "StageResult.moment_angle_tests."))]
+        suggestion=("Quote each of these angles by its profile interval "
+                    "(RefinedParameter.interval), not by an esd. Where the "
+                    "interval includes the symmetry direction, the data cannot "
+                    "tell the moment from one along it, so quote the moment "
+                    "along that direction. One angle tested alone nearly always "
+                    "lands here, because it passed the test below the interval's "
+                    "cut. Where an interval excludes "
+                    "the direction, the data measure that tilt, so quote the "
+                    "angle with its interval."))]
+
+
+def _rad(x: float) -> str:
+    """An angle in radians to four decimals, with no negative zero."""
+    return f"{round(x, 4) + 0.0:.4f}"
 
 
 def _row(model, values, ip, j, cp, msites, phase_name, cell, held_set,

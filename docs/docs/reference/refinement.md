@@ -36,7 +36,7 @@ A setting about one pattern, or one run in flight, belongs to the call.
 | `plan` | `Refinement.fit` and `refine` | `"mccusker_default"` |
 | `events`, `cancel`, `telemetry`, `label` | `Refinement.fit`, `Refinement.run_stage` and `refine` | none; a run records itself unless told not to ([How to watch or stop a running fit](../guides/watch.md)) |
 | `stage_reports`, `progress` | `Refinement.fit` | off ([Reports at every stage](report.md#reports-at-every-stage), [Progress lines](result.md#progress-lines)) |
-| `correlation_guard` | `Refinement.run_stage` | 0.98, since no plan supplies one |
+| `correlation_guard`, `phase_support_sigma` | `Refinement.run_stage` | 0.98 and 3, since no plan supplies them; `Project.run_stage` passes the `phase_support_sigma` of the plan the project stores |
 
 `Refinement.fit` therefore takes no `backend=` or `solver=`.
 Choose them when you build the object:
@@ -66,7 +66,9 @@ A backend whose optional dependency is missing raises `ImportError` with the ins
 | `"lebail"` | extracted from the data between solves | the best profile fit a cell and a space group can give, with no structure |
 | `"pawley"` | refined, one parameter per reflection | as Le Bail, with the intensities as parameters that carry esds |
 
-Le Bail and Pawley fix every atom parameter, every phase scale and every emission-line intensity, because the data do not constrain them in those modes.
+Le Bail and Pawley fix every atom parameter, every phase scale and every texture coefficient, because the data do not constrain them in those modes.
+The emission-line weights and a wavelength refine in both modes: the doublet's ratio is a shape the per-reflection intensities cannot absorb.
+A wavelength refines only against a held cell ([Held rows](parameter-table.md#held-rows)).
 `ParameterRow.mode_fixed` marks those rows ([Parameter map](parameters.md)).
 The preset name `"mccusker_default"` runs as `profile_only` in Le Bail mode and as `pawley_default` in Pawley mode.
 
@@ -143,7 +145,7 @@ Lab: calibrate on a standard
 `pawley_default` is the only Pawley preset, and every preset but `profile_only` and `pawley_default` is Rietveld only.
 `Capabilities.plans` carries the same four facts as `PlanCapability` rows ([Plans](programs.md#plans)).
 
-A `RefinementPlan` holds its stages and three settings.
+A `RefinementPlan` holds its stages and four settings.
 
 | Field | Default | Holds |
 |---|---|---|
@@ -151,6 +153,7 @@ A `RefinementPlan` holds its stages and three settings.
 | `RefinementPlan.correlation_guard` | 0.98 | the \|ρ\| above which a stage reports a correlated pair |
 | `RefinementPlan.intermediate_ftol` | 1e-6 | the tolerance every stage but the last stops at ([Stage tolerances](#stage-tolerances)) |
 | `RefinementPlan.lebail_passes` | 1 | the cap on Le Bail passes ([Le Bail passes](#le-bail-passes)) |
+| `RefinementPlan.phase_support_sigma` | 3 | the number of esds a phase's scale must sit from zero for the stage to treat the phase as seen; `None` switches the hold off ([Held parameters](#held-parameters)) |
 
 ```python
 import rietx as rx
@@ -321,7 +324,7 @@ assert spec.correlation_guard == plan.correlation_guard
 `PlanSpec.from_plan` and `PlanSpec.to_plan` convert a plan, and `StageSpec.from_stage` and `StageSpec.to_stage` a stage.
 `PlanSpec.stages` is a list of `StageSpec`.
 A `StageSpec` carries every `Stage` field under the same name: `StageSpec.name`, `StageSpec.turn_on`, `StageSpec.max_iter`, `StageSpec.ftol`, `StageSpec.lebail_cycles`, `StageSpec.seed`, `StageSpec.strain_seed`, `StageSpec.restraint_weight_scale` and `StageSpec.window_slack_deg`.
-`PlanSpec.correlation_guard`, `PlanSpec.intermediate_ftol` and `PlanSpec.lebail_passes` carry the plan's three settings.
+`PlanSpec.correlation_guard`, `PlanSpec.intermediate_ftol`, `PlanSpec.lebail_passes` and `PlanSpec.phase_support_sigma` carry the plan's four settings.
 
 Anything that takes one of the pair takes the other.
 `fit` accepts a `PlanSpec` read back from a project or a history header, and validating a `RefinementPlan` as a `PlanSpec` converts it:
@@ -381,10 +384,11 @@ for stage in result.stages:
 | `StageResult.unknown_paths` | literal names in `turn_on` that name no parameter of this model, and names under a retired spelling |
 | `StageResult.unreached_histograms` | joint fits: per histogram, the patterns that freed parameters of another histogram and matched none of this one; `{}` on a single histogram |
 | `StageResult.seeded` | each parameter this stage lifted before solving, with the value it started from |
+| `StageResult.cell_reset` | the free cell parameters this stage put back at the values it started from, because their phase's cell left the safety window while it solved ([Parameter table](parameter-table.md#bounds-a-stage-adds); [`CELL_RUNAWAY`](diagnostics-refinement.md#cell_runaway) says more) |
 | `StageResult.moment_flat_axes`, `StageResult.moment_turned` | magnetic sites whose moment direction the stage held about a flat axis ([Magnetic refinement](magnetic.md#directions-a-powder-cannot-see)) |
 | `StageResult.moment_angle_tests` | each round of the stationary-angle test, one `MomentAngleTest` per round; `None` when no test ran ([Magnetic refinement](magnetic.md#an-angle-at-a-symmetry-direction)) |
 
-`StageResult.scale_b_held`, `StageResult.unknown_paths`, `StageResult.unreached_histograms` and `StageResult.seeded` are `None` on a result stored before the field existed, meaning that nothing looked.
+`StageResult.scale_b_held`, `StageResult.unknown_paths`, `StageResult.unreached_histograms`, `StageResult.seeded` and `StageResult.cell_reset` are `None` on a result stored before the field existed, meaning that nothing looked.
 The status type also admits `diverged`, which neither driver produces today.
 Both drivers accept a step only when it lowers the cost, so `cost_final` never exceeds `cost_initial`.
 
@@ -442,6 +446,32 @@ It never solves a third time.
 A displacement hold is never lifted within a stage, because a phase with one d-spacing in range keeps it whatever the solve does.
 
 Both lists are empty on every fit whose phases are all visible.
+
+The line between seen and unseen is a plan setting, `RefinementPlan.phase_support_sigma`, mirrored by `PlanSpec.phase_support_sigma`.
+A phase counts as seen when its scale sits at least that many esds from zero, the esd taken against the counting noise.
+The default is {{ PHASE_SUPPORT_SIGMA }}.
+A higher number holds more phases, and `None` switches the hold off:
+
+```python
+import dataclasses
+
+import rietx as rx
+
+plan = rx.RefinementPlan.mccusker_default()
+assert plan.phase_support_sigma == 3.0
+
+no_hold = dataclasses.replace(plan, phase_support_sigma=None)
+```
+
+With `None`, no stage holds, releases or restores a phase, and no cell takes the window an unseen phase's cell gets.
+`PHASE_UNCONSTRAINED` still reports a phase under {{ PHASE_SUPPORT_SIGMA }}σ, and names the parameters that refined without signal.
+Zero, a negative number, an infinity and a NaN are refused.
+
+A raised threshold has one known cost.
+A weak phase whose cell starts more than a peak width from its true value puts its peaks in the wrong place.
+It then reads weaker than it is and can stay held at the wrong cell.
+On a synthetic in-situ pattern whose CaF<sub>2</sub> cell started 1.2 % off, the default released the cell and refined it.
+At 50σ the phase read 3.7σ at the answer, and the cell stayed where it started.
 
 ### Solver counts
 

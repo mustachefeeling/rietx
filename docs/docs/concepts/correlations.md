@@ -8,7 +8,8 @@ rietx leaves that esd empty because the arithmetic would otherwise print a small
 The esds come from the covariance matrix at the converged point, χ²<sub>red</sub> (JᵀJ)⁻¹, where J is the Jacobian of the weighted residuals.
 They are taken from the last stage of the plan, where every freed parameter refines together.
 Each esd is multiplied by the Bérar-Lelann factor, which accounts for neighbouring residuals that are correlated with each other and so carry less independent information.
-Not every program applies this factor, so divide it out before comparing esds with another program's: `FitReport.identifiability.esd_inflation` holds it.
+GSAS-II, FullProf and TOPAS do not apply it to their esds.
+`RefinedParameter.stderr_uncorrected` is each esd without the factor, so compare another program's esd with it.
 The correlation matrix is not inflated, so a degenerate pair reads |ρ| ≈ 1.
 The [esd section of the theory](../theory/estimation.md#esds-and-the-bérar-lelann-inflation) gives both formulas.
 

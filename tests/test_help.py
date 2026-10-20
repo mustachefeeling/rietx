@@ -50,7 +50,7 @@ from rietx.help import (
     plan_help,
 )
 from rietx.io.formats.base import READER_OPTIONS
-from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, ParameterTable
+from rietx.params.vector import ParameterTable
 from rietx.refine import SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
 from rietx.schemas.common import Parameter
 from rietx.schemas.indexing import IndexingControls, ObservedPeak, PeakFlag
@@ -661,11 +661,9 @@ def test_defaults_are_the_schemas_own():
 #: ``help.py``'s module docstring instead, but a number can be and is.
 #:
 #: The converters are the units the sentence chose, not the code's: a crystallite
-#: floor is stored in Å and read by people in nm.  Retuning a constant therefore
+#: size is stored in Å and read by people in nm.  Retuning a constant therefore
 #: fails here until the sentence is rewritten, which is the whole point.
 _QUOTED_THRESHOLDS = (
-    ("phases.0.lor_size", "SIZE_CAP_MIN_SIZE_A", SIZE_CAP_MIN_SIZE_A / 10.0, "2 nm"),
-    ("phases.0.gauss_size", "SIZE_CAP_MIN_SIZE_A", SIZE_CAP_MIN_SIZE_A / 10.0, "2 nm"),
     ("phases.0.lor_size", "SIZE_FLAG_SIZE_A", SIZE_FLAG_SIZE_A / 10.0, "5 nm"),
     ("phases.0.lor_strain", "STRAIN_FLAG_WIDTH", STRAIN_FLAG_WIDTH, "1.5 deg"),
 )
@@ -682,7 +680,7 @@ def test_quoted_thresholds_are_the_codes_own():
     were, and nothing else would notice a retune.
 
     Two directions, as everywhere in this file.  The sentence must spell the
-    constant, so retuning ``SIZE_CAP_MIN_SIZE_A`` to 30 Å fails until the
+    constant, so retuning ``SIZE_FLAG_SIZE_A`` to 30 Å fails until the
     description says 3 nm.  And the spelling must be *derived* from the constant
     rather than asserted flat, so a row whose converter is wrong fails here
     rather than certifying its own arithmetic.

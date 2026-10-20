@@ -137,7 +137,7 @@ merged in, each held row naming which of the three reasons holds it (`.refinable
 `set_vary`/`set_value` nodes. Three load-bearing rules: `ParameterRow` mirrors
 `params.vector.Entry` field for field (pinned by `dataclasses.fields`; `esd`/`mode_fixed` the
 declared extras); a **tied** path refuses an edit and names its sources; `mode_fixed`
-(lebail/pawley force-fix every `.atoms.` path, `.scale`, `.source.lines.`) is *not* `locked` —
+(lebail/pawley force-fix every `.atoms.` path, `.scale`, `.texture.`) is *not* `locked` —
 that keeps a Le Bail phase's mandatory dummy atom from looking editable.
 
 **User constraints** (WP-1070) sit beside the derived ties: `tie`/`tie_equal`/`untie`,
@@ -375,8 +375,9 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   *whole* block since W normalises by a sum. **A row on its bound stays in the matrix** (WP-1929):
   its esd and its neighbours' are marginal, `at_bound` says where it sits, and a refit holding it is
   the conditional reading. **A column is squared only via `statistics.column_rescale`** (WP-1463).
-  A moment angle a Δχ² test finds at a symmetry-fixed direction is zeroed **for the covariance
-  alone** (WP-1929): a reader of the inverted matrix takes `covariance_jacobian`, not `outcome.jac`.
+  A moment angle a Δχ² test puts at a symmetry-fixed direction is zeroed **for the covariance alone**
+  (WP-1929; read `covariance_jacobian`) and carries a profile interval (`RefinedParameter.interval`,
+  WP-2002), 20-32 refits an angle: a trial not built by `_trial` sets `_auto_intervals = False`.
 - **A declared name is a claim, and an absent writer fails no test** (WP-1076, the rule above one
   rank up). Two shapes: a field whose empty state reads as an *answer*
   (`RefinedParameter.at_bound` was `bool = False`, so every result said "not at a bound" about
@@ -408,8 +409,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   each other *and a real* `ParameterTable`; geometry-blind, the map suggested a force-fixed
   parameter and the route answered 409. Three rules for a new aberration: a parameter the forward
   branch skips is **force-fixed, not merely unfree** (else a free entry is a dead column); "this
-  instrument has no such error" ≠ "refine it and get zero" (on 11-BM that pair is a degeneracy the
-  fit rides to a bound while Rwp *improves* and the cell moves 1117 ppm); its evidence is a
+  instrument has no such error" ≠ "refine it and get zero" (on 11-BM a degeneracy the fit walks,
+  cell 5109 ppm, while Rwp *improves*; `FLAT_DIRECTION` and the esd report it); its evidence is a
   **rung**, never the endpoint.
 - **A stage weights the restraints, and the scalar stops at the row build** (WP-1074, McCusker §8
   eq 7). `Stage.restraint_weight_scale` = c_w in S = S_y + c_w·S_G, frozen onto `CompiledModel`

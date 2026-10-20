@@ -224,11 +224,16 @@ An angle that passes keeps its value, has no esd, and is named by [`MOMENT_ANGLE
 | `MomentAngleTest.statistic` | Δχ² from where the fit stopped to that direction, the other parameters refitted, over χ²<sub>red</sub>·f²; `None` where the direction was not reached |
 | `MomentAngleTest.cut` | the 95 % point the statistic is held against: 2.71 for one angle, 4.23 for two, 5.43 for three, 6.50 for four |
 | `MomentAngleTest.zeroed` | whether these angles left the covariance |
-| `MomentAngleTest.stationary_at` | each angle's value at the direction where its column vanishes; empty where the direction was not reached |
+| `MomentAngleTest.stationary_at` | each angle's value at the direction where its column vanishes, the image nearest the fitted value; empty where the direction was not reached |
 | `MomentAngleTest.half_widths` | on a passing round, each angle's distance either side of that direction at which χ², everything else held, rises by χ²<sub>red</sub>·f² |
 
-For an interval on such an angle, call `Refinement.profile_interval` with the angle's path ([How to quote a parameter that ended on its bound](../guides/interval.md)).
-It starts its steps from the angle's half-width.
+Such an angle carries its profile interval in place of an esd ([How to quote a parameter that ended on its bound](../guides/interval.md)).
+After the last stage, a single-pattern fit runs `Refinement.profile_interval` for each angle the test left out, stepping from its half-width, and stores the answer on the row as `RefinedParameter.interval`.
+`MOMENT_ANGLE_STATIONARY` then gives each angle's distance from the direction and says whether the interval includes it.
+Where it does, the data cannot tell the moment from one along that direction.
+The refits run on a copy of the models, so the history gains no node.
+They are the only cost, and only a fit whose test passed pays it: 20-32 refits an angle, 2.6-16.7 s on the two-site test fits of 0.2-1.2 s.
+A joint fit computes no interval, and its rows read `None`.
 
 (sec-magnetic-width)=
 ## Magnetic peak width
@@ -316,7 +321,7 @@ solution.write_magcifs("candidates/")
 | `d_min` | 1.5 Å | the d limit the equivalence classes are a statement about |
 | `magnitude` | 2.0 μ<sub>B</sub> | the seed modulus |
 | `plan` | three stages, `moduli`, `moment` and `all` (`rietx.strategy.magnetic.SOLVE_STAGE_NAMES`) | the stages for every trial and the nuclear reference; they must differ only by the moment paths |
-| `tie_width`, `tie_r` | 6.0, 0.02 | the ΔBIC tie and the relative magnetic-only R gap that still ties |
+| `tie_width` | 6.0 | the ΔBIC gap below which two classes are tied |
 | `generator` | `zone_boundary_candidates` | the candidate k set |
 | `nuclear_group` | `"parent"` | the group a k ≠ 0 supercell's atom positions refine under |
 | `tie_to_parent` | `False` | hold a k ≠ 0 trial's cell at the parent's and tie together the child Biso of one parent atom, in the trial and its reference, reported as [`SOLVE_B_TIED_PER_PARENT_SITE`](diagnostics-structures.md#solve_b_tied_per_parent_site) |
@@ -330,18 +335,24 @@ solution.write_magcifs("candidates/")
 4. The ranking, given in `MagneticSolution.criterion`.
 
 A candidate with more free amplitudes always reaches a lower Rwp, so ordering by Rwp orders by freedom.
-The first key is `MagneticTrial.delta_bic` against a nuclear reference refined under the same stages minus the moment paths, so the two models differ only by the moment block and the added parameters are exactly `MagneticTrial.n_moment_parameters`.
+The ranking is `MagneticTrial.delta_bic` against a nuclear reference refined under the same stages minus the moment paths, so the two models differ only by the moment block and the added parameters are exactly `MagneticTrial.n_moment_parameters`.
 The −n<sub>added</sub>·ln N term of ΔBIC charges every extra amplitude {cite}`schwarz1978`, so a nested set of groups reaching one profile ranks smallest group first.
-The second key is `MagneticTrial.r_magnetic`, a profile R over the channels the nuclear model puts nothing on, where 1 means it explains none of the intensity there and 0 all of it.
-The third is the smaller moment-parameter count.
+ΔBIC charges N/f² observations in place of the N fitted channels, as `compare_freed` does, with f the Bérar-Lelann factor of the nuclear reference's fit.
+Neighbouring channels of one peak share the sign of their misfit, so at the raw count any χ² gain outvotes the parameter penalty.
+Before 1.10 the count was N.
+On the Cr<sub>2</sub>WO<sub>6</sub> 4 K tutorial pattern f is 3.38, so ΔBIC charges 153 of the 1749 channels, and the winner's lead over the next class falls from 1682 to 143, still far past the tie width.
+`MagneticTrial.r_magnetic` is a profile R over the channels the nuclear model puts nothing on, where 1 means it explains none of the intensity there and 0 all of it.
+It is reported and ranks nothing.
 A supported moment is a condition for winning.
 A trial whose every moment fails the support test cannot win whatever its ΔBIC, and neither can one whose ΔBIC is not positive.
 When no trial passes both, the verdict is `"nothing to solve"`.
 
 Classes whose ΔBIC lies within `MagneticSolution.tie_width` of the leader's are tied on ΔBIC.
-The magnetic-only R decides among them when it separates them by more than 2 % relative, then the smaller parameter count.
-A tiebreak that decides gives `"solved"`, with the key named in `MagneticSolution.reason`.
-When neither separates them, `MagneticSolution.tied` names them and the verdict is `"abstained"`.
+A tie is an abstention: `MagneticSolution.tied` names the classes, the verdict is `"abstained"`, and the reason gives each tied class's moment-parameter count and magnetic-only R.
+The tied classes come first in `MagneticSolution.trials`, fewest moment parameters first, the order of the convention that reports the highest symmetry the data allow.
+Neither the count nor the R ranks them, because ΔBIC already charges each parameter.
+Before 1.10 a gap in the magnetic-only R of more than 2 %, and then a smaller parameter count, broke a tie and gave `"solved"`.
+The 2 % margin was never measured.
 The default width, 6.0, is "strong" on the scale of Kass and Raftery (1995).
 A cubic collinear structure gives another abstention: one class, a well-measured modulus and a direction the powder cannot determine, reported in `MomentRow.unmeasured_directions`.
 
@@ -366,7 +377,7 @@ Everything else, such as no unexplained intensity or a tie at the top, is report
 | `MagneticSolution.reason` | why, in a sentence | never empty |
 | `MagneticSolution.criterion` | the ranking rule, stated | the same string every run |
 | `MagneticSolution.best` | the winning `MagneticTrial`, or `None` | `None` for every verdict but `"solved"` |
-| `MagneticSolution.margin` | the winner's ΔBIC over the best other eligible class | `None` with no winner or no second eligible class; negative, by at most the tie width, when the second or third key chose the winner |
+| `MagneticSolution.margin` | the winner's ΔBIC over the best other eligible class | `None` with no winner or no second eligible class; above the tie width otherwise |
 | `MagneticSolution.phase`, `MagneticSolution.space_group` | the phase solved | |
 | `MagneticSolution.sites` | the sites given a moment | |
 | `MagneticSolution.k` | the propagation vector used, as three rationals | `None` when the run stopped before choosing one |
@@ -385,7 +396,7 @@ Everything else, such as no unexplained intensity or a tie at the top, is report
 | `MagneticSolution.nuclear_rwp`, `MagneticSolution.nuclear_gof` | the reference fit's agreement | |
 | `MagneticSolution.nuclear_r_magnetic` | the reference's own magnetic-only R | near 1 on a nuclear model that explains none of it; the scale every `MagneticTrial.r_magnetic` is read against |
 | `MagneticSolution.n_magnetic_channels` | channels in that region | zero makes `r_magnetic` `None` |
-| `MagneticSolution.caveats` | what the run wants you to know, as sentences | includes the channel count ΔBIC used for N |
+| `MagneticSolution.caveats` | what the run wants you to know, as sentences | includes the N/f² count ΔBIC charged, with N and f |
 | `MagneticSolution.diagnostics` | structured diagnostics | [`K_VECTOR_UNSEPARATED`](diagnostics-structures.md#k_vector_unseparated), [`MAGNETIC_SUBGROUP_PREFERRED`](diagnostics-structures.md#magnetic_subgroup_preferred) and the assumed ion and g among them |
 | `MagneticSolution.subgroup_audit` | the winner's maximal magnetic subgroups at its k, each refitted from the winner's solution, one `SubgroupAudit` each | empty when k ≠ 0, or when no class already enumerated is a subgroup |
 | `MagneticSolution.subgroup_note` | which subgroup beat the winner and by how much, that none did, or why the audit was not run | set on every solved verdict |
@@ -413,13 +424,13 @@ Everything else, such as no unexplained intensity or a tie at the top, is report
 | `MagneticTrial.site` | the site whose representation produced it | |
 | `MagneticTrial.irrep`, `MagneticTrial.direction` | the labels, such as `S2` and `(a)` | |
 | `MagneticTrial.bns_number`, `MagneticTrial.uni_number`, `MagneticTrial.msg_type` | what spglib recognised the operator list as | `"unidentified"` and `None` are answers, not errors |
-| `MagneticTrial.free_amplitudes` | the representative site's amplitudes before any data | per site; the parsimony key reads `n_moment_parameters` |
+| `MagneticTrial.free_amplitudes` | the representative site's amplitudes before any data | per site; `n_moment_parameters` counts them |
 | `MagneticTrial.determinable_amplitudes` | how many of them a powder to `d_min` can determine | the deficit is the flat directions; `None` on a refused trial |
 | `MagneticTrial.status`, `MagneticTrial.refusal` | `"refined"` or `"refused"`, and why | a refusal such as a magnetic orbit that cannot cover the nuclear one |
 | `MagneticTrial.fit_status`, `MagneticTrial.reference_status` | the trial fit's status and its nuclear reference's, after the continuations | anything but `"converged"` lists the trial and leaves it out of the ranking |
 | `MagneticTrial.stopped_short` | which of the two stopped short, in words | `None` when both converged |
 | `MagneticTrial.rwp`, `MagneticTrial.gof` | the trial's own agreement | context, never the ranking key |
-| `MagneticTrial.delta_bic` | the first key | positive favours the magnetic model |
+| `MagneticTrial.delta_bic` | the ranking quantity | positive favours the magnetic model |
 | `MagneticTrial.r_magnetic` | the magnetic-only R | read against `MagneticSolution.nuclear_r_magnetic` |
 | `MagneticTrial.n_moment_parameters`, `MagneticTrial.n_free_parameters` | the moment parameters left free, and the whole free count | `None` on a refused trial |
 | `MagneticTrial.moments` | one `MomentRow` per site with a moment | |
