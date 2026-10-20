@@ -114,6 +114,19 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    the fourth review over demoting by construction, which would strip every rare feature
    of its one unanimous action; the maintainer may reverse it.
 
+   **A brief opens with its stakes, and a guard the ordinary fits never trigger names the
+   case that does** (2026-10-20). Each class's brief to the maintainer begins with one
+   line: the reported quantity the action can move, the case on disk where it did and
+   that answer's distance from the family's reference (or `none on disk`), and the
+   dissenter named or `none found`. The line is context for the ruling and never a
+   filter on it: no measured figure shortens a brief, since every such figure comes from
+   the data the item was tuned on. A one-line brief is earned by `none found` alone. And
+   a kept guard that no ordinary fit in the suites reaches (the cell clamp fired in none
+   of WP-1523's 104) is kept on the strength of an injected case the row names
+   (`test_cell_runaway_safety`'s escape), since a guard the goldens never exercise is one
+   they cannot see regress; where none exists the batch builds it before the row is
+   recorded kept. Why not a measured consequence column: § Decisions, 2026-10-20.
+
    **A caller pays in tokens and a fit in seconds**, so the default is the one that
    reaches a right answer in the fewest calls (DESIGN.md § Rules, 1). Where a rerun is
    expensive (an hour-long indexing search, a 200-pattern batch, a write into a project's
@@ -491,6 +504,29 @@ reverse it knowing what it would be giving up.
   less the cheap path for an author; a WP-2002 lane's over-reach on the peak-position
   bounds (11-BM NAC's cell 5129 ppm off against 1117 ppm) is the measured cost. The
   priority rubric stays with 2009.
+- **A consequence axis beside the tier was considered and not taken** (2026-10-20, a
+  planning session; the maintainer's note of that date, outside the repository). The
+  proposal: refit each tier-3 item with the choice a dissenting refiner would make, record
+  the shift per reported quantity in physical units with its esd, sort the batch by it
+  and give a class near zero a one-line brief. Three reasons against, each read off the
+  WP-2002 batch (PR #1050). A guard exists for its tail and reads zero on three quiet
+  standards: the cell clamp fired in none of 104 fits and hands back a cell 15 % off when
+  it does, so the column would have filed the one B8 item whose brief proposed changing
+  the action under "who cares". Sixty-eight of the batch's 75 tier-3 rows are constants,
+  for which a dissenter's alternative is a second number nobody has chosen, so the column
+  adds about that many untiered factors to a table built so that none enters. And "near
+  zero" is a threshold with no source, so the column is the "within uncertainty" class
+  with its bar unspoken; a default-minus-alternative figure also reads small where both
+  are wrong the same way (11-BM's displacement: 1117 ppm with its bounds, 5129 without,
+  the right answer being not to free it). What the discussion kept is the paragraph in
+  § The rule: the stakes line, which gives the maintainer what the B5 ruling asked for
+  ("don't spend too much effort on this") without a number deciding it, and the injected
+  case for an unexercised guard. An on/off refit against reference stays the right
+  evidence for an always-on correction (the Bérar-Lelann inflation, the √y fallback,
+  dispersion on by default), where nothing fires and only a refit can show what moves; it
+  is that brief's content, not a process. Reopened by a batch whose `none found` classes
+  still cost real ruling time, or by a tier-3 item shown to move a reported quantity past
+  its reference on a family where its brief read `none on disk`.
 
 ## The two reviews at the open
 

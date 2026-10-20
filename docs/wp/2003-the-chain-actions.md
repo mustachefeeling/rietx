@@ -114,7 +114,8 @@ the bar.
       on and off, on two chain families), replacing the comment's claim.
 - [ ] The clash table: reseed × rung × `_prefer` × width growth × the moment carry, both
       orderings where order matters.
-- [ ] The batch to the maintainer; rulings dated into the table.
+- [ ] The batch to the maintainer, each brief opening with its stakes line (the record
+      § The rule, 2026-10-20); rulings dated into the table.
 - [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` replaced by the
       `info` record of the largest steps, if the batch agrees; the release notes staged.
 - [ ] Goldens re-pinned only if no further from reference. A series golden's first
