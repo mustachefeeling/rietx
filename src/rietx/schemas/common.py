@@ -513,6 +513,10 @@ from .._nearmiss import did_you_mean
 #: absent-phase hold's threshold, defaulting to the 3σ every fit used, so a
 #: stored plan loads and runs as before; ``None`` switches the hold off.  An
 #: older build refuses a plan carrying it.
+#: Also in 0.59 (WP-2002, B4): ``RefinedParameter.stderr_uncorrected``, the
+#: esd without the Bérar-Lelann factor, as GSAS-II and FullProf print it.
+#: Additive and defaulted to ``None``, the 0.25 → 0.26 rule; both fit
+#: builders write it on every row that has an esd.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

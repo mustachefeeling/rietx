@@ -114,6 +114,7 @@ from .refine import (
     _species_fallback_diagnostics,
     _strain_flag_diagnostics,
     _symmetry_silence_diagnostics,
+    _uncorrected,
     _unknown_path_diagnostics,
     _utcnow,
     _wavelength_calibration_diagnostics,
@@ -1838,7 +1839,7 @@ class MultiHistogramRefinement:
         # a second build here would double the cost for the same dict.
         esd_hist0 = per_esds[0] if per_esds else {}
         parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_hist0,
-                                      answer_runaway)
+                                      answer_runaway, outcome.esd_inflation)
         diagnostics = list(opening_diags) + self._top_diagnostics(
             outcome, correlation_guard, top_bg, at_bounds, models)
         # what a parametric declaration did to each pattern's dependent that
@@ -2012,7 +2013,7 @@ class MultiHistogramRefinement:
         return rows
 
     def _parameters(self, thetas, stderr, corr, at_bounds, esd0,
-                    answer_runaway=()) -> list[RefinedParameter]:
+                    answer_runaway=(), esd_inflation=None) -> list[RefinedParameter]:
         mt = self.mtable
         params: list[RefinedParameter] = []
         # The single-histogram rule (``refine._build_result``): a cell the
@@ -2041,9 +2042,12 @@ class MultiHistogramRefinement:
         # other histograms' columns do not enter a single path's variance).
         for e in mt.tables[0].entries:
             if mt.sharing.is_shared(e.path) and (e.vary or e.tie is not None):
+                sd = None if e.path in withheld[0] else esd0.get(e.path)
+                # the single fit's rule (``refine._uncorrected``, WP-2002 B4):
+                # the joint solve's own factor, read off its weighted residual
                 params.append(RefinedParameter(
-                    path=e.path, value=e.value, vary=e.vary,
-                    stderr=None if e.path in withheld[0] else esd0.get(e.path),
+                    path=e.path, value=e.value, vary=e.vary, stderr=sd,
+                    stderr_uncorrected=_uncorrected(sd, esd_inflation),
                     at_bound=(e.path in on_bound) if e.path in tested else None,
                     equations=equations.get(e.path, [])))
         for h, table in enumerate(mt.tables):
@@ -2054,9 +2058,10 @@ class MultiHistogramRefinement:
             for e in table.entries:
                 if not mt.sharing.is_shared(e.path) and (e.vary or e.tie is not None):
                     row = f"hist.{h}.{e.path}"
+                    sd = None if e.path in withheld[h] else esd.get(e.path)
                     params.append(RefinedParameter(
-                        path=row, value=e.value, vary=e.vary,
-                        stderr=None if e.path in withheld[h] else esd.get(e.path),
+                        path=row, value=e.value, vary=e.vary, stderr=sd,
+                        stderr_uncorrected=_uncorrected(sd, esd_inflation),
                         at_bound=(row in on_bound) if row in tested else None,
                         equations=equations.get(row, [])))
         return params

@@ -92,11 +92,28 @@ class RefinedParameter(Base):
     ``None`` says no interval was computed: any other row, a joint fit (which
     has no profile verb), a package-internal trial, a fit cancelled while its
     intervals ran, or a result stored before the field.
+
+    **``stderr_uncorrected`` is the esd other programs print** (WP-2002, B4).
+    ``stderr`` carries the Bérar-Lelann factor f for serially correlated
+    residuals (``optimize.statistics.berar_lelann_factor``); this is the same
+    esd without it, √(χ²_red·(JᵀJ)⁻¹) carried to the row, which is what
+    GSAS-II and FullProf report.  It is ``stderr`` divided by the f the solve
+    multiplied it by (``LSQOutcome.esd_inflation``), so one fit's rows share
+    one ratio and the identity is exact to rounding.  That f is measured on
+    the solve's own last residual, and :attr:`Statistics.esd_inflation`
+    re-measures it at the result's compile: on 11-BM NAC the two differ by
+    0.07 % (Rietveld) and 0.75 % (Le Bail), and by 4 % on a joint fit
+    weighted 1:4.  So ``stderr / Statistics.esd_inflation`` is close to this
+    and not equal to it.  Two writers, each beside ``stderr``:
+    ``refine._build_result`` and ``MultiHistogramRefinement._parameters``; a
+    series copies its fits' rows.  ``None`` wherever ``stderr`` is, and on a
+    result stored before the field.
     """
 
     path: str
     value: float
     stderr: float | None = None
+    stderr_uncorrected: float | None = None
     vary: bool = True
     at_bound: bool | None = None
     equations: list[str] | None = None
@@ -128,7 +145,12 @@ class Statistics(Base):
     neighbours (``optimize.statistics.berar_lelann_factor``), so a value near
     that is no evidence of correlation; lab data with unmodelled profile
     detail lands near 2-3 (1.93 on the FAP tutorial fit, 2.82 on SRM 660c).
-    Divide it out for raw χ²·(JᵀJ)⁻¹ esds.
+    It is measured on the residual at the values this result reports, while
+    the esds carry the factor the solve measured on its own last residual,
+    so the two can differ slightly (WP-2002, B4, measured on 11-BM NAC:
+    0.07 % on a Rietveld fit, 0.75 % on a Le Bail fit, 4 % on a joint fit
+    weighted 1:4).  The raw χ²·(JᵀJ)⁻¹ esd of a row is
+    :attr:`RefinedParameter.stderr_uncorrected`.
 
     ``max_shift_over_esd`` is McCusker et al. (1999) §7's convergence
     quantity: the largest |Δθᵢ|/esd(θᵢ) over the final accepted step of the

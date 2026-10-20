@@ -529,6 +529,7 @@ present with `vary=False`.
 | `RefinedParameter.path` | the dot-path |
 | `RefinedParameter.value` | the value the fit ended at |
 | `RefinedParameter.stderr` | the esd, or None if it could not be estimated |
+| `RefinedParameter.stderr_uncorrected` | the same esd without the Bérar-Lelann factor, as GSAS-II and FullProf print it ({ref}`ch-estimation`), and None where `stderr` is None or on a result from before 1.10 |
 | `RefinedParameter.vary` | false on the tied rows, which is how to spot them |
 | `RefinedParameter.at_bound` | true, false, or None where the row was not tested |
 | `RefinedParameter.equations` | the parametric declarations that set the row ([](series.md)), empty where none did, and None on a row a result from before 1.10 carries |

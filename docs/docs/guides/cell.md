@@ -50,7 +50,7 @@ Bérar-Lelann factor 2.15
 Neighbouring points of a step scan have correlated residuals, so they carry less independent information than their number suggests.
 The Bérar-Lelann factor widens the esds to account for it.
 The esds above already include it, so do not multiply them by it, or by the goodness of fit, again.
-GSAS's esds do not include it, so compare them with rietx's only after dividing rietx's by this factor.
+GSAS's esds do not include it, so compare them with `stderr_uncorrected`, the same esd without the factor.
 [Estimation](../theory/estimation.md#esds-and-the-bérar-lelann-inflation) gives the formula.
 
 ## Check what the esd leaves out

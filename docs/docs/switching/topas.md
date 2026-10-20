@@ -111,6 +111,13 @@ For constant-wavelength neutrons it is 100 times rietx's, because TOPAS states |
 The neutron constant was measured against TOPAS 6.
 `write_topas_inp(..., scale="topas")` and `to_structure(scale="rietx")` convert, and a file that states neither radiation is refused rather than guessed.
 
+### An esd carries a correlation factor
+
+rietx multiplies every esd by the Bérar-Lelann factor for serially correlated residuals.
+The TOPAS Technical Reference (Version 9) describes no such factor for `do_errors` or `bootstrap_errors`.
+So compare a TOPAS esd with `RefinedParameter.stderr_uncorrected`, which is rietx's esd without the factor.
+[Estimation](../theory/estimation.md#esds-and-the-bérar-lelann-inflation) says why rietx applies it and how large it gets.
+
 ### Rwp is for looking, and the report is for judging
 
 TOPAS reports `r_wp` and `gof` as the figures of merit.

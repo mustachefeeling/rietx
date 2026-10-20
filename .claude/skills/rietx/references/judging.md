@@ -120,7 +120,7 @@ paper's eqs (10)-(12) (`optimize.statistics.berar_lelann_factor`; quadrature,
 checked by simulation). It is one scalar applied to every esd, so it says how
 correlated the residual is, not how wrong any one parameter's esd is.
 
-`report.identifiability` quotes raw χ²_red, the inflation (already in every quoted esd, dividable back out) and Durbin-Watson side by side, plus the δR line (`delta_r_slope` / `delta_r_intercept`: sorted Δ/σ against
+`report.identifiability` quotes raw χ²_red, the inflation (already in every quoted esd; `stderr_uncorrected` omits it) and Durbin-Watson side by side, plus the δR line (`delta_r_slope` / `delta_r_intercept`: sorted Δ/σ against
 normal quantiles; slope ≈ 1 and intercept ≈ 0 on honest σ, slope > 1 when σ is
 underestimated).
 

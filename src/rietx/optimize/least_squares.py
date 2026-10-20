@@ -312,6 +312,12 @@ class LSQOutcome:
     #: points reach ``covariance_estimates`` through; ``refine`` turns it into
     #: ``COVARIANCE_UNAVAILABLE`` naming the stage.
     covariance_error: str | None = None
+    #: the Bérar-Lelann factor :attr:`stderr_internal` was multiplied by,
+    #: measured on this solve's own last residual (WP-2002, B4).  Written by
+    #: :func:`_guarded_covariance` beside the esds, so it is ``None`` exactly
+    #: where :attr:`stderr_internal` is.  ``refine`` and ``multi`` divide each
+    #: row's esd by it for ``RefinedParameter.stderr_uncorrected``.
+    esd_inflation: float | None = None
     #: the stationary-angle test's rounds (WP-1929,
     #: :func:`stationary_angle_test`), the record ``StageResult`` copies.  A
     #: round with ``zeroed`` set names the angles whose columns this outcome's
@@ -506,10 +512,12 @@ def _rechart_matrix(outcome: LSQOutcome, theta: np.ndarray,
 
 def _guarded_covariance(jac, fun, n_free: int, n_data: int
                         ) -> tuple[np.ndarray | None, np.ndarray | None,
-                                   str | None]:
+                                   float | None, str | None]:
     """:func:`covariance_estimates`, with an eigensolver failure made absent.
 
-    Returns ``(stderr, corr, None)``, or ``(None, None, repr(exc))`` when
+    Returns ``(stderr, corr, factor, None)``, ``factor`` the Bérar-Lelann
+    factor ``stderr`` carries (:func:`_covariance_and_inflation`), or
+    ``(None, None, None, repr(exc))`` when
     ``np.linalg.LinAlgError`` escapes the pseudo-inverse.  Issue #225 met it
     at a converged fit, pattern 78 of a 182-pattern chain, as ``Eigenvalues
     did not converge`` out of ``eigh``, and the raise discarded the answer the
@@ -521,10 +529,11 @@ def _guarded_covariance(jac, fun, n_free: int, n_data: int
     non-convergence with; anything else is a defect and stays loud.
     """
     try:
-        stderr, corr = covariance_estimates(jac, fun, n_free, n_data=n_data)
+        stderr, corr, factor = _covariance_and_inflation(jac, fun, n_free,
+                                                         n_data=n_data)
     except np.linalg.LinAlgError as exc:
-        return None, None, repr(exc)
-    return stderr, corr, None
+        return None, None, None, repr(exc)
+    return stderr, corr, factor, None
 
 
 def _residual_cosine(jac, fun) -> np.ndarray | None:
@@ -2473,7 +2482,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # feeds the table esds too), then split: table columns stay in the outcome,
     # the intensity tail lands on the model's Pawley block.
     stderr = corr = stderr_full = None
-    covariance_error = None
+    covariance_error = esd_inflation = None
     moment_angle_tests = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
         # a moment angle at a direction the symmetry fixes leaves the
@@ -2482,7 +2491,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
             probe, res.x, res.jac, len(model.tt), table.free_paths,
             _column_entries([table], [np.arange(n_table)], len(res.x)),
             len(res.x))
-        stderr_full, corr_full, covariance_error = _guarded_covariance(
+        stderr_full, corr_full, esd_inflation, covariance_error = _guarded_covariance(
             _without_columns(res.jac, stationary), res.fun, len(res.x),
             n_data=len(model.tt))
     if stderr_full is not None:
@@ -2510,6 +2519,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
                       covariance_error=covariance_error,
+                      esd_inflation=esd_inflation,
                       moment_angle_tests=moment_angle_tests)
 
 
@@ -2724,7 +2734,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
 
-    stderr = corr = covariance_error = moment_angle_tests = None
+    stderr = corr = covariance_error = moment_angle_tests = esd_inflation = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
         # the single-histogram rule (WP-1929) on the stacked residual: a
         # moment angle's column is every histogram's rows of it, and a shared
@@ -2735,7 +2745,7 @@ def run_multi_least_squares(models: list[CompiledModel],
                            [mtable.col_map(h) for h in range(len(mtable.tables))],
                            len(res.x)),
             len(res.x))
-        stderr, corr, covariance_error = _guarded_covariance(
+        stderr, corr, esd_inflation, covariance_error = _guarded_covariance(
             _without_columns(res.jac, stationary), res.fun, len(res.x),
             n_data=n_data_total)
     if isinstance(res.jac, BlockJacobian):
@@ -2753,6 +2763,7 @@ def run_multi_least_squares(models: list[CompiledModel],
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
                       covariance_error=covariance_error,
+                      esd_inflation=esd_inflation,
                       moment_angle_tests=moment_angle_tests,
                       jacobian_layout=layout)
 
@@ -2797,6 +2808,28 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
     correlation is always a valid one.  Note the clip is *not* the fix —
     clipping a 2.75 to 1.0 would report a degeneracy that the arithmetic, not
     the data, invented.
+
+    :func:`_covariance_and_inflation` returns the same pair with the factor
+    beside it.
+    """
+    stderr, corr, _ = _covariance_and_inflation(jac, fun, n_free, n_data)
+    return stderr, corr
+
+
+def _covariance_and_inflation(jac: np.ndarray, fun: np.ndarray, n_free: int,
+                              n_data: int | None = None
+                              ) -> tuple[np.ndarray, np.ndarray, float]:
+    """:func:`covariance_estimates`' esds and correlation, and the Bérar-Lelann
+    factor those esds were multiplied by.
+
+    The factor is returned rather than recomputed by a caller because it is
+    measured on the solve's own last residual, and the residual a result's
+    ``Statistics.esd_inflation`` is measured on is another one, built at the
+    result's own compile.  Measured on 11-BM NAC (2-24°), the two differ by
+    0.07 % on a Rietveld fit and 0.75 % on a Le Bail fit; on a joint fit
+    weighted 1:4 they differ by 4 %, since the solve's residual carries the
+    weights (WP-2002, B4).  ``RefinedParameter.stderr_uncorrected`` divides
+    by this one.
     """
     from .statistics import (
         berar_lelann_factor,
@@ -2846,5 +2879,5 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
             corr[:, wide] = k_corr[:, wide]
     corr = np.clip(corr, -1.0, 1.0)
     np.fill_diagonal(corr, np.where(sqrt > 0.0, 1.0, 0.0))
-    diag = sqrt * berar_lelann_factor(data)
-    return diag, corr
+    factor = berar_lelann_factor(data)
+    return sqrt * factor, corr, factor

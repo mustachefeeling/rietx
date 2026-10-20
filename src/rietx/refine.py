@@ -4773,6 +4773,7 @@ class Refinement:
                 model, table, outcome.theta, mode=mode, status=outcome.status,
                 stage_results=stage_results, diagnostics=diagnostics,
                 structure=self.structure, stderr_internal=outcome.stderr_internal,
+                esd_inflation=outcome.esd_inflation,
                 correlation=outcome.correlation, backend=self._backend,
                 solver=self._solver,
                 mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
@@ -5128,6 +5129,7 @@ class Refinement:
             model, table, outcome.theta, mode=mode, status=outcome.status,
             stage_results=[], diagnostics=list(stage_diagnostics),
             structure=self.structure, stderr_internal=outcome.stderr_internal,
+            esd_inflation=outcome.esd_inflation,
             correlation=outcome.correlation, backend=self._backend,
             solver=self._solver, mu_r_source=self._mu_r_source,
             mu_r_skipped=self._mu_r_skipped, guard=guard,
@@ -5296,6 +5298,7 @@ class Refinement:
                 model, table, outcome.theta, mode=mode, status=outcome.status,
                 stage_results=[stage_result], diagnostics=diagnostics,
                 structure=self.structure, stderr_internal=outcome.stderr_internal,
+                esd_inflation=outcome.esd_inflation,
                 correlation=outcome.correlation, backend=self._backend,
                 solver=self._solver,
                 mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
@@ -7055,10 +7058,24 @@ def _extra_peak_tick_support(model: CompiledModel,
     return [best[j] for _, j, _ in images]
 
 
+def _uncorrected(stderr: float | None, esd_inflation: float | None) -> float | None:
+    """``RefinedParameter.stderr_uncorrected``: ``stderr`` without the
+    Bérar-Lelann factor the solve multiplied it by (WP-2002, B4).
+
+    Every row's physical esd is linear in the internal esds, so one division
+    by the solve's own factor undoes it on a free, tied or derived row alike.
+    ``None`` where there is no esd or no factor to divide by.
+    """
+    if stderr is None or esd_inflation is None:
+        return None
+    return stderr / esd_inflation
+
+
 def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray, *,
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
                   stderr_internal=None, correlation=None,
+                  esd_inflation: float | None = None,
                   backend: str = "numpy", solver: str = DEFAULT_SOLVER,
                   mu_r_source: str = "given",
                   mu_r_skipped: str | None = None,
@@ -7110,10 +7127,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     derived = table.derived_paths()
     for e in table.entries:
         if e.vary or e.tie is not None or e.path in derived:
+            stderr = None if e.path in withheld else stderr_phys.get(e.path)
             params.append(RefinedParameter(
-                path=e.path, value=e.value, vary=e.vary,
-                stderr=(None if e.path in withheld
-                       else stderr_phys.get(e.path)),
+                path=e.path, value=e.value, vary=e.vary, stderr=stderr,
+                # the esd without the Bérar-Lelann factor the solve applied,
+                # as GSAS-II and FullProf print it (WP-2002, B4)
+                stderr_uncorrected=_uncorrected(stderr, esd_inflation),
                 at_bound=(e.path in on_bound) if e.path in tested else None,
                 # a single fit declares no parametric equation (WP-1325)
                 equations=[],
