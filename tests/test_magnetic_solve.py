@@ -1086,6 +1086,20 @@ def test_margin_is_the_true_gap_between_two_eligible_classes():
     assert _solution(ordered, tied, verdict, why).margin == pytest.approx(60.0)
 
 
+def test_a_tie_reports_the_dbic_leaders_nuclear_reference():
+    """The tie lists the simplest class first, and the reported nuclear numbers
+    stay the ΔBIC leader's, as before that order (WP-2002 code review)."""
+    from rietx.strategy.magnetic import _reported_reference
+
+    a = _trial(0, delta_bic=120.0, r_mag=0.11, free=3)
+    b = _trial(1, delta_bic=119.0, r_mag=0.11, free=1, bns="2.2")
+    ordered, tied, verdict, _why = _rank([a, b], SOLVE_TIE_DELTA_BIC)
+    assert verdict == "abstained" and ordered[0] is b
+    kk = (0, 0, 0)
+    refs = {(kk, 0): "leader's", (kk, 1): "simplest's"}
+    assert _reported_reference(refs, {}, kk, ordered, tied) == "leader's"
+
+
 def test_a_tie_has_no_winner_and_so_no_margin():
     """Review of #592, item 4 asked for the margin after a tie-break; since
     2026-10-20 nothing breaks a ΔBIC tie (WP-2002), so a tie has no winner and

@@ -1840,18 +1840,25 @@ def _n_k_tried(k_runs) -> int:
                if any(t.status == "refined" for t in ts))
 
 
-def _reported_reference(reference_of, references, kk, ordered):
+def _reported_reference(reference_of, references, kk, ordered, tied=()):
     """The nuclear reference the reported ``nuclear_*`` numbers come from.
 
     The one the **leading trial** was measured against: ``kk`` is the winning
-    k and ``ordered[0]`` the winner (on an abstention, the class ranked
-    first).  Taking the first child cell's reference that was built instead
+    k and ``ordered[0]`` the winner.  On a ΔBIC tie the tied classes lead the
+    list fewest moment parameters first (WP-2002, 2026-10-20), so the lead is
+    the tied class with the highest ΔBIC, the one ``ordered[0]`` was before
+    that order.  Taking the first child cell's reference that was built instead
     reports the losing k's numbers whenever two k's have different child cells
     and the second wins.  Falls back to any reference built at ``kk``, then to
     any at all, and is ``None`` only when none was.
     """
-    reference = (reference_of.get((kk, ordered[0].class_index))
-                 if ordered else None)
+    lead = ordered[0] if ordered else None
+    if len(tied) > 1:
+        lead = max((t for t in ordered if t.class_index in tied
+                    and t.delta_bic is not None),
+                   key=lambda t: t.delta_bic, default=lead)
+    reference = (reference_of.get((kk, lead.class_index))
+                 if lead is not None else None)
     if reference is None:
         reference = next((v for (k_i, _i), v in reference_of.items()
                           if k_i == kk), None)
@@ -1971,7 +1978,8 @@ def _rank(trials: list[MagneticTrial], tie_width: float):
     spread = best.delta_bic - tie[-1].delta_bic
     # the convention's order, fewest moment parameters first, ΔBIC after
     tie = sorted(tie, key=lambda t: (parsimony(t), -t.delta_bic, t.bns_number))
-    ordered = tie + [t for t in ordered if not any(t is u for u in tie)]
+    in_tie = {id(t) for t in tie}
+    ordered = tie + [t for t in ordered if id(t) not in in_tie]
 
     def r_mag(t: MagneticTrial) -> str:
         return "-" if t.r_magnetic is None else f"{t.r_magnetic:.3f}"
@@ -2557,7 +2565,7 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                 magnetic, g_map, plan, instrument, data, limits, tie_width,
                 zero)
 
-    reference = _reported_reference(reference_of, references, kk, ordered)
+    reference = _reported_reference(reference_of, references, kk, ordered, tied)
     if reference is not None:
         n_eff, n_raw = reference[6], reference[7]
         if n_eff >= n_raw:
