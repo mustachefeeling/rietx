@@ -93,7 +93,7 @@ Answers to § Third round below.
   the other esds; the angle reports its distance from the symmetric direction with the
   likelihood interval (`profile_interval`, run automatically on the answer-producing stage
   for each angle the test passes) in place of no esd.
-- **B7**: agreed, with the two additions; in WP-2013.
+- **B7**: agreed, with the two additions; in WP-2015.
 - **B8**: agreed. The cell window is tier 2 (TOPAS, Tech Ref § 2.17). The 2 nm size floor
   is removed; the range backstop stays; `SIZE_UNUSUALLY_SMALL`'s message gains the
   Bragg-model caveat.

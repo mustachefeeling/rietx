@@ -133,8 +133,9 @@ arguments [API: everyday calls](../reference/api.md#export-and-plots) lists.
 ## `refine` or a `Refinement` session
 
 `refine` runs one fit and discards the session. It is the right call when one
-fit is all you need, and it keeps no history unless you ask for one
-(`history=True`).
+fit is all you need. It keeps no history unless you pass a file path
+(`history="fit.jsonl"`), because a history held in memory would go with the
+session.
 
 The object form keeps the session:
 
@@ -389,11 +390,12 @@ The curves are on the result as `RefinementResult.y_obs`,
 `RefinementResult.y_calc` and `RefinementResult.y_background`, over
 `RefinementResult.two_theta`. `RefinementResult.plot` writes an
 observed/calculated/difference figure with matplotlib.
-[API: everyday calls](../reference/api.md#results) lists the rest of the
+[The refinement result](../reference/result.md) gives the rest of the
 object's fields. Among them are the structure R-factors
-(`RefinementResult.phase_agreement`), the bonding geometry
-(`RefinementResult.geometry`), and the counts that say whether the pattern
-supported the model (`RefinementResult.data_support`).
+(`RefinementResult.phase_agreement`) and the counts that say whether the
+pattern supported the model (`RefinementResult.data_support`).
+[Derived quantities](../reference/derived.md) gives the bonding geometry
+(`RefinementResult.geometry`).
 
 Rwp is a fit statistic and not the answer. This package can show you a fit whose
 Rwp improved while its displacement parameters and phase fractions moved away

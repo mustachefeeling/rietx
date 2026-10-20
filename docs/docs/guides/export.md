@@ -99,3 +99,4 @@ Use it when you hold a result and its models but not the `Refinement` that produ
 
 - [How to quote lattice parameters with their esds](cell.md) shows what the cell's esds measure.
 - [About a project](../concepts/project.md) describes the `exports/` directory.
+- [Exports and derived tables](../reference/exports.md) gives every item the refinement CIF writes.

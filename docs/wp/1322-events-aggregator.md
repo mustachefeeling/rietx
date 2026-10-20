@@ -79,6 +79,8 @@ from `SeriesResult`, so neither surface invents a second set of names.
 
 ### Inherited
 
+- **2026-10-20, from [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md), found while moving the manual's reference pages: a reused `history=` path breaks the log the way a reused `events=` path once did.** Two `Refinement(..., history="fit.jsonl")` runs on one existing path append a second header and restart node ids at `n0000`. `RefinementTree.load` then reports 4 nodes where its dict holds 2, and its summary draws `n0001` twice (measured on the fluorapatite example; `refine.py:2023-2025`, `history/tree.py:80-81,143-148`). The events log solved the same case with a header per opened stream and a split on read; the history log needs that, or a refusal of a path that already holds a tree. `docs/docs/reference/history.md` tells the reader to load the log and continue with `Refinement.from_node` meanwhile.
+
 - **2026-10-15, from [1325](1325-parametric-series.md), from @mustachefeeling's comments on PR #977: the joint fit and long chains.** A joint fit
   keeps no history (`multi.py:1051`), though it now emits events (#926).
   With those, `rietx events` could print one line per parametric equation:

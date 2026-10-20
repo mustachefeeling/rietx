@@ -24,7 +24,7 @@ sometimes with a phase index in them (texture), and a second copy here could
 disagree with the rationale printed beside it.
 
 **Not every kind is a button, and each non-button says why in its own terms.**
-Four of the sixteen are advice, and none of them for want of effort:
+Four of the eighteen are advice, and none of them for want of effort:
 
 * ``add_impurity_phase`` — nothing is named yet, so there is nothing to free.
   Identifying the phase is the work, and adding it is an ``edit_model``.

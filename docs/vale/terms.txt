@@ -172,6 +172,7 @@ Guinier
 Hofmann
 Jacobian
 Jacobians
+Kass
 Kessler
 Kirfel
 Kissel
@@ -182,11 +183,14 @@ Levenberg
 Lindemann
 Lorentzian
 Madsen
+Maier
 Marquardt
 Maxwellian
+Olds
 Pawley
 Pitschke
 Rachinger
+Raftery
 Rietveld
 Rodrigues
 Scherrer
@@ -295,10 +299,13 @@ unscaled
 untransposed
 
 # Programs, libraries and formats.
+bintype
+bintypes
 Bruker
 cctbx
 codeword
 codewords
+Colab
 Conograph
 Fortran
 FullProf
@@ -311,6 +318,7 @@ Kapton
 Mantid
 matplotlib
 numpy
+PANalytical
 pydantic
 pytest
 rietx
@@ -318,6 +326,7 @@ Rigaku
 SARAh
 scipy
 spglib
+Stoe
 TOPAS
 
 # Words a reader of software documentation meets.

@@ -1,4 +1,4 @@
-# WP-2013 — The declared geometry picks the plan, and a geometry can be unstated
+# WP-2015 — The declared geometry picks the plan, and a geometry can be unstated
 
 Milestone: generality · Status: ⬜
 Track: The audits
@@ -64,6 +64,26 @@ capillary preset, 0.5 with no preset) and the Kα2/Kα1 ratio of 0.5.
 **Kind of ambiguity** (DESIGN.md § Rules, 1). The geometry is a fact about the caller's
 instrument. Where it is unknown the package acts on nothing geometry-specific and reports
 that it did not.
+
+### Inherited
+
+- **Renumbered 2026-10-20.** Filed on WP-2002's branch as WP-2013 while main gave 2013 to
+  the stale-text WP; this file is the same WP under its new number.
+- **From the second read of WP-2002's batch (Mike Gaultois, PR #1050, 2026-10-20), agreed
+  by the maintainer the same day.** Four cases the geometry-led plan should answer.
+  (1) A caller who arrives with a calibrated instrument profile (an instrument-parameter
+  file, or `load_instrument_profile`) still gets `instrument.profile.u, v, w, x, y` freed by
+  `mccusker_default` (`strategy/staged.py`, ~line 379), where practice holds the instrument
+  and refines the sample broadening; the instrument/sample split is degenerate within one
+  pattern, so this is caller information like the geometry (B7.1 (a)). (2) A QPA caller
+  holds a minor phase's cell, coordinates and B and refines only its scale, while the
+  default plans free every phase's structure; the absent-phase hold covers only a phase
+  under 3σ (B7.1 (b)). (3) The `debye_scherrer` preset holds polarisation K at 0.99, which
+  matches 11-BM's instrument files and not a lab capillary with a Cu tube; K trades with
+  Biso (a wrong K moved Biso by 12σ in WP-2002's batch). Make it required, or default it to
+  the "not stated" state this WP introduces (B9.13). (4) The preset goniometer radius of
+  217.5 mm scales the reported displacement by R/217.5 on any other goniometer; the preset
+  could refuse a missing radius, as `Geometry(kind="bragg_brentano")` already does (B9.15).
 
 ## Non-goals
 

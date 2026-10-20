@@ -72,3 +72,4 @@ A writer refuses on the way out what its reader would refuse on the way in, so a
 
 - [Coming from GSAS-II](../switching/gsas2.md), [Coming from TOPAS](../switching/topas.md) and [Coming from FullProf](../switching/fullprof.md) list what each reader and writer carries and refuses.
 - [Names in other programs](../reference/foreign-names.md) maps each rietx parameter to its name and unit in the other programs.
+- [Refinement files from other programs](../reference/foreign-files.md), [Files written for other programs](../reference/foreign-writers.md) and [Models of other programs' files](../reference/foreign-models.md) give each reader, writer and model field by field.

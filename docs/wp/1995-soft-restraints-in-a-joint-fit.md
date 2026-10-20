@@ -80,6 +80,10 @@ restraint rows on the penalty side of it.
   It is the same once-per-structure problem; lift it here only if it falls
   out for free.
 
+### Inherited
+
+- **2026-10-20, from [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md), found while moving the manual's reference pages: `HistogramResult.restraints` has no writer.** It is always `None`: `multi.py:1740` never sets it (`schemas/results.py:1178`). `docs/docs/reference/joint.md` documents it so. This WP's restraint reporting for a joint fit is its natural writer.
+
 ## Tasks
 
 - [ ] `_multi_closures`: read each model's below-data blocks from

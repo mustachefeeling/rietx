@@ -765,10 +765,11 @@ The FitReport reads the converged state in three layers. Layer 0 is model-free:
 cumulative-χ² breakpoints localise where misfit lives {cite}`david2004`, and
 unindexed peaks are flagged against the tick positions of every emission line
 (an impurity must clear {{ IMPURITY_SIGMA }}σ). Layer 1 attributes per-region
-misfit to profile shape derivatives, under four gates (resolvability on the
-scale-normalised Gram, a validity radius, local-χ² significance, global
-maturity), so a collinear pair is declared non-separable rather than resolved
-into a confident wrong singleton. Layer 2 turns attributions into actions. The
+misfit to profile shape derivatives. Each region passes four gates: local-χ²
+significance, a local R² showing the shape basis explains the region's misfit,
+resolvability on the scale-normalised Gram, and a validity radius. A global
+maturity gate stands above them, so a collinear pair is declared non-separable
+rather than resolved into a confident wrong singleton. Layer 2 turns attributions into actions. The
 actions are advisory and carry no statistical test of their own. Whether a
 freed parameter pays for itself is ΔBIC {cite}`schwarz1978`, predicted before
 the fit by `Refinement.suggest` and measured after it by
