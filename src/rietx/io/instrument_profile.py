@@ -1508,9 +1508,6 @@ def _instprm_instrument(items: dict[str, str], p: Path,
                                 profile=profile)
         zero = number("Zero")
         if zero:
-            if abs(zero) > instrument.zero_shift.max:
-                instrument.zero_shift.min = -abs(zero) - 1.0
-                instrument.zero_shift.max = abs(zero) + 1.0
             instrument.zero_shift.value = zero
     except ValidationError as exc:
         raise ValueError(
