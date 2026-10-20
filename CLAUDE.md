@@ -409,9 +409,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   each other *and a real* `ParameterTable`; geometry-blind, the map suggested a force-fixed
   parameter and the route answered 409. Three rules for a new aberration: a parameter the forward
   branch skips is **force-fixed, not merely unfree** (else a free entry is a dead column); "this
-  instrument has no such error" ≠ "refine it and get zero" (on 11-BM that pair is a degeneracy the
-  fit walks while Rwp *improves*, the cell 5109 ppm out with no default bound since WP-2002, and
-  `FLAT_DIRECTION` and the cell's esd are what report it); its evidence is a
+  instrument has no such error" ≠ "refine it and get zero" (on 11-BM a degeneracy the fit walks,
+  cell 5109 ppm, while Rwp *improves*; `FLAT_DIRECTION` and the esd report it); its evidence is a
   **rung**, never the endpoint.
 - **A stage weights the restraints, and the scalar stops at the row build** (WP-1074, McCusker §8
   eq 7). `Stage.restraint_weight_scale` = c_w in S = S_y + c_w·S_G, frozen onto `CompiledModel`
