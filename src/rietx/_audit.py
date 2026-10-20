@@ -811,12 +811,19 @@ ROWS: tuple[Row, ...] = (
         evidence=("v0.2: 0.3 sits between 0.85 (synthetic air scatter) and 1e-4 (flat), "
                   "synthetics only; WP-1130 F7: a planted 900/(2θ) term reads 0.069, and #636: "
                   "a synthetic capillary's rise reads 0.0035, so it misses both; "
-                  "AIR_SCATTER_UNDECLARED reports a missed rise after the fit"),
+                  "AIR_SCATTER_UNDECLARED reports a missed rise after the fit; 6 of 30 real "
+                  "patterns score within 0.06 of 0.3; "
+                  "WP-2002 2026-10-20: seven real patterns (11-BM NAC, lab FAP, five qarr) "
+                  "refitted with 3° or 8° knots and the air term on or off: no near-trigger choice "
+                  "moved a cell, scale or Biso past 0.8 esd; only FAP with its air term left "
+                  "out (score 0.75) moved scale 2 esd and Lorentzian size and strain 3 esd, "
+                  "and AIR_SCATTER_UNDECLARED fired there"),
         grounds=("On the default path, since the skill tells every agent to call "
-                 "auto_background (B12's ruling); the score and its trigger travel beside the "
-                 "pick on BackgroundChoice, so the choice is visible and the caller's to "
-                 "overrule (B12, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                 "auto_background (B12's ruling); kept as a pick rather than an abstention "
+                 "near the trigger (ruled 2026-10-20) because no near-trigger choice moved a "
+                 "refined value past 0.8 esd on the seven patterns measured, and the score and "
+                 "its trigger travel beside the pick on BackgroundChoice."),
+        approved="2026-10-20"),
     Row("rietx.background.auto.AUTO_BACKGROUND_SEED_PERCENTILE", "constant", tier=3, value=10.0,
         evidence=("WP-1542/#725: the skill's Le Bail rule 5 recipe, the 10th percentile; a "
                   "private CW neutron showcase and three synthetics, no independent reference; "
@@ -829,28 +836,49 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.background.auto.HUMP_TRIGGER", "constant", tier=3, value=0.05,
         evidence=("v0.2: chosen on synthetics (tests/test_background_auto.py); WP-1130 F7: "
                   "0.047 with a planted 40-count hump and 0.043 without, so it does not "
-                  "separate them; synthetic only"),
+                  "separate them; WP-2002 2026-10-20, 30 real patterns: 0.036-0.067 on five "
+                  "synchrotron or low-background ones and 0.10-2.3 on all 25 lab ones (corundum "
+                  "0.39, fluorite 0.29), so it separates lab from synchrotron data and does not "
+                  "detect a hump; "
+                  "WP-2002 2026-10-20: seven real patterns (11-BM NAC, lab FAP, five qarr) "
+                  "refitted with 3° or 8° knots and the air term on or off: no near-trigger choice "
+                  "moved a cell, scale or Biso past 0.8 esd; only FAP with its air term left "
+                  "out (score 0.75) moved scale 2 esd and Lorentzian size and strain 3 esd, "
+                  "and AIR_SCATTER_UNDECLARED fired there"),
         grounds=("On the default path, since the skill tells every agent to call "
-                 "auto_background (B12's ruling); the score and its trigger travel beside the "
-                 "pick on BackgroundChoice, so the choice is visible and the caller's to "
-                 "overrule (B12, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                 "auto_background (B12's ruling); kept as a pick rather than an abstention "
+                 "near the trigger (ruled 2026-10-20) because no near-trigger choice moved a "
+                 "refined value past 0.8 esd on the seven patterns measured, and the score and "
+                 "its trigger travel beside the pick on BackgroundChoice."),
+        approved="2026-10-20"),
     Row("rietx.background.auto._KNOT_STEP_HUMPY_DEG", "constant", tier=3, value=3.0,
         evidence=("WP-1454: 3° knots on IUCr CPD sample 2 (qarr) held Rwp and Biso flat from λ "
-                  "0.1 to 100; a v0.2 choice; no failure stated"),
+                  "0.1 to 100; a v0.2 choice; no failure stated; "
+                  "WP-2002 2026-10-20: seven real patterns (11-BM NAC, lab FAP, five qarr) "
+                  "refitted with 3° or 8° knots and the air term on or off: no near-trigger choice "
+                  "moved a cell, scale or Biso past 0.8 esd; only FAP with its air term left "
+                  "out (score 0.75) moved scale 2 esd and Lorentzian size and strain 3 esd, "
+                  "and AIR_SCATTER_UNDECLARED fired there"),
         grounds=("On the default path, since the skill tells every agent to call "
-                 "auto_background (B12's ruling); the score and its trigger travel beside the "
-                 "pick on BackgroundChoice, so the choice is visible and the caller's to "
-                 "overrule (B12, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                 "auto_background (B12's ruling); kept as a pick rather than an abstention "
+                 "near the trigger (ruled 2026-10-20) because no near-trigger choice moved a "
+                 "refined value past 0.8 esd on the seven patterns measured, and the score and "
+                 "its trigger travel beside the pick on BackgroundChoice."),
+        approved="2026-10-20"),
     Row("rietx.background.auto._KNOT_STEP_SMOOTH_DEG", "constant", tier=3, value=8.0,
         evidence=("v0.2: 8° knots measured R² 0.01-0.03 against broad peaks (v0.2.md:71); "
-                  "WP-1454: flat in λ on 11-BM NAC and IUCr CPD sample 2; no failure stated"),
+                  "WP-1454: flat in λ on 11-BM NAC and IUCr CPD sample 2; no failure stated; "
+                  "WP-2002 2026-10-20: seven real patterns (11-BM NAC, lab FAP, five qarr) "
+                  "refitted with 3° or 8° knots and the air term on or off: no near-trigger choice "
+                  "moved a cell, scale or Biso past 0.8 esd; only FAP with its air term left "
+                  "out (score 0.75) moved scale 2 esd and Lorentzian size and strain 3 esd, "
+                  "and AIR_SCATTER_UNDECLARED fired there"),
         grounds=("On the default path, since the skill tells every agent to call "
-                 "auto_background (B12's ruling); the score and its trigger travel beside the "
-                 "pick on BackgroundChoice, so the choice is visible and the caller's to "
-                 "overrule (B12, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                 "auto_background (B12's ruling); kept as a pick rather than an abstention "
+                 "near the trigger (ruled 2026-10-20) because no near-trigger choice moved a "
+                 "refined value past 0.8 esd on the seven patterns measured, and the score and "
+                 "its trigger travel beside the pick on BackgroundChoice."),
+        approved="2026-10-20"),
     Row("rietx.background.auto._MIN_FIT_CHANNELS", "constant", tier=1, value=10,
         evidence=("numerical floor: mirrors compile_model's refusal of a fit on under 10 channels "
                   "(model/forward.py:3661); decides only whether the verb raises")),
@@ -1504,18 +1532,36 @@ ROWS: tuple[Row, ...] = (
         grounds=("A trigger for the reset only, set where no honest stage reaches (B8, ruled "
                  "2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.params.vector.CELL_WINDOW_ANGLE_DEG", "constant", tier=2, value=2.0,
+    Row("rietx.params.vector.CELL_WINDOW_ANGLE_DEG", "constant", tier=3, value=2.0,
         evidence=("TOPAS Tech Ref Version 9 § 2.17 Table 2-1 (checked 2026-10-19): angles Val +- "
                   "0.2 deg per iteration, here ten iterations' worth per stage (the ten is "
-                  "rietx's, and no angle was surveyed; window ruled tier 2, B8)")),
-    Row("rietx.params.vector.CELL_WINDOW_FRACTION", "constant", tier=2, value=0.05,
+                  "rietx's, and no angle was surveyed)"),
+        grounds=("A guard on a barely-seen phase's cell.  Tier 3, re-tiered from 2 on "
+                 "2026-10-20: TOPAS bounds every phase's cell at each iteration, while this "
+                 "bounds a barely-seen phase's once per stage, ten iterations' worth, and the "
+                 "ten is rietx's.  The second pass counts the stages where it binds and removes "
+                 "it if none do (B8)."),
+        approved="2026-10-20"),
+    Row("rietx.params.vector.CELL_WINDOW_FRACTION", "constant", tier=3, value=0.05,
         evidence=("TOPAS Tech Ref Version 9 § 2.17 Table 2-1 (checked 2026-10-19): a, b, c within "
                   "0.995 Val - 0.05 .. 1.005 Val + 0.05, Val re-read each iteration; a stage takes "
                   "one bound pair, so 0.5 % compounds to 5.1 % over ten iterations (the ten is "
-                  "rietx's; window ruled tier 2, B8)")),
-    Row("rietx.params.vector.CELL_WINDOW_PAD_A", "constant", tier=2, value=0.05,
+                  "rietx's)"),
+        grounds=("A guard on a barely-seen phase's cell.  Tier 3, re-tiered from 2 on "
+                 "2026-10-20: TOPAS bounds every phase's cell at each iteration, while this "
+                 "bounds a barely-seen phase's once per stage, ten iterations' worth, and the "
+                 "ten is rietx's.  The second pass counts the stages where it binds and removes "
+                 "it if none do (B8)."),
+        approved="2026-10-20"),
+    Row("rietx.params.vector.CELL_WINDOW_PAD_A", "constant", tier=3, value=0.05,
         evidence=("TOPAS Tech Ref Version 9 § 2.17 Table 2-1 (checked 2026-10-19): the 0.05 A pad "
-                  "on a, b, c")),
+                  "on a, b, c"),
+        grounds=("A guard on a barely-seen phase's cell.  Tier 3, re-tiered from 2 on "
+                 "2026-10-20: TOPAS bounds every phase's cell at each iteration, while this "
+                 "bounds a barely-seen phase's once per stage, ten iterations' worth, and the "
+                 "ten is rietx's.  The second pass counts the stages where it binds and removes "
+                 "it if none do (B8)."),
+        approved="2026-10-20"),
     Row("rietx.params.vector.SIZE_CAP_ARM_RTOL", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: as STRAIN_CAP_ARM_RTOL; hysteresis pinned by "
                   "test_strain_cap.py:414")),

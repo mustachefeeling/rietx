@@ -305,10 +305,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "3), where s is the displacement and R the goniometer radius. This is "
             "usually the largest systematic position error in a laboratory pattern. Its "
             "cosθ shape is close to the constant shape of `zero_shift`, so freeing both "
-            "on one pattern usually reports a correlation. The ±1 mm bound is a runaway "
-            "guard, set about twenty times above a well-packed plate. The shift goes as "
-            "s/R, so the same bound allows three times more angle on a small goniometer "
-            "than on a large one. Set a tighter bound if you know your mount."
+            "on one pattern usually reports a correlation. It has no default bound. "
+            "Where the scan cannot separate it from the zero and the cell, the fit "
+            "reports `FLAT_DIRECTION` and the cell's esd grows to show it. Set a bound if "
+            "you know your mount."
         ),
         unit="mm", default="0.0",
         typical="|s| < 0.05 mm on a carefully packed flat plate",

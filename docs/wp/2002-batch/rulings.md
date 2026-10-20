@@ -108,6 +108,47 @@ Answers to § Third round below.
   flagged row moves to the lifted set. **Option 3 confirmed** (2026-10-20). The lead would
   switch to option 1 if that review finds several misclassified rows.
 
+## Rulings received, fourth round (2026-10-20)
+
+The previous session's handover left five questions and three confirmations. This round's
+briefs are in the session transcript; the measurements behind them are summarised here.
+
+- **Confirmations.** The emission-line weight widening stands, and so does the rename of
+  `QPA_FRACTION_UNDETERMINED` to `QPA_FRACTION_RANGE`. The interval's cost was re-explained
+  and is not yet confirmed.
+- **The peak-position limits** (zero shift ±0.5°, displacement and both capillary offsets
+  ±1 mm, transparency ≤ 0.05). Asked "check other codes": GSAS-II 5.8.4 and FullProf set no
+  default limit on any of them, and TOPAS v9's Table 2-1 has no row for them (its macros'
+  own limits, in `Topas.inc`, are not on this machine). The brief recommended keeping them,
+  saying a removal traded a flagged 1117 ppm cell error for an unflagged 5129 ppm one. The
+  maintainer: "This sounds like the type of overfitting we're trying to avoid. Shouldn't we
+  not limit, but loudly report degeneracies?" Measured in reply (11-BM NAC, zero and both
+  capillary offsets free, R = 1000 mm): bounded, the cell lands −1097 ppm from the
+  acceptance band's centre with an esd of 2612 ppm and seven warnings; unbounded, −5109 ppm
+  with an esd of 2579 ppm and six warnings, among them two `FLAT_DIRECTION` findings naming
+  the cell and an offset. So the brief's "unflagged" was wrong, and the bound only made the
+  cell look 4.6 times closer than the data support. **Removed**: the four position
+  corrections are unbounded; transparency keeps its physical floor of 0.
+- **The TCHZ width limits.** "Keep until next session. Check what other codes do." Checked:
+  GSAS-II and FullProf bound none of U, V, W, X, Y; GSAS-II floors the computed Gaussian
+  variance and Lorentzian width at each reflection, as rietx does; FullProf substitutes a
+  default width when one goes negative; TOPAS's table has no TCHZ row. Next session.
+- **`auto_background`'s pick**: option 1, keep the pick at tier 3. Measured before asking:
+  the hump score separates lab from synchrotron data rather than detecting a hump (0.10-2.3
+  on all 25 lab patterns, 0.036-0.067 on five synchrotron or low-background ones), and on
+  seven real patterns refitted four ways no near-trigger choice moved a cell, scale or Biso
+  past 0.8 esd. The one choice that mattered (FAP's air term left out, score 0.75) is one the
+  pick does not make, and `AIR_SCATTER_UNDECLARED` fires when it is made.
+- **Mike Gaultois's second read of the batch** (PR #1050, 2026-10-20): agreed. The cell
+  window goes to tier 3 (TOPAS bounds every phase's cell each iteration; rietx bounds a
+  barely-seen phase's once per stage, ten iterations' worth). Two premises it named are
+  checked: TOPAS's default occupancy limit is 0 to 2·Val + 1 (Table 2-1), so the B9 brief's
+  "no default occupancy limit is recalled" was wrong and the removal stands on the
+  principle alone; the 0.3-10 000 nm size range is in v9 § 2.17's prose about `CS_L`, not in
+  its table, so the citation holds for v9.
+- **Still open**: `OCCUPANCY_ABOVE_ONE` (the maintainer leans to an info record), the
+  parsimony tie-break in `solve_magnetic`, and the interval's cost.
+
 ## Still open (first round's list, kept for the record)
 
 1. B4: keep f, and report the textbook esd beside it?

@@ -1216,39 +1216,39 @@ class Geometry(_InheritsDeclaredDefaults):
     surface_roughness: SurfaceRoughness | None = None
     #: How far the specimen sits off the goniometer axis (mm).
     #:
-    #: **The position corrections keep their default bounds; the axial ratios
-    #: lose their ceiling.**  WP-2002's B9 ruling (2026-10-19) removed chosen
-    #: limits on quantities that stay physical, and the axial ratios are such a
-    #: limit: the FCJ quadrature is defined for any S/L, H/L ≥ 0
-    #: (``fcj._xi_max`` clips at |tan 2θ|), so they keep only the floor of 0
-    #: (``fcj.fcj_live`` reads a negative ratio as the aberration off).  The
-    #: displacement (±1 mm), the transparency (≤ 0.05), the two capillary
-    #: offsets (±1 mm) and ``Instrument.zero_shift`` (±0.5°) are kept, pending
-    #: the maintainer's ruling, because on a scan where these shapes are
-    #: degenerate with each other and the cell the bound is what limits how far
-    #: the flat direction walks.  Measured on 11-BM NAC over 2-24° 2θ
-    #: (2026-10-20): with the offsets free and bounded the cell leaves its
-    #: reference by 1117 ppm; unbounded the offsets slide to +4.86 and
-    #: +2.12 mm and the cell by 5129 ppm, at a better Rwp.  WP-1311 measured
-    #: the ±1 mm as a runaway guard twenty times above a carefully packed plate
-    #: (|s| < 0.05 mm, ``help.py``).  A caller who knows the mount states a
-    #: bound, and an explicit bound always beats a declared one; ``BOUND_HIT``
-    #: reports one that carries load.
+    #: **No position correction carries a default bound; the axial ratios and
+    #: the transparency keep their floor of 0.**  WP-2002's B9 ruling
+    #: (2026-10-19) removed chosen limits on quantities that stay physical.
+    #: The FCJ quadrature is defined for any S/L, H/L ≥ 0 (``fcj._xi_max``
+    #: clips at |tan 2θ|; ``fcj.fcj_live`` reads a negative ratio as the
+    #: aberration off), and a transparency is 1/(2µR) ≥ 0.  The displacement,
+    #: the two capillary offsets and ``Instrument.zero_shift`` lost their
+    #: ±1 mm and ±0.5° on 2026-10-20, ruled with the measurement that a bound
+    #: on a degenerate walk hides the degeneracy rather than limiting it: on
+    #: 11-BM NAC over 2-24° 2θ with zero and both offsets free, bounded, the
+    #: cell lands 1097 ppm from its reference with an esd of 2612 ppm;
+    #: unbounded, the offsets slide to +4.86 and +2.12 mm and the cell to
+    #: 5109 ppm with an esd of 2579 ppm.  Both fits report the same two
+    #: ``FLAT_DIRECTION`` findings naming the cell and an offset, and the
+    #: bound only made the cell look 4.6 times closer to its reference than
+    #: the data support (``tests/test_capillary_displacement.py``).  A caller
+    #: who knows the mount states a bound; ``BOUND_HIT`` reports one that
+    #: carries load.
     sample_displacement: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=-1.0, max=1.0, unit="mm")
+        default_factory=lambda: Parameter(value=0.0, unit="mm")
     )
     sample_transparency: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, max=0.05)
+        default_factory=lambda: Parameter(value=0.0, min=0.0)
     )
     #: capillary displacement along the incident beam (mm, positive
     #: downstream) — the sin 2θ half of eq (4).  ``debye_scherrer`` only.
     capillary_offset_along_beam: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=-1.0, max=1.0, unit="mm")
+        default_factory=lambda: Parameter(value=0.0, unit="mm")
     )
     #: capillary displacement perpendicular to the beam in the diffraction
     #: plane (mm, positive toward increasing 2θ) — the cos 2θ half of eq (4).
     capillary_offset_across_beam: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=-1.0, max=1.0, unit="mm")
+        default_factory=lambda: Parameter(value=0.0, unit="mm")
     )
     axial_sl: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=0.0)
@@ -2256,11 +2256,10 @@ class Instrument(_InheritsDeclaredDefaults):
     #: :func:`rietx.schemas.pattern.require_two_theta`.
     source: Source | NeutronSource | TOFSource = Field(discriminator="kind")
     geometry: Geometry = Field(default_factory=Geometry)
-    #: ±0.5° kept with the other position corrections, pending the
-    #: maintainer's ruling: see ``Geometry``'s comment above
-    #: ``sample_displacement`` for why (WP-2002, 2026-10-20).
+    #: unbounded with the other position corrections since 2026-10-20: see
+    #: ``Geometry``'s comment above ``sample_displacement`` for why (WP-2002)
     zero_shift: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=-0.5, max=0.5, unit="deg")
+        default_factory=lambda: Parameter(value=0.0, unit="deg")
     )
     profile: ProfileTCHZ = Field(default_factory=ProfileTCHZ)
     background: Background = Field(

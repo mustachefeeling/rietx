@@ -581,15 +581,16 @@ def test_an_instrument_profile_is_the_other_read_point(tmp_path):
 
     doc = json.loads(path.read_text(encoding="utf-8"))
     doc.pop("schema_version")
-    doc["instrument"]["zero_shift"].update(_BARE)
+    # V, whose declared box survives WP-2002; zero_shift's went (2026-10-20)
+    doc["instrument"]["profile"]["v"].update(_BARE)
     doc["instrument"]["profile"]["u"].update({**_BARE, "value": 1.576})
     path.write_text(json.dumps(doc), encoding="utf-8")
     loaded = rx.load_instrument_profile(path, diagnostics=notes)
-    assert (loaded.zero_shift.min, loaded.zero_shift.max, loaded.zero_shift.unit) == (
-        -0.5, 0.5, "deg")
+    assert (loaded.profile.v.min, loaded.profile.v.max, loaded.profile.v.unit) == (
+        -0.5, 0.5, "deg^2")
     assert loaded.profile.u.max == float("inf") and loaded.profile.u.value == 1.576
     by_code = {n.code: n for n in notes}
-    assert by_code["DECLARED_RANGE_RESTORED"].where == ["instrument.zero_shift"]
+    assert by_code["DECLARED_RANGE_RESTORED"].where == ["instrument.profile.v"]
     left = by_code["DECLARED_RANGE_NOT_RESTORED"]
     assert (left.where, left.value) == (["instrument.profile.u"], 1.576)
     assert "the profile cal.json" in left.message
