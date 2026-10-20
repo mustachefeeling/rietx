@@ -382,15 +382,18 @@ def test_the_magnetic_only_r_does_not_break_a_dbic_tie():
     _o, tied, verdict, reason = _rank([a, b], SOLVE_TIE_DELTA_BIC)
     assert verdict == "abstained" and set(tied) == {0, 1}
     assert "R_mag 0.400" in reason and "R_mag 0.110" in reason
-    assert "R_mag ranks nothing" in reason
+    assert "nor R_mag ranks them" in reason
 
 
-def test_parsimony_breaks_a_dbic_tie():
+def test_a_dbic_tie_abstains_and_lists_the_simplest_class_first():
+    """Fewer moment parameters orders a tie and never breaks it: the ΔBIC
+    already charges each one (WP-2002, ruled 2026-10-20)."""
     a = _trial(0, delta_bic=120.0, r_mag=0.11, free=3)
     b = _trial(1, delta_bic=119.0, r_mag=0.11, free=1, bns="2.2")
-    _o, tied, verdict, reason = _rank([a, b], SOLVE_TIE_DELTA_BIC)
-    assert verdict == "solved" and tied == (1,)
-    assert "parsimonious" in reason
+    ordered, tied, verdict, reason = _rank([a, b], SOLVE_TIE_DELTA_BIC)
+    assert verdict == "abstained" and tied == (1, 0)
+    assert ordered[0] is b
+    assert "fewest moment parameters first" in reason
 
 
 def test_an_unsupported_moment_cannot_win_however_good_its_dbic():
@@ -678,8 +681,9 @@ def test_widening_the_tie_hands_the_decision_to_the_next_key_and_says_so(a_type,
     above; this is the end-to-end half, and what it catches is subtler than a
     missing abstention — a workflow that keeps the ΔBIC leader while quietly
     reporting the tie. Widen the width past the real ΔBIC spread and the
-    leader must stop being chosen *for that reason*: either a lower key is
-    named as the one that decided, or the verdict is an abstention.
+    leader must stop being chosen *for that reason*, and since nothing below
+    ΔBIC breaks a tie (WP-2002, 2026-10-20) the verdict is an abstention with
+    the tied classes listed fewest moment parameters first.
 
     **Why a real tie is rare here, and that is by design.** Two models a powder
     cannot separate are merged into one class before anything is ranked, so the
@@ -696,24 +700,21 @@ def test_widening_the_tie_hands_the_decision_to_the_next_key_and_says_so(a_type,
                                 tie_width=spread * 1.5)
     assert "leads on ΔBIC" not in widened.reason, widened.reason
     assert f"tie width of {spread * 1.5:.1f}" in widened.reason
-    if widened.verdict == "solved":
-        # parsimony decided, the one key below ΔBIC, and the reason says so
-        assert "parsimonious" in widened.reason, widened.reason
-        assert len(widened.tied) == 1
-    else:
-        assert widened.verdict == "abstained"
-        assert len(widened.tied) >= 2
-        assert widened.best is None
-        for index in widened.tied:
-            assert f"class {index}" in widened.reason
+    assert widened.verdict == "abstained"
+    assert len(widened.tied) >= 2
+    assert widened.best is None
+    for index in widened.tied:
+        assert f"class {index}" in widened.reason
+    counts = [t.n_moment_parameters for t in widened.trials[:len(widened.tied)]]
+    assert counts == sorted(counts), counts
 
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("magnetic-solve-a-type")
-def test_a_widened_tie_parsimony_cannot_split_is_an_abstention(a_type, a_type_solution):
-    """With ΔBIC widened out only parsimony is left, the magnetic-only R ranking
-    nothing since WP-2002, B12; classes that also match on parsimony are a
-    genuine abstention naming every one of them."""
+def test_a_widened_tie_of_equally_free_classes_is_an_abstention(a_type, a_type_solution):
+    """With ΔBIC widened out nothing ranks: the magnetic-only R since WP-2002,
+    B12, and the moment-parameter count since 2026-10-20.  Classes with the
+    same count are a genuine abstention naming every one of them."""
     ref, data, _truth = a_type
     solved = a_type_solution
     spread = solved.trials[0].delta_bic - solved.trials[-1].delta_bic
@@ -724,18 +725,13 @@ def test_a_widened_tie_parsimony_cannot_split_is_an_abstention(a_type, a_type_so
     widened = rx.solve_magnetic(
         ref, data, sites=["Mn1"], ion="Mn3+",
         tie_width=spread * 1.5,
-        # only the classes with the same free moment count, so parsimony is
-        # unable to separate the survivors either
+        # only the classes with the same free moment count
         top_k=1)
-    if widened.verdict == "abstained":
-        assert len(widened.tied) >= 2
-        for index in widened.tied:
-            assert f"class {index}" in widened.reason
-        assert "does not choose between them" in widened.reason
-    else:
-        # parsimony broke it, and the reason has to say so rather than
-        # claiming a ΔBIC lead it does not have
-        assert "parsimonious" in widened.reason, widened.reason
+    assert widened.verdict == "abstained"
+    assert len(widened.tied) >= 2
+    for index in widened.tied:
+        assert f"class {index}" in widened.reason
+    assert "does not choose between them" in widened.reason
 
 
 # ============================================================ the g/ion plumbing
@@ -1090,23 +1086,20 @@ def test_margin_is_the_true_gap_between_two_eligible_classes():
     assert _solution(ordered, tied, verdict, why).margin == pytest.approx(60.0)
 
 
-def test_margin_after_a_tiebreak_is_the_winners_own_gap_and_can_be_negative():
-    """Review of #592, item 4: parsimony chose class 1 over class 0 inside the
-    tie width, so the winner is ``trials[0]`` and *not* the top-ΔBIC class.
-    The margin is the winner's ΔBIC against the best other eligible class —
-    here −2 — and not the gap between whichever two sorted first by ΔBIC.
-    (The review's case was the R key, gone since WP-2002, B12.)"""
+def test_a_tie_has_no_winner_and_so_no_margin():
+    """Review of #592, item 4 asked for the margin after a tie-break; since
+    2026-10-20 nothing breaks a ΔBIC tie (WP-2002), so a tie has no winner and
+    its margin is ``None``.  A winner's margin is against the best *other*
+    eligible class, and positive."""
     a = _trial(0, delta_bic=120.0, r_mag=0.40, free=3)
     b = _trial(1, delta_bic=118.0, r_mag=0.11, free=1, bns="2.2")
     ordered, tied, verdict, why = _rank((a, b), SOLVE_TIE_DELTA_BIC)
     solution = _solution(ordered, tied, verdict, why)
-    assert verdict == "solved" and solution.best.class_index == 1
-    assert solution.margin == pytest.approx(-2.0)
-    assert abs(solution.margin) <= SOLVE_TIE_DELTA_BIC
-    # the winner with a third class: against the *best other*, not the second
+    assert verdict == "abstained" and solution.best is None
+    assert solution.margin is None
     c = _trial(2, delta_bic=90.0, r_mag=0.5, free=1, bns="3.3")
-    ordered, tied, verdict, why = _rank((a, b, c), SOLVE_TIE_DELTA_BIC)
-    assert _solution(ordered, tied, verdict, why).margin == pytest.approx(-2.0)
+    ordered, tied, verdict, why = _rank((a, c), SOLVE_TIE_DELTA_BIC)
+    assert _solution(ordered, tied, verdict, why).margin == pytest.approx(30.0)
 
 
 def test_a_nuclear_reference_that_stopped_short_keeps_its_trials_out_of_the_ranking():
