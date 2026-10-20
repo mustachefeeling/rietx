@@ -222,7 +222,7 @@ e^{2\pi i(\delta - \mathbf{k}\cdot\mathbf{v})}\,\mathbf{c}
 {source}`rietx.crystallography.representation.incommensurate.operation_matrix`
 
 with $\Gamma(g,\theta) = \theta D(g)$ for $\varepsilon = +1$ and an
-antilinear map onto the $-\mathbf{k}$ arm for $\varepsilon = -1$
+conjugate-linear map onto the $-\mathbf{k}$ arm for $\varepsilon = -1$
 {cite}`perezmato2012`. For a one-dimensional irrep every operation of the
 grey extended little group survives, with $e^{2\pi i\delta} =
 \theta\,e^{2\pi i\mathbf{k}\cdot\mathbf{v}}D(g)$: an internal translation of
