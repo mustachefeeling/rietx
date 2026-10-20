@@ -154,6 +154,7 @@ summary).
 
 ## Handover log
 
+- **2026-10-20** — (reconstructed post hoc, from 5c8810091; the session was a claude.ai/code one and left no entry). The milestone record's rule gained a paragraph: each class's brief to the maintainer now opens with its stakes, meaning the reported quantity the action can move, the case on disk and its distance from reference, and the dissenting caller named or `none found`. That line is context for the ruling and never a filter. A kept guard that the ordinary fits never reach names its injected case. The record also dates a decision not to add a consequence column, with three reasons the commit message does not restate. This WP's batch item and 2004's now carry the stakes line. No code, test or tier changed, and this WP stays unstarted.
 - **2026-10-18** — created, from the milestone's opening session. 1317 (the series
   scrubber) and 1325 (parametric series) are open and adjacent; neither owns the fences,
   and this WP changes no view.
