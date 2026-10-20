@@ -17,6 +17,8 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [Names in other programs](foreign-names.md) gives each parameter's name in GSAS-II, GSAS, TOPAS and FullProf.
 - [The GUI panel by panel](gui-guide.md) says what each panel of `rietx gui` is for.
 - [The GUI as a text document and a wire](gui-power.md) gives the `.rxt` grammar, the keyboard, the command palette and the HTTP routes.
+- [Calling rietx from a program](programs.md) gives the exceptions and answer types a program meets, an answer's JSON form and each arm of `capabilities()`.
+- [The PowderLine recipe](recipe.md) gives what `read_recipe` reads, refuses and converts, and the four tables `write_recipe_tables` writes.
 - [For agents](agents.md) says how an agent gets the rietx skill.
 - [Compatibility](compatibility.md) says what a version string promises and which parts are declared provisional.
 
@@ -38,6 +40,8 @@ history
 foreign-names
 gui-guide
 gui-power
+programs
+recipe
 agents
 compatibility
 ```

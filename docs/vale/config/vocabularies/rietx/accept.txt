@@ -208,6 +208,7 @@ Niggli
 [oO]ctahedra
 [oO]ctahedral
 [oO]ctahedron
+Olds
 [oO]perando
 [oO]rthonormal
 [oO]rthorhombic
