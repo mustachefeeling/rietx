@@ -1329,7 +1329,7 @@ def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld",
     Pawley), so including it would swamp the quantity under test — the
     regeneration of the frozen discreteness.
     """
-    from rietx.refine import _carry_lebail
+    from rietx.refine import _carry_lebail, mode_fixed_path
 
     if table is None:
         table = ParameterTable(structure, instrument)
@@ -1342,8 +1342,7 @@ def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld",
         table.set_vary(stage.turn_on, True)
         if mode in ("lebail", "pawley"):
             for path in list(table.free_paths):
-                if ".atoms." in path or path.endswith(".scale") \
-                        or ".source.lines." in path:
+                if mode_fixed_path(path, mode):
                     table.set_vary([path], False)
         table.apply_to_models(structure, instrument)
         fresh = compile_model(structure, instrument, data, mode=mode,
