@@ -240,20 +240,26 @@ def test_the_state_the_loop_keeps_is_the_state_a_hand_loop_would_continue_from(p
     (194.55 % under LM).  So the next fit's Rwp is the loop's pass 4, read
     off the stop message.
 
-    The wander's numbers are not pinned.  Since WP-1953's held column scale
-    they depend on the start: the kept pass reads 155.22 % from the exact
-    +2 % and 177.80 % from starts 1e-14 either side, where they read
-    175.09 % from all three before."""
+    The wander's numbers are not pinned, and nor is which pass it keeps.
+    Since WP-1953's held column scale they depend on the start: the kept pass
+    read 155.22 % from the exact +2 % and 177.80 % from starts 1e-14 either
+    side.  Since WP-2002 a cell that runs past 15 % is reset to its stage
+    start rather than clamped at the edge, and the cell stage here does run
+    away (``CELL_RUNAWAY``), so the wander kept pass 2 of 3 where it kept
+    pass 3 of 4.  What is asserted is the invariant: the result is the kept
+    pass, and the next fit continues from it as the hand loop would."""
     ref = _refinement(1.02)
     result = _fit(ref, pattern, 8, limits=WIDE_LIMITS)
     stop = _stop(result)
-    assert "Pass 3 of 4 was kept" in stop.message
+    kept, ran = (int(v) for v in re.search(
+        r"Pass (\d+) of (\d+) was kept", stop.message).groups())
+    assert kept < ran, stop.message      # a later pass exists to continue to
     per_pass = [float(v) / 100.0 for v in re.search(
         r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(", ")]
-    assert result.statistics.rwp == pytest.approx(per_pass[2], abs=1e-5)
+    assert result.statistics.rwp == pytest.approx(per_pass[kept - 1], abs=1e-5)
     nxt = ref.fit(pattern, mode="lebail", plan="profile_only",
                   two_theta_limits=WIDE_LIMITS, telemetry=False)
-    assert nxt.statistics.rwp == pytest.approx(per_pass[3], abs=1e-5)
+    assert nxt.statistics.rwp == pytest.approx(per_pass[kept], abs=1e-5)
     _plot(result, "lebail_alternation_wander_kept.png")
 
 

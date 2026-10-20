@@ -224,6 +224,137 @@ for every row this WP owns.
 
 ## Handover log
 
+### 2026-10-20 — all sixteen classes ruled, and seven of the rulings built
+
+The maintainer has ruled on every class, and most rulings now run in the code. A fit puts a
+runaway cell back where its stage found it, where it used to stop it at an invented 15 %
+edge. Crystallite size, occupancy, texture and the line and harmonic weights refine
+wherever they stay physical, and an occupancy above one warns. A moment angle that sits on
+a symmetric direction carries a likelihood interval, where it used to carry no uncertainty
+and read as exact. The caller can set or switch off the absent-phase hold. Every refined
+row reports, beside rietx's esd, the smaller number GSAS-II and FullProf print, and the
+manual explains the difference. The pick verbs show their evidence and abstain on a tie.
+One measurement narrowed a ruling: freeing the peak-position bounds let the 11-BM NAC cell
+drift 5129 ppm against 1117 ppm, so those bounds stay until the maintainer rules again.
+
+*Done.* Rulings, in `2002-batch/rulings.md` (three rounds, all dated): B1 on by default as a
+plan setting; B2 the turn kept and, re-asked after this session found its first brief
+misstated the cost, the stationary-angle test kept with the angle given its interval
+(option 2); B3, B11, B16 as recommended; B4 keep f and report the uncorrected esd; B5 fix
+the obviously wrong, warn at ingestion, an option to correct (forwarded to WP-1952); B6,
+B13, B15 yes; B7 with two additions and B9's unstated geometry (filed as WP-2013); B8 the
+window tier 2 on TOPAS, the clamp a reset-and-hold, the 2 nm floor removed; B9 no chosen
+limit on a physical quantity; B14 option 3, re-explained and confirmed. Built, one commit
+each: the audit rows the rulings settle (62 by the lane and by hand, then each change's
+own); the cell reset (`StageResult.cell_reset`); the limits (`OCCUPANCY_ABOVE_ONE` new;
+`MARCH_R_MIN` 0.15 → 1e-6; the harmonic, emission-line, axial and occupancy ceilings and
+the 2 nm floor gone; readers and the GUI no longer write the old ceilings); the angle's
+interval (`RefinedParameter.interval`, a new `IntervalStop` "period" that stops a side
+half a turn out); `phase_support_sigma` (project format 1.5, `.rxt` `support`);
+`stderr_uncorrected` with the theory and three switching pages; the pick verbs
+(`BackgroundChoice`, N/f², no R tie-break, `QPA_FRACTION_RANGE`). `2002-batch/waiting.md`
+lists the 16 rows still at `unaudited`, each with what it waits on. No Inherited section
+to prune. Forward references to 2003, 2004, 2005, 2008 and 1327 (`SOLVE_D_MIN` folded
+there, no new WP); 1952's B5 entry rewritten to the ruling.
+
+*Code review* (`high --fix`, this session's range): nine findings, six fixed in
+`20674c4c` (a stale Jacobian after a late cell reset; the magnetic solve's plans dropping
+`phase_support_sigma`; the N/f² caveat claiming f = 1.00 on raw N; an interval
+precondition error escaping a finished fit; the quickstart tutorial). Three declined as
+design choices, now Next items 1-2 and in 2003: internal trials run at the default 3σ, the
+threshold is not recorded for a cherry-pick, and a series' discarded rungs pay the
+interval.
+
+*Measured.* Fast selection on this branch merged with `origin/main` (`7646e7a6`), `[dev]`,
+darwin/arm64, no other suite running: 10 868 passed, 191 skipped, 2 xfailed, 1 failed, the
+failure the stale WP index this handover then regenerated (`test_docs_consistency.py` 25
+passed after). The branch adds 52 test cases (51 in the fast selection; one is `slow`),
+33.2 s together locally, the largest 11.0 s in `test_stationary_moment_angle.py`; none
+joins the tail. Full suite on the same merged tree, `[dev]`, darwin/arm64, alone: 11 181 passed, 202 skipped, 2 xfailed, 1 failed in 24:49. The failure was `test_lebail_alternation.py`'s wander test, which pinned "Pass 3 of 4 was kept": its cell stage runs away, and since the B8 reset the wander keeps pass 2 of 3. The test now asserts its invariant (the next fit continues from the kept pass) and passes alone in 64 s. Every bit-identity golden passed. The automatic interval costs 20-32 refits an angle,
+2.6-16.7 s on test fits of 0.2-1.2 s; a moment the data no longer saw walked to ±1e12 rad
+over 120 refits before the half-turn stop (15.9 s, now 1.7 s). `Statistics.esd_inflation`
+differs from the factor the esds carry by 0.07 % (NAC Rietveld), 0.75 % (NAC Le Bail) and
+4 % (a joint fit weighted 1:4). N/f² moved `solve_magnetic`'s winning margins 1682 → 143
+(Cr₂WO₆ 4 K) and 1704 → 164 (LaMnO₃ 50 K) and no verdict. Lanes: seven, every one
+laned under 6c (context 270-465K), the whole table from `session_usage.py lanes`:
+
+| lane | est | requests | main at dispatch | lane $ | in-session $ | saved $ |
+|---|---|---|---|---|---|---|
+| land-ruled-audit-rows | 40 | 50 | 270K | 3.98 | 12.65 | +6.36 |
+| cell-clamp-restore-and-hold | 35 | 144 | 335K | 10.73 | 26.27 | +15.13 |
+| chosen-limits-size-floor-and-b9 | 40 | 213 | 356K | 18.11 | 39.50 | +21.09 |
+| stationary-angle-interval | 35 | 160 | 404K | 11.24 | 22.48 | +6.36 |
+| phase-support-sigma-seat | 25 | 182 | 439K | 14.17 | 27.71 | +8.68 |
+| b4-textbook-esd-and-manual | 30 | 169 | 450K | 10.31 | 24.16 | +8.65 |
+| b12-pick-verbs | 35 | 181 | 465K | 16.77 | 30.10 | +9.50 |
+
+Trial row appended to `process.md`; estimates ran short by 5.17×. The baseline replay's
+selective policy (lane when main > 150K and item ≥ 20 requests): -16 % over 217 sessions.
+
+*Generality* (the `generality-review` judge, fresh context, on the 242 rows both sessions
+added or retiered and six heuristics the table cannot see; tables condensed to the rows it
+did not find holding, its full text in this session's transcript):
+
+| Item | Case against | Verdict | Author's answer |
+|---|---|---|---|
+| Tier-2 stop rules (Coelho's `_M_HI`, `_M_LO`, `_Q_*`, `_LAMBDA_FAIL_*`, `lm._CONVERGED_RUNS`, the five `bccg` stops; `_CAUCHY_ARMIJO`, `SCHERRER_K`, `BOND_SLACK_ANG`, `STEPS_PER_FWHM_*`) | a paper defining an algorithm does not validate its constants on rietx's problems; they decide where a stage stops, the class B10 held at tier 3 | weak | agreed: re-tier to tier 3 with either-side refits owed, as B10's switches, next session |
+| `PARAMETER_INTERVAL_*` at `caller` | `fit` and `run_stage` now call the interval (B2 option 2) | fails | agreed: this session made it a default path; re-tier under the B2 ruling next session |
+| `FRACTION_PROFILE_FWHM_MIN`, `_N_FWHM` at `caller` | the skill sends every agent to `profile_fraction`, and B12 ruled a skill instruction a default path | fails | agreed; re-tier next session |
+| `SCALE_B_SEPARATION_FLOOR`, `_COS_CLAMP`, the two `*_CAP_RANGE_FRACTION` at tier 1 | each carries a chosen factor; with the 2 nm floor gone the range backstop is the only size bound | weak | the 2 and the 1.0 go to the second pass as thresholds |
+| `A6_MAX_ITER` invariant | its test asserts eq 21 is met, not the margin to 2000 | weak | a margin assertion is owed |
+| B2 `MOMENT_ANGLE_STATIONARY` evidence | one angle's cut is the one-sided 2.706, so a single passing angle's interval always contains the direction; the suggestion's "excludes" branch is reachable only for sets | rows hold, text weak | fix the evidence line and the suggestion's wording next session |
+| B3 Stephens seed | the ruling asks the seed recorded in the result; `seeded` records only the roughness seed | weak | B14's field for the strain seed is the fix |
+| B8 cell window | the ten iterations per stage is a threshold of its own, untiered | weak | the ten goes to the second pass |
+| B9 `EXTRA_PEAK_FWHM_MAX` tier 1 | the 0.5° is a choice; a broad impurity peak modelled as an extra peak dissents | weak | kept: a finite max sizes the frozen window; widening is the design change named in waiting.md |
+| B9 `Source:polarization` kind 3 | it acts (fits at 0.5) and nothing records the assumption yet | weak | WP-2013 records it |
+| B10 `DENSE_JACOBIAN_MAX_BYTES` | landed on the solver-switch grounds, but the ruling names six switches and not this one | fails | agreed: back to `unaudited` for the maintainer next session |
+| B12 `auto_background` constants, `:kind`, `:seed` | the pick rests on visibility, which the rule rejects; `:kind` was never shown to the maintainer; rietx's unseeded start is 0.0, not GSAS-II's (1, 0, 0) | fails | a question for the maintainer below; the rows go back to `unaudited` until answered |
+| B12 `SOLVE_MINIMUM_RTOL`, `SOLVE_TOP_K` | the rare-feature clause keeps a measured value; these have no source and no measurement | weak | second pass |
+| B12 `MODEL_FAR_FROM_DATA_RWP` | at 1-2 counts a channel a correct model's Rwp is about 0.7-0.8 | weak | second pass, with a sparse family |
+| (b) peak-position bounds kept | one family; a recessed lab holder or a weak absorber dissents | your ruling | question below |
+| (c) `_auto_intervals` on in a series | every pattern, and discarded rungs, pay | weak | forwarded to 2003 |
+| (d) `OCCUPANCY_ABOVE_ONE` with no gate | 1.032(25) is a full site; a warning on noise is a verdict the data do not support | weak | question below |
+| (e) `stderr_uncorrected` | right, but the result does not record the applied factor and the interval cut reads the other one | holds, record weak | forwarded to 2004 |
+| (f) parsimony tie-break | "a ΔBIC tie abstains"; BIC already charges parameters | fails against the ruling | question below |
+
+Held without comment: tier 1 bar the four rows above, the defaults with GSAS-II lines,
+the other `caller` rows, the invariant rows bar `A6_MAX_ITER`; B1, B4, B6, B7, B8's cell
+reset, B9's `MARCH_R_MIN`, B11, B16, the ΔBIC rows, the Pawley pair, `QPA_FRACTION_RANGE`,
+and the half-turn stop.
+
+*Questions for the maintainer* (five need a judgement; the briefs are in this session's
+report and short):
+1. The peak-position bounds (zero shift ±0.5°, displacement and both capillary offsets
+   ±1 mm, transparency ≤ 0.05): keep them as guards on a degenerate walk, or widen them
+   under B9?
+2. `OCCUPANCY_ABOVE_ONE`: gate it on significance (above 1 by some number of esds), make
+   it an info record, or keep it as a warning on any value above 1?
+3. `TCHZ_BOUNDS`: WP-1312 ruled "the bound stays" on 2026-09-11; B9 says chosen U/V floors
+   and ceilings go. Which holds?
+4. The parsimony tie-break in `solve_magnetic`: drop it too, so every ΔBIC tie abstains?
+5. `auto_background`'s pick: kept as a tier-3 pick, or does it abstain without a clear
+   winner, now that the skill makes it a default path?
+Confirmations: the emission-line weight widened (TOPAS's `la` limit is per iteration);
+`QPA_FRACTION_UNDETERMINED` renamed `QPA_FRACTION_RANGE`; the automatic interval's cost.
+
+*Gotchas.* A lane applied B9's principle to every box, including the peak-position bounds;
+the lead put those back after measuring the NAC drift, so read a ruling's reach against
+the measured consequence before landing a widening. `Statistics.esd_inflation` is not the
+factor the esds carry; use `stderr / stderr_uncorrected` on a row. The worktree is still
+named `wp2001-rule-table-guard`.
+
+*Next.* (1) Make `phase_support_sigma` reach the package's internal trials (interval walk,
+fraction profile, rival fits) and record it on `StageResult`/`NodeAction`, so a
+cherry-pick replays what ran; `correlation_guard` has the same gap. (2) The judge's
+re-tiers: the `PARAMETER_INTERVAL_*` and fraction-profile rows, `DENSE_JACOBIAN_MAX_BYTES`
+and the `auto_background` rows back to `unaudited`, the Coelho stop rules to tier 3, the
+stationary evidence line. (3) B14's lifts (about 20 constants, 8 seats, the fields for the
+collapse restore, the Stephens seed and the σ rule) and the ~50-guard list to the judge.
+(4) The owed tests: B3's and B9's two-start tests, B7's invariance, B11's margin, B10's
+domain tests and the FCJ node cap. (5) The second pass, the clash table, goldens and
+`test_compare_ui` rows. The maintainer's answers to the five questions decide (2)'s
+`auto_background` rows and three of the code changes.
+
 ### 2026-10-19 (2nd session) — four classes ruled, the rest re-briefed in plain words
 
 The maintainer ruled four of the sixteen classes and confirmed the absent-phase hold. The
