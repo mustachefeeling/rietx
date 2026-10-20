@@ -10,8 +10,9 @@ beside this script.
 
 # guide: reference start
 
-import rietx as rx
 from _cr2wo6_pair import BACKGROUND, CELL, ZERO, instrument, nuclear_plan, pattern, trirutile
+
+import rietx as rx
 
 ordered, paramagnetic = pattern(4), pattern(150)
 
@@ -51,7 +52,7 @@ print(f"Biso of Cr1 = {blind.fitted_structure.phases[0].atoms[1].biso.value:.1f}
 
 # guide: alternate start
 
-import tempfile
+import tempfile  # noqa: E402
 
 # the winning class as a structure that carries its moment
 with tempfile.TemporaryDirectory() as folder:
