@@ -24,7 +24,7 @@ Take its model into the ordered pattern and hold every nuclear term that tempera
 Free the background and the terms it does move, which are the zero and the lattice parameters.
 Then hand `solve_magnetic` a plan whose stages free the moment and those terms, and nothing else.
 
-This uses the Cr₂WO₆ patterns from the GSAS-II *Magnetic-II* tutorial, vendored in `tests/data/`: 4 K, below the ordering temperature, and 150 K, above it.
+This uses the Cr₂WO₆ patterns from the GSAS-II *Magnetic-II* tutorial, stored in `tests/data/`: 4 K, below the ordering temperature, and 150 K, above it.
 `_cr2wo6_pair.py`, beside the script, reads them and builds the starting model, the ideal trirutile positions, and the six-stage nuclear plan.
 The patterns are not in the wheel, so the script runs from a checkout of the repository.
 
