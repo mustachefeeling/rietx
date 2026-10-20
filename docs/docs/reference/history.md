@@ -59,7 +59,7 @@ A linear history follows first parents.
 
 A node stores state and no curves.
 The calculated pattern and the agreement indices follow from the state and the pattern, so `replay` recomputes them on demand.
-On the 59 498-point 11-BM NAC pattern a node is about 15 kB, and the calculated curve alone would add about 430 kB.
+On the 11-BM NAC pattern fitted over 2–24°, 22 003 of its 59 498 points, a node is 10 to 15 kB, and the calculated curve alone would add about 430 kB.
 
 ## Action kinds
 

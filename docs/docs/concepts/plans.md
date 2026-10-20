@@ -30,7 +30,7 @@ Each preset is a constructor on `RefinementPlan`, and `Refinement.fit` also take
 | `RefinementPlan.lab_sample_refine` | a specimen against a calibrated instrument: scale and background, specimen displacement, cell, the specimen's size and strain widths, displacement parameters and surface roughness |
 | `RefinementPlan.profile_only` | background, zero shift, cell and widths, for a Le Bail fit or a Rietveld fit that leaves the structure alone |
 | `RefinementPlan.pawley_default` | the same groups for a Pawley fit |
-| `RefinementPlan.magnetic_width` | the magnetic moment, then the magnetic peak widths, then both ([Magnetic peak width](../reference/magnetic.md#magnetic-peak-width)) |
+| `RefinementPlan.magnetic_width` | the magnetic moment with the scale and background, then the magnetic peak widths, then both ([Magnetic peak width](../reference/magnetic.md#magnetic-peak-width)) |
 
 `fit` runs `mccusker_default` unless you pass another.
 `lab_calibrate` and `lab_sample_refine` are the two halves of separating the instrument's peak width from the specimen's ([Instrument and specimen](parameters.md#instrument-and-specimen)).
@@ -64,4 +64,4 @@ Freed early, a correction takes intensity that belongs to the structure.
 Anisotropic strain is freed in the same stage as the isotropic size and strain widths, never after it.
 A Stephens block locks `Phase.lor_strain`, because the block's isotropic direction is that same column ([Anisotropic strain](../reference/data.md#anisotropic-strain)).
 `lab_sample_refine` frees `phases.*.microstrain.dof.*` beside the size and strain widths for that reason.
-A stage after it would leave the isotropic width unrefined until fifteen correlated coefficients turned on at once.
+A stage after it would leave the isotropic width unrefined until the block's correlated coefficients, up to fifteen of them, turned on at once.

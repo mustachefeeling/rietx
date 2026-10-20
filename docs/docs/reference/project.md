@@ -36,7 +36,7 @@ It re-checks every binding rather than assuming it, and each failure raises with
 |---|---|
 | the directory holds no `project.json` | `FileNotFoundError` |
 | `project.json` was written under another major version of the project format | `ValueError`, naming both versions |
-| `project.json` lists more than one pattern | `ValueError` |
+| `project.json` lists no pattern, or more than one | `ValueError` |
 | the pattern file is missing from the directory | `FileNotFoundError` |
 | the pattern file's bytes no longer hash to the recorded sha256 | `ValueError`: the file changed after the project was made |
 | the pattern reads as time of flight | `ValueError` |
