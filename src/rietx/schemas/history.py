@@ -34,7 +34,7 @@ from .instrument import Instrument
 # lives in ``schemas/plan.py`` (WP-1004); the compat re-export was deleted
 # pre-freeze (WP-1003), so import both from there.
 from .params import TieSpec
-from .plan import PlanSpec
+from .plan import CORRELATION_GUARD, PHASE_SUPPORT_SIGMA, PlanSpec
 from .results import Statistics
 from .structure import Structure
 
@@ -147,11 +147,14 @@ class NodeAction(Base):
                  ("window_slack_deg", self.window_slack_deg, None))
                 if v != off)
             # the plan settings are run_stage's keywords, not the Stage's, so
-            # they follow the Stage's parenthesis, on the same rule
+            # they follow the Stage's parenthesis, on the same rule.  Compared
+            # with run_stage's own defaults, never with this class's literals:
+            # a retuned constant must not drop a keyword the line needs
             settings = "".join(
                 f", {n}={v!r}" for n, v, off in
-                (("correlation_guard", self.correlation_guard, 0.98),
-                 ("phase_support_sigma", self.phase_support_sigma, 3.0))
+                (("correlation_guard", self.correlation_guard, CORRELATION_GUARD),
+                 ("phase_support_sigma", self.phase_support_sigma,
+                  PHASE_SUPPORT_SIGMA))
                 if v != off)
             return (f"ref.run_stage(data, rx.Stage({self.name!r}, {self.turn_on!r}, "
                     f"max_iter={self.max_iter}{extras}){settings})")
