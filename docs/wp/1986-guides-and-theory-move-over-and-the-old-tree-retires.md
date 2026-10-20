@@ -312,8 +312,10 @@ the tree that day.
       Done 2026-10-20: `reference/cli.md` (`using/cli` whole; retires to it);
       `reference/data.md` and `reference/instrument.md` (`using/data`; retires to `data`);
       `reference/history.md` (`using/history` and `files.md` § The history log);
-      `reference/programs.md` (`using/agents`) and `reference/recipe.md` (`using/recipe`).
-      Left: the formats (`files.md`), results, report, series, refining, model, exports,
+      `reference/programs.md` (`using/agents`) and `reference/recipe.md` (`using/recipe`);
+      `reference/result.md`, `derived.md` and `pattern-diagnostics.md` (`using/results`;
+      retires to `result`).
+      Left: the formats (`files.md`), report, series, refining, model, exports,
       qpa and indexing, as Concepts or Reference pages, chapter by chapter.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.

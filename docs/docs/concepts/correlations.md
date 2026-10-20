@@ -73,7 +73,7 @@ Across 88 distances in a synchrotron structure refinement, the esd from the diag
 So the diagonal-only esd is not a safe upper bound, and rietx reports both.
 
 A derived esd is empty when linear propagation cannot give one.
-That happens with no covariance (a replayed node), with no free parameter behind the quantity, at an angle the symmetry fixes, and at an angle within a few degrees of 0° or 180°.
+That happens with no covariance (a replayed node), with no free parameter behind the quantity, at an angle the symmetry fixes, and at an angle within {{ ANGLE_LINEARISATION_LIMIT_DEG }}° of 0° or 180°.
 The [derived-quantities section](../theory/estimation.md#esds-of-derived-quantities) lists the four cases.
 
 ## Parameters on a bound

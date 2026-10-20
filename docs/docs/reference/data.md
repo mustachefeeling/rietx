@@ -191,6 +191,7 @@ It reports how finely the peaks are sampled, whether the background carries a hu
 It also reports which channels are dead, and whether the beam leaks Kβ or tungsten Lα.
 Read `PatternDiagnostics.signal_cutoffs` first, because every other field is computed over the range it leaves.
 [How to check a pattern before fitting](../guides/check.md) is the procedure.
+[Pattern diagnostics](pattern-diagnostics.md) gives every field.
 
 ## Structure
 
