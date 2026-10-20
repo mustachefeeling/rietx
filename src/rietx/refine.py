@@ -3964,9 +3964,9 @@ class Refinement:
             table.set_vary(self._held, True)
             self._held = []
         if mode in ("lebail", "pawley"):
-            # never refine structural parameters or the phase scale
-            # (degenerate with the per-hkl intensities) against the intensity
-            # model (``mode_fixed_path``); drop them from the reported freed list too — it must
+            # never refine what ``mode_fixed_path`` force-fixes against the
+            # intensity model (structure, the phase scale, texture, a magnetic
+            # width); drop them from the reported freed list too — it must
             # describe the set actually left free.  By what the column *moves*
             # since WP-1342, so a tie cannot carry one past the drop.  Before
             # the seeds, never after: a seed writes the value whether or not
@@ -6938,9 +6938,10 @@ def _capillary_offset_diagnostics(model: CompiledModel,
 
     Info rather than warning, and it deliberately does **not** ask for the
     offsets to be freed.  WP-1073 measured what that costs on 11-BM: the pair is
-    a degeneracy the fit rides to a bound while Rwp *improves* and the cell moves
-    1117 ppm.  So they stay report-driven, and this says only that the door is
-    shut and which field opens it.
+    a degeneracy the fit walks along while Rwp *improves*, and the cell moves
+    5109 ppm with no bound to stop it (1117 ppm while a ±1 mm default bound
+    did, until WP-2002).  So they stay report-driven, and this says only that
+    the door is shut and which field opens it.
 
     **What it covers, and what it does not.**  The condition is *could not
     express* — a capillary geometry with no radius for eq (4) to divide by — not
