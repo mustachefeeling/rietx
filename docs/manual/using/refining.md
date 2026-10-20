@@ -517,9 +517,12 @@ reflection. The positions are the same and the inference is not.
 
 A good pattern can also score nothing, and that is a property of the candidate
 set rather than of the data. The set is enumerated, not searched: the
-zone-boundary vectors {0, ½}³ minus the origin, plus (⅓ ⅓ 0) and (⅓ ⅓ ½) on a
-hexagonal or trigonal lattice, one representative per star. An incommensurate k
-is outside it by construction, and so is any commensurate k it does not list.
+zone-boundary vectors where k ≡ −k on the phase's own lattice (2k a
+reciprocal-lattice vector), plus (⅓ ⅓ 0) and (⅓ ⅓ ½) on a hexagonal or trigonal
+lattice, one representative per star. On a primitive lattice those are
+{0, ½}³ minus the origin; on a centred one they are not, and F, for one, adds
+the X points (1 0 0), (0 1 0) and (0 0 1). An incommensurate k is outside the
+set by construction, and so is any commensurate k it does not list.
 
 Once a candidate looks worth testing, declare it (`Phase.propagation_vector`,
 [](data.md)) and refine in Le Bail or Pawley mode: the satellites become rows

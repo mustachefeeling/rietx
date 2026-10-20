@@ -26,6 +26,14 @@ Three measurements, each with the arm that could fail written down first:
   tutorial's k = (0, 0, ½) first, with every other candidate matching fewer
   of the unexplained peaks.  See the last section for what that does and does
   not show.
+* **An F-centred lattice, where the conventional {0, ½}³ is not the set of
+  k ≡ −k points.**  Synthetic satellites at the X point (1, 0, 0) must rank
+  it first, satellites at the L point (½, ½, ½), a member of both sets, must
+  still rank it first; and the real (Pr₀.₅Sr₀.₅)MnO₃ pattern of the GSAS-II
+  tutorial *Magnetic-IV* (LLB 3T2, 10 K, vendored per ``tests/data/README.md``),
+  whose structure orders at X, must rank (1, 0, 0) first against its nuclear
+  model.  On the conventional set none of the three can pass for X: (1, 0, 0)
+  was not a candidate.
 """
 
 from __future__ import annotations
@@ -302,3 +310,166 @@ def test_ba6co6_d1b_returns_the_tutorials_k_first_with_every_other_candidate_beh
     assert top.matched >= 2, arm.note
     assert all(c.matched < top.matched for c in rest), \
         [(c.vector, c.matched) for c in arm.candidates]
+
+
+# ======================================== an F-centred lattice: X, and L as control
+
+F_CELL = (5.0, 5.4, 5.8, 90.0, 90.0, 90.0)
+
+
+def _f_phase(k=None) -> rx.Phase:
+    P = rx.Parameter
+    a, b, c, al, be, ga = F_CELL
+    return rx.Phase(
+        name="Mn", space_group="F m m m",
+        cell=rx.Cell(a=P(value=a), b=P(value=b), c=P(value=c),
+                     alpha=P(value=al), beta=P(value=be), gamma=P(value=ga)),
+        atoms=[rx.Atom(label="Mn", species="Mn", x=P(value=0.0),
+                       y=P(value=0.0), z=P(value=0.0), biso=P(value=0.4))],
+        scale=P(value=1.0), propagation_vector=k)
+
+
+def _f_arm(k, seed):
+    """Nuclear + satellite-only profile at ``k`` on F m m m, fitted nuclear-only."""
+    instrument = rx.Instrument.constant_wavelength_neutron(LAMBDA, fwhm_deg=0.3)
+    plain = rx.Structure(phases=[_f_phase(None)])
+    with_k = rx.Structure(phases=[_f_phase(k)])
+    nuclear = np.asarray(compile_model(plain, instrument, _pattern()).evaluate(
+        _values(plain, instrument)), dtype=np.float64)
+    model = compile_model(with_k, instrument, _pattern(), mode="lebail")
+    cp = model.phases[0]
+    cp.hkl_intensity = np.where(cp.reflections.is_satellite, 900.0, 0.0)
+    magnetic = np.asarray(model.evaluate(_values(with_k, instrument)),
+                          dtype=np.float64)
+    rng = np.random.default_rng(seed)
+    return _arm(instrument, plain,
+                rng.poisson(nuclear + magnetic + 200.0).astype(float))
+
+
+@pytest.mark.parametrize("seed", [0, 1])
+def test_satellites_at_the_x_point_of_an_f_lattice_rank_it_first(seed):
+    """Positive arm: (1, 0, 0) is listed on F m m m, and it wins.
+
+    Fails on the conventional {0, ½}³, which has no candidate at X: there the
+    best is whichever order-four line point lands near the most satellites.
+    """
+    arm = _f_arm((1, 0, 0), seed)
+    ranked = [(c.vector, c.matched) for c in arm.candidates]
+    assert {c.vector for c in arm.candidates} == {
+        "(0, 0, 1)", "(0, 1, 0)", "(1/2, 1/2, 1/2)", "(1, 0, 0)"}
+    top, runner_up = arm.candidates[0], arm.candidates[1]
+    assert top.vector == "(1, 0, 0)", ranked
+    assert top.matched >= 0.8 * arm.n_unexplained, arm.note
+    assert runner_up.matched * 3 < top.matched, arm.note
+
+
+@pytest.mark.parametrize("seed", [0, 1])
+def test_satellites_at_the_l_point_still_rank_it_first(seed):
+    """Negative arm: a k both sets list is not displaced by the added X points."""
+    arm = _f_arm(("1/2", "1/2", "1/2"), seed)
+    ranked = [(c.vector, c.matched) for c in arm.candidates]
+    assert arm.candidates[0].vector == "(1/2, 1/2, 1/2)", ranked
+    assert arm.candidates[1].matched * 3 < arm.candidates[0].matched, arm.note
+
+
+# ===================================== (Pr₀.₅Sr₀.₅)MnO₃, the X point on real data
+
+def _read_std_bank(path):
+    """The vendored GSAS STD bank, read by position (test-local, on purpose).
+
+    Larson, A. C. & Von Dreele, R. B. (2004). *General Structure Analysis
+    System (GSAS)*, Los Alamos National Laboratory Report LAUR 86-748, p. 217:
+    an STD record is ``(10(I2,F6.0))``, the counter number then the counts per
+    counter.  ``rx.read_pattern`` splits on whitespace and interleaves the two
+    (issue #1061), so this test reads the counts by position and leaves σ to
+    the √y default, which is what a fixed reader returns today.  Only the
+    channels the body holds are kept (2 395 of the header's 2 415).
+    """
+    lines = path.read_text(encoding="ascii").splitlines()
+    fields = lines[1].split()
+    assert fields[:2] == ["BANK", "1"] and fields[4] == "CONST", lines[1]
+    start, step = float(fields[5]) / 100.0, float(fields[6]) / 100.0
+    counts = []
+    for line in lines[2:]:
+        line = line.ljust(80)
+        for j in range(0, 80, 8):
+            value = line[j + 2:j + 8]
+            if value.strip():
+                counts.append(float(value))
+    y = np.asarray(counts)
+    tt = start + step * np.arange(y.size)
+    return rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+
+
+#: The tutorial's nuclear model, typed from its CIF (`Magnetic-IV/data/PrSrMnO.cif`,
+#: a Jana2006 export with no database notice; not vendored, because gemmi
+#: refuses its two data blocks and empty loops).  Pr and Sr share one site.
+PRSRMNO_CIF = """data_PrSrMnO
+_symmetry_space_group_name_H-M 'F m m m'
+_cell_length_a 7.5083
+_cell_length_b 7.8315
+_cell_length_c 7.6841
+_cell_angle_alpha 90
+_cell_angle_beta 90
+_cell_angle_gamma 90
+loop_
+ _atom_site_label
+ _atom_site_type_symbol
+ _atom_site_fract_x
+ _atom_site_fract_y
+ _atom_site_fract_z
+ _atom_site_U_iso_or_equiv
+ _atom_site_occupancy
+  Pr Pr 0 0.2506 0 0.005 0.5
+  Sr Sr 0 0.2506 0 0.005 0.5
+  Mn Mn 0.25 0 0.25 0.005 1
+  O1 O 0.2130 0 0 0.005 1
+  O2 O 0 0 0.2884 0.005 1
+  O3 O 0.25 0.25 0.25 0.005 1
+"""
+
+
+@pytest.mark.slow
+def test_prsrmno3_ranks_the_x_point_first(tmp_path):
+    """The published k = (1, 0, 0) of an F cell, from the nuclear fit's residual.
+
+    Measured (darwin arm64, 2026-10-20): 4 unexplained peaks, the strongest the
+    (1 0 0) region near 9.35° that F centring forbids; (1, 0, 0) indexes 4 of
+    them from 217 positions, the runner-up (½, ½, ½) 1 from 723.  On the
+    conventional {0, ½}³ the vector was not a candidate and every candidate
+    scored at chance.
+    """
+    from pathlib import Path
+
+    data = _read_std_bank(Path(__file__).parent / "data"
+                          / "gsas2_llb3t2_prsrmno_10K.gda")
+    assert len(data.two_theta) == 2395
+    cif = tmp_path / "prsrmno.cif"
+    cif.write_text(PRSRMNO_CIF, encoding="ascii")
+    structure = rx.Structure.from_cif(str(cif))
+    instrument = rx.Instrument.constant_wavelength_neutron(1.227)
+    instrument.profile.w.value = (0.25 / 2) ** 2
+    instrument.profile.x.value = 0.25
+    base = ["phases.0.scale", *[f"instrument.background.c{i}" for i in range(4)]]
+    stages = [("scale", base), ("zero", base + ["instrument.zero_shift"]),
+              ("cell", base + ["instrument.zero_shift", "phases.0.cell.*"]),
+              ("widths", base + ["instrument.zero_shift", "phases.0.cell.*",
+                                 *[f"instrument.profile.{p}" for p in "uvwx"]])]
+    ref = rx.Refinement(structure, instrument, history=False)
+    result = ref.fit(data, plan=rx.RefinementPlan(
+        stages=[rx.Stage(name=n, turn_on=t, max_iter=200) for n, t in stages],
+        intermediate_ftol=1e-6), two_theta_limits=(6.0, 125.7))
+    assert result.status == "converged"
+    arm = ref.report().satellites[0]
+    ranked = [(c.vector, c.matched, c.n_satellites) for c in arm.candidates]
+    top, runner_up = arm.candidates[0], arm.candidates[1]
+    assert top.vector == "(1, 0, 0)", ranked
+    assert top.matched == arm.n_unexplained >= 4, ranked
+    assert runner_up.matched * 2 < top.matched, ranked
+
+    # obs/calc/diff for inspection (tests/output/, gitignored)
+    from rietx.viz.plots import plot_result
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    plot_result(result, path=str(out / "satellites_prsrmno3_x_point.png"))
+
