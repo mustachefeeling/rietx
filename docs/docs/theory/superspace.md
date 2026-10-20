@@ -129,3 +129,68 @@ $t_0$ or at none; an $\varepsilon = -1$ one only at a discrete set of sections,
 so at rational $\mathbf{q}$ the phase $t_0$ is a parameter of the model. The
 test suite reproduces every cell of the two worked tables of
 {cite}`orlov2008`.
+
+## Magnetic superspace groups
+
+A magnetic structure modulated along one direction has a (3+1)D symmetry group
+whose operations may carry time reversal. Each operation then has a sign
+$\theta = \pm 1$ beside {eq}`ss-operator`, $-1$ for a primed operation, and the
+signs compose as a product {cite}`perezmato2012`:
+
+```{math}
+:label: ss-magnetic-composition
+
+(g_a, \theta_a)\,(g_b, \theta_b) \;=\; (g_a g_b,\; \theta_a\theta_b).
+```
+
+{source}`rietx.crystallography.superspace.SuperspaceOperator`
+
+$\theta$ moves nothing in superspace. It is a sign on time-odd quantities: a
+moment transforms as $\theta \det(R)\,R$, a displacement as $R$. Pure time
+reversal $\{1'|0000\}$ and the anti-translations $\{1'|\mathbf{v}\}$ have the
+identity point part, and `rietx` carries them among a group's centrings, as the
+magCIF centring loop does.
+
+{cite}`stokes2022` sort the groups into four construct types, with $F$ the
+group with every prime removed and $D$ an index-2 subgroup: type 1 is $F$
+itself, type 2 the grey group $F + F1'$, type 3 is $D + (F - D)1'$ with the
+same lattice, and type 4 is $D + D\{1'|\mathbf{v}\}$ with $2\mathbf{v}$ a
+lattice vector. The groups over one superspace group are generated in two
+ways. Taking it as $F$, its point generators are primed in every way that
+forms a group (types 1 and 3). Taking it as $D$, an anti-translation is added
+for each of the sixteen classes of $\mathbf{v}$ with $2\mathbf{v}$ a lattice
+vector, and the ones that would add translations are dropped (types 2 and 4).
+The results are compared under the equivalence of {eq}`ss-equivalence` with
+$\theta$ compared on every operation. Over $P222(0,0,\gamma)000$ that gives
+three groups of types 1 and 3 and nine of types 2 and 4, the counts of
+{cite}`stokes2022`, and the test suite asserts them.
+
+{source}`rietx.crystallography.superspace.magnetic_superspace_groups`
+
+Every single-$\mathbf{k}$ incommensurate magnetic phase has the group
+
+```{math}
+:label: ss-time-reversal-shift
+
+\Omega \;=\; G + \{1' \mid 0\,0\,0\,\tfrac12\}\,G
+```
+
+{source}`rietx.crystallography.superspace.SuperspaceGroup.with_time_reversal_shift`
+
+with $G$ a non-magnetic superspace group {cite}`perezmato2012`. The operation
+$\{1'|000\tfrac12\}$ multiplies the $n$-th harmonic of a moment by
+$\theta\,e^{i\pi n} = -(-1)^n$ and of a displacement by $(-1)^n$. So the moment
+modulation keeps odd harmonics only, and a structural modulation it induces
+keeps even ones. $\{1'|0000\}$ and $\{1|000\tfrac12\}$ are distinct
+operations.
+
+{source}`rietx.crystallography.superspace.SuperspaceOperator.harmonic_factor`
+
+A symbol is the unified magnetic symbol {cite}`campbell2022` of the basic
+magnetic group merged with the superspace symbol: $P22'2'(0,0,\gamma)000$ for
+type 3, and for types 2 and 4 one phase letter per generator plus one for
+$1'$, as in $P222.1'(0,0,\gamma)000s$, which is $\{1'|000\tfrac12\}$ over
+$P222(0,0,\gamma)000$ and not the grey group $P222.1'(0,0,\gamma)0000$. As for
+the non-magnetic groups, the operator list is the primary datum and a symbol is
+a label.
+
