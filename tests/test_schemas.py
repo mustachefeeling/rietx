@@ -395,8 +395,9 @@ def test_inheriting_does_not_touch_the_callers_parameter_on_any_class():
     geo = Geometry(kind="debye_scherrer", sample_displacement=p)
     assert (p.min, p.max, p.unit, frozenset(p.model_fields_set)) == before
     assert phase.extinction.min == 0.0
+    # unbounded since WP-2002 (2026-10-20); its unit is still its own
     assert (geo.sample_displacement.min, geo.sample_displacement.max,
-            geo.sample_displacement.unit) == (-1.0, 1.0, "mm")
+            geo.sample_displacement.unit) == (float("-inf"), float("inf"), "mm")
 
 
 def test_one_parameter_handed_to_many_atoms_becomes_one_per_atom():
