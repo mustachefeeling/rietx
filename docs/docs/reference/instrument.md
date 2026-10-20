@@ -656,6 +656,11 @@ No expression member exists yet.
 
 A hump's position has no bound, because it is not a Bragg position and the fitted range belongs to the pattern rather than the instrument.
 A peak's `center` and `fwhm` need finite bounds, because they size the window the peak is evaluated over, frozen when a stage compiles.
+The window spans the centre's bounds and reaches out by a multiple of `fwhm.max` that grows with `eta.max`, about 16 at η = 1.
+At the default `fwhm.max` of 0.5° that is about ±8°, so state the bounds you believe.
+A window holding no fitted channel is refused, naming the peak.
+With `all_lines` set, each emission line's image is scaled by that line's weight times the ratio of its Lorentz-polarisation factor to the primary line's, so `area` is the primary line's area.
+A declared peak adds no reflections, so it leaves the observation count `effective_observations` unchanged.
 A width bound at 0 is raised to the member's floor when the object is built, because each profile divides by its width.
 
 Every refinable field defaults to fixed, so a declared component is inert until a stage frees it.

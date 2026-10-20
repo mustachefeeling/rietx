@@ -321,8 +321,11 @@ the tree that day.
       `project.md` widened to run directories (the rest of `files.md`, which retires to
       `pattern-files`); `reference/refinement.md` and `magnetic.md` (`using/refining`;
       retires to `refinement`); `reference/series.md`, `joint.md` and `parametric.md`
-      (`using/series`; retires to `series`). Left: model, exports,
-      qpa and indexing, as Concepts or Reference pages, chapter by chapter.
+      (`using/series`; retires to `series`); `reference/figures.md`, `parameter-table.md`,
+      `qpa.md`, `exports.md` widened, and `concepts/plans.md` (`using/exports`,
+      `model`, `qpa`, `concepts`; retire to `exports`, `parameter-table`, `qpa`,
+      `../concepts/fit`). Left: indexing, whose 283 names are the only ones
+      the old tree still documents alone.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.
 - [ ] Skill: links into the manual updated to the new URLs.

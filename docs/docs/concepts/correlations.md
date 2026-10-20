@@ -14,7 +14,8 @@ The [esd section of the theory](../theory/estimation.md#esds-and-the-bérar-lela
 
 An esd describes the minimum the fit stopped in.
 A trace phase whose scale trades against its peak width can have several minima at one χ², each with a tight esd.
-`Refinement.profile_interval` refits with one parameter pinned at a series of values, and reports the range over which χ² rises by less than the cut for the chosen confidence level.
+`Refinement.profile_fraction` pins that phase's width at a series of values and reports every weight fraction the pattern admits.
+For any one parameter, `Refinement.profile_interval` refits with one parameter pinned at a series of values, and reports the range over which χ² rises by less than the cut for the chosen confidence level.
 
 ## Why parameters correlate
 

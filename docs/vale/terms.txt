@@ -305,6 +305,7 @@ Bruker
 cctbx
 codeword
 codewords
+Colab
 Conograph
 Fortran
 FullProf

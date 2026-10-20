@@ -16,6 +16,7 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [Models of other programs' files](foreign-models.md) gives the fields of `TopasModel`, `FullProfModel`, `GsasModel` and `Gsas2Model`.
 - [Pattern diagnostics](pattern-diagnostics.md) gives each field `diagnose` measures on a pattern before a fit, and the two low-angle checks a fit adds.
 - [Parameter map](parameters.md) lists every refinable parameter, grouped by what it does.
+- [The parameter table](parameter-table.md) gives the fields of a `ParameterRow`, why a row cannot be freed, ties and restraints, the bounds a fit runs in, what `set_vary` and `set_values` return and refuse, the rows a result reports, and the profile interval.
 - [Stage settings, flags and options](settings.md) lists the other names rietx uses: stage settings, peak flags, peak origins, reader options, instrument preset fields and indexing search settings.
 - [Plan presets](plans.md) draws each preset's stages.
 - [The refinement](refinement.md) gives the calls that run a fit and where each setting goes, the fit modes, the plan and stage objects and their stored form, what each stage records, the guard findings, the event stream, cancellation and the provenance record.
@@ -25,12 +26,14 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [Parametric refinement](parametric.md) gives `CoordinateTable` and `ParametricEquation`, what a declaration refuses, the coefficients a fit reports, the test of the declared form and the equation at any coordinate.
 - [The refinement result](result.md) gives what a `RefinementResult` carries beside the refined values: the agreement statistics, the structure R-factors, the observation count, the identifiability evidence, the restraint and absorption records, the diagnostics and the printed views.
 - [Derived quantities](derived.md) gives the distances, angles, cell volumes, crystallite sizes and microstrain a fit computes, with their esds.
+- [Phase fractions](qpa.md) gives the weight fractions a Rietveld fit reports, the width profile that tests whether a fraction is determined, and the Brindley microabsorption correction.
 - [The fit report](report.md) gives the fields of a `FitReport`: the misfit regions and unmatched peaks, the attribution and its gates, the trends, texture and strain readings, the suggested actions and the report at each stage.
 - [Report evidence](report-evidence.md) gives the report's background, esd and Le Bail gap sections.
 - [Model comparison](comparison.md) gives `Refinement.suggest`, `compare_freed`, the cumulative Δχ² and split localisation of two fits, and the rigid-body check.
 - [Diagnostic codes](diagnostics.md) lists every code with its name, and links the page that explains it.
 - [Project and run directories](project.md) shows the files in a `.rex` project and gives the fields of `project.json`, what opening one checks, and the run directories a fit writes.
-- [Exported files](exports.md) gives the three export writers and the items a refinement CIF holds, including the structure block that opens every CIF from rietx.
+- [Exports and derived tables](exports.md) gives the three export writers, the calculated pattern and its tick positions, the reflection list, the items a refinement CIF holds, and the value(esd) notation.
+- [Figures and structure pictures](figures.md) gives the fit figure's options and `render_structure`, which draws a phase to a PNG and reports what the picture hides.
 - [The refinement history](history.md) gives the fields of a history node, the actions that commit one, what a checkout restores, the queries on a tree and the format of the `history.jsonl` log.
 - [Names in other programs](foreign-names.md) gives each parameter's name in GSAS-II, GSAS, TOPAS and FullProf.
 - [The GUI panel by panel](gui-guide.md) says what each panel of `rietx gui` is for.
@@ -57,6 +60,7 @@ foreign-writers
 foreign-models
 pattern-diagnostics
 parameters
+parameter-table
 settings
 plans
 refinement
@@ -66,12 +70,14 @@ joint
 parametric
 result
 derived
+qpa
 report
 report-evidence
 comparison
 diagnostics
 project
 exports
+figures
 history
 foreign-names
 gui-guide

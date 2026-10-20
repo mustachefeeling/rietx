@@ -53,6 +53,7 @@ CIFs
 [cC]odeword
 [cC]odewords
 Coelho
+Colab
 [cC]ollinear
 [cC]ollinearity
 [cC]ombinatorial
