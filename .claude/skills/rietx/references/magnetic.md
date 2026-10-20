@@ -9,6 +9,7 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 * **Moment codes** are about a refined moment (WP-1327) and ride on the report's `MomentEvidence` rows (`analyse_moments`, `FitReport.magnetic`); the **magnetic-width codes** (WP-1343) ride on `result.diagnostics`.
 * **Candidate codes** are not on `result.diagnostics` at all: they are on the `SupercellStatement` `magnetic_supercell` returns, because the question — does a Hermann-Mauguin symbol name the child group this cell carries — is settled before a fit exists, the same way a project reader's own codes are.
 * The **satellite arm** (WP-1326, `FitReport.satellites`) emits no code at all; its readings are in the next section.
+* **Series codes** (WP-1329) ride on a `SeriesResult`, from a series of patterns with a refined moment: the held-moment and onset-bracket codes.
 * The **determination verb** (WP-1418, `solve_magnetic`) answers on the `MagneticSolution` it returns, readings and codes in one table.
 * **Interchange codes** are about a magnetic structure read from a file (WP-1328) and fire at *import* — pass `diagnostics=[]` to the reader to collect them; they never reach `result.diagnostics`.
 
@@ -57,6 +58,15 @@ On `result.diagnostics`, from a fit (WP-1343). The terms are `Phase.magnetic_lor
 | `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` | (**warning**, from the *plan*, before the first stage runs) Read either number as a measurement of its own quantity. Use the three-step order (`strategy.staged.MAGNETIC_WIDTH_STAGE_PATHS`); silent when the width already has a value |
 | `MAGNETIC_WIDTH_UNMEASURED` | (info) Quote a freed width as a magnetic coherence length. `value` = value/esd, against `MOMENT_SUPPORT_SIGMA` (3, the moment's own bar); `None` means back with **no esd**: not measured, never "zero", and the message names the cause it checked (zero magnetic intensity or the zero floor, else none). Expect one of the two terms back this way. Read `MAGNETIC_WIDTH_MOVED_MOMENT` before dropping it |
 | `MAGNETIC_WIDTH_MOVED_MOMENT` | (**warning**, from the plan's step-1 and step-3 rungs) Drop a width because it is unmeasured. Quote the released moment and give the width as an upper bound (value + esd) |
+
+## Series codes
+
+On a `SeriesResult` (the series' own `diagnostics`, or a pattern's entry), from a series of patterns whose phase carries a refined moment (WP-1329); a single `fit()` never emits one. The other series codes are in §9b, [series](series.md); the moment trajectory and its onset bracket are described in its *A moment through an ordering transition*.
+
+| code | what you must not assume, and what to do |
+|---|---|
+| `SEQUENTIAL_MOMENT_HOLD` | Read the held patterns as small moments, or plot them as zero with an error bar. A held point's `value` is its fit's modulus, judged against its *own* esd, so the trajectory withholds the esd there. The message names the successors reseeded to the floor instead of warm-started |
+| `SEQUENTIAL_MOMENT_ONSET` | Quote the midpoint as a critical temperature with that ± as its uncertainty: it is a **bracket** between the last released and the first held pattern, the ± half *your pattern spacing*, and nothing fits `m ∝ (1 − T/T_N)^β`. Nor quote it when `MagneticOnset.bracket_verdicts_final` is False (the early-stopped modulus had not finished falling), nor from one pass: `direction="both"` carries both chains' brackets and says whether they overlap, and one chain's warm start can carry a moment across the transition |
 
 ## Candidate codes
 
