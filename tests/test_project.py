@@ -331,8 +331,9 @@ def _bare_biso(value: float | None = None):
 
 
 def _bare_occ(value: float | None = None):
-    """``_bare_biso`` on the occupancy, whose declared [0, 1.5] is what these
-    repairs restore since WP-1534 left ``Atom.biso`` with a unit only."""
+    """``_bare_biso`` on the occupancy, whose declared floor of 0 is what these
+    repairs restore since WP-1534 left ``Atom.biso`` with a unit only (and
+    WP-2002 left ``occ`` with no ceiling)."""
     def edit(state):
         occ = state["structure"]["phases"][0]["atoms"][1]["occ"]
         occ.update(_BARE)
@@ -358,17 +359,17 @@ def test_a_log_written_before_206_opens_with_its_declared_bounds_back(
 
     reopened = rx.Project.open(project.path)
     occ = reopened.refinement.structure.phases[0].atoms[1].occ
-    assert (occ.value, occ.min, occ.max) == (0.7, 0.0, 1.5)
+    assert (occ.value, occ.min, occ.max) == (0.7, 0.0, float("inf"))
     for node in reopened.history.nodes.values():
         stored = node.state.structure.phases[0].atoms[1].occ
-        assert (stored.min, stored.max) == (0.0, 1.5)
+        assert (stored.min, stored.max) == (0.0, float("inf"))
 
     [note] = reopened.history_diagnostics
     assert (note.code, note.level, note.where) == (
         "DECLARED_RANGE_RESTORED", "warning", ["phases.0.atoms.1.occ"])
     assert "(atom B)" in note.message
     assert "[-inf, inf]" in note.message
-    assert "[0.0, 1.5]" in note.message
+    assert "[0.0, inf]" in note.message
     assert "this history (2: n0000, n0001)" in note.message and "schema 0.17" in note.message
     assert reopened.data_diagnostics == []   # the pattern's channel stays the pattern's
 
@@ -508,14 +509,15 @@ def test_a_stored_value_outside_the_declared_range_is_left_and_reported(
     far outside the X-ray one).  So the parameter is left as stored, still
     unbounded, and the note says so, naming the node and the value."""
     project = _create(tmp_path / "s.rex", pattern_file)
-    _age_log(project, "0.16", _bare_occ(2.0))
+    # below the floor of 0 (an occupancy has had no ceiling since WP-2002)
+    _age_log(project, "0.16", _bare_occ(-2.0))
     reopened = rx.Project.open(project.path)
     occ = reopened.refinement.structure.phases[0].atoms[1].occ
-    assert (occ.value, occ.min, occ.max) == (2.0, float("-inf"), float("inf"))
+    assert (occ.value, occ.min, occ.max) == (-2.0, float("-inf"), float("inf"))
     [note] = reopened.history_diagnostics
     assert (note.code, note.level, note.where, note.value) == (
-        "DECLARED_RANGE_NOT_RESTORED", "warning", ["phases.0.atoms.1.occ"], 2.0)
-    assert "2.0 in n0000" in note.message and "[0.0, 1.5]" in note.message
+        "DECLARED_RANGE_NOT_RESTORED", "warning", ["phases.0.atoms.1.occ"], -2.0)
+    assert "-2.0 in n0000" in note.message and "[0.0, inf]" in note.message
 
 
 def test_a_parameter_is_restored_in_every_node_or_in_none(tmp_path, pattern_file):
@@ -558,8 +560,10 @@ def test_a_node_this_release_appends_to_an_old_log_is_read_at_its_own_version(
     old, new = (again.history.nodes[n] for n in again.history.order)
     assert new.schema_version == rx.schemas.common.SCHEMA_VERSION
     assert old.schema_version is None
-    assert old.state.structure.phases[0].atoms[1].occ.max == 1.5
-    assert new.state.structure.phases[0].atoms[1].occ.max == float("inf")
+    # the declared range is [0, inf) since WP-2002, so the floor is what tells
+    # the repaired node from the chosen one
+    assert old.state.structure.phases[0].atoms[1].occ.min == 0.0
+    assert new.state.structure.phases[0].atoms[1].occ.min == float("-inf")
     [note] = again.history_diagnostics
     assert "this history (n0000)" in note.message
 

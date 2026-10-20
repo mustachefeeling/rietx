@@ -7231,6 +7231,11 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # twin of the flag above (bound: params.vector.size_cap, one tier up).
     diagnostics = diagnostics + _size_flag_diagnostics(model, values, structure)
 
+    # A refined occupancy past a full site (WP-2002): Atom.occ has no ceiling,
+    # so this is what meets one.
+    diagnostics = diagnostics + _occupancy_flag_diagnostics(
+        values, set(table.moving_paths), structure, stderr_phys)
+
     # A free rigid-body DOF the data gave no gradient (WP-1805): named, never
     # left to read as a body that refined
     if stderr_internal is not None:
@@ -9179,8 +9184,8 @@ def _strain_flag_diagnostics(model: CompiledModel, values: dict[str, float],
                          f"tanθ), {width / STRAIN_FLAG_WIDTH:.0f}× the "
                          f"flag threshold of {STRAIN_FLAG_WIDTH}."),
                 suggestion="Check whether BOUND_HIT fired on the same path. "
-                           "If the specimen really is this defective, declare "
-                           "a finite Parameter.max to silence this.",
+                           "If the specimen really is this defective, the "
+                           "value stands; this flag changes nothing in the fit.",
             ))
     return out
 
@@ -9211,14 +9216,15 @@ def _sqrt_or_none(variance: float | None) -> float | None:
 #: ``pixie_dust``.  So the corpus has a clean gap: real fits floor near 33 nm,
 #: artefacts sit below ~2 nm, and nothing legitimate lives between.
 #:
-#: 5 nm is placed inside that gap, above the 2 nm hard floor
-#: (:data:`~rietx.params.vector.SIZE_CAP_MIN_SIZE_A`) and well below the
-#: smallest real fit.  It is deliberately *not* pushed up towards 33 nm: a real
-#: nanocrystalline specimen of 5–30 nm is routine even though this particular
-#: archive of bulk inorganics happens not to contain one, and a flag that fired
-#: on it would be noise.  So this says only "smaller than a runaway fence, a
-#: number to look at", which is the whole job of the flag tier — the intent
-#: Michael set is *prevent runaways, do not legislate physics*.
+#: 5 nm is placed inside that gap, well below the smallest real fit.  It is
+#: deliberately *not* pushed up towards 33 nm: a real nanocrystalline specimen
+#: of 5–30 nm is routine even though this particular archive of bulk
+#: inorganics happens not to contain one, and a flag that fired on it would be
+#: noise.  So this says only "a number to look at", which is the whole job of
+#: the flag tier; the intent Michael set is *prevent runaways, do not
+#: legislate physics*.  Since 1.10 nothing bounds a size from below but the
+#: fitted range (:func:`~rietx.params.vector.size_cap`, WP-2002), so this flag
+#: is also what meets a size small enough to leave the Bragg-peak model.
 #:
 #: ``gauss_size`` is a variance, so the size is read from its square root, the
 #: same conversion :func:`~rietx.params.vector.size_cap_hi` uses for the bound.
@@ -9311,13 +9317,16 @@ def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],
 
     The size twin of :func:`_strain_flag_diagnostics`, and the two do the same
     two-tier job.  One tier down, :func:`~rietx.params.vector.size_cap` is a
-    solver bound (a 2 nm floor on the crystallite, per wavelength); it protects
-    the *numerics* and reports itself as ``BOUND_HIT``.  This tier protects the
+    solver bound (a line no wider than the fitted range); it protects the
+    *numerics* and reports itself as ``BOUND_HIT``.  This tier protects the
     *interpretation*: a refined size below :data:`SIZE_FLAG_SIZE_A` is
     physically possible — real nanocrystals reach a few nm — so the fit is
     finished and may be right, but it sits below the archive of solved
-    refinements and is worth a look.  It gates nothing ("report, never refuse")
-    and is per-pattern, which is where a batch caller needs it.
+    refinements and is worth a look.  Below about 2 nm a crystallite is a few
+    unit cells, and the message says the Bragg-peak model may not describe its
+    pattern; the Debye scattering equation does (Debye, 1915, *Ann. Phys.*
+    **351**, 809).  It gates nothing ("report, never refuse") and is
+    per-pattern, which is where a batch caller needs it.
 
     The size is read from the **sample** coefficient alone (``lor_size``, or
     ``sqrt(gauss_size)``), not the instrument ⊕ sample total: the question is
@@ -9361,10 +9370,68 @@ def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],
                 message=(f"Phase {ip} ({name}) refined {term} to an apparent "
                          f"crystallite size of {size_nm:.3g} nm "
                          f"(Scherrer K={SCHERRER_K}, λ={lam:.4g} Å), below the "
-                         f"flag threshold of {floor_nm:.0f} nm."),
+                         f"flag threshold of {floor_nm:.0f} nm. Below about "
+                         f"2 nm a crystallite is a few unit cells, and "
+                         f"broadened Bragg peaks may not describe its pattern "
+                         f"(the Debye scattering equation does)."),
                 suggestion="Check whether BOUND_HIT fired on the same path. "
-                           "If the specimen really is this small, declare a "
-                           "finite Parameter.max to silence this.",
+                           "If the specimen really is this small, the value "
+                           "stands; this flag changes nothing in the fit.",
+            ))
+    return out
+
+
+def _occupancy_flag_diagnostics(values: dict[str, float], moving: set[str],
+                                structure: Structure,
+                                esds: dict[str, float] | None = None
+                                ) -> list[Diagnostic]:
+    """``OCCUPANCY_ABOVE_ONE`` — a refined occupancy past a full site.
+
+    ``Atom.occ`` is bounded at 0 and nowhere above since 1.10 (WP-2002, the B9
+    ruling of 2026-10-19: "Unlimited occupancy is fine.  We can give a
+    warning.").  An occupancy above 1 puts more scatterers on a site than the
+    site holds.  It is still the right number when the occupancy is doing the
+    work of site scattering: Mg declared on a mixed Fe-Mg site reads
+    26/12 ≈ 2.2 at full Fe.  So this reports the number and gates nothing,
+    the third kind of DESIGN.md § Rules, 1.  Full occupancy is 1 by
+    definition, so the threshold is no choice.
+
+    Only an occupancy the fit moved is judged: ``moving`` is the free paths
+    and the ties that follow them (``ParameterTable.moving_paths``).  A held
+    value is the caller's own statement, and judging it would repeat the
+    declaration back on every fit.  Strictly above 1, so a site refined to
+    exactly full is silent.
+
+    No significance gate, so a full site refined freely lands above 1 by
+    counting noise about half the time (measured on synthetic LaB6: true
+    occupancy 1.0, refined 1.032 ± 0.025).  The message therefore states the
+    distance in esds wherever ``esds`` holds one, so a reader can tell noise
+    from a site that really scatters more than its declared species.
+    """
+    out: list[Diagnostic] = []
+    for ip, phase in enumerate(structure.phases):
+        for j, atom in enumerate(phase.atoms):
+            path = f"phases.{ip}.atoms.{j}.occ"
+            occ = values.get(path)
+            if path not in moving or occ is None or not occ > 1.0:
+                continue
+            esd = (esds or {}).get(path)
+            if esd is not None and esd > 0.0:
+                how_far = (f"{occ:.4g} ± {esd:.2g}, {(occ - 1.0) / esd:.1f} esd "
+                           f"above a full site")
+            else:
+                how_far = f"{occ:.4g}, more than a full site"
+            out.append(Diagnostic(
+                level="warning", code="OCCUPANCY_ABOVE_ONE",
+                where=[path], value=float(occ),
+                message=(f"Phase {ip} ({phase.name}): atom {atom.label!r} "
+                         f"({atom.species}) refined its occupancy to "
+                         f"{how_far}."),
+                suggestion=("This is expected when the occupancy refines the site "
+                            "scattering of a mixed site declared as its lighter "
+                            "species. Otherwise check the species, the site "
+                            "multiplicity and the displacement parameter, which "
+                            "competes with the occupancy for the same intensity."),
             ))
     return out
 

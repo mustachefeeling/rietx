@@ -174,7 +174,7 @@ A tie carries the dependent's bounds back onto its source, and you do not have
 to do that arithmetic. The dependent leaves the free vector, so the optimiser
 never sees its `min`/`max` directly. What it is given instead is the range on the
 source that keeps the dependent inside them. The mixed-site example above is the
-clearest case. `occ` is declared `[0, 1.5]`, and `occ₁ = 1 − occ₀` means `occ₀`
+clearest case. `occ` is declared at or above 0, and `occ₁ = 1 − occ₀` means `occ₀`
 must stay in `[0, 1]` for `occ₁` to be non-negative, so `[0, 1]` is the box that
 stage runs against, without anyone writing it. Every dependent a source drives
 contributes, and the tightest wins, along with whatever the source declares

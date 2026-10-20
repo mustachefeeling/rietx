@@ -2,7 +2,11 @@
 
 Conventions
 -----------
-* Fractional coordinates; occupancies are site fractions in [0, 1].
+* Fractional coordinates; occupancies are site fractions, 1 for a full site.
+  The schema bounds an occupancy at 0 only (WP-2002, the B9 ruling).  A
+  refined value above 1 is legal, and expected where a mixed site declared as
+  its lighter species refines site scattering; it raises
+  ``OCCUPANCY_ABOVE_ONE``.
 * Atomic displacement: isotropic ``Biso`` in Å² with ``Biso = 8π² Uiso``
   (International Tables C) by default, or an optional anisotropic ``AnisoU``
   block per atom carrying the CIF U^ij tensor (Å²).
@@ -31,15 +35,25 @@ from .common import Base, Parameter, _InheritsDeclaredDefaults
 #: so no stored document repairs differently.
 _ZERO_BOUND = 1e-12
 
-#: March coefficient bounds.  r = 1 is the identity, r < 1 / r > 1 map to
-#: platy / needle habit (the mapping flips between reflection and transmission
-#: geometry — see :mod:`rietx.model.preferred_orientation`), and a value
-#: outside this range describes a texture no powder mount produces.  The floor
-#: keeps r off the pole at zero: see :class:`PreferredOrientation`.  Measured on a 90 wt % NaCl mixture where r
-#: underflowed to zero: the stall went away *and* the fit improved, Rwp 30.8 %
-#: → 13.2 % (WP-1028 §(e)).
-MARCH_R_MIN = 0.15
-MARCH_R_MAX = 6.0
+#: The floor on the March coefficient r, a pole guard and nothing more.  r = 1
+#: is the identity, and r < 1 / r > 1 map to platy / needle habit (the mapping
+#: flips between reflection and transmission geometry — see
+#: :mod:`rietx.model.preferred_orientation`).  The March factor
+#: (r²cos²α + sin²α/r)^(−3/2) divides by r, so r = 0 is a pole, and any r > 0
+#: is defined.  At this floor the largest factor (α = 0) is r⁻³ = 1e18, its
+#: r-derivative 3r⁻⁴ = 3e24, and the smallest factor (α = 90°) r^1.5 = 1e-9.
+#: Every one is finite in fp64 at every angle, so the model and its column are
+#: defined on the bound itself (root CLAUDE.md § Invariants).  The floor sits
+#: far above :data:`_ZERO_BOUND`, so a stored ``min`` at it is never read as a
+#: bound at zero.
+#:
+#: Until 1.10 the floor was 0.15, chosen on an Rwp comparison (WP-1028 §(e)).
+#: A smaller r is still a physical texture, and a pressed clay or mica plate
+#: can need one, so the B9 ruling of 2026-10-19 (WP-2002) took the floor down
+#: to the pole guard and removed the ceiling of 6.  There is no upper limit:
+#: as r grows the factor tends to a perfect fibre texture and stays finite.
+#: GSAS-II, FullProf and TOPAS set no default March-Dollase bound.
+MARCH_R_MIN = 1e-6
 
 def _op_key(op) -> tuple[tuple[int, ...], tuple[int, ...]]:
     """One symmetry operation as an exact hashable key, modulo a lattice shift.
@@ -236,14 +250,14 @@ class PreferredOrientation(_InheritsDeclaredDefaults):
     factor divides by r, so at r = 0 the residual becomes inf/NaN, nothing
     raises, and the solver grinds its whole budget on garbage — measured
     before WP-1938, a 3-second stage that had not returned after ten minutes.
-    The floor is physics, not a fudge: r = 1 is the identity, and a March
-    coefficient outside 0.15-6 describes a texture no powder mount produces.
+    The floor guards that pole and nothing else, and there is no ceiling
+    (WP-2002): every r > 0 is a texture, and how strong a texture a specimen
+    has is the data's to say.
     """
 
     axis: tuple[int, int, int]
     r: Parameter = Field(
-        default_factory=lambda: Parameter(value=1.0, vary=False, min=MARCH_R_MIN,
-                                          max=MARCH_R_MAX)
+        default_factory=lambda: Parameter(value=1.0, vary=False, min=MARCH_R_MIN)
     )
 
     @model_validator(mode="after")
@@ -260,12 +274,12 @@ class PreferredOrientation(_InheritsDeclaredDefaults):
         bound a caller chose is left alone.  This exists because the broken
         bound outlives the default: a JSON project or a history node written
         before this fix carries ``min: 0.0`` explicitly, and would deserialize
-        straight back into the stall.
+        straight back into the stall.  A stored ``max`` is the caller's and is
+        kept, finite or not; one written before 1.10 carries the old ceiling of
+        6 and keeps it (WP-2002 migrates no stored bound).
         """
         if self.r.min <= _ZERO_BOUND:
             self.r.min = MARCH_R_MIN
-        if not math.isfinite(self.r.max):
-            self.r.max = MARCH_R_MAX
         self.r.value = min(max(self.r.value, self.r.min), self.r.max)
         return self
 
@@ -497,7 +511,7 @@ class Atom(_InheritsDeclaredDefaults):
     x: Parameter
     y: Parameter
     z: Parameter
-    occ: Parameter = Field(default_factory=lambda: Parameter(value=1.0, min=0.0, max=1.5))
+    occ: Parameter = Field(default_factory=lambda: Parameter(value=1.0, min=0.0))
     biso: Parameter = Field(default_factory=lambda: Parameter(value=0.5, unit="A^2"))
     aniso: AnisoU | None = None
     # Optional magnetic moment, opt-in per atom exactly as ``aniso`` is
@@ -525,6 +539,14 @@ class Atom(_InheritsDeclaredDefaults):
     # A caller's own ``Parameter`` for ``occ``/``biso`` inherits the range and
     # unit these factories declare wherever it left them out (issue #204, PR
     # #206; the rule and its history are ``_InheritsDeclaredDefaults``').
+    #
+    # **Occupancy is bounded at 0 and nowhere above** (WP-2002, the B9 ruling
+    # of 2026-10-19), as in GSAS-II and FullProf, which bound none; TOPAS's
+    # default limit is 0 to 2·Val + 1, recomputed every iteration, so it caps
+    # a step and never the answer (Tech Ref § 2.17, Table 2-1).  The 1.5
+    # ceiling it carried before 1.10 stopped a mineralogist refining site
+    # scattering: Mg declared on a mixed Fe-Mg site reads 26/12 ≈ 2.2 at full
+    # Fe.  ``OCCUPANCY_ABOVE_ONE`` warns on a refined value above 1.
     #
     # **B_iso is unbounded** (WP-1534, decided 2026-10-04), as in FullProf,
     # TOPAS and GSAS-II, which bound no displacement parameter by default.

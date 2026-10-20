@@ -95,6 +95,7 @@ from .refine import (
     _judge_magnetic_groups,
     _low_angle_diagnostics,
     _max_iter_diagnostics,
+    _occupancy_flag_diagnostics,
     _onto_flat_meridian,
     _origin_diagnostics,
     _phase_agreement,
@@ -252,6 +253,9 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_symmetry_silence_diagnostics": (
         (SPECIMEN,), "a snapped site or an assumed setting is a fact about the "
                      "one structure, asked of it as declared, before any stage"),
+    "_occupancy_flag_diagnostics": (
+        (SPECIMEN,), "an occupancy is the one structure's, so a refined value "
+                     "past a full site is told once, read off histogram 0"),
     "_origin_diagnostics": (
         (SPECIMEN,), "each histogram's table derives the same floating-origin "
                      "hold from its copy of the one structure (WP-1912); asked "
@@ -1890,6 +1894,12 @@ class MultiHistogramRefinement:
         # what its fraction is conditional on (WP-1534)
         diagnostics = diagnostics + _scale_b_ridge_diagnostics(
             models, per_values, self.mtable.structures[0], stage_results)
+        # a refined occupancy past a full site (WP-2002, SPECIMEN): read off
+        # histogram 0, as the microstructure block below is, since an
+        # occupancy is the one structure's
+        diagnostics = diagnostics + _occupancy_flag_diagnostics(
+            per_values[0], set(mt.tables[0].moving_paths), mt.structures[0],
+            esd_hist0)
 
         weight_note = ("unit (each point's esd governs)"
                        if all(w == 1.0 for w in weights)

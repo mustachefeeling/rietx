@@ -80,7 +80,7 @@ ref.tie("phases.0.atoms.1.occ", "phases.0.atoms.0.occ", scale=-1.0, offset=1.0)
 The dependent takes its new value at once, and every later fit keeps the relation.
 
 The dependent's own limits carry over to its source, and you don't have to work them out.
-If each occupancy is limited to between 0 and 1.5, then `occ₁ = 1 − occ₀` keeps `occ₀` between 0 and 1, and the fit uses that range for `occ₀`.
+Each occupancy has a lower limit of 0, so `occ₁ = 1 − occ₀` keeps `occ₀` between 0 and 1, and the fit uses that range for `occ₀`.
 When a fit stops at such a limit, it reports [`BOUND_HIT`](../reference/diagnostics-refinement.md#bound_hit) on the source.
 Widen the dependent's limit if the source needs more room.
 

@@ -52,8 +52,8 @@ A `min=0.0` parameter can end at exactly `0.0`. That is harmless wherever zero
 is the off state, which is nearly everywhere in this package: a zero width is
 no broadening, a zero extinction coefficient is no extinction. It is a bug
 wherever the physics divides by the value, and such a parameter carries a real
-floor above zero instead. `PreferredOrientation.r` stops at 0.15, a hump's
-width at `HUMP_FWHM_MIN`, and `ProfileTCHZ.w` at 1e-8 deg².
+floor above zero instead. `PreferredOrientation.r` stops at `MARCH_R_MIN`
+(1e-6), a hump's width at `HUMP_FWHM_MIN`, and `ProfileTCHZ.w` at 1e-8 deg².
 :::
 
 `stderr` is the one field a fit writes back. It is `None` on a parameter that
@@ -356,7 +356,7 @@ the six values as a tuple.
 | `Atom.label` | str | required | the site label, as a CIF spells it |
 | `Atom.species` | str | required | the scattering species: `"La"`, `"B"`, `"Fe3+"` |
 | `Atom.x`, `Atom.y`, `Atom.z` | `Parameter` | required | fractional coordinates |
-| `Atom.occ` | `Parameter` | 1.0, in [0, 1.5] | site occupancy |
+| `Atom.occ` | `Parameter` | 1.0, at or above 0 | site occupancy; a refined value above 1 raises `OCCUPANCY_ABOVE_ONE` |
 | `Atom.biso` | `Parameter` | 0.5 Å², unbounded | isotropic displacement, B = 8π²·U |
 | `Atom.aniso` | `AnisoU` or None | `None` | anisotropic displacement, CIF U^ij, {eq}`int-dw-aniso` |
 | `Atom.moment` | `Moment` or None | `None` | a magnetic moment in crystal-axis components, μ_B, {eq}`int-Fmag`; needs `Phase.magnetic_symmetry` beside it |

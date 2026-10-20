@@ -46,7 +46,6 @@ from rietx.params.vector import ParameterTable
 from rietx.refine import HARMONIC_ABSENT_FRAC
 from rietx.schemas.instrument import (
     DEFAULT_HARMONIC_ORDER,
-    HARMONIC_WEIGHT_MAX,
     BackgroundChebyshev,
     EmissionLine,
     Harmonic,
@@ -209,7 +208,7 @@ def test_harmonic_weight_seeds_fixed_and_low():
     h = Harmonic()
     assert not h.weight.vary          # freed by a stage, never by declaration
     assert h.weight.min == 0.0        # zero is the off state and is reachable
-    assert h.weight.max == HARMONIC_WEIGHT_MAX
+    assert h.weight.max == math.inf   # no ceiling since WP-2002's B9 ruling
     # far below every reported value, so the fit has to travel to reach one
     assert h.weight.value < 0.02
 

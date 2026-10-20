@@ -910,12 +910,13 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "broadening from finite crystallite size, and it adds to the instrumental "
             "X. Calibrate the instrument on a standard and hold U, V, W, X and Y. Then "
             "refine this parameter with its three companions, `lor_strain`, "
-            "`gauss_size` and `gauss_strain`. It has a default upper bound that "
-            "corresponds to a smallest crystallite of 2 nm. The bound is permissive on "
-            "purpose, so that nanocrystalline specimens can refine, and `BOUND_HIT` "
-            "reports it if reached. Setting max to any finite value is your own claim "
-            "and switches that default off. A refined size below 5 nm raises "
-            "`SIZE_UNUSUALLY_SMALL`. That flag marks the value and does not bound it."
+            "`gauss_size` and `gauss_strain`. The default upper bound is derived from "
+            "the fitted 2θ range, since a line cannot be wider than the interval it was "
+            "measured over. No default bound limits the crystallite size itself. "
+            "`BOUND_HIT` reports the range bound if reached. Setting max to any finite "
+            "value is your own claim and switches that default off. A refined size "
+            "below 5 nm raises `SIZE_UNUSUALLY_SMALL`. That flag marks the value and "
+            "does not bound it."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg; 0.1 deg is roughly a 100 nm domain at Cu Kα",
@@ -946,9 +947,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "variances add, so it stacks on the instrumental U and W and does not "
             "replace them. Most specimens are better described by the Lorentzian pair. "
             "Free this parameter when the peak shape is measurably more Gaussian than "
-            "the standard's. It has the same default 2 nm limit as `lor_size`, squared. "
-            "This parameter is a variance, so the limit on the width it contributes "
-            "applies to its square root."
+            "the standard's. It has the same default range bound as `lor_size`, "
+            "squared. This parameter is a variance, so the limit on the width it "
+            "contributes applies to its square root."
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 deg²",
@@ -1023,7 +1024,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "hkl axis. At r = 1 there is no correction. Whether a value above or below "
             "1 means platy or needle-like crystallites flips between reflection and "
             "transmission geometry, so read r against the mount and not from the number "
-            "alone. The lower bound is 0.15 because the March factor divides by r."
+            "alone. The March factor divides by r, so r = 0 is a pole. The default lower "
+            "bound of 1e-6 keeps r off it, and there is no default upper bound."
         ),
         unit=None, default="1.0",
         typical="0.6-1.4; a value outside 0.5-2 describes a texture few powder "
@@ -1121,10 +1123,13 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "degenerate with the displacement parameter of the site, because both "
             "reduce the scattered intensity. X-rays have little power to separate the "
             "two. Refine one or the other unless the data reach high Q. Constrain "
-            "occupancies that must sum to 1 with a user tie."
+            "occupancies that must sum to 1 with a user tie. The default lower bound "
+            "is 0, and there is no default upper bound. A refined value above 1 raises "
+            "`OCCUPANCY_ABOVE_ONE`."
         ),
         unit=None, default="1.0",
-        typical="0 to 1; the bound allows 1.5 so a shared site can be modelled",
+        typical="0 to 1; above 1 when a mixed site declared as its lighter species "
+                "refines site scattering",
         anchor="intensities.html#the-structure-factor",
     ),
     "phases.*.atoms.*.biso": HelpEntry(
@@ -3040,6 +3045,18 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "and no agreement index shows it. Check your wavelength against the "
             "resonance before you quote an occupancy or displacement parameter on that "
             "site."
+        ),
+    ),
+    "OCCUPANCY_ABOVE_ONE": HelpEntry(
+        title="Occupancy refined above a full site",
+        description=(
+            "A refined site occupancy is above 1, so the model puts more scatterers on "
+            "the site than it holds. An occupancy has no default upper bound, so the "
+            "fit was free to go there. This is expected when the occupancy stands in "
+            "for site scattering: a mixed Fe-Mg site declared as Mg reads about 2.2 at "
+            "full Fe. Otherwise it usually means a wrong species, a wrong site "
+            "multiplicity, or a displacement parameter pulling the other way, because "
+            "the two compete for the same intensity. The fit is not changed."
         ),
     ),
     "ORIGIN_FIXED_ON_POLAR_AXIS": HelpEntry(

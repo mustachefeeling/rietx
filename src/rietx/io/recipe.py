@@ -639,8 +639,8 @@ def _read_instrument(payload: dict, pattern: PatternData,
     shl = _iparm(iparm, "SH/L")
     if shl:
         half = 0.5 * float(shl)
-        geometry.axial_sl = Parameter(value=half, min=0.0, max=0.2)
-        geometry.axial_hl = Parameter(value=half, min=0.0, max=0.2)
+        geometry.axial_sl = Parameter(value=half, min=0.0)
+        geometry.axial_hl = Parameter(value=half, min=0.0)
         diags.append(Diagnostic(
             level="info", code="RECIPE_CONVENTION_ASSUMED",
             message=(

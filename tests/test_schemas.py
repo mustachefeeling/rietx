@@ -90,10 +90,11 @@ def test_atom_bare_biso_parameter_inherits_declared_unit():
 
 
 def test_atom_bare_occ_parameter_inherits_declared_bounds():
-    """Same mechanism as biso, on occ's declared (0, 1.5) range. Fails on
-    the parent commit, where ``a.occ.max`` reads ``inf``."""
+    """Same mechanism as biso, on occ's declared range: a floor of 0 and, since
+    WP-2002's B9 ruling, no ceiling.  Fails on the parent of PR #206, where
+    ``a.occ.min`` reads ``-inf``."""
     a = _atom(occ=Parameter(value=0.8))
-    assert (a.occ.min, a.occ.max) == (0.0, 1.5)
+    assert (a.occ.min, a.occ.max) == (0.0, float("inf"))
 
 
 def test_atom_omitted_biso_still_gets_declared_bounds():
@@ -114,7 +115,7 @@ def test_atom_xyz_have_no_declared_bounds_to_lose():
 
 def test_atom_occ_out_of_declared_bounds_raises():
     """The mechanism issue #204 asked for, on the field that still declares a
-    range: a bare ``Parameter`` outside ``occ``'s [0, 1.5] raises.  ``biso``
+    range: a bare ``Parameter`` below ``occ``'s floor of 0 raises.  ``biso``
     was the issue's case until WP-1534 made it unbounded; its walk is now
     stopped by the scale-B hold, not by a bound."""
     with pytest.raises(ValidationError, match=r"outside bounds"):
@@ -144,7 +145,7 @@ def test_the_always_overwrite_design_would_clobber_an_explicit_bound():
     rejected = a.occ.model_copy()
     for attr in ("min", "max", "unit"):  # the rejected design has no gate here
         setattr(rejected, attr, getattr(default, attr))
-    assert (rejected.min, rejected.max, rejected.unit) == (0.0, 1.5, None)
+    assert (rejected.min, rejected.max, rejected.unit) == (0.0, float("inf"), None)
     assert (rejected.min, rejected.max, rejected.unit) != (a.occ.min, a.occ.max, a.occ.unit)
 
 
@@ -208,7 +209,7 @@ def test_atom_reusing_one_parameter_for_occ_and_biso_gets_each_fields_own_range(
     p = Parameter(value=1.0)
     _atom(biso=p)
     a = _atom(occ=p)
-    assert (a.occ.min, a.occ.max, a.occ.unit) == (0.0, 1.5, None)
+    assert (a.occ.min, a.occ.max, a.occ.unit) == (0.0, float("inf"), None)
 
 
 def test_schema_version_bumped_and_pre_fix_documents_still_load():

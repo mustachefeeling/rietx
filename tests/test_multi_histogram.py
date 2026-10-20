@@ -558,8 +558,8 @@ def test_the_two_wavelength_selectors_agree():
 
     Two spellings on purpose — one reads a schema object before anything is
     compiled, the other a ``CompiledModel`` — so the pin is here rather than in
-    a comment, exactly as ``_SIZE_CAP_SCHERRER_K`` is pinned against
-    ``caglioti.SCHERRER_K``.
+    a comment, exactly as the two ``_ZERO_BOUND`` copies are pinned against
+    each other (``tests/test_extra_components.py``).
     """
     for lam in (0.41390, 0.71070, 1.5406):
         ins = Instrument.debye_scherrer(wavelength=lam)

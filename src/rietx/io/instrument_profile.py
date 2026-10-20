@@ -751,7 +751,7 @@ def _build_instrument(icons: GsasIcons,
             # rather than guess (WP-1118).
             instrument.source.lines.append(EmissionLine(
                 wavelength=icons.lam2,
-                weight=Parameter(value=icons.ka2_ratio, min=0.0, max=2.0)))
+                weight=Parameter(value=icons.ka2_ratio, min=0.0)))
         prof = instrument.profile
         prof.u.value = gu * _PRM_GAUSS_TO_DEG2
         prof.v.value = gv * _PRM_GAUSS_TO_DEG2
@@ -1483,7 +1483,7 @@ def _instprm_instrument(items: dict[str, str], p: Path,
             if lam2 is not None:
                 lines.append(EmissionLine(
                     wavelength=Parameter(value=lam2, unit="A"),
-                    weight=Parameter(value=ratio, min=0.0, max=2.0)))
+                    weight=Parameter(value=ratio, min=0.0)))
             source = Source(
                 lines=lines,
                 polarization=Parameter(
@@ -1501,8 +1501,8 @@ def _instprm_instrument(items: dict[str, str], p: Path,
         shl = number("SH/L")
         if shl:
             half = 0.5 * shl
-            geometry.axial_sl = Parameter(value=half, min=0.0, max=0.2)
-            geometry.axial_hl = Parameter(value=half, min=0.0, max=0.2)
+            geometry.axial_sl = Parameter(value=half, min=0.0)
+            geometry.axial_hl = Parameter(value=half, min=0.0)
 
         instrument = Instrument(source=source, geometry=geometry,
                                 profile=profile)

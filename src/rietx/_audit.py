@@ -579,6 +579,10 @@ ROWS: tuple[Row, ...] = (
     Row("MOMENT_ANGLE_STATIONARY", "code"),
     Row("MOMENT_PAIR_DEGENERATE", "code"),
     Row("NEUTRON_RESONANT_ABSORBER", "code"),
+    Row("OCCUPANCY_ABOVE_ONE", "code", tier=1, ambiguity=3,
+        evidence=("physics: a full site is occupancy 1 by definition; reports the refined "
+                  "value and gates nothing (B9 ruling 2026-10-19: occupancy unbounded "
+                  "above, with a warning)")),
     Row("ORIGIN_FIXED_ON_POLAR_AXIS", "code"),
     Row("ORIGIN_NOT_FIXED", "code"),
     Row("PARAMETRIC_FORM_REJECTED", "code"),
@@ -1426,10 +1430,10 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.params.vector.SIZE_CAP_ARM_RTOL", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: as STRAIN_CAP_ARM_RTOL; hysteresis pinned by "
                   "test_strain_cap.py:414")),
-    Row("rietx.params.vector.SIZE_CAP_MIN_SIZE_A", "constant", value=20.0),
     Row("rietx.params.vector.SIZE_CAP_RANGE_FRACTION", "constant", tier=1, value=1.0,
-        evidence=("arithmetic: as STRAIN_CAP_RANGE_FRACTION, no free factor; the range backstop "
-                  "the B8 ruling keeps when the 2 nm floor goes")),
+        evidence=("arithmetic: as STRAIN_CAP_RANGE_FRACTION, no free factor; since the 2 nm "
+                  "floor went (B8, ruled 2026-10-19) the whole size bound, ~0.15 nm on a Cu "
+                  "10-80 deg scan")),
     Row("rietx.params.vector.STRAIN_CAP_ARM_RTOL", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: 1e-6 sits eight decades above the ~1e-14 feasibility offset and"
                   " far under any deliberate move; hysteresis pinned by test_strain_cap.py:160")),
@@ -1451,9 +1455,6 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.params.vector._SIGMA_MAX", "constant", tier=1, value=1.3407807929942596e+154,
         evidence=("numerical floor: sqrt(float64 max) from np.finfo (the floating-point format "
                   "itself)")),
-    Row("rietx.params.vector._SIZE_CAP_SCHERRER_K", "constant", tier=2, value=0.9,
-        evidence=("Scherrer (1918); Langford & Wilson (1978) J. Appl. Cryst. 11, 102 tabulate K "
-                  "0.89 (sphere FWHM) to 1.07 (integral breadth) (docstring of caglioti.SCHERRER_K)")),
     Row("rietx.refine.AIR_SCATTER_UNDECLARED_FRACTION", "constant", value=0.005),
     Row("rietx.refine.AIR_SCATTER_UNDECLARED_SCORE", "constant", value=25.0),
     Row("rietx.refine.DISPERSION_NEGLECT_FRAC", "constant", value=0.02),
@@ -1616,9 +1617,13 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.instrument.DEFAULT_HARMONIC_ORDER", "constant", tier="caller", value=2,
         evidence=("opt-in: Source.harmonics / NeutronSource.harmonics, default empty (grep "
                   "2026-10-19); the X-ray Source refuses a declared harmonic")),
-    Row("rietx.schemas.instrument.EXTRA_PEAK_FWHM_MAX", "constant", value=0.5),
+    Row("rietx.schemas.instrument.EXTRA_PEAK_FWHM_MAX", "constant", tier=1, value=0.5,
+        evidence=("arithmetic: the frozen evaluation window is k(eta.max) * fwhm.max + "
+                  "WINDOW_MIN_DEG, so a finite max is what makes the windowed peak exact "
+                  "(an infinite one is refused, PeakComponent._window_bounds_are_finite); "
+                  "0.5 deg sets the default window near +-8 deg, a cost the caller resizes "
+                  "by stating max")),
     Row("rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN", "constant", value=0.005),
-    Row("rietx.schemas.instrument.HARMONIC_WEIGHT_MAX", "constant", value=0.5),
     Row("rietx.schemas.instrument.HARMONIC_WEIGHT_SEED", "constant", value=0.01),
     Row("rietx.schemas.instrument.HUMP_FWHM_MIN", "constant", value=0.1),
     Row("rietx.schemas.instrument._DIFC_MIN", "constant", tier=1, value=1.0,
@@ -1648,8 +1653,11 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.plan.CORRELATION_GUARD", "constant", value=0.98),
     Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", value=1e-06),
     Row("rietx.schemas.results.HIGH_CORRELATION_MAX", "constant", value=10),
-    Row("rietx.schemas.structure.MARCH_R_MAX", "constant", value=6.0),
-    Row("rietx.schemas.structure.MARCH_R_MIN", "constant", value=0.15),
+    Row("rietx.schemas.structure.MARCH_R_MIN", "constant", tier=1, value=1e-06,
+        evidence=("arithmetic: the March factor (r^2 cos^2 a + sin^2 a / r)^(-3/2) divides by "
+                  "r, a pole at 0; at 1e-6 the factor (<= 1e18) and its r-derivative "
+                  "(<= 3e24) are finite at every angle (test_robustness_external.py); "
+                  "lowered from 0.15, an Rwp-chosen floor, by the B9 ruling 2026-10-19")),
     Row("rietx.schemas.structure.MOMENT_FLOOR_MU_B", "constant", tier=3, value=0.001,
         evidence=("WP-1327: 1e-3 muB, three orders under the smallest resolvable ordered moment; "
                   "NIST BT-1 LaMnO3 and HB-2A Cr2WO6 only; read by solve_magnetic, sequential's "
@@ -2124,6 +2132,9 @@ ROWS: tuple[Row, ...] = (
     Row("MODEL_FAR_FROM_DATA.suggestion", "suggestion", value=1),
     Row("MOMENT_ANGLE_STATIONARY.suggestion", "suggestion", value=1),
     Row("NEUTRON_RESONANT_ABSORBER.suggestion", "suggestion", value=1),
+    Row("OCCUPANCY_ABOVE_ONE.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
+        evidence=("physics: names the one reading under which the value is right (site "
+                  "scattering on a mixed site) and the model terms to check otherwise")),
     Row("ORIGIN_FIXED_ON_POLAR_AXIS.suggestion", "suggestion", value=2),
     Row("ORIGIN_NOT_FIXED.suggestion", "suggestion", value=1),
     Row("PARAMETRIC_FORM_REJECTED.suggestion", "suggestion", value=2),
@@ -2939,7 +2950,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.optimize.statistics.MAX_SHIFT_CONVERGED",
     "rietx.optimize.statistics.OBS_PER_PARAMETER_MIN",
     "rietx.optimize.statistics.OBS_PER_PARAMETER_PREFERRED",
-    "rietx.params.vector.SIZE_CAP_MIN_SIZE_A",
     "rietx.refine.AIR_SCATTER_UNDECLARED_FRACTION",
     "rietx.refine.AIR_SCATTER_UNDECLARED_SCORE",
     "rietx.refine.DISPERSION_NEGLECT_FRAC",
@@ -3058,9 +3068,7 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.schemas.indexing.SHIFT_ALLOWANCE_K_ESD",
     "rietx.schemas.indexing.SMITH_VOLUME_C1",
     "rietx.schemas.indexing.SMITH_VOLUME_C2",
-    "rietx.schemas.instrument.EXTRA_PEAK_FWHM_MAX",
     "rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN",
-    "rietx.schemas.instrument.HARMONIC_WEIGHT_MAX",
     "rietx.schemas.instrument.HARMONIC_WEIGHT_SEED",
     "rietx.schemas.instrument.HUMP_FWHM_MIN",
     "rietx.schemas.plan.CORRELATION_GUARD",
@@ -3079,8 +3087,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.schemas.sequential.SeriesEntry.rungs_raised",
     "rietx.schemas.sequential.SeriesEntry.rungs_tried",
     "rietx.schemas.sequential.SeriesEntry.rwp_fence",
-    "rietx.schemas.structure.MARCH_R_MAX",
-    "rietx.schemas.structure.MARCH_R_MIN",
     "rietx.schemas.suggest.SUGGEST_ABSORPTION_MAX",
     "rietx.schemas.suggest.SUGGEST_GROUP_R2",
     "rietx.schemas.suggest.SUGGEST_MIN_GAIN",

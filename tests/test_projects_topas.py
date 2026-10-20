@@ -1981,15 +1981,25 @@ def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(tmp_path
 
     The truncation pin cannot catch this class: a ragged cut rarely leaves a
     well-formed line carrying an out-of-range number, so it is tested directly.
-    It was a beq of 26 Å² until `Atom.biso` lost its default bound (WP-1534);
-    an occupancy of 1.8 is outside the [0, 1.5] window `Atom.occ` declares.
+    It was a beq of 26 Å² until `Atom.biso` lost its default bound (WP-1534),
+    then an occupancy of 1.8 until `Atom.occ` lost its 1.5 ceiling (WP-2002);
+    a negative occupancy is outside the floor of 0 that `Atom.occ` keeps.
     """
     inp = _inp(tmp_path, "outofrange.inp",
                'str\nphase_name "hot"\nspace_group "P1"\na 5.0\n'
-               'site A1 x 0 y 0 z 0 occ Na+1 1.8 beq bA 0.5\n')
+               'site A1 x 0 y 0 z 0 occ Na+1 -0.5 beq bA 0.5\n')
     with pytest.raises(TopasInpError) as exc:
         to_structure(read_topas_inp(inp))
     assert "outofrange.inp" in str(exc.value) and "hot" in str(exc.value)
+
+
+def test_an_occupancy_above_the_old_ceiling_reads(tmp_path):
+    """A stated occupancy of 1.8 reads as stated, with no ceiling (WP-2002)."""
+    inp = _inp(tmp_path, "full.inp",
+               'str\nphase_name "full"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1.8 beq bA 0.5\n')
+    occ = to_structure(read_topas_inp(inp)).phases[0].atoms[0].occ
+    assert (occ.value, occ.min, occ.max) == (pytest.approx(1.8), 0.0, math.inf)
 
 
 def test_a_beq_above_the_old_ceiling_reads(tmp_path):

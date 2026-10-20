@@ -27,7 +27,7 @@ import rietx as rx
 from rietx.gui import GuiSession
 from rietx.gui import textdoc as td
 from rietx.schemas.plan import StageSpec
-from rietx.schemas.structure import PreferredOrientation
+from rietx.schemas.structure import MARCH_R_MIN, PreferredOrientation
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -162,7 +162,7 @@ def test_a_document_written_before_a_floor_applies_nothing(tmp_path, pattern_fil
     text = td.render(project)
     rows = {row.path: row for row in td.parse(text).rows}
     assert rows["instrument.profile.w"].annotations["min"] == 1e-8
-    assert rows["phases.0.preferred_orientation.r"].annotations["min"] == 0.15
+    assert rows["phases.0.preferred_orientation.r"].annotations["min"] == MARCH_R_MIN
 
     def written_before(doc, local, lo, value=None):
         line = next(ln for ln in doc.splitlines() if ln.split()[:1] == [local])
@@ -721,8 +721,9 @@ def test_a_refusal_raised_by_the_verb_still_gets_a_line_number(session, project)
     most likely to hit came back with ``line: 0``.
     """
     doc = session.textdoc()
-    # an occupancy, whose [0, 1.5] the schema declares (B has had none since WP-1534)
-    bad = _edit(doc["text"], "atoms.0.occ", "  atoms.0.occ   @ 999")
+    # an occupancy below the floor of 0 the schema declares (B has had no bound
+    # since WP-1534, and occ no ceiling since WP-2002)
+    bad = _edit(doc["text"], "atoms.0.occ", "  atoms.0.occ   @ -1")
     with pytest.raises(rx.gui.GuiError) as excinfo:
         session.textdoc_put({"text": bad})
     detail = excinfo.value.details[0]

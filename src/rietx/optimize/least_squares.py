@@ -2236,53 +2236,36 @@ def _freeze_strain_cap_multi(models: list[CompiledModel],
 def _longest_line_wavelength(model: CompiledModel) -> float | None:
     """The source's **longest** emission line (Å), or ``None`` if it has none.
 
-    The one selector both size surfaces read λ through — the tier-1 bound here
-    (:func:`_model_size_cap`) and the tier-2 flag in
-    :func:`rietx.refine._size_flag_diagnostics`, which imports it rather than
-    repeating these two lines.  **Longest** because the 2 nm floor and the
-    Scherrer size are both per wavelength and a longer λ implies a *larger*
-    crystallite for the same coefficient: the most permissive attribution, and
-    therefore the one that can never trip a genuine fit on account of a Kα2
-    offset.
+    The one selector every reading of a size coefficient as a crystallite goes
+    through: the ``SIZE_UNUSUALLY_SMALL`` flag in
+    :func:`rietx.refine._size_flag_diagnostics`, the microstructure block and
+    the joint fit's size sharing, which import it rather than repeating these
+    two lines.  **Longest** because the Scherrer size is per wavelength and a
+    longer λ implies a *larger* crystallite for the same coefficient: the most
+    permissive attribution, and therefore the one that can never trip a
+    genuine fit on account of a Kα2 offset.
 
-    **The empty state is one answer here and two at the callers, deliberately.**
-    ``None`` is "this source states no wavelength", which is a fact about the
-    model; what to *do* about it is not, and the two callers legitimately
-    disagree.  A bound has to be some number, so :func:`_model_size_cap` reads
-    it as 0.0, which :func:`~rietx.params.vector.size_cap` turns into no physics
-    floor — the range backstop still speaks.  A flag reading a size out of a
-    coefficient has nothing to read it with, so it returns no diagnostic at all.
-    Folding either answer in here would impose it on the other caller.
+    ``None`` is "this source states no wavelength", a fact about the model.
+    What to do about it is each caller's: the flag has nothing to read a size
+    with, so it returns no diagnostic.  The solver's size bound
+    (:func:`~rietx.params.vector.size_cap`) needs no wavelength since the 2 nm
+    floor went (WP-2002), so it does not call this.
     """
     lams = [lam for lam in getattr(model, "line_wavelengths", ()) or ()
             if lam > 0.0]
     return max(lams) if lams else None
 
 
-def _model_size_cap(model: CompiledModel) -> float:
-    """:func:`~rietx.params.vector.size_cap` for one histogram.
-
-    The 2 nm floor is per wavelength, read through
-    :func:`_longest_line_wavelength`.  A source with no positive wavelength (a
-    seam not yet wired) leaves the floor at ``inf``, and the range backstop
-    still speaks — that function's docstring says why the no-λ answer is decided
-    here rather than there.
-    """
-    lam = _longest_line_wavelength(model)
-    return size_cap(model.tt_min, model.tt_max, 0.0 if lam is None else lam)
-
-
 def _freeze_size_cap(model: CompiledModel, table: ParameterTable) -> None:
     """Declare the sample-size cap for this stage — the strain-cap freeze's twin.
 
-    Off the same fitted 2θ extent and the pattern's wavelength
-    (:func:`_model_size_cap`), read where every other per-stage freeze happens,
-    and armed inside ``bounds()`` only on a term that has already driven its
-    crystallite down to the 2 nm floor — so a fit whose size stays in the range
-    real specimens occupy gets no bound at all and is bit-identical to an
-    uncapped build, the identity that makes it landable.
+    Off the same fitted 2θ extent (:func:`~rietx.params.vector.size_cap`), read
+    where every other per-stage freeze happens, and armed inside ``bounds()``
+    only on a term that has already made a line wider than the fitted range.
+    So a fit whose size stays where the data can express it gets no bound at
+    all and is bit-identical to an uncapped build.
     """
-    table.freeze_size_cap(_model_size_cap(model))
+    table.freeze_size_cap(size_cap(model.tt_min, model.tt_max))
 
 
 def _freeze_size_cap_multi(models: list[CompiledModel],
@@ -2290,19 +2273,18 @@ def _freeze_size_cap_multi(models: list[CompiledModel],
     """The freeze above for a joint refinement, where a phase is *shared*.
 
     ``lor_size`` is a phase parameter, so the **widest** cap is the one declared
-    to every table, for the strain reason one function up: a crystallite only
-    has to clear 2 nm for *some* histogram's wavelength, and a joint fit is
-    entitled to whichever line can express it.
+    to every table, for the strain reason one function up: a line only has to
+    fit inside *some* histogram's range, and a joint fit is entitled to
+    whichever pattern can express it.
 
     Since WP-1131 the caps do not merely overwrite one another.
     ``MultiParameterTable`` **intersects** each histogram's bounds onto the
     shared column, and each table divides its physical cap by its own value
-    scale — so the binding bound is the widest cap expressed in the reference
-    histogram's units, which is the 2 nm floor read at the reference λ. Only
-    the histogram whose λ carries the cap arms it, and the arming asymmetry is
-    exactly what makes the intersection land there.
+    scale, so the binding bound is the widest cap expressed in the reference
+    histogram's units.  Only a histogram whose copy has reached its cap arms
+    it, and the arming asymmetry decides where the intersection lands.
     """
-    caps = [_model_size_cap(m) for m in models]
+    caps = [size_cap(m.tt_min, m.tt_max) for m in models]
     cap = max(caps) if caps else None
     for table in mtable.tables:
         table.freeze_size_cap(cap)

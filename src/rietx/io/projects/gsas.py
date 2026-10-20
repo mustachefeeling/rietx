@@ -1606,7 +1606,7 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
                 x=rx.Parameter(value=site["xyz"][0], vary=site["vary_xyz"]),
                 y=rx.Parameter(value=site["xyz"][1], vary=site["vary_xyz"]),
                 z=rx.Parameter(value=site["xyz"][2], vary=site["vary_xyz"]),
-                occ=rx.Parameter(value=site["occupancy"], min=0.0, max=1.5,
+                occ=rx.Parameter(value=site["occupancy"], min=0.0,
                                  vary=site["vary_occupancy"]),
                 biso=rx.Parameter(value=site["biso"], vary=site["vary_biso"]))
                 for site in sites],

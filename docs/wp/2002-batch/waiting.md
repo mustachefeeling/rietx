@@ -27,20 +27,13 @@ is here or landed.
 - `rietx.schemas.plan.StageSpec:ftol`: the same test (None resolves to the schedule).
 - `rietx.schemas.results.StageResult.ftol`: the same test (records the schedule).
 
-## B8: the 2 nm floor (code change; the clamp rows landed with the cell reset, b9ed0b36)
+## B8 and B9: limits (the size floor, March r, the harmonic and extra-peak ceilings landed with the limits lane)
 
-- `rietx.params.vector.SIZE_CAP_MIN_SIZE_A`: removal of the 2 nm floor.
-
-## B9: limits and starting values inside opt-in features
-
-- `rietx.schemas.structure.MARCH_R_MIN`: the 0.15 floor's removal. Its value IS the 0.15 today (`schemas/structure.py:41`); the pole floor that stays will be a new, smaller value of this constant, so the row waits for that value.
-- `rietx.schemas.structure.MARCH_R_MAX`: the B9 principle ("no chosen limits on quantities that remain physical") not yet applied to this box; the ruling names only occupancy and March r's floor.
-- `rietx.schemas.instrument.HARMONIC_WEIGHT_MAX`: the same principle not yet applied to this box.
-- `rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN`: the same.
-- `rietx.schemas.instrument.EXTRA_PEAK_FWHM_MAX`: the same.
-- `rietx.schemas.instrument.HUMP_FWHM_MIN`: the same (it guards the Gaussian's pole at zero width, but its 0.1 deg value is chosen, like March r's 0.15).
-- `rietx.strategy.staged.HUMP_MIN_WIDTH_MULT`: the same (batch lists it with the B9 boxes; it also gates HUMP_TOO_NARROW).
+- `rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN`: it guards a pole, but lowered to a pole-only value a Gaussian narrower than about 0.03 of the grid step underflows to an exactly zero column (the W failure, root CLAUDE.md). A floor that keeps the column live depends on the step, so it needs a per-stage freeze like `strain_cap`: a design change.
+- `rietx.schemas.instrument.HUMP_FWHM_MIN`: the same.
+- `rietx.strategy.staged.HUMP_MIN_WIDTH_MULT`: not a limit on a caller's parameter; a diagnostic threshold (gates `HUMP_TOO_NARROW`, so B13/WP-2005) and the extinction screen's internal floor (`indexing/extinction.py:737`).
 - `rietx.schemas.instrument.HARMONIC_WEIGHT_SEED`: the two-start test for starting values.
+- Hand rows with no seat until B14's lifts: `Atom:occ` (widened to no ceiling), `EmissionLine:weight` (widened), `Geometry:bounds` (the axial ratios widened; the position corrections kept, a question for the maintainer), `Instrument:zero_shift` (kept, the same question), `TCHZ_BOUNDS` and `TCHZ_BOUNDS_COARSE` (their U/V floors and ceilings are chosen, but WP-1312 ruled on 2026-09-11 that "the bound stays": a question for the maintainer).
 
 ## B10: numerical settings with no domain test, and one undecided switch
 

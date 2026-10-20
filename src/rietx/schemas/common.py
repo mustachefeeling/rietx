@@ -791,7 +791,7 @@ class _InheritsDeclaredDefaults(Base):
     ``Parameter`` inherits what it left out.
 
     A field declares its physical range and unit in its ``default_factory``
-    (``Atom.occ``: min 0, max 1.5; ``Phase.lor_size``: min 0, degrees) rather
+    (``Atom.occ``: min 0; ``Phase.lor_size``: min 0, degrees) rather
     than as a field constraint, so before this the range applied only when the
     field was omitted entirely.  A caller supplying
     ``Parameter(value=..., vary=...)`` — the natural way to set a start or hold
