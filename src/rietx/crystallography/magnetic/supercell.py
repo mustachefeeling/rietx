@@ -1183,7 +1183,9 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     factor: every atom of the child cell is listed explicitly, so |F_N|² is the
     parent's to the last bit (``tests/test_magnetic_supercell.py``).
 
-    ``magnetic_species`` is the species (or atom labels) that carry a moment;
+    ``magnetic_species`` is the species (or atom labels) that carry a moment,
+    and it is required for a magnetic statement: left ``None`` the call is
+    refused (a displacive candidate carries no moment and needs none);
     ``ion`` the magnetic form-factor key, either one string for all of them or
     a mapping from species to key.  ``g`` is that ion's Landé factor, mirroring
     ``ion``'s shape — one float for every moment, or a mapping keyed by the
@@ -1216,6 +1218,21 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             "operator list alone does not say which cell it is written in, and "
             "guessing would put the parent's atoms in the wrong cell with no "
             "sign that anything was wrong.")
+    if magnetic_species is None and getattr(candidate, "kind",
+                                            "magnetic") != "displacive":
+        # A magnetic group over a structure with no moment anywhere is not the
+        # statement any caller asked for, and nothing downstream says so: the
+        # phase compiles, its magnetic term is zero, and a fit has no moment
+        # to free.  The package cannot pick the magnetic species itself — the
+        # same element can be magnetic in one compound and not in another —
+        # so the call is refused here, where the missing argument is named.
+        # A displacive candidate carries no moment by design and is not refused.
+        raise ValueError(
+            "magnetic_supercell(): no magnetic_species was given, so no site "
+            "of the child phase would carry a moment and the magnetic group "
+            "would decorate a structure with none. Name the species or atom "
+            "labels that carry the moment and their form-factor ion, e.g. "
+            "magnetic_species='Fe', ion='Fe3+'.")
     if any(a.aniso is not None for a in parent.atoms):
         raise ValueError(
             "magnetic_supercell(): an anisotropic displacement block is "
