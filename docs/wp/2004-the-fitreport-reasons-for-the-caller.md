@@ -93,7 +93,8 @@ open under the same track; neither tiers a gate.
       worse, rework the number's explanation and run once more; the demotion is not held.
 - [ ] The clash table: gates that read the same misfit, the background screen against the
       Layer-0 peak-cluster regions (WP-1055), abstention against maturity.
-- [ ] The batch to the maintainer; rulings dated into the table.
+- [ ] The batch to the maintainer, each brief opening with its stakes line (the record
+      § The rule, 2026-10-20); rulings dated into the table.
 - [ ] Approved demotions; the `THRESHOLDS_VERSION` bump once, with 2003's rulings folded
       in; the eval fixtures that pin the version updated in the same commit.
 - [ ] Goldens re-pinned only if no further from reference; the FAP report golden and the
