@@ -165,7 +165,10 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       (B1), `stderr_uncorrected` and its manual (B4), the pick verbs (B12). Left: B14's
       lifts, B3's and B9's two-start tests, B7's and B11's invariance and margin tests,
       the FCJ node cap (B10). 2nd session: the peak-position bounds removed,
-      `OCCUPANCY_ABOVE_ONE` an info record, every ΔBIC tie an abstention.*
+      `OCCUPANCY_ABOVE_ONE` an info record, every ΔBIC tie an abstention. 3rd session:
+      B3's Suortti seed shown answer-invariant (`tests/test_seed_invariance.py`), its
+      Pitschke twin not, and the Stephens seed's second family measured
+      (`2002-batch/waiting.md` § B3).*
 - [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
       moved away goes back through the two grounds. *2026-10-20 (2nd session): one moved

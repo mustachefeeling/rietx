@@ -2145,11 +2145,16 @@ ROWS: tuple[Row, ...] = (
         evidence=("= lab_sample_refine's strain_seed, 1000 ppm on the isotropic ray: GSAS-II "
                   "5.8.4's isotropic microstrain default, its generalised start 0.01 each "
                   "(GSASIIddataGUI.py:180-190, :1432; checked); WP-1467, one pattern: chi2 1.160 "
-                  "from 1000 ppm against 1.482 from the previous stage's strain; second family "
-                  "owed"),
+                  "from 1000 ppm against 1.482 from the previous stage's strain. Second family, "
+                  "2026-10-20 (tests/test_acceptance_stephens.py's plan): CPD brucite, whose "
+                  "isotropic strain folds to 0.35 ppm, chi2 7.7662 from 1000 ppm (800 ppm the "
+                  "same to 0.01 esd) against 8.3241 from the isotropic value, the block left at "
+                  "the singularity; CPD corundum (903 ppm) both starts equal to 2e-10. So 1000 "
+                  "ppm reached the lower or equal minimum in all three comparisons; brucite "
+                  "tests only a near-zero start"),
         grounds=("Some start is forced, since the width's square root has unbounded slope at "
                  "zero; kept at 1000 ppm until a second dataset compares the starts (B3, ruled "
-                 "2026-10-19)."),
+                 "2026-10-19); the second compared them on 2026-10-20 and favoured 1000 ppm."),
         approved="2026-10-19"),
     # default: 109
     Row("rietx.schemas.plan.PlanSpec:stages", "default", tier=1, ambiguity=1, value=(),
