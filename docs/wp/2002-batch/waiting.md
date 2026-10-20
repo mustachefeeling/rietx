@@ -65,7 +65,13 @@ distance from each reference. Two things keep both rows here:
 
 Each waits on a test that bounds its error over its claimed domain (tier 1), or one asserting identity (invariant). The batch found only single-case checks; I found none either.
 
-No B10 row is unaudited now. `MAX_NODES` landed at tier 3 on 2026-10-21 beside the other three FCJ constants. Their domain test (`tests/test_lab_instrument.py`, the FCJ section) fails over part of the domain for all four, and the constants wait on the maintainer. The other B10 rows sit at tier 3 with their domain tests still owed (grep `_audit.py` for "claimed domain is owed").
+No B10 row is unaudited now. `MAX_NODES` landed at tier 3 on 2026-10-21 beside the other three FCJ constants. Their domain test (`tests/test_lab_instrument.py`, the FCJ section) fails over part of the domain for all four, and the constants wait on the maintainer. Measured for the ruling (2026-10-21, scratch code, 10 491 cases against converged references; image counts summed over every `compile_model` call at the fitted values, today 664 on SRM 660c and 5036 on FAP):
+
+- Cheapest set meeting both bars under today's equal split: `NODES_PER_FWHM` 11, `MAX_NODES` 768, `SKIP_EXTENT_FWHM_RATIO` 3.5e-4 (any `MIN_NODES` ≤ 8 is inert, since `max(n//2, 4)` floors every reflection at 8 images). Images 948 and 5704 (×1.43, ×1.13). Thin: 0.95 of the bar at the cap and at the skip.
+- The first proposal, 12 / 10 / 1024 / 3e-4: worst 0.25 (lab) and 0.81 (synchrotron) of the bar, images ×1.57 and ×1.37, fit wall clock ×1.15-1.3 on the two lab protocols, no parameter moved past 0.025 esd.
+- Splitting the nodes between the two segments by length instead of equally is unsafe, because the split would be frozen per stage while S/L and H/L refine. A segment with zero length at compile time (S/L = H/L, or one aperture at zero) gets no nodes and then grows, and its share of the peak is missing: errors 950-1390× the bar. Both lab acceptance protocols start on S/L = H/L and refine off it. A floor of 4 nodes per segment still fails at up to 480×. So the equal split stays.
+- The skip ratio's bound is split-independent: a peak drawn symmetric errs by at most 0.477 × extent/FWHM, so 3.67e-4 is the ceiling.
+- Measured effect of today's error on answers: SRM 660c with every reflection at 512 nodes moved no parameter past 0.04 esd. The other B10 rows sit at tier 3 with their domain tests still owed (grep `_audit.py` for "claimed domain is owed").
 
 ## B11: the iteration budgets' margin test
 
