@@ -383,6 +383,11 @@ def test_cif_carries_the_tags_and_the_esd_method():
     assert "(J^T J)^-1" in details
     assert "chi^2_red" in details
     assert "Berar-Lelann" in details
+    # the factor quoted is the one the written su carry (WP-2002, B4)
+    carried = next(p.stderr / p.stderr_uncorrected for p in result.parameters
+                   if p.stderr is not None and p.stderr_uncorrected)
+    assert f"serial-correlation factor {carried:.3g} " in details
+    assert "Divided by it" in details
 
     # ...and a result carrying no esds must not describe how they were made.
     # An evaluate-only or replayed result has none, and a method statement

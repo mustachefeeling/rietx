@@ -455,10 +455,20 @@ def _special_details(result: RefinementResult, structure: Structure) -> list[str
         esd = ("Standard uncertainties are the square roots of the diagonal of "
                "chi^2_red (J^T J)^-1, J the Jacobian of the weighted residual at "
                "convergence")
-        if st.esd_inflation is not None:
+        # the factor the written su carry, read off the rows: it can differ
+        # from ``Statistics.esd_inflation`` (0.07-4 %, WP-2002), and a reader
+        # dividing by the quoted factor must land on the uncorrected su
+        carried = sorted({float(f"{p.stderr / p.stderr_uncorrected:.3g}")
+                          for p in result.parameters
+                          if p.stderr is not None and p.stderr_uncorrected})
+        factor = (f"{carried[0]:.3g}" if len(carried) == 1 else
+                  f"{carried[0]:.3g} to {carried[-1]:.3g}" if carried else
+                  None if st.esd_inflation is None else f"{st.esd_inflation:.3g}")
+        if factor is not None:
             esd += (", multiplied by the Berar-Lelann serial-correlation factor "
-                    f"{st.esd_inflation:.3g} (Berar & Lelann 1991, J. Appl. Cryst. "
-                    "24, 1, eqs 10-12)")
+                    f"{factor} (Berar & Lelann 1991, J. Appl. Cryst. 24, 1, eqs "
+                    "10-12). Divided by it, they are the su GSAS-II and TOPAS "
+                    "print, and FullProf prints beside its SCOR")
         out.append(esd + ".")
     for phase in structure.phases:
         po = phase.preferred_orientation
