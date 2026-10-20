@@ -172,6 +172,7 @@ Guinier
 Hofmann
 Jacobian
 Jacobians
+Kass
 Kessler
 Kirfel
 Kissel
@@ -189,6 +190,7 @@ Olds
 Pawley
 Pitschke
 Rachinger
+Raftery
 Rietveld
 Rodrigues
 Scherrer

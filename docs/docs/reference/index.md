@@ -18,6 +18,8 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [Parameter map](parameters.md) lists every refinable parameter, grouped by what it does.
 - [Stage settings, flags and options](settings.md) lists the other names rietx uses: stage settings, peak flags, peak origins, reader options, instrument preset fields and indexing search settings.
 - [Plan presets](plans.md) draws each preset's stages.
+- [The refinement](refinement.md) gives the calls that run a fit and where each setting goes, the fit modes, the plan and stage objects and their stored form, what each stage records, the guard findings, the event stream, cancellation and the provenance record.
+- [Magnetic refinement](magnetic.md) gives the satellite test for unexplained intensity, the moment and magnetic space group fields, what the report says about a moment, the magnetic peak width, and `solve_magnetic` with its answer types.
 - [The refinement result](result.md) gives what a `RefinementResult` carries beside the refined values: the agreement statistics, the structure R-factors, the observation count, the identifiability evidence, the restraint and absorption records, the diagnostics and the printed views.
 - [Derived quantities](derived.md) gives the distances, angles, cell volumes, crystallite sizes and microstrain a fit computes, with their esds.
 - [The fit report](report.md) gives the fields of a `FitReport`: the misfit regions and unmatched peaks, the attribution and its gates, the trends, texture and strain readings, the suggested actions and the report at each stage.
@@ -54,6 +56,8 @@ pattern-diagnostics
 parameters
 settings
 plans
+refinement
+magnetic
 result
 derived
 report

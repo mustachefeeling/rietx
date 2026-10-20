@@ -324,6 +324,7 @@ On an X-ray pattern a satellite position is a superstructure reflection, and the
 
 `FitReport.magnetic` holds one `MomentEvidence` per magnetic site: the moment the fit measured, its esd, the form-factor approximation, and the directions the powder average could not determine.
 It is empty without the model, without a declared moment, and on an X-ray pattern.
+[Magnetic refinement](magnetic.md) gives the fields of both.
 
 ## Layer 2
 

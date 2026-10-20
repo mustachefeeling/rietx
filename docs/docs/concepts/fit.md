@@ -113,7 +113,7 @@ The refined values are written back into the structure and instrument, and the s
 ## Outputs
 
 `fit` returns a `RefinementResult`.
-It holds the status (`converged`, `max_iter` or `diverged`), the agreement statistics, every refined parameter with its esd, a record of each stage, the diagnostics, and the observed, calculated and background curves.
+It holds the status (`converged`, or `max_iter` when a stage ran out of iterations), the agreement statistics, every refined parameter with its esd, a record of each stage, the diagnostics, and the observed, calculated and background curves.
 The esds come from the last stage, where every freed parameter refines together.
 [About correlations and esds](correlations.md) explains what an esd here does and does not measure.
 

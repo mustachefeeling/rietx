@@ -28,9 +28,6 @@ BodyTorsion.axis
 BodyTorsion.moves
 BodyTorsion.name
 BodyTorsion.vary
-MomentEvidence.paired_magnitude
-MomentEvidence.paired_magnitude_esd
-MomentEvidence.paired_with
 ParameterRow.body
 RigidBody.atoms
 RigidBody.name

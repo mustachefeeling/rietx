@@ -151,6 +151,7 @@ Jmol
 Jupyter
 JupyterLab
 Kapton
+Kass
 Kessler
 Kirfel
 Kissel
@@ -247,6 +248,7 @@ Pitschke
 [qQ]uartic
 [qQ]uaternion
 Rachinger
+Raftery
 [rR]ealification
 [rR]ecurses
 [rR]efinable
