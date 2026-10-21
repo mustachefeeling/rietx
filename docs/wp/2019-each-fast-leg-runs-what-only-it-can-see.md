@@ -1,6 +1,6 @@
 # WP-2019 — each fast leg runs what only it can see, and the tail is cut again
 
-Milestone: unscheduled · Status: 🔄 2026-10-21 — five of seven tasks landed (PR #1095); the shard refresh is blocked on the artifact host, the ten-run acceptance reads main after the merge
+Milestone: unscheduled · Status: 🔄 2026-10-21 — six of seven tasks landed (PR #1095, the shard record after it); the ten-run acceptance reads main after the record merges
 Track: The repo's own process
 Depends on: —
 Priority: P3 2026-10-21 — cost-only: the slowest per-push job is 19.6 min, at 1547's 20-min bar, but the py3.14 shards grew 30 % in ten days, so the bar will not hold
@@ -168,11 +168,12 @@ cutting it.
 
 ## Tasks
 
-- [ ] **Refresh the shard record.** Rewrite `tests/shard_times.json` from the
+- [x] **Refresh the shard record.** Rewrite `tests/shard_times.json` from the
       latest green main run's junit artifacts, both profiles. The commit names
       the run. *Superseded in part 2026-10-21: one profile, `numpy`, since the
-      jax job no longer shards (next item). Blocked here: the session's network
-      policy refuses the artifact host (`*.blob.core.windows.net`).*
+      jax job no longer shards (next item). Done 2026-10-21 from main run
+      39687915804 (ed299ba3d), the first after #1095: 269 files, 2784 s. The
+      py3.14 shards there were 9.6 and 14.9 min.*
 - [x] **Select the jax leg's cases.**
   - Derive the selection from what each case imports or skips on, and run the
     leg as one job.
@@ -254,6 +255,56 @@ gh run view <id> --json jobs   # each "fast …" job's startedAt to completedAt;
   (10-21).
 
 ## Handover log
+
+### 2026-10-21 (3rd session) — the shard record is refreshed from the first run after #1095
+
+The shard record now holds every fast file at what it cost on CI after this
+WP's changes. The previous record was ten days old and lacked 64 files. Under
+the new record the slowest leg's two shards should come out nearly even. The
+other leg gets less even, and its heavier shard should still finish no later
+than the slowest leg's. Nothing here is measured as a job wall yet. The ten
+runs of the Acceptance read that.
+
+- **Done** (c13779f8a): `tests/shard_times.json` rewritten by
+  `python -m tests.shards DIR` from main run 39687915804 (ed299ba3d, green).
+  That is the first main run after #1095. It holds 269 files and 2784 s, in
+  the `numpy` profile alone.
+- **Measured.**
+  - Run 39687915804's job walls, setup included: py3.11 10.6 and 10.7 min,
+    py3.14 9.6 and 14.9 min, jax 7.4 min.
+  - Predicted balance. Each record's shard 1 was collected locally
+    (`--collect-only -m "not slow" --shard 1/2`, `[dev]`, macOS arm64,
+    Python 3.12). Both splits were weighed by that run's per-file seconds.
+    The figures are test-seconds summed over the workers. They rank the
+    splits and do not time a job.
+
+    | Leg | Old record (shard 1 / 2) | New record (shard 1 / 2) |
+    |---|---|---|
+    | py3.14 | 28.3 / 17.5 min | 22.8 / 23.0 min |
+    | py3.11 | 19.8 / 19.6 min | 22.9 / 16.6 min |
+
+  - py3.11 loses balance because one split serves both legs. The record
+    weighs the documentation files at py3.14's cost, and py3.11 skips them.
+    The heaviest of the four shards still falls from 28.3 to 23.0.
+  - Files the Context listed as missing or stale now read:
+    `test_stationary_moment_angle` 82.8 s, `test_indexing_inliers` 95.3,
+    `test_parametric_series` 29.8, `test_distortion_modes` 37.6 and
+    `test_examples` 330.3. `test_magnetic_isotropy` is the largest at 388.0.
+  - `tests/test_shards.py` passed, 28 of 28 (`[dev]`, macOS arm64,
+    Python 3.12). No test was added, so no count moved.
+- **Review.** `/code-review` was skipped: the branch changes a JSON record and
+  this WP file, with no code to read.
+- **Gotchas:** `pytest --collect-only -q` prints per-file counts, not node
+  ids, because `addopts` already carries one `-q`.
+- **Next**, in this order:
+  1. After this merges, read ten main runs (Acceptance). Runs before the
+     merge measure the old record.
+  2. See `test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error`
+     pass once in the nightly's `full`.
+  3. If the slowest job is still over 15 min, the levers stay as below:
+     `test_magnetic_isotropy` (1418's) and the documentation's own cost on
+     the newest leg. A per-leg record would balance py3.11 too. It earns its
+     place only if py3.11 becomes the slowest job.
 
 ### 2026-10-21 (2nd session) — each leg runs what only it can see; the record is still the old one
 
