@@ -245,5 +245,11 @@ gh run view <id> --json jobs   # each "fast …" job's startedAt to completedAt;
     and 1547.
   - **Not kept.** The junit files and the throwaway plugin were session-local.
     The numbers in Context are the record.
+  - **Handover.** The branch is prose-only (`docs/wp/` alone):
+    - `/code-review` was skipped, having no code to read;
+    - no tests were added, so no count moved;
+    - the files CI's `docs` job runs passed, 240 of 240 (Linux x86-64,
+      Python 3.12, `[dev]`);
+    - `closed_wp_writes` reported nothing.
   - **Next.** The shard refresh and the jax selection, which need no test
     rewrite.
