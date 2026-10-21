@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-21 — the owed tests ran; five rulings wait (rulings.md § fifth round); B14's lifts, two domain tests and the image-shell fix remain
+Milestone: generality · Status: 🔄 2026-10-21 — fifth round built (Q4-Q6, tier 2 widened, two search defects fixed); Q1-Q3 re-briefed with seven programs' practice and wait (rulings.md § Sixth round); B14's lifts and two domain tests remain
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -148,7 +148,10 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       invariant, `MAX_NODES` tier 3. The window slack and the three geometry caps stay
       tier 3 after the judge's review, and every setting that failed its domain test
       stays tier 3 for the fifth round. Still owed: the
-      interval and width-grid domain tests.*
+      interval and width-grid domain tests. 4th session: the three geometry caps and the
+      restraint image shell to tier 1, under the rule's new cap and numerical-setting
+      clauses; the fourteen tier-2 rows resting on a program default checked against
+      seven programs (`2002-batch/practice.md`).*
 - [x] The clash table: every pair of actions that read or move the same parameter, with
       the measured interaction (Rwp and the parameter, both orderings). *38 candidate pairs
       found, none measured: `2002-batch/clashes.md`. Moved to
@@ -173,7 +176,9 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       `OCCUPANCY_ABOVE_ONE` an info record, every ΔBIC tie an abstention. 3rd session:
       the two-start, invariance, margin and domain tests ran; what passed landed, and what
       failed waits on the fifth round (`2002-batch/rulings.md`). Left: B14's lifts, the
-      fifth round's builds, the restraint image-shell fix.*
+      fifth round's builds, the restraint image-shell fix. 4th session: Q5's width
+      ceilings removed, Q4's switched-off roughness said in its warning, Q6's cap clause,
+      both search defects fixed. Left: Q1-Q3's builds (the sixth round) and B14's lifts.*
 - [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
       moved away goes back through the two grounds. *2026-10-20 (2nd session): one moved
@@ -181,16 +186,21 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       free), 1097 → 5109 ppm from the acceptance band's centre 10.2510 Å, esd 2612 → 2579
       ppm; back through the grounds by the judge: the bound had one family and a named
       dissenter, so the removal stands. No bit-identity golden moved. 3rd session: no
-      source behaviour changed (one comment), so nothing moved.*
+      source behaviour changed (one comment), so nothing moved. 4th session: the ceiling
+      removal and the two search fixes moved no bit-identity golden (darwin/arm64).*
 - [ ] `intermediate_ftol` and any other candidate for the answer-invariant class: the
       invariance test, or the row tiered. *3rd session: the test ran and failed in plain
       esds (0.033-0.074 on cpd-1a) and a hold flips with the tolerance; the rows wait on
-      the fifth round. B11's budgets passed and landed invariant.*
+      the fifth round. B11's budgets passed and landed invariant. 4th session: re-briefed
+      as the sixth round's Q2, with a closing stage measured (`rulings.md` § Sixth round).*
 - [ ] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
       comparison can show; add a row where a standard exercises it.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for every refit used as evidence.
       *3rd session: done for every refit it ran (`tests/output/b3_*`, `b9_*`, `b10*`,
-      `b7b11_*`, `seed_invariance_*`, `window_domain_*`, `fd_step_*`).*
+      `b7b11_*`, `seed_invariance_*`, `window_domain_*`, `fd_step_*`). 4th session: the
+      0.5 % window polishes wrote `window_domain_*` PNGs; the last-stage, closing-stage and
+      Biso-start measurements are scratch scripts with no figure, their numbers in
+      `rulings.md` § Sixth round.*
 - [ ] Skill: none here. A demoted verdict's meaning goes into the package's own output and
       never into a skill row (DESIGN.md § Rules, 3; the record § Decisions, the skill's
       role). List each skill row that named a demoted verdict, for 2008. *2nd session:

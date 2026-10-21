@@ -211,8 +211,8 @@ MAUD, EasyDiffraction).
 
 ## Sixth round: asked 2026-10-21, Q1-Q3 re-briefed with the seven programs' practice
 
-The briefs are in the session transcript and the PR. Their practice tables are
-`practice.md`. The measurements added this round, on SRM 660c, FAP, cpd-1a and 11-BM NAC
+The three briefs are below, whole, under § The three briefs as sent. The full practice
+tables are `practice.md`. The measurements added this round, on SRM 660c, FAP, cpd-1a and 11-BM NAC
 (macOS arm64, `[dev]`, compiled tier on, with other sessions' agents running):
 
 - `WINDOW_AREA_TOL` at 5e-3, about GSAS-II's 0.5 % of a Lorentzian: 0.39, 0.34, 0.43 and
@@ -237,6 +237,104 @@ The briefs are in the session transcript and the PR. Their practice tables are
   stage at tight windows, and a 0.1-plain-esd bar for a staged plan's start test. Q3
   asked again with the finding that no program supplies a Pitschke start; lead's pick (c),
   split the constant.
+
+### The three briefs as sent (2026-10-21)
+
+Kept here whole, so the session that reads the answers reads them against this wording. A seventh round's answers land under a new heading above this one.
+
+#### Q1. How far rietx computes each peak
+
+**The decision.** Whether rietx computes peak tails further than it does today. Further costs fit time. It needs you because it trades accuracy against speed, and the established programs choose differently.
+
+**What last round's sentence meant.** Some constants in rietx decide nothing about the science. They set how carefully rietx does its arithmetic: how far out each peak's tails are computed, how many sample points the axial-divergence integral uses, and how far past the scan's end reflections are still generated. On 19 October you ruled that such a setting needs no sign-off from you once a test shows its arithmetic error is too small to matter, for every kind of data it is meant to handle. "Too small to matter" was set at a tenth of the counting noise. The last session wrote those tests, and seven settings failed. This brief is about the largest, the peak window. The other six follow the same pattern and can take the same answer.
+
+**Context.** rietx computes each peak out to the point where the tails it leaves out hold 2 % of the peak's area. Past that point the peak contributes nothing. Measured on four patterns (SRM 660c LaB6, the GSAS-II fluorapatite tutorial, the CPD round robin's cpd-1a, and 11-BM NAC):
+- The calculated pattern is off by up to 2.15σ at a point.
+- Refined values move by up to 0.97 esd on lab data when the tails are computed fully (cpd-1a's zincite scale; the fluorapatite Lorentzian size). NAC moves 0.17 esd.
+- The background coefficients move 2 to 5 esd. They soak up the missing tail intensity.
+
+Why rietx works this way. It sets each peak's window once, at the start of a stage, and holds it while the solver runs. If the windows moved during a solve, a data point could enter or leave a window between two evaluations, and χ² would jump by a small step. The solver chooses its next move from derivatives. It cannot see that jump in them, so it can stall or zigzag. A fixed window avoids the jumps at any width. Its price is that it cannot follow a peak that widens during a stage. By the end of such a stage 3 to 6.5 % of the area is missing, until the next stage resets the windows.
+
+**What the other programs do.** I checked all seven this session, from each manual or source, and by running FullProf, RIETAN-FP and BGMN. The middle column is the area a pure Lorentzian loses to each default.
+
+| Program | Default cut | Area lost | When the window is set |
+|---|---|---|---|
+| rietx | 2 % of each peak's area | 2 % | once per stage |
+| TOPAS | where the peak falls to 0.001 of the strongest line's height | 2.0 % | rebuilt when a width moves past a set tolerance |
+| MAUD | ±15 FWHM | 2.1 % | every evaluation |
+| RIETAN-FP | 0.002 of each peak's height (its examples; no default) | 2.8 % | every evaluation |
+| FullProf | 6 FWHM in its PbSO₄ example (no default; examples use 3 to 15) | 5.3 % | once per run, at the starting widths |
+| GSAS-II | 50 FWHM below the peak, 75 above | 0.5 % | every evaluation |
+| BGMN | no cut seen out to 22° | about 0 | not documented |
+| EasyDiffraction | none | 0 | every evaluation |
+
+So rietx's 2 % is in the middle. TOPAS and MAUD leave out the same. FullProf's examples leave out more than twice as much, and FullProf holds its windows for a whole run, as rietx holds them for a stage. GSAS-II computes four times further, and BGMN and EasyDiffraction compute everything. No program's manual states what its cut costs in accuracy. I infer that TOPAS and MAUD users carry the same shifts measured above, but I did not test those programs.
+
+**Aim.** Answers as close as the data allow, at a fit time a batch user accepts. I have read your earlier rulings as putting accuracy first.
+
+**Options.** All measured on the four patterns. Times are whole-fit wall clock against today's.
+1. **Keep 2 %.** Matches TOPAS and MAUD. Lab answers stay up to an esd off and nothing says so. No cost. Reversible.
+2. **Tight windows everywhere, 0.1 %.** Passes both accuracy bars on all four patterns. Costs 1.1 to 3.75 times the fit time, the fluorapatite the dearest.
+3. **Tight windows on the last stage only.** The earlier stages keep 2 %. The answer matches option 2's within 0.008 esd on three patterns, at 1.06 to 1.91 times the fit time. On LaB6 both today's setting and option 3 land in a different minimum from option 2: the two axial-divergence parameters swap roles, the mirror pair already forwarded to WP-2012 (the work package on that interchange). That is a question of path, which is Q2.
+4. **A middle cut at 0.5 %**, close to GSAS-II. It still fails: 0.33 to 0.43σ at a point, and answers move up to 0.88 esd. It costs 1.05 to 1.54 times. I would not pick it.
+
+Options 2 and 3 change every converged fit slightly, and the bit-identity goldens get re-pinned in the same commit. All four can be undone by restoring the constant.
+
+**Recommendation.** Tight windows only where the answer is computed. On its own that is option 3: the answer comes from the last stage, and the earlier stages only steer the fit towards its minimum. It recovers option 2's answers on three of four patterns at about half option 2's extra cost. If you also take Q2's closing stage, the tight windows go on that stage instead, and Q1 needs nothing more. The other six failing settings would follow the same rule: tight wherever it is cheap, and only on the answer's stage where the cost bites.
+
+The case against: the fluorapatite still pays 1.9 times. A batch user fitting 200 patterns feels that. Option 1 is defensible on practice, since TOPAS and MAUD do the same. I would change my mind if the tight windows moved a certified value away from its certificate. I have not measured that against SRM 660c's certified cell.
+
+#### Q2. How close two different starts must agree
+
+**The decision.** How close two runs of a staged plan must agree before a starting value or a stopping tolerance counts as not changing the answer. You asked how RIETAN-FP and BGMN, which also stage, handle it.
+
+**Context.** The tests ask whether Biso's default start of 0.5 Å², the harmonic seed, or the looser tolerance on intermediate stages changes the answer. They do: by up to 0.16 esd in Biso last session, and by 0.75 esd in cpd-1a's sample displacement this session. The cause is in rietx, not in the starts. Each stage fixes its peak windows, reflection list and axial-divergence sample points at the stage's start. So the last stage computes on a model fixed wherever the earlier stages stopped, and different starts stop the earlier stages in slightly different places.
+
+**What RIETAN-FP and BGMN do.**
+- RIETAN-FP's automatic mode refines subsets in its first cycles: background and scale, then widths, asymmetry, cell, atoms. Then everything refines together until convergence. Its windows follow the parameters at every evaluation, so nothing stays fixed where the subsets stopped. It holds Le Bail intensities for a cycle, and its manual warns that they depend on where they started.
+- BGMN runs an automatic ladder. Isotropic models come first, and anisotropic terms are added in later runs. Every ladder ends with a closing run: everything free, restarted from the previous answer. Terms the data cannot support are switched off. Only the ray-traced instrument function is held for the whole fit.
+
+The others, for completeness. MAUD's wizard adds parameter groups stage by stage and has no closing run. FullProf has no staging, so a user runs files one after another, and each run holds its windows at its starting widths. A FullProf user who stages by hand meets the same path effect as rietx. GSAS-II, TOPAS and EasyDiffraction do not stage. None of the seven tests whether its answer depends on the path, and none of the manuals mentions it. So the bar is rietx's own to set.
+
+**Aim.** Two users with the same data and different starts get the same numbers.
+
+**What I measured this session.** Biso started at 0.5 and at 1.5 Å² on every atom, under three settings. The number is the largest disagreement between the two starts on anything but the background, in plain esd (without the Bérar-Lelann inflation).
+
+| Pattern | Today | Tight windows on the last stage | Closing stage at tight windows |
+|---|---|---|---|
+| Fluorapatite | 0.119 | 0.013 | 0.000 |
+| cpd-1a | 0.751 (sample displacement) | 0.734 | 0.064 (cell c) |
+| 11-BM NAC | 0.008 | 0.006 | 0.000 |
+| SRM 660c LaB6 | 9.0 (axial S/L) | 9.0 | 9.4 |
+
+Tight windows on the last stage fix Q1's truncation and leave the path effect. The closing stage fixes both on three patterns. LaB6's two starts land in its two mirrored minima under every setting, so no window setting can make them agree. The closing stage costs 1.36 to 2.26 times today's fit time, against 1.06 to 1.91 for tight windows on the last stage alone.
+
+**Options.**
+1. **Keep the 0.01-esd bar, change no code.** Biso's start, the harmonic seed and the intermediate tolerance stay at tier 3 with their failures recorded.
+2. **Raise the bar to 0.1 plain esd, change no code.** The fluorapatite and NAC pass. cpd-1a (0.75) and LaB6 fail.
+3. **End every plan with a closing stage at tight windows, and set the bar at 0.1 plain esd.** The closing stage recompiles at the answer and solves once more with everything the plan freed. It is BGMN's closing run. It also gives what RIETAN-FP and the per-evaluation programs get by moving their windows continuously. The fluorapatite, cpd-1a and NAC pass. LaB6 fails, correctly, and stays recorded with WP-2012. Costs 1.36 to 2.26 times today's fit time, and it covers Q1.
+4. **The closing stage with the 0.01 bar.** The fluorapatite and NAC pass. cpd-1a fails at 0.064.
+
+Options 3 and 4 change every converged fit and re-pin the goldens. All four can be undone.
+
+**Recommendation.** Option 3. It is the only option that meets the aim on more than one lab pattern, and it settles Q1 in the same stage. A 0.1-esd bar matches the answer bar Q1's window tests already use. A user cannot see a difference of 0.064 esd between two starts. LaB6 still fails it, for the reason a start test exists to catch: two minima close together.
+
+The case against: a fit that has already converged pays for one more solve, about a fifth more than Q1's option 3 alone (2.26 against 1.88 times on the fluorapatite). The 0.1 bar is also ten times looser than the 0.01 that Suortti's start passed. I would change my mind if the closing stage cost more than about 2.5 times on any lab pattern, or if the intermediate tolerance and the harmonic seed still failed 0.1 behind it. I have not rerun those two.
+
+#### Q3. Where Pitschke's roughness model starts
+
+**The decision.** Pitschke's strength c and Suortti's depth b both start at 0.3 from one shared constant. Whether Pitschke keeps that start.
+
+**Context.** Suortti's start was shown not to matter. Pitschke's does. On CPD zincite, from 0 the fit lands outside the model's valid range: the scale doubles, Biso(O) moves from 0.05 to 0.59 Å², χ² is 4.8 % lower, and `ROUGHNESS_OUTSIDE_REGIME` fires. From 0.3 the correction switches itself off. On CPD corundum Biso moves 0.26 esd between the two starts.
+
+**What the other programs do.** None supplies a default start for Pitschke's model. RIETAN-FP and TOPAS have it with no default start given (TOPAS's would be in a macro file I may not read). FullProf has the same formula with no default, and its shipped examples start the strength at 1.2 to 1.5 and τ near 0.14. GSAS-II, MAUD, BGMN and EasyDiffraction have no Pitschke model. GSAS-II's own roughness model is Suortti's, and it starts at zero, unrefined. So last round's fallback, "GSAS-II's 0", has no program behind it for Pitschke.
+
+**Options.**
+- (a) Keep 0.3 for both, with Pitschke at tier 3 and its failure recorded.
+- (b) Start Pitschke at 0.
+- (c) Split the constant: Suortti's start recorded as not affecting the answer, Pitschke's kept at 0.3 at tier 3 with its failure recorded.
+
+**Recommendation.** (c). From 0.3 the fit reaches the switched-off branch, which lies inside the model's valid range. The lower χ² from 0 is one the model itself flags as invalid. FullProf's examples start further from 0 than 0.3 does. The case against: a careful user may want to see that the data prefer a correction, even an out-of-range one. The warning already shows them that.
 
 ## Still open (first round's list, kept for the record)
 
