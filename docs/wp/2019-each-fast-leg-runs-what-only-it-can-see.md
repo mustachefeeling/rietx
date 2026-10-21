@@ -1,6 +1,6 @@
 # WP-2019 — each fast leg runs what only it can see, and the tail is cut again
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-21 — claimed by @yue-here
 Track: The repo's own process
 Depends on: —
 Priority: P3 2026-10-21 — cost-only: the slowest per-push job is 19.6 min, at 1547's 20-min bar, but the py3.14 shards grew 30 % in ten days, so the bar will not hold
