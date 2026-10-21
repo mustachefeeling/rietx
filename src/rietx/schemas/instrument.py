@@ -1385,7 +1385,7 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
     explicit ``Parameter(value, min, max)`` carries the caller's own.  X and Y
     have a floor of zero in both boxes, because Γ_L is a width.  The ceilings
     went on 2026-10-21 (WP-2002, the fifth round's Q5): a chosen limit on a
-    quantity that stays physical, Y ≤ 1° capping the Lorentzian size near
+    quantity that stays physical, X ≤ 1° capping the Lorentzian size near
     8 nm at Cu Kα, where none of GSAS-II, FullProf, TOPAS, RIETAN-FP, MAUD or
     EasyDiffraction bounds these coefficients by default (BGMN has none to
     bound).  A solution read from another program can still sit under a
@@ -2370,20 +2370,13 @@ class Instrument(_InheritsDeclaredDefaults):
         the width you get.
 
         The profile is built in the coarse-instrument box
-        (:meth:`ProfileTCHZ.coarse`, :data:`TCHZ_BOUNDS_COARSE`): this is
-        WP-1312's escape, built for you.  The default box is sized for a
-        ~0.03° synchrotron line and caps ``w`` at 1 deg², a 1.0° FWHM, where
-        a long-wavelength CW neutron line is wider (issue #276: 1.10° on D1B
-        at λ = 2.52 Å); the ruling keeps that default and has the constructor
-        refuse past it, so the preset takes the escape on the caller's behalf,
-        all five bounds at once.  The cost, said out loud: a *bare* wide width
-        still refuses — ``ProfileTCHZ(u=1.576)`` raises, naming
+        (:meth:`ProfileTCHZ.coarse`, :data:`TCHZ_BOUNDS_COARSE`), whose U and
+        V floors sit under the default box's: a long-wavelength CW neutron
+        model can need them (issue #276: V = −0.501 on D1B at λ = 2.52 Å).
+        No width has a ceiling (WP-2002, the fifth round's Q5), so any
+        ``fwhm_deg`` seeds ``w`` at its square.  A *bare* width still
+        refuses: ``ProfileTCHZ(u=1.576)`` raises, naming
         ``ProfileTCHZ.coarse`` and an explicit ``Parameter`` as the ways out.
-        ``fwhm_deg`` may not exceed the square root of ``w``'s upper bound,
-        √8 ≈ 2.83° in the coarse box: above it raises ``ValueError`` naming
-        the value passed and the bound.  To declare a coarser instrument
-        still, set ``instrument.profile.w``
-        explicitly, with its own bounds, instead of ``fwhm_deg``.
 
         Note the profile itself needs no neutron-specific code: the Caglioti
         law U·tan²θ + V·tanθ + W *is* the neutron resolution function (Caglioti,

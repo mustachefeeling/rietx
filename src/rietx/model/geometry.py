@@ -318,15 +318,16 @@ def _phase_items(phase, sites, values, ip: int, notes: list[str]):
     # the longest pair the radii could call a bond, past the contact radius
     # for heavy atoms (Cs: 2.44 Å)
     longest = max(radii, default=0.0)
-    shifts = _shell(g, max(CONTACT_MAX_ANG, 2.0 * longest + BOND_SLACK_ANG))
 
     bonds, contacts, angles = [], [], []
     dropped = 0
     for i in range(sites.n_asym):
         bonded, near = [], []
+        # sized per atom, so a light atom beside a heavy one searches the
+        # contact radius's shell rather than the heavy atom's
         reach = max(CONTACT_MAX_ANG, radii[i] + longest + BOND_SLACK_ANG)
         for j, rot, tran, shift, d in _neighbours(sites, values, ip, i, g,
-                                                  shifts, reach):
+                                                  _shell(g, reach), reach):
             entry = (j, rot, tran, shift, d,
                      _symmetry_code(_symop_index(symops, rot, tran), shift))
             if (d <= radii[i] + radii[j] + BOND_SLACK_ANG

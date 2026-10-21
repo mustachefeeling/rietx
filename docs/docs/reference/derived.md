@@ -19,7 +19,7 @@ The two most important criteria for judging a refinement are the profile fit and
 | `GeometryTable.bonds`, `GeometryTable.contacts` | the two halves of that list | split by `GeometryDistance.bonded` |
 | `GeometryTable.angles` | one `GeometryAngle` per pair of bonded neighbours | at every vertex, over that vertex's complete bonded environment; a contact is never an arm |
 | `GeometryTable.bond_slack` | the slack added to the covalent-radius sum, in Å | 0.4 Å |
-| `GeometryTable.contact_max` | the search radius for non-bonded contacts, in Å | 3.5 Å |
+| `GeometryTable.contact_max` | the listing radius for non-bonded contacts, in Å; bonds are found past it | 3.5 Å |
 | `GeometryTable.notes` | where coverage stopped | empty means nothing was bounded |
 
 A pair is bonded when its distance is at most the sum of the two covalent radii plus `GeometryTable.bond_slack`.

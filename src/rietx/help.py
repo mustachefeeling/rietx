@@ -3666,7 +3666,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "reflection by almost nothing. The data cannot see it, so its value is "
             "arbitrary. This also happens when the pattern starts too far above the "
             "angles where roughness acts. The Suortti form is inert at both extremes of "
-            "its parameter. It is also switched off at b = 0 and at a = 1, and the esds "
+            "its parameter. It is exactly off at b = 0 and at a = 1, and the esds "
             "of the scale and Biso depend on which of the two a fit stops at. Drop the "
             "roughness terms, or measure to lower angle."
         ),
