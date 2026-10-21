@@ -222,10 +222,21 @@ The briefs are in the session transcript and the PR. Their practice tables are
   all-1e-3 answer on FAP, cpd-1a and NAC, at 1.91, 1.33 and 1.09× (all-1e-3: 3.49, 2.12,
   1.19×). LaB6 at 1.12× lands with today's setting, 9.2 esd in `axial_sl` from the all-1e-3
   answer, which sits in the mirrored S/L ↔ H/L minimum (WP-2012).
-- Q1 asked: keep 2 %, tight everywhere, tight on the last stage, or a middle cut. Lead's
-  pick: tight on the last stage. Q2 asked the bar, with a closing stage (BGMN's closing run)
-  carrying Q1's tight windows as the lead's pick. Q3 asked again with the finding that no
-  program supplies a Pitschke start; lead's pick (c), split the constant.
+- A closing stage: the protocol at today's windows, then one stage freeing every glob the
+  plan freed, recompiled at the answer at 1e-3. Within 0.002, 0.052 and 0.002 esd of the
+  all-1e-3 answer on FAP, cpd-1a and NAC, at 2.26, 1.54 and 1.44× (LaB6 1.36×, today's
+  basin).
+- Biso started at 0.5 and at 1.5 Å² on every atom, largest non-background disagreement in
+  plain esd (today's / 1e-3 on the last stage / closing stage): FAP 0.119 / 0.013 / 0.000;
+  cpd-1a 0.751 / 0.734 / 0.064 (sample displacement, then cell c); NAC 0.008 / 0.006 /
+  0.000; LaB6 9.0 / 9.0 / 9.4 in `axial_sl`, the two starts in the mirrored minima under
+  every setting. Tight windows on the last stage alone fix the truncation and not the
+  path; the closing stage fixes both on three of four.
+- Q1 asked: keep 2 %, tight everywhere, tight on the last stage, or a middle cut. Q2 asked
+  the bar, with the closing stage as an option. Lead's pick, joining them: the closing
+  stage at tight windows, and a 0.1-plain-esd bar for a staged plan's start test. Q3
+  asked again with the finding that no program supplies a Pitschke start; lead's pick (c),
+  split the constant.
 
 ## Still open (first round's list, kept for the record)
 
