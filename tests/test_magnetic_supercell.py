@@ -182,6 +182,36 @@ def test_the_child_cell_volume_is_det_p_times_the_parents():
     assert statement.transform == "2a,b,c;0,0,0"
 
 
+def test_a_magnetic_statement_with_no_magnetic_species_is_refused():
+    """No ``magnetic_species`` used to return a magnetic phase with no moment.
+
+    Main before this test returned it silently: the k = (½,0,0) Pbcm child
+    had zero moment sites, an empty ``diagnostics`` and a magnetic group set,
+    so it compiled and fitted with no magnetic term at all.  The positive arm
+    is the same call naming the species, which places a moment on both Fe
+    sites of the child.
+    """
+    parent = pbcm_parent()
+    cand = candidates(parent.space_group, (0.25, 0.125, 0.25), HALF_A).candidates[0]
+    named = magnetic_supercell(parent, cand, magnetic_species="Fe", ion="Fe3+")
+    assert sum(a.moment is not None for a in named.phase.atoms) == 2
+    with pytest.raises(ValueError, match="no magnetic_species was given"):
+        magnetic_supercell(parent, cand, ion="Fe3+")
+    with pytest.raises(ValueError, match="no magnetic_species was given"):
+        magnetic_supercell(parent, group=named.group, transform=named.transform,
+                           ion="Fe3+")
+
+
+def test_a_displacive_candidate_needs_no_magnetic_species():
+    """The one statement that carries no moment by design is not refused."""
+    parent = pbcm_parent()
+    cand = next(c for c in candidates(parent.space_group, (0.25, 0.125, 0.25),
+                                      HALF_A, kind="displacive").candidates)
+    statement = magnetic_supercell(parent, cand, nuclear_group="magnetic")
+    assert statement.phase.atoms
+    assert all(a.moment is None for a in statement.phase.atoms)
+
+
 def test_a_parent_biso_bound_reaches_the_child():
     """A bound a caller stated on the parent's Biso binds every child the
     site becomes, whatever the schema's default (none since WP-1534)."""
