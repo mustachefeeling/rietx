@@ -1333,8 +1333,9 @@ ROWS: tuple[Row, ...] = (
                   "points, the answers moving 0.026 and 0.043 esd (WP-2002, 2026-10-21); generating "
                   "out to the widest edge window met 0.1 sigma (0.027 FAP, 0.022 cpd-1a) at 1.3x "
                   "FAP's closing stage, but its tail-only reflections lifted the scale-B separation "
-                  "over its floor on cpd-1a and the closing stage freed a ridge (corundum 72.5 to "
-                  "50.8 wt%, weighed 72.7), so it was reverted"),
+                  "over its floor on the synthetic narrow scan of tests/test_scale_b_ridge.py and the "
+                  "closing stage freed a ridge (corundum 72.5 to "
+                  "50.8 wt%, true 72.7), so it was reverted"),
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
                  "tier 3 under B10 option 2 (ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh "
                  "round's Q2): an edge rule at CLOSING_WINDOW_TOL was built and reverted (evidence), "
