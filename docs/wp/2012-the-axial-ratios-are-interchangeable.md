@@ -49,6 +49,10 @@ not these ratios. Finger, Cox and Jephcoat (1994, *J. Appl. Cryst.* **27**, 892)
 Read the paper for whether the symmetry is the model's or this implementation's before
 choosing a fix.
 
+### Inherited
+
+- **From WP-2002 (2026-10-21, PR #1085).** On NIST SRM 660c under `tests/test_acceptance_srm660c.py`'s protocol there are two distinct minima 46.7 apart in absolute χ² (N = 5332), nearly mirror images under S/L ↔ H/L: (0.0367, 0.0254) from the protocol start and (0.0254, 0.0368) from a start with x at 0.03, the second the deeper. They differ in Caglioti u, v and w by 0.38, 0.20 and 0.12 esd and in the cell by 0.04 esd. The objective is bit-symmetric under the swap, so these are two minima, not one point twice, and the protocol's own answer is the shallower. LM and TRF also land in different minima on that protocol (χ² 18934 against 18594, u −0.00050 against −0.00127, the cell 3 ppm apart). The (100) reflection carries 39 FCJ nodes in one and 40 in the other, measured not to cause the split. Numbers: `tests/test_seed_invariance.py`'s width-start docstring, `docs/wp/2002-batch/waiting.md` § B8 and B9.
+
 ## Tasks
 
 - [ ] Read Finger, Cox and Jephcoat (1994) on the S ↔ H symmetry, and check `profiles/fcj.py`

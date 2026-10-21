@@ -216,6 +216,8 @@ Debye-Waller factor is not floored, so there is no hinge to lean on.
 
 - **From WP-2002 (2026-10-19, PR #1050).** Batch class B3. GSAS-II starts a new histogram's generalised strain coefficients at 0.01 each (`GSASIIddataGUI.py:1432-1433`); 1000 µstrain on the isotropic ray is its Reset button, a user's act. So `lab_sample_refine`'s 1000 ppm seed matches GSAS-II's isotropic default only. The batch keeps that seed at tier 3 until a second family compares starts, and this WP's start comparison is the obvious one.
 
+- **From WP-2002 (2026-10-21, PR #1085).** The Γ_G² floor is leaned on, under LM. This WP's sibling paragraph says whether a fit leans on `_MIN_GAMMA_G2` was not measured. It is: the SRM 660c and cpd-1a protocol answers end with high-angle reflections on the floor (`CONSTRAINT_ACTIVE`; a Kα2 reflection near 149.7° on LaB6, corundum past 150° on cpd-1a). There the FD width column is 2.2e-2 off the right derivative, because the step moves Γ_G² by about 0.7 of the floor, and a polish under a 5e-7 FD step or a 1e-10 floor stops 1.2 plain esd away on `profile.u` at χ² 0.25 % worse. An FD step of 1e-8 does not cure it. A candidate fix is analytic width scalars at the clamp (`optimize/least_squares.py:1873-1970`, the clamp at `caglioti.py:292`, the width step at `least_squares.py:1112-1121`). Tests: `tests/test_gaussian_width_floor.py`, and `tests/test_cross_backend.py::test_fd_columns_hold_at_every_protocol_answer` (strict xfails on lab6 and cpd1a).
+
 ## Non-goals
 
 - The Gaussian/Lorentzian split itself. WP-0503's fence stands, and this WP

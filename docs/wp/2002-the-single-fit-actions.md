@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-20 — claimed by @yue-here; the owed tests and B14's lifts remain, the second pass and the clash table split to 2017 and 2018
+Milestone: generality · Status: 🔄 2026-10-21 — the owed tests ran; five rulings wait (rulings.md § fifth round); B14's lifts, two domain tests and the image-shell fix remain
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -143,7 +143,12 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       twelve solver stop constants and the seventh solver switch, all tier 3). The second
       pass moved to [2017](2017-the-second-pass-every-tier-3-threshold-on-three-families.md)
       on 2026-10-20 (the maintainer's split); this item closes with the owed tests and
-      B14's lifts.*
+      B14's lifts. 3rd session (2026-10-21): the owed tests ran (`2002-batch/waiting.md`).
+      Landed: B11's three budgets (on the shipped schedule) and two internal splits
+      invariant, `MAX_NODES` tier 3. The window slack and the three geometry caps stay
+      tier 3 after the judge's review, and every setting that failed its domain test
+      stays tier 3 for the fifth round. Still owed: the
+      interval and width-grid domain tests.*
 - [x] The clash table: every pair of actions that read or move the same parameter, with
       the measured interaction (Rwp and the parameter, both orderings). *38 candidate pairs
       found, none measured: `2002-batch/clashes.md`. Moved to
@@ -166,21 +171,26 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       lifts, B3's and B9's two-start tests, B7's and B11's invariance and margin tests,
       the FCJ node cap (B10). 2nd session: the peak-position bounds removed,
       `OCCUPANCY_ABOVE_ONE` an info record, every ΔBIC tie an abstention. 3rd session:
-      B3's Suortti seed shown answer-invariant (`tests/test_seed_invariance.py`), its
-      Pitschke twin not, and the Stephens seed's second family measured
-      (`2002-batch/waiting.md` § B3).*
+      the two-start, invariance, margin and domain tests ran; what passed landed, and what
+      failed waits on the fifth round (`2002-batch/rulings.md`). Left: B14's lifts, the
+      fifth round's builds, the restraint image-shell fix.*
 - [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
       moved away goes back through the two grounds. *2026-10-20 (2nd session): one moved
       away, the NAC capillary pair's cell (`test_capillary_displacement.py`, offsets
       free), 1097 → 5109 ppm from the acceptance band's centre 10.2510 Å, esd 2612 → 2579
       ppm; back through the grounds by the judge: the bound had one family and a named
-      dissenter, so the removal stands. No bit-identity golden moved.*
+      dissenter, so the removal stands. No bit-identity golden moved. 3rd session: no
+      source behaviour changed (one comment), so nothing moved.*
 - [ ] `intermediate_ftol` and any other candidate for the answer-invariant class: the
-      invariance test, or the row tiered.
+      invariance test, or the row tiered. *3rd session: the test ran and failed in plain
+      esds (0.033-0.074 on cpd-1a) and a hold flips with the tolerance; the rows wait on
+      the fifth round. B11's budgets passed and landed invariant.*
 - [ ] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
       comparison can show; add a row where a standard exercises it.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for every refit used as evidence.
+      *3rd session: done for every refit it ran (`tests/output/b3_*`, `b9_*`, `b10*`,
+      `b7b11_*`, `seed_invariance_*`, `window_domain_*`, `fd_step_*`).*
 - [ ] Skill: none here. A demoted verdict's meaning goes into the package's own output and
       never into a skill row (DESIGN.md § Rules, 3; the record § Decisions, the skill's
       role). List each skill row that named a demoted verdict, for 2008. *2nd session:
@@ -243,6 +253,219 @@ clash table [2018](2018-the-clash-table-measured.md)'s, both split out 2026-10-2
   thresholds quote).
 
 ## Handover log
+
+### 2026-10-21 — the owed tests: the budgets and two starts pass, most numerical settings fail a bar tied to the data's noise
+
+This session ran the tests the batch owed. It asked whether a starting value changes the answer, whether stopping early stages early does, whether the iteration budgets leave room, and whether each numerical setting stays accurate over the range it claims. The iteration budgets, the Suortti roughness start, the peak-width start and two internal splits pass, and are now recorded as not affecting the answer. Most numerical settings fail a bar set at a tenth of the data's own noise. The largest is the peak window, which drops 2 % of each peak's area and moves refined values by up to one esd on lab data; fixing it costs 1.2 to 3.5 times the fit time. The session also found that a staged plan's answer depends on its path by up to about 0.16 esd, because its last stage runs on a model frozen where the earlier stages stopped, and that the absent-phase hold can flip with the intermediate tolerance. No package behaviour changed. Six questions wait on the maintainer (`2002-batch/rulings.md` § Fifth round).
+
+*Done.* Inherited pruned on arrival: 2001's entry was already in Context, and 2014's `project.py` note was folded in. WP-2003's missing entry was reconstructed by hand from 5c8810091, a docs commit already merged through #1050, so the full repair handover had nothing to review. Then one commit per class: B3's two-start tests (093612546); B9's starting values (030aa05ea); B10's FCJ domain test (020c4365b) and the node-split measurement (39a4f73ff); B7 and B11 (fad1f0ad8); B10's windows and identities (d499b4e64); B10's last eight settings (5f5b943c9); the code review's fixes (186c68004); the image-shell sweep marked slow (996f9fd80). Rows landed: B11's three budgets (on the shipped schedule), `_BASES_CHUNK_ROWS` and `_DENSE_EIGEN_MAX` invariant; `MAX_NODES` tier 3. `WINDOW_MIN_DEG`, `window_slack_deg` and the three geometry caps went to tier 1 and back to tier 3 on the judge's review (below), with the evidence corrections it asked for in the same commit. Every failing setting stays tier 3 with its measured error in the row and a strict xfail in its test. `StageResult.seeded`, `SUGGEST_SEED_ROUGHNESS`, `HARMONIC_WEIGHT_SEED` and the four intermediate-tolerance rows stay unaudited, each with what it waits on in `waiting.md`.
+
+*Measured.* Every number is in `waiting.md` by class and in the new tests' docstrings; the headlines, all `[dev]`, darwin/arm64:
+
+- B3: Suortti's b from 0 and from 0.3 agrees to 2.7e-3 esd on five lab patterns from three laboratories; Pitschke's c does not (CPD zincite from 0: scale ×2.1, out of regime). The Stephens seed's second family (CPD brucite) favoured 1000 ppm, χ² 7.77 against 8.32.
+- B9: the width start is invariant from w, x = 1e-4 to 1e-2. Biso 0.5 and the harmonic seed move answers by up to 0.16 and 0.15 esd, through the frozen last-stage compile: one recompiled stage brings them within 0.012.
+- B7: 1e-6 against 1e-9 stays within 0.03 plain esd on every fit but cpd-1a's QPA protocol (0.033 LM, 0.074 TRF); with an absent zircon declared, the hold fires at 1e-6 and not at 1e-9.
+- B11: worst stage 49 of 400 evaluations, 1.79 evaluations an iteration against 4, 9 LM trials against 18, on nine configurations from four laboratories.
+- B10: the window area tolerance misdraws up to 2.15σ at a point and a converged refit moves non-background rows up to 0.97 esd; the four FCJ constants each miss over part of the domain, worst for Lorentzian-rich peaks (5.6e-3 of the peak maximum against 7.2e-4) and where the node cap binds at low angle (0.21-0.26); a length-proportional node split is unsafe when frozen; the reflection margin, the axial and magnetic sizing floors, the origin clip and the texture sampling fail by smaller amounts; the restraint image shell misses neighbours in unreduced monoclinic cells (a defect). The SRM 660c and cpd-1a answers end with high-angle reflections on the Gaussian-variance floor, where an FD column is 2.2e-2 off (forwarded to 1467).
+- Practice checked: GSAS-II 5.8.4 computes each peak over 50 FWHM below and 75 above, recomputed at every evaluation (`GSASIIpwd.getWidthsCW`), and has no Pitschke roughness model.
+- Tests. The touched files collect +71 fast and +41 slow tests against `origin/main` (05ac4bac6); one fast domain sweep (5 cases) then moved to slow, so the fast tier gains 66. The fast selection, run once before that move with one other pytest on the machine: 10 937 passed, 191 skipped, 32 xfailed, 1 failed in 4:28, the failure the stale WP index (fixed, `test_docs_consistency.py` 25 passed). Passed+skipped+xfailed+failed is 11 161, which is 71 above the 11 090 of the last handover's merged tree. The 30 new xfails are strict and each names a measured failure. The added fast tests take 2.4 s together without the moved sweep, the largest 1.66 s (`test_every_fd_column_meets_a_converged_oracle`, 21 cases); the sweep took 7.24 s. The full suite did not run: the branch changes tests, the audit table's text and one comment, so it cannot move a measured number. Every slow test it adds ran in its own file.
+- Lanes (`session_usage.py lanes`): seven lanes, none kept in main, re-read median 0K, 12 main requests per lane, 20K left in main, actual over estimated requests 2.77, six fixed by main afterwards and none redone, saved $29.49 (37 % of the session). The selective policy's baseline over all sessions: −11 %.
+
+| lane | est | requests | main at dispatch | lane $ | saved $ |
+|---|---|---|---|---|---|
+| B3 two-start | 30 | 49 | 163K | 3.01 | +1.68 |
+| B9 starting values | 30 | 83 | 205K | 4.94 | +3.69 |
+| B10 FCJ domain test | 30 | 82 | 229K | 4.38 | +3.72 |
+| FCJ segment split | 20 | 72 | 258K | 3.30 | +3.09 |
+| B7+B11 tolerance and budgets | 40 | 69 | 273K | 3.72 | +3.35 |
+| B10 windows and identities | 35 | 125 | 296K | 9.61 | +6.19 |
+| B10 remaining settings | 35 | 141 | 320K | 10.46 | +7.76 |
+
+*Code review* (`high --fix 05ac4bac6..HEAD`): eight findings. The review fixed four: the FCJ domain cases now stay inside 2-160°, the window test shares one cached fit, the Richardson oracle takes one pass, and FD_STEP's evidence reads 2.5e-4. Three more fixed here: the LM trial margin is 2× not 3× (a stage's last iteration tried up to 9), TRF's per-iteration margin is asserted at 1.5× since 2.2× was measured on one platform, and the window polish now fails if it does not settle (all settle today). Declined: sharing the three caches of the same protocol fits across modules, which moves tests between xdist groups and so changes the longest group.
+
+*Generality* (the `generality-review` judge, fresh context, on every row in `tests.audit_delta`'s list; its sections unedited but for heading levels, the author's answer under each weak verdict):
+
+**Item 1a. `rietx.optimize.least_squares.NFEV_PER_ITERATION` and `rietx.schemas.plan.StageSpec:max_iter` (unaudited → invariant)**
+
+**Weak.** The case for invariance is strong on the shipped schedule. Under `intermediate_ftol=None`, a setting callers can choose, the margin is 1.24x and the budget fired once, so the unconditional label claims more than was measured. (`intermediate_ftol=None` converges every stage to 1e-9. The root CLAUDE.md says goldens declare it, and B7, the intermediate-tolerance class still awaiting a ruling, could make it the default.)
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the stage budget is max_iter x 4 evaluations" (`_audit.py:1573`); "caps evaluations ... never iterations" (`:2250`) | It stops a stage after 400 residual evaluations. Neither driver counts iterations: one stage ran 110 iterations at max_iter 100 (test docstring, `tests/test_budget_and_tolerance_invariance.py:42-46`). | agrees |
+| 2. Kind | max_iter row: `ambiguity=1`; NFEV row has none | Kind 1 (every refiner stops a runaway), as long as a converging fit never reaches the cap. | agrees |
+| 3. Case against acting | "every stage at 1e-9 leaves LM 1.24x, and a cell walking unheld bound it once" (`:1573`) | Under `intermediate_ftol=None` on cpd-1a with zircon (a phase the sample lacks), `lines_axial` spent 400 of 400 evaluations and reported `STAGE_MAX_ITER`. The next stage converged at 323 of 400. Nobody measured whether the final answer depends on the budget there. A single all-free stage at 1e-9 (the shape `run_stage` runs) used 107 evaluations: 3.7x, with no test. | the 1.24x is disclosed but the tier does not condition on it |
+| 4. Case for acting | 8.2x (LM) and 8.5x (TRF) worst over nine configurations; the answer is bit-identical at max_iter 25 under both solvers | Confirmed in the test: margins asserted at 4x on evaluations and 1.5x on the per-iteration rate, plus a bit-identical refit at a quarter of the budget, both solvers. | strong on the shipped schedule |
+| 5. Tier and test | invariant, B11 ruling (`rulings.md:61-62`) | `test_a_converging_fit_stays_inside_every_budget` and `test_the_answer_is_the_same_with_the_evaluation_budget_cut_to_its_margin`, both `slow`, so they run nightly and not per PR. Both fit only cpd-1a under its QPA protocol (the quantitative-phase-analysis plan). The nine-configuration figures are scratch measurements quoted in the docstring. | meets the record's test for this class, on one schedule |
+| 6. Families | "nine configurations from four laboratories" | SRM 660c (NIST), FAP, CPD (CSIRO), 11-BM NAC: four for the margin. One (cpd-1a) for the asserted invariance. Reference: the shipped-budget answer, bit for bit (verification only). | adequate for this class |
+| 7. What says it fired | none given in the row | `STAGE_MAX_ITER` (warning) and `StageResult.status` | exists |
+| Baseline | NFEV and max_iter removed from `UNAUDITED_BASELINE` | The list shrinks. | fine |
+
+Would change the verdict: the row's evidence states "on the shipped schedule (intermediate_ftol 1e-6)" and names B7's ruling as a re-measure trigger. Or a refit of cpd-1a with zircon under `None` at max_iter 100 and 200 gives the same final answer.
+
+> Author: done as the judge asked. Both rows now say the invariance is the shipped schedule's and that B7's ruling triggers a re-measure; `waiting.md` § B7 says the same.
+
+**Item 1b. `rietx.optimize.lm._INNER_MAX` (unaudited → invariant)**
+
+**Holds**, on a thin margin. The evidence for invariance is stronger than any case against it. The one comment this session changed overstates a guarantee.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "inner (Levenberg-Marquardt) iterations per outer iteration before giving up" (`lm.py:129`) | When the 18 damped trials run out, LM ends the stage as converged (`termination="no_descent"`, `status=1`, `n_stalled=18`; `lm.py:593-607`). | agrees |
+| 2. Kind | none on the row | Kind 1 while it never binds. | — |
+| 3. Case against acting | "at 4 the answer changes" (`:1638`) | The true margin lies between 2x (measured: 9 of 18) and 4.5x (a cut to 4 trials changed the answer). The new comment says "from λ = 0 the 18th trial runs at λ = 1e16 ... if nothing downhill exists there, none exists". That ignores the curvature gate: at λ ≥ 100 a curvature measurement can reset λ to its value at the start of the iteration (`lm.py:565-576`). So 18 trials need not reach 1e16. A cap that fires then reads as convergence. | comment overstated; behaviour measured fine |
+| 4. Case for acting | "an iteration that took a step tried at most 6 damped trials and a stage's last iteration up to 9 (2.0x)"; bit-identical at 9 | Confirmed: `test_the_answer_is_the_same_with_lm_trials_cut_to_their_margin` and the 2x margin assertion. No stage ended on `no_descent` in nine configurations. The precedent `FIRST_RUNG_FACTOR` was kept at 2.3x. | holds |
+| 5. Tier and test | invariant, B11 | The two tests above (slow). TRF has no such loop, as the grounds say. | holds |
+| 6. Families | nine configurations, four labs | Same as 1a. In the test, cpd-1a sits at 6 trials against a limit of 9. | adequate |
+| 7. What says it fired | none given | `n_stalled` and `termination` on the solver outcome. The stage still reads "converged". I did not check whether `StageResult` carries `n_stalled`. | weak record |
+
+Would change the verdict: a configuration whose stepping iteration needs 9 or more trials. Separately, the comment should say that λ can be reset below 1e16 by the curvature gate.
+
+> Author: the comment now says the curvature gate can reset λ, and that a cap that fires reads as convergence (`no_descent`).
+
+**Item 2. `rietx.model.forward._BASES_CHUNK_ROWS` and `rietx.optimize.blocked._DENSE_EIGEN_MAX` (tier 3 → invariant)**
+
+**Holds** for both. Each has an identity test that was made to fail once. No case against was found beyond a measure-zero edge for the eigen-switch.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | chunking of the derivative bases (`:1312`); dense eigensolve against Lanczos (an iterative solver for the largest eigenvalue) for \|λ\|max, which "only places the pseudo-inverse cut" (`:1548`) | Both are internal splits of the computation. | agrees |
+| 3. Case against acting | none stated | `_BASES_CHUNK_ROWS`: none found. No row reads another, so identity holds by construction. The test switches the compiled tier off (module fixture, lines 55-57), so `tchz_pv` does reach the chunk loop. `_DENSE_EIGEN_MAX`: an eigenvalue within 1e-6 relative of the cut would be discarded on one side of the switch and kept on the other. The test asserts that no eigenvalue sits there (`test_parametric_series.py:1112`). The measured gap is 2.4e10x the cut. | negligible |
+| 4. Case for acting | bit-identical at 1, 7, 128 and 4096 rows, tchz_pv and voigt; \|λ\|max agrees to 3.7e-14, esds bit-identical | Confirmed in `test_the_fcj_chunk_size_leaves_every_plane_bit_identical` and `test_the_eigenvalue_switch_moves_only_the_cut` (random and library cases, 83-84 and 204 columns). | holds |
+| 5. Tier and test | invariant, B10 option 2 | the tests above | holds |
+| 6. Families | n/a | Identity claims; families are not required. | n/a |
+| 7. What says it fired | n/a | Nothing fires. | n/a |
+
+Would change the verdict: a real fit with an eigenvalue within the Lanczos tolerance of the cut.
+
+**Item 3. `rietx.model.forward.WINDOW_MIN_DEG` and `rietx.schemas.plan.StageSpec:window_slack_deg` (tier 3 → 1)**
+
+**Weak.** The test bounds in-stage movement only from starts near each protocol's answer. The constant's own comment claims a wider domain, and the margin is 1.4x.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the room a peak has to move within one stage" (`:1305`) | The comment at `forward.py:197-200` claims cover for "zero-shift, displacement and the cell" moving a peak within a stage. | — |
+| 3. Case against acting | none given | The cold start tested is the zero 0.1° off. NAC is excluded from the cold start (test docstring lines 70-73). No start has a cell off its answer. My arithmetic, not run: a literature cell 0.3 % off moves a 120° peak about 0.6°, twice the slack (2·tanθ·Δd/d). A solid solution or a structure from another temperature is a common first fit. Past the slack, the frozen window clips the peak for that stage, and nothing reports it. "Slack 0 and 1 deg move nothing" was measured at the converged tolerance (5e-5), where windows are wide. It says nothing about the shipped 2e-2 windows. | substantive |
+| 4. Case for acting | largest move 0.21° over 7 cells, warm and cold (`:1305`) | Confirmed: `test_window_min_deg_covers_every_stages_movement`, made to fail at 0.1. The next stage recompiles, so a clip affects the path, not necessarily the final answer. That last point is unmeasured. | real but narrow |
+| 5. Tier and test | tier 1 under B10 ("a test bounds its error over the claimed domain") | The test covers the starts it ran, not the domain the comment states. `window_slack_deg`: `test_a_stage_without_window_slack_compiles_the_window_min_deg_windows` shows `None` is the constant bit for bit, so its inheritance holds. | weak |
+| 6. Families | SRM 660c, FAP, cpd-1a, NAC | Four labs and instruments. The reference is the start-of-stage peak position (verification). | adequate in count, narrow in starts |
+| 7. What says it fired | none given | none found. A peak leaving its window mid-stage is silent. | none |
+
+Would change the verdict: a cold start with the cell 0.3-1 % off on two families shows the final answer within the 0.1 plain-esd bar (plain esd: without the Bérar-Lelann inflation). Or the comment narrows its claim to zero and displacement.
+
+> Author: both rows back to tier 3, the evidence naming the untested cell start and the silent clip; the cold start with the cell off is owed with the interval and width-grid tests.
+
+**Item 4a. `rietx.model.geometry.CONTACT_MAX_ANG` (tier 3 → 1, "a report scope the output states")**
+
+**Weak.** The radius also cuts bonds that the module's own criterion calls bonds, and no note says so. The grounds' "exact disclosure beyond it in GeometryTable.notes" is not true for this row.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the contact search is complete within 3.5 A" (`:1331`) | The neighbour search itself stops at 3.5 Å (`geometry.py:309, 322`), so bonds beyond 3.5 Å are never found. Yet the docstring at `geometry.py:103` says "Bonds and angles are uncapped — chemistry bounds them". | broader than stated |
+| 3. Case against acting | none given | A refiner of a heavy-cation halide would dissent. With Cordero radii (recalled: Cs 2.44, Cl 1.02, I 1.39) plus the 0.4 Å slack, Cs–Cl at about 3.57 Å in CsCl and Cs–I in CsPbI₃ are bonds by the criterion but lie beyond 3.5 Å. So Cs gets no bonds, angles or coordination number. The only disclosure is `GeometryTable.contact_max`. No note fires. I derived this from the code and recalled cells; I did not run it. | substantive |
+| 4. Case for acting | tests assert completeness within 3.5 Å in an unreduced cell | Confirmed: `test_the_contact_search_is_complete_in_an_unreduced_cell` (a β = 150° cell, checked against brute-force enumeration). Nothing downstream acts on the table: report, CIF export and GUI only. | holds within its scope |
+| 5. Tier | tier 1, "a report scope" | `generality.md` § The rule has no "report scope" class. 3.5 Å is rietx's own choice ("short enough that the row count stays readable", `geometry.py:98`), so it is not physics or arithmetic. The maintainer should rule on the new category. | not tier 1 as written |
+| 6. Families | tests/data structures | none relevant | — |
+| 7. What says it fired | "GeometryTable.notes" | Only `contact_max` on the table. No note fires. | grounds misstated |
+
+Would change the verdict: the search radius rises to the largest bond criterion for the phase's species, or a note counts the criterion-bonds beyond 3.5 Å. Then "report scope" holds.
+
+> Author: back to tier 3 with the bond cut in its evidence; the category is the fifth round's Q6, and the bond cut is a defect for the next session.
+
+**Item 4b. `rietx.model.geometry.MAX_ASYM_ATOMS`**
+
+**Weak.** The skip is disclosed, but 200 has no cost measurement and the caller has no way to override it.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 3. Case against acting | none given | `geometry_table` takes no limit argument, so a caller with a phase over 200 asymmetric atoms (a Z' > 1 pharmaceutical with hydrogens) cannot get McCusker §11's distances (the 1999 Rietveld guidelines' call for bond lengths and angles) at all. | dissenter nameable, rare |
+| 4. Case for acting | "a phase past it is skipped and GeometryTable.notes says so"; "tests/data reach 32 atoms" (`:1338`) | Disclosure is confirmed by `test_a_phase_too_large_to_search_says_so`. The 32-atom figure shows the cap is never exercised. It does not justify 200. The docstring's "a minute spent" (`geometry.py:113`) is not measured. | weak |
+| 5. Tier | tier 1, report scope | as 4a | needs a ruling |
+| 7. What says it fired | `GeometryTable.notes` | Confirmed. | holds |
+
+Would change the verdict: a timing of the search at 200 atoms, or a caller override.
+
+> Author: back to tier 3, the evidence saying the time at 200 is unmeasured and a caller cannot raise it.
+
+**Item 4c. `rietx.model.geometry.MAX_CONTACTS_PER_ATOM`**
+
+**Holds.** It keeps the nearest contacts, never bonds, and counts exactly what it drops.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 3. Case against acting | none given | none found. Short contacts are the nearest, so they are never dropped. | — |
+| 4. Case for acting | "the note counts exactly what the cap drops and the kept contacts are the nearest" (`:1345`) | Confirmed by `test_the_contact_cap_note_counts_exactly_what_it_dropped`. Bond counts are unchanged under the cap. | holds |
+| 7. What says it fired | `GeometryTable.notes` | Confirmed. | holds |
+
+Would change the verdict: a consumer that reads contacts as complete.
+
+> Author: kept at tier 3 beside its two siblings, since its tier 1 rested on the same uncreated category (Q6).
+
+**Item 5. The fourteen settings kept or landed at tier 3 with a failing domain test**
+
+**Holds** on keeping tier 3: every row states what failed and against what. The bar is defensible in kind and weak as calibrated: it is pinned to the most precise patterns on disk, not to the data being fitted, and its 0.1-esd answer half is looser than the bars this WP uses elsewhere.
+
+**The bar** ("a tenth of σ/peak at the strongest peak of FAP.XRA and 11BM_NAC"; per point σ for the window rows):
+
+- **For it.** Numerical error well under the counting noise, checked twice: at fixed parameters and at the answer. One anchor ties it to answers: SRM 660c's (100) at 6.3e-4 of the peak, with a 512-node refit moving no parameter past 0.04 esd (`test_lab_instrument.py:497-500`). The window tests use each point's own σ, which adapts to the data.
+- **Against it, first.** The FCJ bar is fixed at FAP.XRA's 19 693 counts (`test_lab_instrument.py:491-495`). FCJ is the Finger-Cox-Jephcoat axial-divergence asymmetry. A pattern with ten or a hundred times those counts, routine on a strip detector (recalled, not measured here), makes the lab bar 0.3-1σ of that pattern's own noise. The bar should either be written relative to σ/peak, as the window test does, or state the count ceiling it covers.
+- **Against it, second.** The answer half (0.1 plain esd) is 3-10x looser than the bars set in this WP for the same question: B3's seed test at 0.01 esd and B7's tolerance test at 0.03. At 0.03, the FCJ anchor's own 0.04 esd would fail. This is rulings.md's fifth-round Q2, and it decides this class too.
+- **Against it, third.** "Adds 1 % to that point's χ²" is a per-point argument. A shape error spans a whole peak with one sign, so it biases parameters more than independent noise would. The answer test is what catches that, and for the FCJ constants it ran on one family.
+
+| Row | What the evidence states | Gap I found |
+|---|---|---|
+| `fcj.MAX_NODES` (`:1417`, unaudited → 3) | lab fails 0.21-0.26 of the peak below about 6.2° 2θ; synchrotron fails at η 0.5 and 1 | The synchrotron figures (4.2e-4 and 9.9e-4 at 2°) and the 512-node reference are in the test, not the row. Lab data rarely reach below 6°. `approved` carries B10's date, though this row joined the class this session. |
+| `fcj.MIN_NODES` (`:1425`) | passes lab η ≤ 0.5; fails lab η 1 (7.9e-4) and synchrotron | `waiting.md:90` says any value ≤ 8 is inert, since `max(n//2, 4)` floors every reflection at 8 images. The row should say that only a rise changes anything. |
+| `fcj.NODES_PER_FWHM` (`:1433`) | 2.4e-3 and 5.6e-3 lab, every η synchrotron | none |
+| `fcj.SKIP_EXTENT_FWHM_RATIO` (`:1442`) | 9.5e-3, error ≈ 0.48 × extent/FWHM | none; the bound is analytic |
+| `forward.WINDOW_AREA_TOL` (`:1296`) | 0.71-2.15σ, 0.17-0.97 esd, four families; 1e-3 passes at 1.2-3.5x fit time | Omits `waiting.md:98`'s counterpoint (FAP χ² 110 higher with converged tails). Omits the constant's earlier validation against weighed QPA truth (`forward.py:186-188`). Omits that GSAS-II drops about 0.6 % of a Lorentzian (`rulings.md:176-179`). |
+| `forward.REFLECTION_MARGIN_DEG` (`:1288`) | 0.124 and 0.119σ, 0.103 esd | Fails by 1.2x and 1.03x. Cost of 5° not stated. |
+| `forward.AXIAL_SIZING_FLOOR` (`:1256`) | 0.27 of the peak maximum, 19.5 % area | Omits the answer effect the test records: the two floors' fixed points differ by 0.16 esd at χ² 0.008 apart (`test_lab_instrument.py:689-693`). The 0.27 is transient, since the next stage recompiles. |
+| `forward.MAGNETIC_SIZING_FLOOR` (`:1265`) | 3.2-4.1 % of a peak, 0.031 esd preset, "one family" | none |
+| `least_squares.FD_STEP` (`:1561`) | 23 configurations within 2.5e-4; fails on the variance floor, "1e-8 does not cure it" | The failure belongs to the clamp, not the step. On its smooth domain the step passes, so tier 1 is arguable once WP-1467 (the open fix for that clamp) lands. Keeping tier 3 now is honest. |
+| `caglioti._MIN_GAMMA_G2` (`:1399`) | binds only on SRM 660c's and cpd-1a's answers; 1.2 esd on U under a 1e-10 floor | "4.4e-4 ... and 1.6e-4 ... within the lab and synchrotron bars" means respectively (the test's lines 349-352). Read the other way, 4.4e-4 fails the synchrotron bar. Add "respectively". |
+| `origin.A5_CLIP` (`:1361`) | 1.40 % against 1 %, 1200 synthetic matrices | The bar (an esd's sampling error at N − P = 5000) is defensible. NAC's N − P of about 22 000 would set it near 0.5 %. |
+| `preferred_orientation.TEXTURE_SPHERE_SAMPLES` (`:1385`) | misses by 2.0e-3 to 7.9e-3 against "the digit TEXTURE_NOT_POSITIVE prints" | Wrong frame. The sampled minimum feeds a guard (`forward.py:1520`, "a record and a guard read it"), and sampling can only miss a dip, never invent one. So the question is how deep a dip can stay unreported (up to 7.9e-3), not the printed digit. `TEXTURE_NOT_POSITIVE` is the warning that the texture's pole density has gone negative somewhere. |
+| `restraints.MIN_IMAGE_SHELL` (`:1466`) | misses 72 of 2518 pairs within 4 Å at β 135-150° | A defect with a named fix. The row does not say whether any missed pair lies at bond length (under about 2.5 Å). |
+
+Would change the verdict on the bar: stating it relative to each pattern's own σ/peak, and a ruling on Q2 that sets one esd bar across B3, B7 and B10.
+
+> Author: corrected in the rows: "respectively", `MIN_NODES`'s inert range, the texture frame (an unreported dip), `WINDOW_AREA_TOL`'s counterpoint and GSAS-II's 0.6 %, the axial floor's answer effect. The bar's calibration joins Q1 and Q2 for the maintainer. Not done: whether a missed restraint pair lies at bond length, which the image-shell fix makes moot.
+
+**Item 6. `rietx.strategy.suggest.SUGGEST_SEED_STEPHENS` (tier 3, evidence updated)**
+
+**Weak.** The new evidence measures the plan's solve seed, not the suggestion probe this row governs. Neither new comparison sets 1000 ppm against a distinct non-zero start.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "= lab_sample_refine's strain_seed" (`:2216`) | The constant is the start `Refinement.suggest` uses to score a Stephens candidate (`refine.py:3595`; Stephens is the anisotropic-strain model). The solve seed is a separate hand row (`:2271-2273`). `waiting.md:23-25` leaves `SUGGEST_SEED_ROUGHNESS` unaudited for exactly this reason: whether `suggest`'s ranking moves with the start. | evidence answers a different seat |
+| 3. Case against acting | "brucite tests only a near-zero start" | Brucite compares 1000 ppm against 0.35 ppm. That is the square-root singularity, the forced case the grounds already cite. Corundum compares 903 against 1000 ppm, nearly the same start. Only WP-1467's pattern 41 compared a distinct start (the previous stage's strain), and lost. | the second family does not discriminate |
+| 4. Case for acting | "1000 ppm reached the lower or equal minimum in all three comparisons" | True as stated. 800 ppm agreed to 0.01 esd on brucite: local robustness. GSAS-II's isotropic 1000 µstrain is a Reset button, not a default (`1467:217`). | weak |
+| 5. Tier | tier 3, B3 (`rulings.md:49-51`) | B3 asked for "a second dataset compares the starts". CPD brucite and CPD corundum come from one lab and one instrument. | partly met |
+| 6. Families | WP-1467 pattern 41; CPD | Two at most. The reference is the lower χ², which is not independent of the fit. | weak |
+| 7. What says it fired | none given | It is a probe start, so nothing fires. | n/a |
+
+Would change the verdict: the suggestion's ranking of the Stephens candidate compared at 1000 ppm and at a distinct non-zero start (such as the phase's isotropic strain on pattern 41, or patterns 0 and 16), as WP-1467's seed task asks.
+
+> Author: the row now says these are the solve seed's measurements and the probe's start is unmeasured, as `SUGGEST_SEED_ROUGHNESS`'s is; it stays tier 3.
+
+**The rows left at unaudited**
+
+**Holds** for all of them. Each waits on a measurement or a ruling it names. Two notes:
+
+- **`INTERMEDIATE_FTOL` and its three siblings.** The hold flip already refutes invariance under any esd bar. At 1e-6 the absent zircon is held; at 1e-9 it is not and its cell walks (`waiting.md:41-46`). So Q2 decides only between tier 3 and demotion. The waiting note should say that. Item 1a's budget invariance also rests on this ruling: the 1.24x margin is the `None` schedule's. If that becomes the default, the three B11 rows need re-measuring.
+- **`SUGGEST_SEED_ROUGHNESS`.** It is left unaudited because the probe start was not measured. `SUGGEST_SEED_STEPHENS` (item 6) has the same gap and sits at tier 3. The two should be treated alike: the Stephens row's evidence should say the probe is unmeasured.
+
+`StageResult.seeded` (one literal seeds both Suortti's b, which is invariant, and Pitschke's c, which is not) and `HARMONIC_WEIGHT_SEED` (one synthetic family, failing at 0.01 esd by the plan's mechanism) wait correctly on Q3 and Q2. No name was added to `UNAUDITED_BASELINE`. Four were removed, so the list shrank.
+
+Would change this: a Q2 ruling, after which the `INTERMEDIATE_FTOL` group has nothing left to wait on.
+
+> Author: `waiting.md` § B7 now says both.
+
+*Decided on the maintainer's behalf.* The domain tests' bar: a tenth of σ at a point, or of σ/peak at the strongest peak of FAP (lab) and 11-BM NAC (synchrotron), which adds 1 % to that point's expected χ²; a strict bar, chosen so a pass means the setting is invisible in the data. No constant changed, even where the measured fix was cheap, because each moves every fit that reaches it.
+
+*Gotchas.* LaB6 under the NIST protocol has two minima 46.7 χ² apart, nearly S/L ↔ H/L mirrors, and LM and TRF land in different ones; its polish fixed points are not unique either. A comparison of two arms should polish both from one common start. An odd FCJ node count gives the same answer as one fewer (n//2 a segment). The worktree guard refuses a heredoc whose text it cannot parse; write the script to the scratchpad and run it.
+
+*Next.* (1) The fifth round's answers, then their builds: each constant change moves every fit that reaches it, so goldens are re-pinned in the same commit, and `docs/docs/theory/profiles.md:511` hard-codes the FCJ clamp "[8, 64]". (2) Two defect fixes needing no ruling: the restraint image shell sized by `geometry._shell(g, d)`, and the bond search freed from the 3.5 Å contact radius (or a note counting what it cuts). (3) B14's lifts with the ~50-guard list to the judge. (4) The interval and width-grid domain tests. (5) B7 and B9 re-measured once the window ruling lands, since window truncation is part of the frozen-compile scatter.
 
 - **2026-10-20** — Split at the maintainer's request after the 2nd session's handover. The second pass (three families per surviving tier-3 threshold) moves to [2017](2017-the-second-pass-every-tier-3-threshold-on-three-families.md) and the clash table's 38 pairs to [2018](2018-the-clash-table-measured.md), each with the context this file held. This WP now closes on two sessions' work: the owed tests (two-start, invariance, margin, domain, the FCJ node cap), then B14's lifts with the ~50-guard list to the judge, with the goldens and `test_compare_ui` rows on the way. The maintainer's estimate question was "how many more sessions in 2002": about five or six unsplit, two now.
 

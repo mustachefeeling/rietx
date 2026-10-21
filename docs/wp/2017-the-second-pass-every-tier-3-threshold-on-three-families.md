@@ -66,6 +66,10 @@ set (weighed compositions), 11-BM NAC and SRM 660c, the FAP suite, the Durham tu
 under `~/rietx-local-data` (`python -m tests.local_data`), the magnetic fixtures (Cr₂WO₆,
 LaMnO₃). A family is a specimen type with its own instrument, not a pattern.
 
+### Inherited
+
+- **From WP-2002 (2026-10-21, PR #1085).** (1) The absent-phase hold flips with the intermediate tolerance: cpd-1a with zircon declared (a phase the sample lacks), LM, the QPA protocol. At `intermediate_ftol` 1e-6 the last stage holds nine zircon structural paths and `PHASE_UNCONSTRAINED` fires; at 1e-9 nothing is held, the zircon cell walks, and `lines_axial` hits its 400-evaluation budget. Zircon's scale sits near 2σ in plain esd, by `PHASE_SUPPORT_SIGMA`'s 3σ, so it is a case for that threshold's three families. (2) The CPD QPA protocol (`qpa_plan`) frees instrument and sample width terms that pair exactly (x with `lor_size`, y with `lor_strain`, zero with displacement), so the start picks the split; read those rows as one sum. (3) A staged plan's answer carries a path-dependent scatter of up to about 0.16 esd (0.5 in a background term) from the last stage's frozen compile, and one extra stage recompiled at the answer removes most of it. A refit on either side of a threshold should polish both arms from one common start, or it measures the scatter. Measurements in `docs/wp/2002-batch/waiting.md` § B7 and § B8 and B9.
+
 ## Non-goals
 
 - New actions or new thresholds. A measurement that suggests one goes to the maintainer.

@@ -49,7 +49,10 @@ at 1e-9). "Plain esd" is `stderr_uncorrected`; paths `FLAT_DIRECTION` or
 No test written. All five rows (`INTERMEDIATE_FTOL`, `PlanSpec:intermediate_ftol`,
 `StageSpec:ftol`, `StageResult.ftol`, and the hand row `run_least_squares:ftol`) wait on the
 maintainer: what bar a staged plan's invariance test uses (the same question as B9's), and
-the batch's fallback if it fails (tier 3, demoted to kind 3).
+the batch's fallback if it fails (tier 3, demoted to kind 3). The hold flip already refutes
+invariance under any esd bar, so the ruling decides only between tier 3 and demotion. And
+B11's three budget rows are invariant on the shipped schedule: if this ruling changes the
+default tolerance, they are re-measured (their margin under 1e-9 everywhere is 1.24x).
 
 ## B8 and B9: limits (the size floor, March r, the harmonic and extra-peak ceilings landed with the limits lane)
 
@@ -99,12 +102,12 @@ The window rows, measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC (`te
 - `REFLECTION_MARGIN_DEG` 0.5° fails on FAP and cpd-1a (0.12σ, 0.10 esd); 5° is bit-identical to 20°. The coherent fix generates reflections out to the largest window half-width at the range edges (`forward.py:3733-3734`).
 - `AXIAL_SIZING_FLOOR` 0.02 fails for a stage that frees S/L and H/L from zero and reaches the typical 0.05 (0.27 of the peak maximum, 19.5 % of an area dropped); 0.05 passes at 1.25-1.8× the fit time, mostly because the floor also applies to every positive ratio below it (`forward.py:3693-3696`), which a separate refine-from-zero floor would avoid.
 - `MAGNETIC_SIZING_FLOOR` 0.1° drops 3.2-4.1 % of a magnetic peak at the planted widths; the preset's answer moves 0.031 esd. Raise it to ≥ 0.3, or size from the width's bound as `_compile_extra_peaks` does (`forward.py:3910-3919`).
-- Landed: `WINDOW_MIN_DEG` and `StageSpec:window_slack_deg` at tier 1 (largest move 0.21° against 0.3°, so a 1.4× margin), `_BASES_CHUNK_ROWS` and `_DENSE_EIGEN_MAX` invariant.
+- Landed: `_BASES_CHUNK_ROWS` and `_DENSE_EIGEN_MAX` invariant. `WINDOW_MIN_DEG` and `StageSpec:window_slack_deg` stay tier 3: the largest move from starts near each answer is 0.21° against 0.3° (1.4× margin), but a cell 0.3 % off its answer moves a 120° peak about 0.6°, untested, and a peak leaving its window is silent (the generality judge, 2026-10-21).
 - Found beside them: windows are sized from start-of-stage widths, so a stage that widens peaks drops 3.0-6.5 % of an area by its end (LaB6 `profile`, cpd-1a `profile` and `sample_broadening`); every final stage holds the 2 % bound. No constant claims this; strict xfails record it.
 
 Eight more, measured 2026-10-21 (each row's evidence has the numbers):
 
-- The three geometry caps (`CONTACT_MAX_ANG`, `MAX_ASYM_ATOMS`, `MAX_CONTACTS_PER_ATOM`) landed at tier 1, as a report scope: a domain test was the wrong frame for a cap on what a table lists, and the tests assert completeness within the scope and exact disclosure beyond it.
+- The three geometry caps (`CONTACT_MAX_ANG`, `MAX_ASYM_ATOMS`, `MAX_CONTACTS_PER_ATOM`) stay tier 3. The lane judged them a report scope, which the tests support for the contact count; but the record's rule has no such class, so that is a question for the maintainer. And the 3.5 Å radius also bounds the bond search, so a bond the module's own criterion counts past it (Cs–Cl near 3.57 Å) is never found, with no note, while the docstring calls bonds uncapped: a defect.
 - `FD_STEP` and `_MIN_GAMMA_G2` pass on the smooth domain and at the FAP and NAC answers, but the SRM 660c and cpd-1a protocol answers end with high-angle reflections on the Gaussian-variance floor, where an FD column is 2.2e-2 off and a polish moves U 1.2 plain esd under a 5e-7 step or a 1e-10 floor, at χ² 0.25 % worse. A defect of the clamp the solver leans on, not of either constant (forwarded to WP-1467); both stay tier 3.
 - `A5_CLIP` fails by a little (1.40 % against 1 %); 1e-4 passes at no measured cost.
 - `TEXTURE_SPHERE_SAMPLES` fails at every order (2.0e-3 to 7.9e-3 against 1e-3); 32 000 samples pass at 10× the cost, or a local polish at any order.

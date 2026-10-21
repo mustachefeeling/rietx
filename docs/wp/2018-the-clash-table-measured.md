@@ -31,6 +31,10 @@ went; Le Bail and Pawley now refine the emission lines; the package's own trials
 `phase_support_sigma` and `correlation_guard`. Re-derive each pair's file:line before
 measuring, and drop a pair one of these changes dissolved, saying why.
 
+### Inherited
+
+- **From WP-2002 (2026-10-21, PR #1085).** C20 measured: the Suortti roughness seed, 0.3 against 0, leaves Biso, the scale and b within 2.7e-3 of an esd on five lab patterns from three laboratories (`tests/test_seed_invariance.py`), but Pitschke's c under the same literal is not invariant (zincite lands in the turned-over regime from 0). C18 measured in part: the absent-phase hold flips between `intermediate_ftol` 1e-6 and 1e-9 on cpd-1a with zircon declared, under LM (`docs/wp/2002-batch/waiting.md` § B7). Polish both orderings to a fixed point from one common start: LaB6's polish fixed points are not unique.
+
 ## Non-goals
 
 - Fixing a clash found here. A fix is the owning audit's, or a ruling for the maintainer.

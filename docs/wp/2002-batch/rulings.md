@@ -165,6 +165,30 @@ briefs are in the session transcript; the measurements behind them are summarise
   B10's class ruling of 2026-10-19 applies (tier 3 with a domain test owed), and their
   `approved` date is that ruling's.
 
+## Fifth round: asked 2026-10-21, from the owed tests
+
+The 3rd session ran the owed tests and asked five questions. The briefs are in the session
+transcript and the PR (#1085); the measurements behind each are in `waiting.md`, by class.
+
+- **Q1. Numerical settings that failed their domain test**, as one class: the peak window's
+  area tolerance (2 %), the four FCJ node-rule constants, the reflection-list margin, the
+  axial and magnetic window-sizing floors, the origin-fix clip and the texture sphere
+  sampling. Each has a measured passing value and a cost (`waiting.md` § B10). Practice
+  checked: GSAS-II 5.8.4 computes each peak over 50 FWHM below and 75 above its position
+  (`GSASIIpwd.getWidthsCW`), about 0.6 % of a pure Lorentzian's area dropped, and
+  recomputes that range at every evaluation.
+- **Q2. The bar for an invariance test across a staged plan** (B7's tolerance, B9's Biso
+  and harmonic seed): the last stage's frozen compile carries a scatter of up to 0.16 esd,
+  part of it the window truncation Q1 decides.
+- **Q3. Pitschke's roughness seed**, which shares Suortti's 0.3 and is not start-invariant.
+- **Q4. Biso's and the scale's esds when roughness ends switched off**, which depend by
+  up to 4.4x on which off point the solver stops at.
+- **Q5. The TCHZ width box** (the fourth round's "keep until next session"): its ceilings
+  are chosen limits on physical quantities, and GSAS-II and FullProf bound none.
+- **Q6. A class for a cap on what a report lists** (the three geometry caps). The record's
+  rule has none, so they stay tier 3. Beside it, a defect: the 3.5 Å contact radius also
+  bounds the bond search, so a bond past it (Cs–Cl near 3.57 Å) is never found, unnoted.
+
 ## Still open (first round's list, kept for the record)
 
 1. B4: keep f, and report the textbook esd beside it?
