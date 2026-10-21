@@ -99,8 +99,9 @@ def test_a_hold_survives_reopening_the_project(tmp_path, pattern_file):
 
     # and it is still enforced, not merely remembered
     result = reopened.fit(plan=SHORT)
-    assert [s.blocked_by_hold for s in result.stages if s.blocked_by_hold] == \
-        [["phases.0.cell.a"]]
+    blocked = {s.name: s.blocked_by_hold for s in result.stages if s.blocked_by_hold}
+    # the closing stage frees every glob the plan freed, the cell's too
+    assert blocked == {"cell": ["phases.0.cell.a"], "closing": ["phases.0.cell.a"]}
     assert reopened.refinement.structure.phases[0].cell.a.value == \
         project.refinement.structure.phases[0].cell.a.value
 
@@ -729,7 +730,7 @@ def test_settings_drive_the_convenience_verbs(tmp_path, pattern_file):
                       two_theta_limits=(4.0, 20.0))
     result = project.fit()
 
-    assert [s.name for s in result.stages] == ["scale_bkg"]
+    assert [s.name for s in result.stages] == ["scale_bkg", "closing"]
     assert project.refinement._two_theta_limits == (4.0, 20.0)
 
 
@@ -833,7 +834,7 @@ def test_reopen_mid_history_resumes_at_head(fitted_project, pattern):
     assert result.node_id == project.history.head
 
     reopened = rx.Project.open(project.path)
-    assert len(reopened.history) == 1 + len(SHORT.stages)
+    assert len(reopened.history) == 1 + len(SHORT.run_stages())
     assert reopened.refinement._head_id == project.history.head
     # the working state is the fitted one, not the as-created one
     fitted_a = project.refinement.fitted_structure.phases[0].cell.a.value

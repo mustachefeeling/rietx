@@ -222,8 +222,10 @@ def test_a_cancelled_joint_stage_is_abandoned(two_patterns):
     # the same two stages run to completion land exactly where the cancel left
     structure, instruments = perturbed_inputs()
     done = MultiHistogramRefinement(structure, instruments)
+    # the declared stages' working state; the closing stage is tests/test_closing_stage.py's
     done.fit(two_patterns, plan=RefinementPlan(stages=plan.stages[:2],
-                                               intermediate_ftol=None))
+                                               intermediate_ftol=None,
+                                               closing_window_tol=None))
     for h in (0, 1):
         assert (ref.fitted_structures[h].model_dump()
                 == done.fitted_structures[h].model_dump())

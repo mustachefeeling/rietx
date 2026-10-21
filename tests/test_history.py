@@ -42,11 +42,11 @@ def fitted(pattern):
 def test_records_a_node_per_stage(fitted):
     ref, result = fitted
     tree = ref.history
-    # root + one node per stage
-    assert len(tree) == 1 + len(SHORT.stages)
+    # root + one node per stage the fit ran, the closing stage included
+    assert len(tree) == 1 + len(SHORT.run_stages())
     assert tree.root.action.kind == "root"
     assert [n.action.name for n in tree.nodes.values() if n.action.kind == "stage"] \
-        == ["scale_bkg", "cell"]
+        == ["scale_bkg", "cell", "closing"]
     assert result.node_id == tree.order[-1]
     assert result.tree_id == tree.header.tree_id
     # every fitted node carries its own agreement indices
@@ -191,7 +191,7 @@ def test_branching_creates_independent_leaves(pattern):
 
     leaves = tree.leaves()
     assert len(leaves) == 2, [n.id for n in leaves]
-    assert {n.action.name for n in leaves} == {"cell", "profile_w"}
+    assert {n.action.name for n in leaves} == {"closing", "profile_w"}
     assert tree.children(mid.id).__len__() == 2
     # recording a sibling must not disturb the node it branched from
     assert mid.model_dump_json() == frozen
@@ -433,9 +433,9 @@ def test_branch_overlay_plot(tmp_path, pattern):
 
     structure, ins = perturbed_models()
     ref = rx.Refinement(structure, ins)
-    ref.fit(pattern, plan=SHORT)
+    result = ref.fit(pattern, plan=SHORT)
     tree = ref.history
-    fork = [n for n in tree.nodes.values() if n.action.name == "cell"][0]
+    fork = tree[result.node_id]                  # the fit's answer, its closing stage
 
     # two plausible continuations of the same checkpoint: widen only W, or
     # free the whole TCHZ profile
@@ -519,9 +519,12 @@ def test_a_cherry_pick_replays_zero_le_bail_cycles_as_zero(pattern):
     assert ref.history[ref.history.order[-1]].action.lebail_cycles == 0
 
 
-def test_stage_node_without_seeds_renders_unchanged(fitted):
+def test_stage_node_without_seeds_renders_unchanged(pattern):
     """An unseeded stage's api_call keeps its pre-WP-1004 text exactly."""
-    ref, _ = fitted
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins)
+    # the declared stages' rendered call; the closing stage is tests/test_closing_stage.py's
+    ref.fit(pattern, plan=_with_settings(SHORT, closing_window_tol=None))
     node = ref.history[ref.history.order[-1]]
     assert node.action.api_call() == (
         "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=40))")
@@ -540,8 +543,9 @@ def test_a_cherry_pick_replays_the_plan_settings_the_stage_ran_at(pattern):
     replayed a stage run at 5σ, or with the hold off, at the default 3σ."""
     structure, ins = perturbed_models()
     ref = rx.Refinement(structure, ins)
+    # the declared stages' recorded settings; the closing stage is tests/test_closing_stage.py's
     ref.fit(pattern, plan=_with_settings(SHORT, phase_support_sigma=5.0,
-                                         correlation_guard=0.9),
+                                         correlation_guard=0.9, closing_window_tol=None),
             telemetry=False)
     picked = ref.history.order[-1]
     action = ref.history[picked].action
@@ -583,8 +587,9 @@ def test_a_node_written_before_the_plan_settings_replays_at_the_defaults(
     path = tmp_path / "old.jsonl"
     structure, ins = perturbed_models()
     ref = rx.Refinement(structure, ins, history=path)
+    # the declared stages' recorded settings; the closing stage is tests/test_closing_stage.py's
     ref.fit(pattern, plan=_with_settings(SHORT, phase_support_sigma=5.0,
-                                         correlation_guard=0.9),
+                                         correlation_guard=0.9, closing_window_tol=None),
             telemetry=False)
     lines = []
     for line in path.read_text(encoding="utf-8").splitlines():
