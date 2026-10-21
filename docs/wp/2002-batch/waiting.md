@@ -82,7 +82,7 @@ default tolerance, they are re-measured (their margin under 1e-9 everywhere is 1
   minimum on LaB6, 46.7 χ² below and nearly the S/L ↔ H/L mirror of the default's, moving u
   0.38 esd (WP-2012's interchange; the FCJ node count was measured and is not the cause); and a protocol holding an uncalibrated width holds it at
   this default, where x = 0 instead moves FAP's `lor_size` 0.69 esd at equal χ².
-- Hand rows with no seat until B14's lifts: `Atom:occ` (widened to no ceiling), `EmissionLine:weight` (widened), `Geometry:bounds` (the axial ratios widened; the position corrections widened to no bound on 2026-10-20, transparency keeping its physical floor of 0), `Instrument:zero_shift` (widened to no bound, 2026-10-20), `TCHZ_BOUNDS` and `TCHZ_BOUNDS_COARSE` (their U/V floors and ceilings are chosen, but WP-1312 ruled on 2026-09-11 that "the bound stays": a question for the maintainer).
+- Hand rows with no seat until B14's lifts: `Atom:occ` (widened to no ceiling), `EmissionLine:weight` (widened), `Geometry:bounds` (the axial ratios widened; the position corrections widened to no bound on 2026-10-20, transparency keeping its physical floor of 0), `Instrument:zero_shift` (widened to no bound, 2026-10-20), `TCHZ_BOUNDS` and `TCHZ_BOUNDS_COARSE` (ceilings removed on 2026-10-21, the fifth round's Q5, superseding WP-1312's "the bound stays"; the U and V floors are chosen and stay, the guard against a negative width at some angle under TRF; a project stored before keeps its own ceilings).
 
 ## B10: numerical settings with no domain test, and one undecided switch
 

@@ -173,7 +173,7 @@ def test_a_stored_min_of_zero_opens_with_the_floor():
     doc = Instrument.debye_scherrer(wavelength=WAVELENGTH).model_dump(mode="json")
     doc["profile"]["w"].update(value=0.0, min=0.0)
     w = Instrument.model_validate(doc).profile.w
-    assert (w.value, w.min, w.max) == (_MIN_GAMMA_G2, _MIN_GAMMA_G2, 1.0)
+    assert (w.value, w.min, w.max) == (_MIN_GAMMA_G2, _MIN_GAMMA_G2, TCHZ_BOUNDS["w"][1])
 
     # a value above the floor is kept, and only the bound moves
     doc["profile"]["w"].update(value=2.5e-5, min=0.0)

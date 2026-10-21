@@ -1377,16 +1377,19 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
     not a refinable parameter and not per-reflection — and consumes the *same*
     U,V,W,X,Y widths, so switching shapes never touches the parameter table.
 
-    **Every width is bounded, and which box depends on how the instrument was
-    built.**  The X-ray presets take :data:`TCHZ_BOUNDS` (U ≥ −0.05,
-    V ∈ [−0.5, 0.5]); :meth:`Instrument.constant_wavelength_neutron` takes
-    :data:`TCHZ_BOUNDS_COARSE` through :meth:`coarse` (U ≥ −0.5, V ∈ [−4, 4]);
-    an explicit ``Parameter(value, min, max)`` carries the caller's own.  X
-    and Y have a floor of zero in both boxes, because Γ_L is a width.  Some
-    programs hold these coefficients unbounded, so a solution read from
-    another program can sit outside the box: one with W < 0 lies outside both
-    boxes, so a comparison against it starts from W's floor rather than from
-    its value.
+    **Every width has a floor and none has a ceiling, and which floors depends
+    on how the instrument was built.**  The X-ray presets take
+    :data:`TCHZ_BOUNDS` (U ≥ −0.05, V ≥ −0.5);
+    :meth:`Instrument.constant_wavelength_neutron` takes
+    :data:`TCHZ_BOUNDS_COARSE` through :meth:`coarse` (U ≥ −0.5, V ≥ −4); an
+    explicit ``Parameter(value, min, max)`` carries the caller's own.  X and Y
+    have a floor of zero in both boxes, because Γ_L is a width.  The ceilings
+    went on 2026-10-21 (WP-2002, the fifth round's Q5): a chosen limit on a
+    quantity that stays physical, Y ≤ 1° capping the Lorentzian size near
+    8 nm at Cu Kα, where none of GSAS-II, FullProf, TOPAS, RIETAN-FP, MAUD or
+    EasyDiffraction bounds these coefficients by default (BGMN has none to
+    bound).  A solution read from another program can still sit under a
+    floor: one with W < 0 starts from W's floor rather than from its value.
 
     **W's floor is the Γ_G² clamp, not zero** (WP-1938 D7).
     :func:`~rietx.model.profiles.caglioti.gaussian_fwhm` takes
@@ -1480,8 +1483,8 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
         """Widths in the coarse-instrument box, :data:`TCHZ_BOUNDS_COARSE`.
 
         What :meth:`Instrument.constant_wavelength_neutron` builds: a CW
-        neutron diffractometer's lines are 0.2-2.5°, where the default box
-        is sized for a ~0.03° synchrotron line and caps ``w`` at 1 deg².
+        neutron diffractometer's lines are 0.2-2.5°, and its U and V can sit
+        under the default box's floors, sized for a ~0.03° synchrotron line.
         ``widths`` are values (``u=1.576``), each kept in this box.
         """
         unknown = set(widths) - set(TCHZ_DEFAULTS)
@@ -1498,22 +1501,23 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
 TCHZ_DEFAULTS: dict[str, float] = {"u": 0.0, "v": 0.0, "w": 1e-3, "x": 1e-3,
                                    "y": 0.0}
 
-#: The default refinement box per width coefficient, sized for a lab or
-#: synchrotron X-ray line.  Every X-ray preset builds these, so they are the
-#: numbers every X-ray fit's search box has always been, but for W's floor:
-#: the Γ_G² clamp since WP-1938 (:class:`ProfileTCHZ`), 0 before it.
+#: The default refinement box per width coefficient: floors only, sized for a
+#: lab or synchrotron X-ray line.  Every X-ray preset builds these.  W's floor
+#: is the Γ_G² clamp since WP-1938 (:class:`ProfileTCHZ`), 0 before it.  The
+#: ceilings (1 for U, W, X and Y, 0.5 for V) were removed on 2026-10-21
+#: (WP-2002, the fifth round's Q5).
 TCHZ_BOUNDS: dict[str, tuple[float, float]] = {
-    "u": (-0.05, 1.0), "v": (-0.5, 0.5), "w": (_MIN_GAMMA_G2, 1.0),
-    "x": (0.0, 1.0), "y": (0.0, 1.0)}
+    "u": (-0.05, math.inf), "v": (-0.5, math.inf), "w": (_MIN_GAMMA_G2, math.inf),
+    "x": (0.0, math.inf), "y": (0.0, math.inf)}
 
-#: The coarse-instrument box: what a constant-wavelength neutron line needs.
-#: Measured on the public APDW Co3O4 set (ILL D1B, λ = 2.52 Å; issue #276):
-#: its FullProf model has U = 1.576, V = -0.501, W = 0.475, outside the
-#: default box on two coefficients, and with these bounds it converges to
-#: U = 1.654 ± 0.051, within 5 % of that model.
+#: The coarse-instrument box: the floors a constant-wavelength neutron line
+#: needs.  Measured on the public APDW Co3O4 set (ILL D1B, λ = 2.52 Å; issue
+#: #276): its FullProf model has U = 1.576, V = -0.501, W = 0.475, with V under
+#: the default floor, and in this box it converges to U = 1.654 ± 0.051,
+#: within 5 % of that model.  Its ceilings of 8 went with the default box's.
 TCHZ_BOUNDS_COARSE: dict[str, tuple[float, float]] = {
-    "u": (-0.5, 8.0), "v": (-4.0, 4.0), "w": (_MIN_GAMMA_G2, 8.0),
-    "x": (0.0, 8.0), "y": (0.0, 8.0)}
+    "u": (-0.5, math.inf), "v": (-4.0, math.inf), "w": (_MIN_GAMMA_G2, math.inf),
+    "x": (0.0, math.inf), "y": (0.0, math.inf)}
 
 _TCHZ_UNITS = {"u": "deg^2", "v": "deg^2", "w": "deg^2", "x": "deg", "y": "deg"}
 
@@ -2423,17 +2427,7 @@ class Instrument(_InheritsDeclaredDefaults):
             # Paoletti & Ricci 1958), so a monotonically climbing seed is not
             # a coarse version of that curve; a flat one is the honest
             # zeroth-order stand-in, and U/V/X/Y refine away from it.
-            w_seed = fwhm_deg ** 2
-            w_bound = inst.profile.w.max
-            if w_seed > w_bound:
-                raise ValueError(
-                    f"fwhm_deg={fwhm_deg} seeds w={w_seed} (fwhm_deg ** 2), "
-                    f"which exceeds w's upper bound of {w_bound}; to declare "
-                    f"a genuinely coarser instrument, set "
-                    f"instrument.profile.w explicitly, with its own bounds, "
-                    f"instead of fwhm_deg."
-                )
-            inst.profile.w.value = w_seed
+            inst.profile.w.value = fwhm_deg ** 2
         return inst
 
     @classmethod
