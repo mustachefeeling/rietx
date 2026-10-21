@@ -75,8 +75,8 @@ from _calibration_pair import AXIAL_HL, AXIAL_SL, SETUPS, TRUE_SIZE, TRUE_STRAIN
 
 # 2026-10-21, darwin/arm64, identical on RIETX_COMPILED=0.
 assert AXIAL_HL == 3 / 200
-# The page: swapping the two axial ratios gives the same pattern to the bit, and
-# refined together they come back exchanged with nothing said.
+# The page: swapping the two axial ratios gives the same pattern to the bit, so
+# refined together the data cannot choose their order, and nothing is said.
 swapped_setup = rx.Instrument.bragg_brentano(radiation="CuKa")
 pair = [swapped_setup.model_copy(deep=True) for _ in range(2)]
 for inst, (sl, hl) in zip(pair, [(AXIAL_SL, AXIAL_HL), (AXIAL_HL, AXIAL_SL)]):
@@ -88,19 +88,19 @@ both = rx.Refinement(lab6(), instrument)
 both.hold("phases.0.cell.*")
 both_result = both.fit(first_standard, plan="lab_calibrate")
 ratios = [both_result.parameter(f"instrument.geometry.axial_{n}") for n in ("sl", "hl")]
-assert [rx.format_su(p.value, p.stderr) for p in ratios] == ["0.01447(79)", "0.02534(68)"]
+assert [rx.format_su(p.value, p.stderr) for p in ratios] == ["0.02476(78)", "0.01542(87)"]
 assert [d.code for d in both_result.diagnostics] == ["HIGH_CORRELATION"]
 assert "axial" not in str(both_result.diagnostics[0].where)
 widths = [calibrated.parameter(f"instrument.profile.{n}") for n in "uvwxy"]
 assert [rx.format_su(p.value, p.stderr) for p in widths] == [
-    "0.00400(17)", "-0.00313(25)", "0.003034(85)", "0.01502(38)", "0.02040(89)"]
+    "0.00399(17)", "-0.00293(25)", "0.002957(83)", "0.01483(37)", "0.02018(88)"]
 # The page: each lies within one esd of the instrument that made the data.
 assert all(abs(p.value - true) < p.stderr for p, true in zip(widths, SETUPS["first"]))
 assert [d.code for d in calibrated.diagnostics] == ["HIGH_CORRELATION", "HOLD_BLOCKED_PLAN"]
 zero = calibrated.parameter("instrument.zero_shift")
 displacement = calibrated.parameter("instrument.geometry.sample_displacement")
-assert rx.format_su(zero.value, zero.stderr) == "0.02102(63)"
-assert rx.format_su(displacement.value, displacement.stderr) == "0.0023(15)"
+assert rx.format_su(zero.value, zero.stderr) == "0.01976(61)"
+assert rx.format_su(displacement.value, displacement.stderr) == "-0.0006(14)"
 
 
 def reading(result, path):
@@ -109,11 +109,11 @@ def reading(result, path):
 
 size, strain = reading(matched, "phases.0.lor_size"), reading(matched, "phases.0.lor_strain")
 assert (rx.format_su(size.value, size.esd), rx.format_su(strain.value, strain.esd)) == (
-    "298.7(24)", "0.001000(46)")
+    "300.7(23)", "0.001016(44)")
 assert abs(size.value - TRUE_SIZE) < size.esd and abs(strain.value - TRUE_STRAIN) < strain.esd
 # The page: the second calibration finds the second setup's wider W and X.
-assert [round(getattr(second.instrument.profile, n).value, 4) for n in "wx"] == [0.0058, 0.0308]
-# The page: a crossed profile moves the size by eight to ten esd (8.3 and 10.4),
+assert [round(getattr(second.instrument.profile, n).value, 4) for n in "wx"] == [0.0059, 0.0305]
+# The page: a crossed profile moves the size by eight to ten esd (9.5 and 8.6),
 # and Rwp stays within 0.001 of the matched fit.
 for result in crossed.values():
     off = reading(result, "phases.0.lor_size")
@@ -127,7 +127,7 @@ assert sorted(p for d in matched.diagnostics for p in d.where) == [
     "phases.0.gauss_size", "phases.0.gauss_strain"]
 assert [d.code for d in wide_on_first.diagnostics] == [d.code for d in matched.diagnostics]
 gauss = reading(first_on_wide, "phases.0.gauss_size")
-assert rx.format_su(gauss.value, gauss.esd) == "1970(520)"
+assert rx.format_su(gauss.value, gauss.esd) == "1440(200)"
 assert reading(first_on_wide, "phases.0.gauss_strain").value > 0
 assert first_on_wide.diagnostics == []
 

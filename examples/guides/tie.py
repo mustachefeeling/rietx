@@ -61,4 +61,4 @@ assert [f"{r.statistics.rwp:.4f}" for r in (free_result, tied_result)] == ["0.08
 assert [f"{p.value:.3f} ± {p.stderr:.3f}" for p in free_b] == [
     "0.242 ± 0.150", "0.467 ± 0.160", "0.363 ± 0.114"]
 assert f"{tied_b[0].value:.3f} ± {tied_b[0].stderr:.3f}" == "0.360 ± 0.079"
-assert [f"{g:.2f}" for g in gaps] == ["1.03", "0.64", "0.53"]
+assert [f"{g:.2f}" for g in gaps] == ["1.02", "0.64", "0.53"]

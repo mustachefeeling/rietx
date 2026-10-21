@@ -45,6 +45,6 @@ assert all(round(d.value, 2) == 1.00 for d in steps)
 assert [s.indices for s in series.discontinuities] == [(3, 4)] * 3
 assert [e.rung for e in series] == [
     "cold", "warm", "warm", "warm", "warm_staged", "warm_staged", "warm"]
-assert [f"{e.rwp_warm:.2f}" for e in series.entries[4:6]] == ["0.92", "0.90"]
+assert [f"{e.rwp_warm:.2f}" for e in series.entries[4:6]] == ["0.92", "0.92"]
 assert [f"{r:.3f}" for r in series.rwp[4:6]] == ["0.039", "0.040"]
 assert gap < 0.005

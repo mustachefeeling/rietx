@@ -707,7 +707,7 @@ def _one_stage_fit(*, peak: bool, two_theta_limits=None):
     and windows and ``fit_end.rwp`` is evaluated on the same model at the same
     values: the two Rwps may then be compared to the bit.
     """
-    from rietx.model.forward import compile_model
+    from rietx.model.forward import WINDOW_AREA_TOL, compile_model
     from rietx.params.vector import ParameterTable
     from rietx.schemas.common import Parameter
     from rietx.schemas.instrument import BackgroundChebyshev, PeakComponent
@@ -745,8 +745,10 @@ def _one_stage_fit(*, peak: bool, two_theta_limits=None):
     grid = rx.PatternData(two_theta=tt.tolist(),
                           intensity=np.zeros_like(tt).tolist())
     table = ParameterTable(structure, ins)
-    y = compile_model(structure, ins, grid, mode="rietveld").evaluate(
-        table.decode(table.x0()))
+    # drawn at the declared stage's windows, the stage this fit runs alone and
+    # the setting PRE_FIX_NO_PEAK_RWP was measured at (WP-2002 moved the default)
+    y = compile_model(structure, ins, grid, mode="rietveld",
+                      window_area_tol=WINDOW_AREA_TOL).evaluate(table.decode(table.x0()))
     y = np.random.default_rng(7).poisson(np.maximum(y, 1.0)).astype(float)
     data = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist())
 

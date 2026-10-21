@@ -56,7 +56,7 @@ The script prints the three ratios:
 
 <!-- output of examples/guides/tie.py -->
 ```text
-pair gaps: 1.03, 0.64, 0.53
+pair gaps: 1.02, 0.64, 0.53
 ```
 
 All three are under 2, so the free fit does not contradict the claim that the three oxygens share one displacement parameter.

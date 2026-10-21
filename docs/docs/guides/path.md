@@ -49,7 +49,7 @@ This replaces the 700 K pattern with one whose cell is 2 % larger:
 
 <!-- output of examples/guides/path.py -->
 ```text
-phases.0.cell.a steps by 0.08536 between p003 and p004 (T (K) 600 → 700), 41× its median step over the series. Refitted cold and independently, the two patterns step by 0.08536, 1.00× the chain's.
+phases.0.cell.a steps by 0.08537 between p003 and p004 (T (K) 600 → 700), 41× its median step over the series. Refitted cold and independently, the two patterns step by 0.08537, 1.00× the chain's.
 p000  cold
 p001  warm
 p002  warm

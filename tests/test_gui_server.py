@@ -49,6 +49,28 @@ def pattern_file(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
+def declared_pattern_file(tmp_path_factory):
+    """The same truth drawn at the declared stages' windows (WP-2002).
+
+    ``synthesize`` compiles at ``compile_model``'s default, the closing stage's
+    1e-3 since WP-2002.  A plan run without its closing stage fits on windows
+    dropping 2 % of each peak, which cannot see those tails, and on that file
+    the ``profile`` rung sat 1.1e-5 above ``profile_w``'s.  Drawn the way
+    ``tests/test_result_reproduces_itself.py`` draws its declared-stage data.
+    """
+    import functools
+
+    from rietx.model import forward as fwd
+    from tests import test_refine_synthetic as synthetic
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(synthetic, "compile_model", functools.partial(
+            fwd.compile_model, window_area_tol=fwd.WINDOW_AREA_TOL))
+        data = synthesize()
+    return _write_xye(tmp_path_factory.mktemp("gui-declared") / "synth.xye", data)
+
+
+@pytest.fixture(scope="module")
 def poisson_pattern_file(tmp_path_factory):
     """The same synthetic pattern with its esd column withheld.
 
@@ -2147,13 +2169,14 @@ def test_a_wavelength_is_held_while_the_cell_it_is_degenerate_with_is_free(
 
 
 def test_each_stage_carries_the_rwp_of_the_node_that_ran_it(blank, tmp_path,
-                                                            pattern_file):
+                                                            declared_pattern_file):
     """The ladder's Rwp is the history node's, bit for bit — not a second
     number computed for the panel."""
     session, client = blank
-    project = _open(session, tmp_path / "rungs.rex", pattern_file)
+    project = _open(session, tmp_path / "rungs.rex", declared_pattern_file)
     plan = client.get("/api/plan")[1]["plan"]
-    # the declared stages' Rwp; the closing stage is tests/test_closing_stage.py's
+    # the declared stages' Rwp, on data drawn at their windows; the closing
+    # stage is tests/test_closing_stage.py's
     plan["closing_window_tol"] = None
     assert client.put("/api/plan", {"plan": plan})[0] == 200
     assert client.post("/api/run", {"kind": "fit"})[0] == 200
@@ -2180,7 +2203,7 @@ def test_each_stage_carries_the_rwp_of_the_node_that_ran_it(blank, tmp_path,
 def test_the_closing_stage_is_the_ladders_last_rung(blank, tmp_path, pattern_file):
     """The stage a plan appends (WP-2002) has a rung of its own, read-only,
     carrying its node's Rwp, which is the answer's to the staleness above: the
-    last declared rung's is not (0.04141 there against the result's 0.04164)."""
+    last declared rung's is not (0.04179 there against the result's 0.04156)."""
     session, client = blank
     project = _open(session, tmp_path / "closing.rex", pattern_file)
     assert client.post("/api/run", {"kind": "fit"})[0] == 200

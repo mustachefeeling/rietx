@@ -44,16 +44,17 @@ for path in ("phases.0.atoms.0.z", "phases.0.atoms.1.x"):
 
 from _corundum_pair import CELL, NEUTRON_TRUE, TRUTH  # noqa: E402
 
-# 2026-10-19, darwin/arm64.
+# 2026-10-21, darwin/arm64.
 cells = [r.parameter("phases.0.cell.a") for r in alone]
-assert [rx.format_su(p.value, p.stderr) for p in cells] == ["4.7588780(41)", "4.757485(31)"]
+assert [rx.format_su(p.value, p.stderr) for p in cells] == ["4.7588824(41)", "4.757487(31)"]
 assert round((cells[1].value / cells[0].value - 1) * 1e6) == -293  # "293 ppm short"
 lam = result.parameter("hist.1.instrument.source.lines.0.wavelength")
 # The page: within an esd of the 300 ppm the pattern was made with, 5.1 ppm a esd.
 assert abs(lam.value - NEUTRON_TRUE) < lam.stderr
 assert round(lam.stderr / LAM_N * 1e6, 1) == 5.1
+# "and the shared cell 1.4 esd from the true one"
 a = result.parameter("phases.0.cell.a")
-assert abs(a.value - CELL[0]) < a.stderr
+assert f"{abs(a.value - CELL[0]) / a.stderr:.1f}" == "1.4"
 assert [d.code for d in result.histograms[1].diagnostics if d.code == "WAVELENGTH_CALIBRATION"] == [
     "WAVELENGTH_CALIBRATION"]
 # The page: every coordinate within 2 esd of the truth, and the esd ratios.
@@ -65,11 +66,11 @@ esd = {path: [r.parameter(path).stderr for r in (*alone, result)]
 (x_al, n_al, j_al), (x_o, n_o, j_o) = esd.values()
 assert round(n_al / x_al, 1) == 3.6 and round(n_o / x_o, 2) == 0.95
 assert round(j_al / x_al, 2) == 0.96 and round(j_o / x_o, 2) == 0.67
-# The page: with the neutron wavelength held, a ends 3.2 esd off and both
+# The page: with the neutron wavelength held, a ends 2.6 esd off and both
 # coordinates' esds are worse than the X-ray pattern's alone, with nothing said.
 held = rx.MultiHistogramRefinement(corundum(), [xray, neutron]).fit(patterns, plan="mccusker_structural")
 held_a = held.parameter("phases.0.cell.a")
-assert round(abs(held_a.value - CELL[0]) / held_a.stderr, 1) == 3.2
+assert round(abs(held_a.value - CELL[0]) / held_a.stderr, 1) == 2.6
 assert round(held.parameter("phases.0.atoms.1.x").stderr / x_o, 1) == 1.2
 assert round(held.parameter("phases.0.atoms.0.z").stderr / x_al, 1) == 1.7
 assert "WAVELENGTH_CALIBRATION" not in {d.code for h in held.histograms for d in h.diagnostics}
