@@ -41,7 +41,7 @@ from rietx.crystallography.structure_factor import (
     structure_factors_squared,
 )
 from rietx.crystallography.symmetry import generate_reflections
-from rietx.model.forward import compile_model
+from rietx.model.forward import WINDOW_AREA_TOL, compile_model
 from rietx.params.vector import ParameterTable
 from rietx.refine import HARMONIC_ABSENT_FRAC
 from rietx.schemas.instrument import (
@@ -319,7 +319,11 @@ def test_the_reflection_list_is_generated_for_the_shortest_wavelength():
     struct = nd2ru2o7()
     inst = rx.Instrument.constant_wavelength_neutron(
         CU311[1], fwhm_deg=0.30, harmonics=True)
-    model = compile_model(struct, inst, pattern, two_theta_limits=LIMITS)
+    # the declared stages' windows, which generate over the limits alone; a
+    # compile at the closing windows reaches past them by its widest window
+    # (WP-2002)
+    model = compile_model(struct, inst, pattern, two_theta_limits=LIMITS,
+                          window_area_tol=WINDOW_AREA_TOL)
     # the compiled list is the λ/2 list, not the fundamental's
     assert len(model.phases[0].reflections) == n_harm
     assert model.harmonic_orders == {1: 2}

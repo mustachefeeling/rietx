@@ -52,12 +52,9 @@ def _magnetic() -> MagneticSymmetry:
 def _plan() -> rx.RefinementPlan:
     from rietx.strategy.magnetic import SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS
 
-    # the declared stages' stationary-angle test; the closing stage is
-    # tests/test_closing_stage.py's
     return rx.RefinementPlan(stages=[
         rx.Stage(name, list(paths))
-        for name, paths in zip(SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS, strict=True)],
-        closing_window_tol=None)
+        for name, paths in zip(SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS, strict=True)])
 
 
 def _fit(tilt: float, *, two: bool = True, start_tilt: float | None = None,
@@ -418,10 +415,7 @@ def test_an_angle_a_named_variable_drives_leaves_the_covariance():
     extra = (("vars.m1",), ("vars.m1", "vars.phi"), ("vars.m1", "vars.phi"))
     result = ref.fit(data, telemetry=False, plan=rx.RefinementPlan(stages=[
         rx.Stage(name, [*paths, *more]) for name, paths, more in zip(
-            SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS, extra, strict=True)],
-        # the declared stages' stationary-angle test; the closing stage is
-        # tests/test_closing_stage.py's
-        closing_window_tol=None))
+            SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS, extra, strict=True)]))
     (only,) = result.stages[-1].moment_angle_tests
     assert only.paths == [f"{MN1}.dof1", f"{MN2}.dof1", "vars.phi"]
     assert only.reached and only.zeroed and abs(only.statistic) < 1.0

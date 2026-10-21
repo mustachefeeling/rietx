@@ -71,12 +71,10 @@ def _joint(space_group: str, truth, start, *, moment_globs=None):
         y = 2e4 * y / y.max() + 20.0
         data.append(rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist()))
     base = ["phases.*.scale", "instrument.background.c*"]
-    # the declared stages' hold; the closing stage is tests/test_closing_stage.py's
     plan = rx.RefinementPlan(stages=[
         rx.Stage("scale", base),
         rx.Stage("moment", base + (moment_globs
-                                   or ["phases.*.atoms.*.moment.dof*"]))],
-        closing_window_tol=None)
+                                   or ["phases.*.atoms.*.moment.dof*"]))])
     joint = rx.MultiHistogramRefinement(
         rx.Structure(phases=[_phase(space_group, start)]), _instruments())
     return joint, joint.fit(data, plan=plan)

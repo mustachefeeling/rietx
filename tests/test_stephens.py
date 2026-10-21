@@ -361,14 +361,18 @@ def test_widths_become_direction_dependent():
     # 00l picks up the extra strain; hk0 does not (l = 0 kills every monomial
     # carrying l, and s004 is the pure l⁴ pattern).  The strain law is ∝ tanθ,
     # so the *ratio* grows with angle — assert the sense everywhere and the
-    # magnitude where the law has room to act.
+    # magnitude where the law has room to act.  At the closing windows a
+    # compile generates reflections out to its widest window past the range's
+    # end (WP-2002), so the broader one carries more; both carry the iso set.
+    assert widths["iso"].keys() <= widths["aniso"].keys()
     ratios = []
-    for h, w in widths["aniso"].items():
+    for h, w_iso in widths["iso"].items():
+        w = widths["aniso"][h]
         if h[0] == 0 and h[1] == 0:
-            assert w > widths["iso"][h], h
-            ratios.append(w / widths["iso"][h])
+            assert w > w_iso, h
+            ratios.append(w / w_iso)
         elif h[2] == 0:
-            assert w == pytest.approx(widths["iso"][h], rel=1e-12), h
+            assert w == pytest.approx(w_iso, rel=1e-12), h
     assert max(ratios) > 1.5
 
 
