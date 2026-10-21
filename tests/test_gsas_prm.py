@@ -525,9 +525,10 @@ def test_nonzero_reserved_prcf_term_is_refused(tmp_path):
     # a .prm states GW signed and ProfileTCHZ.w is non-negative
     ("negative GW", {"coeffs": (1.0, -0.5, -0.4, 0.0, 0.15, 0.0, 0.0011,
                                 0.0022) + (0.0,) * 11}),
-    # a GU wide enough to leave ProfileTCHZ.u's [-0.05, 1.0]
-    ("a GU past its range", {"coeffs": (2e4, -0.5, 0.2, 0.0, 0.15, 0.0, 0.0011,
-                                        0.0022) + (0.0,) * 11}),
+    # a GU negative enough to leave ProfileTCHZ.u's floor of -0.05 (its
+    # ceiling went on 2026-10-21, WP-2002's fifth round, Q5)
+    ("a GU under its floor", {"coeffs": (-200.0, -0.5, 0.2, 0.0, 0.15, 0.0, 0.0011,
+                                         0.0022) + (0.0,) * 11}),
     # POLA on some other convention's 0-100 scale, where Source.polarization
     # holds a fraction
     ("a POLA past 1", {"icons": _icons(pola=99.0)}),
@@ -922,7 +923,8 @@ def test_the_two_hb2a_files_cross_on_one_diffractometer():
                      + instprm.geometry.axial_hl.value)
     assert axial_prm == pytest.approx(0.002)
     assert axial_instprm == pytest.approx(0.09)
-    assert prm.profile.w.max != instprm.profile.w.max
+    # the boxes differ in their floors since the ceilings went (WP-2002, Q5)
+    assert (prm.profile.u.min, instprm.profile.u.min) == (-0.5, -0.05)
 
 
 def test_the_issues_synthetic_pncr_file_reads(tmp_path):

@@ -209,6 +209,24 @@ MAUD, EasyDiffraction).
   lies outside. The bond-search defect is fixed in the same change, and the three
   geometry caps move to tier 1.
 
+## Sixth round: asked 2026-10-21, Q1-Q3 re-briefed with the seven programs' practice
+
+The briefs are in the session transcript and the PR. Their practice tables are
+`practice.md`. The measurements added this round, on SRM 660c, FAP, cpd-1a and 11-BM NAC
+(macOS arm64, `[dev]`, compiled tier on, with other sessions' agents running):
+
+- `WINDOW_AREA_TOL` at 5e-3, about GSAS-II's 0.5 % of a Lorentzian: 0.39, 0.34, 0.43 and
+  0.33σ at a point; answers 0.88 esd (LaB6 `u`), 0.23, 0.62 and 0.05; whole fit 1.09, 1.54,
+  1.44 and 1.05× today's. Fails both bars on three of four.
+- 1e-3 on the last stage only, 2e-2 before it: within 0.001, 0.008 and 0.000 esd of the
+  all-1e-3 answer on FAP, cpd-1a and NAC, at 1.91, 1.33 and 1.09× (all-1e-3: 3.49, 2.12,
+  1.19×). LaB6 at 1.12× lands with today's setting, 9.2 esd in `axial_sl` from the all-1e-3
+  answer, which sits in the mirrored S/L ↔ H/L minimum (WP-2012).
+- Q1 asked: keep 2 %, tight everywhere, tight on the last stage, or a middle cut. Lead's
+  pick: tight on the last stage. Q2 asked the bar, with a closing stage (BGMN's closing run)
+  carrying Q1's tight windows as the lead's pick. Q3 asked again with the finding that no
+  program supplies a Pitschke start; lead's pick (c), split the constant.
+
 ## Still open (first round's list, kept for the record)
 
 1. B4: keep f, and report the textbook esd beside it?
