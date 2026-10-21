@@ -1615,9 +1615,9 @@ class ParameterTable:
     def _refuse_unseeded_distortion(self) -> None:
         """Refuse a free distortion block sitting exactly at the parent (WP-1419).
 
-        χ² is even in the amplitude vector under every lost parent operation g
-        (it maps the child to a domain-related structure with the same powder
-        pattern), so at A = 0 the gradient lies in the fixed subspace of the
+        χ²(D(g)·A) = χ²(A) for every lost parent operation g, D(g) its action on
+        the amplitude vector (it maps the child to a domain-related structure
+        with the same powder pattern), so at A = 0 the gradient lies in the fixed subspace of the
         parent group's action: every amplitude outside the identity irrep has
         an **exactly** zero column there, the whole block at once (#286,
         2026-09-16: dχ²/du −2.9e-8 at 0 against −1.57e7 at 0.005; Perez-Mato,
@@ -1640,8 +1640,9 @@ class ParameterTable:
             if all(self.entries[i].value == 0.0 for i in idx):
                 raise ValueError(
                     f"{base}.distortion_modes: every amplitude outside the identity "
-                    "irrep is exactly zero, where the pattern is an even function of "
-                    "the block, so its gradient there is exactly zero and the stage "
+                    "irrep is exactly zero, where the pattern is invariant under every "
+                    "lost parent operation's action on the block, so its gradient there "
+                    "is exactly zero and the stage "
                     "cannot move off the parent.  State the child with "
                     "displacive_statement, which seeds it, or set_values a small "
                     "non-zero amplitude before freeing the block")
