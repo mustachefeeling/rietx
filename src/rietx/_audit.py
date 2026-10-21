@@ -754,7 +754,12 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_WIDTH_GROWTH", "code"),
     Row("SERIES_PATTERN_FAILED", "code"),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code"),
-    Row("SITE_TWINS_MERGED", "code"),
+    Row("SITE_TWINS_MERGED", "code", tier=1, ambiguity=1,
+        evidence=("arithmetic: fires exactly when a site's images sit under TWIN_DISTANCE and it "
+                  "was moved onto its special position; reports the atoms per cell before and "
+                  "after (multiplicity x occupancy). The merge's reading of a part-occupied site "
+                  "(occupancy kept, #765's rule) has one named dissenter, a split pair of "
+                  "part-atoms, and is the maintainer's to rule (PR #1014 body)")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS", "code"),
     Row("SIZE_UNUSUALLY_SMALL", "code"),
     Row("SOLVE_B_TIED_PER_PARENT_SITE", "code", tier="caller", ambiguity=2,
@@ -996,7 +1001,6 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.cif.CIF_STATED_MULTIPLICITY_SNAP_TOL", "constant", value=0.001),
     Row("rietx.crystallography.cif.DUPLICATE_U_TOLERANCE", "constant", value=0.0002),
     Row("rietx.crystallography.cif.OCCUPANCY_TOLERANCE", "constant", value=0.01),
-    Row("rietx.crystallography.cif.TWIN_DISTANCE", "constant", value=0.02),
     Row("rietx.crystallography.dispersion.LINE_DISPERSION_TOL", "constant", value=0.01),
     Row("rietx.crystallography.dispersion.NEAR_EDGE_EV", "constant", value=50.0),
     Row("rietx.crystallography.fragments.COLLINEAR_TOL", "constant", value=1e-06),
@@ -2633,7 +2637,10 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_WIDTH_GROWTH.suggestion", "suggestion", value=1),
     Row("SERIES_PATTERN_FAILED.suggestion", "suggestion", value=1),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION.suggestion", "suggestion", value=2),
-    Row("SITE_TWINS_MERGED.suggestion", "suggestion", value=1),
+    Row("SITE_TWINS_MERGED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
+        evidence=("arithmetic: names the coordinate's source and the restatement (special "
+                  "position at occupancy 1, or at least 0.02 A from its own images) that "
+                  "keeps a real displacement")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion", "suggestion", value=1),
     Row("SIZE_UNUSUALLY_SMALL.suggestion", "suggestion", value=1),
     Row("SPACE_GROUP_SETTING_ASSUMED.suggestion", "suggestion", value=1),
@@ -3047,8 +3054,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "SERIES_PATTERN_FAILED.suggestion",
     "SITE_SNAPPED_TO_SPECIAL_POSITION",
     "SITE_SNAPPED_TO_SPECIAL_POSITION.suggestion",
-    "SITE_TWINS_MERGED",
-    "SITE_TWINS_MERGED.suggestion",
     "SIZE_NORMALISED_ACROSS_WAVELENGTHS",
     "SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion",
     "SIZE_UNUSUALLY_SMALL",
@@ -3137,7 +3142,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.crystallography.cif.CIF_STATED_MULTIPLICITY_SNAP_TOL",
     "rietx.crystallography.cif.DUPLICATE_U_TOLERANCE",
     "rietx.crystallography.cif.OCCUPANCY_TOLERANCE",
-    "rietx.crystallography.cif.TWIN_DISTANCE",
     "rietx.crystallography.dispersion.LINE_DISPERSION_TOL",
     "rietx.crystallography.dispersion.NEAR_EDGE_EV",
     "rietx.crystallography.fragments.COLLINEAR_TOL",

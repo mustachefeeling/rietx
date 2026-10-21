@@ -20,8 +20,8 @@ from ..schemas.structure import (
 )
 from . import magcif
 from .magnetic.scattering import check_group_is_structure_symmetry
-from .symmetry import TWIN_DISTANCE as _TWIN_DISTANCE
 from .symmetry import (
+    TWIN_DISTANCE,  # noqa: F401  (re-export; the constant and its audit row live in .symmetry)
     OperatorGroup,
     site_orbit,
     snap_diagnostics,
@@ -308,11 +308,6 @@ def _number_fault(path: str, block, tags, label: str | None = None) -> None:
                     f"number (digits, an optional exponent and an optional "
                     f"standard uncertainty in parentheses, as in '5.4307(2)')")
 
-
-#: Two atoms of a structure closer than this are one atom stated twice (Å);
-#: defined beside the orbit in :mod:`.symmetry`, which every route applies
-#: (issue #1007), and quoted here for the listed-twice test below.
-TWIN_DISTANCE = _TWIN_DISTANCE
 
 #: Two occupancies agree, and two sites fill a position without overfilling it,
 #: to within this (absolute).  Occupancies are quoted to two or three decimals
