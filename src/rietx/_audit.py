@@ -1401,16 +1401,16 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.geometry._COINCIDENT_D2", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: any value between roundoff and the shortest real interatomic "
                   "d^2 (>0.1 A^2) gives the same lists")),
-    Row("rietx.model.origin.A5_CLIP", "constant", tier=3, value=0.001,
-        evidence=("floating-origin weight clip (WP-2002, 2026-10-21, tests/test_floating_origin.py): "
-                  "moves only the origin convention (contrast variances unchanged to 4e-16), but light "
-                  "sites' z esds sit up to 1.40 % from the hold limit over 1200 valid matrices against a "
-                  "1 % bar (an esd's own sampling error at N - P = 5000); 1e-4 gives 0.14 %"),
-        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
-                 "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
-        approved="2026-10-19"),
+    Row("rietx.model.origin.A5_CLIP", "constant", tier=1, value=1e-4,
+        evidence=("numerical setting with a domain test (tests/test_floating_origin.py, "
+                  "test_the_clipped_centroid_stays_within_an_esds_own_error_of_the_hold): moves only "
+                  "the origin convention (contrast variances unchanged to 4e-16), and light sites' z "
+                  "esds sit at most 0.14 % from the hold limit over 1200 realisable (A5) failures "
+                  "against a 1 % bar (an esd's own sampling error at N - P = 5000); 1e-3 left 1.40 %; "
+                  "about 1 ms more per solve (WP-2002, the seventh round's Q2, 2026-10-21)")),
     Row("rietx.model.origin.A6_MAX_ITER", "constant", tier="invariant", value=2000,
-        evidence=("answer-invariant: caps a weights-only iteration; worst measured 239 passes; "
+        evidence=("answer-invariant: caps a weights-only iteration; reached by 498 of the 1200 "
+                  "realisable (A5) failures at A5_CLIP 1e-4, every one met by the sum solve; "
                   "tests/test_floating_origin.py:694 asserts eq 21 met where (A6) stalls at its cap")),
     Row("rietx.model.origin.A6_RTOL", "constant", tier=2, value=0.001,
         evidence=("Flack & Schwarzenbach (1988) Acta Cryst. A44, 499, Appendix: 'about five "

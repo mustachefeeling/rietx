@@ -802,10 +802,6 @@ def _realisable_a5_failures(n_per_seed=400):
     return mats
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "at A5_CLIP = 1e-3 two of 1200 realisable (A5) failures keep a light site's "
-    "z esd 1.2 % and 1.4 % from the hold on the dominant site (measured "
-    "2026-10-21); 3e-4 leaves at most 0.42 %, 1e-4 0.14 %"))
 def test_the_clipped_centroid_stays_within_an_esds_own_error_of_the_hold():
     """``A5_CLIP`` over its domain: every (A5) failure a data matrix can have.
 
@@ -818,8 +814,10 @@ def test_the_clipped_centroid_stays_within_an_esds_own_error_of_the_hold():
     converges at every clip from 1e-3 to 1e-5 on all 1200, the sum solve
     taking over where it stalls.  So a smaller clip costs nothing measured.
 
-    Made to fail on 2026-10-21: ``A5_CLIP`` patched to 1e-4 turned this
-    XPASS(strict), at most 0.14 %.
+    At the clip of 1e-3 shipped until the seventh round, two of the 1200 kept
+    a light site's z esd 1.2 % and 1.4 % from the hold; 3e-4 left at most
+    0.42 % and the shipped 1e-4 leaves 0.14 % (measured 2026-10-21).  Made to
+    fail on 2026-10-21 by patching ``A5_CLIP`` back to 1e-3.
     """
     from rietx.model.origin import centroid_coefficients
 
