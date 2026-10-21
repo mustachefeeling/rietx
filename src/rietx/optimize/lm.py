@@ -127,9 +127,10 @@ _Q_WINDOW = 10               # Q_u sums the last ten overshoot signs …
 _Q_TRIGGER = 5               # … and λ/10 fires only above this
 
 #: inner (Levenberg-Marquardt) iterations per outer iteration before giving up.
-#: A failure sets λ ← 10·max(λ, 0.1), so from λ = 0 the 18th trial runs at
-#: λ = 1e16, far into steepest-descent territory; if nothing downhill exists
-#: there, none exists.  On nine acceptance configurations an iteration that took
+#: A failure sets λ ← 10·max(λ, 0.1), so from λ = 0 the 18th trial would run
+#: at λ = 1e16, far into steepest-descent territory, though at λ ≥ 100 the
+#: curvature gate can reset λ to its start-of-iteration value, so 18 trials
+#: need not reach it.  A cap that fires reads as convergence (``no_descent``).  On nine acceptance configurations an iteration that took
 #: a step tried at most 6 trials, and a stage's last iteration up to 9 (WP-2002,
 #: tests/test_budget_and_tolerance_invariance.py).
 _INNER_MAX = 18
