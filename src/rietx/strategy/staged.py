@@ -200,6 +200,15 @@ class Stage:
 #: every freed row sitting exactly on a floor of 0 or above
 #: (``ParameterTable.seed_floored``, WP-1938).  Pitschke's ``tau`` at its 0.05
 #: default is above its floor, so it starts where it is (issue #499).
+#:
+#: The one 0.3 starts both models' strength, and the two are recorded apart
+#: (WP-2002, the sixth round's Q3, ruled (c)).  Suortti's start does not change
+#: the answer (``tests/test_seed_invariance.py``, five patterns, three families).
+#: Pitschke's does: from c = 0 CPD zincite lands in the model's turned-over
+#: regime, which ``ROUGHNESS_OUTSIDE_REGIME`` flags, and from 0.3 it reaches the
+#: switched-off branch inside the valid range.  No program supplies a Pitschke
+#: start, so 0.3 stays, at tier 3.  A per-model value would need a per-path seed
+#: or a second stage, and an inert stage re-solves everything already freed.
 _ROUGHNESS_STAGE = (
     Stage("roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3),
 )

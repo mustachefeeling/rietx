@@ -11,16 +11,16 @@ is here or landed.
 Measured 2026-10-20 (`tests/test_seed_invariance.py`'s docstring has the table). Suortti's b
 is answer-invariant on five lab patterns from three laboratories: every Biso, scale and b
 within 2.7e-3 of the smaller esd, the same branch wherever b leaves its floor, the same
-distance from each reference. Two things keep both rows here:
+distance from each reference.
 
-- `rietx.schemas.results.StageResult.seeded`: the same literal seeds Pitschke's `c`, which
-  is *not* start-invariant (CPD zincite from c = 0: the turned-over regime, scale x2.1,
-  `ROUGHNESS_OUTSIDE_REGIME`; corundum: Biso 0.26 esd). A question for the maintainer:
-  GSAS-II has no Pitschke model, so the ruled fallback to its 0 names no dissenter here.
-  And where roughness ends switched off, the start picks which off point the fit stops
-  at (b = 0 with a free, or a = 1), and Biso's and the scale's esds differ by x1.1 to x4.4
-  between the two (conditional at a = 1, where b's column is zero; marginal at b = 0).
-- `rietx.strategy.suggest.SUGGEST_SEED_ROUGHNESS`: not measured. It is the suggestion
+- `rietx.schemas.results.StageResult.seeded`: landed at tier 3 on 2026-10-21 (the sixth
+  round's Q3, ruled (c)). The same literal seeds Pitschke's `c`, which is *not*
+  start-invariant (CPD zincite from c = 0: the turned-over regime, scale x2.1,
+  `ROUGHNESS_OUTSIDE_REGIME`; corundum: Biso 0.26 esd), and no program supplies a
+  Pitschke start. The row records the two models apart; the code keeps one number. The
+  off-state esd dependence went into `ROUGHNESS_UNCONSTRAINED`'s message (the fifth
+  round's Q4).
+- `rietx.strategy.suggest.SUGGEST_SEED_ROUGHNESS` stays here: not measured. It is the suggestion
   probe's start for scoring a column, not a solve's start, so the question is whether
   `suggest`'s ranking moves between 0.3 and other starts.
 

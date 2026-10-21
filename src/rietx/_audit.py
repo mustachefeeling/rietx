@@ -834,7 +834,21 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.results.StageResult.blocked_by_hold", "action", tier="caller", ambiguity=1,
         evidence=("opt-in: Refinement.hold(), nothing held by default; the caller's hold outranks a"
                   " plan glob (WP-1435)")),
-    Row("rietx.schemas.results.StageResult.seeded", "action"),
+    Row("rietx.schemas.results.StageResult.seeded", "action", tier=3, ambiguity=1,
+        evidence=("the one shipped seed is _ROUGHNESS_STAGE's 0.3, recorded per model. Suortti's "
+                  "b: start-invariant from 0.3 and 0 on five lab patterns from three families "
+                  "(NIST LaB6, GSAS-II FAP, CPD corundum, fluorite, zincite), every Biso, scale "
+                  "and b within 2.7e-3 of the smaller esd (tests/test_seed_invariance.py). "
+                  "Pitschke's c: not start-invariant, from 0 CPD zincite lands in the turned-over "
+                  "regime (scale x2.1, ROUGHNESS_OUTSIDE_REGIME) and corundum's Biso moves 0.26 "
+                  "esd; no program supplies a Pitschke start (FullProf's examples start at "
+                  "1.2-1.5; docs/wp/2002-batch/practice.md)"),
+        grounds=("The seeding action is the stage's, recorded in the field; Suortti's start is "
+                 "answer-invariant and Pitschke's is kept at 0.3 because from 0.3 the fit reaches "
+                 "the switched-off branch inside the model's valid range, while from 0 the lower "
+                 "chi2 is one the model flags as invalid (the sixth round's Q3, ruled (c) "
+                 "2026-10-21: one number in the code, the two models recorded apart)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.results.StageResult.moment_angle_tests", "action", tier=3, ambiguity=1,
         evidence=("WP-1929: two-site Pnma moduli 0.0015/0.0011 mu_B with the angle columns out, "
                   "0.031/0.159 in, 0.0035-0.47 as ftol moved; LaMnO3 BT-1: an angle 5.2 deg off "
@@ -3609,7 +3623,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.schemas.plan.StageSpec:ftol",
     "rietx.schemas.results.HIGH_CORRELATION_MAX",
     "rietx.schemas.results.StageResult.ftol",
-    "rietx.schemas.results.StageResult.seeded",
     "rietx.schemas.results._cap_one_code.suggestion",
     "rietx.schemas.sequential.SeriesEntry.reseeded",
     "rietx.schemas.sequential.SeriesEntry.rung",
