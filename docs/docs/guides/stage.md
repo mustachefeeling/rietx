@@ -54,11 +54,14 @@ zero       Rwp 0.4921
 cell       Rwp 0.4920
 profile_w  Rwp 0.1932
 profile    Rwp 0.0988
+closing    Rwp 0.0945
 ```
 
-The preset reaches Rwp 0.0988 where the hand-run plan stopped at 0.1022.
-The last stage of each plan refines the same parameters, so the difference comes from the order in which they were freed.
+The preset's `profile` stage reaches Rwp 0.0988 where the hand-run plan stopped at 0.1022.
+The two `profile` stages refine the same parameters, so the difference comes from the order in which they were freed.
 Started from a width fitted with `w` alone, the five terms settle at a lower Rwp.
+The preset then runs its closing stage, which refines the same parameters with wider peak windows and ends at 0.0945 ([The closing stage](../reference/refinement.md#the-closing-stage)).
+`run_stage` runs no closing stage.
 The full script is `examples/guides/stage.py`.
 
 ## Read a report at every stage

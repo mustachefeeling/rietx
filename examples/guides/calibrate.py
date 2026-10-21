@@ -73,7 +73,7 @@ for label, result in crossed.items():
 
 from _calibration_pair import AXIAL_HL, AXIAL_SL, SETUPS, TRUE_SIZE, TRUE_STRAIN  # noqa: E402
 
-# 2026-10-19, darwin/arm64, identical on RIETX_COMPILED=0.
+# 2026-10-21, darwin/arm64, identical on RIETX_COMPILED=0.
 assert AXIAL_HL == 3 / 200
 # The page: swapping the two axial ratios gives the same pattern to the bit, and
 # refined together they come back exchanged with nothing said.
@@ -88,19 +88,19 @@ both = rx.Refinement(lab6(), instrument)
 both.hold("phases.0.cell.*")
 both_result = both.fit(first_standard, plan="lab_calibrate")
 ratios = [both_result.parameter(f"instrument.geometry.axial_{n}") for n in ("sl", "hl")]
-assert [rx.format_su(p.value, p.stderr) for p in ratios] == ["0.01451(76)", "0.02531(66)"]
+assert [rx.format_su(p.value, p.stderr) for p in ratios] == ["0.01447(79)", "0.02534(68)"]
 assert [d.code for d in both_result.diagnostics] == ["HIGH_CORRELATION"]
 assert "axial" not in str(both_result.diagnostics[0].where)
 widths = [calibrated.parameter(f"instrument.profile.{n}") for n in "uvwxy"]
 assert [rx.format_su(p.value, p.stderr) for p in widths] == [
-    "0.00403(17)", "-0.00314(24)", "0.003042(82)", "0.01500(36)", "0.02009(86)"]
+    "0.00400(17)", "-0.00313(25)", "0.003034(85)", "0.01502(38)", "0.02040(89)"]
 # The page: each lies within one esd of the instrument that made the data.
 assert all(abs(p.value - true) < p.stderr for p, true in zip(widths, SETUPS["first"]))
 assert [d.code for d in calibrated.diagnostics] == ["HIGH_CORRELATION", "HOLD_BLOCKED_PLAN"]
 zero = calibrated.parameter("instrument.zero_shift")
 displacement = calibrated.parameter("instrument.geometry.sample_displacement")
-assert rx.format_su(zero.value, zero.stderr) == "0.02102(61)"
-assert rx.format_su(displacement.value, displacement.stderr) == "0.0023(14)"
+assert rx.format_su(zero.value, zero.stderr) == "0.02102(63)"
+assert rx.format_su(displacement.value, displacement.stderr) == "0.0023(15)"
 
 
 def reading(result, path):
@@ -109,15 +109,15 @@ def reading(result, path):
 
 size, strain = reading(matched, "phases.0.lor_size"), reading(matched, "phases.0.lor_strain")
 assert (rx.format_su(size.value, size.esd), rx.format_su(strain.value, strain.esd)) == (
-    "300.8(22)", "0.001021(43)")
+    "298.7(24)", "0.001000(46)")
 assert abs(size.value - TRUE_SIZE) < size.esd and abs(strain.value - TRUE_STRAIN) < strain.esd
 # The page: the second calibration finds the second setup's wider W and X.
-assert [round(getattr(second.instrument.profile, n).value, 4) for n in "wx"] == [0.0059, 0.0304]
-# The page: a crossed profile moves the size by about nine esd (8.9 and 9.5), and
-# Rwp stays within 0.001 of the matched fit.
+assert [round(getattr(second.instrument.profile, n).value, 4) for n in "wx"] == [0.0058, 0.0308]
+# The page: a crossed profile moves the size by eight to ten esd (8.3 and 10.4),
+# and Rwp stays within 0.001 of the matched fit.
 for result in crossed.values():
     off = reading(result, "phases.0.lor_size")
-    assert 8.5 < abs(off.value - TRUE_SIZE) / off.esd < 10
+    assert 8 < abs(off.value - TRUE_SIZE) / off.esd < 10.5
     assert abs(result.statistics.rwp - matched.statistics.rwp) < 0.001
 wide_on_first, first_on_wide = crossed.values()
 # The page: the same two FLOOR_HIT findings as the matched fit, on the Gaussian
@@ -127,7 +127,7 @@ assert sorted(p for d in matched.diagnostics for p in d.where) == [
     "phases.0.gauss_size", "phases.0.gauss_strain"]
 assert [d.code for d in wide_on_first.diagnostics] == [d.code for d in matched.diagnostics]
 gauss = reading(first_on_wide, "phases.0.gauss_size")
-assert rx.format_su(gauss.value, gauss.esd) == "1530(230)"
+assert rx.format_su(gauss.value, gauss.esd) == "1970(520)"
 assert reading(first_on_wide, "phases.0.gauss_strain").value > 0
 assert first_on_wide.diagnostics == []
 

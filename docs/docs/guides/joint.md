@@ -46,7 +46,7 @@ The shared cell then carries the X-ray scale, and the neutron wavelength refines
 
 <!-- output of examples/guides/joint.py -->
 ```text
-info[WAVELENGTH_CALIBRATION]: Histogram 1 line 0: wavelength refined from the declared 2.078000 A to 2.078620 A, +298.4 ppm, 58.8× its own esd (1.06e-05 A). The shift is taken against the cell pinned by the histogram whose wavelength is held.
+info[WAVELENGTH_CALIBRATION]: Histogram 1 line 0: wavelength refined from the declared 2.078000 A to 2.078620 A, +298.4 ppm, 58.8× its own esd (1.05e-05 A). The shift is taken against the cell pinned by the histogram whose wavelength is held.
   at: hist.1.instrument.source.lines.0.wavelength
   help: Compare it with the instrument's own calibration history before you quote the cell.
 ```
@@ -67,7 +67,7 @@ It sits in `result.histograms[1].diagnostics`, with the other findings that belo
 A shift inside its esd means the wavelength was already right.
 
 Held at its declared value instead, the 300 ppm error goes into the shared model.
-The lattice parameter a then ends 3.1 esd from the true value, and the esds of both corundum coordinates come out larger than the X-ray pattern gives alone.
+The lattice parameter a then ends 3.2 esd from the true value, and the esds of both corundum coordinates come out larger than the X-ray pattern gives alone.
 No diagnostic reports it.
 
 ## Read what each pattern added
@@ -82,7 +82,7 @@ Compare each coordinate's esd alone and jointly:
 
 <!-- output of examples/guides/joint.py -->
 ```text
-phases.0.atoms.0.z  X-ray 0.352122(40)  neutron 0.35186(15)  joint 0.352101(39)
+phases.0.atoms.0.z  X-ray 0.352122(40)  neutron 0.35187(15)  joint 0.352102(39)
 phases.0.atoms.1.x  X-ray 0.30628(19)  neutron 0.30656(18)  joint 0.30641(13)
 ```
 

@@ -290,6 +290,9 @@ assert stages[-1].name == "closing"
 assert plan.stage_window_tols()[-1] == 1e-3
 ```
 
+`RefinementPlan.closing_stage` returns the closing stage, or `None` for a plan without one.
+`RefinementPlan.stage_window_tols` lists the window fraction of each stage in `run_stages`, with `None` for a declared stage's 2 %.
+
 A stage fixes its peak windows, its reflection list and its axial-divergence sample points at the values it starts from, and holds them while the solver runs ([The forward model](../theory/forward-model.md)).
 Each window drops 2 % of its peak's area, and more once a peak widens during the stage.
 Two errors reach the answer of a plan without a closing stage:

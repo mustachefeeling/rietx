@@ -41,9 +41,9 @@ assert [f"{v:.6f}" for v in a.value] == [
 assert [round(e * 1e6) for e in a.stderr] == [4] * 7
 assert [d.code for d in series.diagnostics] == ["SEQUENTIAL_PERSISTENT_FINDING"] * 2
 assert [f"{r:.4f}" for r in series.rwp] == [
-    "0.0408", "0.0411", "0.0401", "0.0408", "0.0408", "0.0401", "0.0405"]
+    "0.0409", "0.0413", "0.0406", "0.0409", "0.0410", "0.0402", "0.0407"]
 assert [e.rung for e in series] == ["cold"] + ["warm"] * 6
-assert [e.n_iterations for e in series] == [35] + [12] * 6
+assert [e.n_iterations for e in series] == [38] + [15] * 6
 # The page says a persistent finding needs five patterns or more.
 from rietx.sequential import MIN_POINTS_FOR_PERSISTENCE  # noqa: E402
 

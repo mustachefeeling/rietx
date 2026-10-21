@@ -23,11 +23,11 @@ The sample has a crystallite size of 300 Å and a microstrain of 1.0 × 10⁻³,
 
 <!-- output of examples/guides/calibrate.py -->
 ```text
-u 0.00403(17)
-v -0.00314(24)
-w 0.003042(82)
-x 0.01500(36)
-y 0.02009(86)
+u 0.00400(17)
+v -0.00313(25)
+w 0.003034(85)
+x 0.01502(38)
+y 0.02040(89)
 ```
 
 Each width term lies within one esd of the instrument that made the data.
@@ -39,7 +39,7 @@ With the cell fixed, the peak positions measure the zero shift and the specimen 
 
 Refine one of the two axial-divergence ratios, S/L, and hold the other, H/L.
 In rietx's profile the two are interchangeable: swapping their values gives the same pattern to the last bit.
-Refined together on this standard, they came back exchanged, S/L 0.01451(76) and H/L 0.02531(66) against 0.025 and 0.015, and no finding said so.
+Refined together on this standard, they came back exchanged, S/L 0.01447(79) and H/L 0.02534(68) against 0.025 and 0.015, and no finding said so.
 H/L is the receiving slit's height over the goniometer radius, 3 mm over 200 mm here, so take it from the instrument's dimensions.
 
 ## Check the calibration before saving it
@@ -54,10 +54,10 @@ Read the calibration's diagnostics:
 
 <!-- output of examples/guides/calibrate.py -->
 ```text
-warning[HIGH_CORRELATION]: Correlated pair: instrument.zero_shift ~ instrument.geometry.sample_displacement (ρ=+0.993). Flagged in stages: zero_disp, profile_w, profile, lines_axial, biso.
+warning[HIGH_CORRELATION]: Correlated pair: instrument.zero_shift ~ instrument.geometry.sample_displacement (ρ=+0.993). Flagged in stages: zero_disp, profile_w, profile, lines_axial, biso, closing.
   at: instrument.zero_shift, instrument.geometry.sample_displacement
   help: Fix one of the two at a known value, or free them in separate stages.
-info[HOLD_BLOCKED_PLAN]: 1 held parameter was matched by the turn_on glob of stage 'lines_axial' and stayed fixed: instrument.geometry.axial_hl.
+info[HOLD_BLOCKED_PLAN]: 1 held parameter was matched by the turn_on glob of stages 'closing', 'lines_axial' and stayed fixed: instrument.geometry.axial_hl.
   at: instrument.geometry.axial_hl
   help: Call unhold() on them first if you meant the plan to refine them.
 ```
@@ -65,7 +65,7 @@ info[HOLD_BLOCKED_PLAN]: 1 held parameter was matched by the turn_on glob of sta
 `HOLD_BLOCKED_PLAN` confirms that H/L stayed at the value you set.
 
 The zero shift and the specimen displacement still correlate with the cell held.
-The zero shift refined to 0.02102(61)° against 0.02° in the instrument that made the data, and the displacement to 0.0023(14) mm against zero.
+The zero shift refined to 0.02102(63)° against 0.02° in the instrument that made the data, and the displacement to 0.0023(15) mm against zero.
 The profile keeps the zero shift and drops the displacement, and the sample fit refines a displacement of its own.
 
 Do not save a calibration that reports [`RESOLUTION_NOT_POSITIVE`](../reference/diagnostics-refinement.md#resolution_not_positive).
@@ -82,7 +82,7 @@ The model then clamps the width to a floor finer than any diffractometer, so a s
 
 <!-- output of examples/guides/calibrate.py -->
 ```text
-first profile, first sample  size 300.8(22) Å  strain 0.001021(43)  Rwp 0.0461
+first profile, first sample  size 298.7(24) Å  strain 0.001000(46)  Rwp 0.0471
 ```
 
 The size and strain each lie within one esd of the values the sample was made with.
@@ -113,13 +113,13 @@ Calibrate on its standard, then use each profile on the other setup's sample:
 
 <!-- output of examples/guides/calibrate.py -->
 ```text
-second profile, first sample size 325.3(27) Å  strain 0.001054(44)  Rwp 0.0463
-first profile, second sample size 281.5(21) Å  strain 0.000919(46)  Rwp 0.0467
+second profile, first sample size 323.3(28) Å  strain 0.001035(47)  Rwp 0.0472
+first profile, second sample size 277.8(21) Å  strain 0.000880(48)  Rwp 0.0474
 ```
 
-Each crossed profile moves the size by about nine esd, and Rwp stays within 0.001 of the matched fit.
+Each crossed profile moves the size by eight to ten esd, and Rwp stays within 0.001 of the matched fit.
 With the wider profile, the fit reports the same two `FLOOR_HIT` findings as the matched one, on the Gaussian size and strain the sample does not have.
-With the narrower profile, the instrument width it misses appears as a Gaussian size of 1530(230) Å and a Gaussian strain, which the sample does not have.
+With the narrower profile, the instrument width it misses appears as a Gaussian size of 1970(520) Å and a Gaussian strain, which the sample does not have.
 Nothing in either fit says the profile is wrong.
 
 Measure the standard again whenever the slits, optics, wavelength or detector change, and keep each profile with the setup it describes.

@@ -53,13 +53,13 @@ assert f"{true_slope:.4e}" == "2.0783e-05" and round(abs(slope.value - true_slop
 cov = result.parametric_equations[0].covariance  # the page's intercept-slope correlation
 assert f"{cov[0][1] / (cov[0][0] * cov[1][1]) ** 0.5:.3f}" == "0.001"
 assert [c.term for c in result.parametric] == ["1", "T"]
-assert f"{result.parametric[0].value:.10f}" == "4.1628356113"
+assert f"{result.parametric[0].value:.10f}" == "4.1628356142"
 assert f"{result.parametric[0].esd:.1e}" == "1.6e-06"
-assert f"{slope.value:.10f}" == "0.0000207744" and f"{slope.esd:.1e}" == "8.0e-09"
+assert f"{slope.value:.10f}" == "0.0000207744" and f"{slope.esd:.1e}" == "8.1e-09"
 assert result.parametric[0].unit == "Å" and slope.unit == "Å/K"
 reading = result.parametric_form[0].tied
-assert not reading.rejected and f"{reading.statistic:.1f}" == "3.8"
+assert not reading.rejected and f"{reading.statistic:.1f}" == "3.7"
 assert f"{reading.cut:.1f}" == "11.1" and reading.dof == 5
 value = result.parametric_value("a", {"T": 293.0})
 assert f"{value.value:.7f}" == "4.1564579" and value.outside == ["T"]
-assert form.rejected and f"{form.tied.statistic:.1f}" == "591.0"
+assert form.rejected and f"{form.tied.statistic:.1f}" == "581.8"
