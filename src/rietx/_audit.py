@@ -1324,7 +1324,9 @@ ROWS: tuple[Row, ...] = (
         evidence=("reflection-list margin past the scan; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC: fails on FAP (0.124 sigma at "
                   "129.98 deg, 0.016 esd) and cpd-1a (0.119 sigma, 0.103 esd on fluorite lor_strain), "
                   "against a bar of 0.1 sigma a point (tests/test_window_domain.py); 5 deg is "
-                  "bit-identical to 20 deg on both, and the margin needed grows with the window"),
+                  "bit-identical to 20 deg on both, and the margin needed grows with the window: "
+                  "at the closing stage's 1e-3 windows 0.186 and 0.124 sigma at the last "
+                  "points, the answers moving 0.026 and 0.043 esd (WP-2002, 2026-10-21)"),
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
                  "tier 3 under B10 option 2 (ruled 2026-10-19) until the constant is ruled on."),
         approved="2026-10-19"),
