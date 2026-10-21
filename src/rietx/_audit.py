@@ -2166,6 +2166,16 @@ ROWS: tuple[Row, ...] = (
                  "ten is rietx's.  The second pass counts the stages where it binds and removes "
                  "it if none do (B8)."),
         approved="2026-10-20"),
+    Row("rietx.params.vector.DISTORTION_DRIFT_TOL", "constant", tier=1, value=1e-09,
+        evidence=("numerical floor: the write-back stores what the affine rows compute, which a "
+                  "numpy sum meets to ~1e-16 (docstring); refusing past it protects a "
+                  "hand-edited mode-moved coordinate, RIGID_BODY_DRIFT_TOL's rule (WP-1419); "
+                  "tests/test_distortion_block.py::test_a_hand_edited_coordinate_is_refused_"
+                  "and_round_off_is_not")),
+    Row("rietx.params.vector.DISTORTION_SITE_TOL", "constant", tier=1, value=1e-08,
+        evidence=("linear-algebra round-off: R.v - v of an allowed mode vector is ~1e-15, a "
+                  "forbidden one O(1) (docstring, WP-1419); tests/test_distortion_block.py::"
+                  "test_a_mode_vector_its_site_does_not_allow_is_refused")),
     Row("rietx.params.vector.SIZE_CAP_ARM_RTOL", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: as STRAIN_CAP_ARM_RTOL; hysteresis pinned by "
                   "test_strain_cap.py:414")),
