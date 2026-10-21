@@ -24,7 +24,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | 2026-10-13 | P2 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-10-15 | P2 | [magnetic](#magnetic) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-14 | P2 | [magnetic](#magnetic) |
-| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 2026-10-15 | P3 | [magnetic](#magnetic) |
+| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 2026-10-21 | P3 | [magnetic](#magnetic) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-10-03 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 2026-10-04 | P3 | [rietview](#rietview) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
@@ -49,7 +49,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1967](1967-what-the-chemist-declares-reaches-the-extinction-screen.md) | What the chemist declares reaches the extinction screen | 2026-10-17 | P2 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
-| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 2026-10-15 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 2026-10-21 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | 2026-10-17 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | 2026-10-20 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-16 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
@@ -396,7 +396,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 🔄 2026-10-21 | P3 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 🔄 2026-10-15 | P2 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-10-14 | P2 | #290, [1326](1326-satellites-without-a-moment.md), [1327](1327-magnetic-structure.md) |
-| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 🔄 2026-10-15 | P3 | [1418](1418-the-magnetic-structure-is-determined.md) ([1327](1327-magnetic-structure.md) soft) |
+| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 🔄 2026-10-21 | P3 | [1418](1418-the-magnetic-structure-is-determined.md) ([1327](1327-magnetic-structure.md) soft) |
 
 ## <a id="rietview"></a>rietview — the structure figure an agent composes
 
@@ -572,7 +572,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1955](1955-a-column-at-a-zero-aperture-and-a-column-the-matrix-cannot-see.md) | A column at a zero aperture, and a column the agreement matrix cannot see | ⬜ | P3 | — |
 | [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) | A cell pays for the lines it predicts and the pattern lacks | ⬜ | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1511](1511-which-cell-does-this-powder-support.md) soft) |
 | [1958](1958-a-phase-with-no-reflection-walks-its-scale-under-trf.md) | A phase with no reflection in range walks its scale under TRF | ⬜ | P3 | — |
-| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 🔄 2026-10-15 | P2 | — ([1909](1909-a-line-on-a-falling-flank.md) soft) |
+| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 🔄 2026-10-21 | P2 | — ([1909](1909-a-line-on-a-falling-flank.md) soft) |
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | 🔄 2026-10-17 | P2 | — ([1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) soft) |
 | [1976](1976-a-correction-summary-judged-at-the-drawn-angle.md) | A correction summary judged at the drawn angle | ✅ 2026-10-15 | — | — |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | ⬜ | P2 | — |

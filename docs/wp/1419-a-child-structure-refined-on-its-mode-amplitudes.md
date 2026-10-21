@@ -1,6 +1,6 @@
 # WP-1419 — a child structure refined on its mode amplitudes
 
-Milestone: magnetic · Status: 🔄 2026-10-15 — C1's mode basis landed from outside (PR #950), on C0a #842 and C0b #889; task 2 is next
+Milestone: magnetic · Status: 🔄 2026-10-21 — C1's mode basis landed from outside (PR #950), on C0a #842 and C0b #889, and #1002's `primary` fix (PR #1022); task 2 is next
 Depends on: 1418 (the mode vectors: irreps, projection, isotropy subgroups);
 1327 soft (the operator-list phase both would share)
 Priority: P3 2026-09-23 — waits on 1418's mode vectors; P2 when they land
@@ -584,6 +584,24 @@ every shipped fixture are bit-identical.
 
 ## Handover log
 
+- **2026-10-21** — PR #1022 (outside contributor) merged as `ad72b3d5`. It
+  fixes the defect § Inherited carries from issue #1002, which it closed.
+  `IrrepModes.primary` now holds only when a component's isotropy group has
+  the child's space-group number *and* its in-cell operation count. The
+  child's own number and count come from spglib on the sum of every
+  component's probe, which is a generic field invariant under H. On the
+  I4/mmm child of the cubic perovskite, S4 (Fm-3m) now reads `False` and S6
+  (I4/mmm) `True`, and the new test fails on the old code. `mode_amplitudes`
+  copies the flag, so `ModeAmplitude.primary` changes the same way, and the
+  1.10.0 release note says so. It costs one extra spglib call per
+  `distortion_basis`. It does not tick a task here. What it does not do: it
+  compares the number and the count, never the operations themselves, so a
+  group of the child's type in another orientation would still read `True`
+  (read off the code, not measured). Gated in a stack with #1072
+  and #1030 on `main` `355a57dd` (tree `1f5d2647`, content-identical to `main`
+  after the three merges). The fast suite gave 11042 passed, 120 skipped,
+  3 xfailed; a five-PR superset of it gave 324 passed, 12 skipped, 1 xfailed
+  on the whole `-m slow` suite (macOS arm64, `[dev,jax]`, Python 3.12.10).
 - **2026-10-15** — PR #950 (outside contributor, chunk C1 of #286's proposal)
   merged as `e517bb64`. A child structure can now be read as a displaced parent.
   `crystallography.representation.distortion` builds the symmetry-adapted mode
