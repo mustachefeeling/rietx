@@ -884,12 +884,93 @@ def test_a_bank_stating_no_type_flag_is_still_read_as_std(tmp_path, coeffs):
     ``gsas-0``.
     """
     p = write_gsas(tmp_path / "noflag.gsa", bintype="CONST", flag=None,
-                   body="  10 20 30 40\n", nchan=4, coeffs=coeffs)
+                   body="      10      20      30      40\n", nchan=4,
+                   coeffs=coeffs)
     d = rx.read_pattern(p)
     assert d.intensity == [10.0, 20.0, 30.0, 40.0]
     assert d.two_theta == [pytest.approx(10.0 + 0.2 * i) for i in range(4)]
     assert d.sigma is None                       # counts only, Poisson fallback
     assert d.metadata["format"] == "gsas-std"
+
+
+# -------------------------------------------------- gsas STD: (I2, F6.0) fields
+
+def gsas_std_rows(pairs):
+    """(counter number, value) pairs as STD records, packed **literally**.
+
+    Larson & Von Dreele (2004), LAUR 86-748, "GSAS raw powder file", p. 217:
+    ``(10(I2,F6.0))`` as ``(NCTR(I), YO(I))``, ten 8-character fields to a
+    record.  ``None`` as a counter number writes the field blank.  Nothing is
+    imported from ``rietx.io.formats.gsas``.
+    """
+    fields = [("  " if n is None else f"{n:2d}") + f"{v:6.0f}" for n, v in pairs]
+    assert all(len(f) == 8 for f in fields)
+    return "".join("".join(fields[i:i + 10]) + "\n"
+                   for i in range(0, len(fields), 10))
+
+
+#: Counts that do not track the counter numbers: the counter number steps
+#: 3 → 20 → 1 partway through while the counts run on smoothly, which is the
+#: shape of the GSAS-II tutorial pattern the misread was found on (#1061).
+_STD_COUNTS = [29.0, 24.0, 27.0, 21.0, 22.0, 32.0, 29.0, 24.0, 22.0, 25.0,
+               31.0, 28.0, 1684.0, 999999.0, 30.0]
+_STD_COUNTERS = [3] * 6 + [20] * 6 + [1] * 3
+
+
+def test_an_std_bank_that_writes_its_counter_numbers_reads_the_counts(tmp_path):
+    """The counter number is a field of its own and never enters the intensity.
+
+    Split on whitespace, these 15 fields came back as 30 numbers, the counter
+    numbers alternating with the counts and cut at the channel count, so the
+    first half of the counts lay on the whole axis.  999 999 fills its six
+    characters, as the manual allows.
+    """
+    p = write_gsas(tmp_path / "counters.gda", bintype="CONST", flag=None,
+                   body=gsas_std_rows(zip(_STD_COUNTERS, _STD_COUNTS)),
+                   nchan=len(_STD_COUNTS), nrec=2, coeffs=(600, 5, 0, 0))
+    notes: list = []
+    d = rx.read_pattern(p, diagnostics=notes)
+    assert d.intensity == _STD_COUNTS
+    assert len(d.two_theta) == len(_STD_COUNTS)
+    assert d.two_theta[0] == pytest.approx(6.0)
+    assert d.two_theta[-1] == pytest.approx(6.0 + 0.05 * 14)
+    # the esd stays the Poisson fallback on the value as written: the manual
+    # states σ = √I only, and not how it follows for NCTR > 1 (#1061)
+    assert d.sigma is None
+    assert d.metadata["format"] == "gsas-std"
+    # ... and the report says so: file, code and the NCTR range found
+    scaled = [n for n in notes if n.code == "PATTERN_INTENSITY_SCALED"]
+    assert len(scaled) == 1
+    assert "counters.gda" in scaled[0].message
+    assert "run 1 to 20" in scaled[0].message
+    assert scaled[0].where == ["sigma"]
+
+
+@pytest.mark.parametrize("counter", [None, 0, 1])
+def test_a_blank_zero_or_unit_counter_number_reads_the_same(tmp_path, counter):
+    """"If NCTR is zero or missing it is taken as one" — and the counts are equal."""
+    p = write_gsas(tmp_path / "unit.gda", bintype="CONST", flag="STD",
+                   body=gsas_std_rows((counter, v) for v in _STD_COUNTS),
+                   nchan=len(_STD_COUNTS), nrec=2, coeffs=(600, 5, 0, 0))
+    notes: list = []
+    assert rx.read_pattern(p, diagnostics=notes).intensity == _STD_COUNTS
+    assert not [n for n in notes if n.code == "PATTERN_INTENSITY_SCALED"]
+
+
+@pytest.mark.parametrize("bad, where", [
+    (" x    29", "first two characters"),        # a counter number that is not one
+    (" 3  ab12", "last six characters"),          # a value that is not a number
+    (" 3      ", "last six characters"),          # a counter number and no value
+])
+def test_an_std_field_out_of_layout_is_refused_by_name(tmp_path, bad, where):
+    body = gsas_std_rows([(1, 10.0)]).rstrip("\n") + bad[:8] + "\n"
+    p = write_gsas(tmp_path / "bad.gda", bintype="CONST", flag="STD",
+                   body=body, nchan=2, coeffs=(600, 5, 0, 0))
+    with pytest.raises(ValueError) as e:
+        rx.read_pattern(p)
+    msg = str(e.value)
+    assert p.name in msg and "STD" in msg and where in msg
+    assert "characters 9-16 of data record 1" in msg
 
 
 def _gsas_behind_long_time_map(path, *, table_rows, data_rows=40):
@@ -2896,3 +2977,55 @@ def test_a_v3_range_count_that_is_not_a_count_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match="not a number of measurements"):
         rx.read_pattern(p)
+
+
+# ----------------------------------------------- FullProf's XYDATA heading
+def _xydata(path: Path, *, temp: str | None = "4.25", inter: str = "1.0 1.0 0",
+            heading_number: bool = False) -> Path:
+    """A synthetic FullProf ``Ins = 10`` file: the keyword, five heading lines
+    (the manual's, PDF p. 74), then x y σ rows of a small peak on 100 counts."""
+    heading = ["TITLE synthetic", "COND: neutrons",
+               "12.5 7.0 1.0" if heading_number else "FILE: synthetic.xys",
+               f"TEMP {temp}" if temp is not None else "! no temperature",
+               f"INTER {inter} 0.05"]
+    rows = [f"{10 + 0.1 * i:.3f} {100.0 + 50.0 * (i == 50):.3f} 10.0"
+            for i in range(120)]
+    path.write_text("\n".join(["XYDATA", *heading, *rows]) + "\n",
+                    encoding="utf-8")
+    return path
+
+
+def test_an_xydata_heading_carries_its_temperature(tmp_path):
+    """``TEMP tsamp`` becomes the series coordinate; main before this dropped it.
+
+    The positive arm is the same file with no ``TEMP``, which says nothing,
+    and a plain two-column file, which never had a heading to read.
+    """
+    read = rx.read_pattern(_xydata(tmp_path / "t.xys", temp="4.25  4.31"))
+    assert read.metadata["temperature_k"] == "4.25"
+    assert read.intensity[0] == 100.0 and read.sigma[0] == 10.0
+    assert len(read.intensity) == 120
+    silent = rx.read_pattern(_xydata(tmp_path / "n.xys", temp=None))
+    assert "temperature_k" not in silent.metadata
+    plain = write_xy(tmp_path / "plain.xy", [10.0, 10.1, 10.2], [1.0, 2.0, 3.0])
+    assert "temperature_k" not in rx.read_pattern(plain).metadata
+
+
+def test_an_xydata_heading_line_is_never_read_as_a_point(tmp_path):
+    """The manual makes the five lines after the keyword a heading, numeric or not."""
+    read = rx.read_pattern(_xydata(tmp_path / "h.xys", heading_number=True))
+    assert len(read.intensity) == 120
+    assert min(read.two_theta) == pytest.approx(10.0)
+
+
+@pytest.mark.parametrize(("inter", "named"), [
+    ("1.0 2.0 0", "fac_y = 2"), ("0.5 1.0 0", "fac_x = 0.5"),
+    ("1.0 1.0 1", "Interpol = 1")])
+def test_an_xydata_multiplier_or_interpolation_is_refused_by_name(
+        tmp_path, inter, named):
+    """FullProf scales or interpolates these numbers before using them, and
+    this reader does not; main before this read them as written, silently."""
+    with pytest.raises(ValueError, match=named):
+        rx.read_pattern(_xydata(tmp_path / "f.xys", inter=inter))
+    assert rx.read_pattern(_xydata(tmp_path / "u.xys",
+                                   inter="1.0000 1.0000 2")).intensity[0] == 100.0

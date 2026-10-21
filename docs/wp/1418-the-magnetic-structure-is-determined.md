@@ -814,6 +814,13 @@ no magnetic model declared.
 
 ## Handover log
 
+- **2026-10-21** — PR #1062 (outside contributor, `0669ea6e`), merged as
+  `e1cab2ee` by `/pr-review`, carries this WP's number beside 1329's. It moves
+  WP-1329's two series codes into `references/magnetic.md`, applying this WP's
+  rule that every magnetic row in the agent skill goes in that file (one of
+  the two housekeeping clauses in § Inherited). It ticks no task here: the open skill task is
+  M-9's rows and the abstention row, which it does not touch. The record is in
+  WP-1329's log.
 - **2026-10-15** — PR #936 (outside contributor) merged as `50b21045`, and
   with it #565's certificates are complete (part 5 of 5), so #565 is closed. A
   class of magnetic candidates that union-find joined is now split where a proof
