@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-21 — fifth round built (tier 2 widened, width ceilings gone, two search defects fixed); seven questions wait (rulings.md § Sixth round); B14's lifts and two domain tests remain
+Milestone: generality · Status: 🔄 2026-10-21 — sixth round built (a closing stage on every plan, width ceilings at the 2θ axis, tier 2 restated); two questions wait (the evaluation windows, the six settings); B14's lifts and two domain tests remain
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -178,7 +178,9 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       failed waits on the fifth round (`2002-batch/rulings.md`). Left: B14's lifts, the
       fifth round's builds, the restraint image-shell fix. 4th session: Q5's width
       ceilings removed, Q4's switched-off roughness said in its warning, Q6's cap clause,
-      both search defects fixed. Left: Q1-Q3's builds (the sixth round) and B14's lifts.*
+      both search defects fixed. Left: Q1-Q3's builds (the sixth round) and B14's lifts.
+      5th session: the sixth round built (the closing stage, the roughness seed's record,
+      the axis ceilings, the tier-2 rule). Left: B14's lifts.*
 - [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
       moved away goes back through the two grounds. *2026-10-20 (2nd session): one moved
@@ -187,12 +189,17 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       ppm; back through the grounds by the judge: the bound had one family and a named
       dissenter, so the removal stands. No bit-identity golden moved. 3rd session: no
       source behaviour changed (one comment), so nothing moved. 4th session: the ceiling
-      removal and the two search fixes moved no bit-identity golden (darwin/arm64).*
-- [ ] `intermediate_ftol` and any other candidate for the answer-invariant class: the
+      removal and the two search fixes moved no bit-identity golden (darwin/arm64).
+      5th session: the closing stage moves every default fit; no bit-identity golden moved
+      (they pin forward-model residuals), every acceptance suite names the setting, and the
+      guides' quoted numbers were re-measured.*
+- [x] `intermediate_ftol` and any other candidate for the answer-invariant class: the
       invariance test, or the row tiered. *3rd session: the test ran and failed in plain
       esds (0.033-0.074 on cpd-1a) and a hold flips with the tolerance; the rows wait on
       the fifth round. B11's budgets passed and landed invariant. 4th session: re-briefed
-      as the sixth round's Q2, with a closing stage measured (`rulings.md` § Sixth round).*
+      as the sixth round's Q2, with a closing stage measured (`rulings.md` § Sixth round).
+      5th session: behind the shipped closing stage, tier 3 with its failing case
+      (`tests/test_staged_start_invariance.py`); the harmonic seed invariant.*
 - [ ] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
       comparison can show; add a row where a standard exercises it.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for every refit used as evidence.
@@ -200,7 +207,8 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       `b7b11_*`, `seed_invariance_*`, `window_domain_*`, `fd_step_*`). 4th session: the
       0.5 % window polishes wrote `window_domain_*` PNGs; the last-stage, closing-stage and
       Biso-start measurements are scratch scripts with no figure, their numbers in
-      `rulings.md` § Sixth round.*
+      `rulings.md` § Sixth round. 5th session: `staged_start_*` and
+      `window_domain_*_closing` PNGs.*
 - [ ] Skill: none here. A demoted verdict's meaning goes into the package's own output and
       never into a skill row (DESIGN.md § Rules, 3; the record § Decisions, the skill's
       role). List each skill row that named a demoted verdict, for 2008. *2nd session:
@@ -263,6 +271,42 @@ clash table [2018](2018-the-clash-table-measured.md)'s, both split out 2026-10-2
   thresholds quote).
 
 ## Handover log
+
+### 2026-10-21 (5th session) — the sixth round built: every plan ends in a closing stage, and the width ceilings sit at the 2θ axis
+
+Every refinement now ends with one stage more than its plan declares. After the declared stages, rietx recompiles the model at the answer with peak windows that drop 0.1 % of each peak instead of 2 %, and solves once more. On the fluorapatite, cpd-1a and 11-BM NAC the answer then lies within 0.02 esd of the answer with complete peak tails, and two different Biso starts agree to 0.07 esd or better, at 1.05-2.05× the fit time. SRM 660c LaB6 still misses, for two reasons already owned elsewhere. The new default moved 126 fast tests; four parallel lanes sorted them, and nothing they found refutes the closing stage, though two questions about it now wait on the maintainer.
+
+*Done.*
+- The sixth round's answers recorded (`2002-batch/rulings.md` § Sixth round's answers), with the maintainer's standing instruction to use judgement where no option is clear.
+- Q1/Q2, option 3: `RefinementPlan.run_stages()` appends a closing stage (`closing_stage()`: every declared glob in first-seen order, the last declared stage's settings, no seed, the solver's ftol), compiled at `closing_window_tol` (default `CLOSING_WINDOW_TOL` 1e-3, `None` bit-identical to before). `stage_ftols()` and `stage_window_tols()` are parallel to it; both runners, the series collapse, `run_stage` (a `window_area_tol` keyword), `cherry_pick`, `replay`, the GUI ladder and run status, `PlanSpec`, the `.rxt` `closing` line, both manuals and the skill's API index carry it. `StageResult.window_area_tol` and `NodeAction.window_area_tol` record it. Trials that compare χ² with the fit inherit the answer's windows through `_plan_settings`; package-built trial plans (indexing validation, extinction screen, magnetic default solve, body misfit) run none. Every acceptance suite names it (a validation-matrix test now enforces that); the Stephens suite declares `None`.
+- Q3 (c): the roughness seed recorded per model on `StageResult.seeded` (tier 3); the code keeps one 0.3.
+- Q4 (a): the cap clause confirmed. Q5: tier 2 is "already validated in a known code", a dissent no longer moves a default off it, and a choice outside the seven programs' range names its reason (`generality.md`, the judge's question 5, `_audit.py`'s docstring).
+- Q6: nothing bounded; the maintainer's concept filed as WP-2019 (opt-in sets of bounds and defaults per scenario).
+- Q7 (a): the five TCHZ ceilings at the 2θ axis (`TCHZ_CEILING_DEG`, 180°, 180² deg²), tier 1; the brucite test's xfail removed.
+- Behind the closing stage the three start tests pass the ruled 0.1-esd bar (`tests/test_staged_start_invariance.py`): `HARMONIC_WEIGHT_SEED` invariant; the four intermediate-tolerance rows tier 3 with the absent-zircon failure stated; `Atom:biso` invariant on three families (a hand row, waiting on B14's lift).
+- Found and fixed on the way: `replay` now compiles at a node's recorded c_w and window slack as well as its window fraction; a per-stage guard finding repeated on the same paths is reported once, the latest (the closing stage doubled `TEXTURE_NOT_POSITIVE` and its siblings); the GUI ladder shows the closing stage as its last rung, with its node's Rwp (the last declared rung read 0.04141 against the result's 0.04164).
+
+*Measured* (macOS arm64, worktree venv `[dev]`, compiled tier on).
+- Closing answer against the 5e-5 fixed point polished from the same start (`test_window_domain.py::test_the_closing_stage_meets_the_bar`): 0.008, 0.018, 0.019 plain esd on FAP, cpd-1a, NAC, windows 0.026, 0.022, 0.091σ; LaB6 0.908 esd on `u` (a strict xfail citing WP-1467: the closing stage equals one polish at 1e-3 to every printed digit, a second recompile moves u 1 esd and a third 0.002, the high-angle Gaussian variance on the clamp floor).
+- Start tests behind the closing stage: Biso 0.5 against 1.5 Å² 0.000/0.070/0.000 (LaB6 9.36, WP-2012's mirror); `intermediate_ftol` 1e-6 against None 0.000/0.042/0.000/0.000, and 0.185 on cpd-1a with an absent zircon, where at 1e-9 the unseen cell walks to its 400-evaluation budget before the closing stage holds it (the hold no longer flips); the harmonic seed ≤ 0.003.
+- Cost through the shipped code, two interleaved runs each, nothing else running: LaB6 1.05-1.19×, FAP 2.03-2.05×, cpd-1a 1.37-1.38×, NAC 1.12-1.26×. Last session's probe read 1.36-2.26× with the last declared stage at 1e-9.
+- `REFLECTION_MARGIN_DEG` at the closing windows: 0.186σ and 0.124σ at the last points of FAP and cpd-1a, the answers moving 0.026 and 0.043 esd (recorded on its row, not fixed).
+- Brucite under TRF with the ceilings at 180°: Rwp 0.17878, t 0.36, −1.22, 0.40, 2.29; no-ceiling control 0.17891, t −203.
+- Fast selection, final tree before the review: 3 failed, 10 948 passed, 191 skipped, 31 xfailed, 5:47, nothing else running; the three fixed in `a737f66cb` (WP-2019's log line, the landing panel's numbers, `predict` made independent of what the object fitted). The first run after the default changed: 127 failed, 10 808 passed.
+- Lanes (four `general-purpose` Opus agents on disjoint test files, not dispatched under `/wp-start` 6c, so `session_usage.py lanes` sees none): 198 573, 274 275, 207 882 and 328 297 tokens. Main context peaked at 798 K over 351 requests.
+
+*For the maintainer.*
+- **Which windows should evaluation outside a fit use?** A synthetic pattern drawn with `predict()` or `compile_model()` at the default 2 % windows lacks the tails the closing stage fits, and lanes B and C traced every recovery shift with the closing stage on to that: redrawn at 1e-3, texture coefficients recover to 4.5e-9, `AIR_SCATTER_UNDECLARED`'s claims hold, the magnetic angles return to truth. A fresh `Refinement(...).predict()` therefore no longer reproduces a default fit's `y_calc` (1.85e-4 of the peak height). Making evaluation outside a fit default to the closing windows would fix both and move the synthetic data of 39 test files; left alone, the mechanism tests declare no closing stage. Not built.
+- **The six other failing numerical settings**: Q1 proposed the closing stage's rule for them; only the window was built.
+- Under TRF, the closing stage stops CPD brucite where one S_HKL esd collapses (t = −268 against −1.22); LM is unaffected. The Stephens suite declines the closing stage for both fits its information criteria compare.
+- Guard messages now name the closing stage (`HOLD_BLOCKED_PLAN`, `STAGE_PATH_UNKNOWN`, `HIGH_CORRELATION`). Kept, since the stage is visible everywhere else.
+- `SolveCost.from_pawley` stays on the declared stages' windows: at 1e-3 NAC's banded M0 grew a third denser.
+
+*Forwarded.* WP-1467 (LaB6's clamp xfail), WP-2012 (its mirror behind the closing stage), WP-2003 (the series pays the closing stage per pattern, unmeasured along a chain), WP-2015 (presets end in it), WP-2017 (the landed rows, the margin at closing windows, the six settings), WP-2018 (the closing stage against every per-stage action). Filed: WP-2019.
+
+*Gotchas.* A heredoc holding a double-backticked word is refused by the worktree guard; a script written with the Write tool runs. `predict(grid)` must not read the object's fit history: `test_refine_synthetic`'s twin test pins that a never-fitted copy predicts what the fitted one does. A test's synthetic data drawn at the default windows and fitted with the closing stage on is a model mismatch, not a closing-stage cost.
+
+*Next.* 1. The maintainer answers the two questions above, the evaluation windows first, since its answer decides whether the lanes' `closing_window_tol=None` declarations stay. 2. B14's lifts and the interval and width-grid domain tests, as before. 3. WP-2017 inherits the six settings if they are ruled into it.
 
 ### 2026-10-21 (4th session) — the fifth round built; seven questions for the maintainer, three re-briefed against seven programs
 

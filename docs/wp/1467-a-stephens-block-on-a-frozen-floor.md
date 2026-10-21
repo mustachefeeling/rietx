@@ -175,6 +175,7 @@ Debye-Waller factor is not floored, so there is no hinge to lean on.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-21, 5th session, PR #1085).** Every plan now ends in a closing stage at 1e-3 windows, and on SRM 660c LaB6 its answer sits 0.908 plain esd from the converged-tails answer in `profile.u`. At that answer the highest-angle reflections' Gaussian variance U·tan²θ + V·tanθ + W is under the clamp floor, a second recompile moves u by 1 esd and a third by 0.002. `tests/test_window_domain.py::test_the_closing_stage_meets_the_bar[lab6]` is a strict xfail citing this WP, and turns green when the clamp stops moving u.
 - **2026-10-11, from WP-1938 (2nd session): LM is the default on that
   branch, and the stall is the model's edge.** Once 1938 merges, a
   single-histogram fit holds the cone by default. So
