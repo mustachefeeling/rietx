@@ -423,6 +423,9 @@ def _image_misses(cells, rng, pairs_per_cell):
         "at any distance; measured 2026-10-21); short pairs are first missed near "
         "beta 129 deg, 3 A pairs near 136 deg, by up to 1.87 A at beta 149, and a "
         "shell of 2 still misses 10 of 14105 at beta 140-150")))])
+# slow: a domain sweep, 7.2 s for its four passing cells in the fast tier locally
+# (WP-2002 handover), which would join the fast tier's tail on CI
+@pytest.mark.slow
 def test_one_image_shell_finds_the_nearest_image_over_its_domain(kind):
     """``MIN_IMAGE_SHELL`` = 1 against a complete search (B10, ruled 2026-10-19).
 
